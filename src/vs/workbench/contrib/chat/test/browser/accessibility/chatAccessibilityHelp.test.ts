@@ -189,15 +189,14 @@ suite('Chat Accessibility Help', () => {
 		}, { focus: true, open: true, inline: true, status: true, modelSettings: true, resourceLinks: true, nestedSubagent: true });
 	});
 
-	test('documents the Copilot tab switch and independent provider navigation', () => {
+	test('documents Auto as the first Copilot model and independent provider navigation', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
 		assert.deepStrictEqual({
-			switch: help.includes('active Copilot tab has an Auto switch beside the provider name'),
-			keyboardTargets: help.includes('provider button and switch are separate keyboard targets'),
-			providers: help.includes('provider tabs and search remain available'),
-			restored: help.includes('Turn Auto off to restore the previous manual Copilot model'),
+			autoEntry: help.includes('Auto is the first model in the Copilot tab and is selected like any other model'),
+			providers: help.includes('Provider tabs and search remain available'),
+			noSwitch: help.includes('Auto switch'),
 			noImplicitSelection: help.includes('Browsing another provider does not change the selected model'),
-		}, { switch: true, keyboardTargets: true, providers: true, restored: true, noImplicitSelection: true });
+		}, { autoEntry: true, providers: true, noSwitch: false, noImplicitSelection: true });
 	});
 
 	test('explains organization-managed defaults separately from this chat selection', () => {
@@ -205,11 +204,11 @@ suite('Chat Accessibility Help', () => {
 		assert.deepStrictEqual({
 			managedDefault: help.includes('Org default identifies the model your organization sets for new chats'),
 			perChatChoice: help.includes('the checkmark identifies your current selection'),
-			auto: help.includes('Auto section carries the same label when Auto is the organization default'),
+			auto: help.includes('Auto carries the same label when it is the organization default'),
 		}, { managedDefault: true, perChatChoice: true, auto: true });
 	});
 
-	test('documents model details and activating Auto through Optimize for', () => {
+	test('documents model details and Auto\'s Optimize for preferences, including HydraFusion', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
 		assert.deepStrictEqual({
 			details: help.includes('Tab to reach its configuration button'),
@@ -217,13 +216,13 @@ suite('Chat Accessibility Help', () => {
 			inputShortcut: help.includes('opens the same page for the current model'),
 			defaults: help.includes('Known values are shown even at their defaults'),
 			visibility: help.includes('on the hovered, selected, or keyboard-focused model'),
-			inlinePreferences: help.includes('In Auto mode, use Up and Down Arrow to focus an "Optimize for" preference'),
-			hydra: help.includes('HydraFusion, when available, is an alternative routing choice'),
-			hydraDescription: help.includes('Focus HydraFusion and press Tab to reach Learn more'),
-			activation: help.includes('Enter or Space applies the preference and keeps the picker open'),
-			autoEntry: help.includes('both the Auto name and preference readout in the chat input open these routing choices'),
-			noAutoDetails: help.includes('Auto has no separate details page'),
-		}, { details: true, inspection: true, inputShortcut: true, defaults: true, visibility: true, inlinePreferences: true, hydra: true, hydraDescription: true, activation: true, autoEntry: true, noAutoDetails: true });
+			preferences: help.includes('Auto\'s details hold its "Optimize for" preference: Efficiency, Balance, or Intelligence, followed by HydraFusion when available'),
+			activation: help.includes('Choosing a preference selects Auto and keeps its details open'),
+			hydra: help.includes('HydraFusion is a research preview'),
+			hydraDescription: help.includes('shows its description below the preferences, with Learn more reachable by Tab'),
+			hydraSelection: help.includes('Auto stays checked in the model list with HydraFusion as its preference'),
+			autoEntry: help.includes('The preference readout beside Auto in the chat input opens the same details'),
+		}, { details: true, inspection: true, inputShortcut: true, defaults: true, visibility: true, preferences: true, activation: true, hydra: true, hydraDescription: true, hydraSelection: true, autoEntry: true });
 	});
 
 	test('documents Right Arrow details, provider tab keys, and the Back keys', () => {

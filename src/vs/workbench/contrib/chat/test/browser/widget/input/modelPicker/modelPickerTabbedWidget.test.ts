@@ -299,8 +299,7 @@ suite('TabbedModelPicker', () => {
 
 	function defaultBadgeModels(popup: HTMLElement): string[] {
 		return Array.from(popup.querySelectorAll('.chat-model-picker-org-default-badge:not([hidden])'), badge => {
-			const name = badge.closest('.monaco-list-row')?.querySelector('.title')?.textContent
-				?? (badge.closest('.separator') ? 'Auto' : undefined);
+			const name = badge.closest('.monaco-list-row')?.querySelector('.title')?.textContent;
 			assert.ok(name);
 			return name;
 		});
@@ -330,10 +329,12 @@ suite('TabbedModelPicker', () => {
 		};
 		const { popup, picker, selections } = createPicker({ models: [createAutoModel(), createHydraFusionModel(), ...models], workflow });
 		element(popup, '[aria-label="Compare Models"]').click();
+		// Counted from the set size, since a short popup may scroll some choices out of view.
+		const offered = (role: string) => Number(popup.querySelector(`[role="${role}"]`)?.getAttribute('aria-setsize') ?? 0);
 		assert.deepStrictEqual({
 			heading: popup.querySelector('.action-list-header-text')?.textContent,
 			routing: listRows(popup).some(label => label === 'Auto' || label === 'HydraFusion'),
-			checks: popup.querySelectorAll('[role="menuitemcheckbox"]').length,
+			checks: offered('menuitemcheckbox'),
 		}, { heading: 'Attempts\nSelect models.', routing: false, checks: 3 });
 		const list = element(popup, '.monaco-list');
 		list.focus();
@@ -348,14 +349,14 @@ suite('TabbedModelPicker', () => {
 		assert.deepStrictEqual({
 			heading: popup.querySelector('.action-list-header-text')?.textContent,
 			buttons: buttons().map(button => button.textContent?.trim()),
-			radios: popup.querySelectorAll('[role="menuitemradio"]').length,
+			radios: offered('menuitemradio'),
 			checkboxes: popup.querySelectorAll('[role="menuitemcheckbox"]').length,
 		}, { heading: 'Judge\nOptional review.', buttons: ['Cancel', 'Back', 'Done'], radios: 3, checkboxes: 0 });
 		element(popup, '.chat-model-picker-model').click();
 		buttons()[2].click();
 		assert.deepStrictEqual({
 			heading: popup.querySelector('.action-list-header-text')?.textContent,
-			radios: popup.querySelectorAll('[role="menuitemradio"]').length,
+			radios: offered('menuitemradio'),
 			cancel: buttons()[0].textContent?.trim(),
 		}, { heading: 'Synthesizer\nOptional review.', radios: 3, cancel: 'Cancel' });
 		buttons()[1].click();
@@ -480,7 +481,7 @@ suite('TabbedModelPicker', () => {
 	});
 
 	for (const initiallyAuto of [false, true]) {
-		test(`mode and provider changes retain the popup size when opened in ${initiallyAuto ? 'Auto' : 'manual'} mode`, () => {
+		test(`provider changes retain the popup size when opened with ${initiallyAuto ? 'Auto' : 'a manual model'} selected`, () => {
 			const older = model('example-5.5');
 			const auto = createAutoModel();
 			const local = model('Local');
@@ -494,31 +495,18 @@ suite('TabbedModelPicker', () => {
 				const { width, height, x, y } = element(popup, '.chat-model-picker-widget').getBoundingClientRect();
 				return { width, height, x, y };
 			};
-			// Copilot has only two models here, so the Auto view is the taller layout and
-			// must still fit: Efficiency, Balance, Intelligence, and HydraFusion.
-			const visibleRoutes = () => {
-				const listBottom = element(popup, '.monaco-list').getBoundingClientRect().bottom;
-				return Array.from(popup.querySelectorAll('.chat-model-picker-routing-model'), row => row.getBoundingClientRect())
-					.filter(row => row.height > 0 && row.bottom <= listBottom + 0.5).length;
-			};
 			const initial = bounds();
-			const switchTop = element(popup, '[role="switch"]').getBoundingClientRect().top;
-			const initialRoutes = visibleRoutes();
-			element(popup, '[role="switch"]').click();
-			const toggled = bounds();
-			const toggledSwitchTop = element(popup, '[role="switch"]').getBoundingClientRect().top;
-			const autoRoutes = initiallyAuto ? initialRoutes : visibleRoutes();
-			element(popup, '[role="switch"]').click();
+			const firstRow = listRows(popup)[0];
 			element(popup, '.chat-model-picker-tabbar [aria-label="Ollama"]').click();
 			const otherProvider = bounds();
 			element(popup, '.chat-model-picker-tabbar [aria-label="Copilot"]').click();
-			assert.deepStrictEqual({ measurable: initial.height > 0, toggled, toggledSwitchTop, otherProvider, restored: bounds(), autoRoutes }, {
-				measurable: true, toggled: initial, toggledSwitchTop: switchTop, otherProvider: initial, restored: initial, autoRoutes: 4,
+			assert.deepStrictEqual({ measurable: initial.height > 0, firstRow, otherProvider, restored: bounds() }, {
+				measurable: true, firstRow: 'Auto', otherProvider: initial, restored: initial,
 			});
 		});
 	}
 
-	for (const target of ['list', 'switch', 'search', 'details', 'detailsControl', 'back'] as const) {
+	for (const target of ['list', 'search', 'details', 'detailsControl', 'back'] as const) {
 		test(`Escape from ${target} closes the picker in one step`, () => {
 			const { picker, popup, selections } = createPicker({ models: [...models, createAutoModel()] });
 			let hidden = 0;
@@ -530,7 +518,6 @@ suite('TabbedModelPicker', () => {
 			}
 			const selectors = {
 				list: '.monaco-list',
-				switch: '[role="switch"]',
 				search: 'input',
 				details: '.tabbed-action-list-details',
 				detailsControl: '.tabbed-action-list-details [role="radio"]',
@@ -552,8 +539,8 @@ suite('TabbedModelPicker', () => {
 		{ name: 'the selected managed default', policyDefault: '  First  ', expected: ['First'] },
 		{ name: 'a per-chat override', policyDefault: 'Second', expected: ['Second'] },
 		{ name: 'an unavailable managed default', policyDefault: 'Unavailable', expected: [] },
-		{ name: 'Auto as the managed default', models: [createAutoModel(), ...models], policyDefault: 'auto', expected: ['Auto'], selected: ['Balance'] },
-		{ name: 'Auto overriding the managed default', models: [createAutoModel(), ...models], policyDefault: 'First', expected: [], selected: ['Balance'] },
+		{ name: 'Auto as the managed default', models: [createAutoModel(), ...models], policyDefault: 'auto', expected: ['Auto'], selected: ['Auto'] },
+		{ name: 'Auto overriding the managed default', models: [createAutoModel(), ...models], policyDefault: 'First', expected: ['First'], selected: ['Auto'] },
 		...[false, true].map(pinned => ({
 			name: `an older managed default ${pinned ? 'pinned' : 'in the shortlist'}`,
 			models: [model('example-5.5'), model('example-5.6')],
@@ -594,17 +581,17 @@ suite('TabbedModelPicker', () => {
 		});
 	});
 
-	test('refreshes the policy badge and mode switch when models arrive or leave', () => {
+	test('refreshes the policy badge and the Auto row when models arrive or leave', () => {
 		const { picker, popup, selections } = createPicker({ policyDefault: 'Late' });
-		const state = () => ({ defaults: defaultBadgeModels(popup), switchHidden: element(popup, '.tabbed-action-list-tab-toggle').hidden });
+		const state = () => ({ defaults: defaultBadgeModels(popup), auto: listRows(popup).includes('Auto') });
 		const initial = state();
 		picker.refresh([...models, model('Late'), createAutoModel()]);
 		const added = state();
 		picker.refresh(models);
 		assert.deepStrictEqual({ initial, added, removed: state(), selections }, {
-			initial: { defaults: [], switchHidden: true },
-			added: { defaults: ['Late'], switchHidden: false },
-			removed: { defaults: [], switchHidden: true }, selections: [],
+			initial: { defaults: [], auto: false },
+			added: { defaults: ['Late'], auto: true },
+			removed: { defaults: [], auto: false }, selections: [],
 		});
 	});
 
@@ -660,16 +647,28 @@ suite('TabbedModelPicker', () => {
 		});
 	});
 
-	function selectRoutingChoice(popup: HTMLElement, label: string): void {
+	/** The labels of the options in the open details' "Optimize for" control. */
+	function autoTiers(popup: HTMLElement): string[] {
+		return Array.from(popup.querySelectorAll('.tabbed-action-list-details [role="radiogroup"][aria-label="Optimize for"] [role="radio"]'), option => option.textContent ?? '');
+	}
+
+	function chooseOption(popup: HTMLElement, label: string): void {
+		const option = Array.from(popup.querySelectorAll<HTMLElement>('.tabbed-action-list-details [role="radio"]')).find(option => option.textContent === label);
+		assert.ok(option, label);
+		option.click();
+	}
+
+	function selectRow(popup: HTMLElement, label: string): void {
 		const row = Array.from(popup.querySelectorAll<HTMLElement>('.chat-model-picker-model')).find(row => row.querySelector('.title')?.textContent === label);
 		assert.ok(row, label);
 		row.click();
 	}
 
-	test('HydraFusion routing shows its description and Learn more under the entry, without a flyout', () => {
-		const auto = createAutoModel();
+	test('HydraFusion without an Auto to join shows its description and Learn more under its own entry, without a flyout', () => {
+		const auto = model('auto', false);
 		const hydra = createHydraFusionModel();
 		const result = createPicker({ models: [auto, hydra, ...models], selectedModelId: auto.identifier });
+		const leading = listRows(result.popup).slice(0, 2);
 		const row = Array.from(result.popup.querySelectorAll<HTMLElement>('.chat-model-picker-routing-model'))
 			.find(row => row.querySelector('.title')?.textContent === 'HydraFusion');
 		assert.ok(row);
@@ -680,6 +679,7 @@ suite('TabbedModelPicker', () => {
 		const detailBounds = detail.getBoundingClientRect();
 		const linkBounds = link.getBoundingClientRect();
 		const snapshot = {
+			leading,
 			detail: detail.lastChild?.textContent,
 			link: link.textContent,
 			ariaLabel: row.getAttribute('aria-label'),
@@ -689,6 +689,7 @@ suite('TabbedModelPicker', () => {
 		};
 		row.click();
 		assert.deepStrictEqual({ ...snapshot, selections: result.selections }, {
+			leading: ['auto', 'HydraFusion'],
 			detail: 'Picks a workflow per task, using one or more models to draft, review, or escalate.',
 			link: 'Learn more',
 			ariaLabel: 'HydraFusion, Research preview, Picks a workflow per task, using one or more models to draft, review, or escalate.',
@@ -696,6 +697,51 @@ suite('TabbedModelPicker', () => {
 			truncated: true,
 			linkEndsLastLine: true,
 			selections: [hydra.identifier],
+		});
+	});
+
+	test('HydraFusion is Auto\'s last tier and describes itself as a research preview once chosen', async () => {
+		const auto = createAutoModel();
+		const hydra = createHydraFusionModel();
+		const result = createPicker({ models: [...models, auto, hydra], selectedModelId: models[0].identifier });
+		const autoRow = () => {
+			const row = Array.from(result.popup.querySelectorAll('.chat-model-picker-model')).find(row => row.querySelector('.title')?.textContent === 'Auto')!;
+			return { checked: row.getAttribute('aria-checked'), readout: row.querySelector('.action-label')?.textContent };
+		};
+		const description = () => {
+			const element = result.popup.querySelector<HTMLElement>('.chat-model-card-alternative-description');
+			return element && !element.hidden ? element.textContent : undefined;
+		};
+		const list = { rows: listRows(result.popup), auto: autoRow() };
+		openDetails(result.popup, 'Auto');
+		const tiers = { options: autoTiers(result.popup), description: description() };
+		chooseOption(result.popup, 'HydraFusion');
+		await timeout(0);
+		const chosen = {
+			model: result.popup.querySelector('.tabbed-action-list-details .chat-model-card-name')?.textContent,
+			active: result.popup.querySelector('.tabbed-action-list-details [role="radio"][aria-checked="true"]')?.textContent,
+			description: description(),
+			learnMore: !!result.popup.querySelector('.chat-model-card-alternative-description a'),
+		};
+		goBack(result.popup);
+		const listWithHydraFusion = autoRow();
+		// Auto stands for its HydraFusion tier, so picking it again keeps HydraFusion.
+		selectRow(result.popup, 'Auto');
+		reopen(result);
+		openDetails(result.popup, 'Auto');
+		chooseOption(result.popup, 'Efficiency');
+		await timeout(0);
+		const returned = { description: description(), values: result.values.get(auto.identifier) };
+		assert.deepStrictEqual({ list, tiers, chosen, listWithHydraFusion, returned, selections: result.selections }, {
+			list: { rows: ['Auto', '--', 'First', 'Fixed', 'Second'], auto: { checked: 'false', readout: 'Balance' } },
+			tiers: { options: ['Efficiency', 'Balance', 'Intelligence', 'HydraFusion'], description: undefined },
+			chosen: {
+				model: 'Auto', active: 'HydraFusion', learnMore: true,
+				description: 'HydraFusion is a research preview. It picks a workflow per task, using one or more models to draft, review, or escalate. Learn more',
+			},
+			listWithHydraFusion: { checked: 'true', readout: 'HydraFusion' },
+			returned: { description: undefined, values: { tier: 'efficiency' } },
+			selections: [hydra.identifier, auto.identifier],
 		});
 	});
 
@@ -712,22 +758,23 @@ suite('TabbedModelPicker', () => {
 			models: [auto, ...models],
 			beforeSave: async next => { writes.push(next); await pending.p; },
 		});
-		selectRoutingChoice(result.popup, 'Intelligence');
-		const closed = !result.picker.isVisible;
-		reopen(result);
-		selectRoutingChoice(result.popup, 'Efficiency');
+		openDetails(result.popup, 'Auto');
+		chooseOption(result.popup, 'Intelligence');
+		chooseOption(result.popup, 'Efficiency');
 		await timeout(0);
 		const before = [...writes];
 		await pending.complete();
 		await timeout(0);
-		reopen(result);
+		const open = !!result.popup.querySelector('.tabbed-action-list-details');
+		goBack(result.popup);
 		const changes = result.configurationChanges.map(([, , , from, to]) => ({ from, to }));
-		assert.deepStrictEqual({ closed, before, writes, changes, selected: selectedModels(result.popup), selections: result.selections }, {
-			closed: true,
+		const readout = result.popup.querySelector('.chat-model-picker-model[aria-checked="true"] .action-label')?.textContent;
+		assert.deepStrictEqual({ open, before, writes, changes, selected: selectedModels(result.popup), readout, selections: result.selections }, {
+			open: true,
 			before: [{ tier: 'intelligence' }],
 			writes: [{ tier: 'intelligence' }, { tier: 'efficiency' }],
 			changes: [{ from: 'balance', to: 'intelligence' }, { from: 'intelligence', to: 'efficiency' }],
-			selected: ['Efficiency'], selections: [],
+			selected: ['Auto'], readout: 'Efficiency', selections: [],
 		});
 	});
 
@@ -739,7 +786,6 @@ suite('TabbedModelPicker', () => {
 			const ollama = { ...local, identifier: 'ollama/local', metadata: { ...local.metadata, vendor: 'ollama' } };
 			const result = createPicker({ models: [auto, ...models, ollama], beforeSave: async () => { throw failure; } });
 			if (start !== 'Auto') {
-				// The Copilot tab remembers Auto mode, so its tiers are one click away.
 				result.picker.show(result.anchor, { ...result.context, selectedModelId: ollama.identifier });
 				element(result.popup, '.chat-model-picker-tabbar [aria-label="Copilot"]').click();
 			}
@@ -747,31 +793,34 @@ suite('TabbedModelPicker', () => {
 			const previousHandler = errorHandler.getUnexpectedErrorHandler();
 			setUnexpectedErrorHandler(error => reported.push(error));
 			try {
-				selectRoutingChoice(result.popup, 'Intelligence');
+				openDetails(result.popup, 'Auto');
+				chooseOption(result.popup, 'Intelligence');
 				await timeout(0);
 			} finally {
 				setUnexpectedErrorHandler(previousHandler);
 			}
+			result.picker.hide();
 			result.picker.show(result.anchor, { ...result.context, selectedModelId: start === 'Auto' ? auto.identifier : ollama.identifier });
 			element(result.popup, '.chat-model-picker-tabbar [aria-label="Copilot"]').click();
 			assert.deepStrictEqual({
 				reported,
 				changes: result.configurationChanges,
 				selected: selectedModels(result.popup),
+				readout: element(result.popup, '[aria-label^="Auto Details"]').textContent,
 				selections: result.selections,
-			}, { reported: [failure], changes: [], selected: start === 'Auto' ? ['Balance'] : [], selections: [] });
+			}, { reported: [failure], changes: [], selected: start === 'Auto' ? ['Auto'] : [], readout: 'Balance', selections: [] });
 		});
 	}
 
-	for (const reopen of [false, true]) {
-		test(`pending tier saves cannot override ${reopen ? 'a reopened picker with a new scope' : 'switching to manual mode'}`, async () => {
+	for (const newScope of [false, true]) {
+		test(`pending Auto tier saves cannot override ${newScope ? 'a reopened picker with a new scope' : 'a model chosen since'}`, async () => {
 			const auto = createAutoModel();
 			const pending = new DeferredPromise<void>();
-			const result = createPicker({ models: [auto, ...models], beforeSave: () => pending.p });
-			selectRoutingChoice(result.popup, 'Intelligence');
-			result.picker.show(result.anchor, result.context);
-			element(result.popup, '[role="switch"]').click();
-			if (reopen) {
+			const result = createPicker({ models: [auto, ...models], selectedModelId: models[0].identifier, beforeSave: () => pending.p });
+			openDetails(result.popup, 'Auto');
+			chooseOption(result.popup, 'Intelligence');
+			goBack(result.popup);
+			if (newScope) {
 				result.picker.hide();
 				result.picker.show(result.anchor, {
 					...result.context, selectedModelId: models[0].identifier,
@@ -781,19 +830,21 @@ suite('TabbedModelPicker', () => {
 						setModelConfiguration: async () => assert.fail('The new scope must not receive the old write'),
 					},
 				});
+			} else {
+				selectRow(result.popup, 'Second');
+				reopen(result);
 			}
 			await pending.complete();
 			await timeout(0);
 			assert.deepStrictEqual({
 				values: result.values.get(auto.identifier),
 				selected: selectedModels(result.popup),
-				mode: element(result.popup, '[role="switch"]').getAttribute('aria-checked'),
 				selections: result.selections,
-			}, { values: { tier: 'intelligence' }, selected: ['First'], mode: 'false', selections: [models[0].identifier] });
+			}, { values: { tier: 'intelligence' }, selected: [newScope ? 'First' : 'Second'], selections: newScope ? [] : [models[1].identifier] });
 		});
 	}
 
-	test('Copilot modes retain their choices, use exclusive routing, and preserve switch focus', async () => {
+	test('Auto leads only the Copilot tab, and search still finds HydraFusion', () => {
 		const auto = createAutoModel();
 		const hydra = createHydraFusionModel();
 		const local = model('Local');
@@ -802,72 +853,33 @@ suite('TabbedModelPicker', () => {
 				...local, identifier: 'ollama/local', metadata: { ...local.metadata, vendor: 'ollama' },
 			}]
 		});
-		const state = () => ({ selected: selectedModels(result.popup), defaults: defaultBadgeModels(result.popup) });
-		const states = [state()];
-		let toggle = element(result.popup, '[role="switch"]');
-		toggle.focus();
-		toggle.click();
-		const focusAfterToggle = document.activeElement === toggle;
-		const separateControl = !toggle.closest('.monaco-button');
-		const routes = Array.from(result.popup.querySelectorAll('.chat-model-picker-model .title'), title => title.textContent);
-		const closedAfter: boolean[] = [];
-		const choose = (label: string) => {
-			selectRoutingChoice(result.popup, label);
-			closedAfter.push(!result.picker.isVisible);
-			reopen(result);
-		};
-		choose('Balance');
-		await timeout(0);
-		states.push(state());
+		const initial = { rows: listRows(result.popup), selected: selectedModels(result.popup), defaults: defaultBadgeModels(result.popup) };
+		const autoRow = element(result.popup, '[aria-label^="Auto Details"]').closest('.monaco-list-row')!;
+		const autoRowA11y = { hasPopup: autoRow.getAttribute('aria-haspopup'), badge: autoRow.querySelector('.action-item-badge')?.textContent };
+		selectRow(result.popup, 'Auto');
+		const closed = !result.picker.isVisible;
+		reopen(result);
+		const reopened = selectedModels(result.popup);
 		element(result.popup, '.chat-model-picker-tabbar [aria-label="Ollama"]').click();
-		const otherProvider = { selected: selectedModels(result.popup), switch: result.popup.querySelector('[role="switch"]'), defaults: defaultBadgeModels(result.popup) };
-		element(result.popup, '.chat-model-picker-tabbar [aria-label="Copilot"]').click();
-		states.push(state());
+		const otherProvider = listRows(result.popup);
 		element(result.popup, '[data-id="search"]').click();
 		const input = result.popup.querySelector<HTMLInputElement>('input')!;
 		input.value = 'HydraFusion';
 		input.dispatchEvent(new InputEvent('input', { bubbles: true }));
 		const searchResults = Array.from(result.popup.querySelectorAll('.chat-model-picker-model .title'), title => title.textContent);
-		choose('HydraFusion');
-		toggle = element(result.popup, '[role="switch"]');
-		states.push(state());
-		toggle.click();
-		states.push(state());
-		toggle.click();
-		states.push(state());
-		choose('Efficiency');
-		await timeout(0);
-		reopen(result);
-		toggle = element(result.popup, '[role="switch"]');
-		toggle.click();
-		toggle.click();
-		states.push(state());
-		assert.deepStrictEqual({
-			states, routes, otherProvider, searchResults, focusAfterToggle, separateControl, closedAfter,
-			selections: result.selections,
-			changes: result.configurationChanges.map(([, , , from, to]) => ({ from, to })),
-		}, {
-			states: [
-				{ selected: ['First'], defaults: [] },
-				{ selected: ['Balance'], defaults: ['Auto'] },
-				{ selected: ['Balance'], defaults: ['Auto'] },
-				{ selected: ['HydraFusion'], defaults: ['Auto'] },
-				{ selected: ['First'], defaults: [] },
-				{ selected: ['HydraFusion'], defaults: ['Auto'] },
-				{ selected: ['Efficiency'], defaults: ['Auto'] },
-			],
-			routes: ['Efficiency', 'Balance', 'Intelligence', 'HydraFusion'],
-			otherProvider: { selected: [], switch: null, defaults: [] },
+		selectRow(result.popup, 'HydraFusion');
+		assert.deepStrictEqual({ initial, autoRowA11y, closed, reopened, otherProvider, searchResults, selections: result.selections }, {
+			initial: { rows: ['Auto', '--', 'First', 'Fixed', 'Second'], selected: ['First'], defaults: ['Auto'] },
+			autoRowA11y: { hasPopup: 'dialog', badge: '10% discount' },
+			closed: true,
+			reopened: ['Auto'],
+			otherProvider: ['Local'],
 			searchResults: ['HydraFusion'],
-			focusAfterToggle: true,
-			separateControl: true,
-			closedAfter: [true, true, true],
-			selections: [auto.identifier, hydra.identifier, models[0].identifier, hydra.identifier, auto.identifier, models[0].identifier, auto.identifier],
-			changes: [{ from: 'balance', to: 'efficiency' }],
+			selections: [auto.identifier, hydra.identifier],
 		});
 	});
 
-	test('neither routing choices nor the manual fallback select unsupported models or other providers', () => {
+	test('HydraFusion that needs a newer VS Code is offered as an update rather than a tier', () => {
 		const auto = createAutoModel();
 		const local = model('Local');
 		const gated = model('Gated');
@@ -879,17 +891,22 @@ suite('TabbedModelPicker', () => {
 				hydrafusion: { label: 'HydraFusion', exists: true, featured: true, minVSCodeVersion: '99.0.0' },
 			},
 		});
-		const hydra = element(result.popup, '.chat-model-picker-unavailable');
-		hydra.click();
-		const routing = selectedModels(result.popup);
-		element(result.popup, '[role="switch"]').click();
-		assert.deepStrictEqual({ unavailable: hydra.querySelector('.title')?.textContent, routing, selections: result.selections }, {
-			unavailable: 'HydraFusion', routing: ['Balance'], selections: [models[1].identifier],
+		const unavailable = Array.from(result.popup.querySelectorAll<HTMLElement>('.chat-model-picker-unavailable'));
+		unavailable.forEach(row => row.click());
+		openDetails(result.popup, 'Auto');
+		assert.deepStrictEqual({
+			unavailable: unavailable.map(row => row.querySelector('.title')?.textContent),
+			tiers: autoTiers(result.popup),
+			selections: result.selections,
+		}, {
+			unavailable: ['Gated', 'HydraFusion'],
+			tiers: ['Efficiency', 'Balance', 'Intelligence'],
+			selections: [],
 		});
 	});
 
 	for (const entitlement of [ChatEntitlement.Free, ChatEntitlement.EDU]) {
-		test(`${ChatEntitlement[entitlement]} plans show HydraFusion as an unavailable upgrade instead of a routing choice`, () => {
+		test(`${ChatEntitlement[entitlement]} plans show HydraFusion as an unavailable upgrade instead of a tier`, () => {
 			const auto = createAutoModel();
 			const hydra = createHydraFusionModel();
 			const result = createPicker({
@@ -902,15 +919,17 @@ suite('TabbedModelPicker', () => {
 			result.picker.refresh([auto, hydra, ...models]);
 			const unavailableHydra = element(result.popup, '.chat-model-picker-unavailable');
 			unavailableHydra.click();
-			assert.deepStrictEqual({
+			const state = {
 				label: unavailableHydra.querySelector('.title')?.textContent,
 				upgrade: unavailableHydra.textContent?.includes('Upgrade'),
 				selected: selectedModels(result.popup),
-				selections: result.selections,
-			}, {
+			};
+			openDetails(result.popup, 'Auto');
+			assert.deepStrictEqual({ ...state, tiers: autoTiers(result.popup), selections: result.selections }, {
 				label: 'HydraFusion',
 				upgrade: true,
-				selected: ['Balance'],
+				selected: ['Auto'],
+				tiers: ['Efficiency', 'Balance', 'Intelligence'],
 				selections: [],
 			});
 		});
@@ -947,7 +966,9 @@ suite('TabbedModelPicker', () => {
 				paid: { hydrafusion: { label: 'HydraFusion', exists: true, featured: true } },
 			},
 		});
-		const before = Array.from(result.popup.querySelectorAll('.chat-model-picker-routing-model .title'), element => element.textContent);
+		openDetails(result.popup, 'Auto');
+		const before = autoTiers(result.popup);
+		goBack(result.popup);
 		result.setEntitlement(ChatEntitlement.Free);
 		const unavailableHydra = element(result.popup, '.chat-model-picker-unavailable');
 		assert.deepStrictEqual({
@@ -960,7 +981,7 @@ suite('TabbedModelPicker', () => {
 			before: ['Efficiency', 'Balance', 'Intelligence', 'HydraFusion'],
 			label: 'HydraFusion',
 			upgrade: true,
-			selected: ['Balance'],
+			selected: ['Auto'],
 			selections: [],
 		});
 	});
@@ -981,14 +1002,19 @@ suite('TabbedModelPicker', () => {
 				paid: { hydrafusion: { label: 'HydraFusion', exists: true, featured: true } },
 			},
 		});
+		const before = element(result.popup, '[aria-label^="Auto Details"]').textContent;
 		result.setEntitlement(ChatEntitlement.Free);
 		assert.deepStrictEqual({
+			before,
 			upgrade: element(result.popup, '.chat-model-picker-unavailable').textContent?.includes('Upgrade'),
 			selected: selectedModels(result.popup),
+			after: element(result.popup, '[aria-label^="Auto Details"]').textContent,
 			selections: result.selections,
 		}, {
+			before: 'HydraFusion',
 			upgrade: true,
-			selected: ['Balance'],
+			selected: ['Auto'],
+			after: 'Balance',
 			selections: [auto.identifier],
 		});
 	});
@@ -1022,7 +1048,7 @@ suite('TabbedModelPicker', () => {
 		});
 	});
 
-	test('Auto-only plans name the tab Auto without a switch and retain unavailable models and provider navigation', () => {
+	test('Auto-only plans list Auto beside unavailable models and retain provider navigation', () => {
 		const result = createPicker({
 			models: [createAutoModel()],
 			showUnavailable: true,
@@ -1031,26 +1057,25 @@ suite('TabbedModelPicker', () => {
 		});
 		const initial = {
 			tabs: Array.from(result.popup.querySelectorAll('.chat-model-picker-tabbar [role="radio"]'), tab => tab.getAttribute('aria-label')),
-			switchHidden: element(result.popup, '.tabbed-action-list-tab-toggle').hidden,
 			selected: selectedModels(result.popup),
 			unavailable: result.popup.textContent?.includes('Locked Model'),
 		};
 		element(result.popup, '.chat-model-picker-tabbar [aria-label="Ollama"]').click();
 		assert.deepStrictEqual({ initial, emptyProvider: !!result.popup.querySelector('.tabbed-action-list-empty'), selections: result.selections }, {
-			initial: { tabs: ['Auto', 'Ollama'], switchHidden: true, selected: ['Balance'], unavailable: true },
+			initial: { tabs: ['Copilot', 'Ollama'], selected: ['Auto'], unavailable: true },
 			emptyProvider: true,
 			selections: [],
 		});
 	});
 
-	test('Free and Student plans head the models that Auto-only access lacks as upgrades, beside the routing choices', () => {
+	test('Free and Student plans head the models that Auto-only access lacks as upgrades, below Auto', () => {
 		const rows = [ChatEntitlement.Free, ChatEntitlement.EDU].map(entitlement => listRows(createPicker({
 			models: [createAutoModel()],
 			entitlement,
 			showUnavailable: true,
 			controlModels: { locked: { label: 'Locked Model', exists: false, featured: true } },
 		}).popup));
-		assert.deepStrictEqual(rows, Array(2).fill(['--Optimize for · 10% discount', 'Efficiency', 'Balance', 'Intelligence', '--Upgrade for More Models', 'Locked Model']));
+		assert.deepStrictEqual(rows, Array(2).fill(['Auto', '--Upgrade for More Models', 'Locked Model']));
 	});
 
 	test('Free and Student plans keep the Copilot tab for upgrades when Copilot relays no selectable model', () => {
@@ -1075,58 +1100,74 @@ suite('TabbedModelPicker', () => {
 		});
 	});
 
-	test('HydraFusion alone stays grouped under the Auto tab without a switch', () => {
+	test('HydraFusion alone keeps its own row in the Copilot tab, without Details', () => {
 		const hydra = createHydraFusionModel();
 		const { popup, selections } = createPicker({ models: [hydra], selectedModelId: hydra.identifier });
 		assert.deepStrictEqual({
 			tabs: Array.from(popup.querySelectorAll('.chat-model-picker-tabbar [role="radio"]'), tab => tab.getAttribute('aria-label')),
-			switchHidden: element(popup, '.tabbed-action-list-tab-toggle').hidden,
 			rows: listRows(popup),
 			selected: selectedModels(popup),
+			actions: popup.querySelectorAll('.chat-model-picker-model .action-label').length,
 			selections,
 		}, {
-			tabs: ['Auto'],
-			switchHidden: true,
-			rows: ['--Alternative routing', 'HydraFusion'],
+			tabs: ['Copilot'],
+			rows: ['HydraFusion'],
 			selected: ['HydraFusion'],
+			actions: 0,
 			selections: [],
 		});
 	});
 
-	for (const [name, auto] of [['Auto with tiers', createAutoModel()], ['Auto without a schema', model('auto', false)], ['HydraFusion', createHydraFusionModel()]] as const) {
-		test(`${name} has no Details entry point`, () => {
-			const { picker, popup, anchor, context, selections } = createPicker({ models: [auto, ...models], details: auto.identifier });
-			const initial = {
-				details: !!popup.querySelector('.tabbed-action-list-details'),
-				actions: popup.querySelectorAll('.chat-model-picker-model .action-label').length,
-				mode: element(popup, '[role="switch"]').getAttribute('aria-checked'),
+	for (const { name, routing, requested, expected } of [
+		{ name: 'Auto with tiers', routing: [createAutoModel()], requested: 'auto', expected: { model: 'Auto', groups: ['Optimize for'] } },
+		{ name: 'Auto without a schema', routing: [model('auto', false)], requested: 'auto', expected: { model: 'auto', groups: [] } },
+		{ name: 'HydraFusion as Auto\'s tier', routing: [createAutoModel(), createHydraFusionModel()], requested: 'hydrafusion', expected: { model: 'Auto', groups: ['Optimize for'] } },
+		{ name: 'HydraFusion without an Auto to join', routing: [createHydraFusionModel()], requested: 'hydrafusion', expected: undefined },
+	]) {
+		test(`${name} ${expected ? 'opens Auto\'s Details' : 'has no Details'} from the chat input, the list, and search`, () => {
+			const { picker, popup, anchor, context, selections } = createPicker({ models: [...routing, ...models], details: `copilot/${requested}` });
+			const details = () => {
+				const page = popup.querySelector('.tabbed-action-list-details');
+				return page ? {
+					model: page.querySelector('.chat-model-card-name')?.textContent,
+					groups: Array.from(page.querySelectorAll('[role="radiogroup"]'), group => group.getAttribute('aria-label')),
+				} : undefined;
 			};
+			const direct = details();
+			if (direct) {
+				goBack(popup);
+			}
+			const label = expected?.model ?? 'HydraFusion';
+			const listAction = !!popup.querySelector(`[aria-label^="${label} Details"]`);
 			element(popup, '[data-id="search"]').click();
 			const input = popup.querySelector<HTMLInputElement>('input')!;
-			input.value = auto.metadata.name;
+			input.value = label;
 			input.dispatchEvent(new InputEvent('input', { bubbles: true }));
-			const searchActions = popup.querySelectorAll('.chat-model-picker-model .action-label').length;
+			const searchAction = !!popup.querySelector(`[aria-label^="${label} Details"]`);
 			picker.hide();
-			picker.show(anchor, context, auto.identifier, true);
-			assert.deepStrictEqual({ initial, searchActions, reopenedDetails: !!popup.querySelector('.tabbed-action-list-details'), selections }, {
-				initial: { details: false, actions: 0, mode: 'true' }, searchActions: 0, reopenedDetails: false, selections: [],
+			picker.show(anchor, context, `copilot/${requested}`, true);
+			assert.deepStrictEqual({ direct, listAction, searchAction, reopened: details(), selections }, {
+				direct: expected, listAction: !!expected, searchAction: !!expected, reopened: expected, selections: [],
 			});
 		});
 	}
 
-	test('an Auto tier controlled by a read-only schema cannot be changed', () => {
+	test('an Auto tier controlled by a read-only schema cannot be changed, but HydraFusion can still be chosen', async () => {
 		const auto = createAutoModel();
+		const hydra = createHydraFusionModel();
 		const result = createPicker({
-			models: [{ ...auto, metadata: { ...auto.metadata, configurationSchema: { properties: { tier: { ...auto.metadata.configurationSchema!.properties!.tier, readOnly: true } } } } }, ...models],
+			models: [{ ...auto, metadata: { ...auto.metadata, configurationSchema: { properties: { tier: { ...auto.metadata.configurationSchema!.properties!.tier, readOnly: true } } } } }, hydra, ...models],
 		});
-		selectRoutingChoice(result.popup, 'Intelligence');
-		const inlineSelection = result.popup.querySelector('.chat-model-picker-model[aria-checked="true"] .title')?.textContent;
-		assert.deepStrictEqual({
-			inlineSelection,
-			disabled: Array.from(result.popup.querySelectorAll('.chat-model-picker-model'), choice => choice.classList.contains('option-disabled')),
-			saved: result.values.get(auto.identifier),
-			selections: result.selections,
-		}, { inlineSelection: 'Balance', disabled: [true, false, true], saved: undefined, selections: [] });
+		openDetails(result.popup, 'Auto');
+		const disabled = Array.from(result.popup.querySelectorAll('.tabbed-action-list-details [role="radio"]'), option => option.getAttribute('aria-disabled') === 'true');
+		chooseOption(result.popup, 'Intelligence');
+		await timeout(0);
+		const saved = result.values.get(auto.identifier);
+		chooseOption(result.popup, 'HydraFusion');
+		await timeout(0);
+		assert.deepStrictEqual({ disabled, saved, selections: result.selections }, {
+			disabled: [true, true, true, false], saved: undefined, selections: [hydra.identifier],
+		});
 	});
 
 	test('configuration readouts are visible for the current model and keyboard focus, not pointer-only focus', () => {
@@ -1396,16 +1437,18 @@ suite('TabbedModelPicker', () => {
 		});
 	});
 
-	test('live scoped values refresh Auto choices directly without a Details page', () => {
+	test('live scoped values refresh Auto\'s Details and its readout', () => {
 		const auto = model('auto');
 		const result = createPicker({ models: [auto, ...models], details: auto.identifier });
 		result.values.set(auto.identifier, { effort: 'high' });
 		result.changed.fire(auto.identifier);
+		const tier = result.popup.querySelector('.tabbed-action-list-details [role="radio"][aria-checked="true"]')?.textContent;
+		goBack(result.popup);
 		assert.deepStrictEqual({
-			inlineTier: result.popup.querySelector('.chat-model-picker-model[aria-checked="true"] .title')?.textContent,
-			details: !!result.popup.querySelector('.tabbed-action-list-details'),
+			tier,
+			readout: element(result.popup, '[aria-label^="auto Details"]').textContent,
 			visible: result.picker.isVisible, selections: result.selections,
-		}, { inlineTier: 'High', details: false, visible: true, selections: [] });
+		}, { tier: 'High', readout: 'High · 32K', visible: true, selections: [] });
 	});
 
 	test('cached details reread configuration and reset state after returning to the list', () => {
