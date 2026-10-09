@@ -509,7 +509,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			return existingConnection;
 		}
 		const entry = this._entries.get(normalizedAddress);
-		if (entry && RemoteAgentHostConnectionStatus.isIncompatible(entry.status)) {
+		if (entry && RemoteAgentHostConnectionStatus.isIncompatible(entry.status) && !this._pendingConnects.has(normalizedAddress)) {
 			throw new Error(entry.status.message);
 		}
 		const reconnectFailure = this._failedReconnects.get(normalizedAddress);
@@ -907,14 +907,18 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 				case 'connecting':
 				case 'closed':
 					break;
-				case 'incompatible':
+				case 'incompatible': {
+					const wasReconnecting = RemoteAgentHostConnectionStatus.isReconnecting(entry.status);
 					observer?.('failed');
 					entry.connected = false;
 					entry.status = RemoteAgentHostConnectionStatus.incompatible('Authentication failed during connection initialization.', getAgentHostSupportedProtocolVersions());
 					this._reconnectAttempts.delete(address);
-					this._rejectPendingConnectionWait(address, new Error('Authentication failed during connection initialization.'));
+					if (wasReconnecting) {
+						this._rejectPendingConnectionWait(address, new Error('Authentication failed during connection initialization.'));
+					}
 					this._onDidChangeConnections.fire();
 					break;
+				}
 			}
 		}));
 

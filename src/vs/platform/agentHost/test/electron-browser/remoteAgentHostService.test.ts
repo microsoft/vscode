@@ -1426,9 +1426,12 @@ suite('RemoteAgentHostService', () => {
 				const error = authenticationFailure
 					? new InitialAuthenticationError(new Error('Unsupported protocol version'))
 					: new ProtocolError(AHP_UNSUPPORTED_PROTOCOL_VERSION, 'Unsupported protocol version', { supportedVersions: ['2.0.0'] });
+				const originalFailure = assert.rejects(wait, rejected => rejected === error);
+				client.fireConnectionState('incompatible');
+				const joiningFailure = assert.rejects(service.waitForConnection(getEntryAddress(entry)), rejected => rejected === error);
 				client.connectDeferred.error(error);
 				await changed;
-				await assert.rejects(() => wait, /Unsupported protocol version/);
+				await Promise.all([originalFailure, joiningFailure]);
 
 				const upgradeResult = await service.triggerServerUpgrade('cloud:incompatible', '_vscodeUpgrade');
 
