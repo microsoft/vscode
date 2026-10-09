@@ -42,6 +42,7 @@ import { IChatAcceptInputOptions, IChatListItemRendererOptions, IChatWidgetViewM
 import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
 import { ChatRequestVariableSet } from '../../../common/attachments/chatVariableEntries.js';
 import { clearChatMarks } from '../../../common/chatPerf.js';
+import { CloudSandboxSessionTrace } from '../../../common/cloudSandboxSessionTrace.js';
 import { ChatRequestQueueKind, ChatSendResult, ChatSendResultSent, IChatSendRequestData, IChatSendRequestOptions, IChatService } from '../../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
 import { IChatMode } from '../../../common/chatModes.js';
@@ -54,15 +55,76 @@ import { ChatRequestParser } from '../../../common/requestParser/chatRequestPars
 import { ToolAndToolSetEnablementMap } from '../../../common/tools/languageModelToolsService.js';
 import { observePromptTimelineHostWidth } from '../../../browser/promptTimeline/promptTimelineWidgetContrib.js';
 import { ChatContentMarkdownRenderer } from '../../../browser/widget/chatContentMarkdownRenderer.js';
+import { ChatReadOnlyBanner } from '../../../browser/widget/chatReadOnlyBanner.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { createChatUserInteractionTestHarness } from '../chatUserInteractionTestUtils.js';
-import { ChatReadOnlyBanner } from '../../../browser/widget/chatReadOnlyBanner.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { SessionType } from '../../../common/chatSessionsService.js';
 
 suite('ChatWidget', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('history failure updates the existing read-only banner without repeating announcements or retaining hovers', () => {
+		let activeHovers = 0;
+		let createdHovers = 0;
+		const instantiation = store.add(new TestInstantiationService());
+		instantiation.stub(IOpenerService, { open: async () => true });
+		instantiation.stub(IHoverService, upcastPartial<IHoverService>({
+			setupDelayedHover: () => {
+				activeHovers++;
+				createdHovers++;
+				return toDisposable(() => activeHovers--);
+			},
+		}));
+		const banner = store.add(instantiation.createInstance(ChatReadOnlyBanner, 'This chat is read-only'));
+		banner.setVisible(true);
+		banner.setMessage('Couldn\'t refresh this conversation. Recent messages may be missing.');
+		const text = banner.domNode.querySelector('.chat-readonly-banner-text')!;
+		const firstNode = text.firstChild;
+		banner.setMessage('Couldn\'t refresh this conversation. Recent messages may be missing.');
+		const updating = { message: text.textContent, sameNode: firstNode === text.firstChild, activeHovers, createdHovers };
+		banner.setMessage(undefined);
+		const restored = text.textContent;
+		banner.dispose();
+		assert.deepStrictEqual({ updating, restored, activeHovers, role: banner.domNode.getAttribute('role') }, {
+			updating: { message: 'Couldn\'t refresh this conversation. Recent messages may be missing.', sameNode: true, activeHovers: 1, createdHovers: 2 },
+			restored: 'This chat is read-only', activeHovers: 0, role: 'status',
+		});
+	});
+
+	test('records the first visible transcript refresh once on the correlated local trace', () => {
+		const messages: string[] = [];
+		const logService = new class extends NullLogService {
+			override info(message: string): void { messages.push(message); }
+		}();
+		const trace = store.add(new CloudSandboxSessionTrace(logService));
+		const resource = URI.parse('test:/private-session');
+		const model = upcastPartial<IChatModel>({ sessionResource: resource });
+		trace.associate(model);
+		const visible = observableValue('visible', false);
+		const widget = Object.assign(Object.create(ChatWidget.prototype), {
+			_visible: visible,
+			_viewModel: upcastPartial<ChatViewModel>({ model, sessionResource: resource, getItems: () => [] }),
+			_pendingFirstRenderSessionResource: resource,
+			_onWillMaybeChangeHeight: store.add(new Emitter<void>()),
+			logService,
+			listWidget: { setVisibleChangeCount: () => { }, refresh: () => { } },
+			renderWelcomeViewContentIfNeeded: () => { },
+			renderFollowups: () => { },
+		}) as { onDidChangeItems(): void };
+		widget.onDidChangeItems();
+		const whileHidden = messages.filter(message => message.includes('event=firstRender')).length;
+		visible.set(true, undefined);
+		widget.onDidChangeItems();
+		widget.onDidChangeItems();
+
+		assert.deepStrictEqual({
+			whileHidden,
+			whenVisible: messages.filter(message => message.includes(`traceId=${trace.id} event=firstRender`)).length,
+			privateData: messages.some(message => message.includes('private-session')),
+		}, { whileHidden: 0, whenVisible: 1, privateData: false });
+	});
 
 	function createRequestToolsWidget() {
 		const sessionA = upcastPartial<ChatViewModel>({ sessionResource: URI.parse('test:/a') });
