@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { useFakeTimers } from 'sinon';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { IDefaultAccount } from '../../../../../../base/common/defaultAccount.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
@@ -37,7 +37,7 @@ import { NullTelemetryService } from '../../../../../../platform/telemetry/commo
 import { IGitHubService } from '../../../../github/browser/githubService.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { IAutomationSchedule } from '../../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { AutomationMutationUncertainError } from '../../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { AutomationMutationUncertainError, AutomationUnavailableError } from '../../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING, CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING } from '../../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IToolImpl } from '../../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { IChatEntitlementService, IChatSentiment } from '../../../../../../workbench/services/chat/common/chatEntitlementService.js';
@@ -238,8 +238,8 @@ suite('CloudAutomationStore', () => {
 			configure: new ConfigureAutomationTool(service, sessions, context.configuration, NullTelemetryService),
 			run: new RunAutomationTool(service, runner, context.configuration),
 		};
-		const invoke = async (tool: IToolImpl, parameters: object) => {
-			const result = await tool.invoke({ callId: 'call', toolId: 'tool', parameters, context: undefined }, async () => 0, { report: () => { } }, CancellationToken.None);
+		const invoke = async (tool: IToolImpl, parameters: object, token = CancellationToken.None) => {
+			const result = await tool.invoke({ callId: 'call', toolId: 'tool', parameters, context: undefined }, async () => 0, { report: () => { } }, token);
 			const part = result.content[0];
 			assert.ok(part.kind === 'text');
 			return JSON.parse(part.value);
@@ -310,6 +310,31 @@ suite('CloudAutomationStore', () => {
 		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, false);
 		await pending.complete();
 		assert.deepStrictEqual(await listing, []);
+	});
+
+	test('list cancellation returns before a slow shared refresh without publishing results or loading tools', async () => {
+		const { api, provider, set, tools, invoke } = setupTools();
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		const pending = new DeferredPromise<void>();
+		const cancellation = disposables.add(new CancellationTokenSource());
+		api.pendingList = pending.p;
+		const listing = invoke(tools.list, {}, cancellation.token);
+		await timeout(0);
+		assert.ok(api.calls.includes('list'));
+		cancellation.cancel();
+		try {
+			assert.deepStrictEqual({ result: await listing, tools: api.calls.includes('tools') }, { result: { status: 'cancelled' }, tools: false });
+		} finally {
+			await pending.complete();
+		}
+		await provider.refresh();
+		assert.deepStrictEqual({ result: await listing, tools: api.calls.includes('tools') }, { result: { status: 'cancelled' }, tools: false });
+	});
+
+	test('an already cancelled list invocation starts no provider requests', async () => {
+		const { api, set, tools, invoke } = setupTools();
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		assert.deepStrictEqual({ result: await invoke(tools.list, {}, CancellationToken.Cancelled), calls: api.calls }, { result: { status: 'cancelled' }, calls: [] });
 	});
 
 	test('list tool separates history-only failure from ready definitions and exposes cached active runs', async () => {
@@ -868,6 +893,27 @@ suite('CloudAutomationStore', () => {
 		assert.deepStrictEqual({ automations: provider.automations.get(), sent: api.calls.includes('update') }, { automations: [], sent: false });
 	});
 
+	test('run preflight removes a remotely deleted definition and its history before reporting unavailable', async () => {
+		const { provider, api, set } = setup();
+		api.tasks = [{ id: 'task', state: 'completed', created_at: definition.created_at, remote_steerable: false }];
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		await provider.refresh();
+		const automation = provider.automations.get()[0];
+		assert.strictEqual(provider.runs.get().length, 1);
+		api.getError = new ApiRequestError(404, 'notFound');
+		await assert.rejects(provider.runAutomation(automation.id), error => error instanceof AutomationUnavailableError && /no longer available/.test(error.message));
+		assert.deepStrictEqual({ automations: provider.automations.get(), runs: provider.runs.get(), dispatches: api.dispatchRequests }, { automations: [], runs: [], dispatches: [] });
+	});
+
+	test('run preflight retains cached definitions on non-404 failures', async () => {
+		const { provider, api, set } = setup();
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		await provider.refresh();
+		const automation = provider.automations.get()[0];
+		api.getError = new ApiRequestError(503, 'unknown');
+		await assert.rejects(provider.runAutomation(automation.id), error => error === api.getError);
+		assert.deepStrictEqual({ automations: provider.automations.get(), dispatches: api.dispatchRequests }, { automations: [automation], dispatches: [] });
+	});
 	test('logs and hides unknown run states without hiding valid history and restores recognized runs', async () => {
 		const warnings: string[] = [];
 		const logService = new class extends NullLogService {

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { raceCancellation } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
@@ -146,14 +147,17 @@ export class ListAutomationsTool implements IToolImpl {
 		};
 	}
 
-	async invoke(_invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, _token: CancellationToken): Promise<IToolResult> {
+	async invoke(_invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
 		if (!isAutomationsEnabled(this.configurationService)) {
 			return automationToolError('Automations are disabled.');
+		}
+		if (token.isCancellationRequested) {
+			return automationListCancelled();
 		}
 
 		const providerResults = await Promise.all(this.sessionsProvidersService.getProviders().map(async (provider): Promise<IAutomationProviderToolOutput[]> => {
 			const store = provider.automations;
-			if (!store || store.enabled?.get() === false) {
+			if (!store || store.enabled?.get() === false || token.isCancellationRequested) {
 				return [];
 			}
 			const configuration = store.configuration;
@@ -161,11 +165,11 @@ export class ListAutomationsTool implements IToolImpl {
 			let refreshError: string | undefined;
 			if (configuration) {
 				try {
-					await store.refresh?.();
+					await raceCancellation(store.refresh?.() ?? Promise.resolve(), token);
 				} catch (error) {
 					refreshError = error instanceof Error ? error.message : String(error);
 				}
-				if (store.enabled?.get() === false || !isAutomationsEnabled(this.configurationService)) {
+				if (token.isCancellationRequested || store.enabled?.get() === false || !isAutomationsEnabled(this.configurationService)) {
 					return [];
 				}
 				tools = configuration.tools.get();
@@ -196,6 +200,9 @@ export class ListAutomationsTool implements IToolImpl {
 				automations: store.automations.get().map(automation => toAutomationListToolOutput(automation, this.automationService)),
 			}];
 		}));
+		if (token.isCancellationRequested) {
+			return automationListCancelled();
+		}
 		if (!isAutomationsEnabled(this.configurationService)) {
 			return automationToolError('Automations are disabled.');
 		}
@@ -1212,6 +1219,12 @@ function automationToolCancelled(): IToolResult {
 		message: 'The automation change was cancelled. No changes were made.',
 	}));
 	result.toolResultMessage = localize('automation.tool.cancelled', "Automation change cancelled");
+	return result;
+}
+
+function automationListCancelled(): IToolResult {
+	const result = automationToolResult(JSON.stringify({ status: 'cancelled' }));
+	result.toolResultMessage = localize('automation.tool.list.cancelled', "Listing automations cancelled");
 	return result;
 }
 
