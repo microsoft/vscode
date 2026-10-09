@@ -264,7 +264,6 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		const allowed = rootState && !(rootState instanceof Error) ? rootState.agents.filter(a => this._shouldRegisterAgent(a.provider)) : undefined;
 		const incoming = allowed ? new Set(allowed.map(a => a.provider)) : undefined;
 
-		// Only a valid root snapshot can remove agents that are still allowed.
 		for (const [provider] of this._agentRegistrations) {
 			if (!this._shouldRegisterAgent(provider) || incoming?.has(provider) === false) {
 				this._agentRegistrations.deleteAndDispose(provider);
