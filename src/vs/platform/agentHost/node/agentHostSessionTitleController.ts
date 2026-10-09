@@ -3,19 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Limiter } from '../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
-import { Disposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
+import { isObject } from '../../../base/common/types.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
+import { AgentHostTitleGenerationStrategies, type AgentHostTitleGenerationStrategy } from '../common/agentHostSchema.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { SessionServerToolName } from '../common/serverToolNames.js';
 import { ActionType } from '../common/state/sessionActions.js';
-import { buildDefaultChatUri, isAhpChatChannel, isDefaultChatUri, type Turn, type URI as ProtocolURI } from '../common/state/sessionState.js';
+import { buildDefaultChatUri, isAhpChatChannel, isDefaultChatUri, TurnState, type Turn, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { buildConversationContext, renderResponseMarkdown, truncateMiddle } from '../common/agentHostConversationContext.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
-import type { GitHubIssueOrPullRequest, IAgentHostOctoKitService } from './shared/agentHostOctoKitService.js';
+import type { IAgentHostPeerChatPersistenceService } from './agentHostPeerChatStore.js';
+import type { GitHubIssueOrPullRequest } from '../../github/common/githubQueryService.js';
+import type { IAgentHostGitHubService } from './agentHostGitHubService.js';
 import { ICopilotApiService, type ICopilotUtilityChatMessage } from './shared/copilotApiService.js';
 import { AGENT_HOST_TITLE_SOURCE_AGENT, AGENT_HOST_TITLE_SOURCE_AUTO, AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, persistSessionMetadata, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from './shared/persistSessionMetadata.js';
 
@@ -23,7 +26,6 @@ const MAX_TITLE_LENGTH = 200;
 const MAX_ACTIVE_AGENT_FALLBACK_TITLE_LENGTH = 40;
 const MAX_TITLE_TOKENS = 32;
 const GITHUB_CONTEXT_REQUEST_TIMEOUT = 5_000;
-const MAX_CONCURRENT_GITHUB_CONTEXT_REQUESTS = 5;
 const MAX_GITHUB_CONTEXT_BODY_CHARS = 4_000;
 const MAX_GITHUB_CONTEXT_REFERENCES = 10;
 const MAX_TRAILING_HAN_SUFFIX_CODE_UNITS = 6;
@@ -32,7 +34,31 @@ const MIN_LATIN_LETTER_RATIO = 0.8;
 const HAN_CHARACTER = /\p{sc=Han}/u;
 const TRAILING_HAN_SUFFIX = /(?<!\p{sc=Han})\p{sc=Han}{2,3}$/u;
 const GITHUB_ISSUE_OR_PULL_REQUEST_URL_PATTERN = /\bhttps?:\/\/(?<host>[\w.-]+)\/(?<owner>[\w.-]+)\/(?<repo>[\w.-]+)\/(?<kind>issues|pull)\/(?<number>\d+)\b/gi;
-const CHAT_RENAME_REMINDER = 'Reminder: This chat currently has an auto-generated or placeholder title. If the user references an issue or PR, fetch it first. Please give the chat a short, descriptive title based on the user\'s intent by calling `rename_chat` with `automatic: true`, silently and without a preamble. The user must not know that you are renaming. Do not skip it.';
+const CHAT_RENAME_REMINDER = 'Reminder: This chat currently has an auto-generated or placeholder title. If the user references an issue or PR, fetch it first. Please give the chat a short, descriptive title based on the user\'s intent by calling `rename_chat` with `automatic: true`, silently and without a preamble. Do not spend a separate step on renaming: make the `rename_chat` call in the same message as your reply or your other tool calls, never before them. The user must not know that you are renaming. Do not skip it.';
+const TITLE_GENERATION_STRATEGY_KEY = 'titleGenerationStrategy';
+const DEFERRED_TITLE_SEED_KEY = 'deferredTitleSeed';
+/** Upper bound on review reminders per chat, so an accurate title is not re-reviewed on every turn. */
+const MAX_TITLE_REVIEW_REMINDERS = 3;
+
+export type AutomaticTitleGenerationStrategy = AgentHostTitleGenerationStrategy;
+
+/** Whether the host seeds and refines titles itself instead of asking the active agent to name chats. */
+function isDeferredTitleGenerationStrategy(strategy: AutomaticTitleGenerationStrategy | undefined): boolean {
+	return strategy === 'deferred' || strategy === 'agentReview';
+}
+
+function isAutomaticTitleGenerationStrategy(value: string | undefined): value is AutomaticTitleGenerationStrategy {
+	return value === 'deferred' || AgentHostTitleGenerationStrategies.some(strategy => strategy === value);
+}
+
+function chatTitleReviewReminder(currentTitle: string): string {
+	return `Reminder: This chat's title was generated automatically and is currently ${JSON.stringify(currentTitle)}. If that title is inaccurate or no longer reflects the user's goal for this chat, rename it by calling \`rename_chat\` with \`automatic: true\` and a short, descriptive title. Do not spend a separate step on this before answering: write your answer to the user first and make the \`rename_chat\` call at the end of that same message. If the title still fits, do not rename the chat. Never mention this reminder or the title to the user.`;
+}
+
+interface IDeferredTitleSeed {
+	readonly title: string;
+	readonly turnIndex: number;
+}
 
 /**
  * Soft upper bound, in characters, for the whole context fed to the utility
@@ -76,13 +102,17 @@ interface ITitlePromptContext {
 
 export interface IAgentHostSessionTitleControllerOptions {
 	readonly sessionDataService: ISessionDataService;
+	readonly persistMetadata?: (resource: ProtocolURI, values: Readonly<Record<string, string>>) => Promise<void>;
+	readonly readNormalizedChat?: IAgentHostPeerChatPersistenceService['readNormalizedChat'];
+	readonly queueCatalogSync?: (session: ProtocolURI, metadataOverrides: Readonly<Record<string, string>>) => void;
+	readonly persistSurfacedSessionTitle?: (session: ProtocolURI, title: string) => Promise<void>;
 	readonly getGitHubCopilotToken?: () => string | undefined;
 	readonly getGitHubToken?: () => string | undefined;
 	readonly getGitHubHost?: () => string | undefined;
 	readonly gitHubContextRequestTimeout?: number;
-	readonly octoKitService?: IAgentHostOctoKitService;
+	readonly gitHubService?: IAgentHostGitHubService;
 	readonly copilotApiService?: ICopilotApiService;
-	readonly isActiveAgentTitleGenerationEnabled?: () => boolean;
+	readonly getInitialTitleGenerationStrategy?: () => AutomaticTitleGenerationStrategy;
 }
 
 export const IAgentHostSessionTitleController = createDecorator<IAgentHostSessionTitleController>('agentHostSessionTitleController');
@@ -90,15 +120,17 @@ export const IAgentHostSessionTitleController = createDecorator<IAgentHostSessio
 /** Coordinates automatic, generated, and user-renamed session and chat titles. */
 export interface IAgentHostSessionTitleController {
 	readonly _serviceBrand: undefined;
+	getAutomaticTitleGenerationStrategy(channel?: ProtocolURI): AutomaticTitleGenerationStrategy;
+	restoreTitleGenerationStrategy(channel: ProtocolURI, chatChannel?: ProtocolURI): Promise<void>;
 	seedTitleFromFirstMessage(channel: ProtocolURI, userPrompt: string, chatChannel?: ProtocolURI): void;
 	seedProvisionalTitle(channel: ProtocolURI, suggestedTitle: string, chatChannel?: ProtocolURI): void;
-	refineTitleFromFirstTurn(channel: ProtocolURI, chatChannel?: ProtocolURI): void;
+	refineTitleFromFirstTurn(channel: ProtocolURI, chatChannel?: ProtocolURI, successful?: boolean): void;
 	generateForkedTitle(channel: ProtocolURI, chatChannel: ProtocolURI | undefined, turns: readonly Turn[], fallbackTitle: string, sourceTitle?: string): void;
 	generateExternalSessionTitle(session: ProtocolURI, userPrompt: string): Promise<void>;
 	cancelTitleGeneration(session: ProtocolURI): void;
 	clearSession(session: ProtocolURI, chatChannels: readonly ProtocolURI[]): void;
 	markTitleAuto(channel: ProtocolURI, chatChannel: ProtocolURI | undefined, title: string): void;
-	markTitleRenamed(channel: ProtocolURI, chatChannel?: ProtocolURI): void;
+	markTitleRenamed(channel: ProtocolURI, chatChannel?: ProtocolURI, title?: string): void;
 	prepareInstructionForAgent(channel: ProtocolURI, chatChannel: ProtocolURI): Promise<string | undefined>;
 }
 
@@ -126,6 +158,13 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 	private readonly _provisionalTitles = new Set<ProtocolURI>();
 	private readonly _autoTitles = new Set<ProtocolURI>();
 	private readonly _renamedTitles = new Set<ProtocolURI>();
+	private readonly _titleGenerationStrategies = new Map<ProtocolURI, AutomaticTitleGenerationStrategy>();
+	private readonly _unpersistedTitleStrategies = new Set<ProtocolURI>();
+	private readonly _restoringTitleStrategies = new Map<ProtocolURI, Promise<void>>();
+	private readonly _restoringDeferredSeeds = new Map<ProtocolURI, object>();
+	private readonly _deferredRefinementStarted = new Set<ProtocolURI>();
+	private readonly _deferredFirstTurnIndices = new Map<ProtocolURI, number>();
+	private readonly _titleReviewReminderCounts = new Map<ProtocolURI, number>();
 
 	constructor(
 		private readonly _stateManager: AgentHostStateManager,
@@ -139,8 +178,8 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 		if (this._isEphemeralSession(channel)) {
 			return;
 		}
-		const activeAgentTitleGenerationEnabled = this._isActiveAgentTitleGenerationEnabled(channel);
-		const fallbackTitle = activeAgentTitleGenerationEnabled
+		const strategy = this.getAutomaticTitleGenerationStrategy(channel);
+		const fallbackTitle = strategy !== 'utility'
 			? this._normalizeActiveAgentFallbackTitle(userPrompt)
 			: this._normalizeTitle(userPrompt);
 		if (!fallbackTitle) {
@@ -156,8 +195,12 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 		const replacesProvisionalTitle = this._provisionalTitles.has(key);
 		this._provisionalTitles.delete(key);
 		this._applySeedTitle(channel, independentChat, fallbackTitle);
-		if (activeAgentTitleGenerationEnabled) {
+		if (strategy !== 'utility') {
 			this.markTitleAuto(channel, independentChat, fallbackTitle);
+			if (isDeferredTitleGenerationStrategy(strategy)) {
+				this._deferredFirstTurnIndices.set(key, state.turns.length);
+				this._persistDeferredTitleSeed(channel, independentChat, { title: fallbackTitle, turnIndex: state.turns.length });
+			}
 			return;
 		}
 		if (replacesProvisionalTitle) {
@@ -178,7 +221,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 		if (this._isEphemeralSession(channel)) {
 			return;
 		}
-		const title = this._normalizeTitle(suggestedTitle, this._isActiveAgentTitleGenerationEnabled(channel) ? MAX_ACTIVE_AGENT_FALLBACK_TITLE_LENGTH : MAX_TITLE_LENGTH);
+		const title = this._normalizeTitle(suggestedTitle, this.getAutomaticTitleGenerationStrategy(channel) !== 'utility' ? MAX_ACTIVE_AGENT_FALLBACK_TITLE_LENGTH : MAX_TITLE_LENGTH);
 		if (!title) {
 			return;
 		}
@@ -253,16 +296,36 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 	/** Persists `title` as the custom title of the addressed independent chat or session. */
 	private _persistAutoTitle(channel: ProtocolURI, independentChat: ProtocolURI | undefined, title: string): void {
 		if (independentChat) {
+			this._persistSessionFlag(independentChat, SESSION_CUSTOM_TITLE_KEY, title);
+			this._persistSessionFlag(independentChat, SESSION_CUSTOM_TITLE_SOURCE_KEY, AGENT_HOST_TITLE_SOURCE_AUTO);
 			this._persistSessionFlag(channel, customChatTitleMetadataKey(independentChat), title);
 			this._persistSessionFlag(channel, customChatTitleSourceMetadataKey(independentChat), AGENT_HOST_TITLE_SOURCE_AUTO);
+			this._options.queueCatalogSync?.(channel, {
+				[customChatTitleMetadataKey(independentChat)]: title,
+				[customChatTitleSourceMetadataKey(independentChat)]: AGENT_HOST_TITLE_SOURCE_AUTO,
+			});
 			return;
+		}
+		const defaultChat = this._stateManager.getSessionState(channel)?.defaultChat;
+		if (defaultChat) {
+			this._persistSessionFlag(defaultChat, SESSION_CUSTOM_TITLE_KEY, title);
+			this._persistSessionFlag(defaultChat, SESSION_CUSTOM_TITLE_SOURCE_KEY, AGENT_HOST_TITLE_SOURCE_AUTO);
 		}
 		this._persistSessionFlag(channel, SESSION_CUSTOM_TITLE_KEY, title);
 		this._persistSessionFlag(channel, SESSION_CUSTOM_TITLE_SOURCE_KEY, AGENT_HOST_TITLE_SOURCE_AUTO);
 	}
 
 	private _persistAutoTitleSource(channel: ProtocolURI, independentChat: ProtocolURI | undefined): void {
-		this._persistSessionFlag(channel, independentChat ? customChatTitleSourceMetadataKey(independentChat) : SESSION_CUSTOM_TITLE_SOURCE_KEY, AGENT_HOST_TITLE_SOURCE_AUTO);
+		if (independentChat) {
+			this._persistSessionFlag(independentChat, SESSION_CUSTOM_TITLE_SOURCE_KEY, AGENT_HOST_TITLE_SOURCE_AUTO);
+			this._persistSessionFlag(channel, customChatTitleSourceMetadataKey(independentChat), AGENT_HOST_TITLE_SOURCE_AUTO);
+			return;
+		}
+		const defaultChat = this._stateManager.getSessionState(channel)?.defaultChat;
+		if (defaultChat) {
+			this._persistSessionFlag(defaultChat, SESSION_CUSTOM_TITLE_SOURCE_KEY, AGENT_HOST_TITLE_SOURCE_AUTO);
+		}
+		this._persistSessionFlag(channel, SESSION_CUSTOM_TITLE_SOURCE_KEY, AGENT_HOST_TITLE_SOURCE_AUTO);
 	}
 
 	/** The live title of the addressed independent chat or session. */
@@ -297,108 +360,84 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 		return this._provisionalTitles.has(key) && currentTitle === this._lastAppliedTitle.get(key);
 	}
 
-	/**
-	 * Re-generates the title once the first turn has completed, this time
-	 * using the full first-turn context (the user request plus the agent's
-	 * textual response) rather than just the opening message. This only runs
-	 * for the very first turn and only when the current title is still the one
-	 * this controller last applied — a manual `/rename`, a user edit, or a
-	 * forked session's inherited title all suppress it.
-	 *
-	 * Only normal text response parts are considered (tool calls, reasoning,
-	 * and other parts are ignored). If the context still exceeds the budget
-	 * the middle is removed (marked with `...`). The user's first request is
-	 * always preserved.
-	 */
-	refineTitleFromFirstTurn(channel: ProtocolURI, chatChannel?: ProtocolURI): void {
+	/** Refines the seed from the first response without awaiting utility work or overwriting an explicit rename. */
+	refineTitleFromFirstTurn(channel: ProtocolURI, chatChannel?: ProtocolURI, successful = true): void {
 		if (this._isEphemeralSession(channel)) {
 			return;
 		}
-		if (this._isActiveAgentTitleGenerationEnabled(channel)) {
+		const strategy = this.getAutomaticTitleGenerationStrategy(channel);
+		if (strategy === 'activeAgent') {
 			return;
 		}
-		const isAdditionalChat = !!chatChannel && isAhpChatChannel(chatChannel) && !isDefaultChatUri(chatChannel);
-		if (isAdditionalChat) {
-			const chatState = this._stateManager.getChatState(chatChannel);
-			if (!chatState || chatState.turns.length !== 1) {
-				return;
+		let independentChat = this._independentChatChannel(channel, chatChannel ?? buildDefaultChatUri(channel));
+		// Adding the first peer snapshots the session-backed title onto its now-independent default chat.
+		if (independentChat && isDefaultChatUri(independentChat) && !this._lastAppliedTitle.has(independentChat) && !this._renamedTitles.has(channel)) {
+			const seed = this._lastAppliedTitle.get(channel);
+			if (seed !== undefined && this._stateManager.getChatState(independentChat)?.title === seed) {
+				this._lastAppliedTitle.set(independentChat, seed);
+				this._deferredFirstTurnIndices.set(independentChat, this._deferredFirstTurnIndices.get(channel) ?? 0);
+				if (this._deferredRefinementStarted.has(channel)) {
+					this._deferredRefinementStarted.add(independentChat);
+				}
 			}
-			const lastApplied = this._lastAppliedTitle.get(chatChannel);
-			if (lastApplied === undefined || chatState.title !== lastApplied) {
-				return;
-			}
-			const turn = chatState.turns[0];
-			const context = this._buildFirstTurnContext(turn);
-			if (!context) {
-				return;
-			}
-			const apply = (title: string) => {
-				this._applyTitle(chatChannel, title, t => this._stateManager.updateChatTitle(channel, chatChannel, t));
-				this._persistAutoTitleSource(channel, chatChannel);
-			};
-			this._generateTitleSoon(
-				chatChannel,
-				{ content: context, isConversation: true, gitHubReferenceSource: turn.message.text, currentTitle: lastApplied },
-				lastApplied,
-				apply,
-				() => this._stateManager.getChatState(chatChannel)?.title === this._lastAppliedTitle.get(chatChannel),
-				title => this._persistAutoTitle(channel, chatChannel, title),
-			);
+		}
+		const key = independentChat ?? channel;
+		const deferred = isDeferredTitleGenerationStrategy(strategy);
+		if (this._renamedTitles.has(key) || (deferred && this._deferredRefinementStarted.has(key))) {
 			return;
 		}
-
-		const state = this._stateManager.getSessionState(channel);
-		if (!state || state.turns.length !== 1) {
+		const state = independentChat ? this._stateManager.getChatState(independentChat) : this._stateManager.getSessionState(channel);
+		const inheritedTurnCount = this._deferredFirstTurnIndices.get(key) ?? 0;
+		if (!state || state.turns.length !== inheritedTurnCount + 1) {
 			return;
 		}
-		const lastApplied = this._lastAppliedTitle.get(channel);
+		const lastApplied = this._lastAppliedTitle.get(key);
 		if (lastApplied === undefined || state.title !== lastApplied) {
 			return;
 		}
-		const turn = state.turns[0];
+		const turn = state.turns[inheritedTurnCount];
+		if (deferred) {
+			this._deferredRefinementStarted.add(key);
+			this._clearDeferredTitleSeed(channel, independentChat);
+		}
+		if (!successful || turn.state !== TurnState.Complete) {
+			return;
+		}
 		const context = this._buildFirstTurnContext(turn);
 		if (!context) {
 			return;
 		}
-		const apply = (title: string) => {
-			this._applyTitle(channel, title, t => this._stateManager.dispatchServerAction(channel, {
-				type: ActionType.SessionTitleChanged,
-				title: t,
-			}));
-			this._persistAutoTitleSource(channel, undefined);
-		};
 		this._generateTitleSoon(
-			channel,
+			key,
 			{ content: context, isConversation: true, gitHubReferenceSource: turn.message.text, currentTitle: lastApplied },
 			lastApplied,
-			apply,
-			() => this._stateManager.getSessionState(channel)?.title === this._lastAppliedTitle.get(channel),
-			title => this._persistAutoTitle(channel, undefined, title),
+			title => this._applySeedTitle(channel, independentChat, title),
+			() => {
+				independentChat = this._independentChatChannel(channel, chatChannel ?? buildDefaultChatUri(channel));
+				const currentKey = independentChat ?? channel;
+				if (deferred) {
+					this._deferredRefinementStarted.add(currentKey);
+				}
+				return !this._renamedTitles.has(key) && !this._renamedTitles.has(currentKey)
+					&& this._currentSeedTitle(channel, independentChat) === lastApplied;
+			},
+			title => this._persistAutoTitle(channel, independentChat, title),
 		);
 	}
 
-	/**
-	 * Generates a title for a freshly forked session or chat from its
-	 * inherited conversation context. Forks copy the source history up to the
-	 * fork point, so neither {@link seedTitleFromFirstMessage} nor
-	 * {@link refineTitleFromFirstTurn} (which require an empty / single-turn
-	 * state) ever fire for them. This is the fork equivalent, run once at fork
-	 * time over the kept turns, so the new chat gets a content-derived title
-	 * instead of permanently inheriting the source's `Forked: …` title.
-	 *
-	 * `fallbackTitle` is the title the caller already applied to the new
-	 * session/chat (e.g. `Forked: <source>`); it is recorded as the
-	 * last-applied title so a concurrent manual rename suppresses the
-	 * generated title, and stays visible until generation completes. The
-	 * context is bounded to {@link MAX_TITLE_CONTEXT_CHARS} (middle-truncated),
-	 * so generation costs at most a single small-model call.
-	 */
+	/** Titles a fork from bounded inherited context in utility mode; deferred mode waits for its first new response. */
 	generateForkedTitle(channel: ProtocolURI, chatChannel: ProtocolURI | undefined, turns: readonly Turn[], fallbackTitle: string, sourceTitle?: string): void {
 		if (this._isEphemeralSession(channel)) {
 			return;
 		}
-		if (this._isActiveAgentTitleGenerationEnabled(channel)) {
+		const strategy = this.getAutomaticTitleGenerationStrategy(channel);
+		if (strategy !== 'utility') {
 			this.markTitleAuto(channel, chatChannel, fallbackTitle);
+			if (isDeferredTitleGenerationStrategy(strategy)) {
+				const independentChat = this._independentChatChannel(channel, chatChannel);
+				this._deferredFirstTurnIndices.set(independentChat ?? channel, turns.length);
+				this._persistDeferredTitleSeed(channel, independentChat, { title: fallbackTitle, turnIndex: turns.length });
+			}
 			return;
 		}
 		const context = this._buildConversationContext(turns, sourceTitle);
@@ -464,7 +503,9 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 			'',
 			title => this._applyExternalSessionTitle(session, title),
 			() => true,
-			title => this._persistAutoTitle(session, undefined, title),
+			title => this._options.persistSurfacedSessionTitle
+				? this._options.persistSurfacedSessionTitle(session, title)
+				: this._persistAutoTitle(session, undefined, title),
 		);
 	}
 
@@ -487,7 +528,14 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 			this._provisionalTitles.delete(key);
 			this._autoTitles.delete(key);
 			this._renamedTitles.delete(key);
+			this._deferredRefinementStarted.delete(key);
+			this._deferredFirstTurnIndices.delete(key);
+			this._titleReviewReminderCounts.delete(key);
+			this._restoringDeferredSeeds.delete(key);
 		}
+		this._titleGenerationStrategies.delete(session);
+		this._unpersistedTitleStrategies.delete(session);
+		this._restoringTitleStrategies.delete(session);
 	}
 
 	markTitleAuto(channel: ProtocolURI, chatChannel: ProtocolURI | undefined, title: string): void {
@@ -499,24 +547,40 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 		this._persistAutoTitle(channel, independentChat, title);
 	}
 
-	markTitleRenamed(channel: ProtocolURI, chatChannel?: ProtocolURI): void {
-		const key = this._independentChatChannel(channel, chatChannel) ?? channel;
+	markTitleRenamed(channel: ProtocolURI, chatChannel?: ProtocolURI, title?: string): void {
+		const independentChat = this._independentChatChannel(channel, chatChannel);
+		const key = independentChat ?? channel;
 		this._cancelTitleGeneration(key);
 		this._autoTitles.delete(key);
 		this._provisionalTitles.delete(key);
 		this._renamedTitles.add(key);
+		if (isDeferredTitleGenerationStrategy(this._titleGenerationStrategies.get(channel))) {
+			this._clearDeferredTitleSeed(channel, independentChat);
+		}
+		if (independentChat && title !== undefined) {
+			this._options.queueCatalogSync?.(channel, {
+				[customChatTitleMetadataKey(independentChat)]: title,
+				[customChatTitleSourceMetadataKey(independentChat)]: AGENT_HOST_TITLE_SOURCE_USER,
+			});
+		}
 	}
 
 	async prepareInstructionForAgent(channel: ProtocolURI, chatChannel: ProtocolURI): Promise<string | undefined> {
 		if (this._isEphemeralSession(channel)) {
 			return undefined;
 		}
-		if (!this._isActiveAgentTitleGenerationEnabled(channel)) {
+		const strategy = this.getAutomaticTitleGenerationStrategy(channel);
+		if (strategy !== 'activeAgent' && strategy !== 'agentReview') {
 			return undefined;
 		}
 		const independentChat = this._independentChatChannel(channel, chatChannel);
 		const key = independentChat ?? channel;
 		if (this._renamedTitles.has(key)) {
+			return undefined;
+		}
+		this._syncDefaultChatTitleReviewReminderCount(channel, key);
+		// Review mode leaves a fresh seed to the host's first-response refinement before inviting a rename.
+		if (strategy === 'agentReview' && !this._canOfferTitleReview(channel, independentChat, key)) {
 			return undefined;
 		}
 		const sourceKey = independentChat ? customChatTitleSourceMetadataKey(independentChat) : SESSION_CUSTOM_TITLE_SOURCE_KEY;
@@ -529,7 +593,52 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 			return undefined;
 		}
 
+		if (strategy === 'agentReview') {
+			const currentTitle = this._currentSeedTitle(channel, independentChat);
+			if (!currentTitle) {
+				return undefined;
+			}
+			this._titleReviewReminderCounts.set(key, (this._titleReviewReminderCounts.get(key) ?? 0) + 1);
+			return chatTitleReviewReminder(currentTitle);
+		}
 		return CHAT_RENAME_REMINDER;
+	}
+
+	/**
+	 * Whether review mode may invite a rename for `key`: only after the first
+	 * response since the seed has finished (successfully or not), never while a
+	 * host refinement is still in flight, and for at most
+	 * {@link MAX_TITLE_REVIEW_REMINDERS} turns.
+	 */
+	private _canOfferTitleReview(channel: ProtocolURI, independentChat: ProtocolURI | undefined, key: ProtocolURI): boolean {
+		if ((this._titleReviewReminderCounts.get(key) ?? 0) >= MAX_TITLE_REVIEW_REMINDERS || this._titleGenerationCancellationSources.has(key)) {
+			return false;
+		}
+		// A refinement started before a peer made the default chat independent is still keyed by the session.
+		if (independentChat && isDefaultChatUri(independentChat) && this._titleGenerationCancellationSources.has(channel)) {
+			return false;
+		}
+		const state = independentChat ? this._stateManager.getChatState(independentChat) : this._stateManager.getSessionState(channel);
+		// Any finished response settles first-response refinement: a cancelled or failed one consumes it without refining.
+		const seedTurnIndex = this._deferredFirstTurnIndices.get(key) ?? 0;
+		return !!state && state.turns.length > seedTurnIndex;
+	}
+
+	/**
+	 * The default chat is titled under the session key while it is the only chat
+	 * and under its own URI once a peer exists. Adding or removing peers moves
+	 * between the two keys, so carry the higher count onto the active `key` to
+	 * keep the per-chat cap across the transition.
+	 */
+	private _syncDefaultChatTitleReviewReminderCount(channel: ProtocolURI, key: ProtocolURI): void {
+		if (key !== channel && !isDefaultChatUri(key)) {
+			return;
+		}
+		const defaultChat = key === channel ? buildDefaultChatUri(channel) : key;
+		const count = Math.max(this._titleReviewReminderCounts.get(channel) ?? 0, this._titleReviewReminderCounts.get(defaultChat) ?? 0);
+		if (count > 0) {
+			this._titleReviewReminderCounts.set(key, count);
+		}
 	}
 
 	private _generateTitleSoon(
@@ -538,7 +647,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 		fallbackTitle: string,
 		apply: (title: string) => void,
 		currentTitleMatchesFallback: () => boolean,
-		persist: (title: string) => void,
+		persist: (title: string) => void | Promise<void>,
 	): void {
 		void this._startTitleGeneration(key, prompt, fallbackTitle, apply, currentTitleMatchesFallback, persist);
 	}
@@ -550,7 +659,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 		fallbackTitle: string,
 		apply: (title: string) => void,
 		currentTitleMatchesFallback: () => boolean,
-		persist: (title: string) => void,
+		persist: (title: string) => void | Promise<void>,
 	): Promise<void> {
 		this._cancelTitleGeneration(key);
 		const source = new CancellationTokenSource();
@@ -573,7 +682,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 		fallbackTitle: string,
 		apply: (title: string) => void,
 		currentTitleMatchesFallback: () => boolean,
-		persist: (title: string) => void,
+		persist: (title: string) => void | Promise<void>,
 		token: CancellationToken,
 	): Promise<void> {
 		const generatedTitle = await this._generateTitleFromPrompt(prompt, token);
@@ -588,7 +697,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 		if (generatedTitle !== fallbackTitle) {
 			apply(generatedTitle);
 		}
-		persist(generatedTitle);
+		await persist(generatedTitle);
 	}
 
 	private async _generateTitleFromPrompt(prompt: ITitlePromptContext, token: CancellationToken): Promise<string | undefined> {
@@ -640,23 +749,19 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 	private async _appendGitHubContext(promptContent: string, referenceSource: string, cancellationSignal: AbortSignal, token: CancellationToken): Promise<string> {
 		const references = this._parseGitHubReferences(referenceSource);
 		const githubToken = this._options.getGitHubToken?.();
-		const octoKitService = this._options.octoKitService;
-		if (references.length === 0 || !githubToken || !octoKitService) {
+		const gitHubService = this._options.gitHubService;
+		if (references.length === 0 || !githubToken || !gitHubService) {
 			return promptContent;
 		}
 
 		const signal = AbortSignal.any([cancellationSignal, AbortSignal.timeout(this._options.gitHubContextRequestTimeout ?? GITHUB_CONTEXT_REQUEST_TIMEOUT)]);
-		const limiter = new Limiter<IGitHubReferenceContext | undefined>(MAX_CONCURRENT_GITHUB_CONTEXT_REQUESTS);
+		const store = new DisposableStore();
 		try {
-			const contexts = await Promise.all(references.map(reference => limiter.queue(async () => {
+			const client = store.add(gitHubService.acquireRepositoryClient(signal)).object;
+			const { account } = await client.credentials.getCredential(signal);
+			const contexts = await Promise.all(references.map(async reference => {
 				try {
-					const value = await octoKitService.getIssueOrPullRequest(
-						reference.owner,
-						reference.repo,
-						reference.number,
-						githubToken,
-						signal,
-					);
+					const value = await client.query.getIssueOrPullRequest({ ...account, owner: reference.owner, repo: reference.repo, number: reference.number }, signal);
 					return { reference, value };
 				} catch (error) {
 					if (!token.isCancellationRequested) {
@@ -664,7 +769,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 					}
 					return undefined;
 				}
-			})));
+			}));
 			const successfulContexts = contexts.filter(context => context !== undefined);
 			if (successfulContexts.length === 0) {
 				return promptContent;
@@ -675,8 +780,13 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 			const contentBudget = Math.max(0, MAX_TITLE_CONTEXT_CHARS - gitHubContext.length - separator.length);
 			const content = promptContent.length > contentBudget ? truncateMiddle(promptContent, contentBudget) : promptContent;
 			return `${content}${separator}${gitHubContext}`;
+		} catch (error) {
+			if (!token.isCancellationRequested) {
+				this._logService.warn('[AgentHostSessionTitleController] Failed to acquire GitHub context', error);
+			}
+			return promptContent;
 		} finally {
-			limiter.dispose();
+			store.dispose();
 		}
 	}
 
@@ -860,14 +970,146 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 	}
 
 	private _persistSessionFlag(session: ProtocolURI, key: string, value: string): void {
+		if (this._options.persistMetadata && (key === SESSION_CUSTOM_TITLE_KEY || key === SESSION_CUSTOM_TITLE_SOURCE_KEY || key.startsWith('customChatTitle:') || key.startsWith('customChatTitleSource:'))) {
+			void this._options.persistMetadata(session, { [key]: value }).catch(error => this._logService.warn(`[AgentHostSessionTitleController] Failed to persist ${key}`, error));
+			return;
+		}
 		persistSessionMetadata(this._options.sessionDataService, this._logService, session, key, value);
 	}
 
-	private _isActiveAgentTitleGenerationEnabled(channel: ProtocolURI): boolean {
-		const serverTools = this._stateManager.getSessionState(channel)?.serverTools;
-		return serverTools
-			? serverTools.some(tool => tool.name === SessionServerToolName.RenameChat)
-			: this._options.isActiveAgentTitleGenerationEnabled?.() === true;
+	/** Snapshots host-owned scheduling independently of explicit rename-tool availability. */
+	getAutomaticTitleGenerationStrategy(channel?: ProtocolURI): AutomaticTitleGenerationStrategy {
+		const existing = channel && this._titleGenerationStrategies.get(channel);
+		if (existing) {
+			if (this._unpersistedTitleStrategies.has(channel) && this._stateManager.getSessionState(channel)) {
+				this._unpersistedTitleStrategies.delete(channel);
+				if (!this._isEphemeralSession(channel)) {
+					this._persistSessionFlag(channel, TITLE_GENERATION_STRATEGY_KEY, existing);
+				}
+			}
+			return existing;
+		}
+		const state = channel ? this._stateManager.getSessionState(channel) : undefined;
+		// Tool membership is only a compatibility fallback for sessions materialized before strategy snapshots.
+		const strategy = state?.serverTools
+			? state.serverTools.some(tool => tool.name === SessionServerToolName.RenameChat) ? 'activeAgent' : 'utility'
+			: this._options.getInitialTitleGenerationStrategy?.() ?? 'utility';
+		if (channel && !this._isEphemeralSession(channel)) {
+			this._titleGenerationStrategies.set(channel, strategy);
+			if (state) {
+				this._persistSessionFlag(channel, TITLE_GENERATION_STRATEGY_KEY, strategy);
+			} else {
+				this._unpersistedTitleStrategies.add(channel);
+			}
+		}
+		return strategy;
+	}
+
+	/** Restores scheduling without opting legacy sessions into the deferred experiment. */
+	async restoreTitleGenerationStrategy(channel: ProtocolURI, chatChannel?: ProtocolURI): Promise<void> {
+		await this._restoreTitleGenerationStrategy(channel);
+		if (chatChannel && isDeferredTitleGenerationStrategy(this._titleGenerationStrategies.get(channel))) {
+			await this._restoreDeferredTitleSeed(channel, chatChannel);
+		}
+	}
+
+	private async _restoreTitleGenerationStrategy(channel: ProtocolURI): Promise<void> {
+		if (this._titleGenerationStrategies.has(channel)) {
+			return;
+		}
+		const existing = this._restoringTitleStrategies.get(channel);
+		if (existing) {
+			return existing;
+		}
+		const restore = async () => {
+			const persisted = await this._readPersistedTitleMetadata(channel, TITLE_GENERATION_STRATEGY_KEY);
+			if (this._store.isDisposed || this._restoringTitleStrategies.get(channel) !== pending || this._titleGenerationStrategies.has(channel)) {
+				return;
+			}
+			const strategy = isAutomaticTitleGenerationStrategy(persisted) ? persisted : 'utility';
+			this._titleGenerationStrategies.set(channel, strategy);
+			this._persistSessionFlag(channel, TITLE_GENERATION_STRATEGY_KEY, strategy);
+		};
+		const pending = restore();
+		this._restoringTitleStrategies.set(channel, pending);
+		try {
+			await pending;
+		} finally {
+			if (this._restoringTitleStrategies.get(channel) === pending) {
+				this._restoringTitleStrategies.delete(channel);
+			}
+		}
+	}
+
+	private _deferredTitleSeedMetadataKey(independentChat: ProtocolURI | undefined): string {
+		return independentChat ? `${DEFERRED_TITLE_SEED_KEY}:${independentChat}` : DEFERRED_TITLE_SEED_KEY;
+	}
+
+	private _persistDeferredTitleSeed(channel: ProtocolURI, independentChat: ProtocolURI | undefined, seed: IDeferredTitleSeed): void {
+		this._persistSessionFlag(channel, this._deferredTitleSeedMetadataKey(independentChat), JSON.stringify(seed));
+	}
+
+	private _clearDeferredTitleSeed(channel: ProtocolURI, independentChat: ProtocolURI | undefined): void {
+		this._persistSessionFlag(channel, this._deferredTitleSeedMetadataKey(independentChat), '');
+		if (independentChat && isDefaultChatUri(independentChat)) {
+			this._persistSessionFlag(channel, DEFERRED_TITLE_SEED_KEY, '');
+		}
+	}
+
+	private async _restoreDeferredTitleSeed(channel: ProtocolURI, chatChannel: ProtocolURI): Promise<void> {
+		const restore = {};
+		this._restoringDeferredSeeds.set(chatChannel, restore);
+		try {
+			const ref = await this._options.sessionDataService.tryOpenDatabase(URI.parse(channel));
+			if (!ref) {
+				return;
+			}
+			try {
+				let independentChat: ProtocolURI | undefined = chatChannel;
+				let raw = await ref.object.getMetadata(this._deferredTitleSeedMetadataKey(independentChat));
+				if (raw === undefined && isDefaultChatUri(chatChannel)) {
+					independentChat = undefined;
+					raw = await ref.object.getMetadata(DEFERRED_TITLE_SEED_KEY);
+				}
+				if (!raw) {
+					return;
+				}
+				const parsedSeed: unknown = JSON.parse(raw);
+				if (!isObject(parsedSeed)) {
+					return;
+				}
+				const seed = parsedSeed as Record<string, unknown>;
+				if (typeof seed.title !== 'string' || typeof seed.turnIndex !== 'number' || !Number.isSafeInteger(seed.turnIndex) || seed.turnIndex < 0) {
+					return;
+				}
+				const normalized = await this._options.readNormalizedChat?.(URI.parse(channel), URI.parse(chatChannel));
+				if (normalized?.normalized && !normalized.chat) {
+					throw new Error(`Missing normalized chat during deferred title restoration: ${chatChannel}`);
+				}
+				const [title, source] = normalized?.normalized
+					? [normalized.chat?.metadata?.summary, normalized.chat?.metadata?.titleSource]
+					: await Promise.all([
+						ref.object.getMetadata(independentChat ? customChatTitleMetadataKey(independentChat) : SESSION_CUSTOM_TITLE_KEY),
+						ref.object.getMetadata(independentChat ? customChatTitleSourceMetadataKey(independentChat) : SESSION_CUSTOM_TITLE_SOURCE_KEY),
+					]);
+				const key = independentChat ?? channel;
+				if (this._store.isDisposed || this._restoringDeferredSeeds.get(chatChannel) !== restore || !isDeferredTitleGenerationStrategy(this._titleGenerationStrategies.get(channel)) || this._lastAppliedTitle.has(key) || this._renamedTitles.has(key) || this._deferredRefinementStarted.has(key)) {
+					return;
+				}
+				if (source === AGENT_HOST_TITLE_SOURCE_AUTO && title === seed.title) {
+					this._lastAppliedTitle.set(key, seed.title);
+					this._deferredFirstTurnIndices.set(key, seed.turnIndex);
+				}
+			} finally {
+				ref.dispose();
+			}
+		} catch (err) {
+			this._logService.warn('[AgentHostSessionTitleController] Failed to restore deferred title seed', err);
+		} finally {
+			if (this._restoringDeferredSeeds.get(chatChannel) === restore) {
+				this._restoringDeferredSeeds.delete(chatChannel);
+			}
+		}
 	}
 
 	private _isEphemeralSession(channel: ProtocolURI): boolean {
@@ -909,6 +1151,13 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 		this._provisionalTitles.clear();
 		this._autoTitles.clear();
 		this._renamedTitles.clear();
+		this._titleGenerationStrategies.clear();
+		this._unpersistedTitleStrategies.clear();
+		this._restoringTitleStrategies.clear();
+		this._restoringDeferredSeeds.clear();
+		this._deferredRefinementStarted.clear();
+		this._deferredFirstTurnIndices.clear();
+		this._titleReviewReminderCounts.clear();
 		super.dispose();
 	}
 }

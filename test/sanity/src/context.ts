@@ -87,15 +87,11 @@ const targetArtifacts: Readonly<Record<string, string>> = {
  */
 export class TestContext {
 	private static readonly authenticodeInclude = /^.+\.(exe|dll|sys|cab|cat|msi|jar|ocx|ps1|psm1|psd1|ps1xml|pssc1)$/i;
-	// MXC SDK ships per-arch SPDX catalog manifests that Get-AuthenticodeSignature reports as UnknownError.
-	private static readonly authenticodeExclude = /[\\/]node_modules[\\/]@microsoft[\\/]mxc-sdk[\\/]bin[\\/][^\\/]+[\\/]_manifest[\\/][^\\/]+[\\/]manifest\.cat$/i;
 	private static readonly authenticodeTestCertificate = /Code Sign Test \(DO NOT TRUST\)/i;
 	private static readonly versionInfoInclude = /^.+\.(exe|dll|node|msi)$/i;
 	// Electron helpers (dxil/ffmpeg) and Copilot-vendored MSAL runtime DLLs ship VersionInfo that
 	// FileVersionInfo cannot resolve to a ProductName (x64: msalruntime.dll, arm64: msalruntime_arm64.dll).
 	private static readonly versionInfoFileExclude = /^(dxil\.dll|ffmpeg\.dll|msalruntime(_arm64)?\.dll)$/i;
-	// MXC SDK binaries under bin are signed, but they do not carry a ProductName VersionInfo resource.
-	private static readonly versionInfoPathExclude = /(?:^|[\\/])node_modules(?:\.asar\.unpacked)?[\\/]@microsoft[\\/]mxc-sdk[\\/]bin[\\/]/i;
 	private static readonly dpkgLockError = /dpkg frontend lock was locked by another process|unable to acquire the dpkg frontend lock|could not get lock \/var\/lib\/dpkg\/lock-frontend/i;
 
 	private readonly tempDirs = new Set<string>();
@@ -552,11 +548,7 @@ export class TestContext {
 			if (entry.isDirectory()) {
 				this.collectAuthenticodeFiles(filePath, files);
 			} else if (TestContext.authenticodeInclude.test(entry.name)) {
-				if (TestContext.authenticodeExclude.test(filePath)) {
-					this.log(`Skipping excluded file from Authenticode validation: ${filePath}`);
-				} else {
-					files.push(filePath);
-				}
+				files.push(filePath);
 			}
 		}
 	}
@@ -589,7 +581,7 @@ export class TestContext {
 			if (entry.isDirectory()) {
 				this.collectVersionInfoFiles(filePath, files);
 			} else if (TestContext.versionInfoInclude.test(entry.name)) {
-				if (TestContext.versionInfoFileExclude.test(entry.name) || TestContext.versionInfoPathExclude.test(filePath)) {
+				if (TestContext.versionInfoFileExclude.test(entry.name)) {
 					this.log(`Skipping excluded file from VersionInfo validation: ${filePath}`);
 				} else {
 					files.push(filePath);
@@ -1519,7 +1511,10 @@ export class TestContext {
 	}
 
 	private isNonFatalCliStderr(text: string): boolean {
-		return /ECONNRESET|ECONNABORTED|ECANCELED|EPIPE|SIGPIPE/.test(text)
+		// Extension download retry warnings are expected; if all retries fail, the UI test still fails.
+		text = text.replace(/^.*Failed downloading (?:vsix|sigzip)\. .*Retry again\.\.\..*$/gm, '').trim();
+		return !text
+			|| /ECONNRESET|ECONNABORTED|ECANCELED|EPIPE|SIGPIPE/.test(text)
 			|| /(^|\n)(?:\[[^\]]+\]\s*)?(?:\(node:\d+\)\s*)?(?:\[[A-Z0-9]+\]\s*)?(?:[A-Za-z]+Warning|Warning):/.test(text);
 	}
 }

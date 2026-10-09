@@ -1,0 +1,198 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember DEFAULT_HISTORY_ONLY. Reply exactly "DEFAULT_READY".
+    response:
+      content: DEFAULT_READY
+      stopReason: end_turn
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Use your file editing tool exactly once to replace PEER_BEFORE with PEER_MIDDLE in peer-edit.txt. Do not inspect or search for files and do not run a shell command. Then reply exactly "EDIT_DONE".
+    response:
+      content:
+        - type: text
+          text: Applying the one requested text replacement in the target file now.
+        - type: tool_use
+          id: toolcall_0
+          name: exec_command
+          input:
+            cmd: |-
+              apply_patch <<'PATCH'
+              *** Begin Patch
+              *** Update File: peer-edit.txt
+              @@
+              -PEER_BEFORE
+              +PEER_MIDDLE
+              *** End Patch
+              PATCH
+      stopReason: tool_use
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Use your file editing tool exactly once to replace PEER_BEFORE with PEER_MIDDLE in peer-edit.txt. Do not inspect or search for files and do not run a shell command. Then reply exactly "EDIT_DONE".
+        - role: assistant
+          content: Applying the one requested text replacement in the target file now.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: exec_command
+              input:
+                cmd: |-
+                  apply_patch <<'PATCH'
+                  *** Begin Patch
+                  *** Update File: peer-edit.txt
+                  @@
+                  -PEER_BEFORE
+                  +PEER_MIDDLE
+                  *** End Patch
+                  PATCH
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                Wall time: 0.0000 seconds
+                Output:
+                Exit code: 0
+                Wall time: 0 seconds
+                Output:
+                Success. Updated the following files:
+                M peer-edit.txt
+    response:
+      content: EDIT_DONE
+      stopReason: end_turn
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Use your file editing tool exactly once to replace PEER_BEFORE with PEER_MIDDLE in peer-edit.txt. Do not inspect or search for files and do not run a shell command. Then reply exactly "EDIT_DONE".
+        - role: assistant
+          content: Applying the one requested text replacement in the target file now.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: exec_command
+              input:
+                cmd: |-
+                  apply_patch <<'PATCH'
+                  *** Begin Patch
+                  *** Update File: peer-edit.txt
+                  @@
+                  -PEER_BEFORE
+                  +PEER_MIDDLE
+                  *** End Patch
+                  PATCH
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                Wall time: 0.0000 seconds
+                Output:
+                Exit code: 0
+                Wall time: 0 seconds
+                Output:
+                Success. Updated the following files:
+                M peer-edit.txt
+        - role: assistant
+          content: EDIT_DONE
+        - role: user
+          content: Use your file editing tool exactly once to replace PEER_MIDDLE with PEER_AFTER in peer-edit.txt. Do not inspect or search for files and do not run a shell command. Then reply exactly "EDIT_DONE".
+    response:
+      content:
+        - type: text
+          text: Applying the requested single replacement in `peer-edit.txt` now.
+        - type: tool_use
+          id: toolcall_1
+          name: exec_command
+          input:
+            cmd: |-
+              apply_patch <<'PATCH'
+              *** Begin Patch
+              *** Update File: peer-edit.txt
+              @@
+              -PEER_MIDDLE
+              +PEER_AFTER
+              *** End Patch
+              PATCH
+      stopReason: tool_use
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Use your file editing tool exactly once to replace PEER_BEFORE with PEER_MIDDLE in peer-edit.txt. Do not inspect or search for files and do not run a shell command. Then reply exactly "EDIT_DONE".
+        - role: assistant
+          content: Applying the one requested text replacement in the target file now.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: exec_command
+              input:
+                cmd: |-
+                  apply_patch <<'PATCH'
+                  *** Begin Patch
+                  *** Update File: peer-edit.txt
+                  @@
+                  -PEER_BEFORE
+                  +PEER_MIDDLE
+                  *** End Patch
+                  PATCH
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                Wall time: 0.0000 seconds
+                Output:
+                Exit code: 0
+                Wall time: 0 seconds
+                Output:
+                Success. Updated the following files:
+                M peer-edit.txt
+        - role: assistant
+          content: EDIT_DONE
+        - role: user
+          content: Use your file editing tool exactly once to replace PEER_MIDDLE with PEER_AFTER in peer-edit.txt. Do not inspect or search for files and do not run a shell command. Then reply exactly "EDIT_DONE".
+        - role: assistant
+          content: Applying the requested single replacement in `peer-edit.txt` now.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: exec_command
+              input:
+                cmd: |-
+                  apply_patch <<'PATCH'
+                  *** Begin Patch
+                  *** Update File: peer-edit.txt
+                  @@
+                  -PEER_MIDDLE
+                  +PEER_AFTER
+                  *** End Patch
+                  PATCH
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: |-
+                Wall time: 0.0000 seconds
+                Output:
+                Exit code: 0
+                Wall time: 0 seconds
+                Output:
+                Success. Updated the following files:
+                M peer-edit.txt
+    response:
+      content: EDIT_DONE
+      stopReason: end_turn

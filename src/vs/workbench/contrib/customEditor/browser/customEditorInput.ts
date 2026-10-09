@@ -9,6 +9,10 @@ import { toAction } from '../../../../base/common/actions.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { IReference } from '../../../../base/common/lifecycle.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import { Selection, SelectionDirection } from '../../../../editor/common/core/selection.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { basename } from '../../../../base/common/path.js';
 import { dirname, isEqual } from '../../../../base/common/resources.js';
@@ -17,7 +21,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { IResourceEditorInput } from '../../../../platform/editor/common/editor.js';
+import { IResourceEditorInput, ITextEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
@@ -34,6 +38,7 @@ import { IWorkbenchLayoutService } from '../../../services/layout/browser/layout
 import { IUntitledTextEditorService } from '../../../services/untitled/common/untitledTextEditorService.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { WebviewIconPath } from '../../webviewPanel/browser/webviewEditorInput.js';
+import { ICustomTextEditorNavigation } from '../common/customTextEditorNavigation.js';
 
 interface CustomEditorInputInitInfo {
 	readonly resource: URI;
@@ -44,6 +49,29 @@ interface CustomEditorInputInitInfo {
 }
 
 export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
+
+	private readonly _onDidChangeNavigation = this._register(new Emitter<void>());
+	readonly onDidChangeNavigation = this._onDidChangeNavigation.event;
+	private _navigation: ICustomTextEditorNavigation | undefined;
+
+	get navigation(): ICustomTextEditorNavigation | undefined {
+		return this._navigation;
+	}
+
+	set navigation(value: ICustomTextEditorNavigation | undefined) {
+		if (this._navigation !== value) {
+			this._navigation = value;
+			this._onDidChangeNavigation.fire();
+		}
+	}
+
+	public override async applyOptions(options: ITextEditorOptions, token: CancellationToken): Promise<void> {
+		const selection = options.selection;
+		if (this.navigation && selection && !token.isCancellationRequested) {
+			const range = new Range(selection.startLineNumber, selection.startColumn, selection.endLineNumber ?? selection.startLineNumber, selection.endColumn ?? selection.startColumn);
+			await this.navigation.revealRange(range, Selection.fromRange(range, SelectionDirection.LTR), !!options.preserveFocus, token);
+		}
+	}
 
 	static create(
 		instantiationService: IInstantiationService,

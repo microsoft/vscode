@@ -4,42 +4,54 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from '../../../../../base/browser/dom.js';
-import { IKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
 import { InputBox } from '../../../../../base/browser/ui/inputbox/inputBox.js';
-import { IListContextMenuEvent, IListRenderer, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
-import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
-import { Checkbox, TriStateCheckbox } from '../../../../../base/browser/ui/toggle/toggle.js';
+import { IListRenderer, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
+import { RenderIndentGuides } from '../../../../../base/browser/ui/tree/abstractTree.js';
+import { IObjectTreeElement, ObjectTreeElementCollapseState } from '../../../../../base/browser/ui/tree/tree.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { IAnchor } from '../../../../../base/browser/ui/contextview/contextview.js';
 import { Action } from '../../../../../base/common/actions.js';
 import { Delayer } from '../../../../../base/common/async.js';
-import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
+import { getErrorMessage } from '../../../../../base/common/errors.js';
 import { IMatch, matchesContiguousSubString } from '../../../../../base/common/filters.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, IReader, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
-import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { autorun, derived, IObservable, IReader, observableSignal, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
+import { CustomizationType, McpServerStatus, type PluginCustomization } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { WorkbenchList } from '../../../../../platform/list/browser/listService.js';
-import { layoutVirtualizedSectionList, layoutVirtualizedSections, setupCollapsibleSection } from './customizationCardList.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
-import { defaultButtonStyles, defaultCheckboxStyles, defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
-import { IExtensionManifestPropertiesService } from '../../../../services/extensions/common/extensionManifestPropertiesService.js';
+import { defaultInputBoxStyles, getButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ExtensionState, IExtension, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
-import { GalleryItemInstallState, GalleryItemRenderer, IGalleryItemProvider } from './galleryItemRenderer.js';
 import { ILanguageModelToolsService, IToolData, IToolSet, ToolDataSource } from '../../common/tools/languageModelToolsService.js';
+import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
+import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
+import { IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
+import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agentHostCustomizationService.js';
 import { countEnabledCustomizationTools, getToolSetTriState, IAgentHostToolSetEnablementService, isToolEnabledInSet, IToolEnablementState } from '../agentSessions/agentHost/agentHostToolSetEnablementService.js';
+import { IMcpService } from '../../../mcp/common/mcpTypes.js';
+import { authenticateMcpServer, createAgentHostMcpServerDetailInput, createInstalledPluginItem, getActiveSessionServerPresentation, getAgentHostMcpServerSource, getMcpErrorMessage, getMcpStatusPresentation, isPrimaryMcpServerEnabled, renderMcpServerStatusActions, setPrimaryMcpServerEnablement } from './mcpListWidget.js';
+import { IMcpServerDetailInput } from './embeddedMcpServerDetail.js';
+import { type AgentHostMcpServer } from './mcpServerCount.js';
+import { CustomizationGroupHeaderRenderer, CUSTOMIZATION_GROUP_HEADER_HEIGHT, ICustomizationGroupHeaderEntry } from './customizationGroupHeaderRenderer.js';
+import { asTreeRenderer, customizationTreeStyles, getCustomizationTreeContentHeight, ICustomizationTreeGroup } from './customizationTree.js';
+import { CustomizationToggle } from './customizationToggle.js';
 import './media/aiCustomizationManagement.css';
 
 const $ = DOM.$;
@@ -67,61 +79,110 @@ interface IToolSetViewModel {
 
 //#region Virtualized tool rows
 
-/** A flattened row in a section's virtualized list: either a tool-set header or one of its member tools. */
+/** A flattened tool-set header in a section's virtualized list. */
 interface IToolsSetRowEntry {
-	readonly kind: 'set';
+	readonly type: 'set';
 	readonly vm: IToolSetViewModel;
 }
 
 interface IToolsToolRowEntry {
-	readonly kind: 'tool';
+	readonly type: 'tool';
 	readonly setVm: IToolSetViewModel;
 	readonly toolVm: IToolViewModel;
 }
 
-type IToolsRowEntry = IToolsSetRowEntry | IToolsToolRowEntry;
+interface IToolsConnectedRowEntry {
+	readonly type: 'connected';
+	readonly id: string;
+	readonly depth: number;
+	readonly label: string;
+	readonly description?: string;
+	readonly source?: ReturnType<typeof getAgentHostMcpServerSource>;
+	readonly server?: AgentHostMcpServer;
+	readonly expandable: boolean;
+	readonly message?: boolean;
+	readonly nameMatches?: IMatch[];
+}
 
-/** One section (Built-in / Connected / Extension) rendered as its own virtualized `WorkbenchList`. */
-interface IToolsSectionList {
-	readonly list: WorkbenchList<IToolsRowEntry>;
-	/** Flattened rows currently spliced into {@link list}; reassigned (not mutated) on refresh. */
-	entries: readonly IToolsRowEntry[];
-	/** Stable set view models backing this section, used to recompute {@link entries} on expand/collapse. */
-	readonly setVms: readonly IToolSetViewModel[];
-	readonly container: HTMLElement;
+type IToolsRowEntry = IToolsSetRowEntry | IToolsToolRowEntry | IToolsConnectedRowEntry;
+
+type AgentHostMcpTool = Awaited<ReturnType<NonNullable<AgentHostMcpServer['listTools']>>>[number];
+
+type ConnectedToolsState = { state: 'loading' } | { state: 'loaded'; tools: readonly AgentHostMcpTool[] } | { state: 'error' };
+
+interface IToolsGroupEntry extends ICustomizationGroupHeaderEntry {
+	readonly groupKey: string;
+}
+
+interface IToolsEmptyRowEntry {
+	readonly type: 'empty';
+	readonly id: string;
 	readonly label: string;
 }
 
+type IToolsTreeEntry = IToolsGroupEntry | IToolsRowEntry | IToolsEmptyRowEntry;
+
 const TOOLS_SET_ROW_TEMPLATE_ID = 'toolsSetRow';
 const TOOLS_TOOL_ROW_TEMPLATE_ID = 'toolsToolRow';
+const TOOLS_CONNECTED_ROW_TEMPLATE_ID = 'toolsConnectedRow';
 // Row heights derived from the fixed single-line label/subtext CSS plus each row kind's vertical padding.
 const TOOLS_SET_ROW_PADDING = 16; // --vscode-spacing-size80 (8px) top + bottom
 const TOOLS_TOOL_ROW_PADDING = 12; // --vscode-spacing-size60 (6px) top + bottom
 const TOOLS_ROW_LABEL_HEIGHT = 18;
 const TOOLS_ROW_SUBTEXT_HEIGHT = 14;
-/** Caps a section's own scroll viewport height; sections with more content scroll internally. */
-const TOOLS_SECTION_MAX_HEIGHT = 320;
-
 function computeToolsRowHeight(entry: IToolsRowEntry): number {
-	if (entry.kind === 'set') {
+	if (entry.type === 'set') {
 		return TOOLS_SET_ROW_PADDING + TOOLS_ROW_LABEL_HEIGHT + (entry.vm.detail ? TOOLS_ROW_SUBTEXT_HEIGHT : 0);
+	}
+	if (entry.type === 'connected') {
+		return (entry.server || entry.expandable ? TOOLS_SET_ROW_PADDING : TOOLS_TOOL_ROW_PADDING) + TOOLS_ROW_LABEL_HEIGHT + (entry.description ? TOOLS_ROW_SUBTEXT_HEIGHT : 0);
 	}
 	const description = entry.toolVm.tool.userDescription ?? entry.toolVm.tool.modelDescription;
 	return TOOLS_TOOL_ROW_PADDING + TOOLS_ROW_LABEL_HEIGHT + (description ? TOOLS_ROW_SUBTEXT_HEIGHT : 0);
 }
 
-class ToolsRowDelegate implements IListVirtualDelegate<IToolsRowEntry> {
-	getHeight(entry: IToolsRowEntry): number {
+class ToolsTreeDelegate implements IListVirtualDelegate<IToolsTreeEntry> {
+	getHeight(entry: IToolsTreeEntry): number {
+		if (entry.type === 'group-header') {
+			return CUSTOMIZATION_GROUP_HEADER_HEIGHT;
+		}
+		if (entry.type === 'empty') {
+			return 54;
+		}
 		return computeToolsRowHeight(entry);
 	}
-	getTemplateId(entry: IToolsRowEntry): string {
-		return entry.kind === 'set' ? TOOLS_SET_ROW_TEMPLATE_ID : TOOLS_TOOL_ROW_TEMPLATE_ID;
+
+	getTemplateId(entry: IToolsTreeEntry): string {
+		if (entry.type === 'group-header') {
+			return 'toolsGroupHeader';
+		}
+		if (entry.type === 'empty') {
+			return 'toolsEmptyRow';
+		}
+		if (entry.type === 'connected') {
+			return TOOLS_CONNECTED_ROW_TEMPLATE_ID;
+		}
+		return entry.type === 'set' ? TOOLS_SET_ROW_TEMPLATE_ID : TOOLS_TOOL_ROW_TEMPLATE_ID;
 	}
+}
+
+class ToolsEmptyRowRenderer implements IListRenderer<IToolsEmptyRowEntry, HTMLElement> {
+	readonly templateId = 'toolsEmptyRow';
+
+	renderTemplate(container: HTMLElement): HTMLElement {
+		return DOM.append(container, $('.plugin-inventory-empty.tools-tree-empty-row'));
+	}
+
+	renderElement(entry: IToolsEmptyRowEntry, _index: number, templateData: HTMLElement): void {
+		templateData.textContent = entry.label;
+	}
+
+	disposeTemplate(): void { }
 }
 
 interface IToolsSetRowTemplateData {
 	readonly container: HTMLElement;
-	readonly checkbox: TriStateCheckbox;
+	readonly toggle: CustomizationToggle;
 	readonly label: HighlightedLabel;
 	readonly subtext: HTMLElement;
 	readonly count: HTMLElement;
@@ -130,16 +191,17 @@ interface IToolsSetRowTemplateData {
 	readonly chevron: HTMLElement;
 	readonly templateDisposables: DisposableStore;
 	readonly elementDisposables: DisposableStore;
-	currentIndex: number;
+	currentSetId: string | undefined;
 }
 
-/** Renders a tool-set header row: checkbox/tri-state, name + detail, enabled count, more actions, chevron. */
+/** Renders a tool-set header row: toggle, name + detail, enabled count, more actions, chevron. */
 class ToolsSetRowRenderer implements IListRenderer<IToolsSetRowEntry, IToolsSetRowTemplateData> {
 	readonly templateId = TOOLS_SET_ROW_TEMPLATE_ID;
 	private readonly _templates = new Set<IToolsSetRowTemplateData>();
-	private _focusedIndex = -1;
+	private _focusedSetId: string | undefined;
 
 	constructor(
+		private readonly _instantiationService: IInstantiationService,
 		private readonly _sessionType: string,
 		private readonly _enablementService: IAgentHostToolSetEnablementService,
 		private readonly _isExpanded: (vm: IToolSetViewModel, reader: IReader) => boolean,
@@ -152,10 +214,10 @@ class ToolsSetRowRenderer implements IListRenderer<IToolsSetRowEntry, IToolsSetR
 		container.classList.add('tools-list-setrow');
 		const templateDisposables = new DisposableStore();
 
-		const checkbox = templateDisposables.add(new TriStateCheckbox('', false, defaultCheckboxStyles));
-		checkbox.domNode.tabIndex = -1;
-		container.appendChild(checkbox.domNode);
-		templateDisposables.add(DOM.addDisposableGenericMouseDownListener(checkbox.domNode, event => DOM.EventHelper.stop(event, true)));
+		const toggle = templateDisposables.add(this._instantiationService.createInstance(CustomizationToggle, { ariaLabel: '', checked: false }));
+		toggle.setTabIndex(-1);
+		container.appendChild(toggle.domNode);
+		templateDisposables.add(DOM.addDisposableGenericMouseDownListener(toggle.domNode, event => DOM.EventHelper.stop(event, true)));
 
 		const main = DOM.append(container, $('.tools-list-row-main'));
 		const text = DOM.append(main, $('.tools-list-row-text'));
@@ -163,9 +225,9 @@ class ToolsSetRowRenderer implements IListRenderer<IToolsSetRowEntry, IToolsSetR
 		const label = templateDisposables.add(new HighlightedLabel(labelEl));
 		const subtext = DOM.append(text, $('span.tools-list-row-subtext'));
 
-		const count = DOM.append(container, $('span.tools-list-row-count'));
 		const alwaysAvailable = DOM.append(container, $('span.tools-list-always-available'));
 		alwaysAvailable.textContent = localize('toolsAlwaysAvailable', "Always Available");
+		const count = DOM.append(container, $('span.tools-list-row-count'));
 
 		const moreButton = DOM.append(container, $('button.tools-list-more-action')) as HTMLButtonElement;
 		moreButton.type = 'button';
@@ -176,14 +238,14 @@ class ToolsSetRowRenderer implements IListRenderer<IToolsSetRowEntry, IToolsSetR
 		const chevron = DOM.append(container, $('a.tools-list-chevron.codicon')) as HTMLAnchorElement;
 		chevron.setAttribute('aria-hidden', 'true');
 
-		const template = { container, checkbox, label, subtext, count, alwaysAvailable, moreButton, chevron, templateDisposables, elementDisposables: templateDisposables.add(new DisposableStore()), currentIndex: -1 };
+		const template = { container, toggle, label, subtext, count, alwaysAvailable, moreButton, chevron, templateDisposables, elementDisposables: templateDisposables.add(new DisposableStore()), currentSetId: undefined };
 		this._templates.add(template);
 		return template;
 	}
 
-	renderElement(entry: IToolsSetRowEntry, index: number, data: IToolsSetRowTemplateData): void {
+	renderElement(entry: IToolsSetRowEntry, _index: number, data: IToolsSetRowTemplateData): void {
 		data.elementDisposables.clear();
-		data.currentIndex = index;
+		data.currentSetId = entry.vm.toolSet.id;
 		data.container.removeAttribute('aria-selected');
 		const vm = entry.vm;
 		const ts = vm.toolSet;
@@ -192,13 +254,14 @@ class ToolsSetRowRenderer implements IListRenderer<IToolsSetRowEntry, IToolsSetR
 		data.label.set(setName, vm.nameMatches);
 		data.subtext.style.display = vm.detail ? '' : 'none';
 		data.subtext.textContent = vm.detail ?? '';
-		data.alwaysAvailable.style.display = vm.readOnly ? '' : 'none';
-		data.checkbox.domNode.style.display = vm.readOnly ? 'none' : '';
+		data.alwaysAvailable.style.display = 'none';
+		data.toggle.domNode.style.display = '';
+		data.toggle.domNode.style.visibility = vm.readOnly ? 'hidden' : '';
 
 		if (!vm.readOnly) {
-			data.checkbox.setTitle(localize('toolsSetCheckbox', "Enable {0}", setName));
-			data.elementDisposables.add(data.checkbox.onChange(() => {
-				this._enablementService.setToolSetEnabled(this._sessionType, ts.id, vm.allToolIds, data.checkbox.checked === true);
+			data.toggle.setAriaLabel(localize('toolsSetToggle', "Enable {0}", setName));
+			data.elementDisposables.add(data.toggle.onChange(() => {
+				this._enablementService.setToolSetEnabled(this._sessionType, ts.id, vm.allToolIds, data.toggle.checked === true);
 			}));
 		}
 
@@ -207,7 +270,7 @@ class ToolsSetRowRenderer implements IListRenderer<IToolsSetRowEntry, IToolsSetR
 			const state = this._enablementService.observe(this._sessionType).read(reader);
 			const triState = getToolSetTriState(state, ts.id, vm.allToolIds);
 			if (!vm.readOnly) {
-				data.checkbox.checked = triState;
+				data.toggle.checked = triState;
 				data.container.setAttribute('aria-checked', triState === 'mixed' ? 'mixed' : String(triState));
 			} else {
 				data.container.removeAttribute('aria-checked');
@@ -226,7 +289,7 @@ class ToolsSetRowRenderer implements IListRenderer<IToolsSetRowEntry, IToolsSetR
 
 		const extension = this._resolveExtension(ts);
 		data.moreButton.style.display = extension ? '' : 'none';
-		data.moreButton.tabIndex = extension && index === this._focusedIndex ? 0 : -1;
+		data.moreButton.tabIndex = extension && entry.vm.toolSet.id === this._focusedSetId ? 0 : -1;
 		if (extension) {
 			const moreLabel = localize('toolsSetMoreActions', "More actions for {0}", setName);
 			data.moreButton.setAttribute('aria-label', moreLabel);
@@ -237,19 +300,19 @@ class ToolsSetRowRenderer implements IListRenderer<IToolsSetRowEntry, IToolsSetR
 			}));
 		}
 
-		// Clicking the row body (not the checkbox/more-actions button) toggles expand/collapse.
+		// Clicking the row body (not the toggle/more-actions button) toggles expand/collapse.
 		data.elementDisposables.add(DOM.addDisposableListener(data.container, 'click', e => {
-			if (data.checkbox.domNode.contains(e.target as Node) || data.moreButton.contains(e.target as Node)) {
+			if (data.toggle.domNode.contains(e.target as Node) || data.moreButton.contains(e.target as Node)) {
 				return;
 			}
 			this._toggleExpand(ts.id);
 		}));
 	}
 
-	setFocusedIndex(index: number): void {
-		this._focusedIndex = index;
+	setFocusedSetId(setId: string | undefined): void {
+		this._focusedSetId = setId;
 		for (const template of this._templates) {
-			template.moreButton.tabIndex = template.moreButton.style.display !== 'none' && template.currentIndex === index ? 0 : -1;
+			template.moreButton.tabIndex = template.moreButton.style.display !== 'none' && template.currentSetId === setId ? 0 : -1;
 		}
 	}
 
@@ -261,7 +324,7 @@ class ToolsSetRowRenderer implements IListRenderer<IToolsSetRowEntry, IToolsSetR
 
 interface IToolsToolRowTemplateData {
 	readonly container: HTMLElement;
-	readonly checkbox: Checkbox;
+	readonly toggle: CustomizationToggle;
 	readonly label: HighlightedLabel;
 	readonly subtext: HTMLElement;
 	readonly alwaysAvailable: HTMLElement;
@@ -274,6 +337,7 @@ class ToolsToolRowRenderer implements IListRenderer<IToolsToolRowEntry, IToolsTo
 	readonly templateId = TOOLS_TOOL_ROW_TEMPLATE_ID;
 
 	constructor(
+		private readonly _instantiationService: IInstantiationService,
 		private readonly _sessionType: string,
 		private readonly _enablementService: IAgentHostToolSetEnablementService,
 	) { }
@@ -282,10 +346,10 @@ class ToolsToolRowRenderer implements IListRenderer<IToolsToolRowEntry, IToolsTo
 		container.classList.add('tools-list-toolrow');
 		const templateDisposables = new DisposableStore();
 
-		const checkbox = templateDisposables.add(new Checkbox('', false, defaultCheckboxStyles));
-		checkbox.domNode.tabIndex = -1;
-		container.appendChild(checkbox.domNode);
-		templateDisposables.add(DOM.addDisposableGenericMouseDownListener(checkbox.domNode, event => DOM.EventHelper.stop(event, true)));
+		const toggle = templateDisposables.add(this._instantiationService.createInstance(CustomizationToggle, { ariaLabel: '', checked: false }));
+		toggle.setTabIndex(-1);
+		container.appendChild(toggle.domNode);
+		templateDisposables.add(DOM.addDisposableGenericMouseDownListener(toggle.domNode, event => DOM.EventHelper.stop(event, true)));
 
 		const text = DOM.append(container, $('.tools-list-row-text'));
 		const labelEl = DOM.append(text, $('span.tools-list-row-label'));
@@ -295,7 +359,7 @@ class ToolsToolRowRenderer implements IListRenderer<IToolsToolRowEntry, IToolsTo
 		const alwaysAvailable = DOM.append(container, $('span.tools-list-always-available'));
 		alwaysAvailable.textContent = localize('toolsAlwaysAvailable', "Always Available");
 
-		return { container, checkbox, label, subtext, alwaysAvailable, templateDisposables, elementDisposables: templateDisposables.add(new DisposableStore()) };
+		return { container, toggle, label, subtext, alwaysAvailable, templateDisposables, elementDisposables: templateDisposables.add(new DisposableStore()) };
 	}
 
 	renderElement(entry: IToolsToolRowEntry, _index: number, data: IToolsToolRowTemplateData): void {
@@ -311,23 +375,23 @@ class ToolsToolRowRenderer implements IListRenderer<IToolsToolRowEntry, IToolsTo
 		data.subtext.style.display = description ? '' : 'none';
 		data.subtext.textContent = description ?? '';
 		data.alwaysAvailable.style.display = setVm.readOnly ? '' : 'none';
-		data.checkbox.domNode.style.display = setVm.readOnly ? 'none' : '';
+		data.toggle.domNode.style.display = setVm.readOnly ? 'none' : '';
 
 		if (!setVm.readOnly) {
-			data.checkbox.setTitle(localize('toolsToolCheckbox', "Enable {0}", toolName));
-			data.elementDisposables.add(data.checkbox.onChange(() => {
-				this._enablementService.setToolEnabled(this._sessionType, setVm.toolSet.id, tool.id, data.checkbox.checked);
+			data.toggle.setAriaLabel(localize('toolsToolToggle', "Enable {0}", toolName));
+			data.elementDisposables.add(data.toggle.onChange(() => {
+				this._enablementService.setToolEnabled(this._sessionType, setVm.toolSet.id, tool.id, data.toggle.checked === true);
 			}));
 			data.elementDisposables.add(autorun(reader => {
 				const enabled = isToolEnabledInSet(this._enablementService.observe(this._sessionType).read(reader), setVm.toolSet.id, tool.id);
-				data.checkbox.checked = enabled;
+				data.toggle.checked = enabled;
 				data.container.setAttribute('aria-checked', String(enabled));
 			}));
 			data.elementDisposables.add(DOM.addDisposableListener(data.container, 'click', e => {
-				if (data.checkbox.domNode.contains(e.target as Node)) {
+				if (data.toggle.domNode.contains(e.target as Node)) {
 					return;
 				}
-				this._enablementService.setToolEnabled(this._sessionType, setVm.toolSet.id, tool.id, !data.checkbox.checked);
+				this._enablementService.setToolEnabled(this._sessionType, setVm.toolSet.id, tool.id, !data.toggle.checked);
 			}));
 		} else {
 			data.container.removeAttribute('aria-checked');
@@ -339,66 +403,123 @@ class ToolsToolRowRenderer implements IListRenderer<IToolsToolRowEntry, IToolsTo
 	}
 }
 
-//#endregion
-
-/**
- * Marketplace search used when browsing for tool-contributing extensions. The marketplace cannot
- * be filtered server-side by contributed feature, so this is a text query.
- */
-const TOOLS_MARKETPLACE_QUERY = 'language model tools';
-
-const TOOLS_GALLERY_ITEM_HEIGHT = 62;
-
-const TOOLS_GALLERY_ITEM_TEMPLATE_ID = 'toolsGalleryItem';
-
-class ToolsGalleryItemDelegate implements IListVirtualDelegate<IExtension> {
-	getHeight(): number { return TOOLS_GALLERY_ITEM_HEIGHT; }
-	getTemplateId(): string { return TOOLS_GALLERY_ITEM_TEMPLATE_ID; }
+interface IToolsConnectedRowTemplateData {
+	readonly container: HTMLElement;
+	readonly actions: HTMLElement;
+	readonly toggle: CustomizationToggle;
+	readonly label: HighlightedLabel;
+	readonly subtext: HTMLElement;
+	readonly chevron: HTMLElement;
+	readonly templateDisposables: DisposableStore;
+	readonly elementDisposables: DisposableStore;
 }
 
-/** Adapts an extension from the gallery to the shared gallery row renderer. */
-class ToolsGalleryItemProvider implements IGalleryItemProvider<IExtension> {
+class ToolsConnectedRowRenderer implements IListRenderer<IToolsConnectedRowEntry, IToolsConnectedRowTemplateData> {
+	readonly templateId = TOOLS_CONNECTED_ROW_TEMPLATE_ID;
 
-	constructor(private readonly _extensionsWorkbenchService: IExtensionsWorkbenchService) { }
+	constructor(
+		private readonly _instantiationService: IInstantiationService,
+		private readonly _hoverService: IHoverService,
+		private readonly _isEnabled: (server: AgentHostMcpServer) => boolean,
+		private readonly _setEnabled: (server: AgentHostMcpServer, enabled: boolean) => void,
+		private readonly _isExpanded: (entry: IToolsConnectedRowEntry, reader: IReader) => boolean,
+		private readonly _toggleExpand: (id: string) => void,
+		private readonly _renderActions: (server: AgentHostMcpServer, container: HTMLElement, disposables: DisposableStore) => void,
+	) { }
 
-	getLabel(extension: IExtension): string {
-		return extension.displayName;
+	renderTemplate(container: HTMLElement): IToolsConnectedRowTemplateData {
+		container.classList.add('tools-list-connected-row');
+		const templateDisposables = new DisposableStore();
+		const toggle = templateDisposables.add(this._instantiationService.createInstance(CustomizationToggle, { ariaLabel: '', checked: false }));
+		toggle.setTabIndex(-1);
+		container.appendChild(toggle.domNode);
+		templateDisposables.add(DOM.addDisposableGenericMouseDownListener(toggle.domNode, event => DOM.EventHelper.stop(event, true)));
+
+		const text = DOM.append(container, $('.tools-list-row-text'));
+		const label = templateDisposables.add(new HighlightedLabel(DOM.append(text, $('span.tools-list-row-label'))));
+		const subtext = DOM.append(text, $('span.tools-list-row-subtext'));
+		// Sits after the flexible text column so actions stay right-aligned next to the toggle, as on the MCP Servers page.
+		const actions = DOM.append(container, $('.tools-list-connected-actions'));
+		const chevron = DOM.append(container, $('a.tools-list-chevron.codicon'));
+		chevron.setAttribute('aria-hidden', 'true');
+		return { container, actions, toggle, label, subtext, chevron, templateDisposables, elementDisposables: templateDisposables.add(new DisposableStore()) };
 	}
 
-	getPublisherDisplayName(extension: IExtension): string | undefined {
-		return extension.publisherDisplayName;
-	}
+	renderElement(entry: IToolsConnectedRowEntry, _index: number, data: IToolsConnectedRowTemplateData): void {
+		data.elementDisposables.clear();
+		DOM.clearNode(data.actions);
+		data.container.removeAttribute('aria-selected');
+		data.container.classList.toggle('tools-list-setrow', !!entry.server || entry.expandable);
+		data.container.classList.toggle('tools-list-toolrow', !entry.server && !entry.expandable);
+		data.container.classList.toggle('readonly', !entry.expandable);
+		data.container.classList.toggle('message', entry.message === true);
+		data.container.style.setProperty('--tools-connected-depth', String(entry.depth));
+		data.label.set(entry.label, entry.nameMatches);
+		data.subtext.textContent = entry.description ?? '';
+		data.subtext.style.display = entry.description ? '' : 'none';
+		if (entry.source) {
+			const source = entry.source;
+			if (source.open) {
+				const link = $('a.source-link', { href: '#', tabIndex: -1, 'aria-label': source.ariaLabel ?? source.label }, source.label);
+				// Split the localized sentence around its placeholder so the source can be a link.
+				const [before, after = ''] = localize('toolsConnectedServerSource', "MCP server from {0}", '\u0000').split('\u0000');
+				DOM.reset(data.subtext, before, link, after);
+				data.elementDisposables.add(DOM.addDisposableGenericMouseDownListener(link, event => DOM.EventHelper.stop(event, true)));
+				data.elementDisposables.add(DOM.addDisposableListener(link, DOM.EventType.CLICK, event => {
+					DOM.EventHelper.stop(event, true);
+					source.open?.();
+				}));
+				data.elementDisposables.add(this._hoverService.setupDelayedHover(link, { content: source.hover }));
+			} else {
+				data.elementDisposables.add(this._hoverService.setupDelayedHover(data.subtext, { content: source.hover }));
+			}
+		}
+		data.toggle.domNode.style.display = entry.server ? '' : 'none';
+		// Server rows keep the chevron's space so they align whether or not they can expand.
+		data.chevron.style.display = entry.expandable || entry.server ? '' : 'none';
+		data.chevron.style.visibility = entry.expandable ? '' : 'hidden';
 
-	getDescription(extension: IExtension): string | undefined {
-		return extension.description;
-	}
-
-	getInstallState(extension: IExtension): GalleryItemInstallState {
-		switch (extension.state) {
-			case ExtensionState.Installed: return GalleryItemInstallState.Installed;
-			case ExtensionState.Installing: return GalleryItemInstallState.Installing;
-			default: return GalleryItemInstallState.Uninstalled;
+		if (entry.server) {
+			const server = entry.server;
+			const enabled = this._isEnabled(server);
+			data.toggle.checked = enabled;
+			data.toggle.setAriaLabel(localize('toolsConnectedServerToggle', "Enable {0}", entry.label));
+			data.container.setAttribute('aria-checked', String(enabled));
+			data.elementDisposables.add(data.toggle.onChange(enabled => this._setEnabled(server, enabled)));
+			if (server.enabled && enabled) {
+				this._renderActions(server, data.actions, data.elementDisposables);
+			}
+		} else {
+			data.container.removeAttribute('aria-checked');
+		}
+		data.actions.style.display = data.actions.childElementCount > 0 ? '' : 'none';
+		if (entry.expandable) {
+			data.elementDisposables.add(autorun(reader => {
+				const expanded = this._isExpanded(entry, reader);
+				data.chevron.classList.toggle('codicon-chevron-down-compact', expanded);
+				data.chevron.classList.toggle('codicon-chevron-right-compact', !expanded);
+				data.container.setAttribute('aria-expanded', String(expanded));
+			}));
+			data.elementDisposables.add(DOM.addDisposableListener(data.container, 'click', event => {
+				if (!data.toggle.domNode.contains(event.target as Node)) {
+					this._toggleExpand(entry.id);
+				}
+			}));
+		} else {
+			data.container.removeAttribute('aria-expanded');
 		}
 	}
 
-	async install(extension: IExtension): Promise<void> {
-		await this._extensionsWorkbenchService.install(extension);
-	}
-
-	onDidChangeInstallState(extension: IExtension, listener: () => void) {
-		return this._extensionsWorkbenchService.onChange(changed => {
-			if (!changed || changed.identifier.id === extension.identifier.id) {
-				listener();
-			}
-		});
+	disposeTemplate(data: IToolsConnectedRowTemplateData): void {
+		data.templateDisposables.dispose();
 	}
 }
 
-/**
- * Chat Customizations → Tools: a searchable, collapsible tree of tool sets and their member
- * tools. Enablement is read/written via {@link IAgentHostToolSetEnablementService}, scoped to
- * `sessionType` (the agent host is the only target for Tools customizations).
- */
+//#endregion
+
+const TOOLS_MARKETPLACE_QUERY = '@tag:language-model-tools';
+
+/** A searchable tree of agent tool sets and session-published plugins and MCP servers. */
 export class ToolsListWidget extends Disposable {
 
 	readonly element: HTMLElement;
@@ -406,35 +527,36 @@ export class ToolsListWidget extends Disposable {
 	private readonly _onDidChangeItemCount = this._register(new Emitter<number>());
 	readonly onDidChangeItemCount = this._onDidChangeItemCount.event;
 
-	private readonly _onDidSelectExtension = this._register(new Emitter<IExtension>());
-	readonly onDidSelectExtension = this._onDidSelectExtension.event;
+	private readonly _onDidSelectServer = this._register(new Emitter<IMcpServerDetailInput>());
+	readonly onDidSelectServer = this._onDidSelectServer.event;
 
-	private readonly _rowStore = this._register(new DisposableStore());
-	private readonly _pendingSectionLayout = this._register(new MutableDisposable());
+	private readonly _onDidRequestShowPlugin = this._register(new Emitter<IAgentPluginItem>());
+	readonly onDidRequestShowPlugin = this._onDidRequestShowPlugin.event;
+
 	private readonly _searchQuery = observableValue<string>('toolsSearchQuery', '');
 	private readonly _expanded = observableValue<ReadonlySet<string>>('toolsExpanded', new Set());
 	private readonly _delayedSearch = this._register(new Delayer<void>(200));
-
 	private _searchInput!: InputBox;
 	private _header!: HTMLElement;
 	private _searchRow!: HTMLElement;
 	private _treeContainer!: HTMLElement;
-	private _treeScrollable!: DomScrollableElement;
-	private _backButtonContainer!: HTMLElement;
-	private _galleryContainer!: HTMLElement;
-	private _galleryEmpty!: HTMLElement;
-	private _galleryListContainer!: HTMLElement;
-	private _galleryList!: WorkbenchList<IExtension>;
-
+	private _tree!: WorkbenchObjectTree<IToolsTreeEntry>;
+	private _emptyState!: HTMLElement;
 	private _lastCount = -1;
-	private _browseMode = false;
-	private _galleryCts: CancellationTokenSource | undefined;
 	private _lastHeight = 0;
 	private _lastWidth = 0;
+	private _closeCustomizationEditor: () => Promise<boolean> = () => Promise.resolve(true);
 
-	private _sectionLists: IToolsSectionList[] = [];
-	private _collapsedSections: Set<string> | undefined = new Set<string>();
-	private readonly _sectionScrollPositions = new Map<string, number>();
+	private readonly _collapsedGroups = new Set<string>();
+	private _currentModel: readonly IToolSetViewModel[] = [];
+	private _setRenderer!: ToolsSetRowRenderer;
+	private _connectedSessionResource: URI | undefined;
+	private _connectedServers: readonly AgentHostMcpServer[] = [];
+	private _connectedPlugins: readonly PluginCustomization[] = [];
+	private readonly _connectedTools = new Map<string, ConnectedToolsState>();
+	private readonly _connectedToolsChanged = observableSignal(this);
+	private readonly _pendingAutoExpand = new Set<string>();
+	private readonly _agentHostCustomizationsChanged: IObservable<void>;
 
 	/** Read-only tool sets injected for the current session type (e.g. the Copilot CLI built-ins). */
 	private readonly _staticReadOnlySets: readonly IToolSet[];
@@ -449,43 +571,100 @@ export class ToolsListWidget extends Disposable {
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IExtensionsWorkbenchService private readonly _extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IExtensionManifestPropertiesService private readonly _extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
+		@IHoverService private readonly _hoverService: IHoverService,
+		@IAgentHostCustomizationService private readonly _agentHostCustomizationService: IAgentHostCustomizationService,
+		@ICustomizationHarnessService private readonly _harnessService: ICustomizationHarnessService,
+		@IMcpService private readonly _mcpService: IMcpService,
+		@IAgentPluginService private readonly _agentPluginService: IAgentPluginService,
+		@ILabelService private readonly _labelService: ILabelService,
+		@INotificationService private readonly _notificationService: INotificationService,
+		@IEditorService private readonly _editorService: IEditorService,
 	) {
 		super();
 
+		this._agentHostCustomizationsChanged = observableSignalFromEvent(this, this._agentHostCustomizationService.onDidChangeCustomizations);
 		this._staticReadOnlySets = this._createStaticReadOnlySets();
 
 		this.element = $('.tools-list-widget');
 		this._createHeader();
 		this._createSearchRow();
 
-		// Wrap the tree in a DomScrollableElement for an overlay scrollbar (not the native one).
-		this._treeContainer = $('.tools-list-tree');
-		this._treeContainer.classList.add('distributed-section-layout');
-		this._treeScrollable = this._register(new DomScrollableElement(this._treeContainer, {
-			horizontal: ScrollbarVisibility.Hidden,
-			vertical: ScrollbarVisibility.Auto,
-			useShadows: false,
-		}));
-		const treeScrollableNode = this._treeScrollable.getDomNode();
-		treeScrollableNode.classList.add('tools-list-tree-scrollable');
-		this.element.appendChild(treeScrollableNode);
-
-		this._createGallery();
-		this._register(toDisposable(() => this._galleryCts?.dispose(true)));
+		this._treeContainer = DOM.append(this.element, $('.tools-list-tree.customization-tree-container'));
+		this._createTree();
+		this._emptyState = DOM.append(this.element, $('.list-empty-state'));
+		this._emptyState.style.display = 'none';
 
 		const viewModel = this._createViewModel();
+		const connectedModel = derived(this, reader => {
+			this._agentHostCustomizationsChanged.read(reader);
+			const sessionResource = this._harnessService.activeSessionResource.read(reader);
+			return {
+				sessionResource,
+				servers: this._agentHostCustomizationService.getMcpServers(sessionResource),
+				plugins: this._agentHostCustomizationService.getCustomizations(sessionResource).filter(customization => customization.type === CustomizationType.Plugin),
+			};
+		});
 		this._register(autorun(reader => {
-			this._render(viewModel.read(reader));
+			const { sessionResource, servers, plugins } = connectedModel.read(reader);
+			const expanded = this._expanded.read(reader);
+			this._connectedToolsChanged.read(reader);
+			const sessionChanged = !isEqual(this._connectedSessionResource, sessionResource);
+			if (sessionChanged) {
+				this._connectedTools.clear();
+				this._pendingAutoExpand.clear();
+				this._connectedSessionResource = sessionResource;
+			}
+			const nextExpanded = new Set(expanded);
+			for (const id of expanded) {
+				if (id.startsWith('connected-server:')) {
+					const server = servers.find(server => id === `connected-server:${server.id}`);
+					if (sessionChanged || !server || !this._isConnectedServerReady(server)) {
+						nextExpanded.delete(id);
+					}
+				} else if (sessionChanged && id.startsWith('connected-plugin:')) {
+					nextExpanded.delete(id);
+				}
+			}
+			for (const id of this._pendingAutoExpand) {
+				const server = servers.find(server => server.id === id);
+				const state = server && getActiveSessionServerPresentation(server).status;
+				const previousServer = this._connectedServers.find(server => server.id === id);
+				const previousState = previousServer && getActiveSessionServerPresentation(previousServer).status;
+				if (!server || state === McpServerStatus.Error || (state === McpServerStatus.AuthRequired && previousState !== McpServerStatus.AuthRequired)) {
+					this._pendingAutoExpand.delete(id);
+				} else if (this._isConnectedServerReady(server)) {
+					this._pendingAutoExpand.delete(id);
+					if (this.element.isConnected && this.element.offsetParent !== null) {
+						nextExpanded.add(`connected-server:${id}`);
+					}
+				}
+			}
+			this._connectedServers = servers;
+			this._connectedPlugins = plugins;
+			for (const id of this._connectedTools.keys()) {
+				const server = this._connectedServers.find(server => server.id === id);
+				if (!server?.listTools || !this._isConnectedServerReady(server)) {
+					this._connectedTools.delete(id);
+				}
+			}
+			if (nextExpanded.size !== expanded.size || [...nextExpanded].some(id => !expanded.has(id))) {
+				this._expanded.set(nextExpanded, undefined);
+			}
+			for (const server of servers) {
+				if (nextExpanded.has(`connected-server:${server.id}`) && this._isConnectedServerReady(server) && server.listTools && !this._connectedTools.has(server.id)) {
+					void this._loadConnectedTools(server);
+				}
+			}
 		}));
-
-		// Expand/collapse never rebuilds the DOM; it only re-splices the affected section's rows in place.
 		this._register(autorun(reader => {
+			this._currentModel = viewModel.read(reader);
+			connectedModel.read(reader);
+			this._agentPluginService.plugins.read(reader);
 			this._expanded.read(reader);
-			this._refreshAllSectionEntries();
+			this._connectedToolsChanged.read(reader);
+			this._renderTreeGroups();
 		}));
-
 		this._register(autorun(reader => {
 			// Badge counts enabled individual tools across all visible sets, ignoring the search filter.
 			const count = countEnabledCustomizationTools(this._toolsService.toolSets.read(reader), this._readState(reader), reader);
@@ -494,6 +673,10 @@ export class ToolsListWidget extends Disposable {
 				this._onDidChangeItemCount.fire(count);
 			}
 		}));
+	}
+
+	setCloseCustomizationEditor(closeCustomizationEditor: () => Promise<boolean>): void {
+		this._closeCustomizationEditor = closeCustomizationEditor;
 	}
 
 	private _createHeader(): void {
@@ -524,55 +707,99 @@ export class ToolsListWidget extends Disposable {
 		}));
 		this._register(this._searchInput.onDidChange(() => {
 			this._delayedSearch.trigger(() => {
-				if (this._browseMode) {
-					void this._queryGallery();
-				} else {
-					this._searchQuery.set(this._searchInput.value, undefined);
-				}
+				this._searchQuery.set(this._searchInput.value, undefined);
 			}).catch(() => { /* delayer disposed */ });
 		}));
-
-		const backLabel = localize('toolsBrowseBack', "Back");
-		this._backButtonContainer = DOM.append(this._searchRow, $('.tools-list-browse-button-container'));
-		this._backButtonContainer.style.display = 'none';
-		const backButton = this._register(new Button(this._backButtonContainer, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: backLabel, ariaLabel: backLabel }));
-		backButton.label = `$(${Codicon.arrowLeft.id}) ${backLabel}`;
-		this._register(backButton.onDidClick(() => this._setBrowseMode(false)));
 	}
 
-	private _createGallery(): void {
-		this._galleryContainer = DOM.append(this.element, $('.tools-gallery-container'));
-		this._galleryContainer.style.display = 'none';
-		const header = DOM.append(this._galleryContainer, $('.tools-marketplace-header'));
-		DOM.append(header, $('h3.tools-marketplace-title')).textContent = localize('toolsMarketplaceTitle', "Marketplace Tools");
-		DOM.append(header, $('p.tools-marketplace-description')).textContent = localize('toolsMarketplaceDescription', "Install extensions that contribute additional tools.");
-		this._galleryEmpty = DOM.append(this._galleryContainer, $('.list-empty-state'));
-		this._galleryEmpty.style.display = 'none';
-		this._galleryListContainer = DOM.append(this._galleryContainer, $('.tools-gallery-list'));
-		this._galleryList = this._register(this._instantiationService.createInstance(
-			WorkbenchList<IExtension>,
-			'ToolsMarketplaceList',
-			this._galleryListContainer,
-			new ToolsGalleryItemDelegate(),
-			[new GalleryItemRenderer<IExtension>(TOOLS_GALLERY_ITEM_TEMPLATE_ID, new ToolsGalleryItemProvider(this._extensionsWorkbenchService))],
+	private _createTree(): void {
+		this._setRenderer = new ToolsSetRowRenderer(
+			this._instantiationService,
+			this._sessionType,
+			this._enablementService,
+			(vm, reader) => vm.forceExpanded || this._expanded.read(reader).has(vm.toolSet.id),
+			setId => this._toggleCollapsed(setId),
+			ts => this._resolveExtensionForToolSet(ts),
+			(anchor, extension) => this._showExtensionContextMenu(anchor, extension),
+		);
+		const groupRenderer = new CustomizationGroupHeaderRenderer<IToolsGroupEntry>(
+			'toolsGroupHeader',
+			this._hoverService,
+			(entry, container, disposables) => this._renderTreeGroupActions(entry, container, disposables),
+		);
+		this._tree = this._register(this._instantiationService.createInstance(
+			WorkbenchObjectTree<IToolsTreeEntry>,
+			'ToolsManagementTree',
+			this._treeContainer,
+			new ToolsTreeDelegate(),
+			[
+				asTreeRenderer(groupRenderer),
+				asTreeRenderer(this._setRenderer),
+				asTreeRenderer(new ToolsToolRowRenderer(this._instantiationService, this._sessionType, this._enablementService)),
+				asTreeRenderer(new ToolsConnectedRowRenderer(
+					this._instantiationService,
+					this._hoverService,
+					server => isPrimaryMcpServerEnabled(this._mcpService, undefined, server),
+					(server, enabled) => this._setConnectedServerEnabled(server, enabled),
+					(entry, reader) => this._expanded.read(reader).has(entry.id) || (!entry.server && !!this._searchQuery.read(reader).trim()),
+					id => this._toggleCollapsed(id),
+					(server, container, disposables) => this._renderConnectedServerActions(server, container, disposables),
+				)),
+				asTreeRenderer(new ToolsEmptyRowRenderer()),
+			],
 			{
+				indent: 8,
+				renderIndentGuides: RenderIndentGuides.None,
+				hideTwistiesOfChildlessElements: false,
+				overrideStyles: customizationTreeStyles,
 				multipleSelectionSupport: false,
 				horizontalScrolling: false,
+				openOnSingleClick: true,
+				identityProvider: { getId: entry => this._treeEntryId(entry) },
 				accessibilityProvider: {
-					getAriaLabel: (extension: IExtension) => extension.displayName,
-					getWidgetAriaLabel: () => localize('toolsMarketplaceAria', "Tool extensions"),
+					getWidgetAriaLabel: () => localize('toolsTreeAriaLabel', "Tools"),
+					getAriaLabel: entry => this._getTreeEntryLabel(entry),
 				},
-				identityProvider: { getId: (extension: IExtension) => extension.identifier.id },
+				keyboardNavigationLabelProvider: {
+					getKeyboardNavigationLabel: entry => this._getTreeEntryLabel(entry),
+				},
 			},
-		)) as WorkbenchList<IExtension>;
-
-		this._register(this._galleryList.onDidOpen(e => {
-			if (e.element) {
-				this._onDidSelectExtension.fire(e.element);
+		));
+		this._register(this._tree.onDidChangeSelection(() => this._tree.setSelection([])));
+		this._register(this._tree.onDidChangeFocus(event => {
+			const entry = event.elements[0];
+			this._setRenderer.setFocusedSetId(entry?.type === 'set' ? entry.vm.toolSet.id : undefined);
+		}));
+		this._register(this._tree.onDidChangeCollapseState(event => {
+			const entry = event.node.element;
+			if (!entry || entry.type !== 'group-header') {
+				return;
+			}
+			if (event.node.collapsed) {
+				this._collapsedGroups.add(entry.groupKey);
+			} else {
+				this._collapsedGroups.delete(entry.groupKey);
 			}
 		}));
-
-		this._register(this._galleryList.onContextMenu(e => this._onGalleryContextMenu(e)));
+		this._register(DOM.addStandardDisposableListener(this._tree.getHTMLElement(), DOM.EventType.KEY_DOWN, event => {
+			const entry = this._tree.getFocus()[0];
+			if (entry?.type === 'connected' && entry.expandable && (event.keyCode === KeyCode.LeftArrow || event.keyCode === KeyCode.RightArrow)) {
+				if (this._expanded.get().has(entry.id) !== (event.keyCode === KeyCode.RightArrow)) {
+					this._toggleCollapsed(entry.id);
+				}
+				event.preventDefault();
+				event.stopPropagation();
+				return;
+			}
+			if (event.keyCode !== KeyCode.Space && event.keyCode !== KeyCode.Enter) {
+				return;
+			}
+			if (entry && entry.type !== 'group-header' && entry.type !== 'empty') {
+				this._activateToolEntry(entry, event.keyCode === KeyCode.Enter);
+				event.preventDefault();
+				event.stopPropagation();
+			}
+		}));
 	}
 
 	private _readState(reader: IReader): IToolEnablementState {
@@ -675,123 +902,9 @@ export class ToolsListWidget extends Disposable {
 		}
 		this.element.classList.toggle('narrow-layout', width < 500);
 		this._searchInput.layout();
-		this._scheduleSectionListLayout();
-
-		const galleryOffset = this._galleryContainer.getBoundingClientRect().top - this.element.getBoundingClientRect().top;
-		this._galleryList.layout(Math.max(0, height - galleryOffset), width);
-	}
-
-	/** Enters/leaves marketplace browse mode, swapping the tree for the gallery list. */
-	private _setBrowseMode(browse: boolean): void {
-		if (browse && this._environmentService.isSessionsWindow) {
-			return;
-		}
-		if (this._browseMode === browse) {
-			return;
-		}
-		this._browseMode = browse;
-
-		this._treeScrollable.getDomNode().style.display = browse ? 'none' : '';
-		this._galleryContainer.style.display = browse ? '' : 'none';
-		this._backButtonContainer.style.display = browse ? '' : 'none';
-
-		this._searchInput.setPlaceHolder(browse
-			? localize('toolsBrowsePlaceholder', "Search the Marketplace...")
-			: localize('searchPlaceholder', "Type to search..."));
-		this._searchInput.value = '';
-
-		if (browse) {
-			void this._queryGallery();
-		} else {
-			this._galleryCts?.dispose(true);
-			this._galleryCts = undefined;
-			this._galleryList.splice(0, this._galleryList.length, []);
-			this._searchQuery.set('', undefined);
-		}
-
-		this._searchInput.focus();
-		if (this._lastHeight > 0) {
-			this.layout(this._lastHeight, this._lastWidth);
-		}
-	}
-
-	/** Queries the Extensions gallery for tool-contributing extensions. */
-	private async _queryGallery(): Promise<void> {
-		this._galleryCts?.dispose(true);
-		const cts = this._galleryCts = new CancellationTokenSource();
-
-		const userText = this._searchInput.value.trim();
-		const text = userText ? `${TOOLS_MARKETPLACE_QUERY} ${userText}` : TOOLS_MARKETPLACE_QUERY;
-
-		this._setGalleryMessage(localize('toolsBrowseLoading', "Loading marketplace..."));
-		try {
-			const pager = await this._extensionsWorkbenchService.queryGallery({ text }, cts.token);
-			if (cts.token.isCancellationRequested) {
-				return;
-			}
-			const items = pager.firstPage;
-			const filteredItems = await this._filterGalleryResults(items, cts.token);
-			if (cts.token.isCancellationRequested) {
-				return;
-			}
-			if (filteredItems.length === 0) {
-				this._setGalleryMessage(
-					localize('toolsBrowseNoResults', "No tool extensions match '{0}'", userText || TOOLS_MARKETPLACE_QUERY),
-					localize('tryDifferentSearch', "Try a different search term"));
-				return;
-			}
-			this._galleryEmpty.style.display = 'none';
-			this._galleryListContainer.style.display = '';
-			this._galleryList.splice(0, this._galleryList.length, filteredItems);
-		} catch {
-			if (!cts.token.isCancellationRequested) {
-				this._setGalleryMessage(
-					localize('toolsBrowseError', "Unable to load marketplace"),
-					localize('toolsBrowseTryAgain', "Check your connection and try again"));
-			}
-		}
-	}
-
-	/**
-	 * Keeps only extensions that contribute language model tools and, in the Agents window, can run there
-	 * ({@link IExtensionManifestPropertiesService.canExecuteOnSessionsWindow}); the `executesCode` hint skips
-	 * manifest fetches for extensions that can never run.
-	 */
-	private async _filterGalleryResults(extensions: readonly IExtension[], token: CancellationToken): Promise<IExtension[]> {
-		const requireAgentsWindowSupport = this._environmentService.isSessionsWindow;
-		const results = await Promise.all(extensions.map(async extension => {
-			// In the Agents window, code-executing extensions can never run: reject before fetching the manifest.
-			if (requireAgentsWindowSupport && extension.gallery?.properties.executesCode) {
-				return undefined;
-			}
-			try {
-				const manifest = await extension.getManifest(token);
-				if (!manifest?.contributes?.languageModelTools?.length) {
-					return undefined;
-				}
-				if (requireAgentsWindowSupport && !this._extensionManifestPropertiesService.canExecuteOnSessionsWindow(manifest)) {
-					return undefined;
-				}
-				return extension;
-			} catch {
-				// Ignore extensions whose manifest cannot be resolved.
-				return undefined;
-			}
-		}));
-		return results.filter((extension): extension is IExtension => !!extension);
-	}
-
-	private _setGalleryMessage(text: string, subtext?: string): void {
-		// Drop any stale rows so only the message shows.
-		this._galleryList.splice(0, this._galleryList.length, []);
-		this._galleryListContainer.style.display = 'none';
-		DOM.clearNode(this._galleryEmpty);
-		this._galleryEmpty.style.display = 'flex';
-		const header = DOM.append(this._galleryEmpty, $('.empty-state-header'));
-		DOM.append(header, $('.empty-state-text')).textContent = text;
-		if (subtext) {
-			DOM.append(this._galleryEmpty, $('.empty-state-subtext')).textContent = subtext;
-		}
+		const treeHeight = getCustomizationTreeContentHeight(this.element, this._treeContainer, height);
+		this._treeContainer.style.height = `${treeHeight}px`;
+		this._tree.layout(treeHeight, width);
 	}
 
 	/** Move keyboard focus to the search box. */
@@ -805,199 +918,294 @@ export class ToolsListWidget extends Disposable {
 		this._onDidChangeItemCount.fire(this._lastCount === -1 ? 0 : this._lastCount);
 	}
 
-	private _render(model: readonly IToolSetViewModel[]): void {
-		// A live update (search/tool-set change) rebuilds sections; keep keyboard focus if it was in the tree.
-		const focusedSection = this._sectionLists.find(s => DOM.isAncestor(this._treeContainer.ownerDocument.activeElement, s.container));
-		const focusedRowId = focusedSection ? this._currentFocusedRowId(focusedSection) : undefined;
-		for (const section of this._sectionLists) {
-			this._sectionScrollPositions.set(section.label, section.list.scrollTop);
+	private _renderTreeGroups(): void {
+		if (!this._tree) {
+			return;
 		}
-
-		this._rowStore.clear();
-		this._sectionLists = [];
-		DOM.clearNode(this._treeContainer);
-
 		const query = this._searchQuery.get().trim();
-		if (model.length === 0 && query) {
-			const emptyState = DOM.append(this._treeContainer, $('.list-empty-state'));
-			const header = DOM.append(emptyState, $('.empty-state-header'));
-			const text = DOM.append(header, $('.empty-state-text'));
-			const subtext = DOM.append(emptyState, $('.empty-state-subtext'));
-			text.textContent = localize('noMatchingTools', "No tools match '{0}'", query);
-			subtext.textContent = localize('tryDifferentSearch', "Try a different search term");
-			this._treeScrollable.scanDomNode();
+		const groups = [
+			this._createTreeGroup(
+				'builtin',
+				localize('builtInToolsSection', "Built-in Tools"),
+				localize('builtInToolsSectionDescription', "Tools provided by the active agent and VS Code."),
+				localize('builtInToolsSectionEmpty', "No built-in tool sets are available."),
+				this._currentModel.filter(vm => vm.toolSet.source.type === 'internal' || vm.toolSet.source.type === 'external'),
+			),
+			this._createConnectedTreeGroup(query),
+			this._createTreeGroup(
+				'extensions',
+				localize('installedToolExtensionsSection', "Extension Tools"),
+				localize('installedToolExtensionsSectionDescription', "Tool sets contributed by installed extensions."),
+				localize('extensionToolsSectionEmpty', "No extension tools are installed."),
+				this._currentModel.filter(vm => vm.toolSet.source.type === 'extension'),
+			),
+		].filter(group => !query || group.count > 0);
+
+		if (groups.length === 0 && query) {
+			this._tree.setChildren(null);
+			this._treeContainer.style.display = 'none';
+			this._showTreeEmptyState(
+				localize('noMatchingTools', "No tools match '{0}'", query),
+				localize('tryDifferentSearch', "Try a different search term"),
+			);
 			return;
 		}
 
-		const builtIn = model.filter(vm => vm.toolSet.source.type === 'internal' || vm.toolSet.source.type === 'external');
-		const connected = model.filter(vm => vm.toolSet.source.type === 'mcp' || vm.toolSet.source.type === 'user');
-		const installed = model.filter(vm => vm.toolSet.source.type === 'extension');
-		this._renderToolSection(
-			localize('builtInToolsSection', "Built-in Tools"),
-			localize('builtInToolsSectionDescription', "Tools provided by the active agent and VS Code."),
-			localize('builtInToolsSectionEmpty', "No built-in tool sets are available."),
-			builtIn,
-			query,
-		);
-		this._renderToolSection(
-			localize('connectedToolsSection', "Connected Sources"),
-			localize('connectedToolsSectionDescription', "Tool sets provided by MCP servers and user configuration."),
-			localize('connectedToolsSectionEmpty', "No connected tool sources are available."),
-			connected,
-			query,
-			undefined,
-			false,
-		);
-		this._renderToolSection(
-			localize('installedToolExtensionsSection', "Extension Tools"),
-			localize('installedToolExtensionsSectionDescription', "Tool sets contributed by installed extensions."),
-			localize('extensionToolsSectionEmpty', "No extension tools are installed."),
-			installed,
-			query,
-			!this._environmentService.isSessionsWindow ? sectionHeader => {
-				const actions = DOM.append(sectionHeader, $('.tools-inventory-section-actions'));
-				const browseLabel = localize('toolsBrowseMarketplace', "Browse Marketplace");
-				const browseButton = this._rowStore.add(new Button(actions, { ...defaultButtonStyles, secondary: true, supportIcons: true, title: browseLabel, ariaLabel: browseLabel }));
-				browseButton.label = `$(${Codicon.library.id}) ${browseLabel}`;
-				this._rowStore.add(browseButton.onDidClick(() => this._setBrowseMode(true)));
-			} : undefined,
-		);
-
-		this._scheduleSectionListLayout();
-		if (focusedRowId) {
-			this._restoreFocus(focusedRowId);
+		this._emptyState.style.display = 'none';
+		this._treeContainer.style.display = '';
+		const children: IObjectTreeElement<IToolsTreeEntry>[] = groups.map(group => ({
+			element: group.element,
+			collapsible: true,
+			collapsed: this._collapsedGroups.has(group.id)
+				? ObjectTreeElementCollapseState.PreserveOrCollapsed
+				: ObjectTreeElementCollapseState.PreserveOrExpanded,
+			children: group.children.map(element => ({ element })),
+		}));
+		this._tree.setChildren(null);
+		this._tree.setChildren(null, children);
+		if (this._lastHeight > 0) {
+			this.layout(this._lastHeight, this._lastWidth);
 		}
 	}
 
-	private _renderToolSection(
-		title: string,
-		description: string,
-		emptyMessage: string,
-		model: readonly IToolSetViewModel[],
-		query: string,
-		renderActions?: (header: HTMLElement) => void,
-		showWhenEmpty = true,
-	): void {
-		if (model.length === 0 && (query || !showWhenEmpty)) {
-			return;
-		}
-		const section = DOM.append(this._treeContainer, $('.tools-inventory-section'));
-		const header = DOM.append(section, $('.tools-inventory-section-header'));
-		const text = DOM.append(header, $('.tools-inventory-section-text'));
-		const headingRow = DOM.append(text, $('.tools-inventory-section-heading-row'));
-		DOM.append(headingRow, $('h3.tools-inventory-section-title')).textContent = title;
-		DOM.append(headingRow, $('span.tools-inventory-section-count')).textContent = String(model.length);
-		DOM.append(text, $('p.tools-inventory-section-description')).textContent = description;
-		renderActions?.(header);
-
-		let inventory: HTMLElement;
-		if (model.length === 0) {
-			inventory = DOM.append(section, $('.tools-inventory-list'));
-			DOM.append(inventory, $('.plugin-inventory-empty')).textContent = emptyMessage;
-		} else {
-			inventory = this._createToolsSectionList(section, title, model).container;
-		}
-		const collapsedSections = this._collapsedSections ??= new Set<string>();
-		setupCollapsibleSection(
-			headingRow,
-			inventory,
-			title,
-			this._rowStore,
-			collapsedSections.has(title),
-			collapsed => {
-				if (collapsed) {
-					collapsedSections.add(title);
-				} else {
-					collapsedSections.delete(title);
-				}
-				this._scheduleSectionListLayout();
-			},
-		);
+	private _createTreeGroup(id: string, label: string, description: string, emptyMessage: string, setVms: readonly IToolSetViewModel[]): ICustomizationTreeGroup<IToolsTreeEntry> {
+		return this._createTreeGroupFromEntries(id, label, description, emptyMessage, this._computeSectionEntries(setVms), setVms.length);
 	}
 
-	/** Creates one virtualized `WorkbenchList` for a section, flattening its sets/tools into rows. */
-	private _createToolsSectionList(sectionEl: HTMLElement, label: string, setVms: readonly IToolSetViewModel[]): IToolsSectionList {
-		const listContainer = DOM.append(sectionEl, $('.tools-inventory-list'));
-
-		const setRenderer = new ToolsSetRowRenderer(
-			this._sessionType,
-			this._enablementService,
-			(vm, reader) => vm.forceExpanded || this._expanded.read(reader).has(vm.toolSet.id),
-			setId => this._toggleCollapsed(setId),
-			ts => this._resolveExtensionForToolSet(ts),
-			(anchor, extension) => this._showExtensionContextMenu(anchor, extension),
-		);
-		const list = this._rowStore.add(this._instantiationService.createInstance(
-			WorkbenchList<IToolsRowEntry>,
-			'ToolsSectionList',
-			listContainer,
-			new ToolsRowDelegate(),
-			[
-				setRenderer,
-				new ToolsToolRowRenderer(this._sessionType, this._enablementService),
-			],
-			{
-				multipleSelectionSupport: false,
-				horizontalScrolling: false,
-				accessibilityProvider: {
-					getWidgetAriaLabel: () => label,
-					getWidgetRole: () => 'tree',
-					getRole: () => 'treeitem',
-					getAriaLevel: (entry: IToolsRowEntry) => entry.kind === 'set' ? 1 : 2,
-					// Rows carry no explicit aria-label, same as the original DOM tree: assistive tech
-					// derives the accessible name from each row's own label/subtext/count text content.
-					getAriaLabel: () => null,
-				},
-				identityProvider: { getId: (entry: IToolsRowEntry) => this._entryRowId(entry) },
-			},
-		)) as WorkbenchList<IToolsRowEntry>;
-
-		const section: IToolsSectionList = {
-			list,
-			entries: this._computeSectionEntries(setVms),
-			setVms,
-			container: listContainer,
+	private _createTreeGroupFromEntries(id: string, label: string, description: string, emptyMessage: string, rows: readonly IToolsRowEntry[], count: number): ICustomizationTreeGroup<IToolsTreeEntry> {
+		const entries = rows.length > 0
+			? rows
+			: [{ type: 'empty' as const, id: `empty:${id}`, label: emptyMessage }];
+		const element: IToolsGroupEntry = {
+			type: 'group-header',
+			id: `tools-group-${id}`,
+			groupKey: id,
 			label,
+			icon: Codicon.tools,
+			count,
+			isFirst: false,
+			description,
+			collapsed: this._collapsedGroups.has(id),
 		};
-		if (section.entries.length > 0) {
-			listContainer.style.height = `${computeToolsRowHeight(section.entries[0])}px`;
-		}
-		list.splice(0, list.length, section.entries as IToolsRowEntry[]);
-		list.scrollTop = this._sectionScrollPositions.get(label) ?? 0;
-		this._rowStore.add(list.onDidChangeSelection(event => {
-			if (event.indexes.length > 0) {
-				list.setSelection([]);
+		return { id, label, description, count, element, children: entries };
+	}
+
+	private _createConnectedTreeGroup(query: string): ICustomizationTreeGroup<IToolsTreeEntry> {
+		const entries: IToolsConnectedRowEntry[] = [];
+		for (const plugin of this._connectedPlugins) {
+			const servers = this._connectedServers.filter(server => server.pluginId === plugin.id);
+			if (servers.length === 0) {
+				continue;
 			}
-		}));
-		this._rowStore.add(list.onDidChangeFocus(event => setRenderer.setFocusedIndex(event.indexes[0] ?? -1)));
+			if (servers.length === 1) {
+				entries.push(...this._computeConnectedServerEntries(servers[0], 0, query, !query || !!matchesContiguousSubString(query, plugin.name)));
+				continue;
+			}
+			const id = `connected-plugin:${plugin.id}`;
+			const nameMatches = matchesContiguousSubString(query, plugin.name) ?? undefined;
+			const expanded = this._expanded.get().has(id) || !!query;
+			const serverEntries = expanded ? servers.flatMap(server => this._computeConnectedServerEntries(server, 1, query, !query || !!nameMatches)) : [];
+			if (query && !nameMatches && serverEntries.length === 0) {
+				continue;
+			}
+			entries.push({ type: 'connected', id, depth: 0, label: plugin.name, expandable: true, nameMatches }, ...serverEntries);
+		}
+		for (const server of this._connectedServers) {
+			if (server.pluginId === undefined || !this._connectedPlugins.some(plugin => plugin.id === server.pluginId)) {
+				entries.push(...this._computeConnectedServerEntries(server, 0, query, !query));
+			}
+		}
+		return this._createTreeGroupFromEntries(
+			'connected',
+			localize('connectedToolsSection', "Connected Sources"),
+			localize('connectedToolsSectionDescription', "Plugins and MCP servers available to the agent."),
+			localize('connectedToolsSectionEmpty', "No plugins or MCP servers are available."),
+			entries,
+			entries.filter(entry => entry.depth === 0).length,
+		);
+	}
 
-		// Captured (via a capture-phase listener on an ancestor of the list, so it runs strictly before
-		// the list's own bubble-phase key handler) so Up/Down at a section's edge can be told apart from
-		// a normal in-section move that merely lands on the edge.
-		let focusBeforeKeyDown: number | undefined;
-		this._rowStore.add(DOM.addStandardDisposableListener(listContainer, DOM.EventType.KEY_DOWN, () => {
-			focusBeforeKeyDown = list.getFocus()[0];
-		}, true));
-		// Registered after `createInstance` above, so on the list's own DOM node this listener runs
-		// after the list's internal keyboard controller (same-node listeners fire in registration order).
-		// This lets Up/Down/Enter/PageUp/PageDown/Escape/Ctrl+A keep working exactly as List implements
-		// them; only the keys List does not handle (Space/Left/Right/Home/End) are handled here.
-		this._rowStore.add(DOM.addStandardDisposableListener(list.getHTMLElement(), DOM.EventType.KEY_DOWN, e => {
-			this._onSectionKeyDown(section, e, () => focusBeforeKeyDown);
-		}));
+	private _computeConnectedServerEntries(server: AgentHostMcpServer, depth: number, query: string, includeAll: boolean): IToolsConnectedRowEntry[] {
+		const id = `connected-server:${server.id}`;
+		const expandable = this._isConnectedServerReady(server);
+		const expanded = expandable && this._expanded.get().has(id);
+		const nameMatches = matchesContiguousSubString(query, server.name) ?? undefined;
+		const state = this._connectedTools.get(server.id);
+		const tools = expanded && state?.state === 'loaded' ? state.tools : [];
+		const toolEntries: IToolsConnectedRowEntry[] = [];
+		for (const tool of tools) {
+			const label = tool.title ?? tool.name;
+			const toolMatches = matchesContiguousSubString(query, label) ?? undefined;
+			if (!query || includeAll || nameMatches || toolMatches || matchesContiguousSubString(query, tool.name)) {
+				toolEntries.push({ type: 'connected', id: `${id}:tool:${tool.name}`, depth: depth + 1, label, description: tool.description, expandable: false, nameMatches: toolMatches });
+			}
+		}
+		if (query && !includeAll && !nameMatches && toolEntries.length === 0) {
+			return [];
+		}
+		const source = getAgentHostMcpServerSource(
+			server,
+			this._connectedPlugins.find(plugin => plugin.id === server.pluginId),
+			this._labelService,
+			this._agentPluginService,
+			plugin => this._onDidRequestShowPlugin.fire(createInstalledPluginItem(plugin)),
+			file => void this._editorService.openEditor({ resource: file.uri, options: { selection: file.range, pinned: true } }),
+		);
+		const description = source ? localize('toolsConnectedServerSource', "MCP server from {0}", source.label) : undefined;
+		const entries: IToolsConnectedRowEntry[] = [{ type: 'connected', id, depth, label: server.name, description, source, server, expandable, nameMatches }];
+		if (expanded) {
+			if (toolEntries.length > 0) {
+				entries.push(...toolEntries);
+			} else if (state?.state !== 'loaded' || tools.length === 0) {
+				const label = state?.state === 'error'
+					? localize('connectedToolsError', "Unable to list tools")
+					: state?.state === 'loaded' || !server.listTools
+						? localize('connectedToolsEmpty', "No tools")
+						: localize('connectedToolsLoading', "Loading tools...");
+				entries.push({ type: 'connected', id: `${id}:message`, depth: depth + 1, label, expandable: false, message: true });
+			}
+		}
+		return entries;
+	}
 
-		this._sectionLists.push(section);
-		return section;
+	private async _loadConnectedTools(server: AgentHostMcpServer): Promise<void> {
+		if (!server.listTools) {
+			return;
+		}
+		const pending: ConnectedToolsState = { state: 'loading' };
+		this._connectedTools.set(server.id, pending);
+		let result: ConnectedToolsState;
+		try {
+			result = { state: 'loaded', tools: await server.listTools() };
+		} catch {
+			result = { state: 'error' };
+		}
+		if (!this._store.isDisposed && this._connectedTools.get(server.id) === pending) {
+			this._connectedTools.set(server.id, result);
+			this._connectedToolsChanged.trigger(undefined);
+		}
+	}
+
+	private _setConnectedServerEnabled(server: AgentHostMcpServer, enabled: boolean): void {
+		setPrimaryMcpServerEnablement(this._mcpService, this._agentHostCustomizationService, this._harnessService.activeSessionResource.get(), undefined, server, enabled);
+	}
+
+	private _isConnectedServerReady(server: AgentHostMcpServer): boolean {
+		return getActiveSessionServerPresentation(server).status === McpServerStatus.Ready && isPrimaryMcpServerEnabled(this._mcpService, undefined, server);
+	}
+
+	private _renderConnectedServerActions(server: AgentHostMcpServer, container: HTMLElement, disposables: DisposableStore): void {
+		const state = getActiveSessionServerPresentation(server).status;
+		renderMcpServerStatusActions(container, disposables, this._hoverService, {
+			label: server.name,
+			state,
+			start: () => this._startConnectedServer(server),
+			signIn: () => this._signInConnectedServer(server),
+			statusHover: getMcpErrorMessage(state, server.state.kind === McpServerStatus.Error ? server.state.error?.message : undefined),
+			openStatus: state === McpServerStatus.Error ? () => this._showConnectedServerDetails(server) : undefined,
+		});
+	}
+
+	private async _startConnectedServer(server: AgentHostMcpServer): Promise<void> {
+		this._pendingAutoExpand.add(server.id);
+		await server.start();
+	}
+
+	private async _signInConnectedServer(server: AgentHostMcpServer): Promise<boolean> {
+		const sessionResource = this._harnessService.activeSessionResource.get();
+		try {
+			const authenticated = await authenticateMcpServer(this._agentHostCustomizationService, sessionResource, server.id);
+			if (authenticated && !this._store.isDisposed && isEqual(sessionResource, this._connectedSessionResource)) {
+				this._pendingAutoExpand.add(server.id);
+				this._connectedToolsChanged.trigger(undefined);
+			}
+			return authenticated;
+		} catch (error) {
+			this._notificationService.error(localize('mcpAuthenticationFailed', "Unable to sign in to {0}: {1}", server.name, getErrorMessage(error)));
+			return false;
+		}
+	}
+
+	private _showConnectedServerDetails(server: AgentHostMcpServer): void {
+		this._onDidSelectServer.fire(createAgentHostMcpServerDetailInput(server, this._agentHostCustomizationService, this._harnessService, this._agentHostCustomizationsChanged));
+	}
+
+	private _renderTreeGroupActions(entry: IToolsGroupEntry, container: HTMLElement, disposables: DisposableStore): void {
+		if (entry.groupKey === 'extensions') {
+			this._renderBrowseToolsAction(container, disposables);
+		}
+	}
+
+	private _renderBrowseToolsAction(container: HTMLElement, disposables: DisposableStore): void {
+		if (this._environmentService.isSessionsWindow) {
+			return;
+		}
+		const browseLabel = localize('toolsBrowseExtensions', "Browse Extensions");
+		const actions = DOM.append(container, $('.tools-inventory-section-actions'));
+		const browseButton = disposables.add(new Button(actions, {
+			...getButtonStyles({
+				buttonSecondaryBackground: undefined,
+				buttonSecondaryForeground: undefined,
+				buttonSecondaryHoverBackground: undefined,
+				buttonSecondaryBorder: undefined,
+			}),
+			secondary: true,
+			title: browseLabel,
+			ariaLabel: browseLabel,
+		}));
+		browseButton.element.classList.add('plugin-installed-action', 'plugin-card-ghost-button');
+		browseButton.label = browseLabel;
+		disposables.add(browseButton.onDidClick(() => void this._browseMarketplace()));
+	}
+
+	private async _browseMarketplace(): Promise<void> {
+		if (this._environmentService.isSessionsWindow || !await this._closeCustomizationEditor()) {
+			return;
+		}
+		await this._extensionsWorkbenchService.openSearch(TOOLS_MARKETPLACE_QUERY);
+	}
+
+	private _showTreeEmptyState(text: string, subtext: string): void {
+		DOM.clearNode(this._emptyState);
+		this._emptyState.style.display = 'flex';
+		const header = DOM.append(this._emptyState, $('.empty-state-header'));
+		DOM.append(header, $('.empty-state-text')).textContent = text;
+		DOM.append(this._emptyState, $('.empty-state-subtext')).textContent = subtext;
+	}
+
+	private _treeEntryId(entry: IToolsTreeEntry): string {
+		if (entry.type === 'group-header') {
+			return entry.id;
+		}
+		if (entry.type === 'empty') {
+			return entry.id;
+		}
+		return this._entryRowId(entry);
+	}
+
+	private _getTreeEntryLabel(entry: IToolsTreeEntry): string {
+		if (entry.type === 'group-header') {
+			return entry.label;
+		}
+		if (entry.type === 'empty' || entry.type === 'connected') {
+			if (entry.type === 'connected' && entry.server) {
+				return localize('toolsConnectedServerAriaLabel', "{0}, {1}", entry.label, getMcpStatusPresentation(getActiveSessionServerPresentation(entry.server).status)?.label ?? '');
+			}
+			return entry.label;
+		}
+		return entry.type === 'set'
+			? entry.vm.toolSet.description ?? entry.vm.toolSet.referenceName
+			: entry.toolVm.tool.displayName ?? entry.toolVm.tool.id;
 	}
 
 	/** Flattens a section's tool sets into rows, expanding each set's tools when the set is expanded. */
 	private _computeSectionEntries(setVms: readonly IToolSetViewModel[]): IToolsRowEntry[] {
 		const entries: IToolsRowEntry[] = [];
 		for (const vm of setVms) {
-			entries.push({ kind: 'set', vm });
+			entries.push({ type: 'set', vm });
 			if (this._isRowExpanded(vm)) {
 				for (const toolVm of vm.visibleTools) {
-					entries.push({ kind: 'tool', setVm: vm, toolVm });
+					entries.push({ type: 'tool', setVm: vm, toolVm });
 				}
 			}
 		}
@@ -1009,147 +1217,45 @@ export class ToolsListWidget extends Disposable {
 	}
 
 	private _entryRowId(entry: IToolsRowEntry): string {
-		return entry.kind === 'set' ? `set:${entry.vm.toolSet.id}` : `tool:${entry.setVm.toolSet.id}:${entry.toolVm.tool.id}`;
-	}
-
-	private _currentFocusedRowId(section: IToolsSectionList): string | undefined {
-		const index = section.list.getFocus()[0];
-		const entry = index !== undefined ? section.entries[index] : undefined;
-		return entry ? this._entryRowId(entry) : undefined;
-	}
-
-	/** Re-splices every section's rows in place (no DOM teardown) after an `_expanded` state change. */
-	private _refreshAllSectionEntries(): void {
-		for (const section of this._sectionLists) {
-			this._refreshSectionEntries(section);
+		if (entry.type === 'connected') {
+			return entry.id;
 		}
+		return entry.type === 'set' ? `set:${entry.vm.toolSet.id}` : `tool:${entry.setVm.toolSet.id}:${entry.toolVm.tool.id}`;
 	}
 
-	private _refreshSectionEntries(section: IToolsSectionList): void {
-		const focusedRowId = this._currentFocusedRowId(section);
-		const nextEntries = this._computeSectionEntries(section.setVms);
-		section.entries = nextEntries;
-		section.list.splice(0, section.list.length, nextEntries as IToolsRowEntry[]);
-		if (focusedRowId) {
-			const index = nextEntries.findIndex(e => this._entryRowId(e) === focusedRowId);
-			if (index !== -1) {
-				section.list.setFocus([index]);
-				section.list.domFocus();
+	/** Space toggles enablement; Enter expands connected sources or runs their primary action. */
+	private _activateToolEntry(entry: IToolsRowEntry, viaEnter: boolean): void {
+		if (entry.type === 'connected') {
+			if (entry.server) {
+				const server = entry.server;
+				const enabled = isPrimaryMcpServerEnabled(this._mcpService, undefined, server);
+				if (!viaEnter) {
+					this._setConnectedServerEnabled(server, !enabled);
+				} else if (entry.expandable) {
+					this._toggleCollapsed(entry.id);
+				} else if (server.enabled && enabled) {
+					const state = getActiveSessionServerPresentation(server).status;
+					if (state === McpServerStatus.Stopped) {
+						void this._startConnectedServer(server);
+					} else if (state === McpServerStatus.AuthRequired) {
+						void this._signInConnectedServer(server);
+					} else if (state === McpServerStatus.Error) {
+						this._showConnectedServerDetails(server);
+					}
+				}
+			} else if (viaEnter && entry.expandable) {
+				this._toggleCollapsed(entry.id);
 			}
-		}
-		this._scheduleSectionListLayout();
-	}
-
-	/** Restore keyboard focus to a row by its stable id after a full re-render, falling back to the first row. */
-	private _restoreFocus(rowId: string): void {
-		for (const section of this._sectionLists) {
-			if (section.container.hidden) {
-				continue;
-			}
-			const index = section.entries.findIndex(e => this._entryRowId(e) === rowId);
-			if (index !== -1) {
-				section.list.setFocus([index]);
-				section.list.reveal(index);
-				section.list.domFocus();
-				return;
-			}
-		}
-		this._focusFirstOverall();
-	}
-
-	private _layoutSectionLists(): void {
-		const heights = layoutVirtualizedSections(this._treeContainer, this._sectionLists.map(section => ({
-			container: section.container,
-			contentHeight: section.entries.reduce((sum, entry) => sum + computeToolsRowHeight(entry), 0),
-			minimumHeight: section.entries.length > 0 ? computeToolsRowHeight(section.entries[0]) : 0,
-		})));
-		for (let index = 0; index < this._sectionLists.length; index++) {
-			this._layoutSection(this._sectionLists[index], heights[index]);
-		}
-	}
-
-	private _scheduleSectionListLayout(): void {
-		this._pendingSectionLayout.value = DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this.element), () => {
-			this._layoutSectionLists();
-			this._treeScrollable.scanDomNode();
-		});
-	}
-
-	private _layoutSection(section: IToolsSectionList, allocatedHeight?: number): void {
-		const contentHeight = section.entries.reduce((sum, e) => sum + computeToolsRowHeight(e), 0);
-		const height = allocatedHeight ?? Math.min(contentHeight, TOOLS_SECTION_MAX_HEIGHT);
-		layoutVirtualizedSectionList(section.list, section.container, height, section.container.clientWidth || this._lastWidth || undefined);
-	}
-
-	// --- Tree keyboard navigation (supplemental to WorkbenchList's own Up/Down/Enter/PageUp/PageDown/Escape) ---
-
-	private _onSectionKeyDown(section: IToolsSectionList, e: IKeyboardEvent, getFocusBeforeKeyDown: () => number | undefined): void {
-		const entries = section.entries;
-		if (entries.length === 0) {
 			return;
 		}
-		const focusIndex = section.list.getFocus()[0];
-		const entry = entries[focusIndex ?? 0];
-		let handled = true;
-		switch (e.keyCode) {
-			case KeyCode.DownArrow: {
-				const before = getFocusBeforeKeyDown();
-				handled = before !== undefined && before === entries.length - 1;
-				if (handled) {
-					this._focusAdjacentSection(section, 1);
-				}
-				break;
-			}
-			case KeyCode.UpArrow: {
-				const before = getFocusBeforeKeyDown();
-				handled = before !== undefined && before === 0;
-				if (handled) {
-					this._focusAdjacentSection(section, -1);
-				}
-				break;
-			}
-			case KeyCode.RightArrow:
-				handled = this._onExpandKey(section, entry);
-				break;
-			case KeyCode.LeftArrow:
-				handled = this._onCollapseKey(section, entry);
-				break;
-			case KeyCode.Home:
-				this._focusFirstOverall();
-				break;
-			case KeyCode.End:
-				this._focusLastOverall();
-				break;
-			case KeyCode.Space:
-				this._onActivateKey(entry, false);
-				break;
-			case KeyCode.Enter:
-				this._onActivateKey(entry, true);
-				break;
-			default:
-				handled = false;
-		}
-		if (handled) {
-			e.preventDefault();
-			e.stopPropagation();
-		}
-	}
-
-	/**
-	 * Space always toggles enablement (no-op for read-only rows). Enter toggles enablement too, except
-	 * on a read-only *set* row, where it expands/collapses instead (a read-only tool row does nothing).
-	 * This mirrors the original mouse-vs-keyboard asymmetry, where clicking the row body (not its
-	 * checkbox) toggles expand/collapse but Space/Enter on a focused row toggle its checkbox.
-	 */
-	private _onActivateKey(entry: IToolsRowEntry, viaEnter: boolean): void {
-		const readOnly = entry.kind === 'set' ? entry.vm.readOnly : entry.setVm.readOnly;
+		const readOnly = entry.type === 'set' ? entry.vm.readOnly : entry.setVm.readOnly;
 		if (readOnly) {
-			if (viaEnter && entry.kind === 'set') {
+			if (viaEnter && entry.type === 'set') {
 				this._toggleCollapsed(entry.vm.toolSet.id);
 			}
 			return;
 		}
-		if (entry.kind === 'set') {
+		if (entry.type === 'set') {
 			const vm = entry.vm;
 			const current = getToolSetTriState(this._currentState(), vm.toolSet.id, vm.allToolIds);
 			this._enablementService.setToolSetEnabled(this._sessionType, vm.toolSet.id, vm.allToolIds, current !== true);
@@ -1157,85 +1263,6 @@ export class ToolsListWidget extends Disposable {
 			const { setVm, toolVm } = entry;
 			const current = isToolEnabledInSet(this._currentState(), setVm.toolSet.id, toolVm.tool.id);
 			this._enablementService.setToolEnabled(this._sessionType, setVm.toolSet.id, toolVm.tool.id, !current);
-		}
-	}
-
-	/** Right arrow: expand a collapsed set, or move into its first tool row when already expanded. */
-	private _onExpandKey(section: IToolsSectionList, entry: IToolsRowEntry): boolean {
-		if (entry.kind !== 'set') {
-			return false;
-		}
-		const vm = entry.vm;
-		if (!this._isRowExpanded(vm)) {
-			this._setExpanded(vm.toolSet.id, true);
-		} else if (vm.visibleTools.length) {
-			this._focusEntryInSection(section, `tool:${vm.toolSet.id}:${vm.visibleTools[0].tool.id}`);
-		}
-		return true;
-	}
-
-	/** Left arrow: collapse an expanded set, or move a tool row up to its parent set. */
-	private _onCollapseKey(section: IToolsSectionList, entry: IToolsRowEntry): boolean {
-		if (entry.kind === 'set') {
-			if (this._isRowExpanded(entry.vm)) {
-				this._setExpanded(entry.vm.toolSet.id, false);
-				return true;
-			}
-			return false;
-		}
-		this._focusEntryInSection(section, `set:${entry.setVm.toolSet.id}`);
-		return true;
-	}
-
-	private _focusEntryInSection(section: IToolsSectionList, rowId: string): void {
-		const index = section.entries.findIndex(e => this._entryRowId(e) === rowId);
-		if (index === -1) {
-			return;
-		}
-		section.list.setFocus([index]);
-		section.list.reveal(index);
-		section.list.domFocus();
-	}
-
-	/** Crosses into the adjacent section's first/last row when Up/Down hits the current section's edge. */
-	private _focusAdjacentSection(from: IToolsSectionList, delta: 1 | -1): void {
-		let targetIndex = this._sectionLists.indexOf(from) + delta;
-		while (this._sectionLists[targetIndex]?.container.hidden) {
-			targetIndex += delta;
-		}
-		const target = this._sectionLists[targetIndex];
-		if (!target) {
-			return;
-		}
-		if (target.entries.length === 0) {
-			this._focusAdjacentSection(target, delta);
-			return;
-		}
-		const index = delta === 1 ? 0 : target.entries.length - 1;
-		target.list.setFocus([index]);
-		target.list.reveal(index);
-		target.list.domFocus();
-	}
-
-	private _focusFirstOverall(): void {
-		const section = this._sectionLists.find(s => !s.container.hidden && s.entries.length > 0);
-		if (section) {
-			section.list.setFocus([0]);
-			section.list.reveal(0);
-			section.list.domFocus();
-		}
-	}
-
-	private _focusLastOverall(): void {
-		for (let i = this._sectionLists.length - 1; i >= 0; i--) {
-			const section = this._sectionLists[i];
-			if (!section.container.hidden && section.entries.length > 0) {
-				const index = section.entries.length - 1;
-				section.list.setFocus([index]);
-				section.list.reveal(index);
-				section.list.domFocus();
-				return;
-			}
 		}
 	}
 
@@ -1265,19 +1292,6 @@ export class ToolsListWidget extends Disposable {
 		this._expanded.set(next, undefined);
 	}
 
-	private _setExpanded(toolSetId: string, expanded: boolean): void {
-		const next = new Set(this._expanded.get());
-		if (expanded === next.has(toolSetId)) {
-			return;
-		}
-		if (expanded) {
-			next.add(toolSetId);
-		} else {
-			next.delete(toolSetId);
-		}
-		this._expanded.set(next, undefined);
-	}
-
 	private _currentState(): IToolEnablementState {
 		return this._enablementService.getState(this._sessionType);
 	}
@@ -1293,14 +1307,6 @@ export class ToolsListWidget extends Disposable {
 			return undefined;
 		}
 		return extension;
-	}
-
-	private _onGalleryContextMenu(e: IListContextMenuEvent<IExtension>): void {
-		const extension = e.element;
-		if (!extension || extension.state !== ExtensionState.Installed || extension.local?.isBuiltin) {
-			return;
-		}
-		this._showExtensionContextMenu(e.anchor, extension);
 	}
 
 	private _showExtensionContextMenu(anchor: HTMLElement | StandardMouseEvent | IAnchor, extension: IExtension): void {

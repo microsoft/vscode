@@ -74,6 +74,15 @@
 	font-weight: var(--vscode-fontWeight-regular);
 }
 
+/*
+ * Size panel / composite tab labels directly because actionbar.css sets their
+ * font size; leave casing inherited so tabs.css preserves localized labels.
+ */
+.modern-ui.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label,
+.modern-ui.monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label {
+	font-size: var(--vscode-fontSize-label1);
+}
+
 /* Editor tab labels use Body 1 for comfortable readability at a normal viewing distance. */
 .modern-ui.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab .tab-label {
 	font-size: var(--vscode-fontSize-body1);
@@ -103,15 +112,6 @@
 .modern-ui .monaco-pane-view .pane > .pane-header > .title,
 /* Part titles (sidebar, auxiliary bar, panel) — but never editor filenames. */
 .modern-ui.monaco-workbench .part:not(.editor) > .title > .title-label h2,
-/*
- * Panel / composite bar action-item labels. The font-size must land on the
- * `.action-label` (the `<a>`), not the `.action-item` (the `<li>`): the base
- * `.monaco-action-bar .action-label` rule (actionbar.css) sets font-size
- * directly on the label, and a direct value always beats one inherited from the
- * parent item, so targeting the item alone leaves the visible text at 11px.
- */
-.modern-ui.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label,
-.modern-ui.monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label,
 /* Notifications center header. */
 .modern-ui.monaco-workbench > .notifications-center > .notifications-center-header > .notifications-center-header-title,
 /* Debug call-stack session state labels. */

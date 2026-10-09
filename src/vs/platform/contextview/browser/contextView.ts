@@ -43,6 +43,7 @@ export interface IContextViewDelegate {
 	onHide?(data?: any): void;
 	closeAnimation?: IContextViewCloseAnimation;
 	focus?(): void;
+	layout?(): void;
 	anchorAlignment?: AnchorAlignment;
 	anchorAxisAlignment?: AnchorAxisAlignment;
 	anchorPosition?: AnchorPosition;

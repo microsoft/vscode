@@ -28,23 +28,22 @@ export class AgentHostChangesetSubscriptionService extends Disposable implements
 			subscriptions = new Set();
 			this._subscriptions.set(session, subscriptions);
 		}
-		subscriptions.add(changeset);
-		if (subscriptions.size === 1) {
-			this._onDidChangeSessionSubscriptions.fire(session);
+		if (subscriptions.has(changeset)) {
+			return;
 		}
+		subscriptions.add(changeset);
+		this._onDidChangeSessionSubscriptions.fire(session);
 	}
 
 	removeSubscription(session: ProtocolURI, changeset: ProtocolURI): void {
 		const subscriptions = this._subscriptions.get(session);
-		if (!subscriptions) {
+		if (!subscriptions?.delete(changeset)) {
 			return;
 		}
-
-		subscriptions.delete(changeset);
 		if (subscriptions.size === 0) {
 			this._subscriptions.delete(session);
-			this._onDidChangeSessionSubscriptions.fire(session);
 		}
+		this._onDidChangeSessionSubscriptions.fire(session);
 	}
 
 	clearSessionSubscriptions(session: ProtocolURI): void {

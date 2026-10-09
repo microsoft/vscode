@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IExtensionManifest, ExtensionUntrustedWorkspaceSupportType, ExtensionVirtualWorkspaceSupportType, IExtensionIdentifier, ALL_EXTENSION_KINDS, ExtensionIdentifierMap, IExtensionContributions } from '../../../../platform/extensions/common/extensions.js';
+import { IExtensionManifest, ExtensionUntrustedWorkspaceSupportType, ExtensionVirtualWorkspaceSupportType, IExtensionIdentifier, ALL_EXTENSION_KINDS, ExtensionIdentifierMap, IExtensionContributions, EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY } from '../../../../platform/extensions/common/extensions.js';
 import { ExtensionKind } from '../../../../platform/environment/common/environment.js';
 import { ExtensionsRegistry } from './extensionsRegistry.js';
 import { getGalleryExtensionId } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
@@ -23,7 +23,6 @@ import { isWeb } from '../../../../base/common/platform.js';
 export const IExtensionManifestPropertiesService = createDecorator<IExtensionManifestPropertiesService>('extensionManifestPropertiesService');
 
 export const EXTENSIONS_SUPPORT_AGENTS_WINDOW = 'extensions.supportAgentsWindow';
-export const EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY = 'extensions.experimental.enableAgentsWindowCapability';
 
 const SESSIONS_WINDOW_ALLOWED_CONTRIBUTION_POINTS: ReadonlySet<keyof IExtensionContributions> = new Set([
 	'themes',
@@ -48,7 +47,7 @@ export interface IExtensionManifestPropertiesService {
 	canExecuteOnUI(manifest: IExtensionManifest): boolean;
 	canExecuteOnWorkspace(manifest: IExtensionManifest): boolean;
 	canExecuteOnWeb(manifest: IExtensionManifest): boolean;
-	canExecuteOnSessionsWindow(manifest: IExtensionManifest): boolean;
+	canExecuteOnSessionsWindow(manifest: IExtensionManifest, isBuiltin?: boolean): boolean;
 
 	getExtensionKind(manifest: IExtensionManifest): ExtensionKind[];
 	getUserConfiguredExtensionKind(extensionIdentifier: IExtensionIdentifier): ExtensionKind[] | undefined;
@@ -95,17 +94,22 @@ export class ExtensionManifestPropertiesService extends Disposable implements IE
 		}
 	}
 
-	canExecuteOnSessionsWindow(manifest: IExtensionManifest): boolean {
+	canExecuteOnSessionsWindow(manifest: IExtensionManifest, isBuiltin: boolean = false): boolean {
 		const configuredSessionsWindowSupport = this.getConfiguredSessionsWindowSupport(manifest);
 		if (configuredSessionsWindowSupport !== undefined) {
 			return configuredSessionsWindowSupport;
 		}
 
-		if (this.configurationService.getValue<boolean>(EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY) && manifest.enabledApiProposals?.includes('agentsWindowActivation')) {
+		if ((isBuiltin || this.configurationService.getValue<boolean>(EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY)) && manifest.enabledApiProposals?.includes('agentsWindowActivation')) {
 			const declaredSessionsWindowSupport = manifest.capabilities?.agentsWindow?.supported;
 			if (declaredSessionsWindowSupport !== undefined) {
 				return declaredSessionsWindowSupport;
 			}
+		}
+
+		if (isBuiltin) {
+			const contributes = manifest.contributes;
+			return !contributes?.debuggers && !contributes?.views && !contributes?.viewsContainers && !contributes?.walkthroughs;
 		}
 
 		// In the sessions window only extensions that have no code are currently allowed to run

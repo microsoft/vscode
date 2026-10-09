@@ -48,6 +48,9 @@ const _allApiProposals = {
 	authSessionAudience: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.authSessionAudience.d.ts',
 	},
+	authSessionExpiration: {
+		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.authSessionExpiration.d.ts',
+	},
 	authenticationChallenges: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.authenticationChallenges.d.ts',
 	},
@@ -218,6 +221,9 @@ const _allApiProposals = {
 	},
 	customEditorMove: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.customEditorMove.d.ts',
+	},
+	customTextEditorNavigation: {
+		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.customTextEditorNavigation.d.ts',
 	},
 	dataChannels: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.dataChannels.d.ts',

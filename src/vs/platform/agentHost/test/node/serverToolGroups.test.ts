@@ -84,13 +84,13 @@ suite('serverToolGroups display', () => {
 			isolated: confirmation(true),
 		}, {
 			direct: {
-				title: 'Continue in app?',
-				message: 'Continue this session in /workspace/app and make changes directly in that folder?',
+				title: 'Change Workspace to app?',
+				message: 'Change this chat\'s workspace to /workspace/app and make changes directly in that folder? Other chats keep their workspaces.',
 				hideInput: true,
 			},
 			isolated: {
-				title: 'Continue in app?',
-				message: 'Continue this session in /workspace/app with changes isolated from the existing folder?',
+				title: 'Change Workspace to app?',
+				message: 'Change this chat\'s workspace to a new worktree of /workspace/app? Other chats keep their workspaces.',
 				hideInput: true,
 			},
 		});

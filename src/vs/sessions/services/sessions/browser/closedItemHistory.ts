@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
+import { autorun, ISettableObservable, observableValue, transaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { SessionsHasClosedItemContext } from '../../../common/contextkeys.js';
@@ -12,6 +12,7 @@ import { ISession, SessionStatus } from '../common/session.js';
 import { ISessionsManagementService } from '../common/sessionsManagement.js';
 import { ISessionsPartService } from './sessionsPartService.js';
 import { VisibleSessions } from './visibleSessions.js';
+import { Direction } from '../../../../base/browser/ui/grid/grid.js';
 
 export const enum ClosedItemKind {
 	Chat = 'chat',
@@ -32,6 +33,7 @@ export interface IClosedSessionItem {
 	/** Grid index the slot occupied when the session left the grid. */
 	readonly index: number;
 	readonly sticky: boolean;
+	readonly placement?: { readonly sessionId: string | undefined; readonly direction: Direction };
 	/**
 	 * Set when the session left the grid because a newly opened slot took its
 	 * place, holding the id of that slot (`undefined` for the empty
@@ -128,7 +130,7 @@ export class ClosedItemHistory extends Disposable {
 			if (item.kind === ClosedItemKind.Chat) {
 				await this._openChat(session, item.chatResource);
 			} else {
-				this._reopenSession(item, session);
+				transaction(() => this._reopenSession(item, session));
 			}
 		} finally {
 			suspension.dispose();
@@ -148,14 +150,27 @@ export class ClosedItemHistory extends Disposable {
 			}
 		}
 
+		if (!item.replacedBy && (!item.placement || !this._visibility.getSlot(item.placement.sessionId))) {
+			const active = this._visibility.setActive(session);
+			if (item.sticky && !active?.sticky.get()) {
+				this._visibility.toggleStickiness(session);
+			}
+			return;
+		}
+
 		this._visibility.insertAtIndex(session, item.index, item.sticky);
+		if (item.placement && this._visibility.getSlot(item.placement.sessionId)) {
+			const direction = item.placement.direction;
+			this._visibility.insertAt(session, item.placement.sessionId,
+				direction === Direction.Left ? 'left' : direction === Direction.Right ? 'right' : direction === Direction.Up ? 'up' : 'down');
+		}
 	}
 
 	private _recordSession(session: ISession, index: number, sticky: boolean, replacedBy?: { readonly sessionId: string | undefined }): void {
 		// An untitled draft is discarded rather than hidden when it leaves the
 		// grid, so there is nothing meaningful to restore.
 		if (session.status.get() !== SessionStatus.Untitled) {
-			this._record({ kind: ClosedItemKind.Session, session, index, sticky, replacedBy });
+			this._record({ kind: ClosedItemKind.Session, session, index, sticky, replacedBy, placement: this._sessionsPartService.getSessionPlacement(session.sessionId) });
 		}
 	}
 

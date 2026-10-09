@@ -3,9 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export interface MarkdownEditorInitialState {
+import type { MarkdownEditorConfiguration } from './markdownEditorProtocol';
+
+export interface MarkdownEditorInitialState extends MarkdownEditorConfiguration {
 	readonly content: string;
 	readonly documentVersion: number;
+	/** Identifies the authoritative text baseline shared by the host and webview. */
+	readonly editEpoch: number;
 	readonly readonly: boolean;
 	readonly richLinksEnabled: boolean;
 	readonly linkPresentationRules: readonly { id: string; source: string; flags: string; kind: string }[];

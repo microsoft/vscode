@@ -5,11 +5,11 @@
 		"note": "A symbol is \"covered\" when an E2E test sends or receives it; this does not measure how deeply its semantics are asserted."
 	},
 	"commands": {
-		"covered": 31,
-		"total": 32,
-		"percentage": 96.87,
+		"covered": 32,
+		"total": 33,
+		"percentage": 96.96,
 		"uncovered": [
-			"runAutomation"
+			"moveChat"
 		]
 	},
 	"notifications": {
@@ -23,25 +23,24 @@
 		]
 	},
 	"actions": {
-		"covered": 80,
-		"total": 96,
-		"percentage": 83.33,
+		"covered": 91,
+		"total": 106,
+		"percentage": 85.84,
 		"uncovered": [
-			"automationRun/cancelRequested",
-			"automationRun/lifecycleChanged",
-			"automationRun/primarySessionChanged",
 			"automationRun/sessionRemoved",
-			"automationRun/sessionSet",
+			"canvas/stateChanged",
 			"changeset/fileRemoved",
 			"changeset/fileSet",
-			"chat/inputAnswerChanged",
+			"chat/canvasesChanged",
+			"chat/isArchivedChanged",
+			"chat/movableChanged",
 			"chat/reasoning",
 			"chat/toolCallAuthRequired",
 			"chat/toolCallAuthResolved",
-			"chat/turnResume",
 			"session/activityChanged",
+			"session/chatsReordered",
 			"session/defaultChatChanged",
-			"session/workingDirectoryReplaced",
+			"session/mcpServerBackgroundRequested",
 			"terminal/commandDetectionAvailable"
 		]
 	}

@@ -49,15 +49,24 @@ export function buildSpeedVariants(
 	return pairs;
 }
 
-/**
- * Drops the twin that is not in use, so a pair takes one row rather than two. The
- * selected twin is the one kept, since a picker that hides the current choice cannot
- * be read as showing it.
- */
+/** Resolves a pair's selected speed, falling back to its remembered choice and then Standard. */
+export function getPreferredSpeedVariant(
+	pair: IModelSpeedVariants,
+	selectedModelId: string | undefined,
+	preferredModelId: string | undefined,
+): ILanguageModelChatMetadataAndIdentifier {
+	const preferred = selectedModelId === pair.standard.identifier || selectedModelId === pair.fast.identifier
+		? selectedModelId
+		: preferredModelId;
+	return preferred === pair.fast.identifier ? pair.fast : pair.standard;
+}
+
+/** Keeps one row per pair, preserving the current selection or the pair's remembered speed. */
 export function collapseSpeedVariants(
 	models: readonly ILanguageModelChatMetadataAndIdentifier[],
 	variants: ReadonlyMap<string, IModelSpeedVariants>,
 	selectedModelId: string | undefined,
+	preferredVariants?: ReadonlyMap<string, string>,
 ): ILanguageModelChatMetadataAndIdentifier[] {
 	if (!variants.size) {
 		return [...models];
@@ -67,7 +76,7 @@ export function collapseSpeedVariants(
 		if (!pair) {
 			return true;
 		}
-		const inUse = selectedModelId === pair.fast.identifier ? pair.fast : pair.standard;
+		const inUse = getPreferredSpeedVariant(pair, selectedModelId, preferredVariants?.get(pair.standard.identifier));
 		return model.identifier === inUse.identifier;
 	});
 }

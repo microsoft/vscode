@@ -5,7 +5,7 @@
 
 import type { ContentBlockParam, DocumentBlockParam, ImageBlockParam, MessageParam, TextBlockParam, ToolReferenceBlockParam, ToolResultBlockParam } from '@anthropic-ai/sdk/resources';
 import { Raw } from '@vscode/prompt-tsx';
-import { beforeEach, describe, expect, suite, test } from 'vitest';
+import { beforeEach, describe, expect, suite, test, vi } from 'vitest';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatLocation } from '../../../chat/common/commonTypes';
@@ -19,6 +19,7 @@ import { HeadersImpl, Response } from '../../../networking/common/fetcherService
 import { TelemetryData } from '../../../telemetry/common/telemetryData';
 import { TestLogService } from '../../../testing/common/testLogService';
 import { NullTelemetryService } from '../../../telemetry/common/nullTelemetryService';
+import { SpyingTelemetryService } from '../../../telemetry/node/spyingTelemetryService';
 import { ConfigKey, IConfigurationService } from '../../../configuration/common/configurationService';
 import { IExperimentationService } from '../../../telemetry/common/nullExperimentationService';
 import { InMemoryConfigurationService } from '../../../configuration/test/common/inMemoryConfigurationService';
@@ -1651,6 +1652,32 @@ function createNonStreamingResponse(body: object, contentType = 'application/jso
 }
 
 suite('processNonStreamingResponseFromMessagesEndpoint', () => {
+	test('retains native reasoning in telemetry without surfacing it in the response', async () => {
+		const content = [
+			{ type: 'thinking', thinking: 'Reasoning', signature: 'signature' },
+			{ type: 'redacted_thinking', data: 'opaque' },
+			{ type: 'text', text: 'Answer' },
+		];
+		const service = new SpyingTelemetryService();
+		const enhanced = vi.spyOn(service, 'sendEnhancedGHTelemetryEvent');
+		const response = createNonStreamingResponse({
+			id: 'message', type: 'message', role: 'assistant', model: 'claude', content,
+			stop_reason: 'end_turn', usage: { input_tokens: 1, output_tokens: 1 },
+		});
+		const stream = await processNonStreamingResponseFromMessagesEndpoint(service, new TestLogService(), response, async () => undefined, TelemetryData.createAndMarkAsIssued());
+		const returned: Raw.ChatMessage[] = [];
+		for await (const completion of stream) {
+			returned.push(completion.message);
+		}
+		await vi.waitFor(() => expect(service.getEvents().telemetryServiceEvents.filter(event => event.eventName === 'engine.messages')).toHaveLength(1));
+		const event = enhanced.mock.calls.find(([name]) => name === 'engine.messages')!;
+		const messages = JSON.parse(String(event[1]?.messagesJson));
+		expect({ content: messages[0].content, returned }).toEqual({
+			content,
+			returned: [{ role: Raw.ChatRole.Assistant, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Answer' }] }],
+		});
+	});
+
 	test('parses text content from non-streaming response', async () => {
 		const response = createNonStreamingResponse({
 			id: 'msg_123',
@@ -2105,6 +2132,68 @@ suite('processResponseFromMessagesEndpoint routing', () => {
 	});
 });
 
+suite('processResponseFromMessagesEndpoint X-GitHub-Copilot-Request-Te', () => {
+	const messageBody = {
+		id: 'msg_te',
+		type: 'message',
+		role: 'assistant',
+		content: [{ type: 'text', text: 'hi' }],
+		model: 'claude-sonnet-4-20250514',
+		stop_reason: 'end_turn',
+		usage: { input_tokens: 10, output_tokens: 5 },
+	};
+
+	function createStreamingBody(): string {
+		const events = [
+			{ type: 'message_start', message: { ...messageBody, content: [], stop_reason: null, stop_sequence: null } },
+			{ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } },
+			{ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'hi' } },
+			{ type: 'content_block_stop', index: 0 },
+			{ type: 'message_delta', delta: { stop_reason: 'end_turn' }, usage: { output_tokens: 5 } },
+			{ type: 'message_stop' },
+		];
+		return events.map(e => `event: ${e.type}\ndata: ${JSON.stringify(e)}\n\n`).join('');
+	}
+
+	async function collect(contentType: string, body: string, headers: Record<string, string>) {
+		const telemetryService = new SpyingTelemetryService();
+		const response = Response.fromText(200, 'OK', new HeadersImpl({ 'content-type': contentType, 'x-request-id': 'req-te', ...headers }), body, 'node-fetch');
+		const services = createPlatformServices().createTestingAccessor();
+		const completions = await processResponseFromMessagesEndpoint(
+			services.get(IInstantiationService),
+			telemetryService,
+			new TestLogService(),
+			response,
+			async () => undefined,
+			TelemetryData.createAndMarkAsIssued(),
+		);
+		const valueOrAbsent = (bag: object) => 'gitHubCopilotRequestTe' in bag ? (bag as { gitHubCopilotRequestTe: string }).gitHubCopilotRequestTe : '<absent>';
+		const requestTes: string[] = [];
+		for await (const c of completions) {
+			requestTes.push(valueOrAbsent(c.requestId));
+		}
+		const finishReasonEvents = telemetryService.getEvents().telemetryServiceEvents
+			.filter(e => e.eventName === 'completion.finishReason')
+			.map(e => valueOrAbsent(e.properties ?? {}));
+		return { requestTes, finishReasonEvents };
+	}
+
+	test('non-streaming response carries the raw value to the completion and completion.finishReason', async () => {
+		expect(await collect('application/json', JSON.stringify(messageBody), { 'X-GitHub-Copilot-Request-Te': ' TRUE ' }))
+			.toEqual({ requestTes: [' TRUE '], finishReasonEvents: [' TRUE '] });
+	});
+
+	test('streaming response carries the raw value to the completion and completion.finishReason', async () => {
+		expect(await collect('text/event-stream', createStreamingBody(), { 'x-github-copilot-request-te': 'false' }))
+			.toEqual({ requestTes: ['false'], finishReasonEvents: ['false'] });
+	});
+
+	test('absent header omits the property', async () => {
+		expect(await collect('text/event-stream', createStreamingBody(), {}))
+			.toEqual({ requestTes: ['<absent>'], finishReasonEvents: ['<absent>'] });
+	});
+});
+
 suite('AnthropicMessagesProcessor streaming cache_creation', () => {
 	function makeProcessor(logService: TestLogService = new TestLogService()): AnthropicMessagesProcessor {
 		return new AnthropicMessagesProcessor(
@@ -2134,6 +2223,31 @@ suite('AnthropicMessagesProcessor streaming cache_creation', () => {
 		const thinkingDeltas = deltas.filter(d => d.thinking).map(d => d.thinking);
 		expect(thinkingDeltas).toHaveLength(1);
 		expect(thinkingDeltas[0]).toEqual({ id: 'thinking_0', encrypted: 'blob123', redacted: true });
+	});
+
+	test('retains streamed reasoning blocks and their order only in telemetry', () => {
+		const processor = makeProcessor();
+		const capture: FinishedCallback = async () => undefined;
+		processor.push({ type: 'content_block_start', index: 0, content_block: { type: 'thinking', thinking: '', signature: '' } }, capture);
+		processor.push({ type: 'content_block_delta', index: 0, delta: { type: 'thinking_delta', thinking: 'Reasoning' } }, capture);
+		processor.push({ type: 'content_block_delta', index: 0, delta: { type: 'signature_delta', signature: 'signature' } }, capture);
+		processor.push({ type: 'content_block_stop', index: 0 }, capture);
+		processor.push({ type: 'content_block_start', index: 1, content_block: { type: 'redacted_thinking', data: 'opaque' } }, capture);
+		processor.push({ type: 'content_block_stop', index: 1 }, capture);
+		processor.push({ type: 'content_block_start', index: 2, content_block: { type: 'text', text: '' } }, capture);
+		processor.push({ type: 'content_block_delta', index: 2, delta: { type: 'text_delta', text: 'Answer' } }, capture);
+		processor.push({ type: 'content_block_stop', index: 2 }, capture);
+		const completion = processor.push({ type: 'message_stop' }, capture);
+		expect({ returned: completion?.message, telemetry: completion?.telemetryMessages }).toEqual({
+			returned: { role: Raw.ChatRole.Assistant, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Answer' }] },
+			telemetry: [{
+				role: 'assistant', content: [
+					{ type: 'thinking', thinking: 'Reasoning', signature: 'signature' },
+					{ type: 'redacted_thinking', data: 'opaque' },
+					{ type: 'text', text: 'Answer' },
+				],
+			}],
+		});
 	});
 
 	test('regular thinking content block emits a signature without the redacted flag', () => {

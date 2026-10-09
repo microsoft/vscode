@@ -15,6 +15,9 @@
 		"lib": [
 			"esnext", // for #201187
 			"dom"
+		],
+		"types": [
+			"node"
 		]
 	},
 	"exclude": [

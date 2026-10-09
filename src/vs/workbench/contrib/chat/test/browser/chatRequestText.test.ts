@@ -4,13 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { buildAgentMergePrompt } from '../../../../../platform/agentHost/common/agentMergePrompt.js';
 import { getChatRequestText } from '../../browser/chatRequestText.js';
+import { getAgentMergeRequestSummary } from '../../browser/widget/chatContentParts/chatAgentMergeContentPart.js';
 import { IChatRequestViewModel } from '../../common/model/chatViewModel.js';
 
-function request(messageText: string, systemInitiatedLabel?: string): IChatRequestViewModel {
-	return { id: 'r', messageText, systemInitiatedLabel } as unknown as IChatRequestViewModel;
+function request(messageText: string, options: Pick<IChatRequestViewModel, 'isSystemInitiated' | 'requestSource' | 'systemInitiatedLabel'> = {}): IChatRequestViewModel {
+	return upcastPartial<IChatRequestViewModel>({ id: 'r', messageText, ...options });
 }
 
 suite('getChatRequestText', () => {
@@ -33,15 +35,27 @@ suite('getChatRequestText', () => {
 			commentWatermark: '2026-08-24T10:00:00.000Z',
 		});
 
-		assert.deepStrictEqual([
-			getChatRequestText(request('Rename the widget')),
-			getChatRequestText(request(agentMergePrompt)),
-			// A request the transcript renders with its own notification label keeps its text.
-			getChatRequestText(request(agentMergePrompt, 'Terminal needs input')),
-		], [
-			'Rename the widget',
-			'1 Review Comment, Agent Merge',
-			agentMergePrompt,
+		const requests = [
+			request('Rename the widget'),
+			request(agentMergePrompt, { isSystemInitiated: true, requestSource: 'agentMerge' }),
+			request(agentMergePrompt),
+			request(agentMergePrompt, { isSystemInitiated: true }),
+			request(agentMergePrompt, { requestSource: 'agentMerge' }),
+			request(agentMergePrompt, { isSystemInitiated: true, requestSource: 'agentMerge', systemInitiatedLabel: 'Terminal needs input' }),
+			request('Malformed merge prompt', { isSystemInitiated: true, requestSource: 'agentMerge' }),
+		];
+
+		assert.deepStrictEqual(requests.map(item => ({
+			text: getChatRequestText(item),
+			hasMergeSummary: getAgentMergeRequestSummary(item) !== undefined,
+		})), [
+			{ text: 'Rename the widget', hasMergeSummary: false },
+			{ text: '1 Review Comment, Agent Merge', hasMergeSummary: true },
+			{ text: agentMergePrompt, hasMergeSummary: false },
+			{ text: agentMergePrompt, hasMergeSummary: false },
+			{ text: agentMergePrompt, hasMergeSummary: false },
+			{ text: agentMergePrompt, hasMergeSummary: false },
+			{ text: 'Malformed merge prompt', hasMergeSummary: false },
 		]);
 	});
 });

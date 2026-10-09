@@ -12,12 +12,18 @@ import { Gesture, EventType as TouchEventType } from '../../../base/browser/touc
 import { Codicon } from '../../../base/common/codicons.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { defaultButtonStyles, defaultCheckboxStyles } from '../../../platform/theme/browser/defaultStyles.js';
+import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
+import { Link } from '../../../platform/opener/browser/link.js';
 
 export interface IRemoteHostUnavailableEmptyStateContent {
 	readonly title: string;
 	/** Omitted when the title already says everything, leaving the title and action to speak. */
 	readonly description?: string;
 	readonly progress?: string;
+	readonly detail?: {
+		readonly label: string;
+		readonly run: () => void;
+	};
 	readonly action?: {
 		readonly label: string;
 		readonly run: () => void;
@@ -39,6 +45,9 @@ export class RemoteHostUnavailableEmptyState extends Disposable {
 	private readonly _title: HTMLElement;
 	private readonly _description: HTMLElement;
 	private readonly _progress: HTMLElement;
+	private readonly _detailContainer: HTMLElement;
+	private readonly _detailLink: Link;
+	private _detail: IRemoteHostUnavailableEmptyStateContent['detail'];
 	private readonly _actionContainer: HTMLElement;
 	private readonly _action: Button;
 	private readonly _actionListener = this._register(new MutableDisposable());
@@ -48,7 +57,9 @@ export class RemoteHostUnavailableEmptyState extends Disposable {
 	private readonly _autoConnectLabel: HTMLElement;
 	private readonly _autoConnectListener = this._register(new MutableDisposable());
 
-	constructor() {
+	constructor(
+		@IInstantiationService instantiationService: IInstantiationService,
+	) {
 		super();
 
 		this.domNode = dom.$('.remote-host-unavailable-empty-state.hidden');
@@ -65,6 +76,11 @@ export class RemoteHostUnavailableEmptyState extends Disposable {
 		// Connect progress changes while the user waits (waiting → download
 		// percentage), so announce it politely rather than leaving it silent.
 		this._progress.setAttribute('role', 'status');
+		this._detailContainer = dom.append(this.domNode, dom.$('.remote-host-unavailable-empty-state-detail'));
+		this._detailContainer.hidden = true;
+		this._detailLink = this._register(instantiationService.createInstance(Link, this._detailContainer, { label: '', href: '' }, {
+			opener: () => this._detail?.run(),
+		}));
 		this._actionContainer = dom.append(this.domNode, dom.$('.remote-host-unavailable-empty-state-action.hidden'));
 		// Primary styling: recovering the host is the one thing to do here.
 		this._action = this._register(new Button(this._actionContainer, { ...defaultButtonStyles, title: true }));
@@ -84,6 +100,9 @@ export class RemoteHostUnavailableEmptyState extends Disposable {
 	setContent(content: IRemoteHostUnavailableEmptyStateContent | undefined): void {
 		this._actionListener.clear();
 		this._autoConnectListener.clear();
+		this._detail = content?.detail;
+		this._detailContainer.hidden = !this._detail;
+		this._detailLink.link = { label: this._detail?.label ?? '', href: '' };
 		this.domNode.classList.toggle('hidden', !content);
 		if (!content) {
 			this._description.textContent = '';

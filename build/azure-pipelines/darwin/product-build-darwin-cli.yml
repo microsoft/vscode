@@ -8,8 +8,8 @@ parameters:
     type: string
 
 jobs:
-- job: macOSCLI_${{ parameters.VSCODE_ARCH }}
-  displayName: macOS CLI (${{ upper(parameters.VSCODE_ARCH) }})
+- job: macOS_${{ parameters.VSCODE_ARCH }}_CLI
+  displayName: macOS (${{ upper(parameters.VSCODE_ARCH) }}) - CLI
   timeoutInMinutes: 90
   pool:
     name: AcesShared

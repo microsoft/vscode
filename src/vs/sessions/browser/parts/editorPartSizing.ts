@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * Shared sizing constants for the editor part / single-pane side pane, so the
+ * Shared sizing constants for the editor part / desktop side pane, so the
  * reveal split and the sash double-click reset (which live in different classes)
  * can never drift apart.
  */
 
-/** Minimum width of the editor part / single-pane side pane. Also the floor below which a persisted width is treated as corrupt. */
+/** Minimum width of the editor part / desktop side pane. Also the floor below which a persisted width is treated as corrupt. */
 export const EDITOR_PART_MINIMUM_WIDTH = 300;
 
 /** Fallback editor width used when there is no valid saved width to restore. */
