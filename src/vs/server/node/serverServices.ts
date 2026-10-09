@@ -81,6 +81,7 @@ import { RemoteExtensionsScannerChannelName } from '../../platform/remote/common
 import { RemoteUserDataProfilesServiceChannel } from '../../platform/userDataProfile/common/userDataProfileIpc.js';
 import { NodePtyHostStarter } from '../../platform/terminal/node/nodePtyHostStarter.js';
 import { NodeAgentHostStarter } from '../../platform/agentHost/node/nodeAgentHostStarter.js';
+import '../../platform/agentHost/common/agentHostStarter.config.contribution.js';
 import { ServerAgentHostManager } from './serverAgentHostManager.js';
 import { AgentHostChannel, UnavailableAgentHostChannel } from './agentHostChannel.js';
 import { AgentHostIpcChannels } from '../../platform/agentHost/common/agentService.js';
