@@ -870,6 +870,8 @@ export interface IAgentHostAdapterOptions {
 	readonly externalSessionState?: (resource: URI, store: DisposableStore) => IObservable<boolean>;
 	/** Uses the session title for the main conversation instead of the host's default chat label. */
 	readonly useSessionTitleForDefaultChat?: boolean;
+	/** Identifies provider placeholders that must not replace an existing display title. */
+	readonly isSessionTitlePlaceholder?: (title: string, session: URI) => boolean;
 }
 
 /**
@@ -2381,10 +2383,8 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		let didChange = false;
 
 		transaction(tx => {
-			const summary = metadata.summary;
-			if (summary !== undefined && summary !== this.title.get()) {
-				this.title.set(summary, tx);
-				didChange = true;
+			if (metadata.summary !== undefined) {
+				didChange = this.setTitleFromHost(metadata.summary, tx);
 			}
 
 			if (metadata.status !== undefined) {
@@ -2466,6 +2466,14 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		});
 
 		return didChange;
+	}
+
+	setTitleFromHost(title: string, tx?: ITransaction): boolean {
+		if (title === this.title.get() || this._options.isSessionTitlePlaceholder?.(title, this.backendUri)) {
+			return false;
+		}
+		this.title.set(title, tx);
+		return true;
 	}
 
 	/**
@@ -2616,9 +2624,9 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		let project: IAgentHostSessionDiscoveryMetadata['project'];
 		let didChange = false;
 		transaction(tx => {
-			if (previous.summary !== undefined && this.title.get() === previous.summary) {
+			if ((previous.summary !== undefined && this.title.get() === previous.summary) || this._options.isSessionTitlePlaceholder?.(this.title.get(), this.backendUri)) {
 				summary = metadata.summary ?? previous.summary;
-				if (summary !== this.title.get()) {
+				if (summary !== undefined && summary !== this.title.get()) {
 					this.title.set(summary, tx);
 					didChange = true;
 				}
@@ -4233,7 +4241,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * the bits that are uniform across hosts (`icon`, `loading`,
 	 * `mapDiffUri`) from the corresponding hooks.
 	 */
-	protected abstract _adapterOptions(): Pick<IAgentHostAdapterOptions, 'buildWorkspace' | 'readOnly' | 'defaultChangesetKind' | 'preserveStatusWhenDisconnected' | 'externalSessionState' | 'useSessionTitleForDefaultChat' | 'supportsCanvasPresentation'>;
+	protected abstract _adapterOptions(): Pick<IAgentHostAdapterOptions, 'buildWorkspace' | 'readOnly' | 'defaultChangesetKind' | 'preserveStatusWhenDisconnected' | 'externalSessionState' | 'useSessionTitleForDefaultChat' | 'isSessionTitlePlaceholder' | 'supportsCanvasPresentation'>;
 
 	/**
 	 * Hook to normalize a session's metadata before it is cached, keyed, or
@@ -8136,8 +8144,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	private _handleTitleChanged(session: string, title: string): void {
 		const rawId = session;
 		const cached = this._sessionCache.get(rawId);
-		if (cached) {
-			cached.title.set(title, undefined);
+		if (cached?.setTitleFromHost(title)) {
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
 		}
 	}
@@ -8214,8 +8221,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				}
 			}
 
-			if (changes.title !== undefined && changes.title !== cached.title.get()) {
-				cached.title.set(changes.title, tx);
+			if (changes.title !== undefined && cached.setTitleFromHost(changes.title, tx)) {
 				didChange = true;
 			}
 			if (changes.modifiedAt !== undefined) {

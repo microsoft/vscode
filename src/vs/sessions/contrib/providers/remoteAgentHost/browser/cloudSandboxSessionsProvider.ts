@@ -92,6 +92,7 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 			...super._adapterOptions(),
 			preserveStatusWhenDisconnected: true,
 			useSessionTitleForDefaultChat: true,
+			isSessionTitlePlaceholder: (title: string, session: URI) => session.scheme === CLOUD_SANDBOX_SESSION_SCHEME && title === AgentSession.id(session),
 			externalSessionState: (resource: URI, store: DisposableStore) => {
 				const key = this._localSessionStorageKey(AgentSession.id(resource));
 				store.add(this._chatService.onDidAcceptRequest(({ chatSessionResource }) => {
