@@ -3327,7 +3327,7 @@ export class CopilotAgentSession extends Disposable {
 			...(canvas.extensionName ? { extensionName: canvas.extensionName } : {}),
 			displayName: canvas.displayName,
 			description: canvas.description,
-			requiresInput: canvas.inputSchema !== undefined,
+			requiresInput: this._canvasRequiresInput(canvas.inputSchema),
 			actionCount: canvas.actions?.length ?? 0,
 		}));
 	}
@@ -3347,6 +3347,14 @@ export class CopilotAgentSession extends Disposable {
 			case 'plugin': return 'plugin';
 			default: return 'unknown';
 		}
+	}
+
+	private _canvasRequiresInput(inputSchema: JsonValue | undefined): boolean {
+		if (inputSchema === null || typeof inputSchema !== 'object' || Array.isArray(inputSchema)) {
+			return false;
+		}
+		const required = inputSchema['required'];
+		return Array.isArray(required) && required.some(value => typeof value === 'string' && value.trim().length > 0);
 	}
 
 	private async _waitForCanvasExtensions(wrapper: CopilotSessionWrapper): Promise<void> {
