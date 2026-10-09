@@ -913,6 +913,10 @@ export class ToolsListWidget extends Disposable {
 		this._searchInput.select();
 	}
 
+	setSearchQuery(query: string): void {
+		this._searchInput.value = query;
+	}
+
 	/** Re-emit the current item count. Called once at startup to seed the section badge. */
 	fireItemCount(): void {
 		this._onDidChangeItemCount.fire(this._lastCount === -1 ? 0 : this._lastCount);

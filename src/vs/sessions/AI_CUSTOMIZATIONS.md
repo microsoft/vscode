@@ -168,6 +168,19 @@ Customization surfaces are hidden when AI features are disabled. Contributions u
 
 Optional sections and migrations remain behind their owning configuration or capability. A disabled feature must not perform background discovery solely to populate hidden UI.
 
+## Protocol handler
+
+A customizations page can be opened through `vscode://chat-customizations/open?page=<page>&search=<query>`. Supported page values are `discover`, `agents`, `skills`, `instructions`, `prompts`, `hooks`, `automations`, `mcp-servers`, `plugins`, `models`, `tools`, `harness-settings`, and `migrations`. The optional `search` parameter populates the search field on pages that expose one.
+
+Examples for VS Code Insiders:
+
+- `vscode-insiders://chat-customizations/open?page=plugins&search=github`
+- `vscode-insiders://chat-customizations/open?page=mcp-servers&search=filesystem`
+- `vscode-insiders://chat-customizations/open?page=discover&search=azure`
+- `vscode-insiders://chat-customizations/open?page=migrations`
+
+Discover requires `chat.customizations.marketplace.enabled` to be enabled.
+
 ## Testing
 
 Use focused unit tests for filtering, grouping, counts, and service contracts. Use component fixtures for layout, section presentation, narrow viewports, and theme coverage. Cross-window descriptor changes must validate both the editor workbench and Agents Window registrations.

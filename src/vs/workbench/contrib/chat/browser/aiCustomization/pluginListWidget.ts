@@ -2230,6 +2230,10 @@ export class PluginListWidget extends Disposable {
 		this.searchInput.focus();
 	}
 
+	setSearchQuery(query: string): void {
+		this.searchInput.value = query;
+	}
+
 	revealLastItem(): void {
 		if (this.cardScrollableNode.style.display !== 'none') {
 			const reveal = () => {

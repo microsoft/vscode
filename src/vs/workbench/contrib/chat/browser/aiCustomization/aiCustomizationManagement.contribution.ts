@@ -825,7 +825,7 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 				const chatWidgetService = accessor.get(IChatWidgetService);
 				const harnessService = accessor.get(ICustomizationHarnessService);
 				const widget = chatWidgetService.lastFocusedWidget;
-				const { section, revealUri, sessionResource, migration, migrationCategory, migrationHint } = resolveAICustomizationManagementOpenEditorTarget(
+				const { section, revealUri, sessionResource, showDiscover, searchQuery, migration, migrationCategory, migrationHint } = resolveAICustomizationManagementOpenEditorTarget(
 					target,
 					widget?.input.pendingDelegationTarget,
 					widget?.viewModel?.sessionResource,
@@ -846,10 +846,19 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 				const pane = await editorService.openEditor(input, { pinned: true });
 				if (migration && pane instanceof AICustomizationManagementEditor) {
 					await pane.startCustomizationMigration(migrationCategory, migrationHint?.migrationFlowId);
+				} else if (showDiscover && pane instanceof AICustomizationManagementEditor) {
+					pane.showWelcomePage();
+					if (searchQuery !== undefined) {
+						pane.setSearchQuery(searchQuery);
+					}
 				} else if (section && pane instanceof AICustomizationManagementEditor) {
-					pane.selectSectionById(section);
-					if (revealUri) {
-						await pane.revealCustomizationByUri(revealUri);
+					if (pane.selectSectionById(section)) {
+						if (searchQuery !== undefined) {
+							pane.setSearchQuery(searchQuery);
+						}
+						if (revealUri) {
+							await pane.revealCustomizationByUri(revealUri);
+						}
 					}
 				}
 			}
