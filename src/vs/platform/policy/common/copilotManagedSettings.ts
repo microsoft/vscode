@@ -117,6 +117,11 @@ export const COPILOT_AUTO_TIER_KEY = 'autoTier';
  */
 export const MANAGED_SETTINGS_CONTROL_DEFINITIONS: IManagedSettingsPolicyDefinitions = {
 	...Object.fromEntries(COPILOT_PERMISSION_RULES_KEYS.map(key => [key, { type: 'string' as const }])),
+	'permissions.defaultMode': { type: 'string' },
+	'permissions.disableAssistedPermissionsMode': { type: 'boolean' },
+	[COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: { type: 'string' },
+	'permissions.limitTo': { type: 'string' },
+	'permissions.model': { type: 'string' },
 	[COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: { type: 'boolean' },
 	[COPILOT_SANDBOX_ENABLED_KEY]: { type: 'boolean' },
 	[COPILOT_SANDBOX_MCP_SERVERS_KEY]: { type: 'boolean' },
@@ -258,6 +263,7 @@ export const IManagedSettingsService = createDecorator<IManagedSettingsService>(
 export interface IManagedSettingsService {
 	readonly _serviceBrand: undefined;
 	readonly onDidChangeManagedSettings: Event<void>;
+	getManagedSettings(): ManagedSettingsData;
 	getManagedSettingValue(key: string): ManagedSettingValue | undefined;
 }
 
@@ -265,30 +271,24 @@ export class NullManagedSettingsService implements IManagedSettingsService {
 	readonly _serviceBrand: undefined;
 	readonly onDidChangeManagedSettings = Event.None;
 
+	getManagedSettings(): ManagedSettingsData {
+		return {};
+	}
+
 	getManagedSettingValue(_key: string): ManagedSettingValue | undefined {
 		return undefined;
 	}
 }
 
-/** Invalid rule lists also require the runtime's validation rather than a Local fallback. */
-export function hasManagedPermissionRules(service: IManagedSettingsService): boolean {
-	return COPILOT_PERMISSION_RULES_KEYS.some(key => {
-		const value = service.getManagedSettingValue(key);
-		if (value === undefined) {
-			return false;
-		}
-		try {
-			const rules: unknown = typeof value === 'string' ? JSON.parse(value) : value;
-			return !Array.isArray(rules) || rules.length > 0;
-		} catch {
-			return true;
-		}
-	});
+/** Presence selects the runtime harness; interpreting permission values remains runtime-owned. */
+export function hasManagedPermissions(service: IManagedSettingsService): boolean {
+	const settings = service.getManagedSettings();
+	return Object.keys(settings).some(key => (key === 'permissions' || key.startsWith('permissions.')) && settings[key] !== undefined);
 }
 
 /** Whether effective policy requires enforcement unavailable in the Local harness. */
 export function requiresCopilotAgentHost(service: IManagedSettingsService): boolean {
-	return service.getManagedSettingValue(COPILOT_SANDBOX_ENABLED_KEY) === true || hasManagedPermissionRules(service);
+	return service.getManagedSettingValue(COPILOT_SANDBOX_ENABLED_KEY) === true || hasManagedPermissions(service);
 }
 
 let managedModelValueCallback: ((policyData: IPolicyData) => ManagedSettingValue | undefined) | undefined;
@@ -794,6 +794,19 @@ export function normalizeManagedSettings(parsed: Record<string, unknown>, onWarn
 
 	if (hasTelemetryBlock && !Object.keys(result).some(isTelemetrySettingKey)) {
 		result[telemetryBlockKey] = '{}';
+	}
+
+	// Preserve future permission keys even when their values contain no scalar leaves.
+	if (isObject(parsed.permissions)) {
+		for (const [key, value] of Object.entries(parsed.permissions)) {
+			const flatKey = `permissions.${key}`;
+			if (value !== undefined && !Object.keys(result).some(key => key === flatKey || key.startsWith(`${flatKey}.`))) {
+				const encoded = JSON.stringify(value);
+				if (encoded !== undefined) {
+					result[flatKey] = encoded;
+				}
+			}
+		}
 	}
 
 	return result;

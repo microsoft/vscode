@@ -33,11 +33,12 @@ Do not add a VS Code `policy:` merely to mirror runtime policy. Do not add a Git
 
 ### Harness eligibility for managed policy
 
-Non-empty effective `permissions.ask`, `permissions.allow`, or `permissions.deny`
-lists, or managed `sandbox.enabled: true`, require Copilot Agent Host. Either
-requirement is sufficient: permission rules do not turn sandboxing on. VS Code
-preserves these lists across native, server, and file delivery for eligibility;
-it does not parse or enforce their rule grammar.
+A nonempty effective managed `permissions` object, or managed
+`sandbox.enabled: true`, requires Copilot Agent Host. Permission-key presence is
+sufficient, including `defaultMode`, explicit `false` / `"enable"`, and empty rule
+lists. VS Code preserves permission-key presence across server and file delivery
+and watches the runtime's declared permission keys in native MDM; it does not
+parse or enforce rule grammar. Permissions do not turn sandboxing on.
 
 Resolve initial account policy before choosing or activating Local. Governed new
 chats select Copilot Agent Host, including explicit or remembered Local choices.
@@ -50,9 +51,11 @@ readable without migrating again. On failure, the original remains read-only wit
 a Move to Copilot retry action; sending, retrying requests, and queueing stay blocked.
 The destination uses its normal policy-constrained defaults.
 Removing the requirement restores normal Local eligibility without rewriting preferences.
-Absent or effective empty lists do not impose this requirement; malformed lists
-must reach runtime validation rather than select Local. Other `permissions.*`
-keys and personal sandbox preferences do not automatically require Agent Host.
+Absent permissions or `permissions: {}` do not impose this requirement.
+Malformed permission values still require runtime validation rather than a Local
+fallback. Legacy `ChatToolsAutoApprove` alone and personal sandbox preferences do
+not require Agent Host. Removing an explicit permission key, rather than setting
+it to a nonrestrictive value, removes its harness requirement.
 The same request gate applies to old Local chats under a managed sandbox floor;
 virtual workspaces and unavailable hosts cannot silently run Local instead.
 Editor inline chat's limited read/edit flow remains available as an explicit
@@ -71,9 +74,9 @@ validates client writes, and reconciles runtime refusals to the actual applied m
 Desktop and remote Copilot Agent Hosts use the same policy path. Native settings
 resolve where the host runs; this does not replicate desktop device policies to
 remote hosts. The UI must not reapply the legacy clamp to host-reported choices.
-Legacy Local and other providers keep their existing controls. Local offers
-Default, Allow All, and Autopilot, not Assisted; runtime `defaultMode` does not
-configure Local's starting permission level.
+Local offers Default, Allow All, and Autopilot, not Assisted. Managed permissions
+make full Local chat unavailable instead of implementing runtime modes in Local;
+legacy policy alone retains the existing Local controls.
 Clients retain the legacy guard until a host advertises its approval-policy report.
 Both standard `approvalMode` and VS Code `autoApprove` reports follow this contract.
 Explicit and remembered approval preferences are normalized after schema discovery,
@@ -87,23 +90,23 @@ policy is the fallback. `defaultMode` alone never removes restrictions.
 
 **Potential surprise:** scenarios 6 and 8 below allow Allow All despite the old
 key being false. Setting a new mode restriction opts into the new group, so an
-unspecified mode is not implicitly restricted by the legacy key. Local retains
-its current coarse restriction. Other managed/per-tool restrictions still apply.
+unspecified mode is not implicitly restricted by the legacy key. Local is
+unavailable under managed permissions. Other managed/per-tool restrictions still apply.
 These rows assume all modes are supported and show selectable modes, not defaults.
 The legacy JSON is logical policy notation, not an OS-specific deployment format.
 
-✅ Allowed; ❌ Blocked; N/A: not supported by that harness.
+✅ Allowed; ❌ Blocked.
 
-| # | Legacy policy JSON | Managed-settings JSON | Local: Allow All | Local: Assisted | Local: Manual | Copilot/Agent Host: Allow All | Copilot/Agent Host: Assisted | Copilot/Agent Host: Manual |
-|---|---|---|:---:|:---:|:---:|:---:|:---:|:---:|
-| 1 | `{}` | `{}` | ✅ | N/A | ✅ | ✅ | ✅ | ✅ |
-| 2 | `{"ChatToolsAutoApprove":false}` | `{}` | ❌ | N/A | ✅ | ❌ | ❌ | ✅ |
-| 3 | `{}` | `{"permissions":{"disableBypassPermissionsMode":"disable"}}` | ❌ | N/A | ✅ | ❌ | ✅ | ✅ |
-| 4 | `{"ChatToolsAutoApprove":false}` | `{"permissions":{"disableBypassPermissionsMode":"disable"}}` | ❌ | N/A | ✅ | ❌ | ✅ | ✅ |
-| 5 | `{}` | `{"permissions":{"disableAssistedPermissionsMode":true}}` | ✅ | N/A | ✅ | ✅ | ❌ | ✅ |
-| 6 ⚠️ | `{"ChatToolsAutoApprove":false}` | `{"permissions":{"disableAssistedPermissionsMode":true}}` | ❌ | N/A | ✅ | ✅ | ❌ | ✅ |
-| 7 | `{"ChatToolsAutoApprove":false}` | `{"permissions":{"disableBypassPermissionsMode":"disable","disableAssistedPermissionsMode":true}}` | ❌ | N/A | ✅ | ❌ | ❌ | ✅ |
-| 8 ⚠️ | `{"ChatToolsAutoApprove":false}` | `{"permissions":{"disableBypassPermissionsMode":"enable"}}` | ❌ | N/A | ✅ | ✅ | ✅ | ✅ |
+| # | Legacy policy JSON | Managed-settings JSON | Full Local chat | Copilot/Agent Host: Allow All | Copilot/Agent Host: Assisted | Copilot/Agent Host: Manual |
+|---|---|---|---|:---:|:---:|:---:|
+| 1 | `{}` | `{}` | Available | ✅ | ✅ | ✅ |
+| 2 | `{"ChatToolsAutoApprove":false}` | `{}` | Available, legacy restrictions | ❌ | ❌ | ✅ |
+| 3 | `{}` | `{"permissions":{"disableBypassPermissionsMode":"disable"}}` | Unavailable; migrate to Copilot | ❌ | ✅ | ✅ |
+| 4 | `{"ChatToolsAutoApprove":false}` | `{"permissions":{"disableBypassPermissionsMode":"disable"}}` | Unavailable; migrate to Copilot | ❌ | ✅ | ✅ |
+| 5 | `{}` | `{"permissions":{"disableAssistedPermissionsMode":true}}` | Unavailable; migrate to Copilot | ✅ | ❌ | ✅ |
+| 6 ⚠️ | `{"ChatToolsAutoApprove":false}` | `{"permissions":{"disableAssistedPermissionsMode":true}}` | Unavailable; migrate to Copilot | ✅ | ❌ | ✅ |
+| 7 | `{"ChatToolsAutoApprove":false}` | `{"permissions":{"disableBypassPermissionsMode":"disable","disableAssistedPermissionsMode":true}}` | Unavailable; migrate to Copilot | ❌ | ❌ | ✅ |
+| 8 ⚠️ | `{"ChatToolsAutoApprove":false}` | `{"permissions":{"disableBypassPermissionsMode":"enable"}}` | Unavailable; migrate to Copilot | ✅ | ✅ | ✅ |
 
 Host-injected managed settings are startup configuration:
 
