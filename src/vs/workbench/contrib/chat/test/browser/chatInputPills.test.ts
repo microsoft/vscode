@@ -176,6 +176,24 @@ suite('StandardChatInputPillSources', () => {
 		});
 	});
 
+	test('a single subagent still opens a picker', () => {
+		const pills = createPills({
+			subagents: { sections: constObservable([{ title: 'Active subagents', entries: [{ id: 'subagent', label: 'Research', open: () => { } }] }]) },
+		});
+		pills.visibility.toggle(SessionChatPillKind.Subagents);
+		const button = pills.inputPills.element.querySelector('.chat-pill-button');
+
+		assert.deepStrictEqual({
+			labels: pills.labels(),
+			popup: button?.getAttribute('aria-haspopup'),
+			label: button?.getAttribute('aria-label'),
+		}, {
+			labels: ['1 Subagent'],
+			popup: 'listbox',
+			label: 'Show 1 subagent',
+		});
+	});
+
 	test('offers checked pull request options in a separate group below Hide for mouse and keyboard', async () => {
 		const data = createSessionPullRequestPillData(constObservable([{ title: 'Pull Requests', entries: [pullRequestEntry('#1', 'open')] }]), createPullRequestVisibility());
 		const pills = createPills({

@@ -124,6 +124,7 @@ export const sessionSubagentsPillOptions: IChatDropdownPillOptions = {
 	summaryAriaLabel: count => count === 1
 		? localize('sessionSubagents.showSingle', "Show 1 subagent")
 		: localize('sessionSubagents.show', "Show {0} subagents", count),
+	singleEntry: ChatPillSingleEntry.Summaryy,
 };
 
 /** Background shells always open a list, including when only one is active. */
