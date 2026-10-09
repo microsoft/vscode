@@ -79,11 +79,15 @@ suite('MCP Server Configuration Form', () => {
 			changedCwd: getMcpServerFormatError('server', previous, { ...previous, cwd: '/other' }, McpResourceFormat.WorkspaceRoot) !== undefined,
 			emptyCommand: getMcpServerFormatError('server', previous, { ...previous, command: ' ' }, McpResourceFormat.CopilotGlobal) !== undefined,
 			inputVariable: getMcpServerFormatError('server', previous, { ...previous, env: { A: '${input:a}' } }, McpResourceFormat.CopilotGlobal) !== undefined,
+			unchangedInputVariable: getMcpServerFormatError('server', { ...previous, env: { A: '${input:a}', B: '1' } }, { ...previous, env: { A: '${input:a}', B: '2' } }, McpResourceFormat.CopilotGlobal),
+			unchangedInputArgument: getMcpServerFormatError('server', { ...previous, args: ['${input:a}'] }, { ...previous, args: ['${input:a}', '--verbose'] }, McpResourceFormat.CopilotGlobal),
 		}, {
 			unchangedCwd: undefined,
 			changedCwd: true,
 			emptyCommand: true,
 			inputVariable: true,
+			unchangedInputVariable: undefined,
+			unchangedInputArgument: undefined,
 		});
 	});
 

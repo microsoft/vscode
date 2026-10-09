@@ -14,14 +14,19 @@ import { Action } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { getErrorMessage } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { equals } from '../../../../base/common/objects.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IMcpServerConfiguration } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { defaultButtonStyles, getInputBoxStyle } from '../../../../platform/theme/browser/defaultStyles.js';
+import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
+import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
 import { settingsTextInputBorder } from '../../preferences/common/settingsEditorColorRegistry.js';
 import { McpResourceFormat } from '../../../../platform/mcp/common/mcpWorkspaceConfiguration.js';
 import { IEditableMcpServerConfiguration } from '../common/mcpTypes.js';
@@ -29,14 +34,17 @@ import { getMcpServerFormatError, getMcpServerFormCapabilities, IMcpServerFormCa
 
 const $ = DOM.$;
 
-/**
- * A server configuration shown in {@link McpServerConfigurationForm}, together with how to save it.
- */
+/** Whether focus is inside an {@link McpServerConfigurationForm}. */
+export const McpServerConfigurationFormFocusContext = new RawContextKey<boolean>('mcpServerConfigurationFormFocus', false, localize('mcpServerConfigurationFormFocus', "Whether focus is in an MCP server configuration form"));
+
 export interface IMcpServerConfigurationFormOptions {
 	/** Opens the configuration file at the server's entry, to edit properties the form does not show. */
 	readonly openConfiguration: () => void;
 }
 
+/**
+ * A server configuration shown in {@link McpServerConfigurationForm}, together with how to save it.
+ */
 export interface IMcpServerConfigurationFormInput extends IEditableMcpServerConfiguration {
 	/** Identifies the server; unsaved edits are kept while the same server is shown. */
 	readonly id: string;
@@ -218,10 +226,25 @@ export class McpServerConfigurationForm extends Disposable {
 		options: IMcpServerConfigurationFormOptions,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
 	) {
 		super();
 
-		this.element = DOM.append(parent, $('.mcp-config-form'));
+		this.element = DOM.append(parent, $('.mcp-config-form', { role: 'group' }));
+		this.updateAriaLabel();
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(AccessibilityVerbositySettingId.McpServerConfiguration)) {
+				this.updateAriaLabel();
+			}
+		}));
+		this._register(this.keybindingService.onDidUpdateKeybindings(() => this.updateAriaLabel()));
+		const focusContext = McpServerConfigurationFormFocusContext.bindTo(contextKeyService);
+		const focusTracker = this._register(DOM.trackFocus(this.element));
+		this._register(focusTracker.onDidFocus(() => focusContext.set(true)));
+		this._register(focusTracker.onDidBlur(() => focusContext.reset()));
+		this._register(toDisposable(() => focusContext.reset()));
 
 		const typeField = this.appendField(this.element, localize('mcpForm.type', "Server Type"));
 		this.kindRadio = this._register(new Radio({
@@ -344,17 +367,16 @@ export class McpServerConfigurationForm extends Disposable {
 	 * are kept when its configuration changes on disk.
 	 */
 	setInput(input: IMcpServerConfigurationFormInput): void {
-		const { config } = input;
-		const keepEdits = this.input?.id === input.id && this.input.format === input.format && (this.isDirty || this.saving || equals(config, this.baseline));
+		const sameServer = this.input?.id === input.id && this.input.format === input.format;
 		this.input = input;
-		this.baseline = config;
-		this.initialState = toMcpServerFormState(config);
-		if (keepEdits) {
-			this.onDidChangeState();
+		if (sameServer && (this.saving || equals(input.config, this.baseline))) {
 			return;
 		}
-		this.state = toMcpServerFormState(config);
-		this.renderState();
+		if (sameServer && this.isDirty) {
+			this.rebase(input.config);
+			return;
+		}
+		this.reset(input.config);
 	}
 
 	focus(): void {
@@ -378,18 +400,22 @@ export class McpServerConfigurationForm extends Disposable {
 	/** Offers only what the destination file can store; an unsupported kind already in the file stays selectable. */
 	private renderCapabilities(format: McpResourceFormat, currentKind: McpServerFormKind): void {
 		this.capabilities = getMcpServerFormCapabilities(format);
-		this.kinds = this.capabilities.kinds.includes(currentKind) ? this.capabilities.kinds : [...this.capabilities.kinds, currentKind];
-		// Labels are the `type` values written to the file, so they are not localized.
-		this.kindRadio.setItems(this.kinds.map(kind => {
-			switch (kind) {
-				case McpServerFormKind.Stdio:
-					return { text: 'stdio', tooltip: localize('mcpForm.type.stdio.tooltip', "Run the server as a local process that communicates over standard input and output") };
-				case McpServerFormKind.Http:
-					return { text: 'http', tooltip: localize('mcpForm.type.http.tooltip', "Connect to a remote server using Streamable HTTP, falling back to SSE") };
-				case McpServerFormKind.Sse:
-					return { text: 'sse', tooltip: localize('mcpForm.type.sse.tooltip', "Connect to a remote server using Server-Sent Events") };
-			}
-		}));
+		const kinds = this.capabilities.kinds.includes(currentKind) ? this.capabilities.kinds : [...this.capabilities.kinds, currentKind];
+		// Rebuilding the options would move focus out of the server type control during a refresh.
+		if (!equals(kinds, this.kinds)) {
+			this.kinds = kinds;
+			// Labels are the `type` values written to the file, so they are not localized.
+			this.kindRadio.setItems(this.kinds.map(kind => {
+				switch (kind) {
+					case McpServerFormKind.Stdio:
+						return { text: 'stdio', tooltip: localize('mcpForm.type.stdio.tooltip', "Run the server as a local process that communicates over standard input and output") };
+					case McpServerFormKind.Http:
+						return { text: 'http', tooltip: localize('mcpForm.type.http.tooltip', "Connect to a remote server using Streamable HTTP, falling back to SSE") };
+					case McpServerFormKind.Sse:
+						return { text: 'sse', tooltip: localize('mcpForm.type.sse.tooltip', "Connect to a remote server using Server-Sent Events") };
+				}
+			}));
+		}
 		this.envFileField.style.display = this.capabilities.envFile ? '' : 'none';
 		this.cwdField.style.display = this.capabilities.cwd ? '' : 'none';
 		// VS Code variables such as ${workspaceFolder} are only resolved in VS Code's own mcp.json.
@@ -440,9 +466,18 @@ export class McpServerConfigurationForm extends Disposable {
 		this.envFileInput.value = state.envFile;
 		this.cwdInput.value = state.cwd;
 		this.urlInput.value = state.url;
-		// Lists edit the state in place, so give them copies to keep the initial state intact.
-		this.envList.value = state.env = state.env.map(entry => ({ ...entry }));
-		this.headersList.value = state.headers = state.headers.map(entry => ({ ...entry }));
+		// Lists edit the state in place, so give them copies to keep the initial state intact. A list
+		// whose rows are unchanged keeps its DOM, so a refresh does not interrupt typing in a row.
+		if (equals(this.envList.value, state.env)) {
+			state.env = this.envList.value;
+		} else {
+			this.envList.value = state.env = state.env.map(entry => ({ ...entry }));
+		}
+		if (equals(this.headersList.value, state.headers)) {
+			state.headers = this.headersList.value;
+		} else {
+			this.headersList.value = state.headers = state.headers.map(entry => ({ ...entry }));
+		}
 		this.updateSections();
 		this.onDidChangeState();
 	}
@@ -487,13 +522,60 @@ export class McpServerConfigurationForm extends Disposable {
 		return validation;
 	}
 
-	private discard(): void {
-		if (!this.initialState) {
+	/**
+	 * Moves unsaved edits onto {@link config}, the configuration now in the file: fields the user
+	 * edited keep their edits and all other fields show the file's values. Saving then writes only
+	 * the user's edits, so changes made to the file in the meantime are kept.
+	 */
+	private rebase(config: IMcpServerConfiguration): void {
+		const { state, initialState } = this;
+		if (!state || !initialState) {
+			this.reset(config);
 			return;
 		}
-		this.state = structuredClone(this.initialState);
+		const next = toMcpServerFormState(config);
+		const merged: IMcpServerFormState = {
+			kind: equals(state.kind, initialState.kind) ? next.kind : state.kind,
+			command: equals(state.command, initialState.command) ? next.command : state.command,
+			args: equals(state.args, initialState.args) ? next.args : state.args,
+			cwd: equals(state.cwd, initialState.cwd) ? next.cwd : state.cwd,
+			envFile: equals(state.envFile, initialState.envFile) ? next.envFile : state.envFile,
+			env: equals(state.env, initialState.env) ? next.env : state.env,
+			url: equals(state.url, initialState.url) ? next.url : state.url,
+			headers: equals(state.headers, initialState.headers) ? next.headers : state.headers,
+		};
+		this.baseline = config;
+		this.initialState = toMcpServerFormState(config);
+		this.state = merged;
 		this.renderState();
+	}
+
+	/** Shows {@link config}, the latest configuration from the file, without any edits. */
+	private reset(config: IMcpServerConfiguration): void {
+		this.baseline = config;
+		this.initialState = toMcpServerFormState(config);
+		this.state = toMcpServerFormState(config);
+		this.renderState();
+	}
+
+	private discard(): void {
+		if (!this.input) {
+			return;
+		}
+		this.reset(this.input.config);
 		this.focus();
+	}
+
+	private updateAriaLabel(): void {
+		const label = localize('mcpForm.ariaLabel', "MCP server configuration");
+		if (!this.configurationService.getValue<boolean>(AccessibilityVerbositySettingId.McpServerConfiguration)) {
+			this.element.setAttribute('aria-label', label);
+			return;
+		}
+		const keybinding = this.keybindingService.lookupKeybinding(AccessibilityCommandId.OpenAccessibilityHelp)?.getAriaLabel();
+		this.element.setAttribute('aria-label', keybinding
+			? localize('mcpForm.ariaLabelWithHelp', "{0}, use {1} for accessibility help", label, keybinding)
+			: localize('mcpForm.ariaLabelWithHelpNoKeybinding', "{0}, run the command Open Accessibility Help which is currently not triggerable via keybinding", label));
 	}
 
 	private async save(): Promise<void> {
@@ -508,7 +590,7 @@ export class McpServerConfigurationForm extends Disposable {
 		this.updateButtons();
 		try {
 			await input.save(baseline, config);
-			if (this.input === input) {
+			if (this.input?.id === input.id) {
 				this.baseline = config;
 				this.initialState = toMcpServerFormState(config);
 			}

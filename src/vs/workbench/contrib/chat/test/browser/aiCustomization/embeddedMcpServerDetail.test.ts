@@ -4,7 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $, getWindow } from '../../../../../../base/browser/dom.js';
+import { $, getActiveElement, getWindow } from '../../../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../../../base/browser/window.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { AccessibilityVerbositySettingId } from '../../../../accessibility/browser/accessibilityConfiguration.js';
+import { McpServerConfigurationFormFocusContext } from '../../../../mcp/browser/mcpServerConfigurationForm.js';
+import { McpServerConfigurationFormAccessibilityHelp } from '../../../../mcp/browser/mcpServerConfigurationFormAccessibility.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Event } from '../../../../../../base/common/event.js';
@@ -89,7 +95,7 @@ suite('EmbeddedMcpServerDetail', () => {
 		const complete = (index: number, text = content) => reads[index].result.complete(new class extends mock<IFileContent>() {
 			override readonly value = VSBuffer.fromString(text);
 		}());
-		return { detail, input, reads, snapshot, complete, executedCommands, openedEditors };
+		return { detail, input, reads, snapshot, complete, executedCommands, openedEditors, instantiationService };
 	}
 
 	test('loads only the selected definition after migration metadata changes during the read', async () => {
@@ -319,6 +325,92 @@ suite('EmbeddedMcpServerDetail', () => {
 			formVisible: false,
 			heading: true,
 			diagnosticsText: '',
+		});
+	});
+
+	test('a file change while the form has edits keeps the edits and shows the other changes', async () => {
+		const saves: { previous: IMcpServerConfiguration; config: IMcpServerConfiguration }[] = [];
+		const original: IMcpServerConfiguration = { type: McpServerType.LOCAL, command: 'server', args: ['--old'], env: { TOKEN: 'old' } };
+		let config = original;
+		const { detail, input } = createDetail(() => ({
+			config,
+			format: McpResourceFormat.CopilotGlobal,
+			save: async (previous, next) => { saves.push({ previous, config: next }); },
+		}));
+		const refresh = async () => {
+			detail.setInput(input);
+			await timeout(0);
+		};
+		await refresh();
+
+		const form = detail.element.querySelector<HTMLElement>('.mcp-detail-configuration-form')!;
+		const argsValue = () => [...form.querySelectorAll<HTMLElement>('.mcp-config-form-field')].find(field => field.querySelector('.mcp-config-form-label')?.firstChild?.textContent === 'Arguments')!.querySelector('input')!.value;
+		const valueInput = form.querySelector<HTMLInputElement>('.mcp-config-form-kv-value input')!;
+		valueInput.value = 'mine';
+		valueInput.dispatchEvent(new (getWindow(valueInput).Event)('input'));
+
+		// Arguments change through Other Properties while the environment variable edit is unsaved.
+		config = { ...original, args: ['--new'] };
+		await refresh();
+		const whileDirty = { args: argsValue(), sameRow: form.querySelector('.mcp-config-form-kv-value input') === valueInput, value: valueInput.value };
+		const [, , saveButton] = form.querySelectorAll<HTMLElement>('.mcp-config-form-footer .monaco-button');
+		saveButton.click();
+		await timeout(0);
+
+		assert.deepStrictEqual({ whileDirty, saves }, {
+			whileDirty: { args: '--new', sameRow: true, value: 'mine' },
+			saves: [{ previous: config, config: { ...config, env: { TOKEN: 'mine' } } }],
+		});
+	});
+
+	test('the configuration form has accessibility help that returns focus to the form', async () => {
+		const { detail, input, instantiationService } = createDetail(() => ({
+			config: { type: McpServerType.LOCAL, command: 'memory-server' },
+			format: McpResourceFormat.CopilotGlobal,
+			save: async () => { },
+		}));
+		mainWindow.document.body.appendChild(detail.element);
+		store.add(toDisposable(() => detail.element.remove()));
+		detail.setInput(input);
+		await timeout(0);
+
+		const contextKeyService = instantiationService.get(IContextKeyService);
+		const focusKey = () => contextKeyService.getContextKeyValue(McpServerConfigurationFormFocusContext.key);
+		const form = detail.element.querySelector<HTMLElement>('.mcp-config-form')!;
+		const commandInput = form.querySelector<HTMLInputElement>('.mcp-config-form-field input')!;
+		// The test window may not have focus, in which case focus() does not dispatch focus events.
+		const FocusEventCtor = getWindow(commandInput).FocusEvent;
+		commandInput.focus();
+		commandInput.dispatchEvent(new FocusEventCtor('focus'));
+		const focusedInForm = focusKey();
+		const help = new McpServerConfigurationFormAccessibilityHelp();
+		const provider = store.add(instantiationService.invokeFunction(accessor => help.getProvider(accessor)));
+		const outside = mainWindow.document.body.appendChild($('button'));
+		store.add(toDisposable(() => outside.remove()));
+		outside.focus();
+		commandInput.dispatchEvent(new FocusEventCtor('blur'));
+		await timeout(0);
+		const focusedOutside = focusKey();
+		provider.onClose();
+
+		assert.deepStrictEqual({
+			role: form.getAttribute('role'),
+			ariaLabel: form.getAttribute('aria-label'),
+			focusedInForm,
+			focusedOutside,
+			when: help.when.serialize(),
+			verbositySetting: provider.verbositySettingKey,
+			documentsArguments: provider.provideContent().includes('JSON array'),
+			focusRestored: getActiveElement() === commandInput,
+		}, {
+			role: 'group',
+			ariaLabel: 'MCP server configuration',
+			focusedInForm: true,
+			focusedOutside: false,
+			when: 'mcpServerConfigurationFormFocus',
+			verbositySetting: AccessibilityVerbositySettingId.McpServerConfiguration,
+			documentsArguments: true,
+			focusRestored: true,
 		});
 	});
 
