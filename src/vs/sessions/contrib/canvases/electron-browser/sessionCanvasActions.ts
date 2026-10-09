@@ -12,7 +12,8 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGroupContext } from '../../../../workbench/common/contextkeys.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { Menus } from '../../../browser/menus.js';
-import { getSessionCanvasInstanceLabels, getSessionCanvasReferenceKey, ISessionCanvasReference, ISessionCanvasService, REVEAL_SESSION_CANVAS_COMMAND_ID } from '../common/sessionCanvas.js';
+import { getCanvasReferenceKey, ICanvasReference, ICanvasService } from '../../../../workbench/contrib/canvases/common/canvas.js';
+import { getSessionCanvasInstanceLabels, REVEAL_SESSION_CANVAS_COMMAND_ID } from '../common/sessionCanvas.js';
 
 export const REOPEN_SESSION_CANVAS_COMMAND_ID = 'workbench.action.agentSessions.reopenCanvas';
 
@@ -31,8 +32,8 @@ class CanvasAddTabActionRegistration extends Disposable {
 
 	constructor(
 		readonly commandId: string,
-		reference: ISessionCanvasReference,
-		canvasService: ISessionCanvasService,
+		reference: ICanvasReference,
+		canvasService: ICanvasService,
 	) {
 		super();
 		this._register(CommandsRegistry.registerCommand(commandId, () => canvasService.reopenCanvas(reference)));
@@ -57,18 +58,18 @@ class CanvasAddTabActionRegistration extends Disposable {
 	}
 }
 
-export function registerSessionCanvasActions(canvasService: ISessionCanvasService): IDisposable {
+export function registerSessionCanvasActions(canvasService: ICanvasService): IDisposable {
 	const store = new DisposableStore();
 	const registrations = store.add(new DisposableMap<string, CanvasAddTabActionRegistration>());
 	let commandSequence = 0;
-	store.add(CommandsRegistry.registerCommand(REVEAL_SESSION_CANVAS_COMMAND_ID, (_accessor, reference: ISessionCanvasReference) => canvasService.revealCanvas(reference)));
+	store.add(CommandsRegistry.registerCommand(REVEAL_SESSION_CANVAS_COMMAND_ID, (_accessor, reference: ICanvasReference) => canvasService.revealCanvas(reference)));
 	store.add(autorun(reader => {
 		const targets = canvasService.reopenableCanvases.read(reader);
 		const labels = getSessionCanvasInstanceLabels(targets.map(target => target.canvas));
 		const activeKeys = new Set<string>();
 		for (let index = 0; index < targets.length; index++) {
 			const target = targets[index];
-			const key = getSessionCanvasReferenceKey(target.reference);
+			const key = getCanvasReferenceKey(target.reference);
 			activeKeys.add(key);
 			let registration = registrations.get(key);
 			if (!registration) {

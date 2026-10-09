@@ -49,6 +49,7 @@ import { ISendRequestOptions } from '../../../services/sessions/common/sessionsP
 import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { getChatSessionType } from '../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { IChatSessionsService, localChatSessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IChatSessionHistoryStatus } from '../../../../platform/chat/common/chatSessionHistory.js';
 import { isPhoneLayout } from '../../../browser/parts/mobile/mobileLayout.js';
 import { AbstractChatView, ChatViewKind, IChatViewOptions, ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../browser/parts/chatView.js';
 import { IsPhoneLayoutContext, SessionUsesExperimentalComposerLayoutContext } from '../../../common/contextkeys.js';
@@ -283,6 +284,7 @@ export class ChatView extends AbstractChatView {
 	override readonly hasVisibleTranscriptContent = observableValue(this, false);
 	override readonly isLoadingTranscript = observableValue(this, false);
 	override readonly isInputBlocked: IObservable<boolean>;
+	override readonly historyStatus: IObservable<IChatSessionHistoryStatus | undefined>;
 	private _historyKey: string | undefined;
 
 	/** Whether this view currently represents the active session. */
@@ -419,6 +421,10 @@ export class ChatView extends AbstractChatView {
 		this.isInputBlocked = derived(this, reader => {
 			const model = chatModel.read(reader);
 			return isEqual(model?.sessionResource, this._currentChatResourceObs.read(reader)) && (model?.isInputBlocked.read(reader) ?? false);
+		});
+		this.historyStatus = derived(this, reader => {
+			const model = chatModel.read(reader);
+			return isEqual(model?.sessionResource, this._currentChatResourceObs.read(reader)) ? model?.historyStatus?.read(reader) : undefined;
 		});
 		this._liveModelReady = derived(this, reader => {
 			const model = chatModel.read(reader);

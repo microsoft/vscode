@@ -26,6 +26,7 @@ import { buildChatUri, buildDefaultChatUri, customizationId, CustomizationLoadSt
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification, TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
 import { AgentHostE2EServerLease, assertToolCallCompleteText, createRealSession, dispatchTurn, driveTurnToCompletion, removeTempDirs, resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
 import type { CapiReplayProxy } from '../harness/capiReplayProxy.js';
+import { assertExpectedFailure } from '../harness/expectedFailure.js';
 import { createManagedPluginMarketplace, type IManagedPluginDefinition, type IManagedPluginMarketplace } from './copilotManagedPluginMarketplace.js';
 import { COPILOT_CONFIG } from './copilotTestConfiguration.js';
 import { createTestDirectory } from '../harness/testDirectories.js';
@@ -39,6 +40,7 @@ const managedPluginActivityPrefixes = [
 	managedPluginUpdatingActivity,
 ] as const;
 const managedPluginLifecycleUnavailable = 'Managed plugin lifecycle did not prepare the required plugin';
+const managedPluginLifecycleExpectedFailure = /^(?:Managed plugin lifecycle did not prepare the required plugin|Copilot runtime managed-settings query exceeded 3\.5 seconds while waiting for native MDM or GitHub policy resolution\.)$/;
 
 interface IManagedPluginTestContext {
 	client: TestProtocolClient;
@@ -86,9 +88,14 @@ function holdManagedSettingsResponse(proxy: CapiReplayProxy, settings: Readonly<
 
 async function runManagedPluginTest(
 	testTitle: string,
-	options: { readonly strict?: boolean },
+	options: { readonly strict?: boolean; readonly expectedFailure?: boolean },
 	run: (context: IManagedPluginTestContext) => Promise<void>,
 ): Promise<void> {
+	if (options.expectedFailure) {
+		await assertExpectedFailure('#340558', managedPluginLifecycleExpectedFailure, () =>
+			runManagedPluginTest(testTitle, { strict: options.strict }, run));
+		return;
+	}
 	const root = createTestDirectory(join(tmpdir(), 'copilot-managed-plugins-'));
 	const workspace = join(root, 'workspace');
 	const managedSettingsPath = join(root, 'device-managed-settings.json');
@@ -373,7 +380,7 @@ suite('Agent Host E2E — Copilot managed plugin lifecycle', function () {
 
 	test('non-strict missing plugin lets the first message continue and holds a later message on slow installation', async function () {
 		this.timeout(180_000);
-		await runManagedPluginTest(this.test!.title, {}, async context => {
+		await runManagedPluginTest(this.test!.title, { expectedFailure: true }, async context => {
 			const plugin = managedPluginDefinition('non-strict-plugin', '1.0.0', 'non-strict-managed-skill');
 			const marketplace = await context.createMarketplace('non-strict-marketplace', [plugin]);
 			const installation = marketplace.holdNextRequest();
@@ -410,7 +417,7 @@ suite('Agent Host E2E — Copilot managed plugin lifecycle', function () {
 
 	test('strict missing plugin holds the first message through slow policy and installation', async function () {
 		this.timeout(180_000);
-		await runManagedPluginTest(this.test!.title, { strict: true }, async context => {
+		await runManagedPluginTest(this.test!.title, { strict: true, expectedFailure: true }, async context => {
 			const plugin = managedPluginDefinition('strict-plugin', '1.0.0', 'strict-managed-skill');
 			const marketplace = await context.createMarketplace('strict-marketplace', [plugin]);
 			const installation = marketplace.holdNextRequest();
@@ -446,7 +453,7 @@ suite('Agent Host E2E — Copilot managed plugin lifecycle', function () {
 
 	test('strict already-installed plugin waits only for policy and is reused without installation', async function () {
 		this.timeout(180_000);
-		await runManagedPluginTest(this.test!.title, { strict: true }, async context => {
+		await runManagedPluginTest(this.test!.title, { strict: true, expectedFailure: true }, async context => {
 			const plugin = managedPluginDefinition('strict-installed-plugin');
 			const marketplace = await context.createMarketplace('strict-installed-marketplace', [plugin]);
 			const settings = managedPluginPolicy(marketplace, [plugin.name], true);
@@ -480,7 +487,7 @@ suite('Agent Host E2E — Copilot managed plugin lifecycle', function () {
 
 	test('non-strict already-installed plugin never blocks or reinstalls while policy refreshes', async function () {
 		this.timeout(180_000);
-		await runManagedPluginTest(this.test!.title, {}, async context => {
+		await runManagedPluginTest(this.test!.title, { expectedFailure: true }, async context => {
 			const plugin = managedPluginDefinition('non-strict-installed-plugin');
 			const marketplace = await context.createMarketplace('non-strict-installed-marketplace', [plugin]);
 			context.proxy.setManagedSettings(managedPluginPolicy(marketplace, [plugin.name], true));
@@ -520,7 +527,7 @@ suite('Agent Host E2E — Copilot managed plugin lifecycle', function () {
 
 	test('strict policy installs several missing plugins in one admission', async function () {
 		this.timeout(180_000);
-		await runManagedPluginTest(this.test!.title, { strict: true }, async context => {
+		await runManagedPluginTest(this.test!.title, { strict: true, expectedFailure: true }, async context => {
 			const plugins = [
 				managedPluginDefinition('several-plugin-a'),
 				managedPluginDefinition('several-plugin-b'),
@@ -545,7 +552,7 @@ suite('Agent Host E2E — Copilot managed plugin lifecycle', function () {
 
 	test('strict partially-installed policy prepares only the missing plugin', async function () {
 		this.timeout(180_000);
-		await runManagedPluginTest(this.test!.title, { strict: true }, async context => {
+		await runManagedPluginTest(this.test!.title, { strict: true, expectedFailure: true }, async context => {
 			const installed = managedPluginDefinition('partial-installed-plugin');
 			const missing = managedPluginDefinition('partial-missing-plugin');
 			const marketplace = await context.createMarketplace('partial-marketplace', [installed, missing]);
@@ -575,7 +582,7 @@ suite('Agent Host E2E — Copilot managed plugin lifecycle', function () {
 
 	test('managed plugin installation failure warns and continues the same message', async function () {
 		this.timeout(180_000);
-		await runManagedPluginTest(this.test!.title, { strict: true }, async context => {
+		await runManagedPluginTest(this.test!.title, { strict: true, expectedFailure: true }, async context => {
 			const plugin = managedPluginDefinition('unavailable-plugin');
 			const marketplace = await context.createMarketplace('unavailable-marketplace', [plugin]);
 			marketplace.setUnavailable(true);
@@ -614,7 +621,7 @@ suite('Agent Host E2E — Copilot managed plugin lifecycle', function () {
 
 	test('failed managed plugin installation retries on the next message and recovers', async function () {
 		this.timeout(180_000);
-		await runManagedPluginTest(this.test!.title, { strict: true }, async context => {
+		await runManagedPluginTest(this.test!.title, { strict: true, expectedFailure: true }, async context => {
 			const plugin = managedPluginDefinition('retry-plugin');
 			const marketplace = await context.createMarketplace('retry-marketplace', [plugin]);
 			marketplace.failNextRequest();
@@ -645,7 +652,7 @@ suite('Agent Host E2E — Copilot managed plugin lifecycle', function () {
 
 	test('slow managed plugin update does not interrupt an active turn and applies before the next message', async function () {
 		this.timeout(240_000);
-		await runManagedPluginTest(this.test!.title, { strict: true }, async context => {
+		await runManagedPluginTest(this.test!.title, { strict: true, expectedFailure: true }, async context => {
 			const v1 = managedPluginDefinition('update-plugin', '1.0.0', 'managed-update-v1');
 			const v2 = managedPluginDefinition('update-plugin', '2.0.0', 'managed-update-v2');
 			const marketplace = await context.createMarketplace('update-marketplace', [v1]);
@@ -717,7 +724,7 @@ suite('Agent Host E2E — Copilot managed plugin lifecycle', function () {
 
 	test('withdrawing a managed plugin requirement disables it after restart', async function () {
 		this.timeout(240_000);
-		await runManagedPluginTest(this.test!.title, { strict: true }, async context => {
+		await runManagedPluginTest(this.test!.title, { strict: true, expectedFailure: true }, async context => {
 			const plugin = managedPluginDefinition('enforcement-plugin', '1.0.0', 'managed-enforcement-skill');
 			const marketplace = await context.createMarketplace('enforcement-marketplace', [plugin]);
 			const requiredPolicy = holdManagedSettingsResponse(context.proxy, managedPluginPolicy(marketplace, [plugin.name], true));

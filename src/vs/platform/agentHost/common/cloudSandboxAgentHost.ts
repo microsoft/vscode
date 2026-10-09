@@ -22,6 +22,8 @@ import { SessionModelInfo } from './state/protocol/state.js';
 /** Configuration key gating the cloud-sandbox connection path. Disabled by default. */
 export const CloudSandboxEnabledSettingId = 'chat.agentHost.cloudSandbox.enabled';
 
+export const CloudSandboxAutoConnectOnOpenSettingId = 'chat.agentHost.cloudSandbox.autoConnectOnOpen';
+
 /**
  * Whether cloud sandbox sessions can be created or connected to. A sandbox is reached over the
  * remote-agent-host relay, so it needs that setting too.
@@ -119,6 +121,8 @@ export interface ICloudSandboxDiscoveredSession {
 	readonly name: string;
 	/** Owning repository as `owner/name`, when known. */
 	readonly repoName?: string;
+	/** Whether discovery identified a repository association, independent of name resolution. */
+	readonly hasRepository?: boolean;
 	/** Last-updated timestamp (ISO 8601), when known, for ordering. */
 	readonly updatedAt?: string;
 	/** Last reported activity; this does not establish environment availability or session flags. */
@@ -307,10 +311,16 @@ export interface ICloudSandboxApiService {
 	setTaskArchived(taskId: string, archived: boolean, token: CancellationToken): Promise<void>;
 
 	/**
-	 * Read a task's persisted AHP history and fold it back into session and chat state. Served by
-	 * Mission Control's mirror, so it works without the sandbox. `undefined` when there is none.
+	 * Reads fresh recorded history without a live sandbox (`undefined` when absent); `diagnosticId` remains local.
+	 * Optional callbacks preview authenticated cached history and validate snapshots before cache replacement.
 	 */
-	getSessionHistory(taskId: string, token: CancellationToken): Promise<IReplayedTaskHistory | undefined>;
+	getSessionHistory(taskId: string, token: CancellationToken, diagnosticId?: string, onCachedHistory?: (history: IReplayedTaskHistory) => void, canCacheHistory?: (history: IReplayedTaskHistory | undefined) => boolean): Promise<IReplayedTaskHistory | undefined>;
+
+	/** Prevent in-flight reads from refilling the cache; preserve stored data only when live history matches. */
+	invalidateSessionHistory(taskId: string, preserveCached?: boolean): void;
+
+	/** Drop recorded data and cancel reads for an account/feature lifetime or a removed task. */
+	clearSessionHistory(taskId?: string): void;
 }
 
 /** Only a complete scan permits removing absent sessions; other results may name explicit removals. */
@@ -329,6 +339,14 @@ export class CloudSandboxAuthenticationRequiredError extends Error {
 	constructor() {
 		super('Connecting to a cloud sandbox requires a signed-in GitHub account.');
 		this.name = 'CloudSandboxAuthenticationRequiredError';
+	}
+}
+
+/** A connection request failed without receiving an HTTP response. */
+export class CloudSandboxNetworkError extends Error {
+	constructor(message: string, options?: ErrorOptions) {
+		super(message, options);
+		this.name = 'CloudSandboxNetworkError';
 	}
 }
 
@@ -352,8 +370,9 @@ export class CloudSandboxRequestError extends Error {
  *
  * This gates credential refresh for *live* connections, where a transient fault must not tear down
  * a working session — hence 5xx staying retryable. Opening a new connection deliberately does not
- * use it: there, any answer is final. {@link CloudSandboxAuthenticationRequiredError} is retryable
- * because it is raised before any request goes out, so callers need their own ceiling.
+ * use it: only {@link CloudSandboxNetworkError} is retried there, and HTTP answers remain final.
+ * {@link CloudSandboxAuthenticationRequiredError} is retryable here because it is raised before
+ * any request goes out, so callers need their own ceiling.
  */
 export function isRetryableCloudSandboxError(error: unknown): boolean {
 	if (!(error instanceof CloudSandboxRequestError) || error.statusCode === undefined) {

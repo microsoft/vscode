@@ -1045,6 +1045,48 @@ suite('stateToProgressAdapter', () => {
 			});
 		});
 
+		test('successful remote MCP App preserves resource provenance in live rendering and restored history', () => {
+			const backendSession = URI.parse('custom-host-session:/opaque-session');
+			const connectionAuthority = 'remote-host';
+			const tc = createToolCallState({
+				toolName: 'github-get_me',
+				toolInput: '{}',
+				contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'github-customization' },
+				_meta: {
+					mcpServerName: 'GitHub',
+					ui: { resourceUri: 'ui://github-mcp-server/get-me', channel: 'mcp://opaque-host-channel/GitHub' },
+				},
+			});
+			const live = rawToolCallStateToInvocation(tc, undefined, backendSession, connectionAuthority);
+			const completed = createCompletedToolCall({ ...tc, status: ToolCallStatus.Completed, success: true });
+			rawFinalizeToolInvocation(live, completed, backendSession, connectionAuthority);
+			const history = rawTurnsToHistory(backendSession, [createTurn({
+				responseParts: [{ kind: ResponsePartKind.ToolCall, toolCall: completed }],
+			})], 'p', connectionAuthority);
+			const response = history[1];
+			assert.ok(response.type === 'response');
+			const restored = response.parts[0];
+			assert.ok(restored.kind === 'toolInvocationSerialized');
+			const expected = {
+				originMessage: 'GitHub (MCP Server)',
+				toolSpecificData: {
+					kind: 'input',
+					rawInput: {},
+					mcpAppData: {
+						kind: 'agentHost',
+						resourceUri: 'ui://github-mcp-server/get-me',
+						connectionAuthority,
+						serverId: 'github-customization',
+						channel: 'mcp://opaque-host-channel/GitHub',
+					},
+				},
+			};
+			assert.deepStrictEqual([live, restored].map(invocation => ({
+				originMessage: invocation.originMessage,
+				toolSpecificData: invocation.toolSpecificData,
+			})), [expected, expected]);
+		});
+
 		test('generic completed tool call maps embedded resources and resource refs', () => {
 			const turn = createTurn({
 				responseParts: [{
@@ -1959,7 +2001,7 @@ suite('stateToProgressAdapter', () => {
 						const content: ToolResultContent[] = resourceReference
 							? [{ type: ToolResultContentType.Resource, uri, contentType: 'image/png' }]
 							: [{ type: ToolResultContentType.EmbeddedResource, data: 'aW1hZ2U=', contentType: 'image/png' }];
-						const completed = createCompletedToolCall({ toolName, toolInput, content });
+						const completed = createCompletedToolCall({ toolName, toolInput, content, _meta: { 'vscode.toolCallDurationMs': 43_500 } });
 						const responseParts: ToolCallResponsePart[] = [{ kind: ResponsePartKind.ToolCall, toolCall: completed }];
 						const live = rawToolCallStateToInvocation(createToolCallState({ toolName, toolInput }), undefined, backendSession, connectionAuthority);
 						rawFinalizeToolInvocation(live, completed, backendSession, connectionAuthority);
@@ -1976,7 +2018,7 @@ suite('stateToProgressAdapter', () => {
 						assert.ok(restored.kind === 'toolInvocationSerialized');
 
 						const expected = {
-							toolSpecificData: { kind: 'generatedImage' },
+							toolSpecificData: { kind: 'generatedImage', durationMs: 43_500 },
 							resultDetails: {
 								input: toolInput ?? '',
 								inputLanguage: 'json',
@@ -2041,6 +2083,28 @@ suite('stateToProgressAdapter', () => {
 
 	suite('toolCallStateToInvocation', () => {
 		const nativeToolMeta = { 'vscode.toolInputContract': 'copilot-cli-v1' };
+
+		test('plain and structured search and fetch inputs retain the host-authored labels', () => {
+			const cases = [
+				{ toolName: 'grep', input: 'needle', parameters: { pattern: 'needle', path: '/repo' }, invocationMessage: 'Search for `needle`', pastTenseMessage: 'Search for `needle`' },
+				{ toolName: 'rg', input: 'needle', parameters: { pattern: 'needle', path: '/repo' }, invocationMessage: 'Search for `needle`', pastTenseMessage: 'Search for `needle`' },
+				{ toolName: 'web_fetch', input: 'https://example.com', parameters: { url: 'https://example.com' }, invocationMessage: 'Fetching example.com', pastTenseMessage: 'Fetched example.com' },
+			];
+			for (const { input, parameters, ...fields } of cases) {
+				const calls = [input, JSON.stringify(parameters)].map(toolInput => {
+					const running = createToolCallState({ ...fields, toolInput });
+					const live = toolCallStateToInvocation(running);
+					const completed = createCompletedToolCall({ ...fields, toolInput });
+					finalizeToolInvocation(live, completed);
+					const restored = completedToolCallToSerialized(completed, undefined, URI.file('/repo'), '');
+					return { live: [live.invocationMessage, live.pastTenseMessage], restored: [restored.invocationMessage, restored.pastTenseMessage] };
+				});
+				assert.deepStrictEqual(calls, [input, parameters].map(() => ({
+					live: [fields.invocationMessage, fields.pastTenseMessage],
+					restored: [fields.invocationMessage, fields.pastTenseMessage],
+				})));
+			}
+		});
 
 		test('preserves deterministic tool summaries in live and restored host calls', () => {
 			const resourceUris = createAgentHostResourceUriMapper('remote-test');
@@ -2630,6 +2694,26 @@ suite('stateToProgressAdapter', () => {
 			invocation.setAuthenticationResolved();
 			assert.strictEqual(invocation.state.get().type, IChatToolInvocation.StateKind.Executing);
 		});
+
+		for (const toolInput of ['ls -la\nwc -l', JSON.stringify({ command: 'ls -la\nwc -l', description: 'Inspect the workspace' })]) {
+			test(`terminal command input supports ${toolInput.startsWith('{') ? 'JSON arguments' : 'plain commands'} in live state and history`, () => {
+				const fields = {
+					toolName: 'bash',
+					toolInput,
+					intention: 'Understand the project layout',
+					_meta: { toolKind: 'terminal' },
+				};
+				const live = toolCallStateToInvocation(createToolCallState(fields)).toolSpecificData;
+				const history = completedToolCallToSerialized(createCompletedToolCall(fields), undefined, URI.file('/repo'), '').toolSpecificData;
+				assert.deepStrictEqual([live, history].map(data => data?.kind === 'terminal' ? {
+					command: data.commandLine.original,
+					intention: data.intention,
+				} : undefined), [
+					{ command: 'ls -la\nwc -l', intention: 'Understand the project layout' },
+					{ command: 'ls -la\nwc -l', intention: 'Understand the project layout' },
+				]);
+			});
+		}
 
 		test('sets terminal toolSpecificData when content has terminal block', () => {
 			const tc = createToolCallState({

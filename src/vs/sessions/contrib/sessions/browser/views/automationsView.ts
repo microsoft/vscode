@@ -1708,6 +1708,7 @@ function formatSchedule(schedule: IAutomationSchedule): string {
 	switch (interval) {
 		case 'hourly': return localize('scheduleHourly', "Hourly");
 		case 'daily': return localize('scheduleDailyAt', "Daily at {0}", time);
+		case 'weekdays': return localize('scheduleWeekdaysAt', "Weekdays at {0}", time);
 		case 'weekly': {
 			const day = DAYS_OF_WEEK[((localSchedule.scheduleDay % 7) + 7) % 7];
 			return localize('scheduleWeeklyAt', "{0} at {1}", day, time);

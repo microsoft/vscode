@@ -15,10 +15,13 @@ import { generateUuid } from '../../../base/common/uuid.js';
 import type { ILogService } from '../../log/common/log.js';
 import type { IAgent } from '../common/agent.js';
 import { AGENT_HOST_DEBUG_LOGS_CHUNK_BYTES, AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../common/agentService.js';
+import { isAhpLogFileFor } from '../common/ahpJsonlLogger.js';
+import { MISSION_CONTROL_AHP_LOG_ID } from '../common/missionControlEnvironment.js';
 
 type DebugLogsProvider = Pick<IAgent, 'id' | 'collectDebugLogs'>;
 type LocalZipFile = IFile & { readonly localPath: string };
 const DEFAULT_ARTIFACT_LEASE_MS = 10 * 60 * 1000;
+const MAX_MISSION_CONTROL_AHP_LOG_FILES = 10;
 
 export interface IAgentHostDebugLogsEnvironment {
 	readonly logsHome: URI;
@@ -58,6 +61,8 @@ export class AgentHostDebugLogsCollector extends Disposable {
 			}
 
 			await this._copyAgentHostLogs(staging);
+			const remainingEntries = AGENT_HOST_DEBUG_LOGS_MAX_ENTRIES - (await collectFiles(staging)).length;
+			await this._copyMissionControlLogs(staging, remainingEntries);
 
 			const files = await collectFiles(staging);
 			let uncompressedSize = 0;
@@ -153,6 +158,46 @@ export class AgentHostDebugLogsCollector extends Disposable {
 				await copyFile(source, join(staging, name));
 			} catch (error) {
 				this._logService.warn(`[AgentHostDebugLogs] Failed to include ${source}`, error);
+			}
+		}
+	}
+
+	/** Connection-scoped history includes authentication failures before any session is selected. */
+	private async _copyMissionControlLogs(staging: string, remainingEntries: number): Promise<void> {
+		const directory = join(this._environment.logsHome.fsPath, 'ahp');
+		try {
+			const entries = (await readdir(directory, { withFileTypes: true }))
+				.filter(entry => entry.isFile() && isAhpLogFileFor(MISSION_CONTROL_AHP_LOG_ID, entry.name));
+			const files = await Promise.all(entries.map(async entry => {
+				const source = join(directory, entry.name);
+				try {
+					return { name: entry.name, source, mtime: (await stat(source)).mtimeMs };
+				} catch (error) {
+					this._logService.warn(`[AgentHostDebugLogs] Failed to inspect ${source}`, error);
+					return undefined;
+				}
+			}));
+			const candidates = files.filter(file => file !== undefined)
+				.sort((a, b) => b.mtime - a.mtime || b.name.localeCompare(a.name));
+			const limit = Math.min(MAX_MISSION_CONTROL_AHP_LOG_FILES, remainingEntries);
+			if (candidates.length > limit) {
+				this._logService.warn(`[AgentHostDebugLogs] Omitted ${candidates.length - limit} Mission Control AHP files; exporting the ${limit} most recent files`);
+			}
+			if (candidates.length === 0 || limit === 0) {
+				return;
+			}
+			const target = join(staging, 'ahp', 'mission-control');
+			await mkdir(target, { recursive: true });
+			for (const file of candidates.slice(0, limit)) {
+				try {
+					await copyFile(file.source, join(target, file.name));
+				} catch (error) {
+					this._logService.warn(`[AgentHostDebugLogs] Failed to include ${file.source}`, error);
+				}
+			}
+		} catch (error) {
+			if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+				this._logService.warn('[AgentHostDebugLogs] Failed to collect Mission Control AHP logs', error);
 			}
 		}
 	}

@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { Event } from '../../../../../base/common/event.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../editor/common/core/range.js';
@@ -16,9 +16,16 @@ import { CompletionItem, CompletionItemKind } from '../../../../../editor/common
 import { createTextModel } from '../../../../../editor/test/common/testTextModel.js';
 import { withTestCodeEditor } from '../../../../../editor/test/browser/testCodeEditor.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
+import { IStorageService, InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
+import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
+import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IChatInputCompletionItem, IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IChatRequestVariableEntry, toAgentHostCompletionVariableEntry, AgentHostCompletionReferenceKind } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ISessionContext } from '../../../../services/sessions/browser/sessionContext.js';
+import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { AgentHostInputCompletionHandler, getAgentHostCompletionAttachmentRange, getCommandArgumentHintPlaceholder } from '../../browser/agentHostInputCompletions.js';
 import { INewChatAttachments } from '../../browser/newChatContextAttachments.js';
 
@@ -32,9 +39,44 @@ suite('AgentHostInputCompletions', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	for (const fail of [false, true]) {
+		test(`standard approval completion writes the host key and surfaces errors (fail=${fail})`, async () => {
+			const services = store.add(new TestInstantiationService());
+			services.stub(IDialogService, new TestDialogService());
+			services.stub(IStorageService, store.add(new InMemoryStorageService()));
+			const writes: { session: string; key: string; value: unknown }[] = [];
+			const provider = new class extends mock<IAgentHostSessionsProvider>() {
+				override readonly id = 'local-agent-host';
+				override getSessionConfig() {
+					return { schema: { type: 'object' as const, properties: { approvalMode: { type: 'string' as const, title: 'Approvals', enum: ['manual', 'assisted', 'allow-all'] } } }, values: {} };
+				}
+				override async setSessionConfigValue(session: string, key: string, value: unknown) {
+					writes.push({ session, key, value });
+					if (fail) {
+						throw new Error('Write rejected');
+					}
+				}
+			}();
+			services.stub(ISessionsProvidersService, {}, 'getProvider', () => provider);
+			const handler: AgentHostInputCompletionHandler = Object.assign(Object.create(AgentHostInputCompletionHandler.prototype), {
+				_sessionContext: { session: constObservable(upcastPartial<IActiveSession>({ sessionId: 'opaque-session', providerId: provider.id })) },
+			});
+			const run = services.invokeFunction(accessor => handler.applyConfigAction(accessor, {
+				handler, action: { applyConfig: { autoApprove: 'default' } }, entry: undefined, referenceText: '', referenceRange: undefined,
+			}));
+			if (fail) {
+				await assert.rejects(run, /Write rejected/);
+			} else {
+				await run;
+			}
+			assert.deepStrictEqual(writes, [{ session: 'opaque-session', key: 'approvalMode', value: 'manual' }]);
+		});
+	}
+
 	test('shows plain-text sandbox slash commands without adding an attachment', async () => {
 		const services = new ServiceCollection(
 			[ISessionContext, { _serviceBrand: undefined, session: constObservable(undefined) }],
+			[ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() { override getProvider() { return undefined; } }()],
 			[IChatSessionsService, new class extends mock<IChatSessionsService>() { }],
 		);
 		const model = store.add(createTextModel('/', null, undefined, URI.parse('test:input')));

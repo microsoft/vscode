@@ -21,16 +21,33 @@ Capability skips are tracked separately from suspected bugs. A provider that doe
 An administrator can disable identity capture while the runtime inherits an explicit `user.name` resource attribute. The native runtime removes `process.user.name` and `host.name`, but the inherited `user.name` still reaches the managed collector. This scenario concerns native Copilot export, not the separate Agent Host metadata pipeline.
 
 - Test: `managed identity denial removes inherited identity from native spans`.
-- Scope: Copilot runtime `1.0.94-3`; reproduced in local strict replay on macOS. The expected-failure marker remains enabled on all platforms.
+- Scope: Copilot runtime `1.0.95-0`; reproduced in local strict replay on macOS. The expected-failure marker remains enabled on all platforms.
 - Expected: managed `telemetry.capture.identity=false` removes all three identity attributes from native spans and events despite local opt-in and inherited resource attributes.
-- Observed: native spans still retain `user.name=synthetic-account` with SDK `1.0.18-preview.3` / runtime `1.0.94-3`. The runtime's identity-resource predicate still includes only `process.user.name` and `host.name`.
-- Tracking: the [bundled runtime's identity-resource predicate](https://github.com/github/copilot-agent-runtime/blob/d8cd60bc89ed3ae60cc37d7877021ac49bd52492/src/runtime/src/otel/sdk.rs#L2003) includes only `process.user.name` and `host.name`. Stephen Toub introduced this predicate on September 14, 2026, in [github/copilot-agent-runtime#19723](https://github.com/github/copilot-agent-runtime/pull/19723). No upstream issue was filed by this task.
+- Observed: native spans still retain `user.name=synthetic-account` with SDK `1.0.19-preview.0` / runtime `1.0.95-0`. The runtime's identity-resource predicate still includes only `process.user.name` and `host.name`.
+- Tracking: the [bundled runtime's identity-resource predicate](https://github.com/github/copilot-agent-runtime/blob/94f375f0098b266c43f7772797bc5f7b4ea12626/src/runtime/src/otel/sdk.rs#L2003) includes only `process.user.name` and `host.name`. Stephen Toub introduced this predicate on September 14, 2026, in [github/copilot-agent-runtime#19723](https://github.com/github/copilot-agent-runtime/pull/19723). No upstream issue was filed by this task.
 - Gate: a strict expected-failure marker accepts only the identity-redaction assertion. An unexpected pass fails and requires removing the marker. Recording skips the case to preserve its complete existing fixture.
 - Reproduce:
 
   ```bash
   ./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/e2e/providers/copilotOtelAgentHostE2E.integrationTest.ts \
     --grep "managed identity denial"
+  ```
+
+### Copilot Agent Host sessions do not prepare organization-managed plugins
+
+An administrator can require plugins that must be available before an Agent Host message runs. The bundled Copilot runtime resolves the organization policy, but its Agent Host sessions do not install, update, activate, or withdraw the required plugins. Messages therefore continue without required tools, and a delayed policy response can prevent session creation instead of applying strict or best-effort admission.
+
+- Tests: the ten desired-behavior cases under `Agent Host E2E — Copilot managed plugin lifecycle`; the separate multiple-session control remains enabled normally.
+- Scope: Copilot SDK `1.0.19-preview.0` / runtime `1.0.95-0`; reproduced in local strict replay on macOS. The expected-failure markers remain enabled on all platforms.
+- Expected: default admission lets an in-flight message continue and prepares plugins before a later message; strict admission waits for fresh policy and preparation; failures name the plugin, warn, continue, and retry on the next message; updates wait until the next message; withdrawn requirements stop applying after restart.
+- Observed: the runtime either makes no request to the configured marketplace or exceeds its 3.5-second managed-settings query deadline while the deterministic test holds the policy response. No desired-behavior assertion is relaxed.
+- Tracking: #340558. Core CLI admission landed in [github/copilot-agent-runtime#24246](https://github.com/github/copilot-agent-runtime/pull/24246), and structured progress landed in [github/copilot-agent-runtime#25300](https://github.com/github/copilot-agent-runtime/pull/25300); the remaining Agent Host session gap has no separate upstream issue.
+- Gate: strict expected-failure markers accept only the missing-preparation sentinel or the bounded managed-settings query timeout. Marketplace traffic, activity/warning content, turn ordering, plugin activation, retry/update/withdrawal behavior, setup/teardown failures, and unexpected passes remain failures.
+- Reproduce:
+
+  ```bash
+  ./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/e2e/providers/copilotManagedSettingsAgentHostE2E.integrationTest.ts \
+    --grep "Copilot managed plugin lifecycle"
   ```
 
 ### Historical binary Git changeset content loses non-UTF-8 bytes

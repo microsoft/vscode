@@ -493,7 +493,7 @@ suite('ModelPickerTelemetry', () => {
 	}
 
 	for (const keyboard of [false, true]) {
-		test(`opening details ${keyboard ? 'with the keyboard focuses configuration' : 'with the pointer does not focus a setting'}`, () => {
+		test(`opening details with the ${keyboard ? 'keyboard' : 'pointer'} focuses configuration`, () => {
 			const result = createPicker();
 			result.picker.render(result.container);
 			result.picker.show(result.container);
@@ -506,7 +506,7 @@ suite('ModelPickerTelemetry', () => {
 				focusedRole: document.activeElement?.getAttribute('role'),
 				focusedSetting: document.activeElement?.closest('[role="radiogroup"]')?.getAttribute('aria-label'),
 				events: result.events,
-			}, { focusedRole: keyboard ? 'radio' : 'dialog', focusedSetting: keyboard ? 'Thinking Effort' : undefined, events: [] });
+			}, { focusedRole: 'radio', focusedSetting: 'Thinking Effort', events: [] });
 		});
 	}
 
