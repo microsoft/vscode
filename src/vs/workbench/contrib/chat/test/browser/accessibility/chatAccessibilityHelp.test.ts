@@ -118,9 +118,10 @@ suite('Chat Accessibility Help', () => {
 			shared: help.includes('same compact Artifacts pill as the Agents Window'),
 			noLegacyList: help.includes('rather than an expanded list above the input'),
 			automatic: help.includes('Generated images appear automatically'),
+			subagentArtifacts: help.includes('In a subagent chat, the Artifacts pill shows that chat\'s transcript artifacts without the parent session\'s metadata'),
 			dropdown: help.includes('multiple artifacts open a dropdown with a Generated Images section'),
 			actions: help.includes('to save an artifact or copy its path'),
-		}, { shared: true, noLegacyList: true, automatic: true, dropdown: true, actions: true });
+		}, { shared: true, noLegacyList: true, automatic: true, subagentArtifacts: true, dropdown: true, actions: true });
 	});
 
 	for (const type of ['panelChat', 'editsView', 'agentView'] as const) {

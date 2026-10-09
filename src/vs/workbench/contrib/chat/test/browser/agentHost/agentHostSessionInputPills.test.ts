@@ -449,6 +449,78 @@ suite('AgentHostSessionInputPills', () => {
 		assert.deepStrictEqual({ before, enabled, after: harness.persistentContent.querySelectorAll('.chat-pill-button').length }, { before: 0, enabled: 'Plan', after: 0 });
 	});
 
+	for (const opaque of [false, true]) {
+		test(`subagent chats retain their transcript artifact pill without session metadata (${opaque ? 'host-advertised' : 'canonical'} identity)`, async () => {
+			const backendSession = URI.parse('vendor:/sessions/42');
+			const mainChat = opaque ? 'vendor-chat:/conversations/main' : buildDefaultChatUri(backendSession);
+			const childChat = opaque ? 'vendor-chat:/workers/image-child' : buildSubagentChatUri(backendSession, 'image-child');
+			const emptyChat = opaque ? 'vendor-chat:/workers/empty-child' : buildSubagentChatUri(backendSession, 'empty-child');
+			const artifactGroups = observableValue<readonly IArtifactSourceGroup[]>('child artifacts', []);
+			const imageUri = URI.parse('vscode-agent-host://remote/generated/child-image?version=1');
+			const service = upcastPartial<IChatArtifactsService>({
+				getArtifacts: resource => upcastPartial<IChatArtifacts>({
+					artifactGroups: new URLSearchParams(resource.query).get(CHAT_SUBAGENT_RESOURCE_QUERY_PARAM) === childChat
+						|| (!opaque && resource.fragment === 'subagent/image-child') ? artifactGroups : constObservable([]),
+				}),
+			});
+			const harness = createActivityPills(upcastPartial<SessionState>({
+				defaultChat: mainChat,
+				chats: [childChat, emptyChat].map(resource => ({
+					resource, title: resource === childChat ? 'Images' : 'Empty', status: SessionStatus.Idle,
+					modifiedAt: '2026-10-09T00:00:00.000Z',
+					origin: { kind: ChatOriginKind.Tool, chat: mainChat, toolCallId: resource },
+				})),
+				_meta: withSessionArtifacts(undefined, [
+					{ id: 'parent-file', label: 'Session file', uri: 'file:///session.md', type: SessionArtifactType.File, isArtifact: true },
+					{ id: 'parent-reference', label: 'Session reference', uri: 'file:///reference.md', type: SessionArtifactType.File, isArtifact: false },
+				]),
+			}), undefined, undefined, 'remote', undefined, { service });
+			const parentLabels = harness.labels();
+			harness.showChat(childChat);
+			const emptyChildHidden = harness.persistentContent.querySelector('.agent-host-session-input-pills')?.classList.contains('hidden');
+			artifactGroups.set([{
+				source: { kind: 'rules' }, artifacts: [
+					{ label: 'child-image.jpg', uri: imageUri.toString(), type: 'screenshot', generatedImageMimeType: 'image/jpeg', groupName: 'Generated Images' },
+					{ label: 'Child plan', uri: 'file:///child-plan.md', type: 'plan' },
+				],
+			}], undefined);
+			const generatedOnly = [...harness.persistentContent.querySelectorAll('.chat-pill-button')].map(button => button.textContent);
+			harness.persistentContent.querySelector<HTMLElement>('.chat-resource-pill-button')?.click();
+			await timeout(0);
+			const configuration = harness.instantiationService.get(IConfigurationService);
+			assert.ok(configuration instanceof TestConfigurationService);
+			await configuration.setUserConfiguration(ChatConfiguration.ArtifactsEnabled, true);
+			configuration.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: key => key === ChatConfiguration.ArtifactsEnabled }));
+			const childArtifacts = harness.dropdown('2 Artifacts').map(item => item.label).filter(Boolean);
+			const offeredKinds = harness.menu().filter(action => action.id.startsWith('chatInputPills.toggle.')).map(action => action.id);
+			harness.visibility.hide(SessionChatPillKind.Artifacts);
+			const hiddenByUser = harness.persistentContent.querySelectorAll('.chat-pill-button').length;
+			harness.visibility.toggle(SessionChatPillKind.Artifacts);
+			harness.showChat(emptyChat);
+			const siblingHidden = harness.persistentContent.querySelector('.agent-host-session-input-pills')?.classList.contains('hidden');
+			harness.showSession(harness.sessionResource);
+			const parentRestored = harness.labels();
+			if (opaque) {
+				harness.showChat(childChat);
+			} else {
+				harness.showSession(harness.sessionResource.with({ fragment: 'subagent/image-child' }));
+			}
+			const childRestored = harness.dropdown('2 Artifacts').map(item => item.label).filter(Boolean);
+			const query = new URLSearchParams();
+			query.set(CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, childChat);
+			assert.deepStrictEqual({
+				emptyChildHidden, generatedOnly, childArtifacts, offeredKinds, hiddenByUser, siblingHidden, parentRestored, childRestored,
+				opened: harness.openedImages.map(([uri, , options]) => ({ uri: uri.toString(), session: options?.sessionResource?.toString() })),
+			}, {
+				emptyChildHidden: true, generatedOnly: ['child-image.jpg'],
+				childArtifacts: ['Generated Images', 'child-image.jpg', 'Files', 'Child plan'],
+				offeredKinds: ['chatInputPills.toggle.artifacts'], hiddenByUser: 0, siblingHidden: true, parentRestored: parentLabels,
+				childRestored: ['Generated Images', 'child-image.jpg', 'Files', 'Child plan'],
+				opened: [{ uri: imageUri.toString(), session: harness.sessionResource.with({ query: query.toString() }).toString() }],
+			});
+		});
+	}
+
 	test('generated image presentation replaces a duplicate recorded remote file in the same pill', () => {
 		const remoteUri = URI.parse('vendor-file://workspace/generated/image.jpeg?version=1');
 		const uri = toAgentHostUri(remoteUri, 'remote');

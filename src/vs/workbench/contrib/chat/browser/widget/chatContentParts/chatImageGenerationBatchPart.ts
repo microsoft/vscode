@@ -107,6 +107,7 @@ export class ChatImageGenerationBatchPart extends Disposable implements IChatCon
 	private readonly layoutAfterResize = this._register(new MutableDisposable<IDisposable>());
 	private readonly thumbnailItems = this._register(new DisposableMap<string, IThumbnail>());
 	private readonly toolParts = this._register(new DisposableMap<string, IChatContentPart>());
+	private readonly toolPartStartIndices = new WeakMap<IChatContentPart, number>();
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
 	readonly onDidChangeHeight = this._onDidChangeHeight.event;
 	private readonly viewState: IBatchViewState;
@@ -421,9 +422,15 @@ export class ChatImageGenerationBatchPart extends Disposable implements IChatCon
 		let codeBlockIndex = this.context.codeBlockStartIndex;
 		for (const tool of visibleTools) {
 			let part = this.toolParts.get(tool.toolCallId);
+			if (part && this.toolPartStartIndices.get(part) !== codeBlockIndex) {
+				part.domNode?.remove();
+				this.toolParts.deleteAndDispose(tool.toolCallId);
+				part = undefined;
+			}
 			if (!part) {
 				part = this.createToolPart(tool, codeBlockIndex);
 				this.toolParts.set(tool.toolCallId, part);
+				this.toolPartStartIndices.set(part, codeBlockIndex);
 			}
 			codeBlockIndex += part.codeblocks?.length ?? 0;
 			const container = tool === selected ? this.selectedTool : this.confirmations;

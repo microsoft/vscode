@@ -4108,6 +4108,70 @@ suite('ChatListRenderer', () => {
 		}
 	}
 
+	test('image batch reindexes retained tool code blocks when an earlier approval appears and disappears', async () => {
+		const { model, request, response, container, renderer, template, node } = createPersistentProgressRenderer();
+		configurePersistentProgressTypography(container, 13);
+		renderer.layout(container.clientWidth);
+		const toolData = { id: 'image_generation', displayName: 'Generate Image', modelDescription: 'Generate Image', source: ToolDataSource.Internal };
+		const first = new ChatToolInvocation({
+			invocationMessage: 'Generating first image',
+			confirmationMessages: { title: 'Generate First Image?', confirmResults: true },
+		}, toolData, 'first-reindexed-image', undefined, {});
+		const confirmation = first.state.get();
+		assert.ok(confirmation.type === IChatToolInvocation.StateKind.WaitingForConfirmation);
+		confirmation.confirm({ type: ToolConfirmKind.UserAction });
+		const selected = new ChatToolInvocation({ invocationMessage: 'Generating selected image' }, toolData, 'selected-reindexed-image', undefined, {});
+		await selected.didExecuteTool({
+			content: [], toolSpecificData: { kind: 'generatedImage' },
+			toolResultDetails: {
+				input: '{"prompt":"Selected image"}',
+				output: [
+					{ type: 'embed', value: 'Selected image output', isText: true },
+					{ type: 'embed', value: dom.$<HTMLCanvasElement>('canvas', { width: 8, height: 8 }).toDataURL('image/png').split(',')[1], mimeType: 'image/png' },
+				],
+			},
+		});
+		for (const tool of [first, selected]) {
+			model.acceptResponseProgress(request, tool);
+		}
+		renderer.renderElement(node, 0, template);
+		const batch = template.renderedParts!.find(part => part.domNode?.classList.contains('chat-image-generation-batch'))!;
+		const selectedRow = () => batch.domNode!.querySelector<HTMLElement>('.chat-image-generation-batch-tool .chat-tool-invocation-part')!;
+		selectedRow().querySelector<HTMLElement>('.chat-confirmation-widget-title')!.click();
+		const thumbnails = batch.domNode!.querySelectorAll<HTMLElement>('.chat-image-generation-batch-thumbnail');
+		thumbnails[0].click();
+		thumbnails[1].click();
+		const selectedBefore = selectedRow();
+		const blockIndices = [batch.codeblocks!.map(info => info.codeBlockIndex)];
+		await first.didExecuteTool({ content: [{ kind: 'text', value: 'First image result needs approval' }] });
+		const selectedDuring = selectedRow();
+		blockIndices.push(batch.codeblocks!.map(info => info.codeBlockIndex));
+		const resultConfirmation = first.state.get();
+		assert.ok(resultConfirmation.type === IChatToolInvocation.StateKind.WaitingForPostApproval);
+		resultConfirmation.confirm({ type: ToolConfirmKind.UserAction });
+		const selectedAfter = selectedRow();
+		blockIndices.push(batch.codeblocks!.map(info => info.codeBlockIndex));
+		const selectedBlock = batch.codeblocks![0];
+		model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('```text\nFollowing code block\n```') });
+		renderer.renderElement(node, 0, template);
+		const followingPart = template.renderedParts!.find(part => part instanceof ChatMarkdownContentPart)!;
+		await retry(async () => assert.strictEqual(followingPart.codeblocks?.length, 1), 10, 50);
+		assert.deepStrictEqual({
+			blockIndices,
+			recreatedForGrowingOffset: selectedBefore !== selectedDuring && !selectedBefore.isConnected,
+			recreatedForShrinkingOffset: selectedDuring !== selectedAfter && !selectedDuring.isConnected,
+			stableAfterAppend: selectedRow() === selectedAfter,
+			expanded: selectedAfter.querySelector('.chat-confirmation-widget-title')?.getAttribute('aria-expanded'),
+			registrationOrder: renderer.getCodeBlockInfosForResponse(response).map(info => info.uri?.toString()),
+			selectedRegistration: selectedBlock.uri ? renderer.getCodeBlockInfoForEditor(selectedBlock.uri)?.ownerMarkdownPartId : undefined,
+		}, {
+			blockIndices: [[1], [0, 2], [1]],
+			recreatedForGrowingOffset: true, recreatedForShrinkingOffset: true, stableAfterAppend: true, expanded: 'true',
+			registrationOrder: [selectedBlock.uri?.toString(), followingPart.codeblocks![0].uri?.toString()],
+			selectedRegistration: selectedBlock.ownerMarkdownPartId,
+		});
+	});
+
 	test('overlapping image generations preserve confirmation UI and ignore hidden attempts', () => {
 		const { model, request, renderer, template, node } = createPersistentProgressRenderer();
 		const toolData = { id: 'image_generation', displayName: 'Generate Image', modelDescription: 'Generate Image', source: ToolDataSource.Internal };
