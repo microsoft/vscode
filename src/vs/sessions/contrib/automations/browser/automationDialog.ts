@@ -224,6 +224,7 @@ export interface IFormState {
 	timezoneOffset?: number;
 	resolvedFolderUri?: URI;
 	targetDisabledReason?: string;
+	targetPending?: { readonly message: string };
 }
 
 export interface IValidationState {
@@ -1227,7 +1228,8 @@ export function renderForm(
 		const configuration = cloudConfiguration.get();
 		const target = configuration?.getWorkspaceTarget(state.folderUri).get();
 		state.resolvedFolderUri = target?.workspace;
-		state.targetDisabledReason = target?.disabledReason;
+		state.targetPending = target?.pending ? { message: target.disabledReason ?? localize('automation.form.checkingTarget', "Checking target availability...") } : undefined;
+		state.targetDisabledReason = target?.pending ? undefined : target?.disabledReason;
 		state.timeZone = configuration?.timeZone;
 		if (runInCloud.get()) {
 			state.isolationMode = undefined;
@@ -1301,7 +1303,7 @@ export function renderForm(
 		const folderUri = runInCloud.get() ? state.resolvedFolderUri : isolationModel.folderUriObs.get();
 		const pick = sessionTypePicker.selectedPick;
 		const isQuickChat = isolationModel.isQuickChatObs.get();
-		if (!pick || state.targetDisabledReason || pick.providerId === undefined || !allowedProviders.get().includes(pick.providerId) || (!isQuickChat && !folderUri)) {
+		if (!pick || state.targetDisabledReason || state.targetPending || pick.providerId === undefined || !allowedProviders.get().includes(pick.providerId) || (!isQuickChat && !folderUri)) {
 			automationSessionDraftSynchronizer.update(undefined);
 			return;
 		}
@@ -1359,7 +1361,8 @@ export function renderForm(
 		switchingTarget = true;
 		formContent.toggleAttribute('inert', true);
 		formContent.setAttribute('aria-busy', 'true');
-		state.targetDisabledReason = localize('automation.form.switchingTarget', "Saving the current session configuration...");
+		state.targetDisabledReason = undefined;
+		state.targetPending = { message: localize('automation.form.switchingTarget', "Saving the current session configuration...") };
 		revalidate();
 		try {
 			const capture = await automationSessionDraftSynchronizer.getSessionConfiguration(targetSwitchCancellation);
@@ -1435,6 +1438,13 @@ export function renderForm(
 		'aria-atomic': 'true',
 	}));
 	DOM.hide(targetError);
+	const targetProgress = DOM.append(targetRow, $('span.automation-target-progress', {
+		id: 'automation-target-progress',
+		role: 'status',
+		'aria-live': 'polite',
+		'aria-atomic': 'true',
+	}));
+	DOM.hide(targetProgress);
 	if (isEdit && initialProviderConfiguration) {
 		DOM.append(targetRow, $('span.automation-form-hint', undefined, initialProviderConfiguration.targetChangeDisabledReason));
 	}
@@ -1835,19 +1845,29 @@ export function renderForm(
 		waitForCustomizationChoices: async token => customizationSelection?.waitForChoices(token),
 		showTargetValidationError: message => {
 			const text = message ?? '';
-			if (targetError.textContent === text) {
-				return;
+			const pending = state.targetPending;
+			setAutomationControlVisible(targetProgress, !!pending && message === undefined);
+			const progressText = pending?.message ?? '';
+			if (targetProgress.textContent !== progressText) {
+				targetProgress.textContent = progressText;
 			}
+			targetContainer.setAttribute('aria-busy', String(!!pending));
 			if (message !== undefined) {
 				DOM.show(targetError);
 				targetContainer.setAttribute('aria-describedby', targetError.id);
 				targetContainer.setAttribute('aria-invalid', 'true');
 			} else {
 				DOM.hide(targetError);
-				targetContainer.removeAttribute('aria-describedby');
+				if (pending) {
+					targetContainer.setAttribute('aria-describedby', targetProgress.id);
+				} else {
+					targetContainer.removeAttribute('aria-describedby');
+				}
 				targetContainer.removeAttribute('aria-invalid');
 			}
-			targetError.textContent = text;
+			if (targetError.textContent !== text) {
+				targetError.textContent = text;
+			}
 		},
 		waitForAutomationSessionSync: token => {
 			updateAutomationSessionTarget();
@@ -2123,6 +2143,8 @@ export function updateSaveButtonState(
 		: undefined;
 	if (originalProviderId !== undefined && state.providerId !== originalProviderId) {
 		validation.sessionTypeError = localize('automation.form.hostChanged', "To use another Agent Host, duplicate this automation. The original keeps its schedule until you disable it.");
+	} else if (state.targetPending) {
+		validation.sessionTypeError = undefined;
 	} else if (state.targetDisabledReason !== undefined) {
 		validation.sessionTypeError = state.targetDisabledReason;
 	} else if (!providerAvailable) {
@@ -2151,7 +2173,7 @@ export function updateSaveButtonState(
 		: undefined;
 	const valid = !validation.nameError && !validation.promptError && !validation.folderError && !validation.sessionTypeError && !validation.branchError && !validation.scheduleError;
 	if (saveButton) {
-		saveButton.enabled = valid;
+		saveButton.enabled = valid && !state.targetPending;
 	}
 	form.classList.toggle('automation-form-invalid', !valid);
 }
