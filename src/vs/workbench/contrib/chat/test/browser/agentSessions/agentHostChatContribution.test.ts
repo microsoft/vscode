@@ -127,6 +127,10 @@ import { IAgentHostShellInitSynchronizer } from '../../../browser/agentSessions/
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { AgentHostImportConversationStore, IAgentHostImportConversationStore } from '../../../browser/agentSessions/agentHost/agentHostImportConversationStore.js';
 import { AgentHostNewSessionFolderService, IAgentHostNewSessionFolderService } from '../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
+import { CLOUD_SANDBOX_SESSION_SCHEME, ICloudSandboxApiService } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { IReplayedTaskHistory } from '../../../../../../platform/agentHost/common/taskEventReplay.js';
+import { CloudSandboxHistoryCache } from '../../../browser/remoteAgentHost/cloudSandboxHistoryCache.js';
+import { CloudSandboxSessionHandler } from '../../../browser/remoteAgentHost/cloudSandboxSessionHandler.js';
 import { OpenAgentHostFolderPickerAction } from '../../../browser/agentSessions/agentHost/agentHostChatInputPicker.contribution.js';
 import { MenuId, MenuRegistry, isIMenuItem, type IMenuItem } from '../../../../../../platform/actions/common/actions.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
@@ -9836,6 +9840,237 @@ suite('AgentHostChatContribution', () => {
 	// ---- History loading ---------------------------------------------------
 
 	suite('history loading', () => {
+
+		suite('cloud sandbox promotion', () => {
+			async function createSandbox(options?: { cached?: boolean; peer?: boolean; newSession?: boolean }) {
+				const { instantiationService, agentHostService, chatService } = createTestServices(disposables, {
+					resolve: () => undefined,
+					isNewSession: () => options?.newSession === true,
+				});
+				instantiationService.stub(IChatService, { ...chatService, onDidSubmitRequest: Event.None, setSessionTitle: () => { } });
+				const releasedSessions: string[] = [];
+				instantiationService.stub(IAgentHostSessionWorkingDirectorySynchronizer, {
+					register: options => toDisposable(() => releasedSessions.push(options.session.toString())),
+					reconcile: async () => { },
+				});
+				const backend = AgentSession.uri(CLOUD_SANDBOX_SESSION_SCHEME, 'sandbox');
+				const mainChat = 'custom-chat:/sandbox-main';
+				const peerChat = 'custom-chat:/sandbox-peer';
+				const resource = URI.from({
+					scheme: 'agent-host-copilot', path: '/sandbox',
+					query: options?.peer ? new URLSearchParams({ [CHAT_SUBAGENT_RESOURCE_QUERY_PARAM]: peerChat }).toString() : undefined,
+				});
+				const summary: SessionSummary = {
+					resource: backend.toString(), provider: 'copilot', title: 'Sandbox', status: SessionStatus.Idle,
+					createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
+				};
+				const chats = [mainChat, peerChat].map(chat => createDefaultChatSummary(summary, chat));
+				const state = { ...createSessionState(summary), defaultChat: mainChat, chats, lifecycle: SessionLifecycle.Ready };
+				const history: IReplayedTaskHistory = {
+					truncated: false,
+					sessions: [{
+						session: backend.toString(), state, defaultChat: mainChat, modifiedAt: summary.modifiedAt,
+						chats: new Map(chats.map(summary => [summary.resource, {
+							...createChatState(summary),
+							turns: [{
+								id: 'recorded-turn', message: { text: 'Recorded request', origin: { kind: MessageKind.User } },
+								responseParts: [], usage: undefined, state: TurnState.Complete,
+							}],
+						}])),
+					}],
+				};
+				agentHostService.seedSessionMetadata(backend, 'copilot');
+				agentHostService.sessionStates.set(backend.toString(), state);
+				for (const [uri, chat] of history.sessions[0].chats) {
+					const liveChat = structuredClone(chat);
+					liveChat.turns[0].message.text = 'Live request';
+					agentHostService.chatStates.set(uri, liveChat);
+				}
+				const provider = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+					provider: 'copilot', backendSessionScheme: CLOUD_SANDBOX_SESSION_SCHEME,
+					agentId: 'agent-host-copilot', sessionType: 'agent-host-copilot',
+					fullName: 'Sandbox', description: 'test', connection: agentHostService, connectionAuthority: 'local',
+				}));
+				const cache = disposables.add(new CloudSandboxHistoryCache());
+				if (options?.cached !== false) {
+					await cache.load('task', CancellationToken.None, async () => ({ account: 'account', fetch: async () => history }));
+				}
+				const fresh = new DeferredPromise<IReplayedTaskHistory | undefined>();
+				const historyTokens: CancellationToken[] = [];
+				const invalidations: boolean[] = [];
+				instantiationService.stub(ICloudSandboxApiService, new class extends mock<ICloudSandboxApiService>() {
+					override getSessionHistory(_taskId: string, token: CancellationToken, _diagnosticId?: string, onCachedHistory?: (history: IReplayedTaskHistory) => void, canCacheHistory?: (history: IReplayedTaskHistory | undefined) => boolean) {
+						historyTokens.push(token);
+						return cache.load('task', token, async () => ({
+							account: 'account',
+							fetch: async () => fresh.p,
+						}), onCachedHistory, canCacheHistory);
+					}
+					override invalidateSessionHistory(_taskId: string, preserveCached = false): void {
+						invalidations.push(preserveCached);
+						cache.invalidate('task', false, preserveCached);
+					}
+				}());
+				const handler = disposables.add(instantiationService.createInstance(CloudSandboxSessionHandler, {
+					taskId: 'task', agentId: 'agent-host-copilot', connectionAuthority: 'local',
+				}));
+				const liveResults: { session: IChatSession; disposed: boolean }[] = [];
+				const attachLive = () => handler.setLiveProvider({
+					provideChatSessionContent: async (resource, token) => {
+						const session = await provider.provideChatSessionContent(resource, token);
+						const result = { session, disposed: false };
+						liveResults.push(result);
+						disposables.add(session.onWillDispose(() => result.disposed = true));
+						return session;
+					},
+				});
+				return { handler, provider, agentHostService, cache, resource, backend, chat: options?.peer ? peerChat : mainChat, history, fresh, historyTokens, invalidations, liveResults, releasedSessions, attachLive };
+			}
+
+			for (const failure of ['session', 'default chat', 'peer chat', 'missing session'] as const) {
+				test(`retains recorded history and retries a fulfilled ${failure} hydration failure`, async () => {
+					const sandbox = await createSandbox({ peer: failure === 'peer chat' });
+					const { handler, agentHostService, resource, backend, chat, fresh, history, liveResults, historyTokens, invalidations, cache } = sandbox;
+					const channel = failure === 'session' || failure === 'missing session' ? backend.toString() : chat;
+					const error = failure === 'missing session' ? new ProtocolError(AHP_NOT_FOUND, 'Session unavailable') : new Error('Snapshot unavailable');
+					agentHostService.failNextSubscriptionFor.add(channel);
+					agentHostService.failNextSubscriptionError.set(channel, error);
+					const session = disposables.add(await handler.provideChatSessionContent(resource, CancellationToken.None));
+					const recorded = session.history;
+					sandbox.attachLive();
+					await timeout(0);
+					assert.deepStrictEqual({
+						retained: session.history === recorded, readOnly: session.isReadOnly?.get(),
+						action: session.historyStatus?.get()?.action.label, invalidations,
+						historyCancelled: historyTokens[0].isCancellationRequested, disposed: liveResults[0]?.disposed,
+						releasedSessions: sandbox.releasedSessions,
+					}, {
+						retained: true, readOnly: true, action: 'Retry', invalidations: [], historyCancelled: false, disposed: true,
+						releasedSessions: [backend.toString()],
+					});
+
+					const probeToken = disposables.add(new CancellationTokenSource());
+					let cached: IReplayedTaskHistory | undefined;
+					const probe = cache.load('task', probeToken.token, async () => { throw new Error('Expected the pending shared read'); }, value => cached = value);
+					const cancelled = assert.rejects(probe, isCancellationError);
+					await timeout(0);
+					probeToken.cancel();
+					await cancelled;
+					assert.deepStrictEqual(cached, history);
+
+					const refreshed = Event.toPromise(session.onDidChangeHistory!);
+					await fresh.complete(history);
+					await refreshed;
+					await session.historyStatus!.get()!.action.run();
+					assert.deepStrictEqual({
+						prompts: session.history.filter(item => item.type === 'request').map(item => item.prompt),
+						attempts: liveResults.length, firstDisposed: liveResults[0].disposed, secondDisposed: liveResults[1].disposed,
+						readOnly: session.isReadOnly?.get(), status: session.historyStatus?.get(),
+					}, {
+						prompts: ['Live request'], attempts: 2, firstDisposed: true, secondDisposed: false, readOnly: false, status: undefined,
+					});
+				});
+			}
+
+			test('keeps a cold recorded read running when live hydration fails first', async () => {
+				const sandbox = await createSandbox({ cached: false });
+				sandbox.agentHostService.failNextSubscriptionFor.add(sandbox.chat);
+				sandbox.attachLive();
+				let opened = false;
+				const opening = sandbox.handler.provideChatSessionContent(sandbox.resource, CancellationToken.None).then(session => {
+					opened = true;
+					return disposables.add(session);
+				});
+				await timeout(0);
+				const beforeHistory = { opened, cancelled: sandbox.historyTokens[0].isCancellationRequested };
+				await sandbox.fresh.complete(sandbox.history);
+				const session = await opening;
+				assert.deepStrictEqual({
+					beforeHistory, prompts: session.history.filter(item => item.type === 'request').map(item => item.prompt),
+					readOnly: session.isReadOnly?.get(), action: session.historyStatus?.get()?.action.label,
+				}, {
+					beforeHistory: { opened: false, cancelled: false },
+					prompts: ['Recorded request'], readOnly: true, action: 'Retry',
+				});
+			});
+
+			for (const outcome of ['empty', 'failed turn', 'new session'] as const) {
+				test(`accepts successfully loaded ${outcome} history`, async () => {
+					const sandbox = await createSandbox({ cached: false, newSession: outcome === 'new session' });
+					const chat = sandbox.agentHostService.chatStates.get(sandbox.chat)!;
+					if (outcome === 'failed turn') {
+						chat.turns[0].state = TurnState.Error;
+						chat.turns[0].responseParts = [createErrorResponsePart({ errorType: 'test', message: 'Earlier request failed' })];
+					} else {
+						chat.turns.length = 0;
+					}
+					sandbox.attachLive();
+					const session = disposables.add(await sandbox.handler.provideChatSessionContent(sandbox.resource, CancellationToken.None));
+					assert.deepStrictEqual({
+						items: session.history.length, readOnly: session.isReadOnly?.get(),
+						status: session.historyStatus?.get(), historyCancelled: sandbox.historyTokens[0].isCancellationRequested,
+						liveDisposed: sandbox.liveResults[0].disposed,
+					}, {
+						items: outcome === 'failed turn' ? 2 : 0, readOnly: false,
+						status: undefined, historyCancelled: true, liveDisposed: false,
+					});
+				});
+			}
+
+			for (const recorded of ['empty', 'existing', 'unavailable'] as const) {
+				test(`handles a missing root session only after checking ${recorded} recorded history`, async () => {
+					const sandbox = await createSandbox({ cached: false });
+					sandbox.agentHostService.failNextSubscriptionFor.add(sandbox.backend.toString());
+					sandbox.agentHostService.failNextSubscriptionError.set(sandbox.backend.toString(), new ProtocolError(AHP_NOT_FOUND, 'Session unavailable'));
+					sandbox.attachLive();
+					let opened = false;
+					const opening = sandbox.handler.provideChatSessionContent(sandbox.resource, CancellationToken.None).then(session => {
+						opened = true;
+						return disposables.add(session);
+					});
+					await timeout(0);
+					const beforeHistory = { opened, cancelled: sandbox.historyTokens[0].isCancellationRequested };
+					if (recorded === 'unavailable') {
+						await sandbox.fresh.error(new Error('History unavailable'));
+					} else {
+						await sandbox.fresh.complete(recorded === 'existing' ? sandbox.history : undefined);
+					}
+					const session = await opening;
+					await timeout(0);
+					assert.deepStrictEqual({
+						beforeHistory, readOnly: session.isReadOnly?.get(), action: session.historyStatus?.get()?.action.label,
+						liveDisposed: sandbox.liveResults[0].disposed,
+						prompts: session.history.filter(item => item.type === 'request').map(item => item.prompt),
+					}, {
+						beforeHistory: { opened: false, cancelled: false }, readOnly: recorded !== 'empty',
+						action: recorded === 'empty' ? undefined : 'Retry', liveDisposed: recorded !== 'empty',
+						prompts: recorded === 'existing' ? ['Recorded request'] : recorded === 'empty' ? [] : [''],
+					});
+				});
+			}
+
+			test('releases a missing-root result cancelled while recorded history is pending', async () => {
+				const sandbox = await createSandbox({ cached: false });
+				sandbox.agentHostService.failNextSubscriptionFor.add(sandbox.backend.toString());
+				sandbox.agentHostService.failNextSubscriptionError.set(sandbox.backend.toString(), new ProtocolError(AHP_NOT_FOUND, 'Session unavailable'));
+				sandbox.attachLive();
+				const cancellation = disposables.add(new CancellationTokenSource());
+				const opening = sandbox.handler.provideChatSessionContent(sandbox.resource, cancellation.token);
+				const cancelled = assert.rejects(opening, isCancellationError);
+				await timeout(0);
+				cancellation.cancel();
+				await cancelled;
+				await timeout(0);
+				assert.deepStrictEqual({
+					liveDisposed: sandbox.liveResults[0].disposed,
+					releasedSessions: sandbox.releasedSessions,
+					historyCancelled: sandbox.historyTokens[0].isCancellationRequested,
+					invalidations: sandbox.invalidations,
+				}, {
+					liveDisposed: true, releasedSessions: [sandbox.backend.toString()], historyCancelled: true, invalidations: [],
+				});
+			});
+		});
 
 		for (const restored of [false, true]) {
 			test(`reports live background shells from the advertised chat without provider metadata (restored=${restored})`, async () => {
