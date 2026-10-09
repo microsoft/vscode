@@ -139,7 +139,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 	}
 
 	canUpdateAutomation(automationId: string): boolean {
-		return this._operationAvailable(automationId, AutomationOperation.Update);
+		return this._operationAvailable(automationId, AutomationOperation.Update) && !this.getAutomation(automationId)?.readOnlyReason;
 	}
 
 	canDeleteAutomation(automationId: string): boolean {
@@ -182,6 +182,9 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 	async updateAutomation(id: string, patch: IUpdateAutomationOptions, mutationGuard?: AutomationMutationGuard): Promise<IAutomationDescriptor> {
 		this._requireOperation(id, AutomationOperation.Update);
 		const current = this._requireAutomation(id);
+		if (current.readOnlyReason) {
+			throw new Error(current.readOnlyReason);
+		}
 		const updated = this._applyPatch(current, patch);
 		const state = await this._replaceDescriptor(updated, patch.sessionTemplate === null, mutationGuard, patch.customizationIds);
 		return this._requireProjectedAutomation(state);
@@ -358,11 +361,13 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		}
 		const modelId = this._projectModelId(state.definition.session.model?.id, state.definition.session.provider);
 		const newestRun = state.runs[0];
+		const schedule = projectSchedule(state.definition.triggers);
 		return {
 			id: this._resourceId(state.resource),
 			name: state.definition.title,
 			prompt: state.definition.message.text,
-			schedule: projectSchedule(state.definition.triggers),
+			schedule,
+			...(schedule.interval === 'custom' ? { readOnlyReason: localize('agentHostAutomation.customSchedule', "This automation uses a schedule that cannot be edited in this time zone.") } : {}),
 			target,
 			sessionTemplate: projectAutomationSessionTemplate(state.definition, modelId),
 			enabled: state.definition.enabled,
@@ -851,6 +856,9 @@ function projectSchedule(triggers: AutomationDefinition['triggers']): IAutomatio
 		return { interval: 'daily', scheduleHour, scheduleMinute, scheduleDay: 0 };
 	}
 	if (dayValue === '1-5') {
+		if (trigger.schedule.timeZone !== (Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC')) {
+			return { interval: 'custom', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
+		}
 		return { interval: 'weekdays', scheduleHour, scheduleMinute, scheduleDay: 0 };
 	}
 	const scheduleDay = parseCronValue(dayValue, 0, 6);

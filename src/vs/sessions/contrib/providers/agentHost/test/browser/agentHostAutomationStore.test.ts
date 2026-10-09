@@ -1641,6 +1641,60 @@ suite('AgentHostAutomationStore', () => {
 		});
 	});
 
+	test('keeps host-authored Weekdays in other time zones read-only without changing triggers', async () => {
+		const connection = disposables.add(new TestAutomationConnection());
+		const storage = disposables.add(new InMemoryStorageService());
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
+		const localTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+		for (const timeZone of ['UTC', 'America/New_York', 'Asia/Tokyo'].filter(timeZone => timeZone !== localTimeZone)) {
+			const triggers: AutomationEntry['definition']['triggers'] = [{
+				id: 'host-weekdays',
+				kind: AutomationTriggerKind.Schedule,
+				schedule: { expression: '30 9 * * 1-5', timeZone },
+				misfirePolicy: AutomationMisfirePolicy.RunOnce,
+			}];
+			const timestamp = new Date().toISOString();
+			connection.setAutomation({
+				resource: 'ahp-automation:/host-weekdays',
+				definition: {
+					title: 'Host weekdays',
+					message: { text: 'Review changes.', origin: { kind: MessageKind.Automation } },
+					session: { provider: 'mock' },
+					enabled: true,
+					triggers,
+				},
+				runs: [],
+				operations: [AutomationOperation.Update, AutomationOperation.Remove, AutomationOperation.Run],
+				createdAt: timestamp,
+				modifiedAt: timestamp,
+			});
+			const id = 'local-agent-host:ahp-automation:/host-weekdays';
+			const automation = store.getAutomation(id)!;
+			await assert.rejects(store.updateAutomation(id, { name: 'Renamed' }), /cannot be edited in this time zone/);
+			await assert.rejects(store.updateAutomationIfUnchanged(id, { enabled: false }, automation), /cannot be edited in this time zone/);
+			await assert.rejects(store.updateAutomation(id, {
+				schedule: { interval: 'weekdays', scheduleHour: 10, scheduleMinute: 0, scheduleDay: 0 },
+			}), /cannot be edited in this time zone/);
+			assert.deepStrictEqual({
+				schedule: automation.schedule,
+				readOnlyReason: automation.readOnlyReason,
+				canUpdate: store.canUpdateAutomation(id),
+				canRun: store.canRunAutomation(id),
+				canDelete: store.canDeleteAutomation(id),
+				dispatched: connection.dispatched,
+				automation: store.getAutomation(id),
+			}, {
+				schedule: { interval: 'custom', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+				readOnlyReason: 'This automation uses a schedule that cannot be edited in this time zone.',
+				canUpdate: false,
+				canRun: true,
+				canDelete: true,
+				dispatched: [],
+				automation,
+			});
+		}
+	});
+
 	test('canonicalizes irrelevant schedule fields when updating an interval', async () => {
 		const connection = new TestAutomationConnection();
 		disposables.add(connection);
