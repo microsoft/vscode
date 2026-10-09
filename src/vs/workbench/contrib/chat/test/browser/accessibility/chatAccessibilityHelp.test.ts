@@ -44,6 +44,15 @@ suite('Chat Accessibility Help', () => {
 		assert.ok(help.includes('use /sandbox policy to view the effective sandbox policy. In the response, use Tab to focus Open Sandbox Policy and Enter to open the formatted report.'));
 	});
 
+	test('documents silent history retrieval and keyboard recovery without restarting or waking compute', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
+		assert.deepStrictEqual({
+			silent: help.includes('while refreshing silently'),
+			keyboard: help.includes('use Tab to reach Refresh in the banner and press Enter or Space'),
+			apiOnly: help.includes('Refresh retries recorded history without restarting the session, waking its environment, or sending your draft.'),
+		}, { silent: true, keyboard: true, apiOnly: true });
+	});
+
 	for (const isSessionsWindow of [false, true]) {
 		test(`documents the remote BYOK warning only in the editor (isSessionsWindow: ${isSessionsWindow})`, () => {
 			const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), false, isSessionsWindow);
