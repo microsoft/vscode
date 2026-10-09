@@ -1437,6 +1437,21 @@ suite('CopilotChatSessionsProvider', () => {
 		assert.strictEqual(provider.getSessions()[0].isRead.get(), false);
 	});
 
+	test('first completion equal to creation marks unread once, without undoing a later acknowledgement', () => {
+		const resource = URI.parse('copilot-cloud-agent:/task/creation-time-completion');
+		const onSetRead = () => model.fireDidChangeSessions();
+		model.addSession(createMockAgentSession(resource, { createdAt: 100, onSetRead }));
+		const provider = createProvider(disposables, model);
+		model.replaceSession(createMockAgentSession(resource, { createdAt: 100, completedAt: 100, onSetRead }));
+		const afterCompletion = provider.getSessions()[0].isRead.get();
+		model.getSession(resource)!.setRead(true);
+		model.replaceSession(createMockAgentSession(resource, { createdAt: 100, completedAt: 100, onSetRead }));
+		assert.deepStrictEqual({
+			afterCompletion,
+			afterAcknowledgedRefresh: provider.getSessions()[0].isRead.get(),
+		}, { afterCompletion: false, afterAcknowledgedRefresh: true });
+	});
+
 	test('a delayed catalogue completion does not undo acknowledgement of the same local turn', () => {
 		const resource = URI.parse('copilot-cloud-agent:/task/acknowledged');
 		const running = observableValue('request', false);
