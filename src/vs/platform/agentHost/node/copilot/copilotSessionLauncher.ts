@@ -13,6 +13,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { IFileService } from '../../../files/common/files.js';
 import { ILogService, LogLevel } from '../../../log/common/log.js';
+import { IProductService } from '../../../product/common/productService.js';
 import { AgentSession } from '../../common/agent.js';
 import type { IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
 import { getByokLmSelectionModelId, resolveByokLmEnablement, type IByokLmModelInfo } from '../../common/agentHostByokLm.js';
@@ -697,6 +698,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		@IByokLmBridgeRegistry private readonly _byokLmBridgeRegistry: IByokLmBridgeRegistry,
 		@IAgentHostOTelService private readonly _otelService: IAgentHostOTelService,
 		@IAgentHostSessionOpenTelemetry private readonly _sessionOpenTelemetry: IAgentHostSessionOpenTelemetry,
+		@IProductService private readonly _productService: IProductService,
 	) { }
 
 	async createCustomizationPolicySession(client: CopilotClient, sessionId: string, workingDirectory: string, githubCredentials: CopilotGitHubSessionCredentials): Promise<CopilotSession> {
@@ -1196,6 +1198,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			},
 			clientName: AGENT_HOST_COPILOT_CLIENT_NAME,
 			...(hydraFusionEnabled ? { enableExperimentalMode: true } : {}),
+			imageGeneration: { enabled: this._productService.quality !== 'stable' || process.env['IMAGE_GENERATION_TOOL']?.toLowerCase() === 'true' },
 			featureFlags,
 			streaming: true,
 			// Resume only: `_createSession` re-resolves the full effort for a create,
