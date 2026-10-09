@@ -14,10 +14,9 @@ parameters:
 jobs:
   - job: Windows${{ parameters.VSCODE_JOB_NAME }}
     displayName: ${{ parameters.VSCODE_JOB_DISPLAY_NAME }}
-    ${{ if or(eq(parameters.VSCODE_JOB_NAME, 'Unit'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-electron')) }}:
-      timeoutInMinutes: 70
-    ${{ else }}:
-      timeoutInMinutes: 50
+    # Every Windows CI job needs headroom for a clean dependency install
+    # (~14-16 minutes) when the node_modules cache misses.
+    timeoutInMinutes: 70
     cancelTimeoutInMinutes: 10
     variables:
       VSCODE_ARCH: x64
