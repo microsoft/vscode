@@ -1120,6 +1120,11 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		const baseUri = webview.asWebviewUri(document.uri);
 		const nonce = getNonce();
 		const initialState = encodeWebviewInitialState({
+			taskProgressLabels: {
+				title: vscode.l10n.t("Task Progress"),
+				summary: vscode.l10n.t("{0} of {1} tasks completed"),
+				language: vscode.env.language,
+			},
 			content: document.getText(),
 			documentVersion: document.version,
 			editEpoch,
