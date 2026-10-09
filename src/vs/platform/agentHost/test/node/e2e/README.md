@@ -690,6 +690,10 @@ Check for the preceding execution's `session.error`, a new host turn, a late roo
 
 Check the logs from both sides of the restart for storage load errors and failed shutdown drains. A `root/sessionSummaryChanged` notification precedes background catalog synchronization; graceful shutdown must drain those writes even if global storage or another persistence flush fails. Host-owned JSON storage uses atomic replacement so an interrupted write cannot leave the next host with a truncated file. Keep the restart assertions intact: sleeping after the notification would hide a persistence failure rather than fix it.
 
+### A subagent response is duplicated or stops streaming after its parent finishes
+
+Correlate the child's streaming deltas and assembled message with the parent's idle or replacement turn. A child can outlive its parent: its markdown/reasoning part identifiers and assembled-message deduplication state belong to the child, not the current root turn. Clear that state at the child's own user-message, tool-round, and confirmed-completion boundaries. Assert the child's actual transcript across parent completion and replacement; do not deduplicate by text, since separate child requests can legitimately return identical answers.
+
 ### A snapshot intermittently includes `chat/isReadChanged` after `chat/turnComplete`
 
 Turn completion precedes the unread lifecycle action. Use `waitForChatTurnComplete(...)` for imperative completion waits: it matches the exact chat and turn, rejects errors, then waits for `chat/isReadChanged` with `isRead: false` and a greater `serverSeq`. Pass the preceding error's sequence when resuming the same turn so an earlier outcome cannot satisfy the wait. Snapshot scenarios use the same helper and exclude outcomes from earlier rounds; the turn driver shares its unread barrier. Do not remove the unread action from the snapshot or add a sleep.
