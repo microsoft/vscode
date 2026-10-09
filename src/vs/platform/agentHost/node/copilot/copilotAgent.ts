@@ -23,6 +23,7 @@ import { basename as resourceBasename, extUriBiasedIgnorePathCase, isEqual, isEq
 import { URI } from '../../../../base/common/uri.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
+import { parse as parseYaml, type YamlParseError } from '../../../../base/common/yaml.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { rgDiskPath } from '../../../../base/node/ripgrep.js';
 import { localize } from '../../../../nls.js';
@@ -47,7 +48,7 @@ import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliCo
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, agentHostProxyConfigSchema, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
-import { AgentChatOperationContext, AgentSession, AgentSignal, AuthenticateParams, COPILOT_CLI_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentPluginUninstallRequest, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage, type IAgentChatSessionEvent } from '../../common/agent.js';
+import { AgentChatOperationContext, AgentSession, AgentSignal, AuthenticateParams, COPILOT_CLI_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentPluginInstallRequest, type IAgentPluginUninstallRequest, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage, type IAgentChatSessionEvent } from '../../common/agent.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
 import { autoModeTiers, defaultAutoModeTier, getAutoModeTierDescription, getAutoModeTierLabel } from '../../common/autoModeTiers.js';
 import { AUTO_MODEL_ID, isAutoModel } from './modelIdentifiers.js';
@@ -57,6 +58,7 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ICopilotConfigSlashCommandState } from '../../common/copilotConfigSlashCommands.js';
 import { getCopilotHomePath } from '../../../environment/common/copilotHome.js';
+import { CopilotCustomizationInstallations } from './customizations/copilotCustomizationInstallations.js';
 import { ISessionDataService, SESSION_DB_FILENAME } from '../../common/sessionDataService.js';
 import { IAgentHostProxyResolver } from '../agentHostProxyResolver.js';
 import { MODEL_REFRESH_BASE_DELAY_MS, MODEL_REFRESH_MAX_ATTEMPTS, MODEL_REFRESH_MAX_DELAY_MS, modelRefreshBackoff } from '../shared/modelRefreshRetry.js';
@@ -835,6 +837,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _invalidatingModelRefresh: Promise<void> | undefined;
 
 	private _client: CopilotClient | undefined;
+	private readonly _customizationInstallations: CopilotCustomizationInstallations;
 	private readonly _extensionSdkPathByClient = new WeakMap<CopilotClient, string>();
 	private _clientGeneration = 0;
 	private _clientConnectorAuthentication: { readonly connectorsEnabled: boolean; readonly enterpriseHost: string | undefined; readonly token: string | undefined } | undefined;
@@ -1004,6 +1007,35 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._lastStartupConfig = this._readClientStartupConfig();
 		this._plugins = this._register(this._instantiationService.createInstance(PluginController, () => this._ensureClient()));
 		this._sessionLauncher = this._instantiationService.createInstance(CopilotSessionLauncher);
+		this._customizationInstallations = this._register(new CopilotCustomizationInstallations(
+			() => this._ensureClient(),
+			session => this._findSessionChat(session)?.sessionId,
+			async (client, sessionId) => {
+				const copilotClient = client as CopilotClient;
+				const session = await this._sessionLauncher.createCustomizationPolicySession(
+					copilotClient,
+					sessionId,
+					getCopilotHomePath(this._environmentService.userHome.fsPath, process.env),
+					this._getGitHubSessionCredentials(),
+				);
+				return {
+					client,
+					sessionId: session.sessionId,
+					dispose: async () => {
+						try {
+							await session.disconnect();
+						} catch (error) {
+							this._logService.debug(`[Copilot] Hidden customization policy session '${session.sessionId}' was already disconnected: ${getErrorMessage(error)}`);
+						}
+						try {
+							await copilotClient.deleteSession(session.sessionId);
+						} catch (error) {
+							this._logService.debug(`[Copilot] Hidden customization policy session '${session.sessionId}' was already removed: ${getErrorMessage(error)}`);
+						}
+					},
+				};
+			},
+		));
 		const discoveryRoot = URI.file(join(getCopilotHomePath(this._environmentService.userHome.fsPath, process.env), 'session-state'));
 		this._copilotChatDiscovery = this._register(this._instantiationService.createInstance(CopilotChatDiscovery,
 			discoveryRoot, scan => this._emitCopilotChats(scan)));
@@ -1969,6 +2001,30 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}));
 	}
 
+	async installPlugin(request: IAgentPluginInstallRequest): Promise<void> {
+		await this._retryAfterClosedConnection('installPlugin', client => client.rpc.plugins.install({ source: request.source }));
+	}
+
+	searchCustomizationMarketplace(session: URI, request: IAgentCustomizationMarketplaceSearchRequest): Promise<IAgentCustomizationMarketplaceSearchResult> {
+		return this._customizationInstallations.search(session, request);
+	}
+
+	listCustomizationInstallations(session: URI): Promise<readonly IAgentCustomizationInstallation[]> {
+		return this._customizationInstallations.list(session);
+	}
+
+	prepareCustomizationInstallation(session: URI, request: IAgentCustomizationInstallationRequest | { readonly installationId: string }): Promise<IAgentCustomizationInstallationReview> {
+		return this._customizationInstallations.prepare(session, request);
+	}
+
+	applyCustomizationInstallation(operationId: string): Promise<void> {
+		return this._customizationInstallations.apply(operationId);
+	}
+
+	recoverCustomizationInstallations(session: URI): Promise<readonly IAgentCustomizationInstallation[]> {
+		return this._customizationInstallations.recover(session);
+	}
+
 	async startMcpServer(session: URI, id: string, token: CancellationToken = CancellationToken.None): Promise<void> {
 		while (true) {
 			if (token.isCancellationRequested) {
@@ -2136,6 +2192,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return;
 		}
 		this._logService.info(`[Copilot] Auth token ${token ? 'updated' : 'cleared'}`);
+		const policySessionRelease = this._customizationInstallations.releasePolicySession();
+		if (policySessionRelease) {
+			await policySessionRelease;
+		}
 		this._telemetryAuthenticationGeneration++;
 		this._updateRestrictedTelemetry(token);
 		this._refreshProxy();
@@ -2629,6 +2689,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._client = undefined;
 			this._clientConnectorAuthentication = undefined;
 			this._clientStarting = undefined;
+			const policySessionRelease = this._customizationInstallations.releasePolicySession(client);
+			if (policySessionRelease) {
+				await policySessionRelease;
+			}
 			await client?.stop();
 			// The runtime subprocess is now dead, so it is safe to release the BYOK
 			// proxy handle: the next session launch mints a fresh nonce. See the
@@ -2742,6 +2806,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// re-introduce a process-wide alias for every session behind its back.
 			delete env['COPILOT_MODEL_FAMILY'];
 			setCopilotBuiltinGitHubMcpEnvironment(env, startupConfig.githubMcpServer);
+			if (this._productService.quality !== 'stable') {
+				env['IMAGE_GENERATION_TOOL'] = 'true';
+			}
 
 			// On Linux the MXC bubblewrap sandbox backend does not forward a PTY into
 			// the container, so the CLI's default PTY-backed interactive shell can
@@ -2841,6 +2908,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					applicationVersion: this._productService.version,
 				},
 				telemetry,
+				installationConfirmationHandler: this._customizationInstallations.confirmationHandler,
 				logLevel: copilotSdkLogLevelAtStartup,
 				enableRemoteSessions: startupConfig.sessionSync,
 				...(extensionBootstrapPath && extensionSdkPath ? {
@@ -3444,13 +3512,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 		});
 	}
 
-	private async _listSdkSessions<T>(reason: 'chats to migrate' | 'discoverable chats' | 'prewarm session metadata', listSessions: (client: CopilotClient) => Promise<readonly T[]>): Promise<readonly T[] | undefined> {
+	private async _listSdkSessions<T extends { readonly sessionId: string }>(reason: 'chats to migrate' | 'discoverable chats' | 'prewarm session metadata', listSessions: (client: CopilotClient) => Promise<readonly T[]>): Promise<readonly T[] | undefined> {
 		this._startupPerformance.mark('providerContext', { provider: this.id, activationState: 'notRequired', sdkAvailability: 'available' });
 		const phase = reason === 'chats to migrate' ? 'sessionMigrationScan' : reason === 'discoverable chats' ? 'sessionDiscoveryScan' : 'sessionMetadataScan';
 		const timing = this._startupPerformance.start(phase, this.id);
 		this._logService.info(`[Copilot] Listing ${reason}...`);
 		try {
-			const sessions = await this._retryAfterClosedConnection('listSessions', listSessions);
+			const listed = await this._retryAfterClosedConnection('listSessions', listSessions);
+			const sessions = listed.filter(session => !this._customizationInstallations.isPolicySessionId(session.sessionId));
 			timing?.complete('success', { scannedSessionCount: sessions.length });
 			this._logService.info(`[Copilot] Listed ${sessions.length} SDK session(s) for ${reason}`);
 			return sessions;
@@ -4248,7 +4317,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					markerStatus: missing ? 'missing' : 'readError',
 					provenance: 'unknown',
 					markerFromCache: false,
-					...(missing ? {} : { errorCode: getErrorCode(error), errorMessage: getErrorMessage(error) }),
+					...(missing ? {} : { errorCode: getErrorCode(error), errorMessage: getErrorCode(error) === 'ERR_INVALID_ARG_VALUE' ? 'Invalid session marker path' : getErrorMessage(error) }),
 				},
 			};
 		}
@@ -4272,6 +4341,114 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 		const result = await cached;
 		return { ...result, diagnostics: { ...result.diagnostics, markerFromCache } };
+	}
+
+	private async _getLegacyDeclineDiagnostics(sessionId: string, read: IExtensionHostCliMarkerRead): Promise<NonNullable<IAgentChatAdoptionResult['diagnostics']>> {
+		const sessionIdStatus = !sessionId ? 'empty'
+			: /[\x00-\x1f\x7f]/.test(sessionId) ? 'controlCharacters'
+				: /[/\\]/.test(sessionId) ? 'pathSeparators'
+					: sessionId === '.' || sessionId === '..' ? 'dotSegment' : 'opaque';
+		const origin = read.marker?.origin;
+		const diagnostics: NonNullable<IAgentChatAdoptionResult['diagnostics']> = {
+			...read.diagnostics,
+			markerOrigin: !read.marker ? 'unavailable' : origin === undefined ? 'missing'
+				: origin === 'vscode' || origin === 'other' ? origin
+					: typeof origin === 'string' ? 'unrecognized' : 'invalidType',
+			sessionIdStatus,
+			copilotHomeSource: process.env.COPILOT_HOME ? 'environment' : 'userHome',
+			sessionStateRootStatus: 'notChecked',
+			sessionDirectoryStatus: 'notChecked',
+			eventsFileStatus: 'notChecked',
+			workspaceMetadataStatus: 'notChecked',
+			lastKnownClient: 'unavailable',
+			...(sessionIdStatus === 'opaque' ? await this._readLegacyClientMetadata(sessionId) : {}),
+		};
+		// Probe only missing/misplaced storage, never following suspicious identifiers for diagnostic I/O.
+		if ((read.diagnostics.markerStatus !== 'missing' && read.diagnostics.errorCode !== 'ENOTDIR') || sessionIdStatus !== 'opaque') {
+			return diagnostics;
+		}
+		const root = join(getCopilotHomePath(this._environmentService.userHome.fsPath, process.env), 'session-state');
+		const sessionStateRootStatus = await this._getLegacyStoragePathStatus(root);
+		const sessionDirectoryStatus = sessionStateRootStatus === 'directory' ? await this._getLegacyStoragePathStatus(join(root, sessionId)) : 'notChecked';
+		const eventsFileStatus = sessionDirectoryStatus === 'directory' ? await this._getLegacyStoragePathStatus(join(root, sessionId, 'events.jsonl')) : 'notChecked';
+		return { ...diagnostics, sessionStateRootStatus, sessionDirectoryStatus, eventsFileStatus };
+	}
+
+	private async _readLegacyClientMetadata(sessionId: string, open: typeof fs.open = fs.open): Promise<Pick<NonNullable<IAgentChatAdoptionResult['diagnostics']>, 'workspaceMetadataStatus' | 'lastKnownClient'>> {
+		const maxBytes = 16 * 1024;
+		try {
+			const path = this._extensionHostCliSidecarPath(sessionId, 'workspace.yaml');
+			const stat = await fs.lstat(path);
+			if (!stat.isFile()) {
+				return { workspaceMetadataStatus: 'notFile' };
+			}
+			if (stat.size > maxBytes) {
+				return { workspaceMetadataStatus: 'tooLarge' };
+			}
+			const file = await open(path, fsConstants.O_RDONLY | (fsConstants.O_NOFOLLOW ?? 0) | (fsConstants.O_NONBLOCK ?? 0));
+			let text: string;
+			try {
+				const openedStat = await file.stat();
+				if (!openedStat.isFile()) {
+					return { workspaceMetadataStatus: 'notFile' };
+				}
+				// Windows lacks O_NOFOLLOW; reject a switched target before reading from the descriptor.
+				if (openedStat.dev !== stat.dev || openedStat.ino !== stat.ino) {
+					this._logService.warn('[Copilot] Workspace metadata changed during legacy client diagnostics');
+					return { workspaceMetadataStatus: 'readError' };
+				}
+				if (openedStat.size > maxBytes) {
+					return { workspaceMetadataStatus: 'tooLarge' };
+				}
+				const buffer = Buffer.alloc(maxBytes + 1);
+				let length = 0;
+				while (length < buffer.length) {
+					const { bytesRead } = await file.read(buffer, length, buffer.length - length, length);
+					if (bytesRead === 0) {
+						break;
+					}
+					length += bytesRead;
+				}
+				if (length > maxBytes) {
+					return { workspaceMetadataStatus: 'tooLarge' };
+				}
+				text = buffer.toString('utf8', 0, length);
+			} finally {
+				await file.close();
+			}
+			const errors: YamlParseError[] = [];
+			const metadata = parseYaml(text.replace(/^\uFEFF/, ''), errors);
+			if (errors.length > 0 || metadata?.type !== 'map') {
+				this._logService.warn('[Copilot] Invalid workspace metadata for legacy client diagnostics');
+				return { workspaceMetadataStatus: 'invalid' };
+			}
+			const client = metadata.properties.find(property => property.key.value === 'client_name')?.value;
+			const value = client?.type === 'scalar' ? client.value : undefined;
+			return {
+				workspaceMetadataStatus: 'valid',
+				lastKnownClient: !client ? 'missing' : client.type !== 'scalar' ? 'invalidType'
+					: value === 'vscode' || value === AGENT_HOST_COPILOT_CLIENT_NAME || value === 'github/cli' || value === 'github/autopilot' ? value : 'unrecognized',
+			};
+		} catch (error) {
+			if (getErrorCode(error) === 'ENOENT') {
+				return { workspaceMetadataStatus: 'missing' };
+			}
+			this._logService.warn('[Copilot] Failed to read workspace metadata for legacy client diagnostics', getErrorCode(error));
+			return { workspaceMetadataStatus: 'readError' };
+		}
+	}
+
+	private async _getLegacyStoragePathStatus(path: string): Promise<NonNullable<NonNullable<IAgentChatAdoptionResult['diagnostics']>['sessionDirectoryStatus']>> {
+		try {
+			const stat = await fs.stat(path);
+			return stat.isDirectory() ? 'directory' : stat.isFile() ? 'file' : 'other';
+		} catch (error) {
+			if (getErrorCode(error) === 'ENOENT') {
+				return 'missing';
+			}
+			this._logService.warn('[Copilot] Failed to inspect legacy session storage', getErrorCode(error));
+			return 'readError';
+		}
 	}
 
 	private async _readExtensionHostCliMarker(sessionId: string): Promise<IExtensionHostCliMarker | undefined> {
@@ -4454,7 +4631,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const markerRead = await this._readExtensionHostCliMarkerWithDiagnostics(sessionId);
 			if (!isExtensionHostCliMarker(markerRead.marker)) {
 				this._logService.info(`[Copilot] Adoption declined for ${sessionId}: marker=${markerRead.diagnostics.markerStatus}, provenance=${markerRead.diagnostics.provenance}, cached=${markerRead.diagnostics.markerFromCache}`);
-				return { adopted: false, eligible: false, reason: 'notLegacyChat', diagnostics: markerRead.diagnostics };
+				return { adopted: false, eligible: false, reason: 'notLegacyChat', diagnostics: await this._getLegacyDeclineDiagnostics(sessionId, markerRead) };
 			}
 			const client = await this._ensureClient();
 			const sdkMetadata = await client.getSessionMetadata(sessionId).catch(() => undefined);
