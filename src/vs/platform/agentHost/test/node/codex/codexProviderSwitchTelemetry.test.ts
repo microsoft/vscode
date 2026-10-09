@@ -62,6 +62,7 @@ suite('CodexProviderSwitchTelemetry', () => {
 				data: {
 					fromProvider: 'openai', toProvider: 'copilot', isDesktopThread: true,
 					chatgptAccountState: 'signedIn', chatgptPlanTier: 'plus', chatgptWeeklyQuotaState: 'available', chatgptWeeklyUsedPercentBucket: 40,
+					chatgptFiveHourQuotaState: 'missing',
 				},
 			}]);
 		});
@@ -74,7 +75,7 @@ suite('CodexProviderSwitchTelemetry', () => {
 
 		assert.deepStrictEqual(telemetryService.events, [{
 			name: 'agentHost.codexProviderSwitch',
-			data: { fromProvider: 'copilot', toProvider: 'openai', isDesktopThread: false, chatgptAccountState: 'unknown', chatgptWeeklyQuotaState: 'unavailable' },
+			data: { fromProvider: 'copilot', toProvider: 'openai', isDesktopThread: false, chatgptAccountState: 'unknown', chatgptWeeklyQuotaState: 'unavailable', chatgptFiveHourQuotaState: 'unavailable' },
 		}]);
 	});
 

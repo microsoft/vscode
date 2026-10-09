@@ -1,0 +1,31 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* A background shell's full description leads its details, above the command. */
+.chat-pill-location-hover > .chat-background-shell-title {
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+	margin-bottom: var(--vscode-spacing-size80);
+}
+
+/* A background shell's command, with its Stop button beside it when the details show no live output. */
+.chat-background-shell-command {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+}
+
+.chat-background-shell-command[hidden] {
+	display: none;
+}
+
+.chat-background-shell-command-text {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.chat-background-shell-command-actions {
+	flex-shrink: 0;
+}

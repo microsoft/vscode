@@ -575,6 +575,8 @@
 }
 
 .interactive-item-container .completed-response-summary {
+	display: flex;
+	align-items: center;
 	width: fit-content;
 	max-width: 100%;
 	padding: 0;
@@ -583,6 +585,17 @@
 	font-variant-numeric: tabular-nums;
 	font-feature-settings: "tnum";
 	list-style: none;
+
+	> .monaco-button.monaco-icon-button {
+		margin-left: 0;
+		padding-left: 0;
+	}
+
+	> .monaco-button .monaco-button-mdlabel {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
 }
 
 .interactive-item-container .completed-response-summary * {
@@ -751,8 +764,9 @@
 	padding-bottom: calc(var(--vscode-spacing-size360) + var(--vscode-strokeThickness));
 }
 
-.interactive-item-container .value > :last-child,
-.interactive-item-container .value > :last-child.rendered-markdown > :last-child,
+/* Hidden summaries must not keep the preceding content's trailing margin. */
+.interactive-item-container .value > :nth-last-child(1 of :not([hidden])),
+.interactive-item-container .value > :nth-last-child(1 of :not([hidden])).rendered-markdown > :last-child,
 .interactive-item-container.interactive-request .value .rendered-markdown > :last-child {
 	margin-bottom: 0px;
 }
@@ -3350,6 +3364,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-used-context-label .monaco-button {
 	/* unset Button styles */
 	display: inline-flex;
+	max-width: 100%;
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+
+.interactive-session .chat-used-context-label .monaco-button-mdlabel {
+	min-width: 0;
+	white-space: normal;
 }
 
 .interactive-session .chat-file-changes-label .monaco-button {
@@ -3486,6 +3508,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 
 	.rendered-markdown.progress-step {
+		min-width: 0;
 		white-space: normal;
 
 		&.chat-progress-with-origin {
@@ -3841,6 +3864,16 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: inline-block;
 }
 
+.chat-attached-context-attachment .chat-attached-context-image-status {
+	color: var(--vscode-descriptionForeground);
+	white-space: normal;
+	overflow-wrap: anywhere;
+}
+
+.chat-attached-context-attachment.image-load-error .chat-attached-context-image-status {
+	color: var(--vscode-errorForeground);
+}
+
 .chat-attached-context-attachment.show-file-icons.warning .chat-attached-context-custom-text {
 	color: var(--vscode-notificationsWarningIcon-foreground);
 	text-decoration: line-through;
@@ -3901,39 +3934,58 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .chat-generated-image-result {
-	margin: 8px 0 4px;
+	--chat-generated-image-max-height: min(60vh, 400px);
+	margin: var(--vscode-spacing-size80) 0 var(--vscode-spacing-size40);
+
+	.chat-collapsible-io-resource-group {
+		width: fit-content;
+		max-width: 100%;
+		gap: var(--vscode-spacing-size80);
+	}
+
+	.chat-collapsible-io-resource-actions {
+		flex-shrink: 0;
+	}
 
 	.chat-collapsible-io-resource-items,
 	.chat-attached-context {
 		min-width: 0;
-		width: 100%;
+		max-width: 512px;
 	}
 
 	.chat-collapsible-io-resource-items .chat-attached-context-attachment.image-attachment {
-		width: min(100%, 512px);
+		width: fit-content;
 		height: auto;
 		background: transparent;
+
+		&[aria-busy="true"]:not(:focus-visible),
+		&.image-load-error:not(:focus-visible) {
+			border-color: transparent;
+		}
 	}
 
 	.chat-collapsible-io-resource-items .chat-attached-context-attachment.image-attachment .chat-attached-context-pill {
+		min-width: 0;
+		width: auto;
 		height: auto;
 	}
 
 	.chat-collapsible-io-resource-items .chat-attached-context-attachment.image-attachment .chat-attached-context-pill-image {
 		display: block;
+		width: auto;
+		max-width: 100%;
 		height: auto;
-		max-height: min(60vh, 640px);
+		max-height: var(--chat-generated-image-max-height);
 		object-fit: contain;
 	}
 
 	&.multiple .chat-attached-context {
-		max-width: 512px;
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, auto));
 	}
 
 	&.multiple .chat-collapsible-io-resource-items .chat-attached-context-attachment.image-attachment {
-		flex: 1 1 calc(50% - 4px);
-		width: calc(50% - 4px);
-		max-width: 252px;
+		max-width: min(100%, 252px);
 	}
 }
 
@@ -4029,6 +4081,31 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		width: fit-content;
 		margin-bottom: var(--vscode-spacing-size60);
 		position: relative;
+	}
+
+	.chat-request-disclosure {
+		width: 100%;
+	}
+
+	.chat-request-disclosure > summary {
+		width: fit-content;
+		max-width: 100%;
+		margin-left: auto;
+		margin-bottom: var(--vscode-spacing-size60);
+		padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
+		border-radius: var(--vscode-cornerRadius-small);
+		border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, transparent);
+		color: var(--vscode-descriptionForeground);
+		cursor: pointer;
+	}
+
+	.chat-request-disclosure > summary:hover {
+		background-color: var(--vscode-toolbar-hoverBackground);
+	}
+
+	.chat-request-disclosure > summary:focus-visible {
+		outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+		outline-offset: -1px;
 	}
 
 	.monaco-tree-sticky-row .interactive-item-container.interactive-request .value .rendered-markdown .chat-request-text,

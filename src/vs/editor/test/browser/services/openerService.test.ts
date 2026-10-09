@@ -10,10 +10,10 @@ import { OpenerService } from '../../../browser/services/openerService.js';
 import { TestCodeEditorService } from '../editorTestServices.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { NullCommandService } from '../../../../platform/commands/test/common/nullCommandService.js';
-import { ITextEditorOptions } from '../../../../platform/editor/common/editor.js';
+import { ITextEditorOptions, ViewColumn } from '../../../../platform/editor/common/editor.js';
 import { matchesScheme, matchesSomeScheme } from '../../../../base/common/network.js';
 import { TestThemeService } from '../../../../platform/theme/test/common/testThemeService.js';
-import { defaultExternalUriOpenerId } from '../../../../platform/opener/common/opener.js';
+import { defaultExternalUriOpenerId, IExternalOpener } from '../../../../platform/opener/common/opener.js';
 
 suite('OpenerService', function () {
 	const themeService = new TestThemeService();
@@ -195,6 +195,32 @@ suite('OpenerService', function () {
 				`contributed:${resolvedUri.toString()}:${sourceUri.toString()}`,
 			],
 		});
+	});
+
+	test('external URI opener contexts normalize placement without forwarding openToSide', async () => {
+		const openerService = new OpenerService(editorService, commandService);
+		const sourceUri = URI.parse('https://source.example.com');
+		const contexts: Parameters<IExternalOpener['openExternal']>[1][] = [];
+		store.add(openerService.registerExternalOpener({
+			async openExternal(_href, context) {
+				contexts.push(context);
+				return true;
+			}
+		}));
+
+		for (const options of [
+			{ openToSide: true },
+			{ openToSide: false },
+			{}
+		]) {
+			await openerService.open(sourceUri, { ...options, allowContributedOpeners: true });
+		}
+
+		assert.deepStrictEqual(contexts, [
+			{ sourceUri, preferredOpenerId: undefined, viewColumn: ViewColumn.Beside },
+			{ sourceUri, preferredOpenerId: undefined, viewColumn: undefined },
+			{ sourceUri, preferredOpenerId: undefined, viewColumn: undefined }
+		]);
 	});
 
 	test('external URI fallback validates the resolved URI', async function () {

@@ -329,6 +329,14 @@ describe('cloud session visibility', () => {
 			.toEqual({ results: [true, true, true, false, true], owned: ['newest', 'touched'] });
 	});
 
+	it('retains an adopted task application across reload and repeated adoption', async () => {
+		const state = new MockExtensionContext().globalState;
+		const ownership = new CloudTaskOwnership(state);
+		await ownership.record('cli', 1, 'github/cli');
+		await new CloudTaskOwnership(state).record('cli', 2, 'vscode');
+		expect(new CloudTaskOwnership(state).getApplication('cli')).toBe('github/cli');
+	});
+
 	describe('CopilotCloudSessionsProvider discovery', () => {
 		ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -516,6 +524,12 @@ describe('cloud session visibility', () => {
 			});
 		});
 
+		it('publishes raw application event types for each discovered cloud session', async () => {
+			fetchSessionList.mockResolvedValue(['github/cli', 'slack', 'teams', 'CUSTOM_EVENT'].map(eventType => ({ ...session(eventType), eventType })));
+			const items = await createProvider().provideChatSessionItems(CancellationToken.None);
+			expect(items.map(item => item.metadata?.event_type)).toEqual(['github/cli', 'slack', 'teams', 'CUSTOM_EVENT']);
+		});
+
 		it('marks unrecorded tasks as external until a message adopts them, even when the message fails', async () => {
 			await new CloudTaskOwnership(extensionContext.globalState).record('started-here');
 			fetchSessionList.mockResolvedValue([session('started-here'), session('external')]);
@@ -524,7 +538,7 @@ describe('cloud session visibility', () => {
 			const provider = createProvider();
 			const changes = vi.fn();
 			store.add(provider.onDidChangeChatSessionItems(changes));
-			const externalByLabel = (items: vscode.ChatSessionItem[]) => items.map(item => [item.label, item.metadata?.external]);
+			const externalByLabel = (items: vscode.ChatSessionItem[]) => items.map(item => [item.label, item.metadata?.external, item.metadata?.event_type]);
 			const before = externalByLabel(await provider.provideChatSessionItems(CancellationToken.None));
 
 			const handler = vi.mocked(vscode.chat.createChatParticipant).mock.calls.at(-1)![1];
@@ -539,8 +553,8 @@ describe('cloud session visibility', () => {
 			const after = externalByLabel(await provider.provideChatSessionItems(CancellationToken.None));
 
 			expect({ before, after, changeEvents: changes.mock.calls.length, output: stream.output }).toEqual({
-				before: [['started-here', undefined], ['external', true]],
-				after: [['started-here', undefined], ['external', undefined]],
+				before: [['started-here', undefined, 'vscode'], ['external', true, 'github/autopilot']],
+				after: [['started-here', undefined, 'vscode'], ['external', undefined, 'github/autopilot']],
 				changeEvents: 1,
 				output: ['Could not find the task for this chat session.'],
 			});
@@ -1083,6 +1097,20 @@ describe('TaskApiBackend', () => {
 			{ taskId: 'cloud', title: 'New task', state: 'in_progress' },
 			{ taskId: 'legacy', title: 'New task', state: 'in_progress' },
 		]);
+	});
+
+	it('maps event_type from task responses into session application metadata', async () => {
+		const eventTypes = ['github/cli', 'github/autopilot', 'slack', 'teams', 'CUSTOM_EVENT', undefined];
+		const tasks = eventTypes.map((event_type, index) => ({
+			...makeTask([], 'idle'),
+			id: `task-${index}`,
+			event_type,
+			html_url: `https://github.com/microsoft/vscode/agents/tasks/task-${index}`,
+			agent_collaborators: [{ slug: 'copilot-developer' }],
+		}));
+		const backend = new TaskApiBackend(new FakeTaskApiClient({ globalTasks: tasks }), new TestLogService(), new MockOctoKitService(), NullCloudBackendInstrumentation);
+		const sessions = await backend.fetchSessionList(undefined, true);
+		expect(sessions.map(session => session.eventType)).toEqual(eventTypes);
 	});
 
 	it('preserves most recent activity for every task lifecycle state', async () => {

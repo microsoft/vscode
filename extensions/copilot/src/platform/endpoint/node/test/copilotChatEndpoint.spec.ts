@@ -7,6 +7,7 @@ import { OpenAI, Raw } from '@vscode/prompt-tsx';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { IAuthenticationService } from '../../../authentication/common/authentication';
+import { CopilotToken, createTestExtendedTokenInfo } from '../../../authentication/common/copilotToken';
 import { IChatMLFetcher } from '../../../chat/common/chatMLFetcher';
 
 import { ConfigKey } from '../../../configuration/common/configurationService';
@@ -850,5 +851,40 @@ describe('ChatEndpoint - model picker notices', () => {
 	it('has no notices when CAPI sends none', () => {
 		const endpoint = createEndpoint({ ...createNonAnthropicModelMetadata('gpt-4.1'), info_messages: [] });
 		expect({ warningText: endpoint.warningText, infoText: endpoint.infoText }).toEqual({ warningText: undefined, infoText: undefined });
+	});
+});
+
+describe('CopilotChatEndpoint - supportsToolSearch auth gating', () => {
+	const createEndpoint = (sku: string | undefined) => {
+		const mockServices = createMockServices();
+		const authService = {
+			copilotToken: sku === undefined ? undefined : new CopilotToken(createTestExtendedTokenInfo({ sku })),
+		} as unknown as IAuthenticationService;
+		const metadata = createNonAnthropicModelMetadata('gpt-5.4');
+		metadata.capabilities.supports.tool_search = true;
+		return new CopilotChatEndpoint(
+			metadata,
+			mockServices.domainService,
+			mockServices.capiClientService,
+			mockServices.fetcherService,
+			mockServices.envService,
+			mockServices.telemetryService,
+			authService,
+			mockServices.chatMLFetcher,
+			mockServices.tokenizerProvider,
+			mockServices.instantiationService,
+			mockServices.configurationService,
+			mockServices.expService,
+			mockServices.chatWebSocketService,
+			mockServices.logService
+		);
+	};
+
+	it('disables tool search for no-auth users', () => {
+		expect(createEndpoint('no_auth_limited_copilot').supportsToolSearch).toBe(false);
+	});
+
+	it('keeps tool search for signed-in users', () => {
+		expect(createEndpoint('copilot_for_business_seat').supportsToolSearch).toBe(true);
 	});
 });

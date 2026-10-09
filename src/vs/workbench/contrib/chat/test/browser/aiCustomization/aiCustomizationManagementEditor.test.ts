@@ -19,7 +19,7 @@ import { runWithFakedTimers } from '../../../../../../base/test/common/timeTrave
 import { Range } from '../../../../../../editor/common/core/range.js';
 import type { IManagedHover } from '../../../../../../base/browser/ui/hover/hover.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
 import { IConfirmation, IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { AGENT_BUILTIN_CUSTOMIZATION_SCHEME } from '../../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
@@ -39,22 +39,32 @@ import { PromptFileSource, PromptsType, Target } from '../../../common/promptSyn
 import { AICustomizationManagementSection, AICustomizationSources, type AICustomizationSource } from '../../../common/aiCustomizationWorkspaceService.js';
 import { CustomizationMigrationCategoryId, getCustomizationMigrationCategory, ICustomizationMigrationCategory } from '../../../browser/aiCustomization/customizationMigrationCategories.js';
 import type { ICustomizationHarnessService, ICustomizationSourceFolder } from '../../../common/customizationHarnessService.js';
-import type { CustomizationMigrationTargetFolders, IMigratedCustomizationsWithFailureReasonsResult } from '../../../browser/aiCustomization/customizationMigration.js';
+import type { IMigratedCustomizationsWithFailureReasonsResult } from '../../../browser/aiCustomization/customizationMigration.js';
 import type { ICustomizationMigrationCategorySummary, IInstalledCustomizationTarget } from '../../../browser/aiCustomization/aiCustomizationWelcomePage.js';
 import { AICustomizationManagementEditorInput } from '../../../browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { aiCustomizationManagementSectionRegistry, IAICustomizationManagementSectionWidget } from '../../../browser/aiCustomization/aiCustomizationManagementSectionRegistry.js';
 import { IMcpServerDetailInput } from '../../../browser/aiCustomization/embeddedMcpServerDetail.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
-import type { ICustomizationMigrationDashboardActivity, ICustomizationMigrationDashboardDestination, ICustomizationMigrationDashboardItem, ICustomizationMigrationDashboardOverview } from '../../../browser/aiCustomization/customizationMigrationDashboard.js';
+import type { ICustomizationMigrationDashboardDestination, ICustomizationMigrationDashboardItem, ICustomizationMigrationDashboardOverview } from '../../../browser/aiCustomization/customizationMigrationDashboard.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { TestExperimentTriggerTelemetryService } from '../../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { IMcpWorkbenchService, McpServerInstallState } from '../../../../mcp/common/mcpTypes.js';
 import type { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 
 suite('aiCustomizationManagementEditor', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('keeps the customization editor modal', () => {
+		const input = store.add(new AICustomizationManagementEditorInput());
+		assert.deepStrictEqual(input.getModalEditorOptions(), {
+			compactHeader: true,
+			canMoveToEditorArea: false,
+		});
+	});
 
 	test('includes the customization target in the modal title', () => {
 		const input = store.add(new AICustomizationManagementEditorInput());
@@ -171,6 +181,17 @@ suite('aiCustomizationManagementEditor', () => {
 		assert.deepStrictEqual(states, [true, false]);
 	});
 
+	type TestQuickPickItem = {
+		label: string;
+		description?: string;
+		picked?: boolean;
+		folder?: ICustomizationSourceFolder;
+		destination?: ICustomizationMigrationDashboardDestination;
+		chooseAnother?: boolean;
+	};
+
+	type TestQuickPickResult = Omit<TestQuickPickItem, 'label'> & { label?: string };
+
 	type TestableEditor = {
 		currentEditingPromptType: PromptsType | undefined;
 		currentEditingSource: string | undefined;
@@ -203,7 +224,13 @@ suite('aiCustomizationManagementEditor', () => {
 		workspaceService: {
 			activeProjectRoot: ISettableObservable<URI | undefined>;
 			activeProjectLabel: ISettableObservable<string>;
+			isSessionsWindow: boolean;
 		};
+		commandService: { executeCommand(commandId: string, ...args: readonly unknown[]): Promise<unknown> };
+		chatWidgetService: {
+			getWidgetBySessionResource(resource: URI): { setInput(value: string): void; focusInput(): void } | undefined;
+		};
+		viewsService: { openView(viewId: string, focus?: boolean): Promise<{ prefillInput?(text: string): void; sendQuery?(text: string): void } | undefined> };
 		editorDisplayMode: 'preview' | 'raw';
 		currentCustomizationDetail: boolean;
 		currentEditingUri: URI | undefined;
@@ -221,7 +248,7 @@ suite('aiCustomizationManagementEditor', () => {
 		markdownRendererService: { render(markdown: { value: string }): { element: HTMLElement; dispose(): void } };
 		editorPreviewDisposables: DisposableStore;
 		editorPreviewRenderScheduler: { cancel(): void; schedule(): void };
-		viewMode: 'list' | 'migration' | 'editor' | 'mcpDetail' | 'pluginDetail' | 'toolsDetail';
+		viewMode: 'list' | 'migration' | 'editor' | 'marketplaceDetail' | 'mcpDetail' | 'connectorDetail' | 'pluginDetail';
 		mcpDetailInput: IMcpServerDetailInput | undefined;
 		embeddedMcpDetail: { setMigratable(migratable: boolean): void } | undefined;
 		refreshMcpDetailMigrationState(): void;
@@ -229,6 +256,7 @@ suite('aiCustomizationManagementEditor', () => {
 		hoverService: IHoverService;
 		instantiationService: IInstantiationService;
 		configurationService: IConfigurationService;
+		telemetryService: ITelemetryService;
 		editorDisposables: DisposableStore;
 		harnessService: { activeSessionResource: ISettableObservable<URI>; activeHarness: ISettableObservable<string>; findHarnessById: ICustomizationHarnessService['findHarnessById'] };
 		migrationFlowId: string | undefined;
@@ -242,11 +270,11 @@ suite('aiCustomizationManagementEditor', () => {
 		customizationMigrationTelemetryService: ICustomizationMigrationTelemetryService;
 		dialogService: Pick<IDialogService, 'confirm'>;
 		quickInputService: {
-			pick(items: readonly { label: string; description?: string; folder?: ICustomizationSourceFolder; destination?: ICustomizationMigrationDashboardDestination; chooseAnother?: boolean }[]): Promise<{ label?: string; folder?: ICustomizationSourceFolder; destination?: ICustomizationMigrationDashboardDestination; chooseAnother?: boolean } | undefined>;
+			pick(items: readonly TestQuickPickItem[], options?: { activeItem?: TestQuickPickItem }): Promise<TestQuickPickResult | undefined>;
 		};
 		notificationService: { error(message: string): void; info(message: string): void; warn(message: string): void };
 		fileDialogService: { showOpenDialog(): Promise<URI[]> };
-		showEmbeddedEditor(uri: URI, displayName: string, promptType: PromptsType, source: AICustomizationSource, isWorkspaceFile?: boolean, isReadOnly?: boolean): Promise<void>;
+		showEmbeddedEditor(uri: URI, displayName: string, promptType: PromptsType, source: AICustomizationSource, isWorkspaceFile?: boolean, isReadOnly?: boolean, migrationDetail?: { readonly item: ICustomizationMigrationDashboardItem; readonly storage: PromptsStorage }): Promise<void>;
 		getActiveHarnessLabel(): string;
 		welcomePage: { setMigrationCategories(categories: readonly unknown[]): void } | undefined;
 		selectedSection: AICustomizationManagementSection | undefined;
@@ -277,11 +305,9 @@ suite('aiCustomizationManagementEditor', () => {
 		cancelCustomizationMigrationRefresh(): void;
 		registerCustomizationMigrationSessionRefresh(): void;
 		renderCustomizationMigrationDashboardState(): void;
-		showEmbeddedMcpDetail(server: IMcpServerDetailInput): Promise<void>;
+		showEmbeddedMcpDetail(server: IMcpServerDetailInput, origin?: { readonly kind: 'migration' }, migrationDetail?: { readonly item: ICustomizationMigrationDashboardItem; readonly storage: PromptsStorage }): Promise<void>;
 		openMigrationCustomization(item: ICustomizationMigrationDashboardItem, storage: PromptsStorage): Promise<void>;
 		getConfiguredLocationSettingsToClear(category: ICustomizationMigrationCategory, customizations: readonly MigratableConfiguration[]): readonly string[];
-		getFileMigrationConfirmationDetail(detail: string, files: readonly MigratableConfiguration[], targetFolders: CustomizationMigrationTargetFolders): string;
-		getMcpMigrationConfirmationDetail(detail: string, servers: readonly IMcpServerCustomizationMigrationCandidate[]): string;
 		clearConfiguredLocationSettings(settingIds: readonly string[]): Promise<void>;
 		migrateSelectedCustomizations(category: ICustomizationMigrationCategory, customizations: readonly CustomizationMigrationCandidate[]): Promise<void>;
 		runCustomizationMigration(customizations: readonly MigratableConfiguration[]): Promise<IMigratedCustomizationsWithFailureReasonsResult>;
@@ -302,19 +328,32 @@ suite('aiCustomizationManagementEditor', () => {
 		getCustomizationMigrationDashboardOverview(): ICustomizationMigrationDashboardOverview;
 		ignoreMigrationCategory(id: CustomizationMigrationCategoryId, storage: PromptsStorage): Promise<void>;
 		isMigrationCategoryIgnored(id: CustomizationMigrationCategoryId, storage: PromptsStorage): boolean;
-		getMigrationActivityState(storage: PromptsStorage): { activity: readonly ICustomizationMigrationDashboardActivity[]; skipped: boolean; started?: boolean };
-		getMigrationActivityContext(storage: PromptsStorage): { storage: PromptsStorage; key: string; label: string };
-		recordMigrationActivity(category: ICustomizationMigrationCategory, context: { storage: PromptsStorage; key: string; label: string }, items: ICustomizationMigrationDashboardActivity['items']): void;
 		configureCustomizationMigrationLocations(id: CustomizationMigrationCategoryId, storage: PromptsStorage): Promise<void>;
 		chooseCustomizationMigrationDestination(destination: ICustomizationMigrationDashboardDestination): Promise<void>;
 		updateContentVisibility(): void;
-		selectSectionById(section: AICustomizationManagementSection, options?: { showMarketplace?: boolean }): void;
+		selectSectionById(section: AICustomizationManagementSection, options?: { showMarketplace?: boolean; marketplaceSourceId?: string }): void;
 		rebuildVisibleSections(): void;
 		updateContributedSectionEnablement(): void;
 		setVisible(visible: boolean): void;
+		editorGroupsService: {
+			activeModalEditorPart: {
+				groups: readonly { id: number }[];
+				close(): Promise<boolean>;
+			} | undefined;
+		};
+		group: { id: number };
+		closeCustomizationEditor(): Promise<boolean>;
+		runMarketplacePrompt(prompt: string): Promise<void>;
 	};
 
-	function createConfigurationServiceStub(values: Record<string, unknown> = {}): IConfigurationService {
+	type MutableConfigurationInspection = {
+		-readonly [Key in keyof IConfigurationValue<boolean>]?: IConfigurationValue<boolean>[Key];
+	};
+
+	function createConfigurationServiceStub(values: Record<string, unknown> = {}): IConfigurationService & {
+		setValue(key: string, value: unknown): void;
+		inspectValues: MutableConfigurationInspection;
+	} {
 		// Default to enabling the structured preview so existing assertions exercise the preview path.
 		const merged: Record<string, unknown> = {
 			[ChatConfiguration.ChatCustomizationsStructuredPreviewEnabled]: true,
@@ -322,17 +361,23 @@ suite('aiCustomizationManagementEditor', () => {
 			[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: true,
 			...values,
 		};
+		const inspectValues: MutableConfigurationInspection = {};
 		return {
 			getValue: (key: string) => merged[key],
 			setValue: (key: string, value: unknown) => { merged[key] = value; },
-			inspect: (key: string) => ({
+			inspect: <T>(key: string) => ({
 				key,
 				value: merged[key],
 				defaultValue: undefined,
 				policyValue: undefined,
-			}),
+				...inspectValues,
+			}) as IConfigurationValue<Readonly<T>>,
+			inspectValues,
 			updateValue: async (key: string, value: unknown) => { merged[key] = value; },
-		} as unknown as IConfigurationService & { setValue(key: string, value: unknown): void };
+		} as unknown as IConfigurationService & {
+			setValue(key: string, value: unknown): void;
+			inspectValues: MutableConfigurationInspection;
+		};
 	}
 
 	function createTestEditor(hoverService?: IHoverService, configurationService?: IConfigurationService): TestableEditor {
@@ -379,7 +424,11 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.workspaceService = {
 			activeProjectRoot: observableValue<URI | undefined>('project', URI.file('/workspace')),
 			activeProjectLabel: observableValue('projectLabel', 'vscode'),
+			isSessionsWindow: false,
 		};
+		editor.commandService = { executeCommand: async () => undefined };
+		editor.chatWidgetService = { getWidgetBySessionResource: () => undefined };
+		editor.viewsService = { openView: async () => undefined };
 		editor.harnessService = {
 			activeSessionResource: observableValue('activeSessionResource', URI.parse('agent-host-test:/session-a')),
 			activeHarness: observableValue('activeHarness', 'agent-host-copilotcli'),
@@ -421,6 +470,7 @@ suite('aiCustomizationManagementEditor', () => {
 			actionClicked: () => { },
 			migrationClicked: () => { },
 			migrationCompleted: () => { },
+			watchAgentMigrationResult: () => { },
 		};
 		editor.dialogService = {
 			confirm: async () => ({ confirmed: false }),
@@ -448,6 +498,82 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.setVisible(false);
 		return editor;
 	}
+
+	test('closes the modal editor part before leaving Customizations', async () => {
+		const calls: string[] = [];
+		const editor = createTestEditor();
+		store.add(editor.editorPreviewDisposables);
+		Object.defineProperty(editor, 'group', {
+			value: { id: 7 },
+		});
+		editor.editorGroupsService = {
+			activeModalEditorPart: {
+				groups: [{ id: 7 }, { id: 8 }],
+				close: async () => {
+					calls.push('modal');
+					return true;
+				},
+			},
+		};
+
+		const modalResult = await editor.closeCustomizationEditor();
+
+		assert.deepStrictEqual({ modalResult, calls }, {
+			modalResult: true,
+			calls: ['modal'],
+		});
+	});
+
+	test('runs marketplace prompts in a new Agents Window chat', async () => {
+		const editor = createTestEditor();
+		store.add(editor.editorPreviewDisposables);
+		const calls: { commandId: string; args: readonly unknown[] }[] = [];
+		editor.workspaceService.isSessionsWindow = true;
+		editor.commandService = {
+			executeCommand: async (commandId, ...args) => {
+				calls.push({ commandId, args });
+			},
+		};
+
+		await editor.runMarketplacePrompt('Review this change');
+
+		assert.deepStrictEqual(calls, [{
+			commandId: 'workbench.action.sessions.newChat',
+			args: [{ prompt: 'Review this change', prefillPrompt: true, noWorkspace: true }],
+		}]);
+	});
+
+	test('runs marketplace prompts in a new Copilot sidebar session outside the Agents Window', async () => {
+		const editor = createTestEditor();
+		store.add(editor.editorPreviewDisposables);
+		const calls: { commandId: string; args: readonly unknown[] }[] = [];
+		const sessionResource = URI.parse('agent-host-test:/marketplace-prompt');
+		const inputValues: string[] = [];
+		let focused = false;
+		editor.commandService = {
+			executeCommand: async (commandId, ...args) => {
+				calls.push({ commandId, args });
+				return sessionResource;
+			},
+		};
+		editor.chatWidgetService = {
+			getWidgetBySessionResource: resource => resource.toString() === sessionResource.toString() ? {
+				setInput: value => inputValues.push(value),
+				focusInput: () => { focused = true; },
+			} : undefined,
+		};
+
+		await editor.runMarketplacePrompt('Review this change');
+
+		assert.deepStrictEqual({ calls, inputValues, focused }, {
+			calls: [{
+				commandId: 'workbench.action.chat.openNewSessionSidebar.agent-host-copilotcli',
+				args: [],
+			}],
+			inputValues: ['Review this change'],
+			focused: true,
+		});
+	});
 
 	function createContributedSectionEditor(enablementSettings?: readonly string[]) {
 		const editor = createTestEditor();
@@ -617,23 +743,31 @@ suite('aiCustomizationManagementEditor', () => {
 
 	test('marketplace deep links open type-filtered Discover only when it is enabled', async () => {
 		const { editor, configuration } = createGatedSectionEditor(true);
-		const queries: string[] = [];
+		const marketplaceNavigations: { query: string; sourceId: string | undefined }[] = [];
 		Object.assign(editor, {
 			welcomePage: {
-				setSearchQuery(query: string) { queries.push(query); },
+				showMarketplace(query: string, sourceId: string | undefined) { marketplaceNavigations.push({ query, sourceId }); },
 			},
 		});
 		await configuration.updateValue(CustomizationMarketplaceConfiguration.MarketplaceEnabled, false);
 		editor.selectSectionById(AICustomizationManagementSection.Plugins, { showMarketplace: true });
 		await configuration.updateValue(CustomizationMarketplaceConfiguration.MarketplaceEnabled, true);
 		editor.selectSectionById(AICustomizationManagementSection.Skills, { showMarketplace: true });
+		editor.selectSectionById(AICustomizationManagementSection.Plugins, { showMarketplace: true, marketplaceSourceId: 'pluginMarketplaces.owner%2Fcatalog' });
 		editor.selectSectionById(AICustomizationManagementSection.McpServers, { showMarketplace: true });
+		editor.selectSectionById(AICustomizationManagementSection.McpServers, { showMarketplace: true, marketplaceSourceId: 'mcpGallery' });
 		editor.selectSectionById(AICustomizationManagementSection.Plugins, { showMarketplace: true });
 		await configuration.updateValue(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, false);
 		editor.selectSectionById(AICustomizationManagementSection.Skills, { showMarketplace: true });
 		editor.selectSectionById(AICustomizationManagementSection.McpServers, { showMarketplace: true });
 		editor.selectSectionById(AICustomizationManagementSection.Plugins, { showMarketplace: true });
-		assert.deepStrictEqual(queries, ['@type:skill', '@type:mcp', '@type:plugin']);
+		assert.deepStrictEqual(marketplaceNavigations, [
+			{ query: '@type:skill', sourceId: undefined },
+			{ query: '@type:plugin', sourceId: 'pluginMarketplaces.owner%2Fcatalog' },
+			{ query: '@type:mcp', sourceId: undefined },
+			{ query: '@type:mcp', sourceId: 'mcpGallery' },
+			{ query: '@type:plugin', sourceId: undefined },
+		]);
 	});
 
 	test('showing Discover from its navigation button resets its filters', () => {
@@ -756,6 +890,48 @@ suite('aiCustomizationManagementEditor', () => {
 		assert.deepStrictEqual(visibilityChanges, [false, true]);
 	});
 
+	test('triggers the Marketplace experiment only when the default is visible in either arm', async () => {
+		const { editor } = createContributedSectionEditor();
+		const configurationService = editor.configurationService as ReturnType<typeof createConfigurationServiceStub>;
+		const control = new TestExperimentTriggerTelemetryService();
+		const treatment = new TestExperimentTriggerTelemetryService();
+		const userConfigured = new TestExperimentTriggerTelemetryService();
+		const policyConfigured = new TestExperimentTriggerTelemetryService();
+		const controlInput = store.add(new AICustomizationManagementEditorInput());
+		const treatmentInput = store.add(new AICustomizationManagementEditorInput());
+		const userInput = store.add(new AICustomizationManagementEditorInput());
+		const policyInput = store.add(new AICustomizationManagementEditorInput());
+
+		configurationService.setValue(CustomizationMarketplaceConfiguration.MarketplaceEnabled, false);
+		editor.telemetryService = control;
+		await editor.setInput(controlInput, undefined, {}, CancellationToken.None);
+		editor.clearInput();
+		configurationService.setValue(CustomizationMarketplaceConfiguration.MarketplaceEnabled, true);
+		editor.telemetryService = treatment;
+		await editor.setInput(treatmentInput, undefined, {}, CancellationToken.None);
+		editor.clearInput();
+		configurationService.inspectValues.userLocalValue = true;
+		editor.telemetryService = userConfigured;
+		await editor.setInput(userInput, undefined, {}, CancellationToken.None);
+		editor.clearInput();
+		delete configurationService.inspectValues.userLocalValue;
+		configurationService.inspectValues.policyValue = true;
+		editor.telemetryService = policyConfigured;
+		await editor.setInput(policyInput, undefined, {}, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			control: control.triggers,
+			treatment: treatment.triggers,
+			userConfigured: userConfigured.triggers,
+			policyConfigured: policyConfigured.triggers,
+		}, {
+			control: ['config.chat.customizations.marketplace.enabled'],
+			treatment: ['config.chat.customizations.marketplace.enabled'],
+			userConfigured: [],
+			policyConfigured: [],
+		});
+	});
+
 	test('selecting a contributed section focuses its widget instead of the hidden prompts search', () => {
 		const { editor, section, state, focusedVisibility } = createContributedSectionEditor();
 		editor.setVisible(true);
@@ -802,7 +978,7 @@ suite('aiCustomizationManagementEditor', () => {
 		const hidden = readVisibility();
 		editor.setVisible(true);
 		const visible = readVisibility();
-		const detailModes = ['editor', 'migration', 'mcpDetail', 'pluginDetail', 'toolsDetail'] as const;
+		const detailModes = ['editor', 'migration', 'mcpDetail', 'pluginDetail'] as const;
 		const hiddenInDetails = detailModes.map(mode => {
 			editor.viewMode = mode;
 			editor.updateContentVisibility();
@@ -1506,34 +1682,85 @@ suite('aiCustomizationManagementEditor', () => {
 			{ uri: URI.file('/workspace/.claude/skills'), label: 'skills', source: PromptsStorage.local },
 			{ uri: URI.file('/workspace/.github/skills'), label: 'skills', source: PromptsStorage.local },
 		]);
-		let pickerLabels: readonly string[] = [];
-		let pickerDescriptions: readonly (string | undefined)[] = [];
+		const pickerStates: { labels: readonly string[]; descriptions: readonly (string | undefined)[]; activeFolder: string | undefined }[] = [];
 		editor.quickInputService = {
-			pick: async items => {
-				pickerLabels = items.map(item => item.label);
-				pickerDescriptions = items.map(item => item.description);
-				return { chooseAnother: true };
+			pick: async (items, options) => {
+				pickerStates.push({
+					labels: items.map(item => item.label),
+					descriptions: items.map(item => item.description),
+					activeFolder: options?.activeItem?.folder?.uri.path,
+				});
+				return pickerStates.length === 1 ? { chooseAnother: true } : undefined;
 			},
 		};
 		editor.fileDialogService = { showOpenDialog: async () => [URI.file('/workspace/custom/skills')] };
 		editor.renderCustomizationMigrationDashboardState = () => { };
 
-		await editor.chooseCustomizationMigrationDestination({
+		const destination: ICustomizationMigrationDashboardDestination = {
 			targetType: PromptsType.skill,
 			storage: PromptsStorage.local,
 			contextLabel: 'Workspace skills',
 			label: '.github/skills',
 			ariaLabel: 'Change destination for workspace skills',
-		});
+		};
+		await editor.chooseCustomizationMigrationDestination(destination);
+		await editor.chooseCustomizationMigrationDestination(destination);
 
 		assert.deepStrictEqual({
 			selectedPath: editor.selectedCustomizationMigrationTargets.get(`${PromptsType.skill}:${PromptsStorage.local}`)?.uri.path,
-			pickerLabels,
-			pickerDescriptions,
+			pickerStates,
 		}, {
 			selectedPath: '/workspace/custom/skills',
-			pickerLabels: ['skills', 'skills', 'Choose another folder...'],
-			pickerDescriptions: ['/workspace/.github/skills (Recommended)', '/workspace/.agents/skills', 'Use a custom migration destination'],
+			pickerStates: [
+				{
+					labels: ['skills', 'skills', 'Choose another folder...'],
+					descriptions: ['/workspace/.github/skills (Recommended)', '/workspace/.agents/skills', 'Use a custom migration destination'],
+					activeFolder: undefined,
+				},
+				{
+					labels: ['skills', 'skills', '/workspace/custom/skills', 'Choose another folder...'],
+					descriptions: ['/workspace/.github/skills (Recommended)', '/workspace/.agents/skills', '/workspace/custom/skills', 'Use a custom migration destination'],
+					activeFolder: '/workspace/custom/skills',
+				},
+			],
+		});
+		editor.editorPreviewDisposables.dispose();
+	});
+
+	test('focuses the current migration destination when reopening the picker', async () => {
+		const editor = createTestEditor();
+		const currentFolder: ICustomizationSourceFolder = {
+			uri: URI.file('/workspace/.agents/skills'),
+			label: 'skills',
+			source: PromptsStorage.local,
+		};
+		editor.customizationMigrationTargetFoldersByType.set(PromptsType.skill, [
+			{ uri: URI.file('/workspace/.github/skills'), label: 'skills', source: PromptsStorage.local },
+			currentFolder,
+		]);
+		editor.selectedCustomizationMigrationTargets.set(`${PromptsType.skill}:${PromptsStorage.local}`, currentFolder);
+		let pickerState: { activeFolder: string | undefined; pickedCount: number } | undefined;
+		editor.quickInputService = {
+			pick: async (items, options) => {
+				pickerState = {
+					activeFolder: options?.activeItem?.folder?.uri.path,
+					pickedCount: items.filter(item => item.picked).length,
+				};
+				return undefined;
+			},
+		};
+
+		await editor.chooseCustomizationMigrationDestination({
+			targetType: PromptsType.skill,
+			storage: PromptsStorage.local,
+			contextLabel: 'Workspace skills',
+			label: '.agents/skills',
+			ariaLabel: 'Change destination for workspace skills',
+		});
+
+		assert.deepStrictEqual(pickerState, {
+			activeFolder: '/workspace/.agents/skills',
+			pickedCount: 0,
 		});
 		editor.editorPreviewDisposables.dispose();
 	});
@@ -2001,14 +2228,16 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.editorPreviewDisposables.dispose();
 	});
 
-	test('confirmation details enumerate planned source and destination changes', () => {
-		const editor = createTestEditor();
-		const file: MigratableConfiguration = {
-			uri: URI.file('/workspace/.github/agents/reviewer.agent.md'),
+	test('migration confirmations omit per-item source and destination paths', async () => {
+		const editor = createTestEditor(undefined, createConfigurationServiceStub({
+			[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
+		}));
+		const prompt: MigratableConfiguration = {
+			uri: URI.file('/workspace/.github/prompts/review.prompt.md'),
 			storage: PromptsStorage.local,
-			type: PromptsType.agent,
+			type: PromptsType.prompt,
 			source: PromptFileSource.GitHubWorkspace,
-			name: 'reviewer',
+			name: 'Review',
 		};
 		const server: IMcpServerCustomizationMigrationCandidate = {
 			type: CustomizationMigrationType.McpServers,
@@ -2019,22 +2248,40 @@ suite('aiCustomizationManagementEditor', () => {
 			targetUri: URI.file('/workspace/.mcp.json'),
 			projectedConfiguration: { type: McpServerType.LOCAL, command: 'node' },
 		};
-		const targetFolders: CustomizationMigrationTargetFolders = new Map([[
-			PromptsType.agent,
-			new Map([[PromptsStorage.local, {
-				uri: URI.file('/workspace/.agents/agents'),
-				label: '.agents/agents',
-				source: PromptsStorage.local,
-			}]]),
-		]]);
-
-		assert.deepStrictEqual({
-			file: editor.getFileMigrationConfirmationDetail('Move the file.', [file], targetFolders),
-			mcp: editor.getMcpMigrationConfirmationDetail('Move the server.', [server]),
-		}, {
-			file: 'Move the file.\n\nPlanned changes:\n• reviewer\n  From: /workspace/.github/agents/reviewer.agent.md\n  Destination: /workspace/.agents/agents/reviewer.agent.md',
-			mcp: 'Move the server.\n\nPlanned changes:\n• Server\n  From: /workspace/.vscode/mcp.json\n  To: /workspace/.mcp.json',
+		editor.selectedCustomizationMigrationTargets.set(`${PromptsType.skill}:${PromptsStorage.local}`, {
+			uri: URI.file('/workspace/.github/skills'),
+			label: '.github/skills',
+			source: PromptsStorage.local,
 		});
+		const confirmations: IConfirmation[] = [];
+		editor.dialogService = {
+			confirm: async confirmation => {
+				confirmations.push(confirmation);
+				return { confirmed: false };
+			},
+		};
+
+		await editor.migrateSelectedCustomizations(getCustomizationMigrationCategory(CustomizationMigrationCategoryId.PromptFiles), [prompt]);
+		await editor.migrateSelectedCustomizations(getCustomizationMigrationCategory(CustomizationMigrationCategoryId.McpServers), [server]);
+
+		assert.deepStrictEqual(confirmations, [
+			{
+				type: 'question',
+				message: 'Convert prompt files to skills?',
+				detail: 'This converts 1 workspace prompt files into skills.',
+				primaryButton: 'Convert to Skills',
+				checkbox: {
+					label: 'Delete original prompt files after migration',
+					checked: true,
+				},
+			},
+			{
+				type: 'question',
+				message: 'Migrate 1 MCP server to .mcp.json?',
+				detail: 'Eligible entries are removed from .vscode/mcp.json after they are written and verified in .mcp.json. Entries that cannot be migrated stay in place.',
+				primaryButton: 'Migrate',
+			},
+		]);
 		editor.editorPreviewDisposables.dispose();
 	});
 
@@ -2081,7 +2328,6 @@ suite('aiCustomizationManagementEditor', () => {
 			inProgress: editor.customizationMigrationInProgress,
 			writesInProgress: editor.customizationMigrationWritesInProgress,
 			remainingCandidates: editor.getMigrationCandidates(getCustomizationMigrationCategory(CustomizationMigrationCategoryId.McpServers)),
-			activity: editor.getMigrationActivityState(PromptsStorage.local).activity.map(({ id, ...entry }) => entry),
 		}, {
 			migrated: [[server]],
 			notifications: ['info:Migrated 1 MCP server.'],
@@ -2089,18 +2335,6 @@ suite('aiCustomizationManagementEditor', () => {
 			inProgress: false,
 			writesInProgress: false,
 			remainingCandidates: [],
-			activity: [{
-				categoryLabel: 'MCP Servers',
-				scopeLabel: 'vscode',
-				storage: PromptsStorage.local,
-				items: [{
-					label: 'server',
-					sourceLabel: '/workspace/.vscode/mcp.json',
-					targetLabel: '/workspace/.mcp.json',
-					operation: 'server',
-					migrationKey: 'mcp:["mcp.config.ws0.server","server","file:///workspace/.vscode/mcp.json","file:///workspace/.mcp.json"]',
-				}],
-			}],
 		});
 		editor.editorPreviewDisposables.dispose();
 	});
@@ -2156,7 +2390,6 @@ suite('aiCustomizationManagementEditor', () => {
 				confirmations: [{
 					type: 'warning',
 					...confirmation,
-					detail: editor.getMcpMigrationConfirmationDetail(confirmation.detail, [server]),
 				}],
 				inProgress: false,
 				writesInProgress: false,
@@ -2225,16 +2458,20 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.migrationFlowId = 'migration-flow-id';
 		const migrationCompleted: unknown[][] = [];
 		editor.customizationMigrationTelemetryService.migrationCompleted = (...args) => migrationCompleted.push(args);
+		const notifications: string[] = [];
+		editor.notificationService.info = message => notifications.push(message);
 
 		await editor.migrateSelectedCustomizations(getCustomizationMigrationCategory(CustomizationMigrationCategoryId.PromptFiles), [prompt]);
 
 		assert.deepStrictEqual({
 			dashboardShown,
 			migrationCompleted,
+			notifications,
 			remainingCandidates: editor.getMigrationCandidates(getCustomizationMigrationCategory(CustomizationMigrationCategoryId.PromptFiles)),
 		}, {
 			dashboardShown: 1,
 			migrationCompleted: [[CustomizationMigrationType.PromptFiles, 1, 1, 0, [], 'migration-flow-id']],
+			notifications: ['Converted 1 prompt files to skills.'],
 			remainingCandidates: [],
 		});
 		editor.editorPreviewDisposables.dispose();
@@ -2285,7 +2522,7 @@ suite('aiCustomizationManagementEditor', () => {
 		const prompts = getCustomizationMigrationCategory(CustomizationMigrationCategoryId.PromptFiles);
 		assert.deepStrictEqual({
 			scopes: editor.getCustomizationMigrationDashboardOverview().scopes.map(scope => ({
-				label: scope.label, count: scope.count, skipped: scope.skipped,
+				label: scope.label, count: scope.count,
 				categories: scope.categories.map(category => [category.label, category.countLabel]),
 			})),
 			profile: editor.getMigrationCandidates(prompts, PromptsStorage.user),
@@ -2300,8 +2537,8 @@ suite('aiCustomizationManagementEditor', () => {
 			})),
 		}, {
 			scopes: [
-				{ label: 'Your profile', count: 4, skipped: false, categories: [['Convert Prompt to Skills', '1 prompt'], ['User Data', '1 agent'], ['Custom location settings', '1 customization'], ['MCP Servers', '1 server']] },
-				{ label: 'vscode', count: 3, skipped: false, categories: [['Convert Prompt to Skills', '1 prompt'], ['Custom location settings', '1 customization'], ['MCP Servers', '1 server']] },
+				{ label: 'Your profile', count: 4, categories: [['Convert Prompt to Skills', '1 prompt'], ['User Data', '1 agent'], ['Custom location settings', '1 customization'], ['MCP Servers', '1 server']] },
+				{ label: 'vscode', count: 3, categories: [['Convert Prompt to Skills', '1 prompt'], ['Custom location settings', '1 customization'], ['MCP Servers', '1 server']] },
 			],
 			profile: [profile], workspace: [workspace], all: [profile, workspace], mcpProfile: [userServer],
 			manualReview: [{
@@ -2316,12 +2553,14 @@ suite('aiCustomizationManagementEditor', () => {
 
 	test('opens dashboard customizations in their embedded editor or detail page', async () => {
 		const editor = createTestEditor();
-		const opened: [URI, string, PromptsType, AICustomizationSource, boolean | undefined][] = [];
-		const mcpDetails: IMcpServerDetailInput[] = [];
-		editor.showEmbeddedEditor = async (uri, displayName, promptType, source, isWorkspaceFile) => {
-			opened.push([uri, displayName, promptType, source, isWorkspaceFile]);
+		const opened: [URI, string, PromptsType, AICustomizationSource, boolean | undefined, string | undefined][] = [];
+		const mcpDetails: { readonly detail: IMcpServerDetailInput; readonly migrationItemId?: string; readonly storage?: PromptsStorage }[] = [];
+		editor.showEmbeddedEditor = async (uri, displayName, promptType, source, isWorkspaceFile, _isReadOnly, migrationDetail) => {
+			opened.push([uri, displayName, promptType, source, isWorkspaceFile, migrationDetail?.item.id]);
 		};
-		editor.showEmbeddedMcpDetail = async server => { mcpDetails.push(server); };
+		editor.showEmbeddedMcpDetail = async (detail, _origin, migrationDetail) => {
+			mcpDetails.push({ detail, migrationItemId: migrationDetail?.item.id, storage: migrationDetail?.storage });
+		};
 		const file = URI.file('/profile/review.prompt.md');
 		const mcp = URI.file('/workspace/.vscode/mcp.json');
 
@@ -2349,21 +2588,24 @@ suite('aiCustomizationManagementEditor', () => {
 				args[2],
 				args[3],
 				args[4],
+				args[5],
 			]),
-			mcp: mcpDetails.map(detail => ({
+			mcp: mcpDetails.map(({ detail, migrationItemId, storage }) => ({
 				id: detail.id,
 				name: detail.name,
 				compatibilityId: detail.compatibilityId,
 				source: detail.source?.uri.path,
+				migrationItemId,
+				storage,
 			})),
 		}, {
-			file: [['/profile/review.prompt.md', 'review', PromptsType.prompt, PromptsStorage.user, false]],
-			mcp: [{ id: 'server', name: 'server', compatibilityId: 'server', source: '/workspace/.vscode/mcp.json' }],
+			file: [['/profile/review.prompt.md', 'review', PromptsType.prompt, PromptsStorage.user, false, 'file']],
+			mcp: [{ id: 'server', name: 'server', compatibilityId: 'server', source: '/workspace/.vscode/mcp.json', migrationItemId: 'mcp', storage: PromptsStorage.local }],
 		});
 		editor.editorPreviewDisposables.dispose();
 	});
 
-	test('keeps the unified sidebar entry reachable for workspace migrations', () => {
+	test('shows the migrations sidebar entry only while migrations are pending', () => {
 		const editor = createTestEditor(undefined, createConfigurationServiceStub({
 			[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
 		}));
@@ -2371,206 +2613,24 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.migrationShortcutButton = document.createElement('button');
 		editor.migrationShortcutCount = document.createElement('span');
 		editor.layoutSidebar = () => { };
+		const states: (string | null)[][] = [];
+		editor.updateSidebarMigrationShortcut();
+		states.push([editor.migrationShortcutContainer.style.display, editor.migrationShortcutCount.textContent]);
 		editor.customizationsByMigrationCategory.set(CustomizationMigrationCategoryId.McpServers, [{
 			type: CustomizationMigrationType.McpServers, id: 'server', name: 'server',
 			storage: PromptsStorage.local,
 			sourceUri: URI.file('/workspace/.vscode/mcp.json'), targetUri: URI.file('/workspace/.mcp.json'),
 			projectedConfiguration: { type: McpServerType.LOCAL, command: 'node' },
 		}]);
-		const states: (string | null)[][] = [];
+		editor.updateSidebarMigrationShortcut();
+		states.push([editor.migrationShortcutContainer.style.display, editor.migrationShortcutCount.textContent]);
+		editor.customizationsByMigrationCategory.clear();
 		editor.updateSidebarMigrationShortcut();
 		states.push([editor.migrationShortcutContainer.style.display, editor.migrationShortcutCount.textContent]);
 		editor.harnessService.activeHarness.set('local', undefined);
 		editor.updateSidebarMigrationShortcut();
 		states.push([editor.migrationShortcutContainer.style.display, editor.migrationShortcutCount.textContent]);
-		assert.deepStrictEqual(states, [['', '1'], ['none', '1']]);
-		editor.editorPreviewDisposables.dispose();
-	});
-
-	test('persists only successful MCP activity in its initiating workspace', async () => {
-		const configuration = createConfigurationServiceStub({ [ChatConfiguration.ChatCustomizationsMigrationEnabled]: true });
-		const editor = createTestEditor(undefined, configuration);
-		const server: IMcpServerCustomizationMigrationCandidate = {
-			type: CustomizationMigrationType.McpServers, id: 'server', name: 'server',
-			storage: PromptsStorage.local,
-			sourceUri: URI.file('/workspace/.vscode/mcp.json'), targetUri: URI.file('/workspace/.mcp.json'),
-			projectedConfiguration: { type: McpServerType.LOCAL, command: 'node' },
-		};
-		const failed = { ...server, id: 'failed', name: 'failed' };
-		editor.dialogService = { confirm: async () => ({ confirmed: true }) };
-		editor.refreshCustomizationMigrationInfo = async () => { };
-		editor.migrationFlowId = 'migration-flow-id';
-		editor.customizationMigrationService = {
-			migrateMcpServers: async () => {
-				editor.migrationFlowId = 'new-migration-flow-id';
-				editor.workspaceService.activeProjectRoot.set(URI.file('/other'), undefined);
-				return {
-					migratedCount: 1,
-					failures: [{ ...failed, reason: McpServerCustomizationMigrationFailureReason.TargetConflict }],
-				};
-			},
-		};
-		const migrationCompleted: unknown[][] = [];
-		editor.customizationMigrationTelemetryService.migrationCompleted = (...args) => migrationCompleted.push(args);
-		await editor.migrateSelectedCustomizations(getCustomizationMigrationCategory(CustomizationMigrationCategoryId.McpServers), [server, failed]);
-		const reopened = createTestEditor(undefined, configuration);
-		reopened.storageService = editor.storageService;
-		assert.deepStrictEqual({
-			currentWorkspace: editor.getMigrationActivityState(PromptsStorage.local).activity,
-			profile: reopened.getMigrationActivityState(PromptsStorage.user).activity,
-			reopenedWorkspace: reopened.getMigrationActivityState(PromptsStorage.local).activity.map(entry => entry.items.map(item => item.label)),
-			migrationCompleted,
-		}, {
-			currentWorkspace: [],
-			profile: [],
-			reopenedWorkspace: [['server']],
-			migrationCompleted: [[CustomizationMigrationType.McpServers, 2, 1, 1, [McpServerCustomizationMigrationFailureReason.TargetConflict], 'migration-flow-id']],
-		});
-
-		test('records user MCP migration activity in the profile', async () => {
-			const editor = createTestEditor(undefined, createConfigurationServiceStub({
-				[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
-			}));
-			const server: IMcpServerCustomizationMigrationCandidate = {
-				type: CustomizationMigrationType.McpServers,
-				storage: PromptsStorage.user,
-				id: 'user',
-				name: 'server',
-				sourceUri: URI.file('/profile/mcp.json'),
-				targetUri: URI.file('/home/.copilot/mcp-config.json'),
-				projectedConfiguration: { type: McpServerType.LOCAL, command: 'node' },
-			};
-			editor.dialogService = { confirm: async () => ({ confirmed: true }) };
-			editor.refreshCustomizationMigrationInfo = async () => { };
-			editor.customizationMigrationService = { migrateMcpServers: async () => ({ migratedCount: 1, failures: [] }) };
-			await editor.migrateSelectedCustomizations(getCustomizationMigrationCategory(CustomizationMigrationCategoryId.McpServers), [server]);
-			assert.deepStrictEqual({
-				user: editor.getMigrationActivityState(PromptsStorage.user).activity.map(entry => ({
-					storage: entry.storage,
-					scopeLabel: entry.scopeLabel,
-					items: entry.items.map(item => [item.sourceLabel, item.targetLabel]),
-				})),
-				workspace: editor.getMigrationActivityState(PromptsStorage.local).activity,
-			}, {
-				user: [{ storage: PromptsStorage.user, scopeLabel: 'Your profile', items: [['/profile/mcp.json', '/home/.copilot/mcp-config.json']] }],
-				workspace: [],
-			});
-			editor.editorPreviewDisposables.dispose();
-		});
-		reopened.editorPreviewDisposables.dispose();
-		editor.editorPreviewDisposables.dispose();
-	});
-
-	test('removes reverted migration activity while preserving copied activity', () => {
-		const editor = createTestEditor(undefined, createConfigurationServiceStub({
-			[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
-		}));
-		const category = getCustomizationMigrationCategory(CustomizationMigrationCategoryId.PromptFiles);
-		const context = editor.getMigrationActivityContext(PromptsStorage.local);
-		const revertedPrompt: MigratableConfiguration = {
-			uri: URI.file('/workspace/.github/prompts/review.prompt.md'),
-			name: 'review.prompt.md',
-			storage: PromptsStorage.local,
-			type: PromptsType.prompt,
-			source: PromptFileSource.GitHubWorkspace,
-		};
-		const legacyPrompt: MigratableConfiguration = {
-			...revertedPrompt,
-			uri: URI.file('/workspace/.github/prompts/legacy.prompt.md'),
-			name: 'legacy.prompt.md',
-		};
-		editor.recordMigrationActivity(category, context, [{
-			label: 'review.prompt.md',
-			sourceLabel: '/workspace/.github/prompts/review.prompt.md',
-			targetLabel: '/workspace/.github/skills/review/SKILL.md',
-			operation: 'converted',
-			migrationKey: `file:${PromptsStorage.local}:${revertedPrompt.uri.toString()}`,
-		}, {
-			label: 'legacy.prompt.md',
-			sourceLabel: '/workspace/.github/prompts/legacy.prompt.md',
-			targetLabel: '/workspace/.github/skills/legacy/SKILL.md',
-			operation: 'converted',
-		}, {
-			label: 'review.prompt.md',
-			sourceLabel: '/workspace/.github/prompts/review.prompt.md',
-			targetLabel: '/workspace/.agents/prompts/review.prompt.md',
-			operation: 'copied',
-			migrationKey: `file:${PromptsStorage.local}:${revertedPrompt.uri.toString()}`,
-		}]);
-
-		editor.setCustomizationsToMigrate(new Map([[category.id, [revertedPrompt, legacyPrompt]]]), new Map());
-
-		const state = editor.getMigrationActivityState(PromptsStorage.local);
-		assert.deepStrictEqual({
-			activity: state.activity.map(entry => entry.items),
-			skipped: state.skipped,
-			started: state.started,
-		}, {
-			activity: [[{
-				label: 'review.prompt.md',
-				sourceLabel: '/workspace/.github/prompts/review.prompt.md',
-				targetLabel: '/workspace/.agents/prompts/review.prompt.md',
-				operation: 'copied',
-				migrationKey: `file:${PromptsStorage.local}:${revertedPrompt.uri.toString()}`,
-			}]],
-			skipped: false,
-			started: true,
-		});
-		editor.editorPreviewDisposables.dispose();
-	});
-
-	test('persists file migration activity newest first for the initiating profile', () => {
-		const editor = createTestEditor();
-		const category = getCustomizationMigrationCategory(CustomizationMigrationCategoryId.PromptFiles);
-		const context = editor.getMigrationActivityContext(PromptsStorage.user);
-		editor.recordMigrationActivity(category, context, [{
-			label: 'first',
-			sourceLabel: 'VS Code profile/first.prompt.md',
-			targetLabel: '~/.agents/skills/first/SKILL.md',
-			operation: 'converted',
-		}]);
-		editor.recordMigrationActivity(category, context, [{
-			label: 'second',
-			sourceLabel: 'VS Code profile/second.prompt.md',
-			targetLabel: '~/.agents/skills/second/SKILL.md',
-			operation: 'converted',
-		}]);
-		const state = editor.getMigrationActivityState(PromptsStorage.user);
-		assert.deepStrictEqual({
-			started: state.started,
-			activity: state.activity.map(entry => ({
-				categoryLabel: entry.categoryLabel,
-				scopeLabel: entry.scopeLabel,
-				storage: entry.storage,
-				items: entry.items,
-			})),
-		}, {
-			started: true,
-			activity: [
-				{
-					categoryLabel: 'Convert Prompt to Skills',
-					scopeLabel: 'Your profile',
-					storage: PromptsStorage.user,
-					items: [{
-						label: 'second',
-						sourceLabel: 'VS Code profile/second.prompt.md',
-						targetLabel: '~/.agents/skills/second/SKILL.md',
-						operation: 'converted',
-					}],
-				},
-				{
-					categoryLabel: 'Convert Prompt to Skills',
-					scopeLabel: 'Your profile',
-					storage: PromptsStorage.user,
-					items: [{
-						label: 'first',
-						sourceLabel: 'VS Code profile/first.prompt.md',
-						targetLabel: '~/.agents/skills/first/SKILL.md',
-						operation: 'converted',
-					}],
-				},
-			],
-		});
+		assert.deepStrictEqual(states, [['none', ''], ['', '1'], ['none', ''], ['none', '']]);
 		editor.editorPreviewDisposables.dispose();
 	});
 

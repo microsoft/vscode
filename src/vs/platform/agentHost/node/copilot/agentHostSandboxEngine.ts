@@ -12,7 +12,7 @@ import { createHash } from 'crypto';
 import { IEnvironmentService, INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { IProductService } from '../../../product/common/productService.js';
-import { ISandboxHelperService, type ISandboxDependencyStatus, type IWindowsMxcPolicyContainment, type IWindowsMxcSandboxPolicy } from '../../../sandbox/common/sandboxHelperService.js';
+import { ISandboxHelperService, type ISandboxDependencyStatus } from '../../../sandbox/common/sandboxHelperService.js';
 import { ITerminalSandboxEngineHost, ITerminalSandboxRuntimeInfo, TerminalSandboxEngine } from '../../../sandbox/common/terminalSandboxEngine.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { getAppNodeModulesUri } from '../appNodeModules.js';
@@ -109,18 +109,6 @@ class AgentHostTerminalSandboxHost extends Disposable implements ITerminalSandbo
 
 	async checkSandboxDependencies(): Promise<ISandboxDependencyStatus | undefined> {
 		return this._sandboxHelper.checkSandboxDependencies();
-	}
-
-	async getWindowsMxcFilesystemPolicy() {
-		return this._sandboxHelper.getWindowsMxcFilesystemPolicy();
-	}
-
-	async getWindowsMxcEnvironment() {
-		return this._sandboxHelper.getWindowsMxcEnvironment();
-	}
-
-	async buildWindowsMxcSandboxPayload(commandLine: string, policy: IWindowsMxcSandboxPolicy, workingDirectory?: string, containerName?: string, containment?: IWindowsMxcPolicyContainment) {
-		return this._sandboxHelper.buildWindowsMxcSandboxPayload(commandLine, policy, workingDirectory, containerName, containment);
 	}
 
 	getSandboxSetting<T>(settingId: string): T | undefined {

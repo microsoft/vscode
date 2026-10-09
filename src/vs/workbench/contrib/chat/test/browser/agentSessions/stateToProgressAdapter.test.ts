@@ -8,11 +8,15 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { hasKey } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { renderMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
+import { extUri } from '../../../../../../base/common/resources.js';
+import { renderAsPlaintext, renderMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
+import { getChatMarkdownRenderOptions } from '../../../browser/widget/chatContentMarkdownRenderer.js';
+import { getToolGroupSummary } from '../../../browser/widget/chatContentParts/chatToolGroupSummary.js';
 import { MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AgentHostAutoReplyAnswer } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { toAgentMessageDelegationMeta } from '../../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
+import { buildOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLinkConnectionAuthority, parseOpenSessionLinkUri } from '../../../../../../platform/agentHost/common/openSessionLink.js';
 import { toAgentMergeMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentMergeMessageMeta.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, AgentSystemNotificationWorkspaceKind, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
 import { toAgentWorkspaceContinuationMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentWorkspaceContinuationMeta.js';
@@ -331,7 +335,7 @@ suite('stateToProgressAdapter', () => {
 		], ['agentHost.chatActivity', 'agentHost.chatActivity:fusion:1', 'agentHost.chatActivity:fusion:2', undefined, undefined]);
 	});
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('detects the canonical automatic reply answer', () => {
 		assert.deepStrictEqual([
@@ -661,40 +665,56 @@ suite('stateToProgressAdapter', () => {
 				history[2].type === 'request' ? history[2].origin : undefined,
 			], [{
 				kind: ChatRequestOriginKind.Delegation,
-				sourceSessionResource: URI.parse('agent-host-session://copilot/creator?turn=creating-turn'),
+				sourceSessionResource: URI.parse(buildOpenSessionLinkUri(URI.parse('copilot:/creator'), undefined, 'creating-turn', 'local')),
 				delegationScope: 'session',
 			}, undefined]);
 		});
 
-		test('created session maps an aliased backend source to its logical provider', () => {
+		for (const provider of ['copilotcli', 'codex', 'claude']) {
+			test(`created ${provider} session retains its standard delegation source`, () => {
+				const turn = createTurn({
+					message: {
+						text: 'Hello',
+						origin: { kind: MessageKind.User },
+						_meta: toAgentMessageDelegationMeta({
+							sourceSession: 'ahp-session:/creator',
+							sourceChat: 'ahp-chat://default/YWhwLXNlc3Npb246L2NyZWF0b3I',
+						}),
+					},
+				});
+
+				const history = rawTurnsToHistory(
+					URI.parse('ahp-session:/created'),
+					[turn],
+					`agent-host-${provider}`,
+					'remote',
+				);
+
+				assert.deepStrictEqual(history[0].type === 'request' ? history[0].origin : undefined, {
+					kind: ChatRequestOriginKind.Delegation,
+					sourceSessionResource: URI.parse(buildOpenSessionLinkUri(URI.parse('ahp-session:/creator'), undefined, undefined, 'remote')),
+					delegationScope: 'session',
+				});
+			});
+		}
+
+		test('delegation keeps opaque source session and chat resources on their owning connection', () => {
+			const source = URI.parse('session-store://tenant/root?revision=2');
+			const chat = URI.parse('conversation://tenant/peer?revision=1#part');
 			const turn = createTurn({
 				message: {
-					text: 'Hello',
-					origin: { kind: MessageKind.User },
-					_meta: toAgentMessageDelegationMeta({
-						sourceSession: 'ahp-session:/creator',
-						sourceChat: 'ahp-chat://default/YWhwLXNlc3Npb246L2NyZWF0b3I',
-					}),
+					text: 'Delegated', origin: { kind: MessageKind.User },
+					_meta: toAgentMessageDelegationMeta({ sourceSession: source.toString(), sourceChat: chat.toString() }),
 				},
 			});
-
-			const history = rawTurnsToHistory(
-				URI.parse('ahp-session:/created'),
-				[turn],
-				'copilot',
-				'remote',
-				undefined,
-				undefined,
-				undefined,
-				undefined,
-				'copilot',
-			);
-
-			assert.deepStrictEqual(history[0].type === 'request' ? history[0].origin : undefined, {
-				kind: ChatRequestOriginKind.Delegation,
-				sourceSessionResource: URI.parse('agent-host-session://copilot/creator'),
-				delegationScope: 'session',
-			});
+			const history = rawTurnsToHistory(URI.parse('ahp-session:/receiver'), [turn], 'agent-host-claude', 'other-host');
+			const link = history[0].type === 'request' ? history[0].origin?.sourceSessionResource : undefined;
+			assert.ok(link);
+			assert.deepStrictEqual({
+				source: parseOpenSessionLinkUri(link)?.toString(),
+				chat: URI.parse(parseOpenSessionLinkChatId(link)!).toString(),
+				owner: parseOpenSessionLinkConnectionAuthority(link),
+			}, { source: source.toString(), chat: chat.toString(), owner: 'other-host' });
 		});
 
 		test('thread coordination tools restore deterministic target-session chips', () => {
@@ -1025,6 +1045,48 @@ suite('stateToProgressAdapter', () => {
 			});
 		});
 
+		test('successful remote MCP App preserves resource provenance in live rendering and restored history', () => {
+			const backendSession = URI.parse('custom-host-session:/opaque-session');
+			const connectionAuthority = 'remote-host';
+			const tc = createToolCallState({
+				toolName: 'github-get_me',
+				toolInput: '{}',
+				contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'github-customization' },
+				_meta: {
+					mcpServerName: 'GitHub',
+					ui: { resourceUri: 'ui://github-mcp-server/get-me', channel: 'mcp://opaque-host-channel/GitHub' },
+				},
+			});
+			const live = rawToolCallStateToInvocation(tc, undefined, backendSession, connectionAuthority);
+			const completed = createCompletedToolCall({ ...tc, status: ToolCallStatus.Completed, success: true });
+			rawFinalizeToolInvocation(live, completed, backendSession, connectionAuthority);
+			const history = rawTurnsToHistory(backendSession, [createTurn({
+				responseParts: [{ kind: ResponsePartKind.ToolCall, toolCall: completed }],
+			})], 'p', connectionAuthority);
+			const response = history[1];
+			assert.ok(response.type === 'response');
+			const restored = response.parts[0];
+			assert.ok(restored.kind === 'toolInvocationSerialized');
+			const expected = {
+				originMessage: 'GitHub (MCP Server)',
+				toolSpecificData: {
+					kind: 'input',
+					rawInput: {},
+					mcpAppData: {
+						kind: 'agentHost',
+						resourceUri: 'ui://github-mcp-server/get-me',
+						connectionAuthority,
+						serverId: 'github-customization',
+						channel: 'mcp://opaque-host-channel/GitHub',
+					},
+				},
+			};
+			assert.deepStrictEqual([live, restored].map(invocation => ({
+				originMessage: invocation.originMessage,
+				toolSpecificData: invocation.toolSpecificData,
+			})), [expected, expected]);
+		});
+
 		test('generic completed tool call maps embedded resources and resource refs', () => {
 			const turn = createTurn({
 				responseParts: [{
@@ -1178,6 +1240,26 @@ suite('stateToProgressAdapter', () => {
 
 			assert.deepStrictEqual(response.parts, [
 				{ kind: 'autoModeResolution', resolved: { id: 'gpt-5.4-mini', name: 'GPT-5.4 mini' } },
+			]);
+		});
+
+		test('restores the Auto selection reason with the routing part', () => {
+			const reason = 'Auto selected gpt-5.4-mini to prioritize cost efficiency, alongside model fit for this task.';
+			const turn = createTurn({
+				usage: {
+					model: 'gpt-5.4-mini',
+					_meta: { autoModeResolved: { chosenModel: 'gpt-5.4-mini', selectionReason: reason } },
+				},
+			});
+			const lookup = makeLookup('agent-host-copilot:', { 'gpt-5.4-mini': 'GPT-5.4 mini' });
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'p', lookup);
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+
+			assert.deepStrictEqual(response.parts, [
+				{ kind: 'autoModeResolution', resolved: { id: 'gpt-5.4-mini', name: 'GPT-5.4 mini', reason } },
 			]);
 		});
 
@@ -1604,7 +1686,7 @@ suite('stateToProgressAdapter', () => {
 				confirmationButtons: [{ data: { resume: true }, label: 'Try Again' }],
 			};
 
-			const history = rawTurnsToHistory(URI.file('/'), [errorTurn, completeTurn], 'p', '', undefined, undefined, undefined, createAgentHostResourceUriMapper(''), undefined, () => errorDetails);
+			const history = rawTurnsToHistory(URI.file('/'), [errorTurn, completeTurn], 'p', '', undefined, undefined, undefined, createAgentHostResourceUriMapper(''), () => errorDetails);
 			const responses = history.filter(item => item.type === 'response');
 
 			assert.deepStrictEqual(responses.map(response => response.type === 'response' ? response.errorDetails : undefined), [
@@ -1678,7 +1760,570 @@ suite('stateToProgressAdapter', () => {
 		});
 	});
 
+	suite('MCP App results', () => {
+		const textContent = [{ type: ToolResultContentType.Text, text: 'Opened the accent-color editor.' }] satisfies ToolResultContent[];
+		for (const toolInput of ['{}', undefined]) {
+			for (const content of [textContent, []]) {
+				for (const structuredContent of [{ titleId: 'example-title', branding: null }, {}, undefined]) {
+					for (const success of [true, false]) {
+						test(`preserves live and restored results (input=${toolInput}, text=${content.length > 0}, structured=${JSON.stringify(structuredContent)}, success=${success})`, () => {
+							const backendSession = URI.parse('other-host:/opaque-session');
+							const running = createToolCallState({
+								toolInput,
+								contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'remote-server' },
+								_meta: { ui: { resourceUri: 'ui://remote/app', channel: 'mcp://other-host/opaque-channel' } },
+							});
+							const completed = createCompletedToolCall({
+								...running,
+								status: ToolCallStatus.Completed,
+								success,
+								content,
+								structuredContent,
+							});
+							const live = rawToolCallStateToInvocation(running, undefined, backendSession, 'other-host');
+							rawFinalizeToolInvocation(live, completed, backendSession, 'other-host');
+							const restored = completedToolCallToSerialized(completed, undefined, backendSession, 'other-host');
+							const expected = content.length === 0 && structuredContent === undefined && success
+								? undefined
+								: {
+									content: content.map(block => ({ type: 'text', text: block.text })),
+									...(structuredContent !== undefined ? { structuredContent } : {}),
+									isError: success ? undefined : true,
+								};
+							assert.deepStrictEqual([live, restored].map(part => {
+								const details = part.kind === 'toolInvocation' ? IChatToolInvocation.resultDetails(part) : part.resultDetails;
+								assert.ok(isToolResultInputOutputDetails(details));
+								return details.mcpOutput;
+							}), [expected, expected]);
+						});
+					}
+				}
+			}
+		}
+	});
+
+	suite('image generation', () => {
+		test('preserves metadata-only image failure details and classification in live and restored state', () => {
+			const backendSession = URI.parse('other-host:/opaque-image-session');
+			const imageGeneration = { requestedModel: { id: 'remote/image-model', name: 'Remote Image' } };
+			const running = createToolCallState({
+				toolName: 'remote_create_image',
+				toolInput: undefined,
+				_meta: { 'vscode.imageGeneration': imageGeneration },
+			});
+			const completed = createCompletedToolCall({
+				...running,
+				status: ToolCallStatus.Completed,
+				success: false,
+				content: [],
+				error: { message: 'The image service rejected the request.' },
+			});
+			const live = rawToolCallStateToInvocation(running, undefined, backendSession, 'other-host');
+			rawFinalizeToolInvocation(live, completed, backendSession, 'other-host');
+			const restored = completedToolCallToSerialized(completed, undefined, backendSession, 'other-host');
+			const expected = {
+				title: 'Generated image failed',
+				data: { kind: 'input', rawInput: undefined, editable: false, imageGeneration },
+				details: {
+					input: '',
+					inputLanguage: 'json',
+					output: [{ type: 'embed', value: 'The image service rejected the request.', isText: true, mimeType: 'text/plain' }],
+					isError: true,
+					mcpOutput: undefined,
+				},
+			};
+			assert.deepStrictEqual([live, restored].map(part => ({
+				title: part.pastTenseMessage,
+				data: part.toolSpecificData,
+				details: part.kind === 'toolInvocation' ? IChatToolInvocation.resultDetails(part) : part.resultDetails,
+			})), [expected, expected]);
+		});
+
+		for (const streaming of [false, true]) {
+			test(`preserves metadata-only image cancellation in history (streaming=${streaming})`, () => {
+				const backendSession = URI.parse('other-host:/opaque-image-session');
+				const imageGeneration = { requestedModel: { id: 'remote/image-model' } };
+				const cancelled: ICompletedToolCall = {
+					toolCallId: 'remote-image',
+					toolName: 'remote_create_image',
+					displayName: 'Remote Image',
+					invocationMessage: 'Working on an image',
+					status: ToolCallStatus.Cancelled,
+					reason: ToolCallCancellationReason.Denied,
+					reasonMessage: 'Stopped by the user',
+					_meta: { 'vscode.imageGeneration': imageGeneration },
+				};
+				const live = streaming
+					? toolCallStateToStreamingInvocation({ ...cancelled, status: ToolCallStatus.Streaming }, undefined, backendSession, 'other-host')
+					: rawToolCallStateToInvocation(createToolCallState({ toolName: cancelled.toolName, _meta: cancelled._meta }), undefined, backendSession, 'other-host');
+				rawFinalizeToolInvocation(live, cancelled, backendSession, 'other-host');
+				const restored = completedToolCallToSerialized(cancelled, undefined, backendSession, 'other-host');
+				const expected = {
+					title: 'Image generation cancelled',
+					data: { kind: 'input', rawInput: undefined, editable: false, imageGeneration },
+				};
+				assert.deepStrictEqual([live, restored].map(part => ({ title: part.pastTenseMessage, data: part.toolSpecificData })), [expected, expected]);
+			});
+		}
+
+		for (const toolInput of [undefined, '']) {
+			test(`does not give ordinary output-only tools an empty input dropdown (input=${toolInput})`, () => {
+				const backendSession = URI.parse('other-host:/ordinary-session');
+				const running = createToolCallState({ toolName: 'ordinary_tool', toolInput });
+				const completed = createCompletedToolCall({ toolName: running.toolName, toolInput, content: [{ type: ToolResultContentType.Text, text: 'Finished waiting.' }] });
+				const live = rawToolCallStateToInvocation(running, undefined, backendSession, 'other-host');
+				rawFinalizeToolInvocation(live, completed, backendSession, 'other-host');
+				const restored = completedToolCallToSerialized(completed, undefined, backendSession, 'other-host');
+				assert.deepStrictEqual([IChatToolInvocation.resultDetails(live), restored.resultDetails], [undefined, undefined]);
+			});
+		}
+
+		for (const toolName of ['image_generation', 'image_gen.imagegen', 'test_tool']) {
+			for (const streaming of [true, false]) {
+				test(`preserves the cancelled ${toolName} label from ${streaming ? 'streaming' : 'running'} across live and restored history`, () => {
+					const backendSession = URI.parse('copilot:/cancelled-image');
+					const invocationMessage = 'Running test tool...';
+					const cancelled: ICompletedToolCall = {
+						toolCallId: 'cancelled-tool',
+						toolName,
+						displayName: 'Test Tool',
+						invocationMessage,
+						status: ToolCallStatus.Cancelled,
+						reason: ToolCallCancellationReason.Denied,
+						reasonMessage: 'Stopped by the user',
+					};
+					const live = streaming
+						? toolCallStateToStreamingInvocation({ ...cancelled, status: ToolCallStatus.Streaming }, undefined, backendSession, 'local')
+						: rawToolCallStateToInvocation(createToolCallState({ toolCallId: cancelled.toolCallId, toolName, invocationMessage }), undefined, backendSession, 'local');
+					rawFinalizeToolInvocation(live, cancelled, backendSession, 'local');
+					const restored = completedToolCallToSerialized(cancelled, undefined, backendSession, 'local');
+					const message = toolName === 'test_tool' ? invocationMessage : 'Image generation cancelled';
+					assert.deepStrictEqual({
+						liveMessage: live.pastTenseMessage ?? live.invocationMessage,
+						liveComplete: IChatToolInvocation.isComplete(live),
+						restoredMessage: restored.pastTenseMessage,
+						restoredComplete: restored.isComplete,
+					}, {
+						liveMessage: message,
+						liveComplete: true,
+						restoredMessage: message,
+						restoredComplete: true,
+					});
+				});
+			}
+		}
+
+		for (const [toolName, success] of [
+			['image_generation', true],
+			['image_generation', false],
+			['image_gen.imagegen', true],
+			['image_gen.imagegen', false],
+		] as const) {
+			test(`preserves the ${success ? 'completed' : 'failed'} ${toolName} label across live and restored history`, () => {
+				const backendSession = URI.parse('copilot:/image-state');
+				const pastTenseMessage = success ? 'Generated image' : '"Generate Image" failed';
+				const expectedMessage = success ? pastTenseMessage : 'Generated image failed';
+				const completed = createCompletedToolCall({
+					toolName,
+					invocationMessage: 'Generating image',
+					pastTenseMessage,
+					success,
+					toolInput: undefined,
+					content: success ? [{ type: ToolResultContentType.EmbeddedResource, data: 'aW1hZ2U=', contentType: 'image/png' }] : [],
+					error: success ? undefined : { message: 'Image generation returned no usable image.' },
+				});
+				const live = rawToolCallStateToInvocation(createToolCallState({
+					toolName,
+					invocationMessage: 'Generating image',
+				}), undefined, backendSession, 'local');
+				rawFinalizeToolInvocation(live, completed, backendSession, 'local');
+				const restored = completedToolCallToSerialized(completed, undefined, backendSession, 'local');
+				const expectedDetails = {
+					input: '',
+					inputLanguage: 'json',
+					output: success
+						? [{ type: 'embed', value: 'aW1hZ2U=', mimeType: 'image/png' }]
+						: [{ type: 'embed', value: 'Image generation returned no usable image.', isText: true, mimeType: 'text/plain' }],
+					isError: !success,
+					mcpOutput: undefined,
+				};
+				assert.deepStrictEqual({
+					live: live.pastTenseMessage,
+					restored: restored.pastTenseMessage,
+					complete: restored.isComplete,
+					details: [IChatToolInvocation.resultDetails(live), restored.resultDetails],
+				}, { live: expectedMessage, restored: expectedMessage, complete: true, details: [expectedDetails, expectedDetails] });
+			});
+		}
+
+		for (const name of [undefined, 'Image Preview']) {
+			test(`uses structured image identity with ${name ? 'a display name' : 'an id fallback'} on a non-VS Code host`, () => {
+				const backendSession = URI.parse('other-host:/opaque-resource');
+				const expectedName = name ?? 'provider/image-preview';
+				const metadata = { 'vscode.imageGeneration': { requestedModel: { id: 'provider/image-preview', name } } };
+				const running = createToolCallState({
+					toolName: 'remote_create_image',
+					_meta: metadata,
+				});
+				const live = rawToolCallStateToInvocation(running, undefined, backendSession, 'other-host');
+				const state = live.state.get();
+				assert.ok(state.type === IChatToolInvocation.StateKind.Executing);
+				const progress = state.progress.get().message;
+				const completed = createCompletedToolCall({
+					toolName: running.toolName,
+					_meta: metadata,
+					pastTenseMessage: 'Generated image',
+					content: [{ type: ToolResultContentType.EmbeddedResource, data: 'aW1hZ2U=', contentType: 'image/png' }],
+				});
+				rawFinalizeToolInvocation(live, completed, backendSession, 'other-host');
+				const restored = completedToolCallToSerialized(completed, undefined, backendSession, 'other-host');
+				assert.deepStrictEqual({
+					progress,
+					live: live.pastTenseMessage,
+					restored: restored.pastTenseMessage,
+					imageData: restored.toolSpecificData,
+				}, {
+					progress: `Generating image with ${expectedName}`,
+					live: `Generated image with ${expectedName}`,
+					restored: `Generated image with ${expectedName}`,
+					imageData: { kind: 'generatedImage' },
+				});
+			});
+		}
+
+		for (const toolName of ['image_gen.imagegen', 'image_generation']) {
+			for (const resourceReference of [false, true]) {
+				for (const toolInput of [undefined, '{"prompt":"Draw a puppy"}']) {
+					test(`${toolName} preserves ${resourceReference ? 'referenced' : 'embedded'} images ${toolInput ? 'with' : 'without'} input across live, reconnect, and history`, () => {
+						const backendSession = URI.parse('copilot:/image-session');
+						const connectionAuthority = 'ssh__image-host';
+						const uri = 'generated-images:/session/generated-image.png?version=1';
+						const content: ToolResultContent[] = resourceReference
+							? [{ type: ToolResultContentType.Resource, uri, contentType: 'image/png' }]
+							: [{ type: ToolResultContentType.EmbeddedResource, data: 'aW1hZ2U=', contentType: 'image/png' }];
+						const completed = createCompletedToolCall({ toolName, toolInput, content, _meta: { 'vscode.toolCallDurationMs': 43_500 } });
+						const responseParts: ToolCallResponsePart[] = [{ kind: ResponsePartKind.ToolCall, toolCall: completed }];
+						const live = rawToolCallStateToInvocation(createToolCallState({ toolName, toolInput }), undefined, backendSession, connectionAuthority);
+						rawFinalizeToolInvocation(live, completed, backendSession, connectionAuthority);
+						const reconnected = activeTurnToProgress(backendSession, {
+							id: 'turn-image',
+							startedAt: '2026-01-01T00:00:00.000Z',
+							message: message('Draw a puppy'),
+							responseParts,
+							usage: undefined,
+						}, connectionAuthority)[0];
+						const history = rawTurnsToHistory(backendSession, [createTurn({ responseParts })], 'participant', connectionAuthority)[1];
+						assert.ok(reconnected.kind === 'toolInvocationSerialized' && history.type === 'response');
+						const restored = history.parts[0];
+						assert.ok(restored.kind === 'toolInvocationSerialized');
+
+						const expected = {
+							toolSpecificData: { kind: 'generatedImage', durationMs: 43_500 },
+							resultDetails: {
+								input: toolInput ?? '',
+								inputLanguage: 'json',
+								output: resourceReference
+									? [{ type: 'ref', uri: toAgentHostContentUri(URI.parse(uri), connectionAuthority), mimeType: 'image/png' }]
+									: [{ type: 'embed', value: 'aW1hZ2U=', mimeType: 'image/png' }],
+								isError: false,
+								mcpOutput: undefined,
+							},
+						};
+						assert.deepStrictEqual([live, reconnected, restored].map(part => ({
+							toolSpecificData: part.toolSpecificData,
+							resultDetails: part.kind === 'toolInvocation' ? IChatToolInvocation.resultDetails(part) : part.resultDetails,
+						})), [expected, expected, expected]);
+					});
+				}
+			}
+		}
+
+		test('keeps local file image references directly accessible', () => {
+			const uri = 'file:///session/generated-image.png';
+			const result = completedToolCallToSerialized(createCompletedToolCall({
+				toolName: 'image_generation',
+				content: [{ type: ToolResultContentType.Resource, uri, contentType: 'image/png' }],
+			}), undefined, URI.file('/'), 'local');
+			assertInputOutputDetails(result.resultDetails);
+			assert.deepStrictEqual({
+				toolSpecificData: result.toolSpecificData,
+				output: result.resultDetails.output,
+			}, {
+				toolSpecificData: { kind: 'generatedImage' },
+				output: [{ type: 'ref', uri: URI.parse(uri), mimeType: 'image/png' }],
+			});
+		});
+
+		test('does not promote failed, empty, non-image, or image-viewing results to generated images', () => {
+			const image: ToolResultContent = { type: ToolResultContentType.EmbeddedResource, data: 'aW1hZ2U=', contentType: 'image/png' };
+			const calls = [
+				createCompletedToolCall({ toolName: 'image_generation', success: false, content: [image] }),
+				createCompletedToolCall({ toolName: 'image_generation', content: [] }),
+				createCompletedToolCall({ toolName: 'image_generation', content: [{ ...image, data: '' }] }),
+				createCompletedToolCall({ toolName: 'image_generation', content: [{ type: ToolResultContentType.Resource, uri: 'generated-images:/result', contentType: 'application/pdf' }] }),
+				createCompletedToolCall({ toolName: 'view_image', content: [image] }),
+			];
+			assert.deepStrictEqual(calls.map(call => completedToolCallToSerialized(call, undefined, URI.file('/'), 'local').toolSpecificData?.kind), ['input', 'input', 'input', 'input', undefined]);
+		});
+
+		test('keeps image tool output-only results without introducing empty details', () => {
+			const calls = [
+				createCompletedToolCall({ toolName: 'image_generation', content: [{ type: ToolResultContentType.Text, text: 'Output without arguments' }] }),
+				createCompletedToolCall({ toolName: 'image_generation' }),
+			];
+			assert.deepStrictEqual(calls.map(call => completedToolCallToSerialized(call, undefined, URI.file('/'), 'local').resultDetails), [{
+				input: '',
+				inputLanguage: 'json',
+				output: [{ type: 'embed', value: 'Output without arguments', isText: true, mimeType: 'text/plain' }],
+				isError: false,
+				mcpOutput: undefined,
+			}, undefined]);
+		});
+	});
+
 	suite('toolCallStateToInvocation', () => {
+		const nativeToolMeta = { 'vscode.toolInputContract': 'copilot-cli-v1' };
+
+		test('plain and structured search and fetch inputs retain the host-authored labels', () => {
+			const cases = [
+				{ toolName: 'grep', input: 'needle', parameters: { pattern: 'needle', path: '/repo' }, invocationMessage: 'Search for `needle`', pastTenseMessage: 'Search for `needle`' },
+				{ toolName: 'rg', input: 'needle', parameters: { pattern: 'needle', path: '/repo' }, invocationMessage: 'Search for `needle`', pastTenseMessage: 'Search for `needle`' },
+				{ toolName: 'web_fetch', input: 'https://example.com', parameters: { url: 'https://example.com' }, invocationMessage: 'Fetching example.com', pastTenseMessage: 'Fetched example.com' },
+			];
+			for (const { input, parameters, ...fields } of cases) {
+				const calls = [input, JSON.stringify(parameters)].map(toolInput => {
+					const running = createToolCallState({ ...fields, toolInput });
+					const live = toolCallStateToInvocation(running);
+					const completed = createCompletedToolCall({ ...fields, toolInput });
+					finalizeToolInvocation(live, completed);
+					const restored = completedToolCallToSerialized(completed, undefined, URI.file('/repo'), '');
+					return { live: [live.invocationMessage, live.pastTenseMessage], restored: [restored.invocationMessage, restored.pastTenseMessage] };
+				});
+				assert.deepStrictEqual(calls, [input, parameters].map(() => ({
+					live: [fields.invocationMessage, fields.pastTenseMessage],
+					restored: [fields.invocationMessage, fields.pastTenseMessage],
+				})));
+			}
+		});
+
+		test('preserves deterministic tool summaries in live and restored host calls', () => {
+			const resourceUris = createAgentHostResourceUriMapper('remote-test');
+			const session = URI.parse('ahp-session:/opaque-session');
+			const input = JSON.stringify({ path: '/workspace/file.ts', view_range: [10, 29] });
+			const running = createToolCallState({ toolName: 'view', toolInput: input, _meta: nativeToolMeta });
+			const completed = createCompletedToolCall({ toolName: 'view', toolInput: input, _meta: nativeToolMeta });
+			const live = rawToolCallStateToInvocation(running, undefined, session, 'remote-test', undefined, undefined, resourceUris);
+			rawFinalizeToolInvocation(live, completed, session, 'remote-test', resourceUris);
+			const restored = completedToolCallToSerialized(completed, undefined, session, 'remote-test', resourceUris);
+			const mcp = completedToolCallToSerialized(createCompletedToolCall({
+				toolName: 'view', toolInput: input,
+				contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'server' },
+			}), undefined, session, 'remote-test', resourceUris);
+			const expected = {
+				kind: 'read',
+				resources: [{ uri: resourceUris.fromAgentHost(URI.file('/workspace/file.ts')) }],
+			};
+			assert.deepStrictEqual({ live: live.summary, serialized: live.toJSON().summary, restored: restored.summary, mcp: mcp.summary }, {
+				live: expected, serialized: expected, restored: expected, mcp: { kind: 'unknown' },
+			});
+		});
+
+		test('requires an explicit native input contract and excludes client and MCP implementations', () => {
+			const resourceUris = createAgentHostResourceUriMapper('remote-test');
+			const session = URI.parse('ahp-session:/unrelated-peer/session-id');
+			const calls = [
+				createCompletedToolCall({ toolName: 'view', toolInput: '{"path":"/workspace/File.ts","view_range":[1,10]}' }),
+				createCompletedToolCall({ toolName: 'edit', toolInput: '{"path":"/workspace/File.ts"}' }),
+				createCompletedToolCall({ toolName: 'grep', toolInput: '{"pattern":"layout"}', _meta: { 'vscode.toolInputContract': 'different-v1' } }),
+				createCompletedToolCall({ toolName: 'view', toolInput: '{"path":"/workspace/File.ts","view_range":[1,10]}', _meta: { 'vscode.toolInputContract': {} } }),
+				createCompletedToolCall({
+					toolName: 'view', toolInput: '{"path":"/workspace/File.ts","view_range":[1,10]}', _meta: nativeToolMeta,
+					contributor: { kind: ToolCallContributorKind.Client, clientId: 'another-client' },
+				}),
+				createCompletedToolCall({
+					toolName: 'edit', toolInput: '{"path":"/workspace/File.ts"}', _meta: nativeToolMeta,
+					contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'server' },
+				}),
+				createCompletedToolCall({
+					toolName: 'bash', toolInput: '{"command":"not a shell","mode":"async"}', _meta: { ...nativeToolMeta, toolKind: 'terminal' },
+					contributor: { kind: ToolCallContributorKind.Client, clientId: 'another-client' },
+				}),
+			];
+			const summaries = calls.map(call => {
+				const live = rawToolCallStateToInvocation(createToolCallState({
+					toolCallId: call.toolCallId, toolName: call.toolName, toolInput: call.toolInput, contributor: call.contributor, _meta: call._meta,
+				}), undefined, session, 'remote-test', undefined, undefined, resourceUris);
+				rawFinalizeToolInvocation(live, call, session, 'remote-test', resourceUris);
+				const restored = completedToolCallToSerialized(call, undefined, session, 'remote-test', resourceUris);
+				return { live: live.summary, serialized: live.toJSON().summary, restored: restored.summary };
+			});
+			assert.deepStrictEqual(summaries, calls.map(() => ({
+				live: { kind: 'unknown' }, serialized: { kind: 'unknown' }, restored: { kind: 'unknown' },
+			})));
+		});
+
+		test('keeps cancelled and disposal-settled host calls out of successful summaries', async () => {
+			const running = createToolCallState({ toolCallId: 'skipped', toolName: 'grep', toolInput: '{"pattern":"skipped"}' });
+			const cancelled: ICompletedToolCall = {
+				status: ToolCallStatus.Cancelled,
+				toolCallId: running.toolCallId, toolName: running.toolName,
+				displayName: running.displayName, invocationMessage: running.invocationMessage,
+				reason: ToolCallCancellationReason.Skipped,
+				toolInput: running.toolInput,
+			};
+			const live = toolCallStateToInvocation(running);
+			finalizeToolInvocation(live, cancelled);
+			const settled = toolCallStateToInvocation(running);
+			await settled.didExecuteTool(undefined);
+			const success = completedToolCallToSerialized(createCompletedToolCall({
+				toolCallId: 'success', toolName: 'grep', toolInput: '{"pattern":"success"}', _meta: nativeToolMeta,
+			}), undefined, URI.file('/'), 'local');
+			const summaries = [live, live.toJSON(), settled, settled.toJSON(), completedToolCallToSerialized(cancelled, undefined, URI.file('/'), 'local')]
+				.map(tool => getToolGroupSummary([success, tool], [], 2, extUri));
+			assert.deepStrictEqual(summaries, [
+				'Searched for 1 phrase, 1 tool call skipped',
+				'Searched for 1 phrase, 1 tool call skipped',
+				'Searched for 1 phrase, 1 unfinished tool call',
+				'Searched for 1 phrase, 1 unfinished tool call',
+				'Searched for 1 phrase, 1 tool call skipped',
+			]);
+		});
+
+		test('distinguishes denied results from skipped calls in live and restored summaries', () => {
+			const summaries = [ToolCallCancellationReason.Skipped, ToolCallCancellationReason.Denied, ToolCallCancellationReason.ResultDenied].map(reason => {
+				const running = createToolCallState({ toolName: 'view', toolInput: '{"path":"/workspace/File.ts"}' });
+				const cancelled: ICompletedToolCall = {
+					status: ToolCallStatus.Cancelled, toolCallId: running.toolCallId, toolName: running.toolName,
+					displayName: running.displayName, invocationMessage: running.invocationMessage, toolInput: running.toolInput, reason,
+				};
+				const live = toolCallStateToInvocation(running);
+				finalizeToolInvocation(live, cancelled);
+				const restored = completedToolCallToSerialized(cancelled, undefined, URI.parse('ahp-session:/opaque-session'), 'remote');
+				return [live, live.toJSON(), restored].map(tool => getToolGroupSummary([tool], [], 1, extUri));
+			});
+			assert.deepStrictEqual(summaries, [
+				['1 tool call skipped', '1 tool call skipped', '1 tool call skipped'],
+				['1 tool call denied', '1 tool call denied', '1 tool call denied'],
+				['1 tool call denied', '1 tool call denied', '1 tool call denied'],
+			]);
+		});
+
+		test('summarizes successful host commands without requiring optional process exit metadata', () => {
+			const calls = ['pwd', 'git --version', 'node --version'].map((command, index) => createCompletedToolCall({
+				toolCallId: `command-${index}`,
+				toolName: 'bash',
+				toolInput: JSON.stringify({ command, mode: 'sync' }),
+				content: [{ type: ToolResultContentType.Terminal, resource: `terminal:/command-${index}`, title: command, isPty: false }],
+			}));
+			const summarizeCalls = (failed: boolean, restored: boolean) => {
+				const tools = calls.map((call, index) => {
+					const completed = { ...call, success: !failed || index === 0 };
+					if (restored) {
+						return completedToolCallToSerialized(completed, undefined, URI.file('/'), 'local');
+					}
+					const live = toolCallStateToInvocation(createToolCallState({ toolCallId: call.toolCallId, toolName: call.toolName, toolInput: call.toolInput }));
+					finalizeToolInvocation(live, completed);
+					return live;
+				});
+				return getToolGroupSummary(tools, [], tools.length, extUri);
+			};
+			assert.deepStrictEqual({
+				live: summarizeCalls(false, false),
+				restored: summarizeCalls(false, true),
+				liveErrors: summarizeCalls(true, false),
+				restoredErrors: summarizeCalls(true, true),
+			}, {
+				live: 'Ran 3 commands',
+				restored: 'Ran 3 commands',
+				liveErrors: 'Ran 1 command, 2 tool calls failed',
+				restoredErrors: 'Ran 1 command, 2 tool calls failed',
+			});
+		});
+
+		test('counts completed asynchronous invocations without tracking the background process', () => {
+			const running = createCompletedToolCall({
+				toolName: 'bash',
+				toolInput: '{"command":"build","mode":"async"}',
+				content: [{ type: ToolResultContentType.Terminal, resource: 'terminal:/background', title: 'build', isPty: false }],
+			});
+			const completed = createCompletedToolCall({
+				...running,
+				status: ToolCallStatus.Completed,
+				content: [{ type: ToolResultContentType.Terminal, resource: 'terminal:/background', title: 'build', isPty: false, result: { exitCode: 0 } }],
+			});
+			const titles = [running, completed].map(call => {
+				const tool = completedToolCallToSerialized(call, undefined, URI.file('/'), 'local');
+				return {
+					title: getToolGroupSummary([tool], [], 1, extUri),
+					inferredBackground: tool.toolSpecificData?.kind === 'terminal' ? tool.toolSpecificData.isBackground : undefined,
+				};
+			});
+			assert.deepStrictEqual(titles, [
+				{ title: 'Ran 1 command', inferredBackground: undefined },
+				{ title: 'Ran 1 command', inferredBackground: undefined },
+			]);
+		});
+
+		test('recognizes raw native shell input alongside failed commands', () => {
+			const calls = ['pwd', 'git --version', 'node --version'].map((command, index) => createCompletedToolCall({
+				toolCallId: `shell-${index}`, toolName: 'shell', toolInput: command, success: index === 0,
+				_meta: { toolKind: 'terminal' },
+				content: [{ type: ToolResultContentType.Terminal, resource: `terminal:/shell-${index}`, title: command, isPty: false }],
+			}));
+			const live = calls.map(call => {
+				const invocation = toolCallStateToInvocation(createToolCallState({
+					toolCallId: call.toolCallId, toolName: call.toolName, toolInput: call.toolInput, _meta: call._meta,
+				}));
+				finalizeToolInvocation(invocation, call);
+				return invocation;
+			});
+			const restored = calls.map(call => completedToolCallToSerialized(call, undefined, URI.file('/'), 'local'));
+			assert.deepStrictEqual([live, live.map(tool => tool.toJSON()), restored].map(tools => getToolGroupSummary(tools, [], 3, extUri)), [
+				'Ran 1 command, 2 tool calls failed', 'Ran 1 command, 2 tool calls failed', 'Ran 1 command, 2 tool calls failed',
+			]);
+		});
+
+		test('uses native terminal metadata rather than requiring a particular tool name', () => {
+			const call = createCompletedToolCall({
+				toolName: 'host-command',
+				toolInput: 'pwd',
+				_meta: { toolKind: 'terminal' },
+				content: [{ type: ToolResultContentType.Terminal, resource: 'terminal:/opaque-command', title: 'pwd', isPty: false }],
+			});
+			const invocation = completedToolCallToSerialized(call, undefined, URI.parse('ahp-session:/opaque-session'), 'local');
+			assert.strictEqual(getToolGroupSummary([invocation], [], 1, extUri), 'Ran 1 command');
+		});
+
+		test('uses reported patch files instead of inferring paths from patch text', () => {
+			const resourceUris = createAgentHostResourceUriMapper('remote-test');
+			const session = URI.parse('ahp-session:/opaque-session');
+			const completed = createCompletedToolCall({
+				toolName: 'apply_patch',
+				toolInput: JSON.stringify({ patch: 'opaque patch content' }),
+				content: ['first.ts', 'second.ts'].map(name => ({
+					type: ToolResultContentType.FileEdit,
+					after: { uri: `file:///workspace/${name}`, content: { uri: `opaque-content:/${name}` } },
+				})),
+			});
+			const live = rawToolCallStateToInvocation(createToolCallState({ toolName: 'apply_patch' }), undefined, session, 'remote-test', undefined, undefined, resourceUris);
+			rawFinalizeToolInvocation(live, completed, session, 'remote-test', resourceUris);
+			const restored = completedToolCallToSerialized(completed, undefined, session, 'remote-test', resourceUris);
+			const expected = { kind: 'edit', resources: ['first.ts', 'second.ts'].map(name => ({ uri: resourceUris.fromAgentHost(URI.file(`/workspace/${name}`)) })) };
+			assert.deepStrictEqual({ live: live.summary, restored: restored.summary }, { live: expected, restored: expected });
+		});
+
+		test('keeps image prompt input and image identity while running and reconnecting', () => {
+			const imageGeneration = { requestedModel: { id: 'provider/image-preview', name: 'Image Preview' } };
+			const tc = createToolCallState({
+				toolName: 'image_generation',
+				toolInput: '{"prompt":"A puppy","quality":"low"}',
+				_meta: { 'vscode.imageGeneration': imageGeneration },
+			});
+			const live = toolCallStateToInvocation(tc);
+			const expected = { kind: 'input', rawInput: tc.toolInput, editable: false, imageGeneration };
+			const restoredRunning = toolCallStateToInvocation(tc);
+			assert.deepStrictEqual([live.toolSpecificData, restoredRunning.toolSpecificData], [expected, expected]);
+		});
 
 		test('creates ChatToolInvocation for running tool', () => {
 			const tc = createToolCallState({
@@ -1821,6 +2466,113 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(carousel.answerPresentation, 'conversation');
 		});
 
+		test('presents a structured ask_user batch as one carousel with stable question IDs and freeform choices', () => {
+			const carousel = createInputRequestCarousel({
+				id: 'bulk-input',
+				message: 'Choose deployment preferences',
+				questions: [
+					{ id: 'environment', kind: ChatInputQuestionKind.SingleSelect, title: 'Environment', message: 'Where should we deploy?', options: [{ id: 'dev', label: 'Development' }, { id: 'prod', label: 'Production' }], allowFreeformInput: true },
+					{ id: 'features', kind: ChatInputQuestionKind.MultiSelect, message: 'Which features?', options: [{ id: 'logs', label: 'Logs' }], allowFreeformInput: true },
+					{ id: 'name', kind: ChatInputQuestionKind.Text, message: 'Deployment name', defaultValue: 'deployment' },
+				],
+			}, 'local');
+
+			assert.deepStrictEqual({
+				resolveId: carousel.resolveId,
+				message: typeof carousel.message === 'string' ? carousel.message : carousel.message?.value,
+				answerPresentation: carousel.answerPresentation,
+				questions: carousel.questions.map(question => ({
+					id: question.id,
+					type: question.type,
+					allowFreeformInput: question.allowFreeformInput,
+					options: question.options,
+					defaultValue: question.defaultValue,
+				})),
+			}, {
+				resolveId: 'bulk-input',
+				message: 'Choose deployment preferences',
+				answerPresentation: 'conversation',
+				questions: [
+					{ id: 'environment', type: 'singleSelect', allowFreeformInput: true, options: [{ id: 'dev', label: 'Development', value: 'dev' }, { id: 'prod', label: 'Production', value: 'prod' }], defaultValue: undefined },
+					{ id: 'features', type: 'multiSelect', allowFreeformInput: true, options: [{ id: 'logs', label: 'Logs', value: 'logs' }], defaultValue: undefined },
+					{ id: 'name', type: 'text', allowFreeformInput: undefined, options: undefined, defaultValue: 'deployment' },
+				],
+			});
+		});
+
+		test('does not repeat the question as the carousel message', () => {
+			const question = {
+				id: 'q1',
+				kind: ChatInputQuestionKind.SingleSelect,
+				message: 'Which test option do you prefer?',
+				required: true,
+				options: [{ id: 'a', label: 'Option A' }],
+			};
+			const repeated = createInputRequestCarousel({
+				id: 'repeated',
+				message: question.message,
+				questions: [question],
+			}, 'local');
+			const titled = createInputRequestCarousel({
+				id: 'titled',
+				message: question.message,
+				questions: [{ ...question, title: 'Test options' }],
+			}, 'local');
+			const contextual = createInputRequestCarousel({
+				id: 'contextual',
+				message: 'Select the best option for the cloud sandbox.',
+				questions: [question],
+			}, 'local');
+			const messageOnly = createInputRequestCarousel({
+				id: 'message-only',
+				message: question.message,
+			}, 'local');
+
+			assert.deepStrictEqual({
+				repeated: repeated.message,
+				titled: titled.message,
+				contextual: typeof contextual.message === 'string' ? contextual.message : contextual.message?.value,
+				messageOnly: messageOnly.message,
+				messageOnlyTitle: messageOnly.questions[0].title,
+			}, {
+				repeated: undefined,
+				titled: undefined,
+				contextual: 'Select the best option for the cloud sandbox.',
+				messageOnly: undefined,
+				messageOnlyTitle: question.message,
+			});
+		});
+
+		test('rewrites remote file links in retained question text', () => {
+			const message = 'Use [config](file:///workspace/config.json)?';
+			const repeated = createInputRequestCarousel({
+				id: 'repeated',
+				message,
+				questions: [{
+					id: 'q1',
+					kind: ChatInputQuestionKind.Text,
+					message: `${message}\nSee [notes](file:///workspace/notes.md).`,
+					required: true,
+				}],
+			}, 'my-host');
+			const messageOnly = createInputRequestCarousel({ id: 'message-only', message }, 'my-host');
+			const detailedMessage = repeated.questions[0].detailedMessage;
+
+			assert.deepStrictEqual({
+				repeatedMessage: repeated.message,
+				repeatedTitle: repeated.questions[0].title,
+				repeatedDetail: typeof detailedMessage === 'string' ? detailedMessage : detailedMessage?.value,
+				messageOnlyMessage: messageOnly.message,
+				messageOnlyTitle: messageOnly.questions[0].title,
+			}, {
+				repeatedMessage: undefined,
+				repeatedTitle: `Use [config](${rewriteAgentHostLinkTarget('file:///workspace/config.json', 'my-host')})?`,
+				repeatedDetail: `See [notes](${rewriteAgentHostLinkTarget('file:///workspace/notes.md', 'my-host')}).`,
+				messageOnlyMessage: undefined,
+				messageOnlyTitle: `Use [config](${rewriteAgentHostLinkTarget('file:///workspace/config.json', 'my-host')})?`,
+			});
+		});
+
 		test('attaches automation result data to live and restored configureAutomation calls', () => {
 			const content: ToolResultContent[] = [{
 				type: ToolResultContentType.Text,
@@ -1911,7 +2663,7 @@ suite('stateToProgressAdapter', () => {
 					},
 					requiredScopes: ['repo'],
 				},
-			}, undefined, URI.parse('agent-host-copilot://backend/session'), 'remote', 'frontend');
+			}, undefined, URI.parse('agent-host-copilot://backend/session'), 'remote', 'frontend', undefined, undefined, 'Example MCP (Connector)');
 
 			const state = invocation.state.get();
 			assert.strictEqual(state.type, IChatToolInvocation.StateKind.WaitingForAuthentication);
@@ -1927,7 +2679,7 @@ suite('stateToProgressAdapter', () => {
 				confirmationMessages: undefined,
 				server: {
 					id: 'frontend/mcp-1',
-					name: 'Example MCP',
+					name: 'Example MCP (Connector)',
 					resource: 'https://mcp.example.com',
 					oauthClient: {
 						clientId: 'configured-client-id',
@@ -1942,6 +2694,26 @@ suite('stateToProgressAdapter', () => {
 			invocation.setAuthenticationResolved();
 			assert.strictEqual(invocation.state.get().type, IChatToolInvocation.StateKind.Executing);
 		});
+
+		for (const toolInput of ['ls -la\nwc -l', JSON.stringify({ command: 'ls -la\nwc -l', description: 'Inspect the workspace' })]) {
+			test(`terminal command input supports ${toolInput.startsWith('{') ? 'JSON arguments' : 'plain commands'} in live state and history`, () => {
+				const fields = {
+					toolName: 'bash',
+					toolInput,
+					intention: 'Understand the project layout',
+					_meta: { toolKind: 'terminal' },
+				};
+				const live = toolCallStateToInvocation(createToolCallState(fields)).toolSpecificData;
+				const history = completedToolCallToSerialized(createCompletedToolCall(fields), undefined, URI.file('/repo'), '').toolSpecificData;
+				assert.deepStrictEqual([live, history].map(data => data?.kind === 'terminal' ? {
+					command: data.commandLine.original,
+					intention: data.intention,
+				} : undefined), [
+					{ command: 'ls -la\nwc -l', intention: 'Understand the project layout' },
+					{ command: 'ls -la\nwc -l', intention: 'Understand the project layout' },
+				]);
+			});
+		}
 
 		test('sets terminal toolSpecificData when content has terminal block', () => {
 			const tc = createToolCallState({
@@ -2625,6 +3397,38 @@ suite('stateToProgressAdapter', () => {
 	});
 
 	suite('completedToolCallToEditParts', () => {
+		for (const kind of ['edit', 'rename'] as const) {
+			test(`keeps ${kind} pill snapshots distinct from their displayed file paths`, () => {
+				const beforeFile = 'file:///repo/original.ts';
+				const afterFile = kind === 'rename' ? 'file:///repo/renamed.ts' : beforeFile;
+				const [edit] = completedToolCallToEditParts(createCompletedToolCall({
+					content: [{
+						type: ToolResultContentType.FileEdit,
+						before: { uri: beforeFile, content: { uri: 'opaque-content:/a1' } },
+						after: { uri: afterFile, content: { uri: 'opaque-content:/b2' } },
+					}],
+				}), 'remote');
+
+				assert.deepStrictEqual({
+					kind: edit.editKind,
+					file: edit.uri.path,
+					before: edit.beforeContentUri?.path,
+					after: edit.afterContentUri?.path,
+					beforeContent: edit.beforeContentUri && fromAgentHostUri(edit.beforeContentUri).toString(),
+					afterContent: edit.afterContentUri && fromAgentHostUri(edit.afterContentUri).toString(),
+					distinct: edit.beforeContentUri?.toString() !== edit.afterContentUri?.toString(),
+				}, {
+					kind,
+					file: URI.parse(afterFile).path,
+					before: URI.parse(beforeFile).path,
+					after: URI.parse(afterFile).path,
+					beforeContent: 'opaque-content:/a1',
+					afterContent: 'opaque-content:/b2',
+					distinct: true,
+				});
+			});
+		}
+
 		test('keeps child attribution separate from the edit undo stop', () => {
 			const toolCall = createCompletedToolCall({
 				toolCallId: 'child-patch',
@@ -2648,6 +3452,45 @@ suite('stateToProgressAdapter', () => {
 	});
 
 	suite('finalizeToolInvocation', () => {
+
+		for (const toolName of ['bash', 'powershell', 'local_shell']) {
+			for (const success of [true, false]) {
+				test(`omits duplicate terminal completion text for ${toolName} (${success ? 'success' : 'failure'}) in live and replayed tools`, () => {
+					for (const pastTenseMessage of [undefined, 'Tool finished', 'Ran Bash']) {
+						const running = createToolCallState({
+							toolName,
+							displayName: 'Bash',
+							invocationMessage: 'Running tool',
+							toolInput: JSON.stringify({ command: 'echo hi', description: 'Print greeting' }),
+						});
+						const completed = createCompletedToolCall({
+							...running,
+							status: ToolCallStatus.Completed,
+							pastTenseMessage,
+							success,
+							content: [{ type: ToolResultContentType.Text, text: 'hi\n' }],
+						});
+						const invocation = toolCallStateToInvocation(running);
+						finalizeToolInvocation(invocation, completed);
+						const serialized = completedToolCallToSerialized(completed, undefined, URI.parse('cloud-session://host/session'), 'remote');
+						const expected = {
+							invocationMessage: `${success ? 'Running command' : 'Command failed'} \`Print greeting\``,
+							pastTenseMessage: undefined,
+							kind: 'terminal',
+							command: 'echo hi',
+							output: 'hi\r\n',
+						};
+						assert.deepStrictEqual([invocation, serialized].map(tool => ({
+							invocationMessage: typeof tool.invocationMessage === 'string' ? tool.invocationMessage : tool.invocationMessage.value,
+							pastTenseMessage: tool.pastTenseMessage,
+							kind: tool.toolSpecificData?.kind,
+							command: tool.toolSpecificData?.kind === 'terminal' ? tool.toolSpecificData.commandLine.original : undefined,
+							output: tool.toolSpecificData?.kind === 'terminal' ? tool.toolSpecificData.terminalCommandOutput?.text : undefined,
+						})), [expected, expected]);
+					}
+				});
+			}
+		}
 
 		test('rewrites markdown links in pastTenseMessage through the agent host scheme', () => {
 			const tc = createToolCallState({ status: ToolCallStatus.Running });
@@ -3049,6 +3892,39 @@ suite('stateToProgressAdapter', () => {
 			assert.deepStrictEqual(result, []);
 		});
 
+		for (const { fileName, title, resource } of [
+			{ fileName: '/workspaces/server/index.js', title: 'Edit index.js', resource: 'file:///workspaces/server/index.js' },
+			{ fileName: 'C:\\workspace\\file.ts', title: 'Edit file.ts', resource: 'file:///c%3A/workspace/file.ts' },
+			{ fileName: '\\\\server\\share\\file.ts', title: 'Edit file.ts', resource: 'file://server/share/file.ts' },
+			{ fileName: '/workspace/a\\b.ts', title: 'Edit a\\b.ts', resource: 'file:///workspace/a%5Cb.ts' },
+			{ fileName: '/workspace/a\\', title: 'Edit a\\', resource: 'file:///workspace/a%5C' },
+		]) {
+			test(`restores a remote write approval with a file pill and a plain filename in its title for ${fileName}`, () => {
+				const result = activeTurnToProgress(URI.parse('provider:/session/from-host'), createActiveTurnState([{
+					kind: ResponsePartKind.ToolCall,
+					toolCall: {
+						status: ToolCallStatus.PendingConfirmation, toolCallId: 'write', toolName: 'edit', displayName: 'Edit',
+						invocationMessage: 'Edit file', confirmationTitle: 'Edit file', toolInput: fileName,
+						_meta: { promptRequest: { kind: 'write', fileName } },
+					},
+				}]), 'sandbox.example');
+				const invocation = result.find((part): part is IChatToolInvocation => part.kind === 'toolInvocation');
+				assert.ok(invocation);
+				const confirmation = IChatToolInvocation.getConfirmationMessages(invocation);
+				assert.ok(confirmation?.message && typeof confirmation.message !== 'string');
+				const rendered = store.add(renderMarkdown(confirmation.message, getChatMarkdownRenderOptions()));
+				const target = rendered.element.querySelector('a')?.dataset.href;
+				assert.deepStrictEqual({
+					title: confirmation.title,
+					resource: target ? fromAgentHostUri(URI.parse(target)).toString() : undefined,
+					state: invocation.state.get().type,
+				}, {
+					title, resource,
+					state: IChatToolInvocation.StateKind.WaitingForConfirmation,
+				});
+			});
+		}
+
 		test('includes usage progress from active turn usage', () => {
 			const activeTurn = createActiveTurnState();
 			activeTurn.usage = { inputTokens: 1000, outputTokens: 250 };
@@ -3154,6 +4030,37 @@ suite('stateToProgressAdapter', () => {
 				}, {
 					links: ['command:aiCustomization.openManagementEditor?%5B%22tools%22%5D'],
 					text: `Some tools were dropped. <${injected}> <a href="${injected}">hooks</a> &lt;b&gt; Configure Tools`,
+				});
+			} finally {
+				rendered.dispose();
+			}
+		});
+
+		test('keeps a managed plugin preparation failure visible and its host text inert', () => {
+			const text = 'Some plugins required by your organization admin could not be prepared. Continuing with the current setup. <command:evil> [details](command:evil) <b>security-guard</b> https://evil.example/x www.evil.example admin@evil.example';
+			const result = activeTurnToProgress(URI.file('/'), createActiveTurnState([{
+				kind: ResponsePartKind.SystemNotification,
+				content: text,
+				_meta: toAgentSystemNotificationMeta({
+					kind: AgentSystemNotificationKind.ManagedPluginPreparationFailure,
+					severity: AgentSystemNotificationSeverity.Warning,
+				}),
+			}]), undefined);
+			const warning = result[0];
+			assert.ok(warning.kind === 'warning');
+
+			const rendered = renderMarkdown(warning.content);
+			try {
+				assert.deepStrictEqual({
+					keepVisibleWhenCollapsed: warning.keepVisibleWhenCollapsed,
+					links: rendered.element.querySelectorAll('a').length,
+					text: rendered.element.textContent,
+					plaintext: renderAsPlaintext(warning.content, { useLinkFormatter: true }),
+				}, {
+					keepVisibleWhenCollapsed: true,
+					links: 0,
+					text,
+					plaintext: text,
 				});
 			} finally {
 				rendered.dispose();
@@ -3438,6 +4345,7 @@ suite('stateToProgressAdapter', () => {
 		});
 
 		test('preserves create metadata and proposed content for pending file confirmations', () => {
+			const fileUri = URI.file('/workspace/package.json');
 			const invocation = toolCallStateToInvocation({
 				toolCallId: 'tc-create',
 				toolName: 'write',
@@ -3459,10 +4367,10 @@ suite('stateToProgressAdapter', () => {
 				kind: 'modifiedFilesConfirmation',
 				options: ['Allow'],
 				modifiedFiles: [{
-					uri: URI.file('/workspace/package.json'),
+					uri: fileUri,
 					editKind: 'create',
 					originalUri: undefined,
-					modifiedContentUri: toAgentHostContentUri(URI.parse('pending-edit-content://session/tc-create/package.json'), 'local'),
+					modifiedContentUri: toAgentHostContentUri(URI.parse('pending-edit-content://session/tc-create/package.json'), 'local', fileUri),
 					originalContentUri: undefined,
 					insertions: undefined,
 					deletions: undefined,

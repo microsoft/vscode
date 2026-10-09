@@ -52,6 +52,10 @@ export class AutomationRunner implements IAutomationRunner {
 				throw new AutomationUnavailableError(localize('automationRunUnavailable', "The automation's Agent Host is not ready to run it."));
 			}
 			const result = await this.automationService.runAutomation(automation.id, token);
+			if (result.kind === 'accepted') {
+				await dispatched.complete({ kind: 'accepted' });
+				return;
+			}
 			if (result.kind === 'alreadyRunning') {
 				await dispatched.complete({ kind: 'alreadyRunning', activeRun: result.run });
 				return;
@@ -107,6 +111,9 @@ export class AutomationRunner implements IAutomationRunner {
 		const store = provider.automations;
 		if (store === undefined) {
 			throw new AutomationUnavailableError(localize('automationProviderUnsupported', "{0} does not support automations. Use an Agent Host that supports automations.", provider.label));
+		}
+		if (store.enabled?.get() === false) {
+			throw new AutomationUnavailableError(localize('automationProviderDisabled', "Automations from {0} are disabled.", provider.label));
 		}
 		switch (store.catalogueState.get()) {
 			case 'ready':

@@ -8,8 +8,10 @@ import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/
 import { URI } from '../../../../../base/common/uri.js';
 import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
 import { AuthRequiredReason } from '../../../../../platform/agentHost/common/state/sessionActions.js';
+import { type ProtectedResourceMetadata } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IAgentHostAuthenticateRequest } from '../agentSessions/agentHost/agentHostAuth.js';
+import { IChatSessionContentProvider } from '../../common/chatSessionsService.js';
 
 /** Optional startup preparation for a selected workspace, returning a replacement host directory when needed. */
 export type RemoteAgentHostSessionPreparation = (selection: URI | undefined, token: CancellationToken) => Promise<URI | undefined>;
@@ -28,6 +30,9 @@ export interface IRemoteAgentHostConnectionCustomization {
 	 */
 	readonly authenticate?: (request: IAgentHostAuthenticateRequest, reason?: AuthRequiredReason) => Promise<IAgentHostAuthenticateRequest>;
 
+	/** Resolves a fresh connection-owned credential for an expired challenge without requiring a new user sign-in. */
+	readonly renewAuthentication?: (resource: ProtectedResourceMetadata) => Promise<IAgentHostAuthenticateRequest>;
+
 	/**
 	 * The backend session URI scheme for an agent provider when it differs from the provider itself.
 	 * Return `undefined` to keep scheme == provider.
@@ -36,6 +41,9 @@ export interface IRemoteAgentHostConnectionCustomization {
 
 	/** Creates connection-scoped startup preparation, invoked only for new sessions after authentication. */
 	readonly createSessionPreparation?: (connection: IAgentConnection, store: DisposableStore) => RemoteAgentHostSessionPreparation;
+
+	/** Optionally retains a content provider across its initial history-to-live transition. */
+	readonly registerChatSessionContentProvider?: (sessionType: string, provider: IChatSessionContentProvider) => IDisposable | undefined;
 }
 
 /** Builds a {@link IRemoteAgentHostConnectionCustomization} for a concrete connection address. */

@@ -27,7 +27,7 @@ import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } 
 import type { StorageValue } from '../../../../base/parts/storage/common/storage.js';
 import type { Implementation } from '../../common/state/protocol/common/commands.js';
 import { agentsWindowAgentHostClientInfo, editorWindowAgentHostClientInfo } from '../../common/agentHostClientInfo.js';
-import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
+import { AHP_UNSUPPORTED_PROTOCOL_VERSION, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { computeReconnectDelay } from '../../common/reconnectPolicy.js';
 import { AgentHostTransportFailureReason, NonReconnectableTransportError } from '../../common/state/sessionTransport.js';
 
@@ -153,6 +153,10 @@ class TestConnectionFactory extends Disposable implements IRemoteAgentHostConnec
 
 	publishEntry(entry: IRemoteAgentHostEntry): void {
 		this._entries.set([...this._entries.get(), entry], undefined);
+	}
+
+	withdrawEntry(entry: IRemoteAgentHostEntry): void {
+		this._entries.set(this._entries.get().filter(value => getEntryAddress(value) !== getEntryAddress(entry)), undefined);
 	}
 
 	getConnectionObserver(): RemoteAgentHostConnectionObserver {
@@ -1130,6 +1134,36 @@ suite('RemoteAgentHostService', () => {
 			]);
 		}));
 
+		test('connection waits follow client-owned recovery beyond the idle wait timeout', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const factory = createFactory();
+			factory.reconnectManagedByClient = true;
+			const entry = cloudSandboxEntry('Environment', 'cloudsandbox:slow-recovery');
+			const address = getEntryAddress(entry);
+			const client = disposables.add(new MockProtocolClient(address));
+			await reconnectStagedConnection(factory, entry, client);
+			client.fireConnectionState('reconnecting');
+			const recovered = service.waitForConnection(address);
+			let settled = false;
+			void recovered.then(() => { settled = true; }, () => { settled = true; });
+			await timeout(15_000);
+			assert.strictEqual(settled, false);
+			client.fireConnectionState('connected');
+			assert.strictEqual((await recovered).address, address);
+		}));
+
+		test('authentication restoration failure rejects callers waiting for recovery', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const factory = createFactory();
+			const entry = cloudSandboxEntry('Environment', 'cloudsandbox:failed-auth-wait');
+			const address = getEntryAddress(entry);
+			const client = disposables.add(new MockProtocolClient(address));
+			await reconnectStagedConnection(factory, entry, client);
+			client.fireConnectionState('reconnecting');
+			const recovered = assert.rejects(service.waitForConnection(address), /Authentication failed/);
+			client.fireConnectionState('incompatible');
+			await recovered;
+			await assert.rejects(service.waitForConnection(address), /Authentication failed/);
+		}));
+
 		test('authentication restoration failure is terminal rather than an outer retry', () => runWithFakedTimers({}, async () => {
 			const factory = createFactory();
 			const entry = cloudSandboxEntry('Sandbox', 'cloudsandbox:auth');
@@ -1141,13 +1175,17 @@ suite('RemoteAgentHostService', () => {
 			client.fireConnectionState('incompatible');
 			await timeout(30_000);
 			const observations = factory.observations.slice();
+			const status = service.connections[0].status;
 			service.dispose();
-			assert.deepStrictEqual(observations, [
-				{ state: 'connecting', time: 0 },
-				{ state: 'connected', time: 0 },
-				{ state: 'reconnecting', time: 1000 },
-				{ state: 'failed', time: 3000 },
-			]);
+			assert.deepStrictEqual({ observations, status }, {
+				observations: [
+					{ state: 'connecting', time: 0 },
+					{ state: 'connected', time: 0 },
+					{ state: 'reconnecting', time: 1000 },
+					{ state: 'failed', time: 3000 },
+				],
+				status: RemoteAgentHostConnectionStatus.incompatible('Authentication failed during connection initialization.', ['1.0.0', '0.10.0', '0.9.0']),
+			});
 		}));
 
 		for (const initiallyConnected of [false, true]) {
@@ -1332,6 +1370,27 @@ suite('RemoteAgentHostService', () => {
 			});
 		});
 
+		test('withdrawing a permanently refused broker entry prevents the outer service from redialing cached credentials', () => runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 10_000 }, async () => {
+			const factory = createFactory();
+			const entry = cloudSandboxEntry('Missing brokered host', 'cloud:missing');
+			const client = new MockProtocolClient(getEntryAddress(entry));
+			factory.stage(entry, client);
+			service.reconnect(getEntryAddress(entry));
+			const connected = service.waitForConnection(getEntryAddress(entry));
+			await waitForFactoryConnection(factory, 1);
+			client.connectDeferred.complete();
+			await connected;
+			factory.withdrawEntry(entry);
+			client.fireClose(AgentHostTransportFailureReason.HostNotRunning);
+			await timeout(60_000);
+			assert.deepStrictEqual({
+				configured: service.configuredEntries.filter(value => getEntryAddress(value) === getEntryAddress(entry)).length,
+				creations: factory.createdConnectionCount,
+				connected: service.getConnection(getEntryAddress(entry)) !== undefined,
+			}, { configured: 0, creations: 1, connected: false });
+			service.dispose();
+		}));
+
 		test('falls back to a fresh dial when a retained entry has no client', async () => {
 			const factory = createFactory(RemoteAgentHostEntryType.WSL);
 			const entry: IRemoteAgentHostEntry = {
@@ -1354,33 +1413,41 @@ suite('RemoteAgentHostService', () => {
 			assert.strictEqual(factory.createdConnectionCount, 1);
 		});
 
-		test('keeps an incompatible factory connection addressable for server upgrade', async () => {
-			const factory = createFactory();
-			const entry = cloudSandboxEntry('Cloud Sandbox', 'cloud:incompatible');
-			const client = new MockProtocolClient('cloud:incompatible');
-			factory.stage(entry, client);
-			service.reconnect(getEntryAddress(entry));
-			const wait = service.waitForConnection(getEntryAddress(entry));
-			await waitForFactoryConnection(factory, 1);
-			const changed = Event.toPromise(service.onDidChangeConnections);
-			client.connectDeferred.error(new InitialAuthenticationError(new Error('Unsupported protocol version')));
-			await changed;
-			await assert.rejects(() => wait, /Initial authentication failed/);
+		for (const authenticationFailure of [false, true]) {
+			test(`keeps an incompatible factory connection addressable for server upgrade after ${authenticationFailure ? 'authentication' : 'protocol negotiation'} failure`, async () => {
+				const factory = createFactory();
+				const entry = cloudSandboxEntry('Cloud Sandbox', 'cloud:incompatible');
+				const client = new MockProtocolClient('cloud:incompatible');
+				factory.stage(entry, client);
+				service.reconnect(getEntryAddress(entry));
+				const wait = service.waitForConnection(getEntryAddress(entry));
+				await waitForFactoryConnection(factory, 1);
+				const changed = Event.toPromise(service.onDidChangeConnections);
+				const error = authenticationFailure
+					? new InitialAuthenticationError(new Error('Unsupported protocol version'))
+					: new ProtocolError(AHP_UNSUPPORTED_PROTOCOL_VERSION, 'Unsupported protocol version', { supportedVersions: ['2.0.0'] });
+				const originalFailure = assert.rejects(wait, rejected => rejected === error);
+				client.fireConnectionState('incompatible');
+				const joiningFailure = assert.rejects(service.waitForConnection(getEntryAddress(entry)), rejected => rejected === error);
+				client.connectDeferred.error(error);
+				await changed;
+				await Promise.all([originalFailure, joiningFailure]);
 
-			const upgradeResult = await service.triggerServerUpgrade('cloud:incompatible', '_vscodeUpgrade');
+				const upgradeResult = await service.triggerServerUpgrade('cloud:incompatible', '_vscodeUpgrade');
 
-			assert.deepStrictEqual({
-				status: service.connections[0].status,
-				connectedConnection: service.getConnection('cloud:incompatible'),
-				upgradeCalls: client.triggerVscodeUpgradeCalls,
-				upgradeResult,
-			}, {
-				status: RemoteAgentHostConnectionStatus.incompatible('Initial authentication failed: Unsupported protocol version', [PROTOCOL_VERSION]),
-				connectedConnection: undefined,
-				upgradeCalls: ['_vscodeUpgrade'],
-				upgradeResult: { ok: true, upgradeStarted: true },
+				assert.deepStrictEqual({
+					status: service.connections[0].status,
+					connectedConnection: service.getConnection('cloud:incompatible'),
+					upgradeCalls: client.triggerVscodeUpgradeCalls,
+					upgradeResult,
+				}, {
+					status: RemoteAgentHostConnectionStatus.incompatible(error.message, ['1.0.0', '0.10.0', '0.9.0'], authenticationFailure ? undefined : ['2.0.0']),
+					connectedConnection: undefined,
+					upgradeCalls: ['_vscodeUpgrade'],
+					upgradeResult: { ok: true, upgradeStarted: true },
+				});
 			});
-		});
+		}
 
 		test('records factory and setup stages before an entry exists and preserves failure evidence', async () => {
 			const pending = new DeferredPromise<IRemoteAgentHostCreatedConnection>();
@@ -1842,6 +1909,20 @@ suite('RemoteAgentHostService', () => {
 	});
 
 	suite('display names', () => {
+		test('delegates inventory-owned labels without writing global overrides or connecting', () => {
+			const name = observableValue<string | undefined>('name', undefined);
+			const registration = disposables.add(service.registerDisplayName('cloudsandbox:environment', name, value => name.set(value, undefined)));
+			service.setDisplayName('cloudsandbox:environment', '  Profile Label  ');
+			const renamed = service.getDisplayNameOverride('cloudsandbox:environment');
+			service.setDisplayName('cloudsandbox:environment', '');
+			const restored = service.getDisplayNameOverride('cloudsandbox:environment');
+			registration.dispose();
+			assert.deepStrictEqual({
+				renamed, restored, removed: service.getDisplayNameOverride('cloudsandbox:environment'),
+				machineKeys: storageService.keys(StorageScope.APPLICATION, StorageTarget.MACHINE), createdClients: createdClients.length,
+			}, { renamed: 'Profile Label', restored: undefined, removed: undefined, machineKeys: [], createdClients: 0 });
+		});
+
 		test('persists normalized overrides only in this client without changing connection settings', () => {
 			const addresses = ['ws://host:8080', 'wss://host:8080', 'ssh:my-host', 'me@host:22', 'tunnel:my-tunnel', 'wsl:Ubuntu', 'devcontainer:repo'];
 			for (const address of addresses) {

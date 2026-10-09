@@ -5,7 +5,7 @@
 
 import { Code } from './code';
 import { acceptToolConfirmationIfPresent } from './chat';
-import { IModelConfigSection, readModelConfigSections } from './modelConfigPicker';
+import { closeModelConfigDetails, IModelConfigSection, openModelConfigDetails, readModelConfigSections, selectModelConfigDetailsOption } from './modelConfigPicker';
 import { QuickAccess } from './quickaccess';
 
 const AGENTS_WORKBENCH = '.agent-sessions-workbench';
@@ -922,112 +922,43 @@ export class AgentsWindow {
 	}
 
 	/**
-	 * Open the combined model configuration dropdown (Thinking Effort / Context
-	 * Size) by clicking the active session model picker's configuration button.
-	 * The button is only visible when the selected model advertises configurable
-	 * options, so this waits for it to become visible before clicking.
-	 *
-	 * The config popup is shown through the singleton action-widget service and
-	 * its rows are built once at open (rebuilt only on selection), so a popup
-	 * observed mid-teardown of a previous open never self-heals. Waiting only for
-	 * the popup container would therefore race a half-open / tearing-down popup
-	 * that has no rows. To absorb that, this waits for actual option rows to
-	 * render and re-opens (Escape + re-click) until they do — mirroring
-	 * {@link selectModel}.
+	 * Open the selected model's details page, which holds its configuration
+	 * (Thinking Effort / Context Size), by clicking the active session model
+	 * picker's configuration readout. The readout is only visible when the
+	 * selected model advertises configurable options, so this waits for it before
+	 * clicking.
 	 */
 	async openModelConfig(timeoutMs: number = 30_000): Promise<void> {
 		const page = this.code.driver.currentPage;
-		const configButton = page.locator(`${ACTIVE_SESSION_MODEL_PICKER_CONFIG}:visible`).first();
-		const anyRow = page.locator(`${ACTION_WIDGET_ROW}:visible`).first();
-		const deadline = Date.now() + timeoutMs;
-		let lastError: unknown;
 
 		// A context-usage details hover from a prior `readContextUsageTokenLabel`
-		// can linger as a body-level overlay over the model-config button; a forced
-		// click would then land on the popup instead of opening the dropdown,
-		// wedging it open without rows. Park the pointer away and wait for the
-		// overlay to detach before clicking.
+		// can linger as a body-level overlay over the model-config readout; a forced
+		// click would then land on the popup instead of opening the picker. Park the
+		// pointer away and wait for the overlay to detach before clicking.
 		await this.dismissContextUsageDetails();
 
-		while (Date.now() < deadline) {
-			try {
-				await configButton.waitFor({ state: 'visible', timeout: 15_000 });
-				await configButton.click({ force: true });
-				await this.code.waitForElement(ACTION_WIDGET);
-				// Wait for the option rows to actually render, not just the popup
-				// container, so callers don't race a half-open / tearing-down popup.
-				await anyRow.waitFor({ state: 'visible', timeout: 5_000 });
-				return;
-			} catch (error) {
-				lastError = error;
-				// Dismiss the (possibly empty / stale) popup so the next attempt
-				// re-opens a freshly-built one.
-				try {
-					await page.keyboard.press('Escape');
-				} catch { /* popup already gone */ }
-				await new Promise(r => setTimeout(r, 250));
-			}
-		}
-		throw new Error(`Timed out opening the model configuration dropdown. Last error: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
+		await openModelConfigDetails(page, page.locator(`${ACTIVE_SESSION_MODEL_PICKER_CONFIG}:visible`).first(), timeoutMs);
 	}
 
 	/**
-	 * Click the option whose label contains `label` in the open model
-	 * configuration dropdown, then wait until that option reads back as checked
-	 * (the dropdown stays open and rebuilds in place after each selection, so the
-	 * checked state confirms the underlying async configuration write resolved).
-	 *
-	 * The config picker only rebuilds its rows on selection, so a popup that
-	 * opened without this option's row (e.g. mid-teardown of a previous open)
-	 * never gains it. If the row doesn't appear, re-open the popup and retry;
-	 * prior selections persist as configuration writes, so re-opening is safe.
+	 * Select the option labelled `label` on the open model details page, then wait
+	 * until the configuration readout shows it, which confirms the underlying async
+	 * configuration write resolved.
 	 */
 	async selectModelConfigOption(label: string, timeoutMs: number = 30_000): Promise<void> {
-		const page = this.code.driver.currentPage;
-		const row = page.locator(ACTION_WIDGET_ROW, { hasText: label }).first();
-		const deadline = Date.now() + timeoutMs;
-		let lastError: unknown;
-
-		while (Date.now() < deadline) {
-			try {
-				await row.waitFor({ state: 'visible', timeout: 5_000 });
-				await row.click({ force: true });
-				await row.locator('.codicon-check').waitFor({ state: 'visible', timeout: 15_000 });
-				return;
-			} catch (error) {
-				lastError = error;
-				// Re-open the popup so the next attempt sees a freshly-built list
-				// containing this option's row.
-				try {
-					await this.openModelConfig(Math.max(5_000, deadline - Date.now()));
-				} catch { /* will retry until the outer deadline */ }
-			}
-		}
-		throw new Error(`Timed out selecting model config option "${label}". Last error: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
+		await selectModelConfigDetailsOption(this.code.driver.currentPage, ACTIVE_SESSION_MODEL_PICKER_CONFIG, label, remaining => this.openModelConfig(remaining), timeoutMs);
 	}
 
 	/**
-	 * Dismiss the open model configuration dropdown.
+	 * Dismiss the open model details page.
 	 */
 	async closeModelConfig(): Promise<void> {
-		const page = this.code.driver.currentPage;
-		await page.keyboard.press('Escape');
-		await page.waitForFunction(
-			(sel: string) => { const c = document.querySelector(sel); return !c || c.getAttribute('aria-expanded') !== 'true'; },
-			ACTIVE_SESSION_MODEL_PICKER_CONFIG,
-			{ timeout: 15_000 },
-		);
-		// Also wait for the popup's option rows to detach so a subsequent open
-		// starts from a clean state rather than racing this teardown. Best-effort:
-		// the rows may already be gone (the locator then resolves immediately).
-		await page.locator(`${ACTION_WIDGET_ROW}:visible`).first()
-			.waitFor({ state: 'hidden', timeout: 5_000 })
-			.catch(() => { /* already detached */ });
+		await closeModelConfigDetails(this.code.driver.currentPage, ACTIVE_SESSION_MODEL_PICKER_CONFIG);
 	}
 
 	/**
-	 * Return the active session's model-configuration button label (the combined
-	 * "Effort Context" summary, e.g. "High 1M").
+	 * Return the active session's model-configuration readout label (the combined
+	 * "Effort · Context" summary, e.g. "High · 1M").
 	 *
 	 * The label is (re-)rendered when the selected model and its configuration
 	 * resolve, so this polls until it carries text rather than returning an empty
@@ -1053,8 +984,8 @@ export class AgentsWindow {
 	}
 
 	/**
-	 * Return the section headers and option rows of the open model configuration
-	 * dropdown. Call after {@link openModelConfig}.
+	 * Return each setting of the open model details page and its options. Call
+	 * after {@link openModelConfig}.
 	 */
 	async getModelConfigSections(): Promise<IModelConfigSection[]> {
 		return readModelConfigSections(this.code.driver.currentPage);

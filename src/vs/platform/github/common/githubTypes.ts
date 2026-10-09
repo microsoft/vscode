@@ -5,6 +5,7 @@
 
 import { Event } from '../../../base/common/event.js';
 import type { TelemetryLevel } from '../../telemetry/common/telemetry.js';
+import type { MissionControlClientOptions } from './missionControl/missionControlClient.js';
 import { RequestError, RequestErrorKind, RequestFetch } from './types.js';
 
 /** Allowlisted hosting environments for GitHub telemetry. */
@@ -20,6 +21,13 @@ export interface GitHubGraphQLError {
 	};
 }
 
+/** Response headers exposed by the server, which may be unavailable through browser CORS. */
+export interface GitHubResponseMetadata {
+	readonly serverDate?: string;
+	readonly requestId?: string;
+	readonly retryAfterSeconds?: number;
+}
+
 /** GitHub transport error preserving the service's established error and GraphQL payload contract. */
 export class GitHubRequestError extends RequestError {
 
@@ -30,6 +38,7 @@ export class GitHubRequestError extends RequestError {
 		responseBody?: string,
 		readonly graphQLErrors?: readonly GitHubGraphQLError[],
 		statusText?: string,
+		readonly responseMetadata?: GitHubResponseMetadata,
 	) {
 		super(message, kind, statusCode, responseBody, statusText);
 		this.name = 'GitHubRequestError';
@@ -105,11 +114,15 @@ export interface GitHubClientOptions {
 	readonly authorization: GitHubAuthorizationContext;
 	readonly apiBaseUri: string;
 	readonly graphQlUri: string;
+	/** Approved service endpoints; their absence disables only the Mission Control domains. */
+	readonly missionControl?: MissionControlClientOptions;
 }
 
 /** Trusted API base for public reads; callers cannot override authentication or network execution. */
 export interface GitHubAnonymousClientOptions {
 	readonly apiBaseUri: string;
+	/** Raw-content base; GitHub.com has a default, while other hosts must supply it for file reads. */
+	readonly rawBaseUri?: string;
 }
 
 /** Internal, read-only bootstrap capability; account provenance affects quota accounting, not authorization. */

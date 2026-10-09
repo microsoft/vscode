@@ -12,7 +12,7 @@ import { generateUuid } from '../../../../../base/common/uuid.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { getCleanPromptName, getPromptFileExtension, SKILL_FILENAME, VALID_SKILL_NAME_REGEX } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { IHeaderAttribute, ParsedPromptFile, PromptFileParser, PromptHeaderAttributes } from '../../common/promptSyntax/promptFileParser.js';
-import { FileCustomizationMigrationFailureReason, getCustomizationMigrationTargetType, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigrationCandidate, CustomizationMigrationType, FileCustomizationMigrationFailureReason, getCustomizationMigrationTargetType, isMcpServerCustomizationMigrationCandidate, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
 import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
@@ -57,6 +57,43 @@ export interface ICustomizationMigrationOptions {
 	readonly resolveTargetFolder?: (customization: MigratableConfiguration, targetType: PromptsType) => ICustomizationSourceFolder | undefined;
 }
 
+export interface ICategorizedCustomizationMigrationCandidate {
+	readonly category: CustomizationMigrationType;
+	readonly customization: CustomizationMigrationCandidate;
+}
+
+export function createCustomizationMigrationAgentPrompt(
+	harness: { readonly id: string; readonly label: string },
+	migrationFlowId: string,
+	recoveryBundleFolder: URI,
+	customizations: readonly ICategorizedCustomizationMigrationCandidate[],
+	targetFoldersByType: ReadonlyMap<PromptsType, readonly ICustomizationSourceFolder[]>,
+): string {
+	const customizationLocations = customizations.map(({ category, customization }) => {
+		if (isMcpServerCustomizationMigrationCandidate(customization)) {
+			return `- ${category}: MCP server "${customization.name}" (${customization.storage}): ${customization.sourceUri.toString(true)} -> ${customization.targetUri.toString(true)}`;
+		}
+		return `- ${category}: ${customization.type} (${customization.storage}): ${customization.uri.toString(true)}`;
+	});
+	const targetLocations = [...targetFoldersByType]
+		.flatMap(([type, folders]) => folders.map(folder => `- ${type} (${folder.source}, ${folder.label}): ${folder.uri.toString(true)}`));
+
+	return [
+		'/migrate-customizations',
+		'',
+		`Selected harness: ${harness.label} (${harness.id})`,
+		`Migration telemetry flow: ${migrationFlowId}`,
+		`Recovery bundle folder: ${recoveryBundleFolder.toString(true)}`,
+		`Recovery bundle filesystem path: ${recoveryBundleFolder.fsPath}`,
+		'',
+		'Customizations that need migration:',
+		...customizationLocations,
+		'',
+		'Valid target folders reported by the selected harness:',
+		...(targetLocations.length ? targetLocations : ['- None reported for these customization types.']),
+	].join('\n');
+}
+
 /**
  * Picks the corresponding target folder in the customization's workspace group.
  */
@@ -93,6 +130,7 @@ export function migratePromptFileToSkill(promptFile: MigratableConfiguration, co
 	const friendlyName = promptFile.name?.trim() || parsed.header?.name?.trim() || getCleanPromptName(promptFile.uri);
 	const skillName = skillNameOverride ?? sanitizeSkillName(friendlyName);
 	const description = promptFile.description?.trim() || parsed.header?.description?.trim() || friendlyName;
+	const descriptionAttribute = parsed.header?.getAttribute(PromptHeaderAttributes.description);
 	const argumentHint = parsed.header?.argumentHint?.trim();
 	const argumentHintAttribute = parsed.header?.getAttribute(PromptHeaderAttributes.argumentHint);
 	const body = getPromptBody(parsed, content);
@@ -103,7 +141,7 @@ export function migratePromptFileToSkill(promptFile: MigratableConfiguration, co
 	const headerLines = [
 		'---',
 		`name: ${skillName}`,
-		`description: ${description}`,
+		`description: ${formatMigratedDescription(description, descriptionAttribute)}`,
 		'disable-model-invocation: true',
 	];
 
@@ -118,6 +156,36 @@ export function migratePromptFileToSkill(promptFile: MigratableConfiguration, co
 		content: `${headerLines.join('\n')}${body}`,
 		unsupportedHeaderKeys,
 	};
+}
+
+function formatMigratedDescription(value: string, sourceAttribute: IHeaderAttribute | undefined): string {
+	if (/[\u0000-\u001F\u007F-\u009F]/.test(value)) {
+		return quoteYamlString(value);
+	}
+
+	if (sourceAttribute?.value.type === 'scalar') {
+		switch (sourceAttribute.value.format) {
+			case 'single':
+				return `'${value.replace(/'/g, `''`)}'`;
+			case 'double':
+				return quoteYamlString(value);
+			case 'none':
+				if (isSafePlainYamlScalar(value)) {
+					return value;
+				}
+		}
+	}
+
+	return isSafePlainYamlScalar(value) ? value : quoteYamlString(value);
+}
+
+function quoteYamlString(value: string): string {
+	return JSON.stringify(value).replace(/[\u007F-\u009F]/g, character => `\\u${character.charCodeAt(0).toString(16).padStart(4, '0')}`);
+}
+
+function isSafePlainYamlScalar(value: string): boolean {
+	return /^[A-Za-z][A-Za-z0-9 ._/()'!?+=-]*$/.test(value)
+		&& !/^(?:true|false|null)$/i.test(value);
 }
 
 function formatMigratedHeaderValue(value: string, sourceAttribute: IHeaderAttribute | undefined): string {

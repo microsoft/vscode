@@ -158,7 +158,7 @@ function setSessionContextKeysUnbuffered(session: ISession | undefined, contextK
 	keys.type.set(session?.sessionType ?? '');
 	keys.isArchived.set(session?.isArchived.read(reader) ?? false);
 	keys.isActive.set(session ? isActiveSessionStatus(session.status.read(reader)) : false);
-	keys.isRead.set(session?.isRead.read(reader) ?? true);
+	keys.isRead.set(session?.mainChat.read(reader).isRead.read(reader) ?? true);
 	const capabilities = session?.capabilities.read(reader);
 	keys.supportsMultipleChats.set(capabilities?.supportsMultipleChats ?? false);
 	keys.supportsFork.set(capabilities?.supportsFork ?? false);

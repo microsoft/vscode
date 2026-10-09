@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../base/browser/dom.js';
-import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Disposable, DisposableMap, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -21,8 +20,10 @@ import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWor
 import { IAgentHostNewSessionFolderService } from './agentHostNewSessionFolderService.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
-import { resolveAgentHostChatSession, toAgentHostBackendSessionUri } from './agentHostSessionUri.js';
-import { retrySessionConfigSubscriptionOnCreation } from './agentHostSessionConfigSubscription.js';
+import { getLocalAgentHostSessionProvider, resolveAgentHostChatSession, toAgentHostBackendSessionUri } from './agentHostSessionUri.js';
+import { AgentHostInitialSessionConfig, retrySessionConfigSubscriptionOnCreation } from './agentHostSessionConfigSubscription.js';
+import { ILogService } from '../../../../../../platform/log/common/log.js';
+import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 
 /**
  * Direct-render chip lane for agent-host session-config properties that are
@@ -48,7 +49,7 @@ export class AgentHostGenericConfigChips extends Disposable {
 	}>());
 
 	private _initialResolved: { readonly sessionResource: URI; readonly result: ResolveSessionConfigResult } | undefined;
-	private readonly _initialResolveCts = this._register(new MutableDisposable<CancellationTokenSource>());
+	private readonly _initialConfig = this._register(new AgentHostInitialSessionConfig(error => this._logService.warn('[AgentHostGenericConfigChips] Failed to resolve initial session configuration', error)));
 
 	constructor(
 		private readonly _widget: IChatWidget,
@@ -58,10 +59,37 @@ export class AgentHostGenericConfigChips extends Disposable {
 		@IAgentHostSessionWorkingDirectoryResolver private readonly _workingDirectoryResolver: IAgentHostSessionWorkingDirectoryResolver,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IAgentHostNewSessionFolderService private readonly _newSessionFolderService: IAgentHostNewSessionFolderService,
+		@ILogService private readonly _logService: ILogService,
+		@IAgentHostService agentHostService: IAgentHostService,
 	) {
 		super();
 		this._register(this._widget.onDidChangeViewModel(() => this._reattach()));
-		this._register(this._connectionsService.onDidChangeSessionResolution(() => this._reattach()));
+		this._register(agentHostService.onAgentHostExit(() => {
+			this._initialResolved = undefined;
+			this._cancelInitialResolve();
+		}));
+		this._register(agentHostService.onAgentHostStart(() => {
+			const sessionResource = this._widget.viewModel?.sessionResource;
+			if (sessionResource && isUntitledChatSession(sessionResource) && getLocalAgentHostSessionProvider(sessionResource)) {
+				const resolution = resolveAgentHostChatSession(sessionResource, this._provisional.get(sessionResource), this._connectionsService);
+				if (resolution && this._initialConfig.isPending(sessionResource, resolution)) {
+					return;
+				}
+				this._initialResolved = undefined;
+				this._cancelInitialResolve();
+				this._reattach();
+			}
+		}));
+		this._register(this._connectionsService.onDidChangeSessionResolution(() => {
+			const sessionResource = this._widget.viewModel?.sessionResource;
+			const resolution = sessionResource ? resolveAgentHostChatSession(sessionResource, this._provisional.get(sessionResource), this._connectionsService) : undefined;
+			if (sessionResource && resolution && this._initialConfig.isCurrent(sessionResource, resolution)) {
+				return;
+			}
+			this._initialResolved = undefined;
+			this._cancelInitialResolve();
+			this._reattach();
+		}));
 		this._register(this._provisional.onDidChange((sessionResource: URI) => {
 			const current = this._widget.viewModel?.sessionResource;
 			if (current && current.toString() === sessionResource.toString()) {
@@ -93,12 +121,13 @@ export class AgentHostGenericConfigChips extends Disposable {
 			return;
 		}
 
-		const localBackend = toAgentHostBackendSessionUri(sessionResource);
-		if (localBackend && isUntitledChatSession(sessionResource) && !provisionalBackend) {
+		const localBackend = toAgentHostBackendSessionUri(sessionResource, this._connectionsService);
+		const localProvider = getLocalAgentHostSessionProvider(sessionResource);
+		if (localBackend && localProvider && isUntitledChatSession(sessionResource) && !provisionalBackend) {
 			this._subRef.clear();
 			if (!this._initialResolved || this._initialResolved.sessionResource.toString() !== sessionResource.toString()) {
 				this._initialResolved = undefined;
-				void this._refreshInitialResolved(sessionResource, localBackend);
+				void this._refreshInitialResolved(sessionResource, localProvider, resolution);
 			}
 			this._sync();
 			return;
@@ -125,26 +154,14 @@ export class AgentHostGenericConfigChips extends Disposable {
 	}
 
 	private _cancelInitialResolve(): void {
-		this._initialResolveCts.value?.cancel();
-		this._initialResolveCts.clear();
+		this._initialConfig.clear();
 	}
 
-	private async _refreshInitialResolved(sessionResource: URI, backendSession: URI): Promise<void> {
-		this._initialResolveCts.value?.cancel();
-		const cts = new CancellationTokenSource();
-		this._initialResolveCts.value = cts;
-		try {
-			const result = await this._connectionsService.ambientConnection.resolveSessionConfig({
-				provider: backendSession.scheme,
-				workingDirectory: this._readWorkingDirectory(),
-			});
-			if (cts.token.isCancellationRequested || this._widget.viewModel?.sessionResource?.toString() !== sessionResource.toString()) {
-				return;
-			}
+	private async _refreshInitialResolved(sessionResource: URI, provider: string, resolution: IAgentHostSessionResolution): Promise<void> {
+		const result = await this._initialConfig.resolve(sessionResource, provider, resolution, this._readWorkingDirectory());
+		if (result && result === this._initialConfig.value && isEqual(this._widget.viewModel?.sessionResource, sessionResource) && this._initialConfig.isCurrent(sessionResource, resolution)) {
 			this._initialResolved = { sessionResource, result };
 			this._sync();
-		} catch {
-			// Best-effort.
 		}
 	}
 
@@ -183,7 +200,7 @@ export class AgentHostGenericConfigChips extends Disposable {
 		}
 		const entries = this._readSchemaProperties();
 		const sessionResource = this._widget.viewModel?.sessionResource;
-		const isStartedSession = !!sessionResource && !(isUntitledChatSession(sessionResource) && toAgentHostBackendSessionUri(sessionResource));
+		const isStartedSession = !!sessionResource && !(isUntitledChatSession(sessionResource) && toAgentHostBackendSessionUri(sessionResource, this._connectionsService));
 		const desired = new Set<string>();
 		if (entries) {
 			const configSchema = { type: 'object' as const, properties: Object.fromEntries(entries) };

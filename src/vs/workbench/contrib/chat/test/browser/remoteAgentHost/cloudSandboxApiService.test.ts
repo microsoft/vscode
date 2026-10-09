@@ -5,15 +5,16 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
-import { bufferToStream, VSBuffer } from '../../../../../../base/common/buffer.js';
+import { bufferToStream, newWriteableBufferStream, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
 import { IRequestContext, type IHeaders, type IRequestOptions } from '../../../../../../base/parts/request/common/request.js';
-import { CLOUD_SANDBOX_AGENT_SLUG, CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID, type ICloudSandboxClientToken } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { CLOUD_SANDBOX_AGENT_SLUG, CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID, CloudSandboxAuthenticationRequiredError, type ICloudSandboxClientToken } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { SessionStatus } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { COPILOT_INTEGRATION_ID } from '../../../../../../platform/endpoint/common/licenseAgreement.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -45,6 +46,7 @@ function task(id: string, name: string, repositoryId: number | undefined, sessio
 }
 
 type ITestTask = Omit<ReturnType<typeof task>, 'current_environment'> & {
+	readonly event_type?: string;
 	readonly current_environment?: { readonly id: string; readonly kind: string };
 	readonly updated_at?: string;
 	readonly archived_at?: string;
@@ -53,10 +55,13 @@ type ITestTask = Omit<ReturnType<typeof task>, 'current_environment'> & {
 interface ITestSetup {
 	readonly service: CloudSandboxApiService;
 	readonly requestedUrls: string[];
+	readonly provisioningOutcomes: ProvisioningOutcome[];
 	/** Peak number of task-detail fetches in flight at once during the run. */
 	readonly concurrency: { max: number; current: number };
 	changeAuthentication(): void;
 }
+
+type ProvisioningOutcome = Parameters<ICloudSandboxTelemetryService['reportProvisioningOutcome']>;
 
 class TestLogService extends NullLogService {
 	readonly traces: string[] = [];
@@ -102,6 +107,7 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 	readonly authenticationSessions?: (scopes?: readonly string[]) => Promise<readonly AuthenticationSession[]>;
 }): ITestSetup {
 	const requestedUrls: string[] = [];
+	const provisioningOutcomes: ProvisioningOutcome[] = [];
 	const concurrency = { max: 0, current: 0 };
 	const remainingTaskRateLimits = new Map(options.rateLimitedTaskFetches ?? []);
 	let remainingListRateLimits = options.rateLimitedListPages ?? 0;
@@ -156,6 +162,9 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 			}
 			const query = new URL(url).searchParams;
 			const tasks = options.tasks.filter(task => {
+				if (!!task.archived_at !== (query.get('is_archived') === 'true')) {
+					return false;
+				}
 				if (query.has('with_repo') && (task.repository?.id !== undefined) !== (query.get('with_repo') === 'true')) {
 					return false;
 				}
@@ -189,11 +198,15 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 	instantiationService.stub(ILogService, options.logService ?? new NullLogService());
 	instantiationService.stub(ICloudSandboxTelemetryService, new class extends mock<ICloudSandboxTelemetryService>() {
 		override reportRequest(): void { }
+		override reportProvisioningOutcome(...outcome: ProvisioningOutcome): void {
+			provisioningOutcomes.push(outcome);
+		}
 	}());
 
 	return {
 		service: store.add(instantiationService.createInstance(CloudSandboxApiService)),
 		requestedUrls,
+		provisioningOutcomes,
 		concurrency,
 		changeAuthentication: () => authenticationChanges.fire({ providerId: 'github', label: 'GitHub', event: { added: [], removed: [], changed: [] } }),
 	};
@@ -249,7 +262,138 @@ suite('CloudSandboxApiService connection credentials', () => {
 		};
 	}
 
+	test('allows thirty seconds for connection requests while keeping environment reads at ten seconds', async () => {
+		const requests: { path: string; timeout: number | undefined }[] = [];
+		const { service } = createService(store, {
+			tasks: [], repositories: new Map(),
+			onRequest: (url, _token, options) => {
+				requests.push({ path: url.pathname, timeout: options.timeout });
+				return jsonResponse(url.pathname === '/agents/environments/env-1' ? { status: 'online' } : clientToken('client-1'));
+			},
+		});
+
+		await service.connect(request, CancellationToken.None);
+		await service.reconnect(request, 'client-1', CancellationToken.None);
+		await service.getEnvironment(request.environmentId, CancellationToken.None);
+
+		assert.deepStrictEqual(requests, [
+			{ path: '/agents/environments/env-1/connect', timeout: 30_000 },
+			{ path: '/agents/environments/env-1/reconnect', timeout: 30_000 },
+			{ path: '/agents/environments/env-1', timeout: 10_000 },
+		]);
+	});
+
+	test('loads cloud models and reasoning metadata without creating a task or environment', async () => {
+		const requests: { path: string; method: string | undefined; integration: string | string[] | undefined }[] = [];
+		const { service } = createService(store, {
+			tasks: [], repositories: new Map(),
+			onRequest: (url, _token, options) => {
+				requests.push({ path: url.pathname, method: options.type, integration: options.headers?.['Copilot-Integration-Id'] });
+				return jsonResponse({
+					default_model: 'auto',
+					data: [
+						{ id: 'auto', name: 'Auto' },
+						{ id: 'brand-new-model', name: 'New Model', capabilities: { supports: { vision: true, reasoning_effort: ['low', 'high', 'new-effort'] }, limits: { max_prompt_tokens: 1000 } } },
+						{ id: 'disabled', name: 'Disabled', policy: { state: 'disabled' } },
+						{ id: 'hidden', name: 'Hidden', model_picker_enabled: false },
+					],
+				});
+			},
+		});
+		const catalog = await service.listModels(CancellationToken.None);
+		assert.deepStrictEqual({
+			requests,
+			defaultModel: catalog.defaultModel,
+			models: catalog.models.map(model => ({ id: model.id, vision: model.supportsVision, input: model.maxPromptTokens, efforts: model.configSchema?.properties.reasoningEffort.enum })),
+		}, {
+			requests: [{ path: '/agents/swe/models', method: 'GET', integration: COPILOT_INTEGRATION_ID }],
+			defaultModel: 'auto',
+			models: [
+				{ id: 'auto', vision: undefined, input: undefined, efforts: undefined },
+				{ id: 'brand-new-model', vision: true, input: 1000, efforts: ['low', 'high', 'new-effort'] },
+			],
+		});
+	});
+
+	for (const body of [{}, { data: [null] }, { data: [{ id: 'bad', name: 'Bad', capabilities: { supports: { reasoning_effort: [1] } } }] }]) {
+		test(`rejects invalid cloud model metadata: ${JSON.stringify(body)}`, async () => {
+			const { service } = createService(store, { tasks: [], repositories: new Map(), onRequest: () => jsonResponse(body) });
+			await assert.rejects(service.listModels(CancellationToken.None), /invalid model/);
+		});
+	}
+
+	test('reports cloud catalog HTTP failures instead of treating them as an empty catalog', async () => {
+		const { service } = createService(store, { tasks: [], repositories: new Map(), onRequest: () => jsonResponse({}, 403) });
+		await assert.rejects(service.listModels(CancellationToken.None), /model catalog failed: HTTP 403/);
+	});
+
 	for (const action of ['connect', 'reconnect'] as const) {
+		for (const failure of [new TypeError('Failed to fetch'), new Error('Fetch timeout: 30000ms')]) {
+			test(`${action} classifies an unanswered request: ${failure.message}`, async () => {
+				const { service } = createService(store, {
+					tasks: [], repositories: new Map(),
+					onRequest: () => { throw failure; },
+				});
+				await assert.rejects(action === 'connect'
+					? service.connect(request, CancellationToken.None)
+					: service.reconnect(request, 'client-1', CancellationToken.None), {
+					name: 'CloudSandboxNetworkError', message: failure.message, cause: failure,
+				});
+			});
+		}
+
+		test(`${action} keeps cancellation out of network retries`, async () => {
+			const source = store.add(new CancellationTokenSource());
+			const { service } = createService(store, {
+				tasks: [], repositories: new Map(),
+				onRequest: () => {
+					source.cancel();
+					throw new TypeError('Failed to fetch');
+				},
+			});
+			await assert.rejects(action === 'connect'
+				? service.connect(request, source.token)
+				: service.reconnect(request, 'client-1', source.token), isCancellationError);
+		});
+
+		test(`${action} does not classify observer failures as network failures`, async () => {
+			const failure = new Error('observer failed');
+			const { service, requestedUrls } = createService(store, { tasks: [], repositories: new Map() });
+			const observedRequest = { ...request, onRequest: () => { throw failure; } };
+			await assert.rejects(action === 'connect'
+				? service.connect(observedRequest, CancellationToken.None)
+				: service.reconnect(observedRequest, 'client-1', CancellationToken.None), error => error === failure);
+			assert.deepStrictEqual(requestedUrls, []);
+		});
+
+		test(`${action} logs safe upstream correlation for an HTTP failure`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const logService = new TestLogService();
+			const requestId = 'ABCD:1234:5678:90AB:CDEF';
+			const { service } = createService(store, {
+				tasks: [], repositories: new Map(), logService,
+				onRequest: async () => {
+					await timeout(35);
+					return jsonResponse({ message: 'Failed to open relay; token=secret-token', access_token: 'secret-token', privateBody: 'private response body' }, 500, {
+						'x-github-request-id': requestId,
+						'retry-after': '45',
+						'set-cookie': 'private-cookie',
+					});
+				},
+			});
+			const connecting = action === 'connect'
+				? service.connect(request, CancellationToken.None)
+				: service.reconnect(request, 'client-1', CancellationToken.None);
+			await assert.rejects(connecting, {
+				name: 'CloudSandboxRequestError',
+				message: `Mission Control ${action} failed: HTTP 500 (requestId=${requestId})`,
+				statusCode: 500,
+				retryAfterSeconds: 45,
+			});
+			assert.deepStrictEqual(logService.errors, [
+				`[CloudSandboxApi] ${action} failed: method=GET host=api.githubcopilot.com environmentId=env-1 sessionId=session-1 clientId=${action === 'connect' ? 'none' : 'client-1'} status=500 requestId=${requestId} durationMs=35 retryAfterSeconds=45 message=Failed to open relay; token=[redacted]`,
+			]);
+		}));
+
 		test(`${action} preserves valid credentials and the scoped request`, async () => {
 			const progress: string[] = [];
 			const observedRequest = { ...request, onRequest: (event: string) => progress.push(event) };
@@ -296,6 +440,36 @@ suite('CloudSandboxApiService connection credentials', () => {
 		});
 	}
 
+	test('preserves transport errors from environment reads without classifying them for connection retries', async () => {
+		const failure = new Error('network unavailable');
+		const { service } = createService(store, {
+			tasks: [], repositories: new Map(),
+			onRequest: () => { throw failure; },
+		});
+		await assert.rejects(service.getEnvironment(request.environmentId, CancellationToken.None), error => error === failure);
+	});
+
+	for (const header of [undefined, 'ABCD:1234:5678', 'ABCD:1234:5678:90AB:CDEF\ninjected', 'ghp_secret', 'A'.repeat(129), ['ABCD:1234:5678:90AB:CDEF', 'ABCD:1234:5678:90AB:CDEF']]) {
+		test(`omits unavailable or invalid request IDs: ${JSON.stringify(header)}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const logService = new TestLogService();
+			const { service } = createService(store, {
+				tasks: [], repositories: new Map(), logService,
+				onRequest: () => {
+					const response = jsonResponse({ message: 'private response body' }, 500);
+					response.res.headers['x-github-request-id'] = header;
+					return response;
+				},
+			});
+			await assert.rejects(service.connect({ environmentId: 'env-1' }, CancellationToken.None), {
+				name: 'CloudSandboxRequestError',
+				message: 'Mission Control connect failed: HTTP 500',
+			});
+			assert.deepStrictEqual(logService.errors, [
+				'[CloudSandboxApi] connect failed: method=GET host=api.githubcopilot.com environmentId=env-1 sessionId=none clientId=none status=500 requestId=unavailable durationMs=0 retryAfterSeconds=none message=private response body',
+			]);
+		}));
+	}
+
 	test('rejects refreshed credentials for a different client', async () => {
 		const { service } = createService(store, {
 			tasks: [], repositories: new Map(),
@@ -332,9 +506,445 @@ suite('CloudSandboxApiService connection credentials', () => {
 	}
 });
 
+suite('CloudSandboxApiService history timings', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('separates authentication, request, body reading and replay without logging private data', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const logService = new TestLogService();
+		const responseReady = new DeferredPromise<void>();
+		const stream = newWriteableBufferStream();
+		store.add(toDisposable(() => stream.destroy()));
+		const { service, requestedUrls } = createService(store, {
+			tasks: [], repositories: new Map(), logService,
+			authenticationSessions: async () => {
+				await timeout(25);
+				return [{ accessToken: 'private-token', id: 's', account: { id: 'a', label: 'a' }, scopes: [] }];
+			},
+			onRequest: async () => {
+				await timeout(50);
+				await responseReady.complete();
+				return { res: { statusCode: 200, headers: {} }, stream };
+			},
+		});
+		const writeBody = async () => {
+			await responseReady.p;
+			await timeout(75);
+			stream.end(VSBuffer.fromString(JSON.stringify({
+				events: [{
+					ns: 'ahp', session_id: 'private-session', seq: 0, at: '2026-01-01T00:00:00Z',
+					payload: {
+						kind: 'message',
+						data: { channel: 'ahp-session:/private-session', serverSeq: 0, action: { type: 'session/titleChanged', title: 'private-title' } },
+					},
+				}],
+				total: 1,
+			})));
+		};
+		const [history] = await Promise.all([service.getSessionHistory('private-task', CancellationToken.None), writeBody()]);
+
+		assert.deepStrictEqual({
+			title: history?.sessions[0].state.title,
+			requests: requestedUrls.map(url => new URL(url).pathname),
+			logs: logService.infos,
+		}, {
+			title: 'private-title',
+			requests: ['/agents/tasks/private-task/events'],
+			logs: [
+				'[CloudSandboxApi] historyTiming loadId=1 traceId=history-1 authenticated authenticationMs=25 totalMs=25',
+				'[CloudSandboxApi] historyTiming loadId=1 traceId=history-1 requestIssued authenticationMs=25 totalMs=25',
+				'[CloudSandboxApi] historyTiming loadId=1 traceId=history-1 responseReceived requestMs=50 status=200 responseHeadersMs=unavailable downloadMs=unavailable decodedBodyBytes=unavailable requestId=unavailable totalMs=75',
+				'[CloudSandboxApi] historyTiming loadId=1 traceId=history-1 bodyRead bodyReadAndParseMs=75 totalMs=150',
+				'[CloudSandboxApi] historyTiming loadId=1 traceId=history-1 completed apiMs=125 replayMs=0 events=1 sessions=1 truncated=false totalMs=150',
+			],
+		});
+	}));
+
+	for (const failure of ['authentication', 'request', 'HTTP', 'JSON', 'replay', 'cancellation'] as const) {
+		test(`logs the elapsed failing phase and preserves rejection for ${failure}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const logService = new TestLogService();
+			const cancellation = store.add(new CancellationTokenSource());
+			const error = failure === 'cancellation' ? new CancellationError() : new Error('private-error');
+			const { service } = createService(store, {
+				tasks: [], repositories: new Map(), logService,
+				authenticationSessions: failure === 'authentication' ? async () => {
+					await timeout(35);
+					throw error;
+				} : undefined,
+				onRequest: async () => {
+					await timeout(35);
+					if (failure === 'cancellation') {
+						cancellation.cancel();
+						throw error;
+					}
+					if (failure === 'request') {
+						throw error;
+					}
+					if (failure === 'JSON') {
+						return { res: { statusCode: 200, headers: {} }, stream: bufferToStream(VSBuffer.fromString('private-invalid-json')) };
+					}
+					return failure === 'HTTP'
+						? jsonResponse({ message: 'private-response' }, 503)
+						: jsonResponse({ events: [], total: 1 });
+				},
+			});
+			await assert.rejects(service.getSessionHistory('private-task', cancellation.token), error =>
+				failure === 'cancellation' ? isCancellationError(error) : error instanceof Error);
+			await timeout(0);
+
+			const phase = failure === 'authentication' ? 'authentication'
+				: failure === 'request' || failure === 'cancellation' ? 'request'
+					: failure === 'replay' ? 'replay' : 'responseBody';
+			assert.deepStrictEqual({
+				terminalLog: logService.infos.at(-1),
+				completed: logService.infos.some(message => message.includes(' completed ')),
+				privateData: logService.infos.some(message => message.includes('private-')),
+			}, {
+				terminalLog: failure === 'authentication'
+					? '[CloudSandboxApi] historyAuthentication traceId=standalone failed durationMs=35'
+					: `[CloudSandboxApi] historyTiming loadId=1 traceId=history-1 ${failure === 'cancellation' ? 'cancelled' : 'failed'} phase=${phase} phaseMs=${phase === 'request' ? 35 : 0} totalMs=35`,
+				completed: false, privateData: false,
+			});
+		}));
+	}
+
+	test('correlates concurrent history fetches with separate load IDs', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const logService = new TestLogService();
+		const { service } = createService(store, {
+			tasks: [], repositories: new Map(), logService,
+			onRequest: async url => {
+				await timeout(url.pathname.includes('/slow/') ? 40 : 20);
+				return jsonResponse({ events: [], total: 0 });
+			},
+		});
+		const histories = await Promise.all([
+			service.getSessionHistory('slow', CancellationToken.None),
+			service.getSessionHistory('fast', CancellationToken.None),
+		]);
+
+		assert.deepStrictEqual({
+			histories, completions: logService.infos.filter(message => message.includes(' completed ')),
+		}, {
+			histories: [undefined, undefined],
+			completions: [
+				'[CloudSandboxApi] historyTiming loadId=2 traceId=history-2 completed apiMs=20 replayMs=0 events=0 sessions=0 truncated=false totalMs=20',
+				'[CloudSandboxApi] historyTiming loadId=1 traceId=history-1 completed apiMs=40 replayMs=0 events=0 sessions=0 truncated=false totalMs=40',
+			],
+		});
+	}));
+
+	for (const requestId of ['ABCD:1234:5678:90AB:CDEF', 'private-invalid-header']) {
+		test(`correlates transport timings and includes only a validated upstream request ID (${requestId})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const logService = new TestLogService();
+			let diagnosticId: string | undefined;
+			const { service } = createService(store, {
+				tasks: [], repositories: new Map(), logService,
+				onRequest: async (_url, _token, options) => {
+					diagnosticId = options.diagnosticId;
+					await timeout(200);
+					return {
+						...jsonResponse({ events: [], total: 0 }, 200, { 'x-github-request-id': requestId }),
+						timings: { responseHeadersMs: 150, responseBodyMs: 50, decodedBodyBytes: 23 },
+					};
+				},
+			});
+			await service.getSessionHistory('private-task', CancellationToken.None, 'sandbox-1');
+
+			assert.deepStrictEqual({
+				diagnosticId,
+				response: logService.infos.find(message => message.includes(' responseReceived ')),
+			}, {
+				diagnosticId: 'sandbox-1/history-1',
+				response: `[CloudSandboxApi] historyTiming loadId=1 traceId=sandbox-1 responseReceived requestMs=200 status=200 responseHeadersMs=150 downloadMs=50 decodedBodyBytes=23 requestId=${requestId.startsWith('private-') ? 'unavailable' : requestId} totalMs=200`,
+			});
+		}));
+	}
+});
+
+suite('CloudSandboxApiService history cache', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function historyResponse(title: string): IRequestContext {
+		return jsonResponse({
+			events: [{
+				ns: 'ahp', session_id: 'session', seq: 0, at: '2026-01-01T00:00:00Z',
+				payload: { kind: 'message', data: { channel: 'ahp-session:/session', serverSeq: 0, action: { type: 'session/titleChanged', title } } },
+			}],
+			total: 1,
+		});
+	}
+
+	test('coalesces authentication and events reads, and previews a warm snapshot before the response', async () => {
+		let authentications = 0;
+		let requests = 0;
+		const response = new DeferredPromise<IRequestContext>();
+		const logService = new TestLogService();
+		const { service } = createService(store, {
+			tasks: [], repositories: new Map(), logService,
+			authenticationSessions: async () => {
+				authentications++;
+				return [{ accessToken: 'private-token', id: 's', account: { id: 'private-account', label: 'private-label' }, scopes: [] }];
+			},
+			onRequest: () => ++requests === 1 ? historyResponse('Recorded') : response.p,
+		});
+		const first = await Promise.all([
+			service.getSessionHistory('private-task', CancellationToken.None),
+			service.getSessionHistory('private-task', CancellationToken.None),
+		]);
+		const cached = new DeferredPromise<string>();
+		let completed = false;
+		const refresh = service.getSessionHistory('private-task', CancellationToken.None, 'sandbox-1', history => void cached.complete(history.sessions[0].state.title));
+		void refresh.then(() => completed = true);
+		const beforeResponse = { title: await cached.p, completed };
+		await response.complete(historyResponse('Updated'));
+		const result = await refresh;
+		assert.deepStrictEqual({
+			authentications, requests, first: first.map(history => history?.sessions[0].state.title), beforeResponse,
+			title: result?.sessions[0].state.title,
+			cacheHits: logService.infos.filter(message => message.includes('historyCacheHit traceId=sandbox-1')).length,
+			privateData: logService.infos.some(message => message.includes('private-')),
+		}, {
+			authentications: 2, requests: 2, first: ['Recorded', 'Recorded'],
+			beforeResponse: { title: 'Recorded', completed: false }, title: 'Updated', cacheHits: 1, privateData: false,
+		});
+	});
+
+	for (const lateStatus of [200, 403]) {
+		test(`account changes prevent old-account cache reuse or invalidation by a late HTTP ${lateStatus}`, async () => {
+			let account = 'first';
+			let requests = 0;
+			const response = new DeferredPromise<IRequestContext>();
+			const cached = new DeferredPromise<void>();
+			const { service, changeAuthentication } = createService(store, {
+				tasks: [], repositories: new Map(),
+				authenticationSessions: async () => [{ accessToken: 'token', id: 's', account: { id: account, label: account }, scopes: [] }],
+				onRequest: () => ++requests === 2 ? response.p : historyResponse(account),
+			});
+			await service.getSessionHistory('task', CancellationToken.None);
+			const refresh = service.getSessionHistory('task', CancellationToken.None, undefined, () => void cached.complete());
+			await cached.p;
+			const cancelled = assert.rejects(refresh, isCancellationError);
+			account = 'second';
+			changeAuthentication();
+			await cancelled;
+			let previews = 0;
+			const fresh = await service.getSessionHistory('task', CancellationToken.None, undefined, () => previews++);
+			const beforeLateResponse = previews;
+			await response.complete(lateStatus === 200 ? historyResponse('Late first account') : jsonResponse({}, lateStatus));
+			await timeout(0);
+			const reopened = await service.getSessionHistory('task', CancellationToken.None, undefined, () => previews++);
+			assert.deepStrictEqual({ requests, beforeLateResponse, previews, titles: [fresh, reopened].map(history => history?.sessions[0].state.title) }, {
+				requests: 4, beforeLateResponse: 0, previews: 1, titles: ['second', 'second'],
+			});
+		});
+	}
+
+	test('clearing a task while authenticating cancels the read before any request is sent', async () => {
+		const started = new DeferredPromise<void>();
+		const authenticated = new DeferredPromise<readonly AuthenticationSession[]>();
+		const { service, requestedUrls } = createService(store, {
+			tasks: [], repositories: new Map(),
+			authenticationSessions: () => { void started.complete(); return authenticated.p; },
+		});
+		const pending = service.getSessionHistory('task', CancellationToken.None);
+		await started.p;
+		const cancelled = assert.rejects(pending, isCancellationError);
+		service.clearSessionHistory('task');
+		await cancelled;
+		await authenticated.complete([{ accessToken: 'token', id: 's', account: { id: 'a', label: 'a' }, scopes: [] }]);
+		await timeout(0);
+		assert.deepStrictEqual(requestedUrls, []);
+	});
+
+	for (const status of [401, 403, 404]) {
+		test(`HTTP ${status} rejects refresh and evicts cached task history`, async () => {
+			let responseStatus = 200;
+			const { service } = createService(store, {
+				tasks: [], repositories: new Map(),
+				onRequest: () => responseStatus === 200 ? historyResponse('Recorded') : jsonResponse({}, responseStatus),
+			});
+			await service.getSessionHistory('task', CancellationToken.None);
+			responseStatus = status;
+			await assert.rejects(service.getSessionHistory('task', CancellationToken.None), new RegExp(`HTTP ${status}`));
+			responseStatus = 200;
+			let previews = 0;
+			await service.getSessionHistory('task', CancellationToken.None, undefined, () => previews++);
+			assert.strictEqual(previews, 0);
+		});
+	}
+
+	for (const mutation of ['rename', 'archive', 'unarchive', 'delete'] as const) {
+		test(`${mutation} invalidates the affected task without evicting other tasks`, async () => {
+			const { service } = createService(store, {
+				tasks: [], repositories: new Map(),
+				onRequest: url => url.pathname.endsWith('/events') ? historyResponse('Recorded') : jsonResponse({}),
+			});
+			await service.getSessionHistory('task', CancellationToken.None);
+			await service.getSessionHistory('unaffected', CancellationToken.None);
+			if (mutation === 'rename') {
+				await service.renameTask('task', 'Renamed', CancellationToken.None);
+			} else if (mutation === 'delete') {
+				await service.deleteTask('task', CancellationToken.None);
+			} else {
+				await service.setTaskArchived('task', mutation === 'archive', CancellationToken.None);
+			}
+			const previews: string[] = [];
+			await service.getSessionHistory('task', CancellationToken.None, undefined, () => previews.push('task'));
+			await service.getSessionHistory('unaffected', CancellationToken.None, undefined, () => previews.push('unaffected'));
+			assert.deepStrictEqual(previews, ['unaffected']);
+		});
+	}
+});
+
+suite('Mission Control environment discovery', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('caches credential-free metadata and invalidates it when the account changes', async () => {
+		const { service, requestedUrls, changeAuthentication } = createService(store, {
+			tasks: [], repositories: new Map(),
+			onRequest: url => url.pathname.endsWith('/agents/environments') ? jsonResponse([{
+				id: 'host', kind: 'user-local', name: 'Native host', status: 'online', webpubsub: { access_token: 'must-not-be-cached' },
+			}]) : undefined,
+		});
+		const first = await service.listEnvironments(CancellationToken.None);
+		assert.strictEqual(await service.listEnvironments(CancellationToken.None), first);
+		assert.strictEqual(service.getCachedEnvironments(), first);
+		assert.deepStrictEqual(first, [{ id: 'host', kind: 'user-local', name: 'Native host', status: 'online' }]);
+		assert.strictEqual(requestedUrls.filter(url => url.endsWith('/agents/environments')).length, 1);
+		changeAuthentication();
+		assert.strictEqual(service.getCachedEnvironments(), undefined);
+		await service.listEnvironments(CancellationToken.None);
+		assert.strictEqual(requestedUrls.filter(url => url.endsWith('/agents/environments')).length, 2);
+	});
+
+	test('does not return expired cached inventory or fetch merely to read the cache', async () => {
+		await runWithFakedTimers({}, async () => {
+			const { service, requestedUrls } = createService(store, {
+				tasks: [], repositories: new Map(),
+				onRequest: url => url.pathname.endsWith('/agents/environments') ? jsonResponse([]) : undefined,
+			});
+			const empty = service.getCachedEnvironments();
+			await service.listEnvironments(CancellationToken.None);
+			const cached = service.getCachedEnvironments();
+			await timeout(60_000);
+			assert.deepStrictEqual({
+				empty, cached, expired: service.getCachedEnvironments(),
+				requests: requestedUrls.filter(url => url.endsWith('/agents/environments')).length,
+			}, { empty: undefined, cached: [], expired: undefined, requests: 1 });
+		});
+	});
+
+	test('skips unusable metadata without hiding other valid environments or rejecting future statuses', async () => {
+		const { service } = createService(store, {
+			tasks: [], repositories: new Map(),
+			onRequest: url => url.pathname.endsWith('/agents/environments') ? jsonResponse([
+				{ id: 'invalid', name: 'Invalid host', kind: 'user-local' },
+				{ id: 'host', name: 'Native host', kind: 'user-local', status: 'online' },
+				{ id: 'managed', name: 'Managed host', kind: 'managed-sandbox', status: 'paused' },
+			]) : undefined,
+		});
+		assert.deepStrictEqual(await service.listEnvironments(CancellationToken.None), [
+			{ id: 'host', name: 'Native host', kind: 'user-local', status: 'online' },
+			{ id: 'managed', name: 'Managed host', kind: 'managed-sandbox', status: 'paused' },
+		]);
+	});
+
+	test('explicit inventory refresh observes a host started since the cached offline result', async () => {
+		let status = 'offline';
+		const { service } = createService(store, {
+			tasks: [], repositories: new Map(),
+			onRequest: url => url.pathname.endsWith('/agents/environments') ? jsonResponse([{ id: 'host', name: 'Native host', kind: 'user-local', status }]) : undefined,
+		});
+		assert.strictEqual((await service.listEnvironments(CancellationToken.None))[0].status, 'offline');
+		status = 'online';
+		assert.strictEqual((await service.listEnvironments(CancellationToken.None, { refresh: true }))[0].status, 'online');
+	});
+
+	test('explicit inventory refresh removes deleted environments from the API cache', async () => {
+		let environments = [{ id: 'host', name: 'Native host', kind: 'user-local', status: 'online' }];
+		const { service, requestedUrls } = createService(store, {
+			tasks: [], repositories: new Map(),
+			onRequest: url => url.pathname.endsWith('/agents/environments') ? jsonResponse(environments) : undefined,
+		});
+		await service.listEnvironments(CancellationToken.None);
+		environments = [];
+		const refreshed = await service.listEnvironments(CancellationToken.None, { refresh: true });
+		assert.deepStrictEqual({
+			refreshed, cached: service.getCachedEnvironments(),
+			requests: requestedUrls.filter(url => url.endsWith('/agents/environments')).length,
+		}, { refreshed: [], cached: [], requests: 2 });
+	});
+
+	test('does not publish a late inventory from a previous account', async () => {
+		const started = new DeferredPromise<void>();
+		const response = new DeferredPromise<IRequestContext>();
+		const { service, changeAuthentication } = createService(store, {
+			tasks: [], repositories: new Map(),
+			onRequest: url => {
+				if (url.pathname.endsWith('/agents/environments')) {
+					started.complete();
+					return response.p;
+				}
+				return undefined;
+			},
+		});
+		const inventory = service.listEnvironments(CancellationToken.None);
+		await started.p;
+		changeAuthentication();
+		response.complete(jsonResponse([{ id: 'host', kind: 'user-local', name: 'Old account', status: 'online' }]));
+		await assert.rejects(inventory, CancellationError);
+	});
+});
+
 suite('CloudSandboxApiService repository resolution', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('distinguishes repo-less tasks from unresolved repository names', async () => {
+		const { service } = createService(store, {
+			tasks: [
+				task('with-repository', 'Repository chat', 42, 'with-repository', 'environment-1'),
+				task('without-repository', 'General chat', undefined, 'without-repository', 'environment-2'),
+			],
+			repositories: new Map([[42, 'error']]),
+		});
+		const result = await service.listSessions(CancellationToken.None);
+
+		assert.deepStrictEqual(result.kind === 'failed' ? result : result.sessions.map(session => ({
+			id: session.sessionId, hasRepository: session.hasRepository, name: session.repoName,
+		})), [
+			{ id: 'with-repository', hasRepository: true, name: undefined },
+			{ id: 'without-repository', hasRepository: false, name: undefined },
+		]);
+	});
+
+	test('retains the repository scope when task payloads omit repository details', async () => {
+		const current = { ...task('task-1', 'Chat', undefined, 'session-1', 'environment-1'), updated_at: '2026-07-01T00:01:00.000Z' };
+		let hasRepository = true;
+		const { service, requestedUrls } = createService(store, {
+			tasks: [current],
+			repositories: new Map(),
+			onRequest: url => url.pathname.endsWith('/tasks')
+				? jsonResponse({ tasks: url.searchParams.get('with_repo') === String(hasRepository) && url.searchParams.get('is_archived') === 'false' ? [current] : [] })
+				: undefined,
+		});
+		const withRepository = await service.listSessions(CancellationToken.None);
+		hasRepository = false;
+		const withoutRepository = await service.listSessions(CancellationToken.None);
+
+		assert.deepStrictEqual({
+			classifications: [withRepository, withoutRepository].map(result => result.kind === 'failed' ? result.reason : result.sessions.map(session => session.hasRepository)),
+			detailReads: requestedUrls.filter(url => url.endsWith('/tasks/task-1')).length,
+		}, { classifications: [[true], [false]], detailReads: 2 });
+	});
+
+	test('preserves the creating application from cloud task discovery', async () => {
+		const { service } = createService(store, {
+			tasks: [{ ...task('task-1', 'From Slack', undefined, 'session-1', 'environment-1'), event_type: 'slack' }],
+			repositories: new Map(),
+		});
+		const result = await service.listSessions(CancellationToken.None);
+		assert.deepStrictEqual(result.kind === 'failed' ? result : result.sessions.map(session => session.eventType), ['slack']);
+	});
 
 	test('preserves the bound session activity independently of the task state', async () => {
 		const states = ['queued', 'in_progress', 'waiting_for_user', 'idle', 'completed', 'failed', 'timed_out', 'cancelled'];
@@ -375,6 +985,7 @@ suite('CloudSandboxApiService repository resolution', () => {
 				taskId: 'task-1',
 				name: 'Change port to 5555',
 				repoName: 'osortega/simple-server',
+				hasRepository: true,
 				updatedAt: undefined,
 			}],
 		});
@@ -523,7 +1134,7 @@ suite('CloudSandboxApiService repository resolution', () => {
 		}, {
 			kind: 'complete',
 			found: ['sess-old'],
-			listPages: 3,
+			listPages: 5,
 		});
 	});
 
@@ -545,7 +1156,7 @@ suite('CloudSandboxApiService repository resolution', () => {
 		}, {
 			kind: 'complete',
 			found: ['sess-old'],
-			listPages: 3,
+			listPages: 5,
 		});
 	});
 
@@ -564,7 +1175,7 @@ suite('CloudSandboxApiService repository resolution', () => {
 		}, {
 			kind: 'partial',
 			sessions: 1000,
-			listPages: 11,
+			listPages: 13,
 		});
 	});
 });
@@ -603,6 +1214,8 @@ suite('CloudSandboxApiService discovery logs', () => {
 				taskId: 'bound', sessionId: 'session-1', environmentId: 'env-1',
 				name: 'Work on repository', repoName: 'owner/repository',
 				updatedAt: bound.updated_at, status: SessionStatus.InputNeeded,
+			})}`, `[CloudSandboxApi] Discovered sandbox session ${JSON.stringify({
+				taskId: 'archived', sessionId: 'session-2', environmentId: 'env-2', name: 'Old task',
 			})}`],
 			info: [],
 			exposedPrompt: false,
@@ -710,7 +1323,7 @@ suite('CloudSandboxApiService stalled sandbox discovery', () => {
 			}, {
 				kind: 'complete',
 				sessions: age >= oneHour ? [] : ['stalled'],
-				requests: ['/agents/tasks', '/agents/tasks', '/agents/tasks/stalled'],
+				requests: ['/agents/tasks', '/agents/tasks', '/agents/tasks', '/agents/tasks', '/agents/tasks/stalled'],
 			});
 		}));
 	}
@@ -778,7 +1391,7 @@ suite('CloudSandboxApiService stalled sandbox discovery', () => {
 	for (const truncation of ['scope failure', 'page failure', 'page limit']) {
 		for (const observed of [false, true]) {
 			test(`only removes observed candidates during ${truncation} (observed=${observed})`, () => runWithFakedTimers({ useFakeTimers: true, startTime }, async () => {
-				const current = unstartedTask('stalled', startTime - oneHour + 1_000);
+				const current = { ...unstartedTask('stalled', startTime - oneHour + 1_000), repository: observed ? { id: 123 } : undefined };
 				const other = {
 					...task('other', 'Work', 123, 'other-session', 'other-environment'),
 					updated_at: new Date(startTime - oneHour).toISOString(),
@@ -886,7 +1499,7 @@ suite('CloudSandboxApiService incremental discovery', () => {
 		return { ...task(id, id, repositoryId, `session-${id}`, `env-${id}`), updated_at: updatedAt };
 	}
 
-	test('queries both repository scopes and resolves no task details when nothing changed', async () => {
+	test('queries both repository and archive scopes and resolves no task details when nothing changed', async () => {
 		const { service, requestedUrls } = createService(store, {
 			tasks: [updatedTask('old')],
 			repositories: new Map(),
@@ -902,10 +1515,10 @@ suite('CloudSandboxApiService incremental discovery', () => {
 			queries: requestedUrls.map(url => Object.fromEntries(new URL(url).searchParams)),
 		}, {
 			result: { kind: 'incremental', sessions: [], removedTaskIds: [] },
-			queries: [true, false].map(withRepository => ({
+			queries: [false, true].flatMap(archived => [true, false].map(withRepository => ({
 				per_page: '100', page: '1', sort: 'updated_at', direction: 'desc',
-				with_repo: String(withRepository), since: checkpoint, include_environment_kinds: 'managed-sandbox',
-			})),
+				with_repo: String(withRepository), is_archived: String(archived), since: checkpoint, include_environment_kinds: 'managed-sandbox',
+			}))),
 		});
 	});
 
@@ -944,7 +1557,7 @@ suite('CloudSandboxApiService incremental discovery', () => {
 			kind: result.kind,
 			since: new URL(requestedUrls[0]).searchParams.get('since'),
 			requests: requestedUrls.length,
-		}, { kind: 'incremental', since: '2026-09-22T09:57:00.000Z', requests: 2 });
+		}, { kind: 'incremental', since: '2026-09-22T09:57:00.000Z', requests: 4 });
 	});
 
 	test('preserves incremental filters on every page even when pagination links omit them', async () => {
@@ -962,16 +1575,16 @@ suite('CloudSandboxApiService incremental discovery', () => {
 		assert.deepStrictEqual({
 			kind: result.kind,
 			count: result.kind === 'failed' ? 0 : result.sessions.length,
-			pages: queries.map(query => [query.get('with_repo'), query.get('page')]),
+			pages: queries.map(query => [query.get('with_repo'), query.get('is_archived'), query.get('page')]),
 			retainedFilters: queries.every(query => query.get('since') === checkpoint && query.get('include_environment_kinds') === 'managed-sandbox'),
 		}, {
 			kind: 'incremental', count: 101,
-			pages: [['true', '1'], ['false', '1'], ['false', '2']],
+			pages: [['true', 'false', '1'], ['false', 'false', '1'], ['false', 'false', '2'], ['true', 'true', '1'], ['false', 'true', '1']],
 			retainedFilters: true,
 		});
 	});
 
-	test('reports explicit task archives and discovers unarchives without retaining stale details', async () => {
+	test('discovers task archives and unarchives without removing their sessions', async () => {
 		const tasks = [updatedTask('first')];
 		const { service, requestedUrls } = createService(store, {
 			tasks, repositories: new Map(), discoveryDate: () => firstScanDate,
@@ -985,14 +1598,15 @@ suite('CloudSandboxApiService incremental discovery', () => {
 		const unarchived = await service.listSessions(CancellationToken.None, { incremental: true });
 
 		assert.deepStrictEqual({
-			archived, archivedRequests,
-			unarchived: unarchived.kind === 'failed' ? [] : unarchived.sessions.map(session => session.taskId),
+			archived: archived.kind === 'failed' ? archived : { kind: archived.kind, sessions: archived.sessions.map(session => [session.taskId, session.isArchived]), removedTaskIds: archived.kind === 'incremental' ? archived.removedTaskIds : [] },
+			archivedRequests,
+			unarchived: unarchived.kind === 'failed' ? [] : unarchived.sessions.map(session => [session.taskId, session.isArchived]),
 			detailFetches: requestedUrls.filter(url => url.endsWith('/tasks/first')).length,
 		}, {
-			archived: { kind: 'incremental', sessions: [], removedTaskIds: ['first'] },
-			archivedRequests: 2,
-			unarchived: ['first'],
-			detailFetches: 1,
+			archived: { kind: 'incremental', sessions: [['first', true]], removedTaskIds: [] },
+			archivedRequests: 5,
+			unarchived: [['first', undefined]],
+			detailFetches: 2,
 		});
 	});
 
@@ -1371,9 +1985,184 @@ function createServiceForCreate(store: Pick<{ add<T extends { dispose(): void }>
 	}());
 	instantiationService.stub(ICloudSandboxTelemetryService, new class extends mock<ICloudSandboxTelemetryService>() {
 		override reportRequest(): void { }
+		override reportProvisioningOutcome(): void { }
 	}());
 	return { service: store.add(instantiationService.createInstance(CloudSandboxApiService)), calls, errors, warnings };
 }
+
+suite('CloudSandboxApiService task archiving', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('another client discovers a task archive and the original client discovers its unarchive', async () => {
+		const tasks: ITestTask[] = [task('task-1', 'Task', undefined, 'session-1', 'env-1')];
+		const createClient = () => createService(store, {
+			tasks, repositories: new Map(),
+			onRequest: (url, _token, options) => {
+				if (options.type === 'POST') {
+					tasks[0] = { ...tasks[0], archived_at: url.pathname.endsWith('/archive') ? new Date().toISOString() : undefined };
+					return jsonResponse({});
+				}
+				return undefined;
+			},
+		}).service;
+		const first = createClient();
+		const second = createClient();
+		await first.listSessions(CancellationToken.None);
+		await first.setTaskArchived('task-1', true, CancellationToken.None);
+		const archived = await second.listSessions(CancellationToken.None);
+		await second.setTaskArchived('task-1', false, CancellationToken.None);
+		const unarchived = await first.listSessions(CancellationToken.None, { incremental: true });
+		assert.deepStrictEqual({
+			archived: archived.kind === 'failed' ? archived : archived.sessions.map(session => [session.taskId, session.isArchived === true]),
+			unarchived: unarchived.kind === 'failed' ? unarchived : unarchived.sessions.map(session => [session.taskId, session.isArchived === true]),
+		}, { archived: [['task-1', true]], unarchived: [['task-1', false]] });
+	});
+
+	test('posts archive and unarchive to the owning task without an environment request', async () => {
+		const { service, calls } = createServiceForCreate(store, {});
+		await service.setTaskArchived('task/with spaces', true, CancellationToken.None);
+		await service.setTaskArchived('task/with spaces', false, CancellationToken.None);
+		assert.deepStrictEqual(calls.map(call => ({
+			path: new URL(call.url).pathname, method: call.type, body: call.body,
+			timeout: call.timeout, integration: call.headers['Copilot-Integration-Id'],
+		})), [
+			{ path: '/agents/tasks/task%2Fwith%20spaces/archive', method: 'POST', body: undefined, timeout: 10_000, integration: COPILOT_INTEGRATION_ID },
+			{ path: '/agents/tasks/task%2Fwith%20spaces/unarchive', method: 'POST', body: undefined, timeout: 10_000, integration: COPILOT_INTEGRATION_ID },
+		]);
+	});
+
+	for (const archived of [true, false]) {
+		for (const statusCode of [400, 403, 404, 422, 429, 500]) {
+			test(`surfaces rejected task ${archived ? 'archive' : 'unarchive'}: HTTP ${statusCode}`, async () => {
+				const { service } = createServiceForCreate(store, { message: 'archive rejected' }, statusCode);
+				await assert.rejects(service.setTaskArchived('task-1', archived, CancellationToken.None), new RegExp(`task ${archived ? 'archive' : 'unarchive'} failed: HTTP ${statusCode}`));
+			});
+		}
+	}
+
+	test('requires authentication before archiving', async () => {
+		const { service, requestedUrls } = createService(store, {
+			tasks: [], repositories: new Map(), authenticationSessions: async () => [],
+		});
+		await assert.rejects(service.setTaskArchived('task-1', true, CancellationToken.None), /signed-in GitHub account/);
+		assert.deepStrictEqual(requestedUrls, []);
+	});
+
+	test('invalidates discovery responses started before an archive mutation', async () => {
+		const pending = new DeferredPromise<IRequestContext>();
+		const entered = new DeferredPromise<void>();
+		let paused = false;
+		const tasks = [task('task-1', 'Task', undefined, 'session-1', 'env-1')];
+		const { service } = createService(store, {
+			tasks, repositories: new Map(),
+			onRequest: async (url, _token, options) => {
+				if (options.type === 'POST') {
+					return jsonResponse({});
+				}
+				if (paused && url.pathname.endsWith('/tasks/task-1')) {
+					await entered.complete();
+					return pending.p;
+				}
+				return undefined;
+			},
+		});
+		paused = true;
+		const discovery = service.listSessions(CancellationToken.None);
+		await entered.p;
+		await service.setTaskArchived('task-1', true, CancellationToken.None);
+		await pending.complete(jsonResponse(tasks[0]));
+		assert.strictEqual((await discovery).kind, 'failed');
+	});
+});
+
+suite('CloudSandboxApiService task renaming', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('patches the encoded task name through Mission Control', async () => {
+		const { service, calls } = createServiceForCreate(store, { name: 'New title' });
+		await service.renameTask('task/with spaces', 'New title', CancellationToken.None);
+		assert.deepStrictEqual(calls, [{
+			url: 'https://api.githubcopilot.com/agents/tasks/task%2Fwith%20spaces',
+			type: 'PATCH',
+			body: { name: 'New title' },
+			timeout: 10_000,
+			headers: {
+				Accept: 'application/json',
+				'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,
+				'Content-Type': 'application/json',
+				Authorization: 'Bearer tok',
+			},
+		}]);
+	});
+
+	for (const statusCode of [400, 403, 404, 422, 429, 500]) {
+		test(`surfaces rejected task rename: HTTP ${statusCode}`, async () => {
+			const { service } = createServiceForCreate(store, { message: 'rename rejected' }, statusCode);
+			await assert.rejects(service.renameTask('task-1', 'New title', CancellationToken.None), new RegExp(`task rename failed: HTTP ${statusCode}`));
+		});
+	}
+
+	test('requires authentication before renaming', async () => {
+		const { service, requestedUrls } = createService(store, {
+			tasks: [], repositories: new Map(), authenticationSessions: async () => [],
+		});
+		await assert.rejects(service.renameTask('task-1', 'New title', CancellationToken.None), /signed-in GitHub account/);
+		assert.deepStrictEqual(requestedUrls, []);
+	});
+
+	test('surfaces transport errors', async () => {
+		const { service } = createService(store, {
+			tasks: [], repositories: new Map(), requestError: new Error('rename transport failed'),
+		});
+		await assert.rejects(service.renameTask('task-1', 'New title', CancellationToken.None), /rename transport failed/);
+	});
+
+	test('refreshes a renamed task even when the incremental list omits it', async () => {
+		const original = { ...task('task-1', 'Old title', undefined, 'sess-1', 'env-1'), updated_at: '2026-08-01T00:00:00Z' };
+		let renamed = false;
+		const { service } = createService(store, {
+			tasks: [original], repositories: new Map(),
+			onRequest: (url, _token, options) => {
+				if (options.type === 'PATCH') {
+					renamed = true;
+					return jsonResponse({});
+				}
+				if (renamed && url.pathname.endsWith('/tasks/task-1')) {
+					return jsonResponse({ ...original, name: 'New title' });
+				}
+				return undefined;
+			},
+		});
+		await service.listSessions(CancellationToken.None);
+		await service.renameTask('task-1', 'New title', CancellationToken.None);
+		const result = await service.listSessions(CancellationToken.None, { incremental: true });
+		assert.deepStrictEqual(result.kind !== 'failed' ? result.sessions.map(session => session.name) : result.kind, ['New title']);
+	});
+
+	test('invalidates discovery in flight when a task is renamed', async () => {
+		const entered = new DeferredPromise<void>();
+		const response = new DeferredPromise<IRequestContext>();
+		const original = task('task-1', 'Old title', undefined, 'sess-1', 'env-1');
+		const { service } = createService(store, {
+			tasks: [original], repositories: new Map(),
+			onRequest: (url, _token, options) => {
+				if (options.type === 'PATCH') {
+					return jsonResponse({});
+				}
+				if (url.pathname.endsWith('/tasks/task-1')) {
+					void entered.complete();
+					return response.p;
+				}
+				return undefined;
+			},
+		});
+		const discovery = service.listSessions(CancellationToken.None);
+		await entered.p;
+		await service.renameTask('task-1', 'New title', CancellationToken.None);
+		await response.complete(jsonResponse(original));
+		assert.strictEqual((await discovery).kind, 'failed');
+	});
+});
 
 suite('CloudSandboxApiService task deletion', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -1460,6 +2249,60 @@ suite('CloudSandboxApiService session creation', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	for (const result of ['success', 'HTTP error', 'network error', 'invalid binding', 'invalid JSON', 'cancelled', 'late success after cancellation'] as const) {
+		test(`reports provisioning duration separately when ${result}`, () => runWithFakedTimers({}, async () => {
+			const source = store.add(new CancellationTokenSource());
+			const error = new Error('private network error');
+			const { service, provisioningOutcomes } = createService(store, {
+				tasks: [], repositories: new Map(),
+				onRequest: async (_url, _token, options) => {
+					if (options.type === 'DELETE') {
+						await timeout(10);
+						return jsonResponse({}, 204);
+					}
+					await timeout(40);
+					if (result === 'cancelled' || result === 'late success after cancellation') {
+						source.cancel();
+					}
+					if (result === 'cancelled') {
+						throw new CancellationError();
+					}
+					if (result === 'network error') {
+						throw error;
+					}
+					if (result === 'HTTP error') {
+						return jsonResponse({ message: 'private server error' }, 500);
+					}
+					if (result === 'invalid JSON') {
+						return { res: { headers: {}, statusCode: 200 }, stream: bufferToStream(VSBuffer.fromString('invalid')) };
+					}
+					return jsonResponse({
+						id: 'private-task',
+						sessions: result === 'invalid binding' ? [] : [{ id: 'private-session', environment_id: 'private-environment' }],
+					});
+				},
+			});
+			await timeout(100);
+			const provisioning = service.createSession({ prompt: 'private prompt' }, source.token);
+			if (result === 'success' || result === 'late success after cancellation') {
+				await provisioning;
+			} else {
+				await assert.rejects(provisioning, caught => result === 'network error' ? caught === error : caught instanceof Error);
+			}
+			await timeout(100);
+			assert.deepStrictEqual(provisioningOutcomes, [[
+				result === 'success' ? 'success' : result === 'cancelled' || result === 'late success after cancellation' ? 'cancelled' : 'failure',
+				result === 'invalid binding' ? 50 : 40,
+			]]);
+		}));
+	}
+
+	test('reports already cancelled provisioning without issuing a request', () => runWithFakedTimers({}, async () => {
+		const { service, requestedUrls, provisioningOutcomes } = createService(store, { tasks: [], repositories: new Map() });
+		await assert.rejects(service.createSession({ prompt: 'hello' }, CancellationToken.Cancelled), isCancellationError);
+		assert.deepStrictEqual({ requestedUrls, provisioningOutcomes }, { requestedUrls: [], provisioningOutcomes: [['cancelled', 0]] });
+	}));
+
 	test('posts the on-demand sentinel and returns the bound environment', async () => {
 		const { service, calls } = createServiceForCreate(store, {
 			id: 'task-1',
@@ -1492,7 +2335,7 @@ suite('CloudSandboxApiService session creation', () => {
 		});
 	});
 
-	test('omits the repository when it is not supplied', async () => {
+	test('uses account compute scope when no repository is supplied', async () => {
 		const { service, calls } = createServiceForCreate(store, {
 			id: 'task-2',
 			sessions: [{ id: 'sess-2', environment_id: 'env-2' }],
@@ -1503,8 +2346,66 @@ suite('CloudSandboxApiService session creation', () => {
 		assert.deepStrictEqual(calls[0].body, {
 			environment_id: CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID,
 			prompt: 'hello',
+			compute: { scope: 'a' },
 		});
 	});
+
+	test('pairs repo-less compute scope with the account authorizing each request', async () => {
+		const calls: Pick<ICreateCall, 'body' | 'headers'>[] = [];
+		let authenticationRequests = 0;
+		const { service } = createService(store, {
+			tasks: [], repositories: new Map(),
+			authenticationSessions: async () => {
+				const login = ++authenticationRequests === 1 ? 'octocat' : 'mona';
+				return [{
+					id: `session-${login}`,
+					accessToken: `token-${login}`,
+					account: { id: String(authenticationRequests), label: login },
+					scopes: [],
+				}];
+			},
+			onRequest: (_url, _token, options) => {
+				calls.push({ body: JSON.parse(options.data ?? ''), headers: options.headers ?? {} });
+				return jsonResponse({ id: 'task-1', sessions: [{ id: 'sess-1', environment_id: 'env-1' }] });
+			},
+		});
+
+		await service.createSession({ prompt: 'hello' }, CancellationToken.None);
+		await service.createSession({ prompt: 'hello' }, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			authenticationRequests,
+			requests: calls.map(call => ({ body: call.body, authorization: call.headers.Authorization })),
+		}, {
+			authenticationRequests: 2,
+			requests: ['octocat', 'mona'].map(login => ({
+				body: {
+					environment_id: CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID,
+					prompt: 'hello',
+					compute: { scope: login },
+				},
+				authorization: `Bearer token-${login}`,
+			})),
+		});
+	});
+
+	test('requires authentication before creating a repo-less sandbox', async () => {
+		const { service, requestedUrls } = createService(store, {
+			tasks: [], repositories: new Map(), authenticationSessions: async () => [],
+		});
+
+		await assert.rejects(service.createSession({ prompt: 'hello' }, CancellationToken.None), CloudSandboxAuthenticationRequiredError);
+		assert.deepStrictEqual(requestedUrls, []);
+	});
+
+	for (const repoNwo of ['', 'octocat', '/repo', 'octocat/']) {
+		test(`rejects an invalid repository instead of provisioning a repo-less sandbox: '${repoNwo}'`, async () => {
+			const { service, requestedUrls } = createService(store, { tasks: [], repositories: new Map() });
+
+			await assert.rejects(service.createSession({ repoNwo, prompt: 'hello' }, CancellationToken.None), /owner\/name/);
+			assert.deepStrictEqual(requestedUrls, []);
+		});
+	}
 
 	test('throws when Mission Control binds no session to the created task', async () => {
 		// A task with no bound session has nothing for the relay to address, so this must not be

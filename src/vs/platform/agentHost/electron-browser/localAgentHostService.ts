@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DeferredPromise, disposableTimeout } from '../../../base/common/async.js';
+import type { CancellationToken } from '../../../base/common/cancellation.js';
 import { Emitter, Event, Relay } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { equals } from '../../../base/common/objects.js';
@@ -43,20 +44,29 @@ import {
 	AgentHostRestartIpcChannel,
 	AgentHostWillRestartIpcChannel,
 	AgentSession,
+	type IAgentCanvasInfo,
+	type IAgentCanvasOpenRequest,
 	IAgentCreateChatRequestOptions,
 	IAgentCreateSessionConfig,
+	IAgentCustomizationInstallation,
+	IAgentCustomizationInstallationRequest,
+	IAgentCustomizationInstallationReview,
+	IAgentCustomizationMarketplaceSearchRequest,
+	IAgentCustomizationMarketplaceSearchResult,
 	IAgentHostInspectInfo,
 	type IAgentHostDebugLogsArtifact,
-	type IAgentHostCanvases,
 	IAgentHostManagementService,
 	IAgentHostManagedSettingsDiagnostics,
 	IAgentHostNetworkDiagnosticsInfo,
 	IAgentHostNetworkFetchResult,
-	type IAgentHostOTelSettings,
-	type IAgentHostOTelPolicyReadiness,
 	IAgentHostService,
 	IAgentHostSocketInfo,
+	type IAgentHostOTelSettings,
+	type IAgentHostOTelPolicyReadiness,
+	IAgentPluginInstallRequest,
 	IAgentPluginUninstallRequest,
+	type IMissionControlOptions,
+	type IMissionControlCredentialSealingRequest,
 	IAgentResolveSessionConfigParams,
 	IAgentSessionConfigCompletionsParams,
 	IAgentSessionMetadata,
@@ -153,8 +163,8 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 	declare readonly _serviceBrand: undefined;
 
 	readonly clientId = generateUuid();
+	readonly clientConnectionKind = AgentHostClientConnectionKind.Local;
 	get resourceUris() { return this._protocolClient?.resourceUris ?? identityAgentHostResourceUriMapper; }
-	get canvases(): IAgentHostCanvases | undefined { return this._protocolClient?.canvases; }
 
 	private readonly _clientStore = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _managementConnection = this._register(new LocalAgentHostManagementConnection());
@@ -234,7 +244,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 			this._startupTelemetry = this._register(this._instantiationService.createInstance(
 				AgentHostStartupTelemetry,
 				getAgentHostClientType(this._clientInfo),
-				AgentHostClientConnectionKind.Local,
+				this.clientConnectionKind,
 				() => StopWatch.create(true),
 				(callback, timeoutMs) => disposableTimeout(callback, timeoutMs),
 			));
@@ -274,7 +284,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return new AgentHostIpcChannelTransport(
 			getDelayedChannel(clientPromise.then(client => client.getChannel(AgentHostIpcChannels.Protocol))),
 			this._ahpLogger,
-			AgentHostClientConnectionKind.Local,
+			this.clientConnectionKind,
 		);
 	}
 
@@ -405,6 +415,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		this._requireClient().dispatch(channel, action);
 	}
 
+	dispatchConfirmed<T>(channel: string, subscription: IAgentSubscription<T>, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction, token: CancellationToken): Promise<ActionEnvelope> {
+		return this._requireClient().dispatchConfirmed(channel, subscription, action, token);
+	}
+
 	authenticate(params: AuthenticateParams): Promise<AuthenticateResult> {
 		return this._requireClient().authenticate(params);
 	}
@@ -478,6 +492,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._requireClient().removeSessionArtifact(session, artifactId);
 	}
 
+	stopBackgroundWork(chat: URI, id: string): Promise<boolean> {
+		return this._requireClient().stopBackgroundWork(chat, id);
+	}
+
 	importSession(session: URI): Promise<void> {
 		return this._requireClient().importSession(session);
 	}
@@ -504,6 +522,38 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	uninstallPlugin(provider: string, request: IAgentPluginUninstallRequest): Promise<void> {
 		return this._getManagementService().uninstallPlugin(provider, request);
+	}
+
+	listSessionCanvases(session: URI, chat: URI): Promise<readonly IAgentCanvasInfo[]> {
+		return this._getManagementService().listSessionCanvases(session, chat);
+	}
+
+	openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest, chat: URI): Promise<void> {
+		return this._getManagementService().openSessionCanvas(session, request, chat);
+	}
+
+	installPlugin(provider: string, request: IAgentPluginInstallRequest): Promise<void> {
+		return this._getManagementService().installPlugin(provider, request);
+	}
+
+	searchCustomizationMarketplace(provider: string, session: URI, request: IAgentCustomizationMarketplaceSearchRequest): Promise<IAgentCustomizationMarketplaceSearchResult> {
+		return this._getManagementService().searchCustomizationMarketplace(provider, session, request);
+	}
+
+	listCustomizationInstallations(provider: string, session: URI): Promise<readonly IAgentCustomizationInstallation[]> {
+		return this._getManagementService().listCustomizationInstallations(provider, session);
+	}
+
+	prepareCustomizationInstallation(provider: string, session: URI, request: IAgentCustomizationInstallationRequest | { readonly installationId: string }): Promise<IAgentCustomizationInstallationReview> {
+		return this._getManagementService().prepareCustomizationInstallation(provider, session, request);
+	}
+
+	applyCustomizationInstallation(provider: string, operationId: string): Promise<void> {
+		return this._getManagementService().applyCustomizationInstallation(provider, operationId);
+	}
+
+	recoverCustomizationInstallations(provider: string, session: URI): Promise<readonly IAgentCustomizationInstallation[]> {
+		return this._getManagementService().recoverCustomizationInstallations(provider, session);
 	}
 
 	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> {
@@ -647,6 +697,19 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 			getDelayedChannel(this._managementConnection.client().then(client => client.getChannel(AgentHostIpcChannels.Management)))
 		);
 	}
+
+	configureMissionControl(options: IMissionControlOptions | undefined, withdrawingAccountId?: string): Promise<void> {
+		return this._getManagementService().configureMissionControl(options, withdrawingAccountId);
+	}
+
+	sealMissionControlCredential(request: IMissionControlCredentialSealingRequest): Promise<string> {
+		return this._getManagementService().sealMissionControlCredential(request);
+	}
+
+	getMissionControlEnvironmentId(): Promise<string | undefined> {
+		return this._getManagementService().getMissionControlEnvironmentId();
+	}
+
 }
 
 function hasSessionExtensions(config: IAgentCreateSessionConfig): boolean {

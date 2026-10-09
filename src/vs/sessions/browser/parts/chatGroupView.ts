@@ -6,9 +6,11 @@
 import { $, size, trackFocus } from '../../../base/browser/dom.js';
 import { ISerializableView, IViewSize } from '../../../base/browser/ui/grid/grid.js';
 import { Emitter, Event } from '../../../base/common/event.js';
+import { Codicon } from '../../../base/common/codicons.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, observableFromEvent, observableValue } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
+import { isEqual } from '../../../base/common/resources.js';
 import { localize } from '../../../nls.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
@@ -110,6 +112,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 	private readonly _remoteHostUnavailableEmptyState: RemoteHostUnavailableEmptyState;
 
 	private readonly _currentView = this._register(new MutableDisposable<AbstractChatView>());
+	private _draftChatResource: URI | undefined;
 	private readonly _contextDisposables = this._register(new DisposableStore());
 	private readonly _scopedInstantiationService: IInstantiationService;
 	private readonly _activeChatIsClosableKey: IContextKey<boolean>;
@@ -187,7 +190,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 
 		// Single status banner, shown flush below this group's tab bar when the
 		// active chat is non-interactive or its remote host is unavailable.
-		this._readOnlyBanner = this._register(new SessionReadOnlyBanner());
+		this._readOnlyBanner = this._register(this._instantiationService.createInstance(SessionReadOnlyBanner));
 		this._barContainer.appendChild(this._readOnlyBanner.domNode);
 
 		this._contentContainer = $('.chat-group-view-content');
@@ -238,6 +241,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		this._connection.setSession(context?.session);
 
 		if (!context) {
+			this._draftChatResource = undefined;
 			this._activeChatIsClosableKey.reset();
 			this._activeChatCanArchiveKey.reset();
 			this._activeChatIsDeletableKey.reset();
@@ -308,7 +312,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 
 		const readOnlyContent = derived(reader => {
 			const chat = activeChat.read(reader);
-			if (!chat || chat.interactivity.read(reader) === ChatInteractivity.Full) {
+			if (!chat || chat.interactivity.read(reader) === ChatInteractivity.Full || chat.interactivity.read(reader) === ChatInteractivity.DraftOnly) {
 				return undefined;
 			}
 
@@ -321,7 +325,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 						message: localize('sessionReadOnlyBanner.archived', "Archived sessions are read-only."),
 						action: {
 							label: action.title.value,
-							run: () => this._commandService.executeCommand(UNARCHIVE_SESSION_COMMAND_ID, context.session),
+							run: () => this._commandService.executeCommand<void>(UNARCHIVE_SESSION_COMMAND_ID, context.session),
 						},
 					},
 				};
@@ -330,15 +334,23 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		});
 
 		const surface = derived<IChatGroupSurface>(reader => {
+			const view = currentView.read(reader);
+			const historyStatus = view?.historyStatus.read(reader);
 			const readOnly = readOnlyContent.read(reader);
 			if (readOnly?.archived) {
-				return { banner: readOnly.content, recovery: undefined };
+				return {
+					banner: historyStatus?.kind === 'history' ? {
+						message: localize('sessionHistoryStatus.archived', "{0} {1}", historyStatus.message, readOnly.content.message),
+						action: historyStatus.action,
+						secondaryAction: readOnly.content.action,
+					} : readOnly.content,
+					recovery: undefined,
+				};
 			}
 
 			// Keep the banner while history loads to avoid flashing the centered recovery state.
-			const view = currentView.read(reader);
 			const transcriptSettled = view === undefined || !view.isLoadingTranscript.read(reader);
-			const recovery = !transcriptSettled || view?.hasVisibleTranscriptContent.read(reader)
+			const recovery = !transcriptSettled || view?.hasVisibleTranscriptContent.read(reader) || activeChat.read(reader)?.interactivity.read(reader) === ChatInteractivity.DraftOnly
 				? undefined
 				: this._connection.recoveryContent.read(reader);
 			if (recovery) {
@@ -346,8 +358,16 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 			}
 			// Explain connection-related read-only state before falling back to the generic notice.
 			const connectionBanner = this._connection.bannerContent.read(reader);
-			if (connectionBanner) {
+			const quietDraft = activeChat.read(reader)?.interactivity.read(reader) === ChatInteractivity.DraftOnly
+				&& this._connection.isQuiet.read(reader);
+			if (connectionBanner && !quietDraft) {
 				return { banner: connectionBanner, recovery: undefined };
+			}
+			if (historyStatus && (historyStatus.kind === 'history' || !this._connection.isQuiet.read(reader))) {
+				return { banner: { icon: Codicon.warning, message: historyStatus.message, action: historyStatus.action }, recovery: undefined };
+			}
+			if (!quietDraft && activeChat.read(reader)?.interactivity.read(reader) === ChatInteractivity.DraftOnly && context.session.remoteConnectionStatus?.read(reader)?.kind === 'connected') {
+				return { banner: { icon: Codicon.sync, message: localize('sessionReadOnlyBanner.preparing', "Preparing the session...") }, recovery: undefined };
 			}
 
 			return { banner: !transcriptSettled || view?.isInputBlocked.read(reader) ? undefined : readOnly?.content, recovery: undefined };
@@ -356,13 +376,19 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		this._contextDisposables.add(autorun(reader => {
 			const session = context.session;
 			const chat = activeChat.read(reader);
+			if (!isEqual(this._draftChatResource, chat?.resource)) {
+				this._draftChatResource = undefined;
+			}
+			if (chat?.interactivity.read(reader) === ChatInteractivity.DraftOnly) {
+				this._draftChatResource = chat.resource;
+			}
 
 			let desiredKind: ChatViewKind;
 			if (session.isCreated.read(reader) === false) {
 				desiredKind = session.isNewSessionRequestInProgress?.read(reader) === true
 					? 'chat'
 					: 'newSession';
-			} else if (!chat || (chat.status.read(reader) === SessionStatus.Untitled && chat.interactivity.read(reader) === ChatInteractivity.Full)) {
+			} else if (!chat || (chat.status.read(reader) === SessionStatus.Untitled && chat.interactivity.read(reader) === ChatInteractivity.Full && !isEqual(this._draftChatResource, chat.resource))) {
 				desiredKind = 'newChatInSession';
 			} else {
 				desiredKind = 'chat';
@@ -383,7 +409,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 			}
 
 			if (chat) {
-				view.setChat(chat, session.sessionId, session);
+				view.setChat(chat, session.sessionId, session, chat.interactivity.read(reader) === ChatInteractivity.DraftOnly ? () => this._connection.connectOnInput() : undefined);
 			}
 
 			const surfaceContent = surface.read(reader);

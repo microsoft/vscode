@@ -8,6 +8,7 @@ import type { FileStat, FileSystemWatcher, RelativePattern, Uri } from 'vscode';
 import { Event } from '../../../util/vs/base/common/event';
 import { dirname, isEqual } from '../../../util/vs/base/common/resources';
 import { URI } from '../../../util/vs/base/common/uri';
+import { hasKey } from '../../../util/vs/base/common/types';
 import { IWorkspaceService } from '../../workspace/common/workspaceService';
 import { assertReadFileSizeLimit, IFileSystemService } from '../common/fileSystemService';
 import { FileType } from '../common/fileTypes';
@@ -63,8 +64,15 @@ export class NodeFileSystemService implements IFileSystemService {
 		assetIsFileUri(oldURI);
 		assetIsFileUri(newURI);
 		// Check if new path exists if overwrite is not set return
-		if (!options?.overwrite && fs.existsSync(newURI.fsPath)) {
-			return;
+		if (!options?.overwrite) {
+			try {
+				await fs.promises.access(newURI.fsPath);
+				return;
+			} catch (error) {
+				if (!hasKey(error, { code: true }) || (error.code !== 'ENOENT' && error.code !== 'ENOTDIR')) {
+					throw error;
+				}
+			}
 		}
 
 		return fs.promises.rename(oldURI.fsPath, newURI.fsPath);

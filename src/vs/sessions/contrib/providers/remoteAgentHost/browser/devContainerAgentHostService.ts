@@ -9,7 +9,7 @@ import { raceCancellationError, raceTimeout, SequencerByKey } from '../../../../
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { getComparisonKey } from '../../../../../base/common/resources.js';
 import { StringSHA1 } from '../../../../../base/common/hash.js';
-import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable, observableFromEvent, observableValue, waitForState } from '../../../../../base/common/observable.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -35,13 +35,15 @@ const CONNECTOR_REGISTRATION_TIMEOUT_MS = 30_000;
 interface IStoredDevContainerAgentHost {
 	readonly workspaceUri: string;
 	readonly name: string;
+	readonly sandboxEnabled?: boolean;
 }
 
 function isStoredDevContainerAgentHost(value: unknown): value is IStoredDevContainerAgentHost {
 	return typeof value === 'object'
 		&& value !== null
 		&& typeof Reflect.get(value, 'workspaceUri') === 'string'
-		&& typeof Reflect.get(value, 'name') === 'string';
+		&& typeof Reflect.get(value, 'name') === 'string'
+		&& (Reflect.get(value, 'sandboxEnabled') === undefined || typeof Reflect.get(value, 'sandboxEnabled') === 'boolean');
 }
 
 interface IActiveDevContainerAgentHost {
@@ -52,6 +54,8 @@ interface IActiveDevContainerAgentHost {
 	readonly workspaceUri: URI;
 	state: 'running' | 'stopping' | 'stopped' | 'removing' | 'removed' | 'connecting';
 	references: number;
+	sandboxEnabled: boolean | undefined;
+	sandboxSupported: boolean | undefined;
 }
 
 interface IPendingDevContainerAgentHost {
@@ -64,12 +68,30 @@ interface IStagedDevContainerConnection {
 	readonly connector: IDevContainerAgentHostConnector;
 	readonly workspaceUri: URI;
 	initialConnection: IDevContainerAgentHostConnection | undefined;
+	readonly sandboxEnabled: boolean | undefined;
+	sandboxSupported: boolean | undefined;
 }
 
 function devContainerAddress(workspaceUri: URI): string {
 	const sha = new StringSHA1();
 	sha.update(getComparisonKey(workspaceUri));
 	return `devcontainer:${sha.digest()}`;
+}
+
+async function createDevContainerConnection(connector: IDevContainerAgentHostConnector, workspaceUri: URI, address: string, token: CancellationToken, options: { readonly resume: boolean; readonly sandboxEnabled?: boolean }): Promise<IDevContainerAgentHostConnection> {
+	const key = getComparisonKey(workspaceUri);
+	let inspectedSupport: boolean | undefined;
+	const listener = connector.onDidChangeSandboxSupport?.(event => {
+		if (getComparisonKey(event.workspaceUri) === key) {
+			inspectedSupport = event.supported;
+		}
+	});
+	try {
+		const connection = await connector.createConnection(workspaceUri, address, token, options);
+		return inspectedSupport !== undefined ? { ...connection, sandboxSupported: inspectedSupport } : connection;
+	} finally {
+		listener?.dispose();
+	}
 }
 
 /** Builds Dev Container protocol clients from a staged workspace transport. */
@@ -93,7 +115,7 @@ class DevContainerConnectionFactory extends Disposable implements IRemoteAgentHo
 		// single attempt.
 	}
 
-	stageConnection(connector: IDevContainerAgentHostConnector, workspaceUri: URI, connection: IDevContainerAgentHostConnection, hostAuthority?: string): IRemoteAgentHostEntry {
+	stageConnection(connector: IDevContainerAgentHostConnector, workspaceUri: URI, connection: IDevContainerAgentHostConnection, hostAuthority?: string, sandboxEnabled?: boolean): IRemoteAgentHostEntry {
 		const entry: IRemoteAgentHostEntry = {
 			name: connection.name,
 			connection: {
@@ -103,7 +125,7 @@ class DevContainerConnectionFactory extends Disposable implements IRemoteAgentHo
 				...(hostAuthority ? { hostAuthority } : {}),
 			},
 		};
-		this._stagedConnections.set(connection.address, { entry, connector, workspaceUri, initialConnection: connection });
+		this._stagedConnections.set(connection.address, { entry, connector, workspaceUri, initialConnection: connection, sandboxEnabled, sandboxSupported: connection.sandboxSupported });
 		this._updateEntries();
 		return entry;
 	}
@@ -115,6 +137,19 @@ class DevContainerConnectionFactory extends Disposable implements IRemoteAgentHo
 		this._updateEntries();
 	}
 
+	getSandboxSupported(address: string): boolean | undefined {
+		return this._stagedConnections.get(address)?.sandboxSupported;
+	}
+
+	setSandboxSupported(workspaceUri: URI, supported: boolean | undefined): void {
+		const key = getComparisonKey(workspaceUri);
+		for (const staged of this._stagedConnections.values()) {
+			if (getComparisonKey(staged.workspaceUri) === key) {
+				staged.sandboxSupported = supported;
+			}
+		}
+	}
+
 	async createConnection(entry: IRemoteAgentHostEntry, options: IRemoteAgentHostConnectOptions): Promise<IRemoteAgentHostCreatedConnection> {
 		if (entry.connection.type !== RemoteAgentHostEntryType.DevContainer) {
 			throw new Error(`Dev Container factory cannot create a ${entry.connection.type} connection.`);
@@ -124,11 +159,12 @@ class DevContainerConnectionFactory extends Disposable implements IRemoteAgentHo
 			throw new Error(`No Dev Container connection is staged for ${entry.connection.address}.`);
 		}
 
-		const connection = staged.initialConnection ?? await staged.connector.createConnection(
+		const connection = staged.initialConnection ?? await createDevContainerConnection(
+			staged.connector,
 			staged.workspaceUri,
 			entry.connection.address,
 			CancellationToken.None,
-			{ resume: options.userInitiated },
+			{ resume: options.userInitiated, ...(staged.sandboxEnabled !== undefined ? { sandboxEnabled: staged.sandboxEnabled } : {}) },
 		);
 		try {
 			const authority = agentHostAuthority(entry.connection.address);
@@ -143,6 +179,7 @@ class DevContainerConnectionFactory extends Disposable implements IRemoteAgentHo
 				{ clientInfo: agentsWindowAgentHostClientInfo, reconnectPolicy: getEntryTypeConfig(RemoteAgentHostEntryType.DevContainer).reconnect },
 			);
 			staged.initialConnection = undefined;
+			staged.sandboxSupported = connection.sandboxSupported;
 			return {
 				connection: client,
 				transportDisposable: connection.transportDisposable,
@@ -168,6 +205,7 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 	private readonly _providerStores = this._register(new DisposableMap<string>());
 	private readonly _providers = new Map<string, RemoteAgentHostSessionsProvider>();
 	private readonly _activeConnections = new Map<string, IActiveDevContainerAgentHost>();
+	private readonly _knownSandboxSupport = new Map<string, boolean>();
 	private readonly _pendingConnections = new Map<string, IPendingDevContainerAgentHost>();
 	private readonly _storedConnections = new Map<string, IStoredDevContainerAgentHost>();
 	private readonly _connectionFactory: DevContainerConnectionFactory;
@@ -209,26 +247,50 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 			throw new Error(localize('devContainerAgentHost.connectorAlreadyRegistered', "A Dev Container Agent Host connector is already registered."));
 		}
 		this._connector = connector;
+		const sandboxSupportListener = connector.onDidChangeSandboxSupport?.(event => this._setSandboxSupported(event.workspaceUri, event.supported));
 		this._onDidRegisterConnector.fire(connector);
 		this._onDidChangeAvailability.fire();
-		return toDisposable(() => {
+		return combinedDisposable(sandboxSupportListener ?? Disposable.None, toDisposable(() => {
 			if (this._connector === connector) {
 				this._connector = undefined;
 				this._onDidChangeAvailability.fire();
 			}
-		});
+		}));
 	}
 
 	isAvailable(workspaceUri: URI): Promise<boolean> {
 		return this._connector?.isAvailable(workspaceUri) ?? Promise.resolve(false);
 	}
 
-	async connect(workspaceUri: URI, token: CancellationToken): Promise<IDevContainerAgentHostTarget> {
+	getSandboxSupported(workspaceUri: URI): boolean | undefined {
+		return this._knownSandboxSupport.get(getComparisonKey(workspaceUri));
+	}
+
+	private _setSandboxSupported(workspaceUri: URI, supported: boolean | undefined): void {
+		const key = getComparisonKey(workspaceUri);
+		const previous = this._knownSandboxSupport.get(key);
+		if (supported === undefined) {
+			this._knownSandboxSupport.delete(key);
+		} else {
+			this._knownSandboxSupport.set(key, supported);
+		}
+		this._connectionFactory.setSandboxSupported(workspaceUri, supported);
+		const active = this._activeConnections.get(key);
+		if (active) {
+			active.sandboxSupported = supported;
+		}
+		this._providers.get(key)?.setDevContainerSandboxSupported(supported);
+		if (previous !== supported) {
+			this._onDidChangeAvailability.fire();
+		}
+	}
+
+	async connect(workspaceUri: URI, token: CancellationToken, options?: { readonly sandboxEnabled: boolean }): Promise<IDevContainerAgentHostTarget> {
 		const key = getComparisonKey(workspaceUri);
 		const active = this._activeConnections.get(key);
 		const target = active && this._acquireConnection(key, active);
 		try {
-			const connected = await this._ensureConnection(workspaceUri, token);
+			const connected = await this._ensureConnection(workspaceUri, token, options?.sandboxEnabled);
 			return target ?? this._acquireConnection(key, connected);
 		} catch (error) {
 			await target?.release();
@@ -241,14 +303,15 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 		await connector.showLog(workspaceUri);
 	}
 
-	private _ensureConnection(workspaceUri: URI, token: CancellationToken): Promise<IActiveDevContainerAgentHost> {
+	private _ensureConnection(workspaceUri: URI, token: CancellationToken, sandboxEnabled?: boolean): Promise<IActiveDevContainerAgentHost> {
 		const key = getComparisonKey(workspaceUri);
+		sandboxEnabled ??= this._storedConnections.get(key)?.sandboxEnabled;
 		const active = this._activeConnections.get(key);
 		if (active) {
 			if (active.state === 'running' && this._isConnectedOrReconnecting(active.address)) {
 				return this._waitForReconnection(active, token);
 			}
-			return raceCancellationError(this._ensureActiveConnection(key, active), token).then(() => active);
+			return raceCancellationError(this._ensureActiveConnection(key, active, sandboxEnabled), token).then(() => active);
 		}
 		const pending = this._pendingConnections.get(key);
 		if (pending) {
@@ -257,7 +320,7 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 
 		this._providers.get(key)?.setConnectionStatus(RemoteAgentHostConnectionStatus.connecting);
 		const tokenSource = new CancellationTokenSource(token);
-		const promise = this._connectWhenReady(workspaceUri, key, tokenSource.token);
+		const promise = this._connectWhenReady(workspaceUri, key, tokenSource.token, sandboxEnabled);
 		const pendingConnection = { promise, tokenSource };
 		this._pendingConnections.set(key, pendingConnection);
 		void promise.then(
@@ -298,9 +361,10 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 		workspaceUri: URI,
 		key: string,
 		token: CancellationToken,
+		sandboxEnabled?: boolean,
 	): Promise<IActiveDevContainerAgentHost> {
 		const connector = this._connector ?? await this._waitForConnector(token);
-		return this._connect(connector, workspaceUri, key, token);
+		return this._connect(connector, workspaceUri, key, token, sandboxEnabled);
 	}
 
 	private async _waitForConnector(token: CancellationToken): Promise<IDevContainerAgentHostConnector> {
@@ -319,11 +383,11 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 		}
 	}
 
-	private async _connect(connector: IDevContainerAgentHostConnector, workspaceUri: URI, key: string, token: CancellationToken): Promise<IActiveDevContainerAgentHost> {
+	private async _connect(connector: IDevContainerAgentHostConnector, workspaceUri: URI, key: string, token: CancellationToken, sandboxEnabled?: boolean): Promise<IActiveDevContainerAgentHost> {
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
-		const connected = await connector.createConnection(workspaceUri, devContainerAddress(workspaceUri), token, { resume: true });
+		const connected = await createDevContainerConnection(connector, workspaceUri, devContainerAddress(workspaceUri), token, { resume: true, ...(sandboxEnabled !== undefined ? { sandboxEnabled } : {}) });
 		if (token.isCancellationRequested) {
 			connected.transportDisposable?.dispose();
 			throw new CancellationError();
@@ -332,9 +396,10 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 		let stagedAddress: string | undefined;
 		try {
 			const provider = this._ensureProvider(workspaceUri, connected.name, connected.address);
+			this._setSandboxSupported(workspaceUri, connected.sandboxSupported);
 
 			const sourceEntry = getDevContainerSourceEntry(workspaceUri, this._remoteAgentHostService);
-			const entry = this._connectionFactory.stageConnection(connector, workspaceUri, connected, sourceEntry && resolveRemoteAgentHostEntryAuthority(sourceEntry));
+			const entry = this._connectionFactory.stageConnection(connector, workspaceUri, connected, sourceEntry && resolveRemoteAgentHostEntryAuthority(sourceEntry), sandboxEnabled);
 			const address = getEntryAddress(entry);
 			stagedAddress = address;
 			if (token.isCancellationRequested) {
@@ -350,12 +415,13 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 			provider.setConnectionStatus(connectionInfo.status);
 			await this._waitForSessionTypes(provider, token);
 			if (provider.getSessions().length > 0) {
-				this._storeConnection(workspaceUri, connected.name);
+				this._storeConnection(workspaceUri, connected.name, sandboxEnabled);
 			}
 
 			const target = { providerId: provider.id, workspaceUri: connected.workspaceUri };
-			const active: IActiveDevContainerAgentHost = { address, provider, target, connector, workspaceUri, state: 'running', references: 0 };
+			const active: IActiveDevContainerAgentHost = { address, provider, target, connector, workspaceUri, state: 'running', references: 0, sandboxEnabled, sandboxSupported: this.getSandboxSupported(workspaceUri) };
 			this._activeConnections.set(key, active);
+			this._onDidChangeAvailability.fire();
 			return active;
 		} catch (error) {
 			if (stagedAddress !== undefined) {
@@ -440,6 +506,7 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 		store.add(toDisposable(() => {
 			this._providers.delete(key);
 			this._activeConnections.delete(key);
+			this._onDidChangeAvailability.fire();
 		}));
 		this._providers.set(key, provider);
 		this._providerStores.set(key, store);
@@ -545,6 +612,10 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 				}
 				await this._disconnectActiveTransport(active);
 				active.state = 'removed';
+				active.sandboxSupported = undefined;
+				this._knownSandboxSupport.delete(key);
+				active.provider.setDevContainerSandboxSupported(undefined);
+				this._onDidChangeAvailability.fire();
 				return removed;
 			} catch (error) {
 				await this._connectActive(active);
@@ -553,23 +624,25 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 		});
 	}
 
-	private _ensureActiveConnection(key: string, active: IActiveDevContainerAgentHost): Promise<void> {
+	private _ensureActiveConnection(key: string, active: IActiveDevContainerAgentHost, sandboxEnabled?: boolean): Promise<void> {
 		return this._lifecycleOperations.queue(key, async () => {
 			if (this._isConnectedOrReconnecting(active.address)) {
 				active.state = 'running';
 				return;
 			}
-			await this._connectActive(active);
+			await this._connectActive(active, active.state === 'removed' ? sandboxEnabled : undefined);
 		});
 	}
 
-	private async _connectActive(active: IActiveDevContainerAgentHost): Promise<void> {
+	private async _connectActive(active: IActiveDevContainerAgentHost, sandboxEnabled?: boolean): Promise<void> {
 		const previousState = active.state;
+		const requestedSandboxEnabled = sandboxEnabled ?? active.sandboxEnabled;
 		active.state = 'connecting';
 		try {
-			const connected = await active.connector.createConnection(active.workspaceUri, active.address, this._lifecycleTokenSource.token, { resume: true });
+			const connected = await createDevContainerConnection(active.connector, active.workspaceUri, active.address, this._lifecycleTokenSource.token, { resume: true, ...(requestedSandboxEnabled !== undefined ? { sandboxEnabled: requestedSandboxEnabled } : {}) });
+			this._setSandboxSupported(active.workspaceUri, connected.sandboxSupported);
 			const sourceEntry = getDevContainerSourceEntry(active.workspaceUri, this._remoteAgentHostService);
-			this._connectionFactory.stageConnection(active.connector, active.workspaceUri, connected, sourceEntry && resolveRemoteAgentHostEntryAuthority(sourceEntry));
+			this._connectionFactory.stageConnection(active.connector, active.workspaceUri, connected, sourceEntry && resolveRemoteAgentHostEntryAuthority(sourceEntry), requestedSandboxEnabled);
 			this._remoteAgentHostService.reconnect(active.address, true);
 			const connectionInfo = await this._remoteAgentHostService.waitForConnection(active.address);
 			const connection = this._remoteAgentHostService.getConnection(connectionInfo.address);
@@ -578,7 +651,12 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 			}
 			active.provider.setConnection(connection, connected.defaultDirectory ?? connectionInfo.defaultDirectory);
 			active.provider.setConnectionStatus(connectionInfo.status);
+			active.sandboxEnabled = requestedSandboxEnabled;
+			if (this._storedConnections.has(getComparisonKey(active.workspaceUri)) || active.provider.getSessions().length > 0) {
+				this._storeConnection(active.workspaceUri, connected.name, requestedSandboxEnabled);
+			}
 			active.state = 'running';
+			this._onDidChangeAvailability.fire();
 		} catch (error) {
 			this._connectionFactory.unstageConnection(active.address);
 			await this._remoteAgentHostService.removeRemoteAgentHost(active.address);
@@ -620,6 +698,10 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 			}
 			active.provider.setConnectionStatus(connectionInfo.status);
 			if (RemoteAgentHostConnectionStatus.isConnected(connectionInfo.status)) {
+				const sandboxSupported = this._connectionFactory.getSandboxSupported(active.address);
+				if (sandboxSupported !== active.sandboxSupported) {
+					this._setSandboxSupported(active.workspaceUri, sandboxSupported);
+				}
 				const connection = this._remoteAgentHostService.getConnection(active.address);
 				if (connection) {
 					active.provider.setConnection(connection, connectionInfo.defaultDirectory);
@@ -664,7 +746,11 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 				if ((uri.scheme !== Schemas.file && (uri.scheme !== AGENT_HOST_SCHEME || !uri.authority) && !findDevContainerSample(uri)) || candidate.name.length === 0) {
 					continue;
 				}
-				result.set(getComparisonKey(uri), { workspaceUri: uri.toString(), name: candidate.name });
+				result.set(getComparisonKey(uri), {
+					workspaceUri: uri.toString(),
+					name: candidate.name,
+					...(candidate.sandboxEnabled !== undefined ? { sandboxEnabled: candidate.sandboxEnabled } : {}),
+				});
 			}
 		} catch {
 			return result;
@@ -672,11 +758,12 @@ export class DevContainerAgentHostService extends Disposable implements IDevCont
 		return result;
 	}
 
-	private _storeConnection(workspaceUri: URI, name: string): void {
+	private _storeConnection(workspaceUri: URI, name: string, sandboxEnabled?: boolean): void {
 		const key = getComparisonKey(workspaceUri);
-		const stored = { workspaceUri: workspaceUri.toString(), name };
 		const existing = this._storedConnections.get(key);
-		if (existing?.workspaceUri === stored.workspaceUri && existing.name === stored.name) {
+		const requestedSandboxEnabled = sandboxEnabled ?? this._activeConnections.get(key)?.sandboxEnabled ?? existing?.sandboxEnabled;
+		const stored = { workspaceUri: workspaceUri.toString(), name, ...(requestedSandboxEnabled !== undefined ? { sandboxEnabled: requestedSandboxEnabled } : {}) };
+		if (existing?.workspaceUri === stored.workspaceUri && existing.name === stored.name && existing.sandboxEnabled === stored.sandboxEnabled) {
 			return;
 		}
 		this._storedConnections.set(key, stored);

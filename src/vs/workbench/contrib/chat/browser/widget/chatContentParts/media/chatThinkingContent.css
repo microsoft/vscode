@@ -37,10 +37,6 @@
 	padding-left: var(--vscode-spacing-size240);
 }
 
-.interactive-session .interactive-response .value .chat-codeblock-pill-container.chat-tool-call-with-icon {
-	--chat-chain-icon-top: calc(50% - var(--vscode-codiconFontSize-compact) / 2);
-}
-
 .interactive-session .interactive-response .value .chat-tool-call-with-icon > .chat-tool-call-icon,
 .interactive-session .interactive-response.chat-persistent-progress .value .chat-thinking-box:is(.chat-tool-chain, .chat-persistent-reasoning) .chat-used-context-list.chat-thinking-collapsible > :is(.chat-thinking-tool-wrapper, .chat-thinking-item.markdown-content) > .chat-thinking-icon {
 	position: absolute;
@@ -62,6 +58,14 @@
 
 .interactive-session .interactive-response .value .chat-tool-call-with-icon > .chat-tool-call-icon {
 	color: var(--vscode-descriptionForeground);
+}
+
+/* Preserve the text-column width while anchoring artwork to the icon gutter. */
+.interactive-session .interactive-response .value .chat-tool-call-with-icon :is(.chat-image-generation-placeholder, .chat-generated-image-tool-result) {
+	position: relative;
+	left: calc(var(--vscode-codiconFontSize-compact) * 0.2);
+	margin-left: calc(-1 * var(--vscode-spacing-size240));
+	margin-right: var(--vscode-spacing-size240);
 }
 
 .interactive-session .interactive-response.chat-persistent-progress .value .chat-tool-call-with-icon.chat-tool-call-error .progress-container > .codicon-error-compact,
@@ -192,12 +196,18 @@
 }
 
 .interactive-session .interactive-response.chat-persistent-progress .value .chat-thinking-box.chat-tool-chain-preview {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
 	min-height: 1.5em;
 
+	/* Overlap the preview and summary while reserving space for wrapped summary text. */
+	> .chat-used-context-label,
+	> .chat-collapsible-content-animation {
+		grid-area: 1 / 1;
+		align-self: start;
+	}
+
 	> .chat-used-context-label {
-		position: absolute;
-		inset-inline: 0;
-		top: 0;
 		visibility: hidden;
 	}
 
@@ -226,6 +236,11 @@
 	--chat-persistent-hook-width: calc(var(--chat-persistent-nested-indent) - var(--vscode-codiconFontSize-compact) / 2 - var(--vscode-spacing-size40) + var(--vscode-strokeThickness) / 2);
 }
 
+/* Anchor the footer to the list's integer-sized row, not the fractional streaming content height. */
+.interactive-session .chat-list-scrolled-to-bottom .interactive-response.chat-persistent-progress.chat-progress-scroll-target > .value > .chat-working-progress {
+	translate: 0 var(--chat-response-height-rounding, 0px);
+}
+
 /* The row container class keeps these ahead of the legacy `.interactive-item-container .value > …`
 	spacing rules, which otherwise tie on specificity and fall back to stylesheet order. */
 .interactive-session .interactive-item-container.interactive-response.chat-persistent-progress :is(.value, .completed-response-disclosure) {
@@ -240,7 +255,7 @@
 	> .chat-mcp-servers-interaction {
 		margin-block: 0 var(--chat-persistent-item-gap);
 
-		&:last-child {
+		&:nth-last-child(1 of :not([hidden])) {
 			margin-bottom: 0;
 		}
 	}

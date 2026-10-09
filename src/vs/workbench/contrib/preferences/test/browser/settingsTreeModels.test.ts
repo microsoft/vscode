@@ -4,17 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { stub } from 'sinon';
 import { Event } from '../../../../../base/common/event.js';
+import { ManagedSettingValue } from '../../../../../base/common/policy.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { settingKeyToDisplayFormat, parseQuery, IParsedQuery, sanitizeId, SearchResultModel, SearchResultIdx, ISettingsEditorViewState, SettingsTreeSettingElement } from '../../browser/settingsTreeModels.js';
+import { settingKeyToDisplayFormat, parseQuery, IParsedQuery, sanitizeId, SearchResultModel, SearchResultIdx, ISettingsEditorViewState, SettingsTreeSettingElement, SettingsTreeModel } from '../../browser/settingsTreeModels.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
-import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
-import { ConfigurationScope } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { ConfigurationTarget, IConfigurationOverrides, IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationScope, Extensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
-import { COPILOT_SANDBOX_ALLOW_BYPASS_KEY, COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY, COPILOT_SANDBOX_ENABLED_KEY, IManagedSettingsService, NullManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
+import { AgentNetworkDomainSettingId } from '../../../../../platform/networkFilter/common/settings.js';
+import { COPILOT_SANDBOX_ALLOWED_HOSTS_KEY, COPILOT_SANDBOX_ALLOW_BYPASS_KEY, COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY, COPILOT_SANDBOX_ALLOW_LOCAL_NETWORK_KEY, COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY, COPILOT_SANDBOX_DENIED_PATHS_KEY, COPILOT_SANDBOX_ENABLED_KEY, COPILOT_SANDBOX_LSP_SERVERS_KEY, COPILOT_SANDBOX_MCP_SERVERS_KEY, COPILOT_SANDBOX_READONLY_PATHS_KEY, IManagedSettingsService, NullManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
 import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../platform/sandbox/common/settings.js';
 import { IWorkbenchConfigurationService } from '../../../../services/configuration/common/configuration.js';
 import { ExperimentalSettingsService, IExperimentalSettingsService } from '../../../../services/configuration/common/experimentalSettings.js';
@@ -24,26 +28,117 @@ import { IUserDataProfileService } from '../../../../services/userDataProfile/co
 import { TestProductService, TestUserDataProfileService } from '../../../../test/common/workbenchTestServices.js';
 import { EXP_ASSIGNMENT_SETTING_TAG, POLICY_SETTING_TAG } from '../../common/preferences.js';
 import { SettingsTarget } from '../../browser/preferencesWidgets.js';
+import { LayoutSettings, ModernUIDensity } from '../../../../services/layout/browser/layoutService.js';
+import { IManagedSettingsPresentationService, ManagedSettingsPresentationService } from '../../../../services/configuration/common/managedSettingsPresentation.js';
+import { terminalContribConfiguration } from '../../../terminal/terminalContribExports.js';
+import { SettingMatches } from '../../browser/preferencesSearch.js';
+import { chatNetworkDomainConfigurationProperties } from '../../../chat/browser/chatNetworkConfiguration.js';
+
+suite('SettingsTree Agents Window density', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createModel(isSessionsWindow: boolean, settingsTarget: SettingsTarget) {
+		const key = LayoutSettings.MODERN_UI_DENSITY;
+		const defaults = new TestConfigurationService({ [key]: ModernUIDensity.Default });
+		const workspace = new TestConfigurationService();
+		const configuration = new class extends TestConfigurationService {
+			isSettingAppliedForAllProfiles(): boolean { return false; }
+			override inspect<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<T> {
+				const inspected = super.inspect<T>(key, overrides);
+				const defaultValue = defaults.getValue<T>(key);
+				const workspaceValue = workspace.getValue<T>(key);
+				return { ...inspected, defaultValue, workspaceValue, value: workspaceValue ?? inspected.userValue ?? defaultValue };
+			}
+		}({ [key]: ModernUIDensity.Compact });
+		for (const service of [defaults, workspace, configuration]) {
+			store.add(service.onDidChangeConfigurationEmitter);
+		}
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IWorkbenchConfigurationService, configuration);
+		instantiationService.stub(ILanguageService, { isRegisteredLanguageId: () => true });
+		instantiationService.stub(IUserDataProfileService, new TestUserDataProfileService());
+		instantiationService.stub(IProductService, TestProductService);
+		instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow });
+		instantiationService.stub(IExperimentalSettingsService, store.add(new ExperimentalSettingsService()));
+		instantiationService.stub(IManagedSettingsService, new NullManagedSettingsService());
+		instantiationService.stub(IManagedSettingsPresentationService, store.add(instantiationService.createInstance(ManagedSettingsPresentationService)));
+		const model = store.add(instantiationService.createInstance(SearchResultModel, { settingsTarget }, null, true));
+		model.setResult(SearchResultIdx.Local, {
+			filterMatches: [{
+				setting: new class extends mock<ISetting>() {
+					override key = key;
+					override type = 'string';
+					override enum = [ModernUIDensity.Default, ModernUIDensity.Compact];
+					override description = [];
+					override scope = ConfigurationScope.WINDOW;
+				}(),
+				matches: [], matchType: SettingMatchType.None, keyMatchScore: 0, score: 0,
+			}],
+			exactMatch: false,
+		});
+		const read = () => {
+			const element = model.getElementsByName(key)![0];
+			element.inspectSelf();
+			return { value: element.value, defaultValue: element.defaultValue, configured: element.isConfigured };
+		};
+		return { workspace, read, key };
+	}
+
+	test('shows inherited density until an Agents Window override is set', async () => {
+		const { workspace, read, key } = createModel(true, ConfigurationTarget.WORKSPACE);
+		const inherited = read();
+		await workspace.setUserConfiguration(key, ModernUIDensity.Default);
+		const overridden = read();
+		await workspace.setUserConfiguration(key, undefined);
+
+		const inheritedState = { value: ModernUIDensity.Compact, defaultValue: ModernUIDensity.Default, configured: false };
+		assert.deepStrictEqual({ inherited, overridden, reset: read() }, {
+			inherited: inheritedState,
+			overridden: { value: ModernUIDensity.Default, defaultValue: ModernUIDensity.Default, configured: true },
+			reset: inheritedState,
+		});
+	});
+
+	test('preserves the existing editor-window and User scope display', () => {
+		assert.deepStrictEqual({
+			editorWorkspace: createModel(false, ConfigurationTarget.WORKSPACE).read(),
+			agentsUser: createModel(true, ConfigurationTarget.USER_LOCAL).read(),
+		}, {
+			editorWorkspace: { value: ModernUIDensity.Default, defaultValue: ModernUIDensity.Default, configured: false },
+			agentsUser: { value: ModernUIDensity.Compact, defaultValue: ModernUIDensity.Default, configured: true },
+		});
+	});
+});
 
 suite('SettingsTree managed sandbox', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const registry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+	assert.ok(terminalContribConfiguration);
+	const configurationNode = { id: 'sandboxPresentationTest', properties: Object.fromEntries(Object.entries({ ...terminalContribConfiguration, ...chatNetworkDomainConfigurationProperties }).filter(([, property]) => property.managedSettingsPresentation)) };
+	suiteSetup(() => registry.registerConfiguration(configurationNode));
+	suiteTeardown(() => registry.deregisterConfigurations([configurationNode]));
 
-	function createModel(settingsTarget: SettingsTarget = ConfigurationTarget.USER_LOCAL, localAccess = true) {
+	function createModel(settingsTarget: SettingsTarget = ConfigurationTarget.USER_LOCAL, localAccess = true, settingKeys?: (AgentSandboxSettingId | AgentNetworkDomainSettingId)[], managed: Record<string, ManagedSettingValue | undefined> = {}) {
 		const instantiationService = store.add(new TestInstantiationService());
 		const configuration = new class extends TestConfigurationService {
 			isSettingAppliedForAllProfiles(): boolean { return false; }
 		}({
 			[AgentSandboxSettingId.AgentSandboxEnabled]: AgentSandboxEnabledValue.Off,
-			[AgentSandboxSettingId.AgentSandboxWindowsEnabled]: AgentSandboxEnabledValue.Off,
 			[AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands]: localAccess,
 			[AgentSandboxSettingId.AgentSandboxAllowNetwork]: localAccess,
+			[AgentSandboxSettingId.AgentSandboxMcpServers]: localAccess,
+			[AgentSandboxSettingId.AgentSandboxLspServers]: localAccess,
+			[AgentSandboxSettingId.AgentSandboxAllowDevToolAccess]: localAccess,
+			[AgentSandboxSettingId.AgentSandboxAllowLocalNetwork]: localAccess,
+			[AgentNetworkDomainSettingId.AllowedNetworkDomains]: ['local.example'],
+			[AgentSandboxSettingId.AgentSandboxUserConfiguredPaths]: { readwritePaths: ['local.write'], readonlyPaths: ['local.read'], deniedPaths: ['local.deny'] },
 		});
 		store.add(configuration.onDidChangeConfigurationEmitter);
-		const managed: Record<string, boolean | undefined> = {};
 		instantiationService.stub(IManagedSettingsService, new class extends mock<IManagedSettingsService>() {
 			override readonly onDidChangeManagedSettings = Event.None;
 			override getManagedSettingValue(key: string) { return managed[key]; }
 		}());
+		instantiationService.stub(IManagedSettingsPresentationService, store.add(instantiationService.createInstance(ManagedSettingsPresentationService)));
 		instantiationService.stub(IWorkbenchConfigurationService, configuration);
 		instantiationService.stub(ILanguageService, { isRegisteredLanguageId: () => true });
 		instantiationService.stub(IUserDataProfileService, new TestUserDataProfileService());
@@ -52,12 +147,13 @@ suite('SettingsTree managed sandbox', () => {
 		instantiationService.stub(IExperimentalSettingsService, store.add(new ExperimentalSettingsService()));
 		const viewState: ISettingsEditorViewState = { settingsTarget };
 		const model = store.add(instantiationService.createInstance(SearchResultModel, viewState, null, true));
-		const keys = [AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxSettingId.AgentSandboxWindowsEnabled, AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, AgentSandboxSettingId.AgentSandboxAllowNetwork];
+		const keys = settingKeys ?? [AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, AgentSandboxSettingId.AgentSandboxAllowNetwork];
 		model.setResult(SearchResultIdx.Local, {
 			filterMatches: keys.map(key => ({
 				setting: new class extends mock<ISetting>() {
 					override key = key;
-					override type = key === AgentSandboxSettingId.AgentSandboxEnabled || key === AgentSandboxSettingId.AgentSandboxWindowsEnabled ? 'string' : 'boolean';
+					override type = key === AgentSandboxSettingId.AgentSandboxUserConfiguredPaths ? 'object' : key === AgentNetworkDomainSettingId.AllowedNetworkDomains ? 'array' : key === AgentSandboxSettingId.AgentSandboxEnabled ? 'string' : 'boolean';
+					override arrayItemType = key === AgentNetworkDomainSettingId.AllowedNetworkDomains ? 'string' : undefined;
 					override description = [];
 					override scope = ConfigurationScope.RESOURCE;
 				}(),
@@ -77,6 +173,87 @@ suite('SettingsTree managed sandbox', () => {
 		return { model, managed, configuration, read, keys, viewState };
 	}
 
+	for (const allowedHosts of [[], ['managed.example', '*.managed.example']]) {
+		test(`managed allowlist ${JSON.stringify(allowedHosts)} locks allowed domains and restores local preferences after removal`, () => {
+			const key = AgentNetworkDomainSettingId.AllowedNetworkDomains;
+			const { managed, configuration, read } = createModel(ConfigurationTarget.USER_LOCAL, true, [key]);
+			const initial = read();
+			managed[COPILOT_SANDBOX_ALLOWED_HOSTS_KEY] = JSON.stringify(allowedHosts);
+			const locked = read();
+			delete managed[COPILOT_SANDBOX_ALLOWED_HOSTS_KEY];
+			assert.deepStrictEqual({ initial, locked, removed: read(), stored: configuration.getValue(key) }, {
+				initial: [{ value: ['local.example'], managed: false, policyFilter: false }],
+				locked: [{ value: allowedHosts, managed: true, policyFilter: true }],
+				removed: initial,
+				stored: ['local.example'],
+			});
+		});
+	}
+
+	test('ignores malformed managed allowlists in the presentation and preserves local values', () => {
+		const key = AgentNetworkDomainSettingId.AllowedNetworkDomains;
+		const { managed, configuration, read } = createModel(ConfigurationTarget.USER_LOCAL, true, [key]);
+		const consoleWarn = stub(console, 'warn');
+		try {
+			const settings = ['not JSON', '["managed.example",1]', '{}', 'null', false].map(value => {
+				managed[COPILOT_SANDBOX_ALLOWED_HOSTS_KEY] = value;
+				return read();
+			});
+
+			test('composes managed filesystem presentation with local paths and restores preferences on removal', () => {
+				const key = AgentSandboxSettingId.AgentSandboxUserConfiguredPaths;
+				const { managed, configuration, read } = createModel(ConfigurationTarget.USER_LOCAL, true, [key]);
+				const initial = read();
+				managed[COPILOT_SANDBOX_DENIED_PATHS_KEY] = '["managed.deny"]';
+				const denied = read();
+				managed[COPILOT_SANDBOX_READONLY_PATHS_KEY] = '[]';
+				const restricted = read();
+				delete managed[COPILOT_SANDBOX_DENIED_PATHS_KEY];
+				delete managed[COPILOT_SANDBOX_READONLY_PATHS_KEY];
+				const local = { readwritePaths: ['local.write'], readonlyPaths: ['local.read'], deniedPaths: ['local.deny'] };
+				assert.deepStrictEqual({ initial, denied, restricted, removed: read(), stored: configuration.getValue(key) }, {
+					initial: [{ value: local, managed: false, policyFilter: false }],
+					denied: [{ value: { ...local, deniedPaths: ['local.deny', 'managed.deny'] }, managed: true, policyFilter: true }],
+					restricted: [{ value: { ...local, readonlyPaths: [], deniedPaths: ['local.deny', 'managed.deny'] }, managed: true, policyFilter: true }],
+					removed: initial,
+					stored: local,
+				});
+			});
+
+			test('ignores malformed managed filesystem paths without hiding saved local paths', () => {
+				const key = AgentSandboxSettingId.AgentSandboxUserConfiguredPaths;
+				const consoleWarn = stub(console, 'warn');
+				try {
+					const { managed, configuration, read } = createModel(ConfigurationTarget.USER_LOCAL, true, [key], {
+						[COPILOT_SANDBOX_DENIED_PATHS_KEY]: 'private.enterprise.path',
+					});
+					const settings = ['private.enterprise.path', '[123]', '{}', 'null', false].map(value => {
+						managed[COPILOT_SANDBOX_DENIED_PATHS_KEY] = value;
+						return read();
+					});
+					const local = { readwritePaths: ['local.write'], readonlyPaths: ['local.read'], deniedPaths: ['local.deny'] };
+					assert.deepStrictEqual({ settings, stored: configuration.getValue(key) }, {
+						settings: Array.from({ length: 5 }, () => [{ value: local, managed: false, policyFilter: false }]),
+						stored: local,
+					});
+				} finally {
+					consoleWarn.restore();
+				}
+			});
+			assert.deepStrictEqual({
+				settings,
+				stored: configuration.getValue(key),
+				warnings: consoleWarn.callCount,
+			}, {
+				settings: Array.from({ length: 5 }, () => [{ value: ['local.example'], managed: false, policyFilter: false }]),
+				stored: ['local.example'],
+				warnings: 5,
+			});
+		} finally {
+			consoleWarn.restore();
+		}
+	});
+
 	for (const enabled of [undefined, false, true]) {
 		for (const allowBypass of [undefined, false, true]) {
 			test(`resolved enabled=${enabled}, allowBypass=${allowBypass}`, () => {
@@ -92,11 +269,10 @@ suite('SettingsTree managed sandbox', () => {
 				}, {
 					settings: [
 						{ value: required ? 'on' : 'off', managed: required, policyFilter: required },
-						{ value: required ? 'on' : 'off', managed: required, policyFilter: required },
 						{ value: !bypassRestricted, managed: bypassRestricted, policyFilter: bypassRestricted },
 						{ value: true, managed: false, policyFilter: false },
 					],
-					configured: ['off', 'off', true, true],
+					configured: ['off', true, true],
 				});
 			});
 		}
@@ -104,18 +280,44 @@ suite('SettingsTree managed sandbox', () => {
 
 	for (const target of [ConfigurationTarget.USER_LOCAL, ConfigurationTarget.USER_REMOTE, ConfigurationTarget.WORKSPACE] as const) {
 		for (const localAccess of [false, true]) {
+			for (const [key, policyKey, otherPolicyKey, managedValue] of [
+				[AgentSandboxSettingId.AgentSandboxMcpServers, COPILOT_SANDBOX_MCP_SERVERS_KEY, COPILOT_SANDBOX_LSP_SERVERS_KEY, true],
+				[AgentSandboxSettingId.AgentSandboxLspServers, COPILOT_SANDBOX_LSP_SERVERS_KEY, COPILOT_SANDBOX_MCP_SERVERS_KEY, true],
+				[AgentSandboxSettingId.AgentSandboxAllowDevToolAccess, COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY, COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY, false],
+				[AgentSandboxSettingId.AgentSandboxAllowLocalNetwork, COPILOT_SANDBOX_ALLOW_LOCAL_NETWORK_KEY, COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY, false],
+			] as const) {
+				test(`managed ${key} preserves local ${localAccess} in target ${target}`, () => {
+					const { managed, read, configuration } = createModel(target, localAccess, [key]);
+					const initial = read();
+					managed[otherPolicyKey] = managedValue;
+					const independent = read();
+					managed[policyKey] = managedValue;
+					const required = read();
+					managed[policyKey] = !managedValue;
+					const optional = read();
+					delete managed[policyKey];
+					assert.deepStrictEqual({ independent, required, optional, removed: read(), stored: configuration.getValue(key) }, {
+						independent: initial,
+						required: [{ value: managedValue, managed: true, policyFilter: true }],
+						optional: initial,
+						removed: initial,
+						stored: localAccess,
+					});
+				});
+			}
+
 			test(`managed access restrictions preserve local ${localAccess} in target ${target}`, () => {
 				const { managed, read, configuration, keys } = createModel(target, localAccess);
 				const initial = read();
 				managed[COPILOT_SANDBOX_ALLOW_BYPASS_KEY] = false;
 				managed[COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY] = false;
-				const denied = read().slice(2);
+				const denied = read().slice(1);
 				managed[COPILOT_SANDBOX_ALLOW_BYPASS_KEY] = true;
 				managed[COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY] = true;
 				const allowed = read();
 				delete managed[COPILOT_SANDBOX_ALLOW_BYPASS_KEY];
 				delete managed[COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY];
-				assert.deepStrictEqual({ denied, allowed, removed: read(), configured: keys.slice(2).map(key => configuration.getValue(key)) }, {
+				assert.deepStrictEqual({ denied, allowed, removed: read(), configured: keys.slice(1).map(key => configuration.getValue(key)) }, {
 					denied: [
 						{ value: false, managed: true, policyFilter: true },
 						{ value: false, managed: true, policyFilter: true },
@@ -137,16 +339,14 @@ suite('SettingsTree managed sandbox', () => {
 			delete managed[COPILOT_SANDBOX_ENABLED_KEY];
 			delete managed[COPILOT_SANDBOX_ALLOW_BYPASS_KEY];
 
-			assert.deepStrictEqual({ required: required.slice(0, 3), bypassAllowed, removed: read() }, {
+			assert.deepStrictEqual({ required: required.slice(0, 2), bypassAllowed, removed: read() }, {
 				required: [
-					{ value: 'on', managed: true, policyFilter: true },
 					{ value: 'on', managed: true, policyFilter: true },
 					{ value: false, managed: true, policyFilter: true },
 				],
 				bypassAllowed: [
 					{ value: 'on', managed: true, policyFilter: true },
-					{ value: 'on', managed: true, policyFilter: true },
-					...initial.slice(2),
+					...initial.slice(1),
 				],
 				removed: initial,
 			});
@@ -159,16 +359,14 @@ suite('SettingsTree managed sandbox', () => {
 			policyValue: configuration.getValue<T>(key),
 		});
 		managed[COPILOT_SANDBOX_ENABLED_KEY] = true;
-		const required = read().slice(0, 3);
+		const required = read().slice(0, 2);
 		delete managed[COPILOT_SANDBOX_ENABLED_KEY];
-		assert.deepStrictEqual({ required, removed: read().slice(0, 3) }, {
+		assert.deepStrictEqual({ required, removed: read().slice(0, 2) }, {
 			required: [
-				{ value: 'on', managed: true, policyFilter: true },
 				{ value: 'on', managed: true, policyFilter: true },
 				{ value: false, managed: true, policyFilter: true },
 			],
 			removed: [
-				{ value: 'off', managed: true, policyFilter: true },
 				{ value: 'off', managed: true, policyFilter: true },
 				{ value: true, managed: true, policyFilter: true },
 			],
@@ -193,6 +391,7 @@ suite('SettingsTree ExP assignments', () => {
 		instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: false });
 		instantiationService.stub(IExperimentalSettingsService, assignments);
 		instantiationService.stub(IManagedSettingsService, new NullManagedSettingsService());
+		instantiationService.stub(IManagedSettingsPresentationService, store.add(instantiationService.createInstance(ManagedSettingsPresentationService)));
 		const viewState: ISettingsEditorViewState = { settingsTarget: ConfigurationTarget.USER_LOCAL, tagFilters: new Set([EXP_ASSIGNMENT_SETTING_TAG]) };
 		const model = store.add(instantiationService.createInstance(SearchResultModel, viewState, null, true));
 		const settings = ['test.assigned', 'test.experimental', 'test.modified', 'test.spoofed'].map(key => new class extends mock<ISetting>() {
@@ -299,7 +498,274 @@ suite('SettingsTree ExP assignments', () => {
 	});
 });
 
+suite('SettingsTree deprecation warnings', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const search of [false, true]) {
+		test(`keeps opted-in warnings visible without exposing unconfigured deprecated settings (search=${search})`, async () => {
+			const instantiationService = store.add(new TestInstantiationService());
+			const configuration = new class extends TestConfigurationService {
+				isSettingAppliedForAllProfiles(): boolean { return false; }
+			}({ 'test.configured': true });
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			instantiationService.stub(IWorkbenchConfigurationService, configuration);
+			instantiationService.stub(ILanguageService, { isRegisteredLanguageId: () => true });
+			instantiationService.stub(IUserDataProfileService, new TestUserDataProfileService());
+			instantiationService.stub(IProductService, TestProductService);
+			instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: false });
+			instantiationService.stub(IExperimentalSettingsService, store.add(new ExperimentalSettingsService()));
+			instantiationService.stub(IManagedSettingsService, new NullManagedSettingsService());
+			instantiationService.stub(IManagedSettingsPresentationService, store.add(instantiationService.createInstance(ManagedSettingsPresentationService)));
+			const viewState: ISettingsEditorViewState = { settingsTarget: ConfigurationTarget.USER_LOCAL };
+			const model = store.add(search
+				? instantiationService.createInstance(SearchResultModel, viewState, null, true)
+				: instantiationService.createInstance(SettingsTreeModel, viewState, true));
+			const settings = ['test.upcoming', 'test.deprecated', 'test.configured', 'test.explicitlyHidden', 'test.normal'].map(key => new class extends mock<ISetting>() {
+				override key = key;
+				override type = 'boolean';
+				override description = [];
+				override scope = ConfigurationScope.RESOURCE;
+				override deprecationMessage = key === 'test.normal' ? undefined : 'This setting will be deprecated soon.';
+				override deprecationMessageShowInSettings = key === 'test.upcoming' ? true : key === 'test.explicitlyHidden' ? false : undefined;
+			}());
+			const update = () => {
+				if (model instanceof SearchResultModel) {
+					model.setResult(SearchResultIdx.Local, {
+						filterMatches: settings.map(setting => ({ setting, matches: [], matchType: SettingMatchType.None, keyMatchScore: 0, score: 0 })),
+						exactMatch: false,
+					});
+				} else {
+					model.update({ id: 'deprecationWarnings', label: '', settings });
+				}
+			};
+			const visible = () => model.root.children
+				.filter((child): child is SettingsTreeSettingElement => child instanceof SettingsTreeSettingElement)
+				.map(child => ({ key: child.setting.key, warning: child.setting.deprecationMessage }));
+			update();
+			const initial = visible();
+			await configuration.setUserConfiguration('test.configured', undefined);
+			update();
+			assert.deepStrictEqual({ initial, reset: visible() }, {
+				initial: [
+					{ key: 'test.upcoming', warning: 'This setting will be deprecated soon.' },
+					{ key: 'test.configured', warning: 'This setting will be deprecated soon.' },
+					{ key: 'test.normal', warning: undefined },
+				],
+				reset: [
+					{ key: 'test.upcoming', warning: 'This setting will be deprecated soon.' },
+					{ key: 'test.normal', warning: undefined },
+				],
+			});
+		});
+	}
+});
+
+suite('SettingsTree sandbox network search ordering', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('sandbox search puts user-configured paths before allowed and denied domains', () => {
+		const configuration = new class extends TestConfigurationService {
+			isSettingAppliedForAllProfiles(): boolean { return false; }
+		}();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IWorkbenchConfigurationService, configuration);
+		instantiationService.stub(ILanguageService, { isRegisteredLanguageId: () => true });
+		instantiationService.stub(IUserDataProfileService, new TestUserDataProfileService());
+		instantiationService.stub(IProductService, TestProductService);
+		instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: false });
+		instantiationService.stub(IExperimentalSettingsService, store.add(new ExperimentalSettingsService()));
+		instantiationService.stub(IManagedSettingsService, new NullManagedSettingsService());
+		instantiationService.stub(IManagedSettingsPresentationService, store.add(instantiationService.createInstance(ManagedSettingsPresentationService)));
+		const keys = [
+			AgentSandboxSettingId.AgentSandboxUserConfiguredPaths,
+			AgentNetworkDomainSettingId.AllowedNetworkDomains,
+			AgentNetworkDomainSettingId.DeniedNetworkDomains,
+		];
+		const model = store.add(instantiationService.createInstance(SearchResultModel,
+			{ settingsTarget: ConfigurationTarget.USER_LOCAL, query: 'sandbox' },
+			new Map(keys.map((key, index) => [key, index])), true));
+		const matches = [...keys].reverse().map(key => {
+			const setting = new class extends mock<ISetting>() {
+				override key = key;
+				override type = 'array';
+				override description = [];
+				override scope = ConfigurationScope.APPLICATION;
+				override keyRange = { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: key.length + 1 };
+			}();
+			const match = new SettingMatches('sandbox', setting, true, configuration);
+			return { setting, matches: match.matches, matchType: match.matchType, keyMatchScore: match.keyMatchScore, score: 0 };
+		});
+		model.setResult(SearchResultIdx.Local, { filterMatches: matches, exactMatch: false });
+		assert.deepStrictEqual(model.getUniqueSearchResults()?.filterMatches.map(match => ({
+			key: match.setting.key,
+			matchType: match.matchType,
+		})), keys.map(key => ({
+			key,
+			matchType: SettingMatchType.AllWordsInSettingsLabel | SettingMatchType.ContiguousQueryInSettingId,
+		})));
+	});
+});
+
+suite('SettingsTree search results', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createModel() {
+		const configuration = new class extends TestConfigurationService {
+			isSettingAppliedForAllProfiles(): boolean { return false; }
+		}();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IWorkbenchConfigurationService, configuration);
+		instantiationService.stub(ILanguageService, { isRegisteredLanguageId: () => true });
+		instantiationService.stub(IUserDataProfileService, new TestUserDataProfileService());
+		instantiationService.stub(IProductService, TestProductService);
+		instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: false });
+		instantiationService.stub(IExperimentalSettingsService, store.add(new ExperimentalSettingsService()));
+		instantiationService.stub(IManagedSettingsService, new NullManagedSettingsService());
+		instantiationService.stub(IManagedSettingsPresentationService, store.add(instantiationService.createInstance(ManagedSettingsPresentationService)));
+		return store.add(instantiationService.createInstance(SearchResultModel,
+			{ settingsTarget: ConfigurationTarget.USER_LOCAL, query: 'test' }, null, true));
+	}
+
+	function createMatch(key: string) {
+		return {
+			setting: new class extends mock<ISetting>() {
+				override key = key;
+				override type = 'boolean';
+				override description = [];
+				override scope = ConfigurationScope.APPLICATION;
+			}(),
+			matches: [], matchType: SettingMatchType.RemoteMatch, keyMatchScore: 0, score: 0,
+		};
+	}
+
+	test('refreshes after local results are cleared', () => {
+		const model = createModel();
+		model.setResult(SearchResultIdx.Local, { filterMatches: [createMatch('test.local')], exactMatch: true });
+		model.setResult(SearchResultIdx.Local, null);
+		model.updateChildren();
+
+		assert.deepStrictEqual({
+			results: model.getUniqueSearchResults(),
+			count: model.getUniqueResultsCount(),
+		}, { results: { filterMatches: [], exactMatch: false }, count: 0 });
+	});
+
+	test('retains remote results without local results', () => {
+		const model = createModel();
+		const match = createMatch('test.remote');
+		model.setResult(SearchResultIdx.Local, null);
+		model.setResult(SearchResultIdx.Remote, { filterMatches: [match], exactMatch: false });
+		model.updateChildren();
+
+		assert.deepStrictEqual({
+			results: model.getUniqueSearchResults(),
+			keys: model.root.children.map(child => child instanceof SettingsTreeSettingElement ? child.setting.key : child.id),
+			count: model.getUniqueResultsCount(),
+		}, { results: { filterMatches: [match], exactMatch: false }, keys: ['test.remote'], count: 1 });
+	});
+
+	test('switches from AI results without local results', () => {
+		const model = createModel();
+		model.showAiResults = true;
+		model.setResult(SearchResultIdx.Embeddings, { filterMatches: [createMatch('test.ai')], exactMatch: false });
+		model.showAiResults = false;
+		model.updateChildren();
+
+		assert.deepStrictEqual({
+			results: model.getUniqueSearchResults(),
+			count: model.getUniqueResultsCount(),
+		}, { results: { filterMatches: [], exactMatch: false }, count: 0 });
+	});
+
+	test('preserves local exact matches and remote deduplication', () => {
+		const model = createModel();
+		const localMatch = createMatch('test.local');
+		const remoteMatch = createMatch('test.remote');
+		model.setResult(SearchResultIdx.Local, { filterMatches: [localMatch], exactMatch: true });
+		model.setResult(SearchResultIdx.Remote, { filterMatches: [localMatch, remoteMatch], exactMatch: false });
+
+		assert.deepStrictEqual(model.getUniqueSearchResults(), {
+			filterMatches: [localMatch, remoteMatch],
+			exactMatch: true,
+		});
+	});
+});
+
 suite('SettingsTree', () => {
+	test('settingKeyToDisplayFormat - sandbox outbound connections', () => {
+		assert.deepStrictEqual([
+			settingKeyToDisplayFormat(AgentSandboxSettingId.AgentSandboxAllowNetwork),
+			settingKeyToDisplayFormat(AgentSandboxSettingId.AgentSandboxAllowNetwork, 'chat'),
+			settingKeyToDisplayFormat(AgentSandboxSettingId.AgentSandboxAllowNetwork, 'chat.agent.sandbox'),
+			settingKeyToDisplayFormat(AgentSandboxSettingId.AgentSandboxAllowNetwork, 'chat.agent.sandbox.network'),
+			settingKeyToDisplayFormat('other.allowNetwork'),
+		], [
+			{ category: 'Chat › Agent › Sandbox › Network', label: 'Allow Outbound Connections' },
+			{ category: 'Agent › Sandbox › Network', label: 'Allow Outbound Connections' },
+			{ category: 'Network', label: 'Allow Outbound Connections' },
+			{ category: '', label: 'Allow Outbound Connections' },
+			{ category: 'Other', label: 'Allow Network' },
+		]);
+	});
+
+	test('settingKeyToDisplayFormat - allowed network domains', () => {
+		assert.deepStrictEqual([
+			settingKeyToDisplayFormat(AgentNetworkDomainSettingId.AllowedNetworkDomains),
+			settingKeyToDisplayFormat(AgentNetworkDomainSettingId.AllowedNetworkDomains, 'chat'),
+			settingKeyToDisplayFormat(AgentNetworkDomainSettingId.AllowedNetworkDomains, 'chat.agent.sandbox'),
+			settingKeyToDisplayFormat(AgentNetworkDomainSettingId.AllowedNetworkDomains, 'chat.agent.sandbox.network'),
+		], [
+			{ category: 'Chat › Agent › Sandbox › Network', label: 'Allowed Domains' },
+			{ category: 'Agent › Sandbox › Network', label: 'Allowed Domains' },
+			{ category: 'Network', label: 'Allowed Domains' },
+			{ category: '', label: 'Allowed Domains' },
+		]);
+	});
+
+	test('settingKeyToDisplayFormat - denied network domains', () => {
+		assert.deepStrictEqual([
+			settingKeyToDisplayFormat(AgentNetworkDomainSettingId.DeniedNetworkDomains),
+			settingKeyToDisplayFormat(AgentNetworkDomainSettingId.DeniedNetworkDomains, 'chat.agent.sandbox'),
+			settingKeyToDisplayFormat(AgentNetworkDomainSettingId.DeniedNetworkDomains, 'chat.agent.sandbox.network'),
+		], [
+			{ category: 'Chat › Agent › Sandbox › Network', label: 'Denied Domains' },
+			{ category: 'Network', label: 'Denied Domains' },
+			{ category: '', label: 'Denied Domains' },
+		]);
+	});
+
+	test('settingKeyToDisplayFormat - sandbox bypass', () => {
+		assert.deepStrictEqual([
+			settingKeyToDisplayFormat(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands),
+			settingKeyToDisplayFormat(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, 'chat'),
+			settingKeyToDisplayFormat(AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands, 'chat.agent.sandbox'),
+			settingKeyToDisplayFormat('other.allowUnsandboxedCommands'),
+		], [
+			{ category: 'Chat › Agent › Sandbox', label: 'Allow Sandbox Bypass' },
+			{ category: 'Agent › Sandbox', label: 'Allow Sandbox Bypass' },
+			{ category: '', label: 'Allow Sandbox Bypass' },
+			{ category: 'Other', label: 'Allow Unsandboxed Commands' },
+		]);
+	});
+
+	test('settingKeyToDisplayFormat - sandbox local network', () => {
+		assert.deepStrictEqual({
+			keys: [AgentSandboxSettingId.AgentSandboxAllowNetwork, AgentSandboxSettingId.AgentSandboxAllowLocalNetwork],
+			display: ['', 'chat', 'chat.agent.sandbox', 'chat.agent.sandbox.network'].map(group =>
+				settingKeyToDisplayFormat(AgentSandboxSettingId.AgentSandboxAllowLocalNetwork, group)),
+		}, {
+			keys: ['chat.agent.sandbox.network.allowNetwork', 'chat.agent.sandbox.network.allowLocalNetwork'],
+			display: [
+				{ category: 'Chat › Agent › Sandbox › Network', label: 'Allow Local Network' },
+				{ category: 'Agent › Sandbox › Network', label: 'Allow Local Network' },
+				{ category: 'Network', label: 'Allow Local Network' },
+				{ category: '', label: 'Allow Local Network' },
+			],
+		});
+	});
+
 	test('settingKeyToDisplayFormat', () => {
 		assert.deepStrictEqual(
 			settingKeyToDisplayFormat('foo.bar'),
@@ -342,6 +808,60 @@ suite('SettingsTree', () => {
 				category: 'Foo › 1 Leading',
 				label: 'Number'
 			});
+	});
+
+	test('settingKeyToDisplayFormat - sandbox placeholder settings', () => {
+		assert.deepStrictEqual([
+			settingKeyToDisplayFormat(AgentSandboxSettingId.AgentSandboxMcpServers, 'chat.agent.sandbox'),
+			settingKeyToDisplayFormat(AgentSandboxSettingId.AgentSandboxLspServers, 'chat.agent.sandbox'),
+		], [
+			{ category: '', label: 'Sandbox MCP Servers' },
+			{ category: '', label: 'Sandbox LSP Servers' },
+		]);
+	});
+
+	test('settingKeyToDisplayFormat - sandbox developer tool file system access', () => {
+		assert.deepStrictEqual({
+			key: AgentSandboxSettingId.AgentSandboxAllowDevToolAccess,
+			display: ['', 'chat', 'chat.agent.sandbox', 'chat.agent.sandbox.fileSystem'].map(group =>
+				settingKeyToDisplayFormat(AgentSandboxSettingId.AgentSandboxAllowDevToolAccess, group)),
+		}, {
+			key: 'chat.agent.sandbox.fileSystem.allowDevToolAccess',
+			display: [
+				{ category: 'Chat › Agent › Sandbox › File System', label: 'Allow Dev Tool Access' },
+				{ category: 'Agent › Sandbox › File System', label: 'Allow Dev Tool Access' },
+				{ category: 'File System', label: 'Allow Dev Tool Access' },
+				{ category: '', label: 'Allow Dev Tool Access' },
+			],
+		});
+	});
+
+	test('settingKeyToDisplayFormat - sandbox credential authentication', () => {
+		for (const [key, label] of [
+			[AgentSandboxSettingId.AgentSandboxAuthenticateGit, 'Authenticate git'],
+			[AgentSandboxSettingId.AgentSandboxAuthenticateGh, 'Authenticate gh'],
+		] as const) {
+			assert.deepStrictEqual(
+				['', 'chat.agent.sandbox', 'chat.agent.sandbox.credentials'].map(group => settingKeyToDisplayFormat(key, group)),
+				[
+					{ category: 'Chat › Agent › Sandbox › Credentials', label },
+					{ category: 'Credentials', label },
+					{ category: '', label },
+				],
+			);
+		}
+	});
+
+	test('settingKeyToDisplayFormat - sandbox user-configured paths', () => {
+		assert.deepStrictEqual(
+			['', 'chat.agent.sandbox', 'chat.agent.sandbox.fileSystem'].map(group =>
+				settingKeyToDisplayFormat(AgentSandboxSettingId.AgentSandboxUserConfiguredPaths, group)),
+			[
+				{ category: 'Chat › Agent › Sandbox › File System', label: 'User-Configured Paths' },
+				{ category: 'File System', label: 'User-Configured Paths' },
+				{ category: '', label: 'User-Configured Paths' },
+			],
+		);
 	});
 
 	test('settingKeyToDisplayFormat - with category', () => {

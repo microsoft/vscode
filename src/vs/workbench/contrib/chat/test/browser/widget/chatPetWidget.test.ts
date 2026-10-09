@@ -10,7 +10,8 @@ import { mainWindow } from '../../../../../../base/browser/window.js';
 import { timeout } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { constObservable } from '../../../../../../base/common/observable.js';
+import { FileAccess, Schemas } from '../../../../../../base/common/network.js';
+import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestAccessibilityService } from '../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
@@ -21,9 +22,13 @@ import { StorageScope, StorageTarget } from '../../../../../../platform/storage/
 import { NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import { IHostService } from '../../../../../services/host/browser/host.js';
-import { IChatModel } from '../../../common/model/chatModel.js';
+import { ChatResponseModelChangeReason, IChatModel, IChatProgressResponseContent, IChatRequestModel, IChatResponseModel, IResponse } from '../../../common/model/chatModel.js';
+import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
+import { ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { CHAT_PET_OPEN_ACHIEVEMENTS_COMMAND_ID, chatPetAchievements, ChatPetAccessoryIds, ChatPetAchievementIds, didExplicitlyEnableChatPetAutopilot, disabledChatPetAchievements, getChatPetAchievement, getChatPetAchievementPresentation, getChatPetCustomizationAchievementIds, getUnlockedChatPetAccessories, isUserAuthoredChatPetCustomization, shouldUnlockChatPetIntegratedBrowserShare } from '../../../browser/chatPetAchievements.js';
 import { ChatPetService, getChatPetVariant } from '../../../browser/chatPetService.js';
+import { CHAT_PET_CHANGE_COLOR_COMMAND_ID, ChatPetColor, getChatPetColoredSprite } from '../../../browser/chatPetColors.js';
 import '../../../browser/widget/media/chat.css';
 import { getChatPetAccessoryImageSource, hasChatPetAccessoryImageDimensions, hasChatPetBodyImageDimensions } from '../../../browser/widget/chatPetAccessoryRenderer.js';
 import { getChatPetAccessoryRigFrame, getChatPetAccessoryRigPose, getChatPetAccessoryTrack, getChatPetAntennaeOcclusionBounds, getChatPetEyeAccessoryAnchor, getChatPetReducedMotionRigFrame } from '../../../browser/widget/chatPetAccessoryRig.js';
@@ -33,6 +38,11 @@ suite('ChatPetWidget', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	setup(() => {
+		if (mainWindow.location.protocol === `${Schemas.file}:`) {
+			sinon.stub(FileAccess, 'asBrowserUri').callsFake(resource => FileAccess.asFileUri(resource));
+		}
+	});
 	teardown(() => sinon.restore());
 
 	class TestTelemetryService extends NullTelemetryServiceShape {
@@ -74,7 +84,7 @@ suite('ChatPetWidget', () => {
 		};
 	}
 
-	function createHostTransitionHarness(motionReduced = false, initialTransition: IChatPetWidgetHost['transition'] = 'teleport') {
+	function createHostTransitionHarness(motionReduced = false, initialTransition: IChatPetWidgetHost['transition'] = 'teleport', color?: ChatPetColor) {
 		const root = mainWindow.document.createElement('div');
 		root.style.cssText = 'position:fixed;left:0;top:0;width:800px;height:640px';
 		const firstParent = mainWindow.document.createElement('div');
@@ -113,6 +123,10 @@ suite('ChatPetWidget', () => {
 		};
 		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService()));
 		service.toggle();
+		if (color) {
+			service.unlockAchievement(ChatPetAchievementIds.Blobby);
+			service.setColor(color);
+		}
 		const widget = disposables.add(new ChatPetWidget(
 			firstHost, TestResizeObserver, service, accessibilityService,
 			new class extends mock<IContextMenuService>() { }(),
@@ -146,10 +160,55 @@ suite('ChatPetWidget', () => {
 		assert.ok(condition(), message);
 	}
 
+	/**
+	 * Settles once the image's `load` event, which reveals a pending sprite, has been
+	 * handled. `decode()` alone can resolve before it in WebKit. Call this right after
+	 * the image's source changes, before yielding, since the event comes in a later task.
+	 */
+	function whenSpriteLoaded(image: HTMLImageElement): Promise<void> {
+		return new Promise(resolve => image.addEventListener('load', () => resolve(), { once: true }));
+	}
+
 	function getPetFallKeyframes(button: HTMLElement) {
 		return button.getAnimations().flatMap(animation => animation.effect instanceof mainWindow.KeyframeEffect
 			? animation.effect.getKeyframes().filter(frame => frame.top !== undefined).map(frame => frame.top)
 			: []);
+	}
+
+	for (const reducedMotion of [false, true]) {
+		test(`live color changes preserve the current frame and double buffering (${reducedMotion ? 'reduced motion' : 'animated'})`, async () => {
+			const clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] });
+			try {
+				const { button, service } = createHostTransitionHarness(reducedMotion, 'teleport', '#ff8800');
+				const firstImage = button.querySelector<HTMLImageElement>('.chat-pet-sprite img[src]')!;
+				const firstLoaded = whenSpriteLoaded(firstImage);
+				await firstImage.decode();
+				await firstLoaded;
+				clock.tick(800);
+				const activeCanvas = button.querySelector<HTMLCanvasElement>('.chat-pet-sprite:not(.hidden) canvas')!;
+				const expected = mainWindow.document.createElement('canvas');
+				expected.width = expected.height = 96;
+				const expectedContext = expected.getContext('2d')!;
+				service.setColor('#12abcd');
+				expectedContext.drawImage(getChatPetColoredSprite(firstImage, '#12abcd'), (reducedMotion ? 0 : 20) * 96, 0, 96, 96, 0, 0, 96, 96);
+				assert.strictEqual(activeCanvas.toDataURL(), expected.toDataURL(), 'Recolor the current frame rather than restarting at frame zero');
+				const previousFrame = activeCanvas.toDataURL();
+				service.setColor('insiders');
+				assert.strictEqual(activeCanvas.toDataURL(), previousFrame, 'Keep the previous composite until the new variant loads');
+				const insiders = button.querySelector<HTMLImageElement>('.chat-pet-sprite.hidden img[src*="insiders"]')!;
+				const insidersLoaded = whenSpriteLoaded(insiders);
+				await insiders.decode();
+				await insidersLoaded;
+				assert.ok(insiders.parentElement?.classList.contains('hidden') === false);
+				service.setColor('#12abcd');
+				const immediateCanvas = insiders.parentElement!.querySelector<HTMLCanvasElement>('canvas')!;
+				expectedContext.clearRect(0, 0, 96, 96);
+				expectedContext.drawImage(getChatPetColoredSprite(insiders, '#12abcd'), 0, 0, 96, 96, 0, 0, 96, 96);
+				assert.strictEqual(immediateCanvas.toDataURL(), expected.toDataURL(), 'Recolor the currently displayed Insiders sheet while Stable loads');
+			} finally {
+				clock.restore();
+			}
+		});
 	}
 
 	test('runs one timed hop for a single key press', () => {
@@ -302,6 +361,63 @@ suite('ChatPetWidget', () => {
 		}, {
 			initialLeft,
 			currentLeft: initialLeft - 24,
+		});
+	});
+
+	test('always offers Change Color without revealing the slash command', async () => {
+		const parent = mainWindow.document.createElement('div');
+		mainWindow.document.body.append(parent);
+		disposables.add(toDisposable(() => parent.remove()));
+		let menu: IContextMenuDelegate | undefined;
+		const commands: string[] = [];
+		const service = disposables.add(new ChatPetService(disposables.add(new TestStorageService()), new TestTelemetryService(), new NullLogService()));
+		service.toggle();
+		disposables.add(new ChatPetWidget(
+			createPetHost(parent, parent, parent),
+			undefined,
+			service,
+			new TestAccessibilityService(),
+			new class extends mock<IContextMenuService>() {
+				override showContextMenu(delegate: IContextMenuDelegate): void { menu = delegate; }
+			}(),
+			new class extends mock<ICommandService>() {
+				override async executeCommand<T>(id: string): Promise<T | undefined> {
+					commands.push(id);
+					return undefined;
+				}
+			}(),
+			new NullLogService(),
+			new class extends mock<IHostService>() {
+				override readonly hasFocus = true;
+				override readonly onDidChangeFocus = Event.None;
+				override readonly onDidChangeActiveWindow = Event.None;
+			}(),
+		));
+		const button = parent.querySelector<HTMLElement>('.chat-pet-button');
+		assert.ok(button);
+		button.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+		const locked = menu?.getActions().find(action => action.id === CHAT_PET_CHANGE_COLOR_COMMAND_ID);
+		const lockedState = { label: locked?.label, enabled: locked?.enabled };
+		assert.ok(locked);
+		await locked.run();
+		service.unlockAchievement(ChatPetAchievementIds.Blobby);
+		button.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+		const actions = menu?.getActions();
+		const unlocked = actions?.find(action => action.id === CHAT_PET_CHANGE_COLOR_COMMAND_ID);
+		assert.ok(unlocked);
+		await unlocked.run();
+		assert.deepStrictEqual({
+			lockedState,
+			unlockedState: { label: unlocked.label, enabled: unlocked.enabled },
+			legacyVariants: actions?.filter(action => action.id.startsWith('chat.pet.variant.')).length,
+			revealsSlashCommand: actions?.some(action => action.label.includes('/blobby')),
+			commands,
+		}, {
+			lockedState: { label: 'Change Color', enabled: true },
+			unlockedState: { label: 'Change Color', enabled: true },
+			legacyVariants: 0,
+			revealsSlashCommand: false,
+			commands: [CHAT_PET_CHANGE_COLOR_COMMAND_ID, CHAT_PET_CHANGE_COLOR_COMMAND_ID],
 		});
 	});
 
@@ -1066,6 +1182,10 @@ suite('ChatPetWidget', () => {
 			getChatPetBaseState(true, false, false, true, true),
 			getChatPetBaseState(true, true, false, true, true),
 			getChatPetBaseState(true, true, true, true, true),
+			getChatPetBaseState(true, false, false, true, true, true),
+			getChatPetBaseState(true, true, false, true, true, true),
+			getChatPetBaseState(true, true, true, true, true, true),
+			getChatPetBaseState(false, false, false, false, false, true),
 		], [
 			'idle',
 			'sleep',
@@ -1074,7 +1194,155 @@ suite('ChatPetWidget', () => {
 			'rendering',
 			'clapping',
 			'idle',
+			'painting',
+			'clapping',
+			'idle',
+			'idle',
 		]);
+	});
+
+	for (const variant of ['stable', 'insiders'] as const) {
+		for (const reducedMotion of [false, true]) {
+			test(`paints only while a visible image-generation tool is active (${variant}, ${reducedMotion ? 'reduced motion' : 'animated'})`, async () => {
+				const { widget, firstHost, button } = createHostTransitionHarness(reducedMotion, 'teleport', variant);
+				const responseChanged = disposables.add(new Emitter<ChatResponseModelChangeReason>());
+				const parts: IChatProgressResponseContent[] = [];
+				const hasActiveRequest = observableValue('hasActiveRequest', true);
+				const response = new class extends mock<IChatResponseModel>() {
+					override readonly onDidChange = responseChanged.event;
+					override readonly isPendingConfirmation = constObservable(undefined);
+					override readonly response = new class extends mock<IResponse>() {
+						override readonly value = parts;
+					}();
+				}();
+				const request = new class extends mock<IChatRequestModel>() {
+					override readonly response = response;
+				}();
+				const model = new class extends mock<IChatModel>() {
+					override readonly hasActiveRequest = hasActiveRequest;
+					override readonly lastRequestObs = constObservable(request);
+				}();
+				const modelValue = observableValue<IChatModel | undefined>('model', model);
+				widget.setHost({ ...firstHost, model: modelValue });
+
+				const states: string[] = [];
+				const recordState = async (state: string) => {
+					await waitForPetAnimation(() => button.dataset.state === state, `Expected ${state} pet state`);
+					states.push(button.dataset.state!);
+				};
+				const createTool = (id: string, streaming = false) => new ChatToolInvocation(undefined, {
+					id,
+					displayName: id,
+					modelDescription: 'Test tool',
+					source: ToolDataSource.Internal,
+				}, `call-${parts.length}`, undefined, {}, { startInStreaming: streaming });
+				const addTool = (tool: ChatToolInvocation) => {
+					parts.push(tool);
+					responseChanged.fire({ reason: 'other' });
+				};
+
+				await recordState('rendering');
+				const nativeTool = createTool('image_generation', true);
+				addTool(nativeTool);
+				await recordState('painting');
+				const image = button.querySelector<HTMLImageElement>('.chat-pet-sprite:not(.hidden) img')!;
+				const canvas = button.querySelector<HTMLCanvasElement>('.chat-pet-sprite:not(.hidden) canvas')!;
+				const eyes = button.querySelector<HTMLElement>('.chat-pet-eyes')!;
+				const painting = {
+					source: image.getAttribute('src')?.endsWith(`buddy-painting-${variant}-96${reducedMotion ? '' : '.spritesheet'}.png`),
+					imageSize: [image.naturalWidth, image.naturalHeight],
+					canvasSize: [canvas.width, canvas.height],
+					blinking: eyes.classList.contains('blinking'),
+					tracking: eyes.classList.contains('tracking'),
+					accessible: button.getAttribute('aria-label')?.startsWith('Painting an image.'),
+				};
+
+				const codexTool = createTool('image_gen.imagegen');
+				addTool(codexTool);
+				await nativeTool.didExecuteTool({ content: [] });
+				await recordState('painting');
+				await codexTool.didExecuteTool({ content: [] });
+				await recordState('rendering');
+
+				const metadataTool = createTool('custom_image_tool');
+				addTool(metadataTool);
+				await recordState('rendering');
+				metadataTool.toolSpecificData = {
+					kind: 'input',
+					rawInput: '{}',
+					imageGeneration: { requestedModel: { id: 'image-model' } },
+				};
+				await recordState('painting');
+				metadataTool.presentation = ToolInvocationPresentation.Hidden;
+				responseChanged.fire({ reason: 'other' });
+				await recordState('rendering');
+				metadataTool.presentation = undefined;
+				responseChanged.fire({ reason: 'other' });
+				await recordState('painting');
+				metadataTool.didCancelTool({ type: ToolConfirmKind.Denied });
+				await recordState('rendering');
+
+				addTool(createTool('image_generation'));
+				await recordState('painting');
+				hasActiveRequest.set(false, undefined);
+				await recordState('idle');
+				hasActiveRequest.set(true, undefined);
+				await recordState('painting');
+				modelValue.set(undefined, undefined);
+				await recordState('idle');
+
+				assert.deepStrictEqual({ painting, states, observingOldResponse: responseChanged.hasListeners() }, {
+					painting: {
+						source: true,
+						imageSize: [192 * (reducedMotion ? 1 : 8), 96],
+						canvasSize: [192, 96],
+						blinking: true,
+						tracking: false,
+						accessible: true,
+					},
+					states: ['rendering', 'painting', 'painting', 'rendering', 'rendering', 'painting', 'rendering', 'painting', 'rendering', 'painting', 'idle', 'painting', 'idle'],
+					observingOldResponse: false,
+				});
+			});
+		}
+	}
+
+	test('painting keeps body-owned accessories and yields to gestures but not idle reactions', () => {
+		assert.deepStrictEqual({
+			sprites: [getChatPetSpriteName('painting', 'stable'), getChatPetSpriteName('painting', 'insiders')],
+			rig: [getChatPetAccessoryRigFrame('painting', 0), getChatPetAccessoryRigFrame('painting', 7)],
+			reducedMotionFrame: getChatPetReducedMotionRigFrame('painting'),
+			eyeAnchors: [
+				getChatPetEyeAccessoryAnchor('painting', 3, 'right', false, 192),
+				getChatPetEyeAccessoryAnchor('painting', 3, 'left', false, 192),
+			],
+			states: [
+				getChatPetRenderedState('painting', undefined, false),
+				getChatPetRenderedState('painting', 'yapping', false),
+				getChatPetRenderedState('painting', 'yappingMouthOpen', false),
+				getChatPetRenderedState('painting', 'falling', false),
+				getChatPetRenderedState('painting', undefined, true),
+			],
+			eyes: [doesChatPetStateTrackCursor('painting'), doesChatPetStateBlink('painting')],
+			bounds: [
+				getChatPetWideSpriteHorizontalOffset('painting', 'right', 903, 951, 0, 1000),
+				getChatPetWideSpriteHorizontalOffset('painting', 'right', 905, 953, 0, 1000),
+				getChatPetWideSpriteHorizontalOffset('painting', 'left', 49, 97, 0, 1000),
+				getChatPetWideSpriteHorizontalOffset('painting', 'left', 47, 95, 0, 1000),
+				getChatPetWideSpriteHorizontalOffset('painting', 'right', 810, 906, 0, 1000, 2),
+			],
+		}, {
+			sprites: ['buddy-painting-stable', 'buddy-painting-insiders'],
+			rig: [
+				{ pose: 'upright', head: { x: 48, y: 40 }, rightEye: { x: 56, y: 56 } },
+				{ pose: 'upright', head: { x: 48, y: 40 }, rightEye: { x: 56, y: 56 } },
+			],
+			reducedMotionFrame: 3,
+			eyeAnchors: [{ x: 56, y: 56 }, { x: 136, y: 56 }],
+			states: ['painting', 'painting', 'painting', 'falling', 'idle'],
+			eyes: [false, true],
+			bounds: [0, -1, 0, 1, -1],
+		});
 	});
 
 	test('limits confirmation attention to two seconds', () => {
@@ -1657,7 +1925,7 @@ suite('ChatPetWidget', () => {
 		]);
 	});
 
-	test('defines unique covered-antennae rewards for each achievement', () => {
+	test('defines unique hats and a color customization reward', () => {
 		const accessoryIds = chatPetAchievements.flatMap(achievement => achievement.accessories.map(accessory => accessory.id));
 		assert.deepStrictEqual({
 			count: chatPetAchievements.length,
@@ -1672,7 +1940,7 @@ suite('ChatPetWidget', () => {
 			disabledAchievementIds: disabledChatPetAchievements.map(achievement => achievement.id),
 			disabledAccessoryIds: disabledChatPetAchievements.flatMap(achievement => achievement.accessories.map(accessory => accessory.id)),
 		}, {
-			count: 13,
+			count: 14,
 			achievementIds: [
 				ChatPetAchievementIds.RequestRevision,
 				ChatPetAchievementIds.FirstChatMessage,
@@ -1687,6 +1955,7 @@ suite('ChatPetWidget', () => {
 				ChatPetAchievementIds.ChatReferenceOpened,
 				ChatPetAchievementIds.UsefulOutputCopied,
 				ChatPetAchievementIds.AutopilotEnabled,
+				ChatPetAchievementIds.Blobby,
 			],
 			accessoryIds: [
 				ChatPetAccessoryIds.TopHatMonocle,
@@ -1720,7 +1989,7 @@ suite('ChatPetWidget', () => {
 				'wizard-hat',
 			],
 			atlasCellSizes: Array(13).fill(96),
-			rewardCounts: Array(13).fill(1),
+			rewardCounts: [...Array(13).fill(1), 0],
 			coversAntennae: true,
 			crownAccessoryId: 'crown',
 			disabledAchievementIds: [
@@ -1770,7 +2039,7 @@ suite('ChatPetWidget', () => {
 			firstMessageRewards: getChatPetAchievement(ChatPetAchievementIds.FirstChatMessage).accessories.map(accessory => accessory.id),
 			newAchievements: achievementIds.map(id => {
 				const achievement = getChatPetAchievement(id);
-				return { title: achievement.title, reward: achievement.accessories[0].id };
+				return { title: achievement.title, reward: achievement.accessories[0]?.id };
 			}),
 		}, {
 			firstMessageRewards: [ChatPetAccessoryIds.CowboyHat],
@@ -1839,12 +2108,12 @@ suite('ChatPetWidget', () => {
 			modelSwitch: {
 				title: modelSwitch.title,
 				description: modelSwitch.description,
-				accessoryId: modelSwitch.accessories[0].id,
+				accessoryId: modelSwitch.accessories[0]?.id,
 			},
 			customSkill: {
 				title: customSkill.title,
 				description: customSkill.description,
-				accessoryId: customSkill.accessories[0].id,
+				accessoryId: customSkill.accessories[0]?.id,
 			},
 		}, {
 			modelSwitch: {
@@ -2177,9 +2446,9 @@ suite('ChatPetWidget', () => {
 
 	test('maps every runtime state to a body-owned accessory track', () => {
 		assert.deepStrictEqual([
-			'idle', 'sleep', 'waking', 'typing', 'rendering', 'achievementUnlocked', 'buttonPress', 'complete', 'love', 'clapping', 'jump', 'cool', 'yapping', 'yappingMouthOpen', 'sing', 'speechless', 'worry', 'dizzy', 'falling', 'wallImpact', 'splat', 'onTheRun', 'searching', 'searchingDown',
+			'idle', 'sleep', 'waking', 'typing', 'rendering', 'painting', 'achievementUnlocked', 'buttonPress', 'complete', 'love', 'clapping', 'jump', 'cool', 'yapping', 'yappingMouthOpen', 'sing', 'speechless', 'worry', 'dizzy', 'falling', 'wallImpact', 'splat', 'onTheRun', 'searching', 'searchingDown',
 		].map(state => getChatPetAccessoryTrack(state as Parameters<typeof getChatPetAccessoryTrack>[0])), [
-			'idle', 'sleep', 'waking', 'typing', 'rendering', 'rendering', 'buttonPress', 'idle', 'love', 'clapping', 'jump', 'cool', 'idle', 'yapping', 'sing', 'speechless', 'worry', 'dizzy', 'falling', 'wallImpact', 'splat', 'search', 'search', 'search',
+			'idle', 'sleep', 'waking', 'typing', 'rendering', 'painting', 'rendering', 'buttonPress', 'idle', 'love', 'clapping', 'jump', 'cool', 'idle', 'yapping', 'sing', 'speechless', 'worry', 'dizzy', 'falling', 'wallImpact', 'splat', 'search', 'search', 'search',
 		]);
 	});
 
@@ -2364,6 +2633,7 @@ suite('ChatPetWidget', () => {
 			getChatPetFrameDurations('waking'),
 			getChatPetFrameDurations('typing'),
 			getChatPetFrameDurations('rendering'),
+			getChatPetFrameDurations('painting'),
 			getChatPetFrameDurations('buttonPress'),
 			getChatPetFrameDurations('clapping'),
 			getChatPetFrameDurations('love'),
@@ -2387,6 +2657,7 @@ suite('ChatPetWidget', () => {
 			[160, 100, 80, 90, 90, 90, 100, 170],
 			[320, 480],
 			Array.from({ length: 50 }, () => 40),
+			[240, 160, 180, 220, 180, 160, 240, 320],
 			[500, 300, 350, 250, 450, 1_000],
 			[80, 40, 40, 40, 80, 40, 40, 40, 40, 80, 40, 40, 80],
 			[200, 200, 380, 100, 80, 1_980],

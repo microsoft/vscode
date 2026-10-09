@@ -457,10 +457,18 @@ export class ListSettingWidget<TListDataItem extends IListDataItem> extends Abst
 	private showAddButton: boolean = true;
 	private isEditable: boolean = true;
 
+	protected override get isReadOnly(): boolean {
+		return !this.isEditable;
+	}
+
 	override setValue(listData: TListDataItem[], options?: IListSetValueOptions) {
 		this.keyValueSuggester = options?.keySuggester;
 		this.isEditable = options?.isReadOnly === undefined ? true : !options.isReadOnly;
 		this.showAddButton = this.isEditable ? (options?.showAddButton ?? true) : false;
+		if (this.isReadOnly) {
+			this.model.setEditKey('none');
+			this.dragDetails = undefined;
+		}
 		super.setValue(listData);
 	}
 
@@ -534,6 +542,9 @@ export class ListSettingWidget<TListDataItem extends IListDataItem> extends Abst
 	}
 
 	protected addDragAndDrop(rowElement: HTMLElement, item: TListDataItem, idx: number) {
+		if (this.isReadOnly) {
+			return;
+		}
 		if (this.model.items.every(item => !item.editing)) {
 			rowElement.draggable = true;
 			rowElement.classList.add('draggable');

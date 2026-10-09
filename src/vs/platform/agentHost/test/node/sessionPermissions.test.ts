@@ -602,6 +602,98 @@ suite('SessionPermissionManager', () => {
 		assert.strictEqual(result, ToolCallConfirmationReason.Setting);
 	});
 
+	for (const mode of ['session', 'global'] as const) {
+		for (const terminalAutoApproveEnabled of [true, false]) {
+			test(`${mode} allow-all overrides terminal approval settings and restores them in default mode (terminal auto-approve ${terminalAutoApproveEnabled})`, async () => {
+				configService.updateRootConfig({
+					[AgentHostTerminalAutoApproveEnabledConfigKey]: terminalAutoApproveEnabled,
+					[AgentHostTerminalAutoApproveRulesConfigKey]: { ls: false, rm: false },
+				});
+				const events = [shellEvent('ls -lh', 'bash'), shellEvent('rm -f file.txt', 'bash')];
+				const before = await Promise.all(events.map(event => permissions.getAutoApproval(event, sessionUri)));
+
+				if (mode === 'global') {
+					configService.updateRootConfig({ [AgentHostGlobalAutoApproveEnabledConfigKey]: true });
+				} else {
+					manager.setSessionConfig(sessionUri, {
+						schema: platformSessionSchema.toProtocol(),
+						values: { [SessionConfigKey.AutoApprove]: 'autoApprove' },
+					});
+				}
+				const allowAll = await Promise.all(events.map(event => permissions.getAutoApproval(event, sessionUri)));
+
+				if (mode === 'global') {
+					configService.updateRootConfig({ [AgentHostGlobalAutoApproveEnabledConfigKey]: false });
+				} else {
+					manager.setSessionConfig(sessionUri, {
+						schema: platformSessionSchema.toProtocol(),
+						values: { [SessionConfigKey.AutoApprove]: 'default' },
+					});
+				}
+				const after = await Promise.all(events.map(event => permissions.getAutoApproval(event, sessionUri)));
+
+				assert.deepStrictEqual({ before, allowAll, after }, {
+					before: [undefined, undefined],
+					allowAll: [ToolCallConfirmationReason.Setting, ToolCallConfirmationReason.Setting],
+					after: [undefined, undefined],
+				});
+			});
+		}
+	}
+
+	test('global approval cannot bypass the host-reported permission policy', async () => {
+		configService.updateRootConfig({ [AgentHostGlobalAutoApproveEnabledConfigKey]: true });
+		const config = {
+			schema: {
+				...platformSessionSchema.toProtocol(), properties: {
+					...platformSessionSchema.toProtocol().properties,
+					availableApprovalModes: { type: 'array' as const, title: 'Available', readOnly: true },
+					effectiveApprovalMode: { type: 'string' as const, title: 'Effective', readOnly: true },
+				}
+			},
+			values: { autoApprove: 'autoApprove', availableApprovalModes: ['default'], effectiveApprovalMode: 'default' },
+		};
+		manager.setSessionConfig(sessionUri, config);
+		const result = await permissions.getAutoApproval(writeEvent(join(outsideDir, 'outside.txt')), sessionUri);
+		assert.deepStrictEqual({ result, level: permissions.getEffectiveApprovalLevel(sessionUri) }, { result: undefined, level: 'default' });
+	});
+
+	for (const global of [false, true]) {
+		test(`standard approval reports control automatic approval (global=${global})`, async () => {
+			configService.updateRootConfig({ [AgentHostGlobalAutoApproveEnabledConfigKey]: global });
+			const results = [];
+			for (const [effective, available] of [
+				['manual', ['manual', 'assisted', 'allow-all']],
+				['assisted', ['manual', 'assisted', 'allow-all']],
+				['allow-all', ['manual', 'assisted', 'allow-all']],
+				['allow-all', ['manual']],
+				['invalid', ['manual', 'invalid']],
+			] as const) {
+				manager.setSessionConfig(sessionUri, {
+					schema: {
+						type: 'object', properties: {
+							approvalMode: { type: 'string', title: 'Approvals', enum: ['manual', 'assisted', 'allow-all'] },
+							availableApprovalModes: { type: 'array', title: 'Available', readOnly: true },
+							effectiveApprovalMode: { type: 'string', title: 'Effective', readOnly: true },
+						}
+					},
+					values: { approvalMode: 'manual', effectiveApprovalMode: effective, availableApprovalModes: [...available] },
+				});
+				results.push({
+					level: permissions.getEffectiveApprovalLevel(sessionUri),
+					approved: await permissions.getAutoApproval(writeEvent(join(outsideDir, 'outside.txt')), sessionUri),
+				});
+			}
+			assert.deepStrictEqual(results, [
+				{ level: 'default', approved: undefined },
+				{ level: 'assisted', approved: undefined },
+				{ level: 'autoApprove', approved: ToolCallConfirmationReason.Setting },
+				{ level: 'default', approved: undefined },
+				{ level: 'default', approved: undefined },
+			]);
+		});
+	}
+
 	test('auto-approves any write when global auto-approve is enabled, even in default permission mode', async () => {
 		configService.updateRootConfig({ [AgentHostGlobalAutoApproveEnabledConfigKey]: true });
 

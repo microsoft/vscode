@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { createRequire } from 'module';
 import { tmpdir } from 'os';
 import { retry } from '../../../../../../base/common/async.js';
@@ -18,6 +18,7 @@ import { buildDefaultChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, cu
 import { assertToolCallCompleteText, createRealSession, driveTurnToCompletion, driveTurnWithAnswersToCompletion, driveTurnWithCancelledInputToCompletion, resolveGitHubToken, textFromContent } from '../harness/agentHostE2ETestHarness.js';
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification, type TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
 import { providerHostOnlyTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
 
 const nodeRequire = createRequire(import.meta.url);
 
@@ -48,8 +49,8 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 	}
 
 	async function createPluginSession(prefix: string, options: IPluginSessionOptions = {}): Promise<IPluginSession> {
-		const workspace = mkdtempSync(join(tmpdir(), `ahp-mcp-workspace-${prefix}-`));
-		const plugin = mkdtempSync(join(tmpdir(), `ahp-mcp-plugin-${prefix}-`));
+		const workspace = createTestDirectory(join(tmpdir(), `ahp-mcp-workspace-${prefix}-`));
+		const plugin = createTestDirectory(join(tmpdir(), `ahp-mcp-plugin-${prefix}-`));
 		tempDirs.push(workspace, plugin);
 		const manifestDirectory = config.provider === 'claude' ? '.claude-plugin' : '.plugin';
 		for (const directory of [
@@ -78,7 +79,8 @@ export function defineMcpPluginTests(context: IAgentHostE2ETestContext): void {
 				'  process.exit(Number(exitCode));',
 				'});',
 			].join('\n'));
-			const command = [process.execPath, hookScript, hookLog, options.hookType, String(options.hookExitCode ?? 0), options.hookStdout ?? '']
+			// Hook commands need Node, not the Electron renderer's executable and Chromium sandbox.
+			const command = [process.env['npm_node_execpath'] ?? 'node', hookScript, hookLog, options.hookType, String(options.hookExitCode ?? 0), options.hookStdout ?? '']
 				.map(value => JSON.stringify(value))
 				.join(' ');
 			writeFileSync(join(hooksDirectory, 'hooks.json'), JSON.stringify({

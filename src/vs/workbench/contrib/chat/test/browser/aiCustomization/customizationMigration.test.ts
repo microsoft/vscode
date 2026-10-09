@@ -8,6 +8,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { dirname, isEqual } from '../../../../../../base/common/resources.js';
+import { parseFrontMatter, YamlParseError } from '../../../../../../base/common/yaml.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
@@ -19,7 +20,7 @@ import { PromptFileSource, PromptsType } from '../../../common/promptSyntax/prom
 import { CustomizationMigrationType, FileCustomizationMigrationFailureReason, IMcpServerCustomizationMigrationCandidate, McpServerCustomizationMigrationFailureReason, type MigratableConfiguration } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 import { PromptsStorage, type IPromptPath } from '../../../common/promptSyntax/service/promptsService.js';
 import { ICustomizationSourceFolder } from '../../../common/customizationHarnessService.js';
-import { createSkillFileUri, migrateCustomizations, migratePromptFileToSkill, resolveWorkspaceMigrationTargetFolder, type CustomizationMigrationTargetFolders } from '../../../browser/aiCustomization/customizationMigration.js';
+import { createCustomizationMigrationAgentPrompt, createSkillFileUri, migrateCustomizations, migratePromptFileToSkill, resolveWorkspaceMigrationTargetFolder, type CustomizationMigrationTargetFolders } from '../../../browser/aiCustomization/customizationMigration.js';
 import { CUSTOMIZATION_MIGRATION_CATEGORIES, CustomizationMigrationCategoryId, getCustomizationMigrationCategory } from '../../../browser/aiCustomization/customizationMigrationCategories.js';
 
 class DeleteFailingFileSystemProvider extends InMemoryFileSystemProvider {
@@ -130,6 +131,61 @@ suite('customizationMigration', () => {
 		});
 	});
 
+	test('builds an agent prompt from discovered sources and harness-reported targets', () => {
+		const recoveryBundleFolder = URI.file('/recovery/vscode-customization-migration');
+		const prompt = createCustomizationMigrationAgentPrompt(
+			{ id: 'agent-host-copilotcli', label: 'Copilot' },
+			'migration-flow-id',
+			recoveryBundleFolder,
+			[
+				{
+					category: CustomizationMigrationType.PromptFiles,
+					customization: { uri: URI.file('/workspace/.github/prompts/review.prompt.md'), storage: PromptsStorage.local, type: PromptsType.prompt },
+				},
+				{
+					category: CustomizationMigrationType.McpServers,
+					customization: {
+						type: CustomizationMigrationType.McpServers,
+						storage: PromptsStorage.user,
+						id: 'server',
+						name: 'Server',
+						sourceUri: URI.file('/profile/mcp.json'),
+						targetUri: URI.file('/home/.copilot/mcp-config.json'),
+						projectedConfiguration: { type: McpServerType.LOCAL, command: 'node' },
+					},
+				},
+				{
+					category: CustomizationMigrationType.ConfiguredLocations,
+					customization: { uri: URI.file('/workspace/custom/review.instructions.md'), storage: PromptsStorage.local, type: PromptsType.instructions },
+				},
+			],
+			new Map([
+				[PromptsType.skill, [
+					{ uri: URI.file('/workspace/.github/skills'), label: 'Workspace skills', source: 'local' },
+					{ uri: URI.file('/home/.copilot/skills'), label: 'User skills', source: 'user' },
+				]],
+			]),
+		);
+
+		assert.strictEqual(prompt.replace(/\\/g, '/'), [
+			'/migrate-customizations',
+			'',
+			'Selected harness: Copilot (agent-host-copilotcli)',
+			'Migration telemetry flow: migration-flow-id',
+			'Recovery bundle folder: file:///recovery/vscode-customization-migration',
+			`Recovery bundle filesystem path: ${recoveryBundleFolder.path}`,
+			'',
+			'Customizations that need migration:',
+			'- promptFiles: prompt (local): file:///workspace/.github/prompts/review.prompt.md',
+			'- mcpServers: MCP server "Server" (user): file:///profile/mcp.json -> file:///home/.copilot/mcp-config.json',
+			'- configuredLocations: instructions (local): file:///workspace/custom/review.instructions.md',
+			'',
+			'Valid target folders reported by the selected harness:',
+			'- skill (local, Workspace skills): file:///workspace/.github/skills',
+			'- skill (user, User skills): file:///home/.copilot/skills',
+		].join('\n'));
+	});
+
 	test('configured locations copy explains harness discovery and setting scope', () => {
 		const category = getCustomizationMigrationCategory(CustomizationMigrationCategoryId.ConfiguredLocations);
 		const agent: IPromptPath = {
@@ -206,12 +262,12 @@ suite('customizationMigration', () => {
 			projectedConfiguration: { type: McpServerType.LOCAL, command: 'node' },
 			removedProperties: { gallery: true },
 		};
-		const warning = 'The \'gallery\' property will be removed. This MCP server will no longer be automatically updated from the registry.';
+		const warning = 'Removes \'gallery\'. Registry updates will stop.';
 
 		assert.deepStrictEqual(category.getCandidateWarnings?.(server, 'Copilot'), [warning]);
 	});
 
-	test('explains cross-root MCP conflicts and prioritizes rollback guidance', () => {
+	test('explains MCP target conflicts and prioritizes rollback guidance', () => {
 		const category = getCustomizationMigrationCategory(CustomizationMigrationCategoryId.McpServers);
 		const failure = {
 			storage: PromptsStorage.local as const,
@@ -219,17 +275,14 @@ suite('customizationMigration', () => {
 			name: 'demo',
 			sourceUri: URI.file('/secondary/.vscode/mcp.json'),
 			targetUri: URI.file('/secondary/.mcp.json'),
-			conflictingUri: URI.file('/primary/.mcp.json'),
-			reason: McpServerCustomizationMigrationFailureReason.CrossRootConflict,
+			reason: McpServerCustomizationMigrationFailureReason.TargetConflict,
 		};
 
 		assert.deepStrictEqual({
 			single: category.getMcpServerFailureMessage?.([failure]),
-			multiple: category.getMcpServerFailureMessage?.([failure, { ...failure, name: 'other' }]),
 			rollback: category.getMcpServerFailureMessage?.([failure, { ...failure, reason: McpServerCustomizationMigrationFailureReason.RollbackFailed }]),
 		}, {
-			single: 'Could not migrate \'demo\' because another workspace root defines an MCP server with the same name. Rename or remove the duplicate before migrating.',
-			multiple: 'Some MCP servers could not be migrated because their names conflict across workspace roots. Rename or remove the duplicates before migrating.',
+			single: 'Could not migrate \'demo\' because the destination already contains a different server with that name.',
 			rollback: 'Some MCP server migrations could not be safely completed or rolled back. Review the affected source and destination MCP configuration files.',
 		});
 	});
@@ -312,15 +365,112 @@ suite('customizationMigration', () => {
 		].join('\n');
 
 		const migrated = migratePromptFileToSkill(promptFile, content);
+		const errors: YamlParseError[] = [];
+		const parsed = parseFrontMatter(migrated.content, errors);
+		const headerKeys = parsed?.header?.type === 'map'
+			? parsed.header.properties.map(property => property.key.value)
+			: [];
 
-		assert.strictEqual(migrated.skillName, 'review-prompt');
-		assert.deepStrictEqual(migrated.unsupportedHeaderKeys, ['tools', 'mode']);
-		assert.ok(migrated.content.includes('name: review-prompt'));
-		assert.ok(migrated.content.includes('description: Review the active change'));
-		assert.ok(migrated.content.includes('disable-model-invocation: true'));
-		assert.ok(migrated.content.includes('argument-hint: "[diff]"'));
-		assert.ok(!migrated.content.includes('tools: [read_file, edit_file]'));
-		assert.ok(migrated.content.includes('## Steps'));
+		assert.deepStrictEqual({
+			skillName: migrated.skillName,
+			unsupportedHeaderKeys: migrated.unsupportedHeaderKeys,
+			errors,
+			headerKeys,
+			name: parsed?.getStringValue('name'),
+			description: parsed?.getStringValue('description'),
+			disableModelInvocation: parsed?.getBooleanValue('disable-model-invocation'),
+			argumentHint: parsed?.getStringValue('argument-hint'),
+			body: parsed?.body,
+		}, {
+			skillName: 'review-prompt',
+			unsupportedHeaderKeys: ['tools', 'mode'],
+			errors: [],
+			headerKeys: ['name', 'description', 'disable-model-invocation', 'argument-hint'],
+			name: 'review-prompt',
+			description: 'Review the active change',
+			disableModelInvocation: true,
+			argumentHint: '[diff]',
+			body: '## Steps\n\n- Review the diff',
+		});
+	});
+
+	test('serializes migrated skill descriptions as valid YAML strings', () => {
+		const promptFile: IPromptPath = {
+			uri: URI.file('/workspace/.github/prompts/review.prompt.md'),
+			name: 'Review Prompt',
+			storage: PromptsStorage.local,
+			type: PromptsType.prompt,
+			source: PromptFileSource.GitHubWorkspace,
+		};
+		const cases = [
+			{
+				content: 'description: "Review: changes #42"',
+				expectedLine: 'description: "Review: changes #42"',
+				expectedDescription: 'Review: changes #42',
+			},
+			{
+				content: 'description: \'Review the author\'\'s changes\'',
+				expectedLine: 'description: \'Review the author\'\'s changes\'',
+				expectedDescription: 'Review the author\'s changes',
+			},
+			{
+				content: 'description: Review the author\'s changes',
+				expectedLine: 'description: Review the author\'s changes',
+				expectedDescription: 'Review the author\'s changes',
+			},
+			{
+				content: ['description: |-', '  Review the first change.', '  Review the second change.'].join('\n'),
+				expectedLine: 'description: "Review the first change.\\nReview the second change."',
+				expectedDescription: 'Review the first change.\nReview the second change.',
+			},
+			{
+				content: 'description: "Review\\x7Fchanges"',
+				expectedLine: 'description: "Review\\u007fchanges"',
+				expectedDescription: 'Review\u007Fchanges',
+			},
+		];
+
+		const actual = cases.map(testCase => {
+			const content = ['---', 'name: Review Prompt', testCase.content, '---', 'Review body'].join('\n');
+			const migrated = migratePromptFileToSkill(promptFile, content);
+			const errors: YamlParseError[] = [];
+			const parsed = parseFrontMatter(migrated.content, errors);
+			return {
+				descriptionLine: migrated.content.split('\n').find(line => line.startsWith('description:')),
+				description: parsed?.getStringValue('description'),
+				errors,
+			};
+		});
+
+		assert.deepStrictEqual(actual, cases.map(testCase => ({
+			descriptionLine: testCase.expectedLine,
+			description: testCase.expectedDescription,
+			errors: [],
+		})));
+	});
+
+	test('quotes YAML-sensitive description metadata without source formatting', () => {
+		const promptFile: IPromptPath = {
+			uri: URI.file('/workspace/.github/prompts/review.prompt.md'),
+			name: 'Review Prompt',
+			description: 'Review: changes #42',
+			storage: PromptsStorage.local,
+			type: PromptsType.prompt,
+			source: PromptFileSource.GitHubWorkspace,
+		};
+		const migrated = migratePromptFileToSkill(promptFile, 'Review body');
+		const errors: YamlParseError[] = [];
+		const parsed = parseFrontMatter(migrated.content, errors);
+
+		assert.deepStrictEqual({
+			descriptionLine: migrated.content.split('\n').find(line => line.startsWith('description:')),
+			description: parsed?.getStringValue('description'),
+			errors,
+		}, {
+			descriptionLine: 'description: "Review: changes #42"',
+			description: 'Review: changes #42',
+			errors: [],
+		});
 	});
 
 	test('preserves argument-hint formatting from source prompt', () => {

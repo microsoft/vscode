@@ -11,7 +11,8 @@ import { hash } from '../../../../base/common/hash.js';
 import { isAbsolute } from '../../../../base/common/path.js';
 import { localize } from '../../../../nls.js';
 import type { IAgentToolPendingConfirmationSignal } from '../../common/agent.js';
-import type { ToolKind } from '../../common/meta/agentToolCallMeta.js';
+import { copilotCliToolInputContract, type ToolKind } from '../../common/meta/agentToolCallMeta.js';
+import { parseImageGenerationToolMetadata, type IImageGenerationToolMetadata } from '../../common/meta/agentImageGenerationMeta.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { parsePartialToolInput } from '../../common/partialToolInput.js';
 import { StringOrMarkdown } from '../../common/state/protocol/state.js';
@@ -70,6 +71,7 @@ export const enum CopilotToolName {
 	GitApplyPatch = 'git_apply_patch',
 	WebSearch = 'web_search',
 	WebFetch = 'web_fetch',
+	ImageGeneration = 'image_generation',
 	AskUser = 'ask_user',
 	ReportIntent = 'report_intent',
 	Think = 'think',
@@ -95,6 +97,20 @@ export const enum CopilotToolName {
 	McpValidate = 'mcp_validate',
 	ToolSearchToolRegex = 'tool_search_tool_regex',
 	CodeqlChecker = 'codeql_checker',
+}
+
+/** Identifies native input schemas understood by the tool-group summary adapter. */
+export function getToolSummaryInputContract(toolName: string): typeof copilotCliToolInputContract | undefined {
+	switch (toolName) {
+		case CopilotToolName.View:
+		case CopilotToolName.Edit:
+		case CopilotToolName.Grep:
+		case CopilotToolName.Rg:
+		case CopilotToolName.Glob:
+			return copilotCliToolInputContract;
+		default:
+			return undefined;
+	}
 }
 
 /**
@@ -394,6 +410,16 @@ const READ_SHELL_TOOL_NAMES: ReadonlySet<string> = new Set([
 	CopilotToolName.ReadPowerShell,
 ]);
 
+/** Set of tool names that read from, write to, or stop a shell started by an earlier shell tool call. */
+const SHELL_HELPER_TOOL_NAMES: ReadonlySet<string> = new Set([
+	...READ_SHELL_TOOL_NAMES,
+	...WRITE_SHELL_TOOL_NAMES,
+	CopilotToolName.StopBash,
+	CopilotToolName.BashShutdown,
+	CopilotToolName.StopPowerShell,
+	CopilotToolName.PowerShellShutdown,
+]);
+
 /** Set of tool names that spawn subagent sessions. */
 const SUBAGENT_TOOL_NAMES: ReadonlySet<string> = new Set([
 	'task',
@@ -502,13 +528,22 @@ export function isShellTool(toolName: string): boolean {
 }
 
 /**
- * Extracts the intention for a shell tool call from its `description`
- * argument. The Copilot shell tools (`bash`/`powershell`) carry a short
- * human-readable description of what the command does, which matches the
- * model's intention summary. Non-shell tools have no such argument, so this
- * returns `undefined` for them.
+ * Returns true if the tool reads from, writes to, or stops a shell that an
+ * earlier shell tool call started.
  */
-export function getShellIntention(toolName: string, parameters: Record<string, unknown> | undefined): string | undefined {
+export function isShellHelperTool(toolName: string): boolean {
+	return SHELL_HELPER_TOOL_NAMES.has(toolName);
+}
+
+/**
+ * Uses the SDK's per-call intention summary, falling back to a shell tool's
+ * description argument when no nonblank summary is available.
+ */
+export function getToolIntention(toolName: string, parameters: Record<string, unknown> | undefined, intentionSummary?: string | null): string | undefined {
+	const intention = intentionSummary?.trim();
+	if (intention) {
+		return intention;
+	}
 	if (isShellTool(toolName) && typeof parameters?.description === 'string' && parameters.description.length > 0) {
 		return parameters.description;
 	}
@@ -606,6 +641,7 @@ export function getToolDisplayName(toolName: string, metadata?: Pick<AssistantMe
 		case CopilotToolName.ReportProgress: return localize('toolName.reportProgress', "Progress update");
 		case CopilotToolName.WebSearch: return localize('toolName.webSearch', "Web Search");
 		case CopilotToolName.WebFetch: return localize('toolName.fetchWebContent', "Fetch Web Content");
+		case CopilotToolName.ImageGeneration: return localize('toolName.imageGeneration', "Generate Image");
 		case CopilotToolName.UpdateTodo: return localize('toolName.updateTodo', "Update Todo");
 		case CopilotToolName.ShowFile: return localize('toolName.showFile', "Show File");
 		case CopilotToolName.FetchCopilotCliDocumentation: return localize('toolName.fetchCopilotCliDocumentation', "Fetch Documentation");
@@ -660,6 +696,8 @@ export function getInvocationMessage(toolName: string, displayName: string, para
 	}
 
 	switch (toolName) {
+		case CopilotToolName.ImageGeneration:
+			return localize('toolInvoke.imageGeneration', "Generating image");
 		case CopilotToolName.View: {
 			const args = parameters as ICopilotViewToolArgs | undefined;
 			if (typeof args?.path === 'string' && args.path) {
@@ -863,7 +901,17 @@ export function getStreamingInvocationMessage(toolName: string, displayName: str
 	}
 }
 
-export function getPastTenseMessage(toolName: string, displayName: string, parameters: Record<string, unknown> | undefined, success: boolean, resultText?: string, resolvePath: ToolPathResolver = identityPathResolver, resolveAgentName?: ToolAgentNameResolver): StringOrMarkdown {
+export function getSdkImageGenerationMetadata(data: unknown): IImageGenerationToolMetadata | undefined {
+	if (!isObject(data)) {
+		return undefined;
+	}
+	const structuredContent = (data as Record<string, unknown>)['structuredContent'];
+	return isObject(structuredContent)
+		? parseImageGenerationToolMetadata((structuredContent as Record<string, unknown>)['imageGeneration'])
+		: undefined;
+}
+
+export function getPastTenseMessage(toolName: string, displayName: string, parameters: Record<string, unknown> | undefined, success: boolean, resultText?: string, resolvePath: ToolPathResolver = identityPathResolver, resolveAgentName?: ToolAgentNameResolver, imageGeneration?: IImageGenerationToolMetadata): StringOrMarkdown {
 	if (!success) {
 		return localize('toolComplete.failed', "\"{0}\" failed", displayName);
 	}
@@ -887,6 +935,10 @@ export function getPastTenseMessage(toolName: string, displayName: string, param
 	}
 
 	switch (toolName) {
+		case CopilotToolName.ImageGeneration:
+			return imageGeneration
+				? localize('toolComplete.imageGenerationModel', "Generated image with {0}", imageGeneration.requestedModel.name ?? imageGeneration.requestedModel.id)
+				: localize('toolComplete.imageGeneration', "Generated image");
 		case CopilotToolName.WebFetch: {
 			const args = parameters as ICopilotWebFetchToolArgs | undefined;
 			if (args?.url) {
@@ -946,6 +998,7 @@ export interface ISynthesizedSkillToolCall {
 	readonly displayName: string;
 	readonly invocationMessage: StringOrMarkdown;
 	readonly pastTenseMessage: StringOrMarkdown;
+	readonly toolInput: string;
 }
 
 /**
@@ -979,15 +1032,17 @@ export function synthesizeSkillToolCall(
 		displayName,
 		invocationMessage,
 		pastTenseMessage: invocationMessage,
+		toolInput: JSON.stringify({ skill: data.name }),
 	};
 }
 
+/** Preserves structured arguments for clients; interactive shell writes retain plain command input. */
 export function getToolInputString(toolName: string, parameters: Record<string, unknown> | undefined, rawArguments: string | undefined): string | undefined {
 	if (!parameters && !rawArguments) {
 		return undefined;
 	}
 
-	if (SHELL_TOOL_NAMES.has(toolName) || WRITE_SHELL_TOOL_NAMES.has(toolName)) {
+	if (WRITE_SHELL_TOOL_NAMES.has(toolName)) {
 		const args = parameters as ICopilotShellToolArgs | undefined;
 		// Custom tool overrides may wrap the args: { kind: 'custom-tool', args: { command: '...' } }
 		const command = args?.command ?? (args as Record<string, unknown> | undefined)?.args;
@@ -1000,30 +1055,7 @@ export function getToolInputString(toolName: string, parameters: Record<string, 
 		return rawArguments;
 	}
 
-	switch (toolName) {
-		case CopilotToolName.Grep: {
-			const args = parameters as ICopilotGrepToolArgs | undefined;
-			return args?.pattern ?? rawArguments;
-		}
-		case CopilotToolName.Rg: {
-			const args = parameters as ICopilotRgToolArgs | undefined;
-			return args?.pattern ?? rawArguments;
-		}
-		case CopilotToolName.WebFetch: {
-			const args = parameters as ICopilotWebFetchToolArgs | undefined;
-			return args?.url ?? rawArguments;
-		}
-		default:
-			// For other tools, show the formatted JSON arguments
-			if (parameters) {
-				try {
-					return JSON.stringify(parameters, null, 2);
-				} catch {
-					return rawArguments;
-				}
-			}
-			return rawArguments;
-	}
+	return parameters ? tryStringify(parameters, 2) ?? rawArguments : rawArguments;
 }
 
 /**
@@ -1090,9 +1122,9 @@ export function getShellLanguage(toolName: string): string {
 // that formatting utilities (formatPathAsMarkdownLink, md, etc.) are shared.
 // =============================================================================
 
-export function tryStringify(value: unknown): string | undefined {
+export function tryStringify(value: unknown, space?: number): string | undefined {
 	try {
-		return JSON.stringify(value);
+		return JSON.stringify(value, null, space);
 	} catch {
 		return undefined;
 	}
@@ -1149,7 +1181,7 @@ function readConfirmationTitle(request: PermissionRequest, path: string | undefi
  * `additionalDirectories` carries the peer roots of a multi-root session, so a
  * read under any root is recognized as inside the workspace.
  */
-export function getPermissionDisplay(request: PermissionRequest, workingDirectory?: URI, isNewFile?: boolean, additionalDirectories?: readonly URI[]): {
+export function getPermissionDisplay(request: PermissionRequest, workingDirectory?: URI, isNewFile?: boolean, additionalDirectories?: readonly URI[], shellToolParameters?: Record<string, unknown>): {
 	confirmationTitle: string;
 	invocationMessage: StringOrMarkdown;
 	toolInput?: string;
@@ -1157,6 +1189,7 @@ export function getPermissionDisplay(request: PermissionRequest, workingDirector
 	permissionKind: IAgentToolPendingConfirmationSignal['permissionKind'];
 	/** File path extracted from the request. */
 	permissionPath?: string;
+	shellCommand?: string;
 } {
 	const path = request.kind === 'read' ? str(request.path) : request.kind === 'write' ? str(request.fileName) : undefined;
 	const fullCommandText = request.kind === 'shell' ? str(request.fullCommandText) : undefined;
@@ -1170,22 +1203,31 @@ export function getPermissionDisplay(request: PermissionRequest, workingDirector
 	const requestSandboxBypass = request.kind === 'shell' || request.kind === 'write' || request.kind === 'read' || request.kind === 'url'
 		? request.requestSandboxBypass
 		: undefined;
+	const requestSandboxPermissive = request.kind === 'shell' && requestSandboxBypass === true
+		? request.requestSandboxPermissive === true
+		: false;
 
-	const shellConfirmationTitle = requestSandboxBypass
-		? localize('copilot.permission.shell.bypass.title', "Run in terminal outside the sandbox?")
-		: localize('copilot.permission.shell.title', "Run in terminal?");
+	const shellConfirmationTitle = requestSandboxPermissive
+		? localize('copilot.permission.shell.permissive.title', "Retry by allowing filesystem access inside the sandbox?")
+		: requestSandboxBypass
+			? localize('copilot.permission.shell.bypass.title', "Run in terminal outside the sandbox?")
+			: localize('copilot.permission.shell.title', "Run in terminal?");
 
 	switch (request.kind) {
 		case 'shell': {
 			// Strip a redundant `cd <workingDirectory> && …` prefix so the
 			// confirmation dialog shows the simplified command.
-			const shellParams: Record<string, unknown> | undefined = fullCommandText ? { command: fullCommandText } : undefined;
+			const shellParams: Record<string, unknown> | undefined = fullCommandText ? { ...shellToolParameters, command: fullCommandText } : undefined;
+			if (shellParams && typeof shellParams.description !== 'string' && intention) {
+				shellParams.description = intention;
+			}
 			stripRedundantCdPrefix(CopilotToolName.Bash, shellParams, workingDirectory);
 			const cleanedCommand = typeof shellParams?.command === 'string' ? shellParams.command : fullCommandText;
 			return {
 				confirmationTitle: shellConfirmationTitle,
 				invocationMessage: intention ?? getInvocationMessage(CopilotToolName.Bash, getToolDisplayName(CopilotToolName.Bash), cleanedCommand ? { command: cleanedCommand } : undefined),
-				toolInput: cleanedCommand,
+				toolInput: getToolInputString(CopilotToolName.Bash, shellParams, undefined),
+				shellCommand: cleanedCommand,
 				permissionKind: 'shell',
 				permissionPath: path,
 			};
@@ -1201,7 +1243,8 @@ export function getPermissionDisplay(request: PermissionRequest, workingDirector
 				return {
 					confirmationTitle: shellConfirmationTitle,
 					invocationMessage: getInvocationMessage(sdkToolName, getToolDisplayName(sdkToolName), { command }),
-					toolInput: command,
+					toolInput: getToolInputString(sdkToolName, args, undefined),
+					shellCommand: command,
 					permissionKind: 'shell',
 					permissionPath: path,
 				};

@@ -118,6 +118,7 @@ Responsible for:
 - Creating and owning SDK chats (`chats.createChat`, with optional fork input).
 - Reading history (`chats.getMessages`).
 - Emitting progress signals (`onDidChatProgress`).
+- Optionally admitting provider-native metadata through `onDidChatSessionEvent` for environment-owned SDK mirroring. History reads receive exact chat/context plus an acknowledged journal cursor; they never create or resume a runtime. Only the owning provider interprets native records or synchronizes a host title into a live backing.
 - Emitting membership events for harness-spawned chats (`onDidSpawnChat`, `onDidEndChat`).
 - Re-attaching a chat's backing on restore (`materializeChat`) — including the session's default chat.
 - Advertising static capability flags (`getDescriptor().capabilities`).
@@ -125,6 +126,18 @@ Responsible for:
 Agents do **not** maintain the chat catalog, persist membership, know whether a chat is the session or a peer, or inject `AgentHostStateManager`. Host facts they genuinely need (subagent origin, session customizations, prompt-cache metadata, session-title changes, active-client chat membership) arrive through typed seams — see §8.
 
 **File organization rule:** `common/agent.ts` holds the *provider model* — `IAgent` and every type/helper/signal reachable from it (chat lifecycle, create/materialize/legacy-migration payloads, config-resolution parameters, `AgentSignal`/`AgentSession`). `common/agentService.ts` holds the *orchestrator-facing service surface* — `IAgentService`, `IAgentConnection`, `IAgentHostService`, settings/env constants, and diagnostics types. The dependency is one-directional: `agentService.ts` may import from `agent.ts`, but `agent.ts` must never import from `agentService.ts`. `agentService.ts` re-exports the public provider types from `agent.ts` for call-site compatibility; new provider code should import directly from `agent.ts`.
+
+### Image-generation tools
+
+Copilot's runtime-owned `image_generation` tool maps ordinary SDK start, progress, and completion events into existing AHP tool-call actions. Codex's `imageGeneration` items map to `image_gen.imagegen` and use the same renderer. The final revised Codex prompt is published before completion; unavailable prompts remain absent in both live and restored results.
+
+Copilot's optional `structuredContent.imageGeneration.requestedModel` maps to `_meta["vscode.imageGeneration"]`, validated by [agentImageGenerationMeta.ts](common/meta/agentImageGenerationMeta.ts). This identifies the requested image engine, not the conversation model or a confirmed serving model. Hosts without this metadata retain generic image labels.
+
+Availability, authorization, and durable tool history remain provider-owned. Inline images use AHP embedded-resource content; resource links must resolve through the host's `resourceRead`. An opaque SDK asset ID alone is not a readable AHP resource.
+
+Copilot image completions carry optional `_meta["vscode.toolCallDurationMs"]`, derived from SDK execution-event timestamps in both live and restored history. Clients validate this display-only value and tolerate its absence. Image byte sizes come from the actual embedded or referenced bytes; suggested hash-suffixed download names never rewrite referenced resource identities.
+
+Insiders and development builds set `IMAGE_GENERATION_TOOL=true` in the Copilot runtime subprocess environment. Stable leaves the runtime default and inherited overrides unchanged. This opts into the tool, not image-model access: the runtime still enforces account/model availability, policy, and tool permissions. Generation requires a bundled runtime containing the versioned `/v1/images/generations` endpoint fix and a deployed CAPI route.
 
 ### Orchestrator layer
 
@@ -138,13 +151,15 @@ by the chat UI; see [the OTel contract](OTEL.md#user-perceived-first-progress).
 
 Artifact removal uses the VS Code-only `vscode/removeSessionArtifact` extension RPC with `{ session: string, artifactId: string }` and a void result. Clients gate the optional `removeSessionArtifact(URI, string)` connection method with `supportsAgentHostArtifactRemoval(initializeResult)` (`_meta['vscode.removeSessionArtifact'] === true`). This does not extend the generated AHP protocol.
 
+Stopping background work uses the VS Code-only `vscode/stopBackgroundWork` extension RPC with `{ chat: string, id: string }` and a `{ stopped: boolean }` result, which is false when the work had already finished. Providers mark each stoppable `BackgroundWork` entry with `_meta['vscode.stopBackgroundWork'] === true` (`canStopBackgroundWork`), and clients offer Stop only for marked entries, so hosts without the extension show none. Copilot marks attached background shells and stops them through the SDK's `session.rpc.tasks.cancel`; detached shells are not offered yet. This does not extend the generated AHP protocol.
+
 The shared `node/shared/sessionArtifacts.ts` path serializes artifact mutations per session across tools and direct user requests. Each mutation reads the latest collection, awaits ordered catalog synchronization (including the legacy-first `sessionArtifacts` metadata write), then publishes `SessionMetaChanged` merged with the latest independent metadata. Failed local persistence leaves the artifact visible and retryable; failures are logged and propagated without blocking queued additions. Central synchronization uses the usual pending receipts for repair. Independent GitHub associations and unrelated artifacts/references are preserved. No model turn or tool invocation is involved in direct user removal.
 
 Artifact tools read and mutate only the invoking chat's artifacts. The session database keeps one `sessionArtifacts` JSON array; each new entry carries its owning chat URI, and the session-level `ISession.artifacts` projection remains the combined list across every chat. Unscoped legacy entries are assigned to the default chat and migrated in that same collection during catalog synchronization.
 
 **`AgentService` (`node/agentService.ts`):**
 - Resolves the `(session, chat)` → `(agent, session URI, chat URI)` mapping for orchestration.
-- Uses `IAgentHostProviderService` for provider ownership and session routing. Its `getProviderForSession` path falls back through the session URI's scheme when a restored session was not associated in this process lifetime.
+- Uses `IAgentHostProviderService` for provider ownership and session routing. Registry provider associations route standard resources; scheme fallback is bounded to legacy provider-native resources.
 - Owns `AgentSessionRegistry`, backed by `sessions_v2` in `agent-host.db`, as the durable source of truth for which sessions exist. `listSessions` reads validated, rebuildable central payloads and applies live-state overlays; provider/local database reads are fallback and reconciliation paths, not prerequisites for listing.
 - Dispatches user-driven chat lifecycle (`createChat`, `disposeChat`) to `chats.*`.
 - Disposes every catalog chat in stable order (peers first, initial chat last); releases every catalog chat on idle eviction.
@@ -198,7 +213,7 @@ Artifact tools read and mutate only the invoking chat's artifacts. The session d
 
 Opaque to the host, but not arbitrary for the provider: whatever id the blob carries is the *only* handle the provider gets back on the next process, so it must name the provider's own durable runtime — the key that runtime is registered and addressed under — and not a transient SDK handle that the provider decouples from it. Codex's session-backing chat is the worked example: its runtime keeps the host-minted session id and records its app-server thread id in a metadata overlay, so a thread-keyed blob would restore the runtime under an id nothing addresses it by (leaving every notification unroutable) and would go stale the moment a rematerialization mints a new thread. Where the two genuinely coincide — a Codex peer chat or fork, whose runtime *is* its thread — recording the thread id is the same thing as recording the runtime id. `IAgentCreateChatResult.backingSession` remains the place to name a separately enumerable SDK conversation (I7); it is not a second id channel for the blob.
 
-**I2 — `sessionUri` and `chatChannelUri` are never overloaded.** A session URI (`ahp-copilot://`, `ahp-claude://`, …) identifies a session. A chat channel URI (`ahp-chat://…`) identifies a chat within a session. The two schemes are structurally distinct; `isAhpChatChannel` / `parseDefaultChatUri` / `buildDefaultChatUri` are the only crossing points. Passing a chat URI where a session URI is expected (or vice versa) is a bug.
+**I2 — `sessionUri` and `chatChannelUri` are never overloaded.** A native session URI (`ahp-session:/<id>` or a preserved legacy provider URI) identifies an AH session; `ahp-chat://…` identifies its chat. Native chat helpers derive chat resources from the actual immutable session URI. AHP clients use third-party hosts' advertised session and chat resources verbatim rather than applying native derivation. Passing a chat URI where a session URI is expected (or vice versa) is a bug.
 
 **I3 — The default chat uses the same explicit backing contract as every chat.** The default chat URI is derived from the AH session URI, but its provider identity is opaque `providerData`. Claude and Copilot mint independent SDK ids, return them from `createChat`, and restore them through `materializeChat`; equality with the AH session id is never assumed and there is no identity-reuse bind fallback. Codex persists its explicit thread mapping. AH never depends on provider identity reuse for ownership or enumeration.
 
@@ -207,6 +222,8 @@ Opaque to the host, but not arbitrary for the provider: whatever id the blob car
 **I5 — The central peer-chat catalog is the restore source of truth (with legacy migration and compatibility mirrors).** The orchestrator persists additional-chat membership in `agent-host.db` through `AgentHostPeerChatStore` and the initial chat's opaque backing in `defaultChatProviderData`. Restore materializes both through the same provider-data contract — `materializeChat` is the *only* way a default chat is re-attached. When a native catalog session has no persisted blob, the provider recovers its backing from the provider-native session id in the Agent Host session URI and returns canonical provider data, which the host persists additively for later restores; an already-canonical blob is never rewritten. Missing central membership is migrated from the legacy parent mirror and provider backings. An authoritative empty central catalog is not missing; later provider recovery may enrich matching entries but must not resurrect removed peers. Harness-spawned chats remain transient and are re-derived from tool-origin state. `_persistDefaultChatBacking`'s two writes — the `defaultChatProviderData` blob and the default chat's own `_markChatBacking` call (I7) — are independent: a failure persisting the blob is logged and swallowed rather than skipping the backing marker, since the marker is what keeps the default chat's backing session out of the top-level list and must not be held hostage to an unrelated write's success.
 
 **List payload compatibility.** Central identity and membership are authoritative; the bounded list payload is rebuildable. When local storage exists, catalog synchronization uses legacy-first writes and pending receipts before central acknowledgement. Import and runtime discovery of unopened adoptable legacy sessions use the non-creating path: metadata discovery must not create `agentSessionData/<id>` and accidentally claim ownership. Explicit adoption owns that transition.
+
+Catalog synchronization, migration, replay, and deletion fences share a queue keyed by the storage service's session directory. URI aliases for the same database cannot overlap, while different storage directories remain independent.
 
 Automatic catalog reconciliation waits until both host startup and the first session listing have completed. Startup repair requests leave their dirty markers for that deferred pass, which then starts periodic maintenance; explicit refreshes and mutation persistence do not wait for background maintenance.
 
@@ -220,7 +237,11 @@ Catalog imports may revisit registered sessions to repair payloads, but only new
 
 Because listing never opens session storage, migrations the provider/session fallback would perform during a list run in the catalog's maintenance pass instead, where the database is already open. Legacy per-kind changeset blobs are aggregated and written to the modern changes summary there, so the chip stays correct without adding a per-session read to the list path.
 
-**I6 — Route through `IAgentHostProviderService`.** The provider service's explicit session association is populated only by `AgentService.createSession`. A restored session (alive in the state manager after a host restart but never created in this process) is absent from it, so restore re-associates the durable `AgentSessionRegistry` provider before lookup. For unregistered provider-native sessions, `getProviderForSession` falls back to the session URI scheme. Do not read the association map directly.
+**I6 — Route through `IAgentHostProviderService`.** Creation, registry listing and restoration populate explicit provider associations from durable identity. Only unregistered legacy provider-native resources may fall back to their scheme; `ahp-session` never identifies a provider. Do not read the association map directly.
+
+**Native identities are mixed and immutable.** Negotiate `vscode.ahpSessionUris` only for new allocations; preserve existing registry URIs, SDK backings, storage directories and frontend identities. Use explicit provider metadata and owning-connection address records, not a provider-wide URI alias. See the [session identity contract](../../sessions/contrib/providers/agentHost/AGENT_HOST_SESSIONS_PROVIDER.md#identity).
+
+Telemetry provider dimensions use the owning agent's id or the session's explicit `provider` metadata, never the standard session URI scheme. Changeset telemetry preserves URI-scheme provider categories for legacy sessions and scoped owners (`ahp-chat:`, `ahp-folder-changeset:`); provider-neutral root sessions capture the explicit provider when computation is queued. Automation run telemetry retains the linked session provider in host-private storage, independently of protocol state, so it survives session removal and host restart. Preserve the existing provider values (`copilotcli`, `claude`, `codex`, or an advertised provider id) independently of addressing.
 
 **I7 — A peer chat's backing SDK session must never surface as a top-level session.** Some agents store all SDK conversations in one catalog. `IAgentCreateChatResult.backingSession` lets the orchestrator mark any internal chat backing, including the default Claude backing, so continual external-chat discovery never registers it as a top-level AH session. Providers own native enumeration and push candidates through `onDidDiscoverChats`; Agent Host reconciles those candidates against its registry and suppresses separately enumerable internal backings. Existing AH-created rows retain their provenance. Marking a backing session is a durable metadata write on the backing session's own DB (`_markChatBacking`); a transient failure is retried once, and if it keeps failing the session is suppressed from listing/discovery in-process (`_unpersistedChatBackings`) rather than failing the chat creation that triggered it.
 
@@ -234,7 +255,7 @@ Because listing never opens session storage, migrations the provider/session fal
 
 `AgentSessionRegistry.list()` reads the registry once and passes every entry through the migration callback supplied by Agent Service. The callback returns a replacement only for legacy entries whose `external` column is `NULL`, resolving them through the `agentHost.workspaceless` classifier. The registry persists all replacements in one transaction and returns the computed list without rereading the database. Migration uses bounded concurrency. Explicit internal registration sources are preserved; externally classified rows become discovery entries.
 
-`register` takes the resolved provenance and whether to check tombstones. Explicit `AgentService.createSession` calls skip the tombstone check and clear any tombstone for that session URI; restore and discovery calls atomically decline to register if the session is or concurrently becomes tombstoned. An explicit row is never rewritten by catalog discovery. A migration-time host-owned marker can correct a previously discovered row back to internal provenance.
+`register` takes the resolved provenance and whether to check tombstones. Explicit creation retains the legacy registry behavior of clearing a tombstone, but newly allocated standard resources must first pass the host's raw-storage-ID and tombstone collision checks. Restore and discovery calls atomically decline to register if the session is or concurrently becomes tombstoned. An explicit row is never rewritten by catalog discovery. A migration-time host-owned marker can correct a previously discovered row back to internal provenance.
 
 Providers own discovery lifecycle and push unknown chats with provider-classified provenance through `onDidDiscoverChats`. Claude, Codex, and Copilot classify their unknown native chats as external, except that Copilot keeps an unknown *legacy extension-host* chat internal because it is adoptable in place rather than someone else's session. Agent Service preserves that classification unless the existing host-owned `agentHost.workspaceless` marker proves the session was created by Agent Host; it reads that evidence together with the chat-backing marker before additively registering the event payload. Agent Service always attaches the event listener and queues each provider's external-session discovery through `_runWhenStartupSettled`, so the request waits for both Agent Host startup and the first successful session listing. Providers registered after that barrier opens run their queued work immediately, and a later transition from `none` starts discovery directly. Adopt-in-place legacy migration remains an independent provider-initialization trigger immediately after the discovery listener is attached, and another catalog consumer may also trigger discovery after it enumerates the provider catalog. This keeps `showExternalSessions: none` from initiating native discovery while allowing independently triggered discovery to populate the hidden registry normally. Ordinary list refreshes never enumerate provider catalogs. External discovery has no migration marker or Copilot migrate-legacy gate; only the adoptable legacy extension-host half of Copilot's payload is withheld while migrate-legacy is off. Discovery never prunes a registry row when a provider later omits it and filters subagents and marked internal chat backings.
 
@@ -260,13 +281,17 @@ Migration returns known native entries as plain metadata. Discovery classifies u
 
 ### Automatic titles
 
-Deferred naming is the default host scheduling strategy for new sessions. There is no title-generation setting or root-config gate.
+`chat.agentHost.experimental.titleGeneration` (host root key `titleGeneration`) selects one automatic title strategy for new sessions: `utility` (immediate utility-model naming), `activeAgent` (foreground `rename_chat` naming), or `agentReview` (deferred host naming that the active agent may correct). Its workbench default is `activeAgent` outside Stable and `utility` in Stable, while the standalone root schema defaults to `utility`. It replaces the boolean `activeAgentTitleGeneration` and `deferredTitleGeneration` settings: the workbench migrates their user values, mapping deferred naming to `agentReview`, and the host still reads their root keys (deferred first) when a client that predates the strategy key sends no `titleGeneration` value. Because hosts persist root config, the workbench also keeps writing those legacy keys, derived from the strategy (`activeAgent` sets `activeAgentTitleGeneration`, `agentReview` sets `deferredTitleGeneration`), so an older host follows the current setting instead of its last stored legacy value. Conversely, a client root-config patch that changes a legacy key without sending `titleGeneration` comes from an older client, so the host drops its stored strategy for that update and falls back to the legacy keys instead of keeping a value a newer client persisted. The `deferred` strategy, deferred host naming without agent review, is no longer selectable; it remains for sessions that already persisted it and for that legacy root key.
 
-The title controller snapshots `titleGenerationStrategy` on the first session-scoped lookup, including provider creation before state registration, and persists it once session state exists. Failed creation clears the snapshot. All its chats, including peers added later, share that strategy. Restore hydrates a persisted strategy before the provider materializes its tool inventory, so existing `activeAgent`, `utility`, and `deferred` sessions retain their behavior. Older sessions without this metadata remain on utility naming, while existing materialized legacy sessions use their advertised rename-tool membership as a compatibility fallback only.
+The workbench setting opts into automatic experiment overrides via `experiment: { mode: 'auto' }`, using treatment name `config.chat.agentHost.experimental.titleGeneration` with a strategy value. The effective setting is synced to the host root key; the `experimental` tag alone does not enable experiment overrides.
 
-Deferred mode synchronously publishes and starts persisting an automatic fallback title, without a utility request, GitHub enrichment, foreground rename reminder, or automatic-naming tool guidance. The existing `SessionTitleContribution` starts at most one non-awaited utility refinement after the first new successful response with nonempty markdown. Forks wait for their first new response rather than titling the inherited history during creation; locally handled commands do not consume this opportunity. A separate `deferredTitleSeed` record preserves the seed and first-response index across restart. Hydration restores eligibility only when that record still matches the persisted title and automatic provenance; it never generates a title itself. Terminal outcomes consume eligibility before any utility call, so completed, failed, cancelled, or empty first turns are not retried after restart. Cancellation, errors, empty responses, unavailable utility credentials, and disposal retain the fallback.
+The title controller snapshots `titleGenerationStrategy` on the first session-scoped lookup, including provider creation before state registration, and persists it once session state exists. Failed creation clears the snapshot. All its chats, including peers added later, share that strategy; root changes affect new sessions only. Restore hydrates the strategy before the provider materializes its tool inventory. Older sessions without this metadata remain on utility naming, never implicitly opting into deferred naming. Existing materialized legacy sessions use their advertised rename-tool membership as a compatibility fallback only.
 
-Explicit UI rename, `/rename`, and user-requested `rename_chat` remain available and invalidate automatic work. Tool availability is independent of automatic scheduling: deferred sessions advertise an explicit-only rename description without the `automatic` argument. If peers are added before completion, refinement follows the default chat's now-independent title snapshot; multi-chat default and peer refinements do not rename the session. Ephemeral sessions remain excluded. This is host/editor behavior, not a runtime managed setting or SDK policy.
+Deferred host naming, used by `agentReview` and legacy `deferred`, synchronously publishes and starts persisting an automatic fallback title, without a utility request, GitHub enrichment, foreground rename reminder, or automatic-naming tool guidance. The existing `SessionTitleContribution` starts at most one non-awaited utility refinement after the first new successful response with nonempty markdown. Forks wait for their first new response rather than titling the inherited history during creation; locally handled commands do not consume this opportunity. A separate `deferredTitleSeed` record preserves the seed and first-response index across restart. Hydration restores eligibility only when that record still matches the persisted title and automatic provenance; it never generates a title itself. Terminal outcomes consume eligibility before any utility call, so completed, failed, cancelled, or empty first turns are not retried after restart. Cancellation, errors, empty responses, unavailable utility credentials, and disposal retain the fallback.
+
+Explicit UI rename, `/rename`, and user-requested `rename_chat` remain available and invalidate automatic work. Tool availability is independent of automatic scheduling: legacy `deferred` sessions advertise an explicit-only rename description without the `automatic` argument. `activeAgent` sessions load `rename_chat` eagerly, because their first-turn reminder asks the agent to call it; `agentReview` and legacy `deferred` sessions keep it deferred behind tool search, and `utility` sessions do not offer it. If peers are added before completion, refinement follows the default chat's now-independent title snapshot; multi-chat default and peer refinements do not rename the session. Ephemeral sessions remain excluded. This is host/editor behavior, not a runtime managed setting or SDK policy.
+
+The `agentReview` strategy uses deferred host naming unchanged, and additionally lets the active agent override a host-generated title it judges inaccurate or off-goal. `rename_chat` stays deferred and keeps its `automatic` argument, so first-turn requests carry no naming instruction or eager tool schema; the agent pays the tool-search round-trip only when it decides to rename. The soft review reminder, which includes the current title and asks the agent to put any rename at the end of its answer rather than in a step before it, is withheld until the first response after the seed (or after chat creation, for chats without a seed) has finished, and while a host refinement for that chat is still in flight, including a refinement still keyed by the session after a peer made the default chat independent. A cancelled or failed first response consumes refinement without running it, so it also satisfies the gate and the unrefined seed is reviewed on the next turn. It is then offered on at most three turns per chat (an in-memory count, reset on host restart) and stops early once the user or agent renames the chat.
 
 ### Server-tool creation provenance
 
@@ -496,11 +521,15 @@ Copilot also has no AH-session container:
 
 No `CopilotSessionEntry`, `AgentSessionEntry`, default-chat URI helper, or sibling cascade remains. Send/history/model/agent/abort/tool/config/dispose/release operations resolve one leaf. Active-client state remains keyed by the owning SDK session where it is genuinely shared, while each live leaf owns its own SDK and MCP lifecycle. Capabilities remain `multipleChats: { fork: true }`.
 
+Steering received during turn preparation or configuration refresh is buffered for the addressed chat. A dispatched turn confirmed running by root SDK events accepts and flushes steering immediately, even if its admission RPC has not returned; successful admission also flushes it. Preparation or send failure retains buffered steering for a successful retry, rather than dispatching against an unready runtime. Pending updates replace or remove buffered steering; abort clears it and emits `steering_consumed` to clear the pending UI. The live SDK-session wrapper takes ownership synchronously before MCP reconciliation, so abort and disposal can clear steering throughout delivery. Chat disposal and host shutdown discard buffered delivery, and pending-message updates are ignored once host shutdown starts.
+
 `CopilotSessionLauncher` sets `mcpOAuthTokenStorage: 'in-memory'` for created, resumed, and ephemeral SDK sessions. VS Code owns durable MCP credentials through `onMcpAuthRequest`; the runtime must not consult its persistent MCP OAuth keychain store.
 
 `CopilotSessionLauncher` enables the SDK cross-session store for created and resumed user sessions only when `localIndexEnabled` is true (the default), and never for internal ephemeral sessions. The local host receives the globally scoped, experiment-aware `github.copilot.chat.localIndex.enabled` value; remote operators can set `localIndexEnabled` in host configuration. Changes restart the Copilot client at the next idle point so existing chats resume with the new preference. Chronicle suggestions are hidden when indexing is disabled. This is separate from cloud session sync and does not delete existing indexed data.
 
 Chronicle commands and subcommands come from the SDK command catalog and execute through `rpc.commands.invoke`; agent-prompt results retain the SDK's `displayPrompt` when sent so history shows the command rather than its expanded instructions. The SDK owns Chronicle indexing and retrieval.
+
+Before a message is admitted, a Copilot session can prepare plugins required by the organization, reporting progress as `session.info` and failures as `session.warning` with the `managed_plugins` type. While the current turn is still pending, `CopilotAgentSession` shows the progress message as the chat activity, which the waiting request's progress row reads (session activity does not reach it), and adds a failure as a warning-severity `ManagedPluginPreparationFailure` system notification. The root `user.message` echo, root `assistant.turn_start`, a failure, or the end or abort of that turn clears that activity; a late abort or idle from an earlier turn does not, and a failure reported for a waiting replacement turn is shown even while late events of the aborted turn are dropped. There is no structured plugin list, so the English message text is shown as is. Progress outside a pending turn, such as preparation started by custom agent selection, is only logged. A failure reported while no turn is waiting, such as after a background policy refresh, is kept and shown when the next message is admitted (its root `user.message` echo), unless that message's own preparation reports a newer failure or a `managed_plugins_complete` info arrives first.
 
 ### Codex (`node/codex/codexAgent.ts`)
 
@@ -522,6 +551,8 @@ Codex supports multiple chats per session. Each conversation — the session's d
 - A cold `getChatMetadata` read caches the backing thread's summary, timestamps, and working directories on the live runtime. Later metadata reads return those fields from memory (the app-server may be blocked on a dynamic tool call), so hydrating a runtime must never erase an already-listed session title.
 
 Restoring or continuing a thread retains its saved model when available. When that model is absent from the catalog, restoration waits for queued model discovery and selects the first available model from the same native provider (whose declared default is ordered first), dropping the unavailable model's configuration. It never switches billing providers, even when another provider lists the same model name. If the saved provider has no available models, its saved selection remains intact so history stays readable; only a thread without a saved selection uses the global default. The restored metadata, runtime, and next send use the same selection, while historical turns retain their original model attribution. `thread/resume` must explicitly supply both the selected model and provider so the SDK does not choose its configured default model instead. Explicit model selections for creation and model changes still require a catalog entry and the corresponding provider authentication.
+
+Background model resolution must preserve changes to a model or its configuration made while discovery is pending. Wait for discovery before reading the session's current selection, then resolve and store it without yielding again.
 
 Explicitly switching an existing chat's model provider reloads the same native thread on its next send. It must not create a replacement conversation or clear its turn-ID mappings. Unsubscribe before resuming so the app-server applies the new provider rather than rejoining the old runtime, and record the successfully resumed provider so a later switch back also reloads. Restoring a saved selection from another provider only marks this reload pending; metadata reads remain read-only.
 
@@ -559,6 +590,44 @@ Agents expose exact-chat lifecycle and metadata methods for SDK backing data; th
 - **Config.** Live provider runtimes that react to session config subscribe to `IAgentConfigurationService.onDidSessionConfigChange` using their explicit config resource. `AgentSideEffects` does not enumerate chats or fan config values through provider hooks.
 - **Active client.** `AgentSideEffects` calls `getOrCreateActiveClient` once per exact chat and client. Providers receive no sibling list (§8c).
 - **Enumerate.** `AgentService.listSessions` enumerates `AgentSessionRegistry`, asks the registered provider for that exact session's metadata via `getChatMetadata`, and applies persisted and live state overlays. Provider-owned code activates additive external-chat discovery; `listChatsToMigrate` remains the one-time registry migration seam.
+
+### Legacy Copilot CLI migration diagnostics
+
+Migration remains adopt-on-open/restore, gated by the startup-frozen setting; unsuccessful probes are not cached. The `agentHost.legacyCopilotCliMigrationProbe` event records a bounded `reason`, the startup/current setting values, and the original subscription/exception `errorCode` and `errorMessage` when available. A timeout is not an eligibility rejection.
+
+The host's `agentHost.legacyCopilotCliMigration` event records the provider's adoption `reason` separately from the `stage` reached. `declined` records an unregistered, non-adoptable session; `skipped` still means an eligible session was not adopted. `failed` covers adoption, registration, and restoration exceptions, including eligible sessions that were not adopted. A `reason` of `adopted` can therefore accompany a later failure. Early failures before adoption may only be visible in the client probe's error.
+
+Host diagnostics also record `markerStatus` (`valid`, `missing`, `invalid`, or `readError`), bounded `provenance` (`legacy`, `external`, or `unknown`), `markerFromCache`, and separate `eligibilityErrorCode`/`eligibilityErrorMessage`. No marker contents or raw origin strings are collected. `eligible` is the provider decision, or absent when the provider did not return a decision. `advertisedAsAdoptable` captures whether the host's surfaced session summary identified a legacy candidate before adoption.
+
+`diagnosticDetail` separates missing storage roots, missing session directories, missing markers with/without an events file, storage probe failures, malformed identifiers, and missing/unrecognized/invalid-type marker origins. The supporting bounded fields are `sessionStateRootStatus`, `sessionDirectoryStatus`, `eventsFileStatus`, `sessionIdStatus`, `markerOrigin`, and `copilotHomeSource` (environment or user-home default, never a path). Storage evidence uses at most three stat calls for a missing marker or ENOTDIR, reads no event contents, and is not cached across retries. Suspicious identifiers are described but never followed for additional diagnostic I/O; their shape is not a new eligibility rule.
+
+Disabled migration emits `provenance=notEvaluated` and `markerStatus=notEvaluated`. Providers without marker diagnostics emit `markerStatus=notReported`; positive legacy eligibility supplies `provenance=legacy` with `diagnosticDetail=legacyEligible`, while absent evidence stays `unknown`. Other absent evidence fields use `notReported`; `notChecked` means the provider intentionally skipped a storage check. These distinctions prevent empty fields from looking like completed negative checks.
+
+For `notLegacyChat`, `lastKnownClient` reads the persisted `client_name` from `workspace.yaml`, allowing only `vscode` (extension host), `vscode-agent-host`, `github/cli` (standalone CLI), and `github/autopilot` (Copilot app). Other values become `unrecognized`; absent/non-scalar fields become `missing`/`invalidType`. Unavailable metadata emits `unavailable`, with `workspaceMetadataStatus` distinguishing `missing`, `invalid`, `readError`, `tooLarge`, `notFile`, and `notChecked` from a `valid` read. Providers without these fields emit `notReported`.
+
+This is **last-client evidence, not original-creator provenance**: the runtime can update the client on resume. It never overrides marker provenance, changes eligibility, or independently upgrades a decline to `expectedExclusion`, even for `github/cli`. The initial event's runtime producer is also shared across clients and cannot prove a standalone-CLI origin. Historically markerless sessions may remain indeterminate without immutable creator metadata from the runtime.
+
+Client evidence is re-read on each decline without starting the SDK, opening a session database, or reading conversation events. The initial path must be a regular non-symlink file. Opens use `O_NOFOLLOW` and `O_NONBLOCK` where supported to reject replacement symlinks and avoid blocking on replacement FIFOs. Before reading, the opened descriptor must be a regular file with the same device/inode as the initial check, including on Windows where those flags are unavailable. Both size checks enforce a 16 KiB limit; reads are capped at 16 KiB plus one overflow-detection byte. Malformed identifiers skip this extra I/O. No workspace path, arbitrary client string, parser message, or metadata content is emitted.
+
+Missing storage or an events file does not establish who created a session, so those cases retain `diagnosticCategory=unknown` with a specific detail. Invalid identifier shapes, storage inspection failures, and invalid storage layouts are `needsInvestigation`, not proof of a migration defect. Invalid-path marker errors retain their code but replace the path-bearing message with fixed text to avoid leaking escaped or truncated identifiers.
+
+The shared sanitizer also suppresses the entire error message for malformed/empty session identifiers, invalid-argument error codes, and recognizable path-argument errors (including wrapped errors whose original code was lost). Exact-match redaction cannot safely clean escaped/truncated values. Probe, host, eligibility, and open/restore telemetry keep their separate error codes and structured reasons; only unsafe free-form messages are replaced.
+
+Use `diagnosticCategory` for conservative triage, not as a code-bug verdict:
+
+| Category | Evidence |
+|---|---|
+| `expectedExclusion` | A valid marker explicitly identifies an external session, with no conflicting adoptable advertisement. |
+| `configurationDisabled` | The host's frozen migration setting is disabled. Compare the client setting fields to investigate startup/configuration disagreement. |
+| `needsInvestigation` | An exception, invalid/unreadable marker, an eligible session that did not migrate, or a rejection contradicting an adoptable advertisement. Causes may include environmental/data problems, not only code defects. |
+| `unknown` | Insufficient evidence: for example, a missing marker, ambiguous provenance, or an older provider with no diagnostic details. A missing marker is not proof that the session is external. |
+| `notApplicable` | Migration completed. |
+
+The reader retains successful marker caching and retries missing, unreadable, and malformed markers. The archive-state check still reads fresh data and reports that evidence separately from an earlier cached eligibility decision.
+
+The `agentHost.legacyCopilotCliMigrationOpen` event records `surfaced`, `sessionNotSurfaced`, or `resolveFailed` for explicit opens and editor restores. Explicit opens observe provider refresh/list errors through the model's diagnostic callback without changing its failure isolation or legacy fallback. Error-bearing events use error telemetry and its consent level and data cleaning. All migration error messages, including eligibility errors, first redact the migrating session's raw/encoded identifier and session URIs with a shared session-aware sanitizer. Non-error outcomes retain usage telemetry.
+
+All three events carry `migrationSessionId`, a SHA-1 of the exact backend session URI, never the raw URI. Correlate it with device and time; it identifies a session, not a unique retry, so concurrent/repeated attempts must not be joined one-to-one by this field alone. Older builds lack these diagnostic fields. The existing outcomes and client fallback/retry behavior remain unchanged except for the new host `declined` outcome.
 
 ### No provider-side default-chat derivation
 
@@ -652,6 +721,14 @@ enablement, bypass, and outbound-network toggles against the runtime-resolved fl
 Managed enablement forces on; managed bypass and outbound denial force off, while
 managed permission never widens a local restriction. Filesystem settings remain
 local inputs and are not intersected or unioned by this helper.
+Copilot Agent Host reads filesystem permissions only from
+`chat.agent.sandbox.fileSystem.userConfiguredPaths`, forwarded as
+`sandbox["fileSystem.userConfiguredPaths"]`. Its `readwritePaths`, `readonlyPaths`,
+and `deniedPaths` arrays apply on all host operating systems, with path separators
+normalized on the executing host. Denied paths take precedence over read-only
+paths, which take precedence over read/write paths. There is no migration or
+fallback from the deprecated per-OS filesystem settings; those remain inputs to
+the existing terminal sandbox engine, not the Copilot SDK sandbox.
 The SDK configuration builder forwards enablement, configured
 bypass/network choices, filesystem rules, and required host-generated read paths.
 It leaves optional working-directory grants, developer-tool access, credential
@@ -665,21 +742,12 @@ updates are logged and leave the runtime's existing configuration and the last
 confirmed sandbox state unchanged without interrupting the session. Other SDK
 sandbox update failures still propagate.
 Runtime-owned sandbox floors are transient and cannot be set through client config.
-The protocol client separately forwards policy-origin `ChatAgentSandboxEnabled: on`
-through `setClientSandboxRequired`, on connect, reconnect, and policy changes, for
-local and remote hosts independently of the legacy managed-permissions bridge.
-The host owns these transient, handler-scoped client contributions and requires
-sandboxing while any contributing client requires it. Ordinary root settings
-cannot change that floor; withdrawal or disconnect-grace expiry removes only the
-owning client's contribution. On macOS/Linux, the configuration service combines
-that VS Code policy requirement with the runtime floor before resolving
-session overrides or publishing policy metadata. Ordinary user `on` remains
-overridable; Windows continues to use its independent enablement setting.
-Runtime bypass/outbound restrictions cannot be weakened by this requirement.
-Approved bypass also requires the local `allowUnsandboxedCommands` setting.
-An explicit VS Code requirement does not offer the unresolved-runtime-policy
-retry-Off path. Removing it restores the underlying runtime floor, not an
-unconditional permission to disable sandboxing.
+Legacy `ChatAgentSandboxEnabled` is not migrated into a mandatory Agent Host
+sandbox requirement. The existing sandbox-settings forwarder still sends the
+effective setting, including a legacy policy value, as an overridable root default.
+Session `off` may override that default unless runtime-native managed settings
+require sandboxing. The runtime's `sandbox.enabled` managed setting is the
+authoritative enterprise requirement on every supported platform.
 Explicit managed enablement replaces disallowed `off` selections with `on`;
 policy removal cannot revive them. Fail-closed-only restrictions keep the toggle
 editable, while the SDK remains responsible for accepting or rejecting an attempt.
@@ -692,15 +760,18 @@ RPC also completes the permission request. Host-generated terminal prompts canno
 offer this SDK action. After an approved opt-out, the user may re-enable sandboxing;
 successful re-enablement locks direct disabling again.
 
-The host publishes the resolved floor in the optional `vscode.sandboxPolicy`
+The host publishes the resolved floor in the optional `vscode.resolvedSandboxPolicy`
 session `_meta` slot through the server-only `SessionMetaChanged` action, including
-the optional outbound-network restriction.
+the required `enabled` flag and optional `allowBypass`, `allowOutbound`,
+`allowLocalNetwork`, `allowDevToolAccess`, `sandboxMcpServers`, `sandboxLspServers`,
+and `failClosed` flags. These describe bypass, outbound and local-network access,
+developer-tool access, MCP/LSP server sandboxing, and fail-closed restrictions.
 Session snapshots include it for reconnecting clients; subsequent resolutions
 replace it, including an explicit disabled floor when the requirement disappears.
+Writing the resolved floor removes the legacy `vscode.sandboxPolicy` slot.
 Clients validate this metadata and use it only for that session's sandbox controls,
 not to modify global settings. Missing metadata from older or other hosts is not
-evidence of an enforced floor. Native managed settings remain runtime-enforced;
-the forwarded VS Code requirement is enforced in host session configuration.
+evidence of an enforced floor. Native managed settings remain runtime-enforced.
 Local desktop pickers use renderer-managed policy until session policy is published;
 this fallback never applies to remote hosts or overrides a host-published policy.
 

@@ -21,6 +21,9 @@
  *   workspace and folder values are ignored, because the agent host is shared by
  *   every window connected to it and one workspace's settings must not leak into
  *   another window's sessions.
+ * - **Approval policies only.** Auto-approval settings contribute only their
+ *   enterprise policy value. User and application approval preferences stay on
+ *   the root-config path so global and session Allow All can override them.
  * - **Only what survives translation.** A setting is mapped only when its VS
  *   Code semantics can be expressed exactly in the SDK's rule grammar. Where
  *   they cannot — a regular-expression terminal rule, an allow list that blocks
@@ -65,17 +68,6 @@ export interface IAgentHostManagedSettingsPermissions {
 	ask?: string[];
 }
 
-/**
- * Which configuration layers may drive a mapping.
- *
- * `policyOnly` is the default for anything that removes a capability the user
- * would otherwise have, so a personal preference is never promoted into an
- * enterprise-grade restriction the user cannot lift. `anyGlobal` exists for
- * mappings whose VS Code behavior already honors user and application values,
- * where narrowing to policy would be a regression.
- */
-type ManagedPermissionsSettingSources = 'policyOnly' | 'anyGlobal';
-
 interface IManagedPermissionsSettingMapping {
 	readonly settingId: string;
 	/** Further settings whose changes must also re-resolve this mapping. */
@@ -83,9 +75,8 @@ interface IManagedPermissionsSettingMapping {
 	contribute(configurationService: IConfigurationService): IAgentHostManagedSettingsPermissions | undefined;
 }
 
-function managedPermissionsSetting<T>(
+function managedPermissionsPolicy<T>(
 	settingId: string,
-	sources: ManagedPermissionsSettingSources,
 	transform: (value: T) => IAgentHostManagedSettingsPermissions | undefined,
 ): IManagedPermissionsSettingMapping {
 	return {
@@ -96,7 +87,7 @@ function managedPermissionsSetting<T>(
 				return undefined;
 			}
 			const [value, source] = configuration;
-			if (sources === 'policyOnly' && source !== 'policyValue') {
+			if (source !== 'policyValue') {
 				return undefined;
 			}
 			return transform(value);
@@ -252,15 +243,11 @@ function contributeEligibleForAutoApprovalRestriction(value: Record<string, bool
 
 /** Compatibility mappings for legacy settings only; new controls belong directly in the SDK. */
 const managedPermissionsSettings: readonly IManagedPermissionsSettingMapping[] = [
-	// Disabling the SDK's bypass mode takes "Allow All" away from the user for
-	// good, so only an administrator may drive it.
-	managedPermissionsSetting<boolean>(GLOBAL_AUTO_APPROVE_SETTING_ID, 'policyOnly', value => value === false ? { disableBypassPermissionsMode: 'disable' } : undefined),
+	// The Copilot host applies the legacy global restriction only without an explicit new mode restriction.
 	// No SDK tool-name family exists, so a policy that marks any tool ineligible
 	// falls back to the bypass lock (see the transform).
-	managedPermissionsSetting<Record<string, boolean>>(ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID, 'policyOnly', contributeEligibleForAutoApprovalRestriction),
-	// Matches VS Code, where a user or application value already suppresses
-	// terminal auto-approval outright.
-	managedPermissionsSetting<boolean>(TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, 'anyGlobal', value => value === false ? { ask: [buildManagedFamilyRule(ManagedRuleFamily.Shell)] } : undefined),
+	managedPermissionsPolicy<Record<string, boolean>>(ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID, contributeEligibleForAutoApprovalRestriction),
+	managedPermissionsPolicy<boolean>(TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID, value => value === false ? { ask: [buildManagedFamilyRule(ManagedRuleFamily.Shell)] } : undefined),
 	// The filter and its lists are evaluated together, and VS Code honors a user
 	// or application value for all three.
 	managedPermissionsCompositeSetting(
@@ -268,12 +255,11 @@ const managedPermissionsSettings: readonly IManagedPermissionsSettingMapping[] =
 		[AgentNetworkDomainSettingId.AllowedNetworkDomains, AgentNetworkDomainSettingId.DeniedNetworkDomains],
 		contributeNetworkDomainRules,
 	),
-	// Mirrors the setting's own semantics, where a user or application value
-	// already forces approval for the matching command.
-	managedPermissionsSetting<AgentHostTerminalAutoApproveRules>(TERMINAL_AUTO_APPROVE_SETTING_ID, 'anyGlobal', contributeTerminalDenialRules),
+	managedPermissionsPolicy<AgentHostTerminalAutoApproveRules>(TERMINAL_AUTO_APPROVE_SETTING_ID, contributeTerminalDenialRules),
 ];
 
 export const managedPermissionsConfigurationIds = [
+	GLOBAL_AUTO_APPROVE_SETTING_ID,
 	...managedPermissionsSettings.flatMap(mapping => [mapping.settingId, ...mapping.additionalSettingIds ?? []]),
 ];
 

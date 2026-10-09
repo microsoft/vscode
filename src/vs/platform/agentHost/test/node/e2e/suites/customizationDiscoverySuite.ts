@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { mkdirSync, mkdtempSync, unlinkSync, writeFileSync } from 'fs';
+import { mkdirSync, unlinkSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -14,6 +14,7 @@ import type { SubscribeResult } from '../../../../common/state/protocol/commands
 import { createRealSession, driveTurnToCompletion } from '../harness/agentHostE2ETestHarness.js';
 import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
 
 export function defineCustomizationDiscoveryTests(context: IAgentHostE2ETestContext): void {
 	const { config, createdSessions, tempDirs } = context;
@@ -29,7 +30,7 @@ export function defineCustomizationDiscoveryTests(context: IAgentHostE2ETestCont
 	}
 
 	function createWorkspace(prefix: string): string {
-		const workspace = mkdtempSync(join(tmpdir(), `ahp-customizations-${prefix}-`));
+		const workspace = createTestDirectory(join(tmpdir(), `ahp-customizations-${prefix}-`));
 		tempDirs.push(workspace);
 		mkdirSync(join(workspace, '.git'), { recursive: true });
 		return workspace;
