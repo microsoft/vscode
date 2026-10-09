@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getComputedStyle, setParentFlowTo } from './dom.js';
-import { IDisposable } from '../common/lifecycle.js';
+import { isSafari, isWebkitWebView } from './browser.js';
+import { getComputedStyle, getWindow, scheduleAtNextAnimationFrame, setParentFlowTo } from './dom.js';
+import { IDisposable, MutableDisposable } from '../common/lifecycle.js';
 import { generateUuid } from '../common/uuid.js';
 
 /**
@@ -19,6 +20,53 @@ function getOrCreateAnchorName(element: HTMLElement): string {
 	const name = `--overlay-anchor-${generateUuid()}`;
 	element.style.setProperty('anchor-name', name);
 	return name;
+}
+
+/**
+ * Safari 26 does not always apply `anchor()` / `anchor-size()` to the overlay: it can collapse to the
+ * intrinsic size of its content or stay at its static position (https://github.com/microsoft/vscode/issues/332765).
+ * Devices that stay on iOS/iPadOS 26 keep this bug, so on WebKit the overlay is also kept in sync manually.
+ */
+const needsManualAnchorSync = isSafari || isWebkitWebView;
+
+/**
+ * Move and resize `element` so that its border box matches the border box of `anchor`.
+ *
+ * Works for any containing block: the current offset is measured and only the difference is applied.
+ * Nothing is written when the element already matches the anchor.
+ */
+export function syncToAnchor(element: HTMLElement, anchor: HTMLElement): void {
+	if (!element.isConnected || !anchor.isConnected || anchor.getClientRects().length === 0) {
+		return;
+	}
+
+	const style = element.style;
+	let computed = getComputedStyle(element);
+	if (isNaN(parseFloat(computed.top)) || isNaN(parseFloat(computed.left))) {
+		style.top = '0px';
+		style.left = '0px';
+		computed = getComputedStyle(element);
+	}
+	if (isNaN(parseFloat(computed.width)) || isNaN(parseFloat(computed.height))) {
+		style.width = '0px';
+		style.height = '0px';
+		computed = getComputedStyle(element);
+	}
+
+	const anchorRect = anchor.getBoundingClientRect();
+	const elementRect = element.getBoundingClientRect();
+	const dLeft = anchorRect.left - elementRect.left;
+	const dTop = anchorRect.top - elementRect.top;
+	const dWidth = anchorRect.width - elementRect.width;
+	const dHeight = anchorRect.height - elementRect.height;
+	if (Math.abs(dLeft) < 0.5 && Math.abs(dTop) < 0.5 && Math.abs(dWidth) < 0.5 && Math.abs(dHeight) < 0.5) {
+		return;
+	}
+
+	style.left = `${parseFloat(computed.left) + dLeft}px`;
+	style.top = `${parseFloat(computed.top) + dTop}px`;
+	style.width = `${parseFloat(computed.width) + dWidth}px`;
+	style.height = `${parseFloat(computed.height) + dHeight}px`;
 }
 
 /**
@@ -41,6 +89,9 @@ export class OverlayLayoutElement implements IDisposable {
 	 * scrollable and may scroll and be hidden by overflow from its parent container.
 	 */
 	private readonly _root: HTMLElement;
+
+	private readonly _manualSync = new MutableDisposable<IDisposable>();
+	private _manualSyncWindow?: Window;
 
 	constructor() {
 		this.content = document.createElement('div');
@@ -66,6 +117,7 @@ export class OverlayLayoutElement implements IDisposable {
 	}
 
 	public dispose(): void {
+		this._manualSync.dispose();
 		this.root.remove();
 	}
 
@@ -102,6 +154,31 @@ export class OverlayLayoutElement implements IDisposable {
 
 		this._updateClipping(options?.clippingContainer);
 		this._updateZIndex(anchorElement);
+
+		if (needsManualAnchorSync) {
+			this._startManualSync(getWindow(anchorElement));
+		}
+	}
+
+	/**
+	 * Re-check the overlay against its anchors on every animation frame (see {@link needsManualAnchorSync}).
+	 */
+	private _startManualSync(targetWindow: Window): void {
+		if (this._manualSyncWindow === targetWindow && this._manualSync.value) {
+			return;
+		}
+		this._manualSyncWindow = targetWindow;
+
+		const tick = () => {
+			if (this._clippingAnchor) {
+				syncToAnchor(this._root, this._clippingAnchor.element);
+			}
+			if (this._currentAnchor && this.content.style.visibility !== 'hidden') {
+				syncToAnchor(this.content, this._currentAnchor.element);
+			}
+			this._manualSync.value = scheduleAtNextAnimationFrame(targetWindow, tick);
+		};
+		this._manualSync.value = scheduleAtNextAnimationFrame(targetWindow, tick);
 	}
 
 	/**
