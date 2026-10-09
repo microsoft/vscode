@@ -10,6 +10,7 @@ import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ApiRequestError, MutationUncertainError } from '../../../../../platform/github/common/missionControl/missionControlClient.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IAutomationDescriptor, IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
@@ -53,6 +54,7 @@ suite('AutomationRunner', () => {
 
 	function setup(request: () => Promise<IAutomationRunRequestResult>, available = true, exists = true, providers: readonly ISessionsProvider[] = [provider(available ? 'ready' : 'unavailable')]) {
 		const errors: string[] = [];
+		const warnings: string[] = [];
 		const calls: string[] = [];
 		const service = upcastPartial<IAutomationService>({
 			getAutomation: () => exists ? automation : undefined,
@@ -65,8 +67,8 @@ suite('AutomationRunner', () => {
 				return providers.find(provider => provider.id === id) as T | undefined;
 			}
 		}();
-		const runner = new AutomationRunner(service, providersService, new NullLogService(), upcastPartial<INotificationService>({ error: message => errors.push(String(message)) }));
-		return { runner, errors, calls };
+		const runner = new AutomationRunner(service, providersService, new NullLogService(), upcastPartial<INotificationService>({ error: message => errors.push(String(message)), warn: message => warnings.push(String(message)) }));
+		return { runner, errors, warnings, calls };
 	}
 
 	test('dispatches through the host and observes completion without local lifecycle writes', async () => {
@@ -97,6 +99,17 @@ suite('AutomationRunner', () => {
 		await operation.whenCompleted;
 		assert.deepStrictEqual({ dispatch, calls, errors }, { dispatch: { kind: 'accepted' }, calls: ['automation'], errors: [] });
 	});
+
+	for (const error of [new MutationUncertainError('network'), new ApiRequestError(503, 'unknown', undefined, undefined, undefined, 'indeterminate')]) {
+		test(`${error.name} after dispatch stays uncertain even when cancellation arrives`, async () => {
+			const token = disposables.add(new CancellationTokenSource());
+			const { runner, warnings, errors } = setup(async () => { token.cancel(); throw error; });
+			const operation = runner.runOnce(automation, token.token);
+			const dispatch = await operation.whenDispatched;
+			await operation.whenCompleted;
+			assert.deepStrictEqual({ dispatch, warnings, errors }, { dispatch: { kind: 'uncertain', message: error.message }, warnings: [error.message], errors: [] });
+		});
+	}
 
 	test('unavailable or disconnected hosts cannot dispatch locally', async () => {
 		for (const exists of [true, false]) {

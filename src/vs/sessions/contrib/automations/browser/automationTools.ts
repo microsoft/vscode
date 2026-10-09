@@ -10,15 +10,17 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ConfirmationOptionKind } from '../../../../platform/agentHost/common/state/protocol/channels-chat/state.js';
+import { ChatAIDisabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ApiRequestError, MutationUncertainError } from '../../../../platform/github/common/missionControl/missionControlClient.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { AutomationInterval, AutomationTarget, AutomationWorkspaceIsolation, IAutomationDescriptor, IAutomationRun, IAutomationSchedule, IAutomationSessionTemplate, isAutomationModelConfiguration } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationRunDispatch, IAutomationRunner } from '../../../../workbench/contrib/chat/common/automations/automationRunner.js';
-import { type AutomationCatalogueState, type AutomationMutationGuard, AutomationSessionTemplateAuthorityError, AutomationUnavailableError, assertAutomationTargetAuthority, ConfigureAutomationToolReferenceName, IAutomationService, ICreateAutomationOptions, IUpdateAutomationOptions, serializeAutomationEditableState } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { type AutomationCatalogueState, type AutomationMutationGuard, AutomationToolCatalog, AutomationSessionTemplateAuthorityError, AutomationUnavailableError, assertAutomationTargetAuthority, ConfigureAutomationToolReferenceName, IAutomationProviderConfiguration, IAutomationService, ICreateAutomationOptions, IUpdateAutomationOptions, serializeAutomationEditableState } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ChatAutomationsEnabledContext, CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IChatAutomationConfiguredData } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
@@ -69,6 +71,7 @@ interface IAutomationToolOutput {
 	readonly updatedAt: string;
 	readonly lastRunAt: string | null;
 	readonly nextRunAt: string | null;
+	readonly readOnlyReason?: string;
 }
 
 interface IAutomationListToolOutput extends IAutomationToolOutput {
@@ -80,6 +83,7 @@ interface IAutomationProviderToolOutput {
 	readonly providerLabel: string;
 	readonly state: AutomationCatalogueState;
 	readonly canCreateAutomation: boolean;
+	readonly configuration?: Pick<IAutomationProviderConfiguration, 'sessionTypes' | 'description' | 'timeZone' | 'targetChangeDisabledReason'> & { readonly tools: AutomationToolCatalog };
 	readonly unavailableReason?: string;
 	readonly automations: readonly IAutomationListToolOutput[];
 }
@@ -122,7 +126,7 @@ export class ListAutomationsTool implements IToolImpl {
 			icon: Codicon.calendar,
 			displayName: localize('automation.tool.list.displayName', "List Automations"),
 			userDescription: localize('automation.tool.list.userDescription', "List scheduled agent automations"),
-			modelDescription: 'List Automation providers and their currently visible scheduled automations. The result is an array with one entry per provider. A provider\'s state applies only to that provider and never makes automations from another provider unavailable. When a provider is "ready", its automations array is complete; otherwise it may be incomplete, including when empty. Use canCreateAutomation and each automation\'s availableOperations before calling configureAutomation, runAutomation, or deleteAutomation. This tool never changes automation state.',
+			modelDescription: 'List enabled Automation providers and their currently visible automations. Use this before configuring or running an automation to obtain stable IDs, provider configuration, canCreateAutomation, and availableOperations. A provider\'s state applies only to that provider and never makes automations from another provider unavailable. When a provider is "ready", its automations array is complete for its known repositories; otherwise it may be incomplete, including when empty. Cloud discovery is not account-wide. This tool refreshes cloud definitions and requests the provider tool catalog without changing saved automations. Only a ready tool catalog supplies selectable tool IDs; loading or error is not an empty catalog. List again after loading completes or to retry a catalog error.',
 			source: ToolDataSource.Internal,
 			when: automationToolWhen,
 			runsInWorkspace: false,
@@ -146,22 +150,53 @@ export class ListAutomationsTool implements IToolImpl {
 			return automationToolError('Automations are disabled.');
 		}
 
-		const providers: IAutomationProviderToolOutput[] = this.sessionsProvidersService.getProviders().flatMap(provider => {
+		const providerResults = await Promise.all(this.sessionsProvidersService.getProviders().map(async (provider): Promise<IAutomationProviderToolOutput[]> => {
 			const store = provider.automations;
 			if (!store || store.enabled?.get() === false) {
 				return [];
 			}
-			const state = store.catalogueState.get();
-			const unavailableReason = store.unavailableReason?.get();
+			const configuration = store.configuration;
+			let tools: AutomationToolCatalog | undefined;
+			let refreshError: string | undefined;
+			if (configuration) {
+				try {
+					await store.refresh?.();
+				} catch (error) {
+					refreshError = error instanceof Error ? error.message : String(error);
+				}
+				if (store.enabled?.get() === false || !isAutomationsEnabled(this.configurationService)) {
+					return [];
+				}
+				tools = configuration.tools.get();
+				configuration.loadTools();
+			}
+			if (store.enabled?.get() === false) {
+				return [];
+			}
+			const state = refreshError !== undefined ? 'error' : store.catalogueState.get();
+			const unavailableReason = refreshError ?? store.unavailableReason?.get();
 			return [{
 				providerId: provider.id,
 				providerLabel: provider.label,
 				state,
 				canCreateAutomation: store.canCreateAutomation.get(),
+				...(configuration && tools ? {
+					configuration: {
+						sessionTypes: configuration.sessionTypes,
+						description: configuration.description,
+						timeZone: configuration.timeZone,
+						targetChangeDisabledReason: configuration.targetChangeDisabledReason,
+						tools,
+					}
+				} : {}),
 				...(unavailableReason !== undefined ? { unavailableReason } : {}),
 				automations: store.automations.get().map(automation => toAutomationListToolOutput(automation, this.automationService)),
 			}];
-		});
+		}));
+		if (!isAutomationsEnabled(this.configurationService)) {
+			return automationToolError('Automations are disabled.');
+		}
+		const providers = providerResults.flat();
 		const automationCount = providers.reduce((count, provider) => count + provider.automations.length, 0);
 		const incompleteProviderCount = providers.filter(provider => provider.state !== 'ready').length;
 		const result = automationToolResult(JSON.stringify(providers, undefined, 2));
@@ -190,7 +225,7 @@ export class RunAutomationTool implements IToolImpl {
 			icon: Codicon.play,
 			displayName: localize('automation.tool.run.displayName', "Run Automation"),
 			userDescription: localize('automation.tool.run.userDescription', "Run a configured agent automation now"),
-			modelDescription: 'Run a configured automation immediately by stable ID. Call listAutomations first to obtain the current ID. This starts a fresh agent session in the background using the saved prompt, target, and provider session configuration, even when scheduled runs are disabled. The tool returns after session dispatch commits; do not run it again unless the user asks.',
+			modelDescription: 'Request a run of an existing automation by stable ID. Call listAutomations first and check availableOperations. Local automations can run with scheduling disabled; cloud automations must be enabled and may consume credits. A cloud acknowledgement means accepted, not completed, and may contain no run ID. An unknown outcome may already have started work. Do not repeat accepted or unknown requests unless the user asks; use listAutomations to reconcile an unknown outcome first.',
 			source: ToolDataSource.Internal,
 			when: automationToolWhen,
 			runsInWorkspace: false,
@@ -272,6 +307,9 @@ export class RunAutomationTool implements IToolImpl {
 			const result = automationToolResult(JSON.stringify({ status: 'accepted', automation: { id: automation.id, name: automation.name } }));
 			result.toolResultMessage = localize('automation.tool.run.accepted', "Requested automation {0}; the provider has not returned a run.", automation.name);
 			return result;
+		}
+		if (dispatch.kind === 'uncertain') {
+			return automationUnknownOutcome(dispatch.message, automation);
 		}
 
 		const result = automationToolResult(JSON.stringify({
@@ -373,6 +411,9 @@ export class DeleteAutomationTool implements IToolImpl {
 			if (error instanceof AutomationToolMutationBlockedError) {
 				return error.result;
 			}
+			if (error instanceof MutationUncertainError || error instanceof ApiRequestError && error.outcome === 'indeterminate') {
+				return automationUnknownOutcome(error.message, automation);
+			}
 			if (error instanceof AutomationUnavailableError) {
 				return automationToolError(error.message);
 			}
@@ -420,11 +461,15 @@ export class ConfigureAutomationTool implements IToolImpl {
 
 Create a new automation only when the user explicitly asks for an automation, or for a prompt to run on a recurring schedule. Do not infer that intent from requests merely to monitor, watch, follow, or keep something (such as a pull request) green.
 
-Omit "automationId" to create an automation; "name", "prompt", and "schedule.interval" are then required. If "target" is omitted, the automation targets the current Agents window session. The target must be a connected Agent Host that supports automations; there is no local execution fallback. Include "automationId" to update an existing automation, and only provide fields that should change. Call listAutomations first to obtain the stable ID and current values. An existing automation cannot move between hosts; create a separate definition on the new host and explicitly disable the original if it should stop scheduling.
+Omit "automationId" to create an automation; "name", "prompt", and "schedule.interval" are then required. If "target" is omitted, the automation targets the current Agents window session. The target must be an available Automation provider; there is no local execution fallback. Include "automationId" to update an existing automation, and only provide fields that should change. Call listAutomations first to obtain stable IDs, current values, supported session types, and provider configuration. An existing automation cannot move between providers; cloud repositories are also immutable. Create a separate definition and explicitly disable the original if it should stop scheduling.
 
 Use "sessionTemplate" for provider-owned Model, Agent, Mode, Approvals, and other configuration returned by listAutomations. Omit it on unrelated partial updates, or set it to null to reset provider configuration. Do not combine it with the legacy "modelId", "mode", or "permissionLevel" aliases.
 
-The change uses the current tool-approval policy. When approval is required, the user sees a normal tool confirmation. If the user cancels or denies the request, do not retry unless they ask you to.`,
+Cloud automations are user-owned and require a private or internal GitHub.com repository with default isolation. Daily/weekly cloud schedules require "timeZone": "UTC" and minutes 0, 15, 30, or 45. "manual" removes the schedule. Creation defaults to enabled: scheduled work runs without VS Code and may consume credits. Set "enabled": false to save without scheduling.
+
+For cloud, use "sessionTemplate.modelId" and "sessionTemplate.config" with "tools" IDs from the ready provider catalog and optional "reasoningEffort". Preserve saved tool IDs outside that catalog on unrelated updates. Cloud template reset (null), custom agents, modelConfiguration, local mode/approval settings, and MCP management are not supported.
+
+The change uses the current tool-approval policy. When approval is required, the user sees a normal tool confirmation. If the user cancels or denies the request, do not retry unless they ask you to. An unknown result may already have changed remote state; refresh with listAutomations before considering another request.`,
 			source: ToolDataSource.Internal,
 			when: automationToolWhen,
 			runsInWorkspace: false,
@@ -458,19 +503,24 @@ The change uses the current tool-approval policy. When approval is required, the
 								type: 'integer',
 								minimum: 0,
 								maximum: 23,
-								description: 'Local hour, used for daily and weekly schedules.',
+								description: 'Hour for daily/weekly schedules: UTC for cloud, local time for Agent Hosts.',
 							},
 							scheduleMinute: {
 								type: 'integer',
 								minimum: 0,
 								maximum: 59,
-								description: 'Local minute, used for daily and weekly schedules.',
+								description: 'Minute for daily/weekly schedules. Cloud supports 0, 15, 30, or 45.',
 							},
 							scheduleDay: {
 								type: 'integer',
 								minimum: 0,
 								maximum: 6,
 								description: 'Day of week for weekly schedules: 0 is Sunday and 6 is Saturday.',
+							},
+							timeZone: {
+								type: 'string',
+								enum: ['UTC'],
+								description: 'Required for daily/weekly cloud schedules; omit for local-time Agent Host schedules.',
 							},
 						},
 					},
@@ -652,6 +702,10 @@ The change uses the current tool-approval policy. When approval is required, the
 			if (error instanceof AutomationToolMutationBlockedError) {
 				return this.completeOperation(proposal.kind, error.result);
 			}
+			if (error instanceof MutationUncertainError || error instanceof ApiRequestError && error.outcome === 'indeterminate') {
+				logAutomationConfigureOutcome(this.telemetryService, proposal.kind, 'failed');
+				return automationUnknownOutcome(error.message, proposal.existing);
+			}
 			if (error instanceof AutomationToolInputError || error instanceof AutomationUnavailableError) {
 				return this.completeOperation(proposal.kind, automationToolError(error.message));
 			}
@@ -726,9 +780,12 @@ The change uses the current tool-approval policy. When approval is required, the
 		const candidates = target.kind === 'quickChat'
 			? this.sessionsManagementService.getQuickChatSessionTypes()
 			: this.sessionsManagementService.getSessionTypesForFolder(target.folderUri);
-		const eligible = candidates.filter(candidate => existing === undefined
-			? this.automationService.canCreateAutomation(candidate.providerId)
-			: candidate.providerId === existing.target.providerId && this.automationService.canUpdateAutomation(existing.id));
+		const eligible = candidates.filter(candidate => {
+			const configuration = this.automationService.getProviderConfiguration?.(candidate.providerId);
+			return (!configuration || configuration.sessionTypes.includes(candidate.sessionType.id)) && (existing === undefined
+				? this.automationService.canCreateAutomation(candidate.providerId)
+				: candidate.providerId === existing.target.providerId && this.automationService.canUpdateAutomation(existing.id));
+		});
 		const candidate = findSessionType(eligible, target.providerId, target.sessionTypeId);
 		if (!candidate) {
 			throw new AutomationToolInputError(target.kind === 'quickChat'
@@ -858,7 +915,8 @@ export class AutomationToolsContribution extends Disposable implements IWorkbenc
 }
 
 function isAutomationsEnabled(configurationService: IConfigurationService): boolean {
-	return configurationService.getValue<boolean>(CHAT_AUTOMATIONS_ENABLED_SETTING) === true;
+	return configurationService.getValue<boolean>(CHAT_AUTOMATIONS_ENABLED_SETTING) === true
+		&& configurationService.getValue<boolean>(ChatAIDisabledSettingId) !== true;
 }
 
 function findSessionType(candidates: readonly IProviderSessionType[], providerId: string | undefined, sessionTypeId: string | undefined): IProviderSessionType | undefined {
@@ -894,7 +952,7 @@ function parseSchedule(input: Record<string, unknown>, existing: IAutomationSche
 		return undefined;
 	}
 
-	assertKnownProperties(value, ['interval', 'scheduleHour', 'scheduleMinute', 'scheduleDay'], '"schedule"');
+	assertKnownProperties(value, ['interval', 'scheduleHour', 'scheduleMinute', 'scheduleDay', 'timeZone'], '"schedule"');
 	const interval = readOptionalEnum(value, 'interval', automationIntervals) ?? existing?.interval;
 	if (!interval) {
 		throw new AutomationToolInputError('"schedule.interval" is required when creating an automation.');
@@ -903,7 +961,8 @@ function parseSchedule(input: Record<string, unknown>, existing: IAutomationSche
 	const scheduleMinute = readOptionalInteger(value, 'scheduleMinute', 0, 59) ?? existing?.scheduleMinute ?? 0;
 	const scheduleDay = readOptionalInteger(value, 'scheduleDay', 0, 6) ?? existing?.scheduleDay ?? 1;
 
-	return { interval, scheduleHour, scheduleMinute, scheduleDay };
+	const timeZone = readOptionalEnum(value, 'timeZone', ['UTC'] as const) ?? existing?.timeZone;
+	return { interval, scheduleHour, scheduleMinute, scheduleDay, ...(timeZone ? { timeZone } : {}) };
 }
 
 function parseTarget(input: Record<string, unknown>, existing: IAutomationDescriptor | undefined, currentTarget: AutomationTarget | undefined): AutomationTarget | undefined {
@@ -1097,6 +1156,7 @@ function toAutomationToolOutput(automation: IAutomationDescriptor): IAutomationT
 		updatedAt: automation.updatedAt,
 		lastRunAt: automation.lastRunAt ?? null,
 		nextRunAt: automation.nextRunAt ?? null,
+		...(automation.readOnlyReason ? { readOnlyReason: automation.readOnlyReason } : {}),
 	};
 }
 
@@ -1122,6 +1182,15 @@ function toAutomationConfiguredData(automation: IAutomationDescriptor, operation
 
 function automationToolResult(value: string): IToolResult {
 	return { content: [{ kind: 'text', value }] };
+}
+
+function automationUnknownOutcome(message: string, automation?: IAutomationDescriptor): IToolResult {
+	const result = automationToolResult(JSON.stringify({
+		status: 'unknown', message,
+		...(automation ? { automation: { id: automation.id, name: automation.name } } : {}),
+	}));
+	result.toolResultMessage = localize('automation.tool.unknown', "The request outcome is unknown. Refresh automations before submitting another request.");
+	return result;
 }
 
 function automationToolError(message: string): IToolResult {

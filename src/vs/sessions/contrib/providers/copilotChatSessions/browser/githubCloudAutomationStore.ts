@@ -296,8 +296,13 @@ export class GitHubCloudAutomationStore extends Disposable {
 		});
 	}
 
-	async run(entry: ICloudAutomationEntry, token: CancellationToken = CancellationToken.None): Promise<void> {
-		await this.mutate(entry.repository, (client, ref, signal) => client.automations.dispatch(ref, entry.definition.id, { event: 'manual' }, signal), token);
+	async run(entry: ICloudAutomationEntry, token: CancellationToken = CancellationToken.None, guard?: () => void): Promise<void> {
+		await this.mutate(entry.repository, async (client, ref, signal) => {
+			const current = await client.automations.get(ref, entry.definition.id, signal);
+			this.publish(entry.repository, current, signal);
+			guard?.();
+			await client.automations.dispatch(ref, current.id, { event: 'manual' }, signal);
+		}, token);
 	}
 
 	async stop(entry: ICloudAutomationHistoryEntry): Promise<void> {

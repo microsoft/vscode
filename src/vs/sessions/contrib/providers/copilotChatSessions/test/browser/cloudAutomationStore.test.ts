@@ -12,7 +12,7 @@ import { IDefaultAccount } from '../../../../../../base/common/defaultAccount.js
 import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -32,14 +32,23 @@ import { IGitHubEndpointProvider } from '../../../../../../platform/github/commo
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IGitHubService } from '../../../../github/browser/githubService.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { IAutomationSchedule } from '../../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING, CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING } from '../../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
+import { IToolImpl } from '../../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { IChatEntitlementService, IChatSentiment } from '../../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IWorkbenchGitHubService } from '../../../../../../workbench/services/github/common/githubService.js';
 import { ISessionsRecentWorkspacesService } from '../../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
-import { GITHUB_REMOTE_FILE_SCHEME } from '../../../../../services/sessions/common/session.js';
+import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsManagementService } from '../../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
+import { GITHUB_REMOTE_FILE_SCHEME, ISessionType } from '../../../../../services/sessions/common/session.js';
+import { ConfigureAutomationTool, ListAutomationsTool, RunAutomationTool } from '../../../../automations/browser/automationTools.js';
+import { AutomationRunner } from '../../../../automations/browser/automationRunner.js';
+import { ProviderAutomationService } from '../../../../automations/browser/providerAutomationService.js';
 import { CloudAutomationStore, cloudAutomationSchedule, cloudAutomationTriggers } from '../../browser/cloudAutomationStore.js';
 import { IRepositoryPickResult, RepositoryPicker } from '../../../../../../workbench/contrib/chat/browser/agentSessions/repositoryPicker.js';
 
@@ -192,7 +201,131 @@ suite('CloudAutomationStore', () => {
 			await configuration.setUserConfiguration(key, value);
 			configuration.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true, affectedKeys: new Set([key]), change: { keys: [key], overrides: [] }, source: ConfigurationTarget.USER });
 		};
-		return { provider, api, accounts, changed, clientChanged, entitlement, sentimentChanged, set, instantiation };
+		return { provider, api, accounts, changed, clientChanged, entitlement, sentimentChanged, set, instantiation, configuration };
+	}
+
+	function setupTools() {
+		const context = setup();
+		const provider = upcastPartial<ISessionsProvider>({ id: 'cloud', label: 'Cloud', automations: context.provider });
+		const providers = upcastPartial<ISessionsProvidersService>({
+			onDidChangeProviders: Event.None, getProviders: () => [provider],
+			getProvider: <T extends ISessionsProvider>() => provider as T,
+		});
+		const service = disposables.add(new ProviderAutomationService(constObservable(true), providers));
+		const sessions = upcastPartial<ISessionsManagementService>({
+			getSessionTypesForFolder: () => [{ providerId: 'cloud', sessionType: upcastPartial<ISessionType>({ id: 'cloud-agent' }) }],
+		});
+		const warnings: string[] = [];
+		const notifications = upcastPartial<INotificationService>({ warn: message => warnings.push(String(message)), error: message => assert.fail(String(message)) });
+		const runner = new AutomationRunner(service, providers, new NullLogService(), notifications);
+		const tools = {
+			list: new ListAutomationsTool(service, context.configuration, providers),
+			configure: new ConfigureAutomationTool(service, sessions, context.configuration, NullTelemetryService),
+			run: new RunAutomationTool(service, runner, context.configuration),
+		};
+		const invoke = async (tool: IToolImpl, parameters: object) => {
+			const result = await tool.invoke({ callId: 'call', toolId: 'tool', parameters, context: undefined }, async () => 0, { report: () => { } }, CancellationToken.None);
+			const part = result.content[0];
+			assert.ok(part.kind === 'text');
+			return JSON.parse(part.value);
+		};
+		return { ...context, service, tools, invoke, warnings };
+	}
+
+	test('tools discover the live catalog only behind the cloud gate and expose catalog failures', async () => {
+		const { api, set, tools, invoke } = setupTools();
+		assert.deepStrictEqual({ providers: await invoke(tools.list, {}), calls: api.calls }, { providers: [], calls: [] });
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		api.toolsError = new Error('Offline');
+		const [loading] = await invoke(tools.list, {});
+		await timeout(0);
+		api.toolsError = undefined;
+		const [failed] = await invoke(tools.list, {});
+		await timeout(0);
+		const [ready] = await invoke(tools.list, {});
+		const [cached] = await invoke(tools.list, {});
+		assert.deepStrictEqual({
+			loading: loading.configuration.tools.kind,
+			failed: failed.configuration.tools.kind,
+			tools: ready.configuration.tools.groups.flatMap((group: { tools: { id: string }[] }) => group.tools.map(tool => tool.id)),
+			cached: cached.configuration, requests: api.calls.filter(call => call === 'tools').length,
+		}, {
+			loading: 'loading', failed: 'error', tools: ['github/issue_read', 'github/list_issues', 'github/unnamed'],
+			cached: ready.configuration, requests: 2,
+		});
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, false);
+		const calls = api.calls.length;
+		assert.deepStrictEqual({ providers: await invoke(tools.list, {}), calls: api.calls.length - calls }, { providers: [], calls: 0 });
+	});
+
+	test('configure tool uses current cloud defaults, UTC and model/tool partial updates', async () => {
+		const { api, set, tools, invoke } = setupTools();
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		await invoke(tools.list, {});
+		await timeout(0);
+		const [listed] = await invoke(tools.list, {});
+		const created = await invoke(tools.configure, {
+			name: 'New', prompt: 'Review',
+			target: { kind: 'workspace', folderUri: workspace.toString(), providerId: 'cloud', sessionTypeId: 'cloud-agent' },
+			schedule: { interval: 'daily', timeZone: 'UTC', scheduleHour: 12, scheduleMinute: 30 },
+			sessionTemplate: { modelId: 'model', config: { tools: [listed.configuration.tools.groups[0].tools[0].id] } },
+		});
+		api.definitions = [{ ...definition, name: 'New', triggers: { interval: { types: ['daily'], hour_utc: 12, minute_utc: 30 } }, model: 'model', tools: ['github/issue_read'] }];
+		await invoke(tools.list, {});
+		await invoke(tools.configure, { automationId: created.automation.id, schedule: { interval: 'manual' } });
+		assert.deepStrictEqual({ enabled: created.automation.enabled, schedule: created.automation.schedule, template: created.automation.sessionTemplate, patch: api.patch }, {
+			enabled: true, schedule: { interval: 'daily', timeZone: 'UTC', scheduleHour: 12, scheduleMinute: 30, scheduleDay: 0 },
+			template: { modelId: 'model', config: { tools: ['github/issue_read'] } }, patch: { triggers: {} },
+		});
+	});
+
+	test('list tool reports refresh failures and does not publish data after gate revocation', async () => {
+		const { api, set, tools, invoke } = setupTools();
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		api.listError = new Error('Repository offline');
+		const [failed] = await invoke(tools.list, {});
+		assert.deepStrictEqual({ state: failed.state, reason: typeof failed.unavailableReason, canCreate: failed.canCreateAutomation }, {
+			state: 'error', reason: 'string', canCreate: false,
+		});
+		api.listError = undefined;
+		const pending = new DeferredPromise<void>();
+		api.pendingList = pending.p;
+		const listing = invoke(tools.list, {});
+		await timeout(0);
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, false);
+		await pending.complete();
+		assert.deepStrictEqual(await listing, []);
+	});
+
+	test('run tool returns accepted, already-running and uncertain outcomes without fabricated runs', async () => {
+		const { api, provider, set, tools, invoke, warnings } = setupTools();
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		const [listed] = await invoke(tools.list, {});
+		const automation = listed.automations[0];
+		const accepted = await invoke(tools.run, { automationId: automation.id });
+		api.tasks = [{ id: 'active', state: 'in_progress', created_at: definition.created_at, remote_steerable: true }];
+		await provider.refresh();
+		const already = await invoke(tools.run, { automationId: automation.id });
+		assert.deepStrictEqual({ accepted, activeId: already.run.id, status: already.status, dispatches: api.calls.filter(call => call === 'run').length }, {
+			accepted: { status: 'accepted', automation: { id: automation.id, name: automation.name } }, activeId: provider.runs.get()[0].id, status: 'already_running', dispatches: 1,
+		});
+		api.tasks = [];
+		await provider.refresh();
+		api.dispatchError = new MutationUncertainError('network');
+		assert.deepStrictEqual(await invoke(tools.run, { automationId: automation.id }), { status: 'unknown', automation: { id: automation.id, name: automation.name }, message: api.dispatchError.message });
+		assert.deepStrictEqual({ warnings, canRun: provider.canRunAutomation(automation.id) }, { warnings: [api.dispatchError.message], canRun: false });
+	});
+
+	for (const changed of [{ ...definition, disabled: true }, { ...definition, triggers: { webhook: { types: ['issue'] } } }]) {
+		test(`run preflight rejects remote ${changed.disabled ? 'disablement' : 'unsupported triggers'} without dispatching`, async () => {
+			const { provider, api, set } = setup();
+			await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+			await provider.refresh();
+			const id = provider.automations.get()[0].id;
+			api.definitions = [changed];
+			await assert.rejects(provider.runAutomation(id), /Only enabled cloud automations with supported schedules/);
+			assert.deepStrictEqual({ run: api.calls.includes('run'), canRun: provider.canRunAutomation(id), canDelete: provider.canDeleteAutomation(id) }, { run: false, canRun: false, canDelete: true });
+		});
 	}
 
 	test('idle definitions do not poll and postdispatch history discovery is bounded', async () => {
@@ -294,12 +427,15 @@ suite('CloudAutomationStore', () => {
 
 	test('history failures retain rows without poisoning definition readiness or acknowledgements', async () => {
 		const { provider, api, set } = setup();
-		api.tasks = [{ id: 'task', state: 'in_progress', created_at: definition.created_at, remote_steerable: true }];
 		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		await provider.refresh();
+		api.historyError = new Error('History offline');
+		const accepted = await provider.runAutomation(provider.automations.get()[0].id);
+		api.historyError = undefined;
+		api.tasks = [{ id: 'task', state: 'in_progress', created_at: definition.created_at, remote_steerable: true }];
 		await provider.refresh();
 		const run = provider.runs.get()[0];
 		api.historyError = new Error('History offline');
-		const accepted = await provider.runAutomation(provider.automations.get()[0].id);
 		await provider.stopRun(run);
 		await assert.rejects(provider.refresh(), /History offline/);
 		assert.deepStrictEqual({
@@ -544,11 +680,12 @@ suite('CloudAutomationStore', () => {
 
 	test('202 remains acknowledgement only and task history projects exact native resources', async () => {
 		const { provider, api, set } = setup();
-		api.tasks = [{ id: 'task', state: 'waiting_for_user', created_at: definition.created_at, remote_steerable: true }];
 		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
 		await provider.refresh();
 		const automation = provider.automations.get()[0];
+		api.tasks = [{ id: 'task', state: 'waiting_for_user', created_at: definition.created_at, remote_steerable: true }];
 		assert.deepStrictEqual(await provider.runAutomation(automation.id), { kind: 'accepted' });
+		await provider.refresh();
 		const run = provider.runs.get()[0];
 		assert.deepStrictEqual({ status: run.status, trigger: run.trigger, needsInput: run.needsInput, session: run.sessionResource?.toString(), url: run.externalResource?.toString() },
 			{ status: 'running', trigger: 'external', needsInput: true, session: 'copilot-cloud-agent:/task/task', url: 'https://github.com/owner/private/tasks/task' });

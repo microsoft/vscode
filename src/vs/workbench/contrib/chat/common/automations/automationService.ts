@@ -15,7 +15,7 @@ import { IAutomationDescriptor, IAutomationRun, IAutomationSchedule, IAutomation
 export const IAutomationService = createDecorator<IAutomationService>('automationService');
 export const ConfigureAutomationToolReferenceName = 'configureAutomation';
 
-/** Provider-owned cloud configuration consumed only by the Automation dialog. */
+/** Provider-owned cloud configuration consumed by the Automation dialog and tools. */
 export interface IAutomationProviderConfiguration {
 	readonly sessionTypes: readonly string[];
 	readonly description: string;
