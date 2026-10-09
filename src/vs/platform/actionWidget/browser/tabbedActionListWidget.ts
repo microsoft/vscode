@@ -237,6 +237,8 @@ export class TabbedActionListWidget extends Disposable {
 	private _fixedListHeight: number | undefined;
 	private _fixedPopupHeight: number | undefined;
 	private _hasMeasuredSizingTab = false;
+	/** Side of the anchor the popup opened on, kept across tab swaps so it cannot jump sides. */
+	private _anchorPosition: AnchorPosition | undefined;
 
 	get isVisible(): boolean {
 		return !!this._activePopup.value;
@@ -271,6 +273,7 @@ export class TabbedActionListWidget extends Disposable {
 			this._fixedListHeight = undefined;
 			this._fixedPopupHeight = undefined;
 			this._hasMeasuredSizingTab = false;
+			this._anchorPosition = undefined;
 		}
 
 		let activeTab = options.initialTab;
@@ -434,6 +437,9 @@ export class TabbedActionListWidget extends Disposable {
 
 				const { items, listOptions } = options.createActionList(activeTab);
 				const emptyBody = items.length === 0 ? this._renderEmptyBody(bodyContent, options, activeTab, renderDisposables) : undefined;
+				const getExpandedPopupHeight = () => widget.offsetHeight - body.offsetHeight + bodyContent.offsetHeight;
+				// Padding belongs to the popup's chrome, not the list's content height.
+				const getChromeHeight = (listElement: HTMLElement) => getExpandedPopupHeight() - (emptyBody ? emptyBody.offsetHeight : dom.getContentHeight(listElement));
 				const list = renderDisposables.add(this._instantiationService.createInstance(
 					ActionList<T>,
 					options.user,
@@ -441,7 +447,12 @@ export class TabbedActionListWidget extends Disposable {
 					items,
 					options.delegate,
 					options.accessibilityProvider,
-					listOptions,
+					{
+						...listOptions,
+						anchorPosition: this._anchorPosition ?? listOptions?.anchorPosition,
+						// The tabs are part of the popup, so they have to fit beside the anchor too.
+						getPopupChromeHeight: getChromeHeight,
+					},
 					options.anchor,
 				));
 				listRef = list;
@@ -545,18 +556,13 @@ export class TabbedActionListWidget extends Disposable {
 					this._hasMeasuredSizingTab = true;
 				}
 
-				const getExpandedPopupHeight = () => widget.offsetHeight - body.offsetHeight + bodyContent.offsetHeight;
 				const layout = () => {
 					if (this._detailsVisible) {
 						return;
 					}
-					const listBody = emptyBody ?? list.domNode;
-					// Padding belongs to the popup's chrome, not the fixed list content height.
-					const listHeight = emptyBody ? listBody.offsetHeight : dom.getContentHeight(listBody);
-					const chromeHeight = getExpandedPopupHeight() - listHeight;
 					const contentHeight = this._fixedPopupHeight === undefined
 						? this._fixedListHeight
-						: Math.max(0, this._fixedPopupHeight - chromeHeight);
+						: Math.max(0, this._fixedPopupHeight - getChromeHeight(list.domNode));
 					const width = list.layout(0, contentHeight);
 					widget.style.width = `${options.width ?? width}px`;
 					if (emptyBody && this._fixedListHeight !== undefined) {
@@ -567,6 +573,7 @@ export class TabbedActionListWidget extends Disposable {
 					}
 				};
 				layout();
+				this._anchorPosition ??= list.anchorPosition;
 
 				const bodyAnimation = renderDisposables.add(new MutableDisposable<DisposableStore>());
 				const finishBodyAnimation = () => {

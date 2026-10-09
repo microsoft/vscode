@@ -270,11 +270,14 @@ class Editor extends Disposable {
 			highlightThemeChanged: () => {
 				this.#syntaxHighlighter.themeChanged();
 			},
+			configurationChanged: ({ highlightActiveBlock }) => {
+				this.#view?.highlightActiveBlock.set(highlightActiveBlock, undefined);
+			},
 			richLinkPresentations: ({ presentations }) => {
 				this.#linkPresentationProvider?.updatePresentations(presentations);
 			},
 		}));
-		this.#createView(host, initialState.content);
+		this.#createView(host, initialState.content, initialState.highlightActiveBlock);
 		this.#send('ready', this.#host.ready({
 			documentVersion: initialState.documentVersion,
 			editEpoch: this.#editEpoch,
@@ -354,7 +357,7 @@ class Editor extends Disposable {
 		this.#connection.close();
 	}
 
-	#createView(host: HTMLElement, content: string): void {
+	#createView(host: HTMLElement, content: string, highlightActiveBlock: boolean): void {
 		const model = this.model;
 		const scriptNonce = document.querySelector<HTMLMetaElement>('meta[name="vscode-markdown-editor-script-nonce"]')?.content;
 		const iframeBootstrapUrl = new URL(location.href);
@@ -386,6 +389,7 @@ class Editor extends Disposable {
 
 		const view = this._register(new EditorView(model, {
 			classNames: ['md-theme-vscode-default'],
+			highlightActiveBlock,
 			presentation: model.readonlyMode.get() ? 'reading' : 'editing',
 			syntaxHighlighter: this.#syntaxHighlighter,
 			linkPresentationProvider: this.#linkPresentationProvider,
@@ -703,6 +707,7 @@ function isInitialState(value: unknown): value is InitialState {
 		&& Number.isInteger(candidate.editEpoch)
 		&& candidate.editEpoch >= 0
 		&& typeof candidate.readonly === 'boolean'
+		&& typeof candidate.highlightActiveBlock === 'boolean'
 		&& typeof candidate.richLinksEnabled === 'boolean'
 		&& Array.isArray(candidate.linkPresentationRules);
 }
