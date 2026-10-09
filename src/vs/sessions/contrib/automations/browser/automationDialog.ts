@@ -82,6 +82,7 @@ const INTERVALS: { readonly value: AutomationInterval; readonly label: string }[
 	{ value: 'manual', label: localize('automation.interval.manual', "Manual") },
 	{ value: 'hourly', label: localize('automation.interval.hourly', "Hourly") },
 	{ value: 'daily', label: localize('automation.interval.daily', "Daily") },
+	{ value: 'weekdays', label: localize('automation.interval.weekdays', "Weekdays") },
 	{ value: 'weekly', label: localize('automation.interval.weekly', "Weekly") },
 ];
 
@@ -1084,7 +1085,8 @@ export function renderForm(
 
 	const intervalGroup = DOM.append(scheduleRow, $('.automation-form-schedule-group'));
 	DOM.append(intervalGroup, $('span.automation-form-label', undefined, localize('automation.form.interval', "Schedule")));
-	const intervalOptions: ISelectOptionItem[] = INTERVALS.map(item => ({ text: item.label }));
+	let intervals = INTERVALS;
+	const intervalOptions: ISelectOptionItem[] = intervals.map(item => ({ text: item.label }));
 	const intervalIndex = Math.max(0, INTERVALS.findIndex(item => item.value === state.interval));
 	const intervalSelect = disposables.add(new SelectBox(
 		intervalOptions,
@@ -1136,15 +1138,26 @@ export function renderForm(
 	DOM.hide(scheduleError);
 
 	const applyIntervalVisibility = () => {
-		const showTime = state.interval === 'daily' || state.interval === 'weekly';
+		const showTime = state.interval === 'daily' || state.interval === 'weekdays' || state.interval === 'weekly';
 		const showDay = state.interval === 'weekly';
 		timeGroup.style.display = showTime ? '' : 'none';
 		dayGroup.style.display = showDay ? '' : 'none';
 	};
+	const updateIntervalOptions = (cloud: boolean) => {
+		intervals = INTERVALS.filter(item => !cloud || item.value !== 'weekdays');
+		if (cloud && state.interval === 'weekdays') {
+			intervals = [{ value: 'weekdays', label: localize('automation.interval.choose', "Choose a schedule") }, ...intervals];
+		}
+		intervalSelect.setOptions(intervals.map(item => ({
+			text: item.label,
+			isDisabled: cloud && item.value === 'weekdays',
+		})), Math.max(0, intervals.findIndex(item => item.value === state.interval)));
+		applyIntervalVisibility();
+	};
 	applyIntervalVisibility();
 	disposables.add(intervalSelect.onDidSelect(e => {
-		state.interval = INTERVALS[e.index].value;
-		applyIntervalVisibility();
+		state.interval = intervals[e.index].value;
+		updateIntervalOptions(getProviderConfiguration(state.providerId) !== undefined);
 		revalidate();
 	}));
 
@@ -1722,6 +1735,7 @@ export function renderForm(
 	disposables.add(autorun(reader => {
 		const configuration = cloudConfiguration.read(reader);
 		toolsPicker.clear();
+		updateIntervalOptions(configuration !== undefined);
 		setAutomationControlVisible(providerDetails, configuration !== undefined);
 		timeLabel.textContent = configuration?.timeZone === 'UTC' ? localize('automation.form.timeLocal', "Time (Local)") : localize('automation.form.time', "Time");
 		timeSelect.setAriaLabel(timeLabel.textContent);
@@ -2146,9 +2160,11 @@ export function updateSaveButtonState(
 	const utcSchedule = state.timeZone === 'UTC' ? automationScheduleToUTC({
 		interval: state.interval, scheduleHour: state.hour, scheduleMinute: state.minute, scheduleDay: state.day,
 	}, state.timezoneOffset) : undefined;
-	validation.scheduleError = utcSchedule && (state.interval === 'daily' || state.interval === 'weekly') && utcSchedule.scheduleMinute % 15 !== 0
-		? localize('automation.form.cloudScheduleMinute', "Choose a time that corresponds to minute 00, 15, 30, or 45 in UTC.")
-		: undefined;
+	validation.scheduleError = utcSchedule && state.interval === 'weekdays'
+		? localize('automation.form.cloudWeekdays', "Weekdays is only available for local automations. Choose a supported schedule for Cloud.")
+		: utcSchedule && (state.interval === 'daily' || state.interval === 'weekly') && utcSchedule.scheduleMinute % 15 !== 0
+			? localize('automation.form.cloudScheduleMinute', "Choose a time that corresponds to minute 00, 15, 30, or 45 in UTC.")
+			: undefined;
 	const valid = !validation.nameError && !validation.promptError && !validation.folderError && !validation.sessionTypeError && !validation.branchError && !validation.scheduleError;
 	if (saveButton) {
 		saveButton.enabled = valid;

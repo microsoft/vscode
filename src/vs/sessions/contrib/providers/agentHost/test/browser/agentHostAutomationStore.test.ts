@@ -21,7 +21,7 @@ import { getAgentHostExtensionInitializeResultMeta } from '../../../../../../pla
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType, type ActionEnvelope } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { AutomationOperation, AutomationRunOriginKind, AutomationRunStatus, AutomationTriggerKind, CustomizationEnablementKind, CustomizationType, MessageKind, type AutomationEntry, type AutomationRunSummary, type AutomationState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { AutomationMisfirePolicy, AutomationOperation, AutomationRunOriginKind, AutomationRunStatus, AutomationTriggerKind, CustomizationEnablementKind, CustomizationType, MessageKind, type AutomationEntry, type AutomationRunSummary, type AutomationState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { AUTOMATION_CATALOG_URI, StateComponents, type ClientPluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -1607,6 +1607,38 @@ suite('AgentHostAutomationStore', () => {
 			update?.type === ActionType.AutomationUpdateRequested ? update.changes.session?.config : undefined,
 			{ autoApprove: 'autoApprove' },
 		);
+	});
+
+	test('creates and edits Weekdays with one local Monday-Friday cron trigger', async () => {
+		const connection = disposables.add(new TestAutomationConnection());
+		const storage = disposables.add(new InMemoryStorageService());
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
+		const automation = await store.createAutomation({
+			name: 'Weekday review', prompt: 'Review changes.',
+			schedule: { interval: 'weekdays', scheduleHour: 9, scheduleMinute: 30, scheduleDay: 6 },
+			target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'mock' },
+		});
+		const create = connection.dispatched[0].action;
+		const updated = await store.updateAutomation(automation.id, {
+			schedule: { interval: 'weekdays', scheduleHour: 17, scheduleMinute: 45, scheduleDay: 0 },
+		});
+		const update = connection.dispatched.at(-1)?.action;
+		const trigger = (expression: string) => [{
+			id: 'schedule', kind: AutomationTriggerKind.Schedule,
+			schedule: { expression, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC' },
+			misfirePolicy: AutomationMisfirePolicy.RunOnce,
+		}];
+		assert.deepStrictEqual({
+			createdSchedule: automation.schedule,
+			createdTriggers: create.type === ActionType.AutomationCreateRequested ? create.definition.triggers : undefined,
+			updatedSchedule: updated.schedule,
+			updatedTriggers: update?.type === ActionType.AutomationUpdateRequested ? update.changes.triggers : undefined,
+		}, {
+			createdSchedule: { interval: 'weekdays', scheduleHour: 9, scheduleMinute: 30, scheduleDay: 0 },
+			createdTriggers: trigger('30 9 * * 1-5'),
+			updatedSchedule: { interval: 'weekdays', scheduleHour: 17, scheduleMinute: 45, scheduleDay: 0 },
+			updatedTriggers: trigger('45 17 * * 1-5'),
+		});
 	});
 
 	test('canonicalizes irrelevant schedule fields when updating an interval', async () => {

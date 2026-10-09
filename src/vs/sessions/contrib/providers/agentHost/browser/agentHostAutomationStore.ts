@@ -850,6 +850,9 @@ function projectSchedule(triggers: AutomationDefinition['triggers']): IAutomatio
 	if (dayValue === '*') {
 		return { interval: 'daily', scheduleHour, scheduleMinute, scheduleDay: 0 };
 	}
+	if (dayValue === '1-5') {
+		return { interval: 'weekdays', scheduleHour, scheduleMinute, scheduleDay: 0 };
+	}
 	const scheduleDay = parseCronValue(dayValue, 0, 6);
 	return scheduleDay === undefined
 		? { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 }
@@ -879,6 +882,9 @@ function scheduleTrigger(schedule: IAutomationSchedule): AutomationDefinition['t
 			break;
 		case 'daily':
 			expression = `${schedule.scheduleMinute} ${schedule.scheduleHour} * * *`;
+			break;
+		case 'weekdays':
+			expression = `${schedule.scheduleMinute} ${schedule.scheduleHour} * * 1-5`;
 			break;
 		case 'weekly':
 			expression = `${schedule.scheduleMinute} ${schedule.scheduleHour} * * ${schedule.scheduleDay}`;
