@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { ChatRequest } from 'vscode';
+import type { ChatRequest, LanguageModelChat } from 'vscode';
 import { IChatHookService } from '../../../../platform/chat/common/chatHookService';
 import { ChatLocation } from '../../../../platform/chat/common/commonTypes';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
+import { ChatModelFamily, IEndpointProvider } from '../../../../platform/endpoint/common/endpointProvider';
 import { IChatEndpoint } from '../../../../platform/networking/common/networking';
+import { Event } from '../../../../util/vs/base/common/event';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { generateUuid } from '../../../../util/vs/base/common/uuid';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
@@ -46,15 +48,55 @@ function endpoint(model: string, family: string, supportsToolCalls: boolean): IC
 	return { model, name: `${model} display name`, family, supportsToolCalls } as IChatEndpoint;
 }
 
+class MockExecutionEndpointProvider implements IEndpointProvider {
+	declare readonly _serviceBrand: undefined;
+	readonly onDidModelsRefresh = Event.None;
+	readonly probe: IEndpointProviderProbe = { getAllCalls: 0, familyCalls: [], mainCalls: 0 };
+	readonly mainEndpoint = { model: 'main-agent', name: 'Main Agent' } as IChatEndpoint;
+	options: {
+		allEndpoints?: IChatEndpoint[];
+		familyEndpoint?: IChatEndpoint;
+		familyThrows?: boolean;
+	} = {};
+
+	async getAllChatEndpoints(): Promise<IChatEndpoint[]> {
+		this.probe.getAllCalls++;
+		return this.options.allEndpoints ?? [];
+	}
+
+	async getChatEndpoint(arg: LanguageModelChat | ChatRequest | ChatModelFamily): Promise<IChatEndpoint> {
+		if (typeof arg === 'string') {
+			this.probe.familyCalls.push(arg);
+			if (this.options.familyThrows || !this.options.familyEndpoint) {
+				throw new Error(`Unable to resolve chat model with CAPI family selection: ${arg}`);
+			}
+			return this.options.familyEndpoint;
+		}
+		this.probe.mainCalls++;
+		return this.mainEndpoint;
+	}
+
+	async getAllCompletionModels(): Promise<never> {
+		throw new Error('Not implemented');
+	}
+
+	async getEmbeddingsEndpoint(): Promise<never> {
+		throw new Error('Not implemented');
+	}
+}
+
 describe('ExecutionSubagentToolCallingLoop.getEndpoint (non-proxy resolution)', () => {
 	let disposables: DisposableStore;
 	let instantiationService: IInstantiationService;
 	let configurationService: IConfigurationService;
+	let endpointProvider: MockExecutionEndpointProvider;
 
 	beforeEach(() => {
 		disposables = new DisposableStore();
 		const serviceCollection = disposables.add(createExtensionUnitTestingServices());
 		serviceCollection.define(IChatHookService, new MockChatHookService());
+		endpointProvider = new MockExecutionEndpointProvider();
+		serviceCollection.define(IEndpointProvider, endpointProvider);
 		const accessor = serviceCollection.createTestingAccessor();
 		instantiationService = accessor.get(IInstantiationService);
 		configurationService = accessor.get(IConfigurationService);
@@ -64,13 +106,12 @@ describe('ExecutionSubagentToolCallingLoop.getEndpoint (non-proxy resolution)', 
 		disposables.dispose();
 	});
 
-	const mainEndpoint = { model: 'main-agent', name: 'Main Agent' } as IChatEndpoint;
-
 	function createLoop(options: {
 		allEndpoints?: IChatEndpoint[];
 		familyEndpoint?: IChatEndpoint;
 		familyThrows?: boolean;
 	}): { loop: ExecutionSubagentToolCallingLoop; probe: IEndpointProviderProbe } {
+		endpointProvider.options = options;
 		const loopOptions: IExecutionSubagentToolCallingLoopOptions = {
 			conversation: null!,
 			toolCallLimit: 10,
@@ -80,26 +121,29 @@ describe('ExecutionSubagentToolCallingLoop.getEndpoint (non-proxy resolution)', 
 		};
 		const loop = instantiationService.createInstance(ExecutionSubagentToolCallingLoop, loopOptions);
 		disposables.add(loop);
-		const probe: IEndpointProviderProbe = { getAllCalls: 0, familyCalls: [], mainCalls: 0 };
-		(loop as any).endpointProvider = {
-			getAllChatEndpoints: async () => {
-				probe.getAllCalls++;
-				return options.allEndpoints ?? [];
-			},
-			getChatEndpoint: async (arg: unknown) => {
-				if (typeof arg === 'string') {
-					probe.familyCalls.push(arg);
-					if (options.familyThrows) {
-						throw new Error(`Unable to resolve chat model with CAPI family selection: ${arg}`);
-					}
-					return options.familyEndpoint;
-				}
-				probe.mainCalls++;
-				return mainEndpoint;
-			},
-		};
-		return { loop, probe };
+		return { loop, probe: endpointProvider.probe };
 	}
+
+	it('enables execution by default and resolves GPT-5.6 Luna without a model override', async () => {
+		const { loop, probe } = createLoop({
+			allEndpoints: [
+				endpoint('gpt-5.6-luna', 'gpt-5.6', true),
+				endpoint('gemini-3-flash', 'gemini-3-flash', true),
+			],
+		});
+
+		const modelName = await loop.getModelName();
+
+		expect({
+			enabled: configurationService.getConfig(ConfigKey.Advanced.ExecutionSubagentToolEnabled),
+			modelName,
+			probe,
+		}).toEqual({
+			enabled: true,
+			modelName: 'gpt-5.6-luna display name',
+			probe: { getAllCalls: 1, familyCalls: [], mainCalls: 0 },
+		});
+	});
 
 	it('uses the exact model-id endpoint when it resolves and supports tool calls', async () => {
 		await configurationService.setConfig(ConfigKey.Advanced.ExecutionSubagentUseAgenticProxy, false);

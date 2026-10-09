@@ -4827,7 +4827,7 @@
           },
           "github.copilot.chat.executionSubagent.enabled": {
             "type": "boolean",
-            "default": false,
+            "default": true,
             "markdownDescription": "%github.copilot.config.executionSubagent.enabled%",
             "tags": [
               "advanced",
@@ -4837,7 +4837,7 @@
           },
           "github.copilot.chat.executionSubagent.model": {
             "type": "string",
-            "default": "gemini-3-flash",
+            "default": "gpt-5.6-luna",
             "markdownDescription": "%github.copilot.config.executionSubagent.model%",
             "tags": [
               "advanced",
