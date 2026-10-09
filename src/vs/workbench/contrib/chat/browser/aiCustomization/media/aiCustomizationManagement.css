@@ -1695,7 +1695,7 @@ per-word capitalization does not survive translation. */
 .ai-customization-management-editor .mcp-detail-migration-link {
 	display: inline-block;
 	margin-top: var(--vscode-spacing-size100);
-	color: var(--vscode-textLink-foreground);
+	color: var(--vscode-inputValidation-warningForeground, var(--vscode-foreground));
 	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
@@ -1705,7 +1705,7 @@ per-word capitalization does not survive translation. */
 
 .ai-customization-management-editor .mcp-detail-migration-link:hover,
 .ai-customization-management-editor .mcp-detail-migration-link:active {
-	color: var(--vscode-textLink-activeForeground);
+	color: var(--vscode-inputValidation-warningForeground, var(--vscode-foreground));
 }
 
 /* Embedded plugin detail view */
@@ -3970,6 +3970,12 @@ per-word capitalization does not survive translation. */
 .ai-customization-management-editor .migration-detail-action.monaco-button {
 	width: auto;
 	flex-shrink: 0;
+}
+
+.ai-customization-management-editor .migration-detail-warning {
+	flex: 0 0 auto;
+	min-height: 0;
+	margin: var(--vscode-spacing-size80) var(--vscode-spacing-size160) 0;
 }
 
 .ai-customization-management-editor .editor-mode-button:hover {

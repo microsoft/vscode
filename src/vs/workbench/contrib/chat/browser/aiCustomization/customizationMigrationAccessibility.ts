@@ -12,6 +12,7 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_EDITOR } from './aiCustomizationManagement.js';
 import { AICustomizationManagementEditor } from './aiCustomizationManagementEditor.js';
+import { CustomizationMigrationCategoryId, getCustomizationMigrationCategory } from './customizationMigrationCategories.js';
 
 class CustomizationMigrationAccessibleView implements IAccessibleViewImplementation {
 	readonly priority = 110;
@@ -38,6 +39,7 @@ class CustomizationMigrationAccessibleView implements IAccessibleViewImplementat
 				localize('migrationHelpNavigation', "Use the arrow keys to move through and expand the tree. Use each row's checkbox to include or exclude it. Open a customization to view its editor or details. Use the header actions or the row's More Actions menu to migrate or delete one item."),
 				localize('migrationHelpAgent', "Use Migrate to have VS Code update the selected customizations. Migrate with Agent closes Agent Customizations and focuses a guided migration in chat for the selected harness. Agent migration uses credits."),
 				localize('migrationHelpActions', "Migrate applies to the selected items in one group and asks for confirmation before modifying files. Ignore permanently hides a group. Show Ignored Migrations restores hidden groups."),
+				getCustomizationMigrationCategory(CustomizationMigrationCategoryId.PromptFiles).preMigrationConsequences ?? '',
 				localize('migrationHelpLocations', "Activate a destination path to change the destination. Workspace MCP servers migrate to the root .mcp.json. User MCP servers migrate to mcp-config.json in Copilot home. Disabled user servers may become enabled after migration."),
 				localize('migrationHelpMcpChanges', "MCP servers that migrate with changes explain each property removal in their row. Review these warnings before confirming migration."),
 				localize('migrationHelpMcpDetails', "MCP servers that cannot migrate automatically appear in the Needs manual review group. Open a server to review its details; Edit Configuration opens its source file and selects the server's JSON configuration."),

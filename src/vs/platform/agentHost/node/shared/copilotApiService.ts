@@ -215,13 +215,13 @@ const UTILITY_DEFAULT_MODEL_FAMILY = 'gpt-4o-mini';
  * Default `temperature` for utility chat completions. Matches the Copilot
  * Chat extension's default `IConversationOptions.temperature`.
  */
-const UTILITY_DEFAULT_TEMPERATURE = 0.1;
+export const UTILITY_DEFAULT_TEMPERATURE = 0.1;
 
 /**
  * Default `top_p` for utility chat completions. Matches the Copilot Chat
  * extension's default `IConversationOptions.topP`.
  */
-const UTILITY_DEFAULT_TOP_P = 1;
+export const UTILITY_DEFAULT_TOP_P = 1;
 
 /**
  * `OpenAI-Intent` value for utility chat completions. Matches the extension

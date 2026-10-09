@@ -54,6 +54,7 @@ export interface ICustomizationMigrationCategory {
 	readonly cardActionLabel: string;
 	readonly cardActionAriaLabel: string;
 	readonly noFilesMigratedMessage: string;
+	readonly preMigrationConsequences?: string;
 	isCandidate?(customization: MigratableConfiguration): boolean;
 	getCandidateLabel(customization: CustomizationMigrationCandidate): string;
 	getCandidateWarnings?(customization: CustomizationMigrationCandidate, harnessLabel: string): readonly string[];
@@ -75,6 +76,11 @@ const CONFIGURED_LOCATION_SETTING_IDS = [
 	PromptsConfig.INSTRUCTIONS_LOCATION_KEY,
 ] as const;
 
+const promptFileMigrationConsequences = localize(
+	'promptFileMigrationConsequences',
+	"Unsupported prompt-only headers are removed. Converted skills set disable-model-invocation: true, so the agent will not load them automatically; invoke them manually with /name.",
+);
+
 /**
  * Converts `*.prompt.md` files into skills. Agent-host harnesses ignore prompt
  * files entirely, so both workspace and user prompts are offered here.
@@ -90,10 +96,10 @@ const promptFilesMigrationCategory: ICustomizationMigrationCategory = {
 	cardActionLabel: localize('promptMigrationCardAction', "Convert to Skills..."),
 	cardActionAriaLabel: localize('promptMigrationCardActionAriaLabel', "Convert prompt files to skills"),
 	noFilesMigratedMessage: localize('promptMigrationNoFilesConverted', "No prompt files were converted."),
+	preMigrationConsequences: promptFileMigrationConsequences,
 
 	isCandidate: isPromptFileMigrationCandidate,
 	getCandidateLabel: getFileCandidateLabel,
-
 
 	getShortcutAriaLabel(count) {
 		return localize('promptMigrationShortcutAriaLabelWithCount', "Prompts, {0} deprecated prompt files need migration", count);
@@ -126,14 +132,14 @@ const promptFilesMigrationCategory: ICustomizationMigrationCategory = {
 
 	getConfirmation(customizations) {
 		const { workspaceCount, userCount } = countPromptStorages(customizations);
-		const detail = workspaceCount > 0 && userCount > 0
+		const scopeDetail = workspaceCount > 0 && userCount > 0
 			? localize('promptMigrationConfirmDetailWorkspaceAndUser', "This converts {0} workspace prompt files and {1} user prompt files into skills.", workspaceCount, userCount)
 			: workspaceCount > 0
 				? localize('promptMigrationConfirmDetailWorkspace', "This converts {0} workspace prompt files into skills.", workspaceCount)
 				: localize('promptMigrationConfirmDetailUser', "This converts {0} user prompt files into skills.", userCount);
 		return {
 			message: localize('promptMigrationConfirmMessage', "Convert prompt files to skills?"),
-			detail,
+			detail: localize('promptMigrationConfirmDetailWithConsequences', "{0}\n\n{1}", scopeDetail, promptFileMigrationConsequences),
 			primaryButton: localize('promptMigrationConfirmButton', "Convert to Skills"),
 			deleteOriginalsLabel: localize('promptMigrationDeletePromptFilesCheckbox', "Delete original prompt files after migration"),
 		};
