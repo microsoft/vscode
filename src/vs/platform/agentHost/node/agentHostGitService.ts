@@ -1005,10 +1005,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 		const indexFile = URI.joinPath(tempDir, 'index').fsPath;
 		const env: Record<string, string> = { GIT_INDEX_FILE: indexFile, COMMAND_HOOK_LOCK: '1' };
 		try {
-			// Every path where the repository index differs from HEAD or the
-			// working tree is in `changedPaths` and is restaged below, so a copy
-			// of the index yields the same tree as seeding from HEAD while
-			// skipping a `git read-tree` process, which is costly on Windows.
+			// Copying a HEAD-equivalent index avoids read-tree without trusting cached metadata for staged blobs.
 			if (indexPath && canRestageOntoIndexCopy(statusOut) && await this._tryCopyIndex(indexPath, indexFile)) {
 				const tree = await this._stageAndWriteTree(repositoryRoot, tempDir, changedPaths, env);
 				if (tree) {
@@ -1763,15 +1760,7 @@ export function parseUntrackedPaths(output: string | undefined): string[] {
 	return parseChangedPaths(output, status => status === '??');
 }
 
-/**
- * Whether every entry of NUL-separated `git status --porcelain=v1 -z` output
- * can be restaged onto a copy of the repository index to capture the working
- * tree. Staged deletions, renames, copies, conflicts, and staged additions
- * later deleted from the working tree leave paths that `git add` cannot
- * match, so callers seed from HEAD for those instead.
- *
- * Exported for tests.
- */
+/** Allows index copying only when changed paths have no staged blobs or unmatched pathspecs. */
 export function canRestageOntoIndexCopy(output: string): boolean {
 	for (const segment of output.split('\x00')) {
 		if (!segment) {
@@ -1779,10 +1768,10 @@ export function canRestageOntoIndexCopy(output: string): boolean {
 		}
 		const index = segment[0];
 		const workingTree = segment[1];
-		if (index !== ' ' && index !== 'M' && index !== 'A' && index !== 'T' && index !== '?') {
+		if (index !== ' ' && index !== '?') {
 			return false;
 		}
-		if (workingTree === 'U' || workingTree === 'R' || workingTree === 'C' || (index === 'A' && (workingTree === 'A' || workingTree === 'D'))) {
+		if (workingTree === 'U' || workingTree === 'R' || workingTree === 'C') {
 			return false;
 		}
 	}

@@ -257,23 +257,26 @@ export class CopilotCustomizationInstallations extends Disposable {
 		if (!marketplacesApi) {
 			return { kind: 'unavailable', reason: 'unsupported' };
 		}
-		const availableMarketplaces = new Set((await marketplacesApi.list()).marketplaces
+		const availableMarketplaces = new Map((await marketplacesApi.list()).marketplaces
 			.filter(marketplace => marketplace.available !== false)
-			.map(marketplace => marketplace.name));
+			.map(marketplace => [marketplace.name, marketplace.source] as const));
 		return {
 			kind: 'page',
 			items: featuredPlugins
-				.filter(featured => availableMarketplaces.has(featured.marketplace))
-				.map(featured => ({
-					selectionId: `featured-plugin:${featured.marketplace}:${featured.name}`,
-					kind: 'plugin' as const,
-					displayName: featured.displayName,
-					description: featured.description,
-					publisher: featured.publisher,
-					pluginName: featured.name,
-					marketplace: featured.marketplace,
-					installable: true,
-				}))
+				.flatMap(featured => {
+					const marketplaceSource = availableMarketplaces.get(featured.marketplace);
+					return marketplaceSource ? [{
+						selectionId: `featured-plugin:${featured.marketplace}:${featured.name}`,
+						kind: 'plugin' as const,
+						displayName: featured.displayName,
+						description: featured.description,
+						publisher: featured.publisher,
+						pluginName: featured.name,
+						marketplace: featured.marketplace,
+						marketplaceSource,
+						installable: true,
+					}] : [];
+				})
 				.slice(0, request.limit),
 		};
 	}

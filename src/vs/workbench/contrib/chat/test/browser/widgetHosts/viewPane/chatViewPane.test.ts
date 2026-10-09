@@ -24,7 +24,7 @@ import { URI } from '../../../../../../../base/common/uri.js';
 suite('ChatViewPane managed permission rules', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	for (const policyKey of ['permissions.deny', 'sandbox.enabled']) {
+	for (const policyKey of ['permissions.deny', 'permissions.disableBypassPermissionsMode', 'permissions.defaultMode', 'sandbox.enabled']) {
 		for (const result of ['missing', 'error'] as const) {
 			test(`${policyKey} waits for policy and rejects ${result} Copilot without a Local fallback`, async () => {
 				const ready = new DeferredPromise<void>();
@@ -35,6 +35,7 @@ suite('ChatViewPane managed permission rules', () => {
 					accountPolicyGateService: { gateInfo: { state: AccountPolicyGateState.Inactive }, onDidChangeGateInfo: Event.None, whenInitialized: () => ready.p },
 					managedSettingsService: new class extends NullManagedSettingsService {
 						override getManagedSettingValue(key: string) { return key === policyKey ? rules : undefined; }
+						override getManagedSettings() { return rules === undefined ? {} : { [policyKey]: rules }; }
 					}(),
 					configurationService: new TestConfigurationService(),
 					workspaceContextService: new TestContextService(),
@@ -56,7 +57,7 @@ suite('ChatViewPane managed permission rules', () => {
 				});
 				const pending = pane.acquireDefaultNewSession(CancellationToken.None);
 				const before = [...selected];
-				rules = policyKey === 'sandbox.enabled' ? true : '["Shell"]';
+				rules = policyKey === 'sandbox.enabled' ? true : policyKey === 'permissions.defaultMode' ? 'manual' : policyKey === 'permissions.disableBypassPermissionsMode' ? 'disable' : '[]';
 				ready.complete();
 				await assert.rejects(pending);
 				assert.deepStrictEqual({ before, selected, explained: errors.some(error => error.includes('organization requires the new Copilot experience')) }, {

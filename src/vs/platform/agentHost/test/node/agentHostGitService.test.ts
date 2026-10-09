@@ -410,12 +410,12 @@ suite('AgentHostGitService', () => {
 	});
 
 	suite('canRestageOntoIndexCopy', () => {
-		test('allows only statuses whose paths git add can restage onto a copied index', () => {
-			const statuses = [' M', 'M ', 'MM', 'A ', 'AM', ' D', ' T', '??', 'D ', 'AD', 'R ', 'C ', ' R', 'UU', 'AA', 'DD'];
+		test('copies only HEAD-equivalent indexes without staged blob metadata', () => {
+			const statuses = [' M', 'M ', 'MM', 'A ', 'AM', ' D', ' T', 'T ', '??', 'D ', 'AD', 'R ', 'C ', ' R', 'UU', 'AA', 'DD'];
 			assert.deepStrictEqual(
 				Object.fromEntries(statuses.map(status => [status, canRestageOntoIndexCopy(`${status} file.txt\x00`)])),
 				{
-					' M': true, 'M ': true, 'MM': true, 'A ': true, 'AM': true, ' D': true, ' T': true, '??': true,
+					' M': true, 'M ': false, 'MM': false, 'A ': false, 'AM': false, ' D': true, ' T': true, 'T ': false, '??': true,
 					'D ': false, 'AD': false, 'R ': false, 'C ': false, ' R': false, 'UU': false, 'AA': false, 'DD': false,
 				},
 			);

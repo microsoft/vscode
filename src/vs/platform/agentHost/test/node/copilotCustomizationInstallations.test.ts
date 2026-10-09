@@ -99,6 +99,7 @@ suite('CopilotCustomizationInstallations', () => {
 						publisher: 'microsoft',
 						pluginName: 'azure',
 						marketplace: 'awesome-copilot',
+						marketplaceSource: 'GitHub: github/awesome-copilot',
 						installable: true,
 					},
 					{
@@ -109,6 +110,7 @@ suite('CopilotCustomizationInstallations', () => {
 						publisher: 'microsoft',
 						pluginName: 'workiq',
 						marketplace: 'copilot-plugins',
+						marketplaceSource: 'GitHub: github/copilot-plugins',
 						installable: true,
 					},
 					{
@@ -119,6 +121,7 @@ suite('CopilotCustomizationInstallations', () => {
 						publisher: 'github',
 						pluginName: 'security-best-practices',
 						marketplace: 'awesome-copilot',
+						marketplaceSource: 'GitHub: github/awesome-copilot',
 						installable: true,
 					},
 				],
