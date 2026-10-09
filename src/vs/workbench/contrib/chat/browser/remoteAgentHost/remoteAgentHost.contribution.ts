@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../../nls.js';
-import { CloudSandboxEnabledSettingId, ICloudSandboxAgentHostService, ICloudSandboxApiService } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { CloudSandboxAutoConnectOnOpenSettingId, CloudSandboxEnabledSettingId, ICloudSandboxAgentHostService, ICloudSandboxApiService } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
@@ -71,6 +71,13 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],
 			experiment: { mode: 'auto' },
+		},
+		[CloudSandboxAutoConnectOnOpenSettingId]: {
+			type: 'boolean',
+			description: localize('chat.agentHost.cloudSandbox.autoConnectOnOpen', "Automatically connect to or wake a cloud sandbox environment in the background when opening or restoring its chat in the Agents Window. When disabled, connecting waits until you start composing or explicitly connect."),
+			default: true,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental', 'advanced'],
 		},
 	},
 });

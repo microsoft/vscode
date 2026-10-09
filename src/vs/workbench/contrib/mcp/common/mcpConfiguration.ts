@@ -40,6 +40,32 @@ export const allDiscoverySources = Object.keys({
 	[ExternalDiscoverySource.CursorWorkspace]: true,
 } satisfies Record<ExternalDiscoverySource, true>) as ExternalDiscoverySource[];
 
+/**
+ * Default enablement for each {@link ExternalDiscoverySource}. The Copilot CLI
+ * user configuration is on by default because MCP server migration moves user
+ * servers there; other applications' configurations remain opt-in.
+ */
+export const defaultDiscoverySourceEnablement: Readonly<Record<ExternalDiscoverySource, boolean>> = {
+	[ExternalDiscoverySource.ClaudeDesktop]: false,
+	[ExternalDiscoverySource.Copilot]: true,
+	[ExternalDiscoverySource.Windsurf]: false,
+	[ExternalDiscoverySource.CursorGlobal]: false,
+	[ExternalDiscoverySource.CursorWorkspace]: false,
+};
+
+/**
+ * Returns whether a discovery source is enabled by a `chat.mcp.discovery.enabled`
+ * value. The legacy boolean form applies to every source; sources not set in the
+ * object form use {@link defaultDiscoverySourceEnablement}.
+ */
+export function isDiscoverySourceEnabled(value: unknown, discoverySource: ExternalDiscoverySource): boolean {
+	if (typeof value === 'boolean') {
+		return value;
+	}
+	const enabled = value && typeof value === 'object' ? (value as Partial<Record<ExternalDiscoverySource, unknown>>)[discoverySource] : undefined;
+	return typeof enabled === 'boolean' ? enabled : defaultDiscoverySourceEnablement[discoverySource];
+}
+
 export const discoverySourceLabel: Record<ExternalDiscoverySource, string> = {
 	[ExternalDiscoverySource.ClaudeDesktop]: localize('mcp.discovery.source.claude-desktop', "Claude Desktop"),
 	[ExternalDiscoverySource.Copilot]: localize('mcp.discovery.source.copilot', "GitHub Copilot CLI"),

@@ -81,6 +81,8 @@ export interface ISendRequestOptions {
 
 /** Provider options applied when creating a new session draft. */
 export interface ISessionsProviderCreateSessionOptions {
+	/** Whether this draft configures an Automation rather than an interactive session. */
+	readonly isAutomationDraft?: boolean;
 	/** Initial provider metadata to associate with the session. */
 	readonly metadata?: Record<string, unknown>;
 	/** Session that created this session, when it should be presented as a child. */

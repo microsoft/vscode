@@ -255,7 +255,7 @@
 	> .chat-mcp-servers-interaction {
 		margin-block: 0 var(--chat-persistent-item-gap);
 
-		&:last-child {
+		&:nth-last-child(1 of :not([hidden])) {
 			margin-bottom: 0;
 		}
 	}

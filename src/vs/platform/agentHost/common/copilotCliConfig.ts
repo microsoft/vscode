@@ -109,7 +109,7 @@ export const copilotSdkLogLevelSettingValues = ['info', 'trace'] as const;
 export type CopilotSdkLogLevelSetting = typeof copilotSdkLogLevelSettingValues[number];
 
 export const DEFAULT_COPILOT_RUBBER_DUCK_ENABLED = true;
-export const DEFAULT_COPILOT_SKILL_CHAR_BUDGET = 15_000;
+export const DEFAULT_COPILOT_SKILL_CHAR_BUDGET = 30_000;
 
 /** Floors valid skill character budgets and returns the default for invalid values. */
 export function normalizeSkillCharBudget(value: number | undefined): number {
@@ -177,7 +177,7 @@ export const copilotCliConfigSchema = createSchema({
 	[CopilotCliConfigKey.EnableCustomTerminalTool]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.enableCustomTerminalTool.title', "Use Agent Host Terminal Tool"),
-		description: localize('agentHost.config.enableCustomTerminalTool.description', "When enabled, Copilot SDK sessions use Agent Host's terminal tool override instead of the SDK's default terminal behavior."),
+		description: localize('agentHost.config.enableCustomTerminalTool.description', "When enabled, Copilot SDK sessions use Agent Host's terminal tool override instead of the SDK's default terminal behavior. Not supported on Windows, where sessions use the SDK's terminal and sandbox runtime."),
 		default: false,
 	}),
 	[CopilotCliConfigKey.EnableShellInitScript]: schemaProperty<boolean>({
