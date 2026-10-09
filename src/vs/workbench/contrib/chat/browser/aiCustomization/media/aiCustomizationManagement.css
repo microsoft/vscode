@@ -1015,7 +1015,7 @@ per-word capitalization does not survive translation. */
 	/* Match the description's line-height so the link's inline-flex line-box */
 	/* does not change the total header height between sections. */
 	line-height: 1.45;
-	color: var(--vscode-inputValidation-warningForeground, var(--vscode-foreground));
+	color: var(--vscode-textLink-foreground);
 	text-decoration: none;
 	cursor: pointer;
 	display: inline-flex;
@@ -1061,7 +1061,7 @@ per-word capitalization does not survive translation. */
 
 .ai-customization-list-widget .section-footer .section-footer-link:hover {
 	text-decoration: underline;
-	color: var(--vscode-inputValidation-warningForeground, var(--vscode-foreground));
+	color: var(--vscode-textLink-activeForeground);
 }
 
 /* Overview View (compact snapshot) */
@@ -1695,7 +1695,7 @@ per-word capitalization does not survive translation. */
 .ai-customization-management-editor .mcp-detail-migration-link {
 	display: inline-block;
 	margin-top: var(--vscode-spacing-size100);
-	color: var(--vscode-textLink-foreground);
+	color: var(--vscode-inputValidation-warningForeground, var(--vscode-foreground));
 	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
@@ -1705,7 +1705,7 @@ per-word capitalization does not survive translation. */
 
 .ai-customization-management-editor .mcp-detail-migration-link:hover,
 .ai-customization-management-editor .mcp-detail-migration-link:active {
-	color: var(--vscode-textLink-activeForeground);
+	color: var(--vscode-inputValidation-warningForeground, var(--vscode-foreground));
 }
 
 /* Embedded plugin detail view */
