@@ -4500,6 +4500,86 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('validates approval requests against host-advertised modes and preserves them on replacement', async () => {
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			registerTestAgentProvider(svc, agent);
+			const session = await svc.createSession({ provider: 'copilot' });
+			const state = getStateManager(svc);
+			state.setSessionConfig(session.toString(), {
+				schema: {
+					type: 'object', properties: {
+						autoApprove: { type: 'string', title: 'Approvals', enum: ['default', 'assisted'], sessionMutable: true },
+						availableApprovalModes: { type: 'array', title: 'Available', readOnly: true },
+					}
+				},
+				values: { autoApprove: 'default', availableApprovalModes: ['default', 'assisted'] },
+			});
+			const results = [];
+			for (const [index, config] of [{ autoApprove: 'autoApprove' }, { availableApprovalModes: ['default', 'autoApprove'] }, { autoApprove: 'assisted' }].entries()) {
+				const response = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === index + 1));
+				svc.dispatchAction(session.toString(), { type: ActionType.SessionConfigChanged, config, replace: true }, 'client', index + 1);
+				results.push(!!(await response).rejectionReason);
+			}
+			assert.deepStrictEqual({ rejected: results, values: state.getSessionState(session.toString())?.config?.values }, {
+				rejected: [true, true, false],
+				values: { autoApprove: 'assisted', availableApprovalModes: ['default', 'assisted'] },
+			});
+		});
+
+		for (const approvalSchema of [{ sessionMutable: false }, { sessionMutable: true, readOnly: true }]) {
+			test(`rejects runtime writes to immutable approval configuration ${JSON.stringify(approvalSchema)}`, async () => {
+				const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+				const agent = new MockAgent('copilot');
+				disposables.add(toDisposable(() => agent.dispose()));
+				registerTestAgentProvider(svc, agent);
+				const session = await svc.createSession({ provider: 'copilot' });
+				const state = getStateManager(svc);
+				state.setSessionConfig(session.toString(), {
+					schema: {
+						type: 'object', properties: {
+							autoApprove: { type: 'string', title: 'Approvals', enum: ['default', 'assisted'], ...approvalSchema },
+							availableApprovalModes: { type: 'array', title: 'Available', readOnly: true },
+						}
+					},
+					values: { autoApprove: 'default', availableApprovalModes: ['default', 'assisted'] },
+				});
+				const response = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
+				svc.dispatchAction(session.toString(), { type: ActionType.SessionConfigChanged, config: { autoApprove: 'assisted' } }, 'client', 1);
+				assert.deepStrictEqual({
+					rejected: !!(await response).rejectionReason, selected: state.getSessionState(session.toString())?.config?.values.autoApprove,
+				}, { rejected: true, selected: 'default' });
+			});
+		}
+
+		for (const restriction of ['unavailable', 'readOnly', 'immutable', 'allowed'] as const) {
+			test(`validates standard approvalMode runtime writes (${restriction})`, async () => {
+				const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+				const agent = new MockAgent('other');
+				disposables.add(toDisposable(() => agent.dispose()));
+				registerTestAgentProvider(svc, agent);
+				const session = await svc.createSession({ provider: 'other' });
+				const state = getStateManager(svc);
+				const available = restriction === 'unavailable' ? ['manual'] : ['manual', 'assisted'];
+				state.setSessionConfig(session.toString(), {
+					schema: {
+						type: 'object', properties: {
+							approvalMode: { type: 'string', title: 'Approvals', enum: ['manual', 'assisted', 'allow-all'], sessionMutable: restriction !== 'immutable', readOnly: restriction === 'readOnly' },
+							availableApprovalModes: { type: 'array', title: 'Available', readOnly: true },
+						}
+					},
+					values: { approvalMode: 'manual', availableApprovalModes: available },
+				});
+				const response = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
+				svc.dispatchAction(session.toString(), { type: ActionType.SessionConfigChanged, config: { approvalMode: 'assisted' }, replace: true }, 'client', 1);
+				assert.deepStrictEqual({ rejected: !!(await response).rejectionReason, values: state.getSessionState(session.toString())?.config?.values }, {
+					rejected: restriction !== 'allowed',
+					values: { approvalMode: restriction === 'allowed' ? 'assisted' : 'manual', availableApprovalModes: available },
+				});
+			});
+		}
+
 		test('rejects client writes to host-owned Agent Merge controller state', async () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = new MockAgent('copilot');
@@ -9998,6 +10078,29 @@ suite('AgentService (node dispatcher)', () => {
 
 			const sessions = await service.listSessions();
 			assert.strictEqual(sessions.length, 1);
+		});
+
+		test('getSessionCount reads registry identities without provider or session database access', async () => {
+			const database = new TestAgentHostOrchestratorDatabase();
+			let databaseOpens = 0;
+			const svc = createCentralCatalogService({
+				...createSessionDataService(),
+				tryOpenDatabase: async () => {
+					databaseOpens++;
+					throw new Error('Counting must not open session databases');
+				},
+			}, database);
+			await svc.whenCatalogReconciliationIdle();
+			databaseOpens = 0;
+			const empty = await svc.getSessionCount();
+			const local = 'ahp-session:/count-local';
+			const external = 'copilotcli:/count-external';
+			await database.registerSessionV2(local, { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+			await database.registerSessionV2(external, { provider: 'copilotcli', startTime: 2, source: 'discovery' }, { checkTombstone: false });
+			const registered = await svc.getSessionCount();
+			await database.tombstoneAndUnregisterSession(local);
+			const afterDelete = await svc.getSessionCount();
+			assert.deepStrictEqual({ empty, registered, afterDelete, databaseOpens }, { empty: 0, registered: 2, afterDelete: 1, databaseOpens: 0 });
 		});
 
 		test('central list uses eligible catalogs and suppresses chat backing with zero legacy reads', async () => {
@@ -19809,7 +19912,7 @@ suite('AgentService (node dispatcher)', () => {
 					}
 					async ensureChatAdopted(): Promise<IAgentChatAdoptionResult> {
 						if (scenario === 'adoptionFailed') {
-							throw new ProtocolError(JSON_RPC_INTERNAL_ERROR, `adoption failed for ${session}; frontend agent-host-copilotcli:/migration-${scenario}; id migration-${scenario}`);
+							throw new ProtocolError(JSON_RPC_INTERNAL_ERROR, 'adoption failed: The argument \'path\' must be a string, Uint8Array, or URL without null bytes. Received \'/private-prefix\\x00...\'');
 						}
 						return scenario === 'declined'
 							? { adopted: false, eligible: false, reason: 'notLegacyChat' }
@@ -19843,6 +19946,9 @@ suite('AgentService (node dispatcher)', () => {
 					stage: data.stage,
 					reason: data.reason,
 					diagnosticCategory: data.diagnosticCategory,
+					provenance: data.provenance,
+					markerStatus: data.markerStatus,
+					diagnosticDetail: data.diagnosticDetail,
 					eligible: data.eligible,
 					advertisedAsAdoptable: data.advertisedAsAdoptable,
 					errorCode: data.errorCode,
@@ -19854,10 +19960,13 @@ suite('AgentService (node dispatcher)', () => {
 					stage: scenario === 'adoptionFailed' ? 'adoption' : failed ? 'restore' : scenario === 'declined' || scenario === 'settingDisabled' ? 'eligibility' : 'complete',
 					reason: scenario === 'adoptionFailed' ? 'unknown' : scenario === 'declined' ? 'notLegacyChat' : scenario === 'settingDisabled' ? 'settingDisabled' : scenario === 'skipped' || scenario === 'eligibleRestoreFailed' ? 'workingDirectoryMissing' : 'adopted',
 					diagnosticCategory: scenario === 'migrated' ? 'notApplicable' : scenario === 'settingDisabled' ? 'configurationDisabled' : scenario === 'declined' ? 'unknown' : 'needsInvestigation',
+					provenance: scenario === 'settingDisabled' ? 'notEvaluated' : scenario === 'adoptionFailed' || scenario === 'declined' ? 'unknown' : 'legacy',
+					markerStatus: scenario === 'settingDisabled' ? 'notEvaluated' : 'notReported',
+					diagnosticDetail: scenario === 'settingDisabled' ? 'settingDisabled' : scenario === 'adoptionFailed' ? 'adoptionThrew' : scenario === 'declined' ? 'providerEvidenceUnavailable' : 'legacyEligible',
 					eligible: scenario === 'adoptionFailed' || scenario === 'settingDisabled' ? undefined : scenario !== 'declined',
 					advertisedAsAdoptable: false,
 					errorCode: scenario === 'adoptionFailed' ? String(JSON_RPC_INTERNAL_ERROR) : undefined,
-					errorMessage: failed ? `${scenario === 'adoptionFailed' ? 'adoption' : 'restore'} failed for [REDACTED: session]; frontend [REDACTED: session]; id [REDACTED: session]` : undefined,
+					errorMessage: scenario === 'adoptionFailed' ? 'Migration error details redacted: invalid session identifier or argument.' : failed ? 'restore failed for [REDACTED: session]; frontend [REDACTED: session]; id [REDACTED: session]' : undefined,
 				}]);
 			});
 		}
@@ -19867,6 +19976,7 @@ suite('AgentService (node dispatcher)', () => {
 			diagnostics: IAgentChatAdoptionResult['diagnostics'];
 			advertised: boolean;
 			category: string;
+			detail?: string;
 		}[] = [
 				{ name: 'no evidence', diagnostics: undefined, advertised: false, category: 'unknown' },
 				{ name: 'explicit external origin', diagnostics: { markerStatus: 'valid', provenance: 'external', markerFromCache: false }, advertised: false, category: 'expectedExclusion' },
@@ -19877,8 +19987,26 @@ suite('AgentService (node dispatcher)', () => {
 				{ name: 'unreadable marker', diagnostics: { markerStatus: 'readError', provenance: 'unknown', markerFromCache: false, errorCode: 'EACCES', errorMessage: 'access denied: copilot:/decline-evidence (id=decline-evidence)' }, advertised: false, category: 'needsInvestigation' },
 				{ name: 'advertised legacy marker disappeared', diagnostics: { markerStatus: 'missing', provenance: 'unknown', markerFromCache: false }, advertised: true, category: 'needsInvestigation' },
 				{ name: 'external origin contradicts advertisement', diagnostics: { markerStatus: 'valid', provenance: 'external', markerFromCache: false }, advertised: true, category: 'needsInvestigation' },
+				{ name: 'session state root missing', diagnostics: { markerStatus: 'missing', provenance: 'unknown', markerFromCache: false, sessionStateRootStatus: 'missing', copilotHomeSource: 'environment' }, advertised: false, category: 'unknown', detail: 'sessionStateRootMissing' },
+				{ name: 'session directory missing', diagnostics: { markerStatus: 'missing', provenance: 'unknown', markerFromCache: false, sessionStateRootStatus: 'directory', sessionDirectoryStatus: 'missing' }, advertised: false, category: 'unknown', detail: 'sessionDirectoryMissing' },
+				{ name: 'marker missing with events', diagnostics: { markerStatus: 'missing', provenance: 'unknown', markerFromCache: false, eventsFileStatus: 'file' }, advertised: false, category: 'unknown', detail: 'markerMissingWithEvents' },
+				{ name: 'marker missing without events', diagnostics: { markerStatus: 'missing', provenance: 'unknown', markerFromCache: false, eventsFileStatus: 'missing' }, advertised: false, category: 'unknown', detail: 'markerMissingWithoutEvents' },
+				{ name: 'malformed identity', diagnostics: { markerStatus: 'missing', provenance: 'unknown', markerFromCache: false, sessionIdStatus: 'controlCharacters' }, advertised: false, category: 'needsInvestigation', detail: 'invalidSessionId' },
+				{ name: 'storage probe failed', diagnostics: { markerStatus: 'missing', provenance: 'unknown', markerFromCache: false, sessionDirectoryStatus: 'readError' }, advertised: false, category: 'needsInvestigation', detail: 'storageProbeFailed' },
+				{ name: 'invalid storage layout', diagnostics: { markerStatus: 'missing', provenance: 'unknown', markerFromCache: false, eventsFileStatus: 'directory' }, advertised: false, category: 'needsInvestigation', detail: 'storageLayoutInvalid' },
+				{ name: 'missing origin', diagnostics: { markerStatus: 'valid', provenance: 'unknown', markerFromCache: false, markerOrigin: 'missing' }, advertised: false, category: 'unknown', detail: 'originMissing' },
+				{ name: 'unrecognized origin', diagnostics: { markerStatus: 'valid', provenance: 'unknown', markerFromCache: false, markerOrigin: 'unrecognized' }, advertised: false, category: 'unknown', detail: 'originUnrecognized' },
+				{ name: 'invalid origin type', diagnostics: { markerStatus: 'valid', provenance: 'unknown', markerFromCache: false, markerOrigin: 'invalidType' }, advertised: false, category: 'unknown', detail: 'originInvalidType' },
+				{ name: 'escaped invalid marker path', diagnostics: { markerStatus: 'readError', provenance: 'unknown', markerFromCache: false, errorCode: 'ERR_INVALID_ARG_VALUE', errorMessage: 'Received "/private-prefix\\x00..."' }, advertised: false, category: 'needsInvestigation', detail: 'markerReadError' },
+				...(['vscode', 'vscode-agent-host', 'github/cli', 'github/autopilot'] as const).map(lastKnownClient => ({
+					name: `last client ${lastKnownClient} does not establish creator`,
+					diagnostics: { markerStatus: 'missing' as const, provenance: 'unknown' as const, markerFromCache: false, workspaceMetadataStatus: 'valid' as const, lastKnownClient },
+					advertised: false, category: 'unknown',
+				})),
+				{ name: 'external last client contradicts adoptable advertisement', diagnostics: { markerStatus: 'missing', provenance: 'unknown', markerFromCache: false, workspaceMetadataStatus: 'valid', lastKnownClient: 'github/cli' }, advertised: true, category: 'needsInvestigation' },
+				{ name: 'workspace metadata unreadable', diagnostics: { markerStatus: 'missing', provenance: 'unknown', markerFromCache: false, workspaceMetadataStatus: 'readError', lastKnownClient: 'unavailable' }, advertised: false, category: 'unknown' },
 			];
-		for (const { name, diagnostics, advertised, category } of declineCases) {
+		for (const { name, diagnostics, advertised, category, detail } of declineCases) {
 			test(`legacy migration decline evidence: ${name}`, async () => {
 				const events: { data: Record<string, unknown>; error: boolean }[] = [];
 				const telemetry = new class extends NullTelemetryServiceShape {
@@ -19918,12 +20046,20 @@ suite('AgentService (node dispatcher)', () => {
 					error, outcome: data.outcome, category: data.diagnosticCategory,
 					advertised: data.advertisedAsAdoptable, eligible: data.eligible,
 					markerStatus: data.markerStatus, provenance: data.provenance, markerFromCache: data.markerFromCache,
+					diagnosticDetail: detail === undefined ? undefined : data.diagnosticDetail,
+					markerOrigin: data.markerOrigin, sessionIdStatus: data.sessionIdStatus, copilotHomeSource: data.copilotHomeSource,
+					sessionStateRootStatus: data.sessionStateRootStatus, sessionDirectoryStatus: data.sessionDirectoryStatus, eventsFileStatus: data.eventsFileStatus,
+					workspaceMetadataStatus: data.workspaceMetadataStatus, lastKnownClient: data.lastKnownClient,
 					errorCode: data.eligibilityErrorCode, errorMessage: data.eligibilityErrorMessage,
 				})), [{
 					error: diagnostics?.errorMessage !== undefined, outcome: 'declined', category,
 					advertised, eligible: false,
-					markerStatus: diagnostics?.markerStatus, provenance: diagnostics?.provenance, markerFromCache: diagnostics?.markerFromCache,
-					errorCode: diagnostics?.errorCode, errorMessage: diagnostics?.errorMessage === undefined ? undefined : 'access denied: [REDACTED: session] (id=[REDACTED: session])',
+					markerStatus: diagnostics?.markerStatus ?? 'notReported', provenance: diagnostics?.provenance ?? 'unknown', markerFromCache: diagnostics?.markerFromCache,
+					diagnosticDetail: detail,
+					markerOrigin: diagnostics?.markerOrigin ?? 'notReported', sessionIdStatus: diagnostics?.sessionIdStatus ?? 'notReported', copilotHomeSource: diagnostics?.copilotHomeSource ?? 'notReported',
+					sessionStateRootStatus: diagnostics?.sessionStateRootStatus ?? 'notReported', sessionDirectoryStatus: diagnostics?.sessionDirectoryStatus ?? 'notReported', eventsFileStatus: diagnostics?.eventsFileStatus ?? 'notReported',
+					workspaceMetadataStatus: diagnostics?.workspaceMetadataStatus ?? 'notReported', lastKnownClient: diagnostics?.lastKnownClient ?? 'notReported',
+					errorCode: diagnostics?.errorCode, errorMessage: diagnostics?.errorMessage === undefined ? undefined : diagnostics.errorCode === 'ERR_INVALID_ARG_VALUE' ? 'Migration error details redacted: invalid session identifier or argument.' : 'access denied: [REDACTED: session] (id=[REDACTED: session])',
 				}]);
 			});
 		}
@@ -22555,6 +22691,33 @@ suite('AgentService (node dispatcher)', () => {
 			}
 
 			assert.strictEqual(getStateManager(service).getChatState(childChat.toString())?.activeTurn?.id, 'continued-turn');
+		});
+	});
+
+	// ---- stopBackgroundWork ------------------------------------------------
+
+	suite('stopBackgroundWork', () => {
+
+		test('routes to the provider that owns the chat', async () => {
+			const stopped: { chat: string; id: string }[] = [];
+			class StoppingAgent extends MockAgent {
+				async stopBackgroundWork(chat: URI, id: string): Promise<boolean> {
+					stopped.push({ chat: chat.toString(), id });
+					return true;
+				}
+			}
+			const agent = disposables.add(new StoppingAgent('copilot'));
+			registerTestAgentProvider(service, agent);
+			const session = await service.createSession({ provider: 'copilot' });
+			const chat = URI.parse(buildChatUri(session, 'peer-1'));
+
+			assert.deepStrictEqual({
+				result: await service.stopBackgroundWork(chat, 'shell:3'),
+				stopped,
+			}, {
+				result: true,
+				stopped: [{ chat: chat.toString(), id: 'shell:3' }],
+			});
 		});
 	});
 
@@ -28949,6 +29112,29 @@ suite('AgentService (node dispatcher)', () => {
 	});
 
 	suite('session config persistence', () => {
+
+		test('workspaceless Copilot sessions resolve host approval defaults without client config', async () => {
+			const sessionDataService = createSessionDataService(new TestSessionDatabase());
+			const agent = new MockAgent('copilotcli');
+			disposables.add(toDisposable(() => agent.dispose()));
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			registerTestAgentProvider(svc, agent);
+			agent.resolveChatConfig = async () => ({
+				schema: {
+					type: 'object', properties: {
+						autoApprove: { type: 'string', title: 'Approvals', enum: ['default', 'assisted', 'autoApprove'], sessionMutable: true },
+						availableApprovalModes: { type: 'array', title: 'Available', readOnly: true },
+						effectiveApprovalMode: { type: 'string', title: 'Effective', readOnly: true },
+					}
+				},
+				values: { autoApprove: 'assisted', availableApprovalModes: ['default', 'assisted'], effectiveApprovalMode: 'assisted' },
+			});
+
+			const session = await svc.createSession({ provider: 'copilotcli' });
+			assert.deepStrictEqual(getStateManager(svc).getSessionState(session.toString())?.config?.values, {
+				autoApprove: 'assisted', availableApprovalModes: ['default', 'assisted'], effectiveApprovalMode: 'assisted',
+			});
+		});
 
 		test('restoreSession replaces persisted off with applied on when current managed policy requires sandboxing', async () => {
 			const sessionDb = disposables.add(await SessionDatabase.open(':memory:'));

@@ -41,6 +41,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { ILifecycleService } from '../../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { IChangesViewService } from '../../../changes/common/changesViewService.js';
+import { ISessionEditorWorkingSetService, SessionEditorWorkingSetService } from '../../common/sessionEditorWorkingSet.js';
 
 type SidePaneComposition = { readonly editor: boolean; readonly auxiliaryBar: boolean };
 
@@ -296,6 +297,7 @@ export interface ITestLayoutHarness {
 	openChangesEditorCalls: { sessionResource: URI; active: boolean }[];
 	readonly sessionChangesService: ISessionChangesService;
 	readonly contextKeyService: MockContextKeyService;
+	readonly editorWorkingSetService: ISessionEditorWorkingSetService;
 	activeEditorInput?: EditorInput;
 }
 
@@ -324,6 +326,8 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		override publicLog2(): void { }
 	});
 	instaService.stub(ILogService, store.add(new NullLogService()));
+	const editorWorkingSetService = new SessionEditorWorkingSetService();
+	instaService.stub(ISessionEditorWorkingSetService, editorWorkingSetService);
 
 	const chatLayoutIsPhoneObs = observableValue<boolean>('chatLayoutIsPhone', false);
 	const chatLayoutPresentation = store.add(new ChatLayoutPresentation(configService, options.desktopLayout ?? false, chatLayoutIsPhoneObs));
@@ -405,6 +409,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 			override registerDecorationsProvider() { return toDisposable(() => { }); }
 		})),
 		contextKeyService,
+		editorWorkingSetService,
 	};
 
 	const testActiveGroup: IEditorGroup = new class extends mock<IEditorGroup>() {

@@ -12,7 +12,6 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString, markdownStringEqual } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, MutableDisposable, ReferenceCollection, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { mapsStrictEqualIgnoreOrder, ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
-import { Schemas } from '../../../../../base/common/network.js';
 import { deepClone, equals } from '../../../../../base/common/objects.js';
 import { constObservable, derived, derivedOpts, IObservable, IReader, ISettableObservable, ITransaction, mapObservableArrayCached, observableFromEvent, observableSignal, observableSignalFromEvent, observableValueOpts, subtransaction, transaction, waitForState, autorun, observableValue } from '../../../../../base/common/observable.js';
 import { basename, dirname, extUriIgnorePathCase, getComparisonKey, isEqual, isEqualOrParent, joinPath, relativePath } from '../../../../../base/common/resources.js';
@@ -71,13 +70,14 @@ import { IAgentCustomizationScope, IAgentHostActiveClientService } from '../../.
 import { AgentHostBackgroundShellOutputs } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostBackgroundShells.js';
 import type { IChatBackgroundShell } from '../../../../../workbench/contrib/chat/common/sessionChatPills.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
+import { AgentHostCanvas } from '../../../../../workbench/contrib/canvases/common/agentHostCanvas.js';
 import { ChatMode } from '../../../../../workbench/contrib/chat/common/chatModes.js';
 import { IChatSendRequestOptions, IChatService, type IChatModelReference } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionFileChange, IChatSessionFileChange2, IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { assertAutomationSessionTemplate, IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationModelConfiguration } from '../../../automations/browser/automationModelConfiguration.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, getChatPermissionLevelFromDefaultConfiguration, isChatPermissionLevel, type IChatDefaultConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
-import { isAutoApprovePolicyRestricted, normalizeSessionConfigValue } from '../../../../../workbench/contrib/chat/common/agentHostConfigPolicy.js';
+import { getAgentHostApprovalDefault, isAutoApprovePolicyRestricted, normalizeAgentHostApprovalConfig, normalizeSessionConfigValue } from '../../../../../workbench/contrib/chat/common/agentHostConfigPolicy.js';
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { getRegisteredLanguageModels, getVisibleLanguageModelsForTarget, resolveConfiguredModel, resolveModelIdentifier, resolveModelIdentifierFromLanguageModels } from '../../../../../workbench/contrib/chat/common/modelSelection.js';
 import { canInitializeCodexWithoutGitHub } from '../../../../../workbench/services/agentHost/browser/codexAccountService.js';
@@ -240,6 +240,7 @@ interface ISerializedSessionMetadata {
 	readonly startTime: number;
 	readonly modifiedTime: number;
 	readonly summary?: string;
+	readonly titleIsExplicit?: boolean;
 	readonly workingDirectory?: string;
 	/** Session-scoped flag bits only — see {@link SESSION_STATUS_FLAG_MASK}. */
 	readonly status?: ProtocolSessionStatus;
@@ -296,7 +297,7 @@ interface ISerializedSessionMetadata {
  */
 const SESSION_STATUS_FLAG_MASK = ProtocolSessionStatus.IsRead | ProtocolSessionStatus.IsArchived;
 
-function serializeMetadata(meta: IAgentSessionMetadata, discovery?: IAgentHostSessionDiscoveryMetadata): ISerializedSessionMetadata {
+function serializeMetadata(meta: IAgentSessionMetadata, discovery?: IAgentHostSessionDiscoveryMetadata, titleIsExplicit = false): ISerializedSessionMetadata {
 	const gitHubData = readSessionGitHubData(meta._meta);
 	const workingDirectoryKeys = readWorkingDirectoryKeys(meta._meta);
 	const workingDirectoryScopeIds = readWorkingDirectoryScopeIds(meta._meta);
@@ -307,6 +308,7 @@ function serializeMetadata(meta: IAgentSessionMetadata, discovery?: IAgentHostSe
 		startTime: meta.startTime,
 		modifiedTime: meta.modifiedTime,
 		summary: meta.summary,
+		titleIsExplicit: titleIsExplicit || undefined,
 		workingDirectory: meta.workingDirectories?.[0]?.toString(),
 		status: meta.status !== undefined ? meta.status & SESSION_STATUS_FLAG_MASK : undefined,
 		project: meta.project ? { uri: meta.project.uri.toString(), displayName: meta.project.displayName } : undefined,
@@ -487,21 +489,11 @@ function isGloballyRememberedSessionConfigKey(property: string): boolean {
 		&& !UNSAFE_SESSION_CONFIG_KEYS.has(property);
 }
 
-function normalizeAutoApproveValue(value: unknown, policyRestricted: boolean): ChatPermissionLevel | undefined {
+function normalizeAutoApproveValue(value: unknown): ChatPermissionLevel | undefined {
 	// `KNOWN_AUTO_APPROVE_VALUES` is intentionally tolerant of legacy values
 	// that are not real `ChatPermissionLevel`s. Validate against the enum here
 	// so this function never returns a value outside its declared contract.
-	const normalized = getChatPermissionLevelFromDefaultConfiguration(value) ?? (isChatPermissionLevel(value) ? value : undefined);
-	if (!normalized) {
-		return undefined;
-	}
-	// Bypass and (legacy) Autopilot auto-approve at least some
-	// tool calls, so clamp them to Default when enterprise policy disables
-	// global auto-approval.
-	if (policyRestricted && normalized !== ChatPermissionLevel.Default) {
-		return ChatPermissionLevel.Default;
-	}
-	return normalized;
+	return getChatPermissionLevelFromDefaultConfiguration(value) ?? (isChatPermissionLevel(value) ? value : undefined);
 }
 
 function isGitHubInfoEqual(a: IGitHubInfo | undefined, b: IGitHubInfo | undefined): boolean {
@@ -870,6 +862,8 @@ export interface IAgentHostAdapterOptions {
 	readonly externalSessionState?: (resource: URI, store: DisposableStore) => IObservable<boolean>;
 	/** Uses the session title for the main conversation instead of the host's default chat label. */
 	readonly useSessionTitleForDefaultChat?: boolean;
+	/** Identifies provider placeholders that must not replace an existing display title. */
+	readonly isSessionTitlePlaceholder?: (title: string, session: URI) => boolean;
 }
 
 /**
@@ -975,37 +969,6 @@ interface IChatOutputObs {
 	readonly getFolderGitHubInfo: (reader: IReader) => IFolderGitHubInfoResolver;
 	/** Resolves the Git state persisted for the chat's working-directory scope. */
 	readonly getScopeGitState: (reader: IReader, workingDirectories: readonly string[] | undefined) => ISessionGitState | undefined;
-}
-
-class AgentHostSessionCanvas implements ISessionCanvas {
-	readonly resource: URI;
-	readonly instanceId: string | undefined;
-	readonly title: string;
-	readonly status: string | undefined;
-	readonly source: URI | undefined;
-
-	constructor(
-		resource: URI,
-		canvas: CanvasState | undefined,
-		@ILogService logService: ILogService,
-	) {
-		this.resource = resource;
-		this.instanceId = canvas?.instanceId;
-		this.title = canvas?.title ?? canvas?.extensionName ?? canvas?.canvasId ?? localize('canvas.pendingTitle', "Canvas");
-		this.status = canvas?.status;
-		if (canvas?.url !== undefined) {
-			try {
-				const source = URI.parse(canvas.url, true);
-				if ((source.scheme === Schemas.http || source.scheme === Schemas.https) && source.authority) {
-					this.source = source;
-				} else {
-					logService.warn('[AgentHostSessionCanvas] Unsupported canvas source');
-				}
-			} catch {
-				logService.warn('[AgentHostSessionCanvas] Invalid canvas source');
-			}
-		}
-	}
 }
 
 /** Shares one retained session-state subscription across all observed peer-chat details. */
@@ -1313,6 +1276,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	/** See {@link ISession.worktreePending}. */
 	readonly worktreePending: IObservable<boolean>;
 	readonly title: ISettableObservable<string>;
+	private _titleIsExplicit = false;
 	readonly updatedAt: ISettableObservable<Date>;
 	readonly status: ISettableObservable<SessionStatus>;
 	readonly completedStateIcon: IObservable<ThemeIcon | undefined>;
@@ -2412,10 +2376,8 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		let didChange = false;
 
 		transaction(tx => {
-			const summary = metadata.summary;
-			if (summary !== undefined && summary !== this.title.get()) {
-				this.title.set(summary, tx);
-				didChange = true;
+			if (metadata.summary !== undefined) {
+				didChange = this.setTitleFromHost(metadata.summary, tx);
 			}
 
 			if (metadata.status !== undefined) {
@@ -2497,6 +2459,22 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		});
 
 		return didChange;
+	}
+
+	setTitleFromHost(title: string, tx?: ITransaction): boolean {
+		if (title === this.title.get() || this._options.isSessionTitlePlaceholder?.(title, this.backendUri)) {
+			return false;
+		}
+		this._titleIsExplicit = false;
+		this.title.set(title, tx);
+		return true;
+	}
+
+	get titleIsExplicit(): boolean { return this._titleIsExplicit; }
+
+	setTitleFromUser(title: string): void {
+		this._titleIsExplicit = true;
+		this.title.set(title, undefined);
 	}
 
 	/**
@@ -2647,9 +2625,9 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		let project: IAgentHostSessionDiscoveryMetadata['project'];
 		let didChange = false;
 		transaction(tx => {
-			if (previous.summary !== undefined && this.title.get() === previous.summary) {
+			if (!this._titleIsExplicit && ((previous.summary !== undefined && this.title.get() === previous.summary) || this._options.isSessionTitlePlaceholder?.(this.title.get(), this.backendUri))) {
 				summary = metadata.summary ?? previous.summary;
-				if (summary !== this.title.get()) {
+				if (summary !== undefined && summary !== this.title.get()) {
 					this.title.set(summary, tx);
 					didChange = true;
 				}
@@ -2853,7 +2831,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		const outputs = new AgentHostBackgroundShellOutputs(reader => this._options.getConnection(reader));
 		return derivedOpts<readonly IChatBackgroundShell[]>({ owner: this, equalsFn: structuralEquals }, reader => {
 			const chatState = chatStateObs.read(reader).read(reader);
-			return chatState && !(chatState instanceof Error) ? outputs.project(chatState.backgroundWork) : [];
+			return chatState && !(chatState instanceof Error) ? outputs.project(chatState.backgroundWork, chatUriObs.read(reader)) : [];
 		});
 	}
 
@@ -2876,7 +2854,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			);
 			return derived(reader => {
 				const state = stateObs.read(reader).read(reader);
-				return this._options.instantiationService.createInstance(AgentHostSessionCanvas, resource,
+				return this._options.instantiationService.createInstance(AgentHostCanvas, resource,
 					state && !(state instanceof Error) ? state : undefined);
 			});
 		}, canvas => canvas.resource);
@@ -3149,6 +3127,7 @@ class NewSession extends Disposable {
 		private readonly _options: IAgentHostAdapterOptions,
 		@ISessionsService sessionsService: ISessionsService,
 		@ILanguageModelsService languageModelsService: ILanguageModelsService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 		const initialSessionTemplate = ctx.initialSessionTemplate;
@@ -3421,7 +3400,10 @@ class NewSession extends Disposable {
 
 	/** Whether the backend session may only be created with the resolved initial permissions, mode, or pull request. */
 	private get _requiresResolvedInitialConfig(): boolean {
-		return !!this._resolveInitialPermissionConfig || !!this._initialModeId || !!this._initialPullRequestUrl;
+		const values = this._config?.values ?? this._unresolvedConfigValues;
+		return !!this._resolveInitialPermissionConfig || !!this._initialModeId || !!this._initialPullRequestUrl
+			|| values?.[SessionConfigKey.AutoApprove] !== undefined || values?.approvalMode !== undefined
+			|| isAutoApprovePolicyRestricted(this._configurationService, this._config?.schema);
 	}
 
 	async waitForConfigurationReady(): Promise<void> {
@@ -3523,7 +3505,7 @@ class NewSession extends Disposable {
 			let result = discovered;
 			if (!this._hasResolvedConfig || !this._config) {
 				const permissions = !this._hasResolvedConfig ? this._resolveInitialPermissionConfig?.(discovered) : undefined;
-				const initial = { ...filterSessionConfigValues(discovered.schema, values), ...permissions };
+				const initial = { ...filterSessionConfigValues(discovered.schema, normalizeAgentHostApprovalConfig(this._configurationService, discovered, values ?? {})), ...permissions };
 				if (Object.entries(initial).some(([key, value]) => !equals(value, discovered.values[key]))) {
 					result = await connection.resolveSessionConfig({
 						provider: this.agentProvider,
@@ -3898,7 +3880,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			return undefined;
 		}
 		const permissionId = getAgentHostSessionPermissionId(sessionType, config);
-		const option = getAgentHostSessionPermissionOptions(sessionType, isAutoApprovePolicyRestricted(this._baseConfigurationService), true, config)
+		const option = getAgentHostSessionPermissionOptions(sessionType, isAutoApprovePolicyRestricted(this._baseConfigurationService, config?.schema), true, config)
 			.find(option => option.id === permissionId);
 		const mode = config.values[SessionConfigKey.Mode] ?? config.schema.properties[SessionConfigKey.Mode]?.default;
 		return option ? { ...option, comparisonModeId: typeof mode === 'string' ? mode : undefined } : undefined;
@@ -4264,7 +4246,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * the bits that are uniform across hosts (`icon`, `loading`,
 	 * `mapDiffUri`) from the corresponding hooks.
 	 */
-	protected abstract _adapterOptions(): Pick<IAgentHostAdapterOptions, 'buildWorkspace' | 'readOnly' | 'defaultChangesetKind' | 'preserveStatusWhenDisconnected' | 'externalSessionState' | 'useSessionTitleForDefaultChat' | 'supportsCanvasPresentation'>;
+	protected abstract _adapterOptions(): Pick<IAgentHostAdapterOptions, 'buildWorkspace' | 'readOnly' | 'defaultChangesetKind' | 'preserveStatusWhenDisconnected' | 'externalSessionState' | 'useSessionTitleForDefaultChat' | 'isSessionTitlePlaceholder' | 'supportsCanvasPresentation'>;
 
 	/**
 	 * Hook to normalize a session's metadata before it is cached, keyed, or
@@ -4865,18 +4847,18 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const baseInitialConfigValues = initialAutomationConfiguration
 			? {
 				...this._derivedNewSessionConfig(workspace),
-				...this._normalizeAutomationSessionConfig(initialSessionTemplate?.config),
+				...initialSessionTemplate?.config,
 			}
 			: this._initialNewSessionConfig(workspace);
 		const permissionConfig = initialPermissionId
 			? getAgentHostSessionPermissionConfig(
 				sessionType.id,
 				initialPermissionId,
-				isAutoApprovePolicyRestricted(this._baseConfigurationService),
+				false,
 				true,
 			)
 			: undefined;
-		if (initialPermissionId && !permissionConfig && getAgentHostSessionPermissionOptions(sessionType.id, isAutoApprovePolicyRestricted(this._baseConfigurationService), true).length > 0) {
+		if (initialPermissionId && !permissionConfig && getAgentHostSessionPermissionOptions(sessionType.id, false, true).length > 0) {
 			throw new Error(`Agent '${sessionType.id}' does not support permission '${initialPermissionId}'.`);
 		}
 		const initialConfigValues = {
@@ -4902,7 +4884,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				initialModeId,
 				initialPullRequestUrl,
 				resolveInitialPermissionConfig: initialPermissionId ? config => {
-					const permissions = getAgentHostSessionPermissionConfig(sessionType.id, initialPermissionId, isAutoApprovePolicyRestricted(this._baseConfigurationService), true, config);
+					const permissions = getAgentHostSessionPermissionConfig(sessionType.id, initialPermissionId, isAutoApprovePolicyRestricted(this._baseConfigurationService, config.schema), true, config);
 					if (!permissions) {
 						throw new Error(localize('agentHost.initialPermissionUnsupported', "The selected session permissions could not be applied: agent '{0}' does not support permission '{1}'.", sessionType.id, initialPermissionId));
 					}
@@ -4987,14 +4969,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			...(configuration.modelId ? { modelId: configuration.modelId } : {}),
 			...(Object.keys(config).length > 0 ? { config } : {}),
 		};
-	}
-
-	private _normalizeAutomationSessionConfig(config: Readonly<Record<string, unknown>> | undefined): Record<string, unknown> {
-		const policyRestricted = isAutoApprovePolicyRestricted(this._baseConfigurationService);
-		return Object.fromEntries(Object.entries(config ?? {}).map(([key, value]) => [
-			key,
-			normalizeSessionConfigValue(key, value, policyRestricted),
-		]));
 	}
 
 	protected _resumeNewSessionAfterAuthenticationSettles(): void {
@@ -5159,10 +5133,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * local-only `chat.permissions.default` setting is intentionally NOT
 	 * consulted here.
 	 *
-	 * If enterprise policy disables global auto-approval
-	 * (`chat.tools.global.autoApprove` policy value `false`), the approval seed
-	 * is clamped to `default` so the agent host never starts in an elevated
-	 * permission level the user is not allowed to pick.
+	 * Approval seeds retain the user's preference until schema discovery decides
+	 * whether host-reported policy or the legacy client restriction applies.
 	 *
 	 * The user's `git.branchPrefix` setting (resource-scoped to the workspace's
 	 * first folder) is seeded into the `worktreeBranchPrefix` slot so the agent
@@ -5170,7 +5142,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 */
 	protected _initialNewSessionConfig(workspace?: ISessionWorkspace): Record<string, unknown> | undefined {
 		const config = Object.create(null) as Record<string, unknown>;
-		const policyRestricted = isAutoApprovePolicyRestricted(this._baseConfigurationService);
 
 		// Seed session config values from the last user picks, migrating any
 		// legacy `autoApprove='autopilot'` remembered value into the new
@@ -5200,9 +5171,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 		// Approval axis: policy > remembered > effective.
 		const resolvedAutoApprove =
-			normalizeAutoApproveValue(policyDefaults?.approvals, policyRestricted)
-			?? normalizeAutoApproveValue(remembered[SessionConfigKey.AutoApprove], policyRestricted)
-			?? normalizeAutoApproveValue(effectiveDefaults?.approvals, policyRestricted);
+			normalizeAutoApproveValue(policyDefaults?.approvals)
+			?? normalizeAutoApproveValue(remembered[SessionConfigKey.AutoApprove])
+			?? normalizeAutoApproveValue(getAgentHostApprovalDefault(this._baseConfigurationService));
 		if (resolvedAutoApprove) {
 			remembered[SessionConfigKey.AutoApprove] = resolvedAutoApprove;
 		} else {
@@ -5461,7 +5432,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	async setSessionConfigValue(sessionId: string, property: string, value: unknown): Promise<void> {
-		const policyRestricted = isAutoApprovePolicyRestricted(this._baseConfigurationService);
+		const policyRestricted = isAutoApprovePolicyRestricted(this._baseConfigurationService, this.getSessionConfig(sessionId)?.schema);
 		const normalizedValue = normalizeSessionConfigValue(property, value, policyRestricted);
 
 		// Mark resolution before firing so the first picker render is already inert.
@@ -5548,7 +5519,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		// (`sessionMutable: true` and not `readOnly`), otherwise force the
 		// current value through. This guarantees replace semantics never
 		// alter a non-editable property even if the caller included it.
-		const policyRestricted = isAutoApprovePolicyRestricted(this._baseConfigurationService);
+		const policyRestricted = isAutoApprovePolicyRestricted(this._baseConfigurationService, runningConfig?.schema);
 		const nextValues: Record<string, unknown> = {};
 		for (const [key, schema] of Object.entries(runningConfig.schema.properties)) {
 			const editable = schema.sessionMutable === true && schema.readOnly !== true;
@@ -6553,7 +6524,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
 		const connection = this.connection;
 		if (cached && rawId && connection) {
-			cached.title.set(title, undefined);
+			cached.setTitleFromUser(title);
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
 			const sessionUri = cached.backendUri;
 			const action = { type: ActionType.SessionTitleChanged as const, title };
@@ -7782,6 +7753,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				continue;
 			}
 			const cached = this.createAdapter(meta);
+			if (entry.titleIsExplicit === true) {
+				cached.setTitleFromUser(cached.title.get());
+			}
 			cached.discoveryMetadata = deserializeDiscoveryMetadata(entry.discovery, this._logService);
 			this._sessionCache.set(rawId, cached);
 		}
@@ -7821,7 +7795,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 					adapter.isArchived.get()),
 				// Session-state updates can refine presentation metadata without another listing.
 				_meta: sessionMeta,
-			}, adapter.discoveryMetadata));
+			}, adapter.discoveryMetadata, adapter.titleIsExplicit));
 		}
 		if (entries.length === 0) {
 			this._storageService.remove(this._sessionCacheStorageKey, StorageScope.APPLICATION);
@@ -8167,8 +8141,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	private _handleTitleChanged(session: string, title: string): void {
 		const rawId = session;
 		const cached = this._sessionCache.get(rawId);
-		if (cached) {
-			cached.title.set(title, undefined);
+		if (cached?.setTitleFromHost(title)) {
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
 		}
 	}
@@ -8245,8 +8218,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				}
 			}
 
-			if (changes.title !== undefined && changes.title !== cached.title.get()) {
-				cached.title.set(changes.title, tx);
+			if (changes.title !== undefined && cached.setTitleFromHost(changes.title, tx)) {
 				didChange = true;
 			}
 			if (changes.modifiedAt !== undefined) {

@@ -73,6 +73,27 @@ suite('SessionsChatAccessibilityHelp', () => {
 		assert.ok(content.includes('When GitHub sandboxes are enabled, choose Cloud in the harness picker to chat without a repository or pull request.'));
 	});
 
+	test('documents background sandbox waking and connection feedback on input', () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const configuration = new TestConfigurationService();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configuration);
+		stubContextKeyService(instantiationService, configuration);
+		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+		instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
+		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+		const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
+
+		assert.deepStrictEqual({
+			backgroundWake: content.includes('By default, opening a cloud sandbox conversation connects or wakes its environment in the background.'),
+			optOut: content.includes('Turn off chat.agentHost.cloudSandbox.autoConnectOnOpen to wait until you start composing or explicitly connect instead.'),
+			feedbackOnInput: content.includes('Connection progress and failures appear in a banner only after you type, paste, or add an attachment.'),
+			readyBeforeInput: content.includes('If the session is ready before you start composing, no connection banner appears.'),
+			neverSends: content.includes('Connecting never sends your draft automatically.'),
+		}, { backgroundWake: true, optOut: true, feedbackOnInput: true, readyBeforeInput: true, neverSends: true });
+	});
+
 	test('documents layout density only on desktop', () => {
 		const densityHelp = [false, true].map(phone => {
 			const instantiationService = store.add(new TestInstantiationService());
@@ -157,12 +178,12 @@ suite('SessionsChatAccessibilityHelp', () => {
 				discoveryHelp: content.includes('choose Environments to discover your environments'),
 				refreshHelp: content.includes('Tab reaches Refresh Environments.'),
 				hiddenHelp: content.includes('Hide in This Profile') || content.includes('Restore Host'),
-				missionControl: content.includes('Mission Control'),
+				githubEnvironment: content.includes('GitHub environment'),
 				sharingKeyboard: content.includes('Enter or Space to enable or disable sharing'),
 				backendSetting: content.includes('chat.agentHost.remoteConnections'),
 			}, {
 				discoveryHelp: enabled, refreshHelp: enabled, hiddenHelp: false,
-				missionControl: !hidden && !aiDisabled, sharingKeyboard: !hidden && !aiDisabled, backendSetting: !hidden && !aiDisabled,
+				githubEnvironment: !hidden && !aiDisabled, sharingKeyboard: !hidden && !aiDisabled, backendSetting: !hidden && !aiDisabled,
 			});
 		});
 	}
@@ -475,6 +496,9 @@ suite('SessionsChatAccessibilityHelp', () => {
 
 		assert.deepStrictEqual({
 			recordedArtifactsAndReferences: content.includes('Recorded artifacts and references'),
+			generatedImages: content.includes('Generated images from this chat automatically appear in the Generated Images section of the Artifacts pill'),
+			imageNavigation: content.includes('use the Left and Right Arrow keys to browse generated images and user attachments'),
+			transcriptImages: content.includes('Images shown from the transcript do not offer Remove from Session unless they were also recorded as artifacts'),
 			singleItemActions: content.includes('pill hover actions or context menu'),
 			copyActions: content.includes('its context menu offers the item\'s copy actions'),
 			persistence: content.includes('waits for persistence'),
@@ -482,6 +506,9 @@ suite('SessionsChatAccessibilityHelp', () => {
 			immediateRemoval: content.includes('Removal is immediate'),
 		}, {
 			recordedArtifactsAndReferences: true,
+			generatedImages: true,
+			imageNavigation: true,
+			transcriptImages: true,
 			singleItemActions: true,
 			copyActions: true,
 			persistence: true,

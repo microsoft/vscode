@@ -26,11 +26,12 @@ import { FileChangeType, FileOperationResult, IFileChange, IFileService, toFileO
 import { parsePullRequestUrl } from '../../github/common/githubUrls.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentChatMigrationDeferred, AgentProvider, AgentSession, CLAUDE_AGENT_PROVIDER_ID, COPILOT_CLI_AGENT_PROVIDER_ID, AgentSignal, CODEX_AGENT_PROVIDER_ID, IAgent, type IAgentAdoptedWorktree, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatRequestOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDiscoveredChat, IAgentLegacyChat, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPluginUninstallRequest, IAgentResolveSessionConfigParams, IAgentChatAdoptionResult, type AgentChatAdoptionReason, IAgentSessionConfigCompletionsParams, type IAgentSessionChatMetadata, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, SubagentChatSignal, subagentChatTitle } from '../common/agent.js';
+import { AgentChatMigrationDeferred, AgentProvider, AgentSession, CLAUDE_AGENT_PROVIDER_ID, COPILOT_CLI_AGENT_PROVIDER_ID, AgentSignal, CODEX_AGENT_PROVIDER_ID, IAgent, type IAgentAdoptedWorktree, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatRequestOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDiscoveredChat, IAgentLegacyChat, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPluginInstallRequest, type IAgentPluginUninstallRequest, IAgentResolveSessionConfigParams, IAgentChatAdoptionResult, type AgentChatAdoptionReason, IAgentSessionConfigCompletionsParams, type IAgentSessionChatMetadata, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, SubagentChatSignal, subagentChatTitle } from '../common/agent.js';
 import { type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentService } from '../common/agentService.js';
 import { ISessionDatabase, ISessionDataService, ISessionStorageAccessCounts, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
 import { IAgentEditAttributionService, ICancelEditAttributionFlushParams, ICommitEditAttributionFlushParams, IEditAttributionFlushResult, IPrepareEditAttributionFlushParams, IPreparedEditAttributionFlush, parseEditAttributionResource } from '../common/fileEditAttribution.js';
 import { getPersistedSessionConfigValues, getSessionPullRequestUrl, omitTransientSessionConfigValues, SessionConfigKey } from '../common/sessionConfigKeys.js';
+import { getSessionApprovalProperty, validateSessionConfigWrite } from '../common/sessionConfigProperties.js';
 import type { IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
 import { buildAnnotationsUri, parseAnnotationsUri } from '../common/annotationsUri.js';
 import { parseChangesetUri, parseFolderChangesetOwnerUri } from '../common/changesetUri.js';
@@ -202,8 +203,17 @@ type AgentHostLegacyMigrationEvent = IAgentHostCopilotSkuTelemetry & {
 	diagnosticCategory: 'notApplicable' | 'expectedExclusion' | 'configurationDisabled' | 'needsInvestigation' | 'unknown';
 	advertisedAsAdoptable: boolean;
 	eligible: boolean | undefined;
-	markerStatus: NonNullable<IAgentChatAdoptionResult['diagnostics']>['markerStatus'] | undefined;
-	provenance: NonNullable<IAgentChatAdoptionResult['diagnostics']>['provenance'] | undefined;
+	markerStatus: NonNullable<IAgentChatAdoptionResult['diagnostics']>['markerStatus'] | 'notEvaluated' | 'notReported';
+	provenance: NonNullable<IAgentChatAdoptionResult['diagnostics']>['provenance'] | 'notEvaluated';
+	diagnosticDetail: 'settingDisabled' | 'invalidSessionId' | 'storageProbeFailed' | 'storageLayoutInvalid' | 'sessionStateRootMissing' | 'sessionDirectoryMissing' | 'markerMissingWithEvents' | 'markerMissingWithoutEvents' | 'markerMissing' | 'markerReadError' | 'markerInvalid' | 'originUnrecognized' | 'originInvalidType' | 'originMissing' | 'externalOrigin' | 'legacyMarker' | 'legacyEligible' | 'adoptionThrew' | 'providerEvidenceUnavailable';
+	markerOrigin: NonNullable<IAgentChatAdoptionResult['diagnostics']>['markerOrigin'] | 'notReported';
+	sessionIdStatus: NonNullable<IAgentChatAdoptionResult['diagnostics']>['sessionIdStatus'] | 'notReported';
+	copilotHomeSource: NonNullable<IAgentChatAdoptionResult['diagnostics']>['copilotHomeSource'] | 'notReported';
+	sessionStateRootStatus: NonNullable<IAgentChatAdoptionResult['diagnostics']>['sessionStateRootStatus'] | 'notReported';
+	sessionDirectoryStatus: NonNullable<IAgentChatAdoptionResult['diagnostics']>['sessionDirectoryStatus'] | 'notReported';
+	eventsFileStatus: NonNullable<IAgentChatAdoptionResult['diagnostics']>['eventsFileStatus'] | 'notReported';
+	workspaceMetadataStatus: NonNullable<IAgentChatAdoptionResult['diagnostics']>['workspaceMetadataStatus'] | 'notReported';
+	lastKnownClient: NonNullable<IAgentChatAdoptionResult['diagnostics']>['lastKnownClient'] | 'notReported';
 	markerFromCache: boolean | undefined;
 	eligibilityErrorCode: string | undefined;
 	eligibilityErrorMessage: string | undefined;
@@ -226,8 +236,17 @@ type AgentHostLegacyMigrationClassification = IAgentHostCopilotSkuClassification
 	diagnosticCategory: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Conservative triage: expectedExclusion requires positive external provenance with no conflicting adoptable advertisement; needsInvestigation does not assert a code defect; missing evidence remains unknown.' };
 	advertisedAsAdoptable: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the host advertised this session as adoptable before attempting adoption.' };
 	eligible: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Provider eligibility decision; absent if adoption was not attempted or threw before returning.' };
-	markerStatus: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the eligibility marker was valid, missing, invalid, or could not be read.' };
-	provenance: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Bounded marker evidence: legacy, explicitly external, or unknown. No raw origin value is collected.' };
+	markerStatus: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the marker was valid, missing, invalid, unreadable, not evaluated, or not reported by the provider.' };
+	provenance: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Legacy from marker or positive provider eligibility, explicitly external, unknown, or not evaluated. No raw origin value is collected.' };
+	diagnosticDetail: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Code-defined diagnostic explanation distinguishing absent storage, invalid identifiers, ambiguous markers, and absent provider evidence; not a root-cause verdict.' };
+	markerOrigin: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Bounded marker origin: vscode, other, missing, unrecognized, invalidType, unavailable, or notReported.' };
+	sessionIdStatus: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Identifier shape only: opaque, empty, controlCharacters, pathSeparators, dotSegment, or notReported. No identifier is collected.' };
+	copilotHomeSource: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the Copilot home came from environment or userHome, or was notReported. No path is collected.' };
+	sessionStateRootStatus: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Storage root stat result: directory, file, other, missing, readError, notChecked, or notReported.' };
+	sessionDirectoryStatus: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Session directory stat result: directory, file, other, missing, readError, notChecked, or notReported.' };
+	eventsFileStatus: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Session events file stat result: directory, file, other, missing, readError, notChecked, or notReported. No content is read.' };
+	workspaceMetadataStatus: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Bounded workspace metadata read: valid, missing, invalid, readError, tooLarge, notFile, notChecked, or notReported. No file content is collected.' };
+	lastKnownClient: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Allowlisted persisted runtime client: vscode, vscode-agent-host, github/cli, github/autopilot, missing, unrecognized, invalidType, unavailable, or notReported. Can change on resume; not creator provenance.' };
 	markerFromCache: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the marker evidence came from the in-memory cache rather than a fresh disk read.' };
 	eligibilityErrorCode: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'Error code from reading the eligibility marker, separate from any later restore failure.' };
 	eligibilityErrorMessage: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'Error reading the eligibility marker, cleaned by the telemetry service. Marker contents are never collected.' };
@@ -1653,6 +1672,12 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!await this._sessionRegistry.adoptExternalSession(session)) {
 			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Session not found: ${session.toString()}`);
 		}
+	}
+
+	async stopBackgroundWork(chat: URI, id: string): Promise<boolean> {
+		// A chat that lists background work is live, so there is nothing to restore first.
+		const session = URI.parse(parseRequiredSessionUriFromChatUri(chat));
+		return await this._providerService.getProviderForSession(session)?.stopBackgroundWork?.(chat, id) ?? false;
 	}
 
 	private _isArtifactToolsEnabled(): boolean {
@@ -3931,6 +3956,10 @@ export class AgentService extends Disposable implements IAgentService {
 		this._registryEpoch++;
 	}
 
+	async getSessionCount(): Promise<number> {
+		return (await this._sessionRegistry.listSessionKeys()).size;
+	}
+
 	async listSessions(mode = this._getExternalSessionsMode()): Promise<IAgentSessionMetadata[]> {
 		const epoch = this._registryEpoch;
 		const inFlight = this._inFlightListSessions.get(mode);
@@ -5330,6 +5359,54 @@ export class AgentService extends Disposable implements IAgentService {
 		await provider.uninstallPlugin(request);
 	}
 
+	async installPlugin(providerId: AgentProvider, request: IAgentPluginInstallRequest): Promise<void> {
+		const provider = this._providerService.getProvider(providerId);
+		if (!provider?.installPlugin) {
+			throw new Error(`Plugin install is unavailable for provider '${providerId}'.`);
+		}
+		await provider.installPlugin(request);
+	}
+
+	searchCustomizationMarketplace(providerId: AgentProvider, session: URI, request: IAgentCustomizationMarketplaceSearchRequest): Promise<IAgentCustomizationMarketplaceSearchResult> {
+		const provider = this._providerService.getProvider(providerId);
+		if (!provider?.searchCustomizationMarketplace) {
+			return Promise.resolve({ kind: 'unavailable', reason: 'unsupported' });
+		}
+		return provider.searchCustomizationMarketplace(session, request);
+	}
+
+	listCustomizationInstallations(providerId: AgentProvider, session: URI): Promise<readonly IAgentCustomizationInstallation[]> {
+		const provider = this._providerService.getProvider(providerId);
+		if (!provider?.listCustomizationInstallations) {
+			throw new Error(`Customization installation inventory is unavailable for provider '${providerId}'.`);
+		}
+		return provider.listCustomizationInstallations(session);
+	}
+
+	prepareCustomizationInstallation(providerId: AgentProvider, session: URI, request: IAgentCustomizationInstallationRequest | { readonly installationId: string }): Promise<IAgentCustomizationInstallationReview> {
+		const provider = this._providerService.getProvider(providerId);
+		if (!provider?.prepareCustomizationInstallation) {
+			throw new Error(`Customization installation preparation is unavailable for provider '${providerId}'.`);
+		}
+		return provider.prepareCustomizationInstallation(session, request);
+	}
+
+	async applyCustomizationInstallation(providerId: AgentProvider, operationId: string): Promise<void> {
+		const provider = this._providerService.getProvider(providerId);
+		if (!provider?.applyCustomizationInstallation) {
+			throw new Error(`Customization installation apply is unavailable for provider '${providerId}'.`);
+		}
+		await provider.applyCustomizationInstallation(operationId);
+	}
+
+	recoverCustomizationInstallations(providerId: AgentProvider, session: URI): Promise<readonly IAgentCustomizationInstallation[]> {
+		const provider = this._providerService.getProvider(providerId);
+		if (!provider?.recoverCustomizationInstallations) {
+			throw new Error(`Customization installation recovery is unavailable for provider '${providerId}'.`);
+		}
+		return provider.recoverCustomizationInstallations(session);
+	}
+
 	async createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions): Promise<void> {
 		const sessionKey = session.toString();
 		const initialPrimaryDirectory = this._stateManager.getSessionSummary(sessionKey)?.workingDirectories?.[0];
@@ -6454,23 +6531,26 @@ export class AgentService extends Disposable implements IAgentService {
 			: { session, key: ANNOTATIONS_METADATA_KEY };
 	}
 
-	private async _resolveCreatedSessionConfig(provider: IAgent, config: IAgentCreateSessionConfig | undefined): Promise<SessionConfigState | undefined> {
-		if (!config?.config && config?.workingDirectories === undefined) {
+	private async _resolveCreatedSessionConfig(provider: IAgent, config: IAgentCreateSessionConfig | undefined, restoring = false): Promise<SessionConfigState | undefined> {
+		if (provider.id !== 'copilotcli' && !config?.config && config?.workingDirectories === undefined) {
 			return undefined;
 		}
 		const params: IAgentResolveSessionConfigParams = {
 			provider: provider.id,
 			// `resolveSessionConfig` is a pre-session, single-context API:
 			// resolve against the session's primary (index 0).
-			workingDirectory: config.workingDirectories?.[0],
-			config: config.config,
+			workingDirectory: config?.workingDirectories?.[0],
+			config: config?.config,
 		};
 		try {
 			const resolved = await this._withHostSessionConfigContributions(await provider.resolveChatConfig(this._toProviderConfig(params)), params);
 			return { schema: resolved.schema, values: resolved.values };
 		} catch (err) {
 			this._logService.error(`[AgentService] Failed to resolve created session config for provider ${provider.id}`, err);
-			return config.config ? { schema: { type: 'object', properties: {} }, values: config.config } : undefined;
+			if (provider.id === 'copilotcli' && !restoring) {
+				throw err;
+			}
+			return config?.config ? { schema: { type: 'object', properties: {} }, values: config.config } : undefined;
 		}
 	}
 
@@ -8211,13 +8291,40 @@ export class AgentService extends Disposable implements IAgentService {
 		// a wholesale replacement must not drop it either.
 		if (action.type === ActionType.SessionConfigChanged) {
 			const configAction = action as SessionConfigChangedAction;
+			const current = this._stateManager.getSessionState(sessionChannel)?.config;
+			if (current?.schema.properties.availableApprovalModes?.readOnly === true) {
+				try {
+					if (['availableApprovalModes', 'effectiveApprovalMode'].some(key => Object.hasOwn(configAction.config, key) && !equals(configAction.config[key], current.values[key]))) {
+						throw new Error('Reported permission modes are host-owned.');
+					}
+					const approvalKey = getSessionApprovalProperty(current.schema)?.key ?? SessionConfigKey.AutoApprove;
+					if (Object.hasOwn(configAction.config, approvalKey)) {
+						if (current.schema.properties[approvalKey]?.readOnly) {
+							throw new Error('Session approval mode is read-only.');
+						}
+						validateSessionConfigWrite(current.schema, current.values, approvalKey, configAction.config[approvalKey], false);
+					}
+				} catch (error) {
+					this._stateManager.rejectClientAction(channel, action, origin, toErrorMessage(error));
+					return;
+				}
+				if (configAction.replace) {
+					action = {
+						...configAction, config: {
+							...configAction.config,
+							availableApprovalModes: current.values.availableApprovalModes,
+							...(current.values.effectiveApprovalMode === undefined ? {} : { effectiveApprovalMode: current.values.effectiveApprovalMode }),
+						}
+					};
+				}
+			}
 			const forbidden = HOST_WRITTEN_SESSION_CONFIG_KEYS.filter(key => Object.hasOwn(configAction.config, key));
 			if (forbidden.length > 0) {
 				this._stateManager.rejectClientAction(channel, action, origin, `Session config keys are host-owned and cannot be set by a client: ${forbidden.join(', ')}.`);
 				return;
 			}
 			if (Object.hasOwn(configAction.config, SessionConfigKey.AgentMergeFolders)) {
-				action = this._withMergedClientAgentMergeFolders(sessionChannel, configAction);
+				action = this._withMergedClientAgentMergeFolders(sessionChannel, action as SessionConfigChangedAction);
 			}
 			if (configAction.replace) {
 				action = this._withPreservedHostWrittenSessionConfig(sessionChannel, action as SessionConfigChangedAction);
@@ -8549,15 +8656,53 @@ export class AgentService extends Disposable implements IAgentService {
 		extra: { advertisedAsAdoptable: boolean; adoption?: IAgentChatAdoptionResult; turnCount?: number; hasProject?: boolean; hasWorktree?: boolean; workingDirectoryCount?: number; error?: unknown; reason?: AgentChatAdoptionReason | 'settingDisabled' },
 	): void {
 		const diagnostics = extra.adoption?.diagnostics;
+		const invalidSessionId = diagnostics?.sessionIdStatus !== undefined && diagnostics.sessionIdStatus !== 'opaque';
+		const storageError = [diagnostics?.sessionStateRootStatus, diagnostics?.sessionDirectoryStatus, diagnostics?.eventsFileStatus].includes('readError');
+		const storageLayoutInvalid = [diagnostics?.sessionStateRootStatus, diagnostics?.sessionDirectoryStatus].some(status => status === 'file' || status === 'other')
+			|| diagnostics?.eventsFileStatus === 'directory' || diagnostics?.eventsFileStatus === 'other';
 		let diagnosticCategory: AgentHostLegacyMigrationEvent['diagnosticCategory'] = 'unknown';
 		if (outcome === 'migrated') {
 			diagnosticCategory = 'notApplicable';
 		} else if (extra.reason === 'settingDisabled') {
 			diagnosticCategory = 'configurationDisabled';
-		} else if (outcome === 'failed' || extra.advertisedAsAdoptable || extra.adoption?.eligible || diagnostics?.markerStatus === 'invalid' || diagnostics?.markerStatus === 'readError') {
+		} else if (outcome === 'failed' || extra.advertisedAsAdoptable || extra.adoption?.eligible || invalidSessionId || storageError || storageLayoutInvalid || diagnostics?.markerStatus === 'invalid' || diagnostics?.markerStatus === 'readError') {
 			diagnosticCategory = 'needsInvestigation';
 		} else if (diagnostics?.markerStatus === 'valid' && diagnostics.provenance === 'external') {
 			diagnosticCategory = 'expectedExclusion';
+		}
+		let diagnosticDetail: AgentHostLegacyMigrationEvent['diagnosticDetail'];
+		if (extra.reason === 'settingDisabled') {
+			diagnosticDetail = 'settingDisabled';
+		} else if (invalidSessionId) {
+			diagnosticDetail = 'invalidSessionId';
+		} else if (storageError) {
+			diagnosticDetail = 'storageProbeFailed';
+		} else if (storageLayoutInvalid) {
+			diagnosticDetail = 'storageLayoutInvalid';
+		} else if (diagnostics?.sessionStateRootStatus === 'missing') {
+			diagnosticDetail = 'sessionStateRootMissing';
+		} else if (diagnostics?.sessionDirectoryStatus === 'missing') {
+			diagnosticDetail = 'sessionDirectoryMissing';
+		} else if (diagnostics?.markerStatus === 'missing') {
+			diagnosticDetail = diagnostics.eventsFileStatus === 'file' ? 'markerMissingWithEvents' : diagnostics.eventsFileStatus === 'missing' ? 'markerMissingWithoutEvents' : 'markerMissing';
+		} else if (diagnostics?.markerStatus === 'readError') {
+			diagnosticDetail = 'markerReadError';
+		} else if (diagnostics?.markerStatus === 'invalid') {
+			diagnosticDetail = 'markerInvalid';
+		} else if (diagnostics?.markerOrigin === 'unrecognized') {
+			diagnosticDetail = 'originUnrecognized';
+		} else if (diagnostics?.markerOrigin === 'invalidType') {
+			diagnosticDetail = 'originInvalidType';
+		} else if (diagnostics?.markerOrigin === 'missing' && diagnostics.provenance === 'unknown') {
+			diagnosticDetail = 'originMissing';
+		} else if (diagnostics?.provenance === 'external') {
+			diagnosticDetail = 'externalOrigin';
+		} else if (diagnostics?.provenance === 'legacy') {
+			diagnosticDetail = 'legacyMarker';
+		} else if (extra.adoption?.eligible) {
+			diagnosticDetail = 'legacyEligible';
+		} else {
+			diagnosticDetail = stage === 'adoption' && outcome === 'failed' ? 'adoptionThrew' : 'providerEvidenceUnavailable';
 		}
 		const data: AgentHostLegacyMigrationEvent = {
 			provider,
@@ -8567,11 +8712,20 @@ export class AgentService extends Disposable implements IAgentService {
 			diagnosticCategory,
 			advertisedAsAdoptable: extra.advertisedAsAdoptable,
 			eligible: extra.adoption?.eligible,
-			markerStatus: diagnostics?.markerStatus,
-			provenance: diagnostics?.provenance,
+			markerStatus: diagnostics?.markerStatus ?? (extra.reason === 'settingDisabled' ? 'notEvaluated' : 'notReported'),
+			provenance: diagnostics?.provenance ?? (extra.reason === 'settingDisabled' ? 'notEvaluated' : extra.adoption?.eligible ? 'legacy' : 'unknown'),
+			diagnosticDetail,
+			markerOrigin: diagnostics?.markerOrigin ?? 'notReported',
+			sessionIdStatus: diagnostics?.sessionIdStatus ?? 'notReported',
+			copilotHomeSource: diagnostics?.copilotHomeSource ?? 'notReported',
+			sessionStateRootStatus: diagnostics?.sessionStateRootStatus ?? 'notReported',
+			sessionDirectoryStatus: diagnostics?.sessionDirectoryStatus ?? 'notReported',
+			eventsFileStatus: diagnostics?.eventsFileStatus ?? 'notReported',
+			workspaceMetadataStatus: diagnostics?.workspaceMetadataStatus ?? 'notReported',
+			lastKnownClient: diagnostics?.lastKnownClient ?? 'notReported',
 			markerFromCache: diagnostics?.markerFromCache,
 			eligibilityErrorCode: diagnostics?.errorCode,
-			eligibilityErrorMessage: getTelemetryMigrationErrorMessage(diagnostics?.errorMessage, session),
+			eligibilityErrorMessage: getTelemetryMigrationErrorMessage(diagnostics?.errorMessage === undefined ? undefined : { message: diagnostics.errorMessage, code: diagnostics.errorCode }, session),
 			success: outcome === 'migrated' && (extra.turnCount ?? 0) > 0,
 			turnCount: extra.turnCount ?? 0,
 			durationMs: Date.now() - startTime,
@@ -9301,7 +9455,7 @@ export class AgentService extends Disposable implements IAgentService {
 			this._resolveCreatedSessionConfig(agent, {
 				workingDirectories: meta.workingDirectories,
 				config: restoredConfigValues,
-			}),
+			}, true),
 			agent.getChatCustomizations(defaultChatUri, chatContext, this._hostCustomizations(session)).catch(err => {
 				this._logService.error('[AgentService] restoreSession: failed to resolve chat customizations', err);
 				return undefined;

@@ -9,7 +9,7 @@ import { autorun } from '../../../../../../base/common/observable.js';
 import { hasKey } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { extUri } from '../../../../../../base/common/resources.js';
-import { renderMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
+import { renderAsPlaintext, renderMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
 import { getChatMarkdownRenderOptions } from '../../../browser/widget/chatContentMarkdownRenderer.js';
 import { getToolGroupSummary } from '../../../browser/widget/chatContentParts/chatToolGroupSummary.js';
 import { MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
@@ -1959,7 +1959,7 @@ suite('stateToProgressAdapter', () => {
 						const content: ToolResultContent[] = resourceReference
 							? [{ type: ToolResultContentType.Resource, uri, contentType: 'image/png' }]
 							: [{ type: ToolResultContentType.EmbeddedResource, data: 'aW1hZ2U=', contentType: 'image/png' }];
-						const completed = createCompletedToolCall({ toolName, toolInput, content });
+						const completed = createCompletedToolCall({ toolName, toolInput, content, _meta: { 'vscode.toolCallDurationMs': 43_500 } });
 						const responseParts: ToolCallResponsePart[] = [{ kind: ResponsePartKind.ToolCall, toolCall: completed }];
 						const live = rawToolCallStateToInvocation(createToolCallState({ toolName, toolInput }), undefined, backendSession, connectionAuthority);
 						rawFinalizeToolInvocation(live, completed, backendSession, connectionAuthority);
@@ -1976,7 +1976,7 @@ suite('stateToProgressAdapter', () => {
 						assert.ok(restored.kind === 'toolInvocationSerialized');
 
 						const expected = {
-							toolSpecificData: { kind: 'generatedImage' },
+							toolSpecificData: { kind: 'generatedImage', durationMs: 43_500 },
 							resultDetails: {
 								input: toolInput ?? '',
 								inputLanguage: 'json',
@@ -2041,6 +2041,28 @@ suite('stateToProgressAdapter', () => {
 
 	suite('toolCallStateToInvocation', () => {
 		const nativeToolMeta = { 'vscode.toolInputContract': 'copilot-cli-v1' };
+
+		test('plain and structured search and fetch inputs retain the host-authored labels', () => {
+			const cases = [
+				{ toolName: 'grep', input: 'needle', parameters: { pattern: 'needle', path: '/repo' }, invocationMessage: 'Search for `needle`', pastTenseMessage: 'Search for `needle`' },
+				{ toolName: 'rg', input: 'needle', parameters: { pattern: 'needle', path: '/repo' }, invocationMessage: 'Search for `needle`', pastTenseMessage: 'Search for `needle`' },
+				{ toolName: 'web_fetch', input: 'https://example.com', parameters: { url: 'https://example.com' }, invocationMessage: 'Fetching example.com', pastTenseMessage: 'Fetched example.com' },
+			];
+			for (const { input, parameters, ...fields } of cases) {
+				const calls = [input, JSON.stringify(parameters)].map(toolInput => {
+					const running = createToolCallState({ ...fields, toolInput });
+					const live = toolCallStateToInvocation(running);
+					const completed = createCompletedToolCall({ ...fields, toolInput });
+					finalizeToolInvocation(live, completed);
+					const restored = completedToolCallToSerialized(completed, undefined, URI.file('/repo'), '');
+					return { live: [live.invocationMessage, live.pastTenseMessage], restored: [restored.invocationMessage, restored.pastTenseMessage] };
+				});
+				assert.deepStrictEqual(calls, [input, parameters].map(() => ({
+					live: [fields.invocationMessage, fields.pastTenseMessage],
+					restored: [fields.invocationMessage, fields.pastTenseMessage],
+				})));
+			}
+		});
 
 		test('preserves deterministic tool summaries in live and restored host calls', () => {
 			const resourceUris = createAgentHostResourceUriMapper('remote-test');
@@ -2630,6 +2652,26 @@ suite('stateToProgressAdapter', () => {
 			invocation.setAuthenticationResolved();
 			assert.strictEqual(invocation.state.get().type, IChatToolInvocation.StateKind.Executing);
 		});
+
+		for (const toolInput of ['ls -la\nwc -l', JSON.stringify({ command: 'ls -la\nwc -l', description: 'Inspect the workspace' })]) {
+			test(`terminal command input supports ${toolInput.startsWith('{') ? 'JSON arguments' : 'plain commands'} in live state and history`, () => {
+				const fields = {
+					toolName: 'bash',
+					toolInput,
+					intention: 'Understand the project layout',
+					_meta: { toolKind: 'terminal' },
+				};
+				const live = toolCallStateToInvocation(createToolCallState(fields)).toolSpecificData;
+				const history = completedToolCallToSerialized(createCompletedToolCall(fields), undefined, URI.file('/repo'), '').toolSpecificData;
+				assert.deepStrictEqual([live, history].map(data => data?.kind === 'terminal' ? {
+					command: data.commandLine.original,
+					intention: data.intention,
+				} : undefined), [
+					{ command: 'ls -la\nwc -l', intention: 'Understand the project layout' },
+					{ command: 'ls -la\nwc -l', intention: 'Understand the project layout' },
+				]);
+			});
+		}
 
 		test('sets terminal toolSpecificData when content has terminal block', () => {
 			const tc = createToolCallState({
@@ -3946,6 +3988,37 @@ suite('stateToProgressAdapter', () => {
 				}, {
 					links: ['command:aiCustomization.openManagementEditor?%5B%22tools%22%5D'],
 					text: `Some tools were dropped. <${injected}> <a href="${injected}">hooks</a> &lt;b&gt; Configure Tools`,
+				});
+			} finally {
+				rendered.dispose();
+			}
+		});
+
+		test('keeps a managed plugin preparation failure visible and its host text inert', () => {
+			const text = 'Some plugins required by your organization admin could not be prepared. Continuing with the current setup. <command:evil> [details](command:evil) <b>security-guard</b> https://evil.example/x www.evil.example admin@evil.example';
+			const result = activeTurnToProgress(URI.file('/'), createActiveTurnState([{
+				kind: ResponsePartKind.SystemNotification,
+				content: text,
+				_meta: toAgentSystemNotificationMeta({
+					kind: AgentSystemNotificationKind.ManagedPluginPreparationFailure,
+					severity: AgentSystemNotificationSeverity.Warning,
+				}),
+			}]), undefined);
+			const warning = result[0];
+			assert.ok(warning.kind === 'warning');
+
+			const rendered = renderMarkdown(warning.content);
+			try {
+				assert.deepStrictEqual({
+					keepVisibleWhenCollapsed: warning.keepVisibleWhenCollapsed,
+					links: rendered.element.querySelectorAll('a').length,
+					text: rendered.element.textContent,
+					plaintext: renderAsPlaintext(warning.content, { useLinkFormatter: true }),
+				}, {
+					keepVisibleWhenCollapsed: true,
+					links: 0,
+					text,
+					plaintext: text,
 				});
 			} finally {
 				rendered.dispose();

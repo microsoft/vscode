@@ -120,6 +120,7 @@ interface IFragmentOperation {
 	readonly generation: number;
 	readonly interest: EffectivePullRequestFragmentInterest;
 	readonly promise: Promise<void>;
+	requestSignal?: AbortSignal;
 }
 
 class PullRequestResourceImpl implements PullRequestResource {
@@ -373,6 +374,10 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 					this._scheduler.cancel(this._bodyTaskKey(entry, fragment));
 				}
 				if (oldInterest.priority !== newInterest.priority) {
+					const requestSignal = entry.operations.get(fragment)?.requestSignal;
+					if (requestSignal) {
+						this._queries.promote(requestSignal, newInterest.priority);
+					}
 					this._scheduleNext(entry, fragment, newInterest);
 				}
 			}
@@ -455,13 +460,19 @@ export class PullRequestResourceService extends Disposable implements IPullReque
 			if (!sameAccount(credential.account, entry.ref)) {
 				throw new GitHubRequestError('Pull request resource account does not match the current GitHub credential', 'authentication');
 			}
+			const signal = AbortSignal.any([controller.signal, credential.signal]);
+			const operation = entry.operations.get(fragment);
+			if (operation?.controller === controller) {
+				operation.requestSignal = signal;
+			}
+			const options = pullRequestOptionsForFragment(fragment, interest);
 			const result = await this._queries.fetch(
 				fragment,
 				entry.ref,
 				entry.snapshot.get().core.value,
-				pullRequestOptionsForFragment(fragment, interest),
+				{ ...options, get priority() { return entry.effective.get(fragment)?.priority ?? interest.priority; } },
 				credential,
-				AbortSignal.any([controller.signal, credential.signal]),
+				signal,
 			);
 			if (!this._canCommit(entry, fragment, entryGeneration, fragmentGeneration, credential, headAtStart)) {
 				if (!controller.signal.aborted && this._isFragmentActive(entry, fragment)) {

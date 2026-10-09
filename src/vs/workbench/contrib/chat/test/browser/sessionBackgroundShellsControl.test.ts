@@ -7,7 +7,7 @@ import assert from 'assert';
 import { isHTMLElement } from '../../../../../base/browser/dom.js';
 import type { IRenderedMarkdown } from '../../../../../base/browser/markdownRenderer.js';
 import { Action } from '../../../../../base/common/actions.js';
-import { timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { autorun, constObservable, observableValue } from '../../../../../base/common/observable.js';
 import type { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -24,6 +24,8 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
+import { INotificationService, type NotificationMessage } from '../../../../../platform/notification/common/notification.js';
+import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { ChatDropdownPillActionViewItem } from '../../../../browser/chatDropdownPill.js';
 import { IDetachedTerminalInstance, IDetachedXtermTerminal, IDetachedXTermOptions, ITerminalService } from '../../../terminal/browser/terminal.js';
 import { SessionBackgroundShellsControl, type IChatBackgroundShellsSource } from '../../browser/sessionBackgroundShellsControl.js';
@@ -36,6 +38,7 @@ suite('SessionBackgroundShellsControl', () => {
 
 	setup(() => {
 		instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(INotificationService, new TestNotificationService());
 	});
 
 	test('updates elapsed time while observed and stops when the list becomes empty', () => runWithFakedTimers({}, async () => {
@@ -303,4 +306,73 @@ suite('SessionBackgroundShellsControl', () => {
 			terminals: 1,
 		});
 	}));
+
+	test('shows Stop beside the command only for shells that can be stopped', () => {
+		instantiationService.stub(ITerminalService, new class extends mock<ITerminalService>() {
+			override createDetachedTerminal(): Promise<IDetachedTerminalInstance> { return new Promise(() => { }); }
+		}());
+		instantiationService.stub(IMarkdownRendererService, new class extends mock<IMarkdownRendererService>() {
+			override render(): IRenderedMarkdown { return { element: document.createElement('div'), dispose: () => { } }; }
+		}());
+		instantiationService.stub(IAccessibleViewService, new class extends mock<IAccessibleViewService>() {
+			override getOpenAriaHint(): string | null { return null; }
+		}());
+		instantiationService.stub(IContextKeyService, new MockContextKeyService());
+		const startedAt = new Date(0).toISOString();
+		const stop = async () => true;
+		const output = constObservable<ChatBackgroundShellOutput>({ status: 'running', text: '' });
+		const shells = constObservable<readonly IChatBackgroundShell[]>([
+			{ id: 'silent', description: 'Watch', command: 'npm run watch', startedAt, stop },
+			{ id: 'streaming', description: 'Serve', command: 'npm start', startedAt, output, stop },
+			{ id: 'unstoppable', description: 'Build', command: 'npm run build', startedAt },
+		]);
+		const control = store.add(instantiationService.createInstance(SessionBackgroundShellsControl, constObservable<IChatBackgroundShellsSource>({ backgroundShells: shells })));
+
+		// Without live output the button follows the command line; with it, the output's title holds it.
+		assert.deepStrictEqual(control.sections.get()[0].entries.map(entry => {
+			const content = entry.hover?.content;
+			const details = typeof content === 'function' ? content() : content;
+			assert.ok(isHTMLElement(details));
+			const beside = typeof content === 'function' ? '.chat-terminal-content-title' : '.chat-background-shell-command';
+			return Array.from(details.querySelectorAll(`${beside} .action-label`), label => label.getAttribute('aria-label'));
+		}), [['Stop Shell'], ['Stop Shell'], []]);
+	});
+
+	test('stops a shell once at a time and offers Stop again when stopping fails', async () => {
+		const errors: string[] = [];
+		instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
+			override error(message: NotificationMessage | NotificationMessage[]): void { errors.push(String(message)); }
+		}());
+		const attempts: DeferredPromise<boolean>[] = [];
+		const shells = constObservable<readonly IChatBackgroundShell[]>([{
+			id: 'watch', description: 'Watch', command: 'npm run watch', startedAt: new Date(0).toISOString(),
+			stop: () => {
+				const attempt = new DeferredPromise<boolean>();
+				attempts.push(attempt);
+				return attempt.p;
+			},
+		}]);
+		const control = store.add(instantiationService.createInstance(SessionBackgroundShellsControl, constObservable<IChatBackgroundShellsSource>({ backgroundShells: shells })));
+		const details = control.sections.get()[0].entries[0].hover?.content;
+		assert.ok(isHTMLElement(details));
+		const stop = details.querySelector<HTMLElement>('.chat-background-shell-command .action-label');
+		assert.ok(stop);
+
+		stop.click();
+		stop.click();
+		const whileStopping = { attempts: attempts.length, disabled: stop.classList.contains('disabled') };
+		attempts[0].error(new Error('runtime unavailable'));
+		await timeout(0);
+		const afterFailure = { disabled: stop.classList.contains('disabled'), errors: [...errors] };
+		stop.click();
+		attempts[1]?.complete(true);
+		await timeout(0);
+
+		assert.deepStrictEqual({ whileStopping, afterFailure, attempts: attempts.length, afterStop: stop.classList.contains('disabled') }, {
+			whileStopping: { attempts: 1, disabled: true },
+			afterFailure: { disabled: false, errors: ['Could not stop Watch: runtime unavailable'] },
+			attempts: 2,
+			afterStop: true,
+		});
+	});
 });

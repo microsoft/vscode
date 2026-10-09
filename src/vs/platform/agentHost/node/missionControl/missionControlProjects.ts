@@ -117,10 +117,21 @@ export class MissionControlProjects extends Disposable {
 		return !project.bootPinned || this._options.getRoots().some(root => extUriBiasedIgnorePathCase.isEqual(URI.file(root), URI.file(project.path)));
 	}
 
+	/** Reconciles shared folders, omitting directories that no longer exist. */
 	async initialize(): Promise<void> {
 		await (this._loaded ??= this._load());
 		await this._mutations.queue(async () => {
-			const paths = await Promise.all(this._options.getRoots().map(root => realpath(root)));
+			const paths = (await Promise.all(this._options.getRoots().map(async root => {
+				try {
+					return await realpath(root);
+				} catch (error) {
+					if (!isRecord(error) || (error.code !== 'ENOENT' && error.code !== 'ENOTDIR')) {
+						throw error;
+					}
+					this._log.warn('[MissionControl] Ignoring a missing shared project directory', root);
+					return undefined;
+				}
+			}))).filter(path => path !== undefined);
 			const currentIds = new Set(paths.map(path => this._id(path)));
 			for (const [id, project] of this._projects) {
 				if (project.bootPinned && !currentIds.has(id)) {

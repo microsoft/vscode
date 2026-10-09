@@ -177,6 +177,7 @@ type EntityValue = GitHubRepository | GitHubIssue | GitHubCommit;
 interface IEntityOperation {
 	readonly controller: AbortController;
 	readonly promise: Promise<void>;
+	requestSignal?: AbortSignal;
 }
 
 class EntityEntry<TRef extends EntityRef, TValue extends EntityValue> {
@@ -886,6 +887,9 @@ export class GitHubQueryService extends Disposable implements IGitHubQuery {
 	}
 
 	updateEntitySubscription(entry: EntityEntry<EntityRef, EntityValue>): void {
+		if (entry.operation?.requestSignal) {
+			this._transport.promote(entry.operation.requestSignal, toRequestPriority(this._effectivePriority(entry)));
+		}
 		if (this._shouldPollEntity(entry)) {
 			this._scheduleEntity(entry, this._clock.now() + this._pollDelay(entry));
 		}
@@ -1009,13 +1013,17 @@ export class GitHubQueryService extends Disposable implements IGitHubQuery {
 				: entry.kind === 'issue'
 					? `issues/${(entry.ref as GitHubIssueRef).number}`
 					: `commits/${encodeURIComponent((entry.ref as GitHubCommitRef).sha)}`;
+			const signal = AbortSignal.any([controller.signal, credential.signal]);
+			if (entry.operation?.controller === controller) {
+				entry.operation.requestSignal = signal;
+			}
 			const response = await this._transport.rest<unknown>(credential.account, credential.token, {
 				caller: 'github.query',
 				method: 'GET',
 				url: this._restUrl(entry.ref, route),
 				etag: true,
 				priority: toRequestPriority(this._effectivePriority(entry)),
-			}, AbortSignal.any([controller.signal, credential.signal]));
+			}, signal);
 			if (entry.disposed || controller.signal.aborted || entry.subscriptions.size === 0) {
 				return;
 			}

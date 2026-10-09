@@ -4,8 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Event } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ThreadStatusScheduler } from '../../browser/debugSession.js';
+import { DebugSession, ThreadStatusScheduler } from '../../browser/debugSession.js';
+import { RawDebugSession } from '../../browser/rawDebugSession.js';
+import { MockDebugAdapter } from '../common/mockDebug.js';
+import { createTestSession } from './callStack.test.js';
+import { createMockDebugModel } from './mockDebugModel.js';
 
 
 suite('DebugSession - ThreadStatusScheduler', () => {
@@ -105,5 +110,101 @@ suite('DebugSession - ThreadStatusScheduler', () => {
 		});
 
 		assert.strictEqual(innerCalled, false);
+	});
+});
+
+
+suite('DebugSession - continued events', () => {
+	let session: DebugSession | undefined;
+
+	teardown(async () => {
+		await session?.disconnect();
+		session = undefined;
+	});
+
+	const ds = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createSession() {
+		const model = createMockDebugModel(ds);
+		session = ds.add(createTestSession(model));
+		model.addSession(session);
+		const adapter = ds.add(new class extends MockDebugAdapter {
+			override sendMessage(message: DebugProtocol.ProtocolMessage): void {
+				if (message.type === 'request') {
+					const request = message as DebugProtocol.Request;
+					if (request.command === 'threads') {
+						this.sendResponseBody(request, { threads: [{ id: 1, name: 'first' }, { id: 2, name: 'second' }] });
+						return;
+					}
+					if (request.command === 'stackTrace') {
+						this.sendResponseBody(request, { stackFrames: [], totalFrames: 0 });
+						return;
+					}
+				}
+				super.sendMessage(message);
+			}
+		});
+		const raw = ds.add(new RawDebugSession(adapter, undefined!, '', '', undefined!, undefined!, undefined!, undefined!));
+		session.initializeForTest(raw);
+		return { session, adapter };
+	}
+
+	for (const allThreadsContinued of [false, true]) {
+		test(`preserves a newer stop during ${allThreadsContinued ? 'all-thread' : 'single-thread'} continued cleanup`, async () => {
+			const { session, adapter } = createSession();
+			const initiallyStopped = Event.toPromise(session.onDidChangeState);
+			adapter.sendEventBody('stopped', { reason: 'step', threadId: 1 });
+			await initiallyStopped;
+			assert.strictEqual(session.getStoppedDetails()?.reason, 'step');
+
+			const stoppedAgain = Event.toPromise(Event.filter(session.onDidChangeState, () => session.getThread(1)?.stopped === true));
+			// Adjacent adapter events are dispatched before continued cleanup resumes.
+			adapter.sendEventBody('continued', { threadId: 1, allThreadsContinued });
+			adapter.sendEventBody('stopped', { reason: 'breakpoint', threadId: 1 });
+			await stoppedAgain;
+
+			assert.deepStrictEqual(session.getStoppedDetails(), { reason: 'breakpoint', threadId: 1, totalFrames: 0 });
+		});
+
+		test(`clears an earlier stop on ${allThreadsContinued ? 'all-thread' : 'single-thread'} continuation`, async () => {
+			const { session, adapter } = createSession();
+			const stopped = Event.toPromise(session.onDidChangeState);
+			adapter.sendEventBody('stopped', { reason: 'step', threadId: 1 });
+			await stopped;
+
+			const continued = Event.toPromise(session.onDidChangeState);
+			adapter.sendEventBody('continued', { threadId: 1, allThreadsContinued });
+			await continued;
+
+			assert.strictEqual(session.getStoppedDetails(), undefined);
+			assert.strictEqual(session.getThread(1)?.stopped, false);
+		});
+	}
+
+	test('preserves a stopped thread when another thread continues', async () => {
+		const { session, adapter } = createSession();
+		const stopped = Event.toPromise(session.onDidChangeState);
+		adapter.sendEventBody('stopped', { reason: 'breakpoint', threadId: 2 });
+		await stopped;
+
+		const continued = Event.toPromise(session.onDidChangeState);
+		adapter.sendEventBody('continued', { threadId: 1, allThreadsContinued: false });
+		await continued;
+
+		assert.deepStrictEqual(session.getStoppedDetails(), { reason: 'breakpoint', threadId: 2, totalFrames: 0 });
+		assert.strictEqual(session.getThread(2)?.stopped, true);
+	});
+
+	test('clears a stop without a thread ID when all threads continue', async () => {
+		const { session, adapter } = createSession();
+		const stopped = Event.toPromise(session.onDidChangeState);
+		adapter.sendEventBody('stopped', { reason: 'pause', allThreadsStopped: true });
+		await stopped;
+
+		const continued = Event.toPromise(Event.filter(session.onDidChangeState, () => session.getAllThreads().every(thread => !thread.stopped)));
+		adapter.sendEventBody('continued', { threadId: 1 });
+		await continued;
+
+		assert.strictEqual(session.getStoppedDetails(), undefined);
 	});
 });
