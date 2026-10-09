@@ -77,6 +77,10 @@ export interface ICustomizationMigrationDashboardCallbacks {
 	readonly onDidChangeContent?: () => void;
 }
 
+function isMigrationScopeComplete(scope: ICustomizationMigrationDashboardScope): boolean {
+	return scope.count === 0 && !scope.skipped;
+}
+
 export class CustomizationMigrationDashboard extends Disposable {
 	readonly element: HTMLElement;
 
@@ -117,10 +121,10 @@ export class CustomizationMigrationDashboard extends Disposable {
 	showOverview(overview: ICustomizationMigrationDashboardOverview): void {
 		const focusedKey = this.getFocusToRestore();
 		this.pendingFocus = undefined;
-		this.allMigrationsComplete = overview.scopes.every(scope => scope.count === 0);
+		this.allMigrationsComplete = overview.scopes.every(isMigrationScopeComplete);
 		this.prepareRender();
 		const skippedCount = overview.scopes.filter(scope => scope.skipped).length;
-		const completedCount = overview.scopes.filter(scope => scope.count === 0 && !scope.skipped).length;
+		const completedCount = overview.scopes.filter(isMigrationScopeComplete).length;
 		const page = this.renderHeader(
 			localize('migrationsTitle', "Migrations"),
 			overview.scopes.every(scope => scope.count === 0 || scope.skipped)
@@ -218,7 +222,7 @@ export class CustomizationMigrationDashboard extends Disposable {
 	}
 
 	private renderScope(parent: HTMLElement, scope: ICustomizationMigrationDashboardScope): void {
-		const complete = scope.count === 0 && !scope.skipped;
+		const complete = isMigrationScopeComplete(scope);
 		const state = complete ? 'complete' : scope.skipped ? 'skipped' : scope.started ? 'progress' : 'pending';
 		const stateLabel = complete ? localize('migrated', "Migrated")
 			: scope.skipped ? localize('skipped', "Skipped")

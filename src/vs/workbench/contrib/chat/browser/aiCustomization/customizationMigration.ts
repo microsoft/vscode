@@ -73,7 +73,7 @@ export function migratePromptFileToSkill(promptFile: MigratableConfiguration, co
 	const headerLines = [
 		'---',
 		`name: ${skillName}`,
-		`description: ${description}`,
+		`description: ${JSON.stringify(description)}`,
 		'disable-model-invocation: true',
 	];
 

@@ -145,6 +145,29 @@ suite('CustomizationMigrationDashboard', () => {
 		});
 	});
 
+	test('focuses the include action when only a skipped empty workspace remains', () => {
+		const { parent, dashboard } = createDashboard();
+		const model = overview();
+		dashboard.showOverview({
+			...model,
+			scopes: model.scopes.map(scope => ({
+				...scope,
+				count: 0,
+				categories: [],
+				skipped: scope.storage === PromptsStorage.local,
+			})),
+		});
+		dashboard.focus();
+
+		assert.deepStrictEqual({
+			focus: document.activeElement?.getAttribute('aria-label'),
+			progress: parent.querySelector('.migration-checklist-progress')?.textContent,
+		}, {
+			focus: 'Include workspace vscode',
+			progress: '1 of 2 complete · 1 skipped',
+		});
+	});
+
 	test('does not restore loading focus into a completed overview', () => {
 		const { parent, dashboard } = createDashboard();
 		dashboard.showLoading('Migrations', 'Loading migrations');

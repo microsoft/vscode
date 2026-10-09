@@ -16,6 +16,7 @@ import { FileType, IFileDeleteOptions, IFileWriteOptions, createFileSystemProvid
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { PromptsConfig } from '../../../common/promptSyntax/config/config.js';
+import { PromptFileParser } from '../../../common/promptSyntax/promptFileParser.js';
 import { PromptFileSource, PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { CustomizationMigrationType, isMcpServerCustomizationMigrationCandidate, McpServerCustomizationMigrationFailureReason } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 import { PromptsStorage, type IPromptPath } from '../../../common/promptSyntax/service/promptsService.js';
@@ -313,7 +314,7 @@ suite('customizationMigration', () => {
 			content: [
 				'---',
 				'name: review-prompt',
-				'description: Review the active change',
+				'description: "Review the active change"',
 				'disable-model-invocation: true',
 				'argument-hint: "[diff]"',
 				'---',
@@ -322,6 +323,35 @@ suite('customizationMigration', () => {
 				'- Review the diff',
 			].join('\n'),
 			unsupportedHeaderKeys: ['tools', 'model', 'agent', 'mode', 'custom-header', 'disable-model-invocation'],
+		});
+	});
+
+	test('safely serializes YAML-sensitive prompt descriptions', () => {
+		const promptFile: IPromptPath = {
+			uri: URI.file('/workspace/.github/prompts/review.prompt.md'),
+			name: 'Review Prompt',
+			description: 'Review: changes',
+			storage: PromptsStorage.local,
+			type: PromptsType.prompt,
+			source: PromptFileSource.GitHubWorkspace,
+		};
+		const content = [
+			'---',
+			'name: Review Prompt',
+			'description: "Review: changes"',
+			'---',
+			'Review body',
+		].join('\n');
+
+		const migrated = migratePromptFileToSkill(promptFile, content);
+		const parsed = new PromptFileParser().parse(promptFile.uri, migrated.content);
+
+		assert.deepStrictEqual({
+			descriptionLine: migrated.content.split('\n').find(line => line.startsWith('description:')),
+			parsedDescription: parsed.header?.description,
+		}, {
+			descriptionLine: 'description: "Review: changes"',
+			parsedDescription: 'Review: changes',
 		});
 	});
 
