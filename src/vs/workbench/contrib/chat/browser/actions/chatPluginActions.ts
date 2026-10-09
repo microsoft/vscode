@@ -247,9 +247,11 @@ export class ManagePluginMarketplacesAction extends Action2 {
 			if (refs.length > 0) {
 				items.push({ type: 'separator', label: localize('configuredMarketplaces', "Configured Marketplaces") });
 				items.push(...refs.map(reference => {
+					const allowed = isMarketplaceReferenceAllowed(strictMarketplaces, reference);
 					const descriptions = [
 						defaultCanonicalIds.has(reference.canonicalId) ? localize('defaultMarketplace', "Default") : undefined,
 						policyCanonicalIds.has(reference.canonicalId) ? localize('managedMarketplace', "Managed by Organization") : undefined,
+						!allowed ? localize('disabledMarketplace', "Disabled by Organization") : undefined,
 					].filter((description): description is string => description !== undefined);
 					return {
 						id: reference.canonicalId,
@@ -261,7 +263,7 @@ export class ManagePluginMarketplacesAction extends Action2 {
 						kind: 'marketplace' as const,
 						reference,
 						managedByPolicy: policyCanonicalIds.has(reference.canonicalId),
-						disabled: !isMarketplaceReferenceAllowed(strictMarketplaces, reference),
+						disabled: !allowed,
 					};
 				}));
 			}
@@ -381,10 +383,6 @@ export class ManagePluginMarketplacesAction extends Action2 {
 		const configured = parseMarketplaceReferences(readConfiguredMarketplaces(configurationService).effectiveValues);
 		if (configured.some(candidate => candidate.canonicalId === reference.canonicalId)) {
 			return localize('marketplaceAlreadyConfigured', "This marketplace is already configured.");
-		}
-		const allowlist = getStrictKnownMarketplaces(configurationService.getValue(ChatConfiguration.StrictMarketplaces));
-		if (!isMarketplaceReferenceAllowed(allowlist, reference)) {
-			return localize('marketplaceNotAllowed', "This marketplace is not allowed by enterprise policy.");
 		}
 		return undefined;
 	}

@@ -237,6 +237,27 @@ suite('ManagePluginMarketplacesAction', () => {
 		}]);
 	});
 
+	test('shows plugins from a strict allowed default marketplace without using the public feed', async () => {
+		const marketplace = parseMarketplaceReference('github/awesome-copilot#marketplace')!;
+		const fixture = createFixture({
+			[ChatConfiguration.PluginMarketplaces]: [marketplace.rawValue],
+			[ChatConfiguration.ExtraMarketplaces]: {},
+			[ChatConfiguration.StrictMarketplaces]: [{ source: 'github', repo: marketplace.rawValue }],
+			[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: true,
+		}, true);
+		fixture.quickInputService.pickIds.push(marketplace.canonicalId, 'showPlugins');
+
+		await fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
+
+		assert.deepStrictEqual(fixture.commands, [{
+			id: AICustomizationManagementCommands.OpenMarketplace,
+			args: [{
+				section: AICustomizationManagementSection.Plugins,
+				sourceId: getPluginCustomizationMarketplaceSourceId(marketplace),
+			}],
+		}]);
+	});
+
 	test('disables marketplaces outside strict policy and labels organization-managed marketplaces', async () => {
 		const defaultMarketplace = parseMarketplaceReference('github/awesome-copilot#marketplace')!;
 		const managedMarketplace = parseMarketplaceReference('microsoft/vscode-team-kit')!;
@@ -263,7 +284,7 @@ suite('ManagePluginMarketplacesAction', () => {
 				{
 					id: defaultMarketplace.canonicalId,
 					label: defaultMarketplace.displayLabel,
-					description: undefined,
+					description: 'Disabled by Organization',
 					disabled: true,
 				},
 				{
@@ -276,7 +297,38 @@ suite('ManagePluginMarketplacesAction', () => {
 		);
 	});
 
-	test('rejects marketplaces blocked by strict enterprise policy', async () => {
+	test('disables organization-managed marketplaces outside strict policy', async () => {
+		const managedMarketplace = parseMarketplaceReference('microsoft/vscode-team-kit')!;
+		const fixture = createFixture({
+			[ChatConfiguration.PluginMarketplaces]: [],
+			[ChatConfiguration.ExtraMarketplaces]: {
+				'vscode-team-kit': managedMarketplace.rawValue,
+			},
+			[ChatConfiguration.StrictMarketplaces]: [{ source: 'github', repo: 'approved/catalog' }],
+		});
+
+		await fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
+
+		assert.deepStrictEqual(
+			fixture.quickInputService.picks[0]
+				.filter((pick): pick is IQuickPickItem => pick.type !== 'separator' && pick.id !== 'addMarketplace')
+				.map(pick => ({
+					id: pick.id,
+					label: pick.label,
+					description: pick.description,
+					disabled: pick.disabled,
+				})),
+			[{
+				id: managedMarketplace.canonicalId,
+				label: 'vscode-team-kit',
+				description: 'Managed by Organization, Disabled by Organization',
+				disabled: true,
+			}],
+		);
+	});
+
+	test('adds marketplaces outside strict policy as disabled', async () => {
+		const blockedMarketplace = parseMarketplaceReference('blocked/catalog')!;
 		const fixture = createFixture({
 			[ChatConfiguration.PluginMarketplaces]: [],
 			[ChatConfiguration.ExtraMarketplaces]: {},
@@ -286,12 +338,28 @@ suite('ManagePluginMarketplacesAction', () => {
 		fixture.quickInputService.inputValue = 'blocked/catalog';
 
 		await fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
+
 		assert.deepStrictEqual({
 			updates: fixture.configurationService.updates,
 			notifications: fixture.notifications.map(notification => notification.message),
+			addedMarketplace: fixture.quickInputService.picks[1]
+				.find((pick): pick is IQuickPickItem => pick.type !== 'separator' && pick.id === blockedMarketplace.canonicalId),
 		}, {
-			updates: [],
-			notifications: ['This marketplace is not allowed by enterprise policy.'],
+			updates: [{
+				key: ChatConfiguration.PluginMarketplaces,
+				value: [blockedMarketplace.rawValue],
+			}],
+			notifications: [],
+			addedMarketplace: {
+				id: blockedMarketplace.canonicalId,
+				label: blockedMarketplace.displayLabel,
+				description: 'Disabled by Organization',
+				detail: blockedMarketplace.cloneUrl,
+				kind: 'marketplace',
+				reference: blockedMarketplace,
+				managedByPolicy: false,
+				disabled: true,
+			},
 		});
 	});
 });

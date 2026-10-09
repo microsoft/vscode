@@ -423,6 +423,43 @@ suite('CustomizationMarketplaceWorkbenchService', () => {
 		});
 	});
 
+	test('strict marketplace policy excludes the GitHub feed', async () => {
+		const configuration = createConfiguration([CustomizationMarketplaceSources.AgentFinderPublicFeed.id]);
+		await configuration.setUserConfiguration(ChatConfiguration.PluginsEnabled, true);
+		await configuration.setUserConfiguration(ChatConfiguration.StrictMarketplaces, [{ source: 'github', repo: 'approved/catalog' }]);
+		const reference = parseMarketplaceReference('approved/catalog')!;
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IConfigurationService, configuration);
+		instantiationService.stub(IPlatformCustomizationMarketplaceService, new class extends mock<ICustomizationMarketplaceService>() {
+			override readonly sources = [];
+			override readonly allSources = [];
+			override async query() { return { items: [] }; }
+		}());
+		instantiationService.stub(IPluginMarketplaceService, new class extends mock<IPluginMarketplaceService>() {
+			override readonly onDidChangeMarketplaces = Event.None;
+			override getMarketplaceReferences() { return [reference]; }
+			override async queryMarketplacePlugins() {
+				return { items: [], total: 0, errors: [] };
+			}
+		}());
+		registerConnectorService(instantiationService, {
+			query: async () => {
+				throw new Error('GitHub Feed must not be queried under strict marketplace policy');
+			},
+		});
+		const service = store.add(instantiationService.createInstance(CustomizationMarketplaceWorkbenchService));
+
+		const page = await service.query({ pageSize: 10 }, CancellationToken.None);
+
+		assert.deepStrictEqual({
+			sources: service.sources.map(source => source.id),
+			items: page.items,
+		}, {
+			sources: [getPluginCustomizationMarketplaceSourceId(reference), CustomizationMarketplaceSources.CopilotConnectors.id],
+			items: [],
+		});
+	});
+
 	test('GitHub Feed exposes only the active harness recovery action', async () => {
 		const configuration = createConfiguration([CustomizationMarketplaceSources.AgentFinderPublicFeed.id]);
 		const recoveries: CancellationToken[] = [];
