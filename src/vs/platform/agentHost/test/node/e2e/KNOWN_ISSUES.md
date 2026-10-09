@@ -21,10 +21,10 @@ Capability skips are tracked separately from suspected bugs. A provider that doe
 An administrator can disable identity capture while the runtime inherits an explicit `user.name` resource attribute. The native runtime removes `process.user.name` and `host.name`, but the inherited `user.name` still reaches the managed collector. This scenario concerns native Copilot export, not the separate Agent Host metadata pipeline.
 
 - Test: `managed identity denial removes inherited identity from native spans`.
-- Scope: Copilot runtime `1.0.95-0`; reproduced in local strict replay on macOS. The expected-failure marker remains enabled on all platforms.
+- Scope: Copilot runtime `1.0.95-3`; reproduced in local strict replay on macOS. The expected-failure marker remains enabled on all platforms.
 - Expected: managed `telemetry.capture.identity=false` removes all three identity attributes from native spans and events despite local opt-in and inherited resource attributes.
-- Observed: native spans still retain `user.name=synthetic-account` with SDK `1.0.19-preview.0` / runtime `1.0.95-0`. The runtime's identity-resource predicate still includes only `process.user.name` and `host.name`.
-- Tracking: the [bundled runtime's identity-resource predicate](https://github.com/github/copilot-agent-runtime/blob/94f375f0098b266c43f7772797bc5f7b4ea12626/src/runtime/src/otel/sdk.rs#L2003) includes only `process.user.name` and `host.name`. Stephen Toub introduced this predicate on September 14, 2026, in [github/copilot-agent-runtime#19723](https://github.com/github/copilot-agent-runtime/pull/19723). No upstream issue was filed by this task.
+- Observed: native spans still retain `user.name=synthetic-account` with SDK `1.0.19-preview.3` / runtime `1.0.95-3`. The runtime's identity-resource predicate still includes only `process.user.name` and `host.name`.
+- Tracking: the [bundled runtime's identity-resource predicate](https://github.com/github/copilot-agent-runtime/blob/f5ba50575c25c247798fb12ded26c48b421577ce/src/runtime/src/otel/sdk.rs#L2003) includes only `process.user.name` and `host.name`. Stephen Toub introduced this predicate on September 14, 2026, in [github/copilot-agent-runtime#19723](https://github.com/github/copilot-agent-runtime/pull/19723). No upstream issue was filed by this task.
 - Gate: a strict expected-failure marker accepts only the identity-redaction assertion. An unexpected pass fails and requires removing the marker. Recording skips the case to preserve its complete existing fixture.
 - Reproduce:
 

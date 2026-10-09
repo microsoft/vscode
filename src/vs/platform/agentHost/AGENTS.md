@@ -105,7 +105,7 @@ Availability, authorization, and durable tool history remain provider-owned. Inl
 
 Copilot image completions carry optional `_meta["vscode.toolCallDurationMs"]`, derived from SDK execution-event timestamps in both live and restored history. Clients validate this display-only value and tolerate its absence. Image byte sizes come from the actual embedded or referenced bytes; suggested hash-suffixed download names never rewrite referenced resource identities.
 
-Insiders and development builds set `IMAGE_GENERATION_TOOL=true` in the Copilot runtime subprocess environment. Stable leaves the runtime default and inherited overrides unchanged. This opts into the tool, not image-model access: the runtime still enforces account/model availability, policy, and tool permissions. Generation requires a bundled runtime containing the versioned `/v1/images/generations` endpoint fix and a deployed CAPI route.
+Insiders and development builds explicitly enable `imageGeneration` in every Copilot SDK create/resume configuration. Stable enables it only when the inherited `IMAGE_GENERATION_TOOL` developer override is `true` (case-insensitive); otherwise it explicitly disables it. This non-persisted consent is reapplied on cold resume and fallback creation, not inferred from the runtime's CLI rollout flag. It opts into the tool, not image-model access: the runtime still enforces account/model availability, policy, and tool permissions. Generation requires a deployed CAPI route.
 
 ### Orchestrator layer
 

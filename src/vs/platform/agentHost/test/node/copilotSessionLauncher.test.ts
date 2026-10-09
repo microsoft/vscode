@@ -16,6 +16,7 @@ import { InstantiationService } from '../../../instantiation/common/instantiatio
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, LogLevel, NullLogService } from '../../../log/common/log.js';
 import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
+import { IProductService } from '../../../product/common/productService.js';
 import type { TerminalSandboxEngine } from '../../../sandbox/common/terminalSandboxEngine.js';
 import type { IByokLmBridgeConnection, IByokLmChatRequest, IByokLmChatResult, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, platformSessionSchema, type SchemaValues } from '../../common/agentHostSchema.js';
@@ -123,7 +124,7 @@ const noopSessionOpenTelemetry: IAgentHostSessionOpenTelemetry = {
 	sdkResumeFallbackCreated: () => { },
 };
 
-function createTestLauncher(managedSettingsPermissions?: IAgentHostManagedSettingsPermissions, rootValues: Record<string, unknown> = {}, logService: ILogService = new NullLogService(), sessionOpenTelemetry: IAgentHostSessionOpenTelemetry = noopSessionOpenTelemetry, configuration?: IAgentConfigurationService): CopilotSessionLauncher {
+function createTestLauncher(managedSettingsPermissions?: IAgentHostManagedSettingsPermissions, rootValues: Record<string, unknown> = {}, logService: ILogService = new NullLogService(), sessionOpenTelemetry: IAgentHostSessionOpenTelemetry = noopSessionOpenTelemetry, configuration?: IAgentConfigurationService, productService: IProductService = new class extends mock<IProductService>() { override quality = undefined; }): CopilotSessionLauncher {
 	const configurationService = configuration ?? {
 		getRootValue: (_schema: unknown, key: string) => rootValues[key],
 		getSessionConfigValues: () => undefined,
@@ -148,6 +149,7 @@ function createTestLauncher(managedSettingsPermissions?: IAgentHostManagedSettin
 			withTraceContext: <T>(_context: undefined, fn: () => T): T => fn(),
 		} as unknown as IAgentHostOTelService,
 		sessionOpenTelemetry,
+		productService,
 	);
 }
 
@@ -837,6 +839,7 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 		services.set(ILogService, new NullLogService());
 		services.set(IByokLmProxyService, proxy);
 		services.set(IByokLmBridgeRegistry, registry);
+		services.set(IProductService, new class extends mock<IProductService>() { override quality = undefined; });
 		services.set(IAgentConfigurationService, {
 			_serviceBrand: undefined,
 			getRootValue: (_schema: unknown, key: string) => key === AgentHostByokModelsEnabledConfigKey ? byokModelsEnabled : undefined,
@@ -1388,6 +1391,84 @@ suite('CopilotSessionLauncher local index', () => {
 				localIndexEnabled !== false, localIndexEnabled !== false, false, false,
 			]);
 		});
+	}
+});
+
+suite('CopilotSessionLauncher image generation', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const quality of ['stable', 'insider', undefined] as const) {
+		for (const inherited of [undefined, 'false', 'true', 'TRUE', '1']) {
+			test(`preserves image rollout on create, resume, and fallback (${quality ?? 'development'}, inherited=${inherited ?? 'unset'})`, async () => {
+				const created: SessionConfig[] = [];
+				const resumed: ResumeSessionConfig[] = [];
+				let failResume = false;
+				const session = new class extends mock<CopilotSession>() {
+					override sessionId = 'image-session';
+					override on(): () => void { return () => { }; }
+					override async disconnect(): Promise<void> { }
+					override get rpc(): CopilotSession['rpc'] {
+						return new class extends mock<CopilotSession['rpc']>() {
+							override options = new class extends mock<CopilotSession['rpc']['options']>() {
+								override update = async () => ({ success: true });
+							};
+						};
+					}
+				};
+				const client = {
+					createSession: async (config: SessionConfig) => {
+						reportManagedSettings(config);
+						created.push(config);
+						return session;
+					},
+					resumeSession: async (_id: string, config: ResumeSessionConfig) => {
+						resumed.push(config);
+						if (failResume) {
+							throw Object.assign(new Error('LocalRpcSession: session.getMessages returned no events'), { code: -32603 });
+						}
+						reportManagedSettings(config);
+						return session;
+					},
+					rpc: { managedSettings: createUnmanagedCopilotSettings(), account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { proxyCa: new class extends mock<CopilotClient['rpc']['sandbox']['proxyCa']>() { }, getHostSupport: async () => ({ supported: true, capabilities: [] }) } },
+				};
+				const launcher = createTestLauncher(undefined, {}, undefined, undefined, undefined, new class extends mock<IProductService>() { override quality = quality; });
+				const plan = {
+					client,
+					sessionId: 'image-session',
+					workingDirectory: testWorkingDirectory,
+					resolvedAgentName: undefined,
+					snapshot: { tools: [], plugins: [], mcpServers: {} },
+					activeClientToolSet: new ActiveClientToolSet(),
+					shellManager: undefined,
+					githubCredentials: CopilotGitHubSessionCredentials.fromToken(undefined),
+				};
+				const previous = process.env['IMAGE_GENERATION_TOOL'];
+				try {
+					if (inherited === undefined) {
+						delete process.env['IMAGE_GENERATION_TOOL'];
+					} else {
+						process.env['IMAGE_GENERATION_TOOL'] = inherited;
+					}
+					disposables.add(await launcher.launch({ ...plan, kind: 'create', model: undefined }, testRuntime));
+					const resumePlan: CopilotSessionLaunchPlan = { ...plan, kind: 'resume', fallback: { model: undefined } };
+					disposables.add(await launcher.launch(resumePlan, testRuntime));
+					failResume = true;
+					disposables.add(await launcher.launch(resumePlan, testRuntime));
+					const expected = { enabled: quality !== 'stable' || inherited?.toLowerCase() === 'true' };
+					assert.deepStrictEqual({
+						created: created.map(config => config.imageGeneration),
+						resumed: resumed.map(config => config.imageGeneration),
+						parentFlag: process.env['IMAGE_GENERATION_TOOL'],
+					}, { created: [expected, expected], resumed: [expected, expected], parentFlag: inherited });
+				} finally {
+					if (previous === undefined) {
+						delete process.env['IMAGE_GENERATION_TOOL'];
+					} else {
+						process.env['IMAGE_GENERATION_TOOL'] = previous;
+					}
+				}
+			});
+		}
 	}
 });
 
@@ -2144,6 +2225,7 @@ suite('CopilotSessionLauncher resume config', () => {
 		const services = new ServiceCollection();
 		services.set(ILogService, new NullLogService());
 		services.set(IByokLmBridgeRegistry, new ByokLmBridgeRegistry());
+		services.set(IProductService, new class extends mock<IProductService>() { override quality = undefined; });
 		services.set(IAgentHostManagedSettingsService, store.add(new AgentHostManagedSettingsService()));
 		services.set(IAgentConfigurationService, {
 			_serviceBrand: undefined,
