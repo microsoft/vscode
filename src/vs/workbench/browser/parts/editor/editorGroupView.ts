@@ -204,9 +204,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			// Container context menu
 			this.createContainerContextMenu();
 
-			// Watermark & shortcuts
-			this._register(this.instantiationService.createInstance(EditorGroupWatermark, this.element));
-
 			// Progress bar
 			this.progressBar = this._register(new ProgressBar(this.element, defaultProgressBarStyles));
 			this.progressBar.hide();
@@ -227,6 +224,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 			// Title control
 			this.titleControl = this._register(this.scopedInstantiationService.createInstance(EditorTitleControl, this.titleContainer, this.editorPartsView, this.groupsView, this, this.model, options?.menuIds, options?.showHeader === true, options?.reserveHeaderSpace, options?.useModernUITabs === true));
+
+			// Watermark & shortcuts
+			this._register(this.instantiationService.createInstance(EditorGroupWatermark, this.element));
 
 			// Editor container
 			this.editorContainer = $('.editor-container');
