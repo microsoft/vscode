@@ -165,7 +165,7 @@ export class SessionCanvasRegistryService extends Disposable implements ISession
 			}
 			this.availableCanvases.set(
 				canvases
-					.filter(isExtensionCanvasDefinition)
+					.filter(isOpenableExtensionCanvasDefinition)
 					.sort(compareCanvasDefinitions),
 				undefined,
 			);
@@ -183,12 +183,14 @@ function ownsSession(owner: ICanvasOwner, session: ISession): boolean {
 	return owner.providerId === session.providerId && isEqual(owner.session, session.resource);
 }
 
-function isExtensionCanvasDefinition(canvas: ISessionCanvasDefinition): boolean {
-	return canvas.extensionSource !== 'unknown'
+function isOpenableExtensionCanvasDefinition(canvas: ISessionCanvasDefinition): boolean {
+	return !canvas.requiresInput && (
+		canvas.extensionSource !== 'unknown'
 		|| canvas.extensionId.startsWith('user:')
 		|| canvas.extensionId.startsWith('project:')
 		|| canvas.extensionId.startsWith('session:')
-		|| canvas.extensionId.startsWith('plugin:');
+		|| canvas.extensionId.startsWith('plugin:')
+	);
 }
 
 function compareCanvasDefinitions(first: ISessionCanvasDefinition, second: ISessionCanvasDefinition): number {

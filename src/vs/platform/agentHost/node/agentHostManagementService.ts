@@ -111,14 +111,14 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		return this._runMutation(() => this._agentService.uninstallPlugin!(provider, request));
 	}
 
-	listSessionCanvases(session: URI, chat?: URI): Promise<readonly IAgentCanvasInfo[]> {
+	listSessionCanvases(session: URI, chat: URI): Promise<readonly IAgentCanvasInfo[]> {
 		if (!this._agentService.listSessionCanvases) {
 			throw new Error('Copilot canvas inventory is unavailable');
 		}
 		return this._agentService.listSessionCanvases(session, chat);
 	}
 
-	openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest, chat?: URI): Promise<void> {
+	openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest, chat: URI): Promise<void> {
 		if (!this._agentService.openSessionCanvas) {
 			throw new Error('Opening Copilot canvases is unavailable');
 		}

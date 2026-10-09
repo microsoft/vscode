@@ -166,19 +166,19 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	public removedArtifacts: { session: URI; artifactId: string }[] = [];
 	public importedSessions: URI[] = [];
 	public canvasDefinitions: readonly IAgentCanvasInfo[] = [];
-	public canvasListRequests: { session: URI; chat: URI | undefined }[] = [];
-	public canvasOpenRequests: { session: URI; chat: URI | undefined; request: IAgentCanvasOpenRequest }[] = [];
+	public canvasListRequests: { session: URI; chat: URI }[] = [];
+	public canvasOpenRequests: { session: URI; chat: URI; request: IAgentCanvasOpenRequest }[] = [];
 	override async importSession(session: URI): Promise<void> {
 		this.importedSessions.push(session);
 	}
 	override async removeSessionArtifact(session: URI, artifactId: string): Promise<void> {
 		this.removedArtifacts.push({ session, artifactId });
 	}
-	override async listSessionCanvases(session: URI, chat?: URI): Promise<readonly IAgentCanvasInfo[]> {
+	override async listSessionCanvases(session: URI, chat: URI): Promise<readonly IAgentCanvasInfo[]> {
 		this.canvasListRequests.push({ session, chat });
 		return this.canvasDefinitions;
 	}
-	override async openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest, chat?: URI): Promise<void> {
+	override async openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest, chat: URI): Promise<void> {
 		this.canvasOpenRequests.push({ session, chat, request });
 	}
 	get rootStateListenerCount(): number { return this._rootStateListenerCount; }
@@ -1158,11 +1158,18 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const chatState: ChatState = { ...summary, turns: [], canvases: [{ resource }] };
 		agentHost.setChatState(chat, chatState);
 		activeSession.set(upcastPartial<IActiveSession>({ ...session, activeChat: session.mainChat }), undefined);
-		disposables.add(autorun(reader => session.mainChat.read(reader).canvases?.read(reader)));
+		let canvasPublicationCount = 0;
+		disposables.add(autorun(reader => {
+			session.mainChat.read(reader).canvases?.read(reader);
+			canvasPublicationCount++;
+		}));
 		const read = () => session.mainChat.get().canvases?.get()?.map(canvas => ({
 			resource: canvas.resource.toString(), instanceId: canvas.instanceId, source: canvas.source?.toString(),
 		}));
 		const pending = read();
+		const publicationsBeforeRegistryRepublish = canvasPublicationCount;
+		agentHost.setChatState(chat, { ...chatState, canvases: [{ resource }] });
+		const registryRepublishCount = canvasPublicationCount - publicationsBeforeRegistryRepublish;
 		const canvas: CanvasState = { instanceId: 'preview', extensionId: 'example:provider', canvasId: 'preview', url: 'https://example.test/preview' };
 		agentHost.setCanvasState(resource, canvas);
 		const ready = read();
@@ -1176,12 +1183,13 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 		assert.deepStrictEqual({
 			supportsCanvases: session.capabilities.get().supportsCanvases,
-			pending, ready, updated, unavailable, unsupported, removed: read(),
+			pending, registryRepublishCount, ready, updated, unavailable, unsupported, removed: read(),
 			subscribes: agentHost.sessionSubscribeCounts.get(resource),
 			unsubscribes: agentHost.sessionUnsubscribeCounts.get(resource),
 		}, {
 			supportsCanvases: true,
 			pending: [{ resource, instanceId: undefined, source: undefined }],
+			registryRepublishCount: 1,
 			ready: [{ resource, instanceId: 'preview', source: canvas.url }],
 			updated: [{ resource, instanceId: 'preview', source: 'https://example.test/replaced' }],
 			unavailable: [{ resource, instanceId: undefined, source: undefined }],
@@ -3610,6 +3618,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				extensionSource: 'project',
 				displayName: 'Preview',
 				description: 'Preview.',
+				requiresInput: false,
 			}],
 			backendChat: peerBackend,
 			hasOpen: 'function',
@@ -3619,11 +3628,11 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual({
 			list: agentHost.canvasListRequests.map(request => ({
 				session: request.session.toString(),
-				chat: request.chat?.toString(),
+				chat: request.chat.toString(),
 			})),
 			open: agentHost.canvasOpenRequests.map(({ session, chat, request }) => ({
 				session: session.toString(),
-				chat: chat?.toString(),
+				chat: chat.toString(),
 				request,
 			})),
 		}, {

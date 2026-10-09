@@ -282,7 +282,7 @@ export interface IAgentPluginUninstallRequest {
 
 export type AgentCanvasExtensionSource = 'user' | 'project' | 'session' | 'plugin' | 'unknown';
 
-/** One canvas declaration available to an initialized provider session. */
+/** One canvas declaration available to an initialized provider chat. */
 export interface IAgentCanvasInfo {
 	readonly canvasId: string;
 	readonly extensionId: string;
@@ -294,7 +294,7 @@ export interface IAgentCanvasInfo {
 	readonly actionCount: number;
 }
 
-/** Opens or focuses one stable canvas instance in an initialized provider session. */
+/** Opens or focuses one stable canvas instance in an initialized provider chat. */
 export interface IAgentCanvasOpenRequest {
 	readonly canvasId: string;
 	readonly extensionId?: string;
@@ -1460,10 +1460,10 @@ export interface IAgent {
 	uninstallPlugin?(request: IAgentPluginUninstallRequest): Promise<void>;
 
 	/** List canvas declarations available to one initialized provider chat. */
-	listSessionCanvases?(session: URI, chat?: URI): Promise<readonly IAgentCanvasInfo[]>;
+	listSessionCanvases?(session: URI, chat: URI): Promise<readonly IAgentCanvasInfo[]>;
 
 	/** Open or focus one canvas instance in an initialized provider chat. */
-	openSessionCanvas?(session: URI, request: IAgentCanvasOpenRequest, chat?: URI): Promise<void>;
+	openSessionCanvas?(session: URI, request: IAgentCanvasOpenRequest, chat: URI): Promise<void>;
 
 	/** Install a plugin through the provider that owns its installation state. */
 	installPlugin?(request: IAgentPluginInstallRequest): Promise<void>;

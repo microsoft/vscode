@@ -20,6 +20,7 @@ suite('SessionCanvas', () => {
 				extensionName: 'Project Stats',
 				displayName: 'Daily Stats',
 				description: 'Project statistics.',
+				requiresInput: false,
 			},
 			{
 				canvasId: 'daily-stats',
@@ -28,6 +29,7 @@ suite('SessionCanvas', () => {
 				extensionName: 'User Stats',
 				displayName: 'Daily Stats',
 				description: 'User statistics.',
+				requiresInput: false,
 			},
 			{
 				canvasId: '!!!',
@@ -35,6 +37,7 @@ suite('SessionCanvas', () => {
 				extensionSource: 'unknown',
 				displayName: 'Fallback',
 				description: 'Exercises the fallback identifier.',
+				requiresInput: false,
 			},
 		];
 
@@ -60,6 +63,7 @@ suite('SessionCanvas', () => {
 			extensionSource: 'project',
 			displayName: 'Canvas',
 			description: 'Canvas.',
+			requiresInput: false,
 		});
 		const canvases = [
 			canvas('project:fomobeta/daily-stats'),
