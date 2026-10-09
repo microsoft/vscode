@@ -23,7 +23,6 @@ import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js
 import { reasoningEffortLevels, type ReasoningEffortLevel } from '../../common/reasoningEffort.js';
 import { getSessionSandboxConfig } from '../sessionSandbox.js';
 import { projectCopilotSandboxPolicy } from './copilotSandboxPolicy.js';
-import { managedClientFetchToolNames, requiresNativeToolsForManagedPolicy } from './copilotManagedTools.js';
 import { autoModeTiers, isAutoModeTier, normalizeAutoModeTier, type AutoModeTier } from '../../common/autoModeTiers.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import type { ModelSelection, ToolDefinition } from '../../common/state/protocol/state.js';
@@ -213,9 +212,6 @@ export function toSdkToolFilterPatterns(patterns: readonly string[] | undefined)
 }
 
 export interface ICopilotSessionRuntime {
-	readonly setCustomTerminalEnabled?: (enabled: boolean) => void;
-	readonly setNativeToolsRequired?: (required: boolean) => void;
-	readonly assertCustomTerminalPolicy?: () => Promise<void>;
 	readonly setApprovalPolicy?: (resolved: Parameters<typeof getCopilotApprovalPolicy>[0], bridged: ManagedSettingsPermissions) => void;
 	readonly onSessionEvent?: (event: SessionEvent) => void;
 	/** Chat channel that owns this session's turns, used to attribute terminal claims. */
@@ -1052,23 +1048,13 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			...(stabilityOrderedPromptEnabled ? { STABILITY_ORDERED_SYSTEM_PROMPT_V2: true } : {}),
 			...(hydraFusionV2Enabled ? { HYDRAFUSION_PLAN_V2: true } : {}),
 		};
-		const bridgedPermissions = this._managedSettingsService.permissions;
-		const resolved = await resolveCopilotManagedSettings(plan.client.rpc.managedSettings, plan.githubCredentials.token, 30_000, plan.workingDirectory?.fsPath);
-		const managedSettingsPermissions = getCopilotApprovalPolicy(resolved.resolved,
-			this._configurationService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) === true,
-			bridgedPermissions).permissions;
-		const nativeToolsRequired = requiresNativeToolsForManagedPolicy(resolved.resolved, managedSettingsPermissions);
-		runtime.setNativeToolsRequired?.(nativeToolsRequired);
-		const enableCustomTerminalTool = process.platform !== 'win32'
-			&& this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.EnableCustomTerminalTool) === true
-			&& !nativeToolsRequired;
-		runtime.setCustomTerminalEnabled?.(enableCustomTerminalTool);
+		const enableCustomTerminalTool = process.platform !== 'win32' && this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.EnableCustomTerminalTool) === true;
 		let shellToolsPromise: ReturnType<typeof createShellTools> | Promise<[]> = Promise.resolve([]);
 		if (enableCustomTerminalTool) {
 			if (!plan.shellManager) {
 				throw new Error(`ShellManager is required to launch Copilot session '${plan.sessionId}'`);
 			}
-			shellToolsPromise = createShellTools(plan.shellManager, runtime.chatUri, this._terminalManager, this._logService, request => runtime.requestUnsandboxedCommandConfirmation(request), runtime.assertCustomTerminalPolicy);
+			shellToolsPromise = createShellTools(plan.shellManager, runtime.chatUri, this._terminalManager, this._logService, request => runtime.requestUnsandboxedCommandConfirmation(request));
 		}
 		// Rely on the SDK to discover most agents/skills/etc. from `pluginDirectories`
 		// instead of feeding them explicitly, to avoid duplicates. Custom agents are the
@@ -1112,7 +1098,6 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		const sdkAvailableTools = toSdkToolFilterPatterns(availableTools);
 		const configuredSdkExcludedTools = [
 			...(toSdkToolFilterPatterns(excludedTools) ?? []),
-			...(nativeToolsRequired ? managedClientFetchToolNames.map(name => `custom:${name}`) : []),
 			// Keep dynamic workflows disabled until Agent Host support is validated.
 			'builtin:run_dynamic_workflow',
 			'builtin:dynamic_workflows_manage',
@@ -1120,10 +1105,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			...(searchSubagentEnabled ? [] : [`builtin:${CopilotToolName.SearchCodeSubagent}`]),
 			...(plan.isEphemeral ? EPHEMERAL_DISABLED_COPILOT_TOOLS : []),
 		];
-		const clientToolNames = filterClientToolNames(clientToolNamesFromSnapshot(plan.snapshot), availableTools, [
-			...(excludedTools ?? []),
-			...(nativeToolsRequired ? managedClientFetchToolNames.map(name => `custom:${name}`) : []),
-		]);
+		const clientToolNames = filterClientToolNames(clientToolNamesFromSnapshot(plan.snapshot), availableTools, excludedTools);
 		const sdkExcludedTools = clientToolNames.has(SEMANTIC_SEARCH_TOOL_NAME)
 			? configuredSdkExcludedTools
 			: [...new Set([...configuredSdkExcludedTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`])];
@@ -1155,7 +1137,12 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			...createCopilotExtensionTools(canvasRuntimeEnabled, () => runtime.reloadExtensions(), this._logService),
 		];
 		const promptOverrides = await applyConfiguredPromptOverrides(promptOverrideString, promptOverrideFile, tools, this._fileService, this._logService);
+		const bridgedPermissions = this._managedSettingsService.permissions;
+		const resolved = await resolveCopilotManagedSettings(plan.client.rpc.managedSettings, plan.githubCredentials.token, 30_000, plan.workingDirectory?.fsPath);
 		runtime.setApprovalPolicy?.(resolved.resolved, bridgedPermissions);
+		const managedSettingsPermissions = getCopilotApprovalPolicy(resolved.resolved,
+			this._configurationService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) === true,
+			bridgedPermissions).permissions;
 		const promptContext: IAgentHostPromptContext = {
 			getSetting: key => this._configurationService.getRootValue(copilotCliConfigSchema, key),
 			hasClientTool: name => clientToolNames.has(name),

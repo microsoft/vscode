@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotClient, CopilotSession, JsonValue, ResumeSessionConfig, SessionConfig, SessionEventPayload, Verbosity } from '@github/copilot-sdk';
+import type { CopilotClient, CopilotSession, ResumeSessionConfig, SessionConfig, Verbosity } from '@github/copilot-sdk';
 import assert from 'assert';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -16,7 +16,6 @@ import { InstantiationService } from '../../../instantiation/common/instantiatio
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, LogLevel, NullLogService } from '../../../log/common/log.js';
 import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
-import { normalizeManagedSettings, NullManagedSettingsService, requiresCopilotAgentHost } from '../../../policy/common/copilotManagedSettings.js';
 import type { TerminalSandboxEngine } from '../../../sandbox/common/terminalSandboxEngine.js';
 import type { IByokLmBridgeConnection, IByokLmChatRequest, IByokLmChatResult, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, platformSessionSchema, type SchemaValues } from '../../common/agentHostSchema.js';
@@ -40,7 +39,6 @@ import { ByokLmProxyService, IByokLmProxyService, type IByokLmProxyHandle } from
 import { resolveCopilotMcpServerInfo, type ICopilotPluginInfo } from '../../node/copilot/copilotAgent.js';
 import { CopilotGitHubSessionCredentials } from '../../node/copilot/copilotGitHubCredentials.js';
 import { CopilotExtensionsReloadToolName } from '../../node/copilot/copilotExtensionTools.js';
-import { managedClientFetchToolNames, requiresNativeToolsForManagedPolicy } from '../../node/copilot/copilotManagedTools.js';
 import type { ShellManager } from '../../node/copilot/copilotShellTools.js';
 import type { SandboxConfig, SandboxNetworkPolicy } from '../../node/copilot/sandboxConfigForSdk.js';
 import { CopilotSessionLauncher, filterClientToolNames, getCopilotAutoTier, getCopilotReasoningEffort, isCopilotReasoningEffort, mergeByokSessionConfig, synthesizeByokSessionConfig, normalizeToolFilterPatterns, resolveConfiguredReasoningEffortOverride, resolveCopilotAutoTier, resolveCopilotReasoningEffort, toSdkToolFilterPatterns, type CopilotSessionLaunchPlan, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
@@ -219,47 +217,6 @@ suite('CopilotSessionLauncher customization policy session', () => {
 suite('CopilotSessionLauncher sandbox policy', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('native terminal eligibility follows the managed harness requirement', () => {
-		const cases: { settings: Record<string, JsonValue>; required: boolean }[] = [
-			{ settings: {}, required: false },
-			{ settings: { permissions: {} }, required: false },
-			{ settings: { permissions: { defaultMode: 'manual' } }, required: true },
-			{ settings: { permissions: { disableAssistedPermissionsMode: false } }, required: true },
-			{ settings: { permissions: { disableBypassPermissionsMode: 'enable' } }, required: true },
-			{ settings: { permissions: { allow: [] } }, required: true },
-			{ settings: { permissions: { deny: [] } }, required: true },
-			{ settings: { permissions: { ask: [] } }, required: true },
-			{ settings: { permissions: { limitTo: [] } }, required: true },
-			{ settings: { permissions: { future: {} } }, required: true },
-			{ settings: { permissions: { future: null } }, required: true },
-			{ settings: { permissions: { deny: false } }, required: true },
-			{ settings: { sandbox: { enabled: true } }, required: true },
-			{ settings: { sandbox: { enabled: false, allowBypass: false } }, required: false },
-			{ settings: { sandbox: { allowBypass: false } }, required: false },
-			{ settings: { telemetry: { enabled: true } }, required: false },
-		];
-		const result = cases.map(({ settings }) => {
-			const values = normalizeManagedSettings(settings);
-			const service = new class extends NullManagedSettingsService {
-				override getManagedSettings() { return values; }
-				override getManagedSettingValue(key: string) { return values[key]; }
-			}();
-			const policy: SessionEventPayload<'session.managed_settings_resolved'>['data'] = {
-				source: 'server', serverManaged: true, deviceManaged: false, failClosed: false,
-				bypassPermissionsDisabled: false, managedKeys: Object.keys(settings), settings,
-			};
-			return {
-				harness: requiresCopilotAgentHost(service),
-				terminal: requiresNativeToolsForManagedPolicy(policy),
-				failClosed: requiresNativeToolsForManagedPolicy({ ...policy, failClosed: true }),
-				contextFailClosed: requiresNativeToolsForManagedPolicy({ ...policy, permissionsContext: { failClosed: true } }),
-			};
-		});
-		assert.deepStrictEqual(result, cases.map(({ required }) => ({
-			harness: required, terminal: required, failClosed: true, contextFailClosed: true,
-		})));
-	});
-
 	function setup(kind: 'create' | 'resume', reportPolicy = true, enforced = false, allowBypass = false, allowOutbound?: boolean, sandboxUpdateError?: Error, sandboxToggles?: Pick<SandboxConfig, 'sandboxMcpServers' | 'sandboxLspServers' | 'allowDevToolAccess' | 'addCurrentWorkingDirectory' | 'auth'>, allowLocalNetwork?: boolean, networkHosts?: Pick<SandboxNetworkPolicy, 'allowedHosts' | 'blockedHosts'>) {
 		const manager = store.add(new AgentHostStateManager(new NullLogService()));
 		const configuration = store.add(new AgentConfigurationService(manager, new NullLogService()));
@@ -333,120 +290,6 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 	}
 
 	for (const kind of ['create', 'resume'] as const) {
-		const managedToolPolicies: { settings: Record<string, JsonValue>; permissionsAllowIntersected?: boolean }[] = [
-			{ settings: { permissions: { defaultMode: 'manual' } } },
-			{ settings: { permissions: { disableAssistedPermissionsMode: false } } },
-			{ settings: { permissions: { deny: [] } } },
-			{ settings: { sandbox: { enabled: true } } },
-			{ settings: { permissions: {} }, permissionsAllowIntersected: true },
-		];
-		for (const policy of managedToolPolicies) {
-			test(`${kind} uses the native terminal under managed ${JSON.stringify(policy)}`, async () => {
-				const { settings } = policy;
-				const sandboxRequired = Object.hasOwn(settings, 'sandbox');
-				const fixture = setup(kind, true, sandboxRequired);
-				fixture.configuration.updateRootConfig({ [CopilotCliConfigKey.EnableCustomTerminalTool]: true });
-				const result = await fixture.plan.client.rpc.managedSettings.resolve({});
-				fixture.plan.client.rpc.managedSettings.resolve = async () => ({
-					...result, resolved: { ...result.resolved, ...policy },
-				});
-				let customTerminal: boolean | undefined;
-				store.add(await fixture.launcher.launch(fixture.plan, { ...testRuntime, setCustomTerminalEnabled: enabled => { customTerminal = enabled; } }));
-				const excluded = fixture.captured?.excludedTools;
-				assert.ok(Array.isArray(excluded));
-				assert.deepStrictEqual({
-					customTerminal,
-					shellOverrides: fixture.captured?.tools?.filter(tool => tool.name === 'bash' || tool.name === 'powershell').length,
-					sandbox: fixture.updates.filter(update => update.sandboxConfig).map(update => update.sandboxConfig?.enabled),
-					excludedFetch: excluded.filter(name => name.startsWith('custom:')),
-					nativeFetchExcluded: excluded.includes('builtin:web_fetch'),
-				}, {
-					customTerminal: false, shellOverrides: 0, sandbox: [sandboxRequired],
-					excludedFetch: managedClientFetchToolNames.map(name => `custom:${name}`), nativeFetchExcluded: false,
-				});
-			});
-		}
-
-		test(`${kind} restores the configured terminal override after managed permissions are removed`, async () => {
-			const fixture = setup(kind);
-			fixture.configuration.updateRootConfig({ [CopilotCliConfigKey.EnableCustomTerminalTool]: true });
-			const engine = new class extends mock<TerminalSandboxEngine>() {
-				override async isEnabled(): Promise<boolean> { return false; }
-			}();
-			const shellManager = new class extends mock<ShellManager>() {
-				override async getResolvedExecutable(): Promise<string> { return '/bin/bash'; }
-				override getOrCreateSandboxEngine(): TerminalSandboxEngine { return engine; }
-			}();
-			const result = await fixture.plan.client.rpc.managedSettings.resolve({});
-			const states: Array<{ customTerminal: boolean | undefined; shellOverride: boolean; clientFetchExcluded: boolean }> = [];
-			const policies: Record<string, JsonValue>[] = [{ defaultMode: 'manual' }, {}];
-			for (const permissions of policies) {
-				fixture.plan.client.rpc.managedSettings.resolve = async () => ({
-					...result, resolved: { ...result.resolved, settings: { permissions } },
-				});
-				let customTerminal: boolean | undefined;
-				store.add(await fixture.launcher.launch({ ...fixture.plan, shellManager }, { ...testRuntime, setCustomTerminalEnabled: enabled => { customTerminal = enabled; } }));
-				const excluded = fixture.captured?.excludedTools;
-				assert.ok(Array.isArray(excluded));
-				states.push({
-					customTerminal, shellOverride: fixture.captured?.tools?.some(tool => tool.name === 'bash') === true,
-					clientFetchExcluded: excluded.includes('custom:fetch'),
-				});
-			}
-			assert.deepStrictEqual(states, [
-				{ customTerminal: false, shellOverride: false, clientFetchExcluded: true },
-				{ customTerminal: process.platform !== 'win32', shellOverride: process.platform !== 'win32', clientFetchExcluded: false },
-			]);
-		});
-
-		test(`${kind} keeps the native terminal for bridged approval restrictions`, async () => {
-			const fixture = setup(kind);
-			fixture.configuration.updateRootConfig({ [CopilotCliConfigKey.EnableCustomTerminalTool]: true });
-			const launcher = createTestLauncher({ ask: ['Shell'] }, {}, fixture.logService, noopSessionOpenTelemetry, fixture.configuration);
-			let customTerminal: boolean | undefined;
-			store.add(await launcher.launch(fixture.plan, { ...testRuntime, setCustomTerminalEnabled: enabled => { customTerminal = enabled; } }));
-			assert.deepStrictEqual({ customTerminal, shellOverrides: fixture.captured?.tools?.filter(tool => tool.name === 'bash' || tool.name === 'powershell') }, {
-				customTerminal: false, shellOverrides: [],
-			});
-		});
-
-		test(`${kind} keeps the native terminal for the legacy managed mode fallback`, async () => {
-			const fixture = setup(kind);
-			fixture.configuration.updateRootConfig({
-				[CopilotCliConfigKey.EnableCustomTerminalTool]: true,
-				[AgentHostAutoApprovePolicyRestrictedConfigKey]: true,
-			});
-			let customTerminal: boolean | undefined;
-			store.add(await fixture.launcher.launch(fixture.plan, { ...testRuntime, setCustomTerminalEnabled: enabled => { customTerminal = enabled; } }));
-			assert.deepStrictEqual({ customTerminal, shellOverrides: fixture.captured?.tools?.filter(tool => tool.name === 'bash' || tool.name === 'powershell') }, {
-				customTerminal: false, shellOverrides: [],
-			});
-		});
-
-		for (const source of ['native', 'bridge'] as const) {
-			test(`${kind} uses the native terminal for a ${source} boundary without enabling sandboxing`, async () => {
-				const fixture = setup(kind);
-				fixture.configuration.updateRootConfig({ [CopilotCliConfigKey.EnableCustomTerminalTool]: true });
-				const boundary = { limitTo: ['Domain(api.example.com)'] };
-				if (source === 'native') {
-					const result = await fixture.plan.client.rpc.managedSettings.resolve({});
-					fixture.plan.client.rpc.managedSettings.resolve = async () => ({
-						...result, resolved: { ...result.resolved, settings: { permissions: boundary } },
-					});
-				}
-				const launcher = source === 'bridge'
-					? createTestLauncher(boundary, {}, fixture.logService, noopSessionOpenTelemetry, fixture.configuration)
-					: fixture.launcher;
-				let customTerminal: boolean | undefined;
-				store.add(await launcher.launch(fixture.plan, { ...testRuntime, setCustomTerminalEnabled: enabled => { customTerminal = enabled; } }));
-				assert.deepStrictEqual({
-					customTerminal,
-					shellOverrides: fixture.captured?.tools?.filter(tool => tool.name === 'bash' || tool.name === 'powershell').length,
-					sandbox: fixture.updates.filter(update => update.sandboxConfig).map(update => update.sandboxConfig?.enabled),
-				}, { customTerminal: false, shellOverrides: 0, sandbox: [false] });
-			});
-		}
-
 		test(`${kind} applies and removes the legacy mode-group fallback`, async () => {
 			const results = [];
 			const fixture = setup(kind);
@@ -1413,7 +1256,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				createRequestCanvasRenderer: true,
 				createExtensionSdkPath: true,
 				createToolNames: [CopilotExtensionsReloadToolName],
-				createExcludedTools: [...managedClientFetchToolNames.map(name => `custom:${name}`), ...defaultDisabledTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
+				createExcludedTools: [...defaultDisabledTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
 				createMemory: { enabled: true },
 				createLocalMemoryStore: true,
 				resumeClientName: 'vscode-agent-host',
@@ -1443,7 +1286,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				resumeRequestCanvasRenderer: true,
 				resumeExtensionSdkPath: true,
 				resumeToolNames: [CopilotExtensionsReloadToolName],
-				resumeExcludedTools: [...managedClientFetchToolNames.map(name => `custom:${name}`), ...defaultDisabledTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
+				resumeExcludedTools: [...defaultDisabledTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
 				resumeMemory: { enabled: true },
 				resumeLocalMemoryStore: true,
 				ephemeralMemory: { enabled: false },
@@ -1454,7 +1297,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				ephemeralEnableSessionStore: false,
 				ephemeralMcpOAuthTokenStorage: 'in-memory',
 				ephemeralDisabledMcpServers: ['azure', 'disabled-workspace-server', 'github', 'native-plugin-server', 'synced-server'],
-				ephemeralExcludedTools: [...managedClientFetchToolNames.map(name => `custom:${name}`), ...defaultDisabledTools, 'task', `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
+				ephemeralExcludedTools: [...defaultDisabledTools, 'task', `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
 				ephemeralRequestExtensions: false,
 				ephemeralRequestCanvasRenderer: false,
 				ephemeralExtensionSdkPath: undefined,

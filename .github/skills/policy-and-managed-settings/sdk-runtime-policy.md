@@ -40,23 +40,12 @@ lists. VS Code preserves permission-key presence across server and file delivery
 and watches the runtime's declared permission keys in native MDM; it does not
 parse or enforce rule grammar. Permissions do not turn sandboxing on.
 
-The experimental `chat.agentHost.customTerminalTool.enabled` override is unavailable
-under the same managed requirement, including mode-only permissions and empty rule
-lists, and under fail-closed policy. Copilot uses its native SDK terminal instead,
-without changing sandbox preferences. Bridged managed permissions also require the
-native terminal. Runtime-resolved policy changes block further custom execution and
-stdin while the host switches implementations at its idle restart boundary.
-Bridged legacy changes take effect at that restart, not mid-turn; removal restores
-the configured preference on the next launch. Use the public
-`permissionsAllowIntersected` flag when native composition omits flattened allow
-rules; never infer policy presence from opaque context internals.
-
-Governed Copilot sessions exclude the VS Code `fetch` client tool and use the SDK's
-native `web_fetch`. Unmanaged and Local fetch retain their existing implementation.
-Native `limitTo` enforcement in the integrated browser is deferred: existing
-browser controls remain unchanged and do not automatically enforce runtime-native
-permissions. Arbitrary extension/MCP networking and client-run code are outside
-this runtime-tool integration's scope.
+The legacy network boundary bridge targets runtime-native Domain operations only.
+It does not change tool selection, the experimental terminal override, or VS Code
+client fetch. Native `limitTo` enforcement in the integrated browser is deferred;
+existing browser controls remain unchanged. Browser/client tools, experimental
+terminal overrides, arbitrary extension/MCP networking, and client-run code must
+not be assumed to inherit the runtime's Domain enforcement.
 
 Resolve initial account policy before choosing or activating Local. Governed new
 chats select Copilot Agent Host, including explicit or remembered Local choices.

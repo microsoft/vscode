@@ -9,16 +9,17 @@ import { mkdtemp, rm } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from '../../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { NullLogService } from '../../../../log/common/log.js';
+import { buildManagedDomainBoundary } from '../../../common/agentHostManagedRules.js';
 import { createCopilotCliEnvironment } from '../../../node/copilot/copilotCliEnvironment.js';
-import { managedClientFetchToolNames, requiresNativeToolsForManagedPolicy } from '../../../node/copilot/copilotManagedTools.js';
 import { createIsolatedProviderEnvironment } from '../providerTestEnvironment.js';
 
-suite('Agent Host Provider Integration - managed native tools', function () {
+suite('Agent Host Provider Integration - managed limitTo', function () {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('enforces native fetch boundaries and preserves independent sandbox disablement without network operations', async function () {
 		this.timeout(60_000);
-		const home = await mkdtemp(join(tmpdir(), 'copilot-url-policy-'));
+		const home = await mkdtemp(join(tmpdir(), 'copilot-limitto-'));
 		const client = new CopilotClient({
 			mode: 'empty', baseDirectory: home, useLoggedInUser: false,
 			env: createCopilotCliEnvironment(createIsolatedProviderEnvironment(home, {
@@ -56,31 +57,15 @@ suite('Agent Host Provider Integration - managed native tools', function () {
 				operations: ['https://example.com/', 'https://api.example.com/', 'http://api.example.com:8080/', 'https://outside.test/'].map(url => ({ kind: 'url', url })),
 			});
 			assert.deepStrictEqual(wildcard.results.map(result => result.verdict), ['unmanaged', 'unmanaged', 'unmanaged', 'deny']);
-			const unrestricted = await client.createSession({
-				workingDirectory: home, availableTools: [], enableConfigDiscovery: false, enableManagedSettings: false,
-				disabledMcpServers: ['github-mcp-server'], mcpServers: {}, managedSettings: { permissions: {} },
-				onPermissionRequest: () => ({ kind: 'reject' }),
-			});
-			try {
-				assert.strictEqual(requiresNativeToolsForManagedPolicy(await unrestricted.rpc.managedSettings.get()), false);
-			} finally {
-				await unrestricted.disconnect();
-			}
-			let customFetchCalls = 0;
 			let permissionRequests = 0;
 			const session = await client.createSession({
 				workingDirectory: home,
-				availableTools: ['builtin:web_fetch', 'custom:fetch'],
-				excludedTools: managedClientFetchToolNames.map(name => `custom:${name}`),
-				tools: [{
-					name: 'fetch', description: 'Offline test sentinel', parameters: { type: 'object', properties: {} },
-					handler: async () => { customFetchCalls++; return 'Unexpected custom fetch'; },
-				}],
+				availableTools: ['builtin:web_fetch'],
 				enableConfigDiscovery: false,
 				enableManagedSettings: false,
 				disabledMcpServers: ['github-mcp-server'],
 				mcpServers: {},
-				managedSettings: { permissions: { limitTo: ['Domain(api.example.com)'] } },
+				managedSettings: { permissions: { limitTo: buildManagedDomainBoundary(['api.example.com'], new NullLogService()) } },
 				onPermissionRequest: () => { permissionRequests++; return { kind: 'reject' }; },
 			});
 			try {
@@ -96,16 +81,15 @@ suite('Agent Host Provider Integration - managed native tools', function () {
 				assert.ok(typeof fetch !== 'string');
 				assert.deepStrictEqual({
 					disabled: disabled.success,
-					nativeTerminal: requiresNativeToolsForManagedPolicy(before),
 					sandbox: after.settings && typeof after.settings === 'object' && !Array.isArray(after.settings) ? after.settings.sandbox : undefined,
 					verdicts: (await client.rpc.managedSettings.permissions.evaluate({ context: before.permissionsContext, operations })).results.map(result => result.verdict),
 					mode: mode.mode,
 					tools: tools.tools.map(tool => tool.name),
 					fetch: fetch.resultType,
-					customFetchCalls, permissionRequests,
+					permissionRequests,
 				}, {
-					disabled: true, nativeTerminal: true, sandbox: undefined, verdicts: ['unmanaged', 'unmanaged', 'deny'],
-					mode: 'allow-all', tools: ['web_fetch'], fetch: 'denied', customFetchCalls: 0, permissionRequests: 0,
+					disabled: true, sandbox: undefined, verdicts: ['unmanaged', 'unmanaged', 'deny'],
+					mode: 'allow-all', tools: ['web_fetch'], fetch: 'denied', permissionRequests: 0,
 				});
 			} finally {
 				await session.disconnect();

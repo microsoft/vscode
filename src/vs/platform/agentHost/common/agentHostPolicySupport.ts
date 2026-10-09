@@ -48,8 +48,8 @@ export const agentHostPolicySupport: Readonly<Record<string, IAgentHostPolicySup
 	// The bridge disables bypass session-wide but does not force per-tool confirmation in other
 	// approval modes. #337540
 	ChatToolsEligibleForAutoApproval: { status: 'partial' },
-	// The bridge requires native shell approval and disables the experimental override.
-	// Broader terminal execution parity remains unaudited.
+	// The bridge requires managed approval for native shell requests. Custom terminal tools report
+	// custom-tool requests instead, so their host-side approval paths still need a parity audit.
 	ChatToolsTerminalEnableAutoApprove: { status: 'partial' },
 	// Deprecated legacy sandbox policies are outside the Agent Host policy contract.
 	// Existing setting forwarding remains, but supported enterprise enforcement uses native managed settings.

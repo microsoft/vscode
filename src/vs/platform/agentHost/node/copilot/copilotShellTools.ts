@@ -414,7 +414,6 @@ export async function createShellTools(
 	terminalManager: IAgentHostTerminalManager,
 	logService: ILogService,
 	confirmUnsandboxedExecution?: UnsandboxedCommandConfirmationHandler,
-	assertManagedPolicy?: () => Promise<void>,
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 ): Promise<Tool<any>[]> {
 	const executable = await shellManager.getResolvedExecutable();
@@ -448,7 +447,6 @@ export async function createShellTools(
 		},
 		overridesBuiltInTool: true,
 		handler: async (args, invocation) => {
-			await assertManagedPolicy?.();
 			const timeoutMs = args.timeout ?? DEFAULT_SHELL_COMMAND_TIMEOUT_MS;
 			const ref = await shellManager.getOrCreateShell(
 				shellType,
@@ -530,7 +528,6 @@ export async function createShellTools(
 					}
 					commandToRun = wrapped.command;
 				}
-				await assertManagedPolicy?.();
 				const result = await executeCommandInShell(ref.object, commandToRun, timeoutMs, terminalManager, logService);
 				if (result.keepShellBusy) {
 					shouldReleaseShell = false;
@@ -585,7 +582,6 @@ export async function createShellTools(
 		overridesBuiltInTool: true,
 		skipPermission: true,
 		handler: async (args) => {
-			await assertManagedPolicy?.();
 			const shells = shellManager.listShells();
 			const shell = shells[shells.length - 1];
 			if (!shell) {
