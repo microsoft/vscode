@@ -1015,7 +1015,7 @@ per-word capitalization does not survive translation. */
 	/* Match the description's line-height so the link's inline-flex line-box */
 	/* does not change the total header height between sections. */
 	line-height: 1.45;
-	color: var(--vscode-textLink-foreground);
+	color: var(--vscode-inputValidation-warningForeground, var(--vscode-foreground));
 	text-decoration: none;
 	cursor: pointer;
 	display: inline-flex;
@@ -1061,7 +1061,7 @@ per-word capitalization does not survive translation. */
 
 .ai-customization-list-widget .section-footer .section-footer-link:hover {
 	text-decoration: underline;
-	color: var(--vscode-textLink-activeForeground);
+	color: var(--vscode-inputValidation-warningForeground, var(--vscode-foreground));
 }
 
 /* Overview View (compact snapshot) */
