@@ -10,7 +10,7 @@ import { constObservable } from '../../../../base/common/observable.js';
 import { mock, upcastPartial } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { GITHUB_COPILOT_PROTECTED_RESOURCE, type IAgent, type IAgentChats, type IAgentModelInfo } from '../../common/agent.js';
+import { COPILOT_CLI_AGENT_PROVIDER_ID, GITHUB_COPILOT_PROTECTED_RESOURCE, type IAgent, type IAgentChats, type IAgentModelInfo } from '../../common/agent.js';
 import type { IByokLmBridgeConnection, IByokLmChatRequest, IByokLmModelInfo } from '../../common/agentHostByokLm.js';
 import { AgentHostByokModelsEnabledConfigKey, AgentHostByokUtilityModelDefaultConfigKey, AgentHostUtilitySmallModelConfigKey } from '../../common/agentHostSchema.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
@@ -48,6 +48,13 @@ interface IScenario {
 	readonly turnModel?: string;
 	/** The model recorded on the chat's last completed turn. */
 	readonly lastTurnModel?: string;
+	/**
+	 * Whether a renderer serves BYOK models. When `false`, the bridge has no
+	 * serving connection and the Copilot agent's catalog drops BYOK models.
+	 */
+	readonly rendererConnected?: boolean;
+	/** The session's agent provider id; defaults to the Copilot CLI provider. */
+	readonly agentId?: string;
 }
 
 suite('AgentHostUtilityModelService', () => {
@@ -73,21 +80,23 @@ suite('AgentHostUtilityModelService', () => {
 				return 'copilot text';
 			},
 		});
-		const byokRequests: Pick<IByokLmChatRequest, 'vendor' | 'modelId' | 'input'>[] = [];
+		const rendererConnected = scenario.rendererConnected ?? true;
+		const byokRequests: Pick<IByokLmChatRequest, 'vendor' | 'modelId' | 'input' | 'modelOptions'>[] = [];
 		const connection: IByokLmBridgeConnection = {
 			chat: async request => {
-				byokRequests.push({ vendor: request.vendor, modelId: request.modelId, input: request.input });
+				byokRequests.push({ vendor: request.vendor, modelId: request.modelId, input: request.input, modelOptions: request.modelOptions });
 				return { output: [{ type: 'message', content: [{ type: 'text', text: 'byok ' }, { type: 'text', text: 'text' }] }] };
 			},
 			onDidChangeModels: Event.None,
 		};
 		const bridgeRegistry = upcastPartial<IByokLmBridgeRegistry>({
-			getModels: () => BYOK_MODELS,
-			getServingConnection: () => connection,
+			getModels: () => rendererConnected ? BYOK_MODELS : [],
+			getServingConnection: () => rendererConnected ? connection : undefined,
 			onDidChangeModels: () => Disposable.None,
 		});
 		const agent = upcastPartial<IAgent>({
-			models: constObservable(AGENT_MODELS),
+			id: scenario.agentId ?? COPILOT_CLI_AGENT_PROVIDER_ID,
+			models: constObservable(rendererConnected ? AGENT_MODELS : AGENT_MODELS.filter(m => !m._meta)),
 			chats: upcastPartial<IAgentChats>({
 				getModel: () => scenario.mainModel ? { id: scenario.mainModel } : undefined,
 			}),
@@ -121,7 +130,7 @@ suite('AgentHostUtilityModelService', () => {
 
 		let result: string;
 		try {
-			result = await service.chatCompletion({ session: SESSION, model: scenario.turnModel ? { id: scenario.turnModel } : undefined }, { messages: [{ role: 'system', content: 'rules' }, { role: 'user', content: 'request' }] });
+			result = await service.chatCompletion({ session: SESSION, model: scenario.turnModel ? { id: scenario.turnModel } : undefined }, { messages: [{ role: 'system', content: 'rules' }, { role: 'user', content: 'request' }], maxTokens: 32 });
 		} catch (err) {
 			result = err instanceof AgentHostUtilityModelUnavailableError ? `unavailable: ${err.reason}` : `error: ${err}`;
 		}
@@ -153,6 +162,15 @@ suite('AgentHostUtilityModelService', () => {
 			turnModelPrecedesChatSelection: { mainModel: 'claude-sonnet-4.5', turnModel: 'azure/work/gpt-5', byokUtilityModelDefault: 'none' },
 			nonResidentChatUsesLastTurnModel: { lastTurnModel: 'azure/work/gpt-5', byokUtilityModelDefault: 'none' },
 			chatSelectionPrecedesLastTurnModel: { mainModel: 'claude-sonnet-4.5', lastTurnModel: 'azure/work/gpt-5', byokUtilityModelDefault: 'none' },
+			disconnectedCopilotMainModel: { mainModel: 'claude-sonnet-4.5', rendererConnected: false },
+			disconnectedByokMainCopilotDefault: { mainModel: 'azure/work/gpt-5', rendererConnected: false },
+			disconnectedByokMainMainAgent: { mainModel: 'azure/work/gpt-5', byokUtilityModelDefault: 'mainAgent', rendererConnected: false },
+			disconnectedByokMainNone: { mainModel: 'azure/work/gpt-5', byokUtilityModelDefault: 'none', rendererConnected: false },
+			disconnectedRestoredByokTurn: { lastTurnModel: 'azure/work/gpt-5', rendererConnected: false },
+			disconnectedByokOverride: { mainModel: 'claude-sonnet-4.5', utilitySmallModel: 'ollama/llama3', rendererConnected: false },
+			disconnectedCopilotOverrideFallsBack: { utilitySmallModel: 'copilot/gpt-4.1', rendererConnected: false },
+			disconnectedOverrideWithByokDisabled: { utilitySmallModel: 'ollama/llama3', byokModelsEnabled: false, rendererConnected: false },
+			disconnectedOtherProviderSlashId: { mainModel: 'org/model', agentId: 'codex', rendererConnected: false },
 		};
 		const results: Record<string, unknown> = {};
 		for (const [name, scenario] of Object.entries(scenarios)) {
@@ -161,6 +179,7 @@ suite('AgentHostUtilityModelService', () => {
 
 		const copilot = { result: 'copilot text', copilotCalls: ['copilot-token'], byokRequests: [] };
 		const signedOut = { result: 'unavailable: copilotSignInRequired', copilotCalls: [], byokRequests: [] };
+		const byokUnavailable = { result: 'unavailable: byokModelUnavailable', copilotCalls: [], byokRequests: [] };
 		assert.deepStrictEqual(results, {
 			copilotMainModel: copilot,
 			noSelectedModel: copilot,
@@ -183,10 +202,19 @@ suite('AgentHostUtilityModelService', () => {
 			turnModelPrecedesChatSelection: { result: 'unavailable: notConfigured', copilotCalls: [], byokRequests: [] },
 			nonResidentChatUsesLastTurnModel: { result: 'unavailable: notConfigured', copilotCalls: [], byokRequests: [] },
 			chatSelectionPrecedesLastTurnModel: copilot,
+			disconnectedCopilotMainModel: copilot,
+			disconnectedByokMainCopilotDefault: byokUnavailable,
+			disconnectedByokMainMainAgent: byokUnavailable,
+			disconnectedByokMainNone: { result: 'unavailable: notConfigured', copilotCalls: [], byokRequests: [] },
+			disconnectedRestoredByokTurn: byokUnavailable,
+			disconnectedByokOverride: byokUnavailable,
+			disconnectedCopilotOverrideFallsBack: copilot,
+			disconnectedOverrideWithByokDisabled: copilot,
+			disconnectedOtherProviderSlashId: copilot,
 		});
 	});
 
-	test('forwards the utility messages to the BYOK bridge', async () => {
+	test('forwards the utility messages and inference options to the BYOK bridge', async () => {
 		const result = await run({ utilitySmallModel: 'ollama/llama3' }, true);
 		assert.deepStrictEqual(result, {
 			result: 'byok text',
@@ -197,6 +225,7 @@ suite('AgentHostUtilityModelService', () => {
 					{ type: 'message', role: 'system', content: [{ type: 'text', text: 'rules' }] },
 					{ type: 'message', role: 'user', content: [{ type: 'text', text: 'request' }] },
 				],
+				modelOptions: { temperature: 0.1, top_p: 1, max_tokens: 32 },
 			}],
 		});
 	});

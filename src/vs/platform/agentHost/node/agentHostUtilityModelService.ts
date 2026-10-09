@@ -7,7 +7,8 @@ import { CancellationError } from '../../../base/common/errors.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
-import { getByokLmAgentModelId, getByokLmSelectionModelId, IByokLmChatRequest, IByokLmModelInfo, resolveByokLmEnablement } from '../common/agentHostByokLm.js';
+import { COPILOT_CLI_AGENT_PROVIDER_ID } from '../common/agent.js';
+import { getByokLmAgentModelId, getByokLmSelectionModelId, IByokLmChatRequest, IByokLmModelInfo, isByokLmAgentModelId, resolveByokLmEnablement } from '../common/agentHostByokLm.js';
 import { AgentHostByokModelsEnabledConfigKey, AgentHostByokUtilityModelDefault, AgentHostByokUtilityModelDefaultConfigKey, AgentHostUtilitySmallModelConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { readAgentModelByokIdentifier } from '../common/agentModelByokMeta.js';
 import { buildDefaultChatUri, isAhpChatChannel, isDefaultChatUri, type ModelSelection, type URI as ProtocolURI } from '../common/state/sessionState.js';
@@ -18,7 +19,10 @@ import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointServic
 import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IByokLmBridgeRegistry } from './byokLmBridgeRegistry.js';
-import { ICopilotApiService, ICopilotApiServiceRequestOptions, ICopilotUtilityChatCompletionRequest } from './shared/copilotApiService.js';
+import { ICopilotApiService, ICopilotApiServiceRequestOptions, ICopilotUtilityChatCompletionRequest, UTILITY_DEFAULT_TEMPERATURE, UTILITY_DEFAULT_TOP_P } from './shared/copilotApiService.js';
+
+/** LM API vendor of Copilot models; an override naming it is not a BYOK model. */
+const COPILOT_VENDOR = 'copilot';
 
 /** The session, and optionally the chat, whose selected main agent model a utility request serves. */
 export interface IAgentHostUtilityModelContext {
@@ -37,7 +41,11 @@ export const enum AgentHostUtilityModelUnavailableReason {
 	CopilotSignInRequired = 'copilotSignInRequired',
 	/** The main agent model is BYOK and the BYOK default is `none`. */
 	NotConfigured = 'notConfigured',
-	/** The selected BYOK main agent model cannot be reached over the renderer bridge. */
+	/**
+	 * A BYOK model is selected (as the main agent model or the utility model
+	 * override) but cannot be reached, for example because the renderer that
+	 * serves BYOK models is disconnected.
+	 */
 	ByokModelUnavailable = 'byokModelUnavailable',
 }
 
@@ -64,6 +72,12 @@ export const IAgentHostUtilityModelService = createDecorator<IAgentHostUtilityMo
  * Only an agent host with a renderer BYOK bridge (the local utility-process
  * host) honors steps 1 and 2. Remote hosts always use the Copilot default and
  * ignore the utility model root config, even when a client writes it.
+ *
+ * BYOK selections fail closed: while no renderer serves BYOK models, a BYOK
+ * override or BYOK main agent model makes the request fail instead of
+ * falling back to Copilot, even when `byokUtilityModelDefault` is `copilot`.
+ * The user chose to keep that chat's content on their own model, and the
+ * Copilot route must not be reached only because the bridge is unavailable.
  */
 export interface IAgentHostUtilityModelService {
 	readonly _serviceBrand: undefined;
@@ -113,18 +127,25 @@ export class AgentHostUtilityModelService implements IAgentHostUtilityModelServi
 	/** Resolves a BYOK route, or `undefined` to use the Copilot default. */
 	private _resolveByokRoute(context: IAgentHostUtilityModelContext): UtilityModelRoute | undefined {
 		const byokModels = this._byokModels();
-		const override = this._resolveOverride(byokModels);
+		const rendererConnected = this._byokBridgeRegistry.getServingConnection() !== undefined;
+		const override = this._resolveOverride(byokModels, rendererConnected);
 		if (override) {
 			return override;
 		}
 
 		const mainAgentModel = this._resolveByokMainAgentModel(context);
 		if (mainAgentModel) {
-			switch (this._byokUtilityModelDefault()) {
-				case 'none':
-					throw new AgentHostUtilityModelUnavailableError(AgentHostUtilityModelUnavailableReason.NotConfigured);
+			const byokDefault = this._byokUtilityModelDefault();
+			if (byokDefault === 'none') {
+				throw new AgentHostUtilityModelUnavailableError(AgentHostUtilityModelUnavailableReason.NotConfigured);
+			}
+			if (!rendererConnected) {
+				this._logService.trace(`[AgentHostUtilityModelService] BYOK main agent model '${mainAgentModel}' is selected but no renderer serves BYOK models; not falling back to Copilot.`);
+				throw new AgentHostUtilityModelUnavailableError(AgentHostUtilityModelUnavailableReason.ByokModelUnavailable);
+			}
+			switch (byokDefault) {
 				case 'mainAgent': {
-					const model = byokModels.find(m => getByokLmAgentModelId(m) === mainAgentModel);
+					const model = byokModels?.find(m => getByokLmAgentModelId(m) === mainAgentModel);
 					if (!model) {
 						throw new AgentHostUtilityModelUnavailableError(AgentHostUtilityModelUnavailableReason.ByokModelUnavailable);
 					}
@@ -146,19 +167,20 @@ export class AgentHostUtilityModelService implements IAgentHostUtilityModelServi
 		return { kind: 'copilot', githubToken };
 	}
 
-	/** The renderer's BYOK models, or none when BYOK is disabled for the agent host. */
-	private _byokModels(): readonly IByokLmModelInfo[] {
+	/** The renderer's BYOK models, or `undefined` when BYOK is disabled for the agent host. */
+	private _byokModels(): readonly IByokLmModelInfo[] | undefined {
 		const { enabled } = resolveByokLmEnablement(this._configurationService.getRootValue(platformRootSchema, AgentHostByokModelsEnabledConfigKey));
-		return enabled ? this._byokBridgeRegistry.getModels() : [];
+		return enabled ? this._byokBridgeRegistry.getModels() : undefined;
 	}
 
 	/**
 	 * Resolves a `${vendor}/${id}` override to exactly one BYOK model. Like the
-	 * extension, an unresolvable or ambiguous override falls back to the default
-	 * behavior. Copilot overrides also fall back: the host only uses the Copilot
-	 * default utility model.
+	 * extension, an override that is unresolvable while the renderer serves BYOK
+	 * models, or ambiguous, falls back to the default behavior. Copilot overrides
+	 * also fall back: the host only uses the Copilot default utility model. A
+	 * BYOK override while no renderer serves BYOK models fails closed.
 	 */
-	private _resolveOverride(byokModels: readonly IByokLmModelInfo[]): UtilityModelRoute | undefined {
+	private _resolveOverride(byokModels: readonly IByokLmModelInfo[] | undefined, rendererConnected: boolean): UtilityModelRoute | undefined {
 		const raw = this._configurationService.getRootValue(platformRootSchema, AgentHostUtilitySmallModelConfigKey);
 		if (!raw) {
 			return undefined;
@@ -170,6 +192,13 @@ export class AgentHostUtilityModelService implements IAgentHostUtilityModelServi
 		}
 		const vendor = raw.substring(0, slashIndex);
 		const id = raw.substring(slashIndex + 1);
+		if (vendor === COPILOT_VENDOR || !byokModels) {
+			return undefined;
+		}
+		if (!rendererConnected) {
+			this._logService.trace(`[AgentHostUtilityModelService] Utility model override '${raw}' is a BYOK model but no renderer serves BYOK models; not falling back to Copilot.`);
+			throw new AgentHostUtilityModelUnavailableError(AgentHostUtilityModelUnavailableReason.ByokModelUnavailable);
+		}
 		const matches = byokModels.filter(m => m.vendor === vendor && m.id === id);
 		if (matches.length !== 1) {
 			this._logService.trace(`[AgentHostUtilityModelService] Utility model override '${raw}' matched ${matches.length} BYOK models; using the default behavior.`);
@@ -196,7 +225,12 @@ export class AgentHostUtilityModelService implements IAgentHostUtilityModelServi
 			return undefined;
 		}
 		const model = agent.models.get().find(m => m.id === selection.id);
-		return model && readAgentModelByokIdentifier(model) !== undefined ? model.id : undefined;
+		if (model) {
+			return readAgentModelByokIdentifier(model) !== undefined ? model.id : undefined;
+		}
+		// The Copilot agent drops BYOK models from its catalog while no renderer
+		// serves them, but the chat keeps its selection; recognize it by its id.
+		return agent.id === COPILOT_CLI_AGENT_PROVIDER_ID && isByokLmAgentModelId(selection.id) ? selection.id : undefined;
 	}
 
 	private _byokUtilityModelDefault(): AgentHostByokUtilityModelDefault {
@@ -204,6 +238,12 @@ export class AgentHostUtilityModelService implements IAgentHostUtilityModelServi
 	}
 
 	private async _byokChatCompletion(vendor: string, modelId: string, request: ICopilotUtilityChatCompletionRequest, signal: AbortSignal | undefined): Promise<string> {
+		// Same keys as the Responses translation, and the same defaults as the Copilot route.
+		const modelOptions: Record<string, unknown> = {
+			temperature: request.temperature ?? UTILITY_DEFAULT_TEMPERATURE,
+			top_p: UTILITY_DEFAULT_TOP_P,
+			...(request.maxTokens !== undefined ? { max_tokens: request.maxTokens } : {}),
+		};
 		const connection = this._byokBridgeRegistry.getServingConnection();
 		if (!connection) {
 			throw new AgentHostUtilityModelUnavailableError(AgentHostUtilityModelUnavailableReason.ByokModelUnavailable);
@@ -216,6 +256,7 @@ export class AgentHostUtilityModelService implements IAgentHostUtilityModelServi
 				role: message.role,
 				content: [{ type: 'text', text: message.content }],
 			})),
+			modelOptions,
 		};
 		this._logService.debug(`[AgentHostUtilityModelService] BYOK utility request: ${vendor}/${modelId}`);
 		const result = await raceAbort(connection.chat(bridgeRequest), signal);

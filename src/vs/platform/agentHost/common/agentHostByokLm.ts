@@ -192,6 +192,16 @@ export function getByokLmAgentModelId(model: IByokLmModelInfo): string {
 	return `${model.vendor}/${getByokLmSelectionModelId(model)}`;
 }
 
+/**
+ * Whether an agent model id has the BYOK shape produced by
+ * {@link getByokLmAgentModelId} (`vendor/[group/]id`). Copilot API model ids
+ * are single segments, so this identifies a retained BYOK selection even after
+ * the model has left the live catalog (for example, the renderer disconnected).
+ */
+export function isByokLmAgentModelId(modelId: string): boolean {
+	return modelId.includes('/');
+}
+
 /** Resolves BYOK enablement and trace context from synchronized root configuration. */
 export function resolveByokLmEnablement(rootConfigValue: boolean | undefined): { readonly enabled: boolean; readonly trace: string } {
 	const enabled = rootConfigValue !== false;
