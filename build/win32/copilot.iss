@@ -939,6 +939,8 @@ begin
 
   Link := TNewLinkLabel.Create(Page);
   Link.Parent := Page.Surface;
+  // Link labels aren't tab stops by default, which leaves the link out of keyboard navigation.
+  Link.TabStop := True;
   Link.AutoSize := False;
   Link.Left := 0;
   Link.Top := Top + ScaleY(4);
