@@ -1606,34 +1606,47 @@ suite('aiCustomizationManagementEditor', () => {
 			{ uri: URI.file('/workspace/.claude/skills'), label: 'skills', source: PromptsStorage.local },
 			{ uri: URI.file('/workspace/.github/skills'), label: 'skills', source: PromptsStorage.local },
 		]);
-		let pickerLabels: readonly string[] = [];
-		let pickerDescriptions: readonly (string | undefined)[] = [];
+		const pickerStates: { labels: readonly string[]; descriptions: readonly (string | undefined)[]; activeFolder: string | undefined }[] = [];
 		editor.quickInputService = {
-			pick: async items => {
-				pickerLabels = items.map(item => item.label);
-				pickerDescriptions = items.map(item => item.description);
-				return { chooseAnother: true };
+			pick: async (items, options) => {
+				pickerStates.push({
+					labels: items.map(item => item.label),
+					descriptions: items.map(item => item.description),
+					activeFolder: options?.activeItem?.folder?.uri.path,
+				});
+				return pickerStates.length === 1 ? { chooseAnother: true } : undefined;
 			},
 		};
 		editor.fileDialogService = { showOpenDialog: async () => [URI.file('/workspace/custom/skills')] };
 		editor.renderCustomizationMigrationDashboardState = () => { };
 
-		await editor.chooseCustomizationMigrationDestination({
+		const destination: ICustomizationMigrationDashboardDestination = {
 			targetType: PromptsType.skill,
 			storage: PromptsStorage.local,
 			contextLabel: 'Workspace skills',
 			label: '.github/skills',
 			ariaLabel: 'Change destination for workspace skills',
-		});
+		};
+		await editor.chooseCustomizationMigrationDestination(destination);
+		await editor.chooseCustomizationMigrationDestination(destination);
 
 		assert.deepStrictEqual({
 			selectedPath: editor.selectedCustomizationMigrationTargets.get(`${PromptsType.skill}:${PromptsStorage.local}`)?.uri.path,
-			pickerLabels,
-			pickerDescriptions,
+			pickerStates,
 		}, {
 			selectedPath: '/workspace/custom/skills',
-			pickerLabels: ['skills', 'skills', 'Choose another folder...'],
-			pickerDescriptions: ['/workspace/.github/skills (Recommended)', '/workspace/.agents/skills', 'Use a custom migration destination'],
+			pickerStates: [
+				{
+					labels: ['skills', 'skills', 'Choose another folder...'],
+					descriptions: ['/workspace/.github/skills (Recommended)', '/workspace/.agents/skills', 'Use a custom migration destination'],
+					activeFolder: undefined,
+				},
+				{
+					labels: ['skills', 'skills', '/workspace/custom/skills', 'Choose another folder...'],
+					descriptions: ['/workspace/.github/skills (Recommended)', '/workspace/.agents/skills', '/workspace/custom/skills', 'Use a custom migration destination'],
+					activeFolder: '/workspace/custom/skills',
+				},
+			],
 		});
 		editor.editorPreviewDisposables.dispose();
 	});

@@ -2587,7 +2587,10 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const key = this.getCustomizationMigrationTargetKey(destination.targetType, destination.storage);
 		const currentFolder = this.selectedCustomizationMigrationTargets.get(key);
 		const availableFolders = this.getCustomizationMigrationFolders(destination.targetType, destination.storage);
-		const picks: IMigrationDestinationQuickPickItem[] = availableFolders.map(folder => ({
+		const folders = currentFolder && !availableFolders.some(folder => isEqual(folder.uri, currentFolder.uri))
+			? [...availableFolders, currentFolder]
+			: availableFolders;
+		const picks: IMigrationDestinationQuickPickItem[] = folders.map(folder => ({
 			label: folder.label,
 			description: this.getCustomizationMigrationFolderPickDescription(folder, this.getCustomizationMigrationFolderLabel(folder)),
 			folder,
