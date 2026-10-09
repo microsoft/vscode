@@ -324,7 +324,7 @@ extends:
         enabled: true
         enableExclusions: true
         exclusionsFilePath: $(Build.SourcesDirectory)/.eslint-ignore
-      sourceAnalysisPool: ${{ variables.VSCODE_WINDOWS_POOL }}
+      sourceAnalysisPool: ${{ variables.VSCODE_UBUNTU_POOL }}
       createAdoIssuesForJustificationsForDisablement: false
     containers:
       ubuntu-2004-arm64:
@@ -332,25 +332,6 @@ extends:
     settings:
       networkIsolationPolicy: Permissive,CFSClean,CFSClean2,CFSClean3
     stages:
-
-      - stage: Quality
-        dependsOn: []
-        pool:
-          name: ${{ variables.VSCODE_UBUNTU_POOL }}
-          os: linux
-        jobs:
-          - template: build/azure-pipelines/product-quality-checks.yml@self
-
-      - stage: Copilot
-        dependsOn: []
-        pool:
-          name: ${{ variables.VSCODE_UBUNTU_POOL }}
-          os: linux
-        jobs:
-          - template: build/azure-pipelines/product-copilot.yml@self
-            parameters:
-              VSCODE_PUBLISH: ${{ variables.VSCODE_PUBLISH }}
-              VSCODE_RELEASE: ${{ parameters.VSCODE_RELEASE }}
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_WINDOWS'], true) }}:
         - stage: Windows
@@ -1338,32 +1319,6 @@ extends:
                     - vscode_cli_linux_armhf_cli
                     - vscode_client_linux_armhf_archive-unsigned
                     - vscode_client_linux_armhf_deb-package
-
-      - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
-        - stage: node_modules
-          dependsOn: []
-          jobs:
-            - template: build/azure-pipelines/win32/product-build-win32-node-modules.yml@self
-              parameters:
-                VSCODE_ARCH: arm64
-            - template: build/azure-pipelines/linux/product-build-linux-node-modules.yml@self
-              parameters:
-                NPM_ARCH: arm64
-                VSCODE_ARCH: arm64
-            - template: build/azure-pipelines/linux/product-build-linux-node-modules.yml@self
-              parameters:
-                NPM_ARCH: arm
-                VSCODE_ARCH: armhf
-            - template: build/azure-pipelines/alpine/product-build-alpine-node-modules.yml@self
-              parameters:
-                VSCODE_ARCH: x64
-            - template: build/azure-pipelines/alpine/product-build-alpine-node-modules.yml@self
-              parameters:
-                VSCODE_ARCH: arm64
-            - template: build/azure-pipelines/darwin/product-build-darwin-node-modules.yml@self
-              parameters:
-                VSCODE_ARCH: x64
-            - template: build/azure-pipelines/web/product-build-web-node-modules.yml@self
 
       - ${{ if eq(variables['VSCODE_CIBUILD'], false) }}:
         - stage: APIScan
