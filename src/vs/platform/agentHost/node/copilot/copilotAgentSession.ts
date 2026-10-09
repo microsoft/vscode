@@ -1135,6 +1135,7 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _completedTokenUsage = new Map<string, IAgentTurnTokenUsage>();
 	private readonly _subagentObservedTokenUsage = new LRUCache<string, ObservedTokenUsage>(256);
 	private readonly _observedUsageEventIds = new Set<string>();
+	private _preparingSdkSendTurn: CopilotTurn | undefined;
 	private _resumingTurnAwaitingProviderStart: CopilotTurn | undefined;
 	private _abortingTurn: CopilotTurn | undefined;
 	private _developmentRecoverableError: { readonly turnId: string; remainingFailures: number; readonly totalFailures: number } | undefined;
@@ -3907,6 +3908,7 @@ export class CopilotAgentSession extends Disposable {
 		if (this._tryStartDevelopmentRecoverableError(prompt)) {
 			return;
 		}
+		this._preparingSdkSendTurn = turn;
 		try {
 			await this._send(prompt, attachments, mode, stageRecorder);
 		} catch (err) {
@@ -3922,6 +3924,10 @@ export class CopilotAgentSession extends Disposable {
 			this._hostInstructions = undefined;
 			this._pendingSnapshotReminder = undefined;
 			throw err;
+		} finally {
+			if (this._preparingSdkSendTurn === turn) {
+				this._preparingSdkSendTurn = undefined;
+			}
 		}
 	}
 
@@ -7473,7 +7479,7 @@ export class CopilotAgentSession extends Disposable {
 		this._register(wrapper.onIdle(async e => {
 			this._logService.info(`[Copilot:${sessionId}] Session idle`);
 			const turn = this._currentTurn.value;
-			if (!e.agentId && !e.data.aborted && turn?.isPending && !turn.sdkSendInvoked) {
+			if (!e.agentId && !e.data.aborted && turn?.isPending && turn === this._preparingSdkSendTurn && !turn.sdkSendInvoked) {
 				this._logService.trace(`[Copilot:${sessionId}] Ignoring stale idle before pending turn ${turn.id} reached the SDK`);
 				return;
 			}
