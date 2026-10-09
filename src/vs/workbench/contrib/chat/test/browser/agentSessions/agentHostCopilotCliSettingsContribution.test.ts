@@ -12,7 +12,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
-import { AgentHostCopilotLocalMemoryEnabledSettingId, AgentHostCopilotMemoryEnabledSettingId, AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostHydraFusionEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, CopilotStabilityOrderedPromptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotClaudeDefaultReasoningEffortSettingId, CopilotCliConfigKey, CopilotLocalIndexEnabledSettingId, CopilotTgrepEnabledSettingId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { AgentHostCopilotLocalMemoryEnabledSettingId, AgentHostCopilotMemoryEnabledSettingId, AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostHydraFusionEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, CopilotSearchSubagentEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, CopilotStabilityOrderedPromptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotClaudeDefaultReasoningEffortSettingId, CopilotCliConfigKey, CopilotLocalIndexEnabledSettingId, CopilotTgrepEnabledSettingId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { ClientAnnotationsAction, INotification, IRootConfigChangedAction, SessionAction, TerminalAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { ConfigPropertySchema, RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -96,6 +96,7 @@ const fullSchema: Record<string, ConfigPropertySchema> = {
 	[CopilotCliConfigKey.StabilityOrderedPrompt]: { type: 'boolean', title: 'Stability-Ordered System Prompt' },
 	[CopilotCliConfigKey.ClaudeAdvisor]: { type: 'boolean', title: 'Claude Advisor Tool' },
 	[CopilotCliConfigKey.Tgrep]: { type: 'boolean', title: 'Indexed Search (tgrep)' },
+	[CopilotCliConfigKey.SearchSubagent]: { type: 'boolean', title: 'Search Subagent' },
 	[CopilotCliConfigKey.LocalIndexEnabled]: { type: 'boolean', title: 'Local Session Index' },
 	[CopilotCliConfigKey.ToolSearchEnabled]: { type: 'boolean', title: 'Agent Host Tool Search' },
 	[CopilotCliConfigKey.ToolSearchDeferThreshold]: { type: 'number', title: 'Tool Search Defer Threshold' },
@@ -152,6 +153,7 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 			[CopilotStabilityOrderedPromptEnabledSettingId]: true,
 			[CopilotClaudeAdvisorEnabledSettingId]: true,
 			[CopilotTgrepEnabledSettingId]: true,
+			[CopilotSearchSubagentEnabledSettingId]: true,
 			[CopilotLocalIndexEnabledSettingId]: false,
 			[AgentHostToolSearchEnabledSettingId]: true,
 			[AgentHostToolSearchDeferThresholdSettingId]: 5.9,
@@ -168,7 +170,7 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 
 		// The shared forwarder dispatches one RootConfigChanged per key; merge them
 		// and assert the full forwarded set (order-independent).
-		assert.strictEqual(agentHostService.dispatchedActions.length, 16);
+		assert.strictEqual(agentHostService.dispatchedActions.length, 17);
 		const merged = Object.assign({}, ...agentHostService.dispatchedActions.map(a => (a.action as IRootConfigChangedAction).config));
 		assert.deepStrictEqual(merged, {
 			[CopilotCliConfigKey.CopilotSdkLogLevel]: 'trace',
@@ -176,6 +178,7 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 			[CopilotCliConfigKey.StabilityOrderedPrompt]: true,
 			[CopilotCliConfigKey.ClaudeAdvisor]: true,
 			[CopilotCliConfigKey.Tgrep]: true,
+			[CopilotCliConfigKey.SearchSubagent]: true,
 			[CopilotCliConfigKey.LocalIndexEnabled]: false,
 			[CopilotCliConfigKey.ToolSearchEnabled]: true,
 			[CopilotCliConfigKey.ToolSearchDeferThreshold]: 5,
@@ -338,6 +341,7 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 			[CopilotCliConfigKey.StabilityOrderedPrompt]: false,
 			[CopilotCliConfigKey.ClaudeAdvisor]: false,
 			[CopilotCliConfigKey.Tgrep]: false,
+			[CopilotCliConfigKey.SearchSubagent]: false,
 			[CopilotCliConfigKey.LocalIndexEnabled]: true,
 			[CopilotCliConfigKey.ToolSearchEnabled]: false,
 			[CopilotCliConfigKey.ToolSearchDeferThreshold]: 1,

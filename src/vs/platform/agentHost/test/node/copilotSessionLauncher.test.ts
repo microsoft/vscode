@@ -66,6 +66,7 @@ const testRuntime: ICopilotSessionRuntime = {
 
 const testWorkingDirectory = URI.file(process.cwd());
 const disabledWorkflowTools = ['builtin:run_dynamic_workflow', 'builtin:dynamic_workflows_manage'];
+const defaultDisabledTools = [...disabledWorkflowTools, 'builtin:search_code_subagent'];
 
 function reportManagedSettings(config: ResumeSessionConfig | undefined): void {
 	config?.onEvent?.({
@@ -1255,7 +1256,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				createRequestCanvasRenderer: true,
 				createExtensionSdkPath: true,
 				createToolNames: [CopilotExtensionsReloadToolName],
-				createExcludedTools: [...disabledWorkflowTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
+				createExcludedTools: [...defaultDisabledTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
 				createMemory: { enabled: true },
 				createLocalMemoryStore: true,
 				resumeClientName: 'vscode-agent-host',
@@ -1285,7 +1286,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				resumeRequestCanvasRenderer: true,
 				resumeExtensionSdkPath: true,
 				resumeToolNames: [CopilotExtensionsReloadToolName],
-				resumeExcludedTools: [...disabledWorkflowTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
+				resumeExcludedTools: [...defaultDisabledTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
 				resumeMemory: { enabled: true },
 				resumeLocalMemoryStore: true,
 				ephemeralMemory: { enabled: false },
@@ -1296,7 +1297,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				ephemeralEnableSessionStore: false,
 				ephemeralMcpOAuthTokenStorage: 'in-memory',
 				ephemeralDisabledMcpServers: ['azure', 'disabled-workspace-server', 'github', 'native-plugin-server', 'synced-server'],
-				ephemeralExcludedTools: [...disabledWorkflowTools, 'task', `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
+				ephemeralExcludedTools: [...defaultDisabledTools, 'task', `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
 				ephemeralRequestExtensions: false,
 				ephemeralRequestCanvasRenderer: false,
 				ephemeralExtensionSdkPath: undefined,
@@ -2188,7 +2189,7 @@ suite('CopilotSessionLauncher resume config', () => {
 			excludedTools: config.excludedTools,
 		}, {
 			availableTools: disabledWorkflowTools,
-			excludedTools: ['mcp:*', ...disabledWorkflowTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
+			excludedTools: ['mcp:*', ...defaultDisabledTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
 		});
 	});
 
@@ -2259,6 +2260,20 @@ suite('CopilotSessionLauncher resume config', () => {
 		});
 	});
 
+	test('excludes the runtime search subagent unless the setting enables it', async () => {
+		const store = disposables.add(new DisposableStore());
+		const disabled = await buildResumeConfig(createLauncher(store, {}), { id: 'gpt-5' });
+		const enabled = await buildResumeConfig(createLauncher(store, { [CopilotCliConfigKey.SearchSubagent]: true }), { id: 'gpt-5' });
+
+		assert.deepStrictEqual({
+			disabled: disabled.excludedTools,
+			enabled: enabled.excludedTools,
+		}, {
+			disabled: [...defaultDisabledTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
+			enabled: [...disabledWorkflowTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
+		});
+	});
+
 	test('explicitly disables Copilot Memory and the local store unless opted in', async () => {
 		const store = disposables.add(new DisposableStore());
 		const configs = {
@@ -2308,7 +2323,7 @@ suite('CopilotSessionLauncher resume config', () => {
 
 		assert.deepStrictEqual(
 			[disabled.excludedTools, enabled.excludedTools, filtered.excludedTools],
-			[[...disabledWorkflowTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`], disabledWorkflowTools, [`custom:${SEMANTIC_SEARCH_TOOL_NAME}`, ...disabledWorkflowTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`]],
+			[[...defaultDisabledTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`], defaultDisabledTools, [`custom:${SEMANTIC_SEARCH_TOOL_NAME}`, ...defaultDisabledTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`]],
 		);
 		store.dispose();
 	});
@@ -2354,7 +2369,7 @@ suite('CopilotSessionLauncher resume config', () => {
 
 		assert.deepStrictEqual(
 			[config.reasoningEffort, config.excludedTools],
-			['high', ['mcp:*', ...disabledWorkflowTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`]]
+			['high', ['mcp:*', ...defaultDisabledTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`]]
 		);
 		store.dispose();
 	});
@@ -2396,7 +2411,7 @@ suite('CopilotSessionLauncher resume config', () => {
 				undefined,
 				{
 					availableTools: ['custom:*'],
-					excludedTools: ['mcp:*', ...disabledWorkflowTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
+					excludedTools: ['mcp:*', ...defaultDisabledTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
 					modelCapabilities: { supports: { vision: true } },
 				},
 				undefined,
@@ -2419,7 +2434,7 @@ suite('CopilotSessionLauncher resume config', () => {
 
 		assert.deepStrictEqual(
 			[config.availableTools, config.excludedTools],
-			[[RUNTIME_TOOL_SEARCH_TOOL_NAME], [`custom:${RUNTIME_TOOL_SEARCH_TOOL_NAME}`, ...disabledWorkflowTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`]]
+			[[RUNTIME_TOOL_SEARCH_TOOL_NAME], [`custom:${RUNTIME_TOOL_SEARCH_TOOL_NAME}`, ...defaultDisabledTools, `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`]]
 		);
 		store.dispose();
 	});
