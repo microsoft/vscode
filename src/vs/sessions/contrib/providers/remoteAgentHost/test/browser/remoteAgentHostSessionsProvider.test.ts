@@ -5290,29 +5290,46 @@ suite('CloudSandboxSessionsProvider opening', () => {
 		});
 	});
 
-	test('opens and restores a cached session without waking the sandbox', async () => {
+	test('wakes cached sessions on open and restore without blocking or sending their draft', async () => {
 		let connectCalls = 0;
+		let wake = new DeferredPromise<void>();
 		const provider = createProvider(disposables, connection, {
 			address: 'cloudsandbox:open-test',
 			sessionSchemeAlias: { ui: 'copilot', backend: 'ahp-session' },
 			ctor: CloudSandboxSessionsProvider,
 			noConnection: true,
-			connectOnDemand: async () => { connectCalls++; },
+			connectOnDemand: async () => {
+				connectCalls++;
+				provider.setConnectionStatus(RemoteAgentHostConnectionStatus.connecting);
+				await wake.p;
+			},
 		});
 		provider.seedSessions([createSession('sandbox-session', { provider: 'copilot' })]);
 		const session = provider.getSessions()[0];
 
 		const resolved = await provider.resolveSessionResource(session.resource, 'open');
 		await provider.prepareSessionForOpen(session, 'restore');
+		const restored = { connectCalls, wakeSettled: wake.isSettled };
 		await provider.prepareSessionForOpen(session, 'open');
+		const stillWaking = connectCalls;
+		await wake.complete();
+		provider.setConnectionStatus(RemoteAgentHostConnectionStatus.disconnected);
+		wake = new DeferredPromise<void>();
+		await provider.prepareSessionForOpen(session, 'open');
+		const reopened = { connectCalls, wakeSettled: wake.isSettled };
+		await wake.complete();
 
 		assert.deepStrictEqual({
 			resolved: resolved?.toString(),
-			connectCalls,
+			restored,
+			stillWaking,
+			reopened,
 			hostActions: connection.dispatchedActions,
 		}, {
 			resolved: session.resource.toString(),
-			connectCalls: 0,
+			restored: { connectCalls: 1, wakeSettled: false },
+			stillWaking: 1,
+			reopened: { connectCalls: 2, wakeSettled: false },
 			hostActions: [],
 		});
 	});

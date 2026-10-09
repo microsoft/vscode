@@ -620,7 +620,10 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		return authority ? byAuthority.get(authority) : undefined;
 	}
 
-	/** Opens an online environment through its host, or an offline session from persisted history. */
+	/** Whether the chat surface can hand off persisted history and offline drafts to a live connection. */
+	protected get supportsBackgroundConnection(): boolean { return false; }
+
+	/** Opens live content or persisted history, optionally waking the environment in the background. */
 	protected async _waitForActivation(sessionType: string): Promise<boolean> {
 		const address = this._findAddressForSessionType(sessionType);
 		const env = address ? this._environments.get(address) : undefined;
@@ -640,8 +643,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			return current;
 		};
 
-		// Without a task there is no history fallback, so connecting is the only way to open it.
-		const shouldConnect = !env.taskId || this._pendingConnects.has(address) || await this._isEnvironmentOnline(env, token);
+		const shouldConnect = this.supportsBackgroundConnection || !env.taskId || this._pendingConnects.has(address) || await this._isEnvironmentOnline(env, token);
 		if (!isCurrentActivation()) {
 			return false;
 		}
@@ -649,15 +651,23 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			this._logService.info(`${LOG_PREFIX} Environment for ${address} is not online; serving history and leaving the connect to the user.`);
 			return this._activateReadOnly(sessionType, address, env, this._fetchTaskHistory(env, token));
 		}
+		const connecting = this.connect({ environmentId: env.environmentId, sessionId: env.sessionId, name: env.name }).then(
+			() => undefined,
+			(error: unknown) => {
+				this._logService.warn(`${LOG_PREFIX} connect-on-open failed for ${address}: ${error instanceof Error ? error.message : String(error)}`);
+				return error ?? new Error('connect failed');
+			},
+		);
+		if (this.supportsBackgroundConnection && env.taskId && isCurrentActivation()) {
+			return this._activateReadOnly(sessionType, address, env, this._fetchTaskHistory(env, token));
+		}
 
-		const connectError = await this
-			.connect({ environmentId: env.environmentId, sessionId: env.sessionId, name: env.name })
-			.then(() => undefined, (error: unknown) => error ?? new Error('connect failed'));
+		// Surfaces without a live handoff, and sessions without history, must await the connection.
+		const connectError = await connecting;
 		if (!isCurrentActivation()) {
 			return false;
 		}
 		if (connectError !== undefined) {
-			this._logService.warn(`${LOG_PREFIX} connect-on-open failed for ${address}: ${connectError instanceof Error ? connectError.message : String(connectError)}`);
 			return this._activateReadOnly(sessionType, address, env, this._fetchTaskHistory(env, token));
 		}
 		const authority = agentHostAuthority(address);
@@ -677,7 +687,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		}
 	}
 
-	/** An unreadable record must not trigger an automatic resume. */
+	/** An unreadable record must not trigger an automatic resume in surfaces without background connection support. */
 	private async _isEnvironmentOnline(env: ICloudSandboxSessionEnvironment, token: CancellationToken): Promise<boolean> {
 		try {
 			const record = await this._apiService.getEnvironment(env.environmentId, token);

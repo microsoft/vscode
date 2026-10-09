@@ -130,13 +130,14 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 		this._pendingSessionTitles.delete(rawId);
 	}
 
-	/**
-	 * Opening a sandbox session never dials the sandbox. Connecting resumes cloud compute and can
-	 * take as long as the environment needs to wake, so the chat content activation decides from
-	 * the environment's state whether to connect or to serve persisted history, and the connection
-	 * banner leaves waking a dormant environment to the user.
-	 */
-	override async prepareSessionForOpen(): Promise<void> { }
+	/** Reopened cached chats also need a background connection, even when content activation is skipped. */
+	override async prepareSessionForOpen(): Promise<void> {
+		if (!this.connection && RemoteAgentHostConnectionStatus.isDisconnected(this.connectionStatus.get())) {
+			void this.connect().catch(error => {
+				this._logService.warn('[CloudSandboxSessionsProvider] Background connection on open failed', error);
+			});
+		}
+	}
 
 	override isSessionConfigResolving(sessionId: string): IObservable<boolean> {
 		const resolving = super.isSessionConfigResolving(sessionId);
