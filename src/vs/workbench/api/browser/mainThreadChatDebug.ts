@@ -28,6 +28,13 @@ export class MainThreadChatDebug extends Disposable implements MainThreadChatDeb
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChatDebug);
 	}
 
+	override dispose(): void {
+		for (const handle of this._providerDisposables.keys()) {
+			this.$unregisterChatDebugLogProvider(handle);
+		}
+		super.dispose();
+	}
+
 	$subscribeToCoreDebugEvents(): void {
 		this._coreEventForwarder.value = this._chatDebugService.onDidAddEvent(event => {
 			if (this._chatDebugService.isCoreEvent(event)) {
