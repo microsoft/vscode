@@ -37,10 +37,10 @@ export function parseChatCustomizationsUrl(uri: URI): AICustomizationManagementO
 	}
 
 	const pageId = page.trim().replace(/([a-z])([A-Z])/g, '$1-$2').replace(/[\s_]+/g, '-').toLowerCase();
-	const target = pageTargets[pageId];
-	if (!target) {
+	if (!Object.hasOwn(pageTargets, pageId)) {
 		return undefined;
 	}
+	const target = pageTargets[pageId];
 
 	const searchQuery = params.has('search') ? params.get('search') ?? '' : undefined;
 	return typeof target === 'string'

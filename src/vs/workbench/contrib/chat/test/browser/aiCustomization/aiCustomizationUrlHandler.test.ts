@@ -49,7 +49,8 @@ suite('AIChatCustomizationsUrlHandler', () => {
 			parseChatCustomizationsUrl(URI.parse('vscode://chat-customizations/unknown?page=plugins')),
 			parseChatCustomizationsUrl(URI.parse('vscode://chat-customizations/open')),
 			parseChatCustomizationsUrl(URI.parse('vscode://chat-customizations/open?page=unknown')),
-		], [undefined, undefined, undefined, undefined]);
+			parseChatCustomizationsUrl(URI.parse('vscode://chat-customizations/open?page=constructor')),
+		], [undefined, undefined, undefined, undefined, undefined]);
 	});
 
 	test('normalizes human-readable page names', () => {

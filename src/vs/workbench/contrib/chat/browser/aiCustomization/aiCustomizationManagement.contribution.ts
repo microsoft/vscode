@@ -746,6 +746,62 @@ for (const menuId of [AICustomizationManagementItemMenuId, AICustomizationManage
 
 //#endregion
 
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: AICustomizationManagementCommands.OpenEditor,
+			title: localize2('openAICustomizations', "Open Customizations"),
+			shortTitle: localize2('aiCustomizations', "Customizations"),
+			category: CHAT_CATEGORY,
+			precondition: ChatContextKeys.enabled,
+			f1: true,
+		});
+	}
+
+	async run(accessor: ServicesAccessor, target?: AICustomizationManagementOpenEditorTarget): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const chatWidgetService = accessor.get(IChatWidgetService);
+		const harnessService = accessor.get(ICustomizationHarnessService);
+		const widget = chatWidgetService.lastFocusedWidget;
+		const { section, revealUri, sessionResource, showDiscover, searchQuery, migration, migrationCategory, migrationHint } = resolveAICustomizationManagementOpenEditorTarget(
+			target,
+			widget?.input.pendingDelegationTarget,
+			widget?.viewModel?.sessionResource,
+			sessionType => harnessService.getSessionResourceForHarness(sessionType),
+		);
+		if (migrationHint) {
+			accessor.get(ICustomizationMigrationTelemetryService).hintClicked(migrationHint, 'review');
+		}
+		if (sessionResource) {
+			harnessService.setActiveSession(sessionResource);
+		}
+
+		const input = AICustomizationManagementEditorInput.getOrCreate();
+		input.setTargetLabels(
+			harnessService.getActiveDescriptor().label,
+			accessor.get(IAICustomizationWorkspaceService).activeProjectLabel.get(),
+		);
+		const pane = await editorService.openEditor(input, { pinned: true });
+		if (migration && pane instanceof AICustomizationManagementEditor) {
+			await pane.startCustomizationMigration(migrationCategory, migrationHint?.migrationFlowId);
+		} else if (showDiscover && pane instanceof AICustomizationManagementEditor) {
+			pane.showWelcomePage();
+			if (searchQuery !== undefined) {
+				pane.setSearchQuery(searchQuery);
+			}
+		} else if (section && pane instanceof AICustomizationManagementEditor) {
+			if (pane.selectSectionById(section)) {
+				if (searchQuery !== undefined) {
+					pane.setSearchQuery(searchQuery);
+				}
+				if (revealUri) {
+					await pane.revealCustomizationByUri(revealUri);
+				}
+			}
+		}
+	}
+});
+
 //#region Actions
 
 class AICustomizationManagementActionsContribution extends Disposable implements IWorkbenchContribution {
@@ -804,63 +860,6 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 					StorageScope.WORKSPACE,
 					StorageTarget.USER
 				);
-			}
-		}));
-
-		// Open AI Customizations Editor
-		this._register(registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: AICustomizationManagementCommands.OpenEditor,
-					title: localize2('openAICustomizations', "Open Customizations"),
-					shortTitle: localize2('aiCustomizations', "Customizations"),
-					category: CHAT_CATEGORY,
-					precondition: ChatContextKeys.enabled,
-					f1: true,
-				});
-			}
-
-			async run(accessor: ServicesAccessor, target?: AICustomizationManagementOpenEditorTarget): Promise<void> {
-				const editorService = accessor.get(IEditorService);
-				const chatWidgetService = accessor.get(IChatWidgetService);
-				const harnessService = accessor.get(ICustomizationHarnessService);
-				const widget = chatWidgetService.lastFocusedWidget;
-				const { section, revealUri, sessionResource, showDiscover, searchQuery, migration, migrationCategory, migrationHint } = resolveAICustomizationManagementOpenEditorTarget(
-					target,
-					widget?.input.pendingDelegationTarget,
-					widget?.viewModel?.sessionResource,
-					sessionType => harnessService.getSessionResourceForHarness(sessionType),
-				);
-				if (migrationHint) {
-					accessor.get(ICustomizationMigrationTelemetryService).hintClicked(migrationHint, 'review');
-				}
-				if (sessionResource) {
-					harnessService.setActiveSession(sessionResource);
-				}
-
-				const input = AICustomizationManagementEditorInput.getOrCreate();
-				input.setTargetLabels(
-					harnessService.getActiveDescriptor().label,
-					accessor.get(IAICustomizationWorkspaceService).activeProjectLabel.get(),
-				);
-				const pane = await editorService.openEditor(input, { pinned: true });
-				if (migration && pane instanceof AICustomizationManagementEditor) {
-					await pane.startCustomizationMigration(migrationCategory, migrationHint?.migrationFlowId);
-				} else if (showDiscover && pane instanceof AICustomizationManagementEditor) {
-					pane.showWelcomePage();
-					if (searchQuery !== undefined) {
-						pane.setSearchQuery(searchQuery);
-					}
-				} else if (section && pane instanceof AICustomizationManagementEditor) {
-					if (pane.selectSectionById(section)) {
-						if (searchQuery !== undefined) {
-							pane.setSearchQuery(searchQuery);
-						}
-						if (revealUri) {
-							await pane.revealCustomizationByUri(revealUri);
-						}
-					}
-				}
 			}
 		}));
 
