@@ -5,17 +5,14 @@
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ILogService } from '../../../log/common/log.js';
+import { parse, SchemaError } from '../client/schema.js';
 import { IGitHubCredentials, withGitHubCredentialDeadline } from '../githubCredentialService.js';
 import { nextLink } from '../githubResponse.js';
 import { IGitHubTransport } from '../githubTransport.js';
 import { GitHubRequestError } from '../githubTypes.js';
-import { encodePathSegment as pathSegment } from '../githubUrls.js';
 import { parseResponseJson } from '../responseReader.js';
-import { parse, SchemaError } from '../schema.js';
 import { AccountHandle, RequestError, RequestErrorKind } from '../types.js';
-import { ActivationContext, ApiError, ApiErrorResponse, CodedApiErrorResponse, PaginatedResponse, PaginationOptions, RepositoryRef, User } from './missionControl.js';
-
-export { pathSegment };
+import { ActivationContext, ApiError, ApiErrorResponse, CodedApiErrorResponse, PaginatedResponse, PaginationOptions, User } from './missionControl.js';
 
 /** An explicitly approved API base and the headers allowed to accompany its credential. */
 export interface ApiEndpoint {
@@ -281,27 +278,6 @@ function requestUrl(endpoint: ApiEndpoint, path: string): string {
 		throw new GitHubRequestError('API request escaped its approved endpoint', 'validation');
 	}
 	return url.href;
-}
-
-/** Builds the repository-scoped automations route using encoded owner and repository names. */
-export function repositoryPath(repository: RepositoryRef): string {
-	return `/repos/${pathSegment(repository.owner)}/${pathSegment(repository.name)}/automations`;
-}
-
-/** Appends query parameters, repeating array values and omitting undefined entries. */
-export function queryPath(path: string, parameters: Readonly<Record<string, string | number | boolean | readonly string[] | readonly number[] | undefined>>): string {
-	const query = new URLSearchParams();
-	for (const [key, value] of Object.entries(parameters)) {
-		if (value !== undefined) {
-			for (const item of Array.isArray(value) ? value : [value]) {
-				if (typeof item === 'number' && !Number.isFinite(item)) {
-					throw new GitHubRequestError('Invalid numeric API query parameter', 'validation');
-				}
-				query.append(key, String(item));
-			}
-		}
-	}
-	return query.size ? `${path}?${query}` : path;
 }
 
 /** Validates explicit pagination values without applying client-side defaults. */

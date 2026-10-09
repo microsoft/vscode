@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { parse, SchemaError } from '../schema.js';
+import { pathSegment, queryPath, repositoryPath } from '../client/routing.js';
+import { parse, SchemaError } from '../client/schema.js';
 import { AutomationDetail, AutomationSummary, AutomationToolDefinition, AutomationToolGroup, AutomationTriggerDefinition, AutomationTriggerFieldDefinition, CreateAutomationRequest, CreateAutomationTaskRequest, CreateAutomationTaskResponse, EditAutomationRequest, GetAutomationOptions, IAutomationsClient, ListAutomationsOptions, ListRepoAutomationsResponse } from './automations.js';
 import { PaginatedResponse, RepositoryRef } from './missionControl.js';
-import { MissionControlClient, paginated, pagination, parseUser, pathSegment, queryPath, repositoryPath } from './missionControlClient.js';
+import { MissionControlClient, paginated, pagination, parseUser } from './missionControlClient.js';
 import { ListTasksResponse, TaskListOptions } from './tasks.js';
 import { parseListTasksResponse } from './tasksClient.js';
 
