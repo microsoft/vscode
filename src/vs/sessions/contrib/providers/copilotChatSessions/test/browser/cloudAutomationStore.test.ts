@@ -57,6 +57,7 @@ const definition: AutomationDetail = { id: 'one', name: 'Review', description: '
 const workspace = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: '/owner/private/HEAD' });
 const account: IDefaultAccount = { accountName: 'user', sessionId: 'one', enterprise: false, authenticationProvider: { id: 'github', name: 'GitHub', enterprise: false } };
 const manual: IAutomationSchedule = { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
+const reconciliationMessage = 'The automation request may have been accepted. Refresh automations before submitting again.';
 
 class TestApi extends mock<IAutomationsClient>() {
 	readonly calls: string[] = [];
@@ -347,9 +348,9 @@ suite('CloudAutomationStore', () => {
 		});
 		api.tasks = [];
 		await provider.refresh();
-		api.dispatchError = new MutationUncertainError('network');
-		assert.deepStrictEqual(await invoke(tools.run, { automationId: automation.id }), { status: 'unknown', automation: { id: automation.id, name: automation.name }, message: api.dispatchError.message });
-		assert.deepStrictEqual({ warnings, canRun: provider.canRunAutomation(automation.id) }, { warnings: [api.dispatchError.message], canRun: false });
+		api.dispatchError = new ApiRequestError(503, 'unknown', { message: 'unknown', documentation_url: 'https://docs.github.com' }, undefined, undefined, 'indeterminate');
+		assert.deepStrictEqual(await invoke(tools.run, { automationId: automation.id }), { status: 'unknown', automation: { id: automation.id, name: automation.name }, message: reconciliationMessage });
+		assert.deepStrictEqual({ warnings, canRun: provider.canRunAutomation(automation.id) }, { warnings: [reconciliationMessage], canRun: false });
 	});
 
 	test('run preflight still rejects remote disablement without dispatching', async () => {
@@ -513,7 +514,7 @@ suite('CloudAutomationStore', () => {
 					: operation === 'update'
 						? provider.updateAutomationIfUnchanged(automation.id, { name: 'Changed' }, automation)
 						: provider.deleteAutomation(automation.id);
-				await assert.rejects(result, candidate => candidate instanceof AutomationMutationUncertainError && candidate.cause === error && candidate.message === error.message);
+				await assert.rejects(result, candidate => candidate instanceof AutomationMutationUncertainError && candidate.cause === error && candidate.message === reconciliationMessage);
 				assert.strictEqual(provider.canCreateAutomation.get(), false);
 			});
 		}
@@ -526,7 +527,7 @@ suite('CloudAutomationStore', () => {
 				await provider.refresh();
 				api.calls.length = 0;
 				api.dispatchError = error;
-				await assert.rejects(provider.runAutomation(provider.automations.get()[0].id), candidate => candidate instanceof AutomationMutationUncertainError && candidate.cause === error && candidate.message === error.message);
+				await assert.rejects(provider.runAutomation(provider.automations.get()[0].id), candidate => candidate instanceof AutomationMutationUncertainError && candidate.cause === error && candidate.message === reconciliationMessage);
 				await clock.tickAsync(120_000);
 				assert.deepStrictEqual({
 					historyReads: api.calls.filter(call => call === 'history').length,
