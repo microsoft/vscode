@@ -11,6 +11,10 @@ import { GitHubRequestError } from '../../common/githubTypes.js';
 suite('GitHub client routing', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	function isValidationError(error: unknown): boolean {
+		return error instanceof GitHubRequestError && error.kind === 'validation';
+	}
+
 	test('identifier encoding escapes separators and preserves significant whitespace', () => {
 		assert.deepStrictEqual([
 			'feature/branch',
@@ -27,7 +31,7 @@ suite('GitHub client routing', () => {
 
 	test('identifier encoding rejects empty identifiers and dot segments', () => {
 		for (const value of ['', ' \t ', '.', '..']) {
-			assert.throws(() => pathSegment(value), error => error instanceof GitHubRequestError && error.kind === 'validation');
+			assert.throws(() => pathSegment(value), isValidationError);
 		}
 	});
 
@@ -79,7 +83,7 @@ suite('GitHub client routing', () => {
 	test('query encoding rejects non-finite numbers in scalars and arrays', () => {
 		for (const value of [NaN, Infinity, -Infinity]) {
 			for (const parameters of [{ count: value }, { ids: [1, value] }]) {
-				assert.throws(() => queryPath('/tasks', parameters), error => error instanceof GitHubRequestError && error.kind === 'validation');
+				assert.throws(() => queryPath('/tasks', parameters), isValidationError);
 			}
 		}
 	});

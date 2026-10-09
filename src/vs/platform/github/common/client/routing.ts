@@ -27,7 +27,7 @@ export function queryPath(path: string, parameters: Readonly<Record<string, stri
 			continue;
 		}
 		for (const item of Array.isArray(value) ? value : [value]) {
-			if (typeof value === 'number' && !Number.isFinite(value)) {
+			if (typeof item === 'number' && !Number.isFinite(item)) {
 				throw new GitHubRequestError('Invalid numeric API query parameter', 'validation');
 			}
 			query.append(key, String(item));

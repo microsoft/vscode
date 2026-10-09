@@ -92,9 +92,8 @@ suite('GitHub client schema', () => {
 		for (const value of [null, [], {}, { items: {} }, { items: [null] }, { items: [[]] }]) {
 			assert.throws(() => parser(value), SchemaError);
 		}
-		assert.throws(() => parser({ items: [{ count: 1 }, { count: 'secret-value' }] }), new SchemaError(
-			'Invalid value at key "items": Invalid value at index 1: Invalid value at key "count": Expected a safe integer',
-		));
+		assert.throws(() => parser({ items: [{ count: 1 }, { count: 'secret-value' }] }),
+			/^SchemaError: Invalid value at key "items": Invalid value at index 1: Invalid value at key "count": Expected a safe integer$/);
 	});
 
 	test('preserves nested JSON and rejects non-JSON values', () => {
@@ -118,14 +117,16 @@ suite('GitHub client schema', () => {
 			result: { label: 'Ready', count: 1, active: true },
 			input: { label: '  Ready  ', count: 1 },
 		});
-		assert.throws(() => parser({ label: '', count: 1 }), new SchemaError('Invalid value at key "label": Label must not be empty'));
-		assert.throws(() => parser({ label: 42, count: 1 }), new SchemaError('Invalid value at key "label": Expected a string'));
+		assert.throws(() => parser({ label: '', count: 1 }), /^SchemaError: Invalid value at key "label": Label must not be empty$/);
+		assert.throws(() => parser({ label: 42, count: 1 }), /^SchemaError: Invalid value at key "label": Expected a string$/);
 	});
 
 	test('propagates non-schema errors unchanged through nested parsers', () => {
 		const error = new Error('Parser failed');
 		const parser = parse.object({ items: parse.arrayOf(parse.dictionary(() => { throw error; })) });
-		assert.throws(() => parser({ items: [{ count: 1 }] }), actual => actual === error);
+		assert.throws(() => parser({ items: [{ count: 1 }] }), function isOriginalError(actual: unknown) {
+			return actual === error;
+		});
 	});
 
 	test('returns parsed JSON payloads without copying and rejects non-plain objects and arrays', () => {
@@ -136,9 +137,8 @@ suite('GitHub client schema', () => {
 		for (const value of [new Payload(), new Date(0), new Map(), new Uint8Array(1), Object.create(null), PayloadArray.from([1]), new Array(1)]) {
 			assert.throws(() => parse.jsonValue({ payload: [value] }), SchemaError);
 		}
-		assert.throws(() => parse.jsonValue({ payload: [new Payload()] }), new SchemaError(
-			'Invalid value at key "payload": Invalid value at index 0: Expected a JSON object',
-		));
+		assert.throws(() => parse.jsonValue({ payload: [new Payload()] }),
+			/^SchemaError: Invalid value at key "payload": Invalid value at index 0: Expected a JSON object$/);
 	});
 
 	test('reads only own properties and preserves __proto__ as a data key', () => {
