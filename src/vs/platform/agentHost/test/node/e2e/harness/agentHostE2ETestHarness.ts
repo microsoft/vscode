@@ -1091,6 +1091,10 @@ export class AgentHostE2EServerLease {
 	 * output. Best-effort: never throws because it runs during failed-test teardown.
 	 */
 	dumpRuntimeLogsOnFailure(label: string): void {
+		if (process.env['AGENT_HOST_NATIVE_EXIT_BOOTSTRAP']) {
+			process.stdout.write('[agent-host-e2e] Native exit probe retains structural lifecycle records only; raw runtime diagnostics are not exported.\n');
+			return;
+		}
 		const destination = join(process.cwd(), '.build', 'logs', 'integration-tests', `agent-host-e2e-${process.pid}-${basename(this._startOptions.homeDir)}`);
 		try {
 			preserveAgentHostE2ELogs(this._startOptions.userDataDir, this._startOptions.homeDir, destination, label);

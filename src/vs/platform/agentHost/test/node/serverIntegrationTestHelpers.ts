@@ -1162,9 +1162,10 @@ export async function startRealServer(options: { readonly homeDir: string; reado
 		});
 		let child: ChildProcess;
 		try {
-			child = fork(serverPath, args, {
+			const nativeExitBootstrap = process.env['AGENT_HOST_NATIVE_EXIT_BOOTSTRAP'];
+			child = fork(nativeExitBootstrap ?? serverPath, args, {
 				stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
-				env: childEnv,
+				env: nativeExitBootstrap ? { ...childEnv, AGENT_HOST_NATIVE_EXIT_SERVER_MAIN: serverPath } : childEnv,
 			});
 		} catch (err) {
 			void mockLlmServer?.close();
