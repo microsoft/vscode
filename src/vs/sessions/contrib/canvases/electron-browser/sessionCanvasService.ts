@@ -5,16 +5,18 @@
 
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { constObservable, derived, IReader } from '../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IReader, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
-import { CanvasInput, canvasOwnerKey, ICanvasContext, ICanvasContextService, ICanvasOwner, ICanvasWorkingSets } from '../../../../workbench/contrib/canvases/common/canvas.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { CanvasInput, canvasOwnerKey, ICanvasContext, ICanvasContextService, ICanvasOwner, ICanvasService, ICanvasWorkingSets } from '../../../../workbench/contrib/canvases/common/canvas.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { IChat, ISession } from '../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { IChat, ISession, ISessionCanvasDefinition } from '../../../services/sessions/common/session.js';
+import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionEditorWorkingSetService } from '../../layout/common/sessionEditorWorkingSet.js';
+import { createSessionCanvasReference, getSessionCanvasDefinitionInstanceId, ISessionCanvasRegistryService } from '../common/sessionCanvas.js';
 
 export class SessionCanvasContextService extends Disposable implements ICanvasContextService {
 
@@ -102,6 +104,95 @@ export class SessionCanvasContextService extends Disposable implements ICanvasCo
 	}
 }
 
+export class SessionCanvasRegistryService extends Disposable implements ISessionCanvasRegistryService {
+
+	declare readonly _serviceBrand: undefined;
+	readonly availableCanvases = observableValue<readonly ISessionCanvasDefinition[]>(this, []);
+	private availableCanvasesRequest = 0;
+
+	constructor(
+		@ISessionsService private readonly sessionsService: ISessionsService,
+		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@ICanvasService private readonly canvasService: ICanvasService,
+		@ILogService private readonly logService: ILogService,
+	) {
+		super();
+		this._register(autorun(reader => {
+			const session = sessionsService.activeSession.read(reader);
+			const chat = session?.activeChat.read(reader);
+			chat?.canvases?.read(reader);
+			const supported = canvasService.enabled.read(reader) && session?.capabilities.read(reader).supportsCanvases === true;
+			const request = ++this.availableCanvasesRequest;
+			if (!session || !chat || !supported) {
+				this.availableCanvases.set([], undefined);
+				return;
+			}
+			this.availableCanvases.set([], undefined);
+			void this.loadAvailableCanvases(session, chat, request);
+		}));
+	}
+
+	async refreshAvailableCanvases(): Promise<void> {
+		const session = this.sessionsService.activeSession.get();
+		const request = ++this.availableCanvasesRequest;
+		if (!session || !this.canvasService.enabled.get() || session.capabilities.get().supportsCanvases !== true) {
+			this.availableCanvases.set([], undefined);
+			return;
+		}
+		await this.loadAvailableCanvases(session, session.activeChat.get(), request);
+	}
+
+	async openCanvas(canvas: ISessionCanvasDefinition): Promise<void> {
+		const session = this.sessionsService.activeSession.get();
+		if (!session || !this.canvasService.enabled.get() || session.capabilities.get().supportsCanvases !== true) {
+			return;
+		}
+		const chat = session.activeChat.get();
+		const instanceId = getSessionCanvasDefinitionInstanceId(canvas);
+		const existing = chat.canvases?.get()?.find(candidate => candidate.instanceId === instanceId);
+		if (existing?.source) {
+			await this.canvasService.revealCanvas(createSessionCanvasReference(session, chat, existing));
+			return;
+		}
+		await this.sessionsManagementService.openCanvas(session, chat, canvas, instanceId);
+	}
+
+	private async loadAvailableCanvases(session: IActiveSession, chat: IChat, request: number): Promise<void> {
+		try {
+			const canvases = await this.sessionsManagementService.listCanvases(session, chat);
+			if (this._store.isDisposed || request !== this.availableCanvasesRequest || this.sessionsService.activeSession.get() !== session || session.activeChat.get() !== chat || !this.canvasService.enabled.get()) {
+				return;
+			}
+			this.availableCanvases.set(
+				canvases
+					.filter(isExtensionCanvasDefinition)
+					.sort(compareCanvasDefinitions),
+				undefined,
+			);
+		} catch (error) {
+			if (this._store.isDisposed || request !== this.availableCanvasesRequest || this.sessionsService.activeSession.get() !== session || session.activeChat.get() !== chat) {
+				return;
+			}
+			this.availableCanvases.set([], undefined);
+			this.logService.error('[SessionCanvasRegistryService] Failed to list registered canvases', error);
+		}
+	}
+}
+
 function ownsSession(owner: ICanvasOwner, session: ISession): boolean {
 	return owner.providerId === session.providerId && isEqual(owner.session, session.resource);
+}
+
+function isExtensionCanvasDefinition(canvas: ISessionCanvasDefinition): boolean {
+	return canvas.extensionSource !== 'unknown'
+		|| canvas.extensionId.startsWith('user:')
+		|| canvas.extensionId.startsWith('project:')
+		|| canvas.extensionId.startsWith('session:')
+		|| canvas.extensionId.startsWith('plugin:');
+}
+
+function compareCanvasDefinitions(first: ISessionCanvasDefinition, second: ISessionCanvasDefinition): number {
+	return (first.extensionName || first.extensionId).localeCompare(second.extensionName || second.extensionId)
+		|| (first.displayName || first.canvasId).localeCompare(second.displayName || second.canvasId)
+		|| first.canvasId.localeCompare(second.canvasId);
 }

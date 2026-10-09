@@ -44,6 +44,8 @@ import {
 	AgentHostRestartIpcChannel,
 	AgentHostWillRestartIpcChannel,
 	AgentSession,
+	type IAgentCanvasInfo,
+	type IAgentCanvasOpenRequest,
 	IAgentCreateChatRequestOptions,
 	IAgentCreateSessionConfig,
 	IAgentCustomizationInstallation,
@@ -520,6 +522,14 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	uninstallPlugin(provider: string, request: IAgentPluginUninstallRequest): Promise<void> {
 		return this._getManagementService().uninstallPlugin(provider, request);
+	}
+
+	listSessionCanvases(session: URI, chat?: URI): Promise<readonly IAgentCanvasInfo[]> {
+		return this._getManagementService().listSessionCanvases(session, chat);
+	}
+
+	openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest, chat?: URI): Promise<void> {
+		return this._getManagementService().openSessionCanvas(session, request, chat);
 	}
 
 	installPlugin(provider: string, request: IAgentPluginInstallRequest): Promise<void> {

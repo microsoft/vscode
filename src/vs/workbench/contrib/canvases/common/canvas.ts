@@ -174,7 +174,7 @@ export class CanvasInput extends EditorInput {
 	override get editorId(): string { return CanvasInput.EDITOR_ID; }
 	override get capabilities(): EditorInputCapabilities { return EditorInputCapabilities.Readonly | EditorInputCapabilities.Singleton | EditorInputCapabilities.ForceReveal; }
 	override getName(): string { return this.canvas.get()?.title ?? localize('canvas.editorName', "Canvas"); }
-	override getDescription(): string { return localize('canvas.editorDescription', "Closing this tab hides the canvas. Use its canvas pill or Add Tab in the Agents Window, or ask the agent to open it again."); }
+	override getDescription(): string { return localize('canvas.editorDescription', "Closing this tab hides the canvas. Reopen it from the Canvas submenu in Add Tab, use its canvas pill, or ask the agent to open it again."); }
 	override getIcon(): ThemeIcon { return Codicon.preview; }
 	override getTitle(_verbosity?: Verbosity): string { return this.getName(); }
 	override canReopen(): boolean { return false; }

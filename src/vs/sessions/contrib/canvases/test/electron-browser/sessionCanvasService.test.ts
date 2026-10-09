@@ -12,7 +12,7 @@ import { constObservable, observableValue } from '../../../../../base/common/obs
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { isIMenuItem, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { isIMenuItem, isISubmenuItem, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { CanvasesEnabledSettingId } from '../../../../../platform/agentHost/common/agentService.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
@@ -33,7 +33,7 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { IChat, ISessionCanvas, ISessionCapabilities } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, IChatDeletedEvent, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionEditorWorkingSetOwner, SessionEditorWorkingSetService } from '../../../layout/common/sessionEditorWorkingSet.js';
-import { REVEAL_SESSION_CANVAS_COMMAND_ID } from '../../common/sessionCanvas.js';
+import { ISessionCanvasRegistryService, REVEAL_SESSION_CANVAS_COMMAND_ID } from '../../common/sessionCanvas.js';
 import { registerSessionCanvasActions, REOPEN_SESSION_CANVAS_COMMAND_ID } from '../../electron-browser/sessionCanvasActions.js';
 import { CanvasInput } from '../../../../../workbench/contrib/canvases/common/canvas.js';
 import { CanvasService } from '../../../../../workbench/contrib/canvases/electron-browser/canvasService.js';
@@ -44,6 +44,11 @@ import { IChatService } from '../../../../../workbench/contrib/chat/common/chatS
 
 suite('SessionCanvasService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const emptyRegistryService = upcastPartial<ISessionCanvasRegistryService>({
+		availableCanvases: constObservable([]),
+		refreshAvailableCanvases: async () => { },
+		openCanvas: async () => { },
+	});
 
 	function createHarness(canvasesEnabled = true, initialCanvases?: readonly ISessionCanvas[]) {
 		const sessionResource = URI.parse('agent-host-session:/session');
@@ -316,7 +321,7 @@ suite('SessionCanvasService', () => {
 		const original = opened[0];
 		await openSettled[0];
 		await Promise.resolve();
-		const registration = store.add(registerSessionCanvasActions(canvasService));
+		const registration = store.add(registerSessionCanvasActions(canvasService, emptyRegistryService));
 		const command = CommandsRegistry.getCommand(REVEAL_SESSION_CANVAS_COMMAND_ID);
 		assert.ok(command);
 
@@ -543,7 +548,7 @@ suite('SessionCanvasService', () => {
 		});
 	});
 
-	test('contributes titled canvas instances to the right pane Add Tab menu', async () => {
+	test('contributes titled canvas instances to the Add Tab Canvas submenu', async () => {
 		const canvases: ISessionCanvas[] = [
 			{ resource: URI.parse('agent-host-canvas:/preview-editor'), instanceId: 'editor', title: 'Preview', source: URI.parse('https://example.test/editor') },
 			{ resource: URI.parse('agent-host-canvas:/preview-sidebar'), instanceId: 'sidebar', title: 'Preview', source: URI.parse('https://example.test/sidebar') },
@@ -553,17 +558,21 @@ suite('SessionCanvasService', () => {
 			{ resource: URI.parse('agent-host-canvas:/logs-semantic'), instanceId: '1', title: 'Logs', source: URI.parse('https://example.test/logs-semantic') },
 		];
 		const { canvasService, canvases: canvasStates, opened } = createHarness(true, canvases);
-		const registration = store.add(registerSessionCanvasActions(canvasService));
+		const registration = store.add(registerSessionCanvasActions(canvasService, emptyRegistryService));
 		for (const input of [...opened]) {
 			input.dispose();
 		}
-		const getItems = () => MenuRegistry.getMenuItems(Menus.SessionsEditorTabsBarAddTab)
+		const getItems = () => MenuRegistry.getMenuItems(Menus.SessionsEditorTabsBarAddTabCanvas)
 			.filter(isIMenuItem)
 			.filter(item => item.command.id.startsWith(`${REOPEN_SESSION_CANVAS_COMMAND_ID}.`))
 			.sort((first, second) => (first.order ?? 0) - (second.order ?? 0));
+		const getSubmenus = () => MenuRegistry.getMenuItems(Menus.SessionsEditorTabsBarAddTab)
+			.filter(isISubmenuItem)
+			.filter(item => item.submenu === Menus.SessionsEditorTabsBarAddTabCanvas);
 		const items = getItems();
+		const submenus = getSubmenus();
 		const initialCommandIds = items.map(item => item.command.id);
-		const when = items[0].when?.serialize() ?? '';
+		const when = submenus[0].when?.serialize() ?? '';
 		canvasStates.set(canvases.map((canvas, index) => index === 1 ? { ...canvas, title: 'Preview Updated' } : canvas), undefined);
 		const refreshedItems = getItems();
 		await CommandsRegistry.getCommand(items[1].command.id)!.handler(upcastPartial<ServicesAccessor>({}));
@@ -574,6 +583,7 @@ suite('SessionCanvasService', () => {
 		registration.dispose();
 
 		assert.deepStrictEqual({
+			submenuTitles: submenus.map(item => typeof item.title === 'string' ? item.title : item.title.value),
 			titles: items.map(item => typeof item.command.title === 'string' ? item.command.title : item.command.title.value),
 			groups: items.map(item => item.group),
 			requiresChat: when.includes(ChatContextKeys.enabled.key),
@@ -586,10 +596,12 @@ suite('SessionCanvasService', () => {
 			remainingTitles,
 			initialCommandsRegisteredAfterReopen: staleCommandsRegistered,
 			itemsAfterDispose: getItems().length,
+			submenusAfterDispose: getSubmenus().length,
 			remainingCommandsAfterDispose: remainingCommandIds.map(id => CommandsRegistry.getCommand(id) !== undefined),
 		}, {
+			submenuTitles: ['Canvas'],
 			titles: ['Preview (editor, 2)', 'Preview (sidebar)', 'Preview (editor)', 'Dashboard', 'Logs (1)', 'Logs (1, 2)'],
-			groups: ['navigation', 'navigation', 'navigation', 'navigation', 'navigation', 'navigation'],
+			groups: ['2_open', '2_open', '2_open', '2_open', '2_open', '2_open'],
 			requiresChat: true,
 			requiresSessionsWindow: true,
 			excludesAuxiliaryWindow: true,
@@ -600,6 +612,7 @@ suite('SessionCanvasService', () => {
 			remainingTitles: ['Preview', 'Preview (editor)', 'Dashboard', 'Logs (1)', 'Logs (1, 2)'],
 			initialCommandsRegisteredAfterReopen: [true, false, true, true, true, true],
 			itemsAfterDispose: 0,
+			submenusAfterDispose: 0,
 			remainingCommandsAfterDispose: [false, false, false, false, false],
 		});
 	});
