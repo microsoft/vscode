@@ -17513,6 +17513,27 @@ Use the attached image as context.
 					{ scope: 'tc-subagent', kind: ResponsePartKind.Markdown, part: 1, content: 'After tool.' },
 				]);
 			});
+
+			test('cancelled child tails do not seed response parts for a later resumed turn', async () => {
+				const { session, mockSession, signals } = await createSubagentStream();
+				mockSession.fire('assistant.turn_start', { turnId: 'sdk-parent' });
+				mockSession.fire('assistant.message_delta', { messageId: 'child-before-abort', deltaContent: 'Old answer.' }, { agentId: 'agent-1' });
+				await session.abort();
+				signals.length = 0;
+				mockSession.fire('assistant.message_delta', { messageId: 'child-cancelled', deltaContent: 'Cancelled answer.' }, { agentId: 'agent-1' });
+				mockSession.fire('assistant.reasoning_delta', { reasoningId: 'reasoning-cancelled', deltaContent: 'Cancelled reasoning.' }, { agentId: 'agent-1' });
+				mockSession.fire('assistant.message', { messageId: 'child-cancelled', content: 'Cancelled answer.' }, { agentId: 'agent-1' });
+				mockSession.fire('session.idle', { aborted: true });
+				session.resetTurnState('turn-replacement');
+				mockSession.fire('assistant.turn_start', { turnId: 'sdk-replacement' });
+				mockSession.fire('assistant.turn_start', { turnId: 'sdk-child-resumed', model: 'gpt-5' }, { agentId: 'agent-1' });
+				mockSession.fire('assistant.message_delta', { messageId: 'child-resumed', deltaContent: 'Fresh answer.' }, { agentId: 'agent-1' });
+				mockSession.fire('assistant.message', { messageId: 'child-resumed', content: 'Fresh answer.' }, { agentId: 'agent-1' });
+
+				assert.deepStrictEqual(contentSignals(signals), [
+					{ scope: 'tc-subagent', kind: ResponsePartKind.Markdown, part: 0, content: 'Fresh answer.' },
+				]);
+			});
 		});
 
 		test('reasoning delta after tool_start starts a new reasoning response part', async () => {
