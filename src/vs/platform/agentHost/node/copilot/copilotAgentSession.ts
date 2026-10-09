@@ -523,7 +523,8 @@ function getCopilotSdkToolOutputPath(data: SessionEventPayload<'tool.execution_c
 	if (spillData.largeOutputWrittenToFile !== true) {
 		return undefined;
 	}
-	const path = data.result?.content.match(/\bSaved to: (?<path>[^\r\n]+)/)?.groups?.path?.trim();
+	const content = data.result?.content;
+	const path = typeof content === 'string' ? content.match(/\bSaved to: (?<path>[^\r\n]+)/)?.groups?.path?.trim() : undefined;
 	return path && isAbsolute(path) ? normalizePath(URI.file(path)).fsPath : undefined;
 }
 
@@ -1550,6 +1551,7 @@ export class CopilotAgentSession extends Disposable {
 			this._completedTokenUsage.clear();
 			this._subagentObservedTokenUsage.clear();
 			this._observedUsageEventIds.clear();
+			this._registeredSdkToolOutputPaths.clear();
 		}));
 		this._abortCts.value = new CancellationTokenSource();
 		this._developmentErrorInjectionEnabled = options.enableDevelopmentErrorInjection ?? !product.commit;
