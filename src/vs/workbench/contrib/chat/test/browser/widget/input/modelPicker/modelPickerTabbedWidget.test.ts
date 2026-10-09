@@ -284,6 +284,19 @@ suite('TabbedModelPicker', () => {
 		});
 	}
 
+	test('opens below at full height when only the tabs keep the popup from fitting above', () => {
+		const natural = createPicker({ cacheWarm: true });
+		const height = element(natural.popup, '.chat-model-picker-widget').getBoundingClientRect().height;
+		const tabBarHeight = element(natural.popup, '.chat-model-picker-tabbar').getBoundingClientRect().height;
+		natural.dismiss();
+		// Above, there is room for the list and its banner but not for all of the tabs.
+		const result = createPicker({ cacheWarm: true, anchorTop: `${height - tabBarHeight / 2}px` });
+		assert.deepStrictEqual({
+			position: result.anchorPosition,
+			height: element(result.popup, '.chat-model-picker-widget').getBoundingClientRect().height,
+		}, { position: AnchorPosition.BELOW, height });
+	});
+
 	function defaultBadgeModels(popup: HTMLElement): string[] {
 		return Array.from(popup.querySelectorAll('.chat-model-picker-org-default-badge:not([hidden])'), badge => {
 			const name = badge.closest('.monaco-list-row')?.querySelector('.title')?.textContent

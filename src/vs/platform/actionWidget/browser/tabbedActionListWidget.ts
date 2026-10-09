@@ -437,6 +437,9 @@ export class TabbedActionListWidget extends Disposable {
 
 				const { items, listOptions } = options.createActionList(activeTab);
 				const emptyBody = items.length === 0 ? this._renderEmptyBody(bodyContent, options, activeTab, renderDisposables) : undefined;
+				const getExpandedPopupHeight = () => widget.offsetHeight - body.offsetHeight + bodyContent.offsetHeight;
+				// Padding belongs to the popup's chrome, not the list's content height.
+				const getChromeHeight = (listElement: HTMLElement) => getExpandedPopupHeight() - (emptyBody ? emptyBody.offsetHeight : dom.getContentHeight(listElement));
 				const list = renderDisposables.add(this._instantiationService.createInstance(
 					ActionList<T>,
 					options.user,
@@ -444,7 +447,12 @@ export class TabbedActionListWidget extends Disposable {
 					items,
 					options.delegate,
 					options.accessibilityProvider,
-					this._anchorPosition === undefined ? listOptions : { ...listOptions, anchorPosition: this._anchorPosition },
+					{
+						...listOptions,
+						anchorPosition: this._anchorPosition ?? listOptions?.anchorPosition,
+						// The tabs are part of the popup, so they have to fit beside the anchor too.
+						getPopupChromeHeight: getChromeHeight,
+					},
 					options.anchor,
 				));
 				listRef = list;
@@ -548,43 +556,17 @@ export class TabbedActionListWidget extends Disposable {
 					this._hasMeasuredSizingTab = true;
 				}
 
-				const getExpandedPopupHeight = () => widget.offsetHeight - body.offsetHeight + bodyContent.offsetHeight;
-				/** Room beside the anchor on the side the list resolved to, which the whole popup has to fit in. */
-				const getAvailablePopupHeight = () => {
-					const position = list.anchorPosition;
-					if (position === undefined) {
-						// Without a side, the context view places the popup wherever it fits.
-						return Number.POSITIVE_INFINITY;
-					}
-					const anchor = options.anchor.getBoundingClientRect();
-					const available = position === AnchorPosition.ABOVE ? anchor.top : dom.getWindow(widget).innerHeight - anchor.bottom;
-					return available / dom.getDomNodeZoomLevel(widget);
-				};
-				const layoutList = (contentHeight: number | undefined) => {
-					const width = list.layout(0, contentHeight);
-					widget.style.width = `${options.width ?? width}px`;
-					if (emptyBody && this._fixedListHeight !== undefined) {
-						emptyBody.style.minHeight = list.domNode.style.height;
-					}
-				};
-				const getChromeHeight = () => {
-					const listBody = emptyBody ?? list.domNode;
-					// Padding belongs to the popup's chrome, not the fixed list content height.
-					const listHeight = emptyBody ? listBody.offsetHeight : dom.getContentHeight(listBody);
-					return getExpandedPopupHeight() - listHeight;
-				};
 				const layout = () => {
 					if (this._detailsVisible) {
 						return;
 					}
-					layoutList(this._fixedPopupHeight === undefined
+					const contentHeight = this._fixedPopupHeight === undefined
 						? this._fixedListHeight
-						: Math.max(0, this._fixedPopupHeight - getChromeHeight()));
-					// The list only leaves room for its own chrome, so the tabs could otherwise push
-					// the popup past the edge of the window and over its anchor.
-					const availableHeight = getAvailablePopupHeight();
-					if (getExpandedPopupHeight() > availableHeight) {
-						layoutList(Math.max(0, availableHeight - getChromeHeight()));
+						: Math.max(0, this._fixedPopupHeight - getChromeHeight(list.domNode));
+					const width = list.layout(0, contentHeight);
+					widget.style.width = `${options.width ?? width}px`;
+					if (emptyBody && this._fixedListHeight !== undefined) {
+						emptyBody.style.minHeight = list.domNode.style.height;
 					}
 					if (this._fixedListHeight !== undefined && this._fixedPopupHeight === undefined) {
 						this._fixedPopupHeight = getExpandedPopupHeight();
