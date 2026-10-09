@@ -1015,6 +1015,8 @@ export interface ISessionWithDefaultChat extends SessionState {
 	activeTurn?: ActiveTurn;
 	/** Steering message pending on this chat. */
 	steeringMessage?: PendingMessage;
+	/** Independently submitted steering messages pending on this chat. */
+	steeringMessages?: PendingMessage[];
 	/** Queued messages pending on this chat. */
 	queuedMessages?: PendingMessage[];
 	/** Draft input of this chat. */
@@ -1036,6 +1038,7 @@ export function mergeSessionWithDefaultChat(session: SessionState, chat: ChatSta
 		turns: chat?.turns ?? [],
 		activeTurn: chat?.activeTurn,
 		steeringMessage: chat?.steeringMessage,
+		steeringMessages: chat?.steeringMessages,
 		queuedMessages: chat?.queuedMessages,
 		draft: chat?.draft,
 	};

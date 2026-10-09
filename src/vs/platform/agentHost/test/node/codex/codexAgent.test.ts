@@ -152,35 +152,39 @@ function emptyHarness(): ICodexConversationResolverHarness {
 suite('CodexAgent', () => {
 
 	suite('steering input correlation', () => {
-		function createHarness() {
+		function createHarness(turnReady = true) {
 			const sessionUri = AgentSession.uri(CODEX_AGENT_PROVIDER_ID, 'steering-session');
 			const session = {
 				threadId: 'thread',
-				currentAppTurnId: 'turn',
+				currentAppTurnId: turnReady ? 'turn' : undefined,
 				pendingSteeringFlips: new Map<string, { readonly pendingMessage: PendingMessage; readonly inputText: string }>(),
 			};
 			const inputs: UserInput[][] = [];
+			const clientIds: string[] = [];
 			const harness = {
 				_sessions: new Map([[AgentSession.id(sessionUri), session]]),
 				_resolveConversationSession: () => sessionUri,
 				_connection: {
 					kind: 'ready',
 					client: {
-						request: (_method: string, params: { input: UserInput[] }) => {
+						request: (_method: string, params: { input: UserInput[]; clientUserMessageId: string }) => {
 							inputs.push(params.input);
+							clientIds.push(params.clientUserMessageId);
 							return Promise.resolve({});
 						},
 					},
 				},
 			};
 			const methods = CodexAgent.prototype as unknown as {
-				setPendingMessages(this: typeof harness, chat: URI, steering: PendingMessage, queued: readonly PendingMessage[]): void;
-				_takeMatchingPendingSteering(steeringSession: typeof session, text: string): PendingMessage | undefined;
+				setPendingMessages(this: typeof harness, chat: URI, steering: PendingMessage, queued: readonly PendingMessage[]): boolean;
+				_takeMatchingPendingSteering(steeringSession: typeof session, text: string, clientId?: string | null): PendingMessage | undefined;
 			};
 			return {
 				send: (pending: PendingMessage) => methods.setPendingMessages.call(harness, URI.parse(buildDefaultChatUri(sessionUri.toString())), pending, []),
-				take: (text: string) => methods._takeMatchingPendingSteering(session, text),
+				take: (text: string, clientId?: string | null) => methods._takeMatchingPendingSteering(session, text, clientId),
 				inputs,
+				clientIds,
+				ready: () => { session.currentAppTurnId = 'turn'; },
 				pendingIds: () => [...session.pendingSteeringFlips.keys()],
 			};
 		}
@@ -201,6 +205,36 @@ suite('CodexAgent', () => {
 			assert.strictEqual(h.inputs.length, 1, 'pending state synchronization must not send the same steer twice');
 			assert.strictEqual(h.take(extractUserInputText(h.inputs[0])), pending);
 			assert.strictEqual(h.take(pending.message.text), undefined);
+		});
+
+		test('defers steering until the app-server turn is ready without consuming the input', () => {
+			const h = createHarness(false);
+			const pending = message('early');
+			const before = h.send(pending);
+			h.ready();
+			const after = h.send(pending);
+			assert.deepStrictEqual({ before, after, clientIds: h.clientIds, pendingIds: h.pendingIds() }, {
+				before: false, after: true, clientIds: ['early'], pendingIds: ['early'],
+			});
+		});
+
+		test('correlates identical steering messages and duplicate echoes by submission ID', () => {
+			const h = createHarness();
+			const first = message('first');
+			const second = message('second');
+			h.send(first);
+			h.send(second);
+			assert.deepStrictEqual({
+				sentIds: h.clientIds,
+				second: h.take(second.message.text, 'second')?.id,
+				duplicate: h.take(second.message.text, 'second'),
+				unrelated: h.take(first.message.text, 'unknown'),
+				remaining: h.pendingIds(),
+				first: h.take(first.message.text, 'first')?.id,
+			}, {
+				sentIds: ['first', 'second'], second: 'second', duplicate: undefined,
+				unrelated: undefined, remaining: ['first'], first: 'first',
+			});
 		});
 
 		test('matches expanded browser context while preserving the original UI message', () => {

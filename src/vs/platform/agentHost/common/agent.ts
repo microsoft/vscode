@@ -1366,8 +1366,8 @@ export interface IAgent {
 	/** Re-attach an exact chat from opaque provider data without inferring its role. */
 	materializeChat(chat: URI, context: URI | IAgentChatContext, providerData: string | undefined): Promise<IAgentCreateChatResult | void>;
 
-	/** Optional steering hook for providers that can accept messages during an active turn. */
-	setPendingMessages?(chat: URI, steeringMessage: PendingMessage | undefined, queuedMessages: readonly PendingMessage[], steeringSender?: IAgentPendingMessageSender): void;
+	/** Optional steering hook. Return false to defer handoff until the provider's turn is ready. */
+	setPendingMessages?(chat: URI, steeringMessage: PendingMessage | undefined, queuedMessages: readonly PendingMessage[], steeringSender?: IAgentPendingMessageSender): boolean | void;
 
 	/** Optional history mutation for providers with a native truncation operation. */
 	truncateChat?(chat: URI, turnId: string | undefined, context?: URI | IAgentChatContext): Promise<void>;

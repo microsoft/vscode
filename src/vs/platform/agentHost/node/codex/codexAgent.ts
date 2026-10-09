@@ -3177,7 +3177,7 @@ export class CodexAgent extends Disposable implements IAgent {
 	 */
 	private _handleItemStarted(session: ICodexSession, params: ItemStartedNotification): (SessionAction | ChatAction)[] {
 		if (params.item.type === 'userMessage') {
-			return this._handleSteeredUserMessage(session, params.item.content);
+			return this._handleSteeredUserMessage(session, params.item.content, params.item.clientId);
 		}
 		return mapItemStarted(session.mapState, this._withHostTurnId(session, params));
 	}
@@ -3189,9 +3189,9 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * {@link ICodexSession.pendingSteeringFlips}; a buffered match is
 	 * promoted into its own visible turn and everything else is dropped.
 	 */
-	private _handleSteeredUserMessage(session: ICodexSession, content: readonly UserInput[]): (SessionAction | ChatAction)[] {
+	private _handleSteeredUserMessage(session: ICodexSession, content: readonly UserInput[], clientId: string | null): (SessionAction | ChatAction)[] {
 		const text = extractUserInputText(content);
-		const steering = this._takeMatchingPendingSteering(session, text);
+		const steering = this._takeMatchingPendingSteering(session, text, clientId);
 		if (!steering) {
 			return [];
 		}
@@ -3199,12 +3199,14 @@ export class CodexAgent extends Disposable implements IAgent {
 	}
 
 	/**
-	 * Pop the buffered steering message whose resolved input text matches the echoed
-	 * `userMessage` content. Matching by content (not FIFO) keeps the
-	 * mapping correct when several steering messages with different texts
-	 * are in flight.
+	 * Correlates echoes by submission ID, falling back to resolved input text for older servers.
 	 */
-	private _takeMatchingPendingSteering(session: ICodexSession, text: string): PendingMessage | undefined {
+	private _takeMatchingPendingSteering(session: ICodexSession, text: string, clientId?: string | null): PendingMessage | undefined {
+		if (clientId !== undefined && clientId !== null) {
+			const steering = session.pendingSteeringFlips.get(clientId);
+			session.pendingSteeringFlips.delete(clientId);
+			return steering?.pendingMessage;
+		}
 		for (const [id, steering] of session.pendingSteeringFlips) {
 			if (steering.inputText === text) {
 				session.pendingSteeringFlips.delete(id);
@@ -6253,40 +6255,40 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 	}
 
-	setPendingMessages(chat: URI, steeringMessage: PendingMessage | undefined, _queuedMessages: readonly PendingMessage[]): void {
+	setPendingMessages(chat: URI, steeringMessage: PendingMessage | undefined, _queuedMessages: readonly PendingMessage[]): boolean {
 		// Queued messages are consumed server-side (AgentSideEffects drives a
 		// fresh turn per `idle`); only the single steering message reaches the
 		// agent for mid-turn injection.
 		if (!steeringMessage) {
-			return;
+			return true;
 		}
 		// Steering is always addressed by a concrete chat channel URI, which
 		// resolves through the binding recorded when that chat was provisioned
 		// or restored — never through URI shape.
 		const sessionUri = this._resolveConversationSession(chat);
 		if (!sessionUri) {
-			return;
+			return false;
 		}
 		const sessionId = AgentSession.id(sessionUri);
 		const session = this._sessions.get(sessionId);
 		if (!session) {
-			return;
+			return false;
 		}
 		// `_syncPendingMessages` re-sends the current steering message on every
 		// pending-state change; ignore a steering message already in flight.
 		if (session.pendingSteeringFlips.has(steeringMessage.id)) {
-			return;
+			return true;
 		}
 		const appTurnId = session.currentAppTurnId;
 		const conn = this._connection;
 		const text = steeringMessage.message.text;
 		const hasContent = text.length > 0 || (steeringMessage.message.attachments?.length ?? 0) > 0;
-		// Steering only makes sense mid-turn. Without an active codex turn, a
-		// ready connection, a thread, or any content we cannot steer — clear
-		// the pending bubble so it doesn't stick (the model never saw it).
-		if (!appTurnId || conn.kind !== 'ready' || session.threadId === undefined || !hasContent) {
+		if (!appTurnId || conn.kind !== 'ready' || session.threadId === undefined) {
+			return false;
+		}
+		if (!hasContent) {
 			this._fireSteeringConsumed(session, steeringMessage.id);
-			return;
+			return true;
 		}
 		const { input } = resolveCodexInput(text, steeringMessage.message.attachments);
 		const threadId = session.threadId;
@@ -6300,6 +6302,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		});
 		void conn.client.request<'turn/steer'>('turn/steer', {
 			threadId,
+			clientUserMessageId: steeringMessage.id,
 			input: input.slice(),
 			expectedTurnId: appTurnId,
 		}).catch(err => {
@@ -6315,6 +6318,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			}
 			this._logService.warn(`[Codex:${sessionId}] turn/steer failed: ${err instanceof Error ? err.message : String(err)}`);
 		});
+		return true;
 	}
 
 	private async _abort(chat: URI, context: URI | IAgentChatContext): Promise<void> {

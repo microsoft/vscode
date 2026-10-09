@@ -201,6 +201,8 @@ export interface InitializeParams extends BaseParams {
  * @category Commands
  */
 export interface ClientCapabilities {
+	/** Client understands the independent {@link ChatState.steeringMessages} list and its actions. */
+	steeringMessages?: Record<string, never>;
 	/**
 	 * Client can render
 	 * [MCP Apps](https://github.com/modelcontextprotocol/ext-apps) — i.e.
@@ -228,6 +230,11 @@ export interface ClientCapabilities {
  * `supportedVersions`, instead of a result.
  */
 export interface InitializeResult {
+	/**
+	 * Host supports the independent steering-message list and its actions.
+	 * Advertised only when {@link ClientCapabilities.steeringMessages} was declared.
+	 */
+	steeringMessages?: Record<string, never>;
 	/**
 	 * Protocol version selected by the server. MUST be one of the entries in
 	 * `InitializeParams.protocolVersions`. Formatted as a [SemVer](https://semver.org)

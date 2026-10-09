@@ -734,6 +734,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				// older host (a cloud sandbox running a 0.5.x `copilotd`) can negotiate down
 				// instead of rejecting the connection. A current host still picks the newest.
 				protocolVersions: getAgentHostSupportedProtocolVersions(),
+				capabilities: { steeringMessages: {} },
 				clientId: this._clientId,
 				clientInfo: this._clientInfo,
 				_meta: this._clientMeta(),
@@ -1107,6 +1108,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		const initializeResult = await this._dispatchRequest<IAgentHostExtensionInitializeResult>('initialize', {
 			channel: ROOT_STATE_URI,
 			protocolVersions: getAgentHostSupportedProtocolVersions(),
+			capabilities: { steeringMessages: {} },
 			clientId: this._clientId,
 			clientInfo: this._clientInfo,
 			_meta: this._clientMeta(),

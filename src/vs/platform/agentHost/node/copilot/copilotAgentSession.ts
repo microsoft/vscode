@@ -1820,12 +1820,12 @@ export class CopilotAgentSession extends Disposable {
 		const ids = [...this._pendingSteeringFlips.keys()];
 		this._pendingSteeringFlips.clear();
 		for (const id of ids) {
-			this._onDidSessionProgress.fire({
-				kind: 'steering_consumed',
-				chat: this._chatChannelUri,
-				id,
-			});
+			this._fireSteeringConsumed(id);
 		}
+	}
+
+	private _fireSteeringConsumed(id: string): void {
+		this._onDidSessionProgress.fire({ kind: 'steering_consumed', chat: this._chatChannelUri, id });
 	}
 
 	/**
@@ -4659,10 +4659,12 @@ export class CopilotAgentSession extends Disposable {
 			);
 			if (execution.kind === 'skipped') {
 				this._pendingSteeringFlips.delete(steeringMessage.id);
+				this._fireSteeringConsumed(steeringMessage.id);
 			}
 		} catch (err) {
 			this._pendingSteeringFlips.delete(steeringMessage.id);
 			this._logService.error(`[Copilot:${this.sessionId}] Steering message failed`, err);
+			this._fireSteeringConsumed(steeringMessage.id);
 		} finally {
 			this._steeringMessagesInFlight.delete(steeringMessage.id);
 		}

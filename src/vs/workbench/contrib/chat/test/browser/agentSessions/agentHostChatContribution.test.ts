@@ -209,7 +209,7 @@ class ControlledPeerTransport extends Disposable implements IProtocolTransport {
  * these on the session for convenience; the mock connection splits them onto
  * the default-chat subscription when serving {@link StateComponents.Chat}.
  */
-type SeededSessionState = SessionState & Partial<Pick<ISessionWithDefaultChat, 'turns' | 'activeTurn' | 'steeringMessage' | 'queuedMessages' | 'draft'>>;
+type SeededSessionState = SessionState & Partial<Pick<ISessionWithDefaultChat, 'turns' | 'activeTurn' | 'steeringMessage' | 'steeringMessages' | 'queuedMessages' | 'draft'>>;
 
 class MockAgentHostService extends mock<IAgentHostService>() {
 	declare readonly _serviceBrand: undefined;
@@ -694,6 +694,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 			turns: seeded?.turns ?? [],
 			activeTurn: seeded?.activeTurn,
 			steeringMessage: seeded?.steeringMessage,
+			steeringMessages: seeded?.steeringMessages,
 			queuedMessages: seeded?.queuedMessages,
 			draft: seeded?.draft,
 		};
@@ -15055,6 +15056,143 @@ suite('AgentHostChatContribution', () => {
 				});
 			}
 		}
+
+		for (const [provider, supportsList] of [
+			['codex', true], ['copilot', true], ['claude', true],
+			['codex', false], ['copilot', false], ['claude', false],
+		] as const) {
+			test(`keeps successive steering messages visible until consumed (${provider}, list=${supportsList})`, async () => {
+				const { sessionHandler, agentHostService, chatService } = createContribution(disposables, { provider });
+				agentHostService.setInitializeResult({ steeringMessages: supportsList ? {} : undefined });
+				const backendSession = AgentSession.uri(provider, 'successive-steering');
+				agentHostService.sessionStates.set(backendSession.toString(), {
+					...createSessionState({
+						resource: backendSession.toString(), provider, title: 'Test',
+						status: SessionStatus.InProgress,
+						createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
+					}),
+					lifecycle: SessionLifecycle.Ready,
+					activeTurn: createActiveTurn('active-turn', { text: 'Working', origin: { kind: MessageKind.User } }, new Date(0).toISOString()),
+				});
+				const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/successive-steering' });
+				disposables.add(await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None));
+				const pendingRequests: IChatPendingRequest[] = [];
+				const chatModel = createPendingChatModel(sessionResource, pendingRequests);
+				chatService.applyRemotePendingRequests = (_resource, requests) => {
+					pendingRequests.splice(0, pendingRequests.length, ...requests.map(remote => ({
+						request: upcastPartial<IChatRequestModel>({ id: remote.id, message: { text: remote.message, parts: [] } }),
+						kind: remote.kind,
+						sendOptions: {},
+					})));
+					chatModel.firePendingRequestsChanged();
+				};
+				chatService.setSession(sessionResource, chatModel.model);
+				agentHostService.dispatchedActions.length = 0;
+				let serverSeq = 0;
+				const visibleMessages: string[][] = [];
+				const sent: string[] = [];
+				const acknowledge = () => {
+					for (const dispatch of agentHostService.dispatchedActions.splice(0)) {
+						if (dispatch.action.type === ActionType.ChatSteeringMessageSet) {
+							sent.push(dispatch.action.steeringMessage.message.text);
+						} else if (dispatch.action.type === ActionType.ChatPendingMessageSet) {
+							sent.push(dispatch.action.message.text);
+						}
+						agentHostService.fireAction({
+							channel: dispatch.channel, action: dispatch.action, serverSeq: ++serverSeq,
+							origin: { clientId: dispatch.clientId, clientSeq: dispatch.clientSeq },
+						});
+					}
+				};
+				for (const text of ['Steering A', 'Steering B']) {
+					pendingRequests.push({
+						request: upcastPartial<IChatRequestModel>({ id: text, message: { text, parts: [] } }),
+						kind: ChatRequestQueueKind.Steering,
+						sendOptions: {},
+					});
+					chatModel.firePendingRequestsChanged();
+					chatModel.firePendingRequestsChanged();
+					acknowledge();
+					visibleMessages.push(pendingRequests.map(pending => pending.request.message.text));
+				}
+				const sentBeforeConsumption = [...sent];
+				for (const id of ['Steering A', 'Steering B']) {
+					agentHostService.fireAction({
+						channel: buildDefaultChatUri(backendSession),
+						action: supportsList
+							? { type: ActionType.ChatSteeringMessageRemoved, id }
+							: { type: ActionType.ChatPendingMessageRemoved, kind: PendingMessageKind.Steering, id },
+						serverSeq: ++serverSeq,
+						origin: undefined,
+					});
+					acknowledge();
+					visibleMessages.push(pendingRequests.map(pending => pending.request.message.text));
+				}
+				assert.deepStrictEqual({ visibleMessages, sentBeforeConsumption, sent }, {
+					visibleMessages: [['Steering A'], ['Steering A', 'Steering B'], ['Steering B'], []],
+					sentBeforeConsumption: supportsList ? ['Steering A', 'Steering B'] : ['Steering A'],
+					sent: ['Steering A', 'Steering B'],
+				});
+			});
+		}
+
+		test('restores steering lists from an opaque advertised chat without host metadata', async () => {
+			const { sessionHandler, agentHostService, chatService } = createContribution(disposables);
+			agentHostService.setInitializeResult({ steeringMessages: {}, _meta: undefined });
+			const backendSession = AgentSession.uri('copilot', 'restored-steering-list');
+			const chatUri = agentHostService.defaultChatUri = 'ahp-chat:/host-selected/steering-list';
+			const summary = {
+				resource: backendSession.toString(), provider: 'copilot', title: 'Steering',
+				status: SessionStatus.InProgress,
+				createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
+			};
+			const message = (id: string) => ({ id, message: { text: id, origin: { kind: MessageKind.User } } });
+			agentHostService.sessionStates.set(backendSession.toString(), { ...createSessionState(summary), lifecycle: SessionLifecycle.Ready });
+			agentHostService.chatStates.set(chatUri, {
+				...createChatState(createDefaultChatSummary(summary, chatUri)),
+				steeringMessage: message('legacy'),
+				steeringMessages: [message('a'), message('b')],
+			});
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/restored-steering-list' });
+			disposables.add(await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None));
+			const pending: IChatPendingRequest[] = [];
+			const chatModel = createPendingChatModel(sessionResource, pending);
+			chatService.applyRemotePendingRequests = (_resource, requests) => {
+				pending.splice(0, pending.length, ...requests.map(remote => ({
+					request: upcastPartial<IChatRequestModel>({ id: remote.id, message: { text: remote.message, parts: [] } }),
+					kind: remote.kind,
+					sendOptions: {},
+				})));
+				chatModel.firePendingRequestsChanged();
+			};
+			agentHostService.dispatchedActions.length = 0;
+			chatService.setSession(sessionResource, chatModel.model);
+			const restored = pending.map(request => request.request.id);
+			agentHostService.fireAction({
+				channel: chatUri,
+				action: { type: ActionType.ChatSteeringMessageRemoved, id: 'a' },
+				serverSeq: 1, origin: undefined,
+			});
+			const afterConsumption = pending.map(request => request.request.id);
+			agentHostService.fireAction({
+				channel: chatUri,
+				action: { type: ActionType.ChatPendingMessageSet, kind: PendingMessageKind.Steering, ...message('legacy-replacement') },
+				serverSeq: 2, origin: undefined,
+			});
+			assert.deepStrictEqual({
+				restored,
+				afterConsumption,
+				afterLegacyReplacement: pending.map(request => request.request.id),
+				echoed: agentHostService.dispatchedActions.filter(({ action }) =>
+					action.type === ActionType.ChatSteeringMessageSet || action.type === ActionType.ChatSteeringMessageRemoved
+					|| action.type === ActionType.ChatPendingMessageSet || action.type === ActionType.ChatPendingMessageRemoved),
+			}, {
+				restored: ['legacy', 'a', 'b'],
+				afterConsumption: ['legacy', 'b'],
+				afterLegacyReplacement: ['legacy-replacement', 'b'],
+				echoed: [],
+			});
+		});
 
 		test('projects pending messages queued by another client without republishing element attachments', async () => {
 			const { sessionHandler, agentHostService, chatService } = createContribution(disposables);

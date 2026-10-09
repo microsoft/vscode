@@ -125,8 +125,13 @@ export interface ChatState {
 	turnsNextCursor?: string;
 	/** Currently in-progress turn */
 	activeTurn?: ActiveTurn;
-	/** Message to inject into the current turn at a convenient point */
+	/** Legacy replaceable steering slot, independent of {@link steeringMessages}. */
 	steeringMessage?: PendingMessage;
+	/**
+	 * Independently submitted steering messages, in host acceptance order.
+	 * Requires negotiated {@link InitializeResult.steeringMessages} support.
+	 */
+	steeringMessages?: PendingMessage[];
 	/** Messages to send automatically as new turns after the current turn finishes */
 	queuedMessages?: PendingMessage[];
 	/**

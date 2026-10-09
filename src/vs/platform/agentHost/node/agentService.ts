@@ -43,7 +43,7 @@ import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomati
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, ResourceChangeType, ResourceType, ResourceWriteMode, type CreateResourceWatchParams, type CreateResourceWatchResult, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWatchState, type ResourceWriteParams, type ResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { ChangesSummary, ChatInteractivity, ChatOriginKind, MessageAttachmentKind, PendingMessageKind, TerminalClaimKind, TerminalLifecycleStatus, type Annotation, type AnnotationEntry, type AnnotationOrigin, type AnnotationsState, type ChatOrigin, type ChatState, type Customization, type Message, type MessageAttachment, type MessageResourceAttachment, type TerminalState, type TextRange, type ToolResultTerminalContent } from '../common/state/protocol/state.js';
-import type { ChatPendingMessageSetAction, ChatTurnStartedAction, SessionConfigChangedAction } from '../common/state/protocol/actions.js';
+import type { ChatPendingMessageSetAction, ChatSteeringMessageSetAction, ChatTurnStartedAction, SessionConfigChangedAction } from '../common/state/protocol/actions.js';
 import { isAhpAutomationCatalogChannel, isAhpAutomationRunChannel, ISessionGitState, MessageKind, ResponsePartKind, SESSION_META_GITHUB_KEY, SESSION_META_GIT_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, AH_META_AUTO_ARCHIVED_AT_DB_KEY, AH_META_CREATED_BY_SESSION_DB_KEY, readSessionCreationReference, readSessionComparisonMetadata, readSessionSpawnDepth, withSessionSpawnDepth, withSessionCreationReference, parseSessionCreationReference, SessionLifecycle, SessionStatus, ToolCallStatus, ToolResultContentType, TurnState, AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, buildChatUri, buildDefaultChatUri, buildResourceWatchChannelUri, buildSubagentChatUri, buildSubagentSessionUriPrefix, chatStorageUri, getErrorResponsePart, isAhpChatChannel, isChatInSessionReadAggregate, isChatReadOnly, isDefaultChatUri, isSessionChatArchived, isSessionStatusArchived, isSessionStatusRead, isSubagentChatUri, isSubagentSession, needsSessionGitStateRefresh, parseChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseResourceWatchChannelUri, parseSessionGitData, parseSessionMultiRootMetadata, parseSubagentSessionUri, readSessionExternal, readSessionGitHubState, readSessionGitState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, withSessionExternal, withSessionGitData, withSessionGitHubState, withSessionGitState, withSessionHasWorkspaceTransitions, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionStatusFlag, withSessionWorkspaceless, withSessionEhcliAdopted, withSessionEhcliLastMigratedTurn, AH_META_EHCLI_LAST_TURN_DB_KEY, withSessionFolderPickerDecision, readSessionFolderPickerDecision, parseSessionFolderPickerDecision, SESSION_META_FOLDER_PICKER_KEY, getAllSessionRelatedPullRequestUrls, readSessionEhcliAdoptable, readSessionGitHubData, parseSessionGitHubData, parseSessionGitHubState, readSessionGitHubStateInput, withMigratedSessionGitHubState, withReplacedFolderGitHubState, withMostRecentRelatedSessionPullRequest, SESSION_META_GITHUB_DATA_KEY, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ISessionGitHubState, type ISessionSourceControlState, type ISessionWithDefaultChat, type SessionConfigState, type SessionSummary, type SessionSummaryMeta, type ToolResultSubagentContent, type Turn } from '../common/state/sessionState.js';
 import { readToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { isHostSnapshotAttachment, toHostSnapshotAttachmentMeta } from '../common/meta/agentSnapshotAttachmentMeta.js';
@@ -1912,6 +1912,7 @@ export class AgentService extends Disposable implements IAgentService {
 			...(chatState.activeTurn ? { activeTurn: { message: chatState.activeTurn.message, responseParts: chatState.activeTurn.responseParts } } : {}),
 			pendingMessages: [
 				...(chatState.steeringMessage ? [{ kind: PendingMessageKind.Steering, pending: chatState.steeringMessage }] : []),
+				...(chatState.steeringMessages?.map(pending => ({ kind: PendingMessageKind.Steering, pending })) ?? []),
 				...(chatState.queuedMessages?.map(pending => ({ kind: PendingMessageKind.Queued, pending })) ?? []),
 			],
 			hasMoreHistory: !!chatState.turnsNextCursor,
@@ -8116,6 +8117,10 @@ export class AgentService extends Disposable implements IAgentService {
 				return action.kind === PendingMessageKind.Steering && isConversionChat(channel)
 					? localize('agentHost.cannotSteerWorkspaceChange', "Cannot steer while the workspace is changing.")
 					: undefined;
+			case ActionType.ChatSteeringMessageSet:
+				return isConversionChat(channel)
+					? localize('agentHost.cannotSteerWorkspaceChange', "Cannot steer while the workspace is changing.")
+					: undefined;
 			case ActionType.ChatTurnStarted:
 				return isConversionChat(channel)
 					? localize('agentHost.cannotStartTurnWorkspaceChange', "Cannot send a message while the workspace is changing.")
@@ -8139,6 +8144,26 @@ export class AgentService extends Disposable implements IAgentService {
 
 	private _dispatchActionNow(channel: string, sessionChannel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction, clientId: string, clientSeq: number, clientContext: IAgentHostClientTelemetryContext): void {
 		const origin = { clientId, clientSeq };
+		if (action.type === ActionType.ChatPendingMessageSet) {
+			const id = action.id;
+			if (this._stateManager.getChatState(channel)?.steeringMessages?.some(message => message.id === id)) {
+				this._stateManager.rejectClientAction(channel, action, origin, 'A legacy pending message cannot reuse an independent steering message ID.');
+				return;
+			}
+		}
+		if (action.type === ActionType.ChatSteeringMessageSet || action.type === ActionType.ChatSteeringMessageRemoved) {
+			const state = this._stateManager.getChatState(channel);
+			const id = action.type === ActionType.ChatSteeringMessageSet ? action.steeringMessage.id : action.id;
+			const existing = state?.steeringMessages?.find(message => message.id === id);
+			if (!state || (action.type === ActionType.ChatSteeringMessageSet && (state.steeringMessage?.id === id || state.queuedMessages?.some(message => message.id === id)))) {
+				this._stateManager.rejectClientAction(channel, action, origin, 'Steering requires a known chat and a unique pending message ID.');
+				return;
+			}
+			if (state.activeTurn && existing && (action.type === ActionType.ChatSteeringMessageRemoved || !equals(existing, action.steeringMessage))) {
+				this._stateManager.rejectClientAction(channel, action, origin, 'Cannot change a steering message while it is being processed.');
+				return;
+			}
+		}
 		const chatState = action.type === ActionType.ChatIsArchivedChanged || action.type === ActionType.ChatIsReadChanged
 			? this._stateManager.getChatState(channel)
 			: undefined;
@@ -8283,12 +8308,13 @@ export class AgentService extends Disposable implements IAgentService {
 			this._stateManager.setSessionMeta(sessionChannel, nextMeta);
 		}
 	}
-	private _needsAsyncRewrite(sessionURI: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction): action is ChatTurnStartedAction | ChatPendingMessageSetAction {
-		if (action.type !== ActionType.ChatTurnStarted && action.type !== ActionType.ChatPendingMessageSet) {
+	private _needsAsyncRewrite(sessionURI: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | IRootConfigChangedAction): action is ChatTurnStartedAction | ChatPendingMessageSetAction | ChatSteeringMessageSetAction {
+		if (action.type !== ActionType.ChatTurnStarted && action.type !== ActionType.ChatPendingMessageSet && action.type !== ActionType.ChatSteeringMessageSet) {
 			return false;
 		}
 		const attachmentsRoot = this._attachmentsRoot(sessionURI);
-		return !!action.message.attachments?.some(a =>
+		const message = action.type === ActionType.ChatSteeringMessageSet ? action.steeringMessage.message : action.message;
+		return !!message.attachments?.some(a =>
 			this._isRewritableAttachment(a, attachmentsRoot) || this._isUntaggedSnapshotResource(a, attachmentsRoot));
 	}
 	private _isRewritableAttachment(attachment: MessageAttachment, attachmentsRoot: URI): boolean {
@@ -8350,16 +8376,23 @@ export class AgentService extends Disposable implements IAgentService {
 	 * etc.) the original attachment is preserved so the agent still has a
 	 * chance to make use of it.
 	 */
-	private async _rewriteUserMessageAttachments<T extends ChatTurnStartedAction | ChatPendingMessageSetAction>(channel: string, action: T, clientId: string): Promise<T> {
-		const attachments = action.message.attachments;
+	private async _rewriteUserMessageAttachments<T extends ChatTurnStartedAction | ChatPendingMessageSetAction | ChatSteeringMessageSetAction>(channel: string, action: T, clientId: string): Promise<T> {
+		const message = action.type === ActionType.ChatSteeringMessageSet ? action.steeringMessage.message : action.message;
+		const attachments = message.attachments;
 		if (!attachments?.length) {
 			return action;
 		}
 		const attachmentsRoot = this._attachmentsRoot(channel);
 		const rewritten = await Promise.all(attachments.map(a => this._rewriteSingleAttachment(a, attachmentsRoot, clientId)));
+		if (action.type === ActionType.ChatSteeringMessageSet) {
+			return {
+				...action,
+				steeringMessage: { ...action.steeringMessage, message: { ...message, attachments: rewritten } },
+			};
+		}
 		return {
 			...action,
-			message: { ...action.message, attachments: rewritten },
+			message: { ...message, attachments: rewritten },
 		};
 	}
 

@@ -10,6 +10,7 @@ import { generateUuid } from '../../../../../base/common/uuid.js';
 import { IInstantiationService } from '../../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../../log/common/log.js';
 import type { IAgentPendingMessageSender } from '../../../common/agent.js';
+import { getPendingSteeringMessages } from '../../../common/agentSessionMessage.js';
 import { AgentHostClientType } from '../../../common/agentHostClientInfo.js';
 import { createUnknownAgentHostClientTelemetryContext } from '../../../common/agentHostTelemetry.js';
 import { IAgentHostChatContributions, createChatMementoKey, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IAgentHostChatContributionHost, type IAppliedClientAction, type IDispatchedAction, type IQueuedMessageSender, type ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
@@ -23,6 +24,9 @@ import { ISessionWorkspaceConversionService } from '../sessionWorkspaceConversio
 
 const QueuedSender = createChatMementoKey<IQueuedMessageSender | undefined, [messageId: string]>('queueDrain.sender', () => undefined);
 const SteeringSender = createChatMementoKey<{ readonly messageId: string; readonly sender: IAgentPendingMessageSender } | undefined>('queueDrain.steeringSender', () => undefined);
+const ListedSteeringSender = createChatMementoKey<IAgentPendingMessageSender | undefined, [messageId: string]>('queueDrain.listedSteeringSender', () => undefined);
+const SubmittedSteering = createChatMementoKey<ReadonlySet<string>>('queueDrain.submittedSteering', () => new Set());
+const DeferredLegacySteering = createChatMementoKey<boolean>('queueDrain.deferredLegacySteering', () => false);
 
 /** Owns pending-message synchronization and decides when a queued turn can be admitted. */
 export class QueueDrainContribution extends Disposable implements IAgentHostChatContribution {
@@ -55,6 +59,12 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 		}
 
 		const action = observed.action;
+		if (action.type === ActionType.ChatSteeringMessageSet) {
+			this._context.memento(ListedSteeringSender, observed.channel, action.steeringMessage.id).set({
+				clientId: observed.clientId,
+				clientContext: observed.clientContext,
+			}, undefined);
+		}
 		if (action.type === ActionType.ChatPendingMessageSet) {
 			if (this._isAcceptedQueuedMessage(observed.channel, action)) {
 				this._context.memento(QueuedSender, observed.channel, action.id).set({
@@ -81,7 +91,16 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 			return;
 		}
 		const action = dispatched.action;
-		this._handlePendingMessageAction(dispatched.channel, action);
+		if (!this._handlePendingMessageAction(dispatched.channel, action)) {
+			const state = this._stateManager.getChatState(dispatched.channel);
+			if (state?.activeTurn && (state.steeringMessage || state.steeringMessages?.length)) {
+				const legacyDeferred = this._context.memento(DeferredLegacySteering, dispatched.channel).get();
+				const submitted = this._context.memento(SubmittedSteering, dispatched.channel).get();
+				if (legacyDeferred || state.steeringMessages?.some(message => !submitted.has(message.id))) {
+					this._syncPendingMessages(dispatched.channel, legacyDeferred);
+				}
+			}
+		}
 		if (action.type === ActionType.ChatPendingMessageSet && this._isAcceptedQueuedMessage(dispatched.channel, action)) {
 			this._tryConsumeNextQueuedMessage(dispatched.channel);
 		}
@@ -89,6 +108,24 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 
 	private _handlePendingMessageAction(channel: ProtocolURI, action: ChatAction): boolean {
 		switch (action.type) {
+			case ActionType.ChatSteeringMessageSet: {
+				const turnId = this._stateManager.getActiveTurnId(channel);
+				if (turnId) {
+					this._turnTracker.markSteering(channel, turnId, 'received');
+				}
+				this._syncPendingMessages(channel, false);
+				return true;
+			}
+			case ActionType.ChatSteeringMessageRemoved:
+				this._context.deleteMemento(ListedSteeringSender, channel, action.id);
+				this._syncPendingMessages(channel, false);
+				return true;
+			case ActionType.ChatTurnStarted:
+				if (action.queuedMessageId) {
+					this._context.deleteMemento(ListedSteeringSender, channel, action.queuedMessageId);
+				}
+				this._syncPendingMessages(channel, this._context.memento(DeferredLegacySteering, channel).get());
+				return true;
 			case ActionType.ChatPendingMessageSet:
 				if (this._isAcceptedSteeringMessage(channel, action)) {
 					const turnId = this._stateManager.getActiveTurnId(channel);
@@ -127,7 +164,7 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 			&& this._stateManager.getChatState(channel)?.steeringMessage?.id === action.id;
 	}
 
-	private _syncPendingMessages(channel: ProtocolURI): void {
+	private _syncPendingMessages(channel: ProtocolURI, syncLegacyMessage = true): void {
 		const state = this._stateManager.getSessionState(channel);
 		if (!state) {
 			return;
@@ -138,12 +175,32 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 		}
 		const session = parseRequiredSessionUriFromChatUri(channel);
 		const steeringSender = this._context.memento(SteeringSender, channel).get();
-		this._providerService.getProviderForSession(session)?.setPendingMessages?.(
-			URI.parse(channel),
-			state.steeringMessage,
-			[],
-			steeringSender && steeringSender.messageId === state.steeringMessage?.id ? steeringSender.sender : undefined,
-		);
+		const provider = this._providerService.getProviderForSession(session);
+		if (syncLegacyMessage) {
+			const accepted = provider?.setPendingMessages?.(
+				URI.parse(channel), state.steeringMessage, [],
+				steeringSender && steeringSender.messageId === state.steeringMessage?.id ? steeringSender.sender : undefined,
+			);
+			this._context.memento(DeferredLegacySteering, channel).set(!!state.steeringMessage && accepted === false, undefined);
+		}
+		const pending = state.steeringMessages ?? [];
+		const submitted = this._context.memento(SubmittedSteering, channel);
+		const pendingIds = new Set(pending.map(message => message.id));
+		submitted.set(new Set([...submitted.get()].filter(id => pendingIds.has(id))), undefined);
+		if (!provider?.setPendingMessages || !state.activeTurn) {
+			return;
+		}
+		for (const message of pending) {
+			const currentState = this._stateManager.getChatState(channel);
+			if (submitted.get().has(message.id) || !currentState?.activeTurn || !getPendingSteeringMessages(currentState).some(pending => pending.id === message.id)) {
+				continue;
+			}
+			submitted.set(new Set([...submitted.get(), message.id]), undefined);
+			const sender = this._context.memento(ListedSteeringSender, channel, message.id).get();
+			if (provider.setPendingMessages(URI.parse(channel), message, [], sender) === false) {
+				submitted.set(new Set([...submitted.get()].filter(id => id !== message.id)), undefined);
+			}
+		}
 	}
 
 	private _tryConsumeNextQueuedMessage(channel: ProtocolURI): void {
@@ -154,7 +211,7 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 			return;
 		}
 		const state = this._stateManager.getSessionState(channel);
-		if (!state?.queuedMessages?.length || state.steeringMessage) {
+		if (!state?.queuedMessages?.length || getPendingSteeringMessages(state).length > 0) {
 			return;
 		}
 		const latestTurn = state.turns.at(-1);
