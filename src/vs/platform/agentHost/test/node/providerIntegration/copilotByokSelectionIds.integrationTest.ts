@@ -20,10 +20,10 @@ import { createIsolatedProviderEnvironment } from '../providerTestEnvironment.js
 /**
  * Pins the SDK contract that `getByokLmAgentModelId` and `isByokLmAgentModelId`
  * rely on: the runtime lists and selects a BYOK model under the
- * provider-qualified id `provider/id`, and Copilot (CAPI) model ids never take
- * that shape. The utility model service uses `isByokLmAgentModelId` to keep a
- * retained BYOK selection off the Copilot route while no renderer serves BYOK
- * models, so a runtime change to either id format must fail here.
+ * provider-qualified id `provider/id`, and no Copilot (CAPI) model it lists
+ * takes that shape. The utility model service uses `isByokLmAgentModelId` to
+ * keep a retained BYOK selection off the Copilot route while no renderer serves
+ * BYOK models, so a runtime change to the BYOK id format must fail here.
  */
 suite('Agent Host Provider Integration - Copilot BYOK selection ids', function () {
 
@@ -76,14 +76,16 @@ suite('Agent Host Provider Integration - Copilot BYOK selection ids', function (
 			assert.deepStrictEqual({
 				agentModelIds,
 				byokIdsListed: agentModelIds.every(id => listedIds.includes(id)),
+				// Also excludes any Copilot model the runtime lists. Whether it lists
+				// Copilot models while signed out depends on whether it can reach the
+				// Copilot API, so their presence is not asserted; the agentHostByokLm
+				// unit test pins bare Copilot ids deterministically.
 				listedIdsWithByokShape: listedIds.filter(isByokLmAgentModelId).sort(),
-				copilotModelsListed: listedIds.some(id => !isByokLmAgentModelId(id)),
 				selectedIds,
 			}, {
 				agentModelIds: ['acme/test-model', 'azure/work/gpt-5', 'gemini/Google/models/gemini-flash'],
 				byokIdsListed: true,
 				listedIdsWithByokShape: [...agentModelIds].sort(),
-				copilotModelsListed: true,
 				selectedIds: agentModelIds,
 			});
 		} finally {
