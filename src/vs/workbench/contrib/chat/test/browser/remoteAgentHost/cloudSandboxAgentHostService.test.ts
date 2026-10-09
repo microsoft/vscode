@@ -7,7 +7,7 @@ import assert from 'assert';
 import sinon from 'sinon';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
-import { isCancellationError } from '../../../../../../base/common/errors.js';
+import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
@@ -20,7 +20,9 @@ import { AgentHostTransportFailureReason, NonReconnectableTransportError, type I
 import { IAgentConnection, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AgentHostClientConnectionKind } from '../../../../../../platform/agentHost/common/agentHostTelemetry.js';
 import {
+	CloudSandboxAuthenticationRequiredError,
 	CloudSandboxEnabledSettingId,
+	CloudSandboxNetworkError,
 	CloudSandboxRequestError,
 	cloudSandboxAddress,
 	ICloudSandboxApiService,
@@ -416,19 +418,174 @@ suite('CloudSandboxAgentHostService', () => {
 		}));
 	}
 
-	test('one-second pending responses retain the existing credential-readiness window without extra polling', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+	for (const wakingResponses of [0, 13, 19, 25]) {
+		test(`retries an unanswered credential request after ${wakingResponses} waking responses`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const requestTimes: number[] = [];
+			const waking: CloudSandboxConnectResult = { kind: 'waking', waking: { retryAfterSeconds: 1 } };
+			const fixture = createService(store, [
+				...Array.from({ length: wakingResponses }, () => waking),
+				async () => {
+					requestTimes.push(Date.now());
+					await timeout(30_000);
+					throw new CloudSandboxNetworkError('Fetch timeout: 30000ms');
+				},
+				async () => {
+					requestTimes.push(Date.now());
+					return { kind: 'token', token: clientToken('copilot-sealed.v1.key.ready') };
+				},
+			]);
+			const address = await fixture.service.connect({ environmentId: 'env-1', sessionId: 'session-1', name: 'Sandbox' }, CancellationToken.None);
+			fixture.service.dispose();
+			assert.deepStrictEqual({
+				address,
+				requests: fixture.requestCalls(),
+				methods: [...new Set(fixture.requests.map(request => request.method))],
+				preservedScope: fixture.requests.every(({ request, token }) => request.environmentId === 'env-1' && request.sessionId === 'session-1' && token === fixture.requests[0].token),
+				retryDelayMs: requestTimes[1] - requestTimes[0],
+				ready: fixture.service.sealedTokenAtEstablish,
+			}, {
+				address: cloudSandboxAddress('env-1'), requests: wakingResponses + 2, methods: ['connect'],
+				preservedScope: true, retryDelayMs: 60_000, ready: 'copilot-sealed.v1.key.ready',
+			});
+		}));
+	}
+
+	test('repeated unanswered requests stop at the overall connection deadline', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const started = Date.now();
-		const fixture = createService(store, [async () => Date.now() - started < 60_000
-			? { kind: 'waking', waking: { retryAfterSeconds: 1 } }
-			: { kind: 'token', token: clientToken('copilot-sealed.v1.key.ready') }]);
+		const fixture = createService(store, [async () => {
+			await timeout(30_000);
+			throw new CloudSandboxNetworkError('Fetch timeout: 30000ms');
+		}]);
+		await assert.rejects(fixture.service.connect({ environmentId: 'env-1', name: 'Sandbox' }, CancellationToken.None), /timed out after 600 seconds/);
+		const elapsed = Date.now() - started;
+		await timeout(60_000);
+		assert.deepStrictEqual({
+			elapsed, requests: fixture.requestCalls(), ready: fixture.service.sealedTokenAtEstablish,
+		}, { elapsed: 600_000, requests: 10, ready: undefined });
+	}));
+
+	test('cancelling the network retry wait prevents another credential request', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const source = store.add(new CancellationTokenSource());
+		const fixture = createService(store, [
+			new CloudSandboxNetworkError('network unavailable'),
+			{ kind: 'token', token: clientToken('copilot-sealed.v1.key.ready') },
+		]);
+		const connecting = assert.rejects(fixture.service.connect({ environmentId: 'env-1', name: 'Sandbox' }, source.token), isCancellationError);
+		await timeout(15_000);
+		source.cancel();
+		await connecting;
+		await timeout(30_000);
+		assert.deepStrictEqual({
+			requests: fixture.requestCalls(), ready: fixture.service.sealedTokenAtEstablish,
+		}, { requests: 1, ready: undefined });
+	}));
+
+	for (const failure of [
+		new CloudSandboxAuthenticationRequiredError(),
+		new CancellationError(),
+		new Error('Unexpected credential response'),
+		...[400, 401, 403, 404, 408, 409, 429, 500, 503].map(status => new CloudSandboxRequestError(status, `HTTP ${status}`)),
+	]) {
+		test(`does not retry a credential failure with an explicit response or no network classification: ${failure.message}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const fixture = createService(store, [
+				failure,
+				{ kind: 'token', token: clientToken('copilot-sealed.v1.key.ready') },
+			]);
+			await assert.rejects(fixture.service.connect({ environmentId: 'env-1', name: 'Sandbox' }, CancellationToken.None), error => error === failure);
+			assert.deepStrictEqual({
+				requests: fixture.requestCalls(), ready: fixture.service.sealedTokenAtEstablish,
+			}, { requests: 1, ready: undefined });
+		}));
+	}
+
+	for (const readyAfterMs of [60_000, 590_000]) {
+		test(`one-second pending responses can reach readiness after ${readyAfterMs}ms without exhausting a poll count`, () => runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 1000 }, async () => {
+			const started = Date.now();
+			const requestTimes: number[] = [];
+			const fixture = createService(store, [async () => {
+				requestTimes.push(Date.now());
+				return Date.now() - started < readyAfterMs
+					? { kind: 'waking', waking: { retryAfterSeconds: 1 } }
+					: { kind: 'token', token: clientToken('copilot-sealed.v1.key.ready') };
+			}]);
+			await fixture.service.connect({ environmentId: 'env-1', name: 'Sandbox' }, CancellationToken.None);
+			const elapsed = Date.now() - started;
+			fixture.service.dispose();
+			assert.deepStrictEqual({
+				ready: fixture.service.sealedTokenAtEstablish,
+				withinReadinessWindow: elapsed >= readyAfterMs && elapsed < readyAfterMs + 1200,
+				moreThanTwentyRequests: fixture.requestCalls() > 20,
+				serverPacing: requestTimes.slice(1).every((time, index) => time - requestTimes[index] >= 1000 && time - requestTimes[index] < 1200),
+			}, { ready: 'copilot-sealed.v1.key.ready', withinReadinessWindow: true, moreThanTwentyRequests: true, serverPacing: true });
+		}));
+	}
+
+	for (const responseDelayMs of [0, 20_000]) {
+		test(`pending responses stop at the connection deadline with ${responseDelayMs}ms request latency`, () => runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 1000 }, async () => {
+			const started = Date.now();
+			const fixture = createService(store, [async () => {
+				if (responseDelayMs > 0) {
+					await timeout(responseDelayMs);
+				}
+				return { kind: 'waking', waking: { retryAfterSeconds: 1 } };
+			}]);
+			await assert.rejects(fixture.service.connect({ environmentId: 'env-1', name: 'Sandbox' }, CancellationToken.None), /timed out after 600 seconds/);
+			const elapsed = Date.now() - started;
+			const requestsAtDeadline = fixture.requestCalls();
+			await timeout(60_000);
+			assert.deepStrictEqual({
+				elapsed,
+				moreThanTwentyRequests: requestsAtDeadline > 20,
+				stopped: fixture.requestCalls() === requestsAtDeadline,
+				ready: fixture.service.sealedTokenAtEstablish,
+			}, { elapsed: 600_000, moreThanTwentyRequests: true, stopped: true, ready: undefined });
+		}));
+	}
+
+	for (const retryAfterSeconds of [600, 900, 3_000_000]) {
+		test(`a ${retryAfterSeconds}s server delay reaches the connection deadline without retrying early`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const started = Date.now();
+			const fixture = createService(store, [
+				{ kind: 'waking', waking: { retryAfterSeconds } },
+				{ kind: 'token', token: clientToken('copilot-sealed.v1.key.ready') },
+			]);
+			await assert.rejects(fixture.service.connect({ environmentId: 'env-1', name: 'Sandbox' }, CancellationToken.None), /timed out after 600 seconds/);
+			const elapsed = Date.now() - started;
+			await timeout(60_000);
+			assert.deepStrictEqual({
+				elapsed, requests: fixture.requestCalls(), ready: fixture.service.sealedTokenAtEstablish,
+			}, { elapsed: 600_000, requests: 1, ready: undefined });
+		}));
+	}
+
+	test('cancelling a pending wake prevents another credential request', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const source = store.add(new CancellationTokenSource());
+		const fixture = createService(store, [
+			{ kind: 'waking', waking: { retryAfterSeconds: 45 } },
+			{ kind: 'token', token: clientToken('copilot-sealed.v1.key.ready') },
+		]);
+		const connecting = assert.rejects(fixture.service.connect({ environmentId: 'env-1', name: 'Sandbox' }, source.token), isCancellationError);
+		await timeout(5000);
+		source.cancel();
+		await connecting;
+		await timeout(60_000);
+		assert.deepStrictEqual({
+			requests: fixture.requestCalls(), ready: fixture.service.sealedTokenAtEstablish,
+		}, { requests: 1, ready: undefined });
+	}));
+
+	test('a zero-second server delay cannot cause a busy polling loop', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const started = Date.now();
+		const fixture = createService(store, [
+			{ kind: 'waking', waking: { retryAfterSeconds: 0 } },
+			{ kind: 'token', token: clientToken('copilot-sealed.v1.key.ready') },
+		]);
 		await fixture.service.connect({ environmentId: 'env-1', name: 'Sandbox' }, CancellationToken.None);
 		const elapsed = Date.now() - started;
 		fixture.service.dispose();
 		assert.deepStrictEqual({
-			ready: fixture.service.sealedTokenAtEstablish,
-			withinReadinessWindow: elapsed >= 60_000 && elapsed < 66_000,
-			boundedRequests: fixture.requestCalls() <= 13,
-		}, { ready: 'copilot-sealed.v1.key.ready', withinReadinessWindow: true, boundedRequests: true });
+			requests: fixture.requestCalls(), paced: elapsed >= 1000 && elapsed < 1200,
+		}, { requests: 2, paced: true });
 	}));
 
 	for (const missingSealedToken of [false, true]) {
@@ -954,7 +1111,7 @@ suite('CloudSandboxAgentHostService', () => {
 			await fixture.service.connect(options, CancellationToken.None);
 			const durationMs = Date.now() - started;
 			fixture.service.dispose();
-			assert.deepStrictEqual({ calls: fixture.requestCalls(), events: fixture.events, withinExpectedWindow: durationMs >= 12_000 && durationMs < 13_000 }, {
+			assert.deepStrictEqual({ calls: fixture.requestCalls(), events: fixture.events, withinExpectedWindow: durationMs >= 9_000 && durationMs < 9_400 }, {
 				calls: 3,
 				events: [{ eventName: 'cloudSandboxConnectionOutcome', data: { ...connectionDetails, operation: 'connect', outcome: 'success', stage: 'connection', durationMs, readinessMs: durationMs, preparationMs: durationMs - 5000, connectionMs: 5000, credentialRequests: 3, wakingResponses: 1, credentialsMs: durationMs - 5000 } }],
 				withinExpectedWindow: true,
@@ -1139,18 +1296,23 @@ suite('CloudSandboxAgentHostService', () => {
 		});
 	});
 
-	test('retains the credential retry limit when the environment keeps reporting waking', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+	test('retains the credential retry limit and delay when the environment keeps reporting waking', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const started = Date.now();
 		const { service, requestCalls } = createService(store, [
 			{ kind: 'token', token: clientToken(undefined) },
-			{ kind: 'waking', waking: { retryAfterSeconds: 5 } },
+			{ kind: 'waking', waking: { retryAfterSeconds: 1 } },
 		]);
 
 		await service.connect({ environmentId: 'env-1', name: 'Sandbox' }, CancellationToken.None);
+		const elapsed = Date.now() - started;
 		service.dispose();
 
-		assert.deepStrictEqual({ calls: requestCalls(), sealed: service.sealedTokenAtEstablish }, {
+		assert.deepStrictEqual({
+			calls: requestCalls(), sealed: service.sealedTokenAtEstablish, preservedDelay: elapsed >= 55_000 && elapsed < 66_000,
+		}, {
 			calls: MAX_SEALED_TOKEN_RETRIES + 1,
 			sealed: undefined,
+			preservedDelay: true,
 		});
 	}));
 });

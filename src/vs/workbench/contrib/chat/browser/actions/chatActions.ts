@@ -1544,13 +1544,12 @@ export function registerChatActions() {
 		}
 	});
 
-	// Show a direct gear action to open the Customizations editor
 	MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 		command: {
 			id: AICustomizationManagementCommands.OpenEditor,
 			title: localize2('openChatCustomizations', "Open Customizations"),
 			category: CHAT_CATEGORY,
-			icon: Codicon.gear
+			icon: Codicon.extensions
 		},
 		group: 'navigation',
 		when: ContextKeyExpr.and(

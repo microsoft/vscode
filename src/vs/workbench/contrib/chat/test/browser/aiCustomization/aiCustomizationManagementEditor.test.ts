@@ -58,6 +58,14 @@ import { IAgentPlugin, IAgentPluginService } from '../../../common/plugins/agent
 suite('aiCustomizationManagementEditor', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('keeps the customization editor modal', () => {
+		const input = store.add(new AICustomizationManagementEditorInput());
+		assert.deepStrictEqual(input.getModalEditorOptions(), {
+			compactHeader: true,
+			canMoveToEditorArea: false,
+		});
+	});
+
 	test('includes the customization target in the modal title', () => {
 		const input = store.add(new AICustomizationManagementEditorInput());
 		const labels = [[input.getName(), input.getDescription()]];
@@ -205,7 +213,13 @@ suite('aiCustomizationManagementEditor', () => {
 		workspaceService: {
 			activeProjectRoot: ISettableObservable<URI | undefined>;
 			activeProjectLabel: ISettableObservable<string>;
+			isSessionsWindow: boolean;
 		};
+		commandService: { executeCommand(commandId: string, ...args: readonly unknown[]): Promise<unknown> };
+		chatWidgetService: {
+			getWidgetBySessionResource(resource: URI): { setInput(value: string): void; focusInput(): void } | undefined;
+		};
+		viewsService: { openView(viewId: string, focus?: boolean): Promise<{ prefillInput?(text: string): void; sendQuery?(text: string): void } | undefined> };
 		editorDisplayMode: 'preview' | 'raw';
 		currentCustomizationDetail: boolean;
 		currentEditingUri: URI | undefined;
@@ -308,7 +322,7 @@ suite('aiCustomizationManagementEditor', () => {
 		configureCustomizationMigrationLocations(id: CustomizationMigrationCategoryId, storage: PromptsStorage): Promise<void>;
 		chooseCustomizationMigrationDestination(destination: ICustomizationMigrationDashboardDestination): Promise<void>;
 		updateContentVisibility(): void;
-		selectSectionById(section: AICustomizationManagementSection, options?: { showMarketplace?: boolean }): void;
+		selectSectionById(section: AICustomizationManagementSection, options?: { showMarketplace?: boolean; marketplaceSourceId?: string }): void;
 		rebuildVisibleSections(): void;
 		updateContributedSectionEnablement(): void;
 		setVisible(visible: boolean): void;
@@ -320,6 +334,7 @@ suite('aiCustomizationManagementEditor', () => {
 		};
 		group: { id: number };
 		closeCustomizationEditor(): Promise<boolean>;
+		runMarketplacePrompt(prompt: string): Promise<void>;
 	};
 
 	type MutableConfigurationInspection = {
@@ -400,7 +415,11 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.workspaceService = {
 			activeProjectRoot: observableValue<URI | undefined>('project', URI.file('/workspace')),
 			activeProjectLabel: observableValue('projectLabel', 'vscode'),
+			isSessionsWindow: false,
 		};
+		editor.commandService = { executeCommand: async () => undefined };
+		editor.chatWidgetService = { getWidgetBySessionResource: () => undefined };
+		editor.viewsService = { openView: async () => undefined };
 		editor.harnessService = {
 			activeSessionResource: observableValue('activeSessionResource', URI.parse('agent-host-test:/session-a')),
 			activeHarness: observableValue('activeHarness', 'agent-host-copilotcli'),
@@ -493,6 +512,57 @@ suite('aiCustomizationManagementEditor', () => {
 		assert.deepStrictEqual({ modalResult, calls }, {
 			modalResult: true,
 			calls: ['modal'],
+		});
+	});
+
+	test('runs marketplace prompts in a new Agents Window chat', async () => {
+		const editor = createTestEditor();
+		store.add(editor.editorPreviewDisposables);
+		const calls: { commandId: string; args: readonly unknown[] }[] = [];
+		editor.workspaceService.isSessionsWindow = true;
+		editor.commandService = {
+			executeCommand: async (commandId, ...args) => {
+				calls.push({ commandId, args });
+			},
+		};
+
+		await editor.runMarketplacePrompt('Review this change');
+
+		assert.deepStrictEqual(calls, [{
+			commandId: 'workbench.action.sessions.newChat',
+			args: [{ prompt: 'Review this change', prefillPrompt: true, noWorkspace: true }],
+		}]);
+	});
+
+	test('runs marketplace prompts in a new Copilot sidebar session outside the Agents Window', async () => {
+		const editor = createTestEditor();
+		store.add(editor.editorPreviewDisposables);
+		const calls: { commandId: string; args: readonly unknown[] }[] = [];
+		const sessionResource = URI.parse('agent-host-test:/marketplace-prompt');
+		const inputValues: string[] = [];
+		let focused = false;
+		editor.commandService = {
+			executeCommand: async (commandId, ...args) => {
+				calls.push({ commandId, args });
+				return sessionResource;
+			},
+		};
+		editor.chatWidgetService = {
+			getWidgetBySessionResource: resource => resource.toString() === sessionResource.toString() ? {
+				setInput: value => inputValues.push(value),
+				focusInput: () => { focused = true; },
+			} : undefined,
+		};
+
+		await editor.runMarketplacePrompt('Review this change');
+
+		assert.deepStrictEqual({ calls, inputValues, focused }, {
+			calls: [{
+				commandId: 'workbench.action.chat.openNewSessionSidebar.agent-host-copilotcli',
+				args: [],
+			}],
+			inputValues: ['Review this change'],
+			focused: true,
 		});
 	});
 
@@ -664,23 +734,31 @@ suite('aiCustomizationManagementEditor', () => {
 
 	test('marketplace deep links open type-filtered Discover only when it is enabled', async () => {
 		const { editor, configuration } = createGatedSectionEditor(true);
-		const queries: string[] = [];
+		const marketplaceNavigations: { query: string; sourceId: string | undefined }[] = [];
 		Object.assign(editor, {
 			welcomePage: {
-				setSearchQuery(query: string) { queries.push(query); },
+				showMarketplace(query: string, sourceId: string | undefined) { marketplaceNavigations.push({ query, sourceId }); },
 			},
 		});
 		await configuration.updateValue(CustomizationMarketplaceConfiguration.MarketplaceEnabled, false);
 		editor.selectSectionById(AICustomizationManagementSection.Plugins, { showMarketplace: true });
 		await configuration.updateValue(CustomizationMarketplaceConfiguration.MarketplaceEnabled, true);
 		editor.selectSectionById(AICustomizationManagementSection.Skills, { showMarketplace: true });
+		editor.selectSectionById(AICustomizationManagementSection.Plugins, { showMarketplace: true, marketplaceSourceId: 'pluginMarketplaces.owner%2Fcatalog' });
 		editor.selectSectionById(AICustomizationManagementSection.McpServers, { showMarketplace: true });
+		editor.selectSectionById(AICustomizationManagementSection.McpServers, { showMarketplace: true, marketplaceSourceId: 'mcpGallery' });
 		editor.selectSectionById(AICustomizationManagementSection.Plugins, { showMarketplace: true });
 		await configuration.updateValue(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, false);
 		editor.selectSectionById(AICustomizationManagementSection.Skills, { showMarketplace: true });
 		editor.selectSectionById(AICustomizationManagementSection.McpServers, { showMarketplace: true });
 		editor.selectSectionById(AICustomizationManagementSection.Plugins, { showMarketplace: true });
-		assert.deepStrictEqual(queries, ['@type:skill', '@type:mcp', '@type:plugin']);
+		assert.deepStrictEqual(marketplaceNavigations, [
+			{ query: '@type:skill', sourceId: undefined },
+			{ query: '@type:plugin', sourceId: 'pluginMarketplaces.owner%2Fcatalog' },
+			{ query: '@type:mcp', sourceId: undefined },
+			{ query: '@type:mcp', sourceId: 'mcpGallery' },
+			{ query: '@type:plugin', sourceId: undefined },
+		]);
 	});
 
 	test('showing Discover from its navigation button resets its filters', () => {

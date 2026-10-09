@@ -264,7 +264,7 @@ export function defineCopilotRuntimeMcpTests(context: IAgentHostE2ETestContext):
 		});
 		assert.ok(context.client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallComplete')).some(notification => {
 			const action = getActionEnvelope(notification).action;
-			return action.type === ActionType.ChatToolCallComplete && textFromContent(action.result.content ?? []) === 'HOST_PLUGIN_REFERENCE_OK';
+			return action.type === ActionType.ChatToolCallComplete && /\bHOST_PLUGIN_REFERENCE_OK\b/.test(textFromContent(action.result.content ?? []));
 		}));
 	});
 }
