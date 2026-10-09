@@ -7,6 +7,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { globSync } from 'node:fs';
 import path from 'node:path';
 import { retry } from './retry.ts';
+import { isNativeExitProbe } from './nativeExitProbeInputs.ts';
 
 /**
  * Product test tasks that record a checkpoint once they pass.
@@ -91,7 +92,8 @@ function checkpointTarget(env: NodeJS.ProcessEnv): string {
 /**
  * Restores, records and collects test checkpoints of the current pipeline run.
  * Only published artifacts from this run count as checkpoints; local files and
- * attempt numbers never indicate a hit.
+ * attempt numbers never indicate a hit. Focused native exit investigations cannot
+ * restore or record these full-suite checkpoints.
  */
 export async function testCheckpoint(
 	args: readonly string[],
@@ -109,6 +111,19 @@ export async function testCheckpoint(
 	if (command === 'collect-results') {
 		const results = path.join(required(env, 'BUILD_ARTIFACTSTAGINGDIRECTORY'), 'test-results');
 		setVariable(log, 'TEST_CHECKPOINT_RESULTS_AVAILABLE', String(globSync('**/*-results.xml', { cwd: results }).length > 0));
+		return;
+	}
+
+	if (isNativeExitProbe(env)) {
+		if (command === 'record') {
+			throw new Error('A focused native exit probe cannot record a full-suite test checkpoint');
+		}
+		setVariable(log, 'TEST_CHECKPOINTS_RESTORED', 'false');
+		for (const id of testIds) {
+			setVariable(log, `TEST_CHECKPOINT_${id.replaceAll('-', '_').toUpperCase()}_HIT`, 'false');
+			setVariable(log, `TEST_CHECKPOINT_${id.replaceAll('-', '_').toUpperCase()}_READY`, 'false');
+		}
+		log('Focused native exit investigation does not restore full-suite test checkpoints.');
 		return;
 	}
 

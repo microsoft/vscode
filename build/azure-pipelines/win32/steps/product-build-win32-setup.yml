@@ -9,6 +9,9 @@ parameters:
   - name: VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL
     type: boolean
     default: false
+  - name: VSCODE_NATIVE_EXIT_PROBE
+    type: boolean
+    default: false
 
 # Checks out the sources and installs the dependencies, which every Windows
 # job needs regardless of whether it compiles, tests or signs the product.
@@ -25,6 +28,12 @@ steps:
     inputs:
       versionSource: fromFile
       versionFilePath: .nvmrc
+
+  - ${{ if eq(parameters.VSCODE_NATIVE_EXIT_PROBE, true) }}:
+    - powershell: node build/azure-pipelines/common/nativeExitProbeInputs.ts --check
+      env:
+        SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+      displayName: Validate focused probe inputs before artifact API polling
 
   - task: UsePythonVersion@0
     inputs:

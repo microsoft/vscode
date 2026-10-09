@@ -11,6 +11,9 @@ parameters:
   - name: VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL
     type: boolean
     default: false
+  - name: VSCODE_NATIVE_EXIT_PROBE
+    type: boolean
+    default: false
 
 steps:
   - template: product-build-win32-setup.yml@self
@@ -19,6 +22,7 @@ steps:
       VSCODE_CIBUILD: ${{ parameters.VSCODE_CIBUILD }}
       VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL: ${{ parameters.VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL }}
       VSCODE_TEST_IDS: ${{ parameters.VSCODE_TEST_IDS }}
+      VSCODE_NATIVE_EXIT_PROBE: ${{ parameters.VSCODE_NATIVE_EXIT_PROBE }}
 
   # Start pulling the CG-generated NOTICE from the parallel Quality stage
   # in the background (overwrites repo-root ThirdPartyNotices.txt before packaging).
@@ -151,3 +155,4 @@ steps:
       parameters:
         VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
         VSCODE_TEST_IDS: ${{ parameters.VSCODE_TEST_IDS }}
+        VSCODE_NATIVE_EXIT_PROBE: ${{ parameters.VSCODE_NATIVE_EXIT_PROBE }}

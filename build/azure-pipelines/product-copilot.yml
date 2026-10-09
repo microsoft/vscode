@@ -8,11 +8,17 @@ parameters:
   - name: VSCODE_UPLOAD_SOURCEMAPS
     type: boolean
     default: true
+  - name: VSCODE_PRODUCER_ONLY
+    type: boolean
+    default: false
 
 jobs:
   - job: Copilot
     displayName: Copilot
-    timeoutInMinutes: 60
+    ${{ if eq(parameters.VSCODE_PRODUCER_ONLY, true) }}:
+      timeoutInMinutes: 45
+    ${{ if ne(parameters.VSCODE_PRODUCER_ONLY, true) }}:
+      timeoutInMinutes: 60
     variables:
       - name: skipComponentGovernanceDetection
         value: true
@@ -91,9 +97,10 @@ jobs:
         name: copilotVsix
         displayName: Mark Copilot VSIX as published
 
-      - template: copilot/test-steps.yml
-        parameters:
-          runIntegrationTests: false
+      - ${{ if ne(parameters.VSCODE_PRODUCER_ONLY, true) }}:
+        - template: copilot/test-steps.yml
+          parameters:
+            runIntegrationTests: false
 
       # Source map upload is only needed for builds that ship the extension.
       - ${{ if eq(parameters.VSCODE_UPLOAD_SOURCEMAPS, true) }}:
