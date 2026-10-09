@@ -1630,7 +1630,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		const shellQuoteOptions = this._getQuotingOptions(basename, shellOptions, platform);
 		const shell = basename === 'pwsh' ? 'powershell' : TerminalTaskSystem._shellQuotes[basename] ? basename : platform === Platform.Platform.Windows ? 'powershell' : 'bash';
 		const shellSignificantCharacters = shell === 'cmd' ? /[\s"&|<>()^%!]/ : shell === 'powershell' ? /[\s"'`;&|<>$(){}[\],#@%]/ : /[\s"'`;&|<>$\\(){}[\]#*?~!]/;
-		const escapeChar = Types.isString(shellQuoteOptions.escape) ? shellQuoteOptions.escape : shellQuoteOptions.escape?.escapeChar;
+		const escapeChar = (Types.isString(shellQuoteOptions.escape) ? shellQuoteOptions.escape : shellQuoteOptions.escape?.escapeChar) ?? (shell === 'cmd' ? '^' : undefined);
 
 		function needsQuotes(value: string, onlyWhitespace = false): boolean {
 			if (!onlyWhitespace && value.length === 0) {
@@ -1645,7 +1645,9 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			let quote: string | undefined;
 			for (let i = 0; i < value.length; i++) {
 				const ch = value[i];
-				if (ch === quote) {
+				if (quote !== undefined && quote === shellQuoteOptions.weak && ch === escapeChar) {
+					i++;
+				} else if (ch === quote) {
 					quote = undefined;
 				} else if (quote !== undefined) {
 					continue;
@@ -1668,7 +1670,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				if (shellQuoteOptions.strong === '\'') {
 					value = value.replace(/'/g, shell === 'powershell' ? '\'\'' : '\'\\\'\'');
 				} else if (shell === 'cmd' && shellQuoteOptions.strong === '"') {
-					value = value.replace(/"/g, '""');
+					value = value.replace(/(?<backslashes>\\*)"/g, '$<backslashes>$<backslashes>""').replace(/\\+$/, match => match + match);
 				}
 				return [shellQuoteOptions.strong + value + shellQuoteOptions.strong, true];
 			} else if (kind === ShellQuoting.Weak && shellQuoteOptions.weak) {

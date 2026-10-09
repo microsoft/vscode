@@ -40,8 +40,8 @@ suite('TerminalTaskSystem shell command line', () => {
 	test('cmd quotes shell-significant characters without spaces', () => {
 		const args = [...'& | > < ( ) ^ % !'.split(' '), '\t', '\r', '\n'];
 		assert.deepStrictEqual(
-			args.map(arg => build('cmd.exe', [`before${arg}after`], Platform.Windows)),
-			args.map(arg => `echo "before${arg}after"`)
+			args.map(arg => build('cmd.exe', [arg], Platform.Windows)),
+			args.map(arg => `echo "${arg}"`)
 		);
 	});
 
@@ -85,18 +85,26 @@ suite('TerminalTaskSystem shell command line', () => {
 
 	test('partial quoting and escaped characters are preserved', () => {
 		assert.deepStrictEqual([
-			build('bash', ['--message="hello world"', 'cost\\$HOME', 'a\\;b']),
-			build('pwsh', ['--message="hello world"', 'cost`$HOME', 'a`;b']),
-			build('cmd.exe', ['a"&whoami&"b'], Platform.Windows)
+			build('bash', ['--message="hello world"', 'cost\\$HOME', 'a\\;b', '--message="a\\"b"']),
+			build('pwsh', ['--message="hello world"', 'cost`$HOME', 'a`;b', '--message="a`"b"']),
+			build('cmd.exe', ['a"&whoami&"b', 'a^&b'], Platform.Windows)
 		], [
-			'echo --message="hello world" cost\\$HOME a\\;b',
-			'echo --message="hello world" cost`$HOME a`;b',
-			'echo a"&whoami&"b'
+			'echo --message="hello world" cost\\$HOME a\\;b --message="a\\"b"',
+			'echo --message="hello world" cost`$HOME a`;b --message="a`"b"',
+			'echo a"&whoami&"b a^&b'
 		]);
 	});
 
 	test('cmd escapes embedded quotes when automatic quoting is needed', () => {
-		assert.strictEqual(build('cmd.exe', ['a"b&c'], Platform.Windows), 'echo "a""b&c"');
+		assert.deepStrictEqual([
+			build('cmd.exe', ['a"b&c'], Platform.Windows),
+			build('cmd.exe', ['C:\\repo!\\', 'next'], Platform.Windows),
+			build('cmd.exe', ['a\\"b&c'], Platform.Windows)
+		], [
+			'echo "a""b&c"',
+			'echo "C:\\repo!\\\\" next',
+			'echo "a\\\\""b&c"'
+		]);
 	});
 
 	test('PowerShell stop-parsing tokens are quoted as arguments', () => {
