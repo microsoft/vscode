@@ -1021,6 +1021,11 @@ type TestPermissionRequest = TestPermissionRequestBase & ({
 	readonly kind: 'custom-tool';
 	readonly toolName?: string;
 	readonly args?: Extract<PermissionRequest, { kind: 'custom-tool' }>['args'];
+} | {
+	readonly kind: 'mcp';
+	readonly toolName: string;
+	readonly serverName: string;
+	readonly toolTitle: string;
 });
 
 function toPermissionRequest(request: TestPermissionRequest): PermissionRequest {
@@ -1042,6 +1047,8 @@ function toPermissionRequest(request: TestPermissionRequest): PermissionRequest 
 			};
 		case 'custom-tool':
 			return { toolDescription: '', toolName: '', ...request };
+		case 'mcp':
+			return { readOnly: false, ...request };
 	}
 }
 
@@ -8736,6 +8743,26 @@ suite('CopilotAgentSession', () => {
 				toolCallId: 'tc-1',
 			});
 
+			test('write permission carries the mobile diff alongside native AHP edits', async () => {
+				const { session, runtime, waitForSignal } = await createAgentSession(disposables);
+				const diff = '--- a/file.ts\n+++ b/file.ts\n@@ -0,0 +1 @@\n+export {};\n';
+				const pending = runtime.handlePermissionRequest({
+					kind: 'write', toolCallId: 'tc-diff', fileName: '/workspace/file.ts',
+					diff, newFileContents: 'export {};\n',
+				});
+				const signal = await waitForSignal(s => s.kind === 'pending_confirmation');
+				assert.ok(signal.kind === 'pending_confirmation');
+				assert.deepStrictEqual({
+					mobileDiff: signal.state._meta?.permissionRequest,
+					nativeAfter: signal.state.edits?.items[0].after?.uri,
+				}, {
+					mobileDiff: { diff },
+					nativeAfter: 'file:///workspace/file.ts',
+				});
+				session.respondToPermissionRequest('tc-diff', false);
+				await pending;
+			});
+
 			await waitForSignal(s => s.kind === 'pending_confirmation');
 			assert.strictEqual(signals.length, 1);
 
@@ -9193,6 +9220,36 @@ suite('CopilotAgentSession', () => {
 			});
 		}
 
+		for (const toolName of ['bash', 'powershell']) {
+			for (const kind of ['shell', 'custom-tool'] as const) {
+				test(`${toolName} ${kind} permission preserves the description and authoritative command`, async () => {
+					const { session, runtime, mockSession, waitForSignal } = await createAgentSession(disposables, {
+						workingDirectory: URI.file('/repo'),
+					});
+					mockSession.fire('tool.execution_start', {
+						toolCallId: 'tc-description',
+						toolName,
+						arguments: { command: 'old command', description: 'Inspect the workspace', timeout: 1000 },
+					});
+					const command = 'cd /repo && ls';
+					const resultPromise = runtime.handlePermissionRequest(kind === 'shell'
+						? { kind, toolCallId: 'tc-description', fullCommandText: command }
+						: { kind, toolCallId: 'tc-description', toolName, args: { command, description: 'Inspect the workspace', timeout: 1000 } });
+					const signal = await waitForSignal(s => s.kind === 'pending_confirmation');
+					assert.ok(signal.kind === 'pending_confirmation');
+					assert.deepStrictEqual({
+						input: getInlineToolInput(signal.state.toolInput),
+						approvalCommand: signal.shellCommand,
+					}, {
+						input: JSON.stringify({ command: 'ls', description: 'Inspect the workspace', timeout: 1000 }, null, 2),
+						approvalCommand: 'ls',
+					});
+					session.respondToPermissionRequest('tc-description', false);
+					assert.strictEqual((await resultPromise).kind, 'reject');
+				});
+			}
+		}
+
 		test('shell permissions carry the tracked shell language when known', async () => {
 			const cases = [
 				{ toolCallId: 'tc-powershell-language', trackedToolName: 'powershell', expected: 'powershell' },
@@ -9261,7 +9318,7 @@ suite('CopilotAgentSession', () => {
 
 			assert.deepStrictEqual(actual, cases.map(({ toolName, command }) => ({
 				permissionKind: 'shell',
-				toolInput: command,
+				toolInput: JSON.stringify({ command }, null, 2),
 				shellLanguage: toolName,
 			})));
 		});
@@ -9278,7 +9335,7 @@ suite('CopilotAgentSession', () => {
 				kind: readToolCallMeta(signal.state).toolKind,
 				command: getInlineToolInput(signal.state.toolInput),
 				language: signal.shellLanguage,
-			}, { kind: 'terminal', command: 'npm test', language: undefined });
+			}, { kind: 'terminal', command: JSON.stringify({ command: 'npm test', description: 'Run tests' }, null, 2), language: undefined });
 			session.respondToPermissionRequest('held-shell', false);
 			assert.strictEqual((await resultPromise).kind, 'reject');
 		});
@@ -9307,7 +9364,7 @@ suite('CopilotAgentSession', () => {
 					}, {
 						toolKind: 'terminal',
 						language: toolName === 'bash' ? 'shellscript' : 'powershell',
-						command,
+						command: JSON.stringify({ command }, null, 2),
 						bypass: true,
 					});
 					session.respondToPermissionRequest(toolCallId, false);
@@ -12802,7 +12859,7 @@ Use the attached image as context.
 			}, {
 				starts: [{ toolCallId: 'tc-stream', toolName: 'bash' }],
 				deltas: [{ content: '', hasInvocationMessage: true }],
-				ready: { toolCallId: 'tc-stream', toolInput: 'npm test', intention: 'Run all tests' },
+				ready: { toolCallId: 'tc-stream', toolInput: JSON.stringify({ command: 'npm test', description: 'Run all tests' }, null, 2), intention: 'Run all tests' },
 			});
 		});
 
@@ -12898,6 +12955,7 @@ Use the attached image as context.
 					toolCallId: 'tc-stream-mcp',
 					name: 'mcp_tool',
 					toolTitle: 'Look up documentation',
+					intentionSummary: 'Find the metadata contract',
 					mcpServerName: 'docs',
 					mcpToolName: 'lookup_topic',
 					arguments: { topic: 'metadata' },
@@ -12923,6 +12981,7 @@ Use the attached image as context.
 					hasInvocationMessage: action.invocationMessage !== undefined,
 				})),
 				readyContributor: ready?.contributor,
+				intention: ready?.intention,
 				invocationMessage: ready?.invocationMessage,
 			}, {
 				startCount: 1,
@@ -12932,6 +12991,7 @@ Use the attached image as context.
 					kind: ToolCallContributorKind.MCP,
 					customizationId: 'mcp-top-level:copilotcli:test-session-1:docs',
 				},
+				intention: 'Find the metadata contract',
 				invocationMessage: 'Look up documentation',
 			});
 		});
@@ -13138,6 +13198,71 @@ Use the attached image as context.
 				})));
 		});
 
+		test('tool completion forwards detailed output and SDK-expanded binaries to clients', async () => {
+			const { mockSession, signals } = await createAgentSession(disposables);
+			mockSession.fire('tool.execution_start', { toolCallId: 'tc-output', toolName: 'view', arguments: { path: '/repo/image.png' } });
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'tc-output', success: true,
+				result: {
+					content: 'Short', detailedContent: 'Complete UI output', binaryResultsForLlm: [
+						{ type: 'image', data: 'aW1hZ2U=', mimeType: 'image/png' },
+					]
+				},
+			});
+			assert.deepStrictEqual(getActions(signals).flatMap(action =>
+				action.type === ActionType.ChatToolCallComplete ? [action.result.content] : []), [[
+					{ type: ToolResultContentType.Text, text: 'Complete UI output' },
+					{ type: ToolResultContentType.EmbeddedResource, data: 'aW1hZ2U=', contentType: 'image/png' },
+				]]);
+		});
+
+		test('tool completion retains the detailed diff alongside a structured summary', async () => {
+			const { mockSession, signals } = await createAgentSession(disposables);
+			mockSession.fire('tool.execution_start', { toolCallId: 'tc-diff-summary', toolName: 'mcp_tool', arguments: {} });
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'tc-diff-summary', success: true,
+				result: { content: 'Short', detailedContent: 'Complete diff', contents: [{ type: 'text', text: 'Summary' }] },
+			});
+			assert.deepStrictEqual(getActions(signals).flatMap(action =>
+				action.type === ActionType.ChatToolCallComplete ? [action.result.content] : []), [[
+					{ type: ToolResultContentType.Text, text: 'Complete diff' },
+					{ type: ToolResultContentType.Text, text: 'Summary' },
+				]]);
+		});
+
+		test('tool_start honors execution-start titles without an assistant message', async () => {
+			const { mockSession, signals } = await createAgentSession(disposables);
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-title', toolName: 'mcp_tool', toolTitle: 'Inspect dependencies',
+				mcpServerName: 'docs', mcpToolName: 'inspect',
+			});
+			const start = getActions(signals).find(action => action.type === ActionType.ChatToolCallStart);
+			assert.strictEqual(start?.displayName, 'Inspect dependencies');
+		});
+
+		test('skill calls preserve their name as structured input for clients', async () => {
+			const { mockSession, signals } = await createAgentSession(disposables);
+			mockSession.fire('skill.invoked', { name: 'plan', path: '/repo/skills/plan/SKILL.md', content: '' });
+			const ready = getActions(signals).find(action => action.type === ActionType.ChatToolCallReady);
+			assert.strictEqual(ready?.toolInput, '{"skill":"plan"}');
+		});
+
+		test('MCP permissions preserve the tool arguments for clients', async () => {
+			const { session, runtime, mockSession, waitForSignal } = await createAgentSession(disposables);
+			const args = { path: '/repo/image.png', query: 'theme' };
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-args', toolName: 'mcp_tool', mcpServerName: 'docs', arguments: args,
+			});
+			const pending = runtime.handlePermissionRequest({
+				kind: 'mcp', toolCallId: 'tc-args', toolName: 'mcp_tool', serverName: 'docs', toolTitle: 'Inspect',
+			});
+			const signal = await waitForSignal(s => s.kind === 'pending_confirmation');
+			assert.ok(signal.kind === 'pending_confirmation');
+			assert.strictEqual(getInlineToolInput(signal.state.toolInput), JSON.stringify(args, null, 2));
+			session.respondToPermissionRequest('tc-args', false);
+			await pending;
+		});
+
 		test('tool_start carries MCP App UI metadata from the SDK', async () => {
 			const { mockSession, signals } = await createAgentSession(disposables);
 			mockSession.fire('tool.execution_start', {
@@ -13215,6 +13340,60 @@ Use the attached image as context.
 				}
 			});
 		}
+
+		test('tool calls correlate SDK intention summaries by call ID through start and ready', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-intent');
+			mockSession.fire('assistant.message', {
+				messageId: 'message-intent',
+				content: '',
+				toolRequests: [
+					{ toolCallId: 'tc-bash', name: 'bash', intentionSummary: '  List project files \n' },
+					{ toolCallId: 'tc-powershell', name: 'powershell', intentionSummary: 'Inspect the directory' },
+					{ toolCallId: 'tc-view', name: 'view', intentionSummary: 'Understand the entry point' },
+				],
+			});
+			for (const [toolCallId, toolName, args] of [
+				['tc-view', 'view', { path: '/repo/file.ts' }],
+				['tc-powershell', 'powershell', { command: 'Get-ChildItem' }],
+				['tc-bash', 'bash', { command: 'ls', description: 'Fallback description' }],
+			] as const) {
+				mockSession.fire('tool.execution_start', { toolCallId, toolName, arguments: args });
+			}
+
+			assert.deepStrictEqual(getActions(signals)
+				.filter(action => action.type === ActionType.ChatToolCallStart || action.type === ActionType.ChatToolCallReady)
+				.map(action => ({ type: action.type, toolCallId: action.toolCallId, intention: action.intention })), [
+				{ type: ActionType.ChatToolCallStart, toolCallId: 'tc-view', intention: 'Understand the entry point' },
+				{ type: ActionType.ChatToolCallReady, toolCallId: 'tc-view', intention: 'Understand the entry point' },
+				{ type: ActionType.ChatToolCallStart, toolCallId: 'tc-powershell', intention: 'Inspect the directory' },
+				{ type: ActionType.ChatToolCallReady, toolCallId: 'tc-powershell', intention: 'Inspect the directory' },
+				{ type: ActionType.ChatToolCallStart, toolCallId: 'tc-bash', intention: 'List project files' },
+				{ type: ActionType.ChatToolCallReady, toolCallId: 'tc-bash', intention: 'List project files' },
+			]);
+		});
+
+		test('unexecuted SDK intention summaries do not leak into a new turn', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-old');
+			mockSession.fire('assistant.message', {
+				messageId: 'message-old',
+				content: '',
+				toolRequests: [{ toolCallId: 'tc-intent', name: 'bash', intentionSummary: 'Old intention' }],
+			});
+			session.resetTurnState('turn-new');
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-intent',
+				toolName: 'bash',
+				arguments: { command: 'ls' },
+			});
+			assert.deepStrictEqual(getActions(signals)
+				.filter(action => action.type === ActionType.ChatToolCallStart || action.type === ActionType.ChatToolCallReady)
+				.map(action => ({ turnId: action.turnId, intention: action.intention })), [
+				{ turnId: 'turn-new', intention: undefined },
+				{ turnId: 'turn-new', intention: undefined },
+			]);
+		});
 
 		test('tool_start derives intention from a shell tool description argument', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
@@ -14014,7 +14193,7 @@ Use the attached image as context.
 			assert.ok(isAction(readySignal, ActionType.ChatToolCallReady));
 			if (isAction(readySignal, ActionType.ChatToolCallReady)) {
 				const action = readySignal.action as ChatToolCallReadyAction;
-				assert.strictEqual(action.toolInput, 'npm test');
+				assert.strictEqual(action.toolInput, JSON.stringify({ command: 'npm test' }, null, 2));
 			}
 		});
 
@@ -14170,7 +14349,7 @@ Use the attached image as context.
 			const readySignal = signals[1];
 			assert.ok(isAction(readySignal, ActionType.ChatToolCallReady));
 			if (isAction(readySignal, ActionType.ChatToolCallReady)) {
-				assert.strictEqual((readySignal.action as ChatToolCallReadyAction).toolInput, 'cd /tmp && ls');
+				assert.strictEqual((readySignal.action as ChatToolCallReadyAction).toolInput, JSON.stringify({ command: 'cd /tmp && ls' }, null, 2));
 			}
 		});
 
@@ -14186,7 +14365,7 @@ Use the attached image as context.
 			const readySignal = signals[1];
 			assert.ok(isAction(readySignal, ActionType.ChatToolCallReady));
 			if (isAction(readySignal, ActionType.ChatToolCallReady)) {
-				assert.strictEqual((readySignal.action as ChatToolCallReadyAction).toolInput, 'cd /repo/project && npm test');
+				assert.strictEqual((readySignal.action as ChatToolCallReadyAction).toolInput, JSON.stringify({ command: 'cd /repo/project && npm test' }, null, 2));
 			}
 		});
 
@@ -17111,6 +17290,7 @@ Use the attached image as context.
 						turnId: 'turn-1',
 						toolCallId: 'synth-skill-skill-event',
 						invocationMessage: { markdown: 'Read skill [explore](file:///skills/explore/SKILL.md)' },
+						toolInput: '{"skill":"explore"}',
 						confirmed: ToolCallConfirmationReason.NotNeeded,
 					},
 				},
