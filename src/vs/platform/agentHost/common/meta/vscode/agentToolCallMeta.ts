@@ -23,6 +23,8 @@ interface IHasToolCallMeta {
  */
 export interface IToolCallMeta {
 	readonly [imageGenerationToolMetaKey]?: IImageGenerationToolMetadata;
+	/** Provider-measured execution duration for display, in milliseconds. */
+	readonly 'vscode.toolCallDurationMs'?: number;
 	/** Declares the input schema of a native tool, never a client- or MCP-contributed implementation. */
 	readonly 'vscode.toolInputContract'?: typeof copilotCliToolInputContract;
 	/** Trusted Copilot host snapshot for integrated-browser client tools. Absent for other tools and harnesses. */
@@ -72,6 +74,7 @@ const knownFusionPhaseStatuses: ReadonlySet<string> = new Set(fusionPhaseStatuse
 
 const toolCallMetaKeys = [
 	imageGenerationToolMetaKey,
+	'vscode.toolCallDurationMs',
 	'vscode.toolInputContract',
 	'vscode.copilotSandboxNetworkRestrictions',
 	'agentHost.sandboxBypass', 'toolKind', 'language', 'subagentDescription', 'subagentAgentName', 'subagentChatUri',
@@ -179,6 +182,10 @@ export function readToolCallMeta(source: IHasToolCallMeta): IToolCallMeta {
 		return {};
 	}
 	const result: Mutable<IToolCallMeta> = {};
+	const durationMs = meta['vscode.toolCallDurationMs'];
+	if (typeof durationMs === 'number' && Number.isFinite(durationMs) && durationMs >= 0) {
+		result['vscode.toolCallDurationMs'] = durationMs;
+	}
 	if (meta['vscode.toolInputContract'] === copilotCliToolInputContract) {
 		result['vscode.toolInputContract'] = copilotCliToolInputContract;
 	}

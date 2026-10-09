@@ -63,6 +63,8 @@ Key properties:
 - **Complete on replay**: every recorded model response must be consumed before teardown, so a provider that stops early cannot pass by leaving the remainder of its fixture unused.
 - **Ancillary bootstrap endpoints are stubbed, not recorded** (see [What's stubbed](#whats-stubbed-vs-recorded)) — keeps identity, tokens, and the model catalog out of fixtures.
 - **Isolated persistent state**: each provider suite uses a temporary home and VS Code user-data directory. Provider config roots resolve under that home, with ambient overrides such as `CLAUDE_CONFIG_DIR` and `CODEX_HOME` cleared, so local config, MCP servers, and session state cannot affect the run. Teardown removes the directory after the agent host exits.
+- **Canonical temporary paths**: `createTestDirectory(...)` resolves each allocated directory with native `realpath` before it is used in AHP, prompts, or provider configuration. Windows short/long names and macOS symlink aliases therefore share one filesystem identity. Callers still track the returned directory for cleanup.
+- **No background Git maintenance**: use `initTestGitRepo(...)` for test repositories, including `{ bare: true }` for remotes. It sets a local test identity and disables both automatic garbage collection and auto-maintenance, preventing unrelated background Git processes from retaining Windows handles during teardown. Clones disable both settings on the clone command itself and persist them with `disableTestGitMaintenance(...)` before further Git operations.
 
 ---
 
@@ -130,7 +132,11 @@ The Codex-specific entry point also checks that invalid workspace skills remain 
 
 Native Copilot shell coverage verifies that lossy output compaction preserves a complete original readable through AHP, using output below the generic spill threshold. Codex persistence coverage restores image attachments after a host restart and reads their original bytes through AHP.
 
+Native Copilot OTel concurrency coverage runs 288 real shell-tool calls with telemetry enabled and disabled while four producers send concurrent session events. It asserts successful tool output, bounded event delivery, native tool spans when enabled, and clean runtime shutdown.
+
 Copilot's native `run_dynamic_workflow` and `dynamic_workflows_manage` tools are excluded from Agent Host sessions until their execution and approval behavior is validated. Prompt snapshots pin their absence from the model's tool inventory.
+
+Copilot's native SDK sessions expose the bundled `customize-cloud-agent` and `github-pr-media` skills. Prompt snapshots pin their catalog descriptions and the `skill` tool schema alongside the existing tool inventory.
 
 Workspace lifecycle tests enable each provider's multi-root capability only for their scenario and restore the previous root configuration afterward. They distinguish the session's aggregate folders, a peer's selected subset, and the actual directory used by its tools. Delegation tests verify that the invoking provider finishes its response, the child finishes its local command, and session disposal removes owned additional worktrees.
 
@@ -155,6 +161,8 @@ Detached-worktree include-file tests cover wholly ignored and partially selected
 Fault-injection tests scope the injected response to the provider's model endpoint so asynchronous utility requests cannot consume it. The expected retry and error classification differs by provider; strict replay still verifies the recorded failure, every retry, and the recovery request.
 
 Subagent reopen coverage runs on Windows as well as macOS and Linux for providers that support subagents. It verifies that the parent was reconstructed rather than served from live state, the child transcript contains its sentinel, and the parent transcript does not contain that sentinel.
+
+Peer disposal coverage populates the old chat with a completed host-local turn, disposes it, and creates a fresh client-chosen peer identity. It verifies catalog removal and empty replacement history; normalized-catalog unit tests separately verify that tombstoned identities cannot be reused.
 
 Entries under `KNOWN_ISSUES.md`'s suspected-product-bug section must be understandable without reading the test or knowing Agent Host implementation terminology. Begin with complete sentences that explain the user workflow, the failure, and its likely user impact. Put test titles, protocol actions, provider-specific names, gates, and reproduction commands after that explanation.
 
@@ -286,7 +294,7 @@ with the marker when the upstream fix is adopted.
 
 The native inherited-identity redaction scenario runs this way by default.
 Its expected-failure marker remains accountable in `KNOWN_ISSUES.md`; the
-managed-telemetry no-restart scenario passes normally with runtime `1.0.92-4`.
+managed-telemetry no-restart scenario passes normally with runtime `1.0.94-5`.
 Do not replace an expected-failure marker with a permanent negative assertion.
 
 If a recognized failure prevents later model turns, pass
@@ -428,6 +436,8 @@ The body is pretty-printed rather than reproduced byte-for-byte — the CLI mini
 
 It keeps as much real prompt text as possible. What is elided is the session id, the clock, the environment probe (OS name, tools found on `PATH`), the platform-specific package-manager hint in the Bash tool, the injected repository instructions, and the model catalog — each keeping its surrounding label or wrapper, so a change to the *shape* of those lines still fails. Request metadata outside the body is deliberately out of scope.
 
+The suite pins `gh` discovery with a temporary executable probe on its test-owned `PATH`, so the runtime's GitHub CLI guidance remains asserted independently of worker-installed tools. The probe fails explicitly if invoked: these snapshots test model guidance, not GitHub CLI execution. It is removed after the suite, and no production environment or prompt normalization changes.
+
 Pinning a new model is opt-in. Nothing here is derived from the live `/models` catalog, so a newly released model does not appear until a maintainer adds it to `capiStubs.ts` — and adding it there alone does not fail the suite, because the CLI's inlined model listing is elided. A model is only pinned once someone also adds it to `SNAPSHOT_MODELS` and commits its fixture and baseline.
 
 The repository instructions and the model catalog are the two elisions that are not about run-to-run variance. The CLI injects `.github/copilot-instructions.md` and `AGENTS.md` verbatim, and their content is stable across machines, so it could be pinned. It is not, because the cost would land on the wrong file: appending a single line to `AGENTS.md` would rewrite every baseline here and fail CI for an unrelated docs edit. The `<custom_instruction>` wrappers still assert that instructions are injected, how many, and where they sit in the prompt.
@@ -474,7 +484,7 @@ export function defineMyBehaviorTests(context: IAgentHostE2ETestContext): void {
 
   test('my new behavior', async function () {
     this.timeout(120_000);
-    const workspace = mkdtempSync(join(tmpdir(), 'e2e-mine-'));
+    const workspace = createTestDirectory(join(tmpdir(), 'e2e-mine-'));
     tempDirs.push(workspace);
     const sessionUri = await createRealSession(context.client, config, `e2e-mine-${config.provider}`, createdSessions, URI.file(workspace));
     dispatchTurn(context.client, sessionUri, 'turn-1', 'Do the thing', 1);
@@ -650,6 +660,10 @@ Codex's native plugin marketplace starts a background Git fetch of `openai/plugi
 
 Codex record/replay servers disable `features.plugins` to keep this unrelated marketplace bootstrap out of the tests. Client-provided plugin skills, agents, and MCP servers are configured by the host independently and remain covered by the same tests. Keep cleanup strict and retain its underlying filesystem errors so other teardown failures remain diagnosable.
 
+### Linux suites pass but tmpfs cannot be unmounted
+
+An `umount: target is busy` failure means a process or kernel reference still holds the mount; passing test bodies do not prove that cleanup finished. The wrapper runs a read-only `fuser -vm` probe for at most ten seconds to report holder PIDs, command names, and access types in the task log. Probe errors are reported separately, and the original cleanup failure remains fatal. Correlate the holders with server/provider cleanup logs before changing ownership; do not use lazy unmounts, process-name kills, or retries to conceal a leak.
+
 ### Fixture leaks a username / absolute path / token
 
 Normalization missed something (e.g. a path that `ls` line-wrapped, or a new secret field). Add/extend a placeholder in `capiReplayProxy.ts` (`_normalize` + the `*_RE` redactors), then re-record. Never hand-edit secrets back in.
@@ -672,7 +686,7 @@ Check the logs from both sides of the restart for storage load errors and failed
 
 ### A snapshot intermittently includes `chat/isReadChanged` after `chat/turnComplete`
 
-Turn completion precedes the unread lifecycle action. Wait for `chat/isReadChanged` with `isRead: false` on the same chat and a greater `serverSeq` before taking the snapshot. The turn driver and snapshot scenario runner share this barrier; do not remove the unread action from the snapshot or add a sleep.
+Turn completion precedes the unread lifecycle action. Use `waitForChatTurnComplete(...)` for imperative completion waits: it matches the exact chat and turn, rejects errors, then waits for `chat/isReadChanged` with `isRead: false` and a greater `serverSeq`. Pass the preceding error's sequence when resuming the same turn so an earlier outcome cannot satisfy the wait. Snapshot scenarios use the same helper and exclude outcomes from earlier rounds; the turn driver shares its unread barrier. Do not remove the unread action from the snapshot or add a sleep.
 
 ### A later test fails on unexpected console output after a snapshot mismatch
 

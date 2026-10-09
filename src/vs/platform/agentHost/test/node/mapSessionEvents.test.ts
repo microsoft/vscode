@@ -1110,6 +1110,7 @@ suite('mapSessionEvents — history replay', () => {
 
 	for (const scheme of ['copilot', 'ahp-session']) {
 		test(`restores MCP app data for completed tool calls on ${scheme} resources`, async () => {
+			const structuredContent = { titleId: 'example-title', branding: null };
 			const events: ISessionEvent[] = [
 				{ type: 'user.message', data: { interactionId: 'm1', content: 'call an MCP app tool' } },
 				{
@@ -1149,7 +1150,7 @@ suite('mapSessionEvents — history replay', () => {
 					data: {
 						toolCallId: 'tc-1',
 						success: true,
-						result: { content: '{"login":"octocat"}' },
+						result: { content: 'Opened the accent-color editor.', structuredContent },
 					},
 				},
 			];
@@ -1165,6 +1166,7 @@ suite('mapSessionEvents — history replay', () => {
 			assert.deepStrictEqual({
 				contributor: part.toolCall.contributor,
 				meta: readToolCallMeta(part.toolCall),
+				structuredContent: part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.structuredContent : undefined,
 			}, {
 				contributor: {
 					kind: ToolCallContributorKind.MCP,
@@ -1178,6 +1180,7 @@ suite('mapSessionEvents — history replay', () => {
 						channel: `mcp://${providerId}/${encodeURIComponent(chatUri.toString())}/GitHub`,
 					},
 				},
+				structuredContent,
 			});
 		});
 	}
@@ -1252,9 +1255,10 @@ suite('mapSessionEvents — history replay', () => {
 		const imageGeneration = { requestedModel: { id: 'image-preview', name: 'Image Preview' } };
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', data: { interactionId: 'm1', content: 'Draw a puppy' } },
-			{ type: 'tool.execution_start', data: { toolCallId: 'tc-image', toolName: 'image_generation' } },
+			{ type: 'tool.execution_start', timestamp: '2026-10-08T12:00:00.000Z', data: { toolCallId: 'tc-image', toolName: 'image_generation' } },
 			{
 				type: 'tool.execution_complete',
+				timestamp: '2026-10-08T12:00:43.500Z',
 				data: {
 					toolCallId: 'tc-image',
 					success: true,
@@ -1279,7 +1283,7 @@ suite('mapSessionEvents — history replay', () => {
 				{ type: ToolResultContentType.Text, text: 'Generated an image.' },
 			],
 			title: 'Generated image with Image Preview',
-			meta: { 'vscode.imageGeneration': imageGeneration },
+			meta: { 'vscode.imageGeneration': imageGeneration, 'vscode.toolCallDurationMs': 43_500 },
 		});
 	});
 

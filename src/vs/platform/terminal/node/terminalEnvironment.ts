@@ -15,8 +15,7 @@ import { IShellLaunchConfig, ITerminalEnvironment, ITerminalProcessOptions, Shel
 import { EnvironmentVariableMutatorType } from '../common/environmentVariable.js';
 import { deserializeEnvironmentVariableCollections } from '../common/environmentVariableShared.js';
 import { MergedEnvironmentVariableCollection } from '../common/environmentVariableCollection.js';
-import { chmod, realpathSync, mkdirSync } from 'fs';
-import { promisify } from 'util';
+import { chmod, mkdir, realpath } from 'fs/promises';
 import { isString, SingleOrMany } from '../../../base/common/types.js';
 import { getWindowsBuildNumberAsync } from '../../../base/node/windowsVersion.js';
 
@@ -218,7 +217,7 @@ export async function getShellIntegrationInjection(
 			}
 
 			// Resolve the actual tmp directory so we can set the sticky bit
-			const realTmpDir = realpathSync(os.tmpdir());
+			const realTmpDir = await realpath(os.tmpdir());
 			const zdotdir = path.join(realTmpDir, `${username}-${productService.applicationName}-zsh`);
 
 			// Set directory permissions using octal notation:
@@ -230,22 +229,20 @@ export async function getShellIntegrationInjection(
 			if (!skipStickyBit) {
 				// skip for tests
 				try {
-					const chmodAsync = promisify(chmod);
-					await chmodAsync(zdotdir, 0o1700);
+					await chmod(zdotdir, 0o1700);
 				} catch (err) {
 					if (!err.message.includes('ENOENT')) {
 						logService.error(`Failed to set sticky bit on ${zdotdir}: ${err}`);
 						return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.FailedToSetStickyBit };
 					}
 					try {
-						mkdirSync(zdotdir, { recursive: true });
+						await mkdir(zdotdir, { recursive: true });
 					} catch (err) {
 						logService.error(`Failed to create zdotdir at ${zdotdir}: ${err}`);
 						return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.FailedToCreateTmpDir };
 					}
 					try {
-						const chmodAsync = promisify(chmod);
-						await chmodAsync(zdotdir, 0o1700);
+						await chmod(zdotdir, 0o1700);
 					} catch (err) {
 						logService.error(`Failed to set sticky bit on ${zdotdir}: ${err}`);
 						return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.FailedToSetStickyBit };

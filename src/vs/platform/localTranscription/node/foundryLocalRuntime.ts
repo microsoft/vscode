@@ -10,6 +10,7 @@ import { dirname, join } from '../../../base/common/path.js';
 import { format2 } from '../../../base/common/strings.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { CancellationError } from '../../../base/common/errors.js';
+import { Promises } from '../../../base/node/pfs.js';
 
 /**
  * On-demand provisioning of the Foundry Local native runtime used by on-device
@@ -121,7 +122,7 @@ async function doEnsure(overrideDir: string, platformKey: string, download: IFou
 	// the target-specific payload as well as the marker, so a different arch's
 	// marker never short-circuits this arch's provisioning and a stale/partially
 	// deleted cache is repaired rather than trusted.
-	if (isRuntimeProvisioned(overrideDir, platformKey)) {
+	if (await isRuntimeProvisioned(overrideDir, platformKey)) {
 		return foundryPrebuildDir(overrideDir, platformKey);
 	}
 
@@ -158,7 +159,7 @@ export async function provisionRuntime(overrideDir: string, platformKey: string,
 		await downloadAndExtractTarball(url, staging, token);
 		throwIfCancelled(token);
 
-		if (!hasAllRuntimeFiles(stagingTarget, platformKey)) {
+		if (!await hasAllRuntimeFiles(stagingTarget, platformKey)) {
 			throw new Error(`Foundry Local native runtime download from ${url} completed but expected files are missing.`);
 		}
 
@@ -168,7 +169,7 @@ export async function provisionRuntime(overrideDir: string, platformKey: string,
 	}
 
 	// Verify the published payload — ours or a concurrent winner's — is complete.
-	if (!hasAllRuntimeFiles(targetDir, platformKey)) {
+	if (!await hasAllRuntimeFiles(targetDir, platformKey)) {
 		throw new Error('Foundry Local native runtime is incomplete after provisioning.');
 	}
 
@@ -181,7 +182,7 @@ export async function publishRuntime(stagingTarget: string, overrideDir: string,
 	try {
 		throwIfCancelled(token);
 		const targetDir = foundryPrebuildDir(overrideDir, platformKey);
-		if (hasAllRuntimeFiles(targetDir, platformKey)) {
+		if (await hasAllRuntimeFiles(targetDir, platformKey)) {
 			return;
 		}
 		await fs.promises.rm(targetDir, { recursive: true, force: true });
@@ -281,9 +282,9 @@ function foundryPrebuildDir(overrideDir: string, platformKey: string): string {
  * insufficient (it can belong to a different architecture, or the payload can
  * be partially deleted). Exported for tests.
  */
-export function isRuntimeProvisioned(overrideDir: string, platformKey: string): boolean {
-	return fs.existsSync(foundryMarkerPath(overrideDir, platformKey))
-		&& hasAllRuntimeFiles(foundryPrebuildDir(overrideDir, platformKey), platformKey);
+export async function isRuntimeProvisioned(overrideDir: string, platformKey: string): Promise<boolean> {
+	return await Promises.exists(foundryMarkerPath(overrideDir, platformKey))
+		&& await hasAllRuntimeFiles(foundryPrebuildDir(overrideDir, platformKey), platformKey);
 }
 
 /**
@@ -299,7 +300,7 @@ export async function promoteDir(from: string, to: string): Promise<void> {
 		// A concurrent winner already created `to` (EEXIST/ENOTEMPTY), or the
 		// staging dir is on a different filesystem. If a copy is already present,
 		// accept it; otherwise surface the failure.
-		if (fs.existsSync(to)) {
+		if (await Promises.exists(to)) {
 			return;
 		}
 		throw err;
@@ -385,8 +386,8 @@ export function requiredRuntimeFileNames(platformKey: string): string[] {
 }
 
 /** Whether all required runtime files already exist in `targetDir`. */
-function hasAllRuntimeFiles(targetDir: string, platformKey: string): boolean {
-	return requiredRuntimeFileNames(platformKey).every(name => fs.existsSync(join(targetDir, name)));
+async function hasAllRuntimeFiles(targetDir: string, platformKey: string): Promise<boolean> {
+	return (await Promise.all(requiredRuntimeFileNames(platformKey).map(name => Promises.exists(join(targetDir, name))))).every(Boolean);
 }
 
 /**

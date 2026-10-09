@@ -12,7 +12,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { AgentSession, COPILOT_CLI_AGENT_PROVIDER_ID } from '../../common/agent.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
-import { readToolCallMeta, toToolCallMeta, type IToolCallUiMeta, type ToolKind } from '../../common/meta/agentToolCallMeta.js';
+import { getToolCallDurationMs, readToolCallMeta, toToolCallMeta, type IToolCallUiMeta, type ToolKind } from '../../common/meta/agentToolCallMeta.js';
 import { IFileEditRecord, ISessionDatabase } from '../../common/sessionDataService.js';
 import { MessageAttachmentKind, type MessageAttachment } from '../../common/state/protocol/state.js';
 import { createErrorResponsePart, MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, parseChatUri, type AgentSelection, type ErrorInfo, type Message, type ModelSelection, type ResponsePart, type StringOrMarkdown, type TerminalCommandResult, type ToolCallCompletedState, type ToolResultContent, type ToolResultTerminalContent, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
@@ -140,6 +140,7 @@ export function appendSdkToolResultContent(content: ToolResultContent[], sdkCont
 
 /** Per-tool-call info captured from `tool.execution_start` and reused at `tool.execution_complete`. */
 interface IToolStartInfo {
+	readonly startedAt?: string;
 	readonly toolName: string;
 	readonly displayName: string;
 	readonly invocationMessage: StringOrMarkdown;
@@ -405,6 +406,7 @@ export async function mapSessionEvents(
 			}
 			toolInfoByCallId.set(d.toolCallId, {
 				...info,
+				startedAt: readEventTimestamp(e),
 				hasNativeToolInputContract: options?.clientToolNames !== undefined
 					&& !options.clientToolNames.has(d.toolName) && !info.mcpServerName && !info.mcpToolName,
 			});
@@ -838,7 +840,7 @@ export async function mapSessionEvents(
 					// No active turn to attach this completion to.
 					continue;
 				}
-				const completedPart = makeCompletedToolCallPart(d, info, sessionUriStr, routingSession, providerId, rawSessionId, routingChatUri, storedEdits, subagentInfoByToolCallId.get(d.toolCallId), workingDirectory, resolveAgentName);
+				const completedPart = makeCompletedToolCallPart(d, info, sessionUriStr, routingSession, providerId, rawSessionId, routingChatUri, storedEdits, subagentInfoByToolCallId.get(d.toolCallId), workingDirectory, resolveAgentName, readEventTimestamp(e));
 				builder.responseParts.push(completedPart);
 				// When a parent tool call that spawned a subagent completes,
 				// flush the subagent's accumulated turn.
@@ -1082,6 +1084,7 @@ function makeCompletedToolCallPart(
 	subagent: ISubagentInfo | undefined,
 	workingDirectory: URI | undefined,
 	resolveAgentName: ToolAgentNameResolver,
+	completedAt?: string,
 ): ResponsePart {
 	const imageGeneration = info.toolName === CopilotToolName.ImageGeneration ? getSdkImageGenerationMetadata(d.result) : undefined;
 	const toolOutput = d.error?.message ?? d.result?.content;
@@ -1160,10 +1163,12 @@ function makeCompletedToolCallPart(
 		success: d.success,
 		pastTenseMessage: getPastTenseMessage(info.toolName, info.displayName, info.parameters, d.success, d.success ? toolOutput : undefined, path => resolveToolDisplayPath(path, workingDirectory), resolveAgentName, imageGeneration),
 		content: content.length > 0 ? content : undefined,
+		structuredContent: d.result?.structuredContent as Record<string, unknown> | undefined,
 		error: d.error,
 		confirmed: ToolCallConfirmationReason.NotNeeded,
 		_meta: toToolCallMeta({
 			[imageGenerationToolMetaKey]: imageGeneration,
+			'vscode.toolCallDurationMs': info.toolName === CopilotToolName.ImageGeneration ? getToolCallDurationMs(info.startedAt, completedAt) : undefined,
 			'vscode.toolInputContract': info.hasNativeToolInputContract ? getToolSummaryInputContract(info.toolName) : undefined,
 			toolKind: info.toolKind,
 			language: info.language,

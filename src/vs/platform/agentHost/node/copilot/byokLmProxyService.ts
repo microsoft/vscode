@@ -7,6 +7,7 @@ import type * as http from 'http';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
+import type { IByokLmChatResult } from '../../common/agentHostByokLm.js';
 import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
 import { parseProxyBearer } from '../claude/claudeProxyAuth.js';
 import {
@@ -92,6 +93,15 @@ export interface IByokLmProxyService {
 const PROXY_USER_FACING_NAME = 'ByokLmProxyService';
 const VENDOR_PATH_PREFIX = '/v/';
 const RESPONSES_SUFFIX = '/responses';
+const MAX_PENDING_TOOL_CONTINUATIONS = 256;
+
+type PendingToolCallKind = 'function_call' | 'custom_tool_call';
+
+interface IPendingToolContinuation {
+	readonly scope: string;
+	readonly responseId: string;
+	readonly calls: ReadonlyMap<string, PendingToolCallKind>;
+}
 
 /**
  * Status for a model call that answered a user message with no text or tool
@@ -104,12 +114,8 @@ function emptyResponseMessage(modelId: string): string {
 	return `The model '${modelId}' returned an empty response with no text or tool calls. This can happen when the conversation exceeds the model's context window or output token limit. Try again, start a new session, or choose a different model.`;
 }
 
-/**
- * The BYOK proxy keeps no per-bind mutable state: the active renderer bridge is
- * resolved from {@link IByokLmBridgeRegistry} at request time, and the nonce
- * lives on the runtime owned by {@link LoopbackProxyServer}.
- */
-type ByokLmProxyState = undefined;
+/** Provider state awaiting the SDK's immediate tool-result request. */
+type ByokLmProxyState = Set<IPendingToolContinuation>;
 
 /**
  * Local OpenAI-compatible HTTP proxy that lets the Copilot SDK runtime run
@@ -139,8 +145,7 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 	}
 
 	protected createState(): ByokLmProxyState {
-		// No per-bind state — the bridge is resolved from the registry per request.
-		return undefined;
+		return new Set();
 	}
 
 	async start(): Promise<IByokLmProxyHandle> {
@@ -235,9 +240,22 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 			return;
 		}
 
+		const continuationScope = typeof body?.model === 'string' ? this._continuationScope(sessionId, vendor, body.model) : undefined;
+		const explicitResponseId = body?.previous_response_id;
+		const explicit = continuationScope && explicitResponseId !== undefined
+			? Array.from(runtime.state).find(pending => pending.scope === continuationScope && pending.responseId === explicitResponseId)
+			: undefined;
+		const recovered = continuationScope && explicitResponseId === undefined
+			? this._findToolContinuation(runtime.state, continuationScope, body.input)
+			: undefined;
+		const consumed = recovered?.pending ?? explicit;
+		const bridgeBody = recovered
+			? { ...body, input: recovered.input, previous_response_id: recovered.pending.responseId }
+			: body;
+
 		let bridgeRequest;
 		try {
-			bridgeRequest = responsesRequestToBridge(vendor, body);
+			bridgeRequest = responsesRequestToBridge(vendor, bridgeBody);
 		} catch (err) {
 			const message = err instanceof ResponsesTranslationError ? err.message : String(err);
 			this._writeJsonError(res, 400, message, 'invalid_request_error');
@@ -290,6 +308,12 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 				this._writeJsonError(res, EMPTY_RESPONSE_STATUS, emptyResponseMessage(bridgeRequest.modelId), 'api_error');
 				return;
 			}
+			if (consumed) {
+				runtime.state.delete(consumed);
+			}
+			if (continuationScope) {
+				this._addToolContinuation(runtime.state, continuationScope, result);
+			}
 			if (body.stream === true) {
 				res.writeHead(200, {
 					'Content-Type': 'text/event-stream',
@@ -317,6 +341,101 @@ export class ByokLmProxyService extends LoopbackProxyServer<ByokLmProxyState> im
 		} finally {
 			res.removeListener('close', onClose);
 			runtime.inFlight.delete(entry);
+		}
+	}
+
+	private _continuationScope(sessionId: string, vendor: string, modelId: string): string {
+		return JSON.stringify([sessionId, vendor, modelId]);
+	}
+
+	private _findToolContinuation(state: ByokLmProxyState, scope: string, input: IResponsesRequest['input']): { readonly pending: IPendingToolContinuation; readonly input: IResponsesRequest['input'] } | undefined {
+		let match: { readonly pending: IPendingToolContinuation; readonly input: IResponsesRequest['input'] } | undefined;
+		for (const pending of state) {
+			if (pending.scope !== scope) {
+				continue;
+			}
+			const recoveredInput = this._recoverToolContinuation(input, pending);
+			if (!recoveredInput) {
+				continue;
+			}
+			if (match) {
+				return undefined;
+			}
+			match = { pending, input: recoveredInput };
+		}
+		return match;
+	}
+
+	private _recoverToolContinuation(input: IResponsesRequest['input'], pending: IPendingToolContinuation): IResponsesRequest['input'] | undefined {
+		if (!Array.isArray(input)) {
+			return undefined;
+		}
+
+		let start = input.length;
+		while (start > 0 && this._toolOutputKind((input[start - 1] as { readonly type?: unknown } | null)?.type)) {
+			start--;
+		}
+		if (input.length - start !== pending.calls.size) {
+			return undefined;
+		}
+
+		const outputs = input.slice(start);
+		const seen = new Set<string>();
+		for (const value of outputs) {
+			if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+				return undefined;
+			}
+			const item = value as { readonly type?: unknown; readonly call_id?: unknown; readonly output?: unknown };
+			const kind = this._toolOutputKind(item.type);
+			const callId = item.call_id;
+			if (
+				!kind
+				|| typeof callId !== 'string'
+				|| !callId
+				|| seen.has(callId)
+				|| pending.calls.get(callId) !== kind
+				|| (item.output !== undefined && typeof item.output !== 'string' && !Array.isArray(item.output))
+			) {
+				return undefined;
+			}
+			seen.add(callId);
+		}
+		return outputs;
+	}
+
+	private _toolOutputKind(type: unknown): PendingToolCallKind | undefined {
+		switch (type) {
+			case 'function_call_output':
+				return 'function_call';
+			case 'custom_tool_call_output':
+				return 'custom_tool_call';
+			default:
+				return undefined;
+		}
+	}
+
+	private _addToolContinuation(state: ByokLmProxyState, scope: string, result: IByokLmChatResult): void {
+		if (!result.responseId) {
+			return;
+		}
+		const calls = new Map<string, PendingToolCallKind>();
+		for (const item of result.output) {
+			if (item.type === 'function_call' || item.type === 'custom_tool_call') {
+				if (!item.callId || calls.has(item.callId)) {
+					return;
+				}
+				calls.set(item.callId, item.type);
+			}
+		}
+		if (!calls.size) {
+			return;
+		}
+		state.add({ scope, responseId: result.responseId, calls });
+		if (state.size > MAX_PENDING_TOOL_CONTINUATIONS) {
+			const oldest = state.values().next().value;
+			if (oldest) {
+				state.delete(oldest);
+			}
 		}
 	}
 

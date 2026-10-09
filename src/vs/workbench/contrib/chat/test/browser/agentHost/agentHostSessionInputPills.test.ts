@@ -10,6 +10,7 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, ImmortalReference, toDisposable, type IReference } from '../../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { dirname } from '../../../../../../base/common/resources.js';
+import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -33,8 +34,9 @@ import { CommandsRegistry, ICommandService } from '../../../../../../platform/co
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { IGitHubClient, IGitHubService } from '../../../../../../platform/github/common/githubService.js';
+import { GitHubIssue } from '../../../../../../platform/github/common/githubQueryService.js';
 import { IWorkbenchGitHubService } from '../../../../../services/github/common/githubService.js';
-import { PullRequestSnapshot } from '../../../../../../platform/github/common/githubPullRequestService.js';
+import { FragmentState, PullRequestSnapshot } from '../../../../../../platform/github/common/githubPullRequestService.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
@@ -136,6 +138,7 @@ suite('AgentHostSessionInputPills', () => {
 	const createRichGitHubService = (disposed: string[], options?: {
 		readonly credentialState?: { fail: boolean; calls: number };
 		readonly pullRequestSnapshots?: Map<number, ReturnType<typeof observableValue<PullRequestSnapshot>>>;
+		readonly issueStates?: Map<number, ReturnType<typeof observableValue<FragmentState<GitHubIssue>>>>;
 		readonly leases?: { acquired: number; released: number };
 	}) => {
 		const client = upcastPartial<IGitHubClient>({
@@ -157,31 +160,32 @@ suite('AgentHostSessionInputPills', () => {
 				},
 			}),
 			query: upcastPartial<IGitHubClient['query']>({
-				subscribeIssue: ref => upcastPartial({
-					resource: {
-						ref,
-						state: constObservable({
-							status: 'ready',
-							complete: true,
-							value: {
-								number: ref.number,
-								title: 'Live issue title',
-								body: 'Live issue body',
-								url: `https://github.com/${ref.owner}/${ref.repo}/issues/${ref.number}`,
-								state: 'closed',
-								stateReason: 'completed',
-								author: { login: 'issue-author' },
-								assignees: [],
-								labels: [],
-								createdAt: '2026-09-01T12:00:00Z',
-								updatedAt: '2026-09-02T00:00:00Z',
-							},
-						}),
-					},
-					update: () => { },
-					refresh: async () => { },
-					dispose: () => disposed.push(`issue:${ref.number}`),
-				}),
+				subscribeIssue: ref => {
+					const state = observableValue<FragmentState<GitHubIssue>>(`issue.${ref.number}`, {
+						status: 'ready',
+						complete: true,
+						value: {
+							number: ref.number,
+							title: 'Live issue title',
+							body: 'Live issue body',
+							url: `https://github.com/${ref.owner}/${ref.repo}/issues/${ref.number}`,
+							state: 'closed',
+							stateReason: 'completed',
+							author: { login: 'issue-author' },
+							assignees: [],
+							labels: [],
+							createdAt: '2026-09-01T12:00:00Z',
+							updatedAt: '2026-09-02T00:00:00Z',
+						},
+					});
+					options?.issueStates?.set(ref.number, state);
+					return upcastPartial({
+						resource: { ref, state },
+						update: () => { },
+						refresh: async () => { },
+						dispose: () => disposed.push(`issue:${ref.number}`),
+					});
+				},
 			}),
 			pullRequests: upcastPartial<IGitHubClient['pullRequests']>({
 				subscribePullRequest: (ref): ReturnType<IGitHubClient['pullRequests']['subscribePullRequest']> => {
@@ -299,11 +303,14 @@ suite('AgentHostSessionInputPills', () => {
 				return undefined;
 			},
 		}));
-		let dropdownItems: readonly { readonly label: string | undefined; readonly description: string | undefined; readonly hover: IActionListItem<object>['hover']; select(): void }[] = [];
+		let dropdownItems: readonly { readonly label: string | undefined; readonly badge: string | undefined; readonly leading: boolean | undefined; readonly description: string | undefined; readonly icon: ThemeIcon | undefined; readonly hover: IActionListItem<object>['hover']; select(): void }[] = [];
 		let hideDropdown = () => { };
 		const toDropdownItems = <T>(items: readonly IActionListItem<T>[], delegate?: IActionListDelegate<T>) => items.map(item => ({
 			label: item.label,
+			badge: item.badge,
+			leading: item.badgeBeforeLabel,
 			description: item.ariaDescription,
+			icon: item.group?.icon,
 			hover: item.hover,
 			select: () => {
 				if (item.item) {
@@ -814,7 +821,82 @@ suite('AgentHostSessionInputPills', () => {
 		});
 	});
 
-	test('resolves rich GitHub reference metadata only after hover intent', async () => {
+	test('uses the same ID-first rows in editor PR, issue, and reference collections', async () => {
+		const artifacts: ISessionArtifact[] = [
+			...[2, 3].map(number => ({
+				id: `pr-${number}`, type: SessionArtifactType.PullRequest, label: 'Recorded PR', isArtifact: true, isGitHub: true,
+				link: `https://github.com/microsoft/vscode/pull/${number}`,
+			})),
+			...[4, 5].map(number => ({
+				id: `issue-${number}`, type: SessionArtifactType.Issue, label: 'Recorded issue', isArtifact: true, isGitHub: true,
+				link: `https://github.com/microsoft/vscode/issues/${number}`,
+			})),
+			{ id: 'pr-reference', type: SessionArtifactType.PullRequest, label: 'Recorded PR', isArtifact: false, isGitHub: true, link: 'https://github.com/microsoft/vscode/pull/2' },
+			{ id: 'issue-reference', type: SessionArtifactType.Issue, label: 'Recorded issue', isArtifact: false, isGitHub: true, link: 'https://github.com/microsoft/vscode/issues/4' },
+		];
+		const activity = createActivityPills(upcastPartial<SessionState>({
+			defaultChat: 'vendor:/sessions/42/chats/main', chats: [],
+			_meta: withSessionArtifacts(undefined, artifacts),
+		}), undefined, undefined, 'local', createRichGitHubService([]));
+		await timeout(0);
+		const row = (entry: ReturnType<typeof activity.dropdownItems>[number]) => ({ label: entry.label, badge: entry.badge, leading: entry.leading });
+		const pr = activity.dropdown('Pull Requests').find(entry => entry.badge === '#2')!;
+		activity.instantiationService.get(IActionWidgetService).hide();
+		const issue = activity.dropdown('Issues').find(entry => entry.badge === '#4')!;
+		activity.instantiationService.get(IActionWidgetService).hide();
+		activity.dropdown('References');
+		await timeout(0);
+		const references = activity.dropdownItems();
+		assert.deepStrictEqual({
+			pullRequest: [pr, references.find(entry => entry.badge === '#2')!].map(row),
+			issue: [issue, references.find(entry => entry.badge === '#4')!].map(row),
+		}, {
+			pullRequest: Array.from({ length: 2 }, () => ({ label: 'Live pull request 2', badge: '#2', leading: true })),
+			issue: Array.from({ length: 2 }, () => ({ label: 'Live issue title', badge: '#4', leading: true })),
+		});
+	});
+
+	test('updates a dedicated editor issue hover status in place while keeping its title and focus', async () => {
+		const issueStates = new Map<number, ReturnType<typeof observableValue<FragmentState<GitHubIssue>>>>();
+		const activity = createActivityPills(upcastPartial<SessionState>({
+			defaultChat: 'vendor:/sessions/42/chats/main', chats: [],
+			_meta: withSessionArtifacts(undefined, [4, 5].map(number => ({
+				id: `issue-${number}`, type: SessionArtifactType.Issue, label: 'Recorded issue', isArtifact: true, isGitHub: true,
+				link: `https://github.com/microsoft/vscode/issues/${number}`,
+			}))),
+		}), undefined, undefined, 'local', createRichGitHubService([], { issueStates }));
+		await timeout(0);
+		const state = issueStates.get(4);
+		assert.ok(state?.get().value);
+		state.set({ ...state.get(), value: { ...state.get().value!, state: 'open', stateReason: undefined } }, undefined);
+		await timeout(0);
+		const first = activity.dropdown('Issues').find(item => item.badge === '#4')!.hover!;
+		assert.ok(typeof first.content === 'function');
+		const element = first.content();
+		assert.ok(element instanceof HTMLElement);
+		document.body.appendChild(element);
+		store.add(toDisposable(() => element.remove()));
+		const control = first.getTabbableElements?.()[1]!;
+		control.focus();
+		state.set({
+			...state.get(), value: { ...state.get().value!, title: 'Renamed issue', state: 'closed', stateReason: 'completed' },
+		}, undefined);
+		await timeout(0);
+		const updated = activity.dropdownItems().find(item => item.badge === '#4')!.hover!;
+		assert.deepStrictEqual({
+			sameDescriptor: first === updated,
+			sameControl: updated.getTabbableElements?.()[1] === control,
+			focusPreserved: document.activeElement === control,
+			title: element.querySelector('.sessions-issue-hover-title')?.getAttribute('title'),
+			status: element.querySelector('.sessions-issue-hover-status-label')?.textContent,
+			statusKind: element.querySelector<HTMLElement>('.sessions-issue-hover-status')?.dataset.state,
+		}, {
+			sameDescriptor: true, sameControl: true, focusPreserved: true,
+			title: 'Live issue title', status: 'Closed', statusKind: 'closed',
+		});
+	});
+
+	test('promotes rich GitHub reference details on hover intent using the existing client lease', async () => {
 		const credentialState = { fail: false, calls: 0 };
 		const activity = createActivityPills({
 			defaultChat: 'vendor:/sessions/42/chats/main',
@@ -831,7 +913,7 @@ suite('AgentHostSessionInputPills', () => {
 		await timeout(0);
 
 		const beforeHover = credentialState.calls;
-		const entry = activity.dropdown('Reference').find(item => item.label?.includes('pull request #2'));
+		const entry = activity.dropdown('Reference').find(item => item.label === 'Related pull request');
 		const content = entry?.hover?.content;
 		const hoverElement = typeof content === 'function' ? content() : undefined;
 		await timeout(0);
@@ -848,16 +930,48 @@ suite('AgentHostSessionInputPills', () => {
 			labels: activity.labels(),
 		}, {
 			beforeHover: 0,
-			afterHover: 2,
+			afterHover: 1,
 			resolvedLabel: 'Live pull request 2',
 			preservedHover: true,
-			className: 'sessions-pr-hover compact',
+			className: 'chat-pill-hover-content sessions-pr-hover compact',
 			text: 'microsoft/vscodeon Sep 1Live pull request 2 #2OpenLive pull request bodymain←feature@pr-author opened this pull request',
 			labels: ['1 Reference'],
 		});
 	});
 
-	test('uses reference URLs as labels when GitHub metadata fails', async () => {
+	test('updates cold reference status icons when metadata resolves and keeps them on reopening', async () => {
+		const activity = createActivityPills(upcastPartial<SessionState>({
+			defaultChat: 'vendor:/sessions/42/chats/main', chats: [],
+			_meta: withSessionArtifacts(undefined, [
+				{ id: 'pr', type: SessionArtifactType.PullRequest, label: 'Pull Request', link: 'https://github.com/microsoft/vscode/pull/335387', isGitHub: true, isArtifact: false },
+				{ id: 'issue', type: SessionArtifactType.Issue, label: 'Issue', link: 'https://github.com/microsoft/vscode/issues/4', isGitHub: true, isArtifact: false },
+			]),
+		}), undefined, undefined, 'local', createRichGitHubService([]));
+		const rows = () => activity.dropdownItems().filter(entry => entry.badge).map(entry => ({
+			badge: entry.badge, label: entry.label, icon: entry.icon?.id, color: entry.icon?.color?.id,
+		}));
+		activity.dropdown('References');
+		const cold = rows();
+		await timeout(0);
+		const resolved = rows();
+		activity.instantiationService.get(IActionWidgetService).hide();
+		activity.dropdown('References');
+		const reopened = rows();
+		const expected = [
+			{ badge: '#335387', label: 'Live pull request 335387', icon: 'git-pull-request-done', color: 'charts.purple' },
+			{ badge: '#4', label: 'Live issue title', icon: 'issue-closed', color: 'charts.purple' },
+		];
+		assert.deepStrictEqual({ cold, resolved, reopened }, {
+			cold: [
+				{ badge: '#335387', label: 'Pull Request', icon: 'git-pull-request', color: undefined },
+				{ badge: '#4', label: 'Issue', icon: 'issues', color: undefined },
+			],
+			resolved: expected,
+			reopened: expected,
+		});
+	});
+
+	test('keeps recorded reference labels when GitHub metadata fails', async () => {
 		const links = ['https://github.com/microsoft/vscode/pull/1', 'https://github.com/microsoft/vscode/issues/2'];
 		const activity = createActivityPills(upcastPartial<SessionState>({
 			defaultChat: 'vendor:/sessions/42/chats/main',
@@ -869,9 +983,31 @@ suite('AgentHostSessionInputPills', () => {
 		}), undefined, undefined, 'local', createRichGitHubService([], { credentialState: { fail: true, calls: 0 } }));
 		activity.dropdown('Reference');
 		await timeout(0);
-		assert.deepStrictEqual(activity.dropdownItems().filter(item => item.label?.startsWith('https://')).map(item => ({
+		assert.deepStrictEqual(activity.dropdownItems().filter(item => item.label === 'Related item').map(item => ({
 			label: item.label, description: item.description,
-		})), links.map(label => ({ label, description: undefined })));
+		})), links.map(description => ({ label: 'Related item', description })));
+	});
+
+	test('warms new reference titles before dropdown or hover intent', async () => {
+		const credentialState = { fail: false, calls: 0 };
+		const reference = (id: string): ISessionArtifact => ({
+			id, type: SessionArtifactType.PullRequest, label: `Recorded PR ${id}`,
+			link: `https://github.com/microsoft/vscode/pull/${id}`, isGitHub: true, isArtifact: false,
+		});
+		const session = upcastPartial<SessionState>({
+			defaultChat: 'vendor:/sessions/42/chats/main', chats: [],
+			_meta: withSessionArtifacts(undefined, [reference('1')]),
+		});
+		const activity = createActivityPills(session, undefined, undefined, 'local', createRichGitHubService([], { credentialState }));
+		await timeout(0);
+		const initial = credentialState.calls;
+		activity.connection.setState(StateComponents.Session, { ...session, _meta: withSessionArtifacts(undefined, [reference('1'), reference('2')]) });
+		await timeout(0);
+		const warmed = credentialState.calls;
+		const entries = activity.dropdown('References');
+		assert.deepStrictEqual({ initial, warmed, labels: entries.filter(entry => entry.label?.includes('PR') || entry.label?.includes('pull request')).map(entry => entry.label) }, {
+			initial: 0, warmed: 1, labels: ['Live pull request 2', 'Recorded PR 1'],
+		});
 	});
 
 	test('lists each pill newest first, within the section it belongs to', () => {
@@ -1172,7 +1308,7 @@ suite('AgentHostSessionInputPills', () => {
 					'Live pull request 332982',
 					'Live pull request 335387',
 				],
-				hoverClassName: 'sessions-pr-hover compact',
+				hoverClassName: 'chat-pill-hover-content sessions-pr-hover compact',
 				hoverText: 'microsoft/vscodeon Sep 1Live pull request 332982 #332982OpenLive pull request bodymain←feature@pr-author opened this pull request',
 				actionLabels: [
 					'Copy Pull Request URL',
@@ -1182,7 +1318,7 @@ suite('AgentHostSessionInputPills', () => {
 				],
 			},
 			issue: {
-				label: 'Live issue title',
+				label: '#335383',
 				ariaLabel: 'Open Issue #335383: Live issue title',
 				ariaDescription: `Closed. ${issueUrl}`,
 				closed: true,
@@ -1248,7 +1384,8 @@ suite('AgentHostSessionInputPills', () => {
 			},
 		}, undefined);
 		await timeout(0);
-		const updatedHover = activity.dropdownItems().find(item => item.label === 'Updated PR title')!.hover!;
+		const updatedItem = activity.dropdownItems().find(item => item.badge === '#332982')!;
+		const updatedHover = updatedItem.hover!;
 		const updatedContent = updatedHover.content;
 		assert.ok(typeof updatedContent === 'function');
 		const whileOpen = {
@@ -1263,10 +1400,12 @@ suite('AgentHostSessionInputPills', () => {
 		assert.ok(reopened instanceof HTMLElement);
 
 		assert.deepStrictEqual({
+			rowLabelWhileOpen: updatedItem.label,
 			whileOpen,
 			reopenedTitle: reopened.querySelector('.sessions-pr-hover-title')?.getAttribute('title'),
 			reopenedHead: reopened.querySelector('.sessions-pr-hover-branches')?.textContent,
 		}, {
+			rowLabelWhileOpen: 'Live pull request 332982',
 			whileOpen: {
 				sameRoot: true, sameControl: true, focusPreserved: true,
 				title: 'Live pull request 332982', head: 'main←feature',
