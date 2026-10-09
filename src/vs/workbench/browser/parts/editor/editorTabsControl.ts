@@ -11,7 +11,7 @@ import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { ActionsOrientation, IActionViewItem, prepareActions } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { IAction, ActionRunner, toAction } from '../../../../base/common/actions.js';
 import { ResolvedKeybinding } from '../../../../base/common/keybindings.js';
-import { DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { createActionViewItem, getFlatActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService, IContextKey } from '../../../../platform/contextkey/common/contextkey.js';
@@ -221,7 +221,6 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	protected createAddTabControl(parent: HTMLElement, menuId: MenuId, before?: HTMLElement): HTMLElement {
 		const container = $('.tabs-bar-add-tab');
 		parent.insertBefore(container, before ?? null);
-		this._register(toDisposable(() => this.parent.classList.remove('has-visible-add-tab-control')));
 
 		const menu = this._register(this.menuService.createMenu(menuId, this.contextKeyService));
 		const getActions = () => getFlatActionBarActions(menu.getActions({ shouldForwardArgs: true }));
@@ -241,24 +240,13 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		}));
 		toolbar.setActions([addTabAction]);
 
-		let initialized = false;
 		const updateVisibility = () => {
-			const visible = getActions().length > 0;
-			container.classList.toggle('hidden', !visible);
-			this.parent.classList.toggle('has-visible-add-tab-control', visible);
-			if (initialized) {
-				this.onDidChangeAddTabControlVisibility();
-			}
+			container.classList.toggle('hidden', getActions().length === 0);
 		};
 		updateVisibility();
-		initialized = true;
 		this._register(menu.onDidChange(updateVisibility));
 
 		return container;
-	}
-
-	protected onDidChangeAddTabControlVisibility(): void {
-		this.groupView.relayout();
 	}
 
 	private updateEditorLayoutActionsSeparator(): void {
