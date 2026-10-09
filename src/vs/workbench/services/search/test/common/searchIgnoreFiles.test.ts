@@ -10,16 +10,20 @@ import { getSearchIgnoreFileNames } from '../../common/searchIgnoreFiles.js';
 suite('SearchIgnoreFiles', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('includes native dot-ignore defaults without extension contributions', () => {
+		assert.deepStrictEqual(getSearchIgnoreFileNames([]), ['.ignore', '.rgignore']);
+	});
+
 	test('combines defaults and extension contributions', () => {
 		assert.deepStrictEqual(getSearchIgnoreFileNames([
 			['.gitignore', '.customignore'],
 			['.customignore', '.hgignore', '.ignore']
-		]), ['.gitignore', '.customignore', '.hgignore', '.ignore']);
+		]), ['.gitignore', '.customignore', '.hgignore', '.ignore', '.rgignore']);
 	});
 
 	test('ignores invalid file names', () => {
 		assert.deepStrictEqual(getSearchIgnoreFileNames([
 			['', '../.ignore', 'nested/.ignore', 'nested\\.ignore', '.webignore']
-		]), ['.webignore', '.ignore']);
+		]), ['.webignore', '.ignore', '.rgignore']);
 	});
 });

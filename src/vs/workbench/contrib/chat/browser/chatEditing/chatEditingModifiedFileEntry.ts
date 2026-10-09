@@ -26,7 +26,7 @@ import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { ChatUserAction, IChatService } from '../../common/chatService/chatService.js';
 import { isAgentHostSessionResource } from '../../common/chatSessionsService.js';
 import { ChatEditKind, IModifiedEntryTelemetryInfo, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, ISnapshotEntry, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
-import { IChatResponseModel } from '../../common/model/chatModel.js';
+import { IChatEditMetadata, IChatResponseModel } from '../../common/model/chatModel.js';
 
 class AutoAcceptControl {
 	constructor(
@@ -364,7 +364,7 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 
 	protected abstract _createUndoRedoElement(response: IChatResponseModel): IUndoRedoElement | undefined;
 
-	abstract acceptAgentEdits(uri: URI, edits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel | undefined): Promise<void>;
+	abstract acceptAgentEdits(uri: URI, edits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel | undefined, metadata: IChatEditMetadata): Promise<void>;
 
 	async acceptStreamingEditsEnd() {
 		this._resetEditsState(undefined);

@@ -96,7 +96,6 @@ function can_open_file() {
 # Preserve system variables that get modified below
 copy_env_variable XDG_CONFIG_DIRS
 copy_env_variable XDG_DATA_DIRS
-copy_env_variable XDG_DATA_HOME
 copy_env_variable LOCPATH
 copy_env_variable GIO_MODULE_DIR
 copy_env_variable GSETTINGS_SCHEMA_DIR
@@ -117,12 +116,11 @@ prepend_dir XDG_DATA_DIRS "$SNAP/data-dir"
 prepend_dir XDG_DATA_DIRS "$SNAP_USER_DATA"
 
 # Set XDG_DATA_HOME to local path
-export XDG_DATA_HOME="$SNAP_USER_DATA/.local/share"
-ensure_dir_exists "$XDG_DATA_HOME"
+ensure_dir_exists "$SNAP_USER_DATA/.local/share"
 
 # Workaround for GLib < 2.53.2 not searching for schemas in $XDG_DATA_HOME:
 #   https://bugzilla.gnome.org/show_bug.cgi?id=741335
-prepend_dir XDG_DATA_DIRS "$XDG_DATA_HOME"
+prepend_dir XDG_DATA_DIRS "$SNAP_USER_DATA/.local/share"
 
 # Set cache folder to local path
 if [[ -d "$SNAP_USER_DATA/.cache" && ! -e "$SNAP_USER_COMMON/.cache" ]]; then
@@ -172,19 +170,11 @@ IFS=':' read -r -a data_dirs_array <<< "$XDG_DATA_DIRS"
 export FONTCONFIG_PATH="/etc/fonts"
 export FONTCONFIG_FILE="/etc/fonts/fonts.conf"
 
-if [ "$needs_update" = true ]; then
-  rm -rf "$XDG_DATA_HOME"/fonts
-
-  if [ -d "$SNAP_REAL_HOME/.local/share/fonts" ]; then
-    ln -s "$SNAP_REAL_HOME/.local/share/fonts" "$XDG_DATA_HOME/fonts"
-  fi
-fi
-
 # Build mime.cache needed for gtk and qt icon
 # TODO(deepak1556): Re-enable this once we move to core22
 # Refs https://github.com/microsoft/vscode/issues/230454#issuecomment-2418352959
 if [ "$needs_update" = true ]; then
-  rm -rf "$XDG_DATA_HOME/mime"
+  rm -rf "$SNAP_USER_DATA/.local/share/mime"
 #  if [ ! -f "$SNAP/usr/share/mime/mime.cache" ]; then
 #    if command -v $SNAP/usr/bin/update-mime-database >/dev/null; then
 #      cp --preserve=timestamps -dR "$SNAP/usr/share/mime" "$XDG_DATA_HOME"

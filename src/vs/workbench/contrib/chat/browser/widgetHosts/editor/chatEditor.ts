@@ -33,9 +33,11 @@ import { IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatModeKind, IResolvedNewChatSessionType, SessionTypeSelectionReason } from '../../../common/constants.js';
 import { clearChatEditor } from '../../actions/chatClear.js';
+import { AgentHostSessionInputPills } from '../../agentSessions/agentHost/agentHostSessionInputPills.js';
 import { ChatEditorInput } from './chatEditorInput.js';
 import { ChatWidget } from '../../widget/chatWidget.js';
 import { IChatWidgetViewState, setModelPreservingInputTypedWhileLoading } from '../../chat.js';
+import { getChatSessionType } from '../../../common/model/chatUri.js';
 
 export interface IChatEditorOptions extends IEditorOptions {
 	/**
@@ -130,6 +132,7 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 					enableImplicitContext: true,
 					enableWorkingSet: 'explicit',
 					supportsChangingModes: true,
+					enableSessionStateIndicator: true,
 				},
 				{
 					listForeground: editorForeground,
@@ -150,6 +153,7 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 			}
 		}));
 		this.widget.render(parent);
+		this._register(scopedInstantiationService.createInstance(AgentHostSessionInputPills, this.widget, 'auto'));
 		this.widget.setVisible(true);
 	}
 
@@ -229,7 +233,6 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 		const inputBeforeLoad = this.widget?.getInput() ?? '';
 
 		// Show loading indicator early for non-local sessions to prevent layout shifts
-		let isContributedChatSession = false;
 		const chatSessionType = input.getSessionType();
 		if (chatSessionType !== localChatSessionType) {
 			const loadingMessage = nls.localize('chatEditor.loadingSession', "Loading...");
@@ -246,30 +249,26 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 			throw new Error('ChatEditor lifecycle issue: no editor widget');
 		}
 
-		if (chatSessionType !== localChatSessionType) {
-			try {
-				await raceCancellationError(this.chatSessionsService.canResolveChatSession(chatSessionType), token);
-				const contributions = this.chatSessionsService.getAllChatSessionContributions();
-				const contribution = contributions.find(c => c.type === chatSessionType);
+		try {
+			const editorModel = await raceCancellationError(input.resolve(), token);
+
+			if (!editorModel) {
+				throw new Error(`Failed to get model for chat editor. resource: ${input.sessionResource}`);
+			}
+
+			const resolvedType = getChatSessionType(editorModel.model.sessionResource);
+			let isContributedChatSession = false;
+			if (resolvedType !== localChatSessionType) {
+				await raceCancellationError(this.chatSessionsService.canResolveChatSession(resolvedType), token);
+				const contribution = this.chatSessionsService.getChatSessionContribution(resolvedType);
 				if (contribution) {
 					this.widget.lockToCodingAgent(contribution.name, contribution.displayName, contribution.type, contribution.agentHostProviderId);
 					isContributedChatSession = true;
 				} else {
 					this.widget.unlockFromCodingAgent();
 				}
-			} catch (error) {
-				this.hideLoadingInChatWidget();
-				throw error;
-			}
-		} else {
-			this.widget.unlockFromCodingAgent();
-		}
-
-		try {
-			const editorModel = await raceCancellationError(input.resolve(), token);
-
-			if (!editorModel) {
-				throw new Error(`Failed to get model for chat editor. resource: ${input.sessionResource}`);
+			} else {
+				this.widget.unlockFromCodingAgent();
 			}
 
 			// Hide loading state before updating model

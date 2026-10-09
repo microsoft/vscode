@@ -145,12 +145,12 @@ function generatePatchedEnv(env: any, modulePath: string, hasExecPath: boolean):
 	const newEnv = Object.assign({}, env);
 
 	if (!hasExecPath) {
-		newEnv['ELECTRON_RUN_AS_NODE'] = '1';
+		newEnv.ELECTRON_RUN_AS_NODE = '1';
 	}
-	newEnv['NODE_PATH'] = path.join(modulePath, '..', '..', '..');
+	newEnv.NODE_PATH = path.join(modulePath, '..', '..', '..');
 
 	// Ensure we always have a PATH set
-	newEnv['PATH'] = newEnv['PATH'] || process.env.PATH;
+	newEnv.PATH = newEnv.PATH || process.env.PATH;
 
 	return newEnv;
 }
@@ -351,6 +351,7 @@ export class ElectronServiceProcessFactory implements TsServerProcessFactory {
 	): TsServerProcess {
 		let tsServerPath = version.tsServerPath;
 
+		// eslint-disable-next-line local/code-no-sync-fs -- TODO: validate the server path before the synchronous process factory runs; spawn and bundled-version fallback currently depend on this immediate result.
 		if (!fs.existsSync(tsServerPath)) {
 			vscode.window.showWarningMessage(vscode.l10n.t("The path {0} doesn\'t point to a valid tsserver install. Falling back to bundled TypeScript version.", tsServerPath));
 			versionManager.reset();

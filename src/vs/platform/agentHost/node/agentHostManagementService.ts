@@ -6,8 +6,10 @@
 import { Promises, raceTimeout } from '../../../base/common/async.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
-import { IAgentCreateChatRequestOptions, IAgentCreateSessionConfig } from '../common/agent.js';
-import { IAgentHostInspectInfo, IAgentHostManagedSettingsDiagnostics, IAgentHostManagementService, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostSocketInfo, IAgentService, IConnectionTrackerService, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../common/agentService.js';
+import { type AgentProvider, IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, type IAgentCustomizationInstallation, type IAgentCustomizationInstallationRequest, type IAgentCustomizationInstallationReview, type IAgentCustomizationMarketplaceSearchRequest, type IAgentCustomizationMarketplaceSearchResult, type IAgentPluginInstallRequest, type IAgentPluginUninstallRequest } from '../common/agent.js';
+import { IAgentHostInspectInfo, IAgentHostManagedSettingsDiagnostics, IAgentHostManagementService, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostSocketInfo, IAgentService, IConnectionTrackerService, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, type IMissionControlOptions, type IMissionControlCredentialSealingRequest } from '../common/agentService.js';
+import { sealMissionControlCredential } from './missionControl/missionControlAuthentication.js';
+import { MissionControlEnvironment } from './missionControl/missionControlEnvironment.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 
 const SHUTDOWN_DRAIN_TIMEOUT_MS = 1000;
@@ -16,6 +18,7 @@ const SHUTDOWN_FLUSH_TIMEOUT_MS = 2500;
 
 export class AgentHostManagementService implements IAgentHostManagementService {
 	declare readonly _serviceBrand: undefined;
+	private _missionControl: MissionControlEnvironment | undefined;
 
 	private _shutdownPromise: Promise<void> | undefined;
 	private _shuttingDown = false;
@@ -29,12 +32,125 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		@ILogService private readonly _logService: ILogService,
 	) { }
 
+	setMissionControl(service: MissionControlEnvironment | undefined): void {
+		this._missionControl = service;
+	}
+
+	configureMissionControl(options: IMissionControlOptions | undefined, withdrawingAccountId?: string): Promise<void> {
+		if (!this._missionControl) {
+			throw new Error('Mission Control is unavailable in this Agent Host');
+		}
+		return this._missionControl.configure(options, withdrawingAccountId);
+	}
+
+	sealMissionControlCredential(request: IMissionControlCredentialSealingRequest): Promise<string> {
+		if (!this._missionControl || this._shuttingDown) {
+			throw new Error('Local Mission Control sealing is unavailable');
+		}
+		return sealMissionControlCredential(request);
+	}
+
+	async getMissionControlEnvironmentId(): Promise<string | undefined> {
+		return this._missionControl?.environmentId;
+	}
+
 	createSessionWithExtensions(config: IAgentCreateSessionConfig): Promise<URI> {
 		return this._runMutation(() => this._agentService.createSession(config));
 	}
 
 	createChatWithExtensions(session: URI, chat: URI, options: IAgentCreateChatRequestOptions): Promise<void> {
 		return this._runMutation(() => this._agentService.createChat(session, chat, options));
+	}
+
+	createDetachedWorktree(session: URI, prompt: string): Promise<{ handle: string; worktree: URI }> {
+		if (!this._agentService.createDetachedWorktree) {
+			throw new Error('Agent Host detached worktrees are unavailable');
+		}
+		return this._runMutation(() => this._agentService.createDetachedWorktree!(session, prompt));
+	}
+
+	setDetachedWorktreeArchived(handle: string, archived: boolean): Promise<void> {
+		if (!this._agentService.setDetachedWorktreeArchived) {
+			throw new Error('Agent Host detached worktrees are unavailable');
+		}
+		return this._runMutation(() => this._agentService.setDetachedWorktreeArchived!(handle, archived));
+	}
+
+	claimDetachedWorktree(handle: string): Promise<void> {
+		if (!this._agentService.claimDetachedWorktree) {
+			throw new Error('Agent Host detached worktrees are unavailable');
+		}
+		return this._runMutation(() => this._agentService.claimDetachedWorktree!(handle));
+	}
+
+	deleteDetachedWorktree(handle: string): Promise<void> {
+		if (!this._agentService.deleteDetachedWorktree) {
+			throw new Error('Agent Host detached worktrees are unavailable');
+		}
+		return this._runMutation(() => this._agentService.deleteDetachedWorktree!(handle));
+	}
+
+	reconcileDetachedWorktrees(scope: string, activeHandles: readonly string[]): Promise<void> {
+		if (!this._agentService.reconcileDetachedWorktrees) {
+			throw new Error('Agent Host detached worktrees are unavailable');
+		}
+		return this._runMutation(() => this._agentService.reconcileDetachedWorktrees!(scope, activeHandles));
+	}
+
+	refreshCopilotConnectorSessions(): Promise<void> {
+		if (!this._agentService.refreshCopilotConnectorSessions) {
+			throw new Error('Copilot Connector session refresh is unavailable');
+		}
+		return this._runMutation(() => this._agentService.refreshCopilotConnectorSessions!());
+	}
+
+	uninstallPlugin(provider: AgentProvider, request: IAgentPluginUninstallRequest): Promise<void> {
+		if (!this._agentService.uninstallPlugin) {
+			throw new Error('Agent Host plugin uninstall is unavailable');
+		}
+		return this._runMutation(() => this._agentService.uninstallPlugin!(provider, request));
+	}
+
+	installPlugin(provider: AgentProvider, request: IAgentPluginInstallRequest): Promise<void> {
+		if (!this._agentService.installPlugin) {
+			throw new Error('Agent Host plugin install is unavailable');
+		}
+		return this._runMutation(() => this._agentService.installPlugin!(provider, request));
+	}
+
+	searchCustomizationMarketplace(provider: AgentProvider, session: URI, request: IAgentCustomizationMarketplaceSearchRequest): Promise<IAgentCustomizationMarketplaceSearchResult> {
+		if (!this._agentService.searchCustomizationMarketplace) {
+			return Promise.resolve({ kind: 'unavailable', reason: 'unsupported' });
+		}
+		return this._runMutation(() => this._agentService.searchCustomizationMarketplace!(provider, session, request));
+	}
+
+	listCustomizationInstallations(provider: AgentProvider, session: URI): Promise<readonly IAgentCustomizationInstallation[]> {
+		if (!this._agentService.listCustomizationInstallations) {
+			throw new Error('Agent Host customization installation inventory is unavailable');
+		}
+		return this._runMutation(() => this._agentService.listCustomizationInstallations!(provider, session));
+	}
+
+	prepareCustomizationInstallation(provider: AgentProvider, session: URI, request: IAgentCustomizationInstallationRequest | { readonly installationId: string }): Promise<IAgentCustomizationInstallationReview> {
+		if (!this._agentService.prepareCustomizationInstallation) {
+			throw new Error('Agent Host customization installation preparation is unavailable');
+		}
+		return this._runMutation(() => this._agentService.prepareCustomizationInstallation!(provider, session, request));
+	}
+
+	applyCustomizationInstallation(provider: AgentProvider, operationId: string): Promise<void> {
+		if (!this._agentService.applyCustomizationInstallation) {
+			throw new Error('Agent Host customization installation apply is unavailable');
+		}
+		return this._runMutation(() => this._agentService.applyCustomizationInstallation!(provider, operationId));
+	}
+
+	recoverCustomizationInstallations(provider: AgentProvider, session: URI): Promise<readonly IAgentCustomizationInstallation[]> {
+		if (!this._agentService.recoverCustomizationInstallations) {
+			throw new Error('Agent Host customization installation recovery is unavailable');
+		}
+		return this._runMutation(() => this._agentService.recoverCustomizationInstallations!(provider, session));
 	}
 
 	shutdown(): Promise<void> {

@@ -503,6 +503,11 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 		}));
 	}
 
+	override focus(): void {
+		super.focus();
+		this._list?.domFocus();
+	}
+
 	public layout(dimension: Dimension): void {
 		this._list?.layout(dimension.height);
 	}

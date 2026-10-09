@@ -31,6 +31,14 @@
 	align-items: start;
 }
 
+.multi-diff-scroll-fixture.real-widget .multi-diff-scroll-fixture-columns {
+	grid-template-columns: minmax(0, 1fr);
+}
+
+.multi-diff-scroll-fixture.real-widget .multi-diff-scroll-fixture-visualization {
+	grid-column: 1;
+}
+
 .multi-diff-scroll-fixture .multi-diff-scroll-fixture-panel,
 .multi-diff-scroll-fixture .multi-diff-scroll-fixture-visualization {
 	min-width: 0;
@@ -58,6 +66,16 @@
 .multi-diff-scroll-fixture .multi-diff-scroll-fixture-editor-pane,
 .multi-diff-scroll-fixture .multi-diff-scroll-fixture-coordinate-pane {
 	min-width: 0;
+}
+
+.multi-diff-scroll-fixture .multi-diff-scroll-fixture-real-diagnostics {
+	grid-column: 1 / -1;
+	max-height: 240px;
+	overflow: auto;
+	padding: var(--vscode-spacing-size120);
+	border: var(--vscode-strokeThickness) solid var(--vscode-widget-border);
+	border-radius: var(--vscode-cornerRadius-medium);
+	background: var(--vscode-textCodeBlock-background);
 }
 
 .multi-diff-scroll-fixture .multi-diff-scroll-fixture-panel {

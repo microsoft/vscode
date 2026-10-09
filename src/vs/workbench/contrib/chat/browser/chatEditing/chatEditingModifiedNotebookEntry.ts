@@ -45,7 +45,7 @@ import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { INotebookEditorWorkerService } from '../../../notebook/common/services/notebookWorkerService.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { ChatEditKind, IModifiedEntryTelemetryInfo, IModifiedFileEntryEditorIntegration, ISnapshotEntry, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
-import { IChatResponseModel } from '../../common/model/chatModel.js';
+import { IChatEditMetadata, IChatResponseModel } from '../../common/model/chatModel.js';
 import { AbstractChatEditingModifiedFileEntry } from './chatEditingModifiedFileEntry.js';
 import { createSnapshot, deserializeSnapshot, getNotebookSnapshotFileURI, restoreSnapshot, SnapshotComparer } from './notebook/chatEditingModifiedNotebookSnapshot.js';
 import { ChatEditingNewNotebookContentEdits } from './notebook/chatEditingNewNotebookContentEdits.js';
@@ -536,7 +536,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 	}
 
 	private newNotebookEditGenerator?: ChatEditingNewNotebookContentEdits;
-	override async acceptAgentEdits(resource: URI, edits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel | undefined): Promise<void> {
+	override async acceptAgentEdits(resource: URI, edits: (TextEdit | ICellEditOperation)[], isLastEdits: boolean, responseModel: IChatResponseModel | undefined, metadata: IChatEditMetadata): Promise<void> {
 		const isCellUri = resource.scheme === Schemas.vscodeNotebookCell;
 		const cell = isCellUri && this.modifiedModel.cells.find(cell => isEqual(cell.uri, resource));
 		let cellEntry: ChatEditingNotebookCellEntry | undefined;
@@ -557,7 +557,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 			await Promise.all(Array.from(this.editedCells).map(async (uri) => {
 				const cell = this.modifiedModel.cells.find(cell => isEqual(cell.uri, uri));
 				const cellEntry = cell && this.cellEntryMap.get(cell.uri);
-				await cellEntry?.acceptAgentEdits([], true, responseModel);
+				await cellEntry?.acceptAgentEdits([], true, responseModel, metadata);
 			}));
 			this.editedCells.clear();
 		};
@@ -577,7 +577,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 							await finishPreviousCells();
 							this.editedCells.add(resource);
 						}
-						await cellEntry?.acceptAgentEdits([edit], last, responseModel);
+						await cellEntry?.acceptAgentEdits([edit], last, responseModel, metadata);
 					}
 				} else {
 					// If we notebook edits, its impossible to get text edits for the notebook uri.

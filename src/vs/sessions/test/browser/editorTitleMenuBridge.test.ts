@@ -7,7 +7,7 @@ import assert from 'assert';
 import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { isIMenuItem, isISubmenuItem, MenuId, MenuRegistry } from '../../../platform/actions/common/actions.js';
-import { IAgentWorkbenchLayoutService } from '../../browser/workbench.js';
+import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../browser/workbench.js';
 import { Menus } from '../../browser/menus.js';
 
 suite('Sessions - Editor Title Menu Bridge', () => {
@@ -20,8 +20,8 @@ suite('Sessions - Editor Title Menu Bridge', () => {
 		EditorTitleMenuBridgeContribution = (await import('../../contrib/editor/browser/editor.contribution.js')).EditorTitleMenuBridgeContribution;
 	});
 
-	function createLayoutService(singlePane: boolean): IAgentWorkbenchLayoutService {
-		return { isSinglePaneLayoutEnabled: singlePane } as IAgentWorkbenchLayoutService;
+	function createLayoutService(desktop: boolean): IAgentWorkbenchLayoutService {
+		return { agentWorkbenchLayout: desktop ? AgentWorkbenchLayout.Desktop : AgentWorkbenchLayout.Mobile } as IAgentWorkbenchLayoutService;
 	}
 
 	function sessionsEditorTitleCommands(): { id: string; group: string | undefined }[] {
@@ -100,7 +100,7 @@ suite('Sessions - Editor Title Menu Bridge', () => {
 		local.dispose();
 	});
 
-	test('does nothing when the single-pane layout is disabled', () => {
+	test('does nothing when the desktop layout is disabled', () => {
 		const local = store.add(new DisposableStore());
 		local.add(MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 			command: { id: 'test.ext.disabledLayout', title: 'Extension Action', source: { id: 'pub.ext', title: 'My Extension' } },

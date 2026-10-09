@@ -9,13 +9,16 @@ import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType
 import { AccessibleViewRegistry, IAccessibleViewImplementation } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { AccessibilityVerbositySettingId } from '../../../../../workbench/contrib/accessibility/browser/accessibilityConfiguration.js';
-import { IAutomationDescriptor, IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
-import { DAYS_OF_WEEK } from '../../../../../workbench/contrib/chat/common/automations/schedule.js';
+import { IAutomationDescriptor, IAutomationRun, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
+import { AutomationCatalogueState, type IAutomationProviderDescriptor, IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { automationScheduleToLocal, DAYS_OF_WEEK } from '../../../../../workbench/contrib/chat/common/automations/schedule.js';
+import { IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { AutomationsCustomViewFocusContext } from '../../../../common/contextkeys.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IAutomationTemplate, readAutomationTemplates } from './automationTemplates.js';
+import { formatUnavailableAutomationsMessage } from './automationCataloguePresentation.js';
 
 class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly type = AccessibleViewType.Help;
@@ -25,11 +28,34 @@ class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplement
 
 	getProvider(accessor: ServicesAccessor): AccessibleContentProvider {
 		const layoutService = accessor.get(IAgentWorkbenchLayoutService);
+		const automationService = accessor.get(IAutomationService);
+		const agentPluginService = accessor.get(IAgentPluginService);
 		const restoreFocus = createFocusRestorer(layoutService);
+		const templates = readAutomationTemplates(agentPluginService.plugins.get());
+		const hasSavedAutomations = automationService.automations.get().length > 0;
+		const builtInTemplatesVisible = templates.some(template => !template.source);
+		const pluginTemplatesVisible = templates.some(template => !!template.source);
 		const content = [
-			localize('automationsCustomView.help.overview', "You are in the Automations view. It contains automation cards followed by run history."),
-			localize('automationsCustomView.help.cards', "Tab to a card's Edit control and action buttons. Use Left Arrow and Right Arrow to move between Run now and Delete. Press Enter or Space to activate a control. Edit, or clicking anywhere else on the card, opens the automation dialog. Run now starts a session immediately. Delete asks for confirmation."),
-			localize('automationsCustomView.help.history', "Run history is grouped by date. While a run is waiting for its session, a lightweight row shows the automation name with a Working... description. Once the session is available, use Up Arrow and Down Arrow to navigate the Sessions list, Enter to open, and Tab to reach Stop or Delete actions when available. Delete permanently deletes the session and removes it from run history after confirmation."),
+			localize('automationsCustomView.help.overview', "You are in the Automations view. It contains available automation cards followed by run history. Loading, unavailable, and error messages indicate that the catalogue may be incomplete."),
+			localize('automationsCustomView.help.authority', "Automations run on their selected provider, not in this window. Creation and changes require an available provider that supports automations. Run now requests execution from that provider; a disconnected or unsupported provider never falls back to local execution. To use another provider, duplicate the automation. The original history stays with its provider, and an enabled original keeps scheduling until you disable it."),
+			...(builtInTemplatesVisible ? [
+				hasSavedAutomations
+					? localize('automationsCustomView.help.builtInTemplatesCollapsed', "The Built-in Templates section is collapsed by default because saved automations exist. Press Enter or Space on its disclosure control to expand it.")
+					: localize('automationsCustomView.help.builtInTemplatesExpanded', "The Built-in Templates section is expanded by default while there are no saved automations. Tab to a template and press Enter or Space to open a New automation dialog with an editable name, prompt, and schedule."),
+			] : []),
+			...(pluginTemplatesVisible ? [
+				localize('automationsCustomView.help.pluginTemplates', "The Templates from Plugins section is available whenever enabled plugins provide templates. Press Enter or Space on its disclosure control to expand or collapse it. A blue marker indicates templates added since the section was last expanded. Plugin templates start disabled."),
+			] : []),
+			localize('automationsCustomView.help.sharing', "Use Import Automation in the view header, or drop one .automation.md file anywhere in the view, to review a shared Automation blueprint. Imported Automations start disabled. Open a saved Automation's context menu and choose Export to save a portable blueprint."),
+			localize('automationsCustomView.help.cards', "For saved automations, Tab to a card's Edit control and action buttons. Use Left Arrow and Right Arrow to move between Run now and More Actions. Press Enter or Space to activate a control. Edit, or clicking anywhere else on the card, opens the automation dialog. More Actions opens the automation menu. Duplicate opens a prefilled New automation dialog, Disable prevents scheduled runs, and Delete asks for confirmation. Run now requests execution from the selected provider."),
+			localize('automationsCustomView.help.externalDefinition', "For cloud automation cards, More Actions also offers Open on GitHub to open the automation's details in your browser."),
+			localize('automationsCustomView.help.dialog', "In the automation dialog, Target controls are above the prompt. Agent and model pickers are inside the prompt input, and execution mode and permission controls are below it. Use Tab and Shift+Tab to move between fields and pickers. When creating an automation, you only need to enter a prompt. An empty name is derived from the prompt, and the target defaults to No workspace unless one is already supplied. An available Agent Host that supports the target is still required."),
+			localize('automationsCustomView.help.weekdays', "For Agent Host automations, choose Weekdays to run Monday through Friday at the same local time, without choosing a day of the week. Weekdays is not available for Cloud automations."),
+			...(automationService.availableProviders.get().some(provider => automationService.getProviderConfiguration?.(provider.id)) ? [
+				localize('automationsCustomView.help.cloudDialog', "Choose Work in GitHub in the workspace picker to search for a private repository or paste its URL. A matching local folder is retained and Cloud is selected by default. Use the session type picker to choose another agent supported by the workspace. Eligible local folders also support selecting Cloud directly. When creating an automation, changing to a public repository switches Cloud back to Copilot when available. Non-private repositories chosen through Work in GitHub are rejected with an error notification. Cloud models are configured in the prompt section. In the Tools section, use Configure allowed tools to open a searchable checklist of the tools GitHub offers, grouped by category; press Space to toggle a tool, Enter to apply changes, or Escape to cancel. New automations start with every listed tool selected. Built-in tools are always available. While the list loads the button is unavailable, and if it cannot be loaded a Retry button appears. These are followed by the schedule in your local time zone. GitHub stores a fixed UTC schedule, so the local run time may shift when daylight saving time changes. When editing a cloud automation, the workspace picker is disabled because changing the repository or provider requires duplication. Editing preserves enabled state; enable or disable an automation from its card. When Cloud is selected, a note beside the Create button explains that the automation runs even when your computer is off, triggered on a schedule."),
+			] : []),
+			localize('automationsCustomView.help.history', "Run history is grouped by date. While a run is waiting for its session, a lightweight row shows the automation name with a Working... description. Once the session is available, use Up Arrow and Down Arrow to navigate the Sessions list, Enter to open, and Tab to reach Stop, the configured Archive or Mark as Done action, or Delete when available. Open a row's context menu, for example with Shift+F10, to rename it, change its active or read state, or delete it. Delete permanently deletes the session and removes it from run history after confirmation."),
+			localize('automationsCustomView.help.cloudHistory', "Cloud history shows the repository, status, and last updated time even when no local session is available. Tab to a row's toolbar and use Left Arrow and Right Arrow to reach Open on GitHub and Stop when supported. Stop requests cancellation; the status changes when GitHub reports it. Use Refresh in the view header to reload definitions and history. Active cloud runs refresh every 15 seconds without moving the history rows; idle definitions do not poll."),
 			localize('automationsCustomView.help.read', "Completed and failed runs that have not been opened are announced as unread. Use Mark all as read to clear all available unread runs."),
 			localize('automationsCustomView.help.accessibleView', "Use Open Accessible View to read the current automations and run history as text."),
 		].join('\n');
@@ -53,6 +79,7 @@ class AutomationsCustomViewAccessibleView implements IAccessibleViewImplementati
 		const automationService = accessor.get(IAutomationService);
 		const layoutService = accessor.get(IAgentWorkbenchLayoutService);
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const agentPluginService = accessor.get(IAgentPluginService);
 		const restoreFocus = createFocusRestorer(layoutService);
 		return new AccessibleContentProvider(
 			AccessibleViewProviderId.Automations,
@@ -62,8 +89,13 @@ class AutomationsCustomViewAccessibleView implements IAccessibleViewImplementati
 				automationService.runs.get().filter(run =>
 					run.status === 'pending'
 					|| run.status === 'running'
+					|| !!run.externalResource
 					|| (!!run.sessionResource && !!sessionsManagementService.getSession(run.sessionResource))
 				),
+				automationService.catalogueState.get(),
+				readAutomationTemplates(agentPluginService.plugins.get()),
+				automationService.unavailableProviders.get(),
+				automationService.historyState?.get(),
 			),
 			restoreFocus,
 			AccessibilityVerbositySettingId.Automations,
@@ -82,25 +114,73 @@ function createFocusRestorer(layoutService: IAgentWorkbenchLayoutService): () =>
 	};
 }
 
-export function buildAutomationsAccessibleContent(automations: readonly IAutomationDescriptor[], runs: readonly IAutomationRun[]): string {
+export function buildAutomationsAccessibleContent(automations: readonly IAutomationDescriptor[], runs: readonly IAutomationRun[], catalogueState: AutomationCatalogueState, templates: readonly IAutomationTemplate[] = readAutomationTemplates([]), unavailableProviders: readonly IAutomationProviderDescriptor[] = [], historyState?: AutomationCatalogueState): string {
 	const lines = [localize('automationsAccessibleView.title', "Automations")];
-	if (automations.length === 0) {
-		lines.push(localize('automationsAccessibleView.empty', "No automations."));
-	} else {
+	const builtInTemplates = templates.filter(template => !template.source);
+	const pluginTemplates = templates.filter(template => !!template.source);
+	if (automations.length > 0) {
 		for (const automation of automations) {
 			lines.push('');
 			lines.push(automation.enabled
 				? localize('automationsAccessibleView.automation', "{0}, enabled", automation.name)
 				: localize('automationsAccessibleView.automationDisabled', "{0}, disabled", automation.name));
-			lines.push(localize('automationsAccessibleView.schedule', "Schedule: {0}", formatSchedule(automation)));
+			lines.push(localize('automationsAccessibleView.schedule', "Schedule: {0}", formatSchedule(automation.schedule)));
 			lines.push(localize('automationsAccessibleView.prompt', "Prompt: {0}", automation.prompt));
+			if (automation.targetDisplay) {
+				lines.push(automation.targetDisplay.label);
+			}
+		}
+		if (catalogueState === 'loading') {
+			lines.push('');
+			lines.push(localize('automationsAccessibleView.partialLoading', "Additional automations are loading."));
+		} else if (catalogueState === 'unavailable') {
+			lines.push('');
+			lines.push(formatUnavailableAutomationsMessage(unavailableProviders));
+		} else if (catalogueState === 'error') {
+			lines.push('');
+			lines.push(localize('automationsAccessibleView.partialLoadError', "Some automations could not be loaded."));
+		}
+	} else if (catalogueState === 'loading') {
+		lines.push(localize('automationsAccessibleView.loading', "Loading automations."));
+	} else if (catalogueState === 'unavailable') {
+		lines.push(unavailableProviders.length > 0
+			? formatUnavailableAutomationsMessage(unavailableProviders)
+			: localize('automationsAccessibleView.unavailable', "Some automations are unavailable. One or more providers are disconnected, disabled, or do not support automations."));
+	} else if (catalogueState === 'error') {
+		lines.push(localize('automationsAccessibleView.loadError', "Unable to load automations."));
+	} else {
+		lines.push(localize('automationsAccessibleView.empty', "No automations."));
+	}
+	if (builtInTemplates.length > 0 || pluginTemplates.length > 0) {
+		lines.push('');
+		lines.push(localize('automationsAccessibleView.templates', "Available templates"));
+		if (builtInTemplates.length > 0) {
+			lines.push(localize('automationsAccessibleView.builtInTemplates', "Built-in Templates"));
+			for (const template of builtInTemplates) {
+				lines.push(localize('automationsAccessibleView.template', "{0}, {1}. {2}", template.name, formatSchedule(template.schedule), template.description));
+			}
+		}
+		if (pluginTemplates.length > 0) {
+			lines.push(localize('automationsAccessibleView.pluginTemplates', "Templates from Plugins"));
+			for (const template of pluginTemplates) {
+				if (template.source) {
+					lines.push(localize('automationsAccessibleView.pluginTemplate', "{0}, {1}. {2} From {3}.", template.name, formatSchedule(template.schedule), template.description, template.source.label));
+				}
+			}
 		}
 	}
 
 	lines.push('');
 	lines.push(localize('automationsAccessibleView.history', "Run history"));
+	if (historyState === 'loading') {
+		lines.push(localize('automationsAccessibleView.historyLoading', "Refreshing run history."));
+	} else if (historyState === 'error') {
+		lines.push(localize('automationsAccessibleView.historyError', "Run history could not be refreshed. Use Refresh to try again."));
+	}
 	if (runs.length === 0) {
-		lines.push(localize('automationsAccessibleView.noRuns', "No runs."));
+		if (catalogueState === 'ready' && (historyState === undefined || historyState === 'ready') && automations.length > 0) {
+			lines.push(localize('automationsAccessibleView.noRuns', "No runs."));
+		}
 	} else {
 		const automationNames = new Map(automations.map(automation => [automation.id, automation.name]));
 		for (const run of runs) {
@@ -114,26 +194,34 @@ export function buildAutomationsAccessibleContent(automations: readonly IAutomat
 			if (run.errorMessage) {
 				lines.push(localize('automationsAccessibleView.runError', "Error: {0}", run.errorMessage));
 			}
+			if (run.externalResource) {
+				lines.push(localize('automationsAccessibleView.externalRun', "Open on GitHub: {0}", run.externalResource.toString()));
+			}
 		}
 	}
 	return lines.join('\n');
 }
 
-function formatSchedule(automation: IAutomationDescriptor): string {
-	const schedule = automation.schedule;
+function formatSchedule(schedule: IAutomationSchedule): string {
+	const localSchedule = automationScheduleToLocal(schedule);
+	const time = formatTime(localSchedule.scheduleHour, localSchedule.scheduleMinute);
 	switch (schedule.interval) {
+		case 'custom':
+			return localize('automationsAccessibleView.custom', "Custom schedule");
 		case 'manual':
 			return localize('automationsAccessibleView.manual', "Manual");
 		case 'hourly':
 			return localize('automationsAccessibleView.hourly', "Hourly");
 		case 'daily':
-			return localize('automationsAccessibleView.daily', "Daily at {0}", formatTime(schedule.scheduleHour, schedule.scheduleMinute));
+			return localize('automationsAccessibleView.daily', "Daily at {0}", time);
+		case 'weekdays':
+			return localize('automationsAccessibleView.weekdays', "Weekdays at {0}", time);
 		case 'weekly':
 			return localize(
 				'automationsAccessibleView.weekly',
 				"{0} at {1}",
-				DAYS_OF_WEEK[((schedule.scheduleDay % 7) + 7) % 7],
-				formatTime(schedule.scheduleHour, schedule.scheduleMinute),
+				DAYS_OF_WEEK[((localSchedule.scheduleDay % 7) + 7) % 7],
+				time,
 			);
 	}
 }
@@ -144,6 +232,9 @@ function formatTime(hour: number, minute: number): string {
 }
 
 function formatRunStatus(run: IAutomationRun): string {
+	if (run.statusDescription) {
+		return run.statusDescription;
+	}
 	switch (run.status) {
 		case 'pending':
 			return localize('automationsAccessibleView.pending', "Pending");

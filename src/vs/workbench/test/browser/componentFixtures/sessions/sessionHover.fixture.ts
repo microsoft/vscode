@@ -22,10 +22,11 @@ import { getSessionSummaryHoverData } from '../../../../../sessions/contrib/sess
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionsProvidersService } from '../../../../../sessions/services/sessions/browser/sessionsProvidersService.js';
 // eslint-disable-next-line local/code-import-patterns
-import { IGitHubInfo, IGitHubPullRequestRef, ISession, ISessionFileChange, ISessionFolder, ISessionType, ISessionWorkspace, SessionTypeAuthRequirement } from '../../../../../sessions/services/sessions/common/session.js';
+import { IChat, IGitHubInfo, IGitHubPullRequestRef, ISession, ISessionFileChange, ISessionFolder, ISessionType, ISessionWorkspace, SessionTypeAuthRequirement } from '../../../../../sessions/services/sessions/common/session.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionsProvider } from '../../../../../sessions/services/sessions/common/sessionsProvider.js';
 import { ISessionSummaryHoverData, SessionSummaryHoverWidget } from '../../../../contrib/chat/browser/agentSessions/sessionSummaryHover.js';
+import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 
 import '../../../../../base/browser/ui/hover/hoverWidget.css';
@@ -53,6 +54,8 @@ interface ISessionSpec {
 	readonly changes?: readonly { readonly insertions: number; readonly deletions: number }[];
 	readonly sessionType?: string;
 	readonly isQuickChat?: boolean;
+	/** Renders the trailing "External Session" row. */
+	readonly isExternal?: boolean;
 }
 
 function createWorkspace(spec: IWorkspaceSpec): ISessionWorkspace {
@@ -99,7 +102,11 @@ function createSession(spec: ISessionSpec): ISession {
 		override readonly workspace: IObservable<ISessionWorkspace | undefined> = constObservable(spec.workspace ? createWorkspace(spec.workspace) : undefined);
 		override readonly worktreePending: IObservable<boolean> = constObservable(!!spec.worktreePending);
 		override readonly isQuickChat: IObservable<boolean> = constObservable(!!spec.isQuickChat);
-		override readonly changes: IObservable<readonly ISessionFileChange[]> = constObservable(changes);
+		override readonly isExternal: IObservable<boolean> = constObservable(!!spec.isExternal);
+		override readonly mainChat = constObservable(new class extends mock<IChat>() {
+			override readonly changes = constObservable(changes);
+			override readonly changesets = constObservable([]);
+		}());
 	}();
 }
 
@@ -123,6 +130,12 @@ const SESSIONS_PROVIDERS_SERVICE = new class extends mock<ISessionsProvidersServ
 const OPENER_SERVICE = new class extends mock<IOpenerService>() {
 	override async open(): Promise<boolean> {
 		return true;
+	}
+}();
+
+const PREFERENCES_SERVICE = new class extends mock<IPreferencesService>() {
+	override async openSettings(): Promise<undefined> {
+		return undefined;
 	}
 }();
 
@@ -178,7 +191,7 @@ function renderInHover(ctx: ComponentFixtureContext, content: HTMLElement): void
 
 /** The Agents window path: ISession → hover data → shared widget. */
 function renderSessionHover(ctx: ComponentFixtureContext, spec: ISessionSpec): void {
-	const data = getSessionSummaryHoverData(createSession(spec), SESSIONS_PROVIDERS_SERVICE, OPENER_SERVICE, LABEL_SERVICE);
+	const data = getSessionSummaryHoverData(createSession(spec), SESSIONS_PROVIDERS_SERVICE, OPENER_SERVICE, LABEL_SERVICE, PREFERENCES_SERVICE);
 	renderInHover(ctx, new SessionSummaryHoverWidget(data).domNode);
 }
 
@@ -250,6 +263,15 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		render: ctx => renderSessionHover(ctx, {
 			title: '',
 			isQuickChat: true,
+		}),
+	}),
+	// Picked up from another application, so the hover closes by naming where
+	// the session came from.
+	SessionHover_ExternalSession: defineComponentFixture({
+		render: ctx => renderSessionHover(ctx, {
+			title: 'Fix authentication redirect loop',
+			workspace: { root: '/home/user/projects/vscode', branch: 'main' },
+			isExternal: true,
 		}),
 	}),
 	SessionHover_LongValues: defineComponentFixture({

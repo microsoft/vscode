@@ -13,13 +13,14 @@ import { IObservable, observableValueOpts } from '../../../../../../base/common/
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
-import { LOCAL_AGENT_HOST_SCHEME_PREFIX } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { AGENT_HOST_SESSION_LINK_PATTERN, AgentSessionLinkStatus, buildAgentSessionLinkPresentation, parseOpenSessionLinkUri } from '../../../../../../platform/agentHost/common/openSessionLink.js';
+import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService, LOCAL_AGENT_HOST_SCHEME_PREFIX } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { AGENT_HOST_CHAT_LINK_PATTERN, AGENT_HOST_SESSION_LINK_SCHEME, AGENT_HOST_SESSION_ONLY_LINK_PATTERN, AgentSessionLinkStatus, buildAgentSessionLinkPresentation, parseOpenSessionLinkChatId, parseOpenSessionLinkConnectionAuthority, parseOpenSessionLinkUri } from '../../../../../../platform/agentHost/common/openSessionLink.js';
 import { ILinkPresentation, ILinkPresentationService, ILinkPresentationWatcher } from '../../../../../../platform/dataChannel/common/dataChannel.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
 import { IPathService } from '../../../../../services/path/common/pathService.js';
+import { IChatRequestOriginService } from '../../../common/chatRequestOrigin.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../../chat.js';
@@ -38,6 +39,8 @@ import { ISessionSummaryHoverService } from '../sessionSummaryHoverService.js';
  * whose client scheme is `agent-host-<provider>`. We rebuild that client
  * resource and open it through {@link IChatWidgetService.openSession}.
  *
+ * Also registers an {@link IChatRequestOriginService} opener that reuses {@link _open} for delegated request-origin links (e.g. "Sent from another chat").
+ *
  * Registered only from the workbench's electron-browser chat contribution (never
  * loaded by the Agents window), so it never competes with the Agents-window
  * opener.
@@ -45,31 +48,50 @@ import { ISessionSummaryHoverService } from '../sessionSummaryHoverService.js';
 export class AgentHostOpenSessionLinkOpenerContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.chat.agentHostOpenSessionLinkOpener';
+	private readonly _sessionListRefreshes = new Map<string, Promise<void>>();
 
 	constructor(
 		@IOpenerService openerService: IOpenerService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
+		@IChatRequestOriginService requestOriginService: IChatRequestOriginService,
 		@ILinkPresentationService linkPresentationService: ILinkPresentationService,
 		@ILogService logService: ILogService,
 		@ISessionSummaryHoverService sessionSummaryHoverService: ISessionSummaryHoverService,
 		@IPathService pathService: IPathService,
+		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
 	) {
 		super();
 		this._register(openerService.registerOpener({
 			open: async resource => this._open(resource),
 		}));
+		this._register(requestOriginService.registerOpener({
+			open: async origin => origin.sourceSessionResource.scheme === AGENT_HOST_SESSION_LINK_SCHEME
+				? this._open(origin.sourceSessionResource)
+				: false,
+		}));
 		this._register(linkPresentationService.registerLinkPresentationProvider({
 			id: 'workbench.agentSessionLinkPresentation',
-			uriPattern: AGENT_HOST_SESSION_LINK_PATTERN,
+			uriPattern: AGENT_HOST_SESSION_ONLY_LINK_PATTERN,
 			kind: 'session',
 		}, {
 			createLinkPresentationWatcher: resource => {
-				const clientResource = toClientSessionResource(resource);
-				if (!clientResource) {
+				if (!parseOpenSessionLinkUri(resource)) {
 					throw new Error(`Invalid agent session link: ${resource.toString(true)}`);
 				}
-				return new WorkbenchAgentSessionLinkPresentationWatcher(clientResource, this._chatSessionsService, logService);
+				return new WorkbenchAgentSessionLinkPresentationWatcher(token => this._resolveClientSessionResource(resource, token), 'session', this._chatSessionsService, logService, this._connectionsService.onDidChangeSessionResolution);
+			},
+		}));
+		this._register(linkPresentationService.registerLinkPresentationProvider({
+			id: 'workbench.agentChatLinkPresentation',
+			uriPattern: AGENT_HOST_CHAT_LINK_PATTERN,
+			kind: 'chat',
+		}, {
+			createLinkPresentationWatcher: resource => {
+				if (!parseOpenSessionLinkUri(resource)) {
+					throw new Error(`Invalid agent chat link: ${resource.toString(true)}`);
+				}
+				return new WorkbenchAgentSessionLinkPresentationWatcher(token => this._resolveClientSessionResource(resource, token), 'chat', this._chatSessionsService, logService, this._connectionsService.onDidChangeSessionResolution);
 			},
 		}));
 		// The editor window's adapter onto the shared session hover. It resolves
@@ -86,23 +108,54 @@ export class AgentHostOpenSessionLinkOpenerContribution extends Disposable imple
 	}
 
 	private async _findChatSessionItem(resource: URI, token: CancellationToken): Promise<IChatSessionItem | undefined> {
-		const clientResource = toClientSessionResource(resource);
+		const clientResource = await this._resolveClientSessionResource(resource, token);
 		if (!clientResource) {
 			return undefined;
 		}
 		const chatSessionType = getChatSessionType(clientResource);
 		await this._chatSessionsService.activateChatSessionItemProvider(chatSessionType);
-		return findChatSessionItem(this._chatSessionsService, chatSessionType, clientResource, token);
+		return (await findChatSessionItem(this._chatSessionsService, chatSessionType, clientResource, token))?.item;
 	}
 
 	private async _open(resource: URI | string): Promise<boolean> {
-		const clientResource = toClientSessionResource(resource);
+		const clientResource = await this._resolveClientSessionResource(resource, CancellationToken.None);
 		if (!clientResource) {
 			return false;
 		}
 		await this._chatSessionsService.activateChatSessionItemProvider(getChatSessionType(clientResource));
 		const widget = await this._chatWidgetService.openSession(clientResource, ChatViewPaneTarget, { revealIfOpened: true });
 		return !!widget;
+	}
+
+	private async _resolveClientSessionResource(resource: URI | string, token: CancellationToken): Promise<URI | undefined> {
+		const cached = toClientSessionResource(resource, this._connectionsService);
+		if (cached || !parseOpenSessionLinkUri(resource)) {
+			return cached;
+		}
+		const authority = parseOpenSessionLinkConnectionAuthority(resource) ?? AMBIENT_AGENT_HOST_AUTHORITY;
+		let refresh = this._sessionListRefreshes.get(authority);
+		if (!refresh) {
+			refresh = this._loadSessionIdentities(authority).finally(() => {
+				if (this._sessionListRefreshes.get(authority) === refresh) {
+					this._sessionListRefreshes.delete(authority);
+				}
+			});
+			this._sessionListRefreshes.set(authority, refresh);
+		}
+		await refresh;
+		return token.isCancellationRequested ? undefined : toClientSessionResource(resource, this._connectionsService);
+	}
+
+	private async _loadSessionIdentities(authority: string): Promise<void> {
+		const connection = authority === AMBIENT_AGENT_HOST_AUTHORITY
+			? this._connectionsService.ambientConnection
+			: this._connectionsService.getConnectionByAuthority(authority);
+		if (!connection) {
+			throw new Error(`Agent host is not connected: ${authority}`);
+		}
+		for (const metadata of await connection.listSessions()) {
+			this._connectionsService.registerSessionResource(metadata.session, authority, metadata.provider);
+		}
 	}
 }
 
@@ -113,25 +166,23 @@ class WorkbenchAgentSessionLinkPresentationWatcher extends Disposable implements
 	);
 	readonly presentation: IObservable<ILinkPresentation | undefined> = this._data;
 
-	private readonly _clientResource: URI;
-	private readonly _chatSessionType: string;
-	private readonly _providerReady: Promise<void>;
+	private _providerReady: Promise<void> | undefined;
 	private _refreshCancellation: CancellationTokenSource | undefined;
 
 	constructor(
-		clientResource: URI,
+		private readonly _resolveClientResource: (token: CancellationToken) => Promise<URI | undefined>,
+		private readonly _kind: 'session' | 'chat',
 		private readonly _chatSessionsService: IChatSessionsService,
 		private readonly _logService: ILogService,
+		onDidChangeSessionResolution: Event<void> = Event.None,
 	) {
 		super();
-		this._clientResource = clientResource;
-		this._chatSessionType = getChatSessionType(this._clientResource);
-		this._providerReady = this._chatSessionsService.activateChatSessionItemProvider(this._chatSessionType);
 		this._register(Event.any(
 			this._chatSessionsService.onDidChangeAvailability,
 			this._chatSessionsService.onDidChangeInProgress,
 			this._chatSessionsService.onDidChangeItemsProviders,
 			this._chatSessionsService.onDidChangeSessionItems,
+			onDidChangeSessionResolution,
 		)(() => this._refresh()));
 		this._refresh();
 	}
@@ -160,10 +211,21 @@ class WorkbenchAgentSessionLinkPresentationWatcher extends Disposable implements
 	}
 
 	private async _resolve(token: CancellationToken): Promise<ILinkPresentation | undefined> {
+		const clientResource = await this._resolveClientResource(token);
+		if (!clientResource || token.isCancellationRequested) {
+			return undefined;
+		}
+		const chatSessionType = getChatSessionType(clientResource);
+		this._providerReady ??= this._chatSessionsService.activateChatSessionItemProvider(chatSessionType);
 		await this._providerReady;
-		const item = await findChatSessionItem(this._chatSessionsService, this._chatSessionType, this._clientResource, token);
-		return item ? toSessionLinkPresentation(item) : undefined;
+		const match = await findChatSessionItem(this._chatSessionsService, chatSessionType, clientResource, token);
+		return match ? toSessionLinkPresentation(match.item, match.status, this._kind) : undefined;
 	}
+}
+
+interface IChatSessionItemMatch {
+	readonly item: IChatSessionItem;
+	readonly status: ChatSessionStatus | undefined;
 }
 
 /**
@@ -175,33 +237,52 @@ async function findChatSessionItem(
 	chatSessionType: string,
 	clientResource: URI,
 	token: CancellationToken,
-): Promise<IChatSessionItem | undefined> {
+): Promise<IChatSessionItemMatch | undefined> {
 	for await (const group of chatSessionsService.getChatSessionItems([chatSessionType], token)) {
-		const item = group.items.find(candidate =>
-			isEqual(candidate.resource, clientResource)
-			|| !!candidate.legacyResource && isEqual(candidate.legacyResource, clientResource));
-		if (item) {
-			return item;
+		const match = findChatSessionItemByResource(group.items, clientResource);
+		if (match) {
+			return match;
 		}
 	}
 	return undefined;
 }
 
-function toClientSessionResource(resource: URI | string): URI | undefined {
+function findChatSessionItemByResource(items: readonly IChatSessionItem[], resource: URI, parentStatus?: ChatSessionStatus): IChatSessionItemMatch | undefined {
+	for (const item of items) {
+		const status = item.status ?? parentStatus;
+		if (isEqual(item.resource, resource) || !!item.legacyResource && isEqual(item.legacyResource, resource)) {
+			return { item, status };
+		}
+		const child = item.children && findChatSessionItemByResource(item.children, resource, status);
+		if (child) {
+			return child;
+		}
+	}
+	return undefined;
+}
+
+function toClientSessionResource(resource: URI | string, connectionsService: IAgentHostConnectionsService): URI | undefined {
 	const backendSession = parseOpenSessionLinkUri(resource);
 	if (!backendSession) {
 		return undefined;
 	}
+	const authority = parseOpenSessionLinkConnectionAuthority(resource);
+	if (authority) {
+		return connectionsService.findSessionResource(backendSession, authority)?.with({ fragment: parseOpenSessionLinkChatId(resource) ?? '' });
+	}
+	if (backendSession.scheme === 'ahp-session' || backendSession.authority || backendSession.query) {
+		return connectionsService.findSessionResource(backendSession)?.with({ fragment: parseOpenSessionLinkChatId(resource) ?? '' });
+	}
 	const provider = AgentSession.provider(backendSession);
 	const rawId = AgentSession.id(backendSession);
 	return provider && rawId
-		? URI.from({ scheme: `${LOCAL_AGENT_HOST_SCHEME_PREFIX}${provider}`, path: `/${rawId}` })
+		? URI.from({ scheme: `${LOCAL_AGENT_HOST_SCHEME_PREFIX}${provider}`, path: `/${rawId}`, fragment: parseOpenSessionLinkChatId(resource) })
 		: undefined;
 }
 
-function toSessionLinkPresentation(item: IChatSessionItem): ILinkPresentation {
+function toSessionLinkPresentation(item: IChatSessionItem, status: ChatSessionStatus | undefined, kind: 'session' | 'chat'): ILinkPresentation {
 	const description = typeof item.description === 'string' ? item.description : item.description?.value;
-	return buildAgentSessionLinkPresentation(item.label, description, chatSessionStatusName(item.status));
+	return buildAgentSessionLinkPresentation(item.label, description, chatSessionStatusName(status), kind);
 }
 
 /**

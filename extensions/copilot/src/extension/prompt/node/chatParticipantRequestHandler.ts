@@ -414,6 +414,7 @@ function createTurnFromVSCodeChatHistoryTurns(
 		undefined,
 		false,
 		chatRequestAsTurn2.modeInstructions2,
+		chatRequestAsTurn2.isSystemInitiated,
 	);
 
 	// Take just the content messages

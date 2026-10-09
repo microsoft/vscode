@@ -84,6 +84,16 @@ Build outputs are written to `out/` (desktop), `dist/` (web), and `notebook-out/
 
 You can run the VS Code extension tests by running the `Markdown Extension Tests` target in VS Code. This will run the tests under `./src/test`
 
+### Rich-link presentation lifetimes
+
+The Markdown editor webview shares one presentation observable per URL within a document. Unreferenced presentations remain cached for five minutes, with at most 256 inactive URLs retained in least-recently-used order. Active entries are never evicted.
+
+Reference-count transitions are coalesced in a microtask and sent as incremental subscriptions, not complete URL lists. A synchronous release/reacquire during rendering keeps both the observable and its subscription. Once an entry becomes inactive, its host watcher is released while its cached presentation remains available.
+
+Every new subscription receives the current presentation followed by changes through the existing extension API watcher. Updates carry a subscription ID so messages from a previous subscription or webview cannot overwrite current state. Reusing a cached entry displays its previous presentation while the new subscription resolves.
+
+Run the webview cache and subscription tests with `node --test ./scripts/linkPresentationProvider.test.mts` from this extension directory.
+
 ### Updating the Markdown language service
 
 Language features such as IntelliSense, validation, document links, and rename are powered by a language server rather than being implemented directly in this extension. There are two packages for this:

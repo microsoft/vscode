@@ -17,6 +17,8 @@ The [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) is an open 
 
 Firstly, make sure you install all dependencies (`npm i`) at the root of the repo.
 
+Dependencies are installed during repository setup, not when a server starts. To reinstall this server's dependencies separately, run `npm ci --prefix test/mcp` before starting it. Do not run installation while MCP servers are using the checkout.
+
 Then, open the Command Palette and run:
 ```
 MCP: List Servers → vscode-automation-mcp → Start Server
@@ -125,7 +127,7 @@ npm install
 npm run compile # or watch
 
 # Start the server
-npm start
+npm run start-stdio
 ```
 
 ### Project Structure

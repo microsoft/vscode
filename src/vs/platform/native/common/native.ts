@@ -8,15 +8,20 @@ import { Event } from '../../../base/common/event.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { MessageBoxOptions, MessageBoxReturnValue, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, SaveDialogOptions, SaveDialogReturnValue } from '../../../base/parts/sandbox/common/electronTypes.js';
 import { ISerializableCommandAction } from '../../action/common/action.js';
+import { AgentHostEditorUpdate, IAgentHostEditorState, IAgentsWindowInvitation } from '../../chat/common/agentsWindowInvitation.js';
 import { INativeOpenDialogOptions } from '../../dialogs/common/dialogs.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { IV8Profile } from '../../profiling/common/profiling.js';
 import { AuthInfo, Credentials } from '../../request/common/request.js';
 import { IPartsSplash } from '../../theme/common/themeService.js';
-import { AgentsWindowOpenSource, IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowOpenable } from '../../window/common/window.js';
+import { AgentsWindowOpenSource, IAgentsWindowDraft, IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowOpenable } from '../../window/common/window.js';
 
 export interface IToastOptions {
 	readonly id: string;
+	/**
+	 * Prevents another live toast with the same key from being shown.
+	 */
+	readonly dedupeKey?: string;
 
 	readonly title: string;
 	readonly body?: string;
@@ -28,9 +33,33 @@ export interface IToastOptions {
 
 export interface IToastResult {
 	readonly supported: boolean;
+	/**
+	 * True when a live toast with the requested dedupe key is already visible.
+	 */
+	readonly suppressed?: boolean;
 
 	readonly clicked: boolean;
 	readonly actionIndex?: number;
+}
+
+/**
+ * A count badge to render on the application icon in the dock (macOS), the
+ * launcher (Linux) or over the taskbar icon of a window (Windows).
+ */
+export interface IApplicationBadge {
+
+	/** The number to show. A count of `0` clears the badge. */
+	readonly count: number;
+
+	/** Accessible description of the badge, used for the Windows taskbar overlay. */
+	readonly description: string;
+
+	/**
+	 * PNG image data as a `data:` URL for the Windows taskbar overlay icon,
+	 * which has no built-in count rendering. Ignored on other platforms,
+	 * where the OS renders {@link count} itself.
+	 */
+	readonly iconDataURL?: string;
 }
 
 /**
@@ -54,8 +83,15 @@ export interface INativeZipOptions {
 
 export interface IOpenAgentsWindowOptions {
 	readonly folderUri?: UriComponents;
-	readonly sessionResource?: UriComponents;
+	/** Use the invoking editor's folder only for a fresh composer, without replacing an existing session or user choice. */
+	readonly folderUriIsDefault?: boolean;
+	/** Reveal a session or the new-session composer; otherwise preserve the view of an already-open window. */
+	readonly reveal?: UriComponents | 'new';
+	/** Session to spotlight after a contextual invitation, even when it is not opened. */
+	readonly onboardingSessionResource?: UriComponents;
 	readonly source?: AgentsWindowOpenSource;
+	/** Copy a draft only when explicitly revealing the new-session composer. */
+	readonly draft?: IAgentsWindowDraft;
 }
 
 export interface ICPUProperties {
@@ -215,6 +251,8 @@ export interface ICommonNativeHostService {
 	readonly onDidBlurMainOrAuxiliaryWindow: Event<number>;
 
 	readonly onDidChangeDisplay: Event<void>;
+	readonly onDidChangeGPUCompositing: Event<boolean>;
+	readonly onDidChangeAgentHostEditorState: Event<IAgentHostEditorState>;
 
 	readonly onDidSuspendOS: Event<void>;
 	readonly onDidResumeOS: Event<unknown>;
@@ -245,6 +283,12 @@ export interface ICommonNativeHostService {
 
 	openAgentsWindow(options?: IOpenAgentsWindowOptions): Promise<void>;
 
+	getAgentHostEditorState(legacyEditorSessionCount: number): Promise<IAgentHostEditorState>;
+	updateAgentHostEditorState(update: AgentHostEditorUpdate): Promise<void>;
+	claimAgentsWindowInvitation(resource: UriComponents, developerMode: boolean): Promise<IAgentsWindowInvitation | undefined>;
+	markAgentsWindowInvitationShown(id: string): Promise<void>;
+	releaseAgentsWindowInvitation(id: string): Promise<void>;
+
 	/**
 	 * Registers this window's set of system-wide (OS global) keybindings with the main process,
 	 * replacing any previously registered by this window. The shortcuts fire even when the
@@ -268,7 +312,7 @@ export interface ICommonNativeHostService {
 	toggleWindowAlwaysOnTop(options?: INativeHostOptions): Promise<void>;
 	setWindowAlwaysOnTop(alwaysOnTop: boolean, options?: INativeHostOptions): Promise<void>;
 
-	updateWindowControls(options: INativeHostOptions & { height?: number; backgroundColor?: string; foregroundColor?: string; dimmed?: boolean }): Promise<void>;
+	updateWindowControls(options: INativeHostOptions & { height?: number; horizontalInset?: number; backgroundColor?: string; foregroundColor?: string; dimmed?: boolean }): Promise<void>;
 
 	updateWindowAccentColor(color: 'default' | 'off' | string, inactiveColor: string | undefined): Promise<void>;
 
@@ -299,6 +343,11 @@ export interface ICommonNativeHostService {
 	showItemInFolder(path: string): Promise<void>;
 	setRepresentedFilename(path: string, options?: INativeHostOptions): Promise<void>;
 	setDocumentEdited(edited: boolean, options?: INativeHostOptions): Promise<void>;
+	/**
+	 * Renders a count badge on the application icon. Passing `undefined` or a
+	 * badge with a count of `0` clears it again.
+	 */
+	setApplicationBadge(badge: IApplicationBadge | undefined, options?: INativeHostOptions): Promise<void>;
 	openExternal(url: string, defaultApplication?: string): Promise<boolean>;
 	moveItemToTrash(fullPath: string): Promise<void>;
 
@@ -311,6 +360,8 @@ export interface ICommonNativeHostService {
 	getOSProperties(): Promise<IOSProperties>;
 	getOSStatistics(): Promise<IOSStatistics>;
 	getOSVirtualMachineHint(): Promise<number>;
+
+	isGPUCompositingEnabled(): Promise<boolean>;
 
 	getOSColorScheme(): Promise<IColorScheme>;
 

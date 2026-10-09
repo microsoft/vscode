@@ -42,6 +42,12 @@ function targetedModel(identifier: string, sessionType: string): ILanguageModelC
  * conversation reproduces the production guarantee — one record per conversation, reachable only
  * while that conversation is bound — rather than assuming it.
  */
+/** An agent-host model; `byokModelIdentifier` marks it as a copy bridged in from a BYOK provider. */
+function hostModel(identifier: string, byokModelIdentifier?: string): ILanguageModelChatMetadataAndIdentifier {
+	const base = targetedModel(identifier, 'agent-host-copilotcli');
+	return { ...base, metadata: { ...base.metadata, vendor: 'agent-host-copilotcli', byokModelIdentifier } };
+}
+
 function createIntentStore(
 	boundKey: () => string | undefined,
 	intents = new Map<string | undefined, IIntendedModelSelection | undefined>(),
@@ -68,6 +74,10 @@ interface IRuntimeState {
 	 * only while that conversation is bound — is reproduced rather than assumed.
 	 */
 	readonly intents?: Map<string | undefined, IIntendedModelSelection | undefined>;
+	/** Set to report the session type as still loading until a model targets it. */
+	readonly awaitsSessionModels?: boolean;
+	/** Models to report as gone for good rather than not yet published. */
+	readonly goneModelIds?: ReadonlySet<string>;
 }
 
 function createRuntime(
@@ -82,6 +92,8 @@ function createRuntime(
 		getModels: () => state.models,
 		getAllModels: () => state.models,
 		getConfiguredModelValue: () => state.configuredModel,
+		...(state.awaitsSessionModels ? { isAwaitingSessionModels: (type: string) => !hasModelsTargetingSession(state.models, type) } : {}),
+		isModelAbsenceConclusive: modelId => !!state.goneModelIds?.has(modelId),
 		isModelSupportedHere: model => isModelSupportedForMode(model, ChatModeKind.Ask) && isModelSupportedForInlineChat(model, ChatAgentLocation.Chat),
 		getDeclaredDefaultModel: models => models.find(model => model.metadata.isDefaultForLocation[ChatAgentLocation.Chat]),
 		subscribeToModelChanges: listener => modelChanges.event(listener),
@@ -174,6 +186,8 @@ suite('ChatInputModelSelectionController', () => {
 		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime({ models: [], sessionType: 'test' }, modelChanges, [])));
 		const first = model('test/first');
 		const second = model('test/second');
+		const userSelections: { fromModelId: string; toModelId: string }[] = [];
+		disposables.add(controller.onDidChangeUserSelectedModel(event => userSelections.push(event)));
 
 		controller.applySelection(first, () => { }, false);
 		const automatic = {
@@ -186,10 +200,44 @@ suite('ChatInputModelSelectionController', () => {
 			automatic,
 			current: controller.currentModel.get()?.identifier,
 			explicitAfterUserSelection: controller.selectionReason,
+			userSelections,
 		}, {
 			automatic: { current: first.identifier, explicit: undefined },
 			current: second.identifier,
 			explicitAfterUserSelection: ModelSelectionReason.UserSelection,
+			userSelections: [{ fromModelId: first.identifier, toModelId: second.identifier }],
+		});
+	});
+
+	test('refreshes selected model metadata when the same identifier is republished', () => {
+		const modelChanges = disposables.add(new Emitter<string>());
+		const initial = model('agent-host-codex:openai/gpt-5.6-sol');
+		const enriched = {
+			...initial,
+			metadata: {
+				...initial.metadata,
+				configurationSchema: {
+					properties: {
+						thinkingLevel: { group: 'navigation', enum: ['low', 'high'], default: 'low' },
+						contextSize: { group: 'tokens', enum: [200_000, 922_000], default: 200_000 },
+					},
+				},
+			},
+		} satisfies ILanguageModelChatMetadataAndIdentifier;
+		const state: IRuntimeState = { models: [initial], sessionType: 'agent-host-codex' };
+		const applied: string[] = [];
+		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, applied)));
+
+		controller.applySelection(initial, () => { }, false);
+		state.models = [enriched];
+		modelChanges.fire('agent-host-codex');
+
+		assert.deepStrictEqual({
+			selectedModel: controller.currentModel.get(),
+			applied,
+		}, {
+			selectedModel: enriched,
+			applied: [],
 		});
 	});
 
@@ -198,15 +246,19 @@ suite('ChatInputModelSelectionController', () => {
 		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime({ models: [], sessionType: 'test' }, modelChanges, [])));
 		const first = model('test/first');
 		const second = model('test/second');
+		const userSelections: { fromModelId: string; toModelId: string }[] = [];
+		disposables.add(controller.onDidChangeUserSelectedModel(event => userSelections.push(event)));
 		controller.applySelection(first, () => { }, false);
 
 		assert.throws(() => controller.applySelection(second, () => { throw new Error('rejected'); }, true, true), /rejected/);
 		assert.deepStrictEqual({
 			current: controller.currentModel.get()?.identifier,
 			reason: controller.selectionReason,
+			userSelections,
 		}, {
 			current: first.identifier,
 			reason: undefined,
+			userSelections: [],
 		});
 	});
 
@@ -297,6 +349,21 @@ suite('ChatInputModelSelectionController', () => {
 			applied: [first.identifier, remembered.identifier],
 			current: remembered.identifier,
 		});
+	});
+
+	test('a remembered model gone for good falls back to the configured default, and is reclaimed if it returns', () => {
+		const modelChanges = disposables.add(new Emitter<string>());
+		const configured = model('test/configured');
+		const gone = model('test/gone');
+		const state: IRuntimeState = { models: [model('test/first'), configured], sessionType: 'test', configuredModel: configured.metadata.id, isEmpty: false, goneModelIds: new Set([gone.identifier]) };
+		const applied: string[] = [];
+		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, applied)));
+
+		controller.initialize(gone.identifier);
+		state.models = [...state.models, gone];
+		modelChanges.fire('test');
+
+		assert.deepStrictEqual(applied, [configured.identifier, gone.identifier]);
 	});
 
 	test('explicit selection cancels an eventual remembered-model restore', () => {
@@ -1246,6 +1313,57 @@ suite('ChatInputModelSelectionController', () => {
 		assert.deepStrictEqual({ applied, current: controller.currentModel.get()?.identifier }, {
 			applied: [byok.identifier, copilotDefault.identifier],
 			current: copilotDefault.identifier,
+		});
+	});
+
+	test('a BYOK-only wave leaves the awaited model alone and yields to the first non-BYOK model', () => {
+		// A wave carrying only bridged BYOK copies used to reset the picker and take one as "first
+		// available", moving the conversation onto the user's own API key.
+		const sessionType = 'agent-host-copilotcli';
+		const chosen = hostModel('agent-host-copilotcli:gpt-5.6-terra');
+		const anthropic = hostModel('agent-host-copilotcli:anthropic/Anthropic/claude-opus-5', 'anthropic/Anthropic/claude-opus-5');
+		const openrouter = hostModel('agent-host-copilotcli:openrouter/OpenRouter/ai21/jamba', 'openrouter/OpenRouter/ai21/jamba');
+		const free = hostModel('agent-host-copilotcli:gpt-5.6-sol');
+		const modelChanges = disposables.add(new Emitter<string>());
+		const state: IRuntimeState = { models: [anthropic, openrouter, chosen], sessionType, isEmpty: false, awaitsSessionModels: true };
+		const applied: string[] = [];
+		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, applied)));
+
+		controller.syncFromConversationState(chosen, undefined, sessionType, 'chat:one', false, ModelSelectionReason.RestoredChoice);
+		// Only the two BYOK providers are on offer: neither is picked, and neither is ranked above the other.
+		state.models = [anthropic, openrouter];
+		modelChanges.fire('byok-only-wave');
+		const duringByokOnly = controller.currentModel.get()?.identifier;
+		// A non-BYOK model publishes, but still not the awaited one.
+		state.models = [anthropic, openrouter, free];
+		modelChanges.fire('free-model-wave');
+
+		assert.deepStrictEqual({ duringByokOnly, afterNonByok: controller.currentModel.get()?.identifier, applied }, {
+			duringByokOnly: chosen.identifier,
+			afterNonByok: free.identifier,
+			applied: [chosen.identifier, free.identifier],
+		});
+	});
+
+	test('a conversation with no model to keep is still seeded by the pool that arrives', () => {
+		// The guard must not become a permanent no-op: with nothing awaited, a BYOK-only pool still
+		// seeds the conversation — for a signed-out user it is the only way to run at all.
+		const sessionType = 'agent-host-copilotcli';
+		const bridged = hostModel('agent-host-copilotcli:anthropic/Anthropic/claude-opus-5', 'anthropic/Anthropic/claude-opus-5');
+		const modelChanges = disposables.add(new Emitter<string>());
+		const state: IRuntimeState = { models: [], sessionType, awaitsSessionModels: true };
+		const applied: string[] = [];
+		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, applied)));
+
+		controller.initialize(undefined);
+		const beforePublish = controller.currentModel.get()?.identifier;
+		state.models = [bridged];
+		modelChanges.fire('byok-only');
+
+		assert.deepStrictEqual({ beforePublish, current: controller.currentModel.get()?.identifier, applied }, {
+			beforePublish: undefined,
+			current: bridged.identifier,
+			applied: [bridged.identifier],
 		});
 	});
 

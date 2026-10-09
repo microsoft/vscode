@@ -7,7 +7,7 @@ import * as dom from '../../../../../../base/browser/dom.js';
 import { ButtonWithIcon } from '../../../../../../base/browser/ui/button/button.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -50,6 +50,8 @@ export interface IChatCollapsibleIODataPart {
 	audience?: LanguageModelPartAudience[];
 	mimeType: string | undefined;
 	uri: URI;
+	/** Display and suggested save name, without changing the resource used to load the bytes. */
+	name?: string;
 }
 
 export type ChatCollapsibleIOPart = IChatCollapsibleIOCodePart | IChatCollapsibleIODataPart;
@@ -57,6 +59,8 @@ export type ChatCollapsibleIOPart = IChatCollapsibleIOCodePart | IChatCollapsibl
 export interface IChatCollapsibleInputData extends IChatCollapsibleIOCodePart { }
 export interface IChatCollapsibleOutputData {
 	parts: ChatCollapsibleIOPart[];
+	showCollapsedResources?: boolean;
+	renderMetadata?: (container: HTMLElement) => IDisposable;
 }
 
 export class ChatCollapsibleInputOutputContentPart extends Disposable {
@@ -96,6 +100,7 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 		isError: boolean,
 		initiallyExpanded: boolean,
 		shimmer: boolean,
+		icon: ThemeIcon | undefined,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IHoverService hoverService: IHoverService,
@@ -144,9 +149,9 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 			if (isError) {
 				btn.icon = Codicon.errorCompact;
 			} else {
-				btn.icon = output
+				btn.icon = icon ?? (output
 					? Codicon.checkCompact
-					: ThemeIcon.modify(Codicon.loadingCompact, 'spin');
+					: ThemeIcon.modify(Codicon.loadingCompact, 'spin'));
 			}
 			elements.root.classList.toggle('shimmer-progress', shimmer && isInProgress);
 
@@ -182,7 +187,7 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 
 		this._register(btn.onDidClick(toggle));
 
-		const topLevelResources = this.output?.parts
+		const topLevelResources = this.output?.showCollapsedResources === false ? undefined : this.output?.parts
 			.filter(p => p.kind === 'data')
 			.filter(p => !p.audience || p.audience.includes(LanguageModelPartAudience.User));
 		if (topLevelResources?.length) {
@@ -225,12 +230,30 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 			));
 			this._outputSubPart = outputSubPart;
 			contents.output.appendChild(outputSubPart.domNode);
+			if (output.renderMetadata) {
+				this._register(output.renderMetadata(contents.root));
+			}
 		}
 
 		return contents.root;
 	}
 
-	private addCodeBlock(part: IChatCollapsibleIOCodePart, container: HTMLElement) {
+	updateInput(text: string): void {
+		if (this.input.data === text) {
+			return;
+		}
+		this.input.data = text;
+		const codeBlock = this._editorReferences[0]?.object;
+		if (codeBlock) {
+			const viewState = codeBlock.editor.saveViewState();
+			this.renderCodeBlock(this.input, codeBlock);
+			if (viewState) {
+				codeBlock.editor.restoreViewState(viewState);
+			}
+		}
+	}
+
+	private renderCodeBlock(part: IChatCollapsibleIOCodePart, codeBlock: CodeBlockPart): void {
 		const data: ICodeBlockData = {
 			languageId: part.languageId,
 			text: part.data,
@@ -240,9 +263,13 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 			renderOptions: part.options,
 			chatSessionResource: this.context.element.sessionResource,
 		};
+		codeBlock.render(data, (this._lastLayoutWidth ?? this.context.currentWidth.get()) || 300);
+	}
+
+	private addCodeBlock(part: IChatCollapsibleIOCodePart, container: HTMLElement) {
 		const key = CodeBlockPart.poolKey(this.context.element.id, part.codeBlockIndex);
 		const editorReference = this._register(this.context.editorPool.get(key));
-		editorReference.object.render(data, this.context.currentWidth.get() || 300);
+		this.renderCodeBlock(part, editorReference.object);
 		container.appendChild(editorReference.object.element);
 		this._editorReferences.push(editorReference);
 	}

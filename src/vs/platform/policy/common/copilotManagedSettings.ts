@@ -16,6 +16,11 @@ export type { ManagedSettingsData } from '../../../base/common/policy.js';
 
 export type RawManagedSettingsData = Readonly<Record<string, unknown>>;
 
+/** Whether a raw managed-settings document contains at least one top-level setting. */
+export function hasRawManagedSettings(data: RawManagedSettingsData | undefined): boolean {
+	return data !== undefined && Object.keys(data).length > 0;
+}
+
 /** Windows registry root for GitHub Copilot policies. */
 export const GITHUB_COPILOT_WIN32_REGISTRY_PATH = 'SOFTWARE\\Policies\\GitHubCopilot';
 
@@ -27,6 +32,9 @@ export const GITHUB_COPILOT_MACOS_BUNDLE_ID = 'com.github.copilot';
 
 /** MDM key for the V0 managed setting. */
 export const COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY = 'permissions.disableBypassPermissionsMode';
+
+/** Runtime-owned rule lists that the Local harness cannot enforce. */
+export const COPILOT_PERMISSION_RULES_KEYS = ['permissions.ask', 'permissions.allow', 'permissions.deny'] as const;
 
 /** Managed-settings key for enterprise plugin enablement (carried as a JSON-encoded `{ [pluginId]: boolean }`). */
 export const COPILOT_ENABLED_PLUGINS_KEY = 'enabledPlugins';
@@ -64,13 +72,77 @@ export const COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY = 'forceRemoteSettingsRef
  */
 export const COPILOT_SANDBOX_ENABLED_KEY = 'sandbox.enabled';
 
+/** Managed-settings key that requires MCP servers to remain sandboxed. */
+export const COPILOT_SANDBOX_MCP_SERVERS_KEY = 'sandbox.sandboxMcpServers';
+
+/** Managed-settings key that requires LSP servers to remain sandboxed. */
+export const COPILOT_SANDBOX_LSP_SERVERS_KEY = 'sandbox.sandboxLspServers';
+
+/** Managed-settings key that restricts HTTPS Git authentication inside the sandbox. */
+export const COPILOT_SANDBOX_AUTH_GIT_KEY = 'sandbox.auth.git';
+
+/** Managed-settings key that restricts GitHub CLI authentication inside the sandbox. */
+export const COPILOT_SANDBOX_AUTH_GH_KEY = 'sandbox.auth.gh';
+
+/** Managed-settings key that permits explicitly bypassing the sandbox. */
+export const COPILOT_SANDBOX_ALLOW_BYPASS_KEY = 'sandbox.allowBypass';
+
+/** Managed-settings key that restricts outbound sandbox network access. */
+export const COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY = 'sandbox.userPolicy.network.allowOutbound';
+
+/** Managed-settings key that restricts local-network access from the sandbox. */
+export const COPILOT_SANDBOX_ALLOW_LOCAL_NETWORK_KEY = 'sandbox.userPolicy.network.allowLocalNetwork';
+
+/** Managed-settings key that supplies the sandbox's network allowlist. */
+export const COPILOT_SANDBOX_ALLOWED_HOSTS_KEY = 'sandbox.userPolicy.network.allowedHosts';
+
+/** Managed-settings key that supplies writable sandbox paths. */
+export const COPILOT_SANDBOX_READWRITE_PATHS_KEY = 'sandbox.userPolicy.filesystem.readwritePaths';
+
+/** Managed-settings key that supplies read-only sandbox paths. */
+export const COPILOT_SANDBOX_READONLY_PATHS_KEY = 'sandbox.userPolicy.filesystem.readonlyPaths';
+
+/** Managed-settings key that supplies denied sandbox paths. */
+export const COPILOT_SANDBOX_DENIED_PATHS_KEY = 'sandbox.userPolicy.filesystem.deniedPaths';
+
+/** Managed-settings key that restricts developer tool access from the sandbox. */
+export const COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY = 'sandbox.allowDevToolAccess';
+
+/** Auto startup default, read as one atomic value across managed delivery channels. */
+export const COPILOT_AUTO_TIER_KEY = 'autoTier';
+
 /**
  * Managed-settings controls consumed by the delivery pipeline itself rather than by a
  * configuration policy. Native MDM must watch these even though no setting declares them.
  */
 export const MANAGED_SETTINGS_CONTROL_DEFINITIONS: IManagedSettingsPolicyDefinitions = {
+	...Object.fromEntries(COPILOT_PERMISSION_RULES_KEYS.map(key => [key, { type: 'string' as const }])),
+	'permissions.defaultMode': { type: 'string' },
+	'permissions.disableAssistedPermissionsMode': { type: 'boolean' },
+	[COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: { type: 'string' },
+	'permissions.limitTo': { type: 'string' },
+	'permissions.model': { type: 'string' },
 	[COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: { type: 'boolean' },
 	[COPILOT_SANDBOX_ENABLED_KEY]: { type: 'boolean' },
+	[COPILOT_SANDBOX_MCP_SERVERS_KEY]: { type: 'boolean' },
+	[COPILOT_SANDBOX_LSP_SERVERS_KEY]: { type: 'boolean' },
+	[COPILOT_SANDBOX_AUTH_GIT_KEY]: { type: 'boolean' },
+	[COPILOT_SANDBOX_AUTH_GH_KEY]: { type: 'boolean' },
+	[COPILOT_SANDBOX_ALLOW_BYPASS_KEY]: { type: 'boolean' },
+	[COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY]: { type: 'boolean' },
+	[COPILOT_SANDBOX_ALLOW_LOCAL_NETWORK_KEY]: { type: 'boolean' },
+	[COPILOT_SANDBOX_ALLOWED_HOSTS_KEY]: { type: 'string' },
+	[COPILOT_SANDBOX_READWRITE_PATHS_KEY]: { type: 'string' },
+	[COPILOT_SANDBOX_READONLY_PATHS_KEY]: { type: 'string' },
+	[COPILOT_SANDBOX_DENIED_PATHS_KEY]: { type: 'string' },
+	[COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY]: { type: 'boolean' },
+	[COPILOT_AUTO_TIER_KEY]: { type: 'string' },
+	// Observe these only for whole-block source selection; Local does not implement their capture semantics.
+	'telemetry.capture.prompts': { type: 'boolean' },
+	'telemetry.capture.responses': { type: 'boolean' },
+	'telemetry.capture.toolArguments': { type: 'boolean' },
+	'telemetry.capture.toolOutput': { type: 'boolean' },
+	'telemetry.capture.policyDetail': { type: 'boolean' },
 };
 
 /** Policy-only configuration delivery slot for {@link COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_KEY}. */
@@ -117,6 +189,9 @@ export const COPILOT_OTEL_PROTOCOL_KEY = 'telemetry.protocol';
 /** Managed-settings key for enterprise OTel content capture. */
 export const COPILOT_OTEL_CAPTURE_CONTENT_KEY = 'telemetry.captureContent';
 
+/** Managed-settings key for independently governed OTel identity capture. */
+export const COPILOT_OTEL_CAPTURE_IDENTITY_KEY = 'telemetry.capture.identity';
+
 /** Managed-settings key that prevents users from enabling OTel content capture themselves. */
 export const COPILOT_OTEL_LOCK_CAPTURE_CONTENT_KEY = 'telemetry.lockCaptureContent';
 
@@ -128,6 +203,18 @@ export const COPILOT_OTEL_RESOURCE_ATTRIBUTES_KEY = 'telemetry.resourceAttribute
 
 /** Managed-settings key for extra OTLP exporter headers (a `{ [k]: string }` map). */
 export const COPILOT_OTEL_HEADERS_KEY = 'telemetry.headers';
+
+/**
+ * An empty normalized telemetry block is carried as the JSON string `{}` under `telemetry`.
+ * This preserves block presence across IPC and caching without inventing a policy leaf. Like
+ * undeclared telemetry leaves, this anchor is discarded by policy projection, not by selection.
+ */
+const telemetryBlockKey = 'telemetry';
+
+/** Whether a canonical bag key belongs to the telemetry block. */
+function isTelemetrySettingKey(key: string): boolean {
+	return key === telemetryBlockKey || key.startsWith(`${telemetryBlockKey}.`);
+}
 
 const managedSettingValueCallbacks = new Map<string, (policyData: IPolicyData) => ManagedSettingValue | undefined>();
 
@@ -176,6 +263,7 @@ export const IManagedSettingsService = createDecorator<IManagedSettingsService>(
 export interface IManagedSettingsService {
 	readonly _serviceBrand: undefined;
 	readonly onDidChangeManagedSettings: Event<void>;
+	getManagedSettings(): ManagedSettingsData;
 	getManagedSettingValue(key: string): ManagedSettingValue | undefined;
 }
 
@@ -183,9 +271,24 @@ export class NullManagedSettingsService implements IManagedSettingsService {
 	readonly _serviceBrand: undefined;
 	readonly onDidChangeManagedSettings = Event.None;
 
-	getManagedSettingValue(): ManagedSettingValue | undefined {
+	getManagedSettings(): ManagedSettingsData {
+		return {};
+	}
+
+	getManagedSettingValue(_key: string): ManagedSettingValue | undefined {
 		return undefined;
 	}
+}
+
+/** Presence selects the runtime harness; interpreting permission values remains runtime-owned. */
+export function hasManagedPermissions(service: IManagedSettingsService): boolean {
+	const settings = service.getManagedSettings();
+	return Object.keys(settings).some(key => (key === 'permissions' || key.startsWith('permissions.')) && settings[key] !== undefined);
+}
+
+/** Whether effective policy requires enforcement unavailable in the Local harness. */
+export function requiresCopilotAgentHost(service: IManagedSettingsService): boolean {
+	return service.getManagedSettingValue(COPILOT_SANDBOX_ENABLED_KEY) === true || hasManagedPermissions(service);
 }
 
 let managedModelValueCallback: ((policyData: IPolicyData) => ManagedSettingValue | undefined) | undefined;
@@ -213,6 +316,11 @@ export function managedModelValue(): (policyData: IPolicyData) => ManagedSetting
 	return managedModelValueCallback;
 }
 
+/** Forces a boolean setting off while the user is governed by managed settings. */
+export function managedSettingsDisabledValue(policyData: IPolicyData): boolean | undefined {
+	return policyData.managedSettingsActive === true ? false : undefined;
+}
+
 /**
  * `value` callback shared by the third-party agent harness policies (`Claude3PIntegration`,
  * `Codex3PIntegration`): forces the harness off when the account disables chat preview features,
@@ -223,9 +331,7 @@ export function managedModelValue(): (policyData: IPolicyData) => ManagedSetting
  * every managed control the enterprise set.
  */
 export function thirdPartyAgentEnabledValue(policyData: IPolicyData): boolean | undefined {
-	return policyData.chat_preview_features_enabled === false || policyData.managedSettingsActive === true
-		? false
-		: undefined;
+	return policyData.chat_preview_features_enabled === false ? false : managedSettingsDisabledValue(policyData);
 }
 
 export const INativeManagedSettingsService = createDecorator<INativeManagedSettingsService>('nativeManagedSettingsService');
@@ -374,30 +480,35 @@ export interface IManagedSettingsContribution {
 export interface IManagedSettingResolution {
 	/** The effective (winning) value applied for the key. */
 	readonly value: ManagedSettingValue;
-	/** The channel whose value won (always the first {@link contributions} entry's channel). */
+	/** The highest-precedence channel supplying the effective value. */
 	readonly source: ManagedSettingsChannel;
-	/** Every channel that supplied this key, in precedence order (winner first, overridden after). */
+	/** Every channel that supplied this key, in delivery precedence order. */
 	readonly contributions: readonly IManagedSettingsContribution[];
 }
 
-/** The result of merging managed settings from every delivery channel on a per-key basis. */
+/** The result of resolving managed settings across the delivery channels. */
 export interface IManagedSettingsPick {
-	/** The effective merged bag: the winning value for each key contributed by any channel. */
+	/** The effective bag, excluding telemetry leaves found only in weaker managed sources. */
 	readonly values: ManagedSettingsData;
 	/** Per-key provenance: how each key resolved and which channels were overridden. */
 	readonly resolutions: ReadonlyMap<string, IManagedSettingResolution>;
+	/** Telemetry keys supplied only by weaker blocks, retained for diagnostics but never applied. */
+	readonly suppressedTelemetry: ReadonlyMap<string, readonly IManagedSettingsContribution[]>;
 	/** The channels that supplied at least one *winning* key, in precedence order. */
 	readonly activeSources: readonly ManagedSettingsChannel[];
 }
 
 /**
- * Merge the managed-settings bags from every delivery channel on a **per-key** basis.
+ * Merge the managed-settings bags from every delivery channel.
  *
  * Precedence (highest first): native MDM → server-delivered → file on disk. Unlike a single
  * authoritative source, the channels *are* merged key-by-key: for each key the highest-precedence
  * channel that supplies it wins, but a key that the higher channels never set is still filled in by
- * a lower channel. A value an admin locks via native MDM therefore cannot be overwritten by the
- * server or a file, while keys those higher channels leave unset remain available to lower ones.
+ * a lower channel. Telemetry instead selects the highest-priority block in its entirety, including
+ * empty or unrecognized server/file object blocks; native delivery observes declared flat keys only.
+ * Omitted leaves cannot inherit from a weaker managed source.
+ * Sandbox enablement is force-on-wins; bypass, access and credential authentication are deny-wins so UI consumers
+ * cannot discard a sandbox restriction from another channel.
  *
  * The parameter order matches the precedence so call sites read top-to-bottom. Centralizing the
  * resolution here (rather than inlining it at each call site) keeps policy evaluation
@@ -408,9 +519,10 @@ export interface IManagedSettingsPick {
 export function pickManagedSettings(nativeMdm: ManagedSettingsData | undefined, server: ManagedSettingsData | undefined, file: ManagedSettingsData | undefined): IManagedSettingsPick {
 	const bags: Record<ManagedSettingsChannel, ManagedSettingsData | undefined> = { nativeMdm, server, file };
 
-	// Walk channels highest-precedence first: the first channel to supply a key wins, and later
-	// channels are appended as overridden contributions for provenance.
+	// Preserve delivery order for provenance even when a sandbox requirement wins from a later channel.
 	const resolutions = new Map<string, { value: ManagedSettingValue; source: ManagedSettingsChannel; contributions: IManagedSettingsContribution[] }>();
+	const suppressedTelemetry = new Map<string, IManagedSettingsContribution[]>();
+	let telemetrySource: ManagedSettingsChannel | undefined;
 	for (const channel of MANAGED_SETTINGS_CHANNELS) {
 		const bag = bags[channel];
 		if (!bag) {
@@ -424,8 +536,22 @@ export function pickManagedSettings(nativeMdm: ManagedSettingsData | undefined, 
 				continue;
 			}
 			const existing = resolutions.get(key);
+			if (isTelemetrySettingKey(key)) {
+				telemetrySource ??= channel;
+				if (channel !== telemetrySource && !existing) {
+					const contributions = suppressedTelemetry.get(key) ?? [];
+					contributions.push({ channel, value });
+					suppressedTelemetry.set(key, contributions);
+					continue;
+				}
+			}
 			if (existing) {
 				existing.contributions.push({ channel, value });
+				if (((key === COPILOT_SANDBOX_ENABLED_KEY || key === COPILOT_SANDBOX_MCP_SERVERS_KEY || key === COPILOT_SANDBOX_LSP_SERVERS_KEY) && value === true && existing.value !== true)
+					|| ((key === COPILOT_SANDBOX_ALLOW_BYPASS_KEY || key === COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY || key === COPILOT_SANDBOX_ALLOW_LOCAL_NETWORK_KEY || key === COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY || key === COPILOT_SANDBOX_AUTH_GIT_KEY || key === COPILOT_SANDBOX_AUTH_GH_KEY) && value === false && existing.value !== false)) {
+					existing.value = value;
+					existing.source = channel;
+				}
 			} else {
 				resolutions.set(key, { value, source: channel, contributions: [{ channel, value }] });
 			}
@@ -443,6 +569,7 @@ export function pickManagedSettings(nativeMdm: ManagedSettingsData | undefined, 
 		// Build via Object.fromEntries (define-property semantics) rather than bracket assignment so
 		// an untrusted `__proto__` key can't corrupt the merged bag's prototype chain.
 		values: Object.fromEntries(entries),
+		suppressedTelemetry,
 		resolutions,
 		// Preserve precedence order for a stable, readable report.
 		activeSources: MANAGED_SETTINGS_CHANNELS.filter(channel => activeSources.has(channel)),
@@ -528,6 +655,27 @@ function encodeExtraMarketplaces(value: unknown, onWarn?: (msg: string) => void)
 }
 
 const STRUCTURED_MANAGED_SETTINGS: readonly IStructuredManagedSetting[] = [
+	...COPILOT_PERMISSION_RULES_KEYS.map(key => ({ key, encode: (value: unknown) => value })),
+	{
+		key: COPILOT_SANDBOX_ALLOWED_HOSTS_KEY,
+		encode: encodeArray,
+	},
+	{
+		key: COPILOT_SANDBOX_READWRITE_PATHS_KEY,
+		encode: encodeArray,
+	},
+	{
+		key: COPILOT_SANDBOX_READONLY_PATHS_KEY,
+		encode: encodeArray,
+	},
+	{
+		key: COPILOT_SANDBOX_DENIED_PATHS_KEY,
+		encode: encodeArray,
+	},
+	{
+		key: COPILOT_AUTO_TIER_KEY,
+		encode: value => value,
+	},
 	{
 		key: COPILOT_ENABLED_PLUGINS_KEY,
 		encode: encodeObject,
@@ -614,6 +762,8 @@ function withNestedManagedKeyDeleted(obj: Record<string, unknown>, dottedKey: st
  *   `PolicyConfiguration` parses the JSON back into the object-typed setting on read.
  *   `extraKnownMarketplaces` is normalized from the schema's `{ [id]: { source, autoUpdate? } }`
  *   map to the policy-backed marketplace dict.
+ * - Telemetry blocks with no representable leaves retain a JSON `{}` anchor under `telemetry`,
+ *   so an empty or future-only block still takes precedence over lower managed sources.
  *
  * Malformed marketplace entries are dropped (with an optional warning via {@link onWarn}) rather
  * than throwing, so a bad enterprise settings file degrades gracefully instead of blocking startup.
@@ -624,6 +774,11 @@ export function normalizeManagedSettings(parsed: Record<string, unknown>, onWarn
 	// `__proto__` key, matching a destructuring rest. Structured keys may be nested (e.g.
 	// `telemetry.resourceAttributes`), so removal clones only the touched path.
 	let scalarRest: Record<string, unknown> = { ...parsed };
+	const hasTelemetryBlock = Object.hasOwn(parsed, telemetryBlockKey) && isObject(parsed[telemetryBlockKey]);
+	if (!hasTelemetryBlock) {
+		// A scalar named telemetry is not a block (nor a serialized presence anchor in raw input).
+		delete scalarRest[telemetryBlockKey];
+	}
 	for (const setting of STRUCTURED_MANAGED_SETTINGS) {
 		scalarRest = withNestedManagedKeyDeleted(scalarRest, setting.key);
 	}
@@ -634,6 +789,23 @@ export function normalizeManagedSettings(parsed: Record<string, unknown>, onWarn
 		const encoded = setting.encode(readNestedManagedKey(parsed, setting.key), onWarn);
 		if (encoded !== undefined) {
 			result[setting.key] = JSON.stringify(encoded);
+		}
+	}
+
+	if (hasTelemetryBlock && !Object.keys(result).some(isTelemetrySettingKey)) {
+		result[telemetryBlockKey] = '{}';
+	}
+
+	// Preserve future permission keys even when their values contain no scalar leaves.
+	if (isObject(parsed.permissions)) {
+		for (const [key, value] of Object.entries(parsed.permissions)) {
+			const flatKey = `permissions.${key}`;
+			if (value !== undefined && !Object.keys(result).some(key => key === flatKey || key.startsWith(`${flatKey}.`))) {
+				const encoded = JSON.stringify(value);
+				if (encoded !== undefined) {
+					result[flatKey] = encoded;
+				}
+			}
 		}
 	}
 

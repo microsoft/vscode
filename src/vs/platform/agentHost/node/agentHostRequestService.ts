@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { loadSystemCertificates } from '@vscode/proxy-agent';
 import { newWriteableBufferStream, VSBuffer, VSBufferWriteableStream } from '../../../base/common/buffer.js';
 import { timeout } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
@@ -11,10 +10,10 @@ import { CancellationError, isCancellationError } from '../../../base/common/err
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { IHeaders, IRequestContext, IRequestOptions } from '../../../base/parts/request/common/request.js';
 import { ILogService } from '../../log/common/log.js';
-import { AbstractRequestService, AuthInfo, Credentials, systemCertificatesNodeDefault } from '../../request/common/request.js';
+import { AbstractRequestService, AuthInfo, Credentials } from '../../request/common/request.js';
 import { lookupKerberosAuthorization } from '../../request/node/requestService.js';
 import { AgentHostProxyConfigKey } from '../common/agentHostSchema.js';
-import { IAgentHostProxyResolver } from './agentHostProxyResolver.js';
+import { IAgentHostProxyResolver, loadAgentHostCertificates } from './agentHostProxyResolver.js';
 
 const TRANSIENT_ERROR_CODES = new Set([
 	'EAI_AGAIN',
@@ -76,10 +75,7 @@ export class AgentHostRequestService extends AbstractRequestService {
 	}
 
 	override loadCertificates(): Promise<string[]> {
-		return loadSystemCertificates({
-			loadSystemCertificatesFromNode: () => systemCertificatesNodeDefault,
-			log: this.logService,
-		});
+		return loadAgentHostCertificates(this.logService);
 	}
 
 	private async _request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {

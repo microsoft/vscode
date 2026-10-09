@@ -5,7 +5,7 @@
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
-import { SessionStatus } from '../../../common/state/sessionState.js';
+import { isAhpChatChannel, isChatInSessionReadAggregate, SessionStatus } from '../../../common/state/sessionState.js';
 import type { IAgentHostChatContribution, IAgentHostChatContributionContext, ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
 
@@ -25,15 +25,21 @@ export class MarkUnreadContribution extends Disposable implements IAgentHostChat
 	}
 
 	onTurnEnd(turn: ITurnEnd): void {
-		// Deliberately ignore agent turn outcomes: success, cancellation, and
-		// error all retain the current behavior of marking a read session unread.
-		// Local commands deliberately preserve the existing read state.
-		if (turn.reason.kind === 'localCommand') {
+		// Rejected requests never ran; marking an archived session unread would resurface it. Local commands preserve read state.
+		if (turn.reason.kind === 'localCommand' || turn.reason.kind === 'rejected') {
 			return;
 		}
-		// Route subagent turns to their owning session too (a background subagent
-		// can complete after the parent turn). Each client keeps its active session
-		// read; marking it unread is idempotent.
+		const session = this._stateManager.getSessionState(turn.session);
+		const chatSummary = isAhpChatChannel(turn.channel)
+			? session?.chats.find(chat => chat.resource === turn.channel)
+			: undefined;
+		const isKnownChat = !!chatSummary;
+		if (isKnownChat) {
+			this._stateManager.dispatchServerAction(turn.channel, { type: ActionType.ChatIsReadChanged, isRead: false });
+		}
+		if (!isChatInSessionReadAggregate(turn.channel, chatSummary?.origin, chatSummary?.interactivity)) {
+			return;
+		}
 		const status = this._stateManager.getSessionSummary(turn.session)?.status ?? 0;
 		if (!(status & SessionStatus.IsRead)) {
 			return;

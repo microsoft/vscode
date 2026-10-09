@@ -13,9 +13,10 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { basename, dirname } from '../../../../../base/common/resources.js';
+import { basename, dirname, isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { isLocation, Location } from '../../../../../editor/common/languages.js';
+import { IRange, Range } from '../../../../../editor/common/core/range.js';
 import { getIconClasses } from '../../../../../editor/common/services/getIconClasses.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
@@ -30,16 +31,39 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IResourceLabel, ResourceLabels } from '../../../../browser/labels.js';
 import { ResourceContextKey } from '../../../../common/contextkeys.js';
-import { ChatContextIconPath, IChatRequestStringVariableEntry, isStringImplicitContextValue, resolveChatContextIcon } from '../../common/attachments/chatVariableEntries.js';
+import { ChatContextIconPath, IChatRequestStringVariableEntry, IChatRequestVariableEntry, isStringImplicitContextValue, isStringVariableEntry, resolveChatContextIcon } from '../../common/attachments/chatVariableEntries.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { isDark } from '../../../../../platform/theme/common/theme.js';
 import { IChatWidget } from '../chat.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { IChatContextService } from '../contextContrib/chatContextService.js';
 import { ChatImplicitContext, ChatImplicitContexts } from './chatImplicitContext.js';
-import { IRange } from '../../../../../editor/common/core/range.js';
 import { IBrowserViewWorkbenchService } from '../../../browserView/common/browserView.js';
 import { BrowserViewUri } from '../../../../../platform/browserView/common/browserViewUri.js';
+
+export function isImplicitContextAlreadyAttached(attachments: readonly IChatRequestVariableEntry[], targetUri: URI | undefined, targetRange: IRange | undefined, targetHandle: number | undefined): boolean {
+	return attachments.some(attachment => {
+		if (targetHandle !== undefined) {
+			return isStringVariableEntry(attachment)
+				&& (attachment.handle === targetHandle || (targetUri !== undefined && isEqual(targetUri, attachment.uri)));
+		}
+		if (isStringVariableEntry(attachment)) {
+			return false;
+		}
+		const attachmentUri = URI.isUri(attachment.value)
+			? attachment.value
+			: isLocation(attachment.value)
+				? attachment.value.uri
+				: undefined;
+		const attachmentRange = isLocation(attachment.value) ? attachment.value.range : undefined;
+		if (targetUri && attachmentUri && isEqual(targetUri, attachmentUri)) {
+			return targetRange && attachmentRange
+				? Range.equalsRange(targetRange, attachmentRange)
+				: !targetRange && !attachmentRange;
+		}
+		return false;
+	});
+}
 
 export class ImplicitContextAttachmentWidget extends Disposable {
 

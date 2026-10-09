@@ -14,7 +14,6 @@ import { deserializeSearchError, IFolderQuery, ISearchRange, ISerializedFileMatc
 import { TextSearchEngineAdapter } from '../../node/textSearchAdapter.js';
 
 const TEST_FIXTURES = path.normalize(FileAccess.asFileUri('vs/workbench/services/search/test/node/fixtures').fsPath);
-const CUSTOM_IGNORE_FIXTURES = path.normalize(FileAccess.asFileUri('vs/workbench/services/search/test/node/fixtures-custom-ignore').fsPath);
 const EXAMPLES_FIXTURES = path.join(TEST_FIXTURES, 'examples');
 const MORE_FIXTURES = path.join(TEST_FIXTURES, 'more');
 const TEST_ROOT_FOLDER: IFolderQuery = { folder: URI.file(TEST_FIXTURES) };
@@ -58,17 +57,6 @@ flakySuite('TextSearch-integration', function () {
 		};
 
 		return doSearchTest(config, 4);
-	});
-
-	test('Text: contributed ignore file', () => {
-		const config: ITextQuery = {
-			type: QueryType.Text,
-			folderQueries: [{ folder: URI.file(CUSTOM_IGNORE_FIXTURES), disregardIgnoreFiles: false }],
-			contentPattern: { pattern: 'custom ignore needle' },
-			ignoreFileNames: ['.ignore', '.customignore']
-		};
-
-		return doSearchTest(config, 1);
 	});
 
 	test('Text: GameOfLife (RegExp)', () => {

@@ -4,6 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
+import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
+import { IAccountPolicyGateService, whenAccountPolicySettled } from '../common/accountPolicyService.js';
 import { AccountPolicyGateContribution } from './accountPolicyGateContribution.js';
 
 registerWorkbenchContribution2(AccountPolicyGateContribution.ID, AccountPolicyGateContribution, WorkbenchPhase.AfterRestored);
+
+CommandsRegistry.registerCommand('_workbench.whenAccountPolicySettled', accessor =>
+	whenAccountPolicySettled(accessor.get(IAccountPolicyGateService)));

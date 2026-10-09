@@ -53,7 +53,7 @@ suite('RipgrepFileSearch - etc', () => {
 			folderQueries: [folderQuery],
 			ignoreFileNames: ['.customignore', '.ignore']
 		};
-		const args = getRgArgs(config, folderQuery, undefined, undefined, undefined, ['/some/folder/.customignore']);
+		const { args } = getRgArgs(config, folderQuery, undefined, undefined, undefined, ['/some/folder/.customignore']);
 		const ignoreFileArg = args.indexOf('--no-ignore-vcs');
 
 		assert.deepStrictEqual(args.slice(ignoreFileArg, ignoreFileArg + 3), ['--no-ignore-vcs', '--ignore-file', '/some/folder/.customignore']);

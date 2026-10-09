@@ -6,14 +6,10 @@
 import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IEditSessionEntryDiff } from '../../../../contrib/chat/common/editing/chatEditingService.js';
 import { IChatResponseFileChangesService } from '../../../../contrib/chat/browser/chatResponseFileChangesService.js';
 import { ChatTurnPillsContentPart } from '../../../../contrib/chat/browser/widget/chatContentParts/chatTurnPillsPart.js';
 import { IChatContentPartRenderContext } from '../../../../contrib/chat/browser/widget/chatContentParts/chatContentParts.js';
-import { ChatConfiguration } from '../../../../contrib/chat/common/constants.js';
-import { ChatTurnStatusPillsSetting } from '../../../../contrib/chat/browser/widget/chatTurnPills.js';
 import { IChatTurnPillsPart } from '../../../../contrib/chat/common/model/chatViewModel.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 import { registerChatFixtureServices } from './chatFixtureUtils.js';
@@ -48,7 +44,8 @@ function stubFileChangesService(diffs: readonly IEditSessionEntryDiff[]): IChatR
 
 interface IRenderTurnPillsOptions {
 	readonly diffs: readonly IEditSessionEntryDiff[];
-	readonly setting?: ChatTurnStatusPillsSetting;
+	/** When `true`, the changed-files disclosure is expanded. */
+	readonly expanded?: boolean;
 }
 
 function renderTurnPills(ctx: ComponentFixtureContext, options: IRenderTurnPillsOptions): void {
@@ -62,8 +59,6 @@ function renderTurnPills(ctx: ComponentFixtureContext, options: IRenderTurnPills
 		},
 	});
 
-	(instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(ChatConfiguration.TurnStatusPills, options.setting ?? true);
-
 	const content: IChatTurnPillsPart = {
 		kind: 'turnPills',
 		requestId: 'request-1',
@@ -73,6 +68,10 @@ function renderTurnPills(ctx: ComponentFixtureContext, options: IRenderTurnPills
 	const partContext = upcastPartial<IChatContentPartRenderContext>({ container });
 
 	const part = disposableStore.add(instantiationService.createInstance(ChatTurnPillsContentPart, content, partContext));
+
+	if (options.expanded) {
+		part.domNode.querySelector<HTMLDetailsElement>('.checkpoint-file-changes-disclosure')!.open = true;
+	}
 
 	// The turn changes summary reuses the checkpoint summary styling, which is
 	// scoped under `.interactive-session` (and relies on `.monaco-workbench` for
@@ -106,19 +105,23 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 			}),
 		}),
 
+		ChangesOnly_Expanded: defineComponentFixture({
+			render: (ctx) => renderTurnPills(ctx, {
+				expanded: true,
+				diffs: [
+					fileDiff('app.ts', 42, 7, false),
+					fileDiff('util.ts', 118, 64, false),
+					fileDiff('index.ts', 5, 0, true),
+				],
+			}),
+		}),
+
 		WorkspaceMarkdown: defineComponentFixture({
 			render: (ctx) => renderTurnPills(ctx, {
 				diffs: [
 					fileDiff('README.md', 20, 0, true),
 					fileDiff('app.ts', 8, 3, false),
 				],
-			}),
-		}),
-
-		LegacyPreviewOptionEnablesChanges: defineComponentFixture({
-			render: (ctx) => renderTurnPills(ctx, {
-				setting: { preview: true },
-				diffs: [fileDiff('app.ts', 8, 3, false)],
 			}),
 		}),
 
@@ -132,7 +135,7 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 	inChat: defineThemedFixtureGroup({
 		Changes: defineComponentFixture({
 			render: (ctx) => renderChatWidget(ctx, {
-				turnStatusPills: true,
+				agentHostSession: true,
 				messages: [
 					{
 						user: 'Refactor the fibonacci helper to be iterative',
@@ -150,7 +153,7 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 
 		ChangesWithExternalFileIgnored: defineComponentFixture({
 			render: (ctx) => renderChatWidget(ctx, {
-				turnStatusPills: true,
+				agentHostSession: true,
 				messages: [
 					{
 						user: 'Create a Markdown handoff note in my home folder',
