@@ -19,6 +19,7 @@ import { ManagePluginMarketplacesAction } from '../../../browser/actions/chatPlu
 import { getPluginCustomizationMarketplaceSourceId } from '../../../browser/aiCustomization/pluginCustomizationMarketplaceProvider.js';
 import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../common/aiCustomizationWorkspaceService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
+import { ICustomizationHarnessService, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { IAgentPluginRepositoryService } from '../../../common/plugins/agentPluginRepositoryService.js';
 import { parseMarketplaceReference } from '../../../common/plugins/pluginMarketplaceService.js';
 
@@ -64,14 +65,23 @@ suite('ManagePluginMarketplacesAction', () => {
 		}
 	}
 
-	function createFixture(configurationValues: Record<string, unknown>) {
+	function createFixture(configurationValues: Record<string, unknown>, githubFeedAvailable = false) {
 		const instantiationService = workbenchInstantiationService({}, store);
 		const configurationService = new UpdatingConfigurationService(configurationValues);
 		const quickInputService = new TestQuickInputService();
 		const notifications: INotification[] = [];
 		const commands: { id: string; args: unknown[] }[] = [];
+		const harness = {
+			id: 'local',
+			label: 'Local',
+			icon: { id: 'vm' },
+			marketplaceSearchProvider: githubFeedAvailable ? { query: async () => ({ items: [], total: 0 }) } : undefined,
+		} satisfies IHarnessDescriptor;
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IQuickInputService, quickInputService);
+		instantiationService.stub(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
+			override getActiveDescriptor() { return harness; }
+		}());
 		instantiationService.stub(IAgentPluginRepositoryService, new class extends mock<IAgentPluginRepositoryService>() {
 			override getRepositoryUri(): URI { return URI.file('/marketplace'); }
 		}());
@@ -169,7 +179,7 @@ suite('ManagePluginMarketplacesAction', () => {
 			[ChatConfiguration.ExtraMarketplaces]: {},
 			[ChatConfiguration.StrictMarketplaces]: null,
 			[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: true,
-		});
+		}, true);
 		fixture.quickInputService.pickIds.push(marketplace.canonicalId, 'showPlugins');
 
 		await fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
@@ -179,6 +189,27 @@ suite('ManagePluginMarketplacesAction', () => {
 			args: [{
 				section: AICustomizationManagementSection.Plugins,
 				sourceId: CustomizationMarketplaceSources.AgentFinderPublicFeed.id,
+			}],
+		}]);
+	});
+
+	test('shows plugins from the default marketplace using its configured source without a public feed', async () => {
+		const marketplace = parseMarketplaceReference('github/awesome-copilot#marketplace')!;
+		const fixture = createFixture({
+			[ChatConfiguration.PluginMarketplaces]: [marketplace.rawValue],
+			[ChatConfiguration.ExtraMarketplaces]: {},
+			[ChatConfiguration.StrictMarketplaces]: null,
+			[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: true,
+		});
+		fixture.quickInputService.pickIds.push(marketplace.canonicalId, 'showPlugins');
+
+		await fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
+
+		assert.deepStrictEqual(fixture.commands, [{
+			id: AICustomizationManagementCommands.OpenMarketplace,
+			args: [{
+				section: AICustomizationManagementSection.Plugins,
+				sourceId: getPluginCustomizationMarketplaceSourceId(marketplace),
 			}],
 		}]);
 	});
