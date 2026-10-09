@@ -884,7 +884,7 @@ suite('ChatListRenderer', () => {
 		});
 	});
 
-	test('pending divider clears a timestamp from a recycled request template', () => {
+	test('pending divider clears a recycled timestamp and renders the system notification label', () => {
 		const disposables = store.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const configurationService = new TestConfigurationService();
@@ -939,15 +939,27 @@ suite('ChatListRenderer', () => {
 			dividerKind: ChatRequestQueueKind.Steering,
 			currentRenderedHeight: undefined,
 		}), 0, template);
+		const steeringDividerLabel = template.value.textContent;
+		renderer.renderElement(node({
+			kind: 'pendingDivider',
+			id: 'pending-divider-system-notification',
+			sessionResource: model.sessionResource,
+			isComplete: true,
+			dividerKind: ChatRequestQueueKind.Steering,
+			isSystemInitiated: true,
+			currentRenderedHeight: undefined,
+		}), 0, template);
 
 		assert.deepStrictEqual({
 			hadTimestamp,
 			hasTimestamp: !!template.requestTimestampContainer.querySelector('time'),
-			dividerLabel: template.value.textContent,
+			steeringDividerLabel,
+			systemNotificationDividerLabel: template.value.textContent,
 		}, {
 			hadTimestamp: true,
 			hasTimestamp: false,
-			dividerLabel: 'Steering',
+			steeringDividerLabel: 'Steering',
+			systemNotificationDividerLabel: 'System notification',
 		});
 
 		disposables.dispose();
