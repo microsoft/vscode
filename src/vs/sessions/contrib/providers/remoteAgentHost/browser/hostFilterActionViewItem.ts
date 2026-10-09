@@ -12,7 +12,7 @@ import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
-import { IAction, toAction } from '../../../../../base/common/actions.js';
+import { IAction, Separator, toAction } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { MutableDisposable } from '../../../../../base/common/lifecycle.js';
@@ -255,10 +255,7 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 	}
 
 	protected _isInteractive(): boolean {
-		// Interactive when there is something to do: pick from a menu (2+
-		// entries) or trigger re-discovery (no host to connect to). A lone
-		// connectable host is a static label.
-		return this._filterService.hosts.length > 1 || this._canRetry();
+		return true;
 	}
 
 	/**
@@ -293,7 +290,7 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 		const hosts = this._filterService.hosts;
 		const selected = this._filterService.selectedHost;
 
-		const hasMenu = hosts.length > 1;
+		const hasMenu = !this._retriesOnClick();
 		// What clicking actually does. The affordances below follow this, not
 		// host connectability: with 2+ entries the click opens the menu even when none
 		// of them is connectable.
@@ -479,10 +476,6 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 			return;
 		}
 		const hosts = this._filterService.hosts;
-		if (hosts.length <= 1) {
-			return;
-		}
-
 		const selectedId = this._filterService.selectedHostId;
 
 		const actions: IAction[] = [];
@@ -501,6 +494,24 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 				run: () => this._filterService.setSelectedHostId(host.id),
 			}));
 		}
+		const selected = this._filterService.selectedHost;
+		if (selected?.connectable) {
+			const connected = selected.status === AgentHostFilterConnectionStatus.Connected;
+			actions.push(new Separator(), toAction({
+				id: 'agentHostFilter.connection',
+				label: connected
+					? localize('agentHostFilter.disconnect', "Disconnect")
+					: localize('agentHostFilter.connect', "Connect"),
+				enabled: selected.status !== AgentHostFilterConnectionStatus.Connecting,
+				run: () => connected ? this._filterService.disconnect(selected.id) : this._filterService.reconnect(selected.id),
+			}));
+		}
+		actions.push(new Separator(), toAction({
+			id: 'agentHostFilter.rediscover',
+			label: localize('agentHostFilter.rediscover', "Re-discover Hosts"),
+			enabled: !this._filterService.isDiscovering,
+			run: () => this._filterService.rediscover(),
+		}));
 
 		const anchor = dom.isMouseEvent(e)
 			? new StandardMouseEvent(dom.getWindow(this._dropdownElement), e)

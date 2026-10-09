@@ -12,6 +12,69 @@ import { AutomationBlueprintParseError, automationToBlueprint, createAutomationB
 suite('Automation blueprints', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('does not silently export custom or UTC wall-clock schedules as local schedules', () => {
+		for (const interval of ['custom', 'daily', 'weekdays', 'weekly'] as const) {
+			assert.throws(() => serializeAutomationBlueprint({
+				version: 1, id: 'cloud', name: 'Cloud', prompt: 'Review',
+				schedule: { interval, timeZone: 'UTC', scheduleHour: 7, scheduleMinute: 15, scheduleDay: 1 },
+			}), AutomationBlueprintParseError);
+		}
+	});
+
+	test('round trips weekdays using one canonical local cron expression', () => {
+		const blueprint = {
+			version: 1 as const,
+			id: 'weekday-review',
+			name: 'Weekday review',
+			prompt: 'Review the workspace.',
+			schedule: { interval: 'weekdays' as const, scheduleHour: 9, scheduleMinute: 35, scheduleDay: 0 },
+		};
+		const document = [
+			'---',
+			'version: 1',
+			'id: "weekday-review"',
+			'name: "Weekday review"',
+			'schedule:',
+			'  kind: cron',
+			'  expression: "35 9 * * 1-5"',
+			'  timeZone: local',
+			'---',
+			'',
+			'Review the workspace.',
+			'',
+		].join('\n');
+
+		assert.deepStrictEqual({
+			serialized: serializeAutomationBlueprint(blueprint),
+			parsed: parseAutomationBlueprint(document),
+		}, { serialized: document, parsed: blueprint });
+		assert.throws(() => parseAutomationBlueprint(document.replace('timeZone: local', 'timeZone: UTC')), AutomationBlueprintParseError);
+	});
+
+	test('exports weekdays without an unused weekly day', () => {
+		const automation: IAutomationDescriptor = {
+			id: 'runtime-id',
+			name: 'Weekday review',
+			prompt: 'Review the workspace.',
+			schedule: { interval: 'weekdays', scheduleHour: 18, scheduleMinute: 7, scheduleDay: 6 },
+			target: { kind: 'workspace', folderUri: URI.file('/workspace'), isolation: { kind: 'default' } },
+			enabled: true,
+			createdAt: '2026-01-01T00:00:00.000Z',
+			updatedAt: '2026-01-01T00:00:00.000Z',
+		};
+		const blueprint = automationToBlueprint(automation);
+		assert.deepStrictEqual({
+			normalized: blueprint.schedule,
+			roundTripped: parseAutomationBlueprint(serializeAutomationBlueprint(blueprint)).schedule,
+			originalDay: automation.schedule.scheduleDay,
+		}, {
+			normalized: { interval: 'weekdays', scheduleHour: 18, scheduleMinute: 7, scheduleDay: 0 },
+			roundTripped: { interval: 'weekdays', scheduleHour: 18, scheduleMinute: 7, scheduleDay: 0 },
+			originalDay: 6,
+		});
+		assert.throws(() => automationToBlueprint({ ...automation, schedule: { ...automation.schedule, timeZone: 'UTC' } }), AutomationBlueprintParseError);
+	});
+
 	test('parses a portable automation blueprint', () => {
 		const blueprint = parseAutomationBlueprint([
 			'---',

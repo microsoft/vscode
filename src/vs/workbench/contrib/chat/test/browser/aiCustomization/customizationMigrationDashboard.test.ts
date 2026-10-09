@@ -82,7 +82,12 @@ suite('CustomizationMigrationDashboard', () => {
 							id: CustomizationMigrationCategoryId.PromptFiles, label: 'Convert Prompt to Skills', description: 'Convert prompts to skills.', count: 1, selectedCount: 1, countLabel: '1 prompt', highRisk: true,
 							destinationLabel: '.github/skills',
 							destinationAriaLabel: 'Change destination for workspace prompt migrations',
-							items: [{ id: 'workspace-prompt', label: 'Build', scopeLabel: 'Workspace', sourceLabel: '.github/prompts/build.prompt.md' }],
+							items: [{
+								id: 'workspace-prompt',
+								label: 'Build',
+								scopeLabel: 'Workspace',
+								sourceLabel: '.github/prompts/build.prompt.md',
+							}],
 						},
 						{
 							id: CustomizationMigrationCategoryId.McpServers, label: 'MCP Servers', description: 'Move supported servers.', count: 1, selectedCount: 1, countLabel: '1 server',
@@ -135,6 +140,7 @@ suite('CustomizationMigrationDashboard', () => {
 			items: [...parent.querySelectorAll('.migration-tree-item-label')].map(element => element.textContent),
 			sources: [...parent.querySelectorAll('.migration-tree-item-source')].map(element => element.textContent),
 			changes: [...parent.querySelectorAll('.migration-tree-item-changes')].filter(element => (element as HTMLElement).style.display !== 'none').map(element => element.textContent),
+			warning: parent.querySelector('.migration-warning-banner')?.textContent,
 			checklistCopy: parent.textContent?.includes('Your migration checklist'),
 			intro: parent.querySelector('.migration-intro')?.textContent,
 			agentButtonInTitleRow: agentMigrationButton.parentElement?.classList.contains('migration-page-title-actions'),
@@ -150,7 +156,10 @@ suite('CustomizationMigrationDashboard', () => {
 			counts: ['1', '2', '1', '2', '1'],
 			items: ['Build', 'Release', 'Triage', 'Postgres', 'Planner', 'Review', 'Team rules'],
 			sources: ['.github/prompts/build.prompt.md', '~/.copilot/prompts/release.prompt.md', '~/.copilot/prompts/triage.prompt.md', '.vscode/mcp.json', '~/.copilot/agents/planner.agent.md', '~/.copilot/instructions/review.instructions.md', 'team/rules.instructions.md'],
-			changes: ['The gallery property will be removed.'],
+			changes: [
+				'The gallery property will be removed.',
+			],
+			warning: 'Prompt-to-skill conversion changesConvert prompts to skills.',
 			checklistCopy: false,
 			intro: 'Some of your agent customizations need an update to keep working. Use Migrate to have VS Code update selected customizations, or Migrate with Agent for a guided migration in chat. Agent migration uses credits.',
 			agentButtonInTitleRow: true,
@@ -320,5 +329,33 @@ suite('CustomizationMigrationDashboard', () => {
 			focus: document.activeElement?.textContent,
 			telemetryActions,
 		}, { retries: 1, busy: 'false', focus: 'Retry', telemetryActions: ['retryClicked'] });
+	});
+
+	test('focuses refresh errors and restores the prior overview target after retry', () => {
+		let retries = 0;
+		const { parent, dashboard } = createDashboard();
+		dashboard.showOverview(overview());
+		dashboard.focusDestination(PromptsStorage.user);
+		const overviewFocus = document.activeElement?.getAttribute('aria-label');
+		dashboard.showLoading('Migrations', 'Loading migrations');
+		dashboard.showLoading('Migrations unavailable', 'Try again.', () => {
+			retries++;
+			dashboard.showLoading('Migrations', 'Loading migrations');
+		});
+		const errorFocus = document.activeElement?.getAttribute('aria-label');
+		button(parent, 'Retry loading migrations').click();
+		dashboard.showOverview(overview());
+
+		assert.deepStrictEqual({
+			overviewFocus,
+			errorFocus,
+			retries,
+			restoredFocus: document.activeElement?.getAttribute('aria-label'),
+		}, {
+			overviewFocus: 'Change destination for user prompt migrations',
+			errorFocus: 'Retry loading migrations',
+			retries: 1,
+			restoredFocus: 'Change destination for user prompt migrations',
+		});
 	});
 });

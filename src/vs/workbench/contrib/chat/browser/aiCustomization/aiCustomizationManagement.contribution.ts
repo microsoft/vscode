@@ -36,7 +36,7 @@ import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../services/agentHost/comm
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IWorkbenchExtensionManagementService } from '../../../../services/extensionManagement/common/extensionManagement.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { AICustomizationSources, getCustomizationMigrationHintDismissedStorageKey, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
+import { AICustomizationSources, getCustomizationMigrationHintDismissedStorageKey, IAICustomizationMarketplaceOpenTarget, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
@@ -866,13 +866,14 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 				});
 			}
 
-			async run(accessor: ServicesAccessor, section?: AICustomizationManagementSection): Promise<void> {
+			async run(accessor: ServicesAccessor, target?: AICustomizationManagementSection | IAICustomizationMarketplaceOpenTarget): Promise<void> {
 				const editorService = accessor.get(IEditorService);
 				const input = AICustomizationManagementEditorInput.getOrCreate();
 				const pane = await editorService.openEditor(input, { pinned: true });
 				if (pane instanceof AICustomizationManagementEditor) {
-					const targetSection = section ?? AICustomizationManagementSection.McpServers;
-					pane.selectSectionById(targetSection, { showMarketplace: true });
+					const section = typeof target === 'string' ? target : target?.section ?? AICustomizationManagementSection.McpServers;
+					const sourceId = typeof target === 'string' ? undefined : target?.sourceId;
+					pane.selectSectionById(section, { showMarketplace: true, marketplaceSourceId: sourceId });
 				}
 			}
 		}));

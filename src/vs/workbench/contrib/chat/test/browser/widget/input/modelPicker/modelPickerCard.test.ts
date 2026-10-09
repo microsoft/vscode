@@ -12,6 +12,7 @@ import { Color, RGBA } from '../../../../../../../../base/common/color.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../../../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../../base/test/common/utils.js';
 import { NullOpenerService } from '../../../../../../../../platform/opener/test/common/nullOpenerService.js';
@@ -195,6 +196,48 @@ suite('ModelCard', () => {
 		await timeout(0);
 		assert.deepStrictEqual({ focused, writes: result.writes, selectedModels: result.selectedModels, selected: selectedOptions(result.card) }, {
 			focused: [2, 0, 2, 1], writes: [], selectedModels: [], selected: ['Balance'],
+		});
+	});
+
+	test('Auto details end with a routing alternative that is selected and described rather than saved', async () => {
+		const hydraFusion = { ...createModel({ id: 'hydrafusion', name: 'HydraFusion', configurationSchema: undefined }), identifier: 'copilot/hydrafusion' };
+		const alternative = (selected: boolean): IModelCardOptions['routingAlternative'] => ({
+			model: hydraFusion, description: 'HydraFusion is a research preview.', learnMoreUrl: URI.parse('https://example.com/hydrafusion'), selected,
+		});
+		const result = createCard({ tier: 'balance' }, { model: createAutoModel(), routingAlternative: alternative(false) });
+		const choices = () => Array.from(result.card.element.querySelectorAll<HTMLElement>('[role="radio"]'));
+		const description = () => {
+			const element = result.card.element.querySelector<HTMLElement>('.chat-model-card-alternative-description');
+			return element && !element.hidden ? element.textContent : undefined;
+		};
+		const initial = { options: choices().map(choice => choice.textContent), selected: selectedOptions(result.card), description: description() };
+		choices()[3].focus();
+		choices()[3].click();
+		const onClick = description();
+		await timeout(0);
+		// The picker marks the alternative selected once it accepts the choice.
+		result.update({ routingAlternative: alternative(true) });
+		const chosen = {
+			selected: selectedOptions(result.card),
+			description: description(),
+			ariaLabel: choices()[3].getAttribute('aria-label'),
+			focused: document.activeElement?.textContent,
+		};
+		choices()[0].click();
+		const onTier = description();
+		await timeout(0);
+		assert.deepStrictEqual({ initial, onClick, chosen, onTier, writes: result.writes, selectedModels: result.selectedModels }, {
+			initial: { options: ['Efficiency', 'Balance', 'Intelligence', 'HydraFusion'], selected: ['Balance'], description: undefined },
+			onClick: 'HydraFusion is a research preview. Learn more',
+			chosen: {
+				selected: ['HydraFusion'],
+				description: 'HydraFusion is a research preview. Learn more',
+				ariaLabel: 'HydraFusion, HydraFusion is a research preview.',
+				focused: 'HydraFusion',
+			},
+			onTier: undefined,
+			writes: [{ tier: 'efficiency' }],
+			selectedModels: ['copilot/hydrafusion', 'copilot/auto'],
 		});
 	});
 

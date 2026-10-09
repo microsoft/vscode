@@ -65,7 +65,7 @@ import { AgentMergeSessionState } from '../../../../../platform/agentHost/common
 import { getSessionChatDragData, isSessionChatDrag, SessionsDataTransfers } from '../../../../browser/dnd.js';
 import { IsPhoneLayoutContext, IsQuickChatSessionContext, SessionIsArchivedContext, SessionSupportsMultipleChatsContext } from '../../../../common/contextkeys.js';
 import { ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID } from '../../../../common/sessionCommands.js';
-import { SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
+import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
 import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import type { ICustomViewDescriptor } from '../../../../services/customView/browser/customView.js';
@@ -178,6 +178,7 @@ suite('Sessions - SessionsList', () => {
 				constObservable(new Set<string>()),
 				noHeaderStatusTrigger,
 				instantiationService,
+				NullHoverService,
 				contextKeyService,
 				automationService,
 				constObservable([]),
@@ -207,6 +208,75 @@ suite('Sessions - SessionsList', () => {
 			assert.deepStrictEqual(selectedSections, [section]);
 		});
 
+		test('shows migration guidance in the Customizations hover', () => {
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stubInstance(MenuWorkbenchToolBar, new class extends mock<MenuWorkbenchToolBar>() {
+				override set context(_context: unknown) { }
+				override dispose(): void { }
+			});
+			const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+			const automationService = new class extends mock<IAutomationService>() {
+				override readonly runs = constObservable<readonly IAutomationRun[]>([]);
+			};
+			let hoverOptions: Parameters<IHoverService['setupDelayedHover']>[1] | undefined;
+			const hoverService = new class extends mock<IHoverService>() {
+				override setupDelayedHover(...args: Parameters<IHoverService['setupDelayedHover']>): ReturnType<IHoverService['setupDelayedHover']> {
+					hoverOptions = args[1];
+					return NullHoverService.setupDelayedHover(...args);
+				}
+			};
+			const customizationMigrationsAvailable = observableValue(disposables, true);
+			const renderer = new SessionSectionRenderer(
+				true,
+				() => { },
+				constObservable(true),
+				constObservable(new Set<string>()),
+				noHeaderStatusTrigger,
+				instantiationService,
+				hoverService,
+				contextKeyService,
+				automationService,
+				constObservable([]),
+				new class extends mock<IUriIdentityService>() {
+					override readonly extUri = new ExtUri(() => true);
+				},
+				new class extends mock<ICustomViewService>() { },
+				new class extends mock<IMenuService>() { },
+				noKeybindingService,
+				constObservable(false),
+				customizationMigrationsAvailable,
+			);
+			const container = document.createElement('div');
+			const template = renderer.renderTemplate(container);
+			disposables.add(template.disposables);
+			renderer.renderElement(upcastPartial<Parameters<SessionSectionRenderer['renderElement']>[0]>({
+				element: { id: 'customizations', label: 'Customizations', sessions: [] },
+				collapsible: false,
+				collapsed: false,
+			}), 0, template);
+			const readHoverOptions = () => typeof hoverOptions === 'function' ? hoverOptions() : hoverOptions;
+			const hoverWithMigration = readHoverOptions();
+			customizationMigrationsAvailable.set(false, undefined);
+
+			assert.deepStrictEqual({
+				contentWithMigration: hoverWithMigration?.content,
+				contentWithoutMigration: readHoverOptions()?.content,
+				presentation: hoverWithMigration && {
+					appearance: hoverWithMigration.appearance,
+					position: hoverWithMigration.position,
+					persistence: hoverWithMigration.persistence,
+				},
+			}, {
+				contentWithMigration: 'Some customizations need an update to keep working.',
+				contentWithoutMigration: 'Customizations',
+				presentation: {
+					appearance: { showPointer: true },
+					position: { hoverPosition: HoverPosition.RIGHT, forcePosition: true },
+					persistence: { hideOnHover: false },
+				},
+			});
+		});
+
 		test('renders in-progress automation status in the leading icon slot', () => {
 			const instantiationService = disposables.add(new TestInstantiationService());
 			instantiationService.stubInstance(MenuWorkbenchToolBar, new class extends mock<MenuWorkbenchToolBar>() {
@@ -234,6 +304,7 @@ suite('Sessions - SessionsList', () => {
 				constObservable(new Set<string>()),
 				noHeaderStatusTrigger,
 				instantiationService,
+				NullHoverService,
 				contextKeyService,
 				automationService,
 				constObservable([]),
@@ -861,6 +932,7 @@ suite('Sessions - SessionsList', () => {
 				constObservable(new Set<string>()),
 				noHeaderStatusTrigger,
 				new class extends mock<IInstantiationService>() { },
+				NullHoverService,
 				new class extends mock<IContextKeyService>() { },
 				automationService,
 				automationSessions,
@@ -932,6 +1004,7 @@ suite('Sessions - SessionsList', () => {
 				constObservable(new Set<string>()),
 				noHeaderStatusTrigger,
 				new class extends mock<IInstantiationService>() { },
+				NullHoverService,
 				new class extends mock<IContextKeyService>() { },
 				automationService,
 				constObservable([runningSession, needsInputSession]),
@@ -1647,12 +1720,13 @@ suite('Sessions - SessionsList', () => {
 				instantiationService.stub(ITelemetryService, telemetryService);
 				configure(instantiationService);
 			});
-			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, harness.createContainer(), {
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
 				grouping: () => SessionsGrouping.Workspace,
 				sorting: () => SessionsSorting.Created,
 				onSessionOpen: () => { },
 			}));
-			return { list, triggers: telemetryService.triggers, harness };
+			return { list, triggers: telemetryService.triggers, harness, container };
 		}
 
 		test('reports the Done default trigger when the Filter Sessions dropdown shows, until an archived filter is chosen', () => {
@@ -1700,6 +1774,95 @@ suite('Sessions - SessionsList', () => {
 				pinned: [],
 				local: [],
 			});
+		});
+
+		test('renders each external application badge mode and triggers only relevant experiments', () => {
+			const results = ([
+				[ExternalSessionApplicationBadgeMode.Off, true],
+				[ExternalSessionApplicationBadgeMode.Title, true],
+				[ExternalSessionApplicationBadgeMode.Details, true],
+				[ExternalSessionApplicationBadgeMode.Title, false],
+			] as const).map(([mode, showFrom]) => {
+				let badgeHover: string | undefined;
+				const session = createTestSession('External session', {
+					application: 'github/cli',
+					environment: 'cloud',
+					isExternal: true,
+				}).session;
+				const { list, triggers, container } = renderList([session], instantiationService => {
+					const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+					configurationService.setUserConfiguration(SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, mode);
+					configurationService.setUserConfiguration(SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, showFrom);
+					instantiationService.stub(IHoverService, {
+						...NullHoverService,
+						setupDelayedHover: (...args: Parameters<IHoverService['setupDelayedHover']>) => {
+							const target = args[0];
+							const options = args[1];
+							if (target.classList.contains('session-external-application-badge') && typeof options !== 'function' && typeof options.content === 'string') {
+								badgeHover = options.content;
+							}
+							return NullHoverService.setupDelayedHover(...args);
+						},
+					});
+				});
+				list.layout(300, 400);
+				const titleBadge = container.querySelector<HTMLElement>('.session-external-application-badge-title.visible');
+				const detailsBadge = container.querySelector<HTMLElement>('.session-external-application-badge-details');
+				const row = container.querySelector<HTMLElement>('.monaco-list-row[role="treeitem"][aria-level="2"]');
+				return {
+					titleBadge: titleBadge?.textContent,
+					detailsBadge: detailsBadge?.textContent,
+					badgeHover,
+					ariaIncludesApplication: row?.getAttribute('aria-label')?.includes('created in Copilot CLI'),
+					triggers,
+				};
+			});
+
+			const explicitTriggers = () => [`config.${SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING}`];
+			assert.deepStrictEqual(results, [
+				{ titleBadge: undefined, detailsBadge: undefined, badgeHover: undefined, ariaIncludesApplication: false, triggers: explicitTriggers() },
+				{ titleBadge: 'From Copilot CLI', detailsBadge: undefined, badgeHover: 'From Copilot CLI', ariaIncludesApplication: true, triggers: explicitTriggers() },
+				{ titleBadge: undefined, detailsBadge: 'From Copilot CLI', badgeHover: 'From Copilot CLI', ariaIncludesApplication: true, triggers: explicitTriggers() },
+				{ titleBadge: 'Copilot CLI', detailsBadge: undefined, badgeHover: 'Copilot CLI', ariaIncludesApplication: true, triggers: explicitTriggers() },
+			]);
+		});
+
+		test('triggers external application badge experiments only while their values come from defaults', () => {
+			const results = ([
+				ExternalSessionApplicationBadgeMode.Off,
+				ExternalSessionApplicationBadgeMode.Title,
+			] as const).map(mode => {
+				const session = createTestSession('External session', {
+					application: 'github/cli',
+					environment: 'cloud',
+					isExternal: true,
+				}).session;
+				const { triggers } = renderList([session], instantiationService => {
+					instantiationService.stub(IConfigurationService, new class extends TestConfigurationService {
+						constructor() {
+							super({
+								[SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING]: mode,
+								[SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING]: true,
+							});
+						}
+
+						override inspect<T>(key: string) {
+							const value = this.getValue<T>(key);
+							return { value, defaultValue: value };
+						}
+					}());
+				});
+				return triggers;
+			});
+
+			const baseTriggers = [
+				`config.${SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING}`,
+				`config.${SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING}`,
+			];
+			assert.deepStrictEqual(results, [
+				baseTriggers,
+				[...baseTriggers, `config.${SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING}`],
+			]);
 		});
 
 		test('reports the Done default trigger for archived sessions until an archived filter is chosen', () => {
@@ -2535,6 +2698,25 @@ suite('Sessions - SessionsList', () => {
 				{ id: 'quickchats', sessions: ['quick'] },
 				{ id: 'workspace:Beta', sessions: ['regular'] },
 				{ id: 'archived', sessions: ['archived'] },
+			]);
+		});
+
+		test('cloud quick chats appear in Chats rather than the Unknown workspace group', () => {
+			const quickChat = { ...createSession('cloud-chat', {}), environment: 'cloud', isQuickChat: constObservable(true) };
+			const unknown = { ...createSession('unclassified-cloud-session', {}), environment: 'cloud', isQuickChat: undefined };
+			const sections = groupSessionsForList(
+				[quickChat, unknown],
+				SessionsGrouping.Workspace,
+				SessionsSorting.Created,
+				() => false,
+				undefined,
+				undefined,
+				true,
+			);
+
+			assert.deepStrictEqual(sections.map(section => ({ id: section.id, label: section.label, sessions: section.sessions.map(session => session.sessionId) })), [
+				{ id: 'quickchats', label: 'Chats', sessions: ['cloud-chat'] },
+				{ id: 'workspace:Unknown', label: 'Unknown', sessions: ['unclassified-cloud-session'] },
 			]);
 		});
 

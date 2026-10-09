@@ -310,7 +310,7 @@ suite('AgentsWindowInvitation', () => {
 						{ label: 'Don\'t Show Again', primary: false },
 					],
 				},
-				opens: [{ sessionResource: chat.resource.toJSON(), onboardingSessionResource: chat.resource.toJSON(), source: scenario.source }],
+				opens: [{ reveal: chat.resource.toJSON(), onboardingSessionResource: chat.resource.toJSON(), source: scenario.source }],
 				notification: undefined, warnings: [],
 			});
 		}));
@@ -334,7 +334,7 @@ suite('AgentsWindowInvitation', () => {
 					opens: h.opens, triggeredBeforeClick, triggeredAfterClick: h.telemetry.triggers.includes(treatment),
 				}, {
 					opens: [{
-						sessionResource: revealCurrentSession ? chat.resource.toJSON() : undefined,
+						reveal: revealCurrentSession ? chat.resource.toJSON() : 'new',
 						onboardingSessionResource: chat.resource.toJSON(),
 						source: scenario.source,
 					}],
@@ -803,10 +803,10 @@ suite('AgentsWindowInvitation', () => {
 		await timeout(0);
 		await h.click(0);
 		assert.deepStrictEqual({
-			session: h.opens[0]?.sessionResource,
+			reveal: h.opens[0]?.reveal,
 			spotlight: h.opens[0]?.onboardingSessionResource,
 			triggers: h.telemetry.triggers,
-		}, { session: undefined, spotlight: chat.resource.toJSON(), triggers: [] });
+		}, { reveal: 'new', spotlight: chat.resource.toJSON(), triggers: [] });
 	}));
 
 	test('developer mode forces scenarios without exposure telemetry, usage gating, or history writes', () => runWithFakedTimers({ startTime: 100_000 }, async () => {

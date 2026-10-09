@@ -21,7 +21,8 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { IAgentService } from '../common/agentService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import type { IAgent } from '../common/agent.js';
-import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostDeferredTitleGenerationConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostDeferredTitleGenerationConfigKey, AgentHostTitleGenerationConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
+import { resolveTitleGenerationStrategy } from '../common/titleGenerationConfiguration.js';
 import { createAgentHostTelemetryService } from './agentHostTelemetryService.js';
 import { AgentService, IAgentServiceOptions } from './agentService.js';
 import { createAgentServiceComposition } from './agentServiceComposition.js';
@@ -39,7 +40,7 @@ import { AgentHostClientConnectionService, IAgentHostClientConnectionService } f
 import { AgentHostSessionTitleController, IAgentHostSessionTitleController } from './agentHostSessionTitleController.js';
 import { AgentHostLocalTurns, IAgentHostLocalTurns } from './agentHostLocalTurns.js';
 import { IAgentHostGitHubService } from './agentHostGitHubService.js';
-import { ICopilotApiService } from './shared/copilotApiService.js';
+import { IAgentHostUtilityModelService } from './agentHostUtilityModelService.js';
 import { AgentHostStartupMarks, IAgentHostStartupPerformance } from './agentHostStartupPerformance.js';
 
 export interface ICreateAgentHostRuntimeOptions {
@@ -171,27 +172,28 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 		});
 		instantiationService = new InstantiationService(services, /*strict*/ true);
 		const gitHubService = instantiationService.invokeFunction(accessor => accessor.get(IAgentHostGitHubService));
-		const copilotApiService = instantiationService.invokeFunction(accessor => accessor.get(ICopilotApiService));
+		const utilityModelService = instantiationService.invokeFunction(accessor => accessor.get(IAgentHostUtilityModelService));
 		services.set(IAgentHostSessionTitleController, infrastructure.add(instantiationService.createInstance(AgentHostSessionTitleController, foundation.stateManager, {
 			sessionDataService,
 			queueCatalogSync: (session, metadataOverrides) => foundation.callbackAdapter.value.queueCatalogSync(session, metadataOverrides),
 			persistMetadata: (resource, values) => foundation.callbackAdapter.value.persistMetadata(resource, values),
 			readNormalizedChat: (session, chat) => foundation.callbackAdapter.value.readNormalizedChat(session, chat),
 			persistSurfacedSessionTitle: (session, title) => foundation.callbackAdapter.value.persistSurfacedSessionTitle(session, title),
-			getGitHubCopilotToken: () => {
-				const resource = foundation.gitHubEndpointService.getCopilotResource();
-				return foundation.authenticationService.getAuthToken({ resource: resource.resource, scopes: resource.scopes_supported });
-			},
 			getGitHubToken: () => {
 				const resource = foundation.gitHubEndpointService.getRepoResource();
 				return foundation.authenticationService.getAuthToken({ resource: resource.resource, scopes: resource.scopes_supported });
 			},
 			getGitHubHost: () => foundation.gitHubEndpointService.getEnterpriseHost() ?? 'github.com',
 			gitHubService,
-			copilotApiService,
-			getInitialTitleGenerationStrategy: () => foundation.configurationService.getRootValue(platformRootSchema, AgentHostDeferredTitleGenerationConfigKey) === true
-				? 'deferred'
-				: foundation.configurationService.getRootValue(platformRootSchema, AgentHostActiveAgentTitleGenerationConfigKey) === true ? 'activeAgent' : 'utility',
+			utilityModelService,
+			getInitialTitleGenerationStrategy: () => {
+				const configurationService = foundation.configurationService;
+				return resolveTitleGenerationStrategy(
+					configurationService.getRootValue(platformRootSchema, AgentHostTitleGenerationConfigKey),
+					configurationService.getRootValue(platformRootSchema, AgentHostDeferredTitleGenerationConfigKey),
+					configurationService.getRootValue(platformRootSchema, AgentHostActiveAgentTitleGenerationConfigKey),
+				);
+			},
 		})));
 		const localTurns = new AgentHostLocalTurns(sessionDataService, logService);
 		services.set(IAgentHostLocalTurns, localTurns);

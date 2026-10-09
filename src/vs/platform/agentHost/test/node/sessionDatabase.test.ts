@@ -16,6 +16,7 @@ import type { Database } from '@vscode/sqlite3';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
+import { getPersistedSessionConfigValues } from '../../common/sessionConfigKeys.js';
 
 suite('SessionDatabase', () => {
 
@@ -1435,6 +1436,50 @@ suite('SessionDatabase', () => {
 			await db.setMetadata('customTitle', 'Second');
 			assert.strictEqual(await db.getMetadata('customTitle'), 'Second');
 		});
+
+		test('updateMetadata serializes read-modify-write with other metadata writes', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.updateMetadata('key', previous => previous ?? 'initial');
+			await Promise.all([
+				db.setMetadata('key', 'replacement'),
+				db.updateMetadata('key', previous => `${previous}:first`),
+				db.updateMetadata('key', previous => `${previous}:second`),
+			]);
+			assert.strictEqual(await db.getMetadata('key'), 'replacement:first:second');
+		});
+
+		test('sandbox config fallback observes a preceding runtime confirmation', async () => {
+			db = disposables.add(await SessionDatabase.open(':memory:'));
+			await db.setMetadata('configValues', JSON.stringify({ sandboxEnabled: 'on', stale: true }));
+			await Promise.all([
+				db.updateMetadata('configValues', previous => JSON.stringify(getPersistedSessionConfigValues({ sandboxEnabled: 'off', mode: 'interactive' }, false, previous))),
+				db.updateMetadata('configValues', previous => JSON.stringify(getPersistedSessionConfigValues({ sandboxEnabled: 'on', mode: 'plan', shellInitScripts: [] }, undefined, previous))),
+			]);
+			assert.deepStrictEqual(JSON.parse((await db.getMetadata('configValues'))!), { sandboxEnabled: 'off', mode: 'plan' });
+		});
+
+		for (const previous of ['{}', '{"sandboxEnabled":"default"}']) {
+			test(`sandbox config does not persist an unconfirmed selection over ${previous}`, async () => {
+				db = disposables.add(await SessionDatabase.open(':memory:'));
+				await db.setMetadata('configValues', previous);
+				await db.updateMetadata('configValues', stored => JSON.stringify(getPersistedSessionConfigValues({ sandboxEnabled: 'off', mode: 'plan' }, undefined, stored)));
+				assert.deepStrictEqual(JSON.parse((await db.getMetadata('configValues'))!), { mode: 'plan' });
+			});
+		}
+
+		for (const previous of ['invalid JSON', 'null', '{"sandboxEnabled":false}']) {
+			test(`sandbox config reports invalid persisted values and rolls back: ${previous}`, async () => {
+				db = disposables.add(await SessionDatabase.open(':memory:'));
+				await db.setMetadata('configValues', previous);
+				await assert.rejects(db.updateMetadata('configValues', stored => JSON.stringify(getPersistedSessionConfigValues({ mode: 'plan' }, undefined, stored))));
+				const afterFailure = await db.getMetadata('configValues');
+				await db.updateMetadata('configValues', stored => JSON.stringify(getPersistedSessionConfigValues({ mode: 'plan' }, true, stored)));
+				assert.deepStrictEqual({
+					afterFailure,
+					afterConfirmation: JSON.parse((await db.getMetadata('configValues'))!),
+				}, { afterFailure: previous, afterConfirmation: { mode: 'plan', sandboxEnabled: 'on' } });
+			});
+		}
 
 		test('deleteMetadata removes only the requested keys', async () => {
 			db = disposables.add(await SessionDatabase.open(':memory:'));

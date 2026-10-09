@@ -24,6 +24,7 @@ import { IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE } from '../../comm
 import { IAgentHostChangesetService } from '../../common/agentHostChangesetService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
+import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { AgentHostLaunchKind, createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { createChatMementoKey, createSessionMementoKey, IAgentHostChatContributions, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IAgentHostChatContributionHost, type IHydrationContext, type IIncomingRequest, type IAppliedClientAction, type IDispatchedAction, type IOutgoingTurn, type IOutgoingTurnContributionResult, type IRestoredChat, type ITurnEnd, type IncomingRequestDisposition } from '../../common/agentHostChatContributionsService.js';
 import { AgentHostArtifactToolsConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, AgentHostWorkspaceSnapshotEnabledConfigKey, type ISchema, type SchemaDefinition, type SchemaValue } from '../../common/agentHostSchema.js';
@@ -70,7 +71,7 @@ import { injectSideChatContext } from '../../node/chatContributions/sideChat/sid
 import { AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { ADDITIONAL_WORKTREES_METADATA_KEY, writeSessionAdditionalWorktrees } from '../../node/shared/sessionAdditionalWorktrees.js';
 import { buildWorktreeAnnouncementText, detachedWorktreeRecordUri, IAgentHostWorktreeIsolation, type IWorktreeMetadata, NullAgentHostWorktreeIsolation, prependAnnouncementToFirstTurn } from '../../node/shared/worktreeIsolation.js';
-import { createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
+import { createNoopGitService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { createLegacyChatMetadataPersistence } from './chatMetadataTestHelpers.js';
 import { MockAgent } from './mockAgent.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
@@ -894,6 +895,7 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 	const additionalWorktreeLifecycle = new AdditionalWorktreeLifecycleService(sessionDataService, worktree);
 	const sessionRegistry = disposables.add(new AgentSessionRegistry(disposables.add(new AgentHostDatabase(':memory:'))));
 	const gitStateService = new RecordingGitStateService(observed);
+	const gitService = createNoopGitService();
 	const services = new ServiceCollection(
 		[ILogService, logService],
 		[IAgentHostCheckpointService, checkpointService],
@@ -901,6 +903,7 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 		[IAgentConfigurationService, agentConfigService],
 		[IAgentHostStateManager, stateManager],
 		[IAgentHostGitStateService, gitStateService],
+		[IAgentHostGitService, gitService],
 		[IAgentSessionRegistry, sessionRegistry],
 		[IFileService, fileService],
 		[ISessionDataService, sessionDataService],
@@ -949,7 +952,7 @@ function createBuiltInContributions(disposables: ReturnType<typeof ensureNoDispo
 	};
 	disposables.add(service.registerHost(host));
 	disposables.add(registerBuiltInChatContributions(service));
-	return { service, stateManager, database: usageDatabase, sessionDataService, fileService, session: 'agent-host-session://test', worktree, additionalWorktreeLifecycle, sessionRegistry, changesets, checkpointService, logService, gitStateService, localTurns };
+	return { service, stateManager, database: usageDatabase, sessionDataService, fileService, session: 'agent-host-session://test', worktree, additionalWorktreeLifecycle, sessionRegistry, changesets, checkpointService, logService, gitStateService, gitService, agentConfigService, localTurns };
 }
 
 function configureRemoteSessionReply(stateManager: AgentHostStateManager, session: string, options?: { readonly metadata?: Record<string, unknown>; readonly enabled?: boolean }): Record<string, unknown> {
@@ -1842,6 +1845,117 @@ suite('AgentHostChatContributions', () => {
 		assert.deepStrictEqual(observed, ['checkpointAndChangeset', 'sessionWorkspaceConversion', 'queueDrain', 'githubReferences', 'sessionTitle', 'markUnread']);
 	});
 
+	for (const source of ['direct', 'queued'] as const) {
+		test(`refreshes repository roots for every working directory before a ${source} turn`, () => {
+			const contributions = createBuiltInContributions(disposables);
+			const directories = [URI.file('/work/first'), URI.file('/work/second')];
+			const requests: { directory: string; refreshIfNone: boolean | undefined }[] = [];
+			contributions.agentConfigService.getEffectiveWorkingDirectories = () => directories.map(directory => directory.toString());
+			contributions.gitService.getRepositoryRoot = async (directory, options) => {
+				requests.push({ directory: directory.toString(), refreshIfNone: options?.refreshIfNone });
+				return undefined;
+			};
+
+			const disposition = contributions.service.incomingRequest(incomingRequest(contributions.session, buildDefaultChatUri(contributions.session), source));
+
+			assert.deepStrictEqual({ disposition, requests }, {
+				disposition: { kind: 'accept' },
+				requests: directories.map(directory => ({ directory: directory.toString(), refreshIfNone: true })),
+			});
+		});
+	}
+
+	test('refreshes repository roots before end-of-turn checkpoint capture', () => {
+		const contributions = createBuiltInContributions(disposables);
+		const observed: string[] = [];
+		contributions.agentConfigService.getEffectiveWorkingDirectories = () => [URI.file('/work').toString()];
+		contributions.gitService.getRepositoryRoot = async () => {
+			observed.push('gitRepositoryRoots');
+			return undefined;
+		};
+		contributions.checkpointService.captureTurnCheckpoint = async () => { observed.push('checkpointAndChangeset'); };
+
+		contributions.service.turnEnd(turnEnd('root-refresh-order'));
+
+		assert.deepStrictEqual(observed, ['gitRepositoryRoots', 'checkpointAndChangeset']);
+	});
+
+	test('refreshes repository roots for completed and cancelled turns, not rejected or resumable requests', () => {
+		const contributions = createBuiltInContributions(disposables);
+		const refreshed: string[] = [];
+		contributions.agentConfigService.getEffectiveWorkingDirectories = channel => [URI.file(`/work/${URI.parse(channel).authority}`).toString()];
+		contributions.gitService.getRepositoryRoot = async directory => {
+			refreshed.push(directory.path);
+			return undefined;
+		};
+		const error = { errorType: 'requestFailed', message: 'failed' };
+
+		for (const reason of [
+			{ kind: 'success' },
+			{ kind: 'cancelled' },
+			{ kind: 'error', error, resumable: false },
+			{ kind: 'error', error, resumable: true },
+			{ kind: 'rejected', error },
+			{ kind: 'localCommand' },
+		] satisfies ITurnEnd['reason'][]) {
+			contributions.service.turnEnd({ ...turnEnd('root-refresh', reason), channel: `agent-host-session://${reason.kind}-${reason.kind === 'error' ? reason.resumable : false}` });
+		}
+
+		assert.deepStrictEqual(refreshed, [
+			'/work/success-false',
+			'/work/cancelled-false',
+			'/work/error-false',
+		]);
+	});
+
+	test('refreshes the target chat directories instead of its owning session directories', () => {
+		const contributions = createBuiltInContributions(disposables);
+		const directories = [URI.file('/work/peer')];
+		const peerChat = buildChatUri(contributions.session, 'peer');
+		const lookups: string[] = [];
+		contributions.stateManager.addChat(contributions.session, peerChat, { title: 'Peer' });
+		contributions.agentConfigService.getEffectiveWorkingDirectories = channel => channel === peerChat ? directories.map(directory => directory.toString()) : [URI.file('/work/parent').toString()];
+		contributions.gitService.getRepositoryRoot = async directory => {
+			lookups.push(directory.toString());
+			return undefined;
+		};
+
+		contributions.service.incomingRequest(incomingRequest(contributions.session, peerChat));
+		contributions.service.turnEnd({ ...turnEnd('peer-root-refresh'), channel: peerChat });
+
+		assert.deepStrictEqual(lookups, [directories[0].toString(), directories[0].toString()]);
+	});
+
+	test('skips repository refresh for turns without working directories', () => {
+		const contributions = createBuiltInContributions(disposables);
+		let lookups = 0;
+		contributions.gitService.getRepositoryRoot = async () => {
+			lookups++;
+			return undefined;
+		};
+
+		contributions.service.incomingRequest(incomingRequest());
+		contributions.service.turnEnd(turnEnd('workspaceless-root-refresh'));
+
+		assert.strictEqual(lookups, 0);
+	});
+
+	test('logs repository refresh failures without blocking turn admission', async () => {
+		const contributions = createBuiltInContributions(disposables);
+		const warnings: string[] = [];
+		contributions.agentConfigService.getEffectiveWorkingDirectories = () => [URI.file('/work').toString()];
+		contributions.logService.warn = message => { warnings.push(String(message)); };
+		contributions.gitService.getRepositoryRoot = async () => { throw new Error('refresh failed'); };
+
+		const disposition = contributions.service.incomingRequest(incomingRequest());
+		await timeout(0);
+
+		assert.deepStrictEqual({ disposition, warnings }, {
+			disposition: { kind: 'accept' },
+			warnings: [`[GitRepositoryRoots] Failed to refresh repository root for ${URI.file('/work').toString()}`],
+		});
+	});
+
 	for (const reason of [
 		{ kind: 'success' },
 		{ kind: 'error', error: { errorType: 'requestFailed', message: 'failed' }, resumable: false },
@@ -2683,6 +2797,40 @@ suite('AgentHostChatContributions', () => {
 			live: contributions.stateManager.getSessionState(contributions.session)?.config?.values,
 		}, { persisted: '{}', live: values });
 	});
+
+	for (const sandboxEnabled of ['on', 'off']) {
+		test(`preserves persisted sandbox ${sandboxEnabled} until the runtime confirms a new selection`, async () => {
+			const contributions = createBuiltInContributions(disposables);
+			await contributions.database.setMetadata('configValues', JSON.stringify({ sandboxEnabled, mode: 'interactive' }));
+			const pending = sandboxEnabled === 'on' ? 'off' : 'on';
+			const values = { sandboxEnabled: pending, mode: 'plan' };
+			contributions.stateManager.setSessionConfig(contributions.session, {
+				schema: { type: 'object', properties: {} }, values,
+			});
+			contributions.service.didDispatchAction(dispatchedAction(contributions.session, contributions.session, {
+				type: ActionType.SessionConfigChanged, config: { mode: 'plan' },
+			}));
+			await Promise.resolve();
+			const beforeConfirmation = JSON.parse((await contributions.database.getMetadata('configValues'))!);
+
+			const meta = withSessionSandboxState(undefined, { enabled: pending === 'on' });
+			contributions.stateManager.setSessionMeta(contributions.session, meta);
+			contributions.service.didDispatchAction(dispatchedAction(contributions.session, contributions.session, {
+				type: ActionType.SessionMetaChanged, _meta: meta,
+			}));
+			await Promise.resolve();
+
+			assert.deepStrictEqual({
+				beforeConfirmation,
+				afterConfirmation: JSON.parse((await contributions.database.getMetadata('configValues'))!),
+				live: contributions.stateManager.getSessionState(contributions.session)?.config?.values,
+			}, {
+				beforeConfirmation: { sandboxEnabled, mode: 'plan' },
+				afterConfirmation: { sandboxEnabled: pending, mode: 'plan' },
+				live: values,
+			});
+		});
+	}
 
 	test('persists applied sandbox state instead of pending or failed selections', async () => {
 		const contributions = createBuiltInContributions(disposables);

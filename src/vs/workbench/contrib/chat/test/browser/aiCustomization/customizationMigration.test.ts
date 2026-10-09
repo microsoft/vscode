@@ -8,6 +8,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { dirname, isEqual } from '../../../../../../base/common/resources.js';
+import { parseFrontMatter, YamlParseError } from '../../../../../../base/common/yaml.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
@@ -127,6 +128,38 @@ suite('customizationMigration', () => {
 				primaryButton: 'Migrate',
 			},
 			failure: 'Could not migrate \'Server\' because the destination already contains a different server with that name.',
+		});
+	});
+
+	test('explains prompt-to-skill metadata loss and invocation behavior before migration', () => {
+		const category = getCustomizationMigrationCategory(CustomizationMigrationCategoryId.PromptFiles);
+		const workspacePrompt: MigratableConfiguration = {
+			uri: URI.file('/workspace/.github/prompts/review.prompt.md'),
+			storage: PromptsStorage.local,
+			type: PromptsType.prompt,
+			source: PromptFileSource.GitHubWorkspace,
+		};
+		const userPrompt: MigratableConfiguration = {
+			...workspacePrompt,
+			uri: URI.file('/user-data/prompts/release.prompt.md'),
+			storage: PromptsStorage.user,
+			source: PromptFileSource.UserData,
+		};
+		const consequences = 'Unsupported prompt-only headers are removed. Converted skills set disable-model-invocation: true, so the agent will not load them automatically; invoke them manually with /name.';
+
+		assert.deepStrictEqual({
+			consequences: category.preMigrationConsequences,
+			candidateWarnings: category.getCandidateWarnings?.(workspacePrompt, 'Copilot'),
+			confirmation: category.getConfirmation([workspacePrompt, userPrompt], 'Copilot'),
+		}, {
+			consequences,
+			candidateWarnings: undefined,
+			confirmation: {
+				message: 'Convert prompt files to skills?',
+				detail: `This converts 1 workspace prompt files and 1 user prompt files into skills.\n\n${consequences}`,
+				primaryButton: 'Convert to Skills',
+				deleteOriginalsLabel: 'Delete original prompt files after migration',
+			},
 		});
 	});
 
@@ -364,15 +397,112 @@ suite('customizationMigration', () => {
 		].join('\n');
 
 		const migrated = migratePromptFileToSkill(promptFile, content);
+		const errors: YamlParseError[] = [];
+		const parsed = parseFrontMatter(migrated.content, errors);
+		const headerKeys = parsed?.header?.type === 'map'
+			? parsed.header.properties.map(property => property.key.value)
+			: [];
 
-		assert.strictEqual(migrated.skillName, 'review-prompt');
-		assert.deepStrictEqual(migrated.unsupportedHeaderKeys, ['tools', 'mode']);
-		assert.ok(migrated.content.includes('name: review-prompt'));
-		assert.ok(migrated.content.includes('description: Review the active change'));
-		assert.ok(migrated.content.includes('disable-model-invocation: true'));
-		assert.ok(migrated.content.includes('argument-hint: "[diff]"'));
-		assert.ok(!migrated.content.includes('tools: [read_file, edit_file]'));
-		assert.ok(migrated.content.includes('## Steps'));
+		assert.deepStrictEqual({
+			skillName: migrated.skillName,
+			unsupportedHeaderKeys: migrated.unsupportedHeaderKeys,
+			errors,
+			headerKeys,
+			name: parsed?.getStringValue('name'),
+			description: parsed?.getStringValue('description'),
+			disableModelInvocation: parsed?.getBooleanValue('disable-model-invocation'),
+			argumentHint: parsed?.getStringValue('argument-hint'),
+			body: parsed?.body,
+		}, {
+			skillName: 'review-prompt',
+			unsupportedHeaderKeys: ['tools', 'mode'],
+			errors: [],
+			headerKeys: ['name', 'description', 'disable-model-invocation', 'argument-hint'],
+			name: 'review-prompt',
+			description: 'Review the active change',
+			disableModelInvocation: true,
+			argumentHint: '[diff]',
+			body: '## Steps\n\n- Review the diff',
+		});
+	});
+
+	test('serializes migrated skill descriptions as valid YAML strings', () => {
+		const promptFile: IPromptPath = {
+			uri: URI.file('/workspace/.github/prompts/review.prompt.md'),
+			name: 'Review Prompt',
+			storage: PromptsStorage.local,
+			type: PromptsType.prompt,
+			source: PromptFileSource.GitHubWorkspace,
+		};
+		const cases = [
+			{
+				content: 'description: "Review: changes #42"',
+				expectedLine: 'description: "Review: changes #42"',
+				expectedDescription: 'Review: changes #42',
+			},
+			{
+				content: 'description: \'Review the author\'\'s changes\'',
+				expectedLine: 'description: \'Review the author\'\'s changes\'',
+				expectedDescription: 'Review the author\'s changes',
+			},
+			{
+				content: 'description: Review the author\'s changes',
+				expectedLine: 'description: Review the author\'s changes',
+				expectedDescription: 'Review the author\'s changes',
+			},
+			{
+				content: ['description: |-', '  Review the first change.', '  Review the second change.'].join('\n'),
+				expectedLine: 'description: "Review the first change.\\nReview the second change."',
+				expectedDescription: 'Review the first change.\nReview the second change.',
+			},
+			{
+				content: 'description: "Review\\x7Fchanges"',
+				expectedLine: 'description: "Review\\u007fchanges"',
+				expectedDescription: 'Review\u007Fchanges',
+			},
+		];
+
+		const actual = cases.map(testCase => {
+			const content = ['---', 'name: Review Prompt', testCase.content, '---', 'Review body'].join('\n');
+			const migrated = migratePromptFileToSkill(promptFile, content);
+			const errors: YamlParseError[] = [];
+			const parsed = parseFrontMatter(migrated.content, errors);
+			return {
+				descriptionLine: migrated.content.split('\n').find(line => line.startsWith('description:')),
+				description: parsed?.getStringValue('description'),
+				errors,
+			};
+		});
+
+		assert.deepStrictEqual(actual, cases.map(testCase => ({
+			descriptionLine: testCase.expectedLine,
+			description: testCase.expectedDescription,
+			errors: [],
+		})));
+	});
+
+	test('quotes YAML-sensitive description metadata without source formatting', () => {
+		const promptFile: IPromptPath = {
+			uri: URI.file('/workspace/.github/prompts/review.prompt.md'),
+			name: 'Review Prompt',
+			description: 'Review: changes #42',
+			storage: PromptsStorage.local,
+			type: PromptsType.prompt,
+			source: PromptFileSource.GitHubWorkspace,
+		};
+		const migrated = migratePromptFileToSkill(promptFile, 'Review body');
+		const errors: YamlParseError[] = [];
+		const parsed = parseFrontMatter(migrated.content, errors);
+
+		assert.deepStrictEqual({
+			descriptionLine: migrated.content.split('\n').find(line => line.startsWith('description:')),
+			description: parsed?.getStringValue('description'),
+			errors,
+		}, {
+			descriptionLine: 'description: "Review: changes #42"',
+			description: 'Review: changes #42',
+			errors: [],
+		});
 	});
 
 	test('preserves argument-hint formatting from source prompt', () => {

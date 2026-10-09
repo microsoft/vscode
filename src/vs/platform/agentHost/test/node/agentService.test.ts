@@ -40,7 +40,8 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { AgentChatMigrationDeferred, AgentSession, AgentWorkingDirectoryChangedError, GITHUB_COPILOT_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, type IAgent, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agent.js';
 import { IConnectionTrackerService } from '../../common/agentService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
-import { AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey, AgentHostArtifactToolsConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostSessionCatalogEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey, platformRootSchema, AgentHostDeferredTitleGenerationConfigKey, AgentHostTitleGenerationConfigKey, AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey, AgentHostArtifactToolsConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostSessionCatalogEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey } from '../../common/agentHostSchema.js';
+import { resolveTitleGenerationStrategy } from '../../common/titleGenerationConfiguration.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { buildCanvasUri } from '../../common/canvasUri.js';
 import type { CanvasState } from '../../common/state/protocol/channels-canvas/state.js';
@@ -2788,6 +2789,60 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual(calls, [{ name: 'spark', marketplace: 'copilot-plugins' }]);
 		});
 
+		test('lists and opens canvases through the owning provider', async () => {
+			const calls: unknown[] = [];
+			const provider: IAgent = copilotAgent;
+			provider.listSessionCanvases = async (session, chat) => {
+				calls.push(['list', session.toString(), chat.toString()]);
+				return [{
+					canvasId: 'preview',
+					extensionId: 'project:preview',
+					extensionSource: 'project',
+					displayName: 'Preview',
+					description: 'Preview generated content.',
+					requiresInput: false,
+					actionCount: 0,
+				}];
+			};
+			provider.openSessionCanvas = async (session, request, chat) => {
+				calls.push(['open', session.toString(), chat.toString(), request]);
+			};
+			registerTestAgentProvider(service, provider);
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService());
+			const session = AgentSession.uri('copilot', 'canvas-session');
+			const chat = URI.parse(buildDefaultChatUri(session.toString()));
+
+			const canvases = await managementService.listSessionCanvases(session, chat);
+			await managementService.openSessionCanvas(session, {
+				canvasId: 'preview',
+				extensionId: 'project:preview',
+				instanceId: 'project-preview-preview',
+			}, chat);
+
+			assert.deepStrictEqual({
+				canvases,
+				calls,
+			}, {
+				canvases: [{
+					canvasId: 'preview',
+					extensionId: 'project:preview',
+					extensionSource: 'project',
+					displayName: 'Preview',
+					description: 'Preview generated content.',
+					requiresInput: false,
+					actionCount: 0,
+				}],
+				calls: [
+					['list', 'copilot:/canvas-session', chat.toString()],
+					['open', 'copilot:/canvas-session', chat.toString(), {
+						canvasId: 'preview',
+						extensionId: 'project:preview',
+						instanceId: 'project-preview-preview',
+					}],
+				],
+			});
+		});
+
 		test('maps progress events to protocol actions via onDidAction', async () => {
 			registerTestAgentProvider(service, copilotAgent);
 			const session = await service.createSession({ provider: 'copilot' });
@@ -4499,6 +4554,86 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('validates approval requests against host-advertised modes and preserves them on replacement', async () => {
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const agent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => agent.dispose()));
+			registerTestAgentProvider(svc, agent);
+			const session = await svc.createSession({ provider: 'copilot' });
+			const state = getStateManager(svc);
+			state.setSessionConfig(session.toString(), {
+				schema: {
+					type: 'object', properties: {
+						autoApprove: { type: 'string', title: 'Approvals', enum: ['default', 'assisted'], sessionMutable: true },
+						availableApprovalModes: { type: 'array', title: 'Available', readOnly: true },
+					}
+				},
+				values: { autoApprove: 'default', availableApprovalModes: ['default', 'assisted'] },
+			});
+			const results = [];
+			for (const [index, config] of [{ autoApprove: 'autoApprove' }, { availableApprovalModes: ['default', 'autoApprove'] }, { autoApprove: 'assisted' }].entries()) {
+				const response = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === index + 1));
+				svc.dispatchAction(session.toString(), { type: ActionType.SessionConfigChanged, config, replace: true }, 'client', index + 1);
+				results.push(!!(await response).rejectionReason);
+			}
+			assert.deepStrictEqual({ rejected: results, values: state.getSessionState(session.toString())?.config?.values }, {
+				rejected: [true, true, false],
+				values: { autoApprove: 'assisted', availableApprovalModes: ['default', 'assisted'] },
+			});
+		});
+
+		for (const approvalSchema of [{ sessionMutable: false }, { sessionMutable: true, readOnly: true }]) {
+			test(`rejects runtime writes to immutable approval configuration ${JSON.stringify(approvalSchema)}`, async () => {
+				const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+				const agent = new MockAgent('copilot');
+				disposables.add(toDisposable(() => agent.dispose()));
+				registerTestAgentProvider(svc, agent);
+				const session = await svc.createSession({ provider: 'copilot' });
+				const state = getStateManager(svc);
+				state.setSessionConfig(session.toString(), {
+					schema: {
+						type: 'object', properties: {
+							autoApprove: { type: 'string', title: 'Approvals', enum: ['default', 'assisted'], ...approvalSchema },
+							availableApprovalModes: { type: 'array', title: 'Available', readOnly: true },
+						}
+					},
+					values: { autoApprove: 'default', availableApprovalModes: ['default', 'assisted'] },
+				});
+				const response = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
+				svc.dispatchAction(session.toString(), { type: ActionType.SessionConfigChanged, config: { autoApprove: 'assisted' } }, 'client', 1);
+				assert.deepStrictEqual({
+					rejected: !!(await response).rejectionReason, selected: state.getSessionState(session.toString())?.config?.values.autoApprove,
+				}, { rejected: true, selected: 'default' });
+			});
+		}
+
+		for (const restriction of ['unavailable', 'readOnly', 'immutable', 'allowed'] as const) {
+			test(`validates standard approvalMode runtime writes (${restriction})`, async () => {
+				const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+				const agent = new MockAgent('other');
+				disposables.add(toDisposable(() => agent.dispose()));
+				registerTestAgentProvider(svc, agent);
+				const session = await svc.createSession({ provider: 'other' });
+				const state = getStateManager(svc);
+				const available = restriction === 'unavailable' ? ['manual'] : ['manual', 'assisted'];
+				state.setSessionConfig(session.toString(), {
+					schema: {
+						type: 'object', properties: {
+							approvalMode: { type: 'string', title: 'Approvals', enum: ['manual', 'assisted', 'allow-all'], sessionMutable: restriction !== 'immutable', readOnly: restriction === 'readOnly' },
+							availableApprovalModes: { type: 'array', title: 'Available', readOnly: true },
+						}
+					},
+					values: { approvalMode: 'manual', availableApprovalModes: available },
+				});
+				const response = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
+				svc.dispatchAction(session.toString(), { type: ActionType.SessionConfigChanged, config: { approvalMode: 'assisted' }, replace: true }, 'client', 1);
+				assert.deepStrictEqual({ rejected: !!(await response).rejectionReason, values: state.getSessionState(session.toString())?.config?.values }, {
+					rejected: restriction !== 'allowed',
+					values: { approvalMode: restriction === 'allowed' ? 'assisted' : 'manual', availableApprovalModes: available },
+				});
+			});
+		}
+
 		test('rejects client writes to host-owned Agent Merge controller state', async () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = new MockAgent('copilot');
@@ -5028,6 +5163,44 @@ suite('AgentService (node dispatcher)', () => {
 				localDisposables.dispose();
 				await rm(tempDir.fsPath, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
 			}
+		});
+
+		test('an older client can change the title strategy after a newer client persisted one', () => {
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const configurationService = getConfigurationService(svc);
+			const resolveHostStrategy = () => resolveTitleGenerationStrategy(
+				configurationService.getRootValue(platformRootSchema, AgentHostTitleGenerationConfigKey),
+				configurationService.getRootValue(platformRootSchema, AgentHostDeferredTitleGenerationConfigKey),
+				configurationService.getRootValue(platformRootSchema, AgentHostActiveAgentTitleGenerationConfigKey),
+			);
+			const strategies: string[] = [];
+
+			svc.dispatchAction(ROOT_STATE_URI, {
+				type: ActionType.RootConfigChanged,
+				config: { [AgentHostTitleGenerationConfigKey]: 'agentReview', [AgentHostActiveAgentTitleGenerationConfigKey]: false, [AgentHostDeferredTitleGenerationConfigKey]: true },
+			}, 'new-client', 1);
+			strategies.push(resolveHostStrategy());
+
+			// Reconnecting with legacy values that already match keeps the newer strategy.
+			svc.dispatchAction(ROOT_STATE_URI, {
+				type: ActionType.RootConfigChanged,
+				config: { [AgentHostActiveAgentTitleGenerationConfigKey]: false, [AgentHostDeferredTitleGenerationConfigKey]: true },
+			}, 'old-client', 1);
+			strategies.push(resolveHostStrategy());
+
+			svc.dispatchAction(ROOT_STATE_URI, {
+				type: ActionType.RootConfigChanged,
+				config: { [AgentHostActiveAgentTitleGenerationConfigKey]: true, [AgentHostDeferredTitleGenerationConfigKey]: false },
+			}, 'old-client', 2);
+			strategies.push(resolveHostStrategy());
+
+			svc.dispatchAction(ROOT_STATE_URI, {
+				type: ActionType.RootConfigChanged,
+				config: { [AgentHostTitleGenerationConfigKey]: 'utility', [AgentHostActiveAgentTitleGenerationConfigKey]: false, [AgentHostDeferredTitleGenerationConfigKey]: false },
+			}, 'new-client', 2);
+			strategies.push(resolveHostStrategy());
+
+			assert.deepStrictEqual(strategies, ['agentReview', 'agentReview', 'activeAgent', 'utility']);
 		});
 
 		test('generates and persists an AI title after first-turn fallback title', async () => {
@@ -7461,6 +7634,49 @@ suite('AgentService (node dispatcher)', () => {
 					workingDirectory: createdWorktrees[index].toString(),
 					repositoryRoot: repository.toString(),
 				})),
+			});
+		});
+
+		test('additional worktree creation refreshes a cached non-repository after external git init', async () => {
+			const perSession = createPerSessionDataService();
+			const repository = URI.file('/workspace/repository');
+			const worktree = URI.file('/workspace/repository.worktrees/task');
+			const handle = generateUuid();
+			let repositoryInitialized = false;
+			let cachedRoot: URI | undefined;
+			const gitService: IAgentHostGitService = {
+				...createNoopGitService(),
+				getRepositoryRoot: async (_directory, options) => {
+					if (options?.refreshIfNone) {
+						cachedRoot = repositoryInitialized ? repository : undefined;
+					}
+					return cachedRoot;
+				},
+				getWorktreeRoots: async () => [repository],
+				getDefaultBranch: async () => ({ name: 'main', startPoint: 'origin/main' }),
+			};
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, gitService));
+			const agent = disposables.add(new MockAgent('copilot', {
+				multipleWorkingDirectories: { immutablePrimary: true },
+			}));
+			registerTestAgentProvider(svc, agent);
+			const primary = URI.file('/workspace/primary');
+			const session = await svc.createSession({ provider: agent.id, workingDirectories: [primary] });
+			setTestAgentHostWorktreeIsolation(svc, createTestAgentHostWorktreeIsolation({
+				createDetachedWorktree: async () => ({ handle, worktree }),
+				claimDetachedWorktree: async () => { },
+			}));
+			await gitService.getRepositoryRoot(repository);
+			repositoryInitialized = true;
+
+			const added = await svc.addSessionWorkingDirectoryForChat(session, repository, { isolation: 'worktree', prompt: 'task' });
+
+			assert.deepStrictEqual({
+				added: added.toString(),
+				directories: getStateManager(svc).getSessionSummary(session.toString())?.workingDirectories,
+			}, {
+				added: worktree.toString(),
+				directories: [primary.toString(), worktree.toString()],
 			});
 		});
 
@@ -9918,6 +10134,29 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(sessions.length, 1);
 		});
 
+		test('getSessionCount reads registry identities without provider or session database access', async () => {
+			const database = new TestAgentHostOrchestratorDatabase();
+			let databaseOpens = 0;
+			const svc = createCentralCatalogService({
+				...createSessionDataService(),
+				tryOpenDatabase: async () => {
+					databaseOpens++;
+					throw new Error('Counting must not open session databases');
+				},
+			}, database);
+			await svc.whenCatalogReconciliationIdle();
+			databaseOpens = 0;
+			const empty = await svc.getSessionCount();
+			const local = 'ahp-session:/count-local';
+			const external = 'copilotcli:/count-external';
+			await database.registerSessionV2(local, { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+			await database.registerSessionV2(external, { provider: 'copilotcli', startTime: 2, source: 'discovery' }, { checkTombstone: false });
+			const registered = await svc.getSessionCount();
+			await database.tombstoneAndUnregisterSession(local);
+			const afterDelete = await svc.getSessionCount();
+			assert.deepStrictEqual({ empty, registered, afterDelete, databaseOpens }, { empty: 0, registered: 2, afterDelete: 1, databaseOpens: 0 });
+		});
+
 		test('central list uses eligible catalogs and suppresses chat backing with zero legacy reads', async () => {
 			const orchestratorDatabase = new CentralCatalogDatabase();
 			const session = AgentSession.uri('copilot', 'central-only');
@@ -10037,10 +10276,9 @@ suite('AgentService (node dispatcher)', () => {
 			 * registered and has a catalog row written from creation state, but its
 			 * provider never created a backing and no in-memory state survives.
 			 *
-			 * The provider is marked already-backfilled, as it is on any restart
-			 * after the first, so its catalog reads as readable this run. Suppression
-			 * deliberately requires that, and a fixture that skipped it would exercise
-			 * the fail-open path instead of the one under test.
+			 * The provider is marked already-backfilled by default, so its catalog
+			 * reads as readable this run. The catalog-readable argument controls
+			 * whether the fixture models completed provider initialization.
 			 */
 			async function seedCrashedProvisional(provisional: boolean, orchestratorDatabase: CentralCatalogDatabase = new CentralCatalogDatabase(), id = `crashed-${provisional ? 'provisional' : 'materialized'}`, catalogReadable = true): Promise<{ orchestratorDatabase: CentralCatalogDatabase; session: URI }> {
 				const session = AgentSession.uri('copilot', id);
@@ -10273,7 +10511,7 @@ suite('AgentService (node dispatcher)', () => {
 				assert.deepStrictEqual(listed.map(metadata => metadata.session.toString()), []);
 			});
 
-			test('suppresses a crash-orphaned session cached by a listing that raced the marker read', async () => {
+			test('waits for provisional markers before publishing a first listing', async () => {
 				// A real marker read hits SQLite, so an early listing can be computed
 				// and cached before any marker is known. The in-memory double always
 				// wins that race, so the delay is what makes this test meaningful.
@@ -10286,17 +10524,13 @@ suite('AgentService (node dispatcher)', () => {
 						return super.listProvisionalSessions();
 					}
 				}
-				const { orchestratorDatabase: slowDatabase, session } = await seedCrashedProvisional(true, new SlowMarkerReadDatabase(), 'crashed-slow-read');
+				const { orchestratorDatabase: slowDatabase } = await seedCrashedProvisional(true, new SlowMarkerReadDatabase(), 'crashed-slow-read');
 				const svc = createCentralCatalogService(createSessionDataService(), slowDatabase);
 				const agent = disposables.add(new DeferredBackingAgent('copilot'));
 				registerTestAgentProvider(svc, agent);
 				// Deferred work settles only once startup is complete *and* a first
 				// listing has been served, so mark it before awaiting below.
 				svc.markStartupComplete();
-				// The marker read is still in flight, so the listing cannot yet know
-				// this placeholder is empty and leaves it visible — failing open is
-				// deliberate, since hiding a real session costs more than showing a
-				// junk row for one listing.
 				await markerReadHasStarted;
 				const listedDuringRead = await svc.listSessions();
 
@@ -10307,12 +10541,12 @@ suite('AgentService (node dispatcher)', () => {
 					listedDuringRead: listedDuringRead.map(metadata => metadata.session.toString()),
 					listedAfterRead: listedAfterRead.map(metadata => metadata.session.toString()),
 				}, {
-					listedDuringRead: [session.toString()],
+					listedDuringRead: [],
 					listedAfterRead: [],
 				});
 			});
 
-			test('keeps a provider miss whose provider catalog is not readable yet', async () => {
+			test('hides an unconfirmed provisional row while its provider catalog is unreadable without changing restore behavior', async () => {
 				// The failure CCR identified: if a provider cannot answer yet it
 				// returns `undefined` *without throwing*, which is not evidence of
 				// absence. Mirrors Claude before its SDK is downloaded (#331648),
@@ -10336,12 +10570,12 @@ suite('AgentService (node dispatcher)', () => {
 					listed: listed.map(metadata => metadata.session.toString()),
 					restoreCode: restoreError instanceof ProtocolError ? restoreError.code : undefined,
 				}, {
-					listed: [session.toString()],
+					listed: [],
 					restoreCode: JSON_RPC_INTERNAL_ERROR,
 				});
 			});
 
-			test('retracts a published fail-open orphan when its provider catalog becomes readable', async () => {
+			test('retracts a previously published provisional orphan when its provider catalog becomes readable', async () => {
 				let catalogReadable = false;
 				class InitiallyUnreadableCatalogAgent extends DeferredBackingAgent {
 					override async listChatsToMigrate(): Promise<IAgentChatMetadata[] | typeof AgentChatMigrationDeferred> {
@@ -10357,8 +10591,8 @@ suite('AgentService (node dispatcher)', () => {
 				registerTestAgentProvider(svc, agent);
 				await waitForInitialProviderMigration(svc, agent);
 				const firstListing = await svc.listSessions();
-				publishListResult(svc, firstListing);
-				const screen = new Set(firstListing.map(metadata => metadata.session.toString()));
+				publishListResult(svc, [{ session, provider: agent.id, startTime: 10, modifiedTime: 10 }]);
+				const screen = new Set([session.toString()]);
 
 				catalogReadable = true;
 				await (svc as unknown as { _awaitInitialProviderMigrationForProvider(provider: IAgent, requireReadableCatalog: boolean): Promise<boolean> })._awaitInitialProviderMigrationForProvider(agent, true);
@@ -10379,14 +10613,14 @@ suite('AgentService (node dispatcher)', () => {
 					screen: [...screen],
 					after: afterTransition.map(metadata => metadata.session.toString()),
 				}, {
-					before: [session.toString()],
+					before: [],
 					removed: [session.toString()],
 					screen: [],
 					after: [],
 				});
 			});
 
-			test('retracts a published fail-open orphan when the marker mirror loads after the transition', async () => {
+			test('retracts a previously published orphan after loading its provisional marker', async () => {
 				// The transition is one-shot. A slow marker read models the real
 				// window: deciding from `_provisionalSessionKeys` at transition time
 				// would find it empty, drop the refresh, and leave the stale row with
@@ -10411,8 +10645,8 @@ suite('AgentService (node dispatcher)', () => {
 				const agent = disposables.add(new InitiallyUnreadableCatalogAgent('copilot'));
 				registerTestAgentProvider(svc, agent);
 				await waitForInitialProviderMigration(svc, agent);
+				publishListResult(svc, [{ session, provider: agent.id, startTime: 10, modifiedTime: 10 }]);
 				const firstListing = await svc.listSessions();
-				publishListResult(svc, firstListing);
 
 				catalogReadable = true;
 				await (svc as unknown as { _awaitInitialProviderMigrationForProvider(provider: IAgent, requireReadableCatalog: boolean): Promise<boolean> })._awaitInitialProviderMigrationForProvider(agent, true);
@@ -10426,7 +10660,7 @@ suite('AgentService (node dispatcher)', () => {
 					removed,
 					after: (await svc.listSessions()).map(metadata => metadata.session.toString()),
 				}, {
-					before: [session.toString()],
+					before: [],
 					removed: [session.toString()],
 					after: [],
 				});
@@ -10668,6 +10902,113 @@ suite('AgentService (node dispatcher)', () => {
 				const listed = await svc.listSessions();
 
 				assert.deepStrictEqual(listed.map(metadata => metadata.session.toString()), [session.toString()]);
+			});
+
+			test('hides a marked provisional row when its provider is unavailable without deleting its registration', async () => {
+				const { orchestratorDatabase, session } = await seedCrashedProvisional(true);
+				const svc = createCentralCatalogService(createSessionDataService(), orchestratorDatabase);
+				const listed = await svc.listSessions();
+
+				assert.deepStrictEqual({
+					listed: listed.map(metadata => metadata.session.toString()),
+					registered: (await orchestratorDatabase.listSessions()).map(entry => entry.session),
+					provisional: await orchestratorDatabase.listProvisionalSessions(),
+				}, { listed: [], registered: [session.toString()], provisional: [session.toString()] });
+			});
+
+			test('hides a marked provisional row when provider metadata throws', async () => {
+				class ThrowingMetadataAgent extends DeferredBackingAgent {
+					override async getChatMetadata(): Promise<IAgentChatMetadata | undefined> {
+						throw new Error('metadata failed');
+					}
+				}
+				const { orchestratorDatabase, session } = await seedCrashedProvisional(true);
+				const svc = await createCrashedService(orchestratorDatabase, createSessionDataService(), disposables.add(new ThrowingMetadataAgent('copilot')));
+				const listed = await svc.listSessions();
+				assert.deepStrictEqual({
+					listed: listed.map(metadata => metadata.session.toString()),
+					provisional: await orchestratorDatabase.listProvisionalSessions(),
+				}, { listed: [], provisional: [session.toString()] });
+			});
+
+			for (const provisional of [false, true]) {
+				test(`registry fallback is not backing confirmation (provisional: ${provisional})`, async () => {
+					let confirmed = false;
+					class RegistryFallbackAgent extends TimedExternalAgent {
+						override readonly onDidDiscoverChats = Event.None;
+						override async listChatsToMigrate(): Promise<typeof AgentChatMigrationDeferred> {
+							return AgentChatMigrationDeferred;
+						}
+						override async getChatMetadata(chat: URI, _context: URI | IAgentChatContext, _providerData?: string, options?: IAgentChatMetadataOptions): Promise<IAgentChatMetadata | undefined> {
+							return confirmed
+								? { chat, startTime: 10, modifiedTime: 10, summary: 'Confirmed conversation' }
+								: options?.registryFallback ? { chat, ...options.registryFallback } : undefined;
+						}
+					}
+					const { orchestratorDatabase, session } = await seedCrashedProvisional(provisional, new CentralCatalogDatabase(), `registry-fallback-${provisional}`, false);
+					const svc = await createCrashedService(orchestratorDatabase, createSessionDataService(), disposables.add(new RegistryFallbackAgent('copilot')));
+					const before = await svc.listSessions();
+					confirmed = true;
+					const after = await svc.listSessions();
+					assert.deepStrictEqual({
+						before: before.map(metadata => metadata.session.toString()),
+						after: after.map(metadata => metadata.session.toString()),
+					}, {
+						before: provisional ? [] : [session.toString()],
+						after: [session.toString()],
+					});
+				});
+			}
+
+			test('keeps active provisional sessions in the live overlay when metadata cannot be confirmed', async () => {
+				const { orchestratorDatabase, session } = await seedCrashedProvisional(true);
+				const svc = await createCrashedService(orchestratorDatabase);
+				const state = getTestAgentStateManager(svc);
+				state.createSession({
+					resource: session.toString(), provider: 'copilot', title: 'Active',
+					status: SessionStatus.Idle, createdAt: new Date(10).toISOString(), modifiedAt: new Date(10).toISOString(),
+				}, { emitNotification: false });
+				state.dispatchServerAction(buildDefaultChatUri(session), {
+					type: ActionType.ChatTurnStarted,
+					turnId: 'first-turn', startedAt: new Date(20).toISOString(),
+					message: { text: 'User prompt', origin: { kind: MessageKind.User } },
+				});
+				const listed = await svc.listSessions();
+				assert.deepStrictEqual(listed.map(metadata => metadata.session.toString()), [session.toString()]);
+			});
+
+			test('hides provisional rows after an interrupted initial scan and shows them when their backing is confirmed', async () => {
+				let scans = 0;
+				let confirmed = false;
+				class InterruptedCatalogAgent extends TimedExternalAgent {
+					override async listChatsToMigrate(): Promise<IAgentChatMetadata[]> {
+						scans++;
+						throw new Error('Pending response rejected since connection got disposed');
+					}
+					override async getChatMetadata(chat: URI): Promise<IAgentChatMetadata | undefined> {
+						return confirmed ? { chat, startTime: 10, modifiedTime: 10, summary: 'Real conversation' } : undefined;
+					}
+				}
+				const { orchestratorDatabase, session } = await seedCrashedProvisional(true, new CentralCatalogDatabase(), 'interrupted-provisional', false);
+				const svc = createCentralCatalogService(createSessionDataService(), orchestratorDatabase);
+				await svc.whenCatalogReconciliationIdle();
+				const agent = disposables.add(new InterruptedCatalogAgent('copilot', undefined, undefined, false));
+				registerTestAgentProvider(svc, agent);
+				await assert.rejects(waitForInitialProviderMigration(svc, agent), /connection got disposed/);
+				const first = await svc.listSessions();
+				const repeated = await svc.listSessions();
+				confirmed = true;
+				const afterConfirmation = await svc.listSessions();
+				assert.deepStrictEqual({
+					first: first.map(metadata => metadata.session.toString()),
+					repeated: repeated.map(metadata => metadata.session.toString()),
+					afterConfirmation: afterConfirmation.map(metadata => metadata.session.toString()),
+					scans,
+					provisional: await orchestratorDatabase.listProvisionalSessions(),
+				}, {
+					first: [], repeated: [], afterConfirmation: [session.toString()],
+					scans: 1, provisional: [session.toString()],
+				});
 			});
 		});
 
@@ -17148,6 +17489,7 @@ suite('AgentService (node dispatcher)', () => {
 			const calls: string[] = [];
 			const gitService = {
 				_serviceBrand: undefined,
+				hasGitRoot: createNoopGitService().hasGitRoot,
 				getCurrentBranch: async () => undefined,
 				getDefaultBranch: async () => undefined,
 				getBranch: async () => undefined,
@@ -17261,6 +17603,7 @@ suite('AgentService (node dispatcher)', () => {
 		test('createSession infers workspace-less (and skips git overlay) when no working directory', async () => {
 			const gitService = {
 				_serviceBrand: undefined,
+				hasGitRoot: createNoopGitService().hasGitRoot,
 				getCurrentBranch: async () => undefined,
 				getDefaultBranch: async () => undefined,
 				getBranch: async () => undefined,
@@ -19725,7 +20068,7 @@ suite('AgentService (node dispatcher)', () => {
 					}
 					async ensureChatAdopted(): Promise<IAgentChatAdoptionResult> {
 						if (scenario === 'adoptionFailed') {
-							throw new ProtocolError(JSON_RPC_INTERNAL_ERROR, `adoption failed for ${session}; frontend agent-host-copilotcli:/migration-${scenario}; id migration-${scenario}`);
+							throw new ProtocolError(JSON_RPC_INTERNAL_ERROR, 'adoption failed: The argument \'path\' must be a string, Uint8Array, or URL without null bytes. Received \'/private-prefix\\x00...\'');
 						}
 						return scenario === 'declined'
 							? { adopted: false, eligible: false, reason: 'notLegacyChat' }
@@ -19759,6 +20102,9 @@ suite('AgentService (node dispatcher)', () => {
 					stage: data.stage,
 					reason: data.reason,
 					diagnosticCategory: data.diagnosticCategory,
+					provenance: data.provenance,
+					markerStatus: data.markerStatus,
+					diagnosticDetail: data.diagnosticDetail,
 					eligible: data.eligible,
 					advertisedAsAdoptable: data.advertisedAsAdoptable,
 					errorCode: data.errorCode,
@@ -19770,10 +20116,13 @@ suite('AgentService (node dispatcher)', () => {
 					stage: scenario === 'adoptionFailed' ? 'adoption' : failed ? 'restore' : scenario === 'declined' || scenario === 'settingDisabled' ? 'eligibility' : 'complete',
 					reason: scenario === 'adoptionFailed' ? 'unknown' : scenario === 'declined' ? 'notLegacyChat' : scenario === 'settingDisabled' ? 'settingDisabled' : scenario === 'skipped' || scenario === 'eligibleRestoreFailed' ? 'workingDirectoryMissing' : 'adopted',
 					diagnosticCategory: scenario === 'migrated' ? 'notApplicable' : scenario === 'settingDisabled' ? 'configurationDisabled' : scenario === 'declined' ? 'unknown' : 'needsInvestigation',
+					provenance: scenario === 'settingDisabled' ? 'notEvaluated' : scenario === 'adoptionFailed' || scenario === 'declined' ? 'unknown' : 'legacy',
+					markerStatus: scenario === 'settingDisabled' ? 'notEvaluated' : 'notReported',
+					diagnosticDetail: scenario === 'settingDisabled' ? 'settingDisabled' : scenario === 'adoptionFailed' ? 'adoptionThrew' : scenario === 'declined' ? 'providerEvidenceUnavailable' : 'legacyEligible',
 					eligible: scenario === 'adoptionFailed' || scenario === 'settingDisabled' ? undefined : scenario !== 'declined',
 					advertisedAsAdoptable: false,
 					errorCode: scenario === 'adoptionFailed' ? String(JSON_RPC_INTERNAL_ERROR) : undefined,
-					errorMessage: failed ? `${scenario === 'adoptionFailed' ? 'adoption' : 'restore'} failed for [REDACTED: session]; frontend [REDACTED: session]; id [REDACTED: session]` : undefined,
+					errorMessage: scenario === 'adoptionFailed' ? 'Migration error details redacted: invalid session identifier or argument.' : failed ? 'restore failed for [REDACTED: session]; frontend [REDACTED: session]; id [REDACTED: session]' : undefined,
 				}]);
 			});
 		}
@@ -19783,6 +20132,7 @@ suite('AgentService (node dispatcher)', () => {
 			diagnostics: IAgentChatAdoptionResult['diagnostics'];
 			advertised: boolean;
 			category: string;
+			detail?: string;
 		}[] = [
 				{ name: 'no evidence', diagnostics: undefined, advertised: false, category: 'unknown' },
 				{ name: 'explicit external origin', diagnostics: { markerStatus: 'valid', provenance: 'external', markerFromCache: false }, advertised: false, category: 'expectedExclusion' },
@@ -19793,8 +20143,26 @@ suite('AgentService (node dispatcher)', () => {
 				{ name: 'unreadable marker', diagnostics: { markerStatus: 'readError', provenance: 'unknown', markerFromCache: false, errorCode: 'EACCES', errorMessage: 'access denied: copilot:/decline-evidence (id=decline-evidence)' }, advertised: false, category: 'needsInvestigation' },
 				{ name: 'advertised legacy marker disappeared', diagnostics: { markerStatus: 'missing', provenance: 'unknown', markerFromCache: false }, advertised: true, category: 'needsInvestigation' },
 				{ name: 'external origin contradicts advertisement', diagnostics: { markerStatus: 'valid', provenance: 'external', markerFromCache: false }, advertised: true, category: 'needsInvestigation' },
+				{ name: 'session state root missing', diagnostics: { markerStatus: 'missing', provenance: 'unknown', markerFromCache: false, sessionStateRootStatus: 'missing', copilotHomeSource: 'environment' }, advertised: false, category: 'unknown', detail: 'sessionStateRootMissing' },
+				{ name: 'session directory missing', diagnostics: { markerStatus: 'missing', provenance: 'unknown', markerFromCache: false, sessionStateRootStatus: 'directory', sessionDirectoryStatus: 'missing' }, advertised: false, category: 'unknown', detail: 'sessionDirectoryMissing' },
+				{ name: 'marker missing with events', diagnostics: { markerStatus: 'missing', provenance: 'unknown', markerFromCache: false, eventsFileStatus: 'file' }, advertised: false, category: 'unknown', detail: 'markerMissingWithEvents' },
+				{ name: 'marker missing without events', diagnostics: { markerStatus: 'missing', provenance: 'unknown', markerFromCache: false, eventsFileStatus: 'missing' }, advertised: false, category: 'unknown', detail: 'markerMissingWithoutEvents' },
+				{ name: 'malformed identity', diagnostics: { markerStatus: 'missing', provenance: 'unknown', markerFromCache: false, sessionIdStatus: 'controlCharacters' }, advertised: false, category: 'needsInvestigation', detail: 'invalidSessionId' },
+				{ name: 'storage probe failed', diagnostics: { markerStatus: 'missing', provenance: 'unknown', markerFromCache: false, sessionDirectoryStatus: 'readError' }, advertised: false, category: 'needsInvestigation', detail: 'storageProbeFailed' },
+				{ name: 'invalid storage layout', diagnostics: { markerStatus: 'missing', provenance: 'unknown', markerFromCache: false, eventsFileStatus: 'directory' }, advertised: false, category: 'needsInvestigation', detail: 'storageLayoutInvalid' },
+				{ name: 'missing origin', diagnostics: { markerStatus: 'valid', provenance: 'unknown', markerFromCache: false, markerOrigin: 'missing' }, advertised: false, category: 'unknown', detail: 'originMissing' },
+				{ name: 'unrecognized origin', diagnostics: { markerStatus: 'valid', provenance: 'unknown', markerFromCache: false, markerOrigin: 'unrecognized' }, advertised: false, category: 'unknown', detail: 'originUnrecognized' },
+				{ name: 'invalid origin type', diagnostics: { markerStatus: 'valid', provenance: 'unknown', markerFromCache: false, markerOrigin: 'invalidType' }, advertised: false, category: 'unknown', detail: 'originInvalidType' },
+				{ name: 'escaped invalid marker path', diagnostics: { markerStatus: 'readError', provenance: 'unknown', markerFromCache: false, errorCode: 'ERR_INVALID_ARG_VALUE', errorMessage: 'Received "/private-prefix\\x00..."' }, advertised: false, category: 'needsInvestigation', detail: 'markerReadError' },
+				...(['vscode', 'vscode-agent-host', 'github/cli', 'github/autopilot'] as const).map(lastKnownClient => ({
+					name: `last client ${lastKnownClient} does not establish creator`,
+					diagnostics: { markerStatus: 'missing' as const, provenance: 'unknown' as const, markerFromCache: false, workspaceMetadataStatus: 'valid' as const, lastKnownClient },
+					advertised: false, category: 'unknown',
+				})),
+				{ name: 'external last client contradicts adoptable advertisement', diagnostics: { markerStatus: 'missing', provenance: 'unknown', markerFromCache: false, workspaceMetadataStatus: 'valid', lastKnownClient: 'github/cli' }, advertised: true, category: 'needsInvestigation' },
+				{ name: 'workspace metadata unreadable', diagnostics: { markerStatus: 'missing', provenance: 'unknown', markerFromCache: false, workspaceMetadataStatus: 'readError', lastKnownClient: 'unavailable' }, advertised: false, category: 'unknown' },
 			];
-		for (const { name, diagnostics, advertised, category } of declineCases) {
+		for (const { name, diagnostics, advertised, category, detail } of declineCases) {
 			test(`legacy migration decline evidence: ${name}`, async () => {
 				const events: { data: Record<string, unknown>; error: boolean }[] = [];
 				const telemetry = new class extends NullTelemetryServiceShape {
@@ -19834,12 +20202,20 @@ suite('AgentService (node dispatcher)', () => {
 					error, outcome: data.outcome, category: data.diagnosticCategory,
 					advertised: data.advertisedAsAdoptable, eligible: data.eligible,
 					markerStatus: data.markerStatus, provenance: data.provenance, markerFromCache: data.markerFromCache,
+					diagnosticDetail: detail === undefined ? undefined : data.diagnosticDetail,
+					markerOrigin: data.markerOrigin, sessionIdStatus: data.sessionIdStatus, copilotHomeSource: data.copilotHomeSource,
+					sessionStateRootStatus: data.sessionStateRootStatus, sessionDirectoryStatus: data.sessionDirectoryStatus, eventsFileStatus: data.eventsFileStatus,
+					workspaceMetadataStatus: data.workspaceMetadataStatus, lastKnownClient: data.lastKnownClient,
 					errorCode: data.eligibilityErrorCode, errorMessage: data.eligibilityErrorMessage,
 				})), [{
 					error: diagnostics?.errorMessage !== undefined, outcome: 'declined', category,
 					advertised, eligible: false,
-					markerStatus: diagnostics?.markerStatus, provenance: diagnostics?.provenance, markerFromCache: diagnostics?.markerFromCache,
-					errorCode: diagnostics?.errorCode, errorMessage: diagnostics?.errorMessage === undefined ? undefined : 'access denied: [REDACTED: session] (id=[REDACTED: session])',
+					markerStatus: diagnostics?.markerStatus ?? 'notReported', provenance: diagnostics?.provenance ?? 'unknown', markerFromCache: diagnostics?.markerFromCache,
+					diagnosticDetail: detail,
+					markerOrigin: diagnostics?.markerOrigin ?? 'notReported', sessionIdStatus: diagnostics?.sessionIdStatus ?? 'notReported', copilotHomeSource: diagnostics?.copilotHomeSource ?? 'notReported',
+					sessionStateRootStatus: diagnostics?.sessionStateRootStatus ?? 'notReported', sessionDirectoryStatus: diagnostics?.sessionDirectoryStatus ?? 'notReported', eventsFileStatus: diagnostics?.eventsFileStatus ?? 'notReported',
+					workspaceMetadataStatus: diagnostics?.workspaceMetadataStatus ?? 'notReported', lastKnownClient: diagnostics?.lastKnownClient ?? 'notReported',
+					errorCode: diagnostics?.errorCode, errorMessage: diagnostics?.errorMessage === undefined ? undefined : diagnostics.errorCode === 'ERR_INVALID_ARG_VALUE' ? 'Migration error details redacted: invalid session identifier or argument.' : 'access denied: [REDACTED: session] (id=[REDACTED: session])',
 				}]);
 			});
 		}
@@ -22471,6 +22847,33 @@ suite('AgentService (node dispatcher)', () => {
 			}
 
 			assert.strictEqual(getStateManager(service).getChatState(childChat.toString())?.activeTurn?.id, 'continued-turn');
+		});
+	});
+
+	// ---- stopBackgroundWork ------------------------------------------------
+
+	suite('stopBackgroundWork', () => {
+
+		test('routes to the provider that owns the chat', async () => {
+			const stopped: { chat: string; id: string }[] = [];
+			class StoppingAgent extends MockAgent {
+				async stopBackgroundWork(chat: URI, id: string): Promise<boolean> {
+					stopped.push({ chat: chat.toString(), id });
+					return true;
+				}
+			}
+			const agent = disposables.add(new StoppingAgent('copilot'));
+			registerTestAgentProvider(service, agent);
+			const session = await service.createSession({ provider: 'copilot' });
+			const chat = URI.parse(buildChatUri(session, 'peer-1'));
+
+			assert.deepStrictEqual({
+				result: await service.stopBackgroundWork(chat, 'shell:3'),
+				stopped,
+			}, {
+				result: true,
+				stopped: [{ chat: chat.toString(), id: 'shell:3' }],
+			});
 		});
 	});
 
@@ -28866,6 +29269,61 @@ suite('AgentService (node dispatcher)', () => {
 
 	suite('session config persistence', () => {
 
+		test('workspaceless Copilot sessions resolve host approval defaults without client config', async () => {
+			const sessionDataService = createSessionDataService(new TestSessionDatabase());
+			const agent = new MockAgent('copilotcli');
+			disposables.add(toDisposable(() => agent.dispose()));
+			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			registerTestAgentProvider(svc, agent);
+			agent.resolveChatConfig = async () => ({
+				schema: {
+					type: 'object', properties: {
+						autoApprove: { type: 'string', title: 'Approvals', enum: ['default', 'assisted', 'autoApprove'], sessionMutable: true },
+						availableApprovalModes: { type: 'array', title: 'Available', readOnly: true },
+						effectiveApprovalMode: { type: 'string', title: 'Effective', readOnly: true },
+					}
+				},
+				values: { autoApprove: 'assisted', availableApprovalModes: ['default', 'assisted'], effectiveApprovalMode: 'assisted' },
+			});
+
+			const session = await svc.createSession({ provider: 'copilotcli' });
+			assert.deepStrictEqual(getStateManager(svc).getSessionState(session.toString())?.config?.values, {
+				autoApprove: 'assisted', availableApprovalModes: ['default', 'assisted'], effectiveApprovalMode: 'assisted',
+			});
+		});
+
+		test('restored sandbox off survives a config change and another restore before runtime confirmation', async () => {
+			const sessionDb = disposables.add(await SessionDatabase.open(':memory:'));
+			const sessionDataService = createSessionDataService(sessionDb);
+			const localAgent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => localAgent.dispose()));
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			registerTestAgentProvider(localService, localAgent);
+			const configuration = getConfigurationService(localService);
+			configuration.updateRootConfig({ sandbox: { enabled: 'on' } });
+			const { session } = await createAgentSession(localAgent);
+			await sessionDb.setMetadata('configValues', JSON.stringify({ sandboxEnabled: 'off', mode: 'interactive' }));
+
+			await localService.restoreSession(session);
+			configuration.updateSessionConfig(session.toString(), { mode: 'plan' });
+			await sessionDb.whenIdle();
+			const persisted = JSON.parse((await sessionDb.getMetadata('configValues'))!);
+			getStateManager(localService).removeSession(session.toString());
+			await localService.restoreSession(session);
+
+			assert.deepStrictEqual({
+				persisted,
+				restored: configuration.getSessionConfigValues(session.toString()),
+				confirmed: configuration.getSessionSandboxEnabled(session.toString()),
+				effective: getSessionSandboxConfig(configuration, session.toString()).enabled,
+			}, {
+				persisted: { sandboxEnabled: 'off', mode: 'plan' },
+				restored: { sandboxEnabled: 'off', mode: 'plan' },
+				confirmed: undefined,
+				effective: 'off',
+			});
+		});
+
 		test('restoreSession replaces persisted off with applied on when current managed policy requires sandboxing', async () => {
 			const sessionDb = disposables.add(await SessionDatabase.open(':memory:'));
 			const sessionDataService = createSessionDataService(sessionDb);
@@ -28981,8 +29439,8 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('restoreSession seeds the provider model into the default chat draft', async () => {
-			const sessionDb = disposables.add(await SessionDatabase.open(':memory:'));
-			const sessionDataService = createSessionDataService(sessionDb);
+			// Provider discovery and explicit restore can address different sessions concurrently.
+			const { service: sessionDataService, database } = createPerSessionDataService();
 			const localAgent = new MockAgent('codex');
 			const model = { id: '@provider=openai:gpt-5.6-sol' };
 			localAgent.sessionMetadataOverrides = { model } as typeof localAgent.sessionMetadataOverrides;
@@ -28990,7 +29448,7 @@ suite('AgentService (node dispatcher)', () => {
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			registerTestAgentProvider(localService, localAgent);
 			const { session } = await createAgentSession(localAgent);
-			await sessionDb.setChatDraft(URI.parse(buildDefaultChatUri(session)), {
+			await database(session).setChatDraft(URI.parse(buildDefaultChatUri(session)), {
 				text: 'unsent text',
 				origin: { kind: MessageKind.User },
 				model: { id: 'codex-model:vscode-proxy:gpt-5-mini', config: { thinkingLevel: 'medium' } },

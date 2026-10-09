@@ -111,16 +111,18 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 			const cancellation = new CancellationTokenSource();
 			this._openIntent.value = toDisposable(() => cancellation.dispose(true));
 			const workspaceUri = args[0] ? URI.revive(args[0] as UriComponents) : undefined;
-			const sessionResource = args[1] ? URI.revive(args[1] as UriComponents) : undefined;
+			const showNewSession = args[1] === 'new';
+			const sessionResource = args[1] && !showNewSession ? URI.revive(args[1] as UriComponents) : undefined;
 			const source = isAgentsWindowOpenSource(args[2]) ? args[2] : AgentsWindowOpenSource.Unknown;
 			const onboardingSessionResource = isAgentsWindowInvitationSource(source) && args[5] ? URI.revive(args[5] as UriComponents) : undefined;
 			const workspaceArgumentIsDefault = args[3] === true;
-			if (args[4] !== undefined && !isAgentsWindowDraft(args[4])) {
+			const draftPayload = showNewSession || source === AgentsWindowOpenSource.Link ? args[4] : undefined;
+			if (draftPayload !== undefined && !isAgentsWindowDraft(draftPayload)) {
 				this.logService.error('[AgentsHandoff] Invalid draft payload');
 				this.notificationService.warn(localize('agentsHandoff.invalidDraft', "The draft could not be copied. Your prompt and attachments are still in the editor."));
 				return;
 			}
-			const draft = args[4];
+			const draft = draftPayload;
 			const noWorkspace = source === AgentsWindowOpenSource.Link && draft !== undefined && workspaceUri === undefined;
 			this.logService.info(`[AgentsHandoff] IPC received: folderUri=${workspaceUri?.toString() ?? '(none)'} sessionResource=${sessionResource?.toString() ?? '(none)'}`);
 			const telemetry = this._startWindowOpenTelemetry(source, {
@@ -129,7 +131,6 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 				workspaceArgumentIsDefault,
 			});
 
-			const showNewSession = onboardingSessionResource !== undefined && sessionResource === undefined;
 			const handoff = () => this._handleOpenIntentAndCaptureInitialState(workspaceUri, sessionResource, workspaceArgumentIsDefault, cancellation.token, telemetry, draft, noWorkspace, showNewSession);
 			const opening = onboardingSessionResource && (!sessionResource || isEqual(onboardingSessionResource, sessionResource))
 				? this._invitationOnboarding.runWithHandoff(handoff, async () => {
@@ -217,7 +218,9 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 			await this.openExistingSession(sessionResource, token);
 			return;
 		}
-		if (showNewSession) {
+		const resolved = resolveAgentsWindowFolderIntent(workspaceUri, this.configurationService);
+		const folderUri = resolved.folderUri ?? (draft ? workspaceUri : undefined);
+		if (showNewSession && !folderUri && !draft) {
 			await raceCancellation(this.lifecycleService.when(LifecyclePhase.Restored), token);
 			if (!token.isCancellationRequested) {
 				this.newSessionComposerService.notifyUserNavigation();
@@ -225,10 +228,11 @@ export class SelectAgentsFolderContribution extends Disposable implements IWorkb
 			}
 			return;
 		}
-		const resolved = resolveAgentsWindowFolderIntent(workspaceUri, this.configurationService);
-		const folderUri = resolved.folderUri ?? (draft ? workspaceUri : undefined);
 		if (folderUri || draft) {
-			await this._workspaceHandoff.selectWorkspace({ folderUri, preferDevContainer: resolved.preferDevContainer, isDefault, draft, noWorkspace }, state => telemetry?.recordWorkspaceHandoffState(state));
+			if (showNewSession) {
+				this.newSessionComposerService.notifyUserNavigation();
+			}
+			await this._workspaceHandoff.selectWorkspace({ folderUri, preferDevContainer: resolved.preferDevContainer, isDefault, draft, noWorkspace, revealNewSession: showNewSession }, state => telemetry?.recordWorkspaceHandoffState(state));
 		}
 	}
 

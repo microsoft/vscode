@@ -31,7 +31,9 @@ import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { mixin } from '../../../../../../base/common/objects.js';
 import { autorun, constObservable, derived, derivedOpts, IObservable, ISettableObservable, ITransaction, observableFromEvent, observableSignalFromEvent, observableValue, transaction } from '../../../../../../base/common/observable.js';
-import { isMacintosh, isWeb } from '../../../../../../base/common/platform.js';
+import { isMacintosh, isWeb, OS } from '../../../../../../base/common/platform.js';
+import { isTerminalSandboxSupported } from '../../../../../../platform/sandbox/common/settings.js';
+import { IRemoteAgentService } from '../../../../../services/remote/common/remoteAgentService.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
@@ -172,12 +174,15 @@ import { ChatPetAchievementIds, didExplicitlySwitchChatPetModel } from '../../ch
 import { IChatPetService } from '../../chatPetService.js';
 import { DelegationSessionPickerActionItem } from './delegationSessionPickerActionItem.js';
 import { ModelPickerActionItem, IModelPickerDelegate, IModelPickerPresentationOptions } from './modelPicker/modelPickerActionItem.js';
+import { getChatSessionTelemetryContext, getChatSessionTelemetryIds } from '../../../common/chatService/chatServiceTelemetry.js';
+import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IModePickerDelegate, ModePickerActionItem } from './modePickerActionItem.js';
 import { IPermissionPickerDelegate, PermissionPickerActionItem } from './permissionPickerActionItem.js';
 import { SessionTypePickerActionItem } from './sessionTargetPickerActionItem.js';
 import { WorkspacePickerActionItem } from './workspacePickerActionItem.js';
 import { ChatContextUsageWidget } from '../../widgetHosts/viewPane/chatContextUsageWidget.js';
 import { Target } from '../../../common/promptSyntax/promptTypes.js';
+import { matchesSessionType } from '../../../common/promptSyntax/service/promptsService.js';
 import { ConfigureToolsAction } from '../../actions/chatToolActions.js';
 import { InlineCompletionsController } from '../../../../../../editor/contrib/inlineCompletions/browser/controller/inlineCompletionsController.js';
 import { PlaceholderTextContribution } from '../../../../../../editor/contrib/placeholderText/browser/placeholderTextContribution.js';
@@ -782,6 +787,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private modeWidget: ModePickerActionItem | undefined;
 	private attachContextActionViewItem: MenuEntryActionViewItem | undefined;
 	private permissionWidget: PermissionPickerActionItem | undefined;
+	private _localSandboxSupported = false;
 	private readonly permissionWidgetDisposeListener = this._register(new MutableDisposable<IDisposable>());
 	private readonly overflowPickerWidget = this._register(new MutableDisposable<IDisposable>());
 	private sessionTargetWidget: SessionTypePickerActionItem | undefined;
@@ -1020,8 +1026,17 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IChatPetService private readonly chatPetService: IChatPetService,
 		@IActionViewItemService private readonly actionViewItemService: IActionViewItemService,
 		@IAccountPolicyGateService private readonly accountPolicyGateService: IAccountPolicyGateService,
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
+		@IAgentHostConnectionsService private readonly agentHostConnectionsService: IAgentHostConnectionsService,
 	) {
 		super();
+		remoteAgentService.getEnvironment().then(environment => {
+			if (this._store.isDisposed) {
+				return;
+			}
+			this._localSandboxSupported = isTerminalSandboxSupported(environment?.os ?? OS);
+			this.permissionWidget?.refresh();
+		}, onUnexpectedError);
 		this._modelSelectionDiagnostics = new ChatModelSelectionDiagnostics(this.logService, this.storageService, () => ({
 			surface: 'workbench',
 			location: this.location,
@@ -1510,6 +1525,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				this.renderAttachedContext();
 			},
 			getModels: () => this.getModels(),
+			getChatSessionId: () => {
+				const resource = this._widget?.viewModel?.sessionResource;
+				return resource ? getChatSessionTelemetryContext(resource).chatSessionId : undefined;
+			},
+			getAgentSessionId: () => {
+				const resource = this._widget?.viewModel?.sessionResource;
+				return resource ? getChatSessionTelemetryIds(resource, this.agentHostConnectionsService).agentSessionId : undefined;
+			},
 			getProvider: () => getAgentHostProviderForTelemetry(this.getCurrentSessionType(), this.chatSessionsService),
 			getSessionType: () => this.modelTargetSessionType,
 			isCacheWarm: () => (this._widget?.viewModel?.model.getRequests().length ?? 0) > 0,
@@ -1522,10 +1545,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const sessionType = this.getCurrentSessionType();
 		const useRichPicker = !sessionType || sessionType === localChatSessionType || isAgentHostTarget(sessionType);
 		return {
-			useGroupedModelPicker: useRichPicker,
 			showManageModelsAction: useRichPicker,
 			showUnavailableFeatured: useRichPicker,
-			showFeatured: useRichPicker,
 			showAutoModel: this._showAutoModel(),
 			showModelIcon: this.options.isSessionsWindow || !this._usesHarnessProviderIcon(),
 		};
@@ -2135,13 +2156,17 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			sessionType = getChatSessionType(sessionResource);
 		}
 
-		const customAgentTarget = this.chatSessionsService.getCustomAgentTargetForSessionType(sessionType);
-		if (!customAgentTarget || customAgentTarget === Target.Undefined) {
+		const currentMode = this._currentModeObservable.get();
+		if (currentMode.id === ChatMode.Agent.id) {
+			return;
+		}
+		if (!matchesSessionType(currentMode.sessionTypes, sessionType)) {
+			this.setChatMode(ChatModeKind.Agent, false);
 			return;
 		}
 
-		const currentMode = this._currentModeObservable.get();
-		if (currentMode.id === ChatMode.Agent.id) {
+		const customAgentTarget = this.chatSessionsService.getCustomAgentTargetForSessionType(sessionType);
+		if (!customAgentTarget || customAgentTarget === Target.Undefined) {
 			return;
 		}
 		if (currentMode.isBuiltin) {
@@ -4083,7 +4108,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 								}
 								this.permissionWidget?.refresh();
 							},
-							isSandboxToggleApplicable: () => this.getEffectiveSessionType(this.getCurrentSessionResource()) === SessionType.Local,
+							isSandboxToggleApplicable: () => this._localSandboxSupported && this.getEffectiveSessionType(this.getCurrentSessionResource()) === SessionType.Local,
 						};
 						const createPicker = () => this.instantiationService.createInstance(PermissionPickerActionItem, action, delegate, getSecondaryPickerOptions(action.id));
 						secondaryOverflowPickerHandlers.set(action.id, anchor => showOverflowPicker(createPicker, anchor));

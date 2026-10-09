@@ -38,6 +38,7 @@ export type PullRequestFragmentResult =
 	| { readonly fragment: 'participants'; readonly value: PullRequestParticipants; readonly complete: true };
 
 export interface IPullRequestQuery {
+	promote(signal: AbortSignal, priority: PullRequestSubscriptionOptions['priority']): void;
 	fetch(
 		fragment: PullRequestFragment,
 		ref: PullRequestRef,
@@ -155,6 +156,10 @@ export class PullRequestQueryService implements IPullRequestQuery {
 		private readonly _endpoint: IGitHubEndpointProvider,
 		private readonly _logService?: ILogService,
 	) { }
+
+	promote(signal: AbortSignal, priority: PullRequestSubscriptionOptions['priority']): void {
+		this._transport.promote(signal, priority);
+	}
 
 	async fetch(
 		fragment: PullRequestFragment,

@@ -38,6 +38,7 @@ import { HookTypeValue } from '../promptSyntax/hookTypes.js';
 import { IParsedChatRequest } from '../requestParser/chatParserTypes.js';
 import { IChatParserContext } from '../requestParser/chatRequestParser.js';
 import { IPreparedToolInvocation, IToolConfirmationMessages, IToolResult, IToolResultInputOutputDetails, ToolDataSource } from '../tools/languageModelToolsService.js';
+import type { ChatToolInvocationSummary } from '../tools/toolInvocationSummary.js';
 import { ConfirmationOptionKind, type McpOAuthClient, type MessageOrigin } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { AgentFusionPhaseStatus } from '../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
 import type { IAgentRuntimeModelConfiguration } from '../../../../../platform/agentHost/common/meta/agentModelConfigurationMeta.js';
@@ -921,6 +922,7 @@ export interface IChatToolInvocation {
 	readonly subAgentInvocationId?: string;
 	readonly icon?: ThemeIcon;
 	readonly state: IObservable<IChatToolInvocation.State>;
+	readonly summary?: ChatToolInvocationSummary;
 	generatedTitle?: string;
 	isAttachedToThinking: boolean;
 
@@ -1216,6 +1218,7 @@ export interface IChatToolInvocationSerialized {
 	readonly icon?: ThemeIcon;
 	source: ToolDataSource | undefined; // undefined on pre-1.104 versions
 	readonly subAgentInvocationId?: string;
+	readonly summary?: ChatToolInvocationSummary;
 	generatedTitle?: string;
 	isAttachedToThinking?: boolean;
 	kind: 'toolInvocationSerialized';
@@ -1350,6 +1353,8 @@ export interface IChatSessionCreatedData {
  */
 export interface IChatGeneratedImageData {
 	readonly kind: 'generatedImage';
+	/** Tool execution time in milliseconds, when known. */
+	readonly durationMs?: number;
 }
 
 /**
@@ -2300,9 +2305,11 @@ export type ChatPendingRequestChangeEvent = {
 	source: string;
 	requestId?: string;
 	chatSessionId?: string;
+	agentSessionId?: string;
 };
 
 export type ChatPendingRequestChangeClassification = {
+	agentSessionId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The owning Agent Host session identifier, when the chat has a resolved backend session.' };
 	action: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether a pending request was added or removed.' };
 	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The method that triggered the pending request change.' };
 	requestId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The request ID associated with the pending request change.' };

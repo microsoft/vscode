@@ -10,6 +10,7 @@ import { mainWindow } from '../../../base/browser/window.js';
 import { Event } from '../../../base/common/event.js';
 import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
+import { GRID_GAP_SASH_CLASS } from '../../browser/parts/gridGap.js';
 import { ISessionGridEntry, ISessionGridView, SessionGridLayout } from '../../browser/parts/sessionGridLayout.js';
 import { getSessionDropDirection } from '../../browser/parts/sessionDropTarget.js';
 import { ISessionGridState, isSessionGridState, projectSessionGrid } from '../../services/sessions/browser/sessionGridState.js';
@@ -28,6 +29,7 @@ suite('Sessions - Grid Layout', () => {
 		readonly onDidChange = Event.None;
 		visible = true;
 		size = { width: 0, height: 0 };
+		readonly contentGaps: number[] = [];
 		onLayoutContainer: (() => void) | undefined;
 		onLayoutContents: (() => void) | undefined;
 		onVisibilityChange: ((visible: boolean) => void) | undefined;
@@ -39,7 +41,10 @@ suite('Sessions - Grid Layout', () => {
 			this.size = { width, height };
 			this.onLayoutContainer?.();
 		}
-		layoutContents(): void { this.onLayoutContents?.(); }
+		layoutContents(gap = 0): void {
+			this.contentGaps.push(gap);
+			this.onLayoutContents?.();
+		}
 		setVisible(visible: boolean): void {
 			this.visible = visible;
 			this.onVisibilityChange?.(visible);
@@ -73,6 +78,206 @@ suite('Sessions - Grid Layout', () => {
 		grid.layout(1400, 700, 0, 0, false);
 		grid.layout(1400, 700, 0, 0, false);
 		assert.deepStrictEqual(operations, ['geometry a', 'geometry b', 'contents a', 'contents b']);
+	});
+
+	test('insets adjacent views by the configured gap and restores flush compact allocations', () => {
+		const { grid, a, b, c } = harness();
+		grid.reconcile([a, b, c], 'a');
+		const leafElements = new Map([a, b, c].map(entry => [entry.id, entry.view.element.parentElement!]));
+		const grippers = () => Array.from(grid.element.querySelectorAll<HTMLElement>('.monaco-sash'))
+			.filter(sash => sash.closest('.monaco-grid-view')?.parentElement === grid.element)
+			.map(sash => sash.classList.contains(GRID_GAP_SASH_CLASS));
+		const snapshot = () => ({
+			hasGaps: grid.element.classList.contains('session-grid-has-gaps'),
+			grippers: grippers(),
+			views: [a, b, c].map(entry => {
+				const style = leafElements.get(entry.id)!.style;
+				return {
+					size: entry.view.size,
+					insets: [style.borderTopWidth, style.borderRightWidth, style.borderBottomWidth, style.borderLeftWidth],
+				};
+			}),
+		});
+
+		grid.layout(1200, 600, 0, 0, false, 4);
+		const gapped = snapshot();
+		grid.toggleMaximized('a');
+		const maximized = {
+			hasGaps: grid.element.classList.contains('session-grid-has-gaps'),
+			grippers: grippers(),
+			size: a.view.size,
+			insets: snapshot().views[0].insets,
+		};
+		grid.toggleMaximized('a');
+		grid.layout(1200, 600, 0, 0, false);
+		const compact = snapshot();
+
+		assert.deepStrictEqual({ gapped, maximized, compact }, {
+			gapped: {
+				hasGaps: true,
+				grippers: [true, true],
+				views: [
+					{ size: { width: 398, height: 600 }, insets: ['0px', '2px', '0px', '0px'] },
+					{ size: { width: 798, height: 298 }, insets: ['0px', '0px', '2px', '2px'] },
+					{ size: { width: 798, height: 298 }, insets: ['2px', '0px', '0px', '2px'] },
+				],
+			},
+			maximized: {
+				hasGaps: false,
+				grippers: [false, false],
+				size: { width: 1200, height: 600 },
+				insets: ['0px', '0px', '0px', '0px'],
+			},
+			compact: {
+				hasGaps: false,
+				grippers: [false, false],
+				views: [
+					{ size: { width: 400, height: 600 }, insets: ['0px', '0px', '0px', '0px'] },
+					{ size: { width: 800, height: 300 }, insets: ['0px', '0px', '0px', '0px'] },
+					{ size: { width: 800, height: 300 }, insets: ['0px', '0px', '0px', '0px'] },
+				],
+			},
+		});
+	});
+
+	test('hides the gripper when a constrained session sash is disabled', () => {
+		const { grid, a, b } = harness();
+		const workbench = mainWindow.document.createElement('div');
+		workbench.classList.add('agent-sessions-workbench');
+		workbench.style.setProperty('--vscode-foreground', '#ffffff');
+		workbench.style.setProperty('--vscode-spacing-size20', '2px');
+		workbench.style.setProperty('--vscode-cornerRadius-circle', '50%');
+		workbench.style.setProperty('--agents-floating-panel-gap', '4px');
+		const sessionsPart = mainWindow.document.createElement('div');
+		sessionsPart.classList.add('part', 'sessionspart');
+		sessionsPart.appendChild(grid.element);
+		workbench.appendChild(sessionsPart);
+		mainWindow.document.body.appendChild(workbench);
+		store.add(toDisposable(() => workbench.remove()));
+
+		grid.reconcile([a, b], 'a');
+		const snapshot = () => {
+			const sash = grid.element.querySelector<HTMLElement>(`.monaco-sash.${GRID_GAP_SASH_CLASS}`);
+			assert.ok(sash);
+			return {
+				disabled: sash.classList.contains('disabled'),
+				gripper: mainWindow.getComputedStyle(sash, '::after').content,
+			};
+		};
+		grid.layout(400, 600, 0, 0, false, 4);
+		const resizable = snapshot();
+		grid.layout(160, 600, 0, 0, false, 4);
+		const constrained = {
+			...snapshot(),
+			contentWidths: [a.view.size.width, b.view.size.width],
+			wrapperWidths: [grid.getSize('a')?.width, grid.getSize('b')?.width],
+		};
+		grid.layout(400, 600, 0, 0, false, 4);
+
+		assert.deepStrictEqual({ resizable, constrained, restored: snapshot() }, {
+			resizable: { disabled: false, gripper: '""' },
+			constrained: {
+				disabled: true,
+				gripper: 'none',
+				contentWidths: [80, 80],
+				wrapperWidths: [82, 82],
+			},
+			restored: { disabled: false, gripper: '""' },
+		});
+	});
+
+	test('updates constraints when the density gap changes', () => {
+		const { grid, a, b } = harness();
+		const leaves = Reflect.get(grid, 'leaves') as ReadonlyMap<string, IView>;
+		const events: number[] = [];
+		store.add(leaves.get('a')!.onDidChange(() => events.push(leaves.get('a')!.minimumWidth)));
+		const snapshot = () => ({
+			constraints: [leaves.get('a')!.minimumWidth, leaves.get('b')!.minimumWidth],
+			contentWidths: [a.view.size.width, b.view.size.width],
+			wrapperWidths: [grid.getSize('a')?.width, grid.getSize('b')?.width],
+		});
+
+		grid.layout(160, 600, 0, 0, false, 4);
+		const gapped = snapshot();
+		grid.layout(160, 600, 0, 0, false);
+		const compact = snapshot();
+		grid.layout(160, 600, 0, 0, false, 4);
+
+		assert.deepStrictEqual({ gapped, compact, restored: snapshot(), events }, {
+			gapped: {
+				constraints: [82, 82],
+				contentWidths: [80, 80],
+				wrapperWidths: [82, 82],
+			},
+			compact: {
+				constraints: [80, 80],
+				contentWidths: [80, 80],
+				wrapperWidths: [80, 80],
+			},
+			restored: {
+				constraints: [82, 82],
+				contentWidths: [80, 80],
+				wrapperWidths: [82, 82],
+			},
+			events: [82, 80, 82],
+		});
+	});
+
+	test('updates constraints when the grid topology changes', () => {
+		const { grid, a, b, c } = harness();
+		const leaves = Reflect.get(grid, 'leaves') as ReadonlyMap<string, IView>;
+		const bEvents: { width: number; height: number }[] = [];
+		store.add(leaves.get('b')!.onDidChange(() => bEvents.push({
+			width: leaves.get('b')!.minimumWidth,
+			height: leaves.get('b')!.minimumHeight,
+		})));
+
+		grid.reconcile([a, b, c], 'a');
+		grid.layout(160, 160, 0, 0, false, 4);
+		const nested = {
+			constraints: [b, c].map(entry => {
+				const leaf = leaves.get(entry.id)!;
+				return { width: leaf.minimumWidth, height: leaf.minimumHeight };
+			}),
+			contentSizes: [b, c].map(entry => entry.view.size),
+			wrapperSizes: [b, c].map(entry => grid.getSize(entry.id)),
+		};
+
+		grid.reconcile([a, b], 'a');
+		grid.layout(160, 160, 0, 0, false, 4);
+
+		assert.deepStrictEqual({
+			nested,
+			flattenedConstraint: {
+				width: leaves.get('b')!.minimumWidth,
+				height: leaves.get('b')!.minimumHeight,
+			},
+			flattenedContentSize: b.view.size,
+			flattenedWrapperSize: grid.getSize('b'),
+			bEvents,
+		}, {
+			nested: {
+				constraints: [{ width: 82, height: 82 }, { width: 82, height: 82 }],
+				contentSizes: [{ width: 80, height: 80 }, { width: 80, height: 80 }],
+				wrapperSizes: [{ width: 82, height: 82 }, { width: 82, height: 82 }],
+			},
+			flattenedConstraint: { width: 82, height: 80 },
+			flattenedContentSize: { width: 80, height: 160 },
+			flattenedWrapperSize: { width: 82, height: 160 },
+			bEvents: [{ width: 82, height: 82 }, { width: 82, height: 80 }],
+		});
+	});
+
+	test('propagates density gap changes when a single leaf keeps the same geometry', () => {
+		const { grid, a } = harness();
+		grid.reconcile([a], 'a');
+		grid.layout(1200, 600, 0, 0, false);
+		a.view.contentGaps.length = 0;
+
+		grid.layout(1200, 600, 0, 0, false, 4);
+		grid.layout(1200, 600, 0, 0, false);
+
+		assert.deepStrictEqual(a.view.contentGaps, [4, 0]);
 	});
 
 	test('coalesces direct grid allocations into one cancellable frame using the latest dimensions', () => {
@@ -158,10 +363,10 @@ suite('Sessions - Grid Layout', () => {
 		});
 	});
 
-	test('only exposed session-grid corners use the native connected-tabs radius', () => {
+	test('connected-tab styling preserves complete panel frames and exposed grid corners', () => {
 		const root = document.createElement('div');
 		root.className = 'monaco-workbench agent-sessions-workbench mac modern-ui-tabs modern-ui-connected-editor-tabs nopanel noeditorpane nosidebar';
-		root.style.cssText = '--vscode-cornerRadius-large: 8px; --vscode-agents-layout-floatingPanelGap: 4px; --vscode-strokeThickness: 1px; --window-corner-radius: 16px;';
+		root.style.cssText = '--vscode-cornerRadius-large: 8px; --vscode-agents-layout-floatingPanelGap: 4px; --vscode-strokeThickness: 1px; --window-corner-radius: 16px; --modern-ui-connected-tab-border: #445566;';
 		const card = document.createElement('div');
 		card.className = 'part sessionspart agents-part-card';
 		root.appendChild(card);
@@ -197,9 +402,13 @@ suite('Sessions - Grid Layout', () => {
 			return [style.borderBottomLeftRadius, style.borderBottomRightRadius];
 		});
 		grid.reconcile([a, b], 'a');
-		grid.layout(1200, 600, 20, 100, false);
+		grid.layout(1200, 600, 20, 100, false, 4);
 		grid.reconcile([a, d, b, c], 'a');
 		const split = corners();
+		const frames = [a, b, c, d].map(({ view }) => {
+			const style = mainWindow.getComputedStyle(view.element, '::after');
+			return [style.borderTopWidth, style.borderRightWidth, style.borderBottomWidth, style.borderLeftWidth];
+		});
 		grid.reconcile([d, a, c, b].map(({ id, view }) => ({ id, view })), 'a');
 		const reordered = corners();
 		grid.toggleMaximized('c');
@@ -211,8 +420,14 @@ suite('Sessions - Grid Layout', () => {
 		grid.reconcile([a], 'a');
 		const single = corners()[0];
 
-		assert.deepStrictEqual({ split, reordered, maximized, unmaximized, resized, single }, {
+		assert.deepStrictEqual({ split, frames, reordered, maximized, unmaximized, resized, single }, {
 			split: [['7px', '7px'], ['7px', '7px'], ['7px', '11px'], ['11px', '7px']],
+			frames: [
+				['1px', '1px', '1px', '1px'],
+				['1px', '1px', '1px', '1px'],
+				['1px', '1px', '1px', '1px'],
+				['1px', '1px', '1px', '1px'],
+			],
 			reordered: [['11px', '7px'], ['7px', '11px'], ['7px', '7px'], ['7px', '7px']],
 			maximized: [['7px', '7px'], ['7px', '7px'], ['11px', '11px'], ['7px', '7px']],
 			unmaximized: [['11px', '7px'], ['7px', '11px'], ['7px', '7px'], ['7px', '7px']],

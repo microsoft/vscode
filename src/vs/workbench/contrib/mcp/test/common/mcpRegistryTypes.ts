@@ -184,6 +184,9 @@ export class TestMcpRegistry implements IMcpRegistry {
 		substituteVariables(serverDefinition, launch) {
 			return Promise.resolve(launch);
 		},
+		expandEnvironmentVariables(serverDefinition, launch) {
+			return Promise.resolve(launch);
+		},
 		start: () => {
 			const t = this.makeTestTransport();
 			setTimeout(() => t.setConnectionState({ state: McpConnectionState.Kind.Running }));

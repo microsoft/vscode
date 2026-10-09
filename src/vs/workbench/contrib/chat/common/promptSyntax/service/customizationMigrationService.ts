@@ -75,6 +75,11 @@ export interface IMcpServerCustomizationMigrationCandidate {
 	readonly sourceUri: URI;
 	readonly targetUri: URI;
 	readonly projectedConfiguration: IMcpServerConfiguration;
+	/**
+	 * Configuration written to the destination when it differs from {@link projectedConfiguration},
+	 * because `${env:NAME}` references are rewritten to `${NAME}` instead of their current values.
+	 */
+	readonly migratedConfiguration?: IMcpServerConfiguration;
 	/** Raw values of properties removed with a warning, retained to revalidate the user's confirmation. */
 	readonly removedProperties?: Readonly<Partial<Record<typeof mcpServerCustomizationMigrationRemovableProperties[number], unknown>>>;
 }
@@ -115,6 +120,14 @@ export const enum McpServerCustomizationMigrationFailureReason {
 	InvalidSource = 'invalidSource',
 	/** The configuration has unsupported properties, unresolved variables, or projection differences beyond the confirmed removals. */
 	UnrepresentableConfiguration = 'unrepresentableConfiguration',
+	/** An `${env:}` reference is used in an environment variable or header name, which the destination never expands. */
+	EnvironmentVariableInName = 'environmentVariableInName',
+	/** An `${env:}` reference does not name a variable matching `[A-Za-z_][A-Za-z0-9_]*`, so it cannot be written as `${NAME}`. */
+	InvalidEnvironmentVariableName = 'invalidEnvironmentVariableName',
+	/** A value with an `${env:}` reference would be too long for the destination to expand it. */
+	EnvironmentVariableValueTooLong = 'environmentVariableValueTooLong',
+	/** An `${env:}` reference is in a URL position that the destination rejects, such as the port or the whole URL. */
+	UnsupportedEnvironmentVariableInUrl = 'unsupportedEnvironmentVariableInUrl',
 	/** The source entry or file no longer matches what was validated for migration. */
 	SourceChanged = 'sourceChanged',
 	/** An existing destination cannot be read or parsed as a supported MCP configuration document. */

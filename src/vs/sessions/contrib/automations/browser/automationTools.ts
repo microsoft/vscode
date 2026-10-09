@@ -35,7 +35,7 @@ export const DeleteAutomationToolId = 'vscode_deleteAutomation';
 
 const automationToolWhen = ContextKeyExpr.and(ChatContextKeys.enabled, ChatAutomationsEnabledContext);
 const deleteAutomationConfirmationId = 'delete';
-const automationIntervals: readonly AutomationInterval[] = ['manual', 'hourly', 'daily', 'weekly'];
+const automationIntervals: readonly AutomationInterval[] = ['manual', 'hourly', 'daily', 'weekdays', 'weekly'];
 const automationIsolationKinds: readonly AutomationWorkspaceIsolation['kind'][] = ['default', 'folder', 'worktree'];
 const chatPermissionLevels: readonly ChatPermissionLevel[] = [ChatPermissionLevel.Default, ChatPermissionLevel.Assisted, ChatPermissionLevel.AutoApprove, ChatPermissionLevel.Autopilot];
 const MAX_SESSION_TEMPLATE_CONFIG_DEPTH = 32;
@@ -148,7 +148,7 @@ export class ListAutomationsTool implements IToolImpl {
 
 		const providers: IAutomationProviderToolOutput[] = this.sessionsProvidersService.getProviders().flatMap(provider => {
 			const store = provider.automations;
-			if (!store) {
+			if (!store || store.enabled?.get() === false) {
 				return [];
 			}
 			const state = store.catalogueState.get();
@@ -267,6 +267,11 @@ export class RunAutomationTool implements IToolImpl {
 		}
 		if (dispatch.kind === 'notStarted') {
 			return automationNotStarted(automation, dispatch);
+		}
+		if (dispatch.kind === 'accepted') {
+			const result = automationToolResult(JSON.stringify({ status: 'accepted', automation: { id: automation.id, name: automation.name } }));
+			result.toolResultMessage = localize('automation.tool.run.accepted', "Requested automation {0}; the provider has not returned a run.", automation.name);
+			return result;
 		}
 
 		const result = automationToolResult(JSON.stringify({
@@ -447,19 +452,19 @@ The change uses the current tool-approval policy. When approval is required, the
 							interval: {
 								type: 'string',
 								enum: [...automationIntervals],
-								description: 'manual, hourly, daily, or weekly.',
+								description: 'manual, hourly, daily, weekdays, or weekly. Weekdays runs Monday-Friday at the same local time on an Agent Host; it is not supported by Cloud.',
 							},
 							scheduleHour: {
 								type: 'integer',
 								minimum: 0,
 								maximum: 23,
-								description: 'Local hour, used for daily and weekly schedules.',
+								description: 'Local hour, used for daily, weekdays, and weekly schedules.',
 							},
 							scheduleMinute: {
 								type: 'integer',
 								minimum: 0,
 								maximum: 59,
-								description: 'Local minute, used for daily and weekly schedules.',
+								description: 'Local minute, used for daily, weekdays, and weekly schedules.',
 							},
 							scheduleDay: {
 								type: 'integer',

@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { randomUUID } from 'crypto';
-import { mkdir, open, readFile, rename, unlink } from 'fs/promises';
-import { realpathSync } from 'fs';
+import { createHash, randomUUID } from 'crypto';
+import { link, mkdir, open, readFile, realpath, rm, unlink } from 'fs/promises';
 import { join } from '../../../../base/common/path.js';
 import { disposableLongTimeout, raceTimeout, Sequencer } from '../../../../base/common/async.js';
 import { combinedDisposable, Disposable, MutableDisposable, toDisposable, type IDisposable } from '../../../../base/common/lifecycle.js';
 import type { Event } from '../../../../base/common/event.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
+import { Promises as FSPromises } from '../../../../base/node/pfs.js';
 import { CloudSandboxRequestError } from '../../common/cloudSandboxAgentHost.js';
 import { emitConnectionDiagnostic, getGitHubRequestId, sanitizeConnectionDiagnosticText, traceConnectionOperation, type ConnectionDiagnosticObserver } from '../../common/connectionDiagnostics.js';
 import type { IMissionControlOptions } from '../../common/agentService.js';
@@ -21,6 +21,7 @@ import { MissionControlControlVerifier, type IMissionControlSigningKey } from '.
 import { MissionControlProtocolServer, type IMissionControlSocket } from './missionControlProtocolServer.js';
 import { MissionControlAuthentication, MissionControlSealing, resolveMissionControlOwner } from './missionControlAuthentication.js';
 import { MissionControlSessionMirror } from './missionControlSessionMirror.js';
+import type { AhpJsonlLogger } from '../../common/ahpJsonlLogger.js';
 
 interface IEnvironmentResponse {
 	readonly id: string;
@@ -39,12 +40,14 @@ interface IEnvironmentResponse {
 }
 
 const heartbeatInterval = 60_000;
+const registrationMetadataTimeout = 60_000;
 
 export interface IMissionControlEnvironmentHost {
 	readonly userDataPath: string;
 	readonly name: string;
 	readonly fetch: typeof fetch;
-	readonly attach: (server: MissionControlProtocolServer, initialRoots: readonly string[], getRoots: () => readonly string[]) => IDisposable;
+	readonly attach: (server: MissionControlProtocolServer, initialRoots: readonly string[], getRoots: () => readonly string[], getProjects: () => readonly string[], defaultDirectory?: string) => IDisposable;
+	readonly updateProjects?: () => Promise<void>;
 	readonly onError: (error: unknown) => void;
 	readonly onDiagnostic?: ConnectionDiagnosticObserver;
 	readonly socketFactory?: (url: string, protocol: string) => IMissionControlSocket;
@@ -54,6 +57,8 @@ export interface IMissionControlEnvironmentHost {
 	readonly getIdentityApiBase?: () => string;
 	readonly onDidChangeIdentityAuthority?: Event<void>;
 	readonly createMirror?: (environmentId: string) => { readonly mirror: MissionControlSessionMirror; readonly source: IDisposable };
+	/** Creates a lane-owned wire logger, independent of the desktop client's logging setting. */
+	readonly createAhpLogger?: (clientId: string, generation: number) => AhpJsonlLogger;
 	readonly onDidChangeRemoteControlPolicy?: Event<void>;
 }
 
@@ -166,7 +171,7 @@ export class MissionControlEnvironment extends Disposable {
 				if (registered && previous && Date.now() >= this._heartbeatNotBefore) {
 					await this._request(
 						`cmc_internal/api/agents/environments/${encodeURIComponent(registered.id)}/heartbeat`,
-						this._createHeartbeat('offline'),
+						this._createHeartbeat('offline', undefined, previous),
 						previous,
 					);
 				}
@@ -183,9 +188,9 @@ export class MissionControlEnvironment extends Disposable {
 		return this._host.getIdentityApiBase?.() ?? 'https://api.github.com';
 	}
 
-	private _createHeartbeat(status: 'online' | 'offline', capabilities?: IEnvironmentCapabilities): object {
+	private _createHeartbeat(status: 'online' | 'offline', capabilities?: IEnvironmentCapabilities, options = this._options): object {
 		return {
-			name: this._host.name,
+			name: options?.name ?? this._host.name,
 			status,
 			...(capabilities ? { capabilities } : {}),
 			...(this._sealing.value ? { encryption_keys: this._sealing.value.advertisedKeys } : {}),
@@ -194,7 +199,7 @@ export class MissionControlEnvironment extends Disposable {
 
 	private async _createRegistration(capabilities: IEnvironmentCapabilities, remoteControl: Record<string, unknown> | undefined): Promise<object> {
 		return {
-			name: this._host.name,
+			name: this._options?.name ?? this._host.name,
 			kind: 'user-local',
 			compute_id: await this._computeId(),
 			capabilities,
@@ -234,7 +239,8 @@ export class MissionControlEnvironment extends Disposable {
 		const endpoint = new URL(options.baseUrl);
 		if ((options.live ? endpoint.protocol !== 'https:' : endpoint.protocol !== 'http:' || !['localhost', '127.0.0.1', '[::1]'].includes(endpoint.hostname))
 			|| (options.live && endpoint.pathname !== '/')
-			|| endpoint.username || endpoint.password || endpoint.search || endpoint.hash || !options.credential || !options.accountId || (!options.live && options.roots.length === 0)) {
+			|| endpoint.username || endpoint.password || endpoint.search || endpoint.hash || !options.credential || !options.accountId || (!options.live && options.roots.length === 0)
+			|| (options.name !== undefined && !options.name.trim())) {
 			throw new Error('Mission Control requires a safe origin, credential, account, and project roots');
 		}
 		if (this._ownerAccount && this._ownerAccount !== options.accountId) {
@@ -254,17 +260,33 @@ export class MissionControlEnvironment extends Disposable {
 		if (this._canonicalOwner && this._canonicalOwner !== owner) {
 			throw new Error('Credential does not match the Agent Host owner');
 		}
-		const roots = options.roots.map(root => realpathSync(root));
+		const roots = await Promise.all(options.roots.map(root => realpath(root)));
+		const projects = options.projects === undefined ? undefined : await Promise.all(options.projects.map(project => realpath(project)));
+		const defaultDirectory = options.defaultDirectory === undefined ? undefined : await realpath(options.defaultDirectory);
+		options = { ...options, projects, defaultDirectory };
+		if (epoch !== this._configurationEpoch || this._store.isDisposed) {
+			return;
+		}
+		if (options.live && identityApiBase !== this._getIdentityApiBase()) {
+			throw new Error('GitHub identity authority changed during Mission Control configuration');
+		}
 		if (!roots.every(root => root.startsWith('/') || /^[A-Za-z]:\\/.test(root))) {
 			throw new Error('Mission Control projects must be absolute local directories');
 		}
 		if (this._options) {
-			if (this._options.baseUrl !== options.baseUrl || this._options.live !== options.live || this._options.requireConnectionBinding !== options.requireConnectionBinding
+			if (this._options.baseUrl !== options.baseUrl || this._options.name !== options.name || this._options.live !== options.live || this._options.requireConnectionBinding !== options.requireConnectionBinding
 				|| (!options.live && JSON.stringify(this._roots) !== JSON.stringify(roots))) {
 				throw new Error('Mission Control is already configured; disable it before changing its scope');
 			}
 			this._roots = [...new Set([...this._roots, ...roots])];
-			if (this._options.credential !== options.credential || this._credentialRejected) {
+			const remoteControlPolicyOverrideChanged = (this._options.ignoreRemoteControlPolicy === true) !== (options.ignoreRemoteControlPolicy === true);
+			if (remoteControlPolicyOverrideChanged) {
+				this._policyRefresh++;
+			}
+			if (this._options.credential !== options.credential || this._credentialRejected
+				|| this._options.defaultDirectory !== options.defaultDirectory
+				|| (this._options.useLocalCredentials === true) !== (options.useLocalCredentials === true)
+				|| remoteControlPolicyOverrideChanged) {
 				this._generation++;
 				this._handler.clear();
 				this._mirrorAttachment.clear();
@@ -273,7 +295,10 @@ export class MissionControlEnvironment extends Disposable {
 				this._options = { ...options, roots: this._roots };
 				this._credentialRejected = false;
 				await this._checkIn();
+			} else {
+				this._options = { ...options, roots: this._roots };
 			}
+			await this._host.updateProjects?.();
 			return;
 		}
 		this._ownerAccount = options.accountId;
@@ -302,7 +327,7 @@ export class MissionControlEnvironment extends Disposable {
 				const previous = this._options;
 				this._withdraw();
 				if (registered && previous && Date.now() >= this._heartbeatNotBefore) {
-					await this._request(`cmc_internal/api/agents/environments/${encodeURIComponent(registered.id)}/heartbeat`, this._createHeartbeat('offline'), previous);
+					await this._request(`cmc_internal/api/agents/environments/${encodeURIComponent(registered.id)}/heartbeat`, this._createHeartbeat('offline', undefined, previous), previous);
 				}
 			} catch (offlineError) {
 				this._host.onError(offlineError);
@@ -311,50 +336,89 @@ export class MissionControlEnvironment extends Disposable {
 		}
 	}
 
-	/** The native Agent Host owns profile writes; atomic replacement keeps the location-bound identity record complete. */
+	/** Concurrent hosts publish one complete initialization record that any host can finish after a crash. */
 	private async _computeId(): Promise<string> {
 		await mkdir(this._host.userDataPath, { recursive: true });
-		const directory = realpathSync(this._host.userDataPath);
+		const directory = await realpath(this._host.userDataPath);
 		const path = join(directory, 'agent-host-mission-control-id');
-		let contents: string | undefined;
+		// Directory-scoped staging cannot adopt an unfinished initialization copied from another profile.
+		const initializationPath = `${path}.${createHash('sha256').update(directory).digest('hex')}.init`;
+		const existing = await this._readComputeIdentity(path);
+		if (existing?.userDataDirectory === directory) {
+			await rm(initializationPath, { force: true });
+			return existing.id;
+		}
+		await this._writeComputeIdentity(initializationPath, {
+			id: existing && existing.userDataDirectory === undefined ? existing.id : randomUUID(),
+			userDataDirectory: directory,
+		}, false);
+		const initialized = await this._readComputeIdentity(initializationPath);
+		const current = await this._readComputeIdentity(path);
+		let id: string;
+		if (current?.userDataDirectory === directory) {
+			id = current.id;
+		} else {
+			if (initialized?.userDataDirectory !== directory) {
+				throw new Error('Mission Control compute identity initialization record is unavailable');
+			}
+			id = initialized.id;
+			await this._writeComputeIdentity(path, { id, userDataDirectory: directory }, true);
+		}
+		await rm(initializationPath, { force: true });
+		return id;
+	}
+
+	private async _readComputeIdentity(path: string): Promise<{ id: string; userDataDirectory?: string } | undefined> {
+		let contents: string;
 		try {
 			contents = (await readFile(path, 'utf8')).trim();
 		} catch (error) {
 			if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
 				throw error;
 			}
+			return undefined;
 		}
-		const legacyId = contents !== undefined && /^[0-9a-f-]{36}$/.test(contents) ? contents : undefined;
-		if (contents !== undefined && legacyId === undefined) {
-			let record: { version?: number; id?: string; userDataDirectory?: string } | null;
-			try {
-				record = JSON.parse(contents);
-			} catch (error) {
-				if (error instanceof SyntaxError) {
-					throw new Error('Invalid persisted Mission Control compute identity');
-				}
-				throw error;
-			}
-			if (!record || typeof record !== 'object'
-				|| record.version !== 1 || typeof record.id !== 'string' || !/^[0-9a-f-]{36}$/.test(record.id)
-				|| typeof record.userDataDirectory !== 'string' || !record.userDataDirectory) {
+		if (/^[0-9a-f-]{36}$/.test(contents)) {
+			return { id: contents };
+		}
+		let record: { version?: number; id?: string; userDataDirectory?: string } | null;
+		try {
+			record = JSON.parse(contents);
+		} catch (error) {
+			if (error instanceof SyntaxError) {
 				throw new Error('Invalid persisted Mission Control compute identity');
 			}
-			if (record.userDataDirectory === directory) {
-				return record.id;
-			}
+			throw error;
 		}
-		const id = legacyId ?? randomUUID();
-		const temporaryPath = join(directory, `agent-host-mission-control-id.${randomUUID()}.tmp`);
+		if (!record || typeof record !== 'object'
+			|| record.version !== 1 || typeof record.id !== 'string' || !/^[0-9a-f-]{36}$/.test(record.id)
+			|| typeof record.userDataDirectory !== 'string' || !record.userDataDirectory) {
+			throw new Error('Invalid persisted Mission Control compute identity');
+		}
+		return { id: record.id, userDataDirectory: record.userDataDirectory };
+	}
+
+	private async _writeComputeIdentity(path: string, record: { id: string; userDataDirectory: string }, overwrite: boolean): Promise<void> {
+		const temporaryPath = `${path}.${randomUUID()}.tmp`;
 		const file = await open(temporaryPath, 'wx', 0o600);
 		try {
 			try {
-				await file.writeFile(JSON.stringify({ version: 1, id, userDataDirectory: directory }));
+				await file.writeFile(JSON.stringify({ version: 1, ...record }));
 				await file.sync();
 			} finally {
 				await file.close();
 			}
-			await rename(temporaryPath, path);
+			if (overwrite) {
+				await FSPromises.rename(temporaryPath, path, 5_000);
+			} else {
+				try {
+					await link(temporaryPath, path);
+				} catch (error) {
+					if ((error as NodeJS.ErrnoException).code !== 'EEXIST') {
+						throw error;
+					}
+				}
+			}
 		} finally {
 			await unlink(temporaryPath).catch((error: NodeJS.ErrnoException) => {
 				if (error.code !== 'ENOENT') {
@@ -362,7 +426,6 @@ export class MissionControlEnvironment extends Disposable {
 				}
 			});
 		}
-		return id;
 	}
 
 	private async _request(path: string, body?: object, options = this._options): Promise<unknown> {
@@ -509,13 +572,13 @@ export class MissionControlEnvironment extends Disposable {
 				return;
 			}
 		}
-		const capabilities = { ahp_version: PROTOCOL_VERSION, features: [], current_sessions: await this._boundedRegistrationWork(this._host.getSessionCount?.() ?? Promise.resolve(0)) };
+		const capabilities = { ahp_version: PROTOCOL_VERSION, features: [], current_sessions: await this._boundedRegistrationWork(this._host.getSessionCount?.() ?? Promise.resolve(0), 'session count') };
 		let remoteControl: Record<string, unknown> | undefined;
-		if (options.live) {
+		if (options.live && options.ignoreRemoteControlPolicy !== true) {
 			if (!this._host.getRemoteControlPolicy) {
 				throw new Error('Cannot register before reading device remote-control policy');
 			}
-			remoteControl = await this._boundedRegistrationWork(this._host.getRemoteControlPolicy());
+			remoteControl = await this._boundedRegistrationWork(this._host.getRemoteControlPolicy(), 'remote-control policy');
 		}
 		if (generation !== this._generation || this._options !== options || this._store.isDisposed) {
 			return;
@@ -623,14 +686,19 @@ export class MissionControlEnvironment extends Disposable {
 			verifier,
 			this._host.socketFactory,
 			error => this._host.onError(error),
-			sealing && identityApiBase ? () => new MissionControlAuthentication(sealing, response.user_id, identityApiBase, this._host.fetch, options.requireConnectionBinding === true, () => identityApiBase === this._getIdentityApiBase() && generation === this._generation) : undefined,
+			sealing && identityApiBase ? () => new MissionControlAuthentication(
+				sealing, response.user_id, identityApiBase, this._host.fetch, options.requireConnectionBinding === true,
+				() => identityApiBase === this._getIdentityApiBase() && generation === this._generation,
+				options.useLocalCredentials === true ? () => this._options?.credential : undefined,
+			) : undefined,
 			sealing?.rootMeta,
 			this._mirror.value,
+			this._host.createAhpLogger,
 		);
 		this._server.value = server;
 		const connectionWatch = StopWatch.create(false);
 		let relayReady = false;
-		this._handler.value = combinedDisposable(this._host.attach(server, this._initialRoots ?? [], () => this._roots), server.onClose(() => {
+		this._handler.value = combinedDisposable(this._host.attach(server, this._initialRoots ?? [], () => this._roots, () => this._options?.projects ?? this._roots, options.defaultDirectory), server.onClose(() => {
 			if (generation === this._generation && !this._store.isDisposed && this._server.value === server && this._options && !this._credentialRejected) {
 				if (relayReady) {
 					emitConnectionDiagnostic(this._host.onDiagnostic, { operationId: '', phase: 'relayDisconnected', timestamp: Date.now(), outcome: 'info', durationMs: connectionWatch.elapsed() });
@@ -670,10 +738,10 @@ export class MissionControlEnvironment extends Disposable {
 		}
 	}
 
-	private async _boundedRegistrationWork<T>(operation: Promise<T>): Promise<T> {
-		const result = await raceTimeout(operation.then(value => ({ value })), 15_000);
+	private async _boundedRegistrationWork<T>(operation: Promise<T>, metadata: string): Promise<T> {
+		const result = await raceTimeout(operation.then(value => ({ value })), registrationMetadataTimeout);
 		if (!result) {
-			throw new Error('Mission Control registration metadata timed out');
+			throw new Error(`Mission Control registration metadata timed out (${metadata})`);
 		}
 		return result.value;
 	}

@@ -213,7 +213,7 @@ function createTestSideEffects(
 		fileService?: IFileService;
 		onDidCreateTurnService?: (turnService: IAgentHostTurnService) => void;
 	},
-	_gitService?: IAgentHostGitService,
+	gitService: IAgentHostGitService = createNoopGitService(),
 	telemetryService: ITelemetryService = NullTelemetryService,
 	changesets: IAgentHostChangesetService = new FakeChangesetService(),
 	terminalManager: IAgentHostTerminalManager = disposables.add(new TestAgentHostTerminalManager()),
@@ -229,6 +229,7 @@ function createTestSideEffects(
 		[IAgentHostChangesetService, changesets],
 		[IAgentHostCheckpointService, checkpointService],
 		[IAgentHostGitStateService, options.gitStateService ?? new NoopGitStateService()],
+		[IAgentHostGitService, gitService],
 		[IAgentHostStateManager, stateManager],
 		[IAgentSessionRegistry, disposables.add(new AgentSessionRegistry(disposables.add(new AgentHostDatabase(':memory:'))))],
 		[IFileService, options.fileService ?? contributionFileService],
@@ -5799,11 +5800,14 @@ suite('AgentSideEffects', () => {
 			// under PowerShell's case-insensitive matching. Missing language fails
 			// closed before rule analysis.
 			const cases = [
-				['tc-shell-lang-1', 'powershell'],
-				['tc-shell-lang-2', 'bash'],
-				['tc-shell-lang-3', undefined],
+				['tc-shell-lang-1', 'powershell', false],
+				['tc-shell-lang-2', 'bash', false],
+				['tc-shell-lang-3', undefined, false],
+				['tc-shell-json-1', 'powershell', true],
+				['tc-shell-json-2', 'bash', true],
+				['tc-shell-json-3', undefined, true],
 			] as const;
-			for (const [toolCallId, shellLanguage] of cases) {
+			for (const [toolCallId, shellLanguage, structured] of cases) {
 				agent.fireProgress({
 					kind: 'action', resource: URI.parse(defaultChatUri),
 					action: {
@@ -5817,11 +5821,13 @@ suite('AgentSideEffects', () => {
 					state: {
 						status: ToolCallStatus.PendingConfirmation,
 						toolCallId, toolName: '', displayName: '',
-						invocationMessage: 'Run command', toolInput: 'get-childitem',
+						invocationMessage: 'Run command',
+						toolInput: structured ? JSON.stringify({ command: 'get-childitem', description: 'Inspect the directory' }) : 'get-childitem',
 						confirmationTitle: 'Run in terminal?', edits: undefined,
 					},
 					permissionKind: 'shell', permissionPath: undefined,
 					shellLanguage,
+					shellCommand: structured ? 'get-childitem' : undefined,
 				});
 			}
 
@@ -5834,7 +5840,7 @@ suite('AgentSideEffects', () => {
 				state.activeTurn?.responseParts.map(p => p.kind === ResponsePartKind.ToolCall
 					? [p.toolCall._meta?.['autoApproveBySetting'], p.toolCall._meta?.['autoApproveRuleResolvable']]
 					: undefined),
-				[[true, undefined], [undefined, true], [undefined, undefined]],
+				[[true, undefined], [undefined, true], [undefined, undefined], [true, undefined], [undefined, true], [undefined, undefined]],
 				'powershell auto-approves; bash stays rule-resolvable; missing language is neither');
 		});
 
