@@ -73,6 +73,27 @@ suite('SessionsChatAccessibilityHelp', () => {
 		assert.ok(content.includes('When GitHub sandboxes are enabled, choose Cloud in the harness picker to chat without a repository or pull request.'));
 	});
 
+	test('documents background sandbox waking and connection feedback on input', () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const configuration = new TestConfigurationService();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configuration);
+		stubContextKeyService(instantiationService, configuration);
+		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+		instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
+		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+		const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
+
+		assert.deepStrictEqual({
+			backgroundWake: content.includes('By default, opening a cloud sandbox conversation connects or wakes its environment in the background.'),
+			optOut: content.includes('Turn off chat.agentHost.cloudSandbox.autoConnectOnOpen to wait until you start composing or explicitly connect instead.'),
+			feedbackOnInput: content.includes('Connection progress and failures appear in a banner only after you type, paste, or add an attachment.'),
+			readyBeforeInput: content.includes('If the session is ready before you start composing, no connection banner appears.'),
+			neverSends: content.includes('Connecting never sends your draft automatically.'),
+		}, { backgroundWake: true, optOut: true, feedbackOnInput: true, readyBeforeInput: true, neverSends: true });
+	});
+
 	test('documents layout density only on desktop', () => {
 		const densityHelp = [false, true].map(phone => {
 			const instantiationService = store.add(new TestInstantiationService());
@@ -155,13 +176,14 @@ suite('SessionsChatAccessibilityHelp', () => {
 			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiation)).provideContent();
 			assert.deepStrictEqual({
 				discoveryHelp: content.includes('choose Environments to discover your environments'),
+				folderBrowsing: content.includes('then select a folder on that host.'),
 				refreshHelp: content.includes('Tab reaches Refresh Environments.'),
 				hiddenHelp: content.includes('Hide in This Profile') || content.includes('Restore Host'),
 				githubEnvironment: content.includes('GitHub environment'),
 				sharingKeyboard: content.includes('Enter or Space to enable or disable sharing'),
 				backendSetting: content.includes('chat.agentHost.remoteConnections'),
 			}, {
-				discoveryHelp: enabled, refreshHelp: enabled, hiddenHelp: false,
+				discoveryHelp: enabled, folderBrowsing: enabled, refreshHelp: enabled, hiddenHelp: false,
 				githubEnvironment: !hidden && !aiDisabled, sharingKeyboard: !hidden && !aiDisabled, backendSetting: !hidden && !aiDisabled,
 			});
 		});

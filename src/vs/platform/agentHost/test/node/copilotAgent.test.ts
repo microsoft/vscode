@@ -97,6 +97,7 @@ import { IAgentHostReviewService, NULL_REVIEW_SERVICE } from '../../common/agent
 import { getCopilotHomePath } from '../../../environment/common/copilotHome.js';
 import { readMcpServerSource, readMcpServerSourcePlugin } from '../../common/meta/mcpCustomizationMeta.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
+import { createUnmanagedCopilotSettings } from './copilotTestEvents.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import { basename, dirname, join } from '../../../../base/common/path.js';
 import { AgentHostGitHubEndpointService, IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
@@ -950,6 +951,7 @@ class MockCopilotSession {
 			},
 		},
 		permissions: {
+			getMode: async () => ({ mode: 'manual' as const }),
 			setMode: async ({ mode }: { mode: PermissionMode }) => ({ success: true, mode }),
 		},
 		plan: {
@@ -1365,7 +1367,7 @@ function createTestAgent(disposables: Pick<DisposableStore, 'add'>, options?: { 
 
 type CopilotCreateSessionOptions = Parameters<CopilotClient['createSession']>[0];
 
-function createAgentSessionThroughAgent(agent: CopilotAgent, instantiationService: IInstantiationService, options?: { readonly mockSession?: MockCopilotSession; readonly activeClientToolSet?: ActiveClientToolSet; readonly snapshot?: IActiveClientSnapshot; readonly workingDirectory?: URI; readonly additionalDirectories?: readonly URI[] }): { readonly session: CopilotAgentSession; readonly activeClient: unknown; readonly createOptions: () => CopilotCreateSessionOptions | undefined } {
+function createAgentSessionThroughAgent(agent: CopilotAgent, instantiationService: IInstantiationService, options?: { readonly mockSession?: MockCopilotSession; readonly managedSettings?: CopilotClient['rpc']['managedSettings']; readonly activeClientToolSet?: ActiveClientToolSet; readonly snapshot?: IActiveClientSnapshot; readonly workingDirectory?: URI; readonly additionalDirectories?: readonly URI[] }): { readonly session: CopilotAgentSession; readonly activeClient: unknown; readonly createOptions: () => CopilotCreateSessionOptions | undefined } {
 	const sessionUri = AgentSession.uri('copilotcli', 'test-session-1');
 	const shellManager = instantiationService.createInstance(ShellManager, sessionUri, options?.workingDirectory);
 	let createOptions: CopilotCreateSessionOptions | undefined;
@@ -1378,7 +1380,7 @@ function createAgentSessionThroughAgent(agent: CopilotAgent, instantiationServic
 	const launchPlan: CopilotSessionLaunchPlan = {
 		kind: 'create',
 		client: {
-			rpc: { account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { proxyCa: new class extends mock<CopilotClient['rpc']['sandbox']['proxyCa']>() { }, getHostSupport: async () => ({ supported: true, capabilities: [] }) } },
+			rpc: { managedSettings: options?.managedSettings ?? createUnmanagedCopilotSettings(), account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { proxyCa: new class extends mock<CopilotClient['rpc']['sandbox']['proxyCa']>() { }, getHostSupport: async () => ({ supported: true, capabilities: [] }) } },
 			createSession: async options => {
 				createOptions = options;
 				reportManagedSettings(options);
@@ -8069,8 +8071,9 @@ suite('CopilotAgent', () => {
 			assert.deepStrictEqual([
 				createCopilotCliEnvironment({})['SKILL_CHAR_BUDGET'],
 				createCopilotCliEnvironment({ SKILL_CHAR_BUDGET: '15000' })['SKILL_CHAR_BUDGET'],
-				createCopilotCliEnvironment({}, [], false, 30_000)['SKILL_CHAR_BUDGET'],
-			], ['15000', '15000', '30000']);
+				createCopilotCliEnvironment({}, [], false, 15_000)['SKILL_CHAR_BUDGET'],
+				createCopilotCliEnvironment({}, [], false, 35_000)['SKILL_CHAR_BUDGET'],
+			], ['30000', '30000', '15000', '35000']);
 		});
 
 		test('strips inherited HydraFusion flags and preserves unrelated environment', () => {
@@ -8721,7 +8724,7 @@ suite('CopilotAgent', () => {
 				}, {
 					rubberDuck: 'true',
 					advisor: 'false',
-					skillCharBudget: '15000',
+					skillCharBudget: '30000',
 				});
 			} finally {
 				await disposeAgent(agent);
@@ -8732,7 +8735,7 @@ suite('CopilotAgent', () => {
 			const client = new TestCopilotClient([]);
 			const { agent, configurationService } = createTestAgentContext(disposables, {
 				copilotClient: client,
-				rootConfig: { [CopilotCliConfigKey.SkillCharBudget]: 30_000 },
+				rootConfig: { [CopilotCliConfigKey.SkillCharBudget]: 15_000 },
 			});
 			try {
 				await agent.listChatsToMigrate();
@@ -8746,7 +8749,7 @@ suite('CopilotAgent', () => {
 					updatedBudget: getCreatedClientOptions(agent).at(-1)?.env?.['SKILL_CHAR_BUDGET'],
 					stopCallCount: client.stopCallCount,
 				}, {
-					initialBudget: '30000',
+					initialBudget: '15000',
 					updatedBudget: '35000',
 					stopCallCount: 1,
 				});
@@ -9242,6 +9245,121 @@ suite('CopilotAgent', () => {
 				await disposeAgent(agent);
 			}
 		});
+
+		function seedDisconnectedApprovalReport(agent: CopilotAgent, stateManager: AgentHostStateManager): URI {
+			const session = URI.parse('ahp-session:/policy-refresh');
+			const now = new Date().toISOString();
+			stateManager.createSession({
+				resource: session.toString(), provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle,
+				createdAt: now, modifiedAt: now, workingDirectories: [URI.file('/workspace').toString()],
+			});
+			stateManager.setSessionConfig(session.toString(), {
+				schema: { type: 'object', properties: {} },
+				values: { autoApprove: 'assisted', effectiveApprovalMode: 'assisted', availableApprovalModes: ['default', 'assisted', 'autoApprove'] },
+			});
+			chatScopes(agent).set('ahp-chat:/policy-refresh-chat', session);
+			chatScopes(agent).set('ahp-chat:/policy-refresh-peer', session);
+			return session;
+		}
+
+		test('refreshes disconnected approval reports after restarting the runtime without resuming chats', async () => {
+			const client = new StopCountingClient([]);
+			const { agent, configurationService, stateManager } = createTestAgentContext(disposables, {
+				copilotClient: client,
+				rootConfig: { [AgentHostAutoApprovePolicyRestrictedConfigKey]: true },
+			});
+			let sessionStarts = 0;
+			client.createSession = client.resumeSession = async () => {
+				sessionStarts++;
+				throw new Error('Unexpected session start');
+			};
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.listChatsToMigrate();
+				const session = seedDisconnectedApprovalReport(agent, stateManager);
+				let disconnected = false;
+				setLiveChatStub(agent, 'old-sdk-backing', {
+					resourceUri: session,
+					dispose: () => { disconnected = true; },
+				});
+				const unrestricted = client.managedSettingsResolution;
+				client.managedSettingsResolution = {
+					...unrestricted,
+					resolved: {
+						...unrestricted.resolved,
+						settings: { permissions: { disableAssistedPermissionsMode: true } },
+					},
+				};
+				configurationService.updateRootConfig({ [AgentHostAutoApprovePolicyRestrictedConfigKey]: false });
+				await timeout(0);
+				await agent.refreshModels();
+				await timeout(0);
+
+				const restricted = configurationService.getSessionConfigValues(session.toString());
+				client.managedSettingsResolution = unrestricted;
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: false });
+				await timeout(0);
+				await agent.refreshModels();
+				await timeout(0);
+
+				assert.deepStrictEqual({
+					restricted,
+					revoked: configurationService.getSessionConfigValues(session.toString()),
+					workingDirectories: client.managedSettingsRequests.map(request => request.workingDirectory),
+					disconnected,
+					sessionStarts,
+				}, {
+					restricted: { autoApprove: 'assisted', effectiveApprovalMode: 'assisted', availableApprovalModes: ['default', 'autoApprove'] },
+					revoked: { autoApprove: 'assisted', effectiveApprovalMode: 'assisted', availableApprovalModes: ['default', 'assisted', 'autoApprove'] },
+					workingDirectories: [URI.file('/workspace').fsPath, URI.file('/workspace').fsPath],
+					disconnected: true,
+					sessionStarts: 0,
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		for (const invalidation of ['new client', 'resumed chat', 'removed session'] as const) {
+			test(`discards a disconnected approval report superseded by a ${invalidation}`, async () => {
+				const client = new StopCountingClient([]);
+				const { agent, configurationService, stateManager } = createTestAgentContext(disposables, { copilotClient: client });
+				const pending = new DeferredPromise<ManagedSettingsResolveResult>();
+				const started = new DeferredPromise<void>();
+				try {
+					await agent.authenticate('https://api.github.com', 'token');
+					await agent.listChatsToMigrate();
+					const session = seedDisconnectedApprovalReport(agent, stateManager);
+					client.resolveManagedSettings = () => {
+						started.complete();
+						return pending.p;
+					};
+					configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: false });
+					await started.p;
+					if (invalidation === 'new client') {
+						client.resolveManagedSettings = async () => client.managedSettingsResolution;
+						configurationService.updateRootConfig({ [AgentHostAutoApprovePolicyRestrictedConfigKey]: true });
+						await timeout(0);
+						await agent.refreshModels();
+					} else if (invalidation === 'resumed chat') {
+						setLiveChatStub(agent, 'resumed-sdk-backing', { resourceUri: session });
+						configurationService.updateSessionConfig(session.toString(), { availableApprovalModes: ['default'] });
+					} else {
+						stateManager.removeSession(session.toString());
+					}
+					await pending.complete({
+						...client.managedSettingsResolution,
+						resolved: { ...client.managedSettingsResolution.resolved, settings: { permissions: { disableAssistedPermissionsMode: false } } },
+					});
+					await timeout(0);
+					assert.deepStrictEqual(configurationService.getSessionConfigValues(session.toString())?.availableApprovalModes,
+						invalidation === 'removed session' ? undefined : ['default']);
+				} finally {
+					await pending.complete(client.managedSettingsResolution);
+					await disposeAgent(agent);
+				}
+			});
+		}
 
 		for (const localIndexEnabled of [false, true]) {
 			test(`restarts idle sessions when local indexing changes to ${localIndexEnabled}`, async () => {
@@ -14816,7 +14934,7 @@ suite('CopilotAgent', () => {
 					clientToken: 'connector-session-token',
 					configToken: undefined,
 					hasTokenProvider: false,
-					connectorFlags: { CONNECTORS: true, TGREP: false, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false, MANAGED_MCP_SERVERS: true },
+					connectorFlags: { AUTO_APPROVAL: true, CONNECTORS: true, TGREP: false, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false, MANAGED_MCP_SERVERS: true },
 				});
 			} finally {
 				await disposeAgent(agent);
@@ -15861,6 +15979,35 @@ suite('CopilotAgent', () => {
 				mockSession.rpc.permissions.setMode = async ({ mode }) => ({ success: false, mode });
 				await assert.rejects(agent.setSessionApproveAll(created.session.resourceUri, true), /SDK rejected permission mode/);
 				assert.strictEqual(configurationService.getSessionConfigValues(created.session.resourceUri.toString())?.autoApprove, 'default');
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('Copilot host approval toggle honors native mode policy replacing the legacy restriction', async () => {
+			const { agent, instantiationService, configurationService, stateManager } = createTestAgentContext(disposables, {
+				sessionDataService: disposables.add(new TestSessionDataService()),
+				rootConfig: { [AgentHostAutoApprovePolicyRestrictedConfigKey]: true },
+			});
+			const managedSettings = createUnmanagedCopilotSettings();
+			managedSettings.resolve = async () => ({
+				resolved: { source: 'server', serverManaged: true, deviceManaged: false, clientManaged: false, failClosed: false, bypassPermissionsDisabled: false, managedKeys: ['permissions'], settings: { permissions: { disableAssistedPermissionsMode: true } } },
+				layers: [], diagnostics: [],
+			});
+			const mockSession = new MockCopilotSession();
+			const created = createAgentSessionThroughAgent(agent, instantiationService, { mockSession, managedSettings });
+			try {
+				const now = new Date().toISOString();
+				stateManager.createSession({ resource: created.session.resourceUri.toString(), provider: 'copilotcli', title: 'Test', status: SessionStatus.Idle, createdAt: now, modifiedAt: now });
+				stateManager.setSessionConfig(created.session.resourceUri.toString(), { schema: { type: 'object', properties: {} }, values: { autoApprove: 'default' } });
+				await created.session.initializeSession();
+				setLiveChatStub(agent, created.session.sessionId, created.session, created.session.chatChannelUri);
+				const calls: string[] = [];
+				mockSession.rpc.permissions.setMode = async ({ mode }) => { calls.push(mode); return { success: true, mode }; };
+				await agent.setSessionApproveAll(created.session.resourceUri, true);
+				assert.deepStrictEqual({ calls, selection: configurationService.getSessionConfigValues(created.session.resourceUri.toString())?.autoApprove }, {
+					calls: ['allow-all'], selection: 'autoApprove',
+				});
 			} finally {
 				await disposeAgent(agent);
 			}

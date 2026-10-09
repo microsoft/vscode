@@ -1017,6 +1017,42 @@ suite('AgentHostGitService - computeSessionFileDiffs (real git)', () => {
 		});
 	});
 
+	(hasGit ? test : test.skip)('captureWorkingTreeAsTree rehashes staged changes when working file metadata matches the index', async () => {
+		const fs = await import('fs/promises');
+		const { dir, run } = initRepo();
+		run('config', 'core.checkStat', 'minimal');
+		run('config', 'core.trustctime', 'false');
+		await fs.writeFile(join(dir, 'modified.txt'), 'original\n');
+		run('add', '.');
+		run('commit', '-q', '-m', 'init');
+		const timestamp = new Date('2000-01-01T00:00:00.000Z');
+		for (const name of ['added.txt', 'modified.txt']) {
+			const file = join(dir, name);
+			await fs.writeFile(file, 'staged\n');
+			await fs.utimes(file, timestamp, timestamp);
+			run('add', name);
+			await fs.writeFile(file, 'edited\n');
+			await fs.utimes(file, timestamp, timestamp);
+		}
+		const indexPath = join(dir, '.git', 'index');
+		const indexBefore = await fs.readFile(indexPath);
+		const status = run('--no-optional-locks', 'status', '--porcelain=v1').toString();
+		const tree = await svc!.captureWorkingTreeAsTree(URI.file(dir));
+		assert.ok(tree, 'expected a working-tree snapshot');
+
+		assert.deepStrictEqual({
+			status,
+			added: run('show', `${tree}:added.txt`).toString(),
+			modified: run('show', `${tree}:modified.txt`).toString(),
+			indexUnchanged: indexBefore.equals(await fs.readFile(indexPath)),
+		}, {
+			status: 'A  added.txt\nM  modified.txt\n',
+			added: 'edited\n',
+			modified: 'edited\n',
+			indexUnchanged: true,
+		});
+	});
+
 	(hasGit ? test : test.skip)('computes bounded per-file patches from an immutable working-tree snapshot', async () => {
 		const fs = await import('fs/promises');
 		const { dir, run } = initRepo();

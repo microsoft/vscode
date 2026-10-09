@@ -107,6 +107,7 @@ import { IChatEntitlementService } from '../../../../../services/chat/common/cha
 import { IWorkingCopyService } from '../../../../../services/workingCopy/common/workingCopyService.js';
 import { ChatMode } from '../../../common/chatModes.js';
 import { CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
+import { normalizeAgentHostApprovalConfig } from '../../../common/agentHostConfigPolicy.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
 import { HIDE_AUTO_EXPLAINABILITY_TREATMENT } from '../../../common/chatAutoModeExplainability.js';
 import { AUTO_RAW_MODEL_ID, getLanguageModelDisplayNameWithProvider, ILanguageModelChatMetadata, ILanguageModelsService } from '../../../common/languageModels.js';
@@ -6036,7 +6037,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				config,
 			}), cancellationToken);
 			const requestedKeys = Object.keys(config);
-			config = filterSessionConfigValues(resolved.schema, { ...resolved.values, ...config });
+			config = filterSessionConfigValues(resolved.schema, {
+				...resolved.values,
+				...normalizeAgentHostApprovalConfig(this._configurationService, resolved, config),
+			});
 			const omitted = requestedKeys.filter(key => !Object.hasOwn(config!, key));
 			if (omitted.length > 0) {
 				this._logService.warn(`[AgentHost] Session configuration not advertised or writable: ${omitted.join(', ')}`);

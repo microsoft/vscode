@@ -31,6 +31,7 @@ import { type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, 
 import { ISessionDatabase, ISessionDataService, ISessionStorageAccessCounts, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
 import { IAgentEditAttributionService, ICancelEditAttributionFlushParams, ICommitEditAttributionFlushParams, IEditAttributionFlushResult, IPrepareEditAttributionFlushParams, IPreparedEditAttributionFlush, parseEditAttributionResource } from '../common/fileEditAttribution.js';
 import { getPersistedSessionConfigValues, getSessionPullRequestUrl, omitTransientSessionConfigValues, SessionConfigKey } from '../common/sessionConfigKeys.js';
+import { getSessionApprovalProperty, validateSessionConfigWrite } from '../common/sessionConfigProperties.js';
 import type { IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
 import { buildAnnotationsUri, parseAnnotationsUri } from '../common/annotationsUri.js';
 import { parseChangesetUri, parseFolderChangesetOwnerUri } from '../common/changesetUri.js';
@@ -739,9 +740,8 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _readableProviderCatalogs = new Set<AgentProvider>();
 	/**
 	 * In-memory mirror of the durable provisional markers. Listing consults it
-	 * synchronously: the phase ordering there drives provider catalog migration,
-	 * so an extra read would change when migration passes run. An unloaded
-	 * mirror is empty, which surfaces sessions rather than hiding them.
+	 * after waiting for the initial marker load, so unloaded markers cannot
+	 * expose provisional sessions.
 	 */
 	private readonly _provisionalSessionKeys = new Set<string>();
 	private _provisionalSessionKeysLoaded: Promise<void> | undefined;
@@ -2048,14 +2048,9 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/**
 	 * Loads the durable provisional markers into {@link _provisionalSessionKeys}
-	 * once. Started at construction so listing can read the mirror synchronously;
+	 * once. Started at construction and awaited before draft suppression;
 	 * a read failure leaves the mirror empty, surfacing sessions rather than
 	 * hiding them.
-	 *
-	 * A listing that starts before this read lands cannot suppress anything, but
-	 * it consults the mirror after its provider phase, so one still running when
-	 * the markers arrive suppresses them; a settled one is evicted, so the next
-	 * listing recomputes. The window is therefore bounded by this read alone.
 	 */
 	private _whenProvisionalSessionKeysLoaded(): Promise<void> {
 		return this._provisionalSessionKeysLoaded ??= (async () => {
@@ -2081,19 +2076,12 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/**
 	 * Drops sessions that are still marked provisional and whose provider cannot
-	 * describe them: their registration points at a backing that was never
-	 * created, so no later run can resolve them (#321269).
+	 * describe them: they stay hidden from listing until their backing can be
+	 * confirmed, even when the provider's catalog is unavailable (#321269).
 	 *
-	 * Three conditions are required, and each guards a way real content could
-	 * otherwise be hidden: the marker must still be set; the provider's catalog
-	 * must be known readable this run, since a provider that cannot yet answer
-	 * returns `undefined` without throwing and that is not evidence of absence;
-	 * and the provider must then decline to describe the session. A materialized
-	 * session whose marker-clear never landed is kept visible by the third
-	 * condition, and one whose provider is merely unavailable by the second.
-	 *
-	 * Erring towards a visible junk row is deliberate: under-suppressing costs a
-	 * row the user can delete, over-suppressing costs their work.
+	 * A materialized session whose marker-clear never landed is kept visible
+	 * when its provider confirms the backing, and the live-state overlay
+	 * preserves sessions with turn activity.
 	 */
 	private async _withoutUnmaterializedProvisionalSessions(sessions: readonly IAgentSessionMetadata[], registered: readonly IRegisteredSession[]): Promise<readonly IAgentSessionMetadata[]> {
 		if (sessions.length === 0 || this._provisionalSessionKeys.size === 0) {
@@ -2108,19 +2096,14 @@ export class AgentService extends Disposable implements IAgentService {
 				return;
 			}
 			const agent = this._providerService.getProvider(entry.provider);
-			// Read synchronously: this runs inside the listing, whose phase ordering
-			// drives provider catalog migration, so awaiting a readability signal
-			// here would change when those passes run.
-			if (!agent || !this._readableProviderCatalogs.has(entry.provider)) {
-				return;
-			}
 			try {
-				if (!await this._registeredSessionMetadata(agent, entry.session, entry.external, entry)) {
+				if (!agent || !await this._registeredSessionMetadata(agent, entry.session, entry.external)) {
 					unmaterialized.add(key);
 				}
 			} catch (err) {
-				// An erroring provider is not evidence that the backing is missing.
-				this._logService.warn(`[AgentService] listSessions: failed to confirm provisional session ${key}`, err);
+				// An erroring provider is not evidence that the backing is missing; hide the row until confirmation succeeds.
+				unmaterialized.add(key);
+				this._logService.warn(`[AgentService] listSessions: hiding unconfirmed provisional session ${key}`, err);
 			}
 		}));
 		return unmaterialized.size === 0
@@ -3955,6 +3938,10 @@ export class AgentService extends Disposable implements IAgentService {
 		this._registryEpoch++;
 	}
 
+	async getSessionCount(): Promise<number> {
+		return (await this._sessionRegistry.listSessionKeys()).size;
+	}
+
 	async listSessions(mode = this._getExternalSessionsMode()): Promise<IAgentSessionMetadata[]> {
 		const epoch = this._registryEpoch;
 		const inFlight = this._inFlightListSessions.get(mode);
@@ -4268,9 +4255,7 @@ export class AgentService extends Disposable implements IAgentService {
 			}, 0);
 		}
 		const result = results.filter((s): s is IAgentSessionMetadata => s !== undefined);
-		// Skipped without awaiting when no session is provisional: the phases above
-		// drive provider catalog migration, so an unconditional await here would
-		// change when those passes run.
+		await this._whenProvisionalSessionKeysLoaded();
 		const materialized = this._provisionalSessionKeys.size === 0
 			? result
 			: await this._withoutUnmaterializedProvisionalSessions(result, registered);
@@ -4721,11 +4706,11 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/**
 	 * Recomputes and republishes a provider's list after its catalog becomes
-	 * readable, so a fail-open listing computed while it was unreadable stops
-	 * showing rows that suppression would now hide (#321269).
+	 * readable or sessions are marked provisional, so previously published rows
+	 * that suppression now hides are retracted (#321269).
 	 *
 	 * The transition is one-shot, so the decision cannot depend on what happens
-	 * to be published at this instant: a fail-open listing may still be
+	 * to be published at this instant: a listing may still be
 	 * computing (publication happens inside `prepareSessionSummariesForListing`)
 	 * and the marker mirror loads asynchronously. Either being unpopulated here
 	 * would drop the refresh and leave the stale row with nothing left to
@@ -6526,23 +6511,26 @@ export class AgentService extends Disposable implements IAgentService {
 			: { session, key: ANNOTATIONS_METADATA_KEY };
 	}
 
-	private async _resolveCreatedSessionConfig(provider: IAgent, config: IAgentCreateSessionConfig | undefined): Promise<SessionConfigState | undefined> {
-		if (!config?.config && config?.workingDirectories === undefined) {
+	private async _resolveCreatedSessionConfig(provider: IAgent, config: IAgentCreateSessionConfig | undefined, restoring = false): Promise<SessionConfigState | undefined> {
+		if (provider.id !== 'copilotcli' && !config?.config && config?.workingDirectories === undefined) {
 			return undefined;
 		}
 		const params: IAgentResolveSessionConfigParams = {
 			provider: provider.id,
 			// `resolveSessionConfig` is a pre-session, single-context API:
 			// resolve against the session's primary (index 0).
-			workingDirectory: config.workingDirectories?.[0],
-			config: config.config,
+			workingDirectory: config?.workingDirectories?.[0],
+			config: config?.config,
 		};
 		try {
 			const resolved = await this._withHostSessionConfigContributions(await provider.resolveChatConfig(this._toProviderConfig(params)), params);
 			return { schema: resolved.schema, values: resolved.values };
 		} catch (err) {
 			this._logService.error(`[AgentService] Failed to resolve created session config for provider ${provider.id}`, err);
-			return config.config ? { schema: { type: 'object', properties: {} }, values: config.config } : undefined;
+			if (provider.id === 'copilotcli' && !restoring) {
+				throw err;
+			}
+			return config?.config ? { schema: { type: 'object', properties: {} }, values: config.config } : undefined;
 		}
 	}
 
@@ -8283,13 +8271,40 @@ export class AgentService extends Disposable implements IAgentService {
 		// a wholesale replacement must not drop it either.
 		if (action.type === ActionType.SessionConfigChanged) {
 			const configAction = action as SessionConfigChangedAction;
+			const current = this._stateManager.getSessionState(sessionChannel)?.config;
+			if (current?.schema.properties.availableApprovalModes?.readOnly === true) {
+				try {
+					if (['availableApprovalModes', 'effectiveApprovalMode'].some(key => Object.hasOwn(configAction.config, key) && !equals(configAction.config[key], current.values[key]))) {
+						throw new Error('Reported permission modes are host-owned.');
+					}
+					const approvalKey = getSessionApprovalProperty(current.schema)?.key ?? SessionConfigKey.AutoApprove;
+					if (Object.hasOwn(configAction.config, approvalKey)) {
+						if (current.schema.properties[approvalKey]?.readOnly) {
+							throw new Error('Session approval mode is read-only.');
+						}
+						validateSessionConfigWrite(current.schema, current.values, approvalKey, configAction.config[approvalKey], false);
+					}
+				} catch (error) {
+					this._stateManager.rejectClientAction(channel, action, origin, toErrorMessage(error));
+					return;
+				}
+				if (configAction.replace) {
+					action = {
+						...configAction, config: {
+							...configAction.config,
+							availableApprovalModes: current.values.availableApprovalModes,
+							...(current.values.effectiveApprovalMode === undefined ? {} : { effectiveApprovalMode: current.values.effectiveApprovalMode }),
+						}
+					};
+				}
+			}
 			const forbidden = HOST_WRITTEN_SESSION_CONFIG_KEYS.filter(key => Object.hasOwn(configAction.config, key));
 			if (forbidden.length > 0) {
 				this._stateManager.rejectClientAction(channel, action, origin, `Session config keys are host-owned and cannot be set by a client: ${forbidden.join(', ')}.`);
 				return;
 			}
 			if (Object.hasOwn(configAction.config, SessionConfigKey.AgentMergeFolders)) {
-				action = this._withMergedClientAgentMergeFolders(sessionChannel, configAction);
+				action = this._withMergedClientAgentMergeFolders(sessionChannel, action as SessionConfigChangedAction);
 			}
 			if (configAction.replace) {
 				action = this._withPreservedHostWrittenSessionConfig(sessionChannel, action as SessionConfigChangedAction);
@@ -9420,7 +9435,7 @@ export class AgentService extends Disposable implements IAgentService {
 			this._resolveCreatedSessionConfig(agent, {
 				workingDirectories: meta.workingDirectories,
 				config: restoredConfigValues,
-			}),
+			}, true),
 			agent.getChatCustomizations(defaultChatUri, chatContext, this._hostCustomizations(session)).catch(err => {
 				this._logService.error('[AgentService] restoreSession: failed to resolve chat customizations', err);
 				return undefined;

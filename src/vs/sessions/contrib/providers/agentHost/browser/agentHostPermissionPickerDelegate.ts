@@ -18,6 +18,7 @@ import { narrowClaudePermissionMode } from '../../../../../platform/agentHost/co
 import { narrowCodexPermissionsPreset } from '../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
 import { SessionConfigPropertySchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ChatConfiguration, ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
+import { isAutoApprovePolicyRestricted } from '../../../../../workbench/contrib/chat/common/agentHostConfigPolicy.js';
 import { IPermissionLevelMeta, IPermissionPickerDelegate } from '../../copilotChatSessions/browser/permissionPicker.js';
 import { getSessionConfigProvider, IAgentHostSessionsProvider, isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionConfigProvider, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
@@ -84,6 +85,11 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 
 	/** Agent-host sessions seed their default approval level from this setting. */
 	readonly defaultSettingKey = ChatConfiguration.DefaultConfiguration;
+	readonly isPolicyRestricted = (): boolean => {
+		const session = this._session.get();
+		const config = session ? this._getProvider(session.providerId)?.getSessionConfig(session.sessionId) : undefined;
+		return isAutoApprovePolicyRestricted(this._configurationService, config?.schema);
+	};
 
 	getPermissionLevelMeta(level: ChatPermissionLevel, meta: IPermissionLevelMeta): IPermissionLevelMeta {
 		switch (level) {

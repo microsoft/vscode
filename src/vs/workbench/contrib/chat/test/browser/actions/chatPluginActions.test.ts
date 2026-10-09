@@ -193,6 +193,27 @@ suite('ManagePluginMarketplacesAction', () => {
 		}]);
 	});
 
+	test('shows plugins from the default marketplace using its configured source under strict policy', async () => {
+		const marketplace = parseMarketplaceReference('github/awesome-copilot#marketplace')!;
+		const fixture = createFixture({
+			[ChatConfiguration.PluginMarketplaces]: [marketplace.rawValue],
+			[ChatConfiguration.ExtraMarketplaces]: {},
+			[ChatConfiguration.StrictMarketplaces]: [{ source: 'github', repo: 'github/awesome-copilot', ref: 'marketplace' }],
+			[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: true,
+		}, true);
+		fixture.quickInputService.pickIds.push(marketplace.canonicalId, 'showPlugins');
+
+		await fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
+
+		assert.deepStrictEqual(fixture.commands, [{
+			id: AICustomizationManagementCommands.OpenMarketplace,
+			args: [{
+				section: AICustomizationManagementSection.Plugins,
+				sourceId: getPluginCustomizationMarketplaceSourceId(marketplace),
+			}],
+		}]);
+	});
+
 	test('shows plugins from the default marketplace using its configured source without a public feed', async () => {
 		const marketplace = parseMarketplaceReference('github/awesome-copilot#marketplace')!;
 		const fixture = createFixture({

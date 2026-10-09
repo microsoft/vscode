@@ -35,6 +35,8 @@ class FakeWebSocket implements IWebSocketLike {
 	readonly sent: Record<string, unknown>[] = [];
 	closed = false;
 	failSequenceAcks = false;
+	acknowledgeCapabilities = true;
+	failCapabilities = false;
 	highestAcknowledgedSequenceId = 0;
 	totalMessageBytes = 0;
 	largestMessageBytes = 0;
@@ -57,7 +59,13 @@ class FakeWebSocket implements IWebSocketLike {
 				}
 			}
 		}
+		if (frame['type'] === 'sendToGroup' && (frame['data'] as { kind: string }).kind === 'capabilities' && this.failCapabilities) {
+			throw new Error('Capability socket write failed');
+		}
 		this.sent.push(frame);
+		if (frame['type'] === 'sendToGroup' && (frame['data'] as { kind: string }).kind === 'capabilities' && this.acknowledgeCapabilities) {
+			this.emit({ type: 'ack', ackId: frame['ackId'], success: true });
+		}
 	}
 	close(): void {
 		this.closed = true;
@@ -102,6 +110,10 @@ class FakeWebSocket implements IWebSocketLike {
 	sentOfType(type: string): Array<Record<string, unknown>> {
 		return this.sent.filter(frame => frame['type'] === type);
 	}
+
+	sentApplicationPublishes(): Array<Record<string, unknown>> {
+		return this.sentOfType('sendToGroup').filter(frame => (frame['data'] as { kind: string }).kind !== 'capabilities');
+	}
 }
 
 suite('WebPubSubRelayTransport', () => {
@@ -141,7 +153,7 @@ suite('WebPubSubRelayTransport', () => {
 		await connectHandshake(transport, fake);
 		for (let i = 0; i < 100; i++) {
 			transport.send({ jsonrpc: '2.0', id: i, method: 'initialize', params: { private: 'secret-payload' } });
-			const publish = fake.sentOfType('sendToGroup').at(-1);
+			const publish = fake.sentApplicationPublishes().at(-1);
 			assert.ok(publish);
 			fake.emit({ type: 'ack', ackId: publish['ackId'], success: true });
 			fake.emitGroupMessage(i + 1, { kind: 'message', data: { jsonrpc: '2.0', id: i, result: 'secret-payload' } });
@@ -149,8 +161,8 @@ suite('WebPubSubRelayTransport', () => {
 		await timeout(10);
 		transport.dispose();
 		assert.deepStrictEqual(infos, [
-			'[WebPubSubRelayTransport] clientId=c1 durationMs=0 relay ready; joinedGroups=2',
 			'[WebPubSubRelayTransport] clientId=c1 durationMs=0 first publish acknowledged; ackId=3',
+			'[WebPubSubRelayTransport] clientId=c1 durationMs=0 relay ready; joinedGroups=2',
 			'[WebPubSubRelayTransport] clientId=c1 durationMs=0 first host frame received',
 			'[WebPubSubRelayTransport] clientId=c1 durationMs=10 closing; relayReady=true publishAcknowledged=true pendingJoins=0 pendingPublishes=0 hostFrames=100 hostMessages=100 hostSilenceMs=10 protocolErrors=0 expiredAssemblies=0',
 		]);
@@ -188,10 +200,11 @@ suite('WebPubSubRelayTransport', () => {
 		transport.send({ jsonrpc: '2.0', id: 1, method: 'ping', params: {} });
 		await timeout(30_001);
 		assert.deepStrictEqual(messages, [
+			'[WebPubSubRelayTransport] clientId=c1 durationMs=0 first publish acknowledged; ackId=3',
 			'[WebPubSubRelayTransport] clientId=c1 durationMs=0 relay ready; joinedGroups=2',
 			'[WebPubSubRelayTransport] clientId=c1 durationMs=0 protocol error; kind=invalid JSON',
 			'[WebPubSubRelayTransport] clientId=c1 durationMs=30000 protocol error; kind=publish acknowledgement timed out: Error: WPS publish acknowledgement timed out',
-			'[WebPubSubRelayTransport] clientId=c1 durationMs=30000 closing; relayReady=true publishAcknowledged=false pendingJoins=0 pendingPublishes=1 hostFrames=0 hostMessages=0 hostSilenceMs=none protocolErrors=2 expiredAssemblies=0',
+			'[WebPubSubRelayTransport] clientId=c1 durationMs=30000 closing; relayReady=true publishAcknowledged=true pendingJoins=0 pendingPublishes=1 hostFrames=0 hostMessages=0 hostSilenceMs=none protocolErrors=2 expiredAssemblies=0',
 		]);
 	}));
 
@@ -226,6 +239,162 @@ suite('WebPubSubRelayTransport', () => {
 		assert.strictEqual(transport.isOpen, true);
 	});
 
+	test('advertises the exact receive control to the configured host group only after all receive joins', async () => {
+		const fake = new FakeWebSocket();
+		fake.acknowledgeCapabilities = false;
+		const toHostGroup = 'user.other.env.remote.client.custom.to-host';
+		const joinGroups = ['user.other.env.remote.client.custom.broadcast', 'user.other.env.remote.client.custom.to-client'];
+		const transport = createTransport(fake, { clientId: 'custom', toHostGroup, joinGroups });
+		const connected = transport.connect();
+		fake.emit({ type: 'system', event: 'connected' });
+		const joins = fake.sentOfType('joinGroup');
+		fake.emit({ type: 'ack', ackId: joins[0]['ackId'], success: true });
+		assert.deepStrictEqual(fake.sentOfType('sendToGroup'), []);
+		fake.emit({ type: 'ack', ackId: joins[1]['ackId'], success: true });
+		assert.deepStrictEqual({ publishes: fake.sentOfType('sendToGroup'), open: transport.isOpen }, {
+			publishes: [{ type: 'sendToGroup', group: toHostGroup, ackId: 3, dataType: 'json', noEcho: true, data: { kind: 'capabilities', accepts: ['batch'] } }],
+			open: false,
+		});
+		fake.emit({ type: 'ack', ackId: 3, success: false, error: { name: 'Duplicate' } });
+		await connected;
+		assert.strictEqual(transport.isOpen, true);
+	});
+
+	test('advertises receive capabilities when there are no receive joins', async () => {
+		const fake = new FakeWebSocket();
+		const transport = createTransport(fake, { joinGroups: [] });
+		await connectHandshake(transport, fake);
+		assert.deepStrictEqual(fake.sent, [
+			{ type: 'sendToGroup', group: TO_HOST, ackId: 1, dataType: 'json', noEcho: true, data: { kind: 'capabilities', accepts: ['batch'] } },
+		]);
+	});
+
+	for (const acknowledged of [true, false]) {
+		test(`${acknowledged ? 'accepts' : 'times out'} capability publication using its full deadline after slow socket and group joins`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const fake = new FakeWebSocket();
+			fake.acknowledgeCapabilities = false;
+			const errors: string[] = [];
+			const transport = createTransport(fake, { onProtocolError: error => errors.push(String(error)) });
+			const connected = transport.connect();
+			await timeout(20_000);
+			fake.emit({ type: 'system', event: 'connected' });
+			await timeout(9000);
+			for (const join of fake.sentOfType('joinGroup')) {
+				fake.emit({ type: 'ack', ackId: join['ackId'], success: true });
+			}
+			await timeout(2000);
+			assert.deepStrictEqual({ open: transport.isOpen, closed: fake.closed, errors }, { open: false, closed: false, errors: [] });
+			if (acknowledged) {
+				fake.emit({ type: 'ack', ackId: 3, success: true });
+				await connected;
+				assert.deepStrictEqual({ open: transport.isOpen, closed: fake.closed, errors }, { open: true, closed: false, errors: [] });
+			} else {
+				const rejected = assert.rejects(connected, /WPS publish acknowledgement timed out/);
+				await timeout(27_999);
+				assert.strictEqual(fake.closed, false);
+				await timeout(1);
+				await rejected;
+				assert.deepStrictEqual({ closed: fake.closed, errors, closedAt: Date.now() }, {
+					closed: true, errors: ['Error: WPS publish acknowledgement timed out'], closedAt: 59_000,
+				});
+			}
+			transport.dispose();
+		}));
+	}
+
+	for (const failure of ['rejection', 'timeout', 'write'] as const) {
+		test(`rejects initial capability publication on ${failure}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const fake = new FakeWebSocket();
+			fake.acknowledgeCapabilities = false;
+			fake.failCapabilities = failure === 'write';
+			const errors: string[] = [];
+			const transport = createTransport(fake, { onProtocolError: error => errors.push(String(error)) });
+			const connected = transport.connect();
+			fake.emit({ type: 'system', event: 'connected' });
+			for (const join of fake.sentOfType('joinGroup')) {
+				fake.emit({ type: 'ack', ackId: join['ackId'], success: true });
+			}
+			if (failure === 'rejection') {
+				fake.emit({ type: 'ack', ackId: 3, success: false, error: { name: 'Forbidden' } });
+			}
+			await assert.rejects(connected, failure === 'rejection' ? /WPS publish failed/ : failure === 'write' ? /Failed to publish WPS receive capabilities/ : /WPS publish acknowledgement timed out/);
+			fake.emit({ type: 'ack', ackId: 3, success: true });
+			assert.deepStrictEqual({ open: transport.isOpen, closed: fake.closed, errors }, {
+				open: false,
+				closed: true,
+				errors: [failure === 'timeout' ? 'Error: WPS publish acknowledgement timed out' : failure === 'rejection' ? 'Error: WPS publish failed' : 'Error: Failed to publish WPS receive capabilities'],
+			});
+		}));
+	}
+
+	test('re-advertises on successful initialize and reconnect before delivering ordered batch items', async () => {
+		const fake = new FakeWebSocket();
+		const transport = createTransport(fake);
+		const received: { id: unknown; advertisements: number }[] = [];
+		store.add(transport.onMessage(message => received.push({
+			id: hasKey(message, { id: true }) ? message.id : undefined,
+			advertisements: fake.sentOfType('sendToGroup').length - fake.sentApplicationPublishes().length,
+		})));
+		await connectHandshake(transport, fake);
+		for (const [index, method] of ['initialize', 'reconnect'].entries()) {
+			const id = index + 1;
+			transport.send({ jsonrpc: '2.0', id, method, params: { clientId: 'c1' } });
+			fake.emit({
+				type: 'message', from: 'group', group: TO_CLIENT, dataType: 'json',
+				data: { kind: 'batch', generation: id, items: [{ jsonrpc: '2.0', id, result: {} }, { jsonrpc: '2.0', id: id + 10, result: {} }] },
+			});
+		}
+		const beforeStaleResponse = fake.sent.length;
+		fake.emitGroupMessage(1, { kind: 'message', generation: 1, data: { jsonrpc: '2.0', id: 1, result: {} } });
+		assert.deepStrictEqual({
+			received,
+			controls: fake.sentOfType('sendToGroup').filter(frame => (frame['data'] as { kind: string }).kind === 'capabilities').map(frame => ({ group: frame['group'], data: frame['data'] })),
+			newFrames: fake.sent.slice(beforeStaleResponse).map(frame => frame['type']),
+		}, {
+			received: [{ id: 1, advertisements: 2 }, { id: 11, advertisements: 2 }, { id: 2, advertisements: 3 }, { id: 12, advertisements: 3 }],
+			controls: Array.from({ length: 3 }, () => ({ group: TO_HOST, data: { kind: 'capabilities', accepts: ['batch'] } })),
+			newFrames: ['sequenceAck'],
+		});
+	});
+
+	test('does not re-advertise for a failed AHP handshake or forward peer framing capabilities to AHP', async () => {
+		const fake = new FakeWebSocket();
+		const transport = createTransport(fake);
+		const received: ProtocolMessage[] = [];
+		store.add(transport.onMessage(message => received.push(message)));
+		await connectHandshake(transport, fake);
+		fake.emit({ type: 'message', from: 'group', group: TO_CLIENT, dataType: 'json', data: { kind: 'capabilities', accepts: ['batch', 'future'], future: true } });
+		transport.send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} });
+		const response = { jsonrpc: '2.0', id: 1, error: { code: -32008, message: 'Not found' } };
+		fake.emitGroupMessage(1, { kind: 'message', data: response });
+		assert.deepStrictEqual({ received, publishes: fake.sentOfType('sendToGroup').length }, { received: [response], publishes: 2 });
+	});
+
+	for (const failure of ['rejection', 'timeout', 'write'] as const) {
+		test(`closes once when recovery capability publication fails on ${failure}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const fake = new FakeWebSocket();
+			const errors: string[] = [];
+			const transport = createTransport(fake, { onProtocolError: error => errors.push(String(error)) });
+			await connectHandshake(transport, fake);
+			fake.acknowledgeCapabilities = false;
+			fake.failCapabilities = failure === 'write';
+			let closes = 0;
+			store.add(transport.onClose(() => closes++));
+			transport.send({ jsonrpc: '2.0', id: 1, method: 'reconnect', params: {} });
+			fake.emit({ type: 'ack', ackId: 4, success: true });
+			fake.emitGroupMessage(1, { kind: 'message', generation: 7, data: { jsonrpc: '2.0', id: 1, result: {} } });
+			if (failure === 'rejection') {
+				fake.emit({ type: 'ack', ackId: 5, success: false, error: { name: 'Forbidden' } });
+			}
+			await timeout(30_001);
+			fake.emit({ type: 'ack', ackId: 5, success: false });
+			assert.deepStrictEqual({ open: transport.isOpen, closed: fake.closed, closes, errors }, {
+				open: false, closed: true, closes: 1,
+				errors: [failure === 'write' ? 'Error: Failed to publish WPS receive capabilities' : failure === 'rejection' ? 'Error: WPS publish failed' : 'Error: WPS publish acknowledgement timed out'],
+			});
+		}));
+	}
+
 	for (const method of ['initialize', 'reconnect']) {
 		test(`bounds an unanswered ${method} even when Azure acknowledges publication`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const fake = new FakeWebSocket();
@@ -235,7 +404,7 @@ suite('WebPubSubRelayTransport', () => {
 			store.add(transport.onClose(() => closes++));
 			await connectHandshake(transport, fake);
 			transport.send({ jsonrpc: '2.0', id: 1, method, params: {} });
-			for (const publish of fake.sentOfType('sendToGroup')) {
+			for (const publish of fake.sentApplicationPublishes()) {
 				fake.emit({ type: 'ack', ackId: publish['ackId'], success: true });
 			}
 			await timeout(20_000);
@@ -243,7 +412,7 @@ suite('WebPubSubRelayTransport', () => {
 			await timeout(9999);
 			const before = transport.isOpen;
 			await timeout(1);
-			assert.deepStrictEqual({ before, open: transport.isOpen, closes, errors, publishes: fake.sentOfType('sendToGroup').length }, {
+			assert.deepStrictEqual({ before, open: transport.isOpen, closes, errors, publishes: fake.sentApplicationPublishes().length }, {
 				before: true, open: false, closes: 1, errors: ['Error: WPS host handshake timed out'], publishes: 1,
 			});
 		}));
@@ -254,13 +423,13 @@ suite('WebPubSubRelayTransport', () => {
 		const transport = createTransport(fake);
 		await connectHandshake(transport, fake);
 		transport.send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} });
-		fake.emit({ type: 'ack', ackId: fake.sentOfType('sendToGroup')[0]['ackId'], success: true });
+		fake.emit({ type: 'ack', ackId: fake.sentApplicationPublishes()[0]['ackId'], success: true });
 		await timeout(29_000);
 		fake.emitGroupMessage(1, { kind: 'message', generation: 7, data: { jsonrpc: '2.0', id: 1, result: {} } });
 		await timeout(2000);
 		const initialized = transport.isOpen;
 		transport.send({ jsonrpc: '2.0', id: 2, method: 'reconnect', params: {} });
-		fake.emit({ type: 'ack', ackId: fake.sentOfType('sendToGroup')[1]['ackId'], success: true });
+		fake.emit({ type: 'ack', ackId: fake.sentApplicationPublishes()[1]['ackId'], success: true });
 		await timeout(29_999);
 		const reconnecting = transport.isOpen;
 		await timeout(1);
@@ -272,7 +441,7 @@ suite('WebPubSubRelayTransport', () => {
 		const transport = createTransport(fake);
 		await connectHandshake(transport, fake);
 		transport.send({ jsonrpc: '2.0', id: 1, method: 'reconnect', params: {} });
-		fake.emit({ type: 'ack', ackId: fake.sentOfType('sendToGroup')[0]['ackId'], success: true });
+		fake.emit({ type: 'ack', ackId: fake.sentApplicationPublishes()[0]['ackId'], success: true });
 		const segments = chunk({ jsonrpc: '2.0', id: 1, result: { snapshot: 'x'.repeat(1000) } }, { maxChunkBytes: 512 });
 		await timeout(25_000);
 		for (const [index, segment] of segments.slice(0, -1).entries()) {
@@ -662,7 +831,7 @@ suite('WebPubSubRelayTransport', () => {
 		assert.throws(() => transport.send({
 			jsonrpc: '2.0', id: 1, method: 'authenticate', params: { channel: 'ahp-root://', resource: 'https://api.github.com', token: 'plaintext-test-credential' },
 		}), /Refusing to send plaintext/);
-		assert.deepStrictEqual(socket.sentOfType('sendToGroup'), []);
+		assert.deepStrictEqual(socket.sentApplicationPublishes(), []);
 	});
 
 	test('redacts sealed authentication from the WPS transcript without changing wire messages', async () => {
@@ -685,7 +854,7 @@ suite('WebPubSubRelayTransport', () => {
 		assert.deepStrictEqual({
 			ciphertextLogged: transcript.includes('replayable-ciphertext'),
 			redacted: transcript.includes('[REDACTED]'),
-			published: socket.sentOfType('sendToGroup')[0]['data'],
+			published: socket.sentApplicationPublishes()[0]['data'],
 		}, {
 			ciphertextLogged: false,
 			redacted: true,
@@ -701,7 +870,7 @@ suite('WebPubSubRelayTransport', () => {
 		const outbound = { jsonrpc: '2.0', id: 1, method: 'initialize', params: {} };
 		transport.send(outbound as never);
 
-		const publishes = fake.sentOfType('sendToGroup');
+		const publishes = fake.sentApplicationPublishes();
 		assert.strictEqual(publishes.length, 1);
 		assert.deepStrictEqual(
 			{ group: publishes[0]['group'], dataType: publishes[0]['dataType'], noEcho: publishes[0]['noEcho'], data: publishes[0]['data'] },
@@ -719,7 +888,7 @@ suite('WebPubSubRelayTransport', () => {
 		for (const id of [1, 2]) {
 			transport.send({ jsonrpc: '2.0', id, method: 'ping', params: {} });
 		}
-		const publishes = fake.sentOfType('sendToGroup');
+		const publishes = fake.sentApplicationPublishes();
 		await timeout(29_999);
 		fake.emit({ type: 'ack', ackId: publishes[1]['ackId'], success: false, error: { name: 'Duplicate' } });
 		fake.emit({ type: 'ack', ackId: publishes[0]['ackId'], success: true });
@@ -735,7 +904,7 @@ suite('WebPubSubRelayTransport', () => {
 			open,
 			errors,
 			messages,
-			publishes: fake.sentOfType('sendToGroup').length,
+			publishes: fake.sentApplicationPublishes().length,
 		}, { open: true, errors: [], messages: [], publishes: 2 });
 	}));
 
@@ -754,7 +923,7 @@ suite('WebPubSubRelayTransport', () => {
 		store.add(transport.onMessage(message => received.push(message)));
 		transport.send({ jsonrpc: '2.0', id: 1, method: 'createSession', params: {} });
 		transport.send({ jsonrpc: '2.0', id: 2, method: 'ping', params: {} });
-		const publishes = fake.sentOfType('sendToGroup');
+		const publishes = fake.sentApplicationPublishes();
 		fake.emit({ type: 'ack', ackId: publishes[1]['ackId'], success: true });
 		const pong = { jsonrpc: '2.0', id: 2, result: null };
 		fake.emitGroupMessage(1, { kind: 'message', data: pong });
@@ -769,7 +938,7 @@ suite('WebPubSubRelayTransport', () => {
 			errors,
 			warnings: warnings.map(message => message.slice(message.indexOf('protocol error'))),
 			received,
-			publishes: fake.sentOfType('sendToGroup').length,
+			publishes: fake.sentApplicationPublishes().length,
 		}, {
 			open: false,
 			socketClosed: true,
@@ -788,7 +957,7 @@ suite('WebPubSubRelayTransport', () => {
 			const transport = createTransport(fake, { onProtocolError: error => errors.push(error) });
 			await connectHandshake(transport, fake);
 			transport.send({ jsonrpc: '2.0', id: 1, result: 'x'.repeat(DEFAULT_MAX_CHUNK_BYTES) });
-			const publishes = fake.sentOfType('sendToGroup');
+			const publishes = fake.sentApplicationPublishes();
 			assert.ok(publishes.length > 1);
 			for (const [index, frame] of Array.from(publishes.entries()).reverse()) {
 				fake.emit(index === 0
@@ -803,7 +972,7 @@ suite('WebPubSubRelayTransport', () => {
 				open: transport.isOpen,
 				socketClosed: fake.closed,
 				errors,
-				publishes: fake.sentOfType('sendToGroup'),
+				publishes: fake.sentApplicationPublishes(),
 			}, {
 				open: !rejected,
 				socketClosed: rejected,
@@ -819,7 +988,7 @@ suite('WebPubSubRelayTransport', () => {
 		const connected = transport.connect();
 		fake.emit({ type: 'system', event: 'connected' });
 		transport.send({ jsonrpc: '2.0', id: 1, method: 'ping', params: {} });
-		fake.emit({ type: 'ack', ackId: fake.sentOfType('sendToGroup')[0]['ackId'], success: false, error: { name: 'Duplicate' } });
+		fake.emit({ type: 'ack', ackId: fake.sentApplicationPublishes()[0]['ackId'], success: false, error: { name: 'Duplicate' } });
 		assert.strictEqual(transport.isOpen, false);
 		for (const join of fake.sentOfType('joinGroup')) {
 			fake.emit({ type: 'ack', ackId: join['ackId'], success: true });
@@ -835,7 +1004,7 @@ suite('WebPubSubRelayTransport', () => {
 		const connected = transport.connect();
 		fake.emit({ type: 'system', event: 'connected' });
 		transport.send({ jsonrpc: '2.0', id: 1, method: 'ping', params: {} });
-		fake.emit({ type: 'ack', ackId: fake.sentOfType('sendToGroup')[0]['ackId'], success: false });
+		fake.emit({ type: 'ack', ackId: fake.sentApplicationPublishes()[0]['ackId'], success: false });
 		for (const join of fake.sentOfType('joinGroup')) {
 			fake.emit({ type: 'ack', ackId: join['ackId'], success: true });
 		}
@@ -855,7 +1024,7 @@ suite('WebPubSubRelayTransport', () => {
 		let closes = 0;
 		store.add(transport.onClose(() => closes++));
 		transport.send({ jsonrpc: '2.0', id: 1, method: 'ping', params: {} });
-		const publish = fake.sentOfType('sendToGroup')[0];
+		const publish = fake.sentApplicationPublishes()[0];
 		transport.dispose();
 		fake.emit({ type: 'ack', ackId: publish['ackId'], success: false });
 
@@ -867,7 +1036,7 @@ suite('WebPubSubRelayTransport', () => {
 			override send(data: string): void {
 				super.send(data);
 				const frame: { type: string } = JSON.parse(data);
-				if (frame.type === 'sendToGroup') {
+				if (frame.type === 'sendToGroup' && (JSON.parse(data) as { data: { kind: string } }).data.kind !== 'capabilities') {
 					throw new Error('Socket write failed');
 				}
 			}
@@ -877,7 +1046,7 @@ suite('WebPubSubRelayTransport', () => {
 		await connectHandshake(transport, fake);
 		const message: JsonRpcRequest = { jsonrpc: '2.0', id: 1, method: 'ping', params: {} };
 		assert.throws(() => transport.send(message), /Socket write failed/);
-		fake.emit({ type: 'ack', ackId: fake.sentOfType('sendToGroup')[0]['ackId'], success: false });
+		fake.emit({ type: 'ack', ackId: fake.sentApplicationPublishes()[0]['ackId'], success: false });
 		await timeout(30_001);
 
 		const open = transport.isOpen;
@@ -898,7 +1067,7 @@ suite('WebPubSubRelayTransport', () => {
 		for (const id of [2, 3]) {
 			await timeout(10_000);
 			transport.send({ jsonrpc: '2.0', id, method: 'ping', params: {} });
-			fake.emit({ type: 'ack', ackId: fake.sentOfType('sendToGroup').at(-1)!['ackId'], success: true });
+			fake.emit({ type: 'ack', ackId: fake.sentApplicationPublishes().at(-1)!['ackId'], success: true });
 			fake.emitGroupMessage(id, { kind: 'message', data: { jsonrpc: '2.0', id, result: null } });
 		}
 		await timeout(9999);
@@ -906,14 +1075,14 @@ suite('WebPubSubRelayTransport', () => {
 		const openBeforeDeadline = transport.isOpen;
 		await timeout(1);
 		const openAtDeadline = transport.isOpen;
-		fake.emit({ type: 'ack', ackId: fake.sentOfType('sendToGroup')[0]['ackId'], success: true });
+		fake.emit({ type: 'ack', ackId: fake.sentApplicationPublishes()[0]['ackId'], success: true });
 		fake.emitClose();
 		await timeout(30_000);
 		transport.dispose();
 
 		assert.deepStrictEqual({
 			openBeforeDeadline, openAtDeadline, closedAt, errors, received,
-			publishes: fake.sentOfType('sendToGroup').length,
+			publishes: fake.sentApplicationPublishes().length,
 		}, {
 			openBeforeDeadline: true,
 			openAtDeadline: false,
@@ -935,7 +1104,7 @@ suite('WebPubSubRelayTransport', () => {
 		await timeout(10_000);
 		transport.send({ jsonrpc: '2.0', id: 2, method: 'ping', params: {} });
 		await timeout(15_000);
-		fake.emit({ type: 'ack', ackId: fake.sentOfType('sendToGroup')[0]['ackId'], success: true });
+		fake.emit({ type: 'ack', ackId: fake.sentApplicationPublishes()[0]['ackId'], success: true });
 		await timeout(14_999);
 		const openBeforeDeadline = transport.isOpen;
 		await timeout(1);
@@ -985,7 +1154,7 @@ suite('WebPubSubRelayTransport', () => {
 			const transport = createTransport(fake, { onProtocolError: error => errors.push(error) });
 			await connectHandshake(transport, fake);
 			transport.send({ jsonrpc: '2.0', id: 1, result: 'x'.repeat(DEFAULT_MAX_CHUNK_BYTES) });
-			const publishes = fake.sentOfType('sendToGroup');
+			const publishes = fake.sentApplicationPublishes();
 			assert.ok(publishes.length > 1);
 			const missing = missingChunk === 'first' ? publishes[0] : publishes.at(-1)!;
 			for (const publish of publishes) {
@@ -997,7 +1166,7 @@ suite('WebPubSubRelayTransport', () => {
 			const open = transport.isOpen;
 			transport.dispose();
 
-			assert.deepStrictEqual({ open, errors, publishes: fake.sentOfType('sendToGroup') }, {
+			assert.deepStrictEqual({ open, errors, publishes: fake.sentApplicationPublishes() }, {
 				open: false,
 				errors: [new Error('WPS publish acknowledgement timed out')],
 				publishes,
@@ -1019,7 +1188,7 @@ suite('WebPubSubRelayTransport', () => {
 				switch (ending) {
 					case 'close': fake.emitClose(); break;
 					case 'error': fake.emitError(); break;
-					case 'rejection': fake.emit({ type: 'ack', ackId: fake.sentOfType('sendToGroup')[0]['ackId'], success: false }); break;
+					case 'rejection': fake.emit({ type: 'ack', ackId: fake.sentApplicationPublishes()[0]['ackId'], success: false }); break;
 					case 'dispose': transport.dispose(); break;
 				}
 				await timeout(60_000);
@@ -1096,6 +1265,6 @@ suite('WebPubSubRelayTransport', () => {
 		staleMessage?.({ data: '{}' });
 		transport.dispose();
 		staleMessage?.({ data: '{}' });
-		assert.deepStrictEqual({ frames, parseErrors: errors.length }, { frames: 7, parseErrors: 2 });
+		assert.deepStrictEqual({ frames, parseErrors: errors.length }, { frames: 8, parseErrors: 2 });
 	});
 });
