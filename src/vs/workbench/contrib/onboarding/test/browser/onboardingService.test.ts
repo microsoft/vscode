@@ -9,6 +9,7 @@ import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { autorun, observableValue } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -119,6 +120,31 @@ class FakeAssignmentService extends NullWorkbenchAssignmentService {
 	/** True when the given assignment-context id is currently excluded from telemetry. */
 	isExcluded(assignment: string): boolean {
 		return this._filters.some(f => f.exclude(assignment));
+	}
+}
+
+/**
+ * Assignment service test double whose treatments change when assignments are refetched, like
+ * experiments served by an account endpoint that only becomes known after startup. A read
+ * returns the treatments current when it started, after the optional `pause` settles.
+ */
+class RefetchingAssignmentService extends NullWorkbenchAssignmentService {
+	readonly reads: string[] = [];
+	pause: Promise<void> | undefined;
+	override readonly onDidRefetchAssignments: Event<void>;
+	constructor(private treatments: Record<string, string | number | boolean>, private readonly refetched: Emitter<void>) {
+		super();
+		this.onDidRefetchAssignments = refetched.event;
+	}
+	override async getTreatment<T extends string | number | boolean>(name: string): Promise<T | undefined> {
+		this.reads.push(name);
+		const value = this.treatments[name] as T | undefined;
+		await this.pause;
+		return value;
+	}
+	refetch(treatments: Record<string, string | number | boolean>): void {
+		this.treatments = treatments;
+		this.refetched.fire();
 	}
 }
 
@@ -588,6 +614,64 @@ suite('OnboardingScenarioService', () => {
 		await timeout(0);
 
 		assert.deepStrictEqual(presentation.runs, []);
+	});
+
+	test('reads unresolved experiment flags again when assignments are refetched, then keeps the resolved arm', async () => {
+		const presentation = new RecordingPresentation(uniqueKind());
+		registerPresentation(presentation);
+		registerScenario({
+			id: 'exp-refetch',
+			experiment: { behaviorFlag: 'exp.show', assignmentContextIdFlag: 'exp.id' },
+			trigger: { kind: 'auto' },
+			presentation: { kind: presentation.kind, payload: undefined }
+		});
+		const assignment = new RefetchingAssignmentService({}, disposables.add(new Emitter<void>()));
+		const { service } = createService({}, assignment);
+
+		service.start();
+		await timeout(0);
+		const runsAtStartup = [...presentation.runs];
+		assignment.refetch({ 'exp.show': true, 'exp.id': 'onb-refetch' });
+		await timeout(0);
+		await timeout(0);
+		const runsAfterRefetch = [...presentation.runs];
+		assignment.refetch({ 'exp.show': false, 'exp.id': 'onb-other' });
+		await timeout(0);
+
+		assert.deepStrictEqual({ runsAtStartup, runsAfterRefetch, reads: assignment.reads }, {
+			runsAtStartup: [],
+			runsAfterRefetch: ['exp-refetch'],
+			reads: ['exp.show', 'exp.id', 'exp.show', 'exp.id'],
+		});
+	});
+
+	test('a refetch during an unresolved read reads the experiment flags again once that read settles', async () => {
+		const presentation = new RecordingPresentation(uniqueKind());
+		registerPresentation(presentation);
+		registerScenario({
+			id: 'exp-inflight',
+			experiment: { behaviorFlag: 'exp.show', assignmentContextIdFlag: 'exp.id' },
+			trigger: { kind: 'auto' },
+			presentation: { kind: presentation.kind, payload: undefined }
+		});
+		const assignment = new RefetchingAssignmentService({}, disposables.add(new Emitter<void>()));
+		const firstRead = new DeferredPromise<void>();
+		assignment.pause = firstRead.p;
+		const { service } = createService({}, assignment);
+
+		service.start();
+		assignment.pause = undefined;
+		assignment.refetch({ 'exp.show': true, 'exp.id': 'onb-inflight' });
+		const readsWhileInFlight = [...assignment.reads];
+		await firstRead.complete();
+		await timeout(0);
+		await timeout(0);
+
+		assert.deepStrictEqual({ readsWhileInFlight, reads: assignment.reads, runs: presentation.runs }, {
+			readsWhileInFlight: ['exp.show', 'exp.id'],
+			reads: ['exp.show', 'exp.id', 'exp.show', 'exp.id'],
+			runs: ['exp-inflight'],
+		});
 	});
 
 	for (const { name, treatments, developerMode, enabled, expected } of [
