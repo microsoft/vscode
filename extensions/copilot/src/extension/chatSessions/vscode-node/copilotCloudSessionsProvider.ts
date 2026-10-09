@@ -512,6 +512,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 	});
 	private cachedSessionsSize: number = 0;
 	private cachedSessionItems: vscode.ChatSessionItem[] | undefined;
+	private cachedDiscoveredTaskIds = new Set<string>();
 	private cachedSessionItemsExpiresAt = Infinity;
 	private readonly cachedSessionItemsExpiryScheduler = this._register(new RunOnceScheduler(() => {
 		if (Date.now() > this.cachedSessionItemsExpiresAt) {
@@ -945,9 +946,10 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			if (this.cachedSessionItems) {
 				this.cachedSessionItems = this.cachedSessionItems.filter(existing => {
 					const existingTaskId = SessionIdForTask.parseTaskId(existing.resource);
-					return existingTaskId !== taskId && (!existingTaskId || !previousTaskIds.has(existingTaskId) || this.explicitlyResolvedSessions.has(existingTaskId));
+					return existingTaskId !== taskId && (!existingTaskId || !previousTaskIds.has(existingTaskId) || this.explicitlyResolvedSessions.has(existingTaskId) || this.cachedDiscoveredTaskIds.has(existingTaskId));
 				});
 				this.cachedSessionItems.push(item);
+				vscode.commands.executeCommand('setContext', 'github.copilot.chat.cloudSessionsEmpty', false);
 			}
 			this._onDidChangeChatSessionItems.fire();
 		}));
@@ -976,6 +978,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		this.cachedSessionItemsExpiryScheduler.cancel();
 		this.sessionItemsRequestGeneration++;
 		this.cachedSessionItems = undefined;
+		this.cachedDiscoveredTaskIds.clear();
 		this.cachedSessionItemsExpiresAt = Infinity;
 		this.chatSessionItemsPromise = undefined;
 		// Note: _ccaEnabledCache and _optionsCache are TTL-based and NOT cleared on refresh.
@@ -1484,19 +1487,13 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		this.chatSessionItemsPromise = (async (): Promise<vscode.ChatSessionItem[]> => {
 			const repoIds = await getRepoId(this._gitService);
 			this.logService.debug(`copilotCloudSessionsProvider#provideChatSessionItems: repoIds=${JSON.stringify(repoIds?.map(r => ({ org: r.org, repo: r.repo, host: r.host })))}, isAgentSessionsWorkspace=${vscode.workspace.isAgentSessionsWorkspace}`);
-			// Make sure if it's not a github repo we don't show any sessions
-			// (unless we're in an agent sessions workspace)
-			if (!vscode.workspace.isAgentSessionsWorkspace && !this.isGitHubRepoOrEmpty(repoIds)) {
-				this.logService.debug('copilotCloudSessionsProvider#provideChatSessionItems: not a GitHub repo, returning empty');
-				return [];
-			}
-			const { sessions: sessionList, expiresAt, isExternal } = await this.fetchSessionList(repoIds);
+			const canDiscover = vscode.workspace.isAgentSessionsWorkspace || this.isGitHubRepoOrEmpty(repoIds);
+			const { sessions: sessionList, expiresAt, isExternal } = canDiscover
+				? await this.fetchSessionList(repoIds)
+				: { sessions: [], expiresAt: Infinity, isExternal: (taskId: string) => !this._ownership.getOwnedTaskIds().has(taskId) };
 			this.logService.debug(`copilotCloudSessionsProvider#provideChatSessionItems: fetched ${sessionList.length} grouped sessions`);
 			const sessionItems = await Promise.all(sessionList.map(entry => this.toChatSessionItem(entry, repoIds, false, isExternal(entry.taskId))));
-			const filteredSessions = sessionItems.filter((item): item is vscode.ChatSessionItem => item !== undefined).map(item => {
-				const taskId = SessionIdForTask.parseTaskId(item.resource);
-				return taskId && this.unpublishedExactTasks.has(taskId) ? this.explicitlyResolvedSessions.get(taskId) ?? item : item;
-			});
+			const filteredSessions = sessionItems.filter((item): item is vscode.ChatSessionItem => item !== undefined);
 
 			if (this.sessionItemsRequestGeneration !== generation) {
 				return this.provideChatSessionItems(token);
@@ -1504,7 +1501,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			const listed = new Set(filteredSessions.map(item => item.resource.toString()));
 			for (const item of filteredSessions) {
 				const taskId = SessionIdForTask.parseTaskId(item.resource);
-				if (taskId && this.explicitlyResolvedSessions.has(taskId)) {
+				if (taskId && !this.unpublishedExactTasks.has(taskId) && this.explicitlyResolvedSessions.has(taskId)) {
 					this.explicitlyResolvedSessions.set(taskId, item);
 				}
 			}
@@ -1539,6 +1536,13 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 					}
 				}
 			}
+			for (let i = 0; i < filteredSessions.length; i++) {
+				const taskId = SessionIdForTask.parseTaskId(filteredSessions[i].resource);
+				if (taskId && this.unpublishedExactTasks.has(taskId)) {
+					filteredSessions[i] = this.explicitlyResolvedSessions.get(taskId) ?? filteredSessions[i];
+				}
+			}
+			const discoveredTaskIds = new Set(filteredSessions.map(item => SessionIdForTask.parseTaskId(item.resource)).filter((id): id is string => id !== undefined));
 			for (const item of this.explicitlyResolvedSessions.values()) {
 				if (!listed.has(item.resource.toString())) {
 					filteredSessions.push(item);
@@ -1550,6 +1554,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			// Cache the results
 			this.cachedSessionsSize = sessionList.length;
 			this.cachedSessionItems = filteredSessions;
+			this.cachedDiscoveredTaskIds = discoveredTaskIds;
 			this.unpublishedExactTasks.clear();
 			this.cachedSessionItemsExpiresAt = expiresAt;
 			this.scheduleCachedSessionItemsExpiry();
