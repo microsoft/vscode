@@ -96,10 +96,12 @@ suite('Chat Accessibility Help', () => {
 			keyboard: help.includes('Left or Right Arrow, Home, or End to select another image or its progress'),
 			stableSelection: help.includes('without changing your selection'),
 			selectedBorder: help.includes('The selected thumbnail has a highlighted border'),
+			responsivePreview: help.includes('The thumbnail row follows the selected preview\'s size'),
+			noEmptyPreview: help.includes('cancelled or failed images show their status in the tool dropdown without an empty preview'),
 			countsBelowThumbnails: help.includes('The Image batch status below the thumbnails shows how many images are ready out of the total'),
 			details: help.includes('Expand the selected tool dropdown to inspect its prompt and output'),
 			approvals: help.includes('Approval and authentication requests remain visible even when another image is selected'),
-		}, { keyboard: true, stableSelection: true, selectedBorder: true, countsBelowThumbnails: true, details: true, approvals: true });
+		}, { keyboard: true, stableSelection: true, selectedBorder: true, responsivePreview: true, noEmptyPreview: true, countsBelowThumbnails: true, details: true, approvals: true });
 	});
 
 	test('documents generated image artifacts and conversation carousel navigation', () => {

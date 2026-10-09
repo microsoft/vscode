@@ -9,10 +9,6 @@
 	min-width: 0;
 	margin: var(--vscode-spacing-size160) 0;
 
-	.chat-image-generation-batch-tool {
-		margin-bottom: var(--vscode-spacing-size160);
-	}
-
 	.chat-image-generation-batch-summary {
 		min-width: 0;
 		font-size: var(--vscode-chat-font-size-body-s);
@@ -24,32 +20,26 @@
 		left: calc(var(--vscode-codiconFontSize-compact) * 0.2);
 		width: calc(100% - var(--vscode-codiconFontSize-compact) * 0.2);
 		max-width: 512px;
-		max-height: min(60vh, 400px);
+		margin-top: var(--vscode-spacing-size160);
 		display: flex;
 		align-items: flex-start;
 		min-width: 0;
 		user-select: none;
 		-webkit-user-select: none;
 
+		&:empty {
+			display: none;
+		}
+
 		.chat-image-generation-placeholder {
 			margin: 0;
 		}
 	}
 
-	.chat-image-generation-batch-preview-message {
-		color: var(--vscode-descriptionForeground);
-	}
-
 	.chat-image-generation-batch-selected {
 		margin: 0;
 		min-width: 0;
-		max-height: 100%;
 		width: 100%;
-
-		.chat-collapsible-io-resource-group {
-			max-height: 100%;
-			align-items: center;
-		}
 
 		.chat-attached-context {
 			padding: 0;

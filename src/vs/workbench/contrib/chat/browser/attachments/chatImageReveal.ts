@@ -16,7 +16,6 @@ import './chatImageReveal.css';
 
 export interface IChatImageRevealOrigin {
 	readonly container: HTMLElement;
-	readonly onDidFinish?: () => void;
 }
 
 const revealProperties = ['frame', 'frame-width', 'image'];
@@ -44,7 +43,6 @@ export class ChatImageReveal extends Disposable {
 				container.style.removeProperty(`--chat-image-reveal-${property}`);
 			}
 			origin?.container.classList.remove('chat-image-reveal-pending', 'chat-image-reveal-running');
-			origin?.onDidFinish?.();
 		}));
 		this.surface = this.effects.add(instantiationService.createInstance(GlyphSurface, container));
 		this.effects.add(accessibilityService.onDidChangeReducedMotion(() => this.finishIfMotionDisabled()));

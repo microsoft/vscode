@@ -3474,6 +3474,116 @@ suite('ChatListRenderer', () => {
 		});
 	}
 
+	for (const toolName of ['image_generation', 'image_gen.imagegen']) {
+		test(`image batch follows the selected preview size without empty space or repeated status (${toolName})`, async () => {
+			const { disposables, instantiationService, model, request, container, renderer, template, node } = createPersistentProgressRenderer();
+			configurePersistentProgressTypography(container, 13);
+			container.style.width = '760px';
+			renderer.layout(container.clientWidth);
+			instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
+				override isMotionReduced() { return true; }
+			}());
+			const tools = Array.from({ length: 5 }, (_, index) => ChatToolInvocation.createStreaming({
+				toolId: toolName, toolCallId: `responsive-image-${index}`, chatRequestId: request.id,
+				toolData: { id: toolName, displayName: 'Generate Image', modelDescription: 'Generate Image', source: ToolDataSource.Internal },
+			}));
+			for (const tool of tools) {
+				model.acceptResponseProgress(request, tool);
+			}
+			renderer.renderElement(node, 0, template);
+			const batch = template.value.querySelector<HTMLElement>('.chat-image-generation-batch')!;
+			const preview = batch.querySelector<HTMLElement>('.chat-image-generation-batch-preview')!;
+			const selectedTool = batch.querySelector<HTMLElement>('.chat-image-generation-batch-tool')!;
+			const thumbnails = [...batch.querySelectorAll<HTMLElement>('.chat-image-generation-batch-thumbnail')];
+			const nextFrame = () => new Promise<void>(resolve => disposables.add(dom.scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+			const settledImage = async () => {
+				await retry(async () => assert.strictEqual(preview.querySelector('.image-attachment')?.getAttribute('aria-busy'), 'false'), 10, 50);
+				await nextFrame();
+				return preview.querySelector<HTMLImageElement>('img')!;
+			};
+			const imageLayout = (image: HTMLImageElement) => {
+				const imageBounds = image.getBoundingClientRect();
+				const previewBounds = preview.getBoundingClientRect();
+				return {
+					onlyImageAndMargin: Math.abs(previewBounds.height - imageBounds.height - 8) < 1,
+					thumbnailsFollowImage: Math.abs(thumbnails[0].getBoundingClientRect().top - imageBounds.bottom - 24) < 1,
+					aspectRatio: Math.abs(imageBounds.width / imageBounds.height - image.naturalWidth / image.naturalHeight) < 0.01,
+					widthBounded: imageBounds.width <= Math.min(512, previewBounds.width),
+					heightBounded: imageBounds.height <= Math.min(400, mainWindow.innerHeight * 0.6) + 1,
+				};
+			};
+			const layouts = [];
+			const heights = [];
+			for (const [index, [width, height]] of [[400, 1600], [1600, 400], [1200, 1200]].entries()) {
+				const data = dom.$<HTMLCanvasElement>('canvas', { width, height }).toDataURL('image/png').split(',')[1];
+				await tools[index].didExecuteTool({
+					content: [], toolSpecificData: { kind: 'generatedImage' },
+					toolResultDetails: { input: '{}', output: [{ type: 'embed', value: data, mimeType: 'image/png' }] },
+				});
+				thumbnails[index].click();
+				const image = await settledImage();
+				layouts.push(imageLayout(image));
+				heights.push(image.getBoundingClientRect().height);
+			}
+			thumbnails[3].click();
+			const pending = {
+				previewHeight: preview.getBoundingClientRect().height,
+				thumbnailGap: thumbnails[0].getBoundingClientRect().top - preview.getBoundingClientRect().bottom,
+				glyphs: preview.querySelectorAll('.chat-image-loading-glyphs').length,
+				images: preview.querySelectorAll('img').length,
+			};
+			tools[3].cancelFromStreaming({ type: ToolConfirmKind.Denied }, 'Image generation cancelled');
+			const emptyLayout = () => ({
+				height: preview.getBoundingClientRect().height,
+				text: preview.textContent,
+				thumbnailGap: thumbnails[0].getBoundingClientRect().top - selectedTool.getBoundingClientRect().bottom,
+			});
+			const cancelled = {
+				...emptyLayout(),
+				statusCount: (batch.textContent?.replace(/\u00a0/g, ' ').match(/Image generation cancelled/g) ?? []).length,
+			};
+			thumbnails[4].click();
+			tools[4].requestConfirmation({ confirmationMessages: { title: 'Generate Image?', message: new MarkdownString('Approve this image') } });
+			const waiting = emptyLayout();
+			const approval = tools[4].state.get();
+			assert.ok(approval.type === IChatToolInvocation.StateKind.WaitingForConfirmation);
+			approval.confirm({ type: ToolConfirmKind.UserAction });
+			await tools[4].didExecuteTool({ content: [], toolResultError: 'Image provider failed', toolResultMessage: 'Generated image failed' });
+			const failed = emptyLayout();
+			thumbnails[0].click();
+			const knownImageSizeRestored = Math.abs(preview.getBoundingClientRect().height - heights[0] - 8) < 1;
+			layouts.push(imageLayout(await settledImage()));
+			thumbnails[1].click();
+			const wideImage = await settledImage();
+			const wideHeight = wideImage.getBoundingClientRect().height;
+			container.style.width = '280.5px';
+			renderer.layout(container.clientWidth);
+			await nextFrame();
+			const narrowHeight = wideImage.getBoundingClientRect().height;
+			layouts.push(imageLayout(wideImage));
+			container.style.width = '760px';
+			renderer.layout(container.clientWidth);
+			await nextFrame();
+			layouts.push(imageLayout(wideImage));
+			assert.deepStrictEqual({
+				layouts, pending, cancelled, waiting, failed, knownImageSizeRestored,
+				landscapeShorter: heights[1] < heights[0] / 2 && heights[1] < heights[2] / 2,
+				shrinksWithWidth: narrowHeight < wideHeight,
+				growsWithWidth: Math.abs(wideImage.getBoundingClientRect().height - wideHeight) < 1,
+				selected: thumbnails.map(thumbnail => thumbnail.getAttribute('aria-pressed')),
+			}, {
+				layouts: Array.from({ length: 6 }, () => ({ onlyImageAndMargin: true, thumbnailsFollowImage: true, aspectRatio: true, widthBounded: true, heightBounded: true })),
+				pending: { previewHeight: 50, thumbnailGap: 16, glyphs: 1, images: 0 },
+				cancelled: { height: 0, text: '', thumbnailGap: 16, statusCount: 1 },
+				waiting: { height: 0, text: '', thumbnailGap: 24 },
+				failed: { height: 0, text: '', thumbnailGap: 16 },
+				knownImageSizeRestored: true,
+				landscapeShorter: true, shrinksWithWidth: true, growsWithWidth: true,
+				selected: ['false', 'true', 'false', 'false', 'false'],
+			});
+		});
+	}
+
 	for (const firstToFinish of [0, 1]) {
 		test(`two successful image calls keep one selected preview when call ${firstToFinish} finishes first`, async () => {
 			const { model, request, container, renderer, template, node } = createPersistentProgressRenderer();
@@ -3650,7 +3760,6 @@ suite('ChatListRenderer', () => {
 				assert.ok(batch.querySelectorAll('.chat-image-loading-glyphs').length <= 1);
 			}
 			await retry(async () => {
-				assert.ok(preview.style.height);
 				assert.strictEqual(preview.querySelector('.image-attachment')?.getAttribute('aria-busy'), 'false');
 			}, 10, 50);
 			const thumbnails = [...batch.querySelectorAll<HTMLElement>('.chat-image-generation-batch-thumbnail')];
@@ -3660,6 +3769,7 @@ suite('ChatListRenderer', () => {
 			await preview.querySelector<HTMLImageElement>('img')!.decode();
 			thumbnails[0].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
 			await preview.querySelector<HTMLImageElement>('img')!.decode();
+			await retry(async () => assert.strictEqual(preview.querySelector('.image-attachment')?.getAttribute('aria-busy'), 'false'), 10, 50);
 			const selected = thumbnails.map(button => button.getAttribute('aria-pressed'));
 			const selectedSource = preview.querySelector<HTMLImageElement>('img')!.src;
 			const selectedFocus = dom.getActiveElement() === thumbnails[1];
@@ -3673,7 +3783,7 @@ suite('ChatListRenderer', () => {
 				selection: selected,
 				selectedSource: selectedSource === `data:image/png;base64,${images[1]}`,
 				selectedFocus,
-				heightStable: Math.abs(preview.getBoundingClientRect().height - previewHeight) < 1,
+				sameShapeHeight: Math.abs(preview.getBoundingClientRect().height - previewHeight) < 1,
 				selectedTool: batch.querySelector('.chat-image-generation-batch-tool .chat-confirmation-widget-title')?.textContent?.replace(/\u00a0/g, ' ').trim(),
 				sameBatch: template.value.querySelector('.chat-image-generation-batch') === batch,
 				summary: batch.querySelector('.chat-image-generation-batch-summary')?.textContent,
@@ -3686,7 +3796,7 @@ suite('ChatListRenderer', () => {
 				selection: ['false', 'true', 'false', 'false', 'false'],
 				selectedSource: true,
 				selectedFocus: true,
-				heightStable: true,
+				sameShapeHeight: true,
 				selectedTool: 'Generated image 2',
 				sameBatch: true,
 				summary: 'Image batch \u00b7 5 of 5 ready',

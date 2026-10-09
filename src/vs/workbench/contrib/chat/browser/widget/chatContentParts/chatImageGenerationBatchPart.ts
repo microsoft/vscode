@@ -9,6 +9,7 @@ import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollba
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../../../base/common/map.js';
 import { autorun, observableSignalFromEvent } from '../../../../../../base/common/observable.js';
 import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
@@ -18,7 +19,7 @@ import { IHoverService } from '../../../../../../platform/hover/browser/hover.js
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { defaultButtonStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
-import { getToolResultImageResources } from '../../../common/chatImageExtraction.js';
+import { getChatImageResourceComparisonKey, getToolResultImageResources } from '../../../common/chatImageExtraction.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IChatProgressResponseContent } from '../../../common/model/chatModel.js';
 import { IChatRendererContent, IChatResponseViewModel, isResponseVM } from '../../../common/model/chatViewModel.js';
@@ -68,8 +69,7 @@ function getStatus(tool: ImageTool): ImageStatus {
 interface IBatchViewState {
 	selected?: string;
 	selectedByUser: boolean;
-	previewHeight?: number;
-	previewWidth?: number;
+	readonly imageDimensions: ResourceMap<dom.IDimension>;
 }
 
 interface IImageSlot {
@@ -96,14 +96,12 @@ export class ChatImageGenerationBatchPart extends Disposable implements IChatCon
 	readonly domNode = dom.$('.chat-image-generation-batch');
 	private readonly selectedTool = dom.append(this.domNode, dom.$('.chat-image-generation-batch-tool'));
 	private readonly preview = dom.append(this.domNode, dom.$('.chat-image-generation-batch-preview'));
-	private readonly previewMessage = dom.$('.chat-image-generation-batch-preview-message');
 	private readonly summary = dom.append(this.domNode, dom.$('.chat-image-generation-batch-summary', { role: 'status', 'aria-live': 'polite', 'aria-atomic': 'true' }));
 	private readonly thumbnails = dom.$('.chat-image-generation-batch-thumbnails', { role: 'group', 'aria-label': localize('chat.imageBatch.thumbnails', "Generated image previews") });
 	private readonly scrollable = this._register(new DomScrollableElement(this.thumbnails, { horizontal: ScrollbarVisibility.Auto, vertical: ScrollbarVisibility.Hidden }));
 	private readonly confirmations = dom.append(this.domNode, dom.$('.chat-image-generation-batch-confirmations'));
 	private readonly loading = this._register(new MutableDisposable<IDisposable>());
 	private readonly previewWidget = this._register(new MutableDisposable<ChatResourceGroupWidget>());
-	private readonly layoutAfterLoad = this._register(new MutableDisposable<IDisposable>());
 	private readonly layoutAfterResize = this._register(new MutableDisposable<IDisposable>());
 	private readonly thumbnailItems = this._register(new DisposableMap<string, IThumbnail>());
 	private readonly toolParts = this._register(new DisposableMap<string, IChatContentPart>());
@@ -113,8 +111,6 @@ export class ChatImageGenerationBatchPart extends Disposable implements IChatCon
 	private readonly viewState: IBatchViewState;
 	private slots: IImageSlot[] = [];
 	private previewKey: string | undefined;
-	private previewImage: HTMLImageElement | undefined;
-	private previewGallery: HTMLElement | undefined;
 	private tools: ImageTool[] = [];
 
 	get codeblocks(): IChatCodeBlockInfo[] {
@@ -132,7 +128,10 @@ export class ChatImageGenerationBatchPart extends Disposable implements IChatCon
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
-		this.viewState = ChatImageGenerationBatchPart.viewStates.get(response) ?? { selectedByUser: false };
+		this.viewState = ChatImageGenerationBatchPart.viewStates.get(response) ?? {
+			selectedByUser: false,
+			imageDimensions: new ResourceMap<dom.IDimension>(getChatImageResourceComparisonKey),
+		};
 		ChatImageGenerationBatchPart.viewStates.set(response, this.viewState);
 		this.summary.before(this.scrollable.getDomNode());
 		this._register(this.hoverService.setupDelayedHover(this.summary, () => ({ content: this.summary.textContent ?? '' })));
@@ -151,19 +150,8 @@ export class ChatImageGenerationBatchPart extends Disposable implements IChatCon
 				this.thumbnailItems.get(this.slots[next].key)?.button.element.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 			}
 		}));
-		this._register(dom.addDisposableListener(this.preview, dom.EventType.LOAD, event => {
-			if (event.target instanceof dom.getWindow(this.preview).HTMLImageElement) {
-				this.previewImage = event.target;
-			}
-			this.layoutAfterLoad.value = dom.scheduleAtNextAnimationFrame(dom.getWindow(this.preview), () => {
-				if (!this.domNode.classList.contains('chat-image-reveal-pending') && !this.domNode.classList.contains('chat-image-reveal-running')) {
-					this.lockPreviewHeight();
-				}
-			});
-		}, true));
 		const resizeObserver = this._register(new dom.DisposableResizeObserver('ChatImageGenerationBatch', () => {
 			this.layoutAfterResize.value = dom.scheduleAtNextAnimationFrame(dom.getWindow(this.domNode), () => {
-				this.updatePreviewHeight();
 				this.scrollable.scanDomNode();
 				this._onDidChangeHeight.fire();
 			});
@@ -341,7 +329,6 @@ export class ChatImageGenerationBatchPart extends Disposable implements IChatCon
 				this.clearPreview();
 			}
 			if (selected?.status === 'running') {
-				this.previewMessage.remove();
 				if (!this.loading.value) {
 					const store = this.loading.value = new DisposableStore();
 					const placeholder = dom.append(this.preview, dom.$('.chat-image-generation-placeholder', { 'aria-hidden': 'true' }));
@@ -351,12 +338,6 @@ export class ChatImageGenerationBatchPart extends Disposable implements IChatCon
 				}
 			} else {
 				this.loading.clear();
-				this.previewMessage.textContent = selected?.status === 'waiting'
-					? localize('chat.imageBatch.selectedWaiting', "This image needs your attention.")
-					: selected?.status === 'cancelled'
-						? localize('chat.imageBatch.selectedCancelled', "Image generation cancelled")
-						: localize('chat.imageBatch.selectedFailed', "Image generation failed");
-				this.preview.appendChild(this.previewMessage);
 			}
 			return;
 		}
@@ -370,43 +351,18 @@ export class ChatImageGenerationBatchPart extends Disposable implements IChatCon
 		const widget = this.previewWidget.value = this.instantiationService.createInstance(ChatResourceGroupWidget, [selected.part], {
 			imagePresentation: 'inline',
 			showImageInHover: false,
-			imageReveal: reveal ? { container: this.domNode, onDidFinish: () => this.lockPreviewHeight() } : undefined,
+			imageReveal: reveal ? { container: this.domNode } : undefined,
+			imageDimensions: this.viewState.imageDimensions,
 		});
-		const gallery = this.previewGallery = dom.append(this.preview, dom.$('.chat-generated-image-result', undefined, widget.domNode));
+		const gallery = dom.append(this.preview, dom.$('.chat-generated-image-result', undefined, widget.domNode));
 		gallery.classList.add('chat-image-generation-batch-selected');
-		this.updatePreviewHeight();
 		this._onDidChangeHeight.fire();
 	}
 
 	private clearPreview(): void {
-		this.layoutAfterLoad.clear();
-		this.previewImage = undefined;
 		this.previewKey = undefined;
-		this.previewGallery = undefined;
 		this.previewWidget.clear();
 		dom.clearNode(this.preview);
-	}
-
-	private lockPreviewHeight(): void {
-		if (this._store.isDisposed || this.viewState.previewHeight) {
-			return;
-		}
-		const height = this.previewImage?.naturalWidth ? this.preview.getBoundingClientRect().height : undefined;
-		if (height) {
-			this.viewState.previewHeight = height;
-			this.viewState.previewWidth = this.preview.clientWidth;
-			this.updatePreviewHeight();
-			this._onDidChangeHeight.fire();
-		}
-	}
-
-	private updatePreviewHeight(): void {
-		if (this.viewState.previewHeight && this.preview.clientWidth) {
-			const scale = Math.min(1, this.preview.clientWidth / (this.viewState.previewWidth || this.preview.clientWidth));
-			const height = `${this.viewState.previewHeight * scale}px`;
-			this.preview.style.height = height;
-			this.previewGallery?.style.setProperty('--chat-generated-image-max-height', `min(60vh, ${height})`);
-		}
 	}
 
 	private updateToolRow(): void {
