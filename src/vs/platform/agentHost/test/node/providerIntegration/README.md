@@ -20,6 +20,12 @@ Run one suite with:
 ./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/providerIntegration/copilotOtel.integrationTest.ts
 ```
 
+`copilotByokSelectionIds.integrationTest.ts` pins the SDK contract behind `getByokLmAgentModelId` and `isByokLmAgentModelId`: the bundled runtime lists and selects BYOK models registered through the production `synthesizeByokSessionConfig` under the agent host's `provider/[group/]id` ids, and its Copilot model ids never contain `/`. The utility model service relies on that shape to keep a retained BYOK selection off the Copilot route while the renderer is disconnected, so an SDK change to either id format should fail here first. It needs no Copilot sign-in. Run it with:
+
+```bash
+./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/providerIntegration/copilotByokSelectionIds.integrationTest.ts
+```
+
 `copilotManagedPermissions.integrationTest.ts` exercises the default-on legacy bridge
 against the bundled runtime with an isolated synthetic BYOK model. It checks URL
 denials and terminal managed asks on create, cold resume, and removal, preserving

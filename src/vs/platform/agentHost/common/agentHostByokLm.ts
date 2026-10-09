@@ -197,6 +197,10 @@ export function getByokLmAgentModelId(model: IByokLmModelInfo): string {
  * {@link getByokLmAgentModelId} (`vendor/[group/]id`). Copilot API model ids
  * are single segments, so this identifies a retained BYOK selection even after
  * the model has left the live catalog (for example, the renderer disconnected).
+ *
+ * This relies on the Copilot SDK listing BYOK models under the provider-qualified
+ * selection id `provider/id` and CAPI models under bare ids. That contract is
+ * pinned against the bundled runtime by `copilotByokSelectionIds.integrationTest.ts`.
  */
 export function isByokLmAgentModelId(modelId: string): boolean {
 	return modelId.includes('/');
