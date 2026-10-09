@@ -1569,7 +1569,7 @@ export class AICustomizationListWidget extends Disposable {
 						}
 						break;
 					case 'remote-client':
-						label = localize('remoteClientGroupShort', "Local");
+						label = localize('remoteClientGroupShort', "This Computer");
 						if (this.currentSection === AICustomizationManagementSection.Skills) {
 							description = localize(
 								'localSkillsGroupDescription',

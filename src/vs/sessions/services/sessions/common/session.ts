@@ -233,7 +233,7 @@ export interface ISessionWorkspace {
 	/**
 	 * Optional group label for categorizing this workspace in pickers. The
 	 * workspace picker uses this to bucket entries into top-level tabs
-	 * (e.g. `"Local"`, `"Cloud"`, `"Remote"`). Providers contribute the
+	 * (e.g. `"This Computer"`, `"Cloud"`, `"Remote"`). Providers contribute the
 	 * label — the picker just renders whatever values are present.
 	 */
 	readonly group?: string;
@@ -984,7 +984,7 @@ export interface ISessionCapabilities {
  * `ISessionWorkspaceBrowseAction`; the picker discovers tabs from the union
  * of contributed values.
  */
-export const SESSION_WORKSPACE_GROUP_LOCAL = localize('sessionWorkspaceGroup.local', "Local");
+export const SESSION_WORKSPACE_GROUP_LOCAL = localize('sessionWorkspaceGroup.local', "This Computer");
 export const SESSION_WORKSPACE_GROUP_GITHUB = localize('sessionWorkspaceGroup.github', "GitHub");
 export const SESSION_WORKSPACE_GROUP_REMOTE = localize('sessionWorkspaceGroup.remote', "Remote");
 
@@ -1006,7 +1006,7 @@ export interface ISessionWorkspaceBrowseAction {
 	readonly description?: string;
 	/**
 	 * Optional group label used by the workspace picker to bucket browse
-	 * actions into top-level tabs (e.g. `"Local"`, `"Cloud"`, `"Remote"`).
+	 * actions into top-level tabs (e.g. `"This Computer"`, `"Cloud"`, `"Remote"`).
 	 * Providers contribute the label — the picker dynamically renders tabs
 	 * for whichever values are present and filters items accordingly.
 	 */

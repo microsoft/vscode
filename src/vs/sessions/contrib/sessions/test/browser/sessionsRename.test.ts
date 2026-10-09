@@ -932,7 +932,7 @@ suite('Sessions rename', () => {
 				hasDevContainerAvailability: content.includes('Docker is available on the host') && content.includes('a local, SSH, Tunnel, or WSL folder contains a Dev Container configuration'),
 				hasRemoteDevContainerPrerequisite: content.includes('first connect to a host that supports Dev Container sessions'),
 				hasWslDevContainerPrerequisite: content.includes('Docker must be available in the WSL distribution'),
-				hasDevContainerModeSwitch: content.includes('Choose Use Local or Use Remote Host to switch back'),
+				hasDevContainerModeSwitch: content.includes('Choose Use This Computer or Use Remote Host to switch back'),
 				hasDevContainerExecution: content.includes('Dev Container Agent Host sessions are enabled'),
 				hasNoBackgroundOption: content.includes('choose no background'),
 				hasPetAchievements: content.includes('View Achievements'),

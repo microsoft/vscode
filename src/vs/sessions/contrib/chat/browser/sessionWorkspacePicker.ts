@@ -321,7 +321,7 @@ export class WorkspacePicker extends Disposable {
 
 	/**
 	 * Currently active workspace tab (a group label contributed by a
-	 * provider, e.g. `"Local"` / `"Cloud"` / `"Remote"`).
+	 * provider, e.g. `"This Computer"` / `"Cloud"` / `"Remote"`).
 	 */
 	private _activeTab: string | undefined;
 
@@ -1640,7 +1640,7 @@ export class WorkspacePicker extends Disposable {
 				toAction({
 					id: `${actionId}.host`,
 					label: workspace.group === SESSION_WORKSPACE_GROUP_LOCAL
-						? localize('workspacePicker.devContainer.local', "Use Local")
+						? localize('workspacePicker.devContainer.local', "Use This Computer")
 						: localize('workspacePicker.devContainer.remote', "Use Remote Host"),
 					tooltip: '',
 					checked: !usingDevContainer,

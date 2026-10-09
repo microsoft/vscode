@@ -20,14 +20,14 @@ suite('SessionsListFilters', () => {
 		return store.add(new SessionsListFilters(storage, store.add(new NullLogService())));
 	}
 
-	test('always offers the three harnesses, Local and Cloud, and their VS Code application choices', () => {
+	test('always offers the three harnesses, This Computer and Cloud, and their VS Code application choices', () => {
 		assert.deepStrictEqual(getSessionFilterOptions([], []), [
 			{ filter: { kind: 'harness', id: 'copilot' }, label: 'Copilot', group: '1_harnesses' },
 			{ filter: { kind: 'harness', id: 'claude' }, label: 'Claude', group: '1_harnesses' },
 			{ filter: { kind: 'harness', id: 'codex' }, label: 'Codex', group: '1_harnesses' },
-			{ filter: { kind: 'environment', id: 'local' }, label: 'Local', group: '2_environments' },
+			{ filter: { kind: 'environment', id: 'local' }, label: 'This Computer', group: '2_environments' },
 			{ filter: { kind: 'environment', id: 'cloud' }, label: 'Cloud', group: '2_environments' },
-			{ filter: { kind: 'application', environment: 'local', id: 'vscode' }, label: 'VS Code (Local)', group: '3_applications_000000' },
+			{ filter: { kind: 'application', environment: 'local', id: 'vscode' }, label: 'VS Code (This Computer)', group: '3_applications_000000' },
 			{ filter: { kind: 'application', environment: 'cloud', id: 'vscode' }, label: 'VS Code (Cloud)', group: '3_applications_000001' },
 		]);
 	});
@@ -47,8 +47,8 @@ suite('SessionsListFilters', () => {
 			environments: options.filter(option => option.filter.kind === 'environment').map(option => option.label),
 			applications: options.filter(option => option.filter.kind === 'application').map(option => option.label),
 		}, {
-			environments: ['Local', 'Cloud', 'Connected Host'],
-			applications: ['VS Code (Local)', 'Custom Cloud App (Cloud)', 'VS Code (Cloud)', 'Copilot CLI (Cached Host)', 'VS Code (Cached Host)', 'VS Code (Connected Host)'],
+			environments: ['This Computer', 'Cloud', 'Connected Host'],
+			applications: ['VS Code (This Computer)', 'Custom Cloud App (Cloud)', 'VS Code (Cloud)', 'Copilot CLI (Cached Host)', 'VS Code (Cached Host)', 'VS Code (Connected Host)'],
 		});
 	});
 
@@ -140,10 +140,10 @@ suite('SessionsListFilters', () => {
 		remote.application.set(getSessionApplication('github/cli'), undefined);
 		catalog.set([local.session], undefined);
 		assert.deepStrictEqual(snapshots, [
-			['2_environments: Local', '2_environments: Cloud', '2_environments: Workstation', '3_applications_000000: VS Code (Local)', '3_applications_000001: VS Code (Cloud)', '3_applications_000002: VS Code (Workstation)'],
-			['2_environments: Local', '2_environments: Cloud', '3_applications_000000: VS Code (Local)', '3_applications_000001: VS Code (Cloud)', '3_applications_000002: VS Code (Workstation)'],
-			['2_environments: Local', '2_environments: Cloud', '3_applications_000000: VS Code (Local)', '3_applications_000001: VS Code (Cloud)', '3_applications_000002: Copilot CLI (Workstation)', '3_applications_000002: VS Code (Workstation)'],
-			['2_environments: Local', '2_environments: Cloud', '3_applications_000000: VS Code (Local)', '3_applications_000001: VS Code (Cloud)'],
+			['2_environments: This Computer', '2_environments: Cloud', '2_environments: Workstation', '3_applications_000000: VS Code (This Computer)', '3_applications_000001: VS Code (Cloud)', '3_applications_000002: VS Code (Workstation)'],
+			['2_environments: This Computer', '2_environments: Cloud', '3_applications_000000: VS Code (This Computer)', '3_applications_000001: VS Code (Cloud)', '3_applications_000002: VS Code (Workstation)'],
+			['2_environments: This Computer', '2_environments: Cloud', '3_applications_000000: VS Code (This Computer)', '3_applications_000001: VS Code (Cloud)', '3_applications_000002: Copilot CLI (Workstation)', '3_applications_000002: VS Code (Workstation)'],
+			['2_environments: This Computer', '2_environments: Cloud', '3_applications_000000: VS Code (This Computer)', '3_applications_000001: VS Code (Cloud)'],
 		]);
 	});
 
@@ -167,7 +167,7 @@ suite('SessionsListFilters', () => {
 			visible: restored.matches(session),
 			localChoice: restored.isExcluded({ kind: 'application', environment: 'local', id: 'github/cli' }),
 		}, {
-			absentApplications: ['VS Code (Local)', 'VS Code (Cloud)', 'VS Code (Old Name)'],
+			absentApplications: ['VS Code (This Computer)', 'VS Code (Cloud)', 'VS Code (Old Name)'],
 			label: 'Copilot CLI (New Name)',
 			excluded: true,
 			visible: false,

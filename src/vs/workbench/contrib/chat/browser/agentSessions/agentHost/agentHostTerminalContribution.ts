@@ -132,7 +132,7 @@ export class AgentHostTerminalContribution extends Disposable implements IWorkbe
 	private _registerLocalEntry(): void {
 		if (!this._localEntry.value) {
 			this._localEntry.value = this._agentHostTerminalService.registerEntry({
-				name: localize('agentHostTerminal.local', "Local"),
+				name: localize('agentHostTerminal.local', "This Computer"),
 				address: '__local__',
 				getConnection: () => this._agentHostService,
 			});

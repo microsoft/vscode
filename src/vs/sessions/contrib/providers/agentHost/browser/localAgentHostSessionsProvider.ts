@@ -73,7 +73,7 @@ const LOCAL_AGENT_HOST_CACHED_SESSIONS_STORAGE_KEYS_LEGACY = ['localAgentHost.ca
 export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSessionsProvider {
 
 	readonly id = LOCAL_AGENT_HOST_PROVIDER_ID;
-	readonly environment = { id: 'local', label: localize('environment.local', "Local") };
+	readonly environment = { id: 'local', label: localize('environment.local', "This Computer") };
 	readonly label: string;
 	readonly automations: ISessionsProviderAutomations;
 	readonly icon: ThemeIcon = Codicon.vm;
