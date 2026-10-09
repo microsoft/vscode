@@ -814,10 +814,15 @@ export interface IMissionControlOptions {
 	readonly accountId: string;
 	readonly credential: string;
 	readonly roots: readonly string[];
+	/** Catalogue entries, separate from filesystem grants. Defaults to the granted roots when omitted. */
+	readonly projects?: readonly string[];
+	readonly defaultDirectory?: string;
 	readonly live?: boolean;
 	readonly requireConnectionBinding?: boolean;
 	/** Explicit host-owner opt-in; validated relay clients use the local credential for Copilot authentication. */
 	readonly useLocalCredentials?: boolean;
+	/** Explicit host-owner testing override; omit device remote-control policy from Mission Control registration. */
+	readonly ignoreRemoteControlPolicy?: boolean;
 }
 
 /** Stateless sealing on trusted local IPC; this surface is not exposed through AHP. */

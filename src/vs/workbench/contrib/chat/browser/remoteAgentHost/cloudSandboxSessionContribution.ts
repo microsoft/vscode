@@ -66,6 +66,7 @@ export interface ICloudSandboxSessionEnvironment {
 	readonly taskId?: string;
 	readonly name: string;
 	readonly repoName?: string;
+	readonly hasRepository?: boolean;
 	readonly updatedAt?: string;
 	readonly isArchived?: boolean;
 }
@@ -79,6 +80,7 @@ function isDiscoveredSandboxSession(value: unknown): value is ICloudSandboxDisco
 		&& typeof candidate.name === 'string'
 		&& (candidate.eventType === undefined || typeof candidate.eventType === 'string')
 		&& (candidate.repoName === undefined || typeof candidate.repoName === 'string')
+		&& (candidate.hasRepository === undefined || typeof candidate.hasRepository === 'boolean')
 		&& (candidate.updatedAt === undefined || typeof candidate.updatedAt === 'string')
 		&& (candidate.isArchived === undefined || typeof candidate.isArchived === 'boolean');
 }
@@ -100,7 +102,7 @@ export function discoveredSessionProject(repoName: string | undefined): IAgentSe
 /** The window-specific list maintained by shared sandbox discovery and activation. */
 export interface ICloudSandboxSessionList extends IDisposable {
 	readonly connectionStatus: IObservable<RemoteAgentHostConnectionStatus>;
-	seedSessions(sessions: readonly IAgentSessionMetadata[], options?: { readonly updateExisting?: boolean }): void;
+	seedSessions(sessions: readonly IAgentSessionMetadata[], options?: { readonly updateExisting?: boolean; readonly workspaceless?: boolean }): void;
 	getSessionModifiedTime(sessionId: string): number | undefined;
 	setLabel?(label: string): void;
 	setConnection(connection: IAgentConnection, defaultDirectory: string | undefined): void;
@@ -373,7 +375,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			summary: session.name,
 			...(session.status !== undefined ? { status: session.status } : {}),
 			...(project ? { project } : {}),
-		}], { updateExisting: true });
+		}], { updateExisting: true, workspaceless: session.hasRepository === undefined ? undefined : !session.hasRepository });
 		if (session.isArchived !== undefined) {
 			provider?.setSessionArchived(session.sessionId, session.isArchived);
 		}
@@ -444,6 +446,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 					eventType: environment.eventType,
 					name: environment.name,
 					repoName: environment.repoName,
+					hasRepository: environment.hasRepository,
 					updatedAt: environment.updatedAt,
 					...(environment.isArchived !== undefined ? { isArchived: environment.isArchived } : {}),
 				};
@@ -854,6 +857,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			taskId: env.taskId ?? known?.taskId,
 			eventType: env.eventType ?? known?.eventType,
 			repoName: env.repoName ?? known?.repoName,
+			hasRepository: env.hasRepository ?? known?.hasRepository,
 			updatedAt: env.updatedAt ?? known?.updatedAt,
 		});
 		if (this._providerStores.has(address)) {

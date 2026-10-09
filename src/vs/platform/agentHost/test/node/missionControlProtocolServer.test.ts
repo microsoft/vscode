@@ -35,6 +35,7 @@ import { basename } from '../../../../base/common/resources.js';
 import { DEFAULT_MAX_CHUNK_BYTES, Reassembler } from '../../common/webPubSub/chunking.js';
 import { parseInbound } from '../../common/webPubSub/framing.js';
 import type { ProtocolMessage } from '../../common/state/sessionProtocol.js';
+import type { IMissionControlOptions } from '../../common/agentService.js';
 
 const prefix = 'user.owner.env.environment';
 const order = BigInt('0xffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551');
@@ -1313,11 +1314,12 @@ suite('Mission Control WPS', () => {
 				heartbeats: { time: number; status: string }[];
 				errors: string[];
 				sockets: FakeWpsSocket[];
-				options: { baseUrl: string; live: boolean; accountId: string; credential: string; roots: string[] };
+				options: IMissionControlOptions;
 				changeIdentityAuthority: (base: string) => void;
 				tokens: number[];
 				directory: string;
-				attachments: { initialRoots: readonly string[]; getRoots: () => readonly string[]; rootMeta?: Record<string, unknown>; server: MissionControlProtocolServer }[];
+				attachments: { initialRoots: readonly string[]; getRoots: () => readonly string[]; getProjects: () => readonly string[]; defaultDirectory?: string; rootMeta?: Record<string, unknown>; server: MissionControlProtocolServer }[];
+				readonly projectUpdates: number;
 				signedSpawn: (clientId: string, nonce: string) => object;
 				requests: { path: string; credential: string | null; body?: Record<string, unknown> }[];
 				delayHeartbeat: () => { started: Promise<void>; complete: (response?: Response) => Promise<void> };
@@ -1326,6 +1328,10 @@ suite('Mission Control WPS', () => {
 			}) => Promise<void>,
 			bootstrapLifetime?: number,
 			openWorkspace = false,
+			overrides: {
+				ignoreRemoteControlPolicy?: boolean;
+				getRemoteControlPolicy?: () => Promise<Record<string, unknown> | undefined>;
+			} = {},
 		): Promise<void> {
 			const path = await mkdtemp(join(process.cwd(), '.build', 'mission-control-retry-after-'));
 			const clock = sinon.useFakeTimers({ now: Date.UTC(2026, 9, 2), toFake: ['Date', 'setTimeout', 'clearTimeout'] });
@@ -1337,7 +1343,8 @@ suite('Mission Control WPS', () => {
 				const sockets: FakeWpsSocket[] = [];
 				const tokens: number[] = [];
 				const requests: { path: string; credential: string | null; body?: Record<string, unknown> }[] = [];
-				const attachments: { initialRoots: readonly string[]; getRoots: () => readonly string[]; rootMeta?: Record<string, unknown>; server: MissionControlProtocolServer }[] = [];
+				const attachments: { initialRoots: readonly string[]; getRoots: () => readonly string[]; getProjects: () => readonly string[]; defaultDirectory?: string; rootMeta?: Record<string, unknown>; server: MissionControlProtocolServer }[] = [];
+				let projectUpdates = 0;
 				let delayedHeartbeat: { started: DeferredPromise<void>; response: DeferredPromise<Response> } | undefined;
 				let delayedIdentity: { started: DeferredPromise<void>; response: DeferredPromise<Response> } | undefined;
 				let policy: Record<string, unknown> | undefined;
@@ -1383,10 +1390,11 @@ suite('Mission Control WPS', () => {
 						}
 						return Response.json(url.pathname === '/user' ? { id: 123, type: 'User' } : url.pathname.endsWith('/jwks.json') ? { keys: [key] } : environment);
 					},
-					attach: (server, initialRoots, getRoots) => {
-						attachments.push({ initialRoots, getRoots, rootMeta: server.rootMeta, server });
+					attach: (server, initialRoots, getRoots, getProjects, defaultDirectory) => {
+						attachments.push({ initialRoots, getRoots, getProjects, defaultDirectory, rootMeta: server.rootMeta, server });
 						return { dispose() { } };
 					},
+					updateProjects: async () => { projectUpdates++; },
 					onError: error => errors.push(error instanceof Error ? error.message : String(error)),
 					socketFactory: () => {
 						const socket = new FakeWpsSocket();
@@ -1394,16 +1402,17 @@ suite('Mission Control WPS', () => {
 						queueMicrotask(() => socket.emit('message', JSON.stringify({ type: 'system', event: 'connected' })));
 						return socket;
 					},
-					getRemoteControlPolicy: async () => policy,
+					getRemoteControlPolicy: overrides.getRemoteControlPolicy ?? (async () => policy),
 					getIdentityApiBase: () => identityApiBase,
 					onDidChangeIdentityAuthority: identityAuthorityChanged.event,
 					onDidChangeRemoteControlPolicy: policyChanged.event
 				}
 				));
-				const options = { baseUrl: 'https://api.github.com', live: true, accountId: '123', credential: 'fake-token', roots: openWorkspace ? [path] : [] };
+				const options: IMissionControlOptions = { baseUrl: 'https://api.github.com', live: true, accountId: '123', credential: 'fake-token', roots: openWorkspace ? [path] : [], ...(overrides.ignoreRemoteControlPolicy ? { ignoreRemoteControlPolicy: true } : {}) };
 				await service.configure(options);
 				await run({
 					service, clock, heartbeats, errors, sockets, options, tokens, directory: path, attachments, requests, signedSpawn: signed,
+					get projectUpdates() { return projectUpdates; },
 					delayHeartbeat: () => {
 						const started = new DeferredPromise<void>();
 						const response = new DeferredPromise<Response>();
@@ -1483,6 +1492,29 @@ suite('Mission Control WPS', () => {
 				assert.deepStrictEqual(await disabled.relayAuthenticate!({ resource, token: remoteToken }), { resource, token: 'mobile-token' });
 				await service.configure(undefined, options.accountId);
 				await assert.rejects(disabled.relayAuthenticate!({ resource, token: remoteToken }), /closed/);
+			});
+		});
+
+		test('updates canonical project folders without widening home grants or reconnecting the relay', async () => {
+			await withEnvironment([], async f => {
+				const home = realpathSync(f.directory);
+				const defaultDirectory = await mkdtemp(join(home, '.copilot-'));
+				const project = await mkdtemp(join(home, 'project-'));
+				await f.service.configure({ ...f.options, roots: [home], projects: [project], defaultDirectory });
+				const attachment = f.attachments.at(-1)!;
+				const before = { projects: attachment.getProjects(), defaultDirectory: attachment.defaultDirectory };
+				const sockets = f.sockets.length;
+				await f.service.configure({ ...f.options, roots: [home], projects: [], defaultDirectory });
+				assert.deepStrictEqual({
+					before,
+					projects: attachment.getProjects(),
+					grants: attachment.getRoots(),
+					newConnections: f.sockets.length - sockets,
+					projectUpdates: f.projectUpdates,
+				}, {
+					before: { projects: [realpathSync(project)], defaultDirectory: realpathSync(defaultDirectory) },
+					projects: [], grants: [home], newConnections: 0, projectUpdates: 2,
+				});
 			});
 		});
 
@@ -1886,6 +1918,53 @@ suite('Mission Control WPS', () => {
 					heartbeats: [{ time: 0, status: 'online' }, { time: 300_000, status: 'online' }],
 					sockets: 1, errors: [],
 				});
+			});
+		});
+
+		test('omits device policy only while opted in and fences existing lanes on override changes', async () => {
+			await withEnvironment([], async ({ service, options, changePolicy, requests, sockets, errors }) => {
+				const policy = { mode: 'disabled' };
+				await changePolicy(policy);
+				await service.configure({ ...options, ignoreRemoteControlPolicy: true });
+				const ignored = sockets[1];
+				await service.configure({ ...options, ignoreRemoteControlPolicy: true });
+				await service.configure({ ...options, ignoreRemoteControlPolicy: false });
+				assert.deepStrictEqual({
+					policies: requests.filter(request => request.path.endsWith('/register')).map(request => request.body?.managed_settings),
+					sockets: sockets.length,
+					initialClosed: sockets[0].closed,
+					ignoredClosed: ignored.closed,
+					restoredClosed: sockets[2].closed,
+					errors,
+				}, {
+					policies: [undefined, { remoteControl: policy }, undefined, { remoteControl: policy }],
+					sockets: 3, initialClosed: true, ignoredClosed: true, restoredClosed: false, errors: [],
+				});
+			});
+		});
+
+		test('explicit policy override skips failed device reads on registration and heartbeat', async () => {
+			let policyReads = 0;
+			await withEnvironment([], async ({ clock, requests, service, options, sockets, errors }) => {
+				await clock.tickAsync(60_000);
+				const beforeRestoring = {
+					policyReads,
+					policies: requests.filter(request => request.path.endsWith('/register')).map(request => request.body?.managed_settings),
+					errors: [...errors],
+				};
+				await assert.rejects(service.configure({ ...options, ignoreRemoteControlPolicy: false }), /Device policy unavailable/);
+				assert.deepStrictEqual({
+					beforeRestoring, policyReads, socketsClosed: sockets.map(socket => socket.closed),
+				}, {
+					beforeRestoring: { policyReads: 0, policies: [undefined], errors: [] },
+					policyReads: 1, socketsClosed: [true],
+				});
+			}, undefined, false, {
+				ignoreRemoteControlPolicy: true,
+				getRemoteControlPolicy: async () => {
+					policyReads++;
+					throw new Error('Device policy unavailable');
+				},
 			});
 		});
 	});

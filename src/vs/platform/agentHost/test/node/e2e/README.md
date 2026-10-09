@@ -296,7 +296,7 @@ with the marker when the upstream fix is adopted.
 
 The native inherited-identity redaction scenario runs this way by default.
 Its expected-failure marker remains accountable in `KNOWN_ISSUES.md`; the
-managed-telemetry no-restart scenario passes normally with runtime `1.0.94-5`.
+managed-telemetry no-restart scenario passes normally with runtime `1.0.95-0`.
 Do not replace an expected-failure marker with a permanent negative assertion.
 
 If a recognized failure prevents later model turns, pass
@@ -697,6 +697,10 @@ Turn completion precedes the unread lifecycle action. Use `waitForChatTurnComple
 ### A later test fails on unexpected console output after a snapshot mismatch
 
 Check for a `Deleting 1 old snapshots` message from the preceding test. A previous failed iteration leaves a diagnostic `.actual` file; a passing iteration removes it. Diagnostic cleanup must not report a baseline mutation, which CI correctly rejects. The snapshot helper cleans these artifacts silently while continuing to report removal of actual baselines.
+
+### CI truncates a prompt or AHP snapshot difference
+
+The reporter can truncate large comparisons at 8192 characters. Failed prompt and AHP comparisons retain the complete, already-normalized `.expected` and `.actual` strings under `.build/logs/integration-tests/agent-host-e2e-snapshots-<pid>/`, which is included in the uploaded logs artifact. Compare those files locally; a later passing assertion does not remove the retained evidence. The original mismatch still fails the test, and artifact-write failures report both errors. Raw provider requests and credentials are not added to these files.
 
 ### CI infra flakes (not your code)
 

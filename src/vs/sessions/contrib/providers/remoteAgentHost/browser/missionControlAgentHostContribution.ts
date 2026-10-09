@@ -17,7 +17,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { cloudSandboxAddress, cloudSandboxEnvironmentId } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
-import { IMissionControlEnvironmentService } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { IMissionControlEnvironmentService, IMissionControlSharingService } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IRemoteAgentHostService, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, type IRemoteAgentHostEntry } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
@@ -25,10 +25,13 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../w
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { EntryDrivenProviderContribution, type IEntryDrivenProviderOptions } from './entryDrivenProviderContribution.js';
 import { Menus } from '../../../../browser/menus.js';
-import { ConnectMissionControlEnvironmentCommand } from '../../../../../workbench/contrib/chat/browser/remoteAgentHost/missionControlEnvironmentActions.js';
 import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvider.js';
 import { IUserDataProfileService } from '../../../../../workbench/services/userDataProfile/common/userDataProfile.js';
+import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
+import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../chat/common/constants.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { RemoteAgentHostCommandIds } from './remoteAgentHostActions.js';
 
 /** User-local MC hosts use the native provider, never the sandbox's task-history adapter. */
 export class MissionControlAgentHostContribution extends EntryDrivenProviderContribution {
@@ -48,9 +51,23 @@ export class MissionControlAgentHostContribution extends EntryDrivenProviderCont
 		@IAgentHostFilterService filterService: IAgentHostFilterService,
 		@ILogService private readonly _logService: ILogService,
 		@IUserDataProfileService private readonly _profileService: IUserDataProfileService,
+		@ISessionsRecentWorkspacesService recentWorkspacesService: ISessionsRecentWorkspacesService,
+		@IMissionControlSharingService sharingService: IMissionControlSharingService,
 		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		super(remoteAgentHostService, configurationService, instantiationService, sessionsProvidersService, notificationService);
+		const updateProjects = () => sharingService.setProjectFolders(recentWorkspacesService
+			.getRecentWorkspaces(true, configurationService.getValue<boolean>(UNIFIED_WORKSPACE_PICKER_SETTING))
+			.flatMap(recent => recent.workspace.folders.map(folder => folder.root))
+			.filter(folder => folder.scheme === Schemas.file));
+		this._register(recentWorkspacesService.onDidChangeRecentWorkspaces(updateProjects));
+		this._register(sessionsProvidersService.onDidChangeProviders(updateProjects));
+		this._register(configurationService.onDidChangeConfiguration(event => {
+			if (event.affectsConfiguration(UNIFIED_WORKSPACE_PICKER_SETTING)) {
+				updateProjects();
+			}
+		}));
+		updateProjects();
 		this._register(remoteAgentHostService.onDidChangeConfiguredEntries(() => this._reconcile()));
 		this._register(remoteAgentHostService.onDidChangeConnections(() => this._reconcile()));
 		this._register(configurationService.onDidChangeConfiguration(e => {
@@ -251,7 +268,7 @@ export class MissionControlAgentHostContribution extends EntryDrivenProviderCont
 
 registerWorkbenchContribution2(MissionControlAgentHostContribution.ID, MissionControlAgentHostContribution, WorkbenchPhase.AfterRestored);
 MenuRegistry.appendMenuItem(Menus.SessionWorkspaceManage, {
-	command: { id: ConnectMissionControlEnvironmentCommand, title: localize('connectMissionControlHost', "Environments"), icon: Codicon.remote },
+	command: { id: RemoteAgentHostCommandIds.connectViaMissionControl, title: localize('connectMissionControlHost', "Environments"), icon: Codicon.remote },
 	when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.not('config.chat.disableAIFeatures'), ContextKeyExpr.equals(`config.${RemoteAgentHostsEnabledSettingId}`, true)),
 	group: '1_add',
 	order: 5,

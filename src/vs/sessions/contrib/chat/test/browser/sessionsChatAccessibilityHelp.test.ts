@@ -176,13 +176,14 @@ suite('SessionsChatAccessibilityHelp', () => {
 			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiation)).provideContent();
 			assert.deepStrictEqual({
 				discoveryHelp: content.includes('choose Environments to discover your environments'),
+				folderBrowsing: content.includes('then select a folder on that host.'),
 				refreshHelp: content.includes('Tab reaches Refresh Environments.'),
 				hiddenHelp: content.includes('Hide in This Profile') || content.includes('Restore Host'),
 				githubEnvironment: content.includes('GitHub environment'),
 				sharingKeyboard: content.includes('Enter or Space to enable or disable sharing'),
 				backendSetting: content.includes('chat.agentHost.remoteConnections'),
 			}, {
-				discoveryHelp: enabled, refreshHelp: enabled, hiddenHelp: false,
+				discoveryHelp: enabled, folderBrowsing: enabled, refreshHelp: enabled, hiddenHelp: false,
 				githubEnvironment: !hidden && !aiDisabled, sharingKeyboard: !hidden && !aiDisabled, backendSetting: !hidden && !aiDisabled,
 			});
 		});

@@ -9,10 +9,11 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
-import { mock } from '../../../../../../base/test/common/mock.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
-import { IMissionControlEnvironmentService, IMissionControlHost } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { IMissionControlEnvironmentService, IMissionControlHost, IMissionControlSharingService } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -33,6 +34,10 @@ import { InMemoryStorageService, IStorageService } from '../../../../../../platf
 import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ConnectMissionControlEnvironmentCommand } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/missionControlEnvironmentActions.js';
 import { Menus } from '../../../../../browser/menus.js';
+import { RemoteAgentHostCommandIds } from '../../browser/remoteAgentHostActions.js';
+import { IRecentWorkspace, ISessionsRecentWorkspacesService } from '../../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
+import { ISessionWorkspace } from '../../../../../services/sessions/common/session.js';
+import { UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../../chat/common/constants.js';
 
 class TestProvider extends mock<RemoteAgentHostSessionsProvider>() {
 	override readonly connectionStatus = observableValue<RemoteAgentHostConnectionStatus>(this, RemoteAgentHostConnectionStatus.disconnected);
@@ -51,8 +56,11 @@ suite('Mission Control native provider inventory', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('labels the remote picker entry and connect command as Environments', () => {
-		const labels = [Menus.SessionWorkspaceManage, MenuId.CommandPalette].map(menu => {
-			const item = MenuRegistry.getMenuItems(menu).filter(isIMenuItem).find(item => item.command.id === ConnectMissionControlEnvironmentCommand);
+		const labels = [
+			{ menu: Menus.SessionWorkspaceManage, command: RemoteAgentHostCommandIds.connectViaMissionControl },
+			{ menu: MenuId.CommandPalette, command: ConnectMissionControlEnvironmentCommand },
+		].map(({ menu, command }) => {
+			const item = MenuRegistry.getMenuItems(menu).filter(isIMenuItem).find(item => item.command.id === command);
 			assert.ok(item);
 			return typeof item.command.title === 'string' ? item.command.title : item.command.title.value;
 		});
@@ -72,8 +80,11 @@ suite('Mission Control native provider inventory', () => {
 			context.setValue(ChatContextKeys.enabled.key, chatEnabled);
 			context.setValue(`config.${RemoteAgentHostsEnabledSettingId}`, hostsEnabled);
 			context.setValue('config.chat.disableAIFeatures', aiDisabled);
-			const availability = [MenuId.CommandPalette, Menus.SessionWorkspaceManage].map(menu => {
-				const item = MenuRegistry.getMenuItems(menu).filter(isIMenuItem).find(item => item.command.id === ConnectMissionControlEnvironmentCommand);
+			const availability = [
+				{ menu: MenuId.CommandPalette, command: ConnectMissionControlEnvironmentCommand },
+				{ menu: Menus.SessionWorkspaceManage, command: RemoteAgentHostCommandIds.connectViaMissionControl },
+			].map(({ menu, command }) => {
+				const item = MenuRegistry.getMenuItems(menu).filter(isIMenuItem).find(item => item.command.id === command);
 				assert.ok(item);
 				return (item.when?.evaluate(context) ?? true) && (item.command.precondition?.evaluate(context) ?? true);
 			});
@@ -94,6 +105,21 @@ suite('Mission Control native provider inventory', () => {
 		let account = 'first';
 		const created: { provider: TestProvider; options: IEntryDrivenProviderOptions }[] = [];
 		const actions: string[] = [];
+		const recentChanges = store.add(new Emitter<void>());
+		const providerChanges = store.add(new Emitter<{ added: []; removed: [] }>());
+		let recentFolders: readonly URI[] = [];
+		const sharedProjects: string[][] = [];
+		const recentQueries: { includeVSCode: boolean | undefined; collapseWorktrees: boolean | undefined }[] = [];
+		instantiation.stub(ISessionsRecentWorkspacesService, {
+			onDidChangeRecentWorkspaces: recentChanges.event,
+			getRecentWorkspaces: (includeVSCode, collapseWorktrees) => {
+				recentQueries.push({ includeVSCode, collapseWorktrees });
+				return recentFolders.map(root => upcastPartial<IRecentWorkspace>({
+					workspace: upcastPartial<ISessionWorkspace>({ folders: [{ root, workingDirectory: root, name: 'Folder', description: undefined }] }),
+				}));
+			},
+		});
+		instantiation.stub(IMissionControlSharingService, { setProjectFolders: folders => sharedProjects.push(folders.map(folder => folder.toString())) });
 		const connections = new Map<string, IRemoteAgentHostConnectionInfo>();
 		const connectionsChanged = store.add(new Emitter<void>());
 		let sharedDiscoveries = 0;
@@ -123,7 +149,7 @@ suite('Mission Control native provider inventory', () => {
 		});
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		instantiation.stub(IConfigurationService, configuration);
-		instantiation.stub(ISessionsProvidersService, {});
+		instantiation.stub(ISessionsProvidersService, { onDidChangeProviders: providerChanges.event });
 		instantiation.stub(INotificationService, new TestNotificationService());
 		instantiation.stub(ILogService, store.add(new NullLogService()));
 		instantiation.stub(IAgentHostFilterService, new class extends mock<IAgentHostFilterService>() {
@@ -167,11 +193,32 @@ suite('Mission Control native provider inventory', () => {
 			}
 		}));
 		return {
-			hosts, created, actions, contribution, rediscover, configuration, sharedStartup,
+			hosts, created, actions, contribution, configuration, sharedProjects, recentQueries, providerChanges, rediscover, sharedStartup,
+			setRecentFolders: (folders: readonly URI[]) => { recentFolders = folders; recentChanges.fire(); },
 			getDiscoveryCounts: () => ({ sharedDiscoveries, tunnelDiscoveries, missionControlDiscoveries: actions.filter(action => action === 'discover').length }),
 			changeAccount: () => { hosts.set([], undefined); connections.clear(); account = 'second'; },
 		};
 	}
+
+	test('publishes only local-disk picker recents and updates them when history or picker settings change', async () => {
+		const f = fixture();
+		const first = URI.file('/home/test/code/first');
+		const second = URI.file('/another-drive/second');
+		f.setRecentFolders([first, URI.parse('vscode-agent-host://remote/remote-folder'), URI.parse('vscode-remote://ssh-remote+host/folder'), second]);
+		f.setRecentFolders([second]);
+		f.providerChanges.fire({ added: [], removed: [] });
+		await f.configuration.setUserConfiguration(UNIFIED_WORKSPACE_PICKER_SETTING, true);
+		f.configuration.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({
+			affectsConfiguration: section => section === UNIFIED_WORKSPACE_PICKER_SETTING,
+		}));
+		assert.deepStrictEqual({
+			projects: f.sharedProjects,
+			lastQuery: f.recentQueries.at(-1),
+		}, {
+			projects: [[], [first.toString(), second.toString()], [second.toString()], [second.toString()], [second.toString()]],
+			lastQuery: { includeVSCode: true, collapseWorktrees: true },
+		});
+	});
 
 	for (const { name, web, autoConnect, connects } of [
 		{ name: 'web', web: true, autoConnect: true, connects: true },
