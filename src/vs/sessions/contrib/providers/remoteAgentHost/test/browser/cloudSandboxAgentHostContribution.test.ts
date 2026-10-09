@@ -292,6 +292,7 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 	const instantiationService = store.add(new TestInstantiationService());
 	instantiationService.stub(IChatService, new class extends mock<IChatService>() {
 		override readonly onDidSubmitRequest = Event.None;
+		override setSessionTitle(): void { }
 	}());
 	const created: ICloudSandboxCreateSessionRequest[] = [];
 	const connectedTo: string[] = [];
@@ -975,14 +976,16 @@ suite('CloudSandboxAgentHostContribution', () => {
 		store.add(harness.registerLiveProvider('env-1', { provideChatSessionContent: async () => live })!);
 		await wake.complete();
 		await waitForState(session.isReadOnly!, value => !value);
+		const reference = store.add(await provider.provideChatSessionContent(resource, CancellationToken.None));
 
 		assert.deepStrictEqual({
 			activated, before, sameProvider: harness.contentProviders.get(sessionType) === provider,
-			sameSession: await provider.provideChatSessionContent(resource, CancellationToken.None) === session,
+			independentReference: reference !== session,
+			sameSession: reference.isReadOnly === session.isReadOnly && reference.history === session.history,
 			readOnly: session.isReadOnly?.get(), history: session.history, historyRequests: harness.historyRequests,
 		}, {
 			activated: true, before: { readOnly: true, connected: ['env-1'], status: undefined }, sameProvider: true,
-			sameSession: true, readOnly: false, history: live.history, historyRequests: ['task-1'],
+			independentReference: true, sameSession: true, readOnly: false, history: live.history, historyRequests: ['task-1'],
 		});
 	});
 
@@ -1136,7 +1139,7 @@ suite('CloudSandboxAgentHostContribution', () => {
 			opened,
 			historyRequests: harness.historyRequests,
 			readOnlySessionTypes: harness.readOnlySessionTypes,
-		}, { opened: true, historyRequests: [], readOnlySessionTypes: [] });
+		}, { opened: false, historyRequests: [], readOnlySessionTypes: [] });
 	});
 
 	test('connects a dormant environment that has no history to fall back on', async () => {

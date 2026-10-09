@@ -173,6 +173,52 @@ class PromotableCloudSandboxChatSession extends Disposable implements IChatSessi
 	}
 }
 
+/** Releases one consumer without disposing another consumer's live conversation. */
+class CloudSandboxChatSessionReference extends Disposable implements IChatSession {
+	private readonly _onWillDispose = this._register(new Emitter<void>());
+	readonly onWillDispose = this._onWillDispose.event;
+	private _disposed = false;
+
+	constructor(
+		private readonly _session: PromotableCloudSandboxChatSession,
+		private readonly _release: () => void,
+	) {
+		super();
+		this._register(Event.once(_session.onWillDispose)(() => this.dispose()));
+	}
+
+	get sessionResource() { return this._session.sessionResource; }
+	get history() { return this._session.history; }
+	get title() { return this._session.title; }
+	get options() { return this._session.options; }
+	get transferredState() { return this._session.transferredState; }
+	get progressObs() { return this._session.progressObs; }
+	get isCompleteObs() { return this._session.isCompleteObs; }
+	get isReadOnly() { return this._session.isReadOnly; }
+	get isInputBlocked() { return this._session.isInputBlocked; }
+	get historyStatus() { return this._session.historyStatus; }
+	get backgroundShellCount() { return this._session.backgroundShellCount; }
+	get canvasContext() { return this._session.canvasContext; }
+	get onDidChangeHistory() { return this._session.onDidChangeHistory; }
+	get onDidStartServerRequest() { return this._session.onDidStartServerRequest; }
+	get requestHandler() { return this._session.requestHandler; }
+	get forkSession() { return this._session.forkSession; }
+	get renameSession() { return this._session.renameSession; }
+	get prepareForClientTools() { return this._session.prepareForClientTools; }
+	get retryInput() { return this._session.retryInput; }
+	get interruptActiveResponseCallback() { return this._session.interruptActiveResponseCallback; }
+
+	override dispose(): void {
+		if (this._disposed) {
+			return;
+		}
+		this._disposed = true;
+		this._onWillDispose.fire();
+		super.dispose();
+		this._release();
+	}
+}
+
 interface ISandboxChatEntry extends IDisposable {
 	readonly resource: URI;
 	readonly store: DisposableStore;
@@ -193,7 +239,7 @@ interface ISandboxChatEntry extends IDisposable {
 	liveProviderWaitExpired: boolean;
 	live: boolean;
 	waiters: number;
-	claimed: boolean;
+	references: number;
 }
 
 /** Serves whichever source is ready first, then promotes recorded history without unregistering. */
@@ -245,7 +291,7 @@ export class CloudSandboxSessionHandler extends Disposable implements IChatSessi
 				ready: new DeferredPromise<PromotableCloudSandboxChatSession>(),
 				liveStore: store.add(new MutableDisposable<DisposableStore>()),
 				liveProviderTimeout: store.add(new MutableDisposable<IDisposable>()),
-				liveRequested: false, historyRequested: false, live: false, waiters: 0, claimed: false,
+				liveRequested: false, historyRequested: false, live: false, waiters: 0, references: 0,
 				hasHistory: false, historyFailed: false, historyRetryAfter: 0, liveFailed: false, liveProviderWaitExpired: false,
 				dispose: () => store.dispose(),
 			};
@@ -275,13 +321,26 @@ export class CloudSandboxSessionHandler extends Disposable implements IChatSessi
 		entry.waiters++;
 		try {
 			const session = await raceCancellationError(raceCancellationError(entry.ready.p, entry.token), token);
-			entry.claimed = true;
-			return session;
+			if (token.isCancellationRequested || entry.token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+			entry.references++;
+			const current = entry;
+			const reference = new CloudSandboxChatSessionReference(session, () => {
+				current.references--;
+				this._disposeUnreferencedSession(current);
+			});
+			entry.trace.associate(reference);
+			return reference;
 		} finally {
 			entry.waiters--;
-			if (!entry.claimed && entry.waiters === 0 && this._sessions.get(resource) === entry) {
-				this._sessions.deleteAndDispose(resource);
-			}
+			this._disposeUnreferencedSession(entry);
+		}
+	}
+
+	private _disposeUnreferencedSession(entry: ISandboxChatEntry): void {
+		if (entry.references === 0 && entry.waiters === 0 && this._sessions.get(entry.resource) === entry) {
+			this._sessions.deleteAndDispose(entry.resource);
 		}
 	}
 
@@ -305,6 +364,9 @@ export class CloudSandboxSessionHandler extends Disposable implements IChatSessi
 			transaction(tx => {
 				session.promote(source, live);
 				session.historyStatus.set(undefined, tx);
+				if (source.title !== undefined) {
+					this._chatService.setSessionTitle(entry.resource, source.title);
+				}
 			});
 			entry.trace.record('promoted', { source: kind, historyItems: source.history.length });
 		} else {

@@ -36,13 +36,16 @@ import { turnsToHistory } from '../../../browser/agentSessions/agentHost/stateTo
 const resource = URI.parse('remote-agent-host-test-copilot:/session');
 const peerChat = 'custom-chat:/opaque-peer';
 
-function recordedHistory(): IReplayedTaskHistory {
+function recordedHistory(mainTitle = '', peerTitle = ''): IReplayedTaskHistory {
 	const summary = {
 		resource: 'ahp-session:/session', provider: 'copilot', title: 'Recorded title',
 		status: SessionStatus.Idle, createdAt: '2026-01-01T00:00:00.000Z', modifiedAt: '2026-01-01T00:00:00.000Z',
 	};
+	const state = createSessionState(summary);
 	const chats = ['custom-chat:/opaque-main', peerChat].map(chatResource => {
-		const chat = createChatState(createDefaultChatSummary(summary, chatResource));
+		const chatSummary = { ...createDefaultChatSummary(summary, chatResource), title: chatResource === peerChat ? peerTitle : mainTitle };
+		state.chats.push(chatSummary);
+		const chat = createChatState(chatSummary);
 		chat.turns.push({
 			id: chatResource, message: { text: chatResource, origin: { kind: MessageKind.User } },
 			responseParts: [], usage: undefined, state: TurnState.Complete,
@@ -51,7 +54,7 @@ function recordedHistory(): IReplayedTaskHistory {
 	});
 	return {
 		sessions: [{
-			session: summary.resource, state: createSessionState(summary),
+			session: summary.resource, state,
 			chats: new Map(chats.map(chat => [chat.resource, chat])),
 			defaultChat: chats[0].resource, modifiedAt: summary.modifiedAt,
 		}],
@@ -79,7 +82,7 @@ class LiveSession extends Disposable implements IChatSession {
 	constructor(readonly history: readonly IChatSessionHistoryItem[] = [
 		{ type: 'request', id: 'live-turn', prompt: 'Live request', participant: 'copilot' },
 		{ type: 'response', parts: [], participant: 'copilot' },
-	]) {
+	], readonly title?: string) {
 		super();
 	}
 
@@ -100,12 +103,13 @@ class LiveSession extends Disposable implements IChatSession {
 suite('CloudSandboxSessionHandler', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createHandler(read: (token: CancellationToken, diagnosticId?: string, onCachedHistory?: (history: IReplayedTaskHistory) => void) => Promise<IReplayedTaskHistory | undefined> = async () => recordedHistory(), notificationService: INotificationService = new TestNotificationService(), logService: ILogService = new NullLogService(), invalidate: (preserveCached?: boolean) => void = () => { }, onDidSubmitRequest: Event<IChatRequestSubmittedEvent> = Event.None, connectionStatus?: IObservable<RemoteAgentHostConnectionStatus>) {
+	function createHandler(read: (token: CancellationToken, diagnosticId?: string, onCachedHistory?: (history: IReplayedTaskHistory) => void) => Promise<IReplayedTaskHistory | undefined> = async () => recordedHistory(), notificationService: INotificationService = new TestNotificationService(), logService: ILogService = new NullLogService(), invalidate: (preserveCached?: boolean) => void = () => { }, onDidSubmitRequest: Event<IChatRequestSubmittedEvent> = Event.None, connectionStatus?: IObservable<RemoteAgentHostConnectionStatus>, setSessionTitle: IChatService['setSessionTitle'] = () => { }) {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, logService);
 		instantiationService.stub(INotificationService, notificationService);
 		instantiationService.stub(IChatService, new class extends mock<IChatService>() {
 			override readonly onDidSubmitRequest = onDidSubmitRequest;
+			override setSessionTitle(resource: URI, title: string): void { setSessionTitle(resource, title); }
 		}());
 		instantiationService.stub(ICloudSandboxApiService, new class extends mock<ICloudSandboxApiService>() {
 			override getSessionHistory(_taskId: string, token: CancellationToken, diagnosticId?: string, onCachedHistory?: (history: IReplayedTaskHistory) => void) { return read(token, diagnosticId, onCachedHistory); }
@@ -115,6 +119,95 @@ suite('CloudSandboxSessionHandler', () => {
 			taskId: 'task', agentId: 'copilot', connectionAuthority: 'test', connectionStatus,
 		}));
 	}
+
+	async function sharesContent(handler: CloudSandboxSessionHandler, session: IChatSession): Promise<boolean> {
+		const reference = await handler.provideChatSessionContent(session.sessionResource, CancellationToken.None);
+		try {
+			return reference !== session && reference.history === session.history && reference.isReadOnly === session.isReadOnly;
+		} finally {
+			reference.dispose();
+		}
+	}
+
+	test('independent readers retain promotion and streaming until the final reference is released', async () => {
+		const history = new DeferredPromise<IReplayedTaskHistory>();
+		let reads = 0;
+		const handler = createHandler(() => { reads++; return history.p; });
+		const opening = handler.provideChatSessionContent(resource, CancellationToken.None);
+		const previewing = handler.provideChatSessionContent(resource, CancellationToken.None);
+		await history.complete(recordedHistory());
+		const [opened, preview] = await Promise.all([opening, previewing]);
+		let openedDisposed = 0;
+		let previewDisposed = 0;
+		store.add(opened.onWillDispose(() => openedDisposed++));
+		store.add(preview.onWillDispose(() => previewDisposed++));
+		const trace = CloudSandboxSessionTrace.get(opened);
+		const sharedTrace = trace !== undefined && CloudSandboxSessionTrace.get(preview) === trace;
+		preview.dispose();
+		preview.dispose();
+		const afterPreview = { openedDisposed, previewDisposed };
+		const updates: (readonly IChatSessionHistoryItem[])[] = [];
+		store.add(opened.onDidChangeHistory!(history => updates.push(history)));
+		const live = store.add(new LiveSession());
+		handler.setLiveProvider({ provideChatSessionContent: async () => live });
+		await waitForState(opened.isReadOnly!, value => !value);
+		live.progressObs.set([{ kind: 'markdownContent', content: new MarkdownString('Still streaming') }], undefined);
+		const streaming = opened.progressObs?.get();
+		opened.dispose();
+		assert.deepStrictEqual({
+			independent: opened !== preview, reads, sharedTrace, afterPreview,
+			updates, streaming, openedDisposed, previewDisposed, liveDisposed: live.disposed,
+		}, {
+			independent: true, reads: 1, sharedTrace: true, afterPreview: { openedDisposed: 0, previewDisposed: 1 },
+			updates: [live.history], streaming: [{ kind: 'markdownContent', content: new MarkdownString('Still streaming') }],
+			openedDisposed: 1, previewDisposed: 1, liveDisposed: true,
+		});
+	});
+
+	test('provider teardown disposes every outstanding reference exactly once', async () => {
+		const handler = createHandler();
+		const first = await handler.provideChatSessionContent(resource, CancellationToken.None);
+		const second = await handler.provideChatSessionContent(resource, CancellationToken.None);
+		const disposals = [0, 0];
+		store.add(first.onWillDispose(() => disposals[0]++));
+		store.add(second.onWillDispose(() => disposals[1]++));
+		handler.dispose();
+		first.dispose();
+		second.dispose();
+		assert.deepStrictEqual(disposals, [1, 1]);
+	});
+
+	test('publishes the authoritative live title to the retained model during promotion', async () => {
+		const titles: { resource: string; title: string }[] = [];
+		const handler = createHandler(undefined, undefined, undefined, undefined, undefined, undefined, (resource, title) => {
+			titles.push({ resource: resource.toString(), title });
+		});
+		const session = await handler.provideChatSessionContent(resource, CancellationToken.None);
+		const initialTitle = session.title;
+		const live = store.add(new LiveSession(undefined, 'Authoritative live title'));
+		handler.setLiveProvider({ provideChatSessionContent: async () => live });
+		await waitForState(session.isReadOnly!, value => !value);
+		assert.deepStrictEqual({ initialTitle, title: session.title, titles }, {
+			initialTitle: 'Recorded title', title: 'Authoritative live title',
+			titles: [{ resource: resource.toString(), title: 'Authoritative live title' }],
+		});
+	});
+
+	test('publishes a refreshed recorded title without replacing the open conversation', async () => {
+		const fresh = new DeferredPromise<IReplayedTaskHistory>();
+		const titles: string[] = [];
+		const handler = createHandler((_token, _diagnosticId, onCachedHistory) => {
+			onCachedHistory?.(recordedHistory());
+			return fresh.p;
+		}, undefined, undefined, undefined, undefined, undefined, (_resource, title) => titles.push(title));
+		const session = await handler.provideChatSessionContent(resource, CancellationToken.None);
+		const refreshed = Event.toPromise(session.onDidChangeHistory!);
+		await fresh.complete(recordedHistory('Updated conversation title'));
+		await refreshed;
+		assert.deepStrictEqual({ title: session.title, titles, shared: await sharesContent(handler, session) }, {
+			title: 'Updated conversation title', titles: ['Updated conversation title'], shared: true,
+		});
+	});
 
 	test('invalidates local submissions only for the matching open conversation and releases the listener on close', async () => {
 		const submitted = store.add(new Emitter<IChatRequestSubmittedEvent>());
@@ -155,7 +248,7 @@ suite('CloudSandboxSessionHandler', () => {
 		await fresh.complete(updated);
 		await refreshed;
 		assert.deepStrictEqual({
-			before, changes, reads, same: reopened === await handler.provideChatSessionContent(resource, CancellationToken.None),
+			before, changes, reads, same: await sharesContent(handler, reopened),
 			status: reopened.historyStatus?.get(), readOnly: reopened.isReadOnly?.get(),
 			prompts: reopened.history.filter(item => item.type === 'request').map(item => item.prompt),
 		}, {
@@ -209,7 +302,7 @@ suite('CloudSandboxSessionHandler', () => {
 		await status!.action.run();
 		assert.deepStrictEqual({
 			afterFailure, attempts, prompts, status: session.historyStatus?.get(),
-			same: session === await handler.provideChatSessionContent(resource, CancellationToken.None),
+			same: await sharesContent(handler, session),
 		}, {
 			afterFailure: { items: 2, readOnly: true, status: 'Couldn\'t refresh this conversation. Recent messages may be missing.', action: 'Refresh' },
 			attempts: 2, prompts: 0, status: undefined, same: true,
@@ -265,7 +358,7 @@ suite('CloudSandboxSessionHandler', () => {
 		await refresh;
 		assert.deepStrictEqual({
 			whileRefreshing, historyWarning: session.historyStatus?.get()?.kind === 'history',
-			same: session === await handler.provideChatSessionContent(resource, CancellationToken.None),
+			same: await sharesContent(handler, session),
 		}, {
 			whileRefreshing: { reads: 2, liveReads: 1, retained: true, label: 'Refresh' },
 			historyWarning: false, same: true,
@@ -552,7 +645,7 @@ suite('CloudSandboxSessionHandler', () => {
 		await session.interruptActiveResponseCallback!();
 
 		assert.deepStrictEqual({
-			before, same: session === await handler.provideChatSessionContent(resource, CancellationToken.None),
+			before, same: await sharesContent(handler, session),
 			resource: session.sessionResource.toString(), histories, disposed,
 			readOnly: session.isReadOnly?.get(), blocked: session.isInputBlocked?.get(), interruptions: live.interruptions,
 			backgroundShellCount: session.backgroundShellCount?.get(), sameCanvas: session.canvasContext?.get() === canvas,
@@ -610,7 +703,7 @@ suite('CloudSandboxSessionHandler', () => {
 		await timeout(0);
 
 		assert.deepStrictEqual({
-			failure, same: session === await handler.provideChatSessionContent(resource, CancellationToken.None),
+			failure, same: await sharesContent(handler, session),
 			readOnly: session.isReadOnly?.get(), history: session.history,
 		}, { failure: 'History unavailable', same: true, readOnly: false, history: live.history });
 	});
@@ -677,7 +770,7 @@ suite('CloudSandboxSessionHandler', () => {
 		await status!.action.run();
 		assert.deepStrictEqual({
 			afterFailure, attempts, prompts, readOnly: session.isReadOnly?.get(),
-			same: session === await handler.provideChatSessionContent(resource, CancellationToken.None),
+			same: await sharesContent(handler, session),
 		}, { afterFailure: { retained: true, readOnly: true, kind: 'live' }, attempts: 2, prompts: 0, readOnly: false, same: true });
 	});
 
@@ -716,15 +809,30 @@ suite('CloudSandboxSessionHandler', () => {
 	});
 
 	for (const explicit of [false, true]) {
-		test(`reads the requested opaque peer chat (${explicit ? 'query' : 'fragment'}) instead of the default`, async () => {
-			const handler = createHandler();
+		test(`reads the requested opaque peer chat and title (${explicit ? 'query' : 'fragment'}) instead of the default`, async () => {
+			const handler = createHandler(async () => recordedHistory('', 'Peer conversation'));
 			const peerResource = resource.with(explicit
 				? { query: new URLSearchParams({ [CHAT_SUBAGENT_RESOURCE_QUERY_PARAM]: peerChat }).toString() }
 				: { fragment: peerChat });
 			const session = await handler.provideChatSessionContent(peerResource, CancellationToken.None);
-			assert.deepStrictEqual(session.history.filter(item => item.type === 'request').map(item => item.prompt), [peerChat]);
+			assert.deepStrictEqual({
+				prompts: session.history.filter(item => item.type === 'request').map(item => item.prompt), title: session.title,
+			}, { prompts: [peerChat], title: 'Peer conversation' });
 		});
 	}
+
+	test('falls back to the session title only for the recorded default chat', async () => {
+		const handler = createHandler();
+		const main = await handler.provideChatSessionContent(resource, CancellationToken.None);
+		const peer = await handler.provideChatSessionContent(resource.with({ fragment: peerChat }), CancellationToken.None);
+		assert.deepStrictEqual({ main: main.title, peer: peer.title }, { main: 'Recorded title', peer: undefined });
+	});
+
+	test('uses the default chat summary title before the parent title', async () => {
+		const handler = createHandler(async () => recordedHistory('Default conversation'));
+		const session = await handler.provideChatSessionContent(resource, CancellationToken.None);
+		assert.strictEqual(session.title, 'Default conversation');
+	});
 
 	test('defers completion triggers until live capabilities exist and forwards URI resolution', async () => {
 		const handler = createHandler();

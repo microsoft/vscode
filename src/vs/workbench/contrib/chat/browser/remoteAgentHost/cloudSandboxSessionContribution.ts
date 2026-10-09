@@ -651,7 +651,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 					}
 				});
 			}
-			return activated;
+			return activated && isCurrentActivation() && this._chatSessionsService.getContentProviderSchemes().includes(sessionType);
 		}
 
 		return this._connectOnOpen(sessionType, address, env, token, isCurrentActivation);

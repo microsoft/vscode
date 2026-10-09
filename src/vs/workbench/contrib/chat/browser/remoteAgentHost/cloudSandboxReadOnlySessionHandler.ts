@@ -154,6 +154,8 @@ export class CloudSandboxReadOnlySessionHandler extends Disposable implements IC
 		}
 
 		this._logService.info(`${LOG_PREFIX} Opened ${sessionResource.toString()} read-only with ${history.length} history item(s) from ${chat?.turns.length ?? 0} turn(s); chats=[${[...session.chats.keys()].join(', ')}], default=${session.defaultChat}.`);
-		return new ReadOnlyChatSession(sessionResource, history, session.state.title || undefined, this._isReadOnly);
+		const title = session.state.chats.find(summary => summary.resource === chatResource)?.title
+			|| (chatResource === session.defaultChat ? session.state.title : undefined);
+		return new ReadOnlyChatSession(sessionResource, history, title || undefined, this._isReadOnly);
 	}
 }

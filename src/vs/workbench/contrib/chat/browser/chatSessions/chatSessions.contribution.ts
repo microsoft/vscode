@@ -44,7 +44,7 @@ import { ChatViewId } from '../chat.js';
 import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
 import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderName } from '../agentSessions/agentSessions.js';
 import { IAgentHostImportConversationStore, type IAgentHostImportConversation } from '../agentSessions/agentHost/agentHostImportConversationStore.js';
-import { BugIndicatingError, isCancellationError } from '../../../../../base/common/errors.js';
+import { BugIndicatingError, CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { getChatSessionType, isUntitledChatSession, LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { assertNever } from '../../../../../base/common/assert.js';
@@ -1014,27 +1014,42 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 		const asyncActivators = this._asyncActivationRegistry.getActivators(sessionType);
 		if (asyncActivators.length) {
-			for (const activator of asyncActivators) {
-				if (await this._instantiationService.invokeFunction(accessor => activator.waitForActivation(accessor, sessionType))) {
-					await this.waitForContentProvider(sessionType);
-					if (this._contentProviders.has(sessionType)) {
-						return true;
+			const store = new DisposableStore();
+			const registered = new DeferredPromise<void>();
+			const removed = new DeferredPromise<false>();
+			// Observe removal before activation can register and synchronously retire a provider.
+			store.add(this.onDidChangeContentProviderSchemes(event => {
+				if (event.added.includes(sessionType)) {
+					void registered.complete();
+				}
+				if (event.removed.includes(sessionType)) {
+					void removed.complete(false);
+				}
+			}));
+			try {
+				for (const activator of asyncActivators) {
+					const activated = await Promise.race([
+						this._instantiationService.invokeFunction(accessor => activator.waitForActivation(accessor, sessionType)),
+						removed.p,
+					]);
+					if (removed.isSettled) {
+						return this._contentProviders.has(sessionType);
+					}
+					if (activated) {
+						if (!this._contentProviders.has(sessionType)) {
+							await Promise.race([registered.p, removed.p]);
+						}
+						return this._contentProviders.has(sessionType);
 					}
 				}
+				return false;
+			} finally {
+				store.dispose();
 			}
-			return false;
 		}
 
 		await this._extensionService.activateByEvent(`onChatSession:${sessionType}`);
 		return this._contentProviders.has(sessionType);
-	}
-
-	private async waitForContentProvider(sessionType: string): Promise<void> {
-		if (this._contentProviders.has(sessionType)) {
-			return;
-		}
-
-		await Event.toPromise(Event.filter(this.onDidChangeContentProviderSchemes, e => e.added.includes(sessionType)));
 	}
 
 	async provideChatInputCompletions(sessionResource: URI, params: IChatInputCompletionsParams, token: CancellationToken): Promise<IChatInputCompletionsResult | undefined> {
@@ -1438,8 +1453,18 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			throw Error(`Cannot find provider '${resolvedType}'`);
 		}
 
-		const session = await raceCancellationError(provider.provideChatSessionContent(sessionResource, token), token);
+		const content = provider.provideChatSessionContent(sessionResource, token).then(session => {
+			if (token.isCancellationRequested) {
+				session.dispose();
+				throw new CancellationError();
+			}
+			return session;
+		});
+		const session = await raceCancellationError(content, token);
 		try {
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
 			return [...session.history];
 		} finally {
 			session.dispose();

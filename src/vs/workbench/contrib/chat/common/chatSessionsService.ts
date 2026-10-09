@@ -522,6 +522,7 @@ export interface IChatSession extends IDisposable {
 }
 
 export interface IChatSessionContentProvider {
+	/** Each returned session is independently disposable and must be released by its caller. */
 	provideChatSessionContent(sessionResource: URI, token: CancellationToken): Promise<IChatSession>;
 
 	/** Updates provider-owned metadata for a session. */
