@@ -140,6 +140,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 							publisher: 'microsoft',
 							pluginName: 'azure',
 							marketplace: 'awesome-copilot',
+							marketplaceSource: 'GitHub: github/awesome-copilot',
 							installable: true,
 						}],
 						nextCursor: request.query ? 'next' : undefined,
@@ -182,7 +183,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 			],
 			browse: {
 				items: [{
-					identifier: '["awesome-copilot","azure"]',
+					identifier: '["GitHub: github/awesome-copilot","awesome-copilot","azure"]',
 					displayName: 'Azure',
 					description: 'Azure tools',
 					mediaType: 'application/vnd.github.copilot-plugin',
@@ -194,7 +195,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 					publisher: 'microsoft',
 					publisherUrl: URI.parse('https://github.com/microsoft'),
 					icon: URI.parse('https://github.com/microsoft.png'),
-					installation: { kind: 'providerPlugin', name: 'azure', marketplace: 'awesome-copilot' },
+					installation: { kind: 'providerPlugin', name: 'azure', marketplace: 'awesome-copilot', marketplaceSource: 'GitHub: github/awesome-copilot' },
 				}],
 				nextCursor: undefined,
 			},
@@ -546,14 +547,14 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 		));
 		const resource = {
 			sourceId: 'agentFinder',
-			identifier: '["awesome-copilot","azure"]',
+			identifier: '["GitHub: github/awesome-copilot","awesome-copilot","azure"]',
 			displayName: 'Azure',
 			description: 'Azure tools',
 			mediaType: 'application/vnd.github.copilot-plugin',
 			tags: [],
 			capabilities: [],
 			representativeQueries: [],
-			installation: { kind: 'providerPlugin' as const, name: 'azure', marketplace: 'awesome-copilot' },
+			installation: { kind: 'providerPlugin' as const, name: 'azure', marketplace: 'awesome-copilot', marketplaceSource: 'GitHub: github/awesome-copilot' },
 		};
 
 		assert.strictEqual(provider.getInstallUnavailableMessage(resource), undefined);
@@ -593,14 +594,14 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 		));
 		const resource = {
 			sourceId: 'agentFinder',
-			identifier: '["awesome-copilot","azure"]',
+			identifier: '["GitHub: github/awesome-copilot","awesome-copilot","azure"]',
 			displayName: 'Azure',
 			description: 'Azure tools',
 			mediaType: 'application/vnd.github.copilot-plugin',
 			tags: [],
 			capabilities: [],
 			representativeQueries: [],
-			installation: { kind: 'providerPlugin' as const, name: 'azure', marketplace: 'awesome-copilot' },
+			installation: { kind: 'providerPlugin' as const, name: 'azure', marketplace: 'awesome-copilot', marketplaceSource: 'GitHub: github/awesome-copilot' },
 		};
 		let settled = false;
 		const install = provider.install(URI.parse('agent-host-copilotcli:/frontend-session'), resource, CancellationToken.None)

@@ -334,6 +334,7 @@ export interface IAgentCustomizationMarketplaceSearchItem {
 	readonly publisher?: string;
 	readonly pluginName?: string;
 	readonly marketplace?: string;
+	readonly marketplaceSource?: string;
 	readonly itemUrl?: string;
 	readonly version?: string;
 	readonly repository?: string;
@@ -1135,6 +1136,8 @@ export interface IAgentToolPendingConfirmationSignal {
 	readonly permissionKind?: 'shell' | 'write' | 'mcp' | 'read' | 'url' | 'skill' | 'custom-tool' | 'hook' | 'memory' | 'workflow' | 'extension-management' | 'extension-permission-access' | 'extension-env-access';
 	/** Host-only auto-approval path target (not part of the dispatched action). */
 	readonly permissionPath?: string;
+	/** Host-only command for shell approval when the displayed tool input contains structured arguments. */
+	readonly shellCommand?: string;
 	/**
 	 * Host-only flag requiring the client to show a confirmation instead of applying host auto-approval.
 	 * The runtime currently sets it for managed Shell, Read, Edit, and Domain selector asks.
