@@ -9,7 +9,7 @@ import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { basename, dirname } from '../../../../../base/common/resources.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
+import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../../platform/files/common/files.js';
 import { getCleanPromptName, getPromptFileExtension, SKILL_FILENAME, VALID_SKILL_NAME_REGEX } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { IHeaderAttribute, ParsedPromptFile, PromptFileParser, PromptHeaderAttributes } from '../../common/promptSyntax/promptFileParser.js';
 import { CustomizationMigrationCandidate, CustomizationMigrationType, FileCustomizationMigrationFailureReason, getCustomizationMigrationTargetType, isMcpServerCustomizationMigrationCandidate, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
@@ -212,6 +212,7 @@ export async function migrateCustomizations(
 		const migratedSourceCustomizations: IMigratedCustomization[] = [];
 		const sourceUnsupportedHeaderKeys = new Set<string>();
 		let failureReason = FileCustomizationMigrationFailureReason.SourceReadFailed;
+		let targetUriForConflict: URI | undefined;
 
 		try {
 			const content = (await fileService.readFile(sourceCustomization.uri)).value.toString();
@@ -245,6 +246,7 @@ export async function migrateCustomizations(
 				}
 
 				failureReason = FileCustomizationMigrationFailureReason.TargetWriteFailed;
+				targetUriForConflict = customization.type === PromptsType.prompt || customization.type === PromptsType.skill ? dirname(targetUri) : targetUri;
 				await fileService.createFolder(targetFolder.uri);
 				if (customization.type === PromptsType.skill) {
 					const sourceFolder = dirname(customization.uri);
@@ -277,7 +279,10 @@ export async function migrateCustomizations(
 			})));
 			migratedCount += migratedSourceCustomizations.length;
 		} catch (error) {
-			const migrationError = error instanceof Error ? error : new Error(String(error));
+			let migrationError = error instanceof Error ? error : new Error(String(error));
+			if (failureReason === FileCustomizationMigrationFailureReason.TargetWriteFailed && targetUriForConflict && isTargetExistsFileOperationError(migrationError)) {
+				migrationError = new CustomizationMigrationTargetExistsError(targetUriForConflict);
+			}
 			const rollbackErrors = await rollbackMigrationTargets(writtenTargetUris, fileService);
 			failedCustomizationFileNames.push(basename(sourceCustomization.uri));
 			const reportedFailureReason = migrationError instanceof CustomizationMigrationTargetExistsError
@@ -306,7 +311,33 @@ export async function migrateCustomizations(
 }
 
 export function getCustomizationMigrationConflictTarget(error: Error): URI | undefined {
-	return error instanceof CustomizationMigrationTargetExistsError ? error.targetUri : undefined;
+	return findCustomizationMigrationConflictTarget(error, new Set());
+}
+
+function findCustomizationMigrationConflictTarget(error: Error, seen: Set<Error>): URI | undefined {
+	if (seen.has(error)) {
+		return undefined;
+	}
+	seen.add(error);
+	if (error instanceof CustomizationMigrationTargetExistsError) {
+		return error.targetUri;
+	}
+	if (error instanceof AggregateError) {
+		for (const nestedError of error.errors) {
+			if (nestedError instanceof Error) {
+				const targetUri = findCustomizationMigrationConflictTarget(nestedError, seen);
+				if (targetUri) {
+					return targetUri;
+				}
+			}
+		}
+	}
+	return undefined;
+}
+
+function isTargetExistsFileOperationError(error: Error): boolean {
+	const result = toFileOperationResult(error);
+	return result === FileOperationResult.FILE_MODIFIED_SINCE || result === FileOperationResult.FILE_MOVE_CONFLICT;
 }
 
 async function rollbackMigrationTargets(targetUris: readonly URI[], fileService: IFileService): Promise<Error[]> {

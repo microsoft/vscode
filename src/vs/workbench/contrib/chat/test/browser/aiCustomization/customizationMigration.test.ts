@@ -19,7 +19,7 @@ import { PromptFileSource, PromptsType } from '../../../common/promptSyntax/prom
 import { CustomizationMigrationType, FileCustomizationMigrationFailureReason, IMcpServerCustomizationMigrationCandidate, McpServerCustomizationMigrationFailureReason, type MigratableConfiguration } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 import { PromptsStorage, type IPromptPath } from '../../../common/promptSyntax/service/promptsService.js';
 import { ICustomizationSourceFolder } from '../../../common/customizationHarnessService.js';
-import { createCustomizationMigrationAgentPrompt, createSkillFileUri, migrateCustomizations, migratePromptFileToSkill, resolveWorkspaceMigrationTargetFolder, type CustomizationMigrationTargetFolders } from '../../../browser/aiCustomization/customizationMigration.js';
+import { createCustomizationMigrationAgentPrompt, createSkillFileUri, getCustomizationMigrationConflictTarget, migrateCustomizations, migratePromptFileToSkill, resolveWorkspaceMigrationTargetFolder, type CustomizationMigrationTargetFolders } from '../../../browser/aiCustomization/customizationMigration.js';
 import { CUSTOMIZATION_MIGRATION_CATEGORIES, CustomizationMigrationCategoryId, getCustomizationMigrationCategory } from '../../../browser/aiCustomization/customizationMigrationCategories.js';
 
 class DeleteFailingFileSystemProvider extends InMemoryFileSystemProvider {
@@ -712,6 +712,67 @@ suite('customizationMigration', () => {
 		});
 	});
 
+	test('preserves a name conflict target when rollback also fails', async () => {
+		const sourceUri = URI.file('/home/test/shared.prompt.md');
+		const customizations: IPromptPath[] = [
+			{ uri: sourceUri, name: 'Shared', storage: PromptsStorage.local, type: PromptsType.prompt, source: PromptFileSource.ConfigWorkspace },
+			{ uri: sourceUri, name: 'Shared', storage: PromptsStorage.user, type: PromptsType.prompt, source: PromptFileSource.ConfigPersonal },
+		];
+		const workspaceSkillRoot: ICustomizationSourceFolder = { uri: URI.file('/workspace/.github/skills'), label: '.github/skills', source: PromptsStorage.local };
+		const userSkillRoot: ICustomizationSourceFolder = { uri: URI.file('/home/test/.copilot/skills'), label: '~/.copilot/skills', source: PromptsStorage.user };
+		const targetFolders: CustomizationMigrationTargetFolders = new Map([
+			[PromptsType.skill, new Map([[PromptsStorage.local, workspaceSkillRoot], [PromptsStorage.user, userSkillRoot]])],
+		]);
+
+		const fileService = store.add(new FileService(new NullLogService()));
+		const fileSystemProvider = store.add(new DeleteFailingFileSystemProvider());
+		store.add(fileService.registerProvider(Schemas.file, fileSystemProvider));
+		await fileService.writeFile(sourceUri, VSBuffer.fromString('---\nname: Shared\n---\nShared body'));
+		const workspaceSkillUri = createSkillFileUri(workspaceSkillRoot.uri, 'shared');
+		const userSkillUri = createSkillFileUri(userSkillRoot.uri, 'shared');
+		await fileService.writeFile(userSkillUri, VSBuffer.fromString('Existing content'));
+		fileSystemProvider.deleteFailureResource = workspaceSkillUri;
+
+		const migrationErrors: Error[] = [];
+		const failureReasons: FileCustomizationMigrationFailureReason[] = [];
+		const conflictTargets: URI[] = [];
+		const result = await migrateCustomizations(customizations, targetFolders, fileService, (error, reasons) => {
+			migrationErrors.push(error);
+			failureReasons.push(...reasons);
+			const conflictTarget = getCustomizationMigrationConflictTarget(error);
+			if (conflictTarget) {
+				conflictTargets.push(conflictTarget);
+			}
+		});
+
+		assert.deepStrictEqual({
+			result,
+			sourceExists: await fileService.exists(sourceUri),
+			workspaceTargetExists: await fileService.exists(workspaceSkillUri),
+			userTargetContent: (await fileService.readFile(userSkillUri)).value.toString(),
+			migrationErrorTypes: migrationErrors.map(error => error.constructor.name),
+			failureReasons,
+			conflictTargets: conflictTargets.map(uri => uri.path),
+		}, {
+			result: {
+				migratedCount: 0,
+				failedCustomizationFileNames: ['shared.prompt.md'],
+				unsupportedHeaderKeys: [],
+				migratedCustomizations: [],
+				migratedSources: [],
+			},
+			sourceExists: true,
+			workspaceTargetExists: true,
+			userTargetContent: 'Existing content',
+			migrationErrorTypes: ['AggregateError'],
+			failureReasons: [
+				FileCustomizationMigrationFailureReason.TargetAlreadyExists,
+				FileCustomizationMigrationFailureReason.RollbackFailed,
+			],
+			conflictTargets: [dirname(userSkillUri).path],
+		});
+	});
+
 	test('rolls back the target when deleting the source fails', async () => {
 		const sourceUri = URI.file('/user-data/style.instructions.md');
 		const customization: IPromptPath = {
@@ -811,9 +872,14 @@ suite('customizationMigration', () => {
 
 		const migrationErrors: Error[] = [];
 		const failureReasons: FileCustomizationMigrationFailureReason[] = [];
+		const conflictTargets: URI[] = [];
 		const result = await migrateCustomizations([customization], targetFolders, fileService, (error, reasons) => {
 			migrationErrors.push(error);
 			failureReasons.push(...reasons);
+			const conflictTarget = getCustomizationMigrationConflictTarget(error);
+			if (conflictTarget) {
+				conflictTargets.push(conflictTarget);
+			}
 		});
 		const targetEntries = await fileSystemProvider.readdir(instructionsRoot.uri);
 
@@ -824,6 +890,7 @@ suite('customizationMigration', () => {
 			targetEntries,
 			migrationErrorCount: migrationErrors.length,
 			failureReasons,
+			conflictTargets: conflictTargets.map(uri => uri.path),
 		}, {
 			result: {
 				migratedCount: 0,
@@ -836,7 +903,8 @@ suite('customizationMigration', () => {
 			targetContent: 'foreign content',
 			targetEntries: [['style.instructions.md', FileType.File]],
 			migrationErrorCount: 1,
-			failureReasons: [FileCustomizationMigrationFailureReason.TargetWriteFailed],
+			failureReasons: [FileCustomizationMigrationFailureReason.TargetAlreadyExists],
+			conflictTargets: [targetUri.path],
 		});
 	});
 
