@@ -1519,11 +1519,15 @@ export class LanguageModelsService implements ILanguageModelsService {
 		});
 
 		return toDisposable(() => {
+			modelChangeListener.dispose();
+			if (this._providers.get(vendor) !== provider) {
+				return;
+			}
+
 			this._logService.trace('[LM] UNregistered language model provider', vendor);
 			this._clearModelCache(vendor);
 			this._modelsGroups.delete(vendor);
 			this._providers.delete(vendor);
-			modelChangeListener.dispose();
 			this._onLanguageModelChange.fire(vendor);
 		});
 	}
