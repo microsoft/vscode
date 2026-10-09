@@ -10,6 +10,7 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { IReference } from '../../../../base/common/lifecycle.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Emitter } from '../../../../base/common/event.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { Selection, SelectionDirection } from '../../../../editor/common/core/selection.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -49,7 +50,20 @@ interface CustomEditorInputInitInfo {
 
 export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 
-	public navigation: ICustomTextEditorNavigation | undefined;
+	private readonly _onDidChangeNavigation = this._register(new Emitter<void>());
+	readonly onDidChangeNavigation = this._onDidChangeNavigation.event;
+	private _navigation: ICustomTextEditorNavigation | undefined;
+
+	get navigation(): ICustomTextEditorNavigation | undefined {
+		return this._navigation;
+	}
+
+	set navigation(value: ICustomTextEditorNavigation | undefined) {
+		if (this._navigation !== value) {
+			this._navigation = value;
+			this._onDidChangeNavigation.fire();
+		}
+	}
 
 	public override async applyOptions(options: ITextEditorOptions, token: CancellationToken): Promise<void> {
 		const selection = options.selection;
