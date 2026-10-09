@@ -417,6 +417,8 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 			// The initial child may complete before subscription; completion and turn states are asserted above.
 			// Background work comes from a separate task-list read, so its timing against the tool calls isn't part of this scenario.
 			ignoredActionTypes: [ActionType.SessionChatAdded, ActionType.ChatToolCallStart, ActionType.ChatTurnComplete, ActionType.ChatBackgroundWorkSet, ActionType.ChatBackgroundWorkRemoved],
+			// Parent coordination completions and child replies have no cross-chat total order.
+			orderIndependentActionTypes: [ActionType.ChatResponsePart],
 		});
 	});
 

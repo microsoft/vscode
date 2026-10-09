@@ -698,6 +698,10 @@ Correlate the child's streaming deltas and assembled message with the parent's i
 
 Turn completion precedes the unread lifecycle action. Use `waitForChatTurnComplete(...)` for imperative completion waits: it matches the exact chat and turn, rejects errors, then waits for `chat/isReadChanged` with `isRead: false` and a greater `serverSeq`. Pass the preceding error's sequence when resuming the same turn so an earlier outcome cannot satisfy the wait. Snapshot scenarios use the same helper and exclude outcomes from earlier rounds; the turn driver shares its unread barrier. Do not remove the unread action from the snapshot or add a sleep.
 
+### A retained-subagent snapshot differs only in parent/child event interleaving
+
+Parent coordination-tool completions and child replies arrive on independent chat streams. The retained-subagent follow-up scenario uses `orderIndependentActionTypes` to compare each chat's ordered transcript rather than imposing a cross-chat total order. All event fields and counts are retained; same-chat reordering, failed tools, and missing or duplicated replies still fail. Keep the exact parent tool sequence and child response/turn-state assertions as the primary contract.
+
 ### A later test fails on unexpected console output after a snapshot mismatch
 
 Check for a `Deleting 1 old snapshots` message from the preceding test. A previous failed iteration leaves a diagnostic `.actual` file; a passing iteration removes it. Diagnostic cleanup must not report a baseline mutation, which CI correctly rejects. The snapshot helper cleans these artifacts silently while continuing to report removal of actual baselines.
