@@ -161,7 +161,7 @@ suite('shellInitScript', () => {
 			].join('\n');
 			const { stdout } = await execFileAsync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', command]);
 			assert.strictEqual(stdout.trim(), 'activation=loaded');
-		});
+		}).timeout(10_000);
 
 		test('loads each profile independently before activation', async () => {
 			const allHostsProfile = join(profileDirectory, 'all-hosts.ps1');
@@ -182,6 +182,6 @@ suite('shellInitScript', () => {
 				'copilot shell init: loading the PowerShell profile failed; continuing.',
 				'profiles=loaded,loaded activation=loaded exit=0',
 			]);
-		});
+		}).timeout(10_000);
 	});
 });

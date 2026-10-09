@@ -17,6 +17,7 @@ import { IProgressScope, ScopedProgressIndicator } from '../../../workbench/serv
 import { IChat, ISession } from '../../services/sessions/common/session.js';
 import { WorkspaceSelectionOrigin } from '../../common/workspaceSelection.js';
 import { ISessionPickerVisibility, noSessionPickerVisibility } from '../../services/sessions/common/sessionPickerVisibility.js';
+import type { IChatSessionHistoryStatus } from '../../../platform/chat/common/chatSessionHistory.js';
 
 /**
  * Discriminates between concrete {@link AbstractChatView} subclasses without
@@ -28,6 +29,8 @@ export type ChatViewKind = 'newSession' | 'newChatInSession' | 'chat';
  * Options passed to a chat view when it is created.
  */
 export interface IChatViewOptions {
+	/** Visibility of the owning session slot, preserved across composer/preparation/transcript handoffs. */
+	readonly hostVisible?: IObservable<boolean>;
 }
 
 export interface ISelectWorkspaceOptions {
@@ -36,6 +39,11 @@ export interface ISelectWorkspaceOptions {
 	readonly selectionOrigin?: WorkspaceSelectionOrigin;
 	/** Only replace an automatic default in a fresh, empty composer. */
 	readonly isDefault?: boolean;
+}
+
+export interface ISelectNoWorkspaceOptions {
+	readonly userSelection?: boolean;
+	readonly preserveNavigation?: boolean;
 }
 
 export type WorkspaceSelectionResult = 'applied' | 'notReady' | 'preserved';
@@ -77,6 +85,14 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 
 	readonly pickerVisibility: IObservable<ISessionPickerVisibility> = constObservable(noSessionPickerVisibility);
 
+	focusWorkspacePicker(): void {
+		// no-op by default
+	}
+
+	focusHarnessPicker(): void {
+		// no-op by default
+	}
+
 	/**
 	 * Whether the view has a visible transcript turn to retain when a remote
 	 * host disconnects. New and unbound views intentionally report no content.
@@ -91,12 +107,16 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 	 */
 	readonly isLoadingTranscript: IObservable<boolean> = constObservable(false);
 
+	/** Whether an input notification already explains a temporary sending restriction. */
+	readonly isInputBlocked: IObservable<boolean> = constObservable(false);
+	readonly historyStatus: IObservable<IChatSessionHistoryStatus | undefined> = constObservable(undefined);
+
 	/**
 	 * Show the given chat in this view. The default implementation is a
 	 * no-op; subclasses that host a chat widget (e.g. `ChatView`) override
 	 * this to load the chat model and feed it into the widget.
 	 */
-	setChat(_chat: IChat, _historyKey?: string, _session?: ISession): void {
+	setChat(_chat: IChat, _historyKey?: string, _session?: ISession, _onInput?: () => void): void {
 		// no-op by default
 	}
 
@@ -112,7 +132,7 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 		return Promise.resolve('notReady');
 	}
 
-	selectNoWorkspace(): void {
+	selectNoWorkspace(_options?: ISelectNoWorkspaceOptions): void {
 		// no-op by default
 	}
 
@@ -167,10 +187,10 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 	}
 
 	/**
-	 * Notifies the view whether it occupies the first group in the chat grid.
-	 * Session-scoped UI can use this to avoid repeating across split groups.
+	 * Notifies the view of its position and whether the chat grid is split.
+	 * Session-scoped UI can use this to avoid repeating across split groups and adapt its layout.
 	 */
-	setPrimary(_primary: boolean): void {
+	setPrimary(_primary: boolean, _split = false): void {
 		// no-op by default
 	}
 

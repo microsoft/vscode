@@ -11,13 +11,14 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { mock } from '../../../../base/test/common/mock.js';
 import { NullLogService } from '../../../log/common/log.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
-import { ArtifactServerToolName } from '../../common/serverToolNames.js';
+import { ArtifactServerToolName, SessionServerToolName } from '../../common/serverToolNames.js';
 import { readSessionArtifacts } from '../../common/sessionArtifacts.js';
 import { buildChatUri, SessionStatus, type ToolDefinition } from '../../common/state/sessionState.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { IAgentSdkDownloader } from '../../node/agentSdkDownloader.js';
 import { AgentServerToolHost } from '../../node/shared/agentServerToolHost.js';
 import { createArtifactServerToolGroup } from '../../node/shared/artifactServerTools.js';
+import { sessionServerToolDefinitions } from '../../node/shared/sessionServerTools.js';
 import { ClaudeAgentSdkService, type IClaudeAgentSdkService, type IClaudeSdkBindings } from '../../node/claude/claudeAgentSdkService.js';
 import {
 	buildServerToolMcpServer,
@@ -95,17 +96,17 @@ suite('claudeServerToolMcpServer / buildServerToolMcpServer', () => {
 	});
 
 	test('honors per-tool deferral without changing unrelated tools', async () => {
-		for (const useCompactPrompts of [false, true]) {
-			const { sdk, recorded } = makeSdk();
-			const group = createArtifactServerToolGroup({ isEnabled: () => true, useCompactPrompts: () => useCompactPrompts, persist: () => { } });
-			await buildServerToolMcpServer(new FakeServerToolHost(), chatUri, sdk, [...(group.getDefinitions?.() ?? group.definitions), fakeToolDefinitions[0]]);
-			assert.deepStrictEqual(recorded.map(tool => ({ name: tool.name, options: tool.options })), [
-				{ name: ArtifactServerToolName.AddArtifactOrReference, options: { alwaysLoad: true } },
-				{ name: ArtifactServerToolName.RemoveArtifactOrReference, options: { alwaysLoad: false } },
-				{ name: ArtifactServerToolName.ListArtifactsAndReferences, options: { alwaysLoad: false } },
-				{ name: 'serverToolA', options: undefined },
-			]);
-		}
+		const { sdk, recorded } = makeSdk();
+		const group = createArtifactServerToolGroup({ isEnabled: () => true, persist: () => { } });
+		const renameChatDefinition = sessionServerToolDefinitions.find(definition => definition.name === SessionServerToolName.RenameChat)!;
+		await buildServerToolMcpServer(new FakeServerToolHost(), chatUri, sdk, [...group.definitions, renameChatDefinition, fakeToolDefinitions[0]]);
+		assert.deepStrictEqual(recorded.map(tool => ({ name: tool.name, options: tool.options })), [
+			{ name: ArtifactServerToolName.AddArtifactOrReference, options: { alwaysLoad: true } },
+			{ name: ArtifactServerToolName.RemoveArtifactOrReference, options: { alwaysLoad: false } },
+			{ name: ArtifactServerToolName.ListArtifactsAndReferences, options: { alwaysLoad: false } },
+			{ name: SessionServerToolName.RenameChat, options: { alwaysLoad: false } },
+			{ name: 'serverToolA', options: undefined },
+		]);
 	});
 
 	// The native SDK requires SharedArrayBuffer, unavailable in the Electron renderer test runner.
@@ -134,7 +135,6 @@ suite('claudeServerToolMcpServer / buildServerToolMcpServer', () => {
 		let enabled = true;
 		const host = new AgentServerToolHost(stateManager, [createArtifactServerToolGroup({
 			isEnabled: () => enabled,
-			useCompactPrompts: () => false,
 			persist: () => { },
 		})]);
 		const server = await buildServerToolMcpServer(host, chatUri, sdk, [...host.definitions, fakeToolDefinitions[0]]);

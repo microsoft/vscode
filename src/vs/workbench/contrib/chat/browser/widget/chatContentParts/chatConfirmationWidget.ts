@@ -211,7 +211,7 @@ abstract class BaseSimpleChatConfirmationWidget<T> extends Disposable {
 			const buttonOptions: IButtonOptions = { ...defaultButtonStyles, small: true, secondary: buttonData.isSecondary, title: buttonData.tooltip, disabled: buttonData.disabled };
 
 			let button: IButton;
-			if (buttonData.moreActions) {
+			if (buttonData.moreActions?.some(action => !(action instanceof Separator))) {
 				button = new ButtonWithDropdown(elements.buttons, {
 					...buttonOptions,
 					contextMenuProvider: contextMenuService,
@@ -447,7 +447,7 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 			const buttonOptions: IButtonOptions = { ...defaultButtonStyles, small: true, secondary: buttonData.isSecondary, title: buttonData.tooltip, disabled: buttonData.disabled };
 
 			let button: IButton;
-			if (buttonData.moreActions) {
+			if (buttonData.moreActions?.some(action => !(action instanceof Separator))) {
 				button = new ButtonWithDropdown(this._buttonsDomNode, {
 					...buttonOptions,
 					contextMenuProvider: this.contextMenuService,

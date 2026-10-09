@@ -296,6 +296,7 @@ export function registerServices(builder: IInstantiationServiceBuilder, extensio
 
 	// Keep the exact resolution the service uses so late policy can be detected.
 	const otelConfigResolver = new VSCodeOTelConfigResolver(process.env, extensionContext.extension.packageJSON.version ?? '0.0.0', env.sessionId);
+	extensionContext.subscriptions.push(otelConfigResolver);
 	builder.define(IOTelConfigResolver, otelConfigResolver);
 	const otelConfig = otelConfigResolver.activeResolution.config;
 	if (otelConfig.enabled) {
@@ -308,7 +309,8 @@ export function registerServices(builder: IInstantiationServiceBuilder, extensio
 			else if (level === 'warn') { console.warn(msg); }
 			else { console.info(msg); }
 		};
-		builder.define(IOTelService, new NodeOTelService(otelConfig, logFn, otelConfig.dbSpanExporter ? otelSqliteStore : undefined));
+		builder.define(IOTelService, new NodeOTelService(otelConfig, logFn, otelConfig.dbSpanExporter ? otelSqliteStore : undefined,
+			() => otelConfigResolver.captureIdentityAllowed));
 	} else {
 		builder.define(IOTelService, new InMemoryOTelService(otelConfig));
 	}

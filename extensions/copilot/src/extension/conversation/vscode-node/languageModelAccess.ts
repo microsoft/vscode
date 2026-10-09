@@ -120,7 +120,7 @@ function buildAutoRoutingContext(
 
 // Auto model delegates to different backends, so the only picker it exposes is
 // the routing tier; per-model options belong to the model it routes to.
-function buildConfigurationSchema(endpoint: IChatEndpoint, opusDefaultEffort: string | undefined): { configurationSchema?: vscode.LanguageModelConfigurationSchema } {
+function buildConfigurationSchema(endpoint: IChatEndpoint, claudeDefaultEffort: string | undefined): { configurationSchema?: vscode.LanguageModelConfigurationSchema } {
 	if (endpoint instanceof AutoChatEndpoint) {
 		return { configurationSchema: { properties: { [AUTO_MODE_TIER_PROPERTY]: buildAutoModeTierSchemaProperty(selectableAutoModeTiers, defaultAutoModeTier) } } };
 	}
@@ -131,7 +131,7 @@ function buildConfigurationSchema(endpoint: IChatEndpoint, opusDefaultEffort: st
 	const effortLevels = endpoint.supportsReasoningEffort;
 	if (effortLevels && effortLevels.length > 1) {
 		const family = endpoint.family.toLowerCase();
-		const defaultOverride = family.includes('opus') ? opusDefaultEffort : undefined;
+		const defaultOverride = family.startsWith('claude') ? claudeDefaultEffort : undefined;
 		properties.reasoningEffort = buildReasoningEffortSchemaProperty(effortLevels, family, defaultOverride);
 	}
 
@@ -298,7 +298,7 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 			this._onDidChange.fire();
 		}));
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ConfigKey.ClaudeOpusDefaultReasoningEffort.fullyQualifiedId)) {
+			if (e.affectsConfiguration(ConfigKey.ClaudeDefaultReasoningEffort.fullyQualifiedId)) {
 				this._onDidChange.fire();
 			}
 		}));
@@ -334,7 +334,7 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 		}
 
 		const seenFamilies = new Set<string>();
-		const opusDefaultEffort = this._configurationService.getExperimentBasedConfig(ConfigKey.ClaudeOpusDefaultReasoningEffort, this._expService) || undefined;
+		const claudeDefaultEffort = this._configurationService.getExperimentBasedConfig(ConfigKey.ClaudeDefaultReasoningEffort, this._expService) || undefined;
 
 		for (const endpoint of chatEndpoints) {
 			if (seenFamilies.has(endpoint.family) && !endpoint.showInModelPicker) {
@@ -414,7 +414,7 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 					imageInput: endpoint instanceof AutoChatEndpoint ? true : endpoint.supportsVision,
 					toolCalling: endpoint.supportsToolCalls,
 				},
-				...buildConfigurationSchema(endpoint, opusDefaultEffort),
+				...buildConfigurationSchema(endpoint, claudeDefaultEffort),
 			};
 
 			models.push(model);
@@ -899,8 +899,7 @@ export class CopilotLanguageModelWrapper extends Disposable {
 
 	async provideLanguageModelResponse(endpoint: IChatEndpoint, messages: Array<vscode.LanguageModelChatMessage | vscode.LanguageModelChatMessage2>, options: vscode.ProvideLanguageModelChatResponseOptions, extensionId: string | undefined, progress: vscode.Progress<LMResponsePart>, token: vscode.CancellationToken): Promise<void> {
 		let thinkingActive = false;
-		// Tag encrypted reasoning with the API that produced it so a consumer can tell whether it
-		// may be replayed, rather than having to guess from the payload's id.
+		// Carry the producing protocol through the extension boundary for safe reasoning replay.
 		const originApi = asThinkingOriginApi(endpoint.apiType);
 		const originMetadata = originApi ? thinkingOriginToMetadata(originApi) : undefined;
 		const finishCallback: FinishedCallback = async (_text, index, delta): Promise<undefined> => {
@@ -915,11 +914,12 @@ export class CopilotLanguageModelWrapper extends Disposable {
 					}
 				} else {
 					const text = delta.thinking.text ?? '';
-					progress.report(new vscode.LanguageModelThinkingPart(text, delta.thinking.id, delta.thinking.metadata));
+					const metadata = originMetadata ? { ...delta.thinking.metadata, ...originMetadata } : delta.thinking.metadata;
+					progress.report(new vscode.LanguageModelThinkingPart(text, delta.thinking.id, metadata));
 					thinkingActive = true;
 				}
 			} else if (thinkingActive) {
-				progress.report(new vscode.LanguageModelThinkingPart('', '', { vscode_reasoning_done: true }));
+				progress.report(new vscode.LanguageModelThinkingPart('', '', { vscode_reasoning_done: true, ...originMetadata }));
 				thinkingActive = false;
 			}
 			if (delta.text) {

@@ -5,8 +5,9 @@
 
 import assert from 'assert';
 import { suite, test } from 'vitest';
-import { getRequestId } from '../../common/fetch';
+import { getGitHubCopilotRequestTe, getRequestId, gitHubCopilotRequestTeProperty } from '../../common/fetch';
 import { HeadersImpl } from '../../common/fetcherService';
+import { TelemetryData } from '../../../telemetry/common/telemetryData';
 
 suite('getRequestId', () => {
 
@@ -63,5 +64,53 @@ suite('getRequestId', () => {
 
 	test('missing X-Copilot-Service-Request-Id returns empty string', () => {
 		assert.strictEqual(getRequestId(new HeadersImpl({})).copilotServiceRequestId, '');
+	});
+
+	test('carries X-GitHub-Copilot-Request-Te unchanged and omits it when absent', () => {
+		assert.deepStrictEqual([
+			getRequestId(new HeadersImpl({ 'X-GitHub-Copilot-Request-Te': ' TRUE ' })).gitHubCopilotRequestTe,
+			'gitHubCopilotRequestTe' in getRequestId(new HeadersImpl({})),
+		], [' TRUE ', false]);
+	});
+});
+
+suite('getGitHubCopilotRequestTe', () => {
+
+	test('reads the header case-insensitively from Headers and plain objects, returning the raw value', () => {
+		const lookups = ['true', 'false', ' TRUE ', 'yes'].flatMap(value => [
+			getGitHubCopilotRequestTe(new HeadersImpl({ 'X-GitHub-Copilot-Request-Te': value })),
+			getGitHubCopilotRequestTe(new HeadersImpl({ 'x-github-copilot-request-te': value })),
+			getGitHubCopilotRequestTe({ 'X-GitHub-Copilot-Request-Te': value }),
+			getGitHubCopilotRequestTe({ 'x-github-copilot-request-te': value }),
+		]);
+		assert.deepStrictEqual(lookups, [
+			'true', 'true', 'true', 'true',
+			'false', 'false', 'false', 'false',
+			' TRUE ', ' TRUE ', ' TRUE ', ' TRUE ',
+			'yes', 'yes', 'yes', 'yes',
+		]);
+	});
+
+	test('returns undefined when the header or header map is absent', () => {
+		assert.deepStrictEqual([
+			getGitHubCopilotRequestTe(new HeadersImpl({ 'x-request-id': 'req-1' })),
+			getGitHubCopilotRequestTe({}),
+			getGitHubCopilotRequestTe(undefined),
+		], [undefined, undefined, undefined]);
+	});
+
+	test('TelemetryData.extendWithRequestId never keeps a value from an earlier request', () => {
+		const telemetryData = TelemetryData.createAndMarkAsIssued();
+		telemetryData.extendWithRequestId(getRequestId(new HeadersImpl({ 'x-github-copilot-request-te': 'true' })));
+		const afterFirst = telemetryData.properties.gitHubCopilotRequestTe;
+		telemetryData.extendWithRequestId(getRequestId(new HeadersImpl({})));
+		assert.deepStrictEqual([afterFirst, 'gitHubCopilotRequestTe' in telemetryData.properties], ['true', false]);
+	});
+
+	test('telemetry property is omitted when absent and verbatim otherwise', () => {
+		assert.deepStrictEqual([
+			gitHubCopilotRequestTeProperty(undefined),
+			gitHubCopilotRequestTeProperty(' TRUE '),
+		], [{}, { gitHubCopilotRequestTe: ' TRUE ' }]);
 	});
 });

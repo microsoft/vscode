@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { execSync } from 'child_process';
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'fs';
+import { mkdirSync, readFileSync, realpathSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
@@ -27,6 +27,7 @@ import {
 } from '../harness/agentHostE2ETestHarness.js';
 import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
 
 export function defineWorkspaceTests(context: IAgentHostE2ETestContext): void {
 	/**
@@ -42,7 +43,7 @@ export function defineWorkspaceTests(context: IAgentHostE2ETestContext): void {
 	test('session is created with the correct working directory', async function () {
 		this.timeout(120_000);
 
-		const tempDir = mkdtempSync(`${tmpdir()}/ahp-test-`);
+		const tempDir = createTestDirectory(`${tmpdir()}/ahp-test-`);
 		tempDirs.push(tempDir);
 		const workingDirUri = URI.file(tempDir).toString();
 
@@ -62,7 +63,7 @@ export function defineWorkspaceTests(context: IAgentHostE2ETestContext): void {
 
 	(context.runKnownIssueTests && config.supportsWorktreeIncludeFilesE2E ? test : test.skip)('worktree materialization copies configured ignored files', async function () {
 		this.timeout(180_000);
-		const repository = mkdtempSync(`${tmpdir()}/ahp-wt-include-`);
+		const repository = createTestDirectory(`${tmpdir()}/ahp-wt-include-`);
 		tempDirs.push(repository, `${repository}.worktrees`);
 		initTestGitRepo(repository);
 		writeFileSync(`${repository}/tracked.txt`, 'tracked');
@@ -123,7 +124,7 @@ export function defineWorkspaceTests(context: IAgentHostE2ETestContext): void {
 	(config.supportsWorktreeIsolation && !isWindows && portableShellToolReplayEnabled && !config.shellToolResultTextUnreliable ? test : test.skip)('worktree session uses the resolved worktree as working directory', async function () {
 		this.timeout(120_000);
 
-		const tempDir = mkdtempSync(`${tmpdir()}/ahp-wt-test-`);
+		const tempDir = createTestDirectory(`${tmpdir()}/ahp-wt-test-`);
 		tempDirs.push(tempDir, `${tempDir}.worktrees`);
 		initTestGitRepo(tempDir);
 		execSync('git commit --allow-empty -m "init"', { cwd: tempDir });

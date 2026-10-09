@@ -24,7 +24,7 @@ export class SessionsWorkspaceFolderLabelService implements IWorkspaceFolderLabe
 	) { }
 
 	getWorkspaceFolderLabel(workspaceFolder: IWorkspaceFolder, verbose?: boolean): string {
-		const workspace = this.sessionsService.activeSession.get()?.workspace.get();
+		const workspace = this.sessionsService.activeSession.get()?.activeChat.get().workspace.get();
 		const folder = workspace?.folders.find(folder => this.isWorkspaceFolder(folder, workspaceFolder))
 			?? this.sessionsManagementService.getSessions()
 				.flatMap(session => session.workspace.get()?.folders ?? [])

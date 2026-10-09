@@ -25,7 +25,6 @@ import { URI } from '../../../../util/vs/base/common/uri';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { ensureNodePtyShim } from './nodePtyShim';
 import { ensureRipgrepShim } from './ripgrepShim';
-import { resolveAppModulePathSync } from './appNodeModules';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { formatTokenCount, getAutoModelDescription, getModelCapabilitiesDescription, getReasoningEffortDescription, normalizeTokenPrices, pickDefaultReasoningEffort } from '../../../conversation/common/languageModelAccess';
 
@@ -225,7 +224,6 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 	}
 
 	private _buildModelInfos(models: CopilotCLIModelInfo[]): vscode.LanguageModelChatInformation[] {
-		const isReasoningEffortEnabled = this.configurationService.getConfig(ConfigKey.Advanced.CLIThinkingEffortEnabled);
 		const isAutoModelEnabled = this.configurationService.getConfig(ConfigKey.Advanced.CLIAutoModelEnabled);
 		const modelsInfo: vscode.LanguageModelChatInformation[] = models.map((model, index) => {
 			const multiplier = model.multiplier === undefined ? undefined : `${model.multiplier}x`;
@@ -249,7 +247,7 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 				longContextCacheWriteCost: model.longContextCacheWriteCost,
 				multiplierNumeric: model.multiplier,
 				isUserSelectable: true,
-				...buildConfigurationSchema(model, isReasoningEffortEnabled),
+				...buildConfigurationSchema(model),
 				capabilities: {
 					imageInput: model.supportsVision,
 					toolCalling: true
@@ -293,26 +291,24 @@ function buildAutoModel(defaultModel?: CopilotCLIModelInfo): vscode.LanguageMode
 
 export const COPILOT_CLI_CONTEXT_SIZE_PROPERTY = 'contextSize';
 
-function buildConfigurationSchema(modelInfo: CopilotCLIModelInfo, isReasoningEffortEnabled: boolean): { configurationSchema?: vscode.LanguageModelConfigurationSchema } {
+function buildConfigurationSchema(modelInfo: CopilotCLIModelInfo): { configurationSchema?: vscode.LanguageModelConfigurationSchema } {
 	const properties: Record<string, NonNullable<vscode.LanguageModelConfigurationSchema['properties']>[string]> = {};
 
 	// Reasoning effort config
-	if (isReasoningEffortEnabled) {
-		const effortLevels = modelInfo.supportedReasoningEfforts ?? [];
-		if (effortLevels.length > 0) {
-			const defaultEffort = modelInfo.defaultReasoningEffort && effortLevels.includes(modelInfo.defaultReasoningEffort)
-				? modelInfo.defaultReasoningEffort
-				: pickDefaultReasoningEffort(effortLevels, modelInfo.id);
-			properties[COPILOT_CLI_REASONING_EFFORT_PROPERTY] = {
-				type: 'string',
-				title: l10n.t('Thinking Effort'),
-				enum: effortLevels,
-				enumItemLabels: effortLevels.map(level => level.charAt(0).toUpperCase() + level.slice(1)),
-				enumDescriptions: effortLevels.map(getReasoningEffortDescription),
-				default: defaultEffort,
-				group: 'navigation',
-			};
-		}
+	const effortLevels = modelInfo.supportedReasoningEfforts ?? [];
+	if (effortLevels.length > 0) {
+		const defaultEffort = modelInfo.defaultReasoningEffort && effortLevels.includes(modelInfo.defaultReasoningEffort)
+			? modelInfo.defaultReasoningEffort
+			: pickDefaultReasoningEffort(effortLevels, modelInfo.id);
+		properties[COPILOT_CLI_REASONING_EFFORT_PROPERTY] = {
+			type: 'string',
+			title: l10n.t('Thinking Effort'),
+			enum: effortLevels,
+			enumItemLabels: effortLevels.map(level => level.charAt(0).toUpperCase() + level.slice(1)),
+			enumDescriptions: effortLevels.map(getReasoningEffortDescription),
+			default: defaultEffort,
+			group: 'navigation',
+		};
 	}
 
 	// Context size config — only when CAPI provides a default context max,
@@ -579,14 +575,6 @@ export class CopilotCLISDK implements ICopilotCLISDK {
 		try {
 			// Ensure the node-pty and ripgrep shims exist before importing the SDK (required for CLI sessions)
 			await this._ensureShimsPromise;
-			// The SDK's sandbox auto-detection looks for `mxc-bin/<arch>/wxc-exec.exe` (and the
-			// Linux/macOS equivalents) under `MXC_BIN_DIR`. VS Code core ships the MXC
-			// sandbox binaries at `<appRoot>/node_modules/@microsoft/mxc-sdk/bin/<arch>/`
-			// (or `node_modules.asar.unpacked/...` in a packaged build), so point
-			// `MXC_BIN_DIR` there. The @github/copilot package's own `mxc-bin/` is excluded
-			// from the product build (see build/.moduleignore).
-			process.env['MXC_BIN_DIR'] = resolveAppModulePathSync(this.envService.appRoot, '@microsoft', 'mxc-sdk', 'bin');
-
 			// On Linux the MXC bubblewrap sandbox backend does not forward a PTY into
 			// the container, so the CLI's default PTY-backed interactive shell can
 			// never start bash under the sandbox: the inner shell sees a non-tty

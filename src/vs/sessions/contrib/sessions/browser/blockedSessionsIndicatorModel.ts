@@ -12,6 +12,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, agentSessionApprovalId } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
+import { IAgentHostFilterService } from '../../../services/agentHostFilter/common/agentHostFilter.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
@@ -91,7 +92,7 @@ export class BlockedSessionsIndicatorModel extends Disposable {
 	private _writingIgnoredOccurrences = false;
 
 	/**
-	 * Blocked sessions that are not visible, ignored, being fixed, or already approved.
+	 * Blocked sessions in the selected host scope that are not visible, ignored, being fixed, or already approved.
 	 * Visible blocked occurrences stay acknowledged after the user navigates away.
 	 */
 	readonly blockedSessions: IObservable<readonly IBlockedSession[]>;
@@ -132,6 +133,7 @@ export class BlockedSessionsIndicatorModel extends Disposable {
 		@ILogService private readonly _logService: ILogService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
+		@IAgentHostFilterService agentHostFilterService: IAgentHostFilterService,
 	) {
 		super();
 
@@ -157,6 +159,7 @@ export class BlockedSessionsIndicatorModel extends Disposable {
 			}));
 		}
 		const allSessions = observableFromEvent(this, sessionsManagementService.onDidChangeSessions, () => sessionsManagementService.getSessions());
+		const scopedProviderIds = observableFromEvent(this, agentHostFilterService.onDidChange, () => agentHostFilterService.selectedHost?.providerIds);
 
 		this._logService.trace(`${LOG_PREFIX} created (enabled: ${enabled})`);
 		this._register(toDisposable(() => this._logService.trace(`${LOG_PREFIX} disposed`)));
@@ -167,6 +170,7 @@ export class BlockedSessionsIndicatorModel extends Disposable {
 			if (!enabled) {
 				return [];
 			}
+			const providerIds = scopedProviderIds.read(reader);
 			const visibleSessionIds = new Set<string>();
 			for (const session of this._sessionsService.visibleSessions.read(reader)) {
 				if (session) {
@@ -179,7 +183,8 @@ export class BlockedSessionsIndicatorModel extends Disposable {
 			// disappears the moment the user clicks "Fix CI".
 			const ciFixHidden = this._ciFixModel.hiddenSessions.read(reader);
 			return this._blockedSessionsModel.blockedSessionsWithReasons.read(reader)
-				.filter(blocked => !visibleSessionIds.has(blocked.session.sessionId)
+				.filter(blocked => (!providerIds || providerIds.includes(blocked.session.providerId))
+					&& !visibleSessionIds.has(blocked.session.sessionId)
 					&& !ciFixHidden.has(blocked.session.sessionId)
 					&& !this._isBlockIgnored(blocked, ignoredOccurrences, reader));
 		});
@@ -307,16 +312,11 @@ export class BlockedSessionsIndicatorModel extends Disposable {
 			const previousOccurrences = this._lastBlockedOccurrences;
 			this._lastBlockedOccurrences = currentOccurrences;
 
-			const visibleSessionIds = new Set<string>();
-			for (const session of this._sessionsService.visibleSessions.read(reader)) {
-				if (session) {
-					visibleSessionIds.add(session.sessionId);
-				}
-			}
+			const surfacedSessionIds = new Set(this.blockedSessions.read(reader).map(blocked => blocked.session.sessionId));
 
-			// Drop queued blinks for sessions that unblocked or that the user can now see.
+			// Scope changes may drop queued blinks, but never create new occurrences.
 			for (const [sessionId, occurrenceId] of this._pendingBlinkOccurrences) {
-				if (currentOccurrences.get(sessionId) !== occurrenceId || visibleSessionIds.has(sessionId)) {
+				if (currentOccurrences.get(sessionId) !== occurrenceId || !surfacedSessionIds.has(sessionId)) {
 					this._pendingBlinkOccurrences.delete(sessionId);
 				}
 			}
@@ -326,7 +326,7 @@ export class BlockedSessionsIndicatorModel extends Disposable {
 			for (const blocked of modelBlocked) {
 				const sessionId = blocked.session.sessionId;
 				const occurrenceId = currentOccurrences.get(sessionId)!;
-				if (previousOccurrences.get(sessionId) !== occurrenceId && !visibleSessionIds.has(sessionId)) {
+				if (previousOccurrences.get(sessionId) !== occurrenceId && surfacedSessionIds.has(sessionId)) {
 					this._pendingBlinkOccurrences.set(sessionId, occurrenceId);
 					queued = true;
 					this._logService.trace(`${LOG_PREFIX} queued attention blink for ${sessionId} (${occurrenceId})`);

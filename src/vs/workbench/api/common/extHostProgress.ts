@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ProgressOptions } from 'vscode';
-import { MainThreadProgressShape, ExtHostProgressShape, MainContext } from './extHost.protocol.js';
+import { MainThreadProgressShape, ExtHostProgressShape, MainContext, IProgressStepDto } from './extHost.protocol.js';
 import { ProgressLocation } from './extHostTypeConverters.js';
-import { Progress, IProgressStep } from '../../../platform/progress/common/progress.js';
+import { Progress } from '../../../platform/progress/common/progress.js';
 import { CancellationTokenSource, CancellationToken } from '../../../base/common/cancellation.js';
 import { throttle } from '../../../base/common/decorators.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
@@ -14,6 +14,7 @@ import { onUnexpectedExternalError } from '../../../base/common/errors.js';
 import { INotificationSource } from '../../../platform/notification/common/notification.js';
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
+import { NotificationTelemetryId } from '../../../platform/notification/common/notificationTelemetry.js';
 
 export interface IExtHostProgress extends ExtHostProgress { }
 export const IExtHostProgress = createDecorator<IExtHostProgress>('IExtHostProgress');
@@ -30,7 +31,7 @@ export class ExtHostProgress implements ExtHostProgressShape {
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadProgress);
 	}
 
-	async withProgress<R>(extension: IExtensionDescription, options: ProgressOptions, task: (progress: Progress<IProgressStep>, token: CancellationToken) => Thenable<R>): Promise<R> {
+	async withProgress<R>(extension: IExtensionDescription, options: ProgressOptions, task: (progress: Progress<IProgressStepDto>, token: CancellationToken) => Thenable<R>): Promise<R> {
 		const handle = this._handles++;
 		const { title, location, cancellable } = options;
 		const source = { label: extension.displayName || extension.name, id: extension.identifier.value };
@@ -39,15 +40,15 @@ export class ExtHostProgress implements ExtHostProgressShape {
 		return this._withProgress(handle, task, !!cancellable);
 	}
 
-	async withProgressFromSource<R>(source: string | INotificationSource, options: ProgressOptions, task: (progress: Progress<IProgressStep>, token: CancellationToken) => Thenable<R>): Promise<R> {
+	async withProgressFromSource<R>(source: string | INotificationSource, options: ProgressOptions, task: (progress: Progress<IProgressStepDto>, token: CancellationToken) => Thenable<R>, telemetryId?: NotificationTelemetryId): Promise<R> {
 		const handle = this._handles++;
 		const { title, location, cancellable } = options;
 
-		this._proxy.$startProgress(handle, { location: ProgressLocation.from(location), title, source, cancellable }, undefined).catch(onUnexpectedExternalError);
+		this._proxy.$startProgress(handle, { location: ProgressLocation.from(location), title, source, cancellable, telemetryId }, undefined).catch(onUnexpectedExternalError);
 		return this._withProgress(handle, task, !!cancellable);
 	}
 
-	private _withProgress<R>(handle: number, task: (progress: Progress<IProgressStep>, token: CancellationToken) => Thenable<R>, cancellable: boolean): Thenable<R> {
+	private _withProgress<R>(handle: number, task: (progress: Progress<IProgressStepDto>, token: CancellationToken) => Thenable<R>, cancellable: boolean): Thenable<R> {
 		let source: CancellationTokenSource | undefined;
 		if (cancellable) {
 			source = new CancellationTokenSource();
@@ -82,7 +83,7 @@ export class ExtHostProgress implements ExtHostProgressShape {
 	}
 }
 
-function mergeProgress(result: IProgressStep, currentValue: IProgressStep): IProgressStep {
+function mergeProgress(result: IProgressStepDto, currentValue: IProgressStepDto): IProgressStepDto {
 	result.message = currentValue.message;
 	if (typeof currentValue.increment === 'number') {
 		if (typeof result.increment === 'number') {
@@ -95,13 +96,13 @@ function mergeProgress(result: IProgressStep, currentValue: IProgressStep): IPro
 	return result;
 }
 
-class ProgressCallback extends Progress<IProgressStep> {
+class ProgressCallback extends Progress<IProgressStepDto> {
 	constructor(private _proxy: MainThreadProgressShape, private _handle: number) {
 		super(p => this.throttledReport(p));
 	}
 
-	@throttle(100, (result: IProgressStep, currentValue: IProgressStep) => mergeProgress(result, currentValue), () => Object.create(null))
-	throttledReport(p: IProgressStep): void {
+	@throttle(100, (result: IProgressStepDto, currentValue: IProgressStepDto) => mergeProgress(result, currentValue), () => Object.create(null))
+	throttledReport(p: IProgressStepDto): void {
 		this._proxy.$progressReport(this._handle, p);
 	}
 }

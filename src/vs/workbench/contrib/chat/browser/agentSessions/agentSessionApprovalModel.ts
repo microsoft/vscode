@@ -122,8 +122,8 @@ export class AgentSessionApprovalModel extends Disposable {
 					continue;
 				}
 
-				for (const part of response.response.value) {
-					if (part.kind !== 'toolInvocation' || part.presentation === 'hidden' || (part.toolSpecificData?.kind === 'modifiedFilesConfirmation' && part.toolSpecificData.options.length !== 1)) {
+				for (const part of response.pendingToolInvocations.read(reader)) {
+					if (part.presentation === 'hidden' || (part.toolSpecificData?.kind === 'modifiedFilesConfirmation' && part.toolSpecificData.options.length !== 1)) {
 						continue;
 					}
 					const state = part.state.read(reader);

@@ -16,6 +16,8 @@ import { basename, dirname, extUriBiasedIgnorePathCase, isEqual, originalFSPath 
 import { URI } from '../../../base/common/uri.js';
 import { Promises } from '../../../base/node/pfs.js';
 import { localize } from '../../../nls.js';
+import { ChatAIDisabledSettingId } from '../../chat/common/chatSettings.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILifecycleMainService, LifecycleMainPhase } from '../../lifecycle/electron-main/lifecycleMainService.js';
 import { ILogService } from '../../log/common/log.js';
@@ -60,7 +62,8 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@IApplicationStorageMainService private readonly applicationStorageMainService: IApplicationStorageMainService,
 		@IDialogMainService private readonly dialogMainService: IDialogMainService,
-		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService
+		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 
@@ -365,6 +368,11 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 
 		await this.updateWindowsJumpList();
 		this._register(this.onDidChangeRecentlyOpened(() => this.updateWindowsJumpList()));
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatAIDisabledSettingId)) {
+				this.updateWindowsJumpList();
+			}
+		}));
 	}
 
 	private async updateWindowsJumpList(): Promise<void> {
@@ -376,28 +384,34 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		let recentWorkspaces = this.getWindowsJumpListWorkspaces((await this.getRecentlyOpened()).workspaces);
 
 		// Tasks
+		const tasks: JumpListItem[] = [
+			{
+				type: 'task',
+				title: localize('newWindow', "New Window"),
+				description: localize('newWindowDesc', "Opens a new window"),
+				program: process.execPath,
+				args: '-n', // force new window
+				iconPath: process.execPath,
+				iconIndex: 0
+			}
+		];
+
+		// Agents Window (hidden when AI features are disabled)
+		if (this.configurationService.getValue<boolean>(ChatAIDisabledSettingId) !== true) {
+			tasks.push({
+				type: 'task',
+				title: localize('agentsWindow', "Agents Window"),
+				description: localize('openAgentsWindowDesc', "Opens the Agents Window"),
+				program: process.execPath,
+				args: '--agents',
+				iconPath: join(this.environmentMainService.appRoot, 'resources/win32/sessions.ico'),
+				iconIndex: 0
+			});
+		}
+
 		jumpList.push({
 			type: 'tasks',
-			items: [
-				{
-					type: 'task',
-					title: localize('newWindow', "New Window"),
-					description: localize('newWindowDesc', "Opens a new window"),
-					program: process.execPath,
-					args: '-n', // force new window
-					iconPath: process.execPath,
-					iconIndex: 0
-				},
-				{
-					type: 'task',
-					title: localize('agentsWindow', "Agents Window"),
-					description: localize('openAgentsWindowDesc', "Opens the Agents Window"),
-					program: process.execPath,
-					args: '--agents',
-					iconPath: join(this.environmentMainService.appRoot, 'resources/win32/sessions.ico'),
-					iconIndex: 0
-				}
-			]
+			items: tasks
 		});
 
 		// Recent Workspaces

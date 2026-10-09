@@ -23,6 +23,8 @@ import { ROOT_STATE_URI } from './state/sessionState.js';
  * filesystems (server→client) satisfy this contract.
  */
 export interface IRemoteFilesystemConnection {
+	/** Fires when the same logical connection finishes reconnecting. */
+	readonly onDidReconnect?: Event<void>;
 	resourceList(uri: URI): Promise<ResourceListResult>;
 	resourceRead(uri: URI, encoding?: ContentEncoding): Promise<ResourceReadResult>;
 	resourceWrite(params: ResourceWriteParams): Promise<ResourceWriteResult>;
@@ -317,6 +319,7 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 		// the full entry-eviction cycle.
 		const store = new DisposableStore();
 		const handleHolder = store.add(new MutableDisposable<IDisposable>());
+		const reconnectListener = store.add(new MutableDisposable<IDisposable>());
 		const authority = resource.authority;
 		const params: CreateResourceWatchParams = {
 			channel: ROOT_STATE_URI,
@@ -332,6 +335,8 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 		// so we ignore spurious change events that don't represent a
 		// real swap (e.g. a stale registration disposal).
 		let attached: IRemoteFilesystemConnection | undefined;
+		let observed: IRemoteFilesystemConnection | undefined;
+		let connectionGeneration = 0;
 		let attaching = false;
 		let pendingReattach = false;
 
@@ -339,12 +344,22 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 			if (store.isDisposed) {
 				return;
 			}
+			const entry = this._authorities.get(authority);
+			const next = entry?.connections.at(-1);
+			if (next !== observed) {
+				observed = next;
+				connectionGeneration++;
+				reconnectListener.value = next?.onDidReconnect?.(() => {
+					connectionGeneration++;
+					handleHolder.clear();
+					attached = undefined;
+					void reattach();
+				});
+			}
 			if (attaching) {
 				pendingReattach = true;
 				return;
 			}
-			const entry = this._authorities.get(authority);
-			const next = entry?.connections.at(-1);
 			if (next === attached) {
 				return;
 			}
@@ -356,6 +371,7 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 			}
 			attaching = true;
 			const target = next;
+			const generation = connectionGeneration;
 			try {
 				const handle = await watchResource.call(target, params);
 				if (store.isDisposed) {
@@ -363,9 +379,8 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 					return;
 				}
 				const current = this._authorities.get(authority);
-				if (!current || current.connections.at(-1) !== target) {
-					// Active connection changed underneath us — toss this
-					// handle and let the pending reattach pick the new one.
+				if (!current || current.connections.at(-1) !== target || generation !== connectionGeneration) {
+					// A replaced or recovered connection no longer owns this result.
 					handle.dispose();
 					return;
 				}

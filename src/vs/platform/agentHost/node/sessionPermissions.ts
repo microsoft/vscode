@@ -24,6 +24,7 @@ import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostEditAutoApprove
 import type { IAgentToolPendingConfirmationSignal } from '../common/agent.js';
 import { ISessionDataService, isSessionAttachmentPath } from '../common/sessionDataService.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
+import { getAvailableSessionApprovalValues, getSessionApprovalProperty, readSessionApprovalLevel } from '../common/sessionConfigProperties.js';
 import { readToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { ConfirmationOptionKind, type ConfirmationOption } from '../common/state/protocol/state.js';
 import { ActionType, type IToolCallReadyAction } from '../common/state/sessionActions.js';
@@ -262,7 +263,9 @@ export class SessionPermissionManager extends Disposable {
 		}
 
 		// 1. Global auto-approve setting
-		if (this.isGlobalAutoApproveEnabled()) {
+		const approvalConfig = this._stateManager.getSessionState(resolveAgentHostSession(URI.parse(sessionKey)).toString())?.config;
+		const hostPolicy = approvalConfig?.schema.properties.availableApprovalModes?.readOnly === true;
+		if (this.isGlobalAutoApproveEnabled() && (!hostPolicy || this.isSessionAutoApproveEnabled(sessionKey))) {
 			return ToolCallConfirmationReason.Setting;
 		}
 
@@ -420,7 +423,15 @@ export class SessionPermissionManager extends Disposable {
 	}
 
 	getEffectiveApprovalLevel(sessionKey: ProtocolURI): string {
-		if (this._configService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) === true) {
+		const config = this._stateManager.getSessionState(resolveAgentHostSession(URI.parse(sessionKey)).toString())?.config;
+		const policyOwned = config?.schema.properties.availableApprovalModes?.readOnly === true;
+		if (policyOwned) {
+			const effective = config.values.effectiveApprovalMode;
+			const approval = getSessionApprovalProperty(config.schema);
+			return approval && typeof effective === 'string' && Array.isArray(config.values.availableApprovalModes) && getAvailableSessionApprovalValues(approval, config.schema, config.values).includes(effective)
+				? readSessionApprovalLevel(approval, effective) ?? 'default' : 'default';
+		}
+		if (!policyOwned && this._configService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) === true) {
 			return 'default';
 		}
 		return this._configService.getEffectiveValue(sessionKey, platformSessionSchema, SessionConfigKey.AutoApprove) ?? 'default';
@@ -460,7 +471,7 @@ export class SessionPermissionManager extends Disposable {
 				// Managed asks are one-time only. Other agents can supply tool-specific
 				// buttons (e.g. ExitPlanMode's `Approve`/`Deny`) via `state.options`;
 				// otherwise the standard session/once/skip set is used.
-				options: e.managedApprovalRequired
+				options: e.managedApprovalRequired || e.requestSandboxPermissive || (e.requestSandboxBypass && !e.canAllowSessionSandboxBypass)
 					? MANAGED_CONFIRMATION_OPTIONS.slice()
 					: state.options
 						? state.options.slice()
@@ -484,8 +495,8 @@ export class SessionPermissionManager extends Disposable {
 
 	/**
 	 * Handles the side effect of a `ChatToolCallConfirmed` action when the
-	 * user selected "Allow in this Session": persist a sandbox opt-out for
-	 * escapes, or a tool permission for ordinary confirmations.
+	 * user selected "Allow in this Session": persist ordinary tool permissions.
+	 * Sandbox opt-outs are authorized by the provider's pending-request flow.
 	 */
 	handleToolCallConfirmed(chatChannel: ProtocolURI, toolCallId: string, selectedOptionId: string | undefined): void {
 		if (!isAhpChatChannel(chatChannel)) {
@@ -495,10 +506,6 @@ export class SessionPermissionManager extends Disposable {
 		if (selectedOptionId === ALLOW_SESSION_OPTION_ID) {
 			const part = this._stateManager.getSessionState(chatChannel)?.activeTurn?.responseParts.find(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === toolCallId);
 			if (part?.kind === ResponsePartKind.ToolCall && readToolCallMeta(part.toolCall)[SANDBOX_BYPASS_META_KEY] === true) {
-				const policy = this._configService.getSessionSandboxPolicy(sessionKey);
-				if (!policy?.enabled || policy.allowBypass) {
-					this._configService.updateSessionConfig(sessionKey, { [SessionConfigKey.SandboxEnabled]: 'off' });
-				}
 				return;
 			}
 			const toolName = this._getToolNameForToolCall(chatChannel, toolCallId);

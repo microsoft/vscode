@@ -9,8 +9,9 @@ import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../../nls.js';
 import { readAgentModelNoticesMeta } from '../../../../../../platform/agentHost/common/agentModelNotices.js';
+import { COPILOT_HYDRA_FUSION_MODEL_ID } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { ConfigSchema, SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { readAgentModelPricingMeta } from '../../../../../../platform/agentHost/common/agentModelPricing.js';
+import { readAgentModelPricingMeta } from '../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 import { readAgentModelGroupId, readAgentModelSourceId } from '../../../../../../platform/agentHost/common/agentModelSource.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel } from '../../../../../../platform/agentHost/common/reasoningEffort.js';
@@ -56,6 +57,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 	readonly onDidChange = this._onDidChange.event;
 
 	private _models: readonly SessionModelInfo[] = [];
+	private _additionalModels: readonly SessionModelInfo[] = [];
 
 	constructor(
 		private readonly _sessionType: string,
@@ -88,8 +90,15 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 		this._onDidChange.fire();
 	}
 
+	/** Adds service-discovered models without overriding metadata or policy published by the host. */
+	updateAdditionalModels(models: readonly SessionModelInfo[]): void {
+		this._additionalModels = models;
+		this._onDidChange.fire();
+	}
+
 	async provideLanguageModelChatInfo(_options: unknown, _token: CancellationToken): Promise<ILanguageModelChatMetadataAndIdentifier[]> {
-		return this._models
+		const hostModelIds = new Set(this._models.map(model => model.id));
+		return [...this._models, ...this._additionalModels.filter(model => !hostModelIds.has(model.id))]
 			.filter(m => m.policyState !== 'disabled')
 			.map(m => {
 				const pricing = readAgentModelPricingMeta(m);
@@ -101,12 +110,8 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 				// Guard against a non-finite or out-of-range value from the open `_meta` bag so we never render
 				// nonsense like "Infinity% discount"; the documented range is a whole number in (0, 100].
 				const hasDiscount = typeof discountPercent === 'number' && discountPercent > 0 && discountPercent <= 100;
-				const detail = isAuto && hasDiscount
-					? localize('agentHost.auto.discount', "{0}% discount", discountPercent)
-					: undefined;
-				const tooltip = notices?.rowWarning ?? (isAuto
-					? ILanguageModelChatMetadata.getAutoModelDescription(hasDiscount ? discountPercent : undefined)
-					: undefined);
+				const { detail, description } = this._routingPresentationFor(m, hasDiscount ? discountPercent : undefined);
+				const tooltip = notices?.rowWarning ?? description;
 				const modelGroup = this._modelGroupFor(m);
 				const byokModelIdentifier = readAgentModelByokIdentifier(m);
 				// A host that derives its list from the Copilot SDK advertises no billing and no
@@ -166,6 +171,26 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 					},
 				};
 			});
+	}
+
+	/**
+	 * The picker detail and description of a model that routes across others: Auto advertises its
+	 * discount, HydraFusion that it is a research preview. Other models have neither.
+	 */
+	private _routingPresentationFor(model: SessionModelInfo, discountPercent: number | undefined): { detail?: string; description?: string } {
+		if (model.id === AUTO_RAW_MODEL_ID) {
+			return {
+				detail: discountPercent !== undefined ? localize('agentHost.auto.discount', "{0}% discount", discountPercent) : undefined,
+				description: ILanguageModelChatMetadata.getAutoModelDescription(discountPercent),
+			};
+		}
+		if (model.id === COPILOT_HYDRA_FUSION_MODEL_ID) {
+			return {
+				detail: localize('agentHost.hydraFusion.researchPreview', "Research preview"),
+				description: localize('agentHost.hydraFusion.description', "HydraFusion routes the first eligible turn and may use multiple models. Premium usage varies with the selected route."),
+			};
+		}
+		return {};
 	}
 
 	/**
@@ -280,6 +305,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 			// The Auto model has no thinking level, so its routing-profile picker takes that slot,
 			// matching how the Copilot Chat extension groups it.
 			case 'tier':
+			case 'autoTier':
 			case 'thinkingLevel':
 			// `reasoningEffort` / `contextTier` are what the Copilot agent host inside a cloud
 			// sandbox names the same two knobs. Without them the picker finds no property in
@@ -298,7 +324,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 	 * stamps its transport vendor — `copilot`/`anthropic` — there while keeping
 	 * `provider` as the `claude` routing owner); that wins. Otherwise BYOK models
 	 * are surfaced by the agent host under the `vendor/[group/]id` selection id (see
-	 * `resolveByokSessionConfig`), so their upstream vendor is the id prefix; native
+	 * `synthesizeByokSessionConfig`), so their upstream vendor is the id prefix; native
 	 * harness models have no prefix and group under their `provider` (the harness,
 	 * e.g. `copilotcli`). The picker resolves the display name from the vendor
 	 * registry — no name mapping lives here.

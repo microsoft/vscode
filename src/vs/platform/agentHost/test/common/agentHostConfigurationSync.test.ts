@@ -6,18 +6,18 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IConfigurationService, IConfigurationValue } from '../../../configuration/common/configuration.js';
-import { AgentHostConfigurationSyncScope, ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../configuration/common/configurationRegistry.js';
+import { AgentHostConfigurationSyncScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../configuration/common/configurationRegistry.js';
 import { Registry } from '../../../registry/common/platform.js';
 import '../../../request/common/request.js';
 import { AgentHostConfigurationSyncTarget, formatAgentHostConfigurationSyncValueForLog, getAgentHostConfigurationSyncEntries, getAgentHostConfigurationSyncTarget, getGlobalConfigurationValue, inspectValue, resolveAgentHostConfigurationSyncPatch } from '../../common/agentHostConfigurationSync.js';
 import { LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../../common/agentHostResourceService.js';
-import { AgentHostArtifactToolsCompactPromptsConfigKey, AgentHostArtifactToolsConfigKey } from '../../common/agentHostSchema.js';
-import { ArtifactToolsCompactPromptsSettingId, ArtifactToolsSettingId } from '../../common/agentService.js';
+import { AgentHostByokModelsEnabledConfigKey, AgentHostByokModelsEnabledDefault } from '../../common/agentHostSchema.js';
 import { artifactToolsConfigurationProperties } from '../../common/artifactToolsConfiguration.js';
 
 const ALL_HOSTS_SETTING = 'test.agentHostSync.allHosts';
 const LOCAL_SETTING = 'test.agentHostSync.local';
 const AMBIENT_SETTING = 'test.agentHostSync.ambient';
+const BYOK_SETTING = 'test.agentHostSync.byok';
 const HIDDEN_SETTING = 'test.agentHostSync.hidden';
 const UNSYNCED_SETTING = 'test.agentHostSync.unsynced';
 const ENUM_SETTING = 'test.agentHostSync.enum';
@@ -60,6 +60,11 @@ suite('AgentHostConfigurationSync', () => {
 				default: false,
 				agentHost: { key: 'ambientValue', scope: AgentHostConfigurationSyncScope.Ambient },
 			},
+			[BYOK_SETTING]: {
+				type: 'boolean' as const,
+				default: AgentHostByokModelsEnabledDefault,
+				agentHost: { key: AgentHostByokModelsEnabledConfigKey, scope: AgentHostConfigurationSyncScope.Local },
+			},
 			[HIDDEN_SETTING]: {
 				type: 'boolean' as const,
 				default: false,
@@ -76,7 +81,7 @@ suite('AgentHostConfigurationSync', () => {
 				type: 'string' as const,
 				enum: ['none', 'all'],
 				default: 'none',
-				agentHost: { key: 'enumValue' },
+				agentHost: { key: 'enumValue', derivedKeys: { legacyEnumAll: (value: unknown) => value === 'all' } },
 			},
 			[FREEFORM_SETTING]: {
 				type: 'string' as const,
@@ -88,46 +93,6 @@ suite('AgentHostConfigurationSync', () => {
 
 	suiteSetup(() => registry.registerConfiguration(node));
 	suiteTeardown(() => registry.deregisterConfigurations([node]));
-
-	test('registers the artifact prompt experiment with the original wording as control', () => {
-		const property = registry.getConfigurationProperties()[ArtifactToolsCompactPromptsSettingId];
-		assert.deepStrictEqual({
-			type: property.type,
-			default: property.default,
-			scope: property.scope,
-			experiment: property.experiment,
-			agentHost: property.agentHost,
-		}, {
-			type: 'boolean',
-			default: false,
-			scope: ConfigurationScope.APPLICATION,
-			experiment: { mode: 'auto' },
-			agentHost: { key: AgentHostArtifactToolsCompactPromptsConfigKey },
-		});
-	});
-
-	test('syncs artifact prompt treatments and explicit overrides independently of tool enablement', () => {
-		for (const target of [AgentHostConfigurationSyncTarget.Local, AgentHostConfigurationSyncTarget.RemoteExtensionHost, AgentHostConfigurationSyncTarget.Remote]) {
-			for (const enabled of [false, true]) {
-				const values: IConfigurationValue<boolean>[] = [
-					{},
-					{ defaultValue: true },
-					{ defaultValue: true, userValue: false },
-					{ defaultValue: false, userValue: true },
-				];
-				assert.deepStrictEqual(values.map(value => {
-					const patch = resolveAgentHostConfigurationSyncPatch(createConfigurationService({
-						[ArtifactToolsSettingId]: { userValue: enabled },
-						[ArtifactToolsCompactPromptsSettingId]: value,
-					}), target);
-					return {
-						enabled: patch[AgentHostArtifactToolsConfigKey],
-						compactPrompts: patch[AgentHostArtifactToolsCompactPromptsConfigKey],
-					};
-				}), [false, true, false, true].map(compactPrompts => ({ enabled, compactPrompts })));
-			}
-		}
-	});
 
 	test('resolves the global value, ignoring workspace and folder layers', () => {
 		const configurationService = createConfigurationService({
@@ -212,6 +177,29 @@ suite('AgentHostConfigurationSync', () => {
 			localValue: true,
 			ambientValue: true,
 			hiddenValue: 'on',
+		});
+	});
+
+	test('writes derived keys alongside the mirrored key', () => {
+		const patch = resolveAgentHostConfigurationSyncPatch(createConfigurationService({
+			[ENUM_SETTING]: { defaultValue: 'none', userValue: 'all' },
+		}), AgentHostConfigurationSyncTarget.Local);
+
+		assert.deepStrictEqual({ enumValue: patch.enumValue, legacyEnumAll: patch.legacyEnumAll }, { enumValue: 'all', legacyEnumAll: true });
+	});
+
+	test('mirrors BYOK enabled by default while preserving explicit opt-out', () => {
+		const defaultPatch = resolveAgentHostConfigurationSyncPatch(createConfigurationService({}), AgentHostConfigurationSyncTarget.Local);
+		const disabledPatch = resolveAgentHostConfigurationSyncPatch(createConfigurationService({
+			[BYOK_SETTING]: { userValue: false },
+		}), AgentHostConfigurationSyncTarget.Local);
+
+		assert.deepStrictEqual({
+			defaultValue: defaultPatch[AgentHostByokModelsEnabledConfigKey],
+			explicitlyDisabled: disabledPatch[AgentHostByokModelsEnabledConfigKey],
+		}, {
+			defaultValue: true,
+			explicitlyDisabled: false,
 		});
 	});
 
@@ -356,6 +344,25 @@ suite('AgentHostConfigurationSync', () => {
 			visible: true,
 			mirrored: true,
 		});
+	});
+
+	test('default overrides leave non-experimental hidden settings unchanged', () => {
+		const configurationService = createConfigurationService({});
+		const first = { overrides: { [HIDDEN_SETTING]: true }, source: 'first' };
+		const second = { overrides: { [HIDDEN_SETTING]: false }, source: 'second' };
+		try {
+			registry.registerDefaultConfigurations([first]);
+			const values = [getGlobalConfigurationValue(configurationService, HIDDEN_SETTING)];
+			registry.registerDefaultConfigurations([second]);
+			values.push(getGlobalConfigurationValue(configurationService, HIDDEN_SETTING));
+			registry.deregisterDefaultConfigurations([second]);
+			values.push(getGlobalConfigurationValue(configurationService, HIDDEN_SETTING));
+			registry.deregisterDefaultConfigurations([first]);
+			values.push(getGlobalConfigurationValue(configurationService, HIDDEN_SETTING));
+			assert.deepStrictEqual(values, [false, false, false, false]);
+		} finally {
+			registry.deregisterDefaultConfigurations([first, second]);
+		}
 	});
 
 	test('deregistering drops mirroring entries, including for hidden settings', () => {

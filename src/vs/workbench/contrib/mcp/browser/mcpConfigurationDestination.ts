@@ -50,10 +50,14 @@ export class McpConfigurationDestination {
 		}
 	}
 
-	getExplicitTarget(resource: URI | string): IWorkspaceMcpConfigurationTarget {
+	async getExplicitTarget(resource: URI | string): Promise<IWorkspaceMcpConfigurationTarget | undefined> {
 		const uri = URI.isUri(resource) ? resource : URI.parse(resource);
 		const folder = this.workspaceService.getWorkspaceFolder(uri);
 		if (folder) {
+			if (this.uriIdentityService.extUri.isEqual(uri, folder.uri)) {
+				const kind = await this.selectForAdd(folder);
+				return kind === undefined ? undefined : { folder, kind };
+			}
 			for (const kind of [WorkspaceMcpConfigKind.Root, WorkspaceMcpConfigKind.LegacyVscode]) {
 				if (this.uriIdentityService.extUri.isEqual(uri, this.resource(folder, kind))) {
 					if (kind === WorkspaceMcpConfigKind.Root && !this.rootEnabled) {
@@ -77,7 +81,8 @@ export class McpConfigurationDestination {
 		return hasRoot ? root : hasLegacy ? legacy : this.rootEnabled ? root : legacy;
 	}
 
-	async selectForAdd(folder: IWorkspaceFolder, server: IInstallableMcpServer, explicitKind?: WorkspaceMcpConfigKind): Promise<WorkspaceMcpConfigKind | undefined> {
+	/** Omit the server when choosing a destination before package-assisted generation. */
+	async selectForAdd(folder: IWorkspaceFolder, server?: IInstallableMcpServer, explicitKind?: WorkspaceMcpConfigKind): Promise<WorkspaceMcpConfigKind | undefined> {
 		if (explicitKind === WorkspaceMcpConfigKind.LegacyVscode) {
 			return explicitKind;
 		}
@@ -88,7 +93,7 @@ export class McpConfigurationDestination {
 			return WorkspaceMcpConfigKind.LegacyVscode;
 		}
 
-		const error = getWorkspaceRootMcpConfigurationError(server);
+		const error = server && getWorkspaceRootMcpConfigurationError(server);
 		if (explicitKind === WorkspaceMcpConfigKind.Root) {
 			if (error) {
 				throw new Error(error);
@@ -102,6 +107,20 @@ export class McpConfigurationDestination {
 			return WorkspaceMcpConfigKind.Root;
 		}
 		return this.pick(folder, true);
+	}
+
+	async checkGenerated(folder: IWorkspaceFolder, server: IInstallableMcpServer, kind: WorkspaceMcpConfigKind, explicit: boolean): Promise<WorkspaceMcpConfigKind | undefined> {
+		if (kind === WorkspaceMcpConfigKind.LegacyVscode) {
+			return kind;
+		}
+		const error = getWorkspaceRootMcpConfigurationError(server);
+		if (error) {
+			if (explicit) {
+				throw new Error(error);
+			}
+			return this.pick(folder, true, error);
+		}
+		return kind;
 	}
 
 	private async pick(folder: IWorkspaceFolder, adding: boolean, rootError?: string): Promise<WorkspaceMcpConfigKind | undefined> {

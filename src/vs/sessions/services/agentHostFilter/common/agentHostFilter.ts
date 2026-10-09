@@ -37,6 +37,7 @@ export interface IAgentHostFilterEntry {
 	readonly providerIds: readonly string[];
 	/** Display name for the entry. */
 	readonly label: string;
+	readonly description?: string;
 	/** Whether this entry collapses several providers declaring the same group. */
 	readonly grouped: boolean;
 	/**
@@ -55,6 +56,8 @@ export interface IAgentHostFilterEntry {
 	 * control over nothing.
 	 */
 	readonly connectable: boolean;
+	/** Provider for new sessions in this group, independent of its existing environments. */
+	readonly sessionCreationProviderId?: string;
 }
 
 export const IAgentHostFilterService = createDecorator<IAgentHostFilterService>('agentHostFilterService');
