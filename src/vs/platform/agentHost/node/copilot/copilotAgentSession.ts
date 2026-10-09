@@ -7336,8 +7336,8 @@ export class CopilotAgentSession extends Disposable {
 				this._logService.trace(`[Copilot:${sessionId}] Ignoring idle from the failed execution while resumed turn ${turn.id} awaits provider start`);
 				return;
 			}
-			if (idleFromFailedExecution && !turn.providerTurnStarted) {
-				this._logService.trace(`[Copilot:${sessionId}] Ignoring idle from the failed execution while turn ${turn.id} awaits provider start`);
+			if (idleFromFailedExecution) {
+				this._logService.trace(`[Copilot:${sessionId}] Ignoring idle from the preceding failed execution for turn ${turn.id}`);
 				return;
 			}
 			// Only a `running` turn is completed by a normal idle. A `pending`
