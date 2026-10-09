@@ -107,9 +107,15 @@ suite('AgentHostModePicker', () => {
 		}));
 		const configuration = new class extends TestConfigurationService {
 			policyRestricted = policyRestricted;
+			policyEnforced = false;
 			override inspect<T>(key: string): IConfigurationValue<T> {
 				const result = super.inspect<T>(key);
-				return { ...result, policyValue: this.policyRestricted && key === ChatConfiguration.GlobalAutoApprove ? result.value : undefined };
+				return {
+					...result,
+					policyValue: key === ChatConfiguration.GlobalAutoApprove
+						? this.policyEnforced ? true as T : this.policyRestricted ? false as T : undefined
+						: result.policyValue,
+				};
 			}
 		}({
 			[ChatConfiguration.ExperimentalModePermissionsPicker]: enabled,
@@ -614,6 +620,30 @@ suite('AgentHostModePicker', () => {
 				{ label: 'Allow all', disabled: true, badge: undefined },
 			],
 			sandboxDisabled: true,
+			writes: [],
+		});
+	});
+
+	test('only offers Allow all when global auto approve is enforced', async () => {
+		const { trigger, configuration, config, configChanged, actionWidget, writes, permissionDelegate } = setup();
+		await configuration.setUserConfiguration(ChatConfiguration.GlobalAutoApprove, true);
+		configuration.policyEnforced = true;
+		config.values.autoApprove = 'autoApprove';
+		configChanged.fire('test-session');
+		trigger.click();
+		const levels = actionWidget.items.filter(item => item.detail).map(item => item.label);
+
+		await permissionDelegate.setPermissionLevel(ChatPermissionLevel.Default);
+
+		assert.deepStrictEqual({
+			levels,
+			available: permissionDelegate.availableLevels,
+			globalAutoApprove: configuration.getValue(ChatConfiguration.GlobalAutoApprove),
+			writes,
+		}, {
+			levels: ['Allow all'],
+			available: [ChatPermissionLevel.AutoApprove],
+			globalAutoApprove: true,
 			writes: [],
 		});
 	});
