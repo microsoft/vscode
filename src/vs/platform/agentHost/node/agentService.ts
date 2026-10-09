@@ -6488,7 +6488,8 @@ export class AgentService extends Disposable implements IAgentService {
 			this._logService.warn(`[AgentService] Failed to open session database to persist configValues for ${session.toString()}: ${toErrorMessage(err)}`);
 			return;
 		}
-		ref.object.setMetadata('configValues', JSON.stringify(getPersistedSessionConfigValues(values, this._configurationService.getSessionSandboxEnabled(session.toString())))).catch(err => {
+		const appliedSandboxEnabled = this._configurationService.getSessionSandboxEnabled(session.toString());
+		ref.object.updateMetadata('configValues', previous => JSON.stringify(getPersistedSessionConfigValues(values, appliedSandboxEnabled, previous))).catch(err => {
 			this._logService.warn(`[AgentService] Failed to persist configValues for ${session.toString()}: ${toErrorMessage(err)}`);
 		}).finally(() => {
 			ref.dispose();
@@ -10668,6 +10669,10 @@ export class AgentService extends Disposable implements IAgentService {
 
 	async getSessionStateFile(session: URI, chat?: URI): Promise<URI | undefined> {
 		return this._providerService.getProviderForSession(session)?.getSessionStateFile?.(session, chat);
+	}
+
+	getSessionPlanFile(session: URI, chat: URI): URI | undefined {
+		return this._providerService.getProviderForSession(session)?.getSessionPlanFile?.(session, chat);
 	}
 
 	async collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI): Promise<IAgentHostDebugLogsArtifact> {

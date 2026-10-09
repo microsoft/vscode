@@ -1698,12 +1698,20 @@ suite('CopilotAgent', () => {
 				defaultChat: (await agent.getSessionStateFile(session))?.toString(),
 				explicitDefaultChat: (await agent.getSessionStateFile(session, URI.parse(buildDefaultChatUri(session))))?.toString(),
 				peerChat: (await agent.getSessionStateFile(session, peerChat))?.toString(),
+				defaultPlan: agent.getSessionPlanFile(session, URI.parse(buildDefaultChatUri(session)))?.toString(),
+				peerPlan: agent.getSessionPlanFile(session, peerChat)?.toString(),
+				unknownPeerPlan: agent.getSessionPlanFile(session, URI.parse(buildChatUri(session, 'unknown')))?.toString(),
 			}, {
 				beforeCreate: undefined,
 				defaultChat: 'file:///home/test/.copilot/session-state/sdk-conversation-id/events.jsonl',
 				explicitDefaultChat: 'file:///home/test/.copilot/session-state/sdk-conversation-id/events.jsonl',
 				peerChat: 'file:///home/test/.copilot/session-state/peer-sdk-conversation-id/events.jsonl',
+				defaultPlan: 'file:///home/test/.copilot/session-state/sdk-conversation-id/plan.md',
+				peerPlan: 'file:///home/test/.copilot/session-state/peer-sdk-conversation-id/plan.md',
+				unknownPeerPlan: undefined,
 			});
+			chatBackings(agent).set(peerChat.toString(), { sdkSessionId: '../unrelated-session' });
+			assert.strictEqual(agent.getSessionPlanFile(session, peerChat), undefined);
 		} finally {
 			await disposeAgent(agent);
 		}
@@ -14829,7 +14837,7 @@ suite('CopilotAgent', () => {
 					// the per-model effort beats the picker's 'medium'
 					reasoningEffort: 'xhigh',
 					availableTools: ['builtin:*', 'mcp:*', 'custom:*'],
-					excludedTools: ['mcp:*', 'builtin:*', 'custom:*', 'builtin:run_dynamic_workflow', 'builtin:dynamic_workflows_manage', `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
+					excludedTools: ['mcp:*', 'builtin:*', 'custom:*', 'builtin:run_dynamic_workflow', 'builtin:dynamic_workflows_manage', 'builtin:search_code_subagent', `builtin:${SEMANTIC_SEARCH_TOOL_NAME}`],
 					modelCapabilities: { supports: { vision: false } },
 				});
 			} finally {

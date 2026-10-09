@@ -3206,6 +3206,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return await this._fileService.exists(resource) ? resource : undefined;
 	}
 
+	getSessionPlanFile(session: URI, chat: URI): URI | undefined {
+		const sdkConversationId = !isDefaultChatUri(chat)
+			? this._findChatByUri(chat)?.sessionId ?? this._chatBackings.get(chat.toString())?.sdkSessionId
+			: this._sdkConversationId(session);
+		if (!sdkConversationId || sdkConversationId === '.' || sdkConversationId === '..' || /[/\\:]/.test(sdkConversationId)) {
+			return undefined;
+		}
+		return URI.file(join(getCopilotHomePath(this._environmentService.userHome.fsPath, process.env), 'session-state', sdkConversationId, 'plan.md'));
+	}
+
 	async *readChatSessionEvents(chat: URI, context: IAgentChatContext, token: CancellationToken, afterEventId?: string, onDidReadEventId?: (id: string) => void): AsyncIterable<IAgentChatSessionEvent> {
 		const resource = await this.getSessionStateFile(context.configurationResource, chat);
 		if (resource) {

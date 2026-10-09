@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { parse, SchemaError } from '../schema.js';
+import { pathSegment, queryPath, repositoryPath } from '../client/routing.js';
+import { parse, SchemaError } from '../client/schema.js';
 import { AutomationDetail, AutomationSummary, AutomationToolDefinition, AutomationToolGroup, AutomationTriggerDefinition, AutomationTriggerFieldDefinition, CreateAutomationRequest, CreateAutomationTaskRequest, CreateAutomationTaskResponse, EditAutomationRequest, GetAutomationOptions, IAutomationsClient, ListAutomationsOptions, ListRepoAutomationsResponse } from './automations.js';
 import { PaginatedResponse, RepositoryRef } from './missionControl.js';
-import { MissionControlClient, paginated, pagination, parseUser, pathSegment, queryPath, repositoryPath } from './missionControlClient.js';
+import { MissionControlClient, paginated, pagination, parseUser } from './missionControlClient.js';
 import { ListTasksResponse, TaskListOptions } from './tasks.js';
 import { parseListTasksResponse } from './tasksClient.js';
 
@@ -16,7 +17,7 @@ export class AutomationsClient implements IAutomationsClient {
 	list(repository: RepositoryRef, signal: AbortSignal, options?: ListAutomationsOptions): Promise<PaginatedResponse<ListRepoAutomationsResponse>> {
 		return this._client.request({
 			method: 'GET',
-			path: queryPath(`${repositoryPath(repository)}/v2`, { ...options, ...pagination(options) }),
+			path: queryPath(`${repositoryPath(repository)}/automations/v2`, { ...options, ...pagination(options) }),
 			expectedStatus: [200],
 		}, signal, response => paginated(response, parseListAutomationsResponse(response.data)));
 	}
@@ -32,7 +33,7 @@ export class AutomationsClient implements IAutomationsClient {
 	create(repository: RepositoryRef, request: CreateAutomationRequest, signal: AbortSignal): Promise<AutomationDetail> {
 		return this._client.request({
 			method: 'POST',
-			path: repositoryPath(repository),
+			path: `${repositoryPath(repository)}/automations`,
 			body: request,
 			expectedStatus: [201],
 		}, signal, response => parseAutomationDetail(response.data));
@@ -97,7 +98,7 @@ export class AutomationsClient implements IAutomationsClient {
 }
 
 function automationPath(repository: RepositoryRef, automationId: string): string {
-	return `${repositoryPath(repository)}/${pathSegment(automationId)}`;
+	return `${repositoryPath(repository)}/automations/${pathSegment(automationId)}`;
 }
 
 const parseOwnership = parse.oneOf('user', 'repository');

@@ -230,6 +230,36 @@ suite('Automation dialog creation', () => {
 		};
 	}
 
+	test('keeps the title outside scrolling content and themes the Name input consistently', async () => {
+		const dialog = openDialog();
+		const body = dialog.container.querySelector<HTMLElement>('.automation-dialog-body')!;
+		const scrollable = dialog.container.querySelector<HTMLElement>('.automation-dialog-scrollable')!;
+		const titlebar = dialog.container.querySelector<HTMLElement>('.automation-titlebar')!;
+		const nameInputBox = dialog.container.querySelector<HTMLElement>('.automation-form-input-host > .monaco-inputbox')!;
+
+		assert.deepStrictEqual({
+			bodyChildren: Array.from(body.children, element => element.className),
+			titleInScrollableContent: scrollable.contains(titlebar),
+			scrollableChildren: Array.from(scrollable.children, element => element.className),
+			nameInputStyles: {
+				background: nameInputBox.style.backgroundColor,
+				foreground: nameInputBox.style.color,
+				border: nameInputBox.style.border,
+			},
+		}, {
+			bodyChildren: ['automation-dialog-progress', 'automation-titlebar', 'automation-dialog-scrollable'],
+			titleInScrollableContent: false,
+			scrollableChildren: ['automation-description', 'automation-form-pane'],
+			nameInputStyles: {
+				background: 'var(--vscode-settings-textInputBackground)',
+				foreground: 'var(--vscode-settings-textInputForeground)',
+				border: '1px solid var(--vscode-settings-textInputBorder, transparent)',
+			},
+		});
+		dialog.cancelButton.click();
+		await dialog.result;
+	});
+
 	function toolCatalog(tools: readonly IAutomationTool[] = [{ id: 'read', label: 'Read Files' }, { id: 'edit', label: 'Edit Files' }]): AutomationToolCatalog {
 		return { kind: 'ready', groups: [{ id: 'files', label: 'Files', tools }] };
 	}
@@ -683,6 +713,229 @@ suite('Automation dialog creation', () => {
 		assert.strictEqual(await dialog.result, undefined);
 		await selection;
 		await timeout(0);
+	});
+
+	test('pending target capture is progress rather than a validation error', async () => {
+		const capture = new DeferredPromise<IAutomationSessionConfiguration>();
+		const dialog = openDialog({}, cloudConfiguration(), { getAutomationSessionConfiguration: () => capture.p });
+		dialog.setPrompt('Say hello world');
+		await timeout(0);
+		const selection = dialog.selectWorkspace(REPOSITORY);
+		await timeout(0);
+		const target = dialog.container.querySelector('.automation-target-toolbar')!;
+		const progress = dialog.container.querySelector('.automation-target-progress');
+		const actual = {
+			text: progress?.textContent, role: progress?.getAttribute('role'),
+			invalid: target.getAttribute('aria-invalid'),
+			error: dialog.container.querySelector('#automation-target-error')?.textContent,
+			saveDisabled: dialog.saveButton.getAttribute('aria-disabled'),
+			busy: dialog.container.querySelector('.automation-form-content')?.getAttribute('aria-busy'),
+		};
+		dialog.cancelButton.click();
+		await dialog.result;
+		await selection;
+		assert.deepStrictEqual(actual, {
+			text: 'Saving the current session configuration...', role: 'status',
+			invalid: null, error: '', saveDisabled: 'true', busy: 'true',
+		});
+	});
+
+	test('pending repository eligibility is progress rather than a validation error', async () => {
+		const target = observableValue<IAutomationWorkspaceTarget>('target', { pending: true, disabledReason: 'Checking repository access...' });
+		const dialog = openDialog({}, cloudConfiguration(target));
+		dialog.setPrompt('Say hello world');
+		await dialog.selectWorkspace(REPOSITORY);
+		const actual = {
+			text: dialog.container.querySelector('.automation-target-progress')?.textContent,
+			invalid: dialog.container.querySelector('.automation-target-toolbar')?.getAttribute('aria-invalid'),
+			error: dialog.container.querySelector('#automation-target-error')?.textContent,
+			saveDisabled: dialog.saveButton.getAttribute('aria-disabled'),
+		};
+		dialog.cancelButton.click();
+		await dialog.result;
+		assert.deepStrictEqual(actual, { text: 'Checking repository access...', invalid: null, error: '', saveDisabled: 'true' });
+	});
+
+	test('target capture progress clears on success and cannot save the outgoing target', async () => {
+		const capture = new DeferredPromise<IAutomationSessionConfiguration>();
+		let committed = false;
+		const dialog = openDialog({ commit: async () => { committed = true; } }, cloudConfiguration(), {
+			getAutomationSessionConfiguration: () => capture.p,
+		});
+		dialog.setPrompt('Say hello world');
+		await timeout(0);
+		const selection = dialog.selectWorkspace(REPOSITORY);
+		await timeout(0);
+		dialog.saveButton.click();
+		await timeout(0);
+		const committedWhilePending = committed;
+		await capture.complete({});
+		await selection;
+		await timeout(0);
+		assert.deepStrictEqual({
+			committedWhilePending,
+			pending: dialog.container.querySelector<HTMLElement>('.automation-target-progress')?.style.display,
+			busy: dialog.container.querySelector('.automation-form-content')?.getAttribute('aria-busy'),
+			invalid: dialog.container.querySelector('.automation-target-toolbar')?.getAttribute('aria-invalid'),
+			saveDisabled: dialog.saveButton.getAttribute('aria-disabled'),
+		}, { committedWhilePending: false, pending: 'none', busy: 'false', invalid: null, saveDisabled: 'false' });
+		dialog.saveButton.click();
+		const result = await dialog.result;
+		assert.strictEqual(result?.value.target?.providerId, 'cloud');
+	});
+
+	test('target capture failure clears progress, reports the error and allows retry', async () => {
+		const capture = new DeferredPromise<IAutomationSessionConfiguration>();
+		let fail = true;
+		const dialog = openDialog({}, cloudConfiguration(), {
+			getAutomationSessionConfiguration: () => fail ? capture.p : Promise.resolve({}),
+		});
+		dialog.setPrompt('Say hello world');
+		await timeout(0);
+		const selection = dialog.selectWorkspace(REPOSITORY);
+		await timeout(0);
+		await capture.error(new Error('Capture failed'));
+		await selection;
+		const failed = {
+			error: dialog.container.querySelector('.automation-form-save-error')?.textContent,
+			pending: dialog.container.querySelector<HTMLElement>('.automation-target-progress')?.style.display,
+			inert: dialog.container.querySelector('.automation-form-content')?.hasAttribute('inert'),
+			target: dialog.getTarget().quickChat,
+		};
+		fail = false;
+		await dialog.selectWorkspace(REPOSITORY);
+		dialog.saveButton.click();
+		const result = await dialog.result;
+		assert.deepStrictEqual({ failed, provider: result?.value.target?.providerId }, {
+			failed: { error: 'Capture failed', pending: 'none', inert: false, target: true }, provider: 'cloud',
+		});
+	});
+
+	test('repository progress uses normal foreground while terminal access errors remain invalid', async () => {
+		const target = observableValue<IAutomationWorkspaceTarget>('target', { pending: true, disabledReason: 'Checking repository access...' });
+		let creations = 0;
+		const dialog = openDialog({}, cloudConfiguration(target), {
+			createAutomationSession: () => {
+				creations++;
+				return upcastPartial<ISession>({ sessionId: 'cloud-draft', providerId: 'cloud' });
+			},
+		});
+		const previousForeground = dialog.container.style.getPropertyValue('--vscode-foreground');
+		const previousError = dialog.container.style.getPropertyValue('--vscode-errorForeground');
+		dialog.container.style.setProperty('--vscode-foreground', 'rgb(210, 211, 212)');
+		dialog.container.style.setProperty('--vscode-errorForeground', 'rgb(240, 100, 100)');
+		disposables.add(toDisposable(() => {
+			dialog.container.style.setProperty('--vscode-foreground', previousForeground);
+			dialog.container.style.setProperty('--vscode-errorForeground', previousError);
+		}));
+		dialog.setPrompt('Say hello world');
+		await dialog.selectWorkspace(REPOSITORY);
+		const progress = dialog.container.querySelector<HTMLElement>('.automation-target-progress')!;
+		const pending = { creations, color: DOM.getWindow(progress).getComputedStyle(progress).color };
+		target.set({ disabledReason: 'Repository access denied' }, undefined);
+		const error = dialog.container.querySelector<HTMLElement>('#automation-target-error')!;
+		const denied = {
+			error: error.textContent, color: DOM.getWindow(error).getComputedStyle(error).color,
+			invalid: dialog.container.querySelector('.automation-target-toolbar')?.getAttribute('aria-invalid'),
+			pending: progress.style.display, saveDisabled: dialog.saveButton.getAttribute('aria-disabled'),
+		};
+		target.set({ workspace: REPOSITORY }, undefined);
+		await timeout(0);
+		assert.deepStrictEqual({
+			pending, denied, creations, saveDisabled: dialog.saveButton.getAttribute('aria-disabled'),
+			invalid: dialog.container.querySelector('.automation-target-toolbar')?.getAttribute('aria-invalid'),
+		}, {
+			pending: { creations: 0, color: 'rgb(210, 211, 212)' },
+			denied: { error: 'Repository access denied', color: 'rgb(240, 100, 100)', invalid: 'true', pending: 'none', saveDisabled: 'true' },
+			creations: 1, saveDisabled: 'false', invalid: null,
+		});
+		dialog.cancelButton.click();
+		await dialog.result;
+	});
+
+	test('unchanged pending and error messages are not re-announced during prompt edits', async () => {
+		const target = observableValue<IAutomationWorkspaceTarget>('target', { pending: true, disabledReason: 'Checking repository access...' });
+		const dialog = openDialog({}, cloudConfiguration(target));
+		await dialog.selectWorkspace(REPOSITORY);
+		const progress = dialog.container.querySelector<HTMLElement>('.automation-target-progress')!;
+		const error = dialog.container.querySelector<HTMLElement>('#automation-target-error')!;
+		const observer = new (DOM.getWindow(progress).MutationObserver)(() => { });
+		disposables.add(toDisposable(() => observer.disconnect()));
+		const counts: number[] = [];
+		for (const node of [progress, error]) {
+			if (node === error) {
+				target.set({ disabledReason: 'Access denied' }, undefined);
+			}
+			observer.observe(node, { childList: true, characterData: true, subtree: true });
+			dialog.setPrompt('Say hello world');
+			dialog.setPrompt('Say hello again');
+			counts.push(observer.takeRecords().length);
+			observer.disconnect();
+		}
+		assert.deepStrictEqual(counts, [0, 0]);
+		dialog.cancelButton.click();
+		await dialog.result;
+	});
+
+	test('eligibility becoming pending during capture blocks commit until a successful retry', async () => {
+		const target = observableValue<IAutomationWorkspaceTarget>('target', { workspace: REPOSITORY });
+		const capture = new DeferredPromise<IAutomationSessionConfiguration>();
+		const started = new DeferredPromise<void>();
+		let defer = false;
+		let commits = 0;
+		const dialog = openDialog({ commit: async () => { commits++; } }, cloudConfiguration(target), {
+			getAutomationSessionConfiguration: async () => {
+				if (defer) {
+					void started.complete();
+					return capture.p;
+				}
+				return {};
+			},
+		});
+		dialog.setPrompt('Say hello world');
+		await dialog.selectWorkspace(REPOSITORY);
+		await timeout(0);
+		defer = true;
+		dialog.saveButton.click();
+		await started.p;
+		target.set({ pending: true, disabledReason: 'Checking repository access...' }, undefined);
+		await capture.complete({});
+		await timeout(0);
+		const pending = { commits, disabled: dialog.saveButton.getAttribute('aria-disabled') };
+		target.set({ disabledReason: 'Access denied' }, undefined);
+		const denied = { commits, error: dialog.container.querySelector('#automation-target-error')?.textContent };
+		defer = false;
+		target.set({ workspace: REPOSITORY }, undefined);
+		await timeout(0);
+		dialog.saveButton.click();
+		await dialog.result;
+		assert.deepStrictEqual({ pending, denied, commits }, {
+			pending: { commits: 0, disabled: 'true' }, denied: { commits: 0, error: 'Access denied' }, commits: 1,
+		});
+	});
+
+	test('late outgoing capture completion cannot resurrect a cancelled dialog', async () => {
+		const capture = new DeferredPromise<IAutomationSessionConfiguration>();
+		let creations = 0;
+		let commits = 0;
+		const dialog = openDialog({ commit: async () => { commits++; } }, cloudConfiguration(), {
+			getAutomationSessionConfiguration: () => capture.p,
+			createAutomationSession: () => {
+				creations++;
+				return upcastPartial<ISession>({ sessionId: 'late' });
+			},
+		});
+		await timeout(0);
+		const selection = dialog.selectWorkspace(REPOSITORY);
+		await timeout(0);
+		dialog.cancelButton.click();
+		await dialog.result;
+		await selection;
+		await capture.complete({});
+		await timeout(0);
+		assert.deepStrictEqual({ creations, commits, open: !!dialog.container.querySelector('.automation-dialog') }, {
+			creations: 0, commits: 0, open: false,
+		});
 	});
 
 	test('cloud roundtrip captures unsaved local configuration before retargeting and restores Worktree', async () => {

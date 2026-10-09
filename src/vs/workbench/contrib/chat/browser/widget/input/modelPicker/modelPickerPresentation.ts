@@ -13,7 +13,7 @@ export function isAutoModel(model: ILanguageModelChatMetadataAndIdentifier): boo
 	return isAutoLanguageModel(model);
 }
 
-/** Whether the model is the HydraFusion research preview, which the picker lists right below Auto. */
+/** Whether the model is the HydraFusion research preview, which the picker offers as Auto's last tier. */
 export function isHydraFusionModel(model: ILanguageModelChatMetadataAndIdentifier): boolean {
 	return model.metadata.id === COPILOT_HYDRA_FUSION_MODEL_ID;
 }

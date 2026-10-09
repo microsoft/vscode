@@ -1994,7 +1994,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		if (element.dividerKind === ChatRequestQueueKind.Steering) {
 			if (element.isSystemInitiated) {
-				label.textContent = localize('systemNotificationDivider', "System Notification");
+				label.textContent = localize('systemNotificationDivider', "System notification");
 				label.title = localize('systemNotificationDividerTooltip', "System notification will be sent after the next tool call happens");
 			} else {
 				label.textContent = localize('steeringDivider', "Steering");

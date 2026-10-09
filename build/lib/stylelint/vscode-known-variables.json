@@ -1002,6 +1002,8 @@
 		"--agents-floating-panel-gap",
 		"--agents-part-corner-radius",
 		"--agents-part-frame-border-width",
+		"--agents-session-frame-inset",
+		"--agents-side-pane-frame-inset",
 		"--agents-window-corner-radius",
 		"--session-chat-base-height",
 		"--editor-font-size",

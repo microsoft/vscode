@@ -118,6 +118,7 @@ suite('Agent Edit Attribution Service', () => {
 				source: {
 					modelId: 'model',
 					conversationId: 'session-1',
+					agentSessionId: 'session-1',
 					requestId: 'turn-1',
 					harness: 'copilotcli',
 				},
@@ -206,8 +207,8 @@ suite('Agent Edit Attribution Service', () => {
 			first?.status !== 'skipped' ? first?.source : undefined,
 			second?.status !== 'skipped' ? second?.source : undefined,
 		], [
-			{ modelId: 'model', conversationId: 'session-1', requestId: 'turn-1', harness: 'copilotcli' },
-			{ modelId: 'model', conversationId: 'session-1', requestId: 'turn-2', harness: 'copilotcli' },
+			{ modelId: 'model', conversationId: 'session-1', agentSessionId: 'session-1', requestId: 'turn-1', harness: 'copilotcli' },
+			{ modelId: 'model', conversationId: 'session-1', agentSessionId: 'session-1', requestId: 'turn-2', harness: 'copilotcli' },
 		]);
 	});
 
@@ -281,6 +282,7 @@ suite('Agent Edit Attribution Service', () => {
 			const project = (data: Record<string, string | number | undefined>) => ({
 				sourceKey: data.sourceKey,
 				conversationId: data.conversationId,
+				agentSessionId: data.agentSessionId,
 				chatSessionId: data.chatSessionId,
 				hasChatSessionId: Object.hasOwn(data, 'chatSessionId'),
 				requestId: data.requestId,
@@ -291,6 +293,7 @@ suite('Agent Edit Attribution Service', () => {
 			const expected = chats.map((chat, index) => ({
 				sourceKey: 'source:Chat.applyEdits-$modelId:model-$harness:copilotcli-$origin:agentHost',
 				conversationId: AgentSession.id(sessionUris[index]),
+				agentSessionId: flushMode === 'legacyNoChat' ? `session-${index + 1}` : AgentSession.id(sessionUri),
 				chatSessionId: chat === undefined ? undefined : getTelemetryChatSessionId(chat),
 				hasChatSessionId: chat !== undefined,
 				requestId: `turn-${index}`,
@@ -298,9 +301,7 @@ suite('Agent Edit Attribution Service', () => {
 				deltaModifiedCount: index + 2,
 				totalModifiedCount: 9,
 			}));
-			const expectedDetails = flushMode === 'legacyNoChat'
-				? [{ ...expected[0], modifiedCount: 9, deltaModifiedCount: 9 }]
-				: expected;
+			const expectedDetails = expected;
 			assert.deepStrictEqual({
 				distinctChats: expected[0].chatSessionId !== expected[1].chatSessionId,
 				details: details.toSorted((a, b) => Number(a.modifiedCount) - Number(b.modifiedCount)).map(project),
@@ -313,6 +314,7 @@ suite('Agent Edit Attribution Service', () => {
 				markers: expected.map(data => ({
 					modelId: 'model',
 					conversationId: data.conversationId,
+					agentSessionId: data.agentSessionId,
 					...(data.hasChatSessionId ? { chatSessionId: data.chatSessionId } : {}),
 					requestId: data.requestId,
 					harness: 'copilotcli',

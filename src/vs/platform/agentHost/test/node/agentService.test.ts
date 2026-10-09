@@ -29292,6 +29292,38 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('restored sandbox off survives a config change and another restore before runtime confirmation', async () => {
+			const sessionDb = disposables.add(await SessionDatabase.open(':memory:'));
+			const sessionDataService = createSessionDataService(sessionDb);
+			const localAgent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => localAgent.dispose()));
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			registerTestAgentProvider(localService, localAgent);
+			const configuration = getConfigurationService(localService);
+			configuration.updateRootConfig({ sandbox: { enabled: 'on' } });
+			const { session } = await createAgentSession(localAgent);
+			await sessionDb.setMetadata('configValues', JSON.stringify({ sandboxEnabled: 'off', mode: 'interactive' }));
+
+			await localService.restoreSession(session);
+			configuration.updateSessionConfig(session.toString(), { mode: 'plan' });
+			await sessionDb.whenIdle();
+			const persisted = JSON.parse((await sessionDb.getMetadata('configValues'))!);
+			getStateManager(localService).removeSession(session.toString());
+			await localService.restoreSession(session);
+
+			assert.deepStrictEqual({
+				persisted,
+				restored: configuration.getSessionConfigValues(session.toString()),
+				confirmed: configuration.getSessionSandboxEnabled(session.toString()),
+				effective: getSessionSandboxConfig(configuration, session.toString()).enabled,
+			}, {
+				persisted: { sandboxEnabled: 'off', mode: 'plan' },
+				restored: { sandboxEnabled: 'off', mode: 'plan' },
+				confirmed: undefined,
+				effective: 'off',
+			});
+		});
+
 		test('restoreSession replaces persisted off with applied on when current managed policy requires sandboxing', async () => {
 			const sessionDb = disposables.add(await SessionDatabase.open(':memory:'));
 			const sessionDataService = createSessionDataService(sessionDb);
@@ -29407,8 +29439,8 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('restoreSession seeds the provider model into the default chat draft', async () => {
-			const sessionDb = disposables.add(await SessionDatabase.open(':memory:'));
-			const sessionDataService = createSessionDataService(sessionDb);
+			// Provider discovery and explicit restore can address different sessions concurrently.
+			const { service: sessionDataService, database } = createPerSessionDataService();
 			const localAgent = new MockAgent('codex');
 			const model = { id: '@provider=openai:gpt-5.6-sol' };
 			localAgent.sessionMetadataOverrides = { model } as typeof localAgent.sessionMetadataOverrides;
@@ -29416,7 +29448,7 @@ suite('AgentService (node dispatcher)', () => {
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			registerTestAgentProvider(localService, localAgent);
 			const { session } = await createAgentSession(localAgent);
-			await sessionDb.setChatDraft(URI.parse(buildDefaultChatUri(session)), {
+			await database(session).setChatDraft(URI.parse(buildDefaultChatUri(session)), {
 				text: 'unsent text',
 				origin: { kind: MessageKind.User },
 				model: { id: 'codex-model:vscode-proxy:gpt-5-mini', config: { thinkingLevel: 'medium' } },

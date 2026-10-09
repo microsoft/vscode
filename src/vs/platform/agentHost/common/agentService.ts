@@ -1036,6 +1036,8 @@ export interface IAgentService {
 	diagnosticsFetch(url: string): Promise<IAgentHostNetworkFetchResult>;
 
 	getSessionStateFile?(session: URI, chat?: URI): Promise<URI | undefined>;
+	/** Resolve the owning provider's exact plan artifact without granting access to its directory. */
+	getSessionPlanFile?(session: URI, chat: URI): URI | undefined;
 
 	collectDebugLogs?(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI): Promise<IAgentHostDebugLogsArtifact>;
 

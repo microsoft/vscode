@@ -537,10 +537,6 @@ export class ModelPickerWidget extends Disposable {
 			(target?.isConnected ? target : previous)?.focus();
 		});
 		trigger?.setAttribute('aria-expanded', 'true');
-		// Routing models have no Details, so their readout opens this same list.
-		if (this._selectedModel && (isAutoModel(this._selectedModel) || isHydraFusionModel(this._selectedModel))) {
-			this._configButton?.setAttribute('aria-expanded', 'true');
-		}
 		this._domNode?.classList.add('model-picker-active');
 		picker.show(anchor, context, detailsModelId, focusConfiguration, this._contextViewLayer, options);
 		if (!picker.isVisible) {
@@ -572,10 +568,13 @@ export class ModelPickerWidget extends Disposable {
 			return;
 		}
 
-		const telemetrySession = new ModelPickerTelemetrySession(this._telemetryService, this._languageModelsService, trigger, this._selectedModel, this._delegate.getChatSessionId?.(), this._delegate.getProvider ? this._delegate.getProvider() : 'unknown');
+		const telemetrySession = new ModelPickerTelemetrySession(this._telemetryService, this._languageModelsService, trigger, this._selectedModel, {
+			chatSessionId: this._delegate.getChatSessionId?.(),
+			agentSessionId: this._delegate.getAgentSessionId?.(),
+		}, this._delegate.getProvider ? this._delegate.getProvider() : 'unknown');
 
 		const onSelect = (model: ILanguageModelChatMetadataAndIdentifier) => {
-			telemetrySession.logModelChange(this._selectedModel, model, this._delegate.getChatSessionId?.());
+			telemetrySession.logModelChange(this._selectedModel, model);
 			this._selectedModel = model;
 			this._renderLabel();
 			this._onDidChangeSelection.fire(model);
@@ -658,7 +657,7 @@ export class ModelPickerWidget extends Disposable {
 				link: this.getCacheBreakLearnMoreLink(),
 				dismiss: () => this.dismissCacheBreakHint(),
 			} : undefined,
-		}, telemetrySession, showDetails && this._selectedModel && !isAutoModel(this._selectedModel) && !isHydraFusionModel(this._selectedModel) ? this._selectedModel.identifier : undefined, focusConfiguration, options);
+		}, telemetrySession, showDetails ? this._selectedModel?.identifier : undefined, focusConfiguration, options);
 	}
 
 	private _updateBadge(): void {
@@ -714,7 +713,6 @@ export class ModelPickerWidget extends Disposable {
 					? localize('chat.modelPicker.noModels', "No models available")
 					: (name ?? localize('chat.modelPicker.auto', "Auto"));
 		const showModelLabel = !compact || !modelIcon || noModelsAvailable;
-		const showingAuto = !unavailable && !activating && !genericNoModels && (!this._selectedModel || isAutoModel(this._selectedModel));
 		if (showModelLabel) {
 			nameChildren.push(dom.$('span.chat-input-picker-label', undefined, modelLabel));
 		}
@@ -724,8 +722,7 @@ export class ModelPickerWidget extends Disposable {
 		dom.reset(this._nameButton, ...nameChildren);
 
 		if (this._configButton) {
-			const opensDetails = !showingAuto && !(this._selectedModel && isHydraFusionModel(this._selectedModel));
-			this._configButton.setAttribute('aria-haspopup', opensDetails ? 'dialog' : 'menu');
+			this._configButton.setAttribute('aria-haspopup', 'dialog');
 			renderModelConfigurationButton(this._configButton, this._selectedModel, this._delegate.modelConfiguration ?? this._languageModelsService, !!workflow || minimal || compact || noModelsAvailable);
 		}
 		const configVisible = !!this._configButton && this._configButton.style.display !== 'none';

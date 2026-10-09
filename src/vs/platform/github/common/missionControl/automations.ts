@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ListTasksResponse, TaskListOptions } from './tasks.js';
-import type { JsonValue } from '../schema.js';
+import type { JsonValue } from '../client/schema.js';
 import type { PaginatedResponse, PaginationOptions, RepositoryRef, User } from './missionControl.js';
 
 /** Whether an automation belongs to its creator or to the repository. */

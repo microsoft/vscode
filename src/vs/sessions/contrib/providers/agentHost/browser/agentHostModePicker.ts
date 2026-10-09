@@ -387,6 +387,8 @@ export class AgentHostModePicker extends AgentHostSessionEnumPicker {
 		}));
 		this._register(autorun(reader => {
 			this._permissionDelegate.sandboxEnabled.read(reader);
+			this._permissionDelegate.sandboxDevContainer.read(reader);
+			this._permissionDelegate.sandboxDevContainerSupported.read(reader);
 			this._updateTrigger();
 		}));
 		this._register(this._configurationService.onDidChangeConfiguration(e => {

@@ -5,10 +5,11 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
-import { bufferToStream, VSBuffer } from '../../../../../../base/common/buffer.js';
+import { bufferToStream, newWriteableBufferStream, VSBuffer } from '../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
@@ -164,7 +165,7 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 				if (!!task.archived_at !== (query.get('is_archived') === 'true')) {
 					return false;
 				}
-				if (query.has('with_repo') && (task.repository?.id !== undefined) !== (query.get('with_repo') === 'true')) {
+				if (query.has('with_repo') && ((task.repository?.id ?? 0) > 0) !== (query.get('with_repo') === 'true')) {
 					return false;
 				}
 				if (query.has('include_environment_kinds') && task.current_environment?.kind !== query.get('include_environment_kinds')) {
@@ -505,6 +506,295 @@ suite('CloudSandboxApiService connection credentials', () => {
 	}
 });
 
+suite('CloudSandboxApiService history timings', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('separates authentication, request, body reading and replay without logging private data', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const logService = new TestLogService();
+		const responseReady = new DeferredPromise<void>();
+		const stream = newWriteableBufferStream();
+		store.add(toDisposable(() => stream.destroy()));
+		const { service, requestedUrls } = createService(store, {
+			tasks: [], repositories: new Map(), logService,
+			authenticationSessions: async () => {
+				await timeout(25);
+				return [{ accessToken: 'private-token', id: 's', account: { id: 'a', label: 'a' }, scopes: [] }];
+			},
+			onRequest: async () => {
+				await timeout(50);
+				await responseReady.complete();
+				return { res: { statusCode: 200, headers: {} }, stream };
+			},
+		});
+		const writeBody = async () => {
+			await responseReady.p;
+			await timeout(75);
+			stream.end(VSBuffer.fromString(JSON.stringify({
+				events: [{
+					ns: 'ahp', session_id: 'private-session', seq: 0, at: '2026-01-01T00:00:00Z',
+					payload: {
+						kind: 'message',
+						data: { channel: 'ahp-session:/private-session', serverSeq: 0, action: { type: 'session/titleChanged', title: 'private-title' } },
+					},
+				}],
+				total: 1,
+			})));
+		};
+		const [history] = await Promise.all([service.getSessionHistory('private-task', CancellationToken.None), writeBody()]);
+
+		assert.deepStrictEqual({
+			title: history?.sessions[0].state.title,
+			requests: requestedUrls.map(url => new URL(url).pathname),
+			logs: logService.infos,
+		}, {
+			title: 'private-title',
+			requests: ['/agents/tasks/private-task/events'],
+			logs: [
+				'[CloudSandboxApi] historyTiming loadId=1 traceId=history-1 authenticated authenticationMs=25 totalMs=25',
+				'[CloudSandboxApi] historyTiming loadId=1 traceId=history-1 requestIssued authenticationMs=25 totalMs=25',
+				'[CloudSandboxApi] historyTiming loadId=1 traceId=history-1 responseReceived requestMs=50 status=200 responseHeadersMs=unavailable downloadMs=unavailable decodedBodyBytes=unavailable requestId=unavailable totalMs=75',
+				'[CloudSandboxApi] historyTiming loadId=1 traceId=history-1 bodyRead bodyReadAndParseMs=75 totalMs=150',
+				'[CloudSandboxApi] historyTiming loadId=1 traceId=history-1 completed apiMs=125 replayMs=0 events=1 sessions=1 truncated=false totalMs=150',
+			],
+		});
+	}));
+
+	for (const failure of ['authentication', 'request', 'HTTP', 'JSON', 'replay', 'cancellation'] as const) {
+		test(`logs the elapsed failing phase and preserves rejection for ${failure}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const logService = new TestLogService();
+			const cancellation = store.add(new CancellationTokenSource());
+			const error = failure === 'cancellation' ? new CancellationError() : new Error('private-error');
+			const { service } = createService(store, {
+				tasks: [], repositories: new Map(), logService,
+				authenticationSessions: failure === 'authentication' ? async () => {
+					await timeout(35);
+					throw error;
+				} : undefined,
+				onRequest: async () => {
+					await timeout(35);
+					if (failure === 'cancellation') {
+						cancellation.cancel();
+						throw error;
+					}
+					if (failure === 'request') {
+						throw error;
+					}
+					if (failure === 'JSON') {
+						return { res: { statusCode: 200, headers: {} }, stream: bufferToStream(VSBuffer.fromString('private-invalid-json')) };
+					}
+					return failure === 'HTTP'
+						? jsonResponse({ message: 'private-response' }, 503)
+						: jsonResponse({ events: [], total: 1 });
+				},
+			});
+			await assert.rejects(service.getSessionHistory('private-task', cancellation.token), error =>
+				failure === 'cancellation' ? isCancellationError(error) : error instanceof Error);
+			await timeout(0);
+
+			const phase = failure === 'authentication' ? 'authentication'
+				: failure === 'request' || failure === 'cancellation' ? 'request'
+					: failure === 'replay' ? 'replay' : 'responseBody';
+			assert.deepStrictEqual({
+				terminalLog: logService.infos.at(-1),
+				completed: logService.infos.some(message => message.includes(' completed ')),
+				privateData: logService.infos.some(message => message.includes('private-')),
+			}, {
+				terminalLog: failure === 'authentication'
+					? '[CloudSandboxApi] historyAuthentication traceId=standalone failed durationMs=35'
+					: `[CloudSandboxApi] historyTiming loadId=1 traceId=history-1 ${failure === 'cancellation' ? 'cancelled' : 'failed'} phase=${phase} phaseMs=${phase === 'request' ? 35 : 0} totalMs=35`,
+				completed: false, privateData: false,
+			});
+		}));
+	}
+
+	test('correlates concurrent history fetches with separate load IDs', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const logService = new TestLogService();
+		const { service } = createService(store, {
+			tasks: [], repositories: new Map(), logService,
+			onRequest: async url => {
+				await timeout(url.pathname.includes('/slow/') ? 40 : 20);
+				return jsonResponse({ events: [], total: 0 });
+			},
+		});
+		const histories = await Promise.all([
+			service.getSessionHistory('slow', CancellationToken.None),
+			service.getSessionHistory('fast', CancellationToken.None),
+		]);
+
+		assert.deepStrictEqual({
+			histories, completions: logService.infos.filter(message => message.includes(' completed ')),
+		}, {
+			histories: [undefined, undefined],
+			completions: [
+				'[CloudSandboxApi] historyTiming loadId=2 traceId=history-2 completed apiMs=20 replayMs=0 events=0 sessions=0 truncated=false totalMs=20',
+				'[CloudSandboxApi] historyTiming loadId=1 traceId=history-1 completed apiMs=40 replayMs=0 events=0 sessions=0 truncated=false totalMs=40',
+			],
+		});
+	}));
+
+	for (const requestId of ['ABCD:1234:5678:90AB:CDEF', 'private-invalid-header']) {
+		test(`correlates transport timings and includes only a validated upstream request ID (${requestId})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const logService = new TestLogService();
+			let diagnosticId: string | undefined;
+			const { service } = createService(store, {
+				tasks: [], repositories: new Map(), logService,
+				onRequest: async (_url, _token, options) => {
+					diagnosticId = options.diagnosticId;
+					await timeout(200);
+					return {
+						...jsonResponse({ events: [], total: 0 }, 200, { 'x-github-request-id': requestId }),
+						timings: { responseHeadersMs: 150, responseBodyMs: 50, decodedBodyBytes: 23 },
+					};
+				},
+			});
+			await service.getSessionHistory('private-task', CancellationToken.None, 'sandbox-1');
+
+			assert.deepStrictEqual({
+				diagnosticId,
+				response: logService.infos.find(message => message.includes(' responseReceived ')),
+			}, {
+				diagnosticId: 'sandbox-1/history-1',
+				response: `[CloudSandboxApi] historyTiming loadId=1 traceId=sandbox-1 responseReceived requestMs=200 status=200 responseHeadersMs=150 downloadMs=50 decodedBodyBytes=23 requestId=${requestId.startsWith('private-') ? 'unavailable' : requestId} totalMs=200`,
+			});
+		}));
+	}
+});
+
+suite('CloudSandboxApiService history cache', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function historyResponse(title: string): IRequestContext {
+		return jsonResponse({
+			events: [{
+				ns: 'ahp', session_id: 'session', seq: 0, at: '2026-01-01T00:00:00Z',
+				payload: { kind: 'message', data: { channel: 'ahp-session:/session', serverSeq: 0, action: { type: 'session/titleChanged', title } } },
+			}],
+			total: 1,
+		});
+	}
+
+	test('coalesces authentication and events reads, and previews a warm snapshot before the response', async () => {
+		let authentications = 0;
+		let requests = 0;
+		const response = new DeferredPromise<IRequestContext>();
+		const logService = new TestLogService();
+		const { service } = createService(store, {
+			tasks: [], repositories: new Map(), logService,
+			authenticationSessions: async () => {
+				authentications++;
+				return [{ accessToken: 'private-token', id: 's', account: { id: 'private-account', label: 'private-label' }, scopes: [] }];
+			},
+			onRequest: () => ++requests === 1 ? historyResponse('Recorded') : response.p,
+		});
+		const first = await Promise.all([
+			service.getSessionHistory('private-task', CancellationToken.None),
+			service.getSessionHistory('private-task', CancellationToken.None),
+		]);
+		const cached = new DeferredPromise<string>();
+		let completed = false;
+		const refresh = service.getSessionHistory('private-task', CancellationToken.None, 'sandbox-1', history => void cached.complete(history.sessions[0].state.title));
+		void refresh.then(() => completed = true);
+		const beforeResponse = { title: await cached.p, completed };
+		await response.complete(historyResponse('Updated'));
+		const result = await refresh;
+		assert.deepStrictEqual({
+			authentications, requests, first: first.map(history => history?.sessions[0].state.title), beforeResponse,
+			title: result?.sessions[0].state.title,
+			cacheHits: logService.infos.filter(message => message.includes('historyCacheHit traceId=sandbox-1')).length,
+			privateData: logService.infos.some(message => message.includes('private-')),
+		}, {
+			authentications: 2, requests: 2, first: ['Recorded', 'Recorded'],
+			beforeResponse: { title: 'Recorded', completed: false }, title: 'Updated', cacheHits: 1, privateData: false,
+		});
+	});
+
+	for (const lateStatus of [200, 403]) {
+		test(`account changes prevent old-account cache reuse or invalidation by a late HTTP ${lateStatus}`, async () => {
+			let account = 'first';
+			let requests = 0;
+			const response = new DeferredPromise<IRequestContext>();
+			const cached = new DeferredPromise<void>();
+			const { service, changeAuthentication } = createService(store, {
+				tasks: [], repositories: new Map(),
+				authenticationSessions: async () => [{ accessToken: 'token', id: 's', account: { id: account, label: account }, scopes: [] }],
+				onRequest: () => ++requests === 2 ? response.p : historyResponse(account),
+			});
+			await service.getSessionHistory('task', CancellationToken.None);
+			const refresh = service.getSessionHistory('task', CancellationToken.None, undefined, () => void cached.complete());
+			await cached.p;
+			const cancelled = assert.rejects(refresh, isCancellationError);
+			account = 'second';
+			changeAuthentication();
+			await cancelled;
+			let previews = 0;
+			const fresh = await service.getSessionHistory('task', CancellationToken.None, undefined, () => previews++);
+			const beforeLateResponse = previews;
+			await response.complete(lateStatus === 200 ? historyResponse('Late first account') : jsonResponse({}, lateStatus));
+			await timeout(0);
+			const reopened = await service.getSessionHistory('task', CancellationToken.None, undefined, () => previews++);
+			assert.deepStrictEqual({ requests, beforeLateResponse, previews, titles: [fresh, reopened].map(history => history?.sessions[0].state.title) }, {
+				requests: 4, beforeLateResponse: 0, previews: 1, titles: ['second', 'second'],
+			});
+		});
+	}
+
+	test('clearing a task while authenticating cancels the read before any request is sent', async () => {
+		const started = new DeferredPromise<void>();
+		const authenticated = new DeferredPromise<readonly AuthenticationSession[]>();
+		const { service, requestedUrls } = createService(store, {
+			tasks: [], repositories: new Map(),
+			authenticationSessions: () => { void started.complete(); return authenticated.p; },
+		});
+		const pending = service.getSessionHistory('task', CancellationToken.None);
+		await started.p;
+		const cancelled = assert.rejects(pending, isCancellationError);
+		service.clearSessionHistory('task');
+		await cancelled;
+		await authenticated.complete([{ accessToken: 'token', id: 's', account: { id: 'a', label: 'a' }, scopes: [] }]);
+		await timeout(0);
+		assert.deepStrictEqual(requestedUrls, []);
+	});
+
+	for (const status of [401, 403, 404]) {
+		test(`HTTP ${status} rejects refresh and evicts cached task history`, async () => {
+			let responseStatus = 200;
+			const { service } = createService(store, {
+				tasks: [], repositories: new Map(),
+				onRequest: () => responseStatus === 200 ? historyResponse('Recorded') : jsonResponse({}, responseStatus),
+			});
+			await service.getSessionHistory('task', CancellationToken.None);
+			responseStatus = status;
+			await assert.rejects(service.getSessionHistory('task', CancellationToken.None), new RegExp(`HTTP ${status}`));
+			responseStatus = 200;
+			let previews = 0;
+			await service.getSessionHistory('task', CancellationToken.None, undefined, () => previews++);
+			assert.strictEqual(previews, 0);
+		});
+	}
+
+	for (const mutation of ['rename', 'archive', 'unarchive', 'delete'] as const) {
+		test(`${mutation} invalidates the affected task without evicting other tasks`, async () => {
+			const { service } = createService(store, {
+				tasks: [], repositories: new Map(),
+				onRequest: url => url.pathname.endsWith('/events') ? historyResponse('Recorded') : jsonResponse({}),
+			});
+			await service.getSessionHistory('task', CancellationToken.None);
+			await service.getSessionHistory('unaffected', CancellationToken.None);
+			if (mutation === 'rename') {
+				await service.renameTask('task', 'Renamed', CancellationToken.None);
+			} else if (mutation === 'delete') {
+				await service.deleteTask('task', CancellationToken.None);
+			} else {
+				await service.setTaskArchived('task', mutation === 'archive', CancellationToken.None);
+			}
+			const previews: string[] = [];
+			await service.getSessionHistory('task', CancellationToken.None, undefined, () => previews.push('task'));
+			await service.getSessionHistory('unaffected', CancellationToken.None, undefined, () => previews.push('unaffected'));
+			assert.deepStrictEqual(previews, ['unaffected']);
+		});
+	}
+});
+
 suite('Mission Control environment discovery', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -608,6 +898,78 @@ suite('Mission Control environment discovery', () => {
 suite('CloudSandboxApiService repository resolution', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const repository of [{ id: 0 }, {}]) {
+		test(`ignores an empty repository reference ${JSON.stringify(repository)}`, async () => {
+			const current = {
+				...task('repo-less', 'General chat', 0, 'session-1', 'environment-1'),
+				updated_at: '2026-10-01T00:01:00.000Z',
+			};
+			const { service, requestedUrls } = createService(store, {
+				tasks: [current],
+				repositories: new Map(),
+				onRequest: url => url.pathname.endsWith('/tasks/repo-less') ? jsonResponse({ ...current, repository }) : undefined,
+				discoveryDate: () => '2026-10-01T00:03:00.000Z',
+			});
+
+			const initial = await service.listSessions(CancellationToken.None);
+			const incremental = await service.listSessions(CancellationToken.None, { incremental: true });
+
+			assert.deepStrictEqual({
+				sessions: initial.kind === 'failed' ? initial : initial.sessions.map(session => ({
+					id: session.sessionId, hasRepository: session.hasRepository, repoName: session.repoName,
+				})),
+				incremental,
+				repositoryLookups: requestedUrls.filter(url => url.includes('/repositories/')),
+				detailReads: requestedUrls.filter(url => url.endsWith('/tasks/repo-less')).length,
+			}, {
+				sessions: [{ id: 'session-1', hasRepository: false, repoName: undefined }],
+				incremental: { kind: 'incremental', sessions: [], removedTaskIds: [] },
+				repositoryLookups: [],
+				detailReads: 1,
+			});
+		});
+	}
+
+	test('accepts a positive repository reference discovered after a repo-less list response', async () => {
+		const current = task('new-repository', 'Repository chat', 0, 'session-1', 'environment-1');
+		const { service, requestedUrls } = createService(store, {
+			tasks: [current],
+			repositories: new Map([[42, { full_name: 'owner/repository' }]]),
+			onRequest: url => url.pathname.endsWith('/tasks/new-repository') ? jsonResponse({ ...current, repository: { id: 42 } }) : undefined,
+		});
+		const result = await service.listSessions(CancellationToken.None);
+
+		assert.deepStrictEqual({
+			sessions: result.kind === 'failed' ? result : result.sessions.map(session => ({
+				hasRepository: session.hasRepository, repoName: session.repoName,
+			})),
+			repositoryLookups: requestedUrls.filter(url => url.includes('/repositories/')).map(url => new URL(url).pathname),
+		}, {
+			sessions: [{ hasRepository: true, repoName: 'owner/repository' }],
+			repositoryLookups: ['/repositories/42'],
+		});
+	});
+
+	test('retains the listed repository when task details contain an empty reference', async () => {
+		const current = task('with-repository', 'Repository chat', 42, 'session-1', 'environment-1');
+		const { service, requestedUrls } = createService(store, {
+			tasks: [current],
+			repositories: new Map([[42, { full_name: 'owner/repository' }]]),
+			onRequest: url => url.pathname.endsWith('/tasks/with-repository') ? jsonResponse({ ...current, repository: { id: 0 } }) : undefined,
+		});
+		const result = await service.listSessions(CancellationToken.None);
+
+		assert.deepStrictEqual({
+			sessions: result.kind === 'failed' ? result : result.sessions.map(session => ({
+				hasRepository: session.hasRepository, repoName: session.repoName,
+			})),
+			repositoryLookups: requestedUrls.filter(url => url.includes('/repositories/')).map(url => new URL(url).pathname),
+		}, {
+			sessions: [{ hasRepository: true, repoName: 'owner/repository' }],
+			repositoryLookups: ['/repositories/42'],
+		});
+	});
 
 	test('distinguishes repo-less tasks from unresolved repository names', async () => {
 		const { service } = createService(store, {

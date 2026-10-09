@@ -451,7 +451,8 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			isNewSession,
 			resolveAuthentication: (resources) => this._resolveAuthenticationInteractively(address, connection, resources),
 		}));
-		agentStore.add(this._chatSessionsService.registerChatSessionContentProvider(sessionType, sessionHandler));
+		agentStore.add(this._connectionCustomizations.get(address)?.registerChatSessionContentProvider?.(sessionType, sessionHandler)
+			?? this._chatSessionsService.registerChatSessionContentProvider(sessionType, sessionHandler));
 
 		// Language model provider.
 		// Order matters: `updateModels` must be called after

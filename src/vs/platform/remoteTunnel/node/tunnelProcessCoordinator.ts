@@ -14,6 +14,8 @@ import { CONFIGURATION_KEY_HOST_NAME, CONFIGURATION_KEY_PREVENT_SLEEP, normalize
 import { parseTunnelMachineStatus, TunnelMachineStatus } from '../common/tunnelMachineStatus.js';
 import { CodeTunnelCli, CodeTunnelCliOutput, ICodeTunnelCliRun } from './codeTunnelCliProcess.js';
 import { hostname } from 'os';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { createTunnelServiceCorrelation, ITunnelServiceCorrelation } from '../common/tunnelServiceHeaders.js';
 
 type TunnelCliFactory = (onLog: (message: string) => void) => CodeTunnelCli;
 
@@ -59,6 +61,7 @@ export interface ITunnelProcessOutput {
 export interface ITunnelProcessMachineStatus {
 	readonly mode: TunnelProcessMode;
 	readonly status: TunnelMachineStatus;
+	readonly correlation: ITunnelServiceCorrelation | undefined;
 	cancel(): void;
 }
 
@@ -132,6 +135,7 @@ export class TunnelProcessCoordinator extends Disposable implements ITunnelProce
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,
 		@IProductService productService: IProductService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 		this._tunnelCli = tunnelCliFactory?.(() => { }) ?? new CodeTunnelCli({
@@ -340,7 +344,11 @@ export class TunnelProcessCoordinator extends Disposable implements ITunnelProce
 	}
 
 	private _startTunnel(args: readonly string[], mode: TunnelProcessMode, generation: number): void {
-		const tunnelRun = this._tunnelCli.run('tunnel', args, (message, isError) => this._fireOutput(mode, message, isError, true, () => tunnelRun.result.cancel(), generation), { VSCODE_CLI_MACHINE_STATUS: '1' });
+		const correlation = createTunnelServiceCorrelation(this.telemetryService, 'host');
+		const tunnelRun = this._tunnelCli.run('tunnel', args, (message, isError) => this._fireOutput(mode, message, isError, true, () => tunnelRun.result.cancel(), generation, correlation), {
+			VSCODE_CLI_MACHINE_STATUS: '1',
+			...this._correlationEnvironment(correlation),
+		});
 		this._currentProcess = tunnelRun;
 		const onSettled = () => {
 			if (this._currentProcess === tunnelRun) {
@@ -355,10 +363,11 @@ export class TunnelProcessCoordinator extends Disposable implements ITunnelProce
 	}
 
 	private async _runTransient(logLabel: string, args: readonly string[], mode: TunnelProcessMode, generation: number, env?: Record<string, string>, onOutput?: CodeTunnelCliOutput): Promise<number> {
+		const correlation = createTunnelServiceCorrelation(this.telemetryService, undefined);
 		const run = this._tunnelCli.run(logLabel, args, (message, isError) => {
 			onOutput?.(message, isError);
-			this._fireOutput(mode, message, isError, false, () => run.result.cancel());
-		}, env);
+			this._fireOutput(mode, message, isError, false, () => run.result.cancel(), generation, correlation);
+		}, { ...env, ...this._correlationEnvironment(correlation) });
 		this._currentProcess = run;
 		try {
 			return await run.result;
@@ -369,6 +378,10 @@ export class TunnelProcessCoordinator extends Disposable implements ITunnelProce
 				this._currentProcess = undefined;
 			}
 		}
+	}
+
+	private _correlationEnvironment(correlation: ITunnelServiceCorrelation): Record<string, string> {
+		return { VSCODE_TUNNEL_SESSION_ID: correlation.sessionId, VSCODE_TUNNEL_OPERATION_ID: correlation.operationId };
 	}
 
 	private async _stopCurrentProcess(): Promise<void> {
@@ -383,7 +396,7 @@ export class TunnelProcessCoordinator extends Disposable implements ITunnelProce
 		}
 	}
 
-	private _fireOutput(mode: TunnelProcessMode, message: string, isError: boolean, isTunnelProcess: boolean, cancel: () => void, generation?: number): void {
+	private _fireOutput(mode: TunnelProcessMode, message: string, isError: boolean, isTunnelProcess: boolean, cancel: () => void, generation: number, correlation: ITunnelServiceCorrelation): void {
 		this._onDidOutput.fire({ mode, message, isError });
 		if (!isError && isTunnelProcess && generation === this._generation) {
 			const status = parseTunnelMachineStatus(message);
@@ -391,7 +404,7 @@ export class TunnelProcessCoordinator extends Disposable implements ITunnelProce
 				if (status.type === 'connected' && this._status.mode === mode) {
 					this._setStatus({ ...this._status, tunnelId: status.tunnelId, connectionState: 'connected' });
 				}
-				this._onDidMachineStatus.fire({ mode, status, cancel });
+				this._onDidMachineStatus.fire({ mode, status, cancel, correlation: status.type === 'connected' && status.isAttached ? undefined : correlation });
 			}
 		}
 	}
