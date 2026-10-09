@@ -121,7 +121,7 @@ import { ICustomizationHarnessService, type ICustomizationSourceFolder } from '.
 import { ChatConfiguration } from '../../common/constants.js';
 import { AICustomizationWelcomePage, type ICustomizationMarketplaceOrigin, type ICustomizationMigrationCategorySummary, type IInstalledCustomizationTarget } from './aiCustomizationWelcomePage.js';
 import { ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
-import { createCustomizationMigrationAgentPrompt, type CustomizationMigrationTargetFolders, type IMigratedCustomizationsWithFailureReasonsResult, migrateCustomizations, resolveWorkspaceMigrationTargetFolder } from './customizationMigration.js';
+import { createCustomizationMigrationAgentPrompt, getCustomizationMigrationConflictTarget, type CustomizationMigrationTargetFolders, type ICustomizationMigrationNameConflict, type IMigratedCustomizationsWithFailureReasonsResult, migrateCustomizations, resolveWorkspaceMigrationTargetFolder } from './customizationMigration.js';
 import { CUSTOMIZATION_MIGRATION_CATEGORIES, CustomizationMigrationCategoryId, getCustomizationMigrationCategory, homepageMigrationCategories, type ICustomizationMigrationCategory } from './customizationMigrationCategories.js';
 import {
 	CustomizationMigrationDashboard,
@@ -1759,8 +1759,15 @@ export class AICustomizationManagementEditor extends EditorPane {
 				migrationFlowId,
 			);
 			if (result.failedCustomizationFileNames.length > 0) {
-				const displayedFileNames = result.failedCustomizationFileNames.slice(0, 3);
-				this.notificationService.error(category.getFailedMessage(displayedFileNames, result.failedCustomizationFileNames.length - displayedFileNames.length));
+				if (result.nameConflicts.length > 0) {
+					this.notificationService.error(this.getCustomizationMigrationNameConflictMessage(result.nameConflicts));
+				}
+				const conflictFileNames = new Set(result.nameConflicts.map(conflict => conflict.sourceFileName));
+				const otherFailedFileNames = result.failedCustomizationFileNames.filter(fileName => !conflictFileNames.has(fileName));
+				if (otherFailedFileNames.length > 0) {
+					const displayedFileNames = otherFailedFileNames.slice(0, 3);
+					this.notificationService.error(category.getFailedMessage(displayedFileNames, otherFailedFileNames.length - displayedFileNames.length));
+				}
 			}
 			if (result.migratedCount === 0) {
 				if (result.failedCustomizationFileNames.length === 0) {
@@ -1956,12 +1963,20 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.customizationMigrationWritesInProgress = true;
 		try {
 			const failureReasons: FileCustomizationMigrationFailureReason[] = [];
+			const nameConflicts: ICustomizationMigrationNameConflict[] = [];
 			const result = await migrateCustomizations(
 				customizations,
 				targetFolders,
 				this.fileService,
-				(error, reasons) => {
+				(error, reasons, sourceCustomization) => {
 					failureReasons.push(...reasons);
+					const targetUri = getCustomizationMigrationConflictTarget(error);
+					if (targetUri) {
+						nameConflicts.push({
+							sourceFileName: basename(sourceCustomization.uri),
+							targetUri,
+						});
+					}
 					onUnexpectedError(error);
 				},
 				{
@@ -1969,11 +1984,40 @@ export class AICustomizationManagementEditor extends EditorPane {
 					resolveTargetFolder: customization => this.getEffectiveCustomizationMigrationTargetFolder(customization, targetFolders),
 				},
 			);
-			return { ...result, failureReasons };
+			return { ...result, failureReasons, nameConflicts };
 		} finally {
 			await timeout(0);
 			this.customizationMigrationWritesInProgress = false;
 		}
+	}
+
+	private getCustomizationMigrationNameConflictMessage(conflicts: readonly ICustomizationMigrationNameConflict[]): string {
+		if (conflicts.length === 1) {
+			const conflict = conflicts[0];
+			return localize(
+				'customizationMigrationNameConflict',
+				"Could not migrate {0} because a customization already exists at {1}. Rename or remove the existing customization, then try again.",
+				conflict.sourceFileName,
+				this.labelService.getUriLabel(conflict.targetUri, { relative: true }),
+			);
+		}
+
+		const displayedConflicts = conflicts.slice(0, 3).map(conflict => localize(
+			'customizationMigrationNameConflictEntry',
+			"{0} to {1}",
+			conflict.sourceFileName,
+			this.labelService.getUriLabel(conflict.targetUri, { relative: true }),
+		));
+		const hiddenConflictCount = conflicts.length - displayedConflicts.length;
+		const destinations = hiddenConflictCount > 0
+			? localize('customizationMigrationNameConflictsWithRemainder', "{0}, and {1} more", displayedConflicts.join(', '), hiddenConflictCount)
+			: displayedConflicts.join(', ');
+		return localize(
+			'customizationMigrationNameConflicts',
+			"Could not migrate {0} files because customizations already exist at their destinations: {1}. Rename or remove the existing customizations, then try again.",
+			conflicts.length,
+			destinations,
+		);
 	}
 
 	private renderCustomizationMigrationDashboardState(): void {
