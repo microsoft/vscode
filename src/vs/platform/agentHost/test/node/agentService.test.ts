@@ -29439,8 +29439,8 @@ suite('AgentService (node dispatcher)', () => {
 		});
 
 		test('restoreSession seeds the provider model into the default chat draft', async () => {
-			const sessionDb = disposables.add(await SessionDatabase.open(':memory:'));
-			const sessionDataService = createSessionDataService(sessionDb);
+			// Provider discovery and explicit restore can address different sessions concurrently.
+			const { service: sessionDataService, database } = createPerSessionDataService();
 			const localAgent = new MockAgent('codex');
 			const model = { id: '@provider=openai:gpt-5.6-sol' };
 			localAgent.sessionMetadataOverrides = { model } as typeof localAgent.sessionMetadataOverrides;
@@ -29448,7 +29448,7 @@ suite('AgentService (node dispatcher)', () => {
 			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			registerTestAgentProvider(localService, localAgent);
 			const { session } = await createAgentSession(localAgent);
-			await sessionDb.setChatDraft(URI.parse(buildDefaultChatUri(session)), {
+			await database(session).setChatDraft(URI.parse(buildDefaultChatUri(session)), {
 				text: 'unsent text',
 				origin: { kind: MessageKind.User },
 				model: { id: 'codex-model:vscode-proxy:gpt-5-mini', config: { thinkingLevel: 'medium' } },
