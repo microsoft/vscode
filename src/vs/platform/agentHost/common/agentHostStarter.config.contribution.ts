@@ -274,6 +274,7 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.agentHost.experimental.mcpToolRouting', "When enabled, agent-host sessions use cached MCP tool metadata to route requests and only prompt for MCP authentication when a server is relevant. Newly created sessions pick up changes to this setting."),
 			default: false,
 			tags: ['experimental', 'advanced'],
+			experiment: { mode: 'auto' },
 			agentHost: { key: AgentHostMcpToolRoutingEnabledConfigKey },
 		},
 		[AgentHostCopilotMultiRootEnabledSettingId]: {
