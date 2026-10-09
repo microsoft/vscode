@@ -117,6 +117,5 @@ export const ISessionCanvasRegistryService = createDecorator<ISessionCanvasRegis
 export interface ISessionCanvasRegistryService {
 	readonly _serviceBrand: undefined;
 	readonly availableCanvases: IObservable<readonly ISessionCanvasDefinition[]>;
-	refreshAvailableCanvases(): Promise<void>;
 	openCanvas(canvas: ISessionCanvasDefinition): Promise<void>;
 }

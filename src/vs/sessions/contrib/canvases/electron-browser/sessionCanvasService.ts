@@ -132,16 +132,6 @@ export class SessionCanvasRegistryService extends Disposable implements ISession
 		}));
 	}
 
-	async refreshAvailableCanvases(): Promise<void> {
-		const session = this.sessionsService.activeSession.get();
-		const request = ++this.availableCanvasesRequest;
-		if (!session || !this.canvasService.enabled.get() || session.capabilities.get().supportsCanvases !== true) {
-			this.availableCanvases.set([], undefined);
-			return;
-		}
-		await this.loadAvailableCanvases(session, session.activeChat.get(), request);
-	}
-
 	async openCanvas(canvas: ISessionCanvasDefinition): Promise<void> {
 		const session = this.sessionsService.activeSession.get();
 		if (!session || !this.canvasService.enabled.get() || session.capabilities.get().supportsCanvases !== true) {

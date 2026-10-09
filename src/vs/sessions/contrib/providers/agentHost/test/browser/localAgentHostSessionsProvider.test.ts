@@ -3596,36 +3596,13 @@ suite('LocalAgentHostSessionsProvider', () => {
 			requiresInput: false,
 			actionCount: 0,
 		}];
-		assert.deepStrictEqual({
-			backendChat: provider.getBackendChatResource(peer.resource)?.toString(),
-			hasList: typeof agentHost.listSessionCanvases,
-			hasOpen: typeof agentHost.openSessionCanvas,
-		}, {
-			backendChat: peerBackend,
-			hasList: 'function',
-			hasOpen: 'function',
-		});
 
 		const canvases = await provider.listCanvases(session.sessionId, peer.resource);
-		assert.deepStrictEqual({
-			canvases,
-			backendChat: provider.getBackendChatResource(peer.resource)?.toString(),
-			hasOpen: typeof agentHost.openSessionCanvas,
-		}, {
-			canvases: [{
-				canvasId: 'preview',
-				extensionId: 'project:preview',
-				extensionSource: 'project',
-				displayName: 'Preview',
-				description: 'Preview.',
-				requiresInput: false,
-			}],
-			backendChat: peerBackend,
-			hasOpen: 'function',
-		});
 		await provider.openCanvas(session.sessionId, peer.resource, canvases[0], 'project-preview');
 
 		assert.deepStrictEqual({
+			canvases,
+			backendChat: provider.getBackendChatResource(peer.resource)?.toString(),
 			list: agentHost.canvasListRequests.map(request => ({
 				session: request.session.toString(),
 				chat: request.chat.toString(),
@@ -3636,6 +3613,15 @@ suite('LocalAgentHostSessionsProvider', () => {
 				request,
 			})),
 		}, {
+			canvases: [{
+				canvasId: 'preview',
+				extensionId: 'project:preview',
+				extensionSource: 'project',
+				displayName: 'Preview',
+				description: 'Preview.',
+				requiresInput: false,
+			}],
+			backendChat: peerBackend,
 			list: [{
 				session: AgentSession.uri('copilotcli', 'chat-canvas-route').toString(),
 				chat: peerBackend,

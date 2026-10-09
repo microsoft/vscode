@@ -46,7 +46,6 @@ suite('SessionCanvasService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const emptyRegistryService = upcastPartial<ISessionCanvasRegistryService>({
 		availableCanvases: constObservable([]),
-		refreshAvailableCanvases: async () => { },
 		openCanvas: async () => { },
 	});
 
