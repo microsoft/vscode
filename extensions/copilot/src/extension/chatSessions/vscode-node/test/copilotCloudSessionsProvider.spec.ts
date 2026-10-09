@@ -411,6 +411,14 @@ describe('cloud session visibility', () => {
 			));
 		}
 
+		it('does not expose a synthetic repository selection for a new cloud session', async () => {
+			const provider = createProvider();
+			const resource = vscode.Uri.parse('copilot-cloud-agent:/untitled:cloud-repository-option');
+			const session = await provider.provideChatSessionContent(resource, CancellationToken.None);
+
+			expect(session.options).not.toHaveProperty('repositories');
+		});
+
 		it('uses the shared workbench repository picker and preserves repository, clone, and cancellation results', async () => {
 			createProvider();
 			const registration = vi.mocked(vscode.commands.registerCommand).mock.calls.find(([id]) => id === 'github.copilot.chat.cloudSessions.openRepository');

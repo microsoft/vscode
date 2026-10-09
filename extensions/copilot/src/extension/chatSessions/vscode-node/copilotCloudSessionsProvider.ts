@@ -1689,9 +1689,6 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 						[PARTNER_AGENTS_OPTION_GROUP_ID]:
 							this.sessionPartnerAgentMap.get(resource)
 							?? (this.sessionPartnerAgentMap.set(resource, DEFAULT_PARTNER_AGENT_ID), DEFAULT_PARTNER_AGENT_ID),
-						[REPOSITORIES_OPTION_GROUP_ID]:
-							this.sessionRepositoryMap.get(resource)
-							?? (this.sessionRepositoryMap.set(resource, DEFAULT_REPOSITORY_ID), DEFAULT_REPOSITORY_ID)
 					}
 				}
 				: {}),
