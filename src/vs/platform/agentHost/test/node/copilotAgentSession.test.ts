@@ -4877,6 +4877,28 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
+	test('a stale idle from an errored turn does not discard its replacement during preparation', async () => {
+		const { session, mockSession, signals } = await createAgentSession(disposables);
+		session.resetTurnState('turn-failed');
+		mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn-failed' } as SessionEventPayload<'assistant.turn_start'>['data']);
+		mockSession.fire('session.error', { errorType: 'query', message: 'Failed' });
+		mockSession.onModeSet = () => mockSession.fire('session.idle', {});
+
+		await session.send('replacement', undefined, 'turn-replacement', 'interactive');
+
+		assert.deepStrictEqual({
+			sends: mockSession.sendRequests,
+			activeTurn: session.currentTurnId,
+			terminalActions: getActions(signals)
+				.filter(action => action.type === ActionType.ChatTurnComplete || action.type === ActionType.ChatError)
+				.map(action => ({ type: action.type, turnId: action.turnId })),
+		}, {
+			sends: [{ prompt: 'replacement', attachments: undefined }],
+			activeTurn: 'turn-replacement',
+			terminalActions: [{ type: ActionType.ChatError, turnId: 'turn-failed' }],
+		});
+	});
+
 	for (const phase of ['resolution', 'mode'] as const) {
 		test(`cancelling a runtime command during ${phase} prevents invocation`, async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);

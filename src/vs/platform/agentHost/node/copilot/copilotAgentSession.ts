@@ -7472,6 +7472,11 @@ export class CopilotAgentSession extends Disposable {
 
 		this._register(wrapper.onIdle(async e => {
 			this._logService.info(`[Copilot:${sessionId}] Session idle`);
+			const turn = this._currentTurn.value;
+			if (!e.agentId && !e.data.aborted && turn?.isPending && !turn.sdkSendInvoked) {
+				this._logService.trace(`[Copilot:${sessionId}] Ignoring stale idle before pending turn ${turn.id} reached the SDK`);
+				return;
+			}
 			const abortingTurn = this._abortingTurn;
 			this._abortingTurn = undefined;
 			if (e.data.aborted) {
@@ -7488,7 +7493,6 @@ export class CopilotAgentSession extends Disposable {
 				}
 			}
 			this._clearActivity();
-			const turn = this._currentTurn.value;
 			if (!turn) {
 				return;
 			}
