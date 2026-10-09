@@ -188,6 +188,7 @@ async function render(context: ComponentFixtureContext, mode: string, permission
 		};
 		const hostService = new class extends mock<IAgentHostService>() {
 			override readonly onAgentHostStart = Event.None;
+			override readonly onAgentHostExit = Event.None;
 			override readonly onDidNotification = Event.None;
 			override getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> {
 				return connection.getNetworkDiagnosticsInfo();

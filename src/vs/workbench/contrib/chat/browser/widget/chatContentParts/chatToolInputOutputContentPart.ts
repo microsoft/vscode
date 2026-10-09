@@ -7,7 +7,7 @@ import * as dom from '../../../../../../base/browser/dom.js';
 import { ButtonWithIcon } from '../../../../../../base/browser/ui/button/button.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -50,6 +50,8 @@ export interface IChatCollapsibleIODataPart {
 	audience?: LanguageModelPartAudience[];
 	mimeType: string | undefined;
 	uri: URI;
+	/** Display and suggested save name, without changing the resource used to load the bytes. */
+	name?: string;
 }
 
 export type ChatCollapsibleIOPart = IChatCollapsibleIOCodePart | IChatCollapsibleIODataPart;
@@ -58,6 +60,7 @@ export interface IChatCollapsibleInputData extends IChatCollapsibleIOCodePart { 
 export interface IChatCollapsibleOutputData {
 	parts: ChatCollapsibleIOPart[];
 	showCollapsedResources?: boolean;
+	renderMetadata?: (container: HTMLElement) => IDisposable;
 }
 
 export class ChatCollapsibleInputOutputContentPart extends Disposable {
@@ -227,6 +230,9 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 			));
 			this._outputSubPart = outputSubPart;
 			contents.output.appendChild(outputSubPart.domNode);
+			if (output.renderMetadata) {
+				this._register(output.renderMetadata(contents.root));
+			}
 		}
 
 		return contents.root;

@@ -69,9 +69,10 @@ import { IOutlineService } from '../../../../services/outline/browser/outline.js
 import { LayoutSettings, ModernUIEditorTabStyle } from '../../../../services/layout/browser/layoutService.js';
 import { TestContextService } from '../../../common/workbenchTestServices.js';
 import { workbenchInstantiationService } from '../../workbenchTestServices.js';
-import { ComponentFixtureAdditionalTheme, ComponentFixtureContext, createEditorServices, createTextModel, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
+import { ComponentFixtureContext, createEditorServices, createTextModel, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 import { getThemeStyleSheet } from '../fixtureUtilsCss.js';
 import '../../../../contrib/modernUI/browser/media/tabs.css';
+import '../../../../contrib/modernUI/browser/media/editorBorder.css';
 import '../../../../contrib/modernUI/browser/connectedEditorTabs.js';
 
 // ============================================================================
@@ -469,6 +470,7 @@ export function renderEditorTabsFixture(ctx: ComponentFixtureContext, options: I
 	const content = $('.content');
 	const groupContainer = $(isGroupActive ? '.editor-group-container.active' : '.editor-group-container');
 	const titleContainer = $('.title');
+	container.classList.toggle('modern-ui', options.modernUI);
 	container.classList.toggle('modern-ui-tabs', options.modernUI);
 	container.classList.toggle('modern-ui-connected-editor-tabs', options.modernUI && (options.editorTabStyle ?? ModernUIEditorTabStyle.Connected) === ModernUIEditorTabStyle.Connected);
 	titleContainer.classList.toggle('tabs', partOptions.showTabs === 'multiple');
@@ -487,27 +489,22 @@ export function renderEditorTabsFixture(ctx: ComponentFixtureContext, options: I
 	content.appendChild(groupContainer);
 	groupContainer.appendChild(titleContainer);
 	groupContainer.appendChild(editorContainer);
-	if (options.editorFrame) {
-		container.classList.add('floating-panels');
-		editorPart.style.border = 'var(--vscode-strokeThickness) solid var(--vscode-editor-border)';
-		editorPart.style.borderRadius = 'var(--vscode-cornerRadius-large)';
-		editorPart.style.boxSizing = 'border-box';
-		editorPart.style.overflow = 'hidden';
-		editorPart.style.backgroundColor = 'var(--vscode-editor-background)';
-		const grid = $('.monaco-grid-view');
-		grid.appendChild(editorPart);
-		container.appendChild(grid);
-	} else {
-		container.appendChild(editorPart);
+	container.classList.toggle('floating-panels', options.editorFrame ?? false);
+	const grid = $('.monaco-grid-view');
+	if (options.modernUI) {
+		container.style.backgroundColor = 'transparent';
+		grid.style.backgroundColor = 'transparent';
 	}
+	grid.appendChild(editorPart);
+	container.appendChild(grid);
 
 	container.style.width = `${width}px`;
-	groupContainer.style.width = options.editorFrame ? '100%' : `${width}px`;
+	groupContainer.style.width = '100%';
 	const layoutWidth = groupContainer.clientWidth;
 
 	if (options.editorContents !== undefined && model.activeEditor instanceof FixtureEditorInput) {
 		editorContainer.style.height = '240px';
-		const editorServices = createEditorServices(disposableStore, { colorTheme: theme });
+		const editorServices = createEditorServices(disposableStore, { colorTheme: fixtureTheme });
 		const textModel = disposableStore.add(createTextModel(editorServices, options.editorContents, model.activeEditor.resource, 'typescript'));
 		const editor = disposableStore.add(editorServices.createInstance(CodeEditorWidget, editorContainer, {
 			readOnly: true,
@@ -574,10 +571,7 @@ export function renderEditorTabsFixture(ctx: ComponentFixtureContext, options: I
 }
 
 function render(modernUI: boolean, options: Omit<IEditorTabsFixtureOptions, 'modernUI'>): (ctx: ComponentFixtureContext) => void {
-	return (ctx: ComponentFixtureContext) => {
-		ctx.container.classList.toggle('modern-ui', modernUI);
-		renderEditorTabsFixture(ctx, { ...options, modernUI });
-	};
+	return ctx => renderEditorTabsFixture(ctx, { ...options, modernUI });
 }
 
 function getTabBorderCustomizations(): Readonly<Record<string, string>> {
@@ -678,16 +672,41 @@ function renderConnectedModernEditorTabCustomizations(layout: 'single' | 'wrappe
 	});
 }
 
-function renderDensityLayout(layout: 'singleRow' | 'wrapped' | 'wrappedBottomActive' | 'pinnedSeparateRow', tabHeight: IEditorPartOptions['tabHeight']): (ctx: ComponentFixtureContext) => Promise<void> | void {
+function renderTabStyleDensityComparison(tabHeight: IEditorPartOptions['tabHeight']): (ctx: ComponentFixtureContext) => void {
+	return ctx => {
+		for (const [name, modernUI, editorTabStyle] of [
+			['Legacy', false, undefined],
+			['Pill', true, ModernUIEditorTabStyle.Pill],
+			['Connected', true, ModernUIEditorTabStyle.Connected],
+		] as const) {
+			const label = $('div');
+			label.textContent = name;
+			label.style.paddingBlock = '8px';
+			const container = $('div');
+			container.className = ctx.container.className;
+			ctx.container.append(label, container);
+			renderEditorTabsFixture({ ...ctx, container }, {
+				modernUI,
+				editorTabStyle,
+				partOptions: { tabHeight },
+				editors: [
+					{ resource: file('/project/alpha.ts'), pinned: true },
+					{ resource: file('/project/beta.ts'), pinned: true, active: true },
+					{ resource: file('/project/gamma.ts'), pinned: true },
+				],
+			});
+		}
+	};
+}
+
+function renderDensityLayout(layout: 'singleRow' | 'wrapped' | 'wrappedBottomActive', tabHeight: IEditorPartOptions['tabHeight']): (ctx: ComponentFixtureContext) => Promise<void> | void {
 	const wrapped = layout === 'wrapped' || layout === 'wrappedBottomActive';
 	const bottomActive = layout === 'wrappedBottomActive';
-	const renderFixture = layout === 'pinnedSeparateRow'
-		? renderPinnedSeparateRow(tabHeight)
-		: render(true, {
-			partOptions: { wrapTabs: wrapped, tabHeight, ...(bottomActive ? { editorActionsLocation: 'hidden' } : {}) },
-			editors: bottomActive ? manyEditorSpecs(8).slice(0, 10) : wrapped ? manyEditorSpecs() : undefined,
-			width: bottomActive ? 820 : wrapped ? 520 : undefined,
-		});
+	const renderFixture = render(true, {
+		partOptions: { wrapTabs: wrapped, tabHeight, ...(bottomActive ? { editorActionsLocation: 'hidden' } : {}) },
+		editors: bottomActive ? manyEditorSpecs(8).slice(0, 10) : wrapped ? manyEditorSpecs() : undefined,
+		width: bottomActive ? 820 : wrapped ? 520 : undefined,
+	});
 	if (!wrapped) {
 		return renderFixture;
 	}
@@ -696,17 +715,20 @@ function renderDensityLayout(layout: 'singleRow' | 'wrapped' | 'wrappedBottomAct
 		let previousLayout: string | undefined;
 		for (let attempt = 0; attempt < 10; attempt++) {
 			await new Promise<void>(resolve => ctx.disposableStore.add(scheduleAtNextAnimationFrame(getWindow(ctx.container), () => resolve())));
-			const strip = ctx.container.querySelector<HTMLElement>('.tabs-and-actions-container');
+			const strips = Array.from(ctx.container.querySelectorAll<HTMLElement>('.tabs-and-actions-container'));
 			const tabs = Array.from(ctx.container.querySelectorAll<HTMLElement>('.tabs-container > .tab'));
-			if (!strip || !tabs.length) {
+			if (!strips.length || !tabs.length) {
 				throw new Error('Wrapped tab fixture did not render its tab strip');
 			}
 			const layout = JSON.stringify({
-				height: strip.offsetHeight,
+				heights: strips.map(strip => strip.offsetHeight),
 				tabs: tabs.map(tab => [tab.offsetLeft, tab.offsetTop, tab.offsetWidth, tab.offsetHeight]),
 			});
 			if (layout === previousLayout) {
-				if (tabs.some((tab, index) => tab.classList.contains('last-in-row') !== (index === tabs.length - 1 || tab.offsetTop !== tabs[index + 1].offsetTop))) {
+				if (strips.filter(strip => strip.classList.contains('wrapping')).some(strip => {
+					const rowTabs = Array.from(strip.querySelectorAll<HTMLElement>('.tabs-container > .tab'));
+					return rowTabs.some((tab, index) => tab.classList.contains('last-in-row') !== (index === rowTabs.length - 1 || tab.offsetTop !== rowTabs[index + 1].offsetTop));
+				})) {
 					throw new Error('Wrapped tab row markers do not match the rendered rows');
 				}
 				if (bottomActive && tabs.some(tab => tab.classList.contains('active') && (tab.offsetTop !== Math.max(...tabs.map(tab => tab.offsetTop)) || tab.classList.contains('connected-tab-upper-row')))) {
@@ -722,50 +744,55 @@ function renderDensityLayout(layout: 'singleRow' | 'wrapped' | 'wrappedBottomAct
 
 function createDensityFixtures() {
 	return {
-		PinnedSeparateRow: defineThemedFixtureGroup({
-			Default: defineComponentFixture({
-				render: renderDensityLayout('pinnedSeparateRow', 'default'),
-				additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-				expectedVisualDescriptions: ['Default-density pinned and ordinary rows keep equal action targets and balanced edge clearance.'],
+		Compact: defineThemedFixtureGroup({
+			AcrossTabStyles: defineComponentFixture({
+				render: renderTabStyleDensityComparison('compact'),
+				expectedVisualDescriptions: ['Legacy, pill, and connected tabs use the same compact tab-height setting, preserving each style and accessible action target.'],
 			}),
-			Compact: defineComponentFixture({
-				render: renderDensityLayout('pinnedSeparateRow', 'compact'),
-				additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-				expectedVisualDescriptions: ['Compact-density pinned and ordinary rows stay aligned with centered actions.'],
-			}),
-		}),
-		SingleRow: defineThemedFixtureGroup({
-			Default: defineComponentFixture({
-				render: renderDensityLayout('singleRow', 'default'),
-				expectedVisualDescriptions: ['Default-density tabs preserve their standard hitbox height and centered actions.'],
-			}),
-			Compact: defineComponentFixture({
+			SingleRow: defineComponentFixture({
 				render: renderDensityLayout('singleRow', 'compact'),
 				expectedVisualDescriptions: ['Compact-density tabs preserve the same structure with shorter hitboxes and centered actions.'],
 			}),
-		}),
-		Wrapped: defineThemedFixtureGroup({
-			Default: defineComponentFixture({
-				render: renderDensityLayout('wrapped', 'default'),
-				additionalThemes: extendedTabThemes,
-				expectedVisualDescriptions: ['Default-density tabs wrap into equal-height rows. Upper connected rows remain separate pills and the bottom selected tab joins the editor.'],
+			SingleTab: defineComponentFixture({
+				render: render(true, {
+					editors: [{ resource: file('/project/README.md'), pinned: true, active: true }],
+					partOptions: { editorActionsLocation: 'hidden', tabHeight: 'compact' },
+				}),
+				expectedVisualDescriptions: ['A compact single editor retains balanced label spacing without crowding either connected shoulder.'],
 			}),
-			Compact: defineComponentFixture({
+			WrappedBottomActive: defineComponentFixture({
+				render: renderDensityLayout('wrappedBottomActive', 'compact'),
+				expectedVisualDescriptions: ['Compact bottom-row tabs preserve the same continuous shoulder stroke as default density; upper rows remain separate pills.'],
+			}),
+			WrappedUpperActive: defineComponentFixture({
 				render: renderDensityLayout('wrapped', 'compact'),
-				additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 				expectedVisualDescriptions: ['Compact-density tabs wrap into equal-height rows while labels and actions remain vertically centered.'],
 			}),
 		}),
-		WrappedBottomActive: defineThemedFixtureGroup({
-			Default: defineComponentFixture({
-				render: renderDensityLayout('wrappedBottomActive', 'default'),
+		Default: defineThemedFixtureGroup({
+			AcrossTabStyles: defineComponentFixture({
+				render: renderTabStyleDensityComparison('default'),
+				expectedVisualDescriptions: ['Legacy, pill, and connected tabs use the same default tab-height setting. Painted heights may differ by style; labels and actions remain centered.'],
+			}),
+			SingleRow: defineComponentFixture({
+				render: renderDensityLayout('singleRow', 'default'),
+				expectedVisualDescriptions: ['Default-density tabs preserve their standard hitbox height and centered actions.'],
+			}),
+			SingleTab: defineComponentFixture({
+				render: render(true, {
+					editors: [{ resource: file('/project/README.md'), pinned: true, active: true }],
+					partOptions: { editorActionsLocation: 'hidden' },
+				}),
 				additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+				expectedVisualDescriptions: ['A single editor retains balanced label and Close action spacing without crowding either connected shoulder.'],
+			}),
+			WrappedBottomActive: defineComponentFixture({
+				render: renderDensityLayout('wrappedBottomActive', 'default'),
 				expectedVisualDescriptions: ['The active bottom-row tab joins the body separator with a continuous curved stroke on both sides, without changing the height of any row.'],
 			}),
-			Compact: defineComponentFixture({
-				render: renderDensityLayout('wrappedBottomActive', 'compact'),
-				additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-				expectedVisualDescriptions: ['Compact bottom-row tabs preserve the same continuous shoulder stroke as default density; upper rows remain separate pills.'],
+			WrappedUpperActive: defineComponentFixture({
+				render: renderDensityLayout('wrapped', 'default'),
+				expectedVisualDescriptions: ['Default-density tabs wrap into equal-height rows. Upper connected rows remain separate pills and the bottom selected tab joins the editor.'],
 			}),
 		}),
 	};
@@ -773,9 +800,12 @@ function createDensityFixtures() {
 
 function createLayoutFixtures() {
 	return {
-		ActionsLeading: defineComponentFixture({
+		ActionsHidden: defineComponentFixture({
+			render: render(true, { partOptions: { tabActionCloseVisibility: false } }),
+			expectedVisualDescriptions: ['Hiding Close actions removes their reserved controls without changing tab height or modified indicators.'],
+		}),
+		ActionsOnLeft: defineComponentFixture({
 			render: render(true, { partOptions: { tabActionLocation: 'left' } }),
-			additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 			expectedVisualDescriptions: ['Leading tab actions mirror the default trailing-action spacing without changing label alignment.'],
 		}),
 		ActionsUnreserved: defineComponentFixture({
@@ -787,13 +817,16 @@ function createLayoutFixtures() {
 				],
 				partOptions: { tabActionReserveSpace: false },
 			}),
-			additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 			expectedVisualDescriptions: ['Without reserved action space, the active clean tab keeps its Close action visible while inactive clean tabs hide theirs until hover or focus.'],
 		}),
-		CloseActionsHidden: defineComponentFixture({
-			render: render(true, { partOptions: { tabActionCloseVisibility: false } }),
-			additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-			expectedVisualDescriptions: ['Hiding Close actions removes their reserved controls without changing tab height or modified indicators.'],
+		FileIconsMinimal: defineComponentFixture({
+			fileIconTheme: 'vs-minimal',
+			render: render(true, {}),
+		}),
+		FileIconsNone: defineComponentFixture({
+			fileIconTheme: 'none',
+			render: render(true, {}),
+			expectedVisualDescriptions: ['Tabs without a file icon theme use the same balanced iconless leading spacing as the Show Icons disabled setting.'],
 		}),
 		LongNamesFit: defineComponentFixture({
 			render: render(true, { partOptions: { tabSizing: 'fit' }, editors: longLabelEditorSpecs(), width: 520 }),
@@ -809,26 +842,29 @@ function createLayoutFixtures() {
 		}),
 		ModifiedAndMultiSelected: defineComponentFixture({
 			render: render(true, { editors: multiSelectEditorSpecs() }),
-			additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 			expectedVisualDescriptions: ['Modified and multi-selected tabs retain their indicators, selected boundaries, and active document connection.'],
 		}),
 		PinnedIconOnly: defineComponentFixture({
 			render: render(true, { partOptions: { pinnedTabSizing: 'compact' }, editors: stickyEditorSpecs() }),
-			additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 			expectedVisualDescriptions: ['Compact pinned tabs remain distinct from the normal active tab and preserve their icon-only hit targets.'],
 		}),
-		SingleEditor: defineComponentFixture({
+		PinnedSeparateRow: defineComponentFixture({
+			render: renderPinnedSeparateRow(),
+			expectedVisualDescriptions: ['Pinned tabs appear in a separate row above ordinary tabs with balanced labels and actions.'],
+		}),
+		ShowBreadCrumbs: defineComponentFixture({
 			render: render(true, {
-				editors: [{ resource: file('/project/README.md'), pinned: true, active: true }],
-				partOptions: { editorActionsLocation: 'hidden' },
+				partOptions: { titleScrollbarVisibility: 'visible' },
+				breadcrumbs: {},
+				editors: manyEditorSpecs(5),
+				width: 360,
 			}),
-			additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-			expectedVisualDescriptions: ['A single editor retains balanced label and Close action spacing without crowding either connected shoulder.'],
+			expectedVisualDescriptions: ['The horizontal tab scrollbar, connected strip separator, and breadcrumb border remain distinct and aligned while the active tab is revealed within an overflowing strip.'],
 		}),
 	};
 }
 
-function renderPinnedSeparateRow(tabHeight: IEditorPartOptions['tabHeight']): (ctx: ComponentFixtureContext) => void {
+function renderPinnedSeparateRow(): (ctx: ComponentFixtureContext) => void {
 	const editors = defaultEditorSpecs().slice(0, 3).map((spec, index) => ({
 		...spec,
 		sticky: index === 0,
@@ -842,13 +878,10 @@ function renderPinnedSeparateRow(tabHeight: IEditorPartOptions['tabHeight']): (c
 			editorActionsLocation: 'hidden',
 			pinnedTabsOnSeparateRow: true,
 			pinnedTabSizing: 'normal',
-			tabHeight,
 			tabActionUnpinVisibility: true,
 		},
 	});
 }
-
-const extendedTabThemes: readonly ComponentFixtureAdditionalTheme[] = ['darkModern', 'light2026', 'darkPlus', 'lightPlus', 'visualStudioDark', 'visualStudioLight', 'darkHighContrast', 'lightHighContrast', 'abyss', 'monokai', 'quietLight', 'solarizedDark', 'solarizedLight'];
 
 export default defineThemedFixtureGroup({ path: 'editor/' }, {
 	Colors: defineThemedFixtureGroup({
@@ -952,60 +985,25 @@ export default defineThemedFixtureGroup({ path: 'editor/' }, {
 		}),
 	}),
 	Density: defineThemedFixtureGroup(createDensityFixtures()),
-	FileIcons: defineThemedFixtureGroup({
-		Disabled: defineComponentFixture({
-			fileIconTheme: 'none',
-			render: render(true, {}),
-			expectedVisualDescriptions: ['Tabs without a file icon theme use the same balanced iconless leading spacing as the Show Icons disabled setting.'],
-		}),
-		Minimal: defineComponentFixture({ fileIconTheme: 'vs-minimal', render: render(true, {}) }),
-	}),
 	Layout: defineThemedFixtureGroup(createLayoutFixtures()),
-	Scrolling: defineThemedFixtureGroup({
-		Breadcrumbs: defineComponentFixture({
-			render: render(true, {
-				partOptions: { titleScrollbarVisibility: 'visible' },
-				breadcrumbs: {},
-				editors: manyEditorSpecs(5),
-				width: 360,
-			}),
-			additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-			expectedVisualDescriptions: ['The horizontal tab scrollbar, connected strip separator, and breadcrumb border remain distinct and aligned while the active tab is revealed within an overflowing strip.'],
-		}),
-		ClippedActiveTab: defineComponentFixture({
-			render: render(true, { editors: manyEditorSpecs(), width: 360, activeTabClipping: 'left' }),
-			additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-			expectedVisualDescriptions: ['A partially scrolled selected tab closes its stationary outside stroke with a rounded cap and continuous separator.'],
-		}),
-		StickyPinnedTabs: defineComponentFixture({
-			render: render(true, {
-				partOptions: { pinnedTabSizing: 'compact', editorActionsLocation: 'hidden' },
-				editors: stickyEditorSpecs(),
-				width: 250,
-				activeTabClipping: 'left',
-			}),
-			additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-			expectedVisualDescriptions: ['Compact pinned tabs fully occlude scrolled content. The adjacent selected cap remains rounded with no seam or content leakage.'],
-		}),
-	}),
-	TabStyles: defineThemedFixtureGroup({
+	Styles: defineThemedFixtureGroup({
 		Connected: defineComponentFixture({
 			render: render(true, {}),
-			additionalThemes: extendedTabThemes,
+			additionalThemes: ['darkModern', 'darkHighContrast', 'lightHighContrast'],
 			expectedVisualDescriptions: [
 				'Connected tabs use the dedicated connected strip color while the active tab remains joined to the editor surface.',
 			],
 		}),
 		Legacy: defineComponentFixture({
 			render: render(false, {}),
-			additionalThemes: extendedTabThemes,
+			additionalThemes: ['darkModern', 'darkHighContrast', 'lightHighContrast'],
 			expectedVisualDescriptions: [
 				'With Modern UI disabled, the legacy tab strip and inactive tabs retain the theme legacy background instead of adopting the connected-tab strip color.',
 			],
 		}),
 		Pill: defineComponentFixture({
 			render: render(true, { editorTabStyle: ModernUIEditorTabStyle.Pill }),
-			additionalThemes: extendedTabThemes,
+			additionalThemes: ['darkModern', 'darkHighContrast', 'lightHighContrast'],
 			expectedVisualDescriptions: [
 				'Pill tabs retain their transparent modern surface and separate rounded geometry instead of adopting the connected-tab strip color.',
 			],

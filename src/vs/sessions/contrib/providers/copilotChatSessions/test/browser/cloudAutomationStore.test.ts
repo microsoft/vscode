@@ -34,7 +34,7 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IGitHubService } from '../../../../github/browser/githubService.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
-import { IAutomationSchedule } from '../../../../../../workbench/contrib/chat/common/automations/automation.js';
+import { IAutomationSchedule, IAutomationSessionTemplate } from '../../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING, CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING } from '../../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IChatEntitlementService, IChatSentiment } from '../../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IWorkbenchGitHubService } from '../../../../../../workbench/services/github/common/githubService.js';
@@ -63,6 +63,7 @@ class TestApi extends mock<IAutomationsClient>() {
 	readonly visibilityStarted = new DeferredPromise<void>();
 	lastSignal: AbortSignal | undefined;
 	patch: EditAutomationRequest | undefined;
+	created: CreateAutomationRequest | undefined;
 	async isPrivateRepository(_repository: GitHubRepositoryRef, signal: AbortSignal): Promise<boolean> {
 		this.calls.push('visibility');
 		this.lastSignal = signal;
@@ -93,6 +94,7 @@ class TestApi extends mock<IAutomationsClient>() {
 	}
 	override async create(_repository: RepositoryRef, value: CreateAutomationRequest): Promise<AutomationDetail> {
 		this.calls.push('create');
+		this.created = value;
 		if (this.createError) {
 			throw this.createError;
 		}
@@ -731,9 +733,51 @@ suite('CloudAutomationStore', () => {
 		assert.strictEqual(disabled.enabled, false);
 	});
 
+	test('creation forwards the raw Cloud model and rejects unsupported templates before dispatch', async () => {
+		const { provider, api, set } = setup();
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		await provider.refresh();
+		const options = { name: 'Hello', prompt: 'Say hello world', schedule: manual, target: provider.automations.get()[0].target };
+		const templates: IAutomationSessionTemplate[] = [
+			{ modelId: 'claude-opus-5.5', modelConfiguration: {} },
+			{ modelId: 'claude-opus-5.5', modelConfiguration: { reasoningEffort: 'high' } },
+			{ config: { mode: 'plan' } },
+			{ config: { autoApprove: 'autopilot' } },
+			{ agent: { uri: 'file:///agent.md' } },
+		];
+		for (const sessionTemplate of templates) {
+			await assert.rejects(provider.createAutomation({ ...options, sessionTemplate }), /not supported/);
+		}
+		const dispatchedBeforeValid = api.calls.filter(call => call === 'create').length;
+		await provider.createAutomation({ ...options, sessionTemplate: { modelId: 'claude-opus-5.5', config: { tools: ['read', 'future-tool'], reasoningEffort: 'high' } } });
+		assert.deepStrictEqual({
+			dispatchedBeforeValid, creates: api.calls.filter(call => call === 'create').length,
+			model: api.created?.model, tools: api.created?.tools, reasoning: api.created?.reasoning_effort,
+		}, { dispatchedBeforeValid: 0, creates: 1, model: 'claude-opus-5.5', tools: ['read', 'future-tool'], reasoning: 'high' });
+	});
 	test('roundtrips UTC schedules and keeps unknown triggers read-only', () => {
 		const daily = { ...manual, interval: 'daily' as const, timeZone: 'UTC' as const, scheduleHour: 7, scheduleMinute: 15 };
 		assert.deepStrictEqual({ daily: cloudAutomationSchedule(cloudAutomationTriggers(daily)), custom: cloudAutomationSchedule({ webhook: { types: ['issue'] } }).interval },
 			{ daily, custom: 'custom' });
 	});
+
+	for (const timeZone of [undefined, 'UTC'] as const) {
+		test(`rejects ${timeZone ?? 'local'} weekdays on create and update without mutating the cloud API`, async () => {
+			const { provider, api, set } = setup();
+			await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+			await provider.refresh();
+			const automation = provider.automations.get()[0];
+			const schedule: IAutomationSchedule = { interval: 'weekdays', timeZone, scheduleHour: 9, scheduleMinute: 15, scheduleDay: 0 };
+			const error = /Choose a daily or weekly UTC schedule/;
+			assert.throws(() => cloudAutomationTriggers(schedule), error);
+			await assert.rejects(provider.createAutomation({ name: 'Weekday review', prompt: 'Review', target: automation.target, schedule }), error);
+			await assert.rejects(provider.updateAutomation(automation.id, { schedule }), error);
+			await assert.rejects(provider.updateAutomationIfUnchanged(automation.id, { schedule }, automation), error);
+			assert.deepStrictEqual({
+				mutations: api.calls.filter(call => call === 'create' || call === 'update'),
+				patch: api.patch,
+				schedule: provider.getAutomation(automation.id)?.schedule,
+			}, { mutations: [], patch: undefined, schedule: automation.schedule });
+		});
+	}
 });

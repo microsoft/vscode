@@ -77,6 +77,7 @@ export class MissionControlHost extends Disposable {
 	readonly environment: MissionControlEnvironment;
 	private readonly _projects: MissionControlProjects;
 	private _grantedRoots: () => readonly string[] = () => [];
+	private _projectRoots: () => readonly string[] = () => [];
 
 	constructor(
 		private readonly _options: IMissionControlHostOptions,
@@ -101,15 +102,17 @@ export class MissionControlHost extends Disposable {
 		});
 		this._projects = this._register(this._instantiationService.createInstance(MissionControlProjects, {
 			getRoots: () => this._grantedRoots(),
+			getProjectRoots: () => this._projectRoots(),
 		}));
 		this.environment = this._register(this._instantiationService.createInstance(MissionControlEnvironment, {
 			userDataPath: environmentService.userDataPath,
 			name: getMissionControlEnvironmentName(productService),
 			fetch: (input, init) => proxyResolver.fetch(input, init),
-			attach: (relay, roots, getRoots) => this._attachRelay(relay, roots, getRoots),
+			attach: (relay, roots, getRoots, getProjects, defaultDirectory) => this._attachRelay(relay, roots, getRoots, getProjects, defaultDirectory),
+			updateProjects: () => this._projects.initialize(),
 			onError: error => this._logService.error(`[AgentHost] Mission Control failure: ${formatConnectionDiagnosticError(getConnectionDiagnosticError(error))}`),
 			onDiagnostic: event => this._reportOperation(event),
-			getSessionCount: async () => (await this._agentService.listSessions()).length,
+			getSessionCount: () => this._agentService.getSessionCount(),
 			getRemoteControlPolicy: () => this._readRemoteControlPolicy(),
 			onReady: environmentId => this._logService.info(`[AgentHost] Mission Control ready; environmentId=${environmentId}`),
 			getIdentityApiBase: () => gitHubEndpoints.getApiBaseUri(),
@@ -165,8 +168,10 @@ export class MissionControlHost extends Disposable {
 		return provider.getRemoteControlManagedSettings();
 	}
 
-	private _attachRelay(relay: MissionControlProtocolServer, roots: readonly string[], getRoots: () => readonly string[]): IDisposable {
+	private _attachRelay(relay: MissionControlProtocolServer, roots: readonly string[], getRoots: () => readonly string[], getProjects: () => readonly string[], defaultDirectory?: string): IDisposable {
 		this._grantedRoots = getRoots;
+		this._projectRoots = getProjects;
+		const directory = defaultDirectory ?? roots[0];
 		const handler = this._instantiationService.createInstance(
 			ProtocolServerHandler,
 			this._agentService,
@@ -182,7 +187,7 @@ export class MissionControlHost extends Disposable {
 				copilotProjects: relay.rootMeta ? this._projects : undefined,
 				copilotSessionRequest: (method, params) => this._handleSessionRequest(method, params),
 				relayResourceRoots: readOnly => this._resourceRoots(readOnly, getRoots()),
-				defaultDirectory: roots[0] ? URI.file(roots[0]).toString() : undefined,
+				defaultDirectory: directory ? URI.file(directory).toString() : undefined,
 			},
 			this._options.clientFileSystemProvider,
 		);
