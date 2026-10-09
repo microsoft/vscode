@@ -217,7 +217,7 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 		} else if (this.connection) {
 			return super.renameSession(sessionId, title);
 		}
-		session.title.set(title, undefined);
+		session.setTitleFromUser(title);
 		this._onDidChangeSessions.fire({ added: [], removed: [], changed: [session] });
 	}
 
