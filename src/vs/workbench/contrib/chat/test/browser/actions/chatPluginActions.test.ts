@@ -258,6 +258,7 @@ suite('ManagePluginMarketplacesAction', () => {
 					label: pick.label,
 					description: pick.description,
 					disabled: pick.disabled,
+					pickable: pick.pickable,
 				})),
 			[
 				{
@@ -265,12 +266,14 @@ suite('ManagePluginMarketplacesAction', () => {
 					label: defaultMarketplace.displayLabel,
 					description: 'Disabled by Organization',
 					disabled: true,
+					pickable: false,
 				},
 				{
 					id: managedMarketplace.canonicalId,
 					label: 'vscode-team-kit',
 					description: 'Managed by Organization',
 					disabled: false,
+					pickable: true,
 				},
 			],
 		);
@@ -296,12 +299,14 @@ suite('ManagePluginMarketplacesAction', () => {
 					label: pick.label,
 					description: pick.description,
 					disabled: pick.disabled,
+					pickable: pick.pickable,
 				})),
 			[{
 				id: managedMarketplace.canonicalId,
 				label: 'vscode-team-kit',
 				description: 'Managed by Organization, Disabled by Organization',
 				disabled: true,
+				pickable: false,
 			}],
 		);
 	});
@@ -338,6 +343,7 @@ suite('ManagePluginMarketplacesAction', () => {
 				reference: blockedMarketplace,
 				managedByPolicy: false,
 				disabled: true,
+				pickable: false,
 			},
 		});
 	});

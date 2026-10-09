@@ -264,6 +264,7 @@ export class ManagePluginMarketplacesAction extends Action2 {
 						reference,
 						managedByPolicy: policyCanonicalIds.has(reference.canonicalId),
 						disabled: !allowed,
+						pickable: allowed,
 					};
 				}));
 			}
