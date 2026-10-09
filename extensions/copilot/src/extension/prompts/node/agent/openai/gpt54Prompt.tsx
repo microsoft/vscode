@@ -242,7 +242,7 @@ class Gpt54PromptResolver implements IAgentPrompt {
 
 export class Gpt54ReminderInstructions extends PromptElement<ReminderInstructionsProps> {
 	async render(state: void, sizing: PromptSizing) {
-		const toolSearchEnabled = !!this.props.endpoint.supportsToolSearch;
+		const toolSearchEnabled = !!this.props.endpoint.supportsToolSearch && this.props.hasToolSearchTool;
 		return <>
 			You are an agent—keep going until the user's query is completely resolved before ending your turn. ONLY stop if solved or genuinely blocked.<br />
 			Take action when possible; the user expects you to do useful work without unnecessary questions.<br />

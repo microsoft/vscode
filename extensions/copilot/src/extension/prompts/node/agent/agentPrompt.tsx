@@ -49,7 +49,7 @@ import './allAgentPrompts';
 import { AlternateGPTPrompt, DefaultReminderInstructions, DefaultToolReferencesHint, ReminderInstructionsProps, ToolReferencesHintProps } from './defaultAgentInstructions';
 import { AgentPromptCustomizations, ReminderInstructionsConstructor, ToolReferencesHintConstructor } from './promptRegistry';
 import { SummarizedConversationHistory } from './summarizedConversationHistory';
-import { DeferredToolListReminder } from './toolSearchInstructions';
+import { DeferredToolListReminder, hasToolSearchTool } from './toolSearchInstructions';
 
 export interface AgentPromptProps extends GenericBasePromptElementProps {
 	readonly endpoint: IChatEndpoint;
@@ -511,6 +511,7 @@ export class AgentUserMessage extends PromptElement<AgentUserMessageProps> {
 			hasReplaceStringTool,
 			hasMultiReplaceStringTool,
 			hasMemoryTool,
+			hasToolSearchTool: hasToolSearchTool(this.props.availableTools),
 		};
 		const ToolReferencesHintClass = this.props.ToolReferencesHintClass ?? DefaultToolReferencesHint;
 		const toolReferencesHintProps: ToolReferencesHintProps = {
