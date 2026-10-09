@@ -111,6 +111,7 @@ export const EditSources = {
 		codeBlockSuggestionId: EditSuggestionId | undefined;
 		origin?: 'agentHost';
 		harness?: string;
+		agentSessionId?: string;
 		chatSessionId?: string;
 	}) {
 		return createEditSource({
@@ -123,6 +124,7 @@ export const EditSources = {
 			$origin: data.origin,
 			$$languageId: data.languageId,
 			$$sessionId: data.sessionId,
+			...(data.agentSessionId !== undefined ? { $$agentSessionId: data.agentSessionId } : {}),
 			...(data.chatSessionId !== undefined ? { $$chatSessionId: data.chatSessionId } : {}),
 			$$requestId: data.requestId,
 			$$mode: data.mode,
@@ -134,6 +136,7 @@ export const EditSources = {
 		modelId: string | undefined;
 		autoTier?: string;
 		sessionId: string;
+		agentSessionId?: string;
 		chatSessionId?: string;
 		requestId: string;
 		harness: string;
@@ -142,6 +145,7 @@ export const EditSources = {
 			modelId: data.modelId,
 			autoTier: data.autoTier,
 			sessionId: data.sessionId,
+			agentSessionId: data.agentSessionId,
 			chatSessionId: data.chatSessionId,
 			requestId: data.requestId,
 			languageId: '',

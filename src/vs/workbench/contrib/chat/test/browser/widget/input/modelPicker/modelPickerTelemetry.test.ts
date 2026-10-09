@@ -242,6 +242,14 @@ suite('ModelPickerTelemetry', () => {
 				// Replace the random session id with its open order and check each duration
 				// is a real elapsed time, so events stay deterministic to compare.
 				const normalized: IStringDictionary<unknown> = { ...data };
+				if (name === 'chat.modelPickerOpened' || name === 'chat.modelChange' || name === 'chat.thinkingEffortChange') {
+					assert.strictEqual(normalized.agentSessionId, 'owner-1');
+					assert.strictEqual(normalized.chatSessionId, 'session-1');
+					delete normalized.agentSessionId;
+					if (name === 'chat.thinkingEffortChange') {
+						delete normalized.chatSessionId;
+					}
+				}
 				if (name !== 'chat.modelPickerInteraction') {
 					assert.strictEqual(normalized.provider, 'copilotcli');
 					delete normalized.provider;
@@ -296,6 +304,7 @@ suite('ModelPickerTelemetry', () => {
 			setModelProgrammatically: supportsProgrammaticSelection ? model => programmaticDelegateSelections.push(model.identifier) : undefined,
 			getModels: () => models,
 			getChatSessionId: () => 'session-1',
+			getAgentSessionId: () => 'owner-1',
 			getProvider: () => 'copilotcli',
 			getPresentationOptions: () => ({
 				showManageModelsAction: false, showUnavailableFeatured: true,
@@ -794,9 +803,9 @@ suite('ModelPickerTelemetry', () => {
 				assert.strictEqual(data?.provider, 'codex-openai');
 				logged.push({ name, durationMs: data?.durationMs, pickerSessionId: data?.pickerSessionId });
 			},
-		}), new NullLanguageModelsService(), { entryPoint: 'modelName', inputMethod: 'mouse' }, model, 'session-1', 'codex-openai', () => now);
+		}), new NullLanguageModelsService(), { entryPoint: 'modelName', inputMethod: 'mouse' }, model, { chatSessionId: 'session-1' }, 'codex-openai', () => now);
 		now = 1250.4;
-		session.logModelChange(model, otherModel, 'session-1');
+		session.logModelChange(model, otherModel);
 		now = 2000;
 		const saved = new DeferredPromise<void>();
 		session.close(saved.p);
@@ -816,6 +825,25 @@ suite('ModelPickerTelemetry', () => {
 				{ name: 'chat.modelPickerClosed', durationMs: 1000, pickerSessionId: session.id },
 			],
 		});
+	});
+
+	test('retains the originating chat when a configuration save completes after context changes', () => {
+		const events: { name: string; data: IStringDictionary<unknown> | undefined }[] = [];
+		const context = { chatSessionId: 'chat-original', agentSessionId: 'owner-original' };
+		const session = new ModelPickerTelemetrySession(upcastPartial<ITelemetryService>({
+			publicLog2: (name: string, data?: IStringDictionary<unknown>) => events.push({ name, data }),
+		}), new NullLanguageModelsService(), { entryPoint: 'configuration', inputMethod: 'mouse' }, model, context, 'copilotcli');
+		context.chatSessionId = 'chat-new';
+		context.agentSessionId = 'owner-new';
+		session.logModelChange(model, otherModel);
+		session.logConfigurationChange(model, 'navigation', 'reasoningEffort', 'medium', 'high', Date.now());
+		assert.deepStrictEqual(events.map(event => ({
+			name: event.name,
+			chatSessionId: event.data?.chatSessionId,
+			agentSessionId: event.data?.agentSessionId,
+		})), ['chat.modelPickerOpened', 'chat.modelChange', 'chat.thinkingEffortChange'].map(name => ({
+			name, chatSessionId: 'chat-original', agentSessionId: 'owner-original',
+		})));
 	});
 
 	test('dismissing during a pending configuration save still reports the change before the close', async () => {
