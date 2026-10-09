@@ -71,6 +71,7 @@ import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../automationsConstants.js';
 import { ARCHIVE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../common/sessionCommands.js';
 import { IAutomationTemplate, readAutomationTemplates } from './automationTemplates.js';
 import { getUnavailableAutomationsReasons } from './automationCataloguePresentation.js';
+import { automationRunWithLocalProgress } from './automationRunProgress.js';
 import { logAutomationViewShown, withAutomationDialogPersistenceTelemetry } from '../../../automations/browser/automationTelemetry.js';
 
 const $ = DOM.$;
@@ -1185,17 +1186,9 @@ class AutomationCardsSection extends Disposable {
 /** Combines authoritative run history with newer local conversation progress. */
 class AutomationRunSession implements ISession {
 	readonly run: ISettableObservable<IAutomationRun>;
+	private readonly progress = derived(this, reader => automationRunWithLocalProgress(this.run.read(reader), this.chatModels.read(reader), reader));
 	readonly status = derived(this, reader => {
-		const run = this.run.read(reader);
-		const model = this.chatModels.read(reader).find(model => isEqual(model.sessionResource, this.session.resource));
-		if (model?.requestInProgress.read(reader)) {
-			return model.requestNeedsInput.read(reader) ? SessionStatus.NeedsInput : SessionStatus.InProgress;
-		}
-		const response = model?.lastRequestObs.read(reader)?.response;
-		if (response?.isComplete && !response.isCanceled && response.completionTimestamp !== undefined
-			&& response.completionTimestamp > Date.parse(run.updatedAt ?? run.completedAt ?? run.startedAt)) {
-			return response.result?.errorDetails ? SessionStatus.Error : SessionStatus.Completed;
-		}
+		const run = this.progress.read(reader);
 		return run.status === 'completed' ? SessionStatus.Completed
 			: run.status === 'failed' ? SessionStatus.Error
 				: run.needsInput ? SessionStatus.NeedsInput : SessionStatus.InProgress;
@@ -1206,7 +1199,7 @@ class AutomationRunSession implements ISession {
 			return undefined;
 		}
 		const liveDescription = this.session.status.read(reader) === state ? this.session.description.read(reader) : undefined;
-		const run = this.run.read(reader);
+		const run = this.progress.read(reader);
 		return liveDescription ?? new MarkdownString().appendText(run.statusDescription ?? (run.status === 'pending'
 			? localize('automationRunQueued', "Queued on GitHub")
 			: localize('automationRunCloudRunning', "Running on GitHub")));

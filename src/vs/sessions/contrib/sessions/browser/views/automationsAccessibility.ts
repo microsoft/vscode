@@ -13,12 +13,15 @@ import { IAutomationDescriptor, IAutomationRun, IAutomationSchedule } from '../.
 import { AutomationCatalogueState, type IAutomationProviderDescriptor, IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { automationScheduleToLocal, DAYS_OF_WEEK } from '../../../../../workbench/contrib/chat/common/automations/schedule.js';
 import { IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
+import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { AutomationsCustomViewFocusContext } from '../../../../common/contextkeys.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IAutomationTemplate, readAutomationTemplates } from './automationTemplates.js';
 import { formatUnavailableAutomationsMessage } from './automationCataloguePresentation.js';
+import { automationRunWithLocalProgress } from './automationRunProgress.js';
 
 class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly type = AccessibleViewType.Help;
@@ -78,6 +81,7 @@ class AutomationsCustomViewAccessibleView implements IAccessibleViewImplementati
 		const automationService = accessor.get(IAutomationService);
 		const layoutService = accessor.get(IAgentWorkbenchLayoutService);
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const chatService = accessor.get(IChatService);
 		const agentPluginService = accessor.get(IAgentPluginService);
 		const restoreFocus = createFocusRestorer(layoutService);
 		return new AccessibleContentProvider(
@@ -95,6 +99,7 @@ class AutomationsCustomViewAccessibleView implements IAccessibleViewImplementati
 				readAutomationTemplates(agentPluginService.plugins.get()),
 				automationService.unavailableProviders.get(),
 				automationService.historyState?.get(),
+				chatService.chatModels.get(),
 			),
 			restoreFocus,
 			AccessibilityVerbositySettingId.Automations,
@@ -113,7 +118,7 @@ function createFocusRestorer(layoutService: IAgentWorkbenchLayoutService): () =>
 	};
 }
 
-export function buildAutomationsAccessibleContent(automations: readonly IAutomationDescriptor[], runs: readonly IAutomationRun[], catalogueState: AutomationCatalogueState, templates: readonly IAutomationTemplate[] = readAutomationTemplates([]), unavailableProviders: readonly IAutomationProviderDescriptor[] = [], historyState?: AutomationCatalogueState): string {
+export function buildAutomationsAccessibleContent(automations: readonly IAutomationDescriptor[], runs: readonly IAutomationRun[], catalogueState: AutomationCatalogueState, templates: readonly IAutomationTemplate[] = readAutomationTemplates([]), unavailableProviders: readonly IAutomationProviderDescriptor[] = [], historyState?: AutomationCatalogueState, chatModels: Iterable<IChatModel> = []): string {
 	const lines = [localize('automationsAccessibleView.title', "Automations")];
 	const builtInTemplates = templates.filter(template => !template.source);
 	const pluginTemplates = templates.filter(template => !!template.source);
@@ -182,7 +187,8 @@ export function buildAutomationsAccessibleContent(automations: readonly IAutomat
 		}
 	} else {
 		const automationNames = new Map(automations.map(automation => [automation.id, automation.name]));
-		for (const run of runs) {
+		for (const historyRun of runs) {
+			const run = automationRunWithLocalProgress(historyRun, chatModels);
 			lines.push(localize(
 				'automationsAccessibleView.run',
 				"{0}, {1}, started {2}",
@@ -231,6 +237,9 @@ function formatTime(hour: number, minute: number): string {
 function formatRunStatus(run: IAutomationRun): string {
 	if (run.statusDescription) {
 		return run.statusDescription;
+	}
+	if (run.needsInput) {
+		return localize('automationsAccessibleView.needsInput', "Needs input");
 	}
 	switch (run.status) {
 		case 'pending':
