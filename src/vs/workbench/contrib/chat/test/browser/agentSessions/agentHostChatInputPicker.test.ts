@@ -105,15 +105,9 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 	function setup(combined = true, getHostInfo: () => Promise<IAgentHostNetworkDiagnosticsInfo> = async () => ({ version: '1', os: 'linux', arch: 'x64', proxySettings: {}, proxyEnv: {}, endpoints: [] }), remoteAuthority?: string) {
 		const configuration = new class extends TestConfigurationService {
 			policyRestricted = false;
-			policyEnforced = false;
 			override inspect<T>(key: string): IConfigurationValue<T> {
 				const result = super.inspect<T>(key);
-				return {
-					...result,
-					policyValue: key === ChatConfiguration.GlobalAutoApprove
-						? this.policyEnforced ? true as T : this.policyRestricted ? false as T : undefined
-						: result.policyValue,
-				};
+				return { ...result, policyValue: this.policyRestricted && key === ChatConfiguration.GlobalAutoApprove ? result.value : undefined };
 			}
 			override updateValue(key: string, value: unknown): Promise<void> {
 				return this.setUserConfiguration(key, value);
@@ -1029,32 +1023,6 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			});
 		});
 
-		test(`keeps lower permissions unavailable when global auto approve is enforced (${combined ? 'combined' : 'separate'} picker)`, async () => {
-			const { modePicker, permissionPicker, configuration, config, actionWidget, dispatches } = setup(combined);
-			await configuration.setUserConfiguration(ChatConfiguration.GlobalAutoApprove, true);
-			configuration.policyEnforced = true;
-			config.values.autoApprove = 'autoApprove';
-			const picker = combined ? modePicker : permissionPicker;
-			await picker['_showPicker'](document.createElement('div'), combined);
-			const levels = actionWidget.items.filter(item => ['Manual permissions', 'Assisted permissions', 'Allow all'].includes(item.label ?? ''))
-				.map(item => ({ label: item.label, disabled: item.disabled }));
-			await actionWidget.select('Manual permissions');
-
-			assert.deepStrictEqual({
-				globalAutoApprove: configuration.getValue(ChatConfiguration.GlobalAutoApprove),
-				levels,
-				dispatches,
-			}, {
-				globalAutoApprove: true,
-				levels: [
-					{ label: 'Manual permissions', disabled: true },
-					{ label: 'Assisted permissions', disabled: true },
-					{ label: 'Allow all', disabled: false },
-				],
-				dispatches: [],
-			});
-		});
-
 		test(`offers experimental Assisted permissions without an opt-in setting (${combined ? 'combined' : 'separate'} picker)`, async () => {
 			const { modePicker, permissionPicker, configuration, config, actionWidget, dispatches } = setup(combined);
 			await configuration.setUserConfiguration('chat.assistedPermissions.enabled', false);
@@ -1845,18 +1813,12 @@ suite('AgentHostChatInputPicker - resolveConfigChipValue', () => {
 					autoRestricted: isAutoApproveValuePolicyRestricted(ChatPermissionLevel.Assisted, true),
 					bypassRestricted: isAutoApproveValuePolicyRestricted(ChatPermissionLevel.AutoApprove, true),
 					defaultRestricted: isAutoApproveValuePolicyRestricted(ChatPermissionLevel.Default, true),
-					manualRestrictedByEnforcement: isAutoApproveValuePolicyRestricted(ChatPermissionLevel.Default, false, true),
-					assistedRestrictedByEnforcement: isAutoApproveValuePolicyRestricted(ChatPermissionLevel.Assisted, false, true),
-					allowAllRestrictedByEnforcement: isAutoApproveValuePolicyRestricted(ChatPermissionLevel.AutoApprove, false, true),
 					autoNormalized: normalizeSessionConfigValue(SessionConfigKey.AutoApprove, ChatPermissionLevel.Assisted, true),
 					bypassNormalized: normalizeSessionConfigValue(SessionConfigKey.AutoApprove, ChatPermissionLevel.AutoApprove, true),
 				}, {
 					autoRestricted: true,
 					bypassRestricted: true,
 					defaultRestricted: false,
-					manualRestrictedByEnforcement: true,
-					assistedRestrictedByEnforcement: true,
-					allowAllRestrictedByEnforcement: false,
 					autoNormalized: ChatPermissionLevel.Default,
 					bypassNormalized: ChatPermissionLevel.Default,
 				});

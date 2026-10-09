@@ -35,27 +35,15 @@ export function isAutoApprovePolicyRestricted(configurationService: IConfigurati
 	return !usesHostApprovalPolicy(schema) && configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
 }
 
-export function isGlobalAutoApprovePolicyEnforced(configurationService: IConfigurationService): boolean {
-	return configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === true;
+export function isAutoApproveValuePolicyRestricted(value: unknown, policyRestricted: boolean): boolean {
+	return policyRestricted && value !== ChatPermissionLevel.Default;
 }
 
-export function isAutoApproveValuePolicyRestricted(value: unknown, policyRestricted: boolean, policyEnforced = false): boolean {
-	return (policyRestricted && value !== ChatPermissionLevel.Default)
-		|| (policyEnforced && value !== ChatPermissionLevel.AutoApprove);
-}
-
-/** Disables a user-controlled global override and returns whether the session permission may be changed. */
-export async function disableGlobalAutoApproveForPermissionSelection(configurationService: IConfigurationService, level: ChatPermissionLevel): Promise<boolean> {
-	if (level === ChatPermissionLevel.AutoApprove) {
-		return true;
-	}
-	if (isGlobalAutoApprovePolicyEnforced(configurationService)) {
-		return false;
-	}
-	if (configurationService.getValue<boolean>(ChatConfiguration.GlobalAutoApprove) === true) {
+/** Disables the global override when the user explicitly selects a lower session permission. */
+export async function disableGlobalAutoApproveForPermissionSelection(configurationService: IConfigurationService, level: ChatPermissionLevel): Promise<void> {
+	if (level !== ChatPermissionLevel.AutoApprove && configurationService.getValue<boolean>(ChatConfiguration.GlobalAutoApprove) === true) {
 		await configurationService.updateValue(ChatConfiguration.GlobalAutoApprove, false);
 	}
-	return configurationService.getValue<boolean>(ChatConfiguration.GlobalAutoApprove) !== true;
 }
 
 export function normalizeSessionConfigValue(property: string, value: string, policyRestricted: boolean): string;

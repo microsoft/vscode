@@ -28,7 +28,7 @@ import { DeferredPromise, timeout } from '../../../../../../../base/common/async
 import { URI } from '../../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
-import { type IConfigurationOverrides, IConfigurationService, IConfigurationValue } from '../../../../../../../platform/configuration/common/configuration.js';
+import { type IConfigurationOverrides, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ResolveSessionConfigResult, SessionConfigPropertySchema } from '../../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { IAgentConnection, IAgentHostNetworkDiagnosticsInfo } from '../../../../../../../platform/agentHost/common/agentService.js';
@@ -182,9 +182,6 @@ function setup(store: Pick<DisposableStore, 'add'>, activeSession: IActiveSessio
 	let customTerminalToolEnabled = false;
 	const configurationService = configurationOverride ?? new class extends mock<IConfigurationService>() {
 		override readonly onDidChangeConfiguration = Event.None;
-		override inspect<T>(key: string): IConfigurationValue<T> {
-			return { value: this.getValue<T>(key) };
-		}
 		override getValue<T>(): T;
 		override getValue<T>(section: string): T;
 		override getValue<T>(overrides: IConfigurationOverrides): T;
@@ -302,36 +299,6 @@ suite('AgentHostPermissionPickerDelegate', () => {
 		}, {
 			globalAutoApprove: false,
 			writes: [[SESSION_ID, SessionConfigKey.AutoApprove, 'default']],
-		});
-	});
-
-	test('does not offer or write lower permissions when global auto approve is enforced', async () => {
-		const updates: Array<{ key: string; value: unknown }> = [];
-		const configuration = new class extends TestConfigurationService {
-			override inspect<T>(key: string): IConfigurationValue<T> {
-				const result = super.inspect<T>(key);
-				return key === ChatConfiguration.GlobalAutoApprove ? { ...result, policyValue: true as T } : result;
-			}
-			override updateValue(key: string, value: unknown): Promise<void> {
-				updates.push({ key, value });
-				return this.setUserConfiguration(key, value);
-			}
-		}({ [ChatConfiguration.GlobalAutoApprove]: true });
-		const { delegate, provider } = setup(store, makeActiveSession('copilot'), 'autoApprove', undefined, undefined, configuration);
-		const levels = delegate.availableLevels;
-
-		await delegate.setPermissionLevel(ChatPermissionLevel.Default);
-
-		assert.deepStrictEqual({
-			levels,
-			globalAutoApprove: configuration.getValue(ChatConfiguration.GlobalAutoApprove),
-			updates,
-			writes: provider.setCalls,
-		}, {
-			levels: [ChatPermissionLevel.AutoApprove],
-			globalAutoApprove: true,
-			updates: [],
-			writes: [],
 		});
 	});
 

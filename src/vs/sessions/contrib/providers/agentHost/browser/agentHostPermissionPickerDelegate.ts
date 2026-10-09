@@ -18,7 +18,7 @@ import { narrowClaudePermissionMode } from '../../../../../platform/agentHost/co
 import { narrowCodexPermissionsPreset } from '../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
 import { SessionConfigPropertySchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ChatConfiguration, ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
-import { disableGlobalAutoApproveForPermissionSelection, isAutoApprovePolicyRestricted, isGlobalAutoApprovePolicyEnforced } from '../../../../../workbench/contrib/chat/common/agentHostConfigPolicy.js';
+import { disableGlobalAutoApproveForPermissionSelection, isAutoApprovePolicyRestricted } from '../../../../../workbench/contrib/chat/common/agentHostConfigPolicy.js';
 import { IPermissionLevelMeta, IPermissionPickerDelegate } from '../../copilotChatSessions/browser/permissionPicker.js';
 import { getSessionConfigProvider, IAgentHostSessionsProvider, isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionConfigProvider, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
@@ -82,8 +82,7 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 			ChatPermissionLevel.Default,
 			ChatPermissionLevel.Assisted,
 			ChatPermissionLevel.AutoApprove,
-		].filter(level => values.some(value => value === level)
-			&& (!isGlobalAutoApprovePolicyEnforced(this._configurationService) || level === ChatPermissionLevel.AutoApprove));
+		].filter(level => values.some(value => value === level));
 	}
 
 	/** Agent-host sessions seed their default approval level from this setting. */
@@ -164,8 +163,7 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 			this._configChangedSignal.trigger(undefined);
 		}));
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatConfiguration.ExperimentalModePermissionsPicker)
-				|| e.affectsConfiguration(ChatConfiguration.GlobalAutoApprove)) {
+			if (e.affectsConfiguration(ChatConfiguration.ExperimentalModePermissionsPicker)) {
 				this._configChangedSignal.trigger(undefined);
 			}
 		}));
@@ -276,9 +274,7 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 		if (!approvalProperty || value === undefined || !isSessionConfigWritable(approvalProperty.schema, provider.getCreateSessionConfig(session.sessionId) !== undefined)) {
 			throw new Error('Approval configuration is unavailable for this session');
 		}
-		if (!await disableGlobalAutoApproveForPermissionSelection(this._configurationService, level)) {
-			return;
-		}
+		await disableGlobalAutoApproveForPermissionSelection(this._configurationService, level);
 		const operation = provider.setSessionConfigValue(session.sessionId, approvalProperty.key, value);
 		provider.trackSessionConfigOperation?.(session.sessionId, operation);
 		await operation.catch(onUnexpectedError);
