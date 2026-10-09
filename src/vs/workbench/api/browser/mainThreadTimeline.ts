@@ -54,6 +54,8 @@ export class MainThreadTimeline implements MainThreadTimelineShape {
 		this.logService.trace(`MainThreadTimeline#unregisterTimelineProvider: id=${id}`);
 
 		this._timelineService.unregisterTimelineProvider(id);
+		this._providerEmitters.get(id)?.dispose();
+		this._providerEmitters.delete(id);
 	}
 
 	$emitTimelineChangeEvent(e: TimelineChangeEvent): void {
@@ -64,6 +66,8 @@ export class MainThreadTimeline implements MainThreadTimelineShape {
 	}
 
 	dispose(): void {
-		// noop
+		for (const id of this._providerEmitters.keys()) {
+			this.$unregisterTimelineProvider(id);
+		}
 	}
 }
