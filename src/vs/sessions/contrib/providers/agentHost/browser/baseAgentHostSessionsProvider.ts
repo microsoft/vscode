@@ -39,7 +39,7 @@ import { parseGitHubIssueUrl, parseGitHubPullRequestUrl } from '../../../../../p
 import { getEffectiveAgents } from '../../../../../platform/agentHost/common/customAgents.js';
 import { KNOWN_MODE_VALUES, omitAutomationSessionTemplateConfigValues, SessionConfigKey } from '../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { filterSessionConfigValues, getEffectiveSessionApprovalValue, getSessionApprovalProperty, getSessionWorkspaceProperties, isSessionConfigWritable, readSessionIsolation, validateSessionConfigWrite, writeSessionIsolation } from '../../../../../platform/agentHost/common/sessionConfigProperties.js';
-import { ChatAgentFilesLocationsSettingId, ChatHookFilesLocationsSettingId, getChatSensitiveEditLocations, type IChatSensitiveEditLocation } from '../../../../../platform/chat/common/chatSettings.js';
+import { ChatAgentFilesLocationsSettingId, ChatHookFilesLocationsSettingId, getChatSensitiveEditLocations, mergeChatSensitiveEditLocations, type IChatSensitiveEditLocation } from '../../../../../platform/chat/common/chatSettings.js';
 import { applyLegacyAutomationSessionConfig } from '../../../../../platform/agentHost/common/automationConfig.js';
 import { migrateLegacyAutopilotConfig } from '../../../../../platform/agentHost/common/agentHostSchema.js';
 import { readAgentDevContainerWorktreeMetadata, withAgentDevContainerWorktreeMetadata, type IAgentDevContainerWorktreeMetadata } from '../../../../../platform/agentHost/common/meta/agentDevContainerWorktreeMeta.js';
@@ -5172,20 +5172,12 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	private _getSensitiveEditLocations(workspace: ISessionWorkspace | undefined): readonly IChatSensitiveEditLocation[] {
-		const locations = new Map<string, IChatSensitiveEditLocation>();
-		for (const folder of workspace?.folders ?? []) {
+		return mergeChatSensitiveEditLocations(...(workspace?.folders ?? []).map(folder => {
 			const overrides = { resource: folder.root };
 			const hookLocations = this._baseConfigurationService.getValue<unknown>(ChatHookFilesLocationsSettingId, overrides);
 			const agentLocations = this._baseConfigurationService.getValue<unknown>(ChatAgentFilesLocationsSettingId, overrides);
-			for (const location of getChatSensitiveEditLocations(hookLocations, agentLocations)) {
-				const existing = locations.get(location.path);
-				locations.set(location.path, {
-					path: location.path,
-					isDirectory: location.isDirectory || existing?.isDirectory === true,
-				});
-			}
-		}
-		return [...locations.values()].sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : Number(b.isDirectory) - Number(a.isDirectory));
+			return getChatSensitiveEditLocations(hookLocations, agentLocations);
+		}));
 	}
 
 	private _syncSensitiveEditLocations(session: AgentHostSessionAdapter): void {

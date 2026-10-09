@@ -87,6 +87,20 @@ export function getChatSensitiveEditLocations(hookLocations: unknown, agentLocat
 	return [...locations.values()].sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : Number(b.isDirectory) - Number(a.isDirectory));
 }
 
+export function mergeChatSensitiveEditLocations(...locationSets: readonly (readonly IChatSensitiveEditLocation[])[]): readonly IChatSensitiveEditLocation[] {
+	const locations = new Map<string, IChatSensitiveEditLocation>();
+	for (const locationSet of locationSets) {
+		for (const location of locationSet) {
+			const existing = locations.get(location.path);
+			locations.set(location.path, {
+				path: location.path,
+				isDirectory: location.isDirectory || existing?.isDirectory === true,
+			});
+		}
+	}
+	return [...locations.values()].sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : Number(b.isDirectory) - Number(a.isDirectory));
+}
+
 export const enum ChatExternalSessionsMode {
 	Recent = 'recent',
 	None = 'none',
