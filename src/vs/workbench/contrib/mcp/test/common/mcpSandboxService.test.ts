@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { OperatingSystem } from '../../../../../base/common/platform.js';
-import { dirname } from '../../../../../base/common/resources.js';
+import { basename, dirname } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -17,13 +18,14 @@ import { FileService } from '../../../../../platform/files/common/fileService.js
 import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
-import { IMcpSandboxConfiguration } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
-import { IMcpResourceScannerService } from '../../../../../platform/mcp/common/mcpResourceScannerService.js';
+import { IMcpSandboxConfiguration, IMcpStdioServerConfiguration, McpServerType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { IMcpResourceScannerService, McpResourceScannerService } from '../../../../../platform/mcp/common/mcpResourceScannerService.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IRemoteAgentEnvironment } from '../../../../../platform/remote/common/remoteAgentEnvironment.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 import { McpSandboxService, mcpDefaultCwdToFsPath, resolveMcpServerSandboxWorkingDirectory } from '../../common/mcpSandboxService.js';
-import { McpServerDefinition, McpServerTransportStdio, McpServerTransportType } from '../../common/mcpTypes.js';
+import { McpServerDefinition, McpServerLaunch, McpServerTransportStdio, McpServerTransportType } from '../../common/mcpTypes.js';
 
 suite('MCP Sandbox Service', () => {
 
@@ -44,7 +46,11 @@ suite('MCP Sandbox Service', () => {
 			serverDataFolderName: options.serverDataFolderName,
 		});
 		instantiationService.stub(ILogService, logService);
-		instantiationService.stub(IMcpResourceScannerService, {});
+		instantiationService.stub(IUriIdentityService, upcastPartial<IUriIdentityService>({
+			asCanonicalUri: resource => resource,
+		}));
+		const scanner = store.add(instantiationService.createInstance(McpResourceScannerService));
+		instantiationService.stub(IMcpResourceScannerService, scanner);
 		instantiationService.stub(IRemoteAgentService, {
 			getEnvironment: async () => upcastPartial<IRemoteAgentEnvironment>({
 				os: OperatingSystem.Linux,
@@ -57,7 +63,7 @@ suite('MCP Sandbox Service', () => {
 		const configFiles: URI[] = [];
 		const sandboxedLaunches: McpServerTransportStdio[] = [];
 
-		const launchServer = async (cwd: string | undefined, configTarget: ConfigurationTarget, sandbox?: IMcpSandboxConfiguration): Promise<URI> => {
+		const launchServer = async (cwd: string | undefined, configTarget: ConfigurationTarget, sandbox?: IMcpSandboxConfiguration, label = 'Test Server'): Promise<URI> => {
 			const launch: McpServerTransportStdio = {
 				type: McpServerTransportType.Stdio,
 				command: 'node',
@@ -69,7 +75,7 @@ suite('MCP Sandbox Service', () => {
 			};
 			const definition: McpServerDefinition = {
 				id: cwd ?? 'no-cwd',
-				label: 'Test Server',
+				label,
 				cacheNonce: 'test',
 				sandboxEnabled: true,
 				launch,
@@ -84,14 +90,108 @@ suite('MCP Sandbox Service', () => {
 			return configFile;
 		};
 
-		const generateSettings = async (cwd: string | undefined, configTarget: ConfigurationTarget, sandbox?: IMcpSandboxConfiguration): Promise<IMcpSandboxConfiguration> => {
-			const configFile = await launchServer(cwd, configTarget, sandbox);
+		const generateSettings = async (cwd: string | undefined, configTarget: ConfigurationTarget, sandbox?: IMcpSandboxConfiguration, label?: string): Promise<IMcpSandboxConfiguration> => {
+			const configFile = await launchServer(cwd, configTarget, sandbox, label);
 			const contents = await fileService.readFile(configFile);
 			return JSON.parse(contents.value.toString());
 		};
 
-		return { generateSettings, configFiles, fileService, sandboxedLaunches };
+		return { generateSettings, configFiles, fileService, sandboxedLaunches, service, scanner };
 	}
+
+	test('names each settings file after its server with a unique UUID and a safe basename', async () => {
+		const { generateSettings, configFiles } = createSandboxSettingsGenerator();
+		await generateSettings('/servers/a', ConfigurationTarget.WORKSPACE_FOLDER, undefined, 'server-A');
+		await generateSettings('/servers/a', ConfigurationTarget.WORKSPACE_FOLDER, undefined, 'server-A');
+		await generateSettings('/servers/b', ConfigurationTarget.USER, undefined, '../server\\B?');
+
+		const uuid = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
+		assert.deepStrictEqual({
+			namesMatch: configFiles.map((file, index) => new RegExp(`^vscode-${index < 2 ? 'server-A' : '\\.\\._server_B_'}-sandbox-settings-${uuid}\\.json$`).test(basename(file))),
+			distinctFiles: new Set(configFiles.map(file => file.path)).size,
+			directories: configFiles.map(file => dirname(file).path),
+		}, {
+			namesMatch: [true, true, true],
+			distinctFiles: 3,
+			directories: Array(3).fill('/home/test/.test-server-data/tmp/tmp_vscode_7'),
+		});
+	});
+
+	for (const target of [ConfigurationTarget.USER, ConfigurationTarget.WORKSPACE, ConfigurationTarget.WORKSPACE_FOLDER] as const) {
+		test(`persists dialog approvals only for the requesting server at target ${target}`, async () => {
+			const { service, scanner, fileService, generateSettings } = createSandboxSettingsGenerator();
+			const resource = URI.file('/config/mcp.json');
+			const serverA: IMcpStdioServerConfiguration = {
+				type: McpServerType.LOCAL,
+				command: 'node',
+				sandboxEnabled: true,
+				sandbox: {
+					network: { deniedDomains: ['blocked-a.test'] },
+					filesystem: { denyRead: ['/private-a'], denyWrite: ['/readonly-a'] },
+				},
+			};
+			const serverB: IMcpStdioServerConfiguration = { type: McpServerType.LOCAL, command: 'node', sandboxEnabled: true };
+			const root: IMcpSandboxConfiguration = {
+				network: { allowedDomains: ['shared.test'], deniedDomains: ['blocked.test'] },
+				filesystem: { allowWrite: ['/shared'], denyRead: ['/private'], denyWrite: ['/readonly'] },
+			};
+			const data = { servers: { A: serverA, B: serverB }, sandbox: root };
+			await fileService.writeFile(resource, VSBuffer.fromString(JSON.stringify(target === ConfigurationTarget.WORKSPACE ? { settings: { mcp: data } } : data)));
+			const launch = McpServerLaunch.fromServerConfiguration(serverA, root);
+			assert.ok(launch);
+			const definition: McpServerDefinition = { id: 'collection.A', label: 'A', cacheNonce: 'test', launch };
+			const blocks = [{ kind: 'network' as const, host: 'google.com', message: 'Network access denied' }, { kind: 'filesystem' as const, path: '/only-a', message: 'Write access denied' }];
+			const suggestion = service.getSandboxConfigSuggestionMessage('A', blocks);
+			assert.ok(suggestion);
+			const changed = await service.applySandboxConfigSuggestion(definition, resource, target, blocks, suggestion.sandboxConfig);
+			const changedAgain = await service.applySandboxConfigSuggestion(definition, resource, target, blocks, suggestion.sandboxConfig);
+			const scanned = await scanner.scanMcpServers(resource, target);
+			const policies: IMcpSandboxConfiguration[] = [];
+			for (const name of ['A', 'B']) {
+				const config = scanned.servers?.[name];
+				assert.ok(config);
+				const nextLaunch = McpServerLaunch.fromServerConfiguration(config, scanned.sandbox);
+				assert.ok(nextLaunch?.type === McpServerTransportType.Stdio);
+				policies.push(await generateSettings(`/servers/${name}`, target, nextLaunch.sandbox, name));
+			}
+			assert.deepStrictEqual({
+				changed, changedAgain,
+				root: scanned.sandbox,
+				serverB: scanned.servers?.B,
+				policies,
+				repeatedSuggestion: service.getSandboxConfigSuggestionMessage('A', blocks, policies[0]),
+			}, {
+				changed: true, changedAgain: false,
+				root,
+				serverB,
+				policies: [
+					{
+						network: { allowedDomains: ['google.com', 'registry.npmjs.org'], deniedDomains: ['blocked.test', 'blocked-a.test'] },
+						filesystem: { allowWrite: ['/only-a', '~/.npm', '/servers/A'], denyRead: ['/private', '/private-a'], denyWrite: ['/readonly', '/readonly-a'] },
+					},
+					{
+						network: { allowedDomains: ['registry.npmjs.org'], deniedDomains: ['blocked.test'] },
+						filesystem: { allowWrite: ['~/.npm', '/servers/B'], denyRead: ['/private'], denyWrite: ['/readonly'] },
+					},
+				],
+				repeatedSuggestion: undefined,
+			});
+		});
+	}
+
+	test('does not save approvals for a removed server into the shared configuration', async () => {
+		const { service, fileService } = createSandboxSettingsGenerator();
+		const resource = URI.file('/config/mcp.json');
+		const content = JSON.stringify({ servers: { B: { type: 'stdio', command: 'node' } } });
+		await fileService.writeFile(resource, VSBuffer.fromString(content));
+		const launch = McpServerLaunch.fromServerConfiguration({ type: McpServerType.LOCAL, command: 'node' });
+		assert.ok(launch);
+		await assert.rejects(service.applySandboxConfigSuggestion(
+			{ id: 'collection.A', label: 'A', cacheNonce: 'test', launch },
+			resource, ConfigurationTarget.USER, [], { network: { allowedDomains: ['google.com'] } },
+		), /no longer available/);
+		assert.strictEqual((await fileService.readFile(resource)).value.toString(), content);
+	});
 
 	test('uses the terminal sandbox configuration directory without changing the runtime temp directory', async () => {
 		const results = [];
