@@ -15,9 +15,10 @@ import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
-import { Emitter } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { join, sep } from '../../../../base/common/path.js';
+import { hasKey } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../base/test/common/virtualScheduling/index.js';
@@ -92,7 +93,7 @@ import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js'
 import { buildCopilotSystemNotification, getCopilotSubagentDisplayNames } from '../../node/copilot/copilotSystemNotification.js';
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostAutoReplyAnswer, AgentHostAutoReplyEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpToolRoutingEnabledConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostAutoReplyAnswer, AgentHostAutoReplyEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpSamplingAllowedServersConfigKey, AgentHostMcpToolRoutingEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { AgentHostHydraFusionEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey } from '../../common/copilotCliConfig.js';
 import { TestExperimentTriggerTelemetryService } from '../../../telemetry/test/common/experimentTriggerTestUtils.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
@@ -215,6 +216,14 @@ class MockCopilotSession {
 	onMcpAuthenticationStateChanged: (() => void) | undefined;
 	mcpAuthenticationStateChangedError: Error | undefined;
 	readonly samplingResponses: Parameters<CopilotSession['rpc']['ui']['handlePendingSampling']>[0][] = [];
+	readonly samplingExecutions: Parameters<CopilotSession['rpc']['mcp']['executeSampling']>[0][] = [];
+	readonly cancelledSamplingExecutions: string[] = [];
+	samplingExecutionResult: Awaited<ReturnType<CopilotSession['rpc']['mcp']['executeSampling']>> = {
+		action: 'success',
+		result: { model: 'test-model', role: 'assistant', content: { type: 'text', text: 'Sampling result' }, stopReason: 'endTurn' },
+	};
+	samplingExecutionGate: Promise<void> | undefined;
+	samplingExecutionError: Error | undefined;
 	readonly registeredEventInterests: string[] = [];
 	readonly releasedEventInterests: string[] = [];
 	registerEventInterestGate: Promise<void> | undefined;
@@ -720,8 +729,18 @@ class MockCopilotSession {
 					}
 				},
 			},
-			executeSampling: async () => ({ status: 'completed' as const, result: undefined }),
-			cancelSamplingExecution: async () => { /* no-op */ },
+			executeSampling: async (params: Parameters<CopilotSession['rpc']['mcp']['executeSampling']>[0]) => {
+				this.samplingExecutions.push(params);
+				await this.samplingExecutionGate;
+				if (this.samplingExecutionError) {
+					throw this.samplingExecutionError;
+				}
+				return this.samplingExecutionResult;
+			},
+			cancelSamplingExecution: async ({ requestId }: { requestId: string }) => {
+				this.cancelledSamplingExecutions.push(requestId);
+				return { cancelled: true };
+			},
 		},
 		options: {
 			update: async (params: Parameters<CopilotSession['rpc']['options']['update']>[0]) => {
@@ -1158,12 +1177,14 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	runtime: TestCopilotSessionRuntime;
 	mockSession: MockCopilotSession;
 	signals: AgentSignal[];
+	onProgress: Event<AgentSignal>;
 	waitForSignal: (predicate: (signal: AgentSignal) => boolean) => Promise<AgentSignal>;
 	terminalManager: TestAgentHostTerminalManager;
 	storedFileContents: ReadonlyMap<string, string>;
 	fileWriteOptions: ReadonlyMap<string, IWriteFileOptions | undefined>;
 	dispatchedActions: readonly StateAction[];
 	sessionConfigUpdates: ReadonlyArray<{ session: string; patch: Record<string, unknown> }>;
+	rootConfigUpdates: ReadonlyArray<Record<string, unknown>>;
 	sandboxResults: Array<boolean | string>;
 	setConfigValue: (key: string, value: unknown) => void;
 	setRootValue: (key: string, value: unknown) => void;
@@ -1320,6 +1341,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	let sandboxEnabled: boolean | undefined;
 	const configValues = options?.configValues ?? {};
 	const rootValues: Record<string, unknown> = { ...(options?.rootValues ?? {}) };
+	const rootConfigUpdates: Record<string, unknown>[] = [];
 	const rootConfigEmitter = disposables.add(new Emitter<void>());
 	const sessionConfigEmitter = disposables.add(new Emitter<{ session: string; config: Record<string, unknown>; origin: { clientId: string; clientSeq: number } | undefined }>());
 	const customizationEnablementEmitter = disposables.add(new Emitter<{ sessions: readonly string[] }>());
@@ -1347,7 +1369,11 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		updateSessionConfig: (session, patch) => { sessionConfigUpdates.push({ session, patch }); },
 		getRootValue: ((_schema: unknown, key: string) => rootValues[key]) as IAgentConfigurationService['getRootValue'],
 		getRootConfigValues: () => rootValues,
-		updateRootConfig: () => { /* no-op */ },
+		updateRootConfig: patch => {
+			rootConfigUpdates.push(patch);
+			Object.assign(rootValues, patch);
+			rootConfigEmitter.fire();
+		},
 		persistRootConfig: () => { /* no-op */ },
 		whenIdle: async () => { /* no-op */ },
 	};
@@ -1490,12 +1516,14 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		runtime,
 		mockSession,
 		signals,
+		onProgress: progressEmitter.event,
 		waitForSignal,
 		terminalManager,
 		storedFileContents,
 		fileWriteOptions,
 		dispatchedActions: stateManager.dispatchedActions,
 		sessionConfigUpdates,
+		rootConfigUpdates,
 		sandboxResults,
 		setConfigValue: (key, value) => { configValues[key] = value; },
 		setRootValue: (key, value) => { rootValues[key] = value; },
@@ -13150,25 +13178,433 @@ Use the attached image as context.
 			]);
 		});
 
-		test('sampling requests are rejected when no sampling provider is available', async () => {
-			const { mockSession, session } = await createAgentSession(disposables);
-			mockSession.fire('sampling.requested', {
+		suite('MCP sampling', () => {
+			const samplingData = {
 				requestId: 'sampling-1',
 				mcpRequestId: 'mcp-1',
 				serverName: 'test-server',
-			});
-			await timeout(0);
-			session.dispose();
-			await timeout(0);
+				request: {
+					messages: [{ role: 'user', content: { type: 'text', text: 'Summarize this content' } }],
+					systemPrompt: 'Be concise',
+					maxTokens: 2048,
+					temperature: 0.7,
+					modelPreferences: { hints: [{ name: 'test-model' }] },
+				},
+			};
+			function getSamplingReady(signals: AgentSignal[]): ChatToolCallReadyAction {
+				const ready = getActions(signals).find((action): action is ChatToolCallReadyAction => action.type === ActionType.ChatToolCallReady);
+				assert.ok(ready);
+				return ready;
+			}
 
-			assert.deepStrictEqual({
-				registeredEventInterests: mockSession.registeredEventInterests,
-				releasedEventInterests: mockSession.releasedEventInterests,
-				samplingResponses: mockSession.samplingResponses,
-			}, {
-				registeredEventInterests: ['sampling.requested'],
-				releasedEventInterests: ['interest-1'],
-				samplingResponses: [{ requestId: 'sampling-1' }],
+			for (const mcpRequestId of ['mcp-1', 42]) {
+				test(`confirms before SDK inference and returns its result for MCP id ${mcpRequestId}`, async () => {
+					const { mockSession, session, signals } = await createAgentSession(disposables, {
+						rootValues: { [AgentHostAutoReplyEnabledConfigKey]: true, [AgentHostGlobalAutoApproveEnabledConfigKey]: true },
+					});
+					session.resetTurnState('turn-sampling');
+					mockSession.fire('sampling.requested', { ...samplingData, mcpRequestId });
+					const ready = getSamplingReady(signals);
+					const start = getActions(signals).find(action => action.type === ActionType.ChatToolCallStart);
+					assert.deepStrictEqual({
+						start,
+						ready: { ...ready, toolCallId: '<sampling-id>' },
+						executions: mockSession.samplingExecutions,
+						responses: mockSession.samplingResponses,
+					}, {
+						start: {
+							type: ActionType.ChatToolCallStart, turnId: 'turn-sampling',
+							toolCallId: ready.toolCallId, toolName: 'mcp_sampling', displayName: 'MCP Sampling',
+						},
+						ready: {
+							type: ActionType.ChatToolCallReady, turnId: 'turn-sampling', toolCallId: '<sampling-id>',
+							invocationMessage: 'MCP server \'test-server\' wants to send a 32-character long message to the language model.',
+							confirmationTitle: 'Allow Sampling from test-server?',
+							options: [
+								{ id: 'allow-once', label: 'Allow Once', kind: 'approve' },
+								{ id: 'allow-sampling-always', label: 'Always Allow for This Server', kind: 'approve', group: 1 },
+								{ id: 'skip', label: 'Skip', kind: 'deny', group: 2 },
+							],
+						},
+						executions: [],
+						responses: [],
+					});
+					session.respondToPermissionRequest(ready.toolCallId, true, { selectedOptionId: 'allow-once' });
+					await timeout(0);
+					const [execution] = mockSession.samplingExecutions;
+					assert.ok(execution.requestId && execution.requestId !== samplingData.requestId);
+					assert.deepStrictEqual({
+						executions: mockSession.samplingExecutions,
+						responses: mockSession.samplingResponses,
+						completed: getActions(signals).filter(action => action.type === ActionType.ChatToolCallComplete),
+					}, {
+						executions: [{ requestId: execution.requestId, serverName: 'test-server', mcpRequestId, request: samplingData.request }],
+						responses: [{ requestId: 'sampling-1', response: mockSession.samplingExecutionResult.result }],
+						completed: [{
+							type: ActionType.ChatToolCallComplete, turnId: 'turn-sampling', toolCallId: ready.toolCallId,
+							result: {
+								success: true, pastTenseMessage: 'Sampled for test-server',
+								content: [{ type: ToolResultContentType.Text, text: JSON.stringify(mockSession.samplingExecutionResult.result, null, '\t') }],
+							},
+						}],
+					});
+				});
+			}
+
+			for (const selectedOptionId of ['skip', 'allow-sampling-always']) {
+				test(`rejects denied ${selectedOptionId} without inference or remembering approval`, async () => {
+					const { mockSession, session, signals } = await createAgentSession(disposables);
+					session.resetTurnState('turn-sampling');
+					mockSession.fire('sampling.requested', samplingData);
+					session.respondToPermissionRequest(getSamplingReady(signals).toolCallId, false, { selectedOptionId });
+					await timeout(0);
+					assert.deepStrictEqual({
+						executions: mockSession.samplingExecutions,
+						responses: mockSession.samplingResponses,
+					}, { executions: [], responses: [{ requestId: 'sampling-1' }] });
+					signals.length = 0;
+					mockSession.fire('sampling.requested', { ...samplingData, requestId: 'sampling-2' });
+					assert.ok(getSamplingReady(signals).confirmationTitle);
+				});
+			}
+
+			test('allow-once asks again for the next sampling request', async () => {
+				const { mockSession, session, signals } = await createAgentSession(disposables);
+				session.resetTurnState('turn-sampling');
+				mockSession.fire('sampling.requested', samplingData);
+				session.respondToPermissionRequest(getSamplingReady(signals).toolCallId, true, { selectedOptionId: 'allow-once' });
+				await timeout(0);
+				signals.length = 0;
+				mockSession.fire('sampling.requested', { ...samplingData, requestId: 'sampling-2' });
+				assert.deepStrictEqual({
+					title: getSamplingReady(signals).confirmationTitle,
+					executionCount: mockSession.samplingExecutions.length,
+				}, { title: 'Allow Sampling from test-server?', executionCount: 1 });
+			});
+
+			test('always-allow is scoped to one server across turns and sessions on the host', async () => {
+				const { mockSession, session, signals, rootConfigUpdates } = await createAgentSession(disposables);
+				session.resetTurnState('turn-sampling');
+				mockSession.fire('sampling.requested', samplingData);
+				session.respondToPermissionRequest(getSamplingReady(signals).toolCallId, true, { selectedOptionId: 'allow-sampling-always' });
+				await timeout(0);
+				signals.length = 0;
+				session.resetTurnState('turn-sampling-2');
+				mockSession.fire('sampling.requested', { ...samplingData, requestId: 'sampling-2' });
+				await timeout(0);
+				assert.deepStrictEqual({
+					ready: getSamplingReady(signals),
+					executionCount: mockSession.samplingExecutions.length,
+				}, {
+					ready: {
+						type: ActionType.ChatToolCallReady, turnId: 'turn-sampling-2', toolCallId: getSamplingReady(signals).toolCallId,
+						invocationMessage: 'MCP server \'test-server\' wants to send a 32-character long message to the language model.',
+						confirmed: ToolCallConfirmationReason.Setting,
+					},
+					executionCount: 2,
+				});
+				signals.length = 0;
+				mockSession.fire('sampling.requested', { ...samplingData, serverName: 'other-server', requestId: 'sampling-3' });
+				assert.strictEqual(getSamplingReady(signals).confirmationTitle, 'Allow Sampling from other-server?');
+				assert.deepStrictEqual(rootConfigUpdates, [{ [AgentHostMcpSamplingAllowedServersConfigKey]: ['test-server'] }]);
+				const next = await createAgentSession(disposables, { rootValues: rootConfigUpdates[0] });
+				next.session.resetTurnState('turn-sampling');
+				next.mockSession.fire('sampling.requested', samplingData);
+				await timeout(0);
+				assert.deepStrictEqual({
+					confirmed: getSamplingReady(next.signals).confirmed,
+					executionCount: next.mockSession.samplingExecutions.length,
+				}, { confirmed: ToolCallConfirmationReason.Setting, executionCount: 1 });
+			});
+
+			test('autopilot runs sampling only after explicit approval for the server', async () => {
+				const { mockSession, session, signals, fireSessionConfigChange } = await createAgentSession(disposables);
+				session.resetTurnState('turn-sampling');
+				mockSession.fire('sampling.requested', samplingData);
+				session.respondToPermissionRequest(getSamplingReady(signals).toolCallId, true, { selectedOptionId: 'allow-sampling-always' });
+				await timeout(0);
+				fireSessionConfigChange({ [SessionConfigKey.Mode]: 'autopilot' });
+				await timeout(0);
+				signals.length = 0;
+				mockSession.fire('sampling.requested', { ...samplingData, requestId: 'sampling-2' });
+				await timeout(0);
+				assert.deepStrictEqual({
+					confirmed: getSamplingReady(signals).confirmed,
+					executionCount: mockSession.samplingExecutions.length,
+				}, { confirmed: ToolCallConfirmationReason.Setting, executionCount: 2 });
+			});
+
+			test('always-allow preserves other server approvals and does not persist duplicate entries', async () => {
+				const { mockSession, session, signals, rootConfigUpdates } = await createAgentSession(disposables, {
+					rootValues: { [AgentHostMcpSamplingAllowedServersConfigKey]: ['other-server'] },
+				});
+				session.resetTurnState('turn-sampling');
+				mockSession.fire('sampling.requested', samplingData);
+				const first = getSamplingReady(signals);
+				signals.length = 0;
+				mockSession.fire('sampling.requested', { ...samplingData, requestId: 'sampling-2' });
+				const second = getSamplingReady(signals);
+				session.respondToPermissionRequest(first.toolCallId, true, { selectedOptionId: 'allow-sampling-always' });
+				session.respondToPermissionRequest(second.toolCallId, true, { selectedOptionId: 'allow-sampling-always' });
+				await timeout(0);
+				assert.deepStrictEqual(rootConfigUpdates, [{ [AgentHostMcpSamplingAllowedServersConfigKey]: ['other-server', 'test-server'] }]);
+			});
+
+			test('revoking a host sampling approval affects the next request in an existing session', async () => {
+				const { mockSession, session, signals, setRootValue } = await createAgentSession(disposables, {
+					rootValues: { [AgentHostMcpSamplingAllowedServersConfigKey]: ['test-server'] },
+				});
+				session.resetTurnState('turn-sampling');
+				mockSession.fire('sampling.requested', samplingData);
+				await timeout(0);
+				signals.length = 0;
+				setRootValue(AgentHostMcpSamplingAllowedServersConfigKey, []);
+				mockSession.fire('sampling.requested', { ...samplingData, requestId: 'sampling-2' });
+				assert.deepStrictEqual({
+					title: getSamplingReady(signals).confirmationTitle,
+					executionCount: mockSession.samplingExecutions.length,
+				}, { title: 'Allow Sampling from test-server?', executionCount: 1 });
+			});
+
+			test('sampling displays only the prompt character count and forwards the original request', async () => {
+				const { mockSession, session, signals } = await createAgentSession(disposables);
+				session.resetTurnState('turn-sampling');
+				const request = {
+					systemPrompt: 'SYS',
+					messages: [
+						{ role: 'user', content: { type: 'text', text: 'abcd' } },
+						{ role: 'assistant', content: [{ type: 'text', text: 'ef' }, { type: 'text', text: 'ghi' }] },
+						{ role: 'user', content: [{ type: 'image', data: 'ignored', mimeType: 'image/png' }, { type: 'text', text: '\u{1F642}' }] },
+					],
+					maxTokens: 2048,
+				};
+				const data = { ...samplingData, request };
+				mockSession.fire('sampling.requested', data);
+				const ready = getSamplingReady(signals);
+				session.respondToPermissionRequest(ready.toolCallId, true);
+				await timeout(0);
+				assert.deepStrictEqual({
+					message: ready.invocationMessage,
+					toolInput: ready.toolInput,
+					originalRequest: mockSession.samplingExecutions[0].request,
+				}, {
+					message: 'MCP server \'test-server\' wants to send a 14-character long message to the language model.',
+					toolInput: undefined,
+					originalRequest: request,
+				});
+			});
+
+			test('concurrent requests have independent tool confirmations and do not alter the originating tool', async () => {
+				const { mockSession, session, signals } = await createAgentSession(disposables);
+				session.resetTurnState('turn-sampling');
+				mockSession.fire('tool.execution_start', { toolCallId: 'originating-tool', toolName: 'test-server-tool' });
+				const originalActions = getActions(signals);
+				signals.length = 0;
+				mockSession.fire('sampling.requested', samplingData);
+				const first = getSamplingReady(signals);
+				signals.length = 0;
+				mockSession.fire('sampling.requested', { ...samplingData, requestId: 'sampling-2' });
+				const second = getSamplingReady(signals);
+				assert.notStrictEqual(first.toolCallId, second.toolCallId);
+				session.respondToPermissionRequest(second.toolCallId, false);
+				session.respondToPermissionRequest(first.toolCallId, true);
+				await timeout(0);
+				assert.deepStrictEqual({
+					originalToolIds: originalActions.filter(action => action.type === ActionType.ChatToolCallStart).map(action => action.toolCallId),
+					changesOriginalTool: getActions(signals).some(action => hasKey(action, { toolCallId: true }) && action.toolCallId === 'originating-tool'),
+					responses: mockSession.samplingResponses,
+				}, {
+					originalToolIds: ['originating-tool'],
+					changesOriginalTool: false,
+					responses: [{ requestId: 'sampling-2' }, { requestId: 'sampling-1', response: mockSession.samplingExecutionResult.result }],
+				});
+			});
+
+			test('confirmation can resolve synchronously while ready is emitted', async () => {
+				const { mockSession, session, onProgress } = await createAgentSession(disposables);
+				session.resetTurnState('turn-sampling');
+				disposables.add(onProgress(signal => {
+					if (signal.kind === 'action' && signal.action.type === ActionType.ChatToolCallReady) {
+						session.respondToPermissionRequest(signal.action.toolCallId, true);
+					}
+				}));
+				mockSession.fire('sampling.requested', samplingData);
+				await timeout(0);
+				assert.deepStrictEqual(mockSession.samplingResponses, [{ requestId: 'sampling-1', response: mockSession.samplingExecutionResult.result }]);
+			});
+
+			for (const unattended of ['idle', 'autopilot']) {
+				test(`rejects ${unattended} requests without asking or running inference`, async () => {
+					const { mockSession, session, signals } = await createAgentSession(disposables, {
+						configValues: { [SessionConfigKey.Mode]: unattended === 'autopilot' ? 'autopilot' : 'interactive' },
+					});
+					if (unattended !== 'idle') {
+						session.resetTurnState('turn-sampling');
+					}
+					mockSession.fire('sampling.requested', samplingData);
+					await timeout(0);
+					assert.deepStrictEqual({
+						actions: getActions(signals),
+						executions: mockSession.samplingExecutions,
+						responses: mockSession.samplingResponses,
+					}, { actions: [], executions: [], responses: [{ requestId: 'sampling-1' }] });
+				});
+			}
+
+			for (const failure of ['rpc', 'inference', 'missing-result', 'cancelled']) {
+				test(`resolves the server request after SDK ${failure}`, async () => {
+					const errors: (string | Error)[] = [];
+					const { mockSession, session, signals } = await createAgentSession(disposables, {
+						logService: new class extends NullLogService {
+							override error(message: string | Error): void { errors.push(message); }
+						},
+					});
+					if (failure === 'rpc') {
+						mockSession.samplingExecutionError = new Error('inference RPC failed');
+					} else {
+						mockSession.samplingExecutionResult = failure === 'inference'
+							? { action: 'failure', error: 'model rejected request' }
+							: { action: failure === 'cancelled' ? 'cancelled' : 'success' };
+					}
+					session.resetTurnState('turn-sampling');
+					mockSession.fire('sampling.requested', samplingData);
+					session.respondToPermissionRequest(getSamplingReady(signals).toolCallId, true);
+					await timeout(0);
+					assert.deepStrictEqual({
+						executionCount: mockSession.samplingExecutions.length,
+						responses: mockSession.samplingResponses,
+						errorCount: errors.length,
+					}, {
+						executionCount: 1,
+						responses: [{ requestId: 'sampling-1' }],
+						errorCount: failure === 'cancelled' ? 0 : 1,
+					});
+				});
+			}
+
+			test('logs and rejects sampling events missing the raw MCP params', async () => {
+				const errors: (string | Error)[] = [];
+				const { mockSession, session, signals } = await createAgentSession(disposables, {
+					logService: new class extends NullLogService {
+						override error(message: string | Error): void { errors.push(message); }
+					},
+				});
+				session.resetTurnState('turn-sampling');
+				mockSession.fire('sampling.requested', { requestId: 'sampling-1', mcpRequestId: 1, serverName: 'test-server' });
+				await timeout(0);
+				assert.deepStrictEqual({
+					actions: getActions(signals),
+					executions: mockSession.samplingExecutions,
+					responses: mockSession.samplingResponses,
+					errors: errors.map(error => error.toString()),
+				}, { actions: [], executions: [], responses: [{ requestId: 'sampling-1' }], errors: ['Error: Invalid MCP sampling request'] });
+			});
+
+			for (const cancellation of ['abort', 'dispose'] as const) {
+				test(`cancels pending sampling approval on ${cancellation}`, async () => {
+					const { mockSession, session } = await createAgentSession(disposables);
+					session.resetTurnState('turn-sampling');
+					mockSession.fire('sampling.requested', samplingData);
+					await session[cancellation]();
+					await timeout(0);
+					assert.deepStrictEqual({
+						executions: mockSession.samplingExecutions,
+						responses: mockSession.samplingResponses,
+					}, { executions: [], responses: [{ requestId: 'sampling-1' }] });
+				});
+
+				test(`cancels in-flight SDK sampling on ${cancellation} and discards a late success`, async () => {
+					const gate = new DeferredPromise<void>();
+					const { mockSession, session, signals } = await createAgentSession(disposables);
+					mockSession.samplingExecutionGate = gate.p;
+					session.resetTurnState('turn-sampling');
+					mockSession.fire('sampling.requested', samplingData);
+					session.respondToPermissionRequest(getSamplingReady(signals).toolCallId, true);
+					await timeout(0);
+					await session[cancellation]();
+					await timeout(0);
+					assert.deepStrictEqual({
+						cancelled: mockSession.cancelledSamplingExecutions,
+						responses: mockSession.samplingResponses,
+					}, { cancelled: [mockSession.samplingExecutions[0].requestId], responses: [{ requestId: 'sampling-1' }] });
+					await gate.complete();
+					await timeout(0);
+					assert.deepStrictEqual(mockSession.samplingResponses, [{ requestId: 'sampling-1' }]);
+				});
+			}
+
+			test('does not run inference if abort races an accepted approval', async () => {
+				const { mockSession, session, signals } = await createAgentSession(disposables);
+				session.resetTurnState('turn-sampling');
+				mockSession.fire('sampling.requested', samplingData);
+				session.respondToPermissionRequest(getSamplingReady(signals).toolCallId, true);
+				await session.abort();
+				await timeout(0);
+				assert.deepStrictEqual({
+					executions: mockSession.samplingExecutions,
+					responses: mockSession.samplingResponses,
+				}, { executions: [], responses: [{ requestId: 'sampling-1' }] });
+			});
+
+			test('dismisses approval when the SDK completes the original sampling request', async () => {
+				const { mockSession, session, signals } = await createAgentSession(disposables);
+				session.resetTurnState('turn-sampling');
+				mockSession.fire('sampling.requested', samplingData);
+				const ready = getSamplingReady(signals);
+				mockSession.fire('sampling.completed', { requestId: 'sampling-1' });
+				await timeout(0);
+				assert.deepStrictEqual({
+					executions: mockSession.samplingExecutions,
+					responses: mockSession.samplingResponses,
+					completions: getActions(signals).filter(action => action.type === ActionType.ChatToolCallComplete),
+					acceptsLateApproval: session.respondToPermissionRequest(ready.toolCallId, true, { selectedOptionId: 'allow-sampling-always' }),
+				}, {
+					executions: [],
+					responses: [],
+					completions: [{
+						type: ActionType.ChatToolCallComplete, turnId: 'turn-sampling', toolCallId: ready.toolCallId,
+						result: { success: false, pastTenseMessage: 'Sampling for test-server did not complete' },
+					}],
+					acceptsLateApproval: false,
+				});
+			});
+
+			test('cancels inference when the SDK completes the original sampling request', async () => {
+				const gate = new DeferredPromise<void>();
+				const { mockSession, session, signals } = await createAgentSession(disposables);
+				mockSession.samplingExecutionGate = gate.p;
+				session.resetTurnState('turn-sampling');
+				mockSession.fire('sampling.requested', samplingData);
+				session.respondToPermissionRequest(getSamplingReady(signals).toolCallId, true);
+				await timeout(0);
+				mockSession.fire('sampling.completed', { requestId: 'sampling-1' });
+				await timeout(0);
+				assert.deepStrictEqual({
+					cancelled: mockSession.cancelledSamplingExecutions,
+					responses: mockSession.samplingResponses,
+					completed: getActions(signals).filter(action => action.type === ActionType.ChatToolCallComplete).length,
+				}, { cancelled: [mockSession.samplingExecutions[0].requestId], responses: [], completed: 1 });
+				await gate.complete();
+				await timeout(0);
+				assert.deepStrictEqual(mockSession.samplingResponses, []);
+			});
+
+			test('MCP Apps retain SDK inference without an additional server confirmation', async () => {
+				const { mockSession, session, signals } = await createAgentSession(disposables);
+				const result = await session.handleMcpRequest('test-server', 'sampling/createMessage', samplingData.request);
+				assert.deepStrictEqual({
+					result,
+					inputRequests: signals.filter(signal => isAction(signal, ActionType.ChatInputRequested)),
+					executionCount: mockSession.samplingExecutions.length,
+					serverName: mockSession.samplingExecutions[0].serverName,
+					request: mockSession.samplingExecutions[0].request,
+				}, {
+					result: mockSession.samplingExecutionResult.result,
+					inputRequests: [],
+					executionCount: 1,
+					serverName: 'test-server',
+					request: samplingData.request,
+				});
 			});
 		});
 
