@@ -189,7 +189,12 @@ suite('MultiEditorTabsControl', () => {
 		const menuId = MenuId.for('test.connectedTabs.addTab');
 		control = createControl({ tabsBarAddTab: menuId });
 		await layoutConnectedGroup(group, 600);
-		const emptyHeight = control.getHeight();
+		const emptyState = {
+			height: control.getHeight(),
+			hasVisibleAddTabControl: container.classList.contains('has-visible-add-tab-control'),
+			rowEmpty: container.querySelector('.tabs-and-actions-container')!.classList.contains('empty'),
+			addTabVisible: !container.querySelector('.tabs-bar-add-tab')!.classList.contains('hidden'),
+		};
 		for (const [index, editor] of editors.entries()) {
 			model.openEditor(editor, { pinned: true, active: index === 0 });
 		}
@@ -220,8 +225,13 @@ suite('MultiEditorTabsControl', () => {
 				});
 			}
 		}
-		assert.deepStrictEqual({ emptyHeight, results }, {
-			emptyHeight: 0,
+		assert.deepStrictEqual({ emptyState, results }, {
+			emptyState: {
+				height: 33,
+				hasVisibleAddTabControl: true,
+				rowEmpty: false,
+				addTabVisible: true,
+			},
 			results: ['default', 'compact'].flatMap(tabHeight => [600, 220, 600].map(width => ({
 				tabHeight,
 				width,
