@@ -20,7 +20,7 @@ import { ChatAIDisabledSettingId } from '../../../../../../platform/chat/common/
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
-import { AutomationDetail, AutomationToolGroup, CreateAutomationRequest, CreateAutomationTaskResponse, EditAutomationRequest, IAutomationsClient, ListRepoAutomationsResponse } from '../../../../../../platform/github/common/missionControl/automations.js';
+import { AutomationDetail, AutomationToolGroup, CreateAutomationRequest, CreateAutomationTaskRequest, CreateAutomationTaskResponse, EditAutomationRequest, IAutomationsClient, ListRepoAutomationsResponse } from '../../../../../../platform/github/common/missionControl/automations.js';
 import { PaginatedResponse, RepositoryRef } from '../../../../../../platform/github/common/missionControl/missionControl.js';
 import { ApiRequestError, MutationUncertainError } from '../../../../../../platform/github/common/missionControl/missionControlClient.js';
 import { ITasksClient, ListTasksResponse, Task } from '../../../../../../platform/github/common/missionControl/tasks.js';
@@ -70,6 +70,7 @@ class TestApi extends mock<IAutomationsClient>() {
 	updateError: Error | undefined;
 	deleteError: Error | undefined;
 	dispatchError: Error | undefined;
+	readonly dispatchRequests: CreateAutomationTaskRequest[] = [];
 	pendingList: Promise<void> | undefined;
 	pendingVisibility: Promise<boolean> | undefined;
 	readonly visibilityStarted = new DeferredPromise<void>();
@@ -124,8 +125,9 @@ class TestApi extends mock<IAutomationsClient>() {
 			throw this.deleteError;
 		}
 	}
-	override async dispatch(): Promise<CreateAutomationTaskResponse> {
+	override async dispatch(_repository: RepositoryRef, _id: string, request: CreateAutomationTaskRequest): Promise<CreateAutomationTaskResponse> {
 		this.calls.push('run');
+		this.dispatchRequests.push(request);
 		if (this.dispatchError) {
 			throw this.dispatchError;
 		}
@@ -350,15 +352,32 @@ suite('CloudAutomationStore', () => {
 		assert.deepStrictEqual({ warnings, canRun: provider.canRunAutomation(automation.id) }, { warnings: [api.dispatchError.message], canRun: false });
 	});
 
-	for (const changed of [{ ...definition, disabled: true }, { ...definition, triggers: { webhook: { types: ['issue'] } } }]) {
-		test(`run preflight rejects remote ${changed.disabled ? 'disablement' : 'unsupported triggers'} without dispatching`, async () => {
+	test('run preflight still rejects remote disablement without dispatching', async () => {
+		const { provider, api, set } = setup();
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		await provider.refresh();
+		const id = provider.automations.get()[0].id;
+		api.definitions = [{ ...definition, disabled: true }];
+		await assert.rejects(provider.runAutomation(id), /Only enabled cloud automations can run/);
+		assert.deepStrictEqual({ requests: api.dispatchRequests, canRun: provider.canRunAutomation(id), canDelete: provider.canDeleteAutomation(id) }, { requests: [], canRun: false, canDelete: true });
+	});
+
+	for (const changedDuringPreflight of [false, true]) {
+		test(`read-only custom triggers allow manual Run ${changedDuringPreflight ? 'after preflight changes' : 'from the listed definition'}`, async () => {
 			const { provider, api, set } = setup();
+			const custom = { ...definition, triggers: { webhook: { types: ['issue'] } } };
+			if (!changedDuringPreflight) {
+				api.definitions = [custom];
+			}
 			await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
 			await provider.refresh();
 			const id = provider.automations.get()[0].id;
-			api.definitions = [changed];
-			await assert.rejects(provider.runAutomation(id), /Only enabled cloud automations with supported schedules/);
-			assert.deepStrictEqual({ run: api.calls.includes('run'), canRun: provider.canRunAutomation(id), canDelete: provider.canDeleteAutomation(id) }, { run: false, canRun: false, canDelete: true });
+			api.definitions = [custom];
+			const result = await provider.runAutomation(id);
+			assert.deepStrictEqual({
+				result, requests: api.dispatchRequests, readOnly: !!provider.getAutomation(id)?.readOnlyReason,
+				canRun: provider.canRunAutomation(id), canUpdate: provider.canUpdateAutomation(id),
+			}, { result: { kind: 'accepted' }, requests: [{ event: 'manual' }], readOnly: true, canRun: true, canUpdate: false });
 		});
 	}
 
