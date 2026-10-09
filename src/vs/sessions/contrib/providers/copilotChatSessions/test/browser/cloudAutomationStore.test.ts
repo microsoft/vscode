@@ -37,6 +37,7 @@ import { NullTelemetryService } from '../../../../../../platform/telemetry/commo
 import { IGitHubService } from '../../../../github/browser/githubService.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { IAutomationSchedule } from '../../../../../../workbench/contrib/chat/common/automations/automation.js';
+import { AutomationMutationUncertainError } from '../../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING, CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING } from '../../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IToolImpl } from '../../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { IChatEntitlementService, IChatSentiment } from '../../../../../../workbench/services/chat/common/chatEntitlementService.js';
@@ -66,6 +67,8 @@ class TestApi extends mock<IAutomationsClient>() {
 	pendingHistory: Promise<void> | undefined;
 	getError: Error | undefined;
 	createError: Error | undefined;
+	updateError: Error | undefined;
+	deleteError: Error | undefined;
 	dispatchError: Error | undefined;
 	pendingList: Promise<void> | undefined;
 	pendingVisibility: Promise<boolean> | undefined;
@@ -110,7 +113,16 @@ class TestApi extends mock<IAutomationsClient>() {
 	override async update(_repository: RepositoryRef, _id: string, value: EditAutomationRequest): Promise<AutomationDetail> {
 		this.patch = value;
 		this.calls.push('update');
+		if (this.updateError) {
+			throw this.updateError;
+		}
 		return { ...this.definitions[0], ...value };
+	}
+	override async delete(): Promise<void> {
+		this.calls.push('delete');
+		if (this.deleteError) {
+			throw this.deleteError;
+		}
 	}
 	override async dispatch(): Promise<CreateAutomationTaskResponse> {
 		this.calls.push('run');
@@ -297,6 +309,28 @@ suite('CloudAutomationStore', () => {
 		assert.deepStrictEqual(await listing, []);
 	});
 
+	test('list tool separates history-only failure from ready definitions and exposes cached active runs', async () => {
+		const { api, provider, set, tools, invoke } = setupTools();
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		api.tasks = [{ id: 'active', state: 'in_progress', created_at: definition.created_at, remote_steerable: true }];
+		const [ready] = await invoke(tools.list, {});
+		const active = provider.getActiveRunFor(ready.automations[0].id)!;
+		api.historyError = new Error('History offline');
+		const [failedHistory] = await invoke(tools.list, {});
+		assert.deepStrictEqual({
+			state: failedHistory.state, history: failedHistory.historyState,
+			reason: failedHistory.unavailableReason, canCreate: failedHistory.canCreateAutomation,
+			active: failedHistory.automations[0].activeRun, readyHistory: ready.historyState,
+		}, {
+			state: 'ready', history: 'error', reason: undefined, canCreate: true,
+			active: { id: active.id, status: active.status, startedAt: active.startedAt }, readyHistory: 'ready',
+		});
+		api.historyError = undefined;
+		api.tasks = [{ ...api.tasks[0], state: 'completed' }];
+		const [completed] = await invoke(tools.list, {});
+		assert.deepStrictEqual({ history: completed.historyState, active: completed.automations[0].activeRun }, { history: 'ready', active: undefined });
+	});
+
 	test('run tool returns accepted, already-running and uncertain outcomes without fabricated runs', async () => {
 		const { api, provider, set, tools, invoke, warnings } = setupTools();
 		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
@@ -448,6 +482,23 @@ suite('CloudAutomationStore', () => {
 	});
 
 	for (const error of [new MutationUncertainError('network'), new ApiRequestError(503, 'unknown', undefined, undefined, undefined, 'indeterminate')]) {
+		for (const operation of ['create', 'update', 'delete'] as const) {
+			test(`${operation} translates ${error.name} into the shared uncertain error`, async () => {
+				const { provider, api, set } = setup();
+				await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+				await provider.refresh();
+				const automation = provider.automations.get()[0];
+				api.createError = api.updateError = api.deleteError = error;
+				const result = operation === 'create'
+					? provider.createAutomation({ name: 'New', prompt: 'Review', schedule: manual, target: automation.target })
+					: operation === 'update'
+						? provider.updateAutomationIfUnchanged(automation.id, { name: 'Changed' }, automation)
+						: provider.deleteAutomation(automation.id);
+				await assert.rejects(result, candidate => candidate instanceof AutomationMutationUncertainError && candidate.cause === error && candidate.message === error.message);
+				assert.strictEqual(provider.canCreateAutomation.get(), false);
+			});
+		}
+
 		test(`uncertain ${error.name} dispatch discovers history without clearing mutation uncertainty`, async () => {
 			const clock = useFakeTimers();
 			try {
@@ -456,7 +507,7 @@ suite('CloudAutomationStore', () => {
 				await provider.refresh();
 				api.calls.length = 0;
 				api.dispatchError = error;
-				await assert.rejects(provider.runAutomation(provider.automations.get()[0].id), candidate => candidate === error);
+				await assert.rejects(provider.runAutomation(provider.automations.get()[0].id), candidate => candidate instanceof AutomationMutationUncertainError && candidate.cause === error && candidate.message === error.message);
 				await clock.tickAsync(120_000);
 				assert.deepStrictEqual({
 					historyReads: api.calls.filter(call => call === 'history').length,
@@ -741,7 +792,7 @@ suite('CloudAutomationStore', () => {
 		await provider.refresh();
 		const options = { name: 'Create', prompt: 'Review', schedule: manual, target: provider.automations.get()[0].target };
 		api.createError = new MutationUncertainError('unknown');
-		await assert.rejects(provider.createAutomation(options), MutationUncertainError);
+		await assert.rejects(provider.createAutomation(options), AutomationMutationUncertainError);
 		const pending = new DeferredPromise<void>();
 		api.pendingList = pending.p;
 		api.listError = new Error('Offline');

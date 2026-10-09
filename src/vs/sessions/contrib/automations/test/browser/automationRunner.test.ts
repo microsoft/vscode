@@ -10,11 +10,10 @@ import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ApiRequestError, MutationUncertainError } from '../../../../../platform/github/common/missionControl/missionControlClient.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IAutomationDescriptor, IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { AutomationCatalogueState, IAutomationService, IAutomationRunRequestResult } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { AutomationCatalogueState, AutomationMutationUncertainError, IAutomationService, IAutomationRunRequestResult } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsProvider, ISessionsProviderAutomations } from '../../../../services/sessions/common/sessionsProvider.js';
 import { AutomationRunner } from '../../browser/automationRunner.js';
@@ -100,16 +99,15 @@ suite('AutomationRunner', () => {
 		assert.deepStrictEqual({ dispatch, calls, errors }, { dispatch: { kind: 'accepted' }, calls: ['automation'], errors: [] });
 	});
 
-	for (const error of [new MutationUncertainError('network'), new ApiRequestError(503, 'unknown', undefined, undefined, undefined, 'indeterminate')]) {
-		test(`${error.name} after dispatch stays uncertain even when cancellation arrives`, async () => {
-			const token = disposables.add(new CancellationTokenSource());
-			const { runner, warnings, errors } = setup(async () => { token.cancel(); throw error; });
-			const operation = runner.runOnce(automation, token.token);
-			const dispatch = await operation.whenDispatched;
-			await operation.whenCompleted;
-			assert.deepStrictEqual({ dispatch, warnings, errors }, { dispatch: { kind: 'uncertain', message: error.message }, warnings: [error.message], errors: [] });
-		});
-	}
+	test('provider-neutral uncertainty after dispatch is preserved even when cancellation arrives', async () => {
+		const error = new AutomationMutationUncertainError('Provider outcome unknown');
+		const token = disposables.add(new CancellationTokenSource());
+		const { runner, warnings, errors } = setup(async () => { token.cancel(); throw error; });
+		const operation = runner.runOnce(automation, token.token);
+		const dispatch = await operation.whenDispatched;
+		await operation.whenCompleted;
+		assert.deepStrictEqual({ dispatch, warnings, errors }, { dispatch: { kind: 'uncertain', message: error.message }, warnings: [error.message], errors: [] });
+	});
 
 	test('unavailable or disconnected hosts cannot dispatch locally', async () => {
 		for (const exists of [true, false]) {
