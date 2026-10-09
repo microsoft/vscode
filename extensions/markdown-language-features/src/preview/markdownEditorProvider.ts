@@ -26,6 +26,7 @@ import { createMarkdownEditorRpcConnection, MarkdownEditorRpcTransport } from '.
 import { MarkdownEditorRename } from './markdownEditorRename';
 import { MarkdownEditorLanguageFeatures } from './markdownEditorLanguageFeatures';
 import { MarkdownEditorImagePaste } from './markdownEditorImagePaste';
+import { MarkdownEditorNavigation } from './markdownEditorNavigation';
 
 export interface MarkdownCodeBlockEditorApiV1 {
 	getProvider(providerId: string): MarkdownCodeBlockEditorProviderApi | undefined;
@@ -87,6 +88,7 @@ class AuthenticatedWebview implements vscode.Disposable {
 	readonly #onReady = new vscode.EventEmitter<void>();
 	readonly onReady = this.#onReady.event;
 	#ready = false;
+	#publishedReady = false;
 	#disposed = false;
 
 	constructor(readonly webview: vscode.Webview, readonly logger: ILogger) {
@@ -113,6 +115,28 @@ class AuthenticatedWebview implements vscode.Disposable {
 		return this.#ready;
 	}
 
+	async whenReady(token: vscode.CancellationToken): Promise<void> {
+		if (this.#disposed || token.isCancellationRequested) {
+			throw new vscode.CancellationError();
+		}
+		if (this.#publishedReady) {
+			return;
+		}
+		const pending = Promise.withResolvers<void>();
+		const ready = this.onReady(() => {
+			if (this.#disposed) { pending.reject(new vscode.CancellationError()); } else { pending.resolve(); }
+		});
+		const cancel = token.onCancellationRequested(() => pending.reject(new vscode.CancellationError()));
+		try {
+			if (this.#disposed || token.isCancellationRequested) { pending.reject(new vscode.CancellationError()); }
+			else if (this.#publishedReady) { pending.resolve(); }
+			await pending.promise;
+		} finally {
+			ready.dispose();
+			cancel.dispose();
+		}
+	}
+
 	setHandlers(handlers: InterfaceHandlers<typeof markdownEditorHost>): void {
 		this.#handlers = handlers;
 		this.#connection.register(markdownEditorHost, handlers);
@@ -123,11 +147,13 @@ class AuthenticatedWebview implements vscode.Disposable {
 	}
 
 	publishReady(): void {
+		this.#publishedReady = true;
 		this.#onReady.fire();
 	}
 
 	reset(): void {
 		this.#ready = false;
+		this.#publishedReady = false;
 		this.#connection.close();
 		this.#messageSecret = generateUuid();
 		this.#connection = this.#connect();
@@ -152,6 +178,7 @@ class AuthenticatedWebview implements vscode.Disposable {
 		this.#disposed = true;
 		this.#ready = false;
 		this.#connection.close();
+		this.#onReady.fire();
 		this.#onReady.dispose();
 	}
 }
@@ -241,6 +268,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 	readonly #logger: ILogger;
 	readonly #tryOpenLink: (href: string) => Promise<boolean>;
 	readonly #webviewPanels = new Map<vscode.WebviewPanel, AuthenticatedWebview>();
+	readonly #navigation = new Map<vscode.WebviewPanel, MarkdownEditorNavigation>();
 	readonly #focusedWebviewPanels = new Set<vscode.WebviewPanel>();
 	readonly #providerApis = new Map<string, Promise<MarkdownCodeBlockEditorProviderApi | undefined>>();
 	readonly #resolvedCodeBlockEditors = new Map<string, Promise<ResolvedCodeBlockEditor | undefined>>();
@@ -281,6 +309,18 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		token: vscode.CancellationToken,
 	): Promise<void> {
 		await this.#resolveEditor(documents.modified, webviewPanel, token, documents.original);
+	}
+
+	public resolveCustomTextEditorNavigation(
+		_document: vscode.TextDocument,
+		webviewPanel: vscode.WebviewPanel,
+		token: vscode.CancellationToken,
+	): vscode.CustomTextEditorNavigation {
+		const navigation = this.#navigation.get(webviewPanel);
+		if (!navigation || token.isCancellationRequested) {
+			throw new vscode.CancellationError();
+		}
+		return navigation;
 	}
 
 	async #resolveEditor(document: vscode.TextDocument, webviewPanel: vscode.WebviewPanel, token: vscode.CancellationToken, originalDocument?: vscode.TextDocument): Promise<void> {
@@ -433,6 +473,10 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		const imagePaste = new MarkdownEditorImagePaste(document, () => editQueue.drain(),
 			() => ({ text: webviewText, editEpoch: editQueue.epoch }),
 			() => !readonly && webviewPanel.active && !resolveCancellation.token.isCancellationRequested);
+		const navigation = new MarkdownEditorNavigation(document, () => editQueue.drain(),
+			() => ({ text: webviewText, editEpoch: editQueue.epoch }),
+			() => editorWebview.renderer, token => editorWebview.whenReady(token));
+		this.#navigation.set(webviewPanel, navigation);
 		const diagnosticsChanged = (): void => {
 			if (webviewReady && !resolveCancellation.token.isCancellationRequested) {
 				void editorWebview.renderer.diagnosticsChanged({}).catch(error =>
@@ -443,6 +487,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			if (event.uris.some(uri => uri.toString() === document.uri.toString())) { diagnosticsChanged(); }
 		});
 		editorWebview.setHandlers({
+			selectionChanged: message => navigation.acceptSelection(message),
 			getDiagnostics: () => languageFeatures.diagnostics(),
 			completions: message => languageFeatures.completions(message),
 			acceptCompletion: message => languageFeatures.accept(message),
@@ -603,6 +648,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			? this.#wireDocumentDiff(originalDocument, document, editorWebview)
 			: this.#wireQuickDiff(document, editorWebview);
 		const reloadWebview = (): void => {
+			navigation.reset();
 			richLinks.clear();
 			imagePaste.dispose();
 			rename.cancel();
@@ -671,6 +717,8 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		this.#configureWebview(document, editorWebview, editQueue.epoch);
 
 		webviewPanel.onDidDispose(() => {
+			navigation.dispose();
+			this.#navigation.delete(webviewPanel);
 			imagePaste.dispose();
 			rename.cancel();
 			languageFeatures.cancel();

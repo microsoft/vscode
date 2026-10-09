@@ -8,6 +8,13 @@ import * as z from 'zod/mini';
 
 const offset = z.int().check(z.nonnegative());
 const range = z.object({ start: offset, endExclusive: offset });
+const selection = z.object({ anchor: offset, active: offset });
+export const navigationState = z.object({
+	editEpoch: offset,
+	revision: offset,
+	selection: z.optional(selection),
+	scrollTop: z.number().check(z.nonnegative()),
+});
 const diagnostic = z.extend(range, {
 	message: z.string(),
 	severity: z.enum(['error', 'warning', 'info', 'hint']),
@@ -87,6 +94,7 @@ export const markdownEditorHost = defineInterface({ id: 'markdown.editor.host' }
 	openLink: requestType(z.object({ href: z.string() }), z.void()),
 	setReadonly: requestType(z.object({ readonly: z.boolean() }), z.void()),
 	editorFocusChanged: requestType(z.object({ focused: z.boolean() }), z.void()),
+	selectionChanged: requestType(z.object({ editEpoch: offset, selection: z.optional(selection) }), z.void()),
 	richLinkSubscriptions: notificationType(richLinkSubscriptions),
 	resolveCodeBlockEditor: requestType(z.object({ providerId: z.string(), language: z.string() }), z.object({ descriptor: z.optional(resolvedCodeBlockEditor) })),
 	createCodeBlockEditorHostTransport: requestType(z.extend(runtime, { providerId: z.string(), runtimeKey: z.string() }), z.void()),
@@ -123,6 +131,14 @@ export const markdownEditorRenderer = defineInterface({ id: 'markdown.editor.ren
 	})),
 	revealComment: notificationType(z.object({ id: z.string() })),
 	revealLinkTarget: requestType(z.extend(range, { selectionStart: offset }), z.void()),
+	captureNavigationState: requestType(z.object({}), navigationState),
+	revealRange: requestType(z.extend(range, {
+		editEpoch: offset,
+		revision: offset,
+		selection: z.optional(selection),
+		preserveFocus: z.boolean(),
+	}), z.void()),
+	restoreNavigationState: requestType(navigationState, z.void()),
 	command: requestType(z.object({ command: z.string() }), z.void()),
 	highlightThemeChanged: notificationType(z.object({})),
 	richLinkPresentations: notificationType(z.object({ presentations: z.readonly(z.array(richLinkPresentationUpdate)) })),
@@ -137,3 +153,4 @@ export type RichLinkPresentationUpdate = z.infer<typeof richLinkPresentationUpda
 export type RichLinkSubscriptions = z.infer<typeof richLinkSubscriptions>;
 export type MarkdownDiagnostic = z.infer<typeof diagnostic>;
 export type MarkdownCompletion = z.infer<typeof completion>;
+export type MarkdownNavigationState = z.infer<typeof navigationState>;
