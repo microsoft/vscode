@@ -223,6 +223,8 @@ const CACHED_SESSIONS_MAX_PER_HOST = 100;
 interface IAgentHostSessionDiscoveryMetadata {
 	readonly summary?: string;
 	readonly modifiedTime?: number;
+	/** Repository-less discovery intent; an actual host project still takes precedence. */
+	readonly workspaceless?: boolean;
 	/** `null` is a discovery-owned absent project; `undefined` leaves the project to the host. */
 	readonly project?: IAgentSessionMetadata['project'] | null;
 	readonly initiator?: Implementation;
@@ -285,6 +287,7 @@ interface ISerializedSessionMetadata {
 	readonly discovery?: {
 		readonly summary?: string;
 		readonly modifiedTime?: number;
+		readonly workspaceless?: boolean;
 		readonly project?: ISerializedSessionMetadata['project'] | null;
 		readonly initiator?: Implementation;
 	};
@@ -338,6 +341,7 @@ function serializeMetadata(meta: IAgentSessionMetadata, discovery?: IAgentHostSe
 		discovery: discovery ? {
 			summary: discovery.summary,
 			modifiedTime: discovery.modifiedTime,
+			workspaceless: discovery.workspaceless,
 			project: discovery.project ? { uri: discovery.project.uri.toString(), displayName: discovery.project.displayName } : discovery.project,
 			initiator: discovery.initiator,
 		} : undefined,
@@ -346,9 +350,13 @@ function serializeMetadata(meta: IAgentSessionMetadata, discovery?: IAgentHostSe
 
 function deserializeDiscoveryMetadata(raw: ISerializedSessionMetadata['discovery'], logService: ILogService): IAgentHostSessionDiscoveryMetadata | undefined {
 	try {
+		if (raw?.workspaceless !== undefined && typeof raw.workspaceless !== 'boolean') {
+			throw new Error('Invalid cached workspace-less discovery state');
+		}
 		return raw ? {
 			summary: raw.summary,
 			modifiedTime: raw.modifiedTime,
+			workspaceless: raw.workspaceless,
 			project: raw.project ? { uri: URI.parse(raw.project.uri), displayName: raw.project.displayName } : raw.project,
 			initiator: readSessionInitiator({ _meta: { [SESSION_INITIATOR_METADATA_KEY]: raw.initiator } }),
 		} : undefined;
@@ -2422,6 +2430,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 					didChange = true;
 				}
 			} else {
+				didChange = this._syncQuickChatFromMeta(tx) || didChange;
 				const workspace = this._computeWorkspace();
 				if (this._setWorkspace(workspace, tx)) {
 					didChange = true;
@@ -2546,7 +2555,8 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			if (metadata._meta !== undefined || previous?._meta !== undefined) {
 				didChange = this.setMeta(metadata._meta, tx);
 			} else {
-				didChange = this._setWorkspace(this._computeWorkspace(), tx);
+				didChange = this._syncQuickChatFromMeta(tx);
+				didChange = this._setWorkspace(this._computeWorkspace(), tx) || didChange;
 			}
 		});
 		return didChange;
@@ -2575,6 +2585,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			}
 		}
 		if (didChange) {
+			this._syncQuickChatFromMeta(tx);
 			this._setWorkspace(this._computeWorkspace(), tx);
 		}
 		return didChange;
@@ -2598,7 +2609,10 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	}
 
 	private _syncQuickChatFromMeta(tx: ITransaction): boolean {
-		const isQuickChat = readSessionWorkspaceless(this._meta);
+		const workspaceless = this.discoveryMetadata?.workspaceless;
+		const isQuickChat = workspaceless === undefined
+			? readSessionWorkspaceless(this._meta)
+			: !this._project && (workspaceless || readSessionWorkspaceless(this._meta));
 		if (this._isQuickChat.get() === isQuickChat) {
 			return false;
 		}
@@ -2613,13 +2627,14 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	get project(): IAgentSessionMetadata['project'] { return this._project; }
 
 	/** Refresh discovery-owned fields without overwriting fields changed by the host. */
-	updateDiscoveryMetadata(metadata: Pick<IAgentSessionMetadata, 'summary' | 'modifiedTime' | 'project' | '_meta'>): boolean {
+	updateDiscoveryMetadata(metadata: Pick<IAgentSessionMetadata, 'summary' | 'modifiedTime' | 'project' | '_meta'>, workspaceless?: boolean): boolean {
 		const previous: IAgentHostSessionDiscoveryMetadata = this.discoveryMetadata ?? {
 			summary: metadata.summary,
 			modifiedTime: metadata.modifiedTime,
 			project: this._project ? metadata.project ?? null : null,
 		};
 		const initiator = readSessionInitiator(metadata) ?? previous.initiator;
+		const isWorkspaceless = workspaceless ?? previous.workspaceless;
 		let summary: string | undefined;
 		let modifiedTime: number | undefined;
 		let project: IAgentHostSessionDiscoveryMetadata['project'];
@@ -2646,10 +2661,11 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			didChange ||= !this.discoveryMetadata
 				|| previous.summary !== summary
 				|| previous.modifiedTime !== modifiedTime
+				|| previous.workspaceless !== isWorkspaceless
 				|| !sessionProjectsEqual(previous.project, project)
 				|| !equals(previous.initiator, initiator);
-			this.discoveryMetadata = { summary, modifiedTime, project, initiator };
-			if (initiator) {
+			this.discoveryMetadata = { summary, modifiedTime, project, initiator, workspaceless: isWorkspaceless };
+			if (initiator || isWorkspaceless !== undefined) {
 				didChange = this.setMeta(this._meta, tx) || didChange;
 			}
 		});
@@ -2669,6 +2685,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		}
 		this._project = project;
 		transaction(tx => {
+			this._syncQuickChatFromMeta(tx);
 			this._setWorkspace(this._computeWorkspace(), tx);
 		});
 		// Reports the metadata mutation, not whether the workspace happened to change: the caller
@@ -7757,6 +7774,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				cached.setTitleFromUser(cached.title.get());
 			}
 			cached.discoveryMetadata = deserializeDiscoveryMetadata(entry.discovery, this._logService);
+			if (cached.discoveryMetadata?.workspaceless !== undefined) {
+				cached.setMeta(cached.sessionMeta);
+			}
 			this._sessionCache.set(rawId, cached);
 		}
 	}
@@ -7777,9 +7797,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			if (!base) {
 				continue;
 			}
-			const sessionMeta = adapter.isQuickChat.get()
-				? withSessionWorkspaceless(adapter.sessionMeta, true)
-				: adapter.sessionMeta;
 			entries.push(serializeMetadata({
 				...base,
 				summary: adapter.title.get() || base.summary,
@@ -7793,8 +7810,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 					withSessionStatusFlag(base.status ?? ProtocolSessionStatus.Idle, ProtocolSessionStatus.IsRead, adapter.isRead.get()),
 					ProtocolSessionStatus.IsArchived,
 					adapter.isArchived.get()),
-				// Session-state updates can refine presentation metadata without another listing.
-				_meta: sessionMeta,
+				// Keep discovery-derived workspace-less state out of host metadata.
+				_meta: adapter.sessionMeta,
 			}, adapter.discoveryMetadata, adapter.titleIsExplicit));
 		}
 		if (entries.length === 0) {

@@ -121,6 +121,8 @@ export interface ICloudSandboxDiscoveredSession {
 	readonly name: string;
 	/** Owning repository as `owner/name`, when known. */
 	readonly repoName?: string;
+	/** Whether discovery identified a repository association, independent of name resolution. */
+	readonly hasRepository?: boolean;
 	/** Last-updated timestamp (ISO 8601), when known, for ordering. */
 	readonly updatedAt?: string;
 	/** Last reported activity; this does not establish environment availability or session flags. */

@@ -3750,10 +3750,10 @@ suite('AgentHostProtocolClient', () => {
 		 * client plus a `transports` array recording each transport handed
 		 * out, so tests can drive handshake/reconnect interactions.
 		 */
-		function createFactoryClient(permissionService = createPermissionService(), clientInfo?: Implementation, telemetryService: ITelemetryService = NullTelemetryService, reconnectPolicy?: IRemoteAgentHostReconnectPolicy, loadEstimator?: { hasHighLoad(): boolean }, prepareReconnect?: () => Promise<void>, authentication?: Pick<IAgentHostProtocolClientOptions, 'prepareAuthentication' | 'resolveInitialAuthentication'>, power?: { onDidSuspend: Event<void>; onDidResume: Event<void> }): { client: AgentHostProtocolClient; transports: TestClientProtocolTransport[]; configurationService: TestConfigurationService } {
+		function createFactoryClient(permissionService = createPermissionService(), clientInfo?: Implementation, telemetryService: ITelemetryService = NullTelemetryService, reconnectPolicy?: IRemoteAgentHostReconnectPolicy, loadEstimator?: { hasHighLoad(): boolean }, prepareReconnect?: () => Promise<void>, authentication?: Pick<IAgentHostProtocolClientOptions, 'prepareAuthentication' | 'resolveInitialAuthentication'>, power?: { onDidSuspend: Event<void>; onDidResume: Event<void> }, connectionKind?: AgentHostClientConnectionKind): { client: AgentHostProtocolClient; transports: TestClientProtocolTransport[]; configurationService: TestConfigurationService } {
 			const transports: TestClientProtocolTransport[] = [];
 			const factory = () => {
-				const t = disposables.add(new TestClientProtocolTransport());
+				const t = disposables.add(new TestClientProtocolTransport(connectionKind));
 				transports.push(t);
 				return t;
 			};
@@ -4887,6 +4887,59 @@ suite('AgentHostProtocolClient', () => {
 				client.dispose();
 			}
 		});
+
+		for (const connectionKind of [AgentHostClientConnectionKind.WebPubSub, AgentHostClientConnectionKind.MissionControl]) {
+			test(`${connectionKind} restores relay identity before cached scoped credentials without concurrent authentication`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const resource = 'https://identity.example.test';
+				let resolutions = 0;
+				const { client, transports } = createFactoryClient(undefined, undefined, undefined, undefined, { hasHighLoad: () => false }, undefined, {
+					resolveInitialAuthentication: async () => ({ resource, token: `identity-${++resolutions}` }),
+				}, undefined, connectionKind);
+				const initialTransport = transports[0];
+				const connecting = completeHandshake(initialTransport, client.connect());
+				const identity = await waitForRequestAtWithin(initialTransport, 'authenticate', 0);
+				initialTransport.fireMessage({ jsonrpc: '2.0', id: identity.id, result: {} });
+				const root = { snapshot: { resource: ROOT_STATE_URI, fromSeq: 5, state: { agents: [] } } };
+				const initialRoot = await waitForRequestAtWithin(initialTransport, 'subscribe', 0);
+				initialTransport.fireMessage({ jsonrpc: '2.0', id: initialRoot.id, result: root });
+				await connecting;
+
+				for (const [index, scopes] of [['read'], ['write']].entries()) {
+					const authenticating = client.authenticate({ resource, scopes, token: `cached-${index}` });
+					const authenticate = await waitForRequestAtWithin(initialTransport, 'authenticate', index + 1);
+					initialTransport.fireMessage({ jsonrpc: '2.0', id: authenticate.id, result: {} });
+					const subscribe = await waitForRequestAtWithin(initialTransport, 'subscribe', index + 1);
+					initialTransport.fireMessage({ jsonrpc: '2.0', id: subscribe.id, result: root });
+					await authenticating;
+				}
+
+				const { transport, request } = await beginRecovery(client, transports);
+				transport.fireMessage({ jsonrpc: '2.0', id: request.id, error: { code: AhpErrorCodes.NotFound, message: 'Fresh relay initialization required' } });
+				const initialize = await waitForRequestAtWithin(transport, 'initialize', 0);
+				transport.fireMessage({ jsonrpc: '2.0', id: initialize.id, result: { protocolVersion: PROTOCOL_VERSION, serverSeq: 5, snapshots: [] } });
+
+				const checkpoints: { sent: number; params: JsonRpcRequest['params'] }[] = [];
+				for (let index = 0; index < 3; index++) {
+					const authentication = await waitForRequestAtWithin(transport, 'authenticate', index);
+					await flushMicrotasks();
+					const requests = transport.sentMessages.filter(message => hasKey(message, { method: true }) && message.method === 'authenticate');
+					checkpoints.push({ sent: requests.length, params: authentication.params });
+					transport.fireMessage({ jsonrpc: '2.0', id: authentication.id, result: {} });
+				}
+				const restoredRoot = await waitForRequestAtWithin(transport, 'subscribe', 0);
+				transport.fireMessage({ jsonrpc: '2.0', id: restoredRoot.id, result: root });
+				await waitForConnectedWithin(client);
+				assert.deepStrictEqual({ checkpoints, state: client.connectionState }, {
+					checkpoints: [
+						{ sent: 1, params: { channel: ROOT_STATE_URI, resource, scopes: undefined, token: 'identity-2' } },
+						{ sent: 2, params: { channel: ROOT_STATE_URI, resource, scopes: ['read'], token: 'cached-0' } },
+						{ sent: 3, params: { channel: ROOT_STATE_URI, resource, scopes: ['write'], token: 'cached-1' } },
+					],
+					state: AgentHostClientState.Connected,
+				});
+				client.dispose();
+			}));
+		}
 
 		for (const resultType of [ReconnectResultType.Replay, ReconnectResultType.Snapshot]) {
 			for (const credentials of ['cached', 'resolved'] as const) {

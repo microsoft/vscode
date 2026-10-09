@@ -8079,8 +8079,9 @@ suite('CopilotAgent', () => {
 			assert.deepStrictEqual([
 				createCopilotCliEnvironment({})['SKILL_CHAR_BUDGET'],
 				createCopilotCliEnvironment({ SKILL_CHAR_BUDGET: '15000' })['SKILL_CHAR_BUDGET'],
-				createCopilotCliEnvironment({}, [], false, 30_000)['SKILL_CHAR_BUDGET'],
-			], ['15000', '15000', '30000']);
+				createCopilotCliEnvironment({}, [], false, 15_000)['SKILL_CHAR_BUDGET'],
+				createCopilotCliEnvironment({}, [], false, 35_000)['SKILL_CHAR_BUDGET'],
+			], ['30000', '30000', '15000', '35000']);
 		});
 
 		test('strips inherited HydraFusion flags and preserves unrelated environment', () => {
@@ -8731,7 +8732,7 @@ suite('CopilotAgent', () => {
 				}, {
 					rubberDuck: 'true',
 					advisor: 'false',
-					skillCharBudget: '15000',
+					skillCharBudget: '30000',
 				});
 			} finally {
 				await disposeAgent(agent);
@@ -8742,7 +8743,7 @@ suite('CopilotAgent', () => {
 			const client = new TestCopilotClient([]);
 			const { agent, configurationService } = createTestAgentContext(disposables, {
 				copilotClient: client,
-				rootConfig: { [CopilotCliConfigKey.SkillCharBudget]: 30_000 },
+				rootConfig: { [CopilotCliConfigKey.SkillCharBudget]: 15_000 },
 			});
 			try {
 				await agent.listChatsToMigrate();
@@ -8756,7 +8757,7 @@ suite('CopilotAgent', () => {
 					updatedBudget: getCreatedClientOptions(agent).at(-1)?.env?.['SKILL_CHAR_BUDGET'],
 					stopCallCount: client.stopCallCount,
 				}, {
-					initialBudget: '30000',
+					initialBudget: '15000',
 					updatedBudget: '35000',
 					stopCallCount: 1,
 				});

@@ -1045,6 +1045,48 @@ suite('stateToProgressAdapter', () => {
 			});
 		});
 
+		test('successful remote MCP App preserves resource provenance in live rendering and restored history', () => {
+			const backendSession = URI.parse('custom-host-session:/opaque-session');
+			const connectionAuthority = 'remote-host';
+			const tc = createToolCallState({
+				toolName: 'github-get_me',
+				toolInput: '{}',
+				contributor: { kind: ToolCallContributorKind.MCP, customizationId: 'github-customization' },
+				_meta: {
+					mcpServerName: 'GitHub',
+					ui: { resourceUri: 'ui://github-mcp-server/get-me', channel: 'mcp://opaque-host-channel/GitHub' },
+				},
+			});
+			const live = rawToolCallStateToInvocation(tc, undefined, backendSession, connectionAuthority);
+			const completed = createCompletedToolCall({ ...tc, status: ToolCallStatus.Completed, success: true });
+			rawFinalizeToolInvocation(live, completed, backendSession, connectionAuthority);
+			const history = rawTurnsToHistory(backendSession, [createTurn({
+				responseParts: [{ kind: ResponsePartKind.ToolCall, toolCall: completed }],
+			})], 'p', connectionAuthority);
+			const response = history[1];
+			assert.ok(response.type === 'response');
+			const restored = response.parts[0];
+			assert.ok(restored.kind === 'toolInvocationSerialized');
+			const expected = {
+				originMessage: 'GitHub (MCP Server)',
+				toolSpecificData: {
+					kind: 'input',
+					rawInput: {},
+					mcpAppData: {
+						kind: 'agentHost',
+						resourceUri: 'ui://github-mcp-server/get-me',
+						connectionAuthority,
+						serverId: 'github-customization',
+						channel: 'mcp://opaque-host-channel/GitHub',
+					},
+				},
+			};
+			assert.deepStrictEqual([live, restored].map(invocation => ({
+				originMessage: invocation.originMessage,
+				toolSpecificData: invocation.toolSpecificData,
+			})), [expected, expected]);
+		});
+
 		test('generic completed tool call maps embedded resources and resource refs', () => {
 			const turn = createTurn({
 				responseParts: [{
