@@ -17,13 +17,14 @@ import type { SubscribeResult } from '../../../../common/state/protocol/commands
 import { ActionType } from '../../../../common/state/sessionActions.js';
 import { buildDefaultChatUri, ROOT_STATE_URI } from '../../../../common/state/sessionState.js';
 import { getActionEnvelope, isActionNotification, type TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
-import { AgentHostE2EServerLease, createRealSession, driveTurnToCompletion, removeTempDirs } from '../harness/agentHostE2ETestHarness.js';
+import { AgentHostE2EServerLease, createRealSession, driveTurnToCompletion, initTestGitRepo, removeTempDirs } from '../harness/agentHostE2ETestHarness.js';
 import { assertExpectedFailure } from '../harness/expectedFailure.js';
 import { createTestDirectory } from '../harness/testDirectories.js';
-import { createManagedPluginMarketplace } from './copilotManagedPluginMarketplace.js';
+import { createManagedPluginMarketplace, type IManagedPluginMarketplace } from './copilotManagedPluginMarketplace.js';
 import { COPILOT_CONFIG } from './copilotTestConfiguration.js';
 
 const execFileAsync = promisify(execFile);
+const repositoryPluginUnavailable = 'Repository plugin preparation did not install the configured plugin';
 const managedPluginActivityPrefixes = [
 	'Initializing chat using settings required by your organization admin…',
 	'Installing plugins required by your organization admin…',
@@ -66,36 +67,37 @@ suite('Agent Host E2E — Copilot repository plugin preparation', function () {
 		this.timeout(180_000);
 		const root = createTestDirectory(join(tmpdir(), 'copilot-repository-plugin-'));
 		const workspace = join(root, 'workspace');
-		await mkdir(workspace, { recursive: true });
-		const plugin = {
-			name: 'repository-plugin',
-			version: '1.0.0',
-			skillName: 'repository-plugin-skill',
-		};
-		const marketplace = await createManagedPluginMarketplace(root, 'repository-marketplace', [plugin]);
-		const settingsDirectory = join(workspace, '.github', 'copilot');
-		await mkdir(settingsDirectory, { recursive: true });
-		await writeFile(join(settingsDirectory, 'settings.json'), JSON.stringify({
-			enabledPlugins: { [marketplace.pluginSpec(plugin.name)]: true },
-			extraKnownMarketplaces: {
-				[marketplace.name]: {
-					source: { source: 'git', url: marketplace.sourceUrl, ref: 'main' },
-				},
-			},
-		}));
-		await execFileAsync('git', ['init', '--initial-branch=main'], { cwd: workspace });
-		await execFileAsync('git', ['config', 'user.name', 'Agent Host E2E'], { cwd: workspace });
-		await execFileAsync('git', ['config', 'user.email', 'agent-host-e2e@example.invalid'], { cwd: workspace });
-		await execFileAsync('git', ['add', '.'], { cwd: workspace });
-		await execFileAsync('git', ['commit', '-q', '-m', 'Configure repository plugin'], { cwd: workspace });
-
-		const lease = new AgentHostE2EServerLease(COPILOT_CONFIG);
 		const createdSessions: string[] = [];
-		let failed = false;
+		let marketplace: IManagedPluginMarketplace | undefined;
+		let lease: AgentHostE2EServerLease | undefined;
 		let testError: Error | undefined;
 		try {
+			await mkdir(workspace, { recursive: true });
+			const plugin = {
+				name: 'repository-plugin',
+				version: '1.0.0',
+				skillName: 'repository-plugin-skill',
+			};
+			marketplace = await createManagedPluginMarketplace(root, 'repository-marketplace', [plugin]);
+			const settingsDirectory = join(workspace, '.github', 'copilot');
+			await mkdir(settingsDirectory, { recursive: true });
+			await writeFile(join(settingsDirectory, 'settings.json'), JSON.stringify({
+				enabledPlugins: { [marketplace.pluginSpec(plugin.name)]: true },
+				extraKnownMarketplaces: {
+					[marketplace.name]: {
+						source: { source: 'git', url: marketplace.sourceUrl, ref: 'main' },
+					},
+				},
+			}));
+			initTestGitRepo(workspace);
+			await execFileAsync('git', ['branch', '-M', 'main'], { cwd: workspace });
+			await execFileAsync('git', ['add', '.'], { cwd: workspace });
+			await execFileAsync('git', ['commit', '-q', '-m', 'Configure repository plugin'], { cwd: workspace });
+
+			lease = new AgentHostE2EServerLease(COPILOT_CONFIG);
 			const { client, server } = await lease.acquire(this.test!.title, 'none');
-			assert.ok(server.capiReplay);
+			const capiReplay = server.capiReplay;
+			assert.ok(capiReplay);
 			const workspaceUri = URI.file(workspace);
 			const session = await createRealSession(
 				client,
@@ -111,47 +113,69 @@ suite('Agent Host E2E — Copilot repository plugin preparation', function () {
 				},
 			);
 			const chat = buildDefaultChatUri(session);
-			const first = await driveTurnToCompletion(client, session, 'turn-repository-first', '/env', 2);
-			let nextClientSeq = 3;
-			let installed: Awaited<ReturnType<typeof driveTurnToCompletion>> | undefined;
-			let managedActivityObserved = hasManagedPluginActivity(client, chat);
-			await retry(async () => {
-				installed = await driveTurnToCompletion(client, session, `turn-repository-${nextClientSeq}`, '/env', nextClientSeq++);
-				managedActivityObserved ||= hasManagedPluginActivity(client, chat);
-				if (!installed.responseText.includes(plugin.skillName)) {
-					throw new Error('Repository plugin preparation did not install the configured plugin');
-				}
-			}, 100, 20);
+			const installation = marketplace.holdNextRequest();
+			try {
+				const firstTurn = driveTurnToCompletion(client, session, 'turn-repository-first', '/env', 2);
+				const firstOutcome = await Promise.race([
+					installation.started.then(() => ({ kind: 'installation' as const })),
+					firstTurn.then(result => ({ kind: 'turn' as const, result })),
+				]);
+				const first = firstOutcome.kind === 'turn' ? firstOutcome.result : await firstTurn;
+				assert.deepStrictEqual({
+					firstMessageContinued: /Skills|Environment/i.test(first.responseText),
+					managedActivityObserved: hasManagedPluginActivity(client, chat),
+					modelRequests: capiReplay.observedModelRequestBodies.length,
+				}, {
+					firstMessageContinued: true,
+					managedActivityObserved: false,
+					modelRequests: 0,
+				});
+				installation.release();
 
-			assert.deepStrictEqual({
-				firstMessageContinued: /Skills|Environment/i.test(first.responseText),
-				eventuallyUsesPlugin: installed?.responseText.includes(plugin.skillName),
-				managedActivityObserved,
-				modelRequests: server.capiReplay.observedModelRequestBodies.length,
-			}, {
-				firstMessageContinued: true,
-				eventuallyUsesPlugin: true,
-				managedActivityObserved: false,
-				modelRequests: 0,
-			});
+				await assertExpectedFailure('github/copilot-agent-runtime#25331',
+					new RegExp(`^${repositoryPluginUnavailable}$`),
+					async () => {
+						if (firstOutcome.kind === 'turn') {
+							throw new Error(repositoryPluginUnavailable);
+						}
+						let nextClientSeq = 3;
+						let installed: Awaited<ReturnType<typeof driveTurnToCompletion>> | undefined;
+						await retry(async () => {
+							installed = await driveTurnToCompletion(client, session, `turn-repository-${nextClientSeq}`, '/env', nextClientSeq++);
+							if (!installed.responseText.includes(plugin.skillName)) {
+								throw new Error(repositoryPluginUnavailable);
+							}
+						}, 100, 20);
+						assert.deepStrictEqual({
+							eventuallyUsesPlugin: installed?.responseText.includes(plugin.skillName),
+							managedActivityObserved: hasManagedPluginActivity(client, chat),
+							modelRequests: capiReplay.observedModelRequestBodies.length,
+						}, {
+							eventuallyUsesPlugin: true,
+							managedActivityObserved: false,
+							modelRequests: 0,
+						});
+					});
+			} finally {
+				installation.release();
+			}
 		} catch (error) {
-			failed = true;
-			lease.dumpRuntimeLogsOnFailure(this.test!.title);
+			lease?.dumpRuntimeLogsOnFailure(this.test!.title);
 			testError = error instanceof Error ? error : new Error(String(error));
 		}
 		const cleanupErrors: Error[] = [];
 		try {
-			await lease.release(createdSessions, failed);
+			await lease?.release(createdSessions, testError !== undefined);
 		} catch (error) {
 			cleanupErrors.push(error instanceof Error ? error : new Error(String(error)));
 		}
 		try {
-			await lease.dispose();
+			await lease?.dispose();
 		} catch (error) {
 			cleanupErrors.push(error instanceof Error ? error : new Error(String(error)));
 		}
 		try {
-			await marketplace.close();
+			await marketplace?.close();
 		} catch (error) {
 			cleanupErrors.push(error instanceof Error ? error : new Error(String(error)));
 		}
@@ -160,17 +184,10 @@ suite('Agent Host E2E — Copilot repository plugin preparation', function () {
 		} catch (error) {
 			cleanupErrors.push(error instanceof Error ? error : new Error(String(error)));
 		}
-		const scenarioError = testError && cleanupErrors.length === 0
-			? testError
-			: cleanupErrors.length > 0
-				? new AggregateError(testError ? [testError, ...cleanupErrors] : cleanupErrors, 'Repository plugin E2E scenario failed')
-				: undefined;
-		await assertExpectedFailure('github/copilot-agent-runtime#25331',
-			/^Repository plugin preparation did not install the configured plugin$/,
-			() => {
-				if (scenarioError) {
-					throw scenarioError;
-				}
-			});
+		if (testError || cleanupErrors.length > 0) {
+			throw testError && cleanupErrors.length === 0
+				? testError
+				: new AggregateError(testError ? [testError, ...cleanupErrors] : cleanupErrors, 'Repository plugin E2E scenario failed');
+		}
 	});
 });
