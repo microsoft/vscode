@@ -3993,6 +3993,115 @@ suite('CloudSandboxSessionsProvider discovery metadata', () => {
 		});
 	}
 
+	for (const ctor of [CloudSandboxSessionsProvider, RemoteAgentHostSessionsProvider]) {
+		for (const rawId of ['opaque-session-id', 'd3561946-d567-4c65-a1c4-b8fe0ab37c25']) {
+			test(`${ctor.name} handles identifier placeholder titles for ${rawId}`, async () => {
+				const provider = createProvider(disposables, connection, {
+					ctor, noConnection: true, sessionSchemeAlias: { ui: 'copilot', backend: 'ahp-session' },
+				});
+				connection.handshakeState.set({ ...connection.handshakeState.get(), _meta: undefined }, undefined);
+				const resource = AgentSession.uri('ahp-session', rawId);
+				const discovery = { ...metadata, session: resource, summary: 'New remote session' };
+				provider.seedSessions([discovery], { updateExisting: true });
+				const session = provider.getSessions()[0];
+				const titles: string[] = [];
+				const capture = () => titles.push(session.title.get(), session.mainChat.get().title.get());
+				connection.addSession({ ...discovery, summary: rawId, modifiedTime: 3000 });
+				provider.setConnection(connection);
+				await timeout(0);
+				capture();
+
+				fireSessionAdded(connection, rawId, { session: resource, provider: 'copilot', title: rawId });
+				capture();
+				connection.fireAction({
+					channel: resource.toString(),
+					action: { type: ActionType.SessionTitleChanged, title: rawId },
+					serverSeq: 1,
+					origin: undefined,
+				});
+				capture();
+				connection.fireNotification({
+					channel: 'ahp-root://',
+					type: NotificationType.SessionSummaryChanged,
+					session: resource.toString(),
+					changes: { title: rawId },
+				});
+				capture();
+
+				provider.seedSessions([{ ...discovery, summary: 'Updated task', modifiedTime: 4000 }], { updateExisting: true });
+				capture();
+				connection.fireAction({
+					channel: resource.toString(),
+					action: { type: ActionType.SessionTitleChanged, title: 'Useful host title' },
+					serverSeq: 2,
+					origin: undefined,
+				});
+				capture();
+				provider.seedSessions([{ ...discovery, summary: 'Stale task', modifiedTime: 5000 }], { updateExisting: true });
+				capture();
+				connection.fireNotification({
+					channel: 'ahp-root://',
+					type: NotificationType.SessionSummaryChanged,
+					session: resource.toString(),
+					changes: { title: '7df7ccce-66b6-4aa4-82ba-c69293ff0923' },
+				});
+				capture();
+
+				const sandbox = ctor === CloudSandboxSessionsProvider;
+				assert.deepStrictEqual({ titles, dispatched: connection.dispatchedActions }, {
+					titles: [
+						...Array.from({ length: 8 }, () => sandbox ? 'New remote session' : rawId),
+						...Array.from({ length: 2 }, () => sandbox ? 'Updated task' : rawId),
+						'Useful host title', 'Useful host title',
+						'Useful host title', 'Useful host title',
+						'7df7ccce-66b6-4aa4-82ba-c69293ff0923', '7df7ccce-66b6-4aa4-82ba-c69293ff0923',
+					],
+					dispatched: [],
+				});
+			});
+		}
+	}
+
+	test('discovery repairs cached identifier titles and retains the replacement across reconnect and reload', async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		let provider = createSandboxProvider(storageService);
+		connection.addSession({ ...metadata, session: backendResource, summary: 'discovered-session' });
+		provider.setConnection(connection);
+		await timeout(0);
+		provider.clearConnection();
+		await storageService.flush();
+		provider.dispose();
+
+		provider = createSandboxProvider(storageService);
+		seed(provider, { summary: undefined });
+		const withoutTitle = provider.getSessions()[0].title.get();
+		seed(provider);
+		const session = provider.getSessions()[0];
+		const recovered = session.title.get();
+		provider.setConnection(connection);
+		await timeout(0);
+		const connected = session.title.get();
+		provider.clearConnection();
+		await storageService.flush();
+		provider.dispose();
+
+		provider = createSandboxProvider(storageService);
+		seed(provider, { summary: 'Updated task', modifiedTime: 4000 });
+		assert.deepStrictEqual({
+			withoutTitle,
+			recovered,
+			connected,
+			restored: provider.getSessions()[0].title.get(),
+			dispatched: connection.dispatchedActions,
+		}, {
+			withoutTitle: 'discovered-session',
+			recovered: 'Original task',
+			connected: 'Original task',
+			restored: 'Updated task',
+			dispatched: [],
+		});
+	});
+
 	test('renaming the cloud default chat updates the session title', async () => {
 		const provider = createSandboxProvider();
 		seed(provider);
@@ -4427,13 +4536,14 @@ suite('CloudSandboxSessionsProvider renaming', () => {
 		refresh(): Promise<void> { return this._refreshSessions(); }
 	}
 
-	function createSandbox(provisional = false, chatService?: IChatService): { provider: TestSandboxProvider; connection: MockAgentConnection; renamed: string[] } {
+	function createSandbox(provisional = false, chatService?: IChatService, storageService?: IStorageService): { provider: TestSandboxProvider; connection: MockAgentConnection; renamed: string[] } {
 		const connection = store.add(new MockAgentConnection());
 		connection.addSession({ ...metadata, session: backendUri });
 		const provider = createProvider(store.add(new DisposableStore()), connection, {
 			address: 'cloudsandbox:rename-test', ctor: TestSandboxProvider,
 			sessionSchemeAlias: { ui: 'copilot', backend: 'ahp-session' }, noConnection: true,
 			chatService,
+			storageService,
 		}) as TestSandboxProvider;
 		const renamed: string[] = [];
 		provider.setTaskRenameHandler('sandbox-session', async title => { renamed.push(title); });
@@ -4512,6 +4622,73 @@ suite('CloudSandboxSessionsProvider renaming', () => {
 		assert.deepStrictEqual({
 			title: provider.getSessions()[0].title.get(), dispatchCount: connection.dispatchedActions.length,
 		}, { title: 'Old title', dispatchCount: 0 });
+	});
+
+	for (const connected of [false, true]) {
+		test(`preserves an explicit identifier rename through stale discovery and host echo (connected: ${connected})`, async () => {
+			const { provider, connection, renamed } = createSandbox();
+			if (connected) {
+				provider.setConnection(connection);
+				await provider.refresh();
+			}
+			const session = provider.getSessions()[0];
+			await provider.renameSession(session.sessionId, 'sandbox-session');
+			provider.seedSessions([metadata], { updateExisting: true });
+			const afterDiscovery = session.title.get();
+			if (!connected) {
+				connection.addSession({ ...metadata, summary: 'sandbox-session' });
+				provider.setConnection(connection);
+				await provider.refresh();
+			}
+			connection.fireAction({
+				channel: backendUri.toString(),
+				action: { type: ActionType.SessionTitleChanged, title: 'sandbox-session' },
+				serverSeq: 1,
+				origin: undefined,
+			});
+
+			assert.deepStrictEqual({
+				afterDiscovery,
+				title: session.title.get(),
+				chatTitle: session.mainChat.get().title.get(),
+				renamed,
+				dispatched: connection.dispatchedActions.map(({ channel, action }) => ({ channel, action })),
+			}, {
+				afterDiscovery: 'sandbox-session',
+				title: 'sandbox-session',
+				chatTitle: 'sandbox-session',
+				renamed: ['sandbox-session'],
+				dispatched: connected ? [{ channel: backendUri.toString(), action: { type: ActionType.SessionTitleChanged, title: 'sandbox-session' } }] : [],
+			});
+		});
+	}
+
+	test('preserves an explicit identifier rename through cache restore and discovery', async () => {
+		const storageService = store.add(new InMemoryStorageService());
+		const first = createSandbox(false, undefined, storageService);
+		await first.provider.renameSession(first.provider.getSessions()[0].sessionId, 'sandbox-session');
+		await storageService.flush();
+		first.provider.dispose();
+
+		const restored = createSandbox(false, undefined, storageService);
+		const session = restored.provider.getSessions()[0];
+		const afterRestore = session.title.get();
+		restored.connection.addSession({ ...metadata, summary: 'sandbox-session' });
+		restored.provider.setConnection(restored.connection);
+		await restored.provider.refresh();
+		restored.provider.seedSessions([metadata], { updateExisting: true });
+
+		assert.deepStrictEqual({
+			afterRestore,
+			title: session.title.get(),
+			chatTitle: session.mainChat.get().title.get(),
+			dispatched: restored.connection.dispatchedActions,
+		}, {
+			afterRestore: 'sandbox-session',
+			title: 'sandbox-session',
+			chatTitle: 'sandbox-session',
+			dispatched: [],
+		});
 	});
 
 	test('accepts subsequent host title changes without replaying the rename', async () => {

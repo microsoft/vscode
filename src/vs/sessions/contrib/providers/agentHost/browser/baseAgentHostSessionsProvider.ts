@@ -240,6 +240,7 @@ interface ISerializedSessionMetadata {
 	readonly startTime: number;
 	readonly modifiedTime: number;
 	readonly summary?: string;
+	readonly titleIsExplicit?: boolean;
 	readonly workingDirectory?: string;
 	/** Session-scoped flag bits only — see {@link SESSION_STATUS_FLAG_MASK}. */
 	readonly status?: ProtocolSessionStatus;
@@ -296,7 +297,7 @@ interface ISerializedSessionMetadata {
  */
 const SESSION_STATUS_FLAG_MASK = ProtocolSessionStatus.IsRead | ProtocolSessionStatus.IsArchived;
 
-function serializeMetadata(meta: IAgentSessionMetadata, discovery?: IAgentHostSessionDiscoveryMetadata): ISerializedSessionMetadata {
+function serializeMetadata(meta: IAgentSessionMetadata, discovery?: IAgentHostSessionDiscoveryMetadata, titleIsExplicit = false): ISerializedSessionMetadata {
 	const gitHubData = readSessionGitHubData(meta._meta);
 	const workingDirectoryKeys = readWorkingDirectoryKeys(meta._meta);
 	const workingDirectoryScopeIds = readWorkingDirectoryScopeIds(meta._meta);
@@ -307,6 +308,7 @@ function serializeMetadata(meta: IAgentSessionMetadata, discovery?: IAgentHostSe
 		startTime: meta.startTime,
 		modifiedTime: meta.modifiedTime,
 		summary: meta.summary,
+		titleIsExplicit: titleIsExplicit || undefined,
 		workingDirectory: meta.workingDirectories?.[0]?.toString(),
 		status: meta.status !== undefined ? meta.status & SESSION_STATUS_FLAG_MASK : undefined,
 		project: meta.project ? { uri: meta.project.uri.toString(), displayName: meta.project.displayName } : undefined,
@@ -870,6 +872,8 @@ export interface IAgentHostAdapterOptions {
 	readonly externalSessionState?: (resource: URI, store: DisposableStore) => IObservable<boolean>;
 	/** Uses the session title for the main conversation instead of the host's default chat label. */
 	readonly useSessionTitleForDefaultChat?: boolean;
+	/** Identifies provider placeholders that must not replace an existing display title. */
+	readonly isSessionTitlePlaceholder?: (title: string, session: URI) => boolean;
 }
 
 /**
@@ -1282,6 +1286,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 	/** See {@link ISession.worktreePending}. */
 	readonly worktreePending: IObservable<boolean>;
 	readonly title: ISettableObservable<string>;
+	private _titleIsExplicit = false;
 	readonly updatedAt: ISettableObservable<Date>;
 	readonly status: ISettableObservable<SessionStatus>;
 	readonly completedStateIcon: IObservable<ThemeIcon | undefined>;
@@ -2381,10 +2386,8 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		let didChange = false;
 
 		transaction(tx => {
-			const summary = metadata.summary;
-			if (summary !== undefined && summary !== this.title.get()) {
-				this.title.set(summary, tx);
-				didChange = true;
+			if (metadata.summary !== undefined) {
+				didChange = this.setTitleFromHost(metadata.summary, tx);
 			}
 
 			if (metadata.status !== undefined) {
@@ -2466,6 +2469,22 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		});
 
 		return didChange;
+	}
+
+	setTitleFromHost(title: string, tx?: ITransaction): boolean {
+		if (title === this.title.get() || this._options.isSessionTitlePlaceholder?.(title, this.backendUri)) {
+			return false;
+		}
+		this._titleIsExplicit = false;
+		this.title.set(title, tx);
+		return true;
+	}
+
+	get titleIsExplicit(): boolean { return this._titleIsExplicit; }
+
+	setTitleFromUser(title: string): void {
+		this._titleIsExplicit = true;
+		this.title.set(title, undefined);
 	}
 
 	/**
@@ -2616,9 +2635,9 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		let project: IAgentHostSessionDiscoveryMetadata['project'];
 		let didChange = false;
 		transaction(tx => {
-			if (previous.summary !== undefined && this.title.get() === previous.summary) {
+			if (!this._titleIsExplicit && ((previous.summary !== undefined && this.title.get() === previous.summary) || this._options.isSessionTitlePlaceholder?.(this.title.get(), this.backendUri))) {
 				summary = metadata.summary ?? previous.summary;
-				if (summary !== this.title.get()) {
+				if (summary !== undefined && summary !== this.title.get()) {
 					this.title.set(summary, tx);
 					didChange = true;
 				}
@@ -4233,7 +4252,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * the bits that are uniform across hosts (`icon`, `loading`,
 	 * `mapDiffUri`) from the corresponding hooks.
 	 */
-	protected abstract _adapterOptions(): Pick<IAgentHostAdapterOptions, 'buildWorkspace' | 'readOnly' | 'defaultChangesetKind' | 'preserveStatusWhenDisconnected' | 'externalSessionState' | 'useSessionTitleForDefaultChat' | 'supportsCanvasPresentation'>;
+	protected abstract _adapterOptions(): Pick<IAgentHostAdapterOptions, 'buildWorkspace' | 'readOnly' | 'defaultChangesetKind' | 'preserveStatusWhenDisconnected' | 'externalSessionState' | 'useSessionTitleForDefaultChat' | 'isSessionTitlePlaceholder' | 'supportsCanvasPresentation'>;
 
 	/**
 	 * Hook to normalize a session's metadata before it is cached, keyed, or
@@ -6522,7 +6541,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
 		const connection = this.connection;
 		if (cached && rawId && connection) {
-			cached.title.set(title, undefined);
+			cached.setTitleFromUser(title);
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
 			const sessionUri = cached.backendUri;
 			const action = { type: ActionType.SessionTitleChanged as const, title };
@@ -7751,6 +7770,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				continue;
 			}
 			const cached = this.createAdapter(meta);
+			if (entry.titleIsExplicit === true) {
+				cached.setTitleFromUser(cached.title.get());
+			}
 			cached.discoveryMetadata = deserializeDiscoveryMetadata(entry.discovery, this._logService);
 			this._sessionCache.set(rawId, cached);
 		}
@@ -7790,7 +7812,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 					adapter.isArchived.get()),
 				// Session-state updates can refine presentation metadata without another listing.
 				_meta: sessionMeta,
-			}, adapter.discoveryMetadata));
+			}, adapter.discoveryMetadata, adapter.titleIsExplicit));
 		}
 		if (entries.length === 0) {
 			this._storageService.remove(this._sessionCacheStorageKey, StorageScope.APPLICATION);
@@ -8136,8 +8158,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	private _handleTitleChanged(session: string, title: string): void {
 		const rawId = session;
 		const cached = this._sessionCache.get(rawId);
-		if (cached) {
-			cached.title.set(title, undefined);
+		if (cached?.setTitleFromHost(title)) {
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
 		}
 	}
@@ -8214,8 +8235,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				}
 			}
 
-			if (changes.title !== undefined && changes.title !== cached.title.get()) {
-				cached.title.set(changes.title, tx);
+			if (changes.title !== undefined && cached.setTitleFromHost(changes.title, tx)) {
 				didChange = true;
 			}
 			if (changes.modifiedAt !== undefined) {
