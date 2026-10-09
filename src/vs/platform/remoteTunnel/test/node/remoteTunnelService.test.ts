@@ -126,7 +126,7 @@ suite('Remote tunnel', () => {
 			}, {
 				connectedTelemetry: [
 					{ tunnelName: 'test_host', isAttached: true },
-					{ tunnelName: 'test_host', isAttached: false, sessionId: 'telemetry-session', operationId: 'operation-id' },
+					{ tunnelName: 'test_host', isAttached: false, tunnelSessionId: 'telemetry-session', operationId: 'operation-id' },
 				],
 				linkedStatus: {
 					type: 'connected',

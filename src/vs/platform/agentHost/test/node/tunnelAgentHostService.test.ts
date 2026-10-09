@@ -103,7 +103,7 @@ suite('TunnelAgentHostService - correlation', () => {
 			operations: requests.map(request => request['X-Tunnels-VSCode-Client-Operation-Id']),
 			uniqueRequests: new Set(requests.map(request => request['X-Tunnels-VSCode-Client-Request-Id'])).size,
 		}, {
-			telemetry: ['tunnelServiceOperation', { sessionId: NullTelemetryService.sessionId, operationId, operation: 'list' }],
+			telemetry: ['tunnelServiceOperation', { tunnelSessionId: NullTelemetryService.sessionId, operationId, operation: 'list' }],
 			sessions: [NullTelemetryService.sessionId, NullTelemetryService.sessionId],
 			operations: [operationId, operationId],
 			uniqueRequests: 2,

@@ -35,8 +35,8 @@ suite('Tunnel service headers', () => {
 			differentOperations: correlation.operationId !== next.operationId,
 		}, {
 			events: [
-				{ name: 'tunnelServiceOperation', data: { ...correlation, operation: 'connect' } },
-				{ name: 'tunnelServiceOperation', data: { ...next, operation: 'list' } },
+				{ name: 'tunnelServiceOperation', data: { tunnelSessionId: correlation.sessionId, operationId: correlation.operationId, operation: 'connect' } },
+				{ name: 'tunnelServiceOperation', data: { tunnelSessionId: next.sessionId, operationId: next.operationId, operation: 'list' } },
 			],
 			session: telemetry.sessionId,
 			operation: correlation.operationId,
