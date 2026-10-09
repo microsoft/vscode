@@ -14,7 +14,7 @@ import { CancellationError, getErrorCode, getErrorMessage } from '../../../../ba
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { StringSHA1 } from '../../../../base/common/hash.js';
 import { Disposable, DisposableMap, DisposableResourceMap, DisposableSet, DisposableStore, type IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { ResourceMap } from '../../../../base/common/map.js';
+import { ResourceMap, ResourceSet } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { equals } from '../../../../base/common/objects.js';
 import { autorun, observableValue, observableValueOpts, type IObservable, type IReader, type ISettableObservable } from '../../../../base/common/observable.js';
@@ -23,6 +23,7 @@ import { basename as resourceBasename, extUriBiasedIgnorePathCase, isEqual, isEq
 import { URI } from '../../../../base/common/uri.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
+import { parse as parseYaml, type YamlParseError } from '../../../../base/common/yaml.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { rgDiskPath } from '../../../../base/node/ripgrep.js';
 import { localize } from '../../../../nls.js';
@@ -45,6 +46,7 @@ import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
 import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, COPILOT_HYDRA_FUSION_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_NAME, DEFAULT_COPILOT_RUBBER_DUCK_ENABLED, normalizeModelFamilyAlias, normalizeSkillCharBudget, resolveModelCapabilityOverrideField, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, agentHostProxyConfigSchema, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
+import { getCopilotApprovalConfig, getCopilotApprovalPolicy, resolveCopilotManagedSettings } from './copilotApprovalPolicy.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
 import { AgentChatOperationContext, AgentSession, AgentSignal, AuthenticateParams, COPILOT_CLI_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentPluginInstallRequest, type IAgentPluginUninstallRequest, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage, type IAgentChatSessionEvent } from '../../common/agent.js';
@@ -152,15 +154,7 @@ export async function getCopilotManagedSettingsDiagnostics(
 	token: string | undefined,
 	timeoutMs = COPILOT_MANAGED_SETTINGS_QUERY_TIMEOUT_MS,
 ): Promise<Awaited<ReturnType<CopilotClient['rpc']['managedSettings']['resolve']>>> {
-	const request = managedSettings.resolve({
-		...(token ? { gitHubToken: token } : {}),
-		clientName: AGENT_HOST_COPILOT_CLIENT_NAME,
-	});
-	const result = await raceTimeout(request, timeoutMs);
-	if (!result) {
-		throw new Error(`Copilot runtime managed-settings query exceeded ${timeoutMs / 1000} seconds while waiting for native MDM or GitHub policy resolution.`);
-	}
-	return result;
+	return resolveCopilotManagedSettings(managedSettings, token, timeoutMs);
 }
 
 const RUNTIME_SLASH_COMMAND_COMPLETION_WAIT_MS = 300;
@@ -1264,6 +1258,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._areCopilotConnectorsEnabled(),
 			this._managedSettingsService.permissions,
 			this._isLocalIndexEnabled(),
+			this._configurationService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) === true,
 		);
 	}
 
@@ -1958,7 +1953,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	async setSessionApproveAll(session: URI, enabled: boolean): Promise<void> {
-		if (enabled && this._configurationService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) === true) {
+		const entry = this._findSessionChat(session);
+		if (!entry && enabled && this._configurationService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) === true) {
 			throw new ProtocolError(AhpErrorCodes.PermissionDenied, 'Auto approval is restricted by policy');
 		}
 		if (!enabled && this._configurationService.getRootValue(platformRootSchema, AgentHostGlobalAutoApproveEnabledConfigKey) === true) {
@@ -1967,7 +1963,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (!this._configurationService.getSessionConfigValues(session.toString())) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidRequest, 'Session configuration is not available');
 		}
-		const entry = this._findSessionChat(session);
 		if (!entry) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidRequest, 'Approval mode requires a live Copilot session');
 		}
@@ -2821,6 +2816,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// re-introduce a process-wide alias for every session behind its back.
 			delete env['COPILOT_MODEL_FAMILY'];
 			setCopilotBuiltinGitHubMcpEnvironment(env, startupConfig.githubMcpServer);
+			if (this._productService.quality !== 'stable') {
+				env['IMAGE_GENERATION_TOOL'] = 'true';
+			}
 
 			// On Linux the MXC bubblewrap sandbox backend does not forward a PTY into
 			// the container, so the CLI's default PTY-backed interactive shell can
@@ -2947,6 +2945,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._clientGeneration++;
 			this._clientConnectorAuthentication = { connectorsEnabled: startupConfig.copilotConnectors, enterpriseHost: startupConfig.enterpriseHost, token: gitHubToken };
 			this._clientStarting = undefined;
+			void this._refreshDisconnectedApprovalModes(client, this._clientGeneration);
 			return client;
 		};
 		const clientStarting = (async () => {
@@ -4329,7 +4328,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					markerStatus: missing ? 'missing' : 'readError',
 					provenance: 'unknown',
 					markerFromCache: false,
-					...(missing ? {} : { errorCode: getErrorCode(error), errorMessage: getErrorMessage(error) }),
+					...(missing ? {} : { errorCode: getErrorCode(error), errorMessage: getErrorCode(error) === 'ERR_INVALID_ARG_VALUE' ? 'Invalid session marker path' : getErrorMessage(error) }),
 				},
 			};
 		}
@@ -4353,6 +4352,114 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 		const result = await cached;
 		return { ...result, diagnostics: { ...result.diagnostics, markerFromCache } };
+	}
+
+	private async _getLegacyDeclineDiagnostics(sessionId: string, read: IExtensionHostCliMarkerRead): Promise<NonNullable<IAgentChatAdoptionResult['diagnostics']>> {
+		const sessionIdStatus = !sessionId ? 'empty'
+			: /[\x00-\x1f\x7f]/.test(sessionId) ? 'controlCharacters'
+				: /[/\\]/.test(sessionId) ? 'pathSeparators'
+					: sessionId === '.' || sessionId === '..' ? 'dotSegment' : 'opaque';
+		const origin = read.marker?.origin;
+		const diagnostics: NonNullable<IAgentChatAdoptionResult['diagnostics']> = {
+			...read.diagnostics,
+			markerOrigin: !read.marker ? 'unavailable' : origin === undefined ? 'missing'
+				: origin === 'vscode' || origin === 'other' ? origin
+					: typeof origin === 'string' ? 'unrecognized' : 'invalidType',
+			sessionIdStatus,
+			copilotHomeSource: process.env.COPILOT_HOME ? 'environment' : 'userHome',
+			sessionStateRootStatus: 'notChecked',
+			sessionDirectoryStatus: 'notChecked',
+			eventsFileStatus: 'notChecked',
+			workspaceMetadataStatus: 'notChecked',
+			lastKnownClient: 'unavailable',
+			...(sessionIdStatus === 'opaque' ? await this._readLegacyClientMetadata(sessionId) : {}),
+		};
+		// Probe only missing/misplaced storage, never following suspicious identifiers for diagnostic I/O.
+		if ((read.diagnostics.markerStatus !== 'missing' && read.diagnostics.errorCode !== 'ENOTDIR') || sessionIdStatus !== 'opaque') {
+			return diagnostics;
+		}
+		const root = join(getCopilotHomePath(this._environmentService.userHome.fsPath, process.env), 'session-state');
+		const sessionStateRootStatus = await this._getLegacyStoragePathStatus(root);
+		const sessionDirectoryStatus = sessionStateRootStatus === 'directory' ? await this._getLegacyStoragePathStatus(join(root, sessionId)) : 'notChecked';
+		const eventsFileStatus = sessionDirectoryStatus === 'directory' ? await this._getLegacyStoragePathStatus(join(root, sessionId, 'events.jsonl')) : 'notChecked';
+		return { ...diagnostics, sessionStateRootStatus, sessionDirectoryStatus, eventsFileStatus };
+	}
+
+	private async _readLegacyClientMetadata(sessionId: string, open: typeof fs.open = fs.open): Promise<Pick<NonNullable<IAgentChatAdoptionResult['diagnostics']>, 'workspaceMetadataStatus' | 'lastKnownClient'>> {
+		const maxBytes = 16 * 1024;
+		try {
+			const path = this._extensionHostCliSidecarPath(sessionId, 'workspace.yaml');
+			const stat = await fs.lstat(path);
+			if (!stat.isFile()) {
+				return { workspaceMetadataStatus: 'notFile' };
+			}
+			if (stat.size > maxBytes) {
+				return { workspaceMetadataStatus: 'tooLarge' };
+			}
+			const file = await open(path, fsConstants.O_RDONLY | (fsConstants.O_NOFOLLOW ?? 0) | (fsConstants.O_NONBLOCK ?? 0));
+			let text: string;
+			try {
+				const openedStat = await file.stat();
+				if (!openedStat.isFile()) {
+					return { workspaceMetadataStatus: 'notFile' };
+				}
+				// Windows lacks O_NOFOLLOW; reject a switched target before reading from the descriptor.
+				if (openedStat.dev !== stat.dev || openedStat.ino !== stat.ino) {
+					this._logService.warn('[Copilot] Workspace metadata changed during legacy client diagnostics');
+					return { workspaceMetadataStatus: 'readError' };
+				}
+				if (openedStat.size > maxBytes) {
+					return { workspaceMetadataStatus: 'tooLarge' };
+				}
+				const buffer = Buffer.alloc(maxBytes + 1);
+				let length = 0;
+				while (length < buffer.length) {
+					const { bytesRead } = await file.read(buffer, length, buffer.length - length, length);
+					if (bytesRead === 0) {
+						break;
+					}
+					length += bytesRead;
+				}
+				if (length > maxBytes) {
+					return { workspaceMetadataStatus: 'tooLarge' };
+				}
+				text = buffer.toString('utf8', 0, length);
+			} finally {
+				await file.close();
+			}
+			const errors: YamlParseError[] = [];
+			const metadata = parseYaml(text.replace(/^\uFEFF/, ''), errors);
+			if (errors.length > 0 || metadata?.type !== 'map') {
+				this._logService.warn('[Copilot] Invalid workspace metadata for legacy client diagnostics');
+				return { workspaceMetadataStatus: 'invalid' };
+			}
+			const client = metadata.properties.find(property => property.key.value === 'client_name')?.value;
+			const value = client?.type === 'scalar' ? client.value : undefined;
+			return {
+				workspaceMetadataStatus: 'valid',
+				lastKnownClient: !client ? 'missing' : client.type !== 'scalar' ? 'invalidType'
+					: value === 'vscode' || value === AGENT_HOST_COPILOT_CLIENT_NAME || value === 'github/cli' || value === 'github/autopilot' ? value : 'unrecognized',
+			};
+		} catch (error) {
+			if (getErrorCode(error) === 'ENOENT') {
+				return { workspaceMetadataStatus: 'missing' };
+			}
+			this._logService.warn('[Copilot] Failed to read workspace metadata for legacy client diagnostics', getErrorCode(error));
+			return { workspaceMetadataStatus: 'readError' };
+		}
+	}
+
+	private async _getLegacyStoragePathStatus(path: string): Promise<NonNullable<NonNullable<IAgentChatAdoptionResult['diagnostics']>['sessionDirectoryStatus']>> {
+		try {
+			const stat = await fs.stat(path);
+			return stat.isDirectory() ? 'directory' : stat.isFile() ? 'file' : 'other';
+		} catch (error) {
+			if (getErrorCode(error) === 'ENOENT') {
+				return 'missing';
+			}
+			this._logService.warn('[Copilot] Failed to inspect legacy session storage', getErrorCode(error));
+			return 'readError';
+		}
 	}
 
 	private async _readExtensionHostCliMarker(sessionId: string): Promise<IExtensionHostCliMarker | undefined> {
@@ -4535,7 +4642,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			const markerRead = await this._readExtensionHostCliMarkerWithDiagnostics(sessionId);
 			if (!isExtensionHostCliMarker(markerRead.marker)) {
 				this._logService.info(`[Copilot] Adoption declined for ${sessionId}: marker=${markerRead.diagnostics.markerStatus}, provenance=${markerRead.diagnostics.provenance}, cached=${markerRead.diagnostics.markerFromCache}`);
-				return { adopted: false, eligible: false, reason: 'notLegacyChat', diagnostics: markerRead.diagnostics };
+				return { adopted: false, eligible: false, reason: 'notLegacyChat', diagnostics: await this._getLegacyDeclineDiagnostics(sessionId, markerRead) };
 			}
 			const client = await this._ensureClient();
 			const sdkMetadata = await client.getSessionMetadata(sessionId).catch(() => undefined);
@@ -4889,11 +4996,35 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return alternativeAgentUri ? { uri: alternativeAgentUri.toString() } : undefined;
 	}
 
+	private async _refreshDisconnectedApprovalModes(client: CopilotClient, generation: number): Promise<void> {
+		await Promise.all([...new ResourceSet([...this._chatScopes.values()])].map(async session => {
+			try {
+				const key = session.toString();
+				const values = this._configurationService.getSessionConfigValues(key);
+				if (!values || !Array.isArray(values.availableApprovalModes) || this._findSessionChat(session)) {
+					return;
+				}
+				const workingDirectory = this._configurationService.getEffectiveWorkingDirectories(key)?.[0];
+				const resolved = await this.resolveChatConfig({ config: values, workingDirectory: workingDirectory ? URI.parse(workingDirectory) : undefined });
+				if (this._shutdownPromise || this._client !== client || this._clientGeneration !== generation || this._findSessionChat(session)) {
+					return;
+				}
+				const current = this._configurationService.getSessionConfigValues(key);
+				if (current && !equals(current.availableApprovalModes, resolved.values.availableApprovalModes)) {
+					// Keep the last applied mode until a resumed runtime reports its actual selection.
+					this._configurationService.updateSessionConfig(key, { availableApprovalModes: resolved.values.availableApprovalModes });
+				}
+			} catch (error) {
+				this._logService.error(`[Copilot] Failed to refresh disconnected approval modes for ${session.toString()}`, error);
+			}
+		}));
+	}
+
 	async resolveChatConfig(params: IAgentResolveChatConfigParams): Promise<ResolveSessionConfigResult> {
 		// Isolation / branch are contributed by the host (see
 		// AgentService._withHostSessionConfigContributions); this agent only owns its platform
 		// session config (auto-approve / mode / permissions).
-		const values = platformSessionSchema.validateOrDefault(migrateLegacyAutopilotConfig(params.config), {
+		const values: Record<string, unknown> = platformSessionSchema.validateOrDefault(migrateLegacyAutopilotConfig(params.config), {
 			[SessionConfigKey.AutoApprove]: 'default' satisfies AutoApproveLevel,
 			[SessionConfigKey.Mode]: 'interactive' satisfies SessionMode,
 			// Permissions intentionally omitted — leave unset so auto-approval
@@ -4901,11 +5032,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// materializes on the session once the user hits "Allow in this
 			// Session".
 		});
-
-		return {
-			schema: platformSessionSchema.toProtocol(),
-			values,
-		};
+		if (params.config?.[SessionConfigKey.AutoApprove] === undefined) {
+			delete values[SessionConfigKey.AutoApprove];
+		}
+		const client = await this._ensureClient();
+		const resolved = await resolveCopilotManagedSettings(client.rpc.managedSettings, this._githubCredentials.token, COPILOT_MANAGED_SETTINGS_QUERY_TIMEOUT_MS, params.workingDirectory?.fsPath);
+		const policy = getCopilotApprovalPolicy(resolved.resolved,
+			this._configurationService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) === true,
+			this._managedSettingsService.permissions);
+		return getCopilotApprovalConfig(values, policy,
+			this._configurationService.getRootValue(platformRootSchema, AgentHostGlobalAutoApproveEnabledConfigKey) === true);
 	}
 
 	getInheritedChatConfig(config: Readonly<Record<string, unknown>>): Record<string, unknown> | undefined {
@@ -4919,10 +5055,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	getAutonomousSessionConfig(config: Readonly<Record<string, unknown>>): Record<string, unknown> {
+		const assistedAvailable = Array.isArray(config.availableApprovalModes)
+			? config.availableApprovalModes.includes('assisted')
+			: this._configurationService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) !== true;
 		return {
 			[SessionConfigKey.Mode]: 'autopilot' satisfies SessionMode,
-			...(this._configurationService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) !== true
-				&& config[SessionConfigKey.AutoApprove] !== 'autoApprove'
+			...(assistedAvailable && config[SessionConfigKey.AutoApprove] !== 'autoApprove'
 				? { [SessionConfigKey.AutoApprove]: 'assisted' satisfies AutoApproveLevel }
 				: {}),
 		};

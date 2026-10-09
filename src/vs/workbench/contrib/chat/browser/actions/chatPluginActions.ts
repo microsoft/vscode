@@ -27,6 +27,7 @@ import { IPluginInstallService } from '../../common/plugins/pluginInstallService
 import { type IMarketplaceReference, MarketplaceReferenceKind, parseMarketplaceReference, parseMarketplaceReferences, readConfiguredMarketplaces } from '../../common/plugins/pluginMarketplaceService.js';
 import { getStrictKnownMarketplaces, isMarketplaceReferenceAllowed } from '../../common/plugins/strictKnownMarketplaces.js';
 import { InstalledAgentPluginsViewId } from '../chat.js';
+import { isAgentFinderPublicFeedAvailable } from '../aiCustomization/customizationMarketplaceConfiguration.js';
 import { getPluginCustomizationMarketplaceNavigationSourceId } from '../aiCustomization/pluginCustomizationMarketplaceProvider.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 
@@ -309,7 +310,10 @@ export class ManagePluginMarketplacesAction extends Action2 {
 			}
 			switch (action.id) {
 				case 'showPlugins': {
-					const githubFeedAvailable = !!customizationHarnessService.getActiveDescriptor().marketplaceSearchProvider;
+					const githubFeedAvailable = isAgentFinderPublicFeedAvailable(
+						configurationService,
+						!!customizationHarnessService.getActiveDescriptor().marketplaceSearchProvider,
+					);
 					await commandService.executeCommand(
 						AICustomizationManagementCommands.OpenMarketplace,
 						{

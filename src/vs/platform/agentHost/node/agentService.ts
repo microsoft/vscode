@@ -31,6 +31,7 @@ import { type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, 
 import { ISessionDatabase, ISessionDataService, ISessionStorageAccessCounts, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
 import { IAgentEditAttributionService, ICancelEditAttributionFlushParams, ICommitEditAttributionFlushParams, IEditAttributionFlushResult, IPrepareEditAttributionFlushParams, IPreparedEditAttributionFlush, parseEditAttributionResource } from '../common/fileEditAttribution.js';
 import { getPersistedSessionConfigValues, getSessionPullRequestUrl, omitTransientSessionConfigValues, SessionConfigKey } from '../common/sessionConfigKeys.js';
+import { getSessionApprovalProperty, validateSessionConfigWrite } from '../common/sessionConfigProperties.js';
 import type { IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
 import { buildAnnotationsUri, parseAnnotationsUri } from '../common/annotationsUri.js';
 import { parseChangesetUri, parseFolderChangesetOwnerUri } from '../common/changesetUri.js';
@@ -202,8 +203,17 @@ type AgentHostLegacyMigrationEvent = IAgentHostCopilotSkuTelemetry & {
 	diagnosticCategory: 'notApplicable' | 'expectedExclusion' | 'configurationDisabled' | 'needsInvestigation' | 'unknown';
 	advertisedAsAdoptable: boolean;
 	eligible: boolean | undefined;
-	markerStatus: NonNullable<IAgentChatAdoptionResult['diagnostics']>['markerStatus'] | undefined;
-	provenance: NonNullable<IAgentChatAdoptionResult['diagnostics']>['provenance'] | undefined;
+	markerStatus: NonNullable<IAgentChatAdoptionResult['diagnostics']>['markerStatus'] | 'notEvaluated' | 'notReported';
+	provenance: NonNullable<IAgentChatAdoptionResult['diagnostics']>['provenance'] | 'notEvaluated';
+	diagnosticDetail: 'settingDisabled' | 'invalidSessionId' | 'storageProbeFailed' | 'storageLayoutInvalid' | 'sessionStateRootMissing' | 'sessionDirectoryMissing' | 'markerMissingWithEvents' | 'markerMissingWithoutEvents' | 'markerMissing' | 'markerReadError' | 'markerInvalid' | 'originUnrecognized' | 'originInvalidType' | 'originMissing' | 'externalOrigin' | 'legacyMarker' | 'legacyEligible' | 'adoptionThrew' | 'providerEvidenceUnavailable';
+	markerOrigin: NonNullable<IAgentChatAdoptionResult['diagnostics']>['markerOrigin'] | 'notReported';
+	sessionIdStatus: NonNullable<IAgentChatAdoptionResult['diagnostics']>['sessionIdStatus'] | 'notReported';
+	copilotHomeSource: NonNullable<IAgentChatAdoptionResult['diagnostics']>['copilotHomeSource'] | 'notReported';
+	sessionStateRootStatus: NonNullable<IAgentChatAdoptionResult['diagnostics']>['sessionStateRootStatus'] | 'notReported';
+	sessionDirectoryStatus: NonNullable<IAgentChatAdoptionResult['diagnostics']>['sessionDirectoryStatus'] | 'notReported';
+	eventsFileStatus: NonNullable<IAgentChatAdoptionResult['diagnostics']>['eventsFileStatus'] | 'notReported';
+	workspaceMetadataStatus: NonNullable<IAgentChatAdoptionResult['diagnostics']>['workspaceMetadataStatus'] | 'notReported';
+	lastKnownClient: NonNullable<IAgentChatAdoptionResult['diagnostics']>['lastKnownClient'] | 'notReported';
 	markerFromCache: boolean | undefined;
 	eligibilityErrorCode: string | undefined;
 	eligibilityErrorMessage: string | undefined;
@@ -226,8 +236,17 @@ type AgentHostLegacyMigrationClassification = IAgentHostCopilotSkuClassification
 	diagnosticCategory: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Conservative triage: expectedExclusion requires positive external provenance with no conflicting adoptable advertisement; needsInvestigation does not assert a code defect; missing evidence remains unknown.' };
 	advertisedAsAdoptable: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the host advertised this session as adoptable before attempting adoption.' };
 	eligible: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Provider eligibility decision; absent if adoption was not attempted or threw before returning.' };
-	markerStatus: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the eligibility marker was valid, missing, invalid, or could not be read.' };
-	provenance: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Bounded marker evidence: legacy, explicitly external, or unknown. No raw origin value is collected.' };
+	markerStatus: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the marker was valid, missing, invalid, unreadable, not evaluated, or not reported by the provider.' };
+	provenance: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Legacy from marker or positive provider eligibility, explicitly external, unknown, or not evaluated. No raw origin value is collected.' };
+	diagnosticDetail: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Code-defined diagnostic explanation distinguishing absent storage, invalid identifiers, ambiguous markers, and absent provider evidence; not a root-cause verdict.' };
+	markerOrigin: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Bounded marker origin: vscode, other, missing, unrecognized, invalidType, unavailable, or notReported.' };
+	sessionIdStatus: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Identifier shape only: opaque, empty, controlCharacters, pathSeparators, dotSegment, or notReported. No identifier is collected.' };
+	copilotHomeSource: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the Copilot home came from environment or userHome, or was notReported. No path is collected.' };
+	sessionStateRootStatus: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Storage root stat result: directory, file, other, missing, readError, notChecked, or notReported.' };
+	sessionDirectoryStatus: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Session directory stat result: directory, file, other, missing, readError, notChecked, or notReported.' };
+	eventsFileStatus: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Session events file stat result: directory, file, other, missing, readError, notChecked, or notReported. No content is read.' };
+	workspaceMetadataStatus: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Bounded workspace metadata read: valid, missing, invalid, readError, tooLarge, notFile, notChecked, or notReported. No file content is collected.' };
+	lastKnownClient: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Allowlisted persisted runtime client: vscode, vscode-agent-host, github/cli, github/autopilot, missing, unrecognized, invalidType, unavailable, or notReported. Can change on resume; not creator provenance.' };
 	markerFromCache: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the marker evidence came from the in-memory cache rather than a fresh disk read.' };
 	eligibilityErrorCode: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'Error code from reading the eligibility marker, separate from any later restore failure.' };
 	eligibilityErrorMessage: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'Error reading the eligibility marker, cleaned by the telemetry service. Marker contents are never collected.' };
@@ -721,9 +740,8 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _readableProviderCatalogs = new Set<AgentProvider>();
 	/**
 	 * In-memory mirror of the durable provisional markers. Listing consults it
-	 * synchronously: the phase ordering there drives provider catalog migration,
-	 * so an extra read would change when migration passes run. An unloaded
-	 * mirror is empty, which surfaces sessions rather than hiding them.
+	 * after waiting for the initial marker load, so unloaded markers cannot
+	 * expose provisional sessions.
 	 */
 	private readonly _provisionalSessionKeys = new Set<string>();
 	private _provisionalSessionKeysLoaded: Promise<void> | undefined;
@@ -2030,14 +2048,9 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/**
 	 * Loads the durable provisional markers into {@link _provisionalSessionKeys}
-	 * once. Started at construction so listing can read the mirror synchronously;
+	 * once. Started at construction and awaited before draft suppression;
 	 * a read failure leaves the mirror empty, surfacing sessions rather than
 	 * hiding them.
-	 *
-	 * A listing that starts before this read lands cannot suppress anything, but
-	 * it consults the mirror after its provider phase, so one still running when
-	 * the markers arrive suppresses them; a settled one is evicted, so the next
-	 * listing recomputes. The window is therefore bounded by this read alone.
 	 */
 	private _whenProvisionalSessionKeysLoaded(): Promise<void> {
 		return this._provisionalSessionKeysLoaded ??= (async () => {
@@ -2063,19 +2076,12 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/**
 	 * Drops sessions that are still marked provisional and whose provider cannot
-	 * describe them: their registration points at a backing that was never
-	 * created, so no later run can resolve them (#321269).
+	 * describe them: they stay hidden from listing until their backing can be
+	 * confirmed, even when the provider's catalog is unavailable (#321269).
 	 *
-	 * Three conditions are required, and each guards a way real content could
-	 * otherwise be hidden: the marker must still be set; the provider's catalog
-	 * must be known readable this run, since a provider that cannot yet answer
-	 * returns `undefined` without throwing and that is not evidence of absence;
-	 * and the provider must then decline to describe the session. A materialized
-	 * session whose marker-clear never landed is kept visible by the third
-	 * condition, and one whose provider is merely unavailable by the second.
-	 *
-	 * Erring towards a visible junk row is deliberate: under-suppressing costs a
-	 * row the user can delete, over-suppressing costs their work.
+	 * A materialized session whose marker-clear never landed is kept visible
+	 * when its provider confirms the backing, and the live-state overlay
+	 * preserves sessions with turn activity.
 	 */
 	private async _withoutUnmaterializedProvisionalSessions(sessions: readonly IAgentSessionMetadata[], registered: readonly IRegisteredSession[]): Promise<readonly IAgentSessionMetadata[]> {
 		if (sessions.length === 0 || this._provisionalSessionKeys.size === 0) {
@@ -2090,19 +2096,14 @@ export class AgentService extends Disposable implements IAgentService {
 				return;
 			}
 			const agent = this._providerService.getProvider(entry.provider);
-			// Read synchronously: this runs inside the listing, whose phase ordering
-			// drives provider catalog migration, so awaiting a readability signal
-			// here would change when those passes run.
-			if (!agent || !this._readableProviderCatalogs.has(entry.provider)) {
-				return;
-			}
 			try {
-				if (!await this._registeredSessionMetadata(agent, entry.session, entry.external, entry)) {
+				if (!agent || !await this._registeredSessionMetadata(agent, entry.session, entry.external)) {
 					unmaterialized.add(key);
 				}
 			} catch (err) {
-				// An erroring provider is not evidence that the backing is missing.
-				this._logService.warn(`[AgentService] listSessions: failed to confirm provisional session ${key}`, err);
+				// An erroring provider is not evidence that the backing is missing; hide the row until confirmation succeeds.
+				unmaterialized.add(key);
+				this._logService.warn(`[AgentService] listSessions: hiding unconfirmed provisional session ${key}`, err);
 			}
 		}));
 		return unmaterialized.size === 0
@@ -3937,6 +3938,10 @@ export class AgentService extends Disposable implements IAgentService {
 		this._registryEpoch++;
 	}
 
+	async getSessionCount(): Promise<number> {
+		return (await this._sessionRegistry.listSessionKeys()).size;
+	}
+
 	async listSessions(mode = this._getExternalSessionsMode()): Promise<IAgentSessionMetadata[]> {
 		const epoch = this._registryEpoch;
 		const inFlight = this._inFlightListSessions.get(mode);
@@ -4250,9 +4255,7 @@ export class AgentService extends Disposable implements IAgentService {
 			}, 0);
 		}
 		const result = results.filter((s): s is IAgentSessionMetadata => s !== undefined);
-		// Skipped without awaiting when no session is provisional: the phases above
-		// drive provider catalog migration, so an unconditional await here would
-		// change when those passes run.
+		await this._whenProvisionalSessionKeysLoaded();
 		const materialized = this._provisionalSessionKeys.size === 0
 			? result
 			: await this._withoutUnmaterializedProvisionalSessions(result, registered);
@@ -4703,11 +4706,11 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/**
 	 * Recomputes and republishes a provider's list after its catalog becomes
-	 * readable, so a fail-open listing computed while it was unreadable stops
-	 * showing rows that suppression would now hide (#321269).
+	 * readable or sessions are marked provisional, so previously published rows
+	 * that suppression now hides are retracted (#321269).
 	 *
 	 * The transition is one-shot, so the decision cannot depend on what happens
-	 * to be published at this instant: a fail-open listing may still be
+	 * to be published at this instant: a listing may still be
 	 * computing (publication happens inside `prepareSessionSummariesForListing`)
 	 * and the marker mirror loads asynchronously. Either being unpopulated here
 	 * would drop the refresh and leave the stale row with nothing left to
@@ -6524,23 +6527,26 @@ export class AgentService extends Disposable implements IAgentService {
 			: { session, key: ANNOTATIONS_METADATA_KEY };
 	}
 
-	private async _resolveCreatedSessionConfig(provider: IAgent, config: IAgentCreateSessionConfig | undefined): Promise<SessionConfigState | undefined> {
-		if (!config?.config && config?.workingDirectories === undefined) {
+	private async _resolveCreatedSessionConfig(provider: IAgent, config: IAgentCreateSessionConfig | undefined, restoring = false): Promise<SessionConfigState | undefined> {
+		if (provider.id !== 'copilotcli' && !config?.config && config?.workingDirectories === undefined) {
 			return undefined;
 		}
 		const params: IAgentResolveSessionConfigParams = {
 			provider: provider.id,
 			// `resolveSessionConfig` is a pre-session, single-context API:
 			// resolve against the session's primary (index 0).
-			workingDirectory: config.workingDirectories?.[0],
-			config: config.config,
+			workingDirectory: config?.workingDirectories?.[0],
+			config: config?.config,
 		};
 		try {
 			const resolved = await this._withHostSessionConfigContributions(await provider.resolveChatConfig(this._toProviderConfig(params)), params);
 			return { schema: resolved.schema, values: resolved.values };
 		} catch (err) {
 			this._logService.error(`[AgentService] Failed to resolve created session config for provider ${provider.id}`, err);
-			return config.config ? { schema: { type: 'object', properties: {} }, values: config.config } : undefined;
+			if (provider.id === 'copilotcli' && !restoring) {
+				throw err;
+			}
+			return config?.config ? { schema: { type: 'object', properties: {} }, values: config.config } : undefined;
 		}
 	}
 
@@ -8281,13 +8287,40 @@ export class AgentService extends Disposable implements IAgentService {
 		// a wholesale replacement must not drop it either.
 		if (action.type === ActionType.SessionConfigChanged) {
 			const configAction = action as SessionConfigChangedAction;
+			const current = this._stateManager.getSessionState(sessionChannel)?.config;
+			if (current?.schema.properties.availableApprovalModes?.readOnly === true) {
+				try {
+					if (['availableApprovalModes', 'effectiveApprovalMode'].some(key => Object.hasOwn(configAction.config, key) && !equals(configAction.config[key], current.values[key]))) {
+						throw new Error('Reported permission modes are host-owned.');
+					}
+					const approvalKey = getSessionApprovalProperty(current.schema)?.key ?? SessionConfigKey.AutoApprove;
+					if (Object.hasOwn(configAction.config, approvalKey)) {
+						if (current.schema.properties[approvalKey]?.readOnly) {
+							throw new Error('Session approval mode is read-only.');
+						}
+						validateSessionConfigWrite(current.schema, current.values, approvalKey, configAction.config[approvalKey], false);
+					}
+				} catch (error) {
+					this._stateManager.rejectClientAction(channel, action, origin, toErrorMessage(error));
+					return;
+				}
+				if (configAction.replace) {
+					action = {
+						...configAction, config: {
+							...configAction.config,
+							availableApprovalModes: current.values.availableApprovalModes,
+							...(current.values.effectiveApprovalMode === undefined ? {} : { effectiveApprovalMode: current.values.effectiveApprovalMode }),
+						}
+					};
+				}
+			}
 			const forbidden = HOST_WRITTEN_SESSION_CONFIG_KEYS.filter(key => Object.hasOwn(configAction.config, key));
 			if (forbidden.length > 0) {
 				this._stateManager.rejectClientAction(channel, action, origin, `Session config keys are host-owned and cannot be set by a client: ${forbidden.join(', ')}.`);
 				return;
 			}
 			if (Object.hasOwn(configAction.config, SessionConfigKey.AgentMergeFolders)) {
-				action = this._withMergedClientAgentMergeFolders(sessionChannel, configAction);
+				action = this._withMergedClientAgentMergeFolders(sessionChannel, action as SessionConfigChangedAction);
 			}
 			if (configAction.replace) {
 				action = this._withPreservedHostWrittenSessionConfig(sessionChannel, action as SessionConfigChangedAction);
@@ -8619,15 +8652,53 @@ export class AgentService extends Disposable implements IAgentService {
 		extra: { advertisedAsAdoptable: boolean; adoption?: IAgentChatAdoptionResult; turnCount?: number; hasProject?: boolean; hasWorktree?: boolean; workingDirectoryCount?: number; error?: unknown; reason?: AgentChatAdoptionReason | 'settingDisabled' },
 	): void {
 		const diagnostics = extra.adoption?.diagnostics;
+		const invalidSessionId = diagnostics?.sessionIdStatus !== undefined && diagnostics.sessionIdStatus !== 'opaque';
+		const storageError = [diagnostics?.sessionStateRootStatus, diagnostics?.sessionDirectoryStatus, diagnostics?.eventsFileStatus].includes('readError');
+		const storageLayoutInvalid = [diagnostics?.sessionStateRootStatus, diagnostics?.sessionDirectoryStatus].some(status => status === 'file' || status === 'other')
+			|| diagnostics?.eventsFileStatus === 'directory' || diagnostics?.eventsFileStatus === 'other';
 		let diagnosticCategory: AgentHostLegacyMigrationEvent['diagnosticCategory'] = 'unknown';
 		if (outcome === 'migrated') {
 			diagnosticCategory = 'notApplicable';
 		} else if (extra.reason === 'settingDisabled') {
 			diagnosticCategory = 'configurationDisabled';
-		} else if (outcome === 'failed' || extra.advertisedAsAdoptable || extra.adoption?.eligible || diagnostics?.markerStatus === 'invalid' || diagnostics?.markerStatus === 'readError') {
+		} else if (outcome === 'failed' || extra.advertisedAsAdoptable || extra.adoption?.eligible || invalidSessionId || storageError || storageLayoutInvalid || diagnostics?.markerStatus === 'invalid' || diagnostics?.markerStatus === 'readError') {
 			diagnosticCategory = 'needsInvestigation';
 		} else if (diagnostics?.markerStatus === 'valid' && diagnostics.provenance === 'external') {
 			diagnosticCategory = 'expectedExclusion';
+		}
+		let diagnosticDetail: AgentHostLegacyMigrationEvent['diagnosticDetail'];
+		if (extra.reason === 'settingDisabled') {
+			diagnosticDetail = 'settingDisabled';
+		} else if (invalidSessionId) {
+			diagnosticDetail = 'invalidSessionId';
+		} else if (storageError) {
+			diagnosticDetail = 'storageProbeFailed';
+		} else if (storageLayoutInvalid) {
+			diagnosticDetail = 'storageLayoutInvalid';
+		} else if (diagnostics?.sessionStateRootStatus === 'missing') {
+			diagnosticDetail = 'sessionStateRootMissing';
+		} else if (diagnostics?.sessionDirectoryStatus === 'missing') {
+			diagnosticDetail = 'sessionDirectoryMissing';
+		} else if (diagnostics?.markerStatus === 'missing') {
+			diagnosticDetail = diagnostics.eventsFileStatus === 'file' ? 'markerMissingWithEvents' : diagnostics.eventsFileStatus === 'missing' ? 'markerMissingWithoutEvents' : 'markerMissing';
+		} else if (diagnostics?.markerStatus === 'readError') {
+			diagnosticDetail = 'markerReadError';
+		} else if (diagnostics?.markerStatus === 'invalid') {
+			diagnosticDetail = 'markerInvalid';
+		} else if (diagnostics?.markerOrigin === 'unrecognized') {
+			diagnosticDetail = 'originUnrecognized';
+		} else if (diagnostics?.markerOrigin === 'invalidType') {
+			diagnosticDetail = 'originInvalidType';
+		} else if (diagnostics?.markerOrigin === 'missing' && diagnostics.provenance === 'unknown') {
+			diagnosticDetail = 'originMissing';
+		} else if (diagnostics?.provenance === 'external') {
+			diagnosticDetail = 'externalOrigin';
+		} else if (diagnostics?.provenance === 'legacy') {
+			diagnosticDetail = 'legacyMarker';
+		} else if (extra.adoption?.eligible) {
+			diagnosticDetail = 'legacyEligible';
+		} else {
+			diagnosticDetail = stage === 'adoption' && outcome === 'failed' ? 'adoptionThrew' : 'providerEvidenceUnavailable';
 		}
 		const data: AgentHostLegacyMigrationEvent = {
 			provider,
@@ -8637,11 +8708,20 @@ export class AgentService extends Disposable implements IAgentService {
 			diagnosticCategory,
 			advertisedAsAdoptable: extra.advertisedAsAdoptable,
 			eligible: extra.adoption?.eligible,
-			markerStatus: diagnostics?.markerStatus,
-			provenance: diagnostics?.provenance,
+			markerStatus: diagnostics?.markerStatus ?? (extra.reason === 'settingDisabled' ? 'notEvaluated' : 'notReported'),
+			provenance: diagnostics?.provenance ?? (extra.reason === 'settingDisabled' ? 'notEvaluated' : extra.adoption?.eligible ? 'legacy' : 'unknown'),
+			diagnosticDetail,
+			markerOrigin: diagnostics?.markerOrigin ?? 'notReported',
+			sessionIdStatus: diagnostics?.sessionIdStatus ?? 'notReported',
+			copilotHomeSource: diagnostics?.copilotHomeSource ?? 'notReported',
+			sessionStateRootStatus: diagnostics?.sessionStateRootStatus ?? 'notReported',
+			sessionDirectoryStatus: diagnostics?.sessionDirectoryStatus ?? 'notReported',
+			eventsFileStatus: diagnostics?.eventsFileStatus ?? 'notReported',
+			workspaceMetadataStatus: diagnostics?.workspaceMetadataStatus ?? 'notReported',
+			lastKnownClient: diagnostics?.lastKnownClient ?? 'notReported',
 			markerFromCache: diagnostics?.markerFromCache,
 			eligibilityErrorCode: diagnostics?.errorCode,
-			eligibilityErrorMessage: getTelemetryMigrationErrorMessage(diagnostics?.errorMessage, session),
+			eligibilityErrorMessage: getTelemetryMigrationErrorMessage(diagnostics?.errorMessage === undefined ? undefined : { message: diagnostics.errorMessage, code: diagnostics.errorCode }, session),
 			success: outcome === 'migrated' && (extra.turnCount ?? 0) > 0,
 			turnCount: extra.turnCount ?? 0,
 			durationMs: Date.now() - startTime,
@@ -9371,7 +9451,7 @@ export class AgentService extends Disposable implements IAgentService {
 			this._resolveCreatedSessionConfig(agent, {
 				workingDirectories: meta.workingDirectories,
 				config: restoredConfigValues,
-			}),
+			}, true),
 			agent.getChatCustomizations(defaultChatUri, chatContext, this._hostCustomizations(session)).catch(err => {
 				this._logService.error('[AgentService] restoreSession: failed to resolve chat customizations', err);
 				return undefined;

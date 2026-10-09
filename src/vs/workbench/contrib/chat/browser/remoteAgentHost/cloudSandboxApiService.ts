@@ -18,6 +18,7 @@ import {
 	CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID,
 	CloudSandboxAuthenticationRequiredError,
 	CloudSandboxConnectResult,
+	CloudSandboxNetworkError,
 	CloudSandboxRequestError,
 	ICloudSandboxClientToken,
 	ICloudSandboxConnectionRequest,
@@ -75,8 +76,12 @@ interface ITaskDetail extends ITaskSummary {
 	}[];
 }
 
+interface IScannedTask extends ITaskSummary {
+	readonly hasRepository: boolean;
+}
+
 interface ICachedSandboxTask {
-	readonly summary: ITaskSummary;
+	readonly summary: IScannedTask;
 	readonly session?: ICloudSandboxDiscoveredSession;
 	readonly repositoryId?: number;
 	readonly needsRefresh?: boolean;
@@ -129,8 +134,11 @@ function taskSessionStatus(state: string | undefined, logService: ILogService): 
  */
 const GITHUB_DOT_COM_API_BASE_URI = deriveGitHubEndpoints(undefined).apiBaseUri;
 
-/** Per-request timeout (ms) for credential and environment calls. */
+/** Default per-request timeout (ms) for environment reads and task updates. */
 const REQUEST_TIMEOUT_MS = 10_000;
+
+/** Connection requests can wait for an environment to wake before returning. */
+const CONNECTION_REQUEST_TIMEOUT_MS = 30_000;
 
 /** Per-request timeout (ms) for discovery, whose task list is far larger than a credential mint. */
 const DISCOVERY_TIMEOUT_MS = 30_000;
@@ -353,7 +361,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	async listSessions(token: CancellationToken, options?: { readonly incremental?: boolean }): Promise<ICloudSandboxDiscoveryResult> {
 		const generation = this._discoveryGeneration;
 		const since = options?.incremental ? this._discoverySince : undefined;
-		const tasks = new Map<string, ITaskSummary>();
+		const tasks = new Map<string, IScannedTask>();
 		const cache = new Map(this._discoveredTasks);
 		let truncated = false;
 		let checkpoint: number | undefined;
@@ -388,7 +396,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 						checkpoint = Math.min(checkpoint ?? serverTime, serverTime);
 					}
 					for (const task of response.tasks) {
-						tasks.set(task.id, task);
+						tasks.set(task.id, { ...task, hasRepository: withRepository });
 						const updatedAt = task.updated_at ? Date.parse(task.updated_at) : Number.NaN;
 						if (!Number.isNaN(updatedAt)) {
 							latestUpdate = Math.max(latestUpdate ?? updatedAt, updatedAt);
@@ -424,7 +432,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		}
 		const discoveryTime = checkpoint ?? Date.now();
 		const removedTaskIds: string[] = [];
-		const sandboxTasks: ITaskSummary[] = [];
+		const sandboxTasks: IScannedTask[] = [];
 		for (const task of tasks.values()) {
 			if (isCloudSandboxTask(task)) {
 				sandboxTasks.push(task);
@@ -445,7 +453,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 						throw new CancellationError();
 					}
 					let cached = cache.get(task.id);
-					if (cached?.needsRefresh || !cached?.session || !task.updated_at || task.updated_at !== cached.summary.updated_at || task.archived_at !== cached.summary.archived_at) {
+					if (cached?.needsRefresh || !cached?.session || !task.updated_at || task.updated_at !== cached.summary.updated_at || task.archived_at !== cached.summary.archived_at || task.hasRepository !== cached.summary.hasRepository) {
 						const context = await this._sendTask(`${this._tasksBaseUrl()}/tasks/${encodeURIComponent(task.id)}`, 'get', token);
 						const full = await this._readJson<ITaskDetail>(context);
 						if (!full) {
@@ -466,6 +474,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 								taskId: task.id,
 								...(eventType ? { eventType } : {}),
 								name: full.name ?? task.name ?? `Sandbox ${task.id}`,
+								hasRepository: task.hasRepository || !!(full.repository ?? task.repository),
 								updatedAt: full.updated_at ?? task.updated_at,
 								...(status !== undefined ? { status } : {}),
 								...(full.archived_at ? { isArchived: true } : {}),
@@ -779,7 +788,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		const url = `${GITHUB_DOT_COM_COPILOT_API_BASE_URI}/agents/environments/${encodeURIComponent(environmentId)}${path}${toQuery(searchParams)}`;
 		return this._request(url, `mc.environmentClient.${action}`, action === 'get' ? 'getEnvironment' : action, {
 			'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,
-		}, token, REQUEST_TIMEOUT_MS, undefined, undefined, onRequest);
+		}, token, action === 'get' ? REQUEST_TIMEOUT_MS : CONNECTION_REQUEST_TIMEOUT_MS, undefined, undefined, onRequest);
 	}
 
 	/** Issue a task API request, throwing on a non-success status. */
@@ -850,7 +859,12 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 				...(body === undefined ? undefined : { data: JSON.stringify(typeof body === 'function' ? body(session) : body) }),
 				timeout: timeoutMs,
 				callSite,
-			}, token);
+			}, token).catch((error: unknown) => {
+				if ((action === 'connect' || action === 'reconnect') && !isCancellationError(error) && !token.isCancellationRequested) {
+					throw new CloudSandboxNetworkError(toErrorMessage(error), { cause: error });
+				}
+				throw error;
+			});
 			this._telemetry.reportRequest(action, requestOutcomeForStatus(context.res.statusCode));
 			// Latency against its budget: `/connect` blocks on a compute resume, so how close a reply
 			// came to being cut off separates "Mission Control is silent" from "we stopped listening".

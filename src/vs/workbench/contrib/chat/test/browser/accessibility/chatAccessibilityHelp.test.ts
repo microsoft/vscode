@@ -81,6 +81,16 @@ suite('Chat Accessibility Help', () => {
 		}, { standalone: true, harnesses: true, position: true, placeholder: true, overlapping: true, reducedMotion: true, reveal: true, dropdown: true, expand: true, progress: true, imageModel: true, imageAndDropdown: true, failure: true, restoredState: true, cancelledState: true, previews: true, loading: true, loadFailure: true, keyboard: true, save: true });
 	});
 
+	test('documents generated image artifacts and conversation carousel navigation', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
+		assert.deepStrictEqual({
+			artifacts: help.includes('Generated images also appear in artifacts'),
+			conversation: help.includes('generated images and user-attached images from the same conversation'),
+			keyboard: help.includes('Use the Left and Right Arrow keys to move between images'),
+			immediateResize: help.includes('the preview begins resizing immediately, followed by the glyph-to-image reveal'),
+		}, { artifacts: true, conversation: true, keyboard: true, immediateResize: true });
+	});
+
 	for (const type of ['panelChat', 'editsView', 'agentView'] as const) {
 		test(`documents skipping MCP startup only on supported surfaces (${type})`, () => {
 			const help = getAccessibilityHelpText(type, new MockKeybindingService(), false);

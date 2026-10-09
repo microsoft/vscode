@@ -180,6 +180,7 @@ import { SessionTypePickerActionItem } from './sessionTargetPickerActionItem.js'
 import { WorkspacePickerActionItem } from './workspacePickerActionItem.js';
 import { ChatContextUsageWidget } from '../../widgetHosts/viewPane/chatContextUsageWidget.js';
 import { Target } from '../../../common/promptSyntax/promptTypes.js';
+import { matchesSessionType } from '../../../common/promptSyntax/service/promptsService.js';
 import { ConfigureToolsAction } from '../../actions/chatToolActions.js';
 import { InlineCompletionsController } from '../../../../../../editor/contrib/inlineCompletions/browser/controller/inlineCompletionsController.js';
 import { PlaceholderTextContribution } from '../../../../../../editor/contrib/placeholderText/browser/placeholderTextContribution.js';
@@ -2144,13 +2145,17 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			sessionType = getChatSessionType(sessionResource);
 		}
 
-		const customAgentTarget = this.chatSessionsService.getCustomAgentTargetForSessionType(sessionType);
-		if (!customAgentTarget || customAgentTarget === Target.Undefined) {
+		const currentMode = this._currentModeObservable.get();
+		if (currentMode.id === ChatMode.Agent.id) {
+			return;
+		}
+		if (!matchesSessionType(currentMode.sessionTypes, sessionType)) {
+			this.setChatMode(ChatModeKind.Agent, false);
 			return;
 		}
 
-		const currentMode = this._currentModeObservable.get();
-		if (currentMode.id === ChatMode.Agent.id) {
+		const customAgentTarget = this.chatSessionsService.getCustomAgentTargetForSessionType(sessionType);
+		if (!customAgentTarget || customAgentTarget === Target.Undefined) {
 			return;
 		}
 		if (currentMode.isBuiltin) {
