@@ -294,7 +294,7 @@ with the marker when the upstream fix is adopted.
 
 The native inherited-identity redaction scenario runs this way by default.
 Its expected-failure marker remains accountable in `KNOWN_ISSUES.md`; the
-managed-telemetry no-restart scenario passes normally with runtime `1.0.94-5`.
+managed-telemetry no-restart scenario passes normally with runtime `1.0.95-0`.
 Do not replace an expected-failure marker with a permanent negative assertion.
 
 If a recognized failure prevents later model turns, pass
