@@ -264,6 +264,7 @@ function createConfigurationService(enabled = true): TestConfigurationService {
 }
 
 interface IListProviderOptions {
+	readonly enabled?: boolean;
 	readonly id: string;
 	readonly label?: string;
 	readonly state?: AutomationCatalogueState;
@@ -285,6 +286,7 @@ function createListAutomationsTool(
 ): ListAutomationsTool {
 	const providers = providerOptions.map(options => {
 		const store = upcastPartial<ISessionsProviderAutomations>({
+			enabled: constObservable(options.enabled ?? true),
 			catalogueState: constObservable(options.state ?? 'ready'),
 			canCreateAutomation: constObservable(options.canCreateAutomation ?? true),
 			unavailableReason: constObservable(options.unavailableReason),
@@ -481,6 +483,14 @@ suite('AutomationTools', () => {
 			warnsAboutFalseEmpty: true,
 			describesCapabilities: true,
 		});
+
+	});
+
+	test('listAutomations excludes disabled providers', async () => {
+		const service = new FakeAutomationService();
+		const tool = createListAutomationsTool(service, createConfigurationService(), [{ id: 'cloud', enabled: false }]);
+		const result = await invoke(tool, {});
+		assert.deepStrictEqual(JSON.parse(getText(result)), []);
 	});
 
 	test('listAutomations keeps ready provider results independent from an unavailable provider', async () => {
@@ -631,6 +641,18 @@ suite('AutomationTools', () => {
 				},
 			},
 		});
+	});
+
+	test('runAutomation reports acceptance without a fabricated run or session', async () => {
+		const automation = createAutomation();
+		const service = new FakeAutomationService([automation]);
+		const runner = new class extends mock<IAutomationRunner>() {
+			override runOnce(): IAutomationRunOperation {
+				return { whenDispatched: Promise.resolve({ kind: 'accepted' }), whenCompleted: Promise.resolve() };
+			}
+		}();
+		const result = await invoke(new RunAutomationTool(service, runner, createConfigurationService()), { automationId: automation.id }, SESSION_RESOURCE);
+		assert.deepStrictEqual(JSON.parse(getText(result)), { status: 'accepted', automation: { id: automation.id, name: automation.name } });
 	});
 
 	test('runAutomation reports the active run when the runner declines to claim it', async () => {
@@ -878,6 +900,81 @@ suite('AutomationTools', () => {
 				expectedId: existing.id,
 			},
 		});
+	});
+
+	test('configureAutomation schema offers local weekdays schedules', () => {
+		const tool = createConfigureAutomationTool(new FakeAutomationService(), new FakeSessionsManagementService(undefined), createConfigurationService());
+		const schedule = tool.getToolData().inputSchema?.properties?.schedule;
+		assert.deepStrictEqual({
+			intervals: schedule?.properties?.interval.enum,
+			localWeekdays: schedule?.properties?.interval.description?.includes('Monday-Friday at the same local time'),
+			excludesCloud: schedule?.properties?.interval.description?.includes('not supported by Cloud'),
+			hour: schedule?.properties?.scheduleHour.description?.includes('weekdays'),
+			minute: schedule?.properties?.scheduleMinute.description?.includes('weekdays'),
+		}, {
+			intervals: ['manual', 'hourly', 'daily', 'weekdays', 'weekly'],
+			localWeekdays: true,
+			excludesCloud: true,
+			hour: true,
+			minute: true,
+		});
+	});
+
+	test('configureAutomation creates weekdays with a local time', async () => {
+		const automationService = new FakeAutomationService();
+		const tool = createConfigureAutomationTool(automationService, new FakeSessionsManagementService(createSession({ workspace: FOLDER })), createConfigurationService());
+		const result = await invoke(tool, {
+			name: 'Weekday review',
+			prompt: 'Review changes',
+			schedule: { interval: 'weekdays', scheduleHour: 8, scheduleMinute: 17 },
+		});
+		assert.deepStrictEqual({
+			status: JSON.parse(getText(result)).status,
+			schedules: automationService.created.map(automation => automation.schedule),
+		}, {
+			status: 'created',
+			schedules: [{ interval: 'weekdays', scheduleHour: 8, scheduleMinute: 17, scheduleDay: 1 }],
+		});
+	});
+
+	test('configureAutomation preserves local time when changing to weekdays and on partial weekday updates', async () => {
+		const existing = createAutomation({ schedule: { interval: 'weekly', scheduleHour: 16, scheduleMinute: 23, scheduleDay: 4 } });
+		const weekday = createAutomation({ id: 'weekday-review', schedule: { ...existing.schedule, interval: 'weekdays' } });
+		const automationService = new FakeAutomationService([existing, weekday]);
+		const tool = createConfigureAutomationTool(automationService, new FakeSessionsManagementService(undefined), createConfigurationService());
+		const results = [
+			await invoke(tool, { automationId: existing.id, schedule: { interval: 'weekdays' } }),
+			await invoke(tool, { automationId: weekday.id, schedule: { scheduleMinute: 45 } }),
+			await invoke(tool, { automationId: weekday.id, name: 'Renamed' }),
+		];
+		assert.deepStrictEqual({
+			statuses: results.map(result => JSON.parse(getText(result)).status),
+			updates: automationService.updated,
+		}, {
+			statuses: ['updated', 'updated', 'updated'],
+			updates: [
+				{ id: existing.id, patch: { schedule: { ...existing.schedule, interval: 'weekdays' } } },
+				{ id: weekday.id, patch: { schedule: { ...weekday.schedule, scheduleMinute: 45 } } },
+				{ id: weekday.id, patch: { name: 'Renamed' } },
+			],
+		});
+	});
+
+	test('configureAutomation rejects invalid weekday schedule inputs before writing', async () => {
+		const existing = createAutomation({ schedule: { interval: 'weekdays', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 0 } });
+		const automationService = new FakeAutomationService([existing]);
+		const tool = createConfigureAutomationTool(automationService, new FakeSessionsManagementService(createSession({ workspace: FOLDER })), createConfigurationService());
+		for (const fields of [{ scheduleHour: 24 }, { scheduleMinute: -1 }, { scheduleMinute: 1.5 }, { scheduleDay: 7 }, { timeZone: 'UTC' }, { interval: 'weekday' }]) {
+			const schedule = { interval: 'weekdays', ...fields };
+			for (const parameters of [
+				{ name: 'Review', prompt: 'Review changes', schedule },
+				{ automationId: existing.id, schedule },
+			]) {
+				const result = await invoke(tool, parameters);
+				assert.strictEqual(typeof result.toolResultError, 'string');
+			}
+		}
+		assert.deepStrictEqual({ created: automationService.created, updated: automationService.updated }, { created: [], updated: [] });
 	});
 
 	test('configureAutomation creates from the invoking chat target and returns clickable result data', async () => {

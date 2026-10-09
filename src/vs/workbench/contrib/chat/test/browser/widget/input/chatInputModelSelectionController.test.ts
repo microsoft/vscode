@@ -76,6 +76,8 @@ interface IRuntimeState {
 	readonly intents?: Map<string | undefined, IIntendedModelSelection | undefined>;
 	/** Set to report the session type as still loading until a model targets it. */
 	readonly awaitsSessionModels?: boolean;
+	/** Models to report as gone for good rather than not yet published. */
+	readonly goneModelIds?: ReadonlySet<string>;
 }
 
 function createRuntime(
@@ -91,6 +93,7 @@ function createRuntime(
 		getAllModels: () => state.models,
 		getConfiguredModelValue: () => state.configuredModel,
 		...(state.awaitsSessionModels ? { isAwaitingSessionModels: (type: string) => !hasModelsTargetingSession(state.models, type) } : {}),
+		isModelAbsenceConclusive: modelId => !!state.goneModelIds?.has(modelId),
 		isModelSupportedHere: model => isModelSupportedForMode(model, ChatModeKind.Ask) && isModelSupportedForInlineChat(model, ChatAgentLocation.Chat),
 		getDeclaredDefaultModel: models => models.find(model => model.metadata.isDefaultForLocation[ChatAgentLocation.Chat]),
 		subscribeToModelChanges: listener => modelChanges.event(listener),
@@ -346,6 +349,21 @@ suite('ChatInputModelSelectionController', () => {
 			applied: [first.identifier, remembered.identifier],
 			current: remembered.identifier,
 		});
+	});
+
+	test('a remembered model gone for good falls back to the configured default, and is reclaimed if it returns', () => {
+		const modelChanges = disposables.add(new Emitter<string>());
+		const configured = model('test/configured');
+		const gone = model('test/gone');
+		const state: IRuntimeState = { models: [model('test/first'), configured], sessionType: 'test', configuredModel: configured.metadata.id, isEmpty: false, goneModelIds: new Set([gone.identifier]) };
+		const applied: string[] = [];
+		const controller = disposables.add(new ChatInputModelSelectionController(createRuntime(state, modelChanges, applied)));
+
+		controller.initialize(gone.identifier);
+		state.models = [...state.models, gone];
+		modelChanges.fire('test');
+
+		assert.deepStrictEqual(applied, [configured.identifier, gone.identifier]);
 	});
 
 	test('explicit selection cancels an eventual remembered-model restore', () => {

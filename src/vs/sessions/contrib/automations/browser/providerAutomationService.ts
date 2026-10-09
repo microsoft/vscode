@@ -5,7 +5,7 @@
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { derived, IObservable, observableSignalFromEvent } from '../../../../base/common/observable.js';
+import { derived, IObservable, IReader, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { AutomationTarget, IAutomationDescriptor, IAutomationRun } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationCatalogueState, AutomationMutationGuard, AutomationUnavailableError, assertAutomationTargetAuthority, combineAutomationCatalogueStates, IAutomationCustomizationChoice, IAutomationProviderDescriptor, IAutomationRunRequestResult, IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, serializeAutomationEditableState, IUpdateAutomationOptions } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
@@ -25,6 +25,10 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 
 	readonly automations: IObservable<readonly IAutomationDescriptor[]>;
 	readonly runs: IObservable<readonly IAutomationRun[]>;
+	readonly historyState = derived(this, reader => {
+		this.providersChanged.read(reader);
+		return combineAutomationCatalogueStates(this.getStores(reader).map(store => store.historyState?.read(reader) ?? 'ready'));
+	});
 	/** Aggregate completeness, with errors taking precedence over loading, unavailability, and readiness. */
 	readonly catalogueState: IObservable<AutomationCatalogueState>;
 	readonly unavailableProviders: IObservable<readonly IAutomationProviderDescriptor[]>;
@@ -40,7 +44,7 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 		this.providersChanged = observableSignalFromEvent(this, sessionsProvidersService.onDidChangeProviders);
 		this.catalogueState = derived(this, reader => {
 			this.providersChanged.read(reader);
-			const states = this.getStores().map(store => store.catalogueState.read(reader));
+			const states = this.getStores(reader).map(store => store.catalogueState.read(reader));
 			if (!initialProvidersSettled.read(reader)) {
 				states.push('loading');
 			}
@@ -49,7 +53,7 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 		this.unavailableProviders = derived(this, reader => {
 			this.providersChanged.read(reader);
 			return this.sessionsProvidersService.getProviders()
-				.filter(provider => provider.automations?.catalogueState.read(reader) === 'unavailable')
+				.filter(provider => provider.automations?.enabled?.read(reader) !== false && provider.automations?.catalogueState.read(reader) === 'unavailable')
 				.map(provider => {
 					const reason = provider.automations?.unavailableReason?.read(reader);
 					const reasonCode = provider.automations?.unavailableReasonCode?.read(reader);
@@ -64,17 +68,17 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 		this.availableProviders = derived(this, reader => {
 			this.providersChanged.read(reader);
 			return this.sessionsProvidersService.getProviders()
-				.filter(provider => provider.automations?.canCreateAutomation.read(reader))
+				.filter(provider => provider.automations?.enabled?.read(reader) !== false && provider.automations?.canCreateAutomation.read(reader))
 				.map(provider => ({ id: provider.id, label: provider.label }));
 		});
 		this.automations = derived(this, reader => {
 			this.providersChanged.read(reader);
-			return this.getStores().flatMap(store => [...store.automations.read(reader)])
+			return this.getStores(reader).flatMap(store => [...store.automations.read(reader)])
 				.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 		});
 		this.runs = derived(this, reader => {
 			this.providersChanged.read(reader);
-			return this.getStores().flatMap(store => [...store.runs.read(reader)])
+			return this.getStores(reader).flatMap(store => [...store.runs.read(reader)])
 				.sort((a, b) => b.startedAt.localeCompare(a.startedAt));
 		});
 	}
@@ -98,14 +102,24 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 	}
 
 	canCreateAutomation(providerId: string | undefined): boolean {
-		return !!providerId && this.sessionsProvidersService.getProvider(providerId)?.automations?.canCreateAutomation.get() === true;
+		const store = providerId ? this.sessionsProvidersService.getProvider(providerId)?.automations : undefined;
+		return store !== undefined && store.enabled?.get() !== false && store.canCreateAutomation.get();
+	}
+
+	async refresh(): Promise<void> {
+		await Promise.all(this.getStores().map(store => store.refresh?.()));
+	}
+
+	getProviderConfiguration(providerId: string | undefined) {
+		const store = providerId ? this.sessionsProvidersService.getProvider(providerId)?.automations : undefined;
+		return store?.enabled?.get() === false ? undefined : store?.configuration;
 	}
 
 	/** Routes creation only to the explicitly selected provider, rejecting unavailable destinations. */
 	createAutomation(options: ICreateAutomationOptions, mutationGuard?: AutomationMutationGuard): Promise<IAutomationDescriptor> {
 		const providerId = options.target.providerId;
 		const store = providerId ? this.sessionsProvidersService.getProvider(providerId)?.automations : undefined;
-		if (!store?.canCreateAutomation.get()) {
+		if (!store || store.enabled?.get() === false || !store.canCreateAutomation.get()) {
 			throw new AutomationUnavailableError(localize('automationCreateUnavailable', "Connect to an Agent Host that supports automations before creating one."));
 		}
 		return store.createAutomation(options, mutationGuard);
@@ -153,8 +167,23 @@ export class ProviderAutomationService extends Disposable implements IAutomation
 		return this.findAutomationStore(automationId)?.canDeleteAutomation(automationId) === true;
 	}
 
-	private getStores(): ISessionsProviderAutomations[] {
-		return this.sessionsProvidersService.getProviders().flatMap(provider => provider.automations ? [provider.automations] : []);
+	canStopRun(run: IAutomationRun): boolean {
+		return this.findAutomationStore(run.automationId)?.canStopRun?.(run) === true;
+	}
+
+	async stopRun(run: IAutomationRun): Promise<void> {
+		const store = this.requireAutomationStore(run.automationId);
+		if (!store.stopRun || !store.canStopRun?.(run)) {
+			throw new AutomationUnavailableError(localize('automationStopUnavailable', "This automation run cannot be stopped from VS Code."));
+		}
+		await store.stopRun(run);
+	}
+
+	private getStores(reader?: IReader): ISessionsProviderAutomations[] {
+		return this.sessionsProvidersService.getProviders().flatMap(provider => {
+			const store = provider.automations;
+			return store && store.enabled?.read(reader) !== false ? [store] : [];
+		});
 	}
 
 	/** Resolves an already provider-scoped identifier; a missing owner is never replaced by another host. */

@@ -158,8 +158,8 @@ export class AgentHostSnapshotController extends Disposable implements IChatEdit
 				kind: edit.kind,
 				resource,
 				originalResource: edit.originalResource ? toAgentHostUri(edit.originalResource, authority) : undefined,
-				beforeContentUri: edit.beforeContentUri ? toAgentHostContentUri(edit.beforeContentUri, authority) : undefined,
-				afterContentUri: edit.afterContentUri ? toAgentHostContentUri(edit.afterContentUri, authority) : undefined,
+				beforeContentUri: edit.beforeContentUri ? toAgentHostContentUri(edit.beforeContentUri, authority, edit.originalResource ?? edit.resource) : undefined,
+				afterContentUri: edit.afterContentUri ? toAgentHostContentUri(edit.afterContentUri, authority, edit.resource) : undefined,
 				undoStopId: edit.undoStopId,
 				diff: edit.diff,
 			};

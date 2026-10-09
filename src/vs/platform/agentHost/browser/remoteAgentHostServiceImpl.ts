@@ -49,7 +49,7 @@ import { AgentHostTransportFailureReason, NonReconnectableTransportError } from 
 import { AgentHostProtocolClient, InitialAuthenticationError } from './agentHostProtocolClient.js';
 import { WebSocketClientTransport } from './webSocketClientTransport.js';
 import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME, agentHostAuthority, agentHostLabelFormatter, normalizeRemoteAgentHostAddress } from '../common/agentHostUri.js';
-import { PROTOCOL_VERSION } from '../common/state/protocol/version/registry.js';
+import { getAgentHostSupportedProtocolVersions } from '../common/agentHostProtocolCompatibility.js';
 import { type IVscodeUpgradeResult } from '../common/state/protocolUpgrade.js';
 import { agentsWindowAgentHostClientInfo, editorWindowAgentHostClientInfo } from '../common/agentHostClientInfo.js';
 import { ConnectionDiagnosticBuffer, ConnectionDiagnosticOperation, type ConnectionDiagnosticObserver, type IRemoteConnectionDiagnosticEvent } from '../common/connectionDiagnostics.js';
@@ -508,6 +508,10 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		if (existingConnection) {
 			return existingConnection;
 		}
+		const entry = this._entries.get(normalizedAddress);
+		if (entry && RemoteAgentHostConnectionStatus.isIncompatible(entry.status) && !this._pendingConnects.has(normalizedAddress)) {
+			throw new Error(entry.status.message);
+		}
 		const reconnectFailure = this._failedReconnects.get(normalizedAddress);
 		if (reconnectFailure) {
 			throw reconnectFailure;
@@ -529,6 +533,9 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			}
 			// The dial finished without producing a usable connection: surface
 			// the reason it recorded rather than waiting out the timeout.
+			return wait.p;
+		}
+		if (entry?.client && RemoteAgentHostConnectionStatus.isReconnecting(entry.status)) {
 			return wait.p;
 		}
 
@@ -900,13 +907,18 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 				case 'connecting':
 				case 'closed':
 					break;
-				case 'incompatible':
+				case 'incompatible': {
+					const wasReconnecting = RemoteAgentHostConnectionStatus.isReconnecting(entry.status);
 					observer?.('failed');
 					entry.connected = false;
-					entry.status = RemoteAgentHostConnectionStatus.incompatible('Authentication failed during connection initialization.', [PROTOCOL_VERSION]);
+					entry.status = RemoteAgentHostConnectionStatus.incompatible('Authentication failed during connection initialization.', getAgentHostSupportedProtocolVersions());
 					this._reconnectAttempts.delete(address);
+					if (wasReconnecting) {
+						this._rejectPendingConnectionWait(address, new Error('Authentication failed during connection initialization.'));
+					}
 					this._onDidChangeConnections.fire();
 					break;
+				}
 			}
 		}));
 
@@ -944,8 +956,8 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			// either side, so leave recovery to the manual `Reconnect`
 			// action in the picker.
 			const incompatible = err instanceof InitialAuthenticationError
-				? RemoteAgentHostConnectionStatus.incompatible(err.message, [PROTOCOL_VERSION])
-				: RemoteAgentHostConnectionStatus.fromConnectError(err, [PROTOCOL_VERSION]);
+				? RemoteAgentHostConnectionStatus.incompatible(err.message, getAgentHostSupportedProtocolVersions())
+				: RemoteAgentHostConnectionStatus.fromConnectError(err, getAgentHostSupportedProtocolVersions());
 			if (incompatible) {
 				observer?.('failed');
 				this._logService.warn(`[RemoteAgentHost] Incompatible with ${address}: ${incompatible.kind === 'incompatible' ? incompatible.message : ''}`);

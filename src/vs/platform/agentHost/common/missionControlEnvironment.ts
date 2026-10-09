@@ -5,11 +5,31 @@
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { IObservable } from '../../../base/common/observable.js';
+import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { IMissionControlEnvironment } from './cloudSandboxAgentHost.js';
 
+export const AgentHostRemoteConnectionsSettingId = 'chat.agentHost.remoteConnections';
+/** Logical identity for host-side Mission Control wire logs, including failed handshakes. */
+export const MISSION_CONTROL_AHP_LOG_ID = 'mission-control';
+export type AgentHostRemoteConnectionsBackend = 'devTunnel' | 'githubEnvironment' | 'missionControl';
+
+export function isGitHubEnvironmentBackend(backend: AgentHostRemoteConnectionsBackend): boolean {
+	return backend === 'githubEnvironment' || backend === 'missionControl';
+}
+
+export const IMissionControlSharingService = createDecorator<IMissionControlSharingService>('missionControlSharingService');
+
+/** Owns the local environment's explicit Mission Control sharing opt-in. */
+export interface IMissionControlSharingService {
+	readonly _serviceBrand: undefined;
+	readonly state: IObservable<'disabled' | 'connecting' | 'enabled'>;
+	setEnabled(enabled: boolean): Promise<void>;
+	/** Supplies the local folder catalogue from the window's workspace-selection surface. */
+	setProjectFolders(folders: readonly URI[]): void;
+}
+
 export interface IMissionControlHost extends IMissionControlEnvironment {
-	readonly hidden?: boolean;
 	readonly displayName?: string;
 }
 
@@ -25,7 +45,5 @@ export interface IMissionControlEnvironmentService {
 	refresh(token: CancellationToken): Promise<void>;
 	connect(id: string, token: CancellationToken): Promise<void>;
 	disconnect(id: string): Promise<void>;
-	hide(id: string): Promise<void>;
-	restore(id: string): void;
 	setDisplayName(id: string, name: string | undefined): void;
 }

@@ -46,7 +46,7 @@ import {
 	type Turn
 } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
-import { AgentHostResponseFileChangesProvider } from '../../../browser/agentSessions/agentHost/agentHostResponseFileChanges.js';
+import { agentHostChangesetFileToEntryDiff, AgentHostResponseFileChangesProvider } from '../../../browser/agentSessions/agentHost/agentHostResponseFileChanges.js';
 import { AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES, IChatResponseFileEdit } from '../../../browser/chatResponseFileChangesService.js';
 
 class FakeAgentConnection extends mock<IAgentConnection>() {
@@ -154,6 +154,30 @@ suite('AgentHostResponseFileChangesProvider', () => {
 		ds.add(autorun(r => { latest = obs.read(r); runs++; }));
 		return { latest: () => latest, runs: () => runs };
 	}
+
+	test('response diffs preserve renamed file paths independently of content addresses', () => {
+		const diff = agentHostChangesetFileToEntryDiff({
+			id: 'renamed-file',
+			edit: {
+				before: { uri: 'file:///repo/old.ts', content: { uri: 'opaque-content:/a1' } },
+				after: { uri: 'file:///repo/new.ts', content: { uri: 'opaque-content:/b2' } },
+			},
+		}, authority)!;
+
+		assert.deepStrictEqual({
+			file: diff.modifiedURI.path,
+			before: diff.originalURI.path,
+			after: diff.modifiedSnapshotURI?.path,
+			beforeContent: fromAgentHostUri(diff.originalURI).toString(),
+			afterContent: diff.modifiedSnapshotURI && fromAgentHostUri(diff.modifiedSnapshotURI).toString(),
+		}, {
+			file: '/repo/new.ts',
+			before: '/repo/old.ts',
+			after: '/repo/new.ts',
+			beforeContent: 'opaque-content:/a1',
+			afterContent: 'opaque-content:/b2',
+		});
+	});
 
 	for (const owner of ['session', 'chat'] as const) {
 		test(`uses the advertised ${owner}-owned turn URI for an opaque chat`, () => {
@@ -497,8 +521,8 @@ suite('AgentHostResponseFileChangesProvider', () => {
 		}, {
 			originalScheme: 'vscode-agent-host',
 			originalAuthority: 'local',
-			originalSource: 'git-blob://a-before/',
-			modifiedSource: 'git-blob://a-after/',
+			originalSource: 'git-blob://a-before',
+			modifiedSource: 'git-blob://a-after',
 		});
 	});
 

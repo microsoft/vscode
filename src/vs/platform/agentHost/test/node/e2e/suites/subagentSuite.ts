@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'fs';
+import { mkdirSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { retry } from '../../../../../../base/common/async.js';
 import { join } from '../../../../../../base/common/path.js';
@@ -33,6 +33,7 @@ import { assertRecordedAhpSnapshot } from '../harness/ahpSnapshot.js';
 import { summarizeAnthropicRequest } from '../harness/capiWireCodec.js';
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
 
 export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 	const { config, createdSessions, tempDirs } = context;
@@ -42,7 +43,7 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 		: '';
 
 	function createCustomAgentWorkspace(prefix: string, allTools = false): string {
-		const workspace = mkdtempSync(join(tmpdir(), prefix));
+		const workspace = createTestDirectory(join(tmpdir(), prefix));
 		const agentsDirectory = join(workspace, '.github', 'agents');
 		mkdirSync(agentsDirectory, { recursive: true });
 		writeFileSync(join(agentsDirectory, 'display-name-child.agent.md'), [
@@ -306,7 +307,7 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 	(copilotCustomAgentTest ? test : test.skip)('retained background subagent completes repeated follow-up turns', async function () {
 		this.timeout(300_000);
 
-		const workspace = mkdtempSync(join(tmpdir(), 'ahp-retained-subagent-'));
+		const workspace = createTestDirectory(join(tmpdir(), 'ahp-retained-subagent-'));
 		tempDirs.push(workspace);
 		const sessionUri = await createRealSession(context.client, config, 'retained-subagent-followups', createdSessions, URI.file(workspace));
 		const parentChat = buildDefaultChatUri(sessionUri);
@@ -422,7 +423,7 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 	(config.supportsSubagents ? test : test.skip)('subagent tool calls are routed to the subagent session, not flat in the parent', async function () {
 		this.timeout(180_000);
 
-		const tempDir = mkdtempSync(`${tmpdir()}/ahp-subagent-test-`);
+		const tempDir = createTestDirectory(`${tmpdir()}/ahp-subagent-test-`);
 		tempDirs.push(tempDir);
 		const fileContent = 'alpha';
 		writeFileSync(`${tempDir}/file-a.txt`, fileContent);
@@ -538,7 +539,7 @@ export function defineSubagentTests(context: IAgentHostE2ETestContext): void {
 	(config.supportsSubagents ? test : test.skip)('reopening a session keeps sub-agent messages out of the parent transcript (replay path)', async function () {
 		this.timeout(180_000);
 
-		const tempDir = mkdtempSync(`${tmpdir()}/ahp-subagent-replay-`);
+		const tempDir = createTestDirectory(`${tmpdir()}/ahp-subagent-replay-`);
 		tempDirs.push(tempDir);
 		const fileContent = 'alpha';
 		writeFileSync(`${tempDir}/file-a.txt`, fileContent);

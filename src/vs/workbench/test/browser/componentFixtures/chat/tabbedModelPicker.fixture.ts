@@ -34,7 +34,6 @@ import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, IL
 import { ChatConfiguration } from '../../../../contrib/chat/common/constants.js';
 import { IModelConfigurationAccess } from '../../../../contrib/chat/browser/widget/input/modelPicker/modelPickerModelConfig.js';
 import { ModelPickerActionItem } from '../../../../contrib/chat/browser/widget/input/modelPicker/modelPickerActionItem.js';
-import { TABBED_MODEL_PICKER_SETTING_ID } from '../../../../contrib/chat/browser/widget/input/modelPicker/modelPickerWidget.js';
 import { IPricingDisclosure, ModelCard } from '../../../../contrib/chat/browser/widget/input/modelPicker/modelPickerCard.js';
 import { ITabbedModelPickerContext, TabbedModelPicker } from '../../../../contrib/chat/browser/widget/input/modelPicker/modelPickerTabbedWidget.js';
 import { IModelPickerWorkflow } from '../../../../contrib/chat/browser/widget/input/modelPicker/modelPickerWorkflow.js';
@@ -529,7 +528,7 @@ function renderInputPicker(context: ComponentFixtureContext, initialModel = COPI
 		colorTheme: context.theme,
 		additionalServices: registration => {
 			registerWorkbenchServices(registration);
-			registration.defineInstance(IConfigurationService, new TestConfigurationService({ [TABBED_MODEL_PICKER_SETTING_ID]: true }));
+			registration.defineInstance(IConfigurationService, new TestConfigurationService());
 			registration.defineInstance(ILayoutService, upcastPartial<ILayoutService>({
 				getContainer: () => container, mainContainer: container, activeContainer: container,
 				onDidChangeActiveContainer: Event.None, onDidAddContainer: Event.None,
@@ -565,8 +564,8 @@ function renderInputPicker(context: ComponentFixtureContext, initialModel = COPI
 			setModelProgrammatically: model => selected.set(model, undefined),
 			getModels: () => COPILOT_ONLY_MODELS,
 			getPresentationOptions: () => ({
-				useGroupedModelPicker: true, showManageModelsAction: false, showUnavailableFeatured: false,
-				showFeatured: true, showAutoModel: true, showModelIcon: false,
+				showManageModelsAction: false, showUnavailableFeatured: false,
+				showAutoModel: true, showModelIcon: false,
 			}),
 			modelConfiguration: configuration,
 		},

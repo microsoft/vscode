@@ -355,6 +355,11 @@ export class CopilotSessionWrapper extends Disposable {
 		return this._onToolPartialResult ??= this._sdkEvent('tool.execution_partial_result');
 	}
 
+	private _onToolShellOutput: Event<SessionEventPayload<'tool.shell_output'>> | undefined;
+	get onToolShellOutput(): Event<SessionEventPayload<'tool.shell_output'>> {
+		return this._onToolShellOutput ??= this._sdkEvent('tool.shell_output');
+	}
+
 	private _onToolProgress: Event<SessionEventPayload<'tool.execution_progress'>> | undefined;
 	get onToolProgress(): Event<SessionEventPayload<'tool.execution_progress'>> {
 		return this._onToolProgress ??= this._sdkEvent('tool.execution_progress');

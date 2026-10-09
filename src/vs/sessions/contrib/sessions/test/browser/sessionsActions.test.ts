@@ -16,6 +16,7 @@ import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import '../../../../../editor/contrib/wordOperations/browser/wordOperations.js';
 import { isICommandActionToggleInfo } from '../../../../../platform/action/common/action.js';
 import { isIMenuItem, isISubmenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -24,8 +25,13 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ServiceIdentifier } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingsRegistry } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { KeybindingResolver, ResultKind } from '../../../../../platform/keybinding/common/keybindingResolver.js';
+import { ResolvedKeybindingItem } from '../../../../../platform/keybinding/common/resolvedKeybindingItem.js';
+import { USLayoutResolvedKeybinding } from '../../../../../platform/keybinding/common/usLayoutResolvedKeybinding.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IPaneCompositePartService } from '../../../../../workbench/services/panecomposite/browser/panecomposite.js';
@@ -840,6 +846,63 @@ suite('Sessions - Actions', () => {
 		});
 	});
 
+	for (const os of [OperatingSystem.Windows, OperatingSystem.Macintosh, OperatingSystem.Linux]) {
+		test(`binds Alt+Left/Right to session navigation outside the editor area (${os})`, () => {
+			const bindings = KeybindingsRegistry.getDefaultKeybindingsForOS(os);
+			const navigationBindings = [
+				{ command: 'sessions.goBack', key: KeyCode.LeftArrow },
+				{ command: 'sessions.goForward', key: KeyCode.RightArrow },
+			].map(({ command, key }) => {
+				const hash = decodeKeybinding(KeyMod.Alt | key, os)?.getHashCode();
+				return bindings.filter(binding => binding.command === command && binding.keybinding?.getHashCode() === hash)
+					.map(binding => ({
+						command: binding.command,
+						when: binding.when?.serialize().split(' && ').sort(),
+					}));
+			});
+
+			const inputScope = os === OperatingSystem.Macintosh ? ['!inputFocus', '!textInputFocus'] : [];
+			assert.deepStrictEqual(navigationBindings, [
+				[{ command: 'sessions.goBack', when: ['!editorAreaFocus', ...inputScope, 'isSessionsWindow', 'sessionsCanGoBack'] }],
+				[{ command: 'sessions.goForward', when: ['!editorAreaFocus', ...inputScope, 'isSessionsWindow', 'sessionsCanGoForward'] }],
+			]);
+		});
+	}
+
+	test('macOS Alt-arrow aliases preserve word movement in composers and native inputs', () => {
+		const configuration = new TestConfigurationService();
+		disposables.add(configuration.onDidChangeConfigurationEmitter);
+		const contextKeyService = disposables.add(new ContextKeyService(configuration));
+		const bindings = KeybindingsRegistry.getDefaultKeybindingsForOS(OperatingSystem.Macintosh)
+			.filter(binding => binding.command !== null && ['sessions.goBack', 'sessions.goForward', 'cursorWordLeft', 'cursorWordEndRight'].includes(binding.command))
+			.flatMap(binding => binding.keybinding ? USLayoutResolvedKeybinding.resolveKeybinding(binding.keybinding, OperatingSystem.Macintosh)
+				.map(resolved => new ResolvedKeybindingItem(resolved, binding.command, binding.commandArgs, binding.when ?? undefined, true, null, false)) : []);
+		const resolver = new KeybindingResolver(bindings, [], () => { });
+		const resolved = [
+			{ inputFocus: false, textInputFocus: false, editorAreaFocus: false },
+			{ inputFocus: true, textInputFocus: true, editorAreaFocus: false },
+			{ inputFocus: false, textInputFocus: true, editorAreaFocus: false },
+			{ inputFocus: true, textInputFocus: false, editorAreaFocus: false },
+			{ inputFocus: true, textInputFocus: true, editorAreaFocus: true },
+		].map(focus => {
+			for (const [key, value] of Object.entries({ isSessionsWindow: true, sessionsCanGoBack: true, sessionsCanGoForward: true, ...focus })) {
+				contextKeyService.createKey(key, value).set(value);
+			}
+			return ['alt+LeftArrow', 'alt+RightArrow', 'ctrl+-'].map(chord => {
+				const result = resolver.resolve(contextKeyService.getContext(mainWindow.document.documentElement), [], chord);
+				return result.kind === ResultKind.KbFound ? result.commandId : undefined;
+			});
+		});
+
+		assert.deepStrictEqual(resolved, [
+			['sessions.goBack', 'sessions.goForward', 'sessions.goBack'],
+			['cursorWordLeft', 'cursorWordEndRight', 'sessions.goBack'],
+			['cursorWordLeft', 'cursorWordEndRight', 'sessions.goBack'],
+			[undefined, undefined, 'sessions.goBack'],
+			['cursorWordLeft', 'cursorWordEndRight', undefined],
+		]);
+	});
+
 	test('associates the close shortcut with the header close commands', () => {
 		const bindings = KeybindingsRegistry.getDefaultKeybindingsForOS(OperatingSystem.Linux);
 		const closeKeybindingHash = decodeKeybinding(KeyMod.CtrlCmd | KeyCode.KeyW, OperatingSystem.Linux)?.getHashCode();
@@ -1246,6 +1309,61 @@ suite('Sessions - Actions', () => {
 			}, { lightweight: false, keybindingBackground: false });
 		});
 	}
+
+	test('New Session prefills a supplied prompt through the new session view', async () => {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(INewSessionComposerService, disposables.add(new NewSessionComposerService()));
+		const { session } = createTestSession('prompted');
+		const activeSession = upcastPartial<IActiveSession>(session);
+		const quickChat = upcastPartial<IActiveSession>({ ...session, sessionId: 'quick-chat' });
+		const currentSession = observableValue<IActiveSession | undefined>('activeSession', activeSession);
+		const quickChatRequests: { options: ICreateNewSessionOptions | undefined; preserveNavigation: boolean | undefined }[] = [];
+		let openNewSessionCalls = 0;
+		let accessorValid = true;
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override readonly activeSession = currentSession;
+			override openQuickChat(options?: ICreateNewSessionOptions, preserveNavigation?: boolean): IActiveSession {
+				quickChatRequests.push({ options, preserveNavigation });
+				currentSession.set(quickChat, undefined);
+				accessorValid = false;
+				return quickChat;
+			}
+			override async openNewSession(): Promise<IOpenNewSessionResult> {
+				openNewSessionCalls++;
+				return { session: quickChat, trustDeclined: false };
+			}
+		});
+		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() { });
+		const queries: string[] = [];
+		const viewSessionIds: (string | undefined)[] = [];
+		instantiationService.stub(ISessionsPartService, upcastPartial<ISessionsPartService>({
+			getSessionView: sessionId => {
+				viewSessionIds.push(sessionId);
+				return upcastPartial<SessionView>({
+					prefillInput: query => queries.push(query),
+				});
+			},
+		}));
+
+		const command = CommandsRegistry.getCommand(NEW_SESSION_ACTION_ID);
+		assert.ok(command);
+		const invocationAccessor: ServicesAccessor = {
+			get: <T>(id: ServiceIdentifier<T>): T => {
+				if (!accessorValid) {
+					throw new Error('Service accessor used after asynchronous invocation');
+				}
+				return instantiationService.get(id);
+			},
+		};
+		await command.handler(invocationAccessor, { prompt: 'Review this change', prefillPrompt: true, noWorkspace: true });
+
+		assert.deepStrictEqual({ quickChatRequests, openNewSessionCalls, viewSessionIds, queries }, {
+			quickChatRequests: [{ options: { providerId: activeSession.providerId, sessionTypeId: activeSession.sessionType }, preserveNavigation: true }],
+			openNewSessionCalls: 0,
+			viewSessionIds: [quickChat.sessionId],
+			queries: ['Review this change'],
+		});
+	});
 
 	for (const toSide of [undefined, true]) {
 		for (const scenario of [
