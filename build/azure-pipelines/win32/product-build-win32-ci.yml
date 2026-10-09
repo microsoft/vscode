@@ -14,9 +14,10 @@ parameters:
 jobs:
   - job: Windows${{ parameters.VSCODE_JOB_NAME }}
     displayName: ${{ parameters.VSCODE_JOB_DISPLAY_NAME }}
-    # Leaves headroom for a clean dependency install (~16 minutes on Windows)
-    # when the node_modules cache cannot be reused.
-    timeoutInMinutes: 70
+    ${{ if or(eq(parameters.VSCODE_JOB_NAME, 'Unit'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-electron')) }}:
+      timeoutInMinutes: 70
+    ${{ else }}:
+      timeoutInMinutes: 50
     cancelTimeoutInMinutes: 10
     variables:
       VSCODE_ARCH: x64
