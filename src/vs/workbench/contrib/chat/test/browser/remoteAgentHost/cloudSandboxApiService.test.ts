@@ -609,6 +609,44 @@ suite('CloudSandboxApiService repository resolution', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('distinguishes repo-less tasks from unresolved repository names', async () => {
+		const { service } = createService(store, {
+			tasks: [
+				task('with-repository', 'Repository chat', 42, 'with-repository', 'environment-1'),
+				task('without-repository', 'General chat', undefined, 'without-repository', 'environment-2'),
+			],
+			repositories: new Map([[42, 'error']]),
+		});
+		const result = await service.listSessions(CancellationToken.None);
+
+		assert.deepStrictEqual(result.kind === 'failed' ? result : result.sessions.map(session => ({
+			id: session.sessionId, hasRepository: session.hasRepository, name: session.repoName,
+		})), [
+			{ id: 'with-repository', hasRepository: true, name: undefined },
+			{ id: 'without-repository', hasRepository: false, name: undefined },
+		]);
+	});
+
+	test('retains the repository scope when task payloads omit repository details', async () => {
+		const current = { ...task('task-1', 'Chat', undefined, 'session-1', 'environment-1'), updated_at: '2026-07-01T00:01:00.000Z' };
+		let hasRepository = true;
+		const { service, requestedUrls } = createService(store, {
+			tasks: [current],
+			repositories: new Map(),
+			onRequest: url => url.pathname.endsWith('/tasks')
+				? jsonResponse({ tasks: url.searchParams.get('with_repo') === String(hasRepository) && url.searchParams.get('is_archived') === 'false' ? [current] : [] })
+				: undefined,
+		});
+		const withRepository = await service.listSessions(CancellationToken.None);
+		hasRepository = false;
+		const withoutRepository = await service.listSessions(CancellationToken.None);
+
+		assert.deepStrictEqual({
+			classifications: [withRepository, withoutRepository].map(result => result.kind === 'failed' ? result.reason : result.sessions.map(session => session.hasRepository)),
+			detailReads: requestedUrls.filter(url => url.endsWith('/tasks/task-1')).length,
+		}, { classifications: [[true], [false]], detailReads: 2 });
+	});
+
 	test('preserves the creating application from cloud task discovery', async () => {
 		const { service } = createService(store, {
 			tasks: [{ ...task('task-1', 'From Slack', undefined, 'session-1', 'environment-1'), event_type: 'slack' }],
@@ -657,6 +695,7 @@ suite('CloudSandboxApiService repository resolution', () => {
 				taskId: 'task-1',
 				name: 'Change port to 5555',
 				repoName: 'osortega/simple-server',
+				hasRepository: true,
 				updatedAt: undefined,
 			}],
 		});
@@ -1062,7 +1101,7 @@ suite('CloudSandboxApiService stalled sandbox discovery', () => {
 	for (const truncation of ['scope failure', 'page failure', 'page limit']) {
 		for (const observed of [false, true]) {
 			test(`only removes observed candidates during ${truncation} (observed=${observed})`, () => runWithFakedTimers({ useFakeTimers: true, startTime }, async () => {
-				const current = unstartedTask('stalled', startTime - oneHour + 1_000);
+				const current = { ...unstartedTask('stalled', startTime - oneHour + 1_000), repository: observed ? { id: 123 } : undefined };
 				const other = {
 					...task('other', 'Work', 123, 'other-session', 'other-environment'),
 					updated_at: new Date(startTime - oneHour).toISOString(),

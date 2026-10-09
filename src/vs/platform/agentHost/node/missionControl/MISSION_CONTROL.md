@@ -20,7 +20,7 @@ Registration is opt-in and default-off. The activation path is available to buil
 
 Registration uses `https://api.github.com`. An empty window can register the host without advertising a home-directory default. Disable **Allow Remote Connections** to withdraw remote access. The sharing choice is remembered locally across restarts, not synchronized to other machines. Changing the backend turns sharing off until explicitly enabled again. Withdrawal disconnects relay ingress immediately; it does not delete native sessions, conversations or checkouts.
 
-Registration and heartbeat `capabilities.current_sessions` count durable session-registry identities, independently of sidebar filters and provider availability. Counting does not load provider metadata or session transcripts. Metadata reads have a 60-second budget; a failed or timed-out device remote-control policy read prevents registration.
+Registration and heartbeat `capabilities.current_sessions` count durable session-registry identities, independently of sidebar filters and provider availability. Counting does not load provider metadata or session transcripts. Metadata reads have a 60-second budget; a failed or timed-out device remote-control policy read prevents registration unless the explicit local policy override below is enabled.
 
 ### Local integration testing
 
@@ -44,6 +44,12 @@ Selection revalidates availability. An offline user-local host is not woken or r
 
 New native allocations negotiate standard `ahp-session` resources with a separate provider. Existing legacy and standard session/chat resources, SDK backings, and storage remain immutable. The client consumes exact advertised resources; MC does not impose a global Copilot alias. See the [identity contract](../../../../sessions/contrib/providers/agentHost/AGENT_HOST_SESSIONS_PROVIDER.md#identity).
 
+### Web PubSub receive capabilities
+
+VS Code clients publish the transport control `{"kind":"capabilities","accepts":["batch"]}` to the configured `to_host` group after joining their receive groups, and wait for its relay acknowledgement before initializing AHP. The socket/group-join timeout ends when the joins complete; capability publication then has its own 30-second acknowledgement deadline. They re-advertise after each successful AHP initialization or reconnect response, before delivering that response to the protocol client, so a replacement host lane can establish receive support. Rejected, timed-out, or unwritable capability publications fail the connection through normal relay error handling.
+
+The declaration permits a supporting peer to send bounded, ordered transport batches toward VS Code; it does not enable client outbound batching or prove that the peer has processed the declaration. Individual messages and chunks remain supported. These controls are not AHP messages or JSON-RPC batches and are not emitted on direct WebSocket or local IPC connections.
+
 ### Model advertisements
 
 Mission Control connections advertise model lists only for the native Copilot agent (`copilotcli`). Other agents remain advertised with their identities, capabilities and protected resources, but with empty model lists. This is an interoperability workaround for mobile clients that combine every agent's models into the picker for an existing Copilot session without switching that session's agent. Initial and subscribed root snapshots, reconnect snapshots/replay and live agent updates use the same projection; the host's authoritative catalog and local, SSH and tunnel connections remain unchanged.
@@ -66,7 +72,17 @@ Native authoritative AHP actions and selected genuine SDK metadata are mirrored 
 
 Registration accepts unbound sealed tokens for compatibility with deployed pre-sealed clients. Supplied bindings are verified; unbound envelopes remain replayable. Backend tests can require binding through `IMissionControlOptions.requireConnectionBinding`. Optional MCP resource context and the shared native provider credential store have the limitations described in the matrix. Do not infer stronger guarantees from successful transport authentication.
 
-The SDK's canonical device `remoteControl` branch is read before registration and forwarded to MC for enforcement. Failed initial reads do not register as unrestricted. The host does not introduce a second enterprise-policy parser or claim local enforcement of every predicate against a compromised MC signer.
+By default, the SDK's canonical device `remoteControl` branch is read before registration and forwarded to MC for enforcement. Failed initial reads do not register as unrestricted. The host does not introduce a second enterprise-policy parser or claim local enforcement of every predicate against a compromised MC signer.
+
+### Explicit local remote-control policy override
+
+The unregistered, default-off `chat.agentHost.experimentalMissionControl.ignoreRemoteControlPolicy` setting is a testing override available in built products. Set it to `true` in the host owner's **local User settings** to skip the device `remoteControl` policy read and omit that branch from Mission Control registration, allowing active connections despite device enterprise restrictions on creating sessions or sending messages. Application user settings also apply; workspace, workspace-folder, remote-user, and default values cannot enable it. The setting is absent from the Settings UI and schema.
+
+```json
+"chat.agentHost.experimentalMissionControl.ignoreRemoteControlPolicy": true
+```
+
+This bypasses the entire device `remoteControl` branch, not other runtime managed settings, tool permissions, authentication, or workspace grants. Mission Control can still issue signed passive connections, which remain read-only. Changing the setting closes existing relay lanes and reconfigures registration; reconnect the remote client afterward. Remove the setting or set it to `false` to restore device policy reporting and its failed-read gate.
 
 ### Explicit local credential delegation
 

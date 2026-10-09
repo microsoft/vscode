@@ -27,6 +27,7 @@ import { IChatEntitlementService } from '../../../../services/chat/common/chatEn
 
 const sharingStorageKey = 'agentHost.missionControl.sharing';
 const missionControlUseLocalCredentials = 'chat.agentHost.experimentalMissionControl.useLocalCredentials';
+const missionControlIgnoreRemoteControlPolicy = 'chat.agentHost.experimentalMissionControl.ignoreRemoteControlPolicy';
 
 export class MissionControlSharingService extends Disposable implements IMissionControlSharingService {
 	declare readonly _serviceBrand: undefined;
@@ -66,7 +67,7 @@ export class MissionControlSharingService extends Disposable implements IMission
 		this._register(this._configuration.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AgentHostRemoteConnectionsSettingId)) {
 				void this.setEnabled(false).catch(error => this._reportWithdrawalError(error));
-			} else if (e.affectsConfiguration(missionControlUseLocalCredentials)) {
+			} else if (e.affectsConfiguration(missionControlUseLocalCredentials) || e.affectsConfiguration(missionControlIgnoreRemoteControlPolicy)) {
 				void this._withdraw().catch(error => this._reportWithdrawalError(error));
 				this._update.schedule();
 			}
@@ -229,6 +230,11 @@ export class MissionControlSharingService extends Disposable implements IMission
 			if (useLocalCredentials) {
 				this._logService.warn('[Mission Control] Local credential delegation enabled: same-owner remote clients will run Copilot work with the desktop credential and its permissions');
 			}
+			const remoteControlPolicySetting = this._configuration.inspect<boolean>(missionControlIgnoreRemoteControlPolicy);
+			const ignoreRemoteControlPolicy = (remoteControlPolicySetting.userLocalValue ?? remoteControlPolicySetting.applicationValue) === true;
+			if (ignoreRemoteControlPolicy) {
+				this._logService.warn('[Mission Control] Device remote-control policy override enabled: registration will omit enterprise remote-control restrictions');
+			}
 			await this._agentHost.configureMissionControl?.({
 				baseUrl: 'https://api.github.com',
 				accountId: sessions[0].account.id,
@@ -238,6 +244,7 @@ export class MissionControlSharingService extends Disposable implements IMission
 				defaultDirectory: defaultDirectory.fsPath,
 				live: true,
 				...(useLocalCredentials ? { useLocalCredentials: true } : {}),
+				...(ignoreRemoteControlPolicy ? { ignoreRemoteControlPolicy: true } : {}),
 			});
 			if (generation === this._generation && !this._store.isDisposed) {
 				this._configured = true;

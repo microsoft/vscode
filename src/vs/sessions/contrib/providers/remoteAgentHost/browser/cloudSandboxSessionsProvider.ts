@@ -19,6 +19,7 @@ import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvid
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { validateSessionConfigWrite } from '../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { readSessionWorkspaceless } from '../../../../../platform/agentHost/common/state/sessionState.js';
 
 /**
  * Sessions provider for a Copilot cloud sandbox.
@@ -279,7 +280,7 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 			return;
 		}
 		const adapter = this.createAdapter(meta);
-		adapter.updateDiscoveryMetadata(meta);
+		adapter.updateDiscoveryMetadata(meta, readSessionWorkspaceless(meta._meta) || undefined);
 		this._sessionCache.set(meta.session.toString(), adapter);
 		this._withheldSessions.add(meta.session.toString());
 		// No deadline yet: the clock starts when the host first omits it.
