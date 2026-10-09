@@ -254,10 +254,14 @@ export class ChatWorkingLogo extends Disposable {
 	}
 
 	private isMotionReduced(): boolean {
+		// Component fixtures freeze all motion with `.disable-animations`, even when they opt into motion.
+		if (this.domNode.closest('.disable-animations')) {
+			return true;
+		}
 		if (this.domNode.closest('.monaco-enable-motion')) {
 			return false;
 		}
-		if (this.domNode.closest('.monaco-reduce-motion, .disable-animations')) {
+		if (this.domNode.closest('.monaco-reduce-motion')) {
 			return true;
 		}
 		return this.isMotionReducedOverride?.() ?? getWindow(this.domNode).matchMedia('(prefers-reduced-motion: reduce)').matches;

@@ -10,7 +10,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { AgentSession } from '../../common/agent.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
-import { McpServerSource, readMcpServerDisplayName, readMcpServerSource, readMcpServerSourcePlugin, withMcpServerControllingSettingMeta, withMcpServerDisplayNameMeta, withMcpServerSourceMeta, withMcpServerSourcePluginMeta } from '../../common/meta/mcpCustomizationMeta.js';
+import { McpServerSource, readMcpServerDisplayName, withMcpServerControllingSettingMeta, withMcpServerDisplayNameMeta, withMcpServerSourceMeta, withMcpServerSourcePluginMeta } from '../../common/meta/mcpCustomizationMeta.js';
 import { CustomizationLoadStatus, CustomizationType, McpServerStatus, type AhpMcpUiHostCapabilities, type Customization, type CustomizationEnablement, type McpServerCustomization, type McpServerState } from '../../common/state/protocol/channels-session/state.js';
 import { DEFAULT_MCP_APP, DEFAULT_MCP_APP_CAPABILITIES } from '../../common/state/protocol/mcpAppDefaults.js';
 import { parseChatUri } from '../../common/state/sessionState.js';
@@ -28,9 +28,6 @@ export interface ISdkMcpServer {
 	readonly name: string;
 	/** Optional Connector catalog name that does not participate in runtime identity. */
 	readonly displayName?: string;
-	readonly source?: McpServerSource;
-	/** Configuration file URI. Omitted on lifecycle updates; null clears a previously known source. */
-	readonly sourceUri?: string | null;
 	/** Current lifecycle state. */
 	readonly state: McpServerState;
 	/**
@@ -40,22 +37,20 @@ export interface ISdkMcpServer {
 	readonly allowAuthRequiredToStarting?: boolean;
 	/** Explicit runtime enablement when the SDK distinguishes disabled from stopped. */
 	readonly enabled?: boolean;
-	/** Plugin that supplied this server's configuration. Omitted on lifecycle updates; null clears a previously known plugin. */
-	readonly pluginName?: string | null;
-	readonly pluginVersion?: string;
 }
 
-/** Where a top-level server comes from, as last reported by its provider. */
-export interface ISdkMcpServerProvenance {
+/**
+ * Where a top-level server is configured. This describes configuration, not
+ * lifecycle, so it is never carried on {@link ISdkMcpServer} updates; the
+ * controller asks {@link IMcpCustomizationControllerOptions.resolveProvenance}
+ * each time it builds a top-level customization.
+ */
+export interface IMcpServerProvenance {
 	readonly source: McpServerSource | undefined;
-	readonly sourcePlugin: string | undefined;
-}
-
-function readTopLevelProvenance(customization: McpServerCustomization | undefined): ISdkMcpServerProvenance {
-	return {
-		source: readMcpServerSource(customization),
-		sourcePlugin: readMcpServerSourcePlugin(customization),
-	};
+	/** Plugin that supplied the server's configuration, when known. */
+	readonly sourcePlugin?: string;
+	/** Configuration file that defines the server; published as the customization URI. */
+	readonly sourceUri?: string;
 }
 
 /**
@@ -139,10 +134,16 @@ export interface IMcpCustomizationControllerOptions {
 	/** Resolves the scoped enablement to publish for a temporarily top-level server. */
 	readonly resolveEnablement?: (server: McpServerCustomization, owningPluginUri: string | undefined) => readonly CustomizationEnablement[] | undefined;
 	/**
+	 * Resolves where a top-level server is configured. Called whenever a top-level customization is built, so the
+	 * result must be a pure function of the provider's current configuration knowledge. Call
+	 * {@link McpCustomizationController.refreshProvenance} when that knowledge changes.
+	 */
+	readonly resolveProvenance?: (serverName: string) => IMcpServerProvenance | undefined;
+	/**
 	 * Returns the VS Code setting that controls whether this host includes a server it adds itself, given the
 	 * server's current provenance. Published so clients can offer the setting without guessing from the name.
 	 */
-	readonly controllingSetting?: (serverName: string, provenance: ISdkMcpServerProvenance) => string | undefined;
+	readonly controllingSetting?: (serverName: string, provenance: IMcpServerProvenance) => string | undefined;
 	/**
 	 * MCP App capabilities to advertise on every ready server. Defaults
 	 * to {@link DEFAULT_MCP_APP_CAPABILITIES}.
@@ -244,9 +245,20 @@ export class McpCustomizationController extends Disposable {
 			if (entry.topLevelId === undefined) {
 				continue;
 			}
-			out.push(this._buildTopLevel(entry.topLevelId, entry.serverName, entry.displayName, entry.state, entry.enabled, readTopLevelProvenance(entry.topLevelCustomization), entry.topLevelCustomization?.uri));
+			out.push(this._buildTopLevel(entry.topLevelId, entry.serverName, entry.displayName, entry.state, entry.enabled));
 		}
 		return out;
+	}
+
+	/** Republishes top-level servers whose resolved provenance changed since they were last published. */
+	refreshProvenance(): void {
+		transaction(tx => {
+			for (const entry of this._live.get().values()) {
+				if (entry.topLevelId !== undefined) {
+					this._applyOne({ name: entry.serverName, displayName: entry.displayName, state: entry.state, enabled: entry.enabled }, tx);
+				}
+			}
+		});
 	}
 
 	get pluginMcpServerSources(): ReadonlyMap<string, string> | undefined {
@@ -410,14 +422,7 @@ export class McpCustomizationController extends Disposable {
 			}
 			topLevelId = published?.topLevelId ?? this._mintTopLevelId(server.name);
 		}
-		// Lifecycle updates carry no provenance, so keep what was last reported or restored.
-		const known = readTopLevelProvenance(previous?.topLevelCustomization ?? this._findPublishedTopLevel(topLevelId));
-		const provenance: ISdkMcpServerProvenance = {
-			source: server.source ?? known.source,
-			sourcePlugin: server.pluginName !== undefined ? server.pluginName ?? undefined : known.sourcePlugin,
-		};
-		const sourceUri = server.sourceUri !== undefined ? server.sourceUri : previous?.topLevelCustomization?.uri;
-		const customization = this._buildTopLevel(topLevelId, server.name, displayName, state, enabled, provenance, sourceUri);
+		const customization = this._buildTopLevel(topLevelId, server.name, displayName, state, enabled);
 		const resolvedDisplayName = readMcpServerDisplayName(customization);
 		const customizationChanged = force || previous?.topLevelId !== topLevelId || !equals(previous?.topLevelCustomization, customization);
 		if (customizationChanged || previous?.enabled !== enabled) {
@@ -544,7 +549,7 @@ export class McpCustomizationController extends Disposable {
 		return buildMcpChannel(this._chatUri, serverName, this._providerId);
 	}
 
-	private _buildTopLevel(id: string, serverName: string, displayName: string | undefined, state: McpServerState, enabled: boolean, provenance: ISdkMcpServerProvenance, sourceUri?: string | null): McpServerCustomization {
+	private _buildTopLevel(id: string, serverName: string, displayName: string | undefined, state: McpServerState, enabled: boolean): McpServerCustomization {
 		const channel = this._buildChannel(serverName, state);
 		const owningPluginUri = this.pluginMcpServerSources?.get(serverName);
 		// Per AHP spec, `mcpApp` is a static capability declaration —
@@ -556,6 +561,8 @@ export class McpCustomizationController extends Disposable {
 			? { capabilities: this._options.capabilities }
 			: DEFAULT_MCP_APP;
 		const existing = this._findPublishedTopLevel(id);
+		// Provenance is derived from configuration on every build, never retained from earlier output.
+		const provenance: IMcpServerProvenance = this._options.resolveProvenance?.(serverName) ?? { source: undefined };
 		// `SessionCustomizationUpdated` replaces the whole customization, so keep opaque entries owned by others.
 		const meta = withMcpServerControllingSettingMeta(
 			withMcpServerSourcePluginMeta(
@@ -564,7 +571,7 @@ export class McpCustomizationController extends Disposable {
 			),
 			this._options.controllingSetting?.(serverName, provenance),
 		);
-		const uri = (sourceUri === undefined ? existing?.uri : sourceUri) ?? this._mintTopLevelId(serverName);
+		const uri = provenance.sourceUri ?? this._mintTopLevelId(serverName);
 		const customization: McpServerCustomization = {
 			type: CustomizationType.McpServer,
 			id,

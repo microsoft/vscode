@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-FFQoOVVa2tOE3uqUvirwaMNT20TZmrHcL2aaOjJ8BUo=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-sn80KfA+MU1XygyWiC6Pi0aLZubC6RmEK+O6llFPkGg=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -97,6 +97,19 @@
 		}
 
 		const vscodePostMessageFuncName = '__vscode_post_message__';
+		// Capture before loading content, which can replace the shell's messaging and call primitives.
+		// Extracted cross-origin postMessage no-ops unless this is the parent. Do not use Window.prototype.postMessage.
+		const nativeCall = Function.prototype.call;
+		const invoke = Function.prototype.bind.call(nativeCall, nativeCall);
+		const sendToParent = window.parent.postMessage;
+		const nativePortPostMessage = MessagePort.prototype.postMessage;
+
+		function createKeyEventToken() {
+			const bytes = new Uint8Array(16);
+			crypto.getRandomValues(bytes);
+			return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+		}
+		const keyEventToken = createKeyEventToken();
 
 		const defaultStyles = document.createElement('style');
 		defaultStyles.id = '_defaultStyles';
@@ -310,7 +323,7 @@
 			}
 
 			postMessage(channel, data, transfer) {
-				this.channel.port1.postMessage({ channel, data }, transfer);
+				invoke(nativePortPostMessage, this.channel.port1, { channel, data }, transfer);
 			}
 
 			onMessage(channel, handler) {
@@ -325,7 +338,7 @@
 			async signalReady() {
 				const start = (/** @type {string} */ parentOrigin) => {
 					perfMark('signalingReady');
-					window.parent.postMessage({ target: ID, channel: 'webview-ready', data: {} }, parentOrigin, [this.channel.port2]);
+					invoke(sendToParent, window.parent, { target: ID, channel: 'webview-ready', data: { keyEventToken, mountId: searchParams.get('mountId') } }, parentOrigin, [this.channel.port2]);
 				};
 
 				const parentOrigin = searchParams.get('parentOrigin');
@@ -606,25 +619,21 @@
 				e.preventDefault();
 			}
 
-			/** @type {import('../webviewMessages').FromWebviewMessage['did-keydown']} */
-			const data = {
-				key: e.key,
-				keyCode: e.keyCode,
-				code: e.code,
-				shiftKey: e.shiftKey,
-				altKey: e.altKey,
-				ctrlKey: e.ctrlKey,
-				metaKey: e.metaKey,
-				repeat: e.repeat,
-				isTrusted: e.isTrusted
-			};
-			hostMessaging.postMessage('did-keydown', data);
+			forwardKeyEvent('did-keydown', e);
 		};
 		/**
 		 * @param {KeyboardEvent} e
 		 */
 		const handleInnerKeyup = (e) => {
-			/** @type {import('../webviewMessages').FromWebviewMessage['did-keyup']} */
+			forwardKeyEvent('did-keyup', e);
+		};
+
+		/**
+		 * @param {'did-keydown' | 'did-keyup'} channel
+		 * @param {KeyboardEvent} e
+		 */
+		function forwardKeyEvent(channel, e) {
+			/** @type {import('../webviewMessages').KeyEvent} */
 			const data = {
 				key: e.key,
 				keyCode: e.keyCode,
@@ -634,10 +643,11 @@
 				ctrlKey: e.ctrlKey,
 				metaKey: e.metaKey,
 				repeat: e.repeat,
-				isTrusted: e.isTrusted
+				isTrusted: e.isTrusted,
+				keyEventToken
 			};
-			hostMessaging.postMessage('did-keyup', data);
-		};
+			hostMessaging.postMessage(channel, data);
+		}
 
 		/**
 		 * @param {KeyboardEvent} e

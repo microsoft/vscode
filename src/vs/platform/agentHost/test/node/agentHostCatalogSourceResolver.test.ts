@@ -96,7 +96,7 @@ function createResolver(metadata: Readonly<Record<string, string>>, unpersistedB
 		reportMalformedArtifacts: () => { },
 	});
 	return {
-		buildCatalogSyncRequest: (session, state, overrides, preferPersisted, _database, fallbacks) => resolver.buildCatalogSyncRequest(
+		buildCatalogSyncRequest: (session, state, overrides, preferPersisted, _database, fallbacks, authoritativeChats, chatCatalogRevision) => resolver.buildCatalogSyncRequest(
 			session,
 			state,
 			overrides,
@@ -108,12 +108,64 @@ function createResolver(metadata: Readonly<Record<string, string>>, unpersistedB
 				},
 			},
 			fallbacks,
+			authoritativeChats,
+			chatCatalogRevision,
 		),
 	};
 }
 
 suite('AgentHostCatalogSourceResolver', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('projects authoritative chats without reading or writing legacy chat summaries', async () => {
+		const authoritativeChats = [{
+			uri: chat,
+			order: 0,
+			kind: 'default' as const,
+			summary: 'Central title',
+			titleSource: 'user' as const,
+			isRead: false,
+			changes: { additions: 0, deletions: 0, files: 0 },
+		}];
+		let requestedKeys: readonly string[] = [];
+		const resolver = new AgentHostCatalogSourceResolver({
+			isUnpersistedChatBacking: () => false,
+			worktreeProjectFromRepositoryRoot: () => undefined,
+			reportMalformedArtifacts: () => { },
+		});
+		const overrides = {
+			[customChatTitleMetadataKey(chat)]: 'Stale title',
+			[customChatTitleSourceMetadataKey(chat)]: 'auto',
+			[customChatTitleMetadataKey('agenthost-chat:catalog-source/deleted')]: '',
+			[customChatTitleSourceMetadataKey('agenthost-chat:catalog-source/deleted')]: '',
+			[getChatChangesSummaryMetadataKey(chat)]: JSON.stringify({ files: 99 }),
+			[AH_META_DEFAULT_CHAT_IS_READ_DB_KEY]: 'true',
+			[SESSION_CUSTOM_TITLE_KEY]: 'Session title',
+		};
+		const result = await resolver.buildCatalogSyncRequest(session, sourceState(), overrides, true, {
+			object: {
+				getMetadataObject: async <T extends Record<string, unknown>>(keys: T): Promise<{ [K in keyof T]: string | undefined }> => {
+					requestedKeys = Object.keys(keys);
+					return Object.fromEntries(requestedKeys.map(key => [key, undefined])) as { [K in keyof T]: string | undefined };
+				},
+			},
+		}, {}, authoritativeChats, 7);
+		assert.deepStrictEqual({
+			chatCatalogRevision: result.chatCatalogRevision,
+			chats: result.data.chats,
+			isRead: result.data.isRead,
+			legacyChatKeysRead: Object.keys(overrides).filter(key => key !== SESSION_CUSTOM_TITLE_KEY && requestedKeys.includes(key)),
+			legacyChatKeysWritten: Object.keys(overrides).filter(key => key !== SESSION_CUSTOM_TITLE_KEY && result.legacyMetadata[key] !== undefined),
+			sessionTitle: result.legacyMetadata[SESSION_CUSTOM_TITLE_KEY],
+		}, {
+			chatCatalogRevision: 7,
+			chats: authoritativeChats,
+			isRead: false,
+			legacyChatKeysRead: [],
+			legacyChatKeysWritten: [],
+			sessionTitle: 'Session title',
+		});
+	});
 
 	test('restores aggregate roots independently of the main chat and honors exclusive replacement', async () => {
 		const aggregate = ['file:///original', 'file:///replacement'];

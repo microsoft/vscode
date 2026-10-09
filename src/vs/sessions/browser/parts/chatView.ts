@@ -17,6 +17,7 @@ import { IProgressScope, ScopedProgressIndicator } from '../../../workbench/serv
 import { IChat, ISession } from '../../services/sessions/common/session.js';
 import { WorkspaceSelectionOrigin } from '../../common/workspaceSelection.js';
 import { ISessionPickerVisibility, noSessionPickerVisibility } from '../../services/sessions/common/sessionPickerVisibility.js';
+import type { IChatSessionHistoryStatus } from '../../../platform/chat/common/chatSessionHistory.js';
 
 /**
  * Discriminates between concrete {@link AbstractChatView} subclasses without
@@ -108,6 +109,7 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 
 	/** Whether an input notification already explains a temporary sending restriction. */
 	readonly isInputBlocked: IObservable<boolean> = constObservable(false);
+	readonly historyStatus: IObservable<IChatSessionHistoryStatus | undefined> = constObservable(undefined);
 
 	/**
 	 * Show the given chat in this view. The default implementation is a

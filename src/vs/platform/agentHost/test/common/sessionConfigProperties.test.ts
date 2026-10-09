@@ -170,11 +170,30 @@ suite('Session config properties', () => {
 			runtime: filterSessionConfigValues(copilot, values, false),
 			noDefaultInvented: filterSessionConfigValues(copilot, {}),
 		}, {
-			creation: { approvalMode: 'assisted', effectiveApprovalMode: 'manual', availableApprovalModes: ['manual', 'assisted'], target: 'worktree', baseBranch: 'main', branch: 'new-session', mode: 'plan' },
+			creation: { approvalMode: 'assisted', target: 'worktree', baseBranch: 'main', branch: 'new-session', mode: 'plan' },
 			runtime: { approvalMode: 'assisted', mode: 'plan' },
 			noDefaultInvented: {},
 		});
 	});
+
+	for (const key of ['autoApprove', 'approvalMode']) {
+		test(`filters host-owned approval reports for ${key} without dropping other readOnly values`, () => {
+			const schema: SessionConfigSchema = {
+				type: 'object', properties: {
+					[key]: key === 'autoApprove' ? vscode.properties.autoApprove : copilot.properties.approvalMode,
+					effectiveApprovalMode: { type: 'string', title: 'Effective', readOnly: true, sessionMutable: true },
+					availableApprovalModes: { type: 'array', title: 'Available', readOnly: true, sessionMutable: true },
+					worktreeBranchPrefix: { type: 'string', title: 'Prefix', readOnly: true, sessionMutable: true },
+				},
+			};
+			const manual = key === 'autoApprove' ? 'default' : 'manual';
+			const values = { [key]: manual, effectiveApprovalMode: manual, availableApprovalModes: [manual], worktreeBranchPrefix: 'user/' };
+			assert.deepStrictEqual([true, false].map(isNew => filterSessionConfigValues(schema, values, isNew)), [
+				{ [key]: manual, worktreeBranchPrefix: 'user/' },
+				{ [key]: manual, worktreeBranchPrefix: 'user/' },
+			]);
+		});
+	}
 
 	test('rejects unavailable, unadvertised and immutable writes before dispatch', () => {
 		assert.throws(() => validateSessionConfigWrite(copilot, { availableApprovalModes: ['manual'] }, 'approvalMode', 'allow-all', false), /does not offer/);
@@ -190,8 +209,7 @@ suite('Session config properties', () => {
 				worktreeBranchPrefix: { type: 'string', title: 'Branch prefix', readOnly: true, sessionMutable: false },
 				worktreeIncludeFiles: { type: 'array', title: 'Included files', readOnly: true, sessionMutable: false },
 				worktreeSymlinkFolders: { type: 'array', title: 'Symlinked folders', readOnly: true, sessionMutable: false },
-				worktreeBranchTrack: { type: 'boolean', title: 'Track branch', readOnly: true, sessionMutable: false },
-				worktreeCreateNewBranch: { type: 'boolean', title: 'Create branch', readOnly: true, sessionMutable: false },
+				pullRequestUrl: { type: 'string', title: 'Pull request', readOnly: true, sessionMutable: false },
 				shellInitScripts: { type: 'array', title: 'Shell initialization', readOnly: true, sessionMutable: true },
 				providerOption: { type: 'string', title: 'Provider option', enum: ['allowed'], readOnly: true, sessionMutable: true },
 			},
@@ -200,8 +218,7 @@ suite('Session config properties', () => {
 			worktreeBranchPrefix: 'user/',
 			worktreeIncludeFiles: ['product.overrides.json'],
 			worktreeSymlinkFolders: ['node_modules'],
-			worktreeBranchTrack: true,
-			worktreeCreateNewBranch: false,
+			pullRequestUrl: 'https://github.com/microsoft/vscode/pull/1',
 			shellInitScripts: [{ shell: 'bash', script: 'source .venv/bin/activate' }],
 			providerOption: 'allowed',
 		};
@@ -218,7 +235,7 @@ suite('Session config properties', () => {
 		}, {
 			creation: values,
 			runtime: { shellInitScripts: values.shellInitScripts, providerOption: 'allowed' },
-			pickerEditable: [false, false, false, false, false, false, false],
+			pickerEditable: [false, false, false, false, false, false],
 		});
 	});
 

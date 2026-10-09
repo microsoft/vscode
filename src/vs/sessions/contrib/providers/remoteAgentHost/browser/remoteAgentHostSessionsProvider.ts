@@ -85,6 +85,7 @@ export interface IRemoteAgentHostSessionsProviderConfig {
 	readonly disconnectOnDemand?: () => Promise<void>;
 	/** Optional hook to permanently remove the host from its provider inventory. */
 	readonly removeOnDemand?: () => Promise<void>;
+	readonly canRemove?: boolean;
 	readonly setDisplayName?: (name: string | undefined) => void;
 	/** Account-scoped inventory owners isolate cached summaries without changing routing identity. */
 	readonly sessionCacheKey?: string;
@@ -187,6 +188,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	readonly connectionLabels?: IAgentHostConnectionLabels;
 	readonly hostDescription?: IObservable<string>;
 	readonly removeLabel?: string;
+	readonly canRemove?: boolean;
 	readonly disconnectLabel?: string;
 	get automations(): ISessionsProviderAutomations | undefined { return this._automationStore; }
 	readonly setDisplayName?: (name: string | undefined) => void;
@@ -335,6 +337,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		this.connectionLabels = config.connectionLabels;
 		this.hostDescription = config.hostDescription;
 		this.removeLabel = config.removeLabel;
+		this.canRemove = config.canRemove;
 		this.disconnectLabel = config.disconnectLabel;
 		this.canConnectOnDemand = !!config.connectOnDemand;
 		this._readOnly = derived(this, reader => {
@@ -807,7 +810,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 
 	protected override _diffUriMapper(): AgentHostUriMapper {
 		return (uri, options) => options?.contentRef
-			? toAgentHostContentUri(uri, this._connectionAuthority)
+			? toAgentHostContentUri(uri, this._connectionAuthority, options.fileUri)
 			: toAgentHostUri(uri, this._connectionAuthority);
 	}
 
@@ -864,6 +867,9 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 	}
 
 	async remove(): Promise<void> {
+		if (this.canRemove === false) {
+			throw new Error(localize('remoteAgentHost.cannotRemove', "This host cannot be removed locally."));
+		}
 		this.unpublishCachedSessions();
 		if (this._removeOnDemand) {
 			await this._removeOnDemand();
@@ -894,8 +900,8 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		this._onDidChangeSessionTypes.fire();
 	}
 
-	/** Seed offline rows, optionally refreshing discovery-owned title, timestamp and project fields. */
-	seedSessions(metas: readonly IAgentSessionMetadata[], options?: { readonly updateExisting?: boolean }): void {
+	/** Seed offline rows, optionally refreshing discovery-owned display metadata and workspace-less intent. */
+	seedSessions(metas: readonly IAgentSessionMetadata[], options?: { readonly updateExisting?: boolean; readonly workspaceless?: boolean }): void {
 		const added: ISession[] = [];
 		const changed: ISession[] = [];
 		for (const rawMeta of metas) {
@@ -908,7 +914,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 				if (source?.source !== 'discovery' || meta.modifiedTime >= source.modifiedTime) {
 					transaction(tx => {
 						didChange = options?.updateExisting
-							? existing.updateDiscoveryMetadata({ ...meta, modifiedTime: Math.max(meta.modifiedTime, existing.updatedAt.get().getTime()) })
+							? existing.updateDiscoveryMetadata({ ...meta, modifiedTime: Math.max(meta.modifiedTime, existing.updatedAt.get().getTime()) }, options.workspaceless)
 							: existing.backfillProject(meta.project);
 						if (!this._connection && source?.source !== 'host') {
 							if (meta.status !== undefined) {
@@ -929,7 +935,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 			}
 			const adapter = this.createAdapter(meta);
 			if (options?.updateExisting) {
-				adapter.updateDiscoveryMetadata(meta);
+				adapter.updateDiscoveryMetadata(meta, options.workspaceless);
 			}
 			this._activitySources.set(adapter, { source: 'discovery', modifiedTime: meta.modifiedTime });
 			this._sessionCache.set(rawId, adapter);
@@ -1179,6 +1185,19 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 
 	// -- Browse --------------------------------------------------------------
 
+	private _folderBrowseUri(): URI {
+		if (this._defaultDirectory) {
+			return agentHostUri(this._connectionAuthority, this._defaultDirectory);
+		}
+		for (const session of this.getSessions()) {
+			const root = session.workspace.get()?.folders[0]?.root;
+			if (root) {
+				return root;
+			}
+		}
+		return agentHostUri(this._connectionAuthority, '/');
+	}
+
 	private async _browseForFolder(): Promise<ISessionWorkspace | undefined> {
 		// Establish connection on demand if a hook is provided (e.g. tunnel relay)
 		if (!this._connection && this._connectOnDemand) {
@@ -1195,7 +1214,10 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 			return undefined;
 		}
 
-		const defaultUri = agentHostUri(this._connectionAuthority, this._defaultDirectory ?? '/');
+		if (!this._defaultDirectory && this.getSessions().length === 0) {
+			await this._refreshSessions();
+		}
+		const defaultUri = this._folderBrowseUri();
 
 		try {
 			const selected = await this._fileDialogService.showOpenDialog({
@@ -1209,8 +1231,8 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 			if (selected?.[0]) {
 				return this._buildWorkspaceFromUri(selected[0]);
 			}
-		} catch {
-			// dialog was cancelled or failed
+		} catch (err) {
+			this._notificationService.error(localize('browseRemoteFolderFailed', "Failed to browse folders on '{0}': {1}", this.label, err instanceof Error ? err.message : String(err)));
 		}
 		return undefined;
 	}
@@ -1247,7 +1269,7 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 			return [];
 		}
 
-		const rootAgentHostUri = agentHostUri(this._connectionAuthority, this._defaultDirectory ?? '/');
+		const rootAgentHostUri = this._folderBrowseUri();
 
 		// Parse path navigation out of the query. Anything before the
 		// last `/` is a relative directory we descend into; the part

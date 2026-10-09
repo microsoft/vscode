@@ -11,7 +11,7 @@ import { ILogService } from '../../log/common/log.js';
 import type { ISessionCatalogSyncPendingSnapshot } from '../common/sessionDataService.js';
 import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, decodeAgentHostCatalogPayload, encodeAgentHostCatalogPayload, hashAgentHostCatalogPayload } from './agentHostCatalogProjection.js';
 import { AgentHostCatalogDatabaseReference, AgentHostCatalogDeletionFencedError, AgentHostCatalogSyncResult, AgentHostCatalogSyncService, catalogLegacyMetadataMatches, IAgentHostCatalogSyncRequest, matchesAcknowledgedCatalogReceipt, replayPendingCatalogSnapshot } from './agentHostCatalogSyncService.js';
-import type { IAgentHostDatabase, IAgentHostDatabaseSessionV2, IAgentHostDatabaseSessionV2Receipt } from './agentHostDatabase.js';
+import { AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT, type IAgentHostDatabase, type IAgentHostDatabaseSessionV2, type IAgentHostDatabaseSessionV2Receipt } from './agentHostDatabase.js';
 import type { IRegisteredSession } from './agentSessionRegistry.js';
 import type { IAgentHostStorageService } from './agentHostStorageService.js';
 
@@ -24,6 +24,7 @@ const DEFAULT_FULL_VERIFICATION_INTERVAL_MS = 60 * 60 * 1000;
 const DEFAULT_BACKGROUND_DELAY_MS = 1000;
 const RECONCILIATION_CURSOR_STORAGE_KEY = 'agentHost.catalogReconciliation.cursor';
 const VERIFICATION_CURSOR_STORAGE_KEY = 'agentHost.catalogReconciliation.verificationCursor';
+const CHAT_MIGRATION_CURSOR_STORAGE_KEY = 'agentHost.catalogReconciliation.chatMigrationCursor';
 export const AGENT_HOST_CATALOG_VERIFICATION_VERSION_STORAGE_KEY = 'agentHost.catalogReconciliation.verificationVersion';
 const VERIFICATION_VERSION_STORAGE_KEY = AGENT_HOST_CATALOG_VERIFICATION_VERSION_STORAGE_KEY;
 const LAST_VERIFICATION_STORAGE_KEY = 'agentHost.catalogReconciliation.lastVerification';
@@ -94,6 +95,7 @@ export interface IAgentHostCatalogReconciliationOptions {
 	readonly isSourceAvailable?: (registered: IRegisteredSession) => boolean;
 	/** Mirrors retroactive provisional markers into the owner process after a reconciliation run. */
 	readonly onDidMarkSessionsProvisional?: (sessions: readonly string[]) => void;
+	readonly migrateChatCatalog?: (session: URI, token: CancellationToken) => Promise<void>;
 }
 
 export class AgentHostCatalogReconciliationService extends Disposable {
@@ -111,6 +113,7 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 	private readonly _canSchedule: () => boolean;
 	private readonly _isSourceAvailable: (registered: IRegisteredSession) => boolean;
 	private readonly _onDidMarkSessionsProvisional: (sessions: readonly string[]) => void;
+	private readonly _migrateChatCatalog: IAgentHostCatalogReconciliationOptions['migrateChatCatalog'];
 	private readonly _markedProvisionalSessions = new Set<string>();
 	private readonly _scheduledPass = this._register(new MutableDisposable<IDisposable>());
 	private _scheduledPassKind: ScheduledPassKind | undefined;
@@ -154,6 +157,7 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 		this._canSchedule = options.canSchedule ?? (() => true);
 		this._isSourceAvailable = options.isSourceAvailable ?? (() => true);
 		this._onDidMarkSessionsProvisional = options.onDidMarkSessionsProvisional ?? (() => { });
+		this._migrateChatCatalog = options.migrateChatCatalog;
 		this._initialPayloadDirtyMarkPending = this._storageService.get<number>(VERIFICATION_VERSION_STORAGE_KEY) !== CATALOG_VERIFICATION_VERSION;
 		const lastVerification = this._storageService.get<number>(LAST_VERIFICATION_STORAGE_KEY);
 		this._lastCompatibilityVerification = typeof lastVerification === 'number' && Number.isFinite(lastVerification) && lastVerification <= this._now() ? lastVerification : 0;
@@ -276,6 +280,7 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 	}
 
 	private async _runSinglePass(token: CancellationToken): Promise<IAgentHostCatalogReconciliationReport> {
+		await this._migrateChatCatalogBatch(token);
 		await this._ensureInitialPayloadDirtyMark();
 		if (this._now() - this._lastCompatibilityVerification >= this._fullVerificationIntervalMs) {
 			await this._markVerificationSampleDirty(token);
@@ -296,6 +301,7 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 	}
 
 	private async _runFullPass(token: CancellationToken): Promise<IAgentHostCatalogReconciliationReport> {
+		await this._migrateChatCatalogBatch(token);
 		const { sessions, receiptBySession } = await this._listDirtySessions();
 		const outcomes: AgentHostCatalogReconciliationOutcome[] = [];
 		let cursor: string | undefined;
@@ -311,6 +317,46 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 			this._tryDeleteStorage(this._cursorStorageKey);
 		}
 		return { outcomes, cursor };
+	}
+
+	private async _migrateChatCatalogBatch(token: CancellationToken): Promise<void> {
+		if (!this._migrateChatCatalog || token.isCancellationRequested) {
+			return;
+		}
+		const migrate = this._migrateChatCatalog;
+		const sessions = [...await this._listSessions()]
+			.sort((first, second) => compareSessionKeys(first.session.toString(), second.session.toString()));
+		const cursor = this._storageService.get<string>(CHAT_MIGRATION_CURSOR_STORAGE_KEY);
+		const selected = this._selectBatch(sessions, typeof cursor === 'string' ? cursor : undefined);
+		const legacySessions = new Set<string>();
+		for (let index = 0; index < selected.length && !token.isCancellationRequested; index += AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT) {
+			const eligible = await this._catalogDatabase.listLegacyChatCatalogSessions(selected.slice(index, index + AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT).map(entry => entry.session.toString()));
+			for (const session of eligible) {
+				legacySessions.add(session);
+			}
+		}
+		if (token.isCancellationRequested) {
+			return;
+		}
+		const limiter = new Limiter<void>(this._concurrency);
+		await Promise.all(selected.filter(entry => legacySessions.has(entry.session.toString())).map(entry => limiter.queue(async () => {
+			if (token.isCancellationRequested) {
+				return;
+			}
+			try {
+				await migrate(entry.session, token);
+			} catch (error) {
+				this._logService.error(`[AgentHostCatalogReconciliation] Failed to migrate chat catalog for ${entry.session.toString()}`, error);
+			}
+		})));
+		if (!token.isCancellationRequested) {
+			const nextCursor = selected.at(-1)?.session.toString();
+			if (nextCursor) {
+				this._trySetStorage(CHAT_MIGRATION_CURSOR_STORAGE_KEY, nextCursor);
+			} else {
+				this._tryDeleteStorage(CHAT_MIGRATION_CURSOR_STORAGE_KEY);
+			}
+		}
 	}
 
 	private async _listDirtySessions(): Promise<{
@@ -424,7 +470,10 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 			}
 			// A source that cannot resolve produces no payload, so it must not claim local storage first.
 			if (!this._isSourceAvailable(registered)) {
-				return { session: sessionKey, status: 'retry', reason: 'providerUnavailable' };
+				const [snapshot] = await this._catalogDatabase.readCatalogSnapshot([sessionKey]);
+				if (snapshot?.authorityVersion !== 2) {
+					return { session: sessionKey, status: 'retry', reason: 'providerUnavailable' };
+				}
 			}
 			const observedDirty = receipt?.payloadDirty ?? await this._catalogDatabase.getSessionV2PayloadDirty(sessionKey);
 
@@ -503,6 +552,12 @@ export class AgentHostCatalogReconciliationService extends Disposable {
 								return { session: sessionKey, status: 'retry', reason: 'superseded' };
 							}
 							return outcome;
+						}
+						if (outcome.status === 'retry' && outcome.reason === 'superseded') {
+							const [catalog] = await this._catalogDatabase.readCatalogSnapshot([sessionKey]);
+							if (catalog?.authorityVersion === 2) {
+								return undefined;
+							}
 						}
 						if (outcome.status !== 'retry' || (outcome.reason !== 'staleIncarnation' && outcome.reason !== 'missingCatalog')) {
 							return outcome;

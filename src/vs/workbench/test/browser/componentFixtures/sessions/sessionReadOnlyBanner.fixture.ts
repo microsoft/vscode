@@ -5,16 +5,17 @@
 
 // eslint-disable-next-line local/code-import-patterns
 import { SessionReadOnlyBanner } from '../../../../../sessions/browser/parts/sessionReadOnlyBanner.js';
-import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
+import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 
 export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	ReadOnlyBanner: defineComponentFixture({ render: renderReadOnlyBanner }),
 });
 
-function renderReadOnlyBanner({ container, disposableStore }: ComponentFixtureContext): void {
+function renderReadOnlyBanner({ container, disposableStore, theme }: ComponentFixtureContext): void {
 	container.style.width = '480px';
 
-	const banner = disposableStore.add(new SessionReadOnlyBanner());
+	const instantiationService = createEditorServices(disposableStore, { colorTheme: theme });
+	const banner = disposableStore.add(instantiationService.createInstance(SessionReadOnlyBanner));
 	banner.setVisible(true);
 	container.appendChild(banner.domNode);
 }

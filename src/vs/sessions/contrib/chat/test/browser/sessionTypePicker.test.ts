@@ -844,6 +844,29 @@ suite('SessionTypePicker', () => {
 		assert.deepStrictEqual(picker.getUserPickedSessionType(), { providerId: 'copilot', sessionTypeId: 'copilot-cli' });
 	});
 
+	test('offers Cloud alongside local quick-chat harnesses and updates when it is withdrawn', () => {
+		const localTypes = [
+			sessionType('agent-host', 'copilotcli', 'Copilot'),
+			sessionType('agent-host', 'claude', 'Claude'),
+			sessionType('agent-host', 'codex', 'Codex'),
+		];
+		management.setQuickChatSessionTypes([...localTypes, sessionType('default-copilot', 'copilot-cloud-agent', 'Cloud')]);
+		const picker = createPicker(disposables, session, management, storage);
+		session.set(createFakeQuickChatSession('agent-host', 'copilotcli'), undefined);
+		const offered = picker.offeredSessionTypeIds;
+
+		picker.pick({ providerId: 'default-copilot', sessionTypeId: 'copilot-cloud-agent' });
+		const chosen = picker.selectedPick;
+		management.setQuickChatSessionTypes(localTypes);
+
+		assert.deepStrictEqual({ offered, chosen, remaining: picker.offeredSessionTypeIds, fallback: picker.selectedPick }, {
+			offered: ['copilotcli', 'claude', 'codex', 'copilot-cloud-agent'],
+			chosen: { providerId: 'default-copilot', sessionTypeId: 'copilot-cloud-agent' },
+			remaining: ['copilotcli', 'claude', 'codex'],
+			fallback: { providerId: 'agent-host', sessionTypeId: 'copilotcli' },
+		});
+	});
+
 	test('folder-driven quick-chat mode preserves an unavailable saved target through late discovery', () => {
 		const saved = { providerId: 'agent-host', sessionTypeId: 'copilotcli' };
 		management.setQuickChatSessionTypes([

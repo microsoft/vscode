@@ -11,6 +11,7 @@ import { AuthRequiredReason } from '../../../../../platform/agentHost/common/sta
 import { type ProtectedResourceMetadata } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IAgentHostAuthenticateRequest } from '../agentSessions/agentHost/agentHostAuth.js';
+import { IChatSessionContentProvider } from '../../common/chatSessionsService.js';
 
 /** Optional startup preparation for a selected workspace, returning a replacement host directory when needed. */
 export type RemoteAgentHostSessionPreparation = (selection: URI | undefined, token: CancellationToken) => Promise<URI | undefined>;
@@ -40,6 +41,9 @@ export interface IRemoteAgentHostConnectionCustomization {
 
 	/** Creates connection-scoped startup preparation, invoked only for new sessions after authentication. */
 	readonly createSessionPreparation?: (connection: IAgentConnection, store: DisposableStore) => RemoteAgentHostSessionPreparation;
+
+	/** Optionally retains a content provider across its initial history-to-live transition. */
+	readonly registerChatSessionContentProvider?: (sessionType: string, provider: IChatSessionContentProvider) => IDisposable | undefined;
 }
 
 /** Builds a {@link IRemoteAgentHostConnectionCustomization} for a concrete connection address. */
