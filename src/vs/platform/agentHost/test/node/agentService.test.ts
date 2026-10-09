@@ -10000,6 +10000,29 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(sessions.length, 1);
 		});
 
+		test('getSessionCount reads registry identities without provider or session database access', async () => {
+			const database = new TestAgentHostOrchestratorDatabase();
+			let databaseOpens = 0;
+			const svc = createCentralCatalogService({
+				...createSessionDataService(),
+				tryOpenDatabase: async () => {
+					databaseOpens++;
+					throw new Error('Counting must not open session databases');
+				},
+			}, database);
+			await svc.whenCatalogReconciliationIdle();
+			databaseOpens = 0;
+			const empty = await svc.getSessionCount();
+			const local = 'ahp-session:/count-local';
+			const external = 'copilotcli:/count-external';
+			await database.registerSessionV2(local, { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+			await database.registerSessionV2(external, { provider: 'copilotcli', startTime: 2, source: 'discovery' }, { checkTombstone: false });
+			const registered = await svc.getSessionCount();
+			await database.tombstoneAndUnregisterSession(local);
+			const afterDelete = await svc.getSessionCount();
+			assert.deepStrictEqual({ empty, registered, afterDelete, databaseOpens }, { empty: 0, registered: 2, afterDelete: 1, databaseOpens: 0 });
+		});
+
 		test('central list uses eligible catalogs and suppresses chat backing with zero legacy reads', async () => {
 			const orchestratorDatabase = new CentralCatalogDatabase();
 			const session = AgentSession.uri('copilot', 'central-only');
