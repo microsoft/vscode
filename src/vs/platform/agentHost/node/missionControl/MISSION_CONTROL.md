@@ -13,12 +13,14 @@ Registration is opt-in and default-off. The activation path is available to buil
 ## Enable the real service
 
 1. Sign in to GitHub in the owning VS Code window.
-2. Set `chat.agentHost.remoteConnections` to `missionControl` (the default is `devTunnel`).
-3. Enable **Allow Remote Connections** in the Agents Window title bar or the local Agent Host chat toolbar. Selecting Mission Control in settings does not register the environment.
+2. Set `chat.agentHost.remoteConnections` to `githubEnvironment` (the default is `devTunnel`).
+3. Enable **Allow Remote Connections** in the Agents Window title bar or the local Agent Host chat toolbar. Selecting GitHub environment in settings does not register the environment.
 4. Wait for `Mission Control ready; environmentId=...` in the Agent Host log.
 5. Create/use native sessions normally. From another compatible MC client, discover the environment, connect, authenticate with a sealed credential, and use standard AHP session operations.
 
 Registration uses `https://api.github.com`. An empty window can register the host without advertising a home-directory default. Disable **Allow Remote Connections** to withdraw remote access. The sharing choice is remembered locally across restarts, not synchronized to other machines. Changing the backend turns sharing off until explicitly enabled again. Withdrawal disconnects relay ingress immediately; it does not delete native sessions, conversations or checkouts.
+
+Registration and heartbeat `capabilities.current_sessions` count durable session-registry identities, independently of sidebar filters and provider availability. Counting does not load provider metadata or session transcripts. Metadata reads have a 60-second budget; a failed or timed-out device remote-control policy read prevents registration unless the explicit local policy override below is enabled.
 
 ### Local integration testing
 
@@ -42,6 +44,12 @@ Selection revalidates availability. An offline user-local host is not woken or r
 
 New native allocations negotiate standard `ahp-session` resources with a separate provider. Existing legacy and standard session/chat resources, SDK backings, and storage remain immutable. The client consumes exact advertised resources; MC does not impose a global Copilot alias. See the [identity contract](../../../../sessions/contrib/providers/agentHost/AGENT_HOST_SESSIONS_PROVIDER.md#identity).
 
+### Web PubSub receive capabilities
+
+VS Code clients publish the transport control `{"kind":"capabilities","accepts":["batch"]}` to the configured `to_host` group after joining their receive groups, and wait for its relay acknowledgement before initializing AHP. The socket/group-join timeout ends when the joins complete; capability publication then has its own 30-second acknowledgement deadline. They re-advertise after each successful AHP initialization or reconnect response, before delivering that response to the protocol client, so a replacement host lane can establish receive support. Rejected, timed-out, or unwritable capability publications fail the connection through normal relay error handling.
+
+The declaration permits a supporting peer to send bounded, ordered transport batches toward VS Code; it does not enable client outbound batching or prove that the peer has processed the declaration. Individual messages and chunks remain supported. These controls are not AHP messages or JSON-RPC batches and are not emitted on direct WebSocket or local IPC connections.
+
 ### Model advertisements
 
 Mission Control connections advertise model lists only for the native Copilot agent (`copilotcli`). Other agents remain advertised with their identities, capabilities and protected resources, but with empty model lists. This is an interoperability workaround for mobile clients that combine every agent's models into the picker for an existing Copilot session without switching that session's agent. Initial and subscribed root snapshots, reconnect snapshots/replay and live agent updates use the same projection; the host's authoritative catalog and local, SSH and tunnel connections remain unchanged.
@@ -64,7 +72,17 @@ Native authoritative AHP actions and selected genuine SDK metadata are mirrored 
 
 Registration accepts unbound sealed tokens for compatibility with deployed pre-sealed clients. Supplied bindings are verified; unbound envelopes remain replayable. Backend tests can require binding through `IMissionControlOptions.requireConnectionBinding`. Optional MCP resource context and the shared native provider credential store have the limitations described in the matrix. Do not infer stronger guarantees from successful transport authentication.
 
-The SDK's canonical device `remoteControl` branch is read before registration and forwarded to MC for enforcement. Failed initial reads do not register as unrestricted. The host does not introduce a second enterprise-policy parser or claim local enforcement of every predicate against a compromised MC signer.
+By default, the SDK's canonical device `remoteControl` branch is read before registration and forwarded to MC for enforcement. Failed initial reads do not register as unrestricted. The host does not introduce a second enterprise-policy parser or claim local enforcement of every predicate against a compromised MC signer.
+
+### Explicit local remote-control policy override
+
+The unregistered, default-off `chat.agentHost.experimentalMissionControl.ignoreRemoteControlPolicy` setting is a testing override available in built products. Set it to `true` in the host owner's **local User settings** to skip the device `remoteControl` policy read and omit that branch from Mission Control registration, allowing active connections despite device enterprise restrictions on creating sessions or sending messages. Application user settings also apply; workspace, workspace-folder, remote-user, and default values cannot enable it. The setting is absent from the Settings UI and schema.
+
+```json
+"chat.agentHost.experimentalMissionControl.ignoreRemoteControlPolicy": true
+```
+
+This bypasses the entire device `remoteControl` branch, not other runtime managed settings, tool permissions, authentication, or workspace grants. Mission Control can still issue signed passive connections, which remain read-only. Changing the setting closes existing relay lanes and reconfigures registration; reconnect the remote client afterward. Remove the setting or set it to `false` to restore device policy reporting and its failed-read gate.
 
 ### Explicit local credential delegation
 
@@ -89,6 +107,10 @@ The host uses proxy-aware bounded HTTP, a normal heartbeat cadence, and service-
 Host-wide diagnostic log channels are not advertised on Mission Control ingress. Diagnostic logs remain available locally; they do not share the relay's bounded publisher with session operations. This does not change provider-native OTel export.
 
 A single ordered publisher and bounded reassembly/queue/lane limits preserve live protocol ordering. Replacement connections have distinct generations; stale predecessor frames/closures are fenced. Request-form compatibility for `dispatchAction` and `unsubscribe` shares the native notification path and does not make arbitrary notifications successful requests.
+
+Clients can advertise receive support with `{ "kind": "capabilities", "accepts": ["batch"] }` on their configured per-client `to-host` group. The host accepts this framing control only from the registered WPS owner on an existing client lane; it is not an AHP request and does not authenticate session access. Support is scoped to that lane and resets on lane replacement or host relay recovery. Clients should advertise after joining their receive groups and re-advertise after each successful initialize/reconnect response. An updated `accepts` list replaces the previous list.
+
+For supporting clients, the ordered publisher packs adjacent already-queued raw AHP messages with the same destination group and host generation into `{ "kind": "batch", "items": [...], "generation": ... }`, with at most 256 items and 900 KiB of serialized envelope bytes. It adds no batching delay. Single messages and oversized payloads retain the message/chunk framing, and closures and mirror events remain ordering barriers. Each published batch uses one WPS acknowledgement; queue limits still account for the original queued frames and bytes.
 
 Independent AHP/SDK spools use durable ingest acknowledgements and bounded failure/truncation signals. Signed backfill replays retained AHP frames exactly. SDK sequence ranges are reserved durably before publication; native journal cursors advance only after durable SDK acknowledgement. AHP process-restart epochs/spool durability and complete pre-registration history remain deferred. Native titles are synchronized through the runtime naming API, not fabricated SDK events.
 

@@ -35,7 +35,7 @@ import { ILocalizedString } from '../../../platform/action/common/action.js';
 import { ConfigurationTarget, IConfigurationChange, IConfigurationData, IConfigurationOverrides } from '../../../platform/configuration/common/configuration.js';
 import { LinkPresentationKind } from '../../../platform/dataChannel/common/dataChannel.js';
 import { ConfigurationScope } from '../../../platform/configuration/common/configurationRegistry.js';
-import { IEditorOptions } from '../../../platform/editor/common/editor.js';
+import { IEditorOptions, ViewColumn } from '../../../platform/editor/common/editor.js';
 import { IExtensionIdWithVersion } from '../../../platform/extensionManagement/common/extensionStorage.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import * as files from '../../../platform/files/common/files.js';
@@ -1055,6 +1055,7 @@ export interface IWebviewPanelOptions {
 
 export interface CustomEditorProviderCapabilities {
 	readonly supportsMove?: boolean;
+	readonly supportsNavigation?: boolean;
 	readonly supportsInlineDiff?: boolean;
 	readonly supportsSideBySideDiff?: boolean;
 }
@@ -1141,6 +1142,7 @@ export interface MainThreadWebviewPanelsShape extends IDisposable {
 }
 
 export interface MainThreadCustomEditorsShape extends IDisposable {
+	$onDidChangeCustomTextEditorSelection(handle: WebviewHandle, selection: ISelection | undefined): void;
 	$registerTextEditorProvider(extension: WebviewExtensionDescription, viewType: string, options: IWebviewPanelOptions, capabilities: CustomEditorProviderCapabilities, serializeBuffersForPostMessage: boolean): void;
 	$registerCustomEditorProvider(extension: WebviewExtensionDescription, viewType: string, options: IWebviewPanelOptions, capabilities: CustomEditorProviderCapabilities, supportsMultipleEditorsPerDocument: boolean, serializeBuffersForPostMessage: boolean): void;
 	$unregisterEditorProvider(viewType: string): void;
@@ -1191,6 +1193,12 @@ export interface ExtHostWebviewPanelsShape {
 }
 
 export interface ExtHostCustomEditorsShape {
+	$resolveCustomTextEditorNavigation(handle: WebviewHandle, viewType: string, resource: UriComponents, token: CancellationToken): Promise<{ selection: ISelection | undefined } | undefined>;
+	$disposeCustomTextEditorNavigation(handle: WebviewHandle): void;
+	$revealCustomTextEditorRange(handle: WebviewHandle, range: IRange, selection: ISelection | undefined, preserveFocus: boolean, token: CancellationToken): Promise<void>;
+	$captureCustomTextEditorViewState(handle: WebviewHandle, stateId: number): Promise<void>;
+	$restoreCustomTextEditorViewState(handle: WebviewHandle, stateId: number, token: CancellationToken): Promise<void>;
+	$releaseCustomTextEditorViewState(handle: WebviewHandle, stateId: number): void;
 	$resolveCustomEditor(
 		resource: UriComponents,
 		newWebviewHandle: WebviewHandle,
@@ -1940,7 +1948,7 @@ export interface MainThreadUriOpenersShape extends IDisposable {
 
 export interface ExtHostUriOpenersShape {
 	$canOpenUri(id: string, uri: UriComponents, token: CancellationToken): Promise<languages.ExternalUriOpenerPriority>;
-	$openUri(id: string, context: { resolvedUri: UriComponents; sourceUri: UriComponents }, token: CancellationToken): Promise<void>;
+	$openUri(id: string, context: { resolvedUri: UriComponents; sourceUri: UriComponents; viewColumn?: ViewColumn }, token: CancellationToken): Promise<void>;
 }
 
 export interface MainThreadChatOutputRendererShape extends IDisposable {

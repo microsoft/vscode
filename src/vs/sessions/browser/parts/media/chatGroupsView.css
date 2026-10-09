@@ -17,6 +17,7 @@
 	position: relative;
 	overflow: hidden;
 	contain: paint;
+	box-sizing: border-box;
 	background-color: var(--session-view-background);
 	color: var(--session-view-foreground);
 }

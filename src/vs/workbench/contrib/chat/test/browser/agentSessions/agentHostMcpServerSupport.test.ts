@@ -266,6 +266,7 @@ suite('agentHostMcpServerSupport', () => {
 	for (const windowRemoteAuthority of [null, 'ssh-remote+devbox']) {
 		for (const sessionType of ['agent-host-copilotcli', 'remote-ssh-remote+devbox-copilotcli', 'agent-host-claude']) {
 			test(`Copilot-home delivery for ${sessionType} in window ${windowRemoteAuthority}`, async () => {
+				const isRuntimeDiscovered = (remoteAuthority: string | null) => sessionType === 'agent-host-copilotcli' && remoteAuthority === windowRemoteAuthority;
 				const authorities = [null, 'ssh-remote+devbox', 'ssh-remote+other'];
 				const servers = authorities.map(remoteAuthority => makeMcpServer({
 					id: `copilot.${remoteAuthority}.server`,
@@ -288,10 +289,8 @@ suite('agentHostMcpServerSupport', () => {
 					kind: AgentHostMcpServerSourceKind.CopilotHome,
 					group: AICustomizationSources.user,
 					remoteAuthority,
-					delivery: sessionType === 'agent-host-copilotcli' && remoteAuthority === windowRemoteAuthority
-						? AgentHostMcpServerDelivery.RuntimeDiscovered
-						: AgentHostMcpServerDelivery.ClientForwarded,
-					compatibility: { kind: 'supported' },
+					delivery: isRuntimeDiscovered(remoteAuthority) ? AgentHostMcpServerDelivery.RuntimeDiscovered : AgentHostMcpServerDelivery.NotDelivered,
+					compatibility: isRuntimeDiscovered(remoteAuthority) ? { kind: 'supported' } : { kind: 'unsupported', reasons: [AgentHostMcpSupportReason.CopilotHomeNotForwarded] },
 				})));
 			});
 		}

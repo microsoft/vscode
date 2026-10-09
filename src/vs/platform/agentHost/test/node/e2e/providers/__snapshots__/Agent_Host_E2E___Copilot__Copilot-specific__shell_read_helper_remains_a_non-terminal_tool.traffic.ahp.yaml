@@ -42,7 +42,14 @@ rounds:
           turnId: ${turn_0}
           toolCallId: ${toolCall_0}
           invocationMessage: Running `node -e "setTimeout(() => console.log('READ_SHELL_E2E_VALUE'), 3000)"`
-          toolInput: node -e "setTimeout(() => console.log('READ_SHELL_E2E_VALUE'), 3000)"
+          toolInput: |-
+            {
+              "command": "node -e \"setTimeout(() => console.log('READ_SHELL_E2E_VALUE'), 3000)\"",
+              "description": "Run delayed node script",
+              "mode": "async",
+              "shellId": "read-shell-e2e",
+              "initial_wait": 1
+            }
           confirmed: not-needed
       - channel: ${chat_0}
         action:
@@ -50,7 +57,14 @@ rounds:
           turnId: ${turn_0}
           toolCallId: ${toolCall_0}
           invocationMessage: Run delayed node script
-          toolInput: node -e "setTimeout(() => console.log('READ_SHELL_E2E_VALUE'), 3000)"
+          toolInput: |-
+            {
+              "command": "node -e \"setTimeout(() => console.log('READ_SHELL_E2E_VALUE'), 3000)\"",
+              "description": "Run delayed node script",
+              "mode": "async",
+              "shellId": "read-shell-e2e",
+              "initial_wait": 1
+            }
       - channel: ${chat_0}
         action:
           type: chat/toolCallConfirmed

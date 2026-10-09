@@ -9,7 +9,7 @@ import * as vscode from 'vscode';
 import { HubRpcConnection } from '@vscode/hubrpc';
 import { MarkdownContributions } from '../markdownExtensions';
 import { MarkdownEditorProvider } from '../preview/markdownEditorProvider';
-import { markdownEditorHost, markdownEditorRenderer } from '../preview/markdownEditorProtocol';
+import { markdownEditorHost, markdownEditorRenderer, type MarkdownEditorRenderer } from '../preview/markdownEditorProtocol';
 import { MarkdownEditorRpcTransport } from '../preview/markdownEditorRpc';
 import { MdLinkOpener } from '../util/openDocumentLink';
 
@@ -19,19 +19,7 @@ suite('Markdown editor bridge', () => {
 		const initialVersion = document.version;
 		const panel = new TestPanel();
 		const state = new TestMemento();
-		const extensionUri = vscode.extensions.getExtension('vscode.markdown-language-features')!.extensionUri;
-		const provider = new MarkdownEditorProvider(
-			extensionUri, state,
-			new MdLinkOpener({ resolveLinkTarget: async () => undefined }),
-			{
-				extensionUri,
-				contributions: MarkdownContributions.Empty,
-				onContributionsChanged: () => new vscode.Disposable(() => { }),
-				dispose: () => { },
-			},
-			{ trace: () => { } },
-			async () => false,
-		);
+		const provider = createProvider(state);
 		const cancellation = new vscode.CancellationTokenSource();
 		let renderer: HubRpcConnection<undefined> | undefined;
 		try {
@@ -39,6 +27,8 @@ suite('Markdown editor bridge', () => {
 			const secret = /name="vscode-markdown-editor-message-secret" content="([^"]+)"/.exec(panel.webview.html)?.[1];
 			assert.ok(secret);
 			await replaceDocument(document, 'changed\r\nbefore-ready');
+			const navigation = provider.resolveCustomTextEditorNavigation(document, panel, cancellation.token);
+			const navigationBeforeReady = navigation.revealRange(new vscode.Range(1, 0, 1, 6), { preserveFocus: true }, cancellation.token);
 			assert.strictEqual(panel.webview.sent.length, 0, 'do not start requests before the renderer is listening');
 			renderer = HubRpcConnection.fromTransport(new MarkdownEditorRpcTransport(
 				secret,
@@ -46,8 +36,10 @@ suite('Markdown editor bridge', () => {
 				listener => panel.webview.outgoing.event(listener),
 			));
 			const updates: { content: string; editEpoch: number }[] = [];
+			const reveals: Parameters<MarkdownEditorRenderer['revealRange']>[0][] = [];
 			let updated: (() => void) | undefined;
 			renderer.register(markdownEditorRenderer, {
+				diagnosticsChanged: () => { },
 				update: update => { updates.push(update); updated?.(); },
 				codeBlockEditorProviders: () => { },
 				codeBlockEditorHostTransportMessage: () => { },
@@ -55,8 +47,12 @@ suite('Markdown editor bridge', () => {
 				comments: () => { },
 				revealComment: () => { },
 				revealLinkTarget: () => { },
+				captureNavigationState: () => ({ editEpoch: updates.at(-1)!.editEpoch, revision: 0, scrollTop: 0 }),
+				revealRange: request => { reveals.push(request); },
+				restoreNavigationState: () => { },
 				command: () => { },
 				highlightThemeChanged: () => { },
+				configurationChanged: () => { },
 				richLinkPresentations: () => { },
 			});
 			const host = renderer.get(markdownEditorHost);
@@ -65,12 +61,18 @@ suite('Markdown editor bridge', () => {
 			assert.strictEqual(updates[0].content, 'changed\r\nbefore-ready');
 			const epoch = updates[0].editEpoch;
 			assert.ok(epoch > 0);
+			await navigationBeforeReady;
+			assert.deepStrictEqual(reveals, [{
+				start: 9, endExclusive: 15, editEpoch: epoch, revision: 0, preserveFocus: true,
+			}]);
 			await host.edit({ start: 0, endExclusive: 0, text: 'stale', editEpoch: 0 });
 			assert.strictEqual(document.getText(), 'changed\r\nbefore-ready');
 			await host.edit({ start: 0, endExclusive: 0, text: '\n', editEpoch: epoch });
 			await host.edit({ start: 1, endExclusive: 1, text: 'x', editEpoch: epoch });
 			assert.strictEqual(document.getText(), '\r\nxchanged\r\nbefore-ready');
 			assert.strictEqual(updates.length, 1, 'accepted local edits must not echo authoritative replacements');
+			await host.selectionChanged({ editEpoch: epoch, selection: { anchor: 1, active: 9 } });
+			assert.deepStrictEqual(navigation.selection, new vscode.Selection(1, 0, 1, 8));
 			const externalUpdate = new Promise<void>(resolve => updated = resolve);
 			await replaceDocument(document, 'external\r\n');
 			await externalUpdate;
@@ -94,7 +96,46 @@ suite('Markdown editor bridge', () => {
 			cancellation.dispose();
 		}
 	});
+
+	test('cancels navigation waiting for renderer readiness and releases it when the panel is disposed', async () => {
+		const document = await vscode.workspace.openTextDocument({ language: 'markdown', content: '# Heading' });
+		const panel = new TestPanel();
+		const provider = createProvider(new TestMemento());
+		const cancellation = new vscode.CancellationTokenSource();
+		try {
+			await provider.resolveCustomTextEditor(document, panel, cancellation.token);
+			const navigation = provider.resolveCustomTextEditorNavigation(document, panel, cancellation.token);
+			const reveal = navigation.revealRange(new vscode.Range(0, 0, 0, 9), {}, cancellation.token);
+			cancellation.cancel();
+			await assert.rejects(Promise.resolve(reveal), vscode.CancellationError);
+			const captured = navigation.captureViewState();
+			panel.dispose();
+			await assert.rejects(Promise.resolve(captured), vscode.CancellationError);
+			assert.strictEqual(panel.webview.sent.length, 0);
+			assert.throws(() => provider.resolveCustomTextEditorNavigation(document, panel, cancellation.token), vscode.CancellationError);
+		} finally {
+			panel.dispose();
+			provider.dispose();
+			cancellation.dispose();
+		}
+	});
 });
+
+function createProvider(state: vscode.Memento): MarkdownEditorProvider {
+	const extensionUri = vscode.extensions.getExtension('vscode.markdown-language-features')!.extensionUri;
+	return new MarkdownEditorProvider(
+		extensionUri, state,
+		new MdLinkOpener({ resolveLinkTarget: async () => undefined }),
+		{
+			extensionUri,
+			contributions: MarkdownContributions.Empty,
+			onContributionsChanged: () => new vscode.Disposable(() => { }),
+			dispose: () => { },
+		},
+		{ trace: () => { } },
+		async () => false,
+	);
+}
 
 async function replaceDocument(document: vscode.TextDocument, content: string): Promise<void> {
 	const edit = new vscode.WorkspaceEdit();

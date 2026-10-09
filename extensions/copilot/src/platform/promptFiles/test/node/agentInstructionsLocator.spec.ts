@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Uri } from 'vscode';
-import { afterEach, beforeEach, expect, suite, test } from 'vitest';
-import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
+import { afterEach, beforeEach, expect, suite, test, vi } from 'vitest';
+import { CancellationToken, CancellationTokenSource } from '../../../../util/vs/base/common/cancellation';
 import { ResourceMap } from '../../../../util/vs/base/common/map';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { ConfigKey, IConfigurationService } from '../../../configuration/common/configurationService';
@@ -14,13 +14,20 @@ import { InMemoryConfigurationService } from '../../../configuration/test/common
 import { MockFileSystemService } from '../../../filesystem/node/test/mockFileSystemService';
 import { IFileSystemService } from '../../../filesystem/common/fileSystemService';
 import { ILogService, LogServiceImpl } from '../../../log/common/logService';
+import { ISearchService } from '../../../search/common/searchService';
 import { createPlatformServices, ITestingServicesAccessor } from '../../../test/node/services';
+import { SnapshotSearchService } from '../../../test/node/simulationWorkspaceServices';
 import { TestWorkspaceService } from '../../../test/node/testWorkspaceService';
 import { IWorkspaceService } from '../../../workspace/common/workspaceService';
 import { INativeEnvService } from '../../../env/common/envService';
 import { AgentInstructionsLocator } from '../../vscode-node/agentInstructionsLocator';
 import { mockFiles } from './mockFiles';
-import { PromptConfig } from '../../common/promptsService';
+import { AgentInstructionFileType, PromptConfig } from '../../common/promptsService';
+import { ExcludeSettingOptions } from '../../../../vscodeTypes';
+
+class TestSearchService extends SnapshotSearchService {
+	override readonly findFiles = vi.fn<SnapshotSearchService['findFiles']>().mockResolvedValue([]);
+}
 
 /**
  * `IWorkspaceService` test double whose trust map can be configured per URI.
@@ -51,6 +58,7 @@ suite('AgentInstructionsLocator', () => {
 	let configService: InMemoryConfigurationService;
 	let fileSystem: MockFileSystemService;
 	let workspaceService: TrustingWorkspaceService;
+	let searchService: TestSearchService;
 	let locator: AgentInstructionsLocator;
 
 	const parentFolder = '/collect-agent-parent-test';
@@ -70,6 +78,9 @@ suite('AgentInstructionsLocator', () => {
 		fileSystem = new MockFileSystemService();
 		services.define(IFileSystemService, fileSystem);
 
+		searchService = new TestSearchService(fileSystem, workspaceService);
+		services.define(ISearchService, searchService);
+
 		configService = new InMemoryConfigurationService(new DefaultsOnlyConfigurationService());
 		services.define(IConfigurationService, configService);
 
@@ -84,6 +95,7 @@ suite('AgentInstructionsLocator', () => {
 			accessor.get(INativeEnvService),
 			accessor.get(IConfigurationService),
 			accessor.get(ILogService) ?? new LogServiceImpl([]),
+			accessor.get(ISearchService),
 		);
 	});
 
@@ -295,6 +307,48 @@ suite('AgentInstructionsLocator', () => {
 		expect(paths).toContain(`${parentFolder}/.claude/CLAUDE.md`);
 	});
 
+	suite('nested AGENTS.md', () => {
+		test.each([false, true])('uses core search options when explorer.excludeGitIgnore is %s', async excludeGitIgnore => {
+			await configService.setNonExtensionConfig(PromptConfig.USE_NESTED_AGENT_MD, true);
+			await configService.setNonExtensionConfig('explorer.excludeGitIgnore', excludeGitIgnore);
+
+			await locator.listNestedAgentMDs(CancellationToken.None);
+
+			expect(searchService.findFiles.mock.calls).toEqual([
+				['**/AGENTS.md', {
+					useExcludeSettings: ExcludeSettingOptions.SearchAndFilesExclude,
+					useIgnoreFiles: { local: !excludeGitIgnore },
+					caseInsensitive: true,
+				}, CancellationToken.None],
+			]);
+		});
+
+		test.each([
+			{ useAgentMd: false, useNestedAgentMd: true },
+			{ useAgentMd: true, useNestedAgentMd: false },
+		])('skips discovery when disabled: %o', async ({ useAgentMd, useNestedAgentMd }) => {
+			await configService.setNonExtensionConfig(PromptConfig.USE_AGENT_MD, useAgentMd);
+			await configService.setNonExtensionConfig(PromptConfig.USE_NESTED_AGENT_MD, useNestedAgentMd);
+
+			expect(await locator.listNestedAgentMDs(CancellationToken.None)).toEqual([]);
+			expect(searchService.findFiles).not.toHaveBeenCalled();
+		});
+
+		test('discards results when cancelled during search', async () => {
+			await configService.setNonExtensionConfig(PromptConfig.USE_NESTED_AGENT_MD, true);
+			const source = new CancellationTokenSource();
+			searchService.findFiles.mockImplementation(async () => {
+				source.cancel();
+				return [URI.joinPath(rootFolderUri, 'src/AGENTS.md')];
+			});
+			try {
+				expect(await locator.listNestedAgentMDs(source.token)).toEqual([]);
+			} finally {
+				source.dispose();
+			}
+		});
+	});
+
 	suite('multi-root workspace', () => {
 		const rootFolder1 = '/multi-root-1';
 		const rootFolder2 = '/multi-root-2';
@@ -311,8 +365,22 @@ suite('AgentInstructionsLocator', () => {
 				accessor.get(INativeEnvService),
 				accessor.get(IConfigurationService),
 				accessor.get(ILogService) ?? new LogServiceImpl([]),
+				accessor.get(ISearchService),
 			);
 		}
+
+		test('collects nested AGENTS.md search results from all workspace folders', async () => {
+			const uris = [
+				URI.joinPath(rootFolder1Uri, 'src/AGENTS.md'),
+				URI.joinPath(rootFolder2Uri, 'src/agents.md'),
+			];
+			searchService.findFiles.mockResolvedValue(uris);
+			await configService.setNonExtensionConfig(PromptConfig.USE_NESTED_AGENT_MD, true);
+
+			const result = await createMultiRootLocator().listNestedAgentMDs(CancellationToken.None);
+
+			expect(result).toEqual(uris.map(uri => ({ uri, type: AgentInstructionFileType.agentsMd })));
+		});
 
 		test('should collect CLAUDE.md from multi-root workspace', async () => {
 			await mockFiles(fileSystem, [

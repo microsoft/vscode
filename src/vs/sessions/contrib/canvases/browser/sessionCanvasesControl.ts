@@ -14,9 +14,10 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import type { IChatPillSection } from '../../../../workbench/browser/chatPills.js';
+import { getCanvasReferenceKey, type ICanvasReference } from '../../../../workbench/contrib/canvases/common/canvas.js';
 import { IChat } from '../../../services/sessions/common/session.js';
 import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
-import { createSessionCanvasReference, getSessionCanvasInstanceLabels, getSessionCanvasReferenceKey, ISessionCanvasReference, REVEAL_SESSION_CANVAS_COMMAND_ID } from '../common/sessionCanvas.js';
+import { createSessionCanvasReference, getSessionCanvasInstanceLabels, REVEAL_SESSION_CANVAS_COMMAND_ID } from '../common/sessionCanvas.js';
 
 export class SessionCanvasesControl extends Disposable {
 
@@ -50,7 +51,7 @@ export class SessionCanvasesControl extends Disposable {
 				const reference = createSessionCanvasReference(currentSession, currentChat, canvas);
 				const label = labels[index];
 				return {
-					id: getSessionCanvasReferenceKey(reference),
+					id: getCanvasReferenceKey(reference),
 					label,
 					icon: Codicon.preview,
 					ariaLabel: localize('sessionCanvases.open', "Open canvas {0}", label),
@@ -61,7 +62,7 @@ export class SessionCanvasesControl extends Disposable {
 		});
 	}
 
-	private openCanvas(reference: ISessionCanvasReference, label: string): void {
+	private openCanvas(reference: ICanvasReference, label: string): void {
 		void this.commandService.executeCommand(REVEAL_SESSION_CANVAS_COMMAND_ID, reference).catch(error => {
 			this.notificationService.error(localize('sessionCanvases.openFailed', "Could not open canvas {0}: {1}", label, toErrorMessage(error)));
 		});

@@ -4,32 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 :is(.sessions-issue-hover, .sessions-pr-hover, .sessions-commit-hover) {
-	box-sizing: border-box;
-	display: flex;
-	flex-direction: column;
-	gap: var(--vscode-spacing-size80);
 	width: min(520px, calc(100vw - 2 * var(--vscode-spacing-size240) - 2 * var(--vscode-strokeThickness)));
-	max-width: 100%;
-	padding: var(--vscode-spacing-size120) var(--vscode-spacing-size160);
-	color: var(--vscode-editorHoverWidget-foreground);
-}
-
-:is(.sessions-issue-hover, .sessions-pr-hover, .sessions-commit-hover).compact {
-	padding: var(--vscode-spacing-size80) var(--vscode-spacing-size120);
-}
-
-:is(.sessions-issue-hover, .sessions-pr-hover, .sessions-commit-hover) a {
-	color: var(--vscode-textLink-foreground);
-}
-
-:is(.sessions-issue-hover, .sessions-pr-hover, .sessions-commit-hover) a:hover,
-:is(.sessions-issue-hover, .sessions-pr-hover, .sessions-commit-hover) a:active {
-	color: var(--vscode-textLink-activeForeground);
-}
-
-:is(.sessions-issue-hover, .sessions-pr-hover, .sessions-commit-hover) :is(a, button):focus-visible {
-	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
-	outline-offset: var(--vscode-spacing-size20);
 }
 
 :is(.sessions-issue-hover-header, .sessions-pr-hover-header, .sessions-commit-hover-header) {
@@ -56,14 +31,15 @@
 	flex-shrink: 0;
 }
 
-.sessions-pr-hover-status-row {
+:is(.sessions-issue-hover-status-row, .sessions-pr-hover-status-row) {
 	display: flex;
 	flex-wrap: wrap;
 	gap: var(--vscode-spacing-size80);
 }
 
-.sessions-issue-hover-status-row {
-	display: flex;
+.github-reference-refresh-status {
+	align-self: center;
+	color: var(--vscode-descriptionForeground);
 }
 
 :is(.sessions-issue-hover-status, .sessions-pr-hover-status, .sessions-pr-hover-checks) {

@@ -31,6 +31,7 @@ import { IAgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
 import { IAgentHostPeerChatPersistenceService } from '../../node/agentHostPeerChatStore.js';
 import { IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { NullByokLmBridgeRegistry, IByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
+import { IAgentHostUtilityModelService } from '../../node/agentHostUtilityModelService.js';
 import { registerAgentHostCoreServices, registerAgentHostHostServices } from '../../node/agentHostServices.js';
 import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 
@@ -250,6 +251,23 @@ suite('Agent Host service registrations', () => {
 		const descriptor = services.get(IAgentHostOTelService);
 		assert.ok(descriptor instanceof SyncDescriptor);
 		assert.deepStrictEqual(descriptor.staticArguments, [{ fetchFn: globalThis.fetch }]);
+	});
+
+	test('enables BYOK utility model routing only for hosts with a renderer BYOK bridge', () => {
+		const staticArguments = (byok: Parameters<typeof registerAgentHostHostServices>[1]['byok']) => {
+			const services = new StrictServiceCollection();
+			registerAgentHostHostServices(services, { userDataPath: URI.file('/user-data'), fetchFn: globalThis.fetch, byok });
+			const descriptor = services.get(IAgentHostUtilityModelService);
+			assert.ok(descriptor instanceof SyncDescriptor);
+			return descriptor.staticArguments;
+		};
+		assert.deepStrictEqual({
+			local: staticArguments({ kind: 'renderer', bridgeRegistry: new NullByokLmBridgeRegistry() }),
+			remote: staticArguments({ kind: 'unavailable' }),
+		}, {
+			local: [true],
+			remote: [false],
+		});
 	});
 
 	test('descriptor-created services have one disposal owner', () => {

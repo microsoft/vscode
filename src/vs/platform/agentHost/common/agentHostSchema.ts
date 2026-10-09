@@ -455,6 +455,23 @@ export const AgentHostByokModelsEnabledConfigKey = 'byokModelsEnabled';
 export const AgentHostByokModelsEnabledDefault = true;
 
 /**
+ * Root config key mirrored from `chat.utilitySmallModel`: a `${vendor}/${id}`
+ * model that overrides the default model for host utility flows such as title
+ * and pull request generation. Empty uses the default behavior.
+ */
+export const AgentHostUtilitySmallModelConfigKey = 'utilitySmallModel';
+
+/**
+ * Root config key mirrored from `chat.byokUtilityModelDefault`: the default
+ * utility model when the chat's selected main agent model is BYOK.
+ */
+export const AgentHostByokUtilityModelDefaultConfigKey = 'byokUtilityModelDefault';
+
+/** Values of {@link AgentHostByokUtilityModelDefaultConfigKey}; keep in sync with `BYOKUtilityModelDefault` in the chat contribution. */
+export const AgentHostByokUtilityModelDefaults = ['none', 'mainAgent', 'copilot'] as const;
+export type AgentHostByokUtilityModelDefault = typeof AgentHostByokUtilityModelDefaults[number];
+
+/**
  * Root config key forwarded from the renderer carrying the experiment-aware
  * value of `chat.agentHost.codexAgent.enabled`. The host registers the Codex
  * provider when this is `true`; disabling requires an agent host restart.
@@ -858,6 +875,24 @@ export const platformRootSchema = createSchema({
 		title: localize('agentHost.config.byokModelsEnabled.title', "BYOK Models"),
 		description: localize('agentHost.config.byokModelsEnabled.description', "Whether extension-provided BYOK models are enabled."),
 		default: AgentHostByokModelsEnabledDefault,
+	}),
+	[AgentHostUtilitySmallModelConfigKey]: schemaProperty<string>({
+		type: 'string',
+		title: localize('agentHost.config.utilitySmallModel.title', "Utility Model"),
+		description: localize('agentHost.config.utilitySmallModel.description', "The `vendor/id` of a BYOK model that overrides the default model for utility flows such as title and pull request generation. Empty uses the default behavior."),
+		default: '',
+	}),
+	[AgentHostByokUtilityModelDefaultConfigKey]: schemaProperty<AgentHostByokUtilityModelDefault>({
+		type: 'string',
+		title: localize('agentHost.config.byokUtilityModelDefault.title', "BYOK Utility Model Default"),
+		description: localize('agentHost.config.byokUtilityModelDefault.description', "The default model for utility flows when the chat's selected main agent model is a BYOK model. A configured utility model takes precedence."),
+		enum: [...AgentHostByokUtilityModelDefaults],
+		enumDescriptions: [
+			localize('agentHost.config.byokUtilityModelDefault.none', "Do not use a default utility model."),
+			localize('agentHost.config.byokUtilityModelDefault.mainAgent', "Use the selected BYOK main agent model."),
+			localize('agentHost.config.byokUtilityModelDefault.copilot', "Use the default GitHub Copilot utility model."),
+		],
+		default: 'copilot',
 	}),
 	[AgentHostCodexEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',

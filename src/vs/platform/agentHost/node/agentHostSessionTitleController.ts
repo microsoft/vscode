@@ -13,13 +13,14 @@ import { AgentHostTitleGenerationStrategies, type AgentHostTitleGenerationStrate
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { SessionServerToolName } from '../common/serverToolNames.js';
 import { ActionType } from '../common/state/sessionActions.js';
-import { buildDefaultChatUri, isAhpChatChannel, isDefaultChatUri, TurnState, type Turn, type URI as ProtocolURI } from '../common/state/sessionState.js';
+import { buildDefaultChatUri, isAhpChatChannel, isDefaultChatUri, TurnState, type ModelSelection, type Turn, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { buildConversationContext, renderResponseMarkdown, truncateMiddle } from '../common/agentHostConversationContext.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import type { IAgentHostPeerChatPersistenceService } from './agentHostPeerChatStore.js';
 import type { GitHubIssueOrPullRequest } from '../../github/common/githubQueryService.js';
 import type { IAgentHostGitHubService } from './agentHostGitHubService.js';
-import { ICopilotApiService, type ICopilotUtilityChatMessage } from './shared/copilotApiService.js';
+import { type ICopilotUtilityChatMessage } from './shared/copilotApiService.js';
+import { AgentHostUtilityModelUnavailableError, type IAgentHostUtilityModelContext, type IAgentHostUtilityModelService } from './agentHostUtilityModelService.js';
 import { AGENT_HOST_TITLE_SOURCE_AGENT, AGENT_HOST_TITLE_SOURCE_AUTO, AGENT_HOST_TITLE_SOURCE_USER, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, persistSessionMetadata, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from './shared/persistSessionMetadata.js';
 
 const MAX_TITLE_LENGTH = 200;
@@ -98,6 +99,8 @@ interface ITitlePromptContext {
 	readonly gitHubReferenceSource?: string;
 	/** The title in place already, offered to the model as the incumbent. */
 	readonly currentTitle?: string;
+	/** The session and chat whose selected model determines the utility model. */
+	readonly modelContext: IAgentHostUtilityModelContext;
 }
 
 export interface IAgentHostSessionTitleControllerOptions {
@@ -106,12 +109,11 @@ export interface IAgentHostSessionTitleControllerOptions {
 	readonly readNormalizedChat?: IAgentHostPeerChatPersistenceService['readNormalizedChat'];
 	readonly queueCatalogSync?: (session: ProtocolURI, metadataOverrides: Readonly<Record<string, string>>) => void;
 	readonly persistSurfacedSessionTitle?: (session: ProtocolURI, title: string) => Promise<void>;
-	readonly getGitHubCopilotToken?: () => string | undefined;
 	readonly getGitHubToken?: () => string | undefined;
 	readonly getGitHubHost?: () => string | undefined;
 	readonly gitHubContextRequestTimeout?: number;
 	readonly gitHubService?: IAgentHostGitHubService;
-	readonly copilotApiService?: ICopilotApiService;
+	readonly utilityModelService?: IAgentHostUtilityModelService;
 	readonly getInitialTitleGenerationStrategy?: () => AutomaticTitleGenerationStrategy;
 }
 
@@ -122,7 +124,7 @@ export interface IAgentHostSessionTitleController {
 	readonly _serviceBrand: undefined;
 	getAutomaticTitleGenerationStrategy(channel?: ProtocolURI): AutomaticTitleGenerationStrategy;
 	restoreTitleGenerationStrategy(channel: ProtocolURI, chatChannel?: ProtocolURI): Promise<void>;
-	seedTitleFromFirstMessage(channel: ProtocolURI, userPrompt: string, chatChannel?: ProtocolURI): void;
+	seedTitleFromFirstMessage(channel: ProtocolURI, userPrompt: string, chatChannel?: ProtocolURI, model?: ModelSelection): void;
 	seedProvisionalTitle(channel: ProtocolURI, suggestedTitle: string, chatChannel?: ProtocolURI): void;
 	refineTitleFromFirstTurn(channel: ProtocolURI, chatChannel?: ProtocolURI, successful?: boolean): void;
 	generateForkedTitle(channel: ProtocolURI, chatChannel: ProtocolURI | undefined, turns: readonly Turn[], fallbackTitle: string, sourceTitle?: string): void;
@@ -174,7 +176,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 		super();
 	}
 
-	seedTitleFromFirstMessage(channel: ProtocolURI, userPrompt: string, chatChannel?: ProtocolURI): void {
+	seedTitleFromFirstMessage(channel: ProtocolURI, userPrompt: string, chatChannel?: ProtocolURI, model?: ModelSelection): void {
 		if (this._isEphemeralSession(channel)) {
 			return;
 		}
@@ -208,7 +210,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 		}
 		this._generateTitleSoon(
 			key,
-			{ content: userPrompt, isConversation: false, gitHubReferenceSource: userPrompt },
+			{ content: userPrompt, isConversation: false, gitHubReferenceSource: userPrompt, modelContext: { session: channel, chat: chatChannel, model } },
 			fallbackTitle,
 			title => this._applySeedTitle(channel, independentChat, title),
 			() => this._currentSeedTitle(channel, independentChat) === this._lastAppliedTitle.get(key),
@@ -409,7 +411,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 		}
 		this._generateTitleSoon(
 			key,
-			{ content: context, isConversation: true, gitHubReferenceSource: turn.message.text, currentTitle: lastApplied },
+			{ content: context, isConversation: true, gitHubReferenceSource: turn.message.text, currentTitle: lastApplied, modelContext: { session: channel, chat: chatChannel } },
 			lastApplied,
 			title => this._applySeedTitle(channel, independentChat, title),
 			() => {
@@ -453,7 +455,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 			const apply = (title: string) => this._applyTitle(key, title, t => this._stateManager.updateChatTitle(channel, key, t));
 			this._generateTitleSoon(
 				key,
-				{ content: context, isConversation: true },
+				{ content: context, isConversation: true, modelContext: { session: channel, chat: chatChannel } },
 				fallbackTitle,
 				apply,
 				() => this._stateManager.getChatState(key)?.title === this._lastAppliedTitle.get(key),
@@ -470,7 +472,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 		}));
 		this._generateTitleSoon(
 			channel,
-			{ content: context, isConversation: true },
+			{ content: context, isConversation: true, modelContext: { session: channel, chat: chatChannel } },
 			fallbackTitle,
 			apply,
 			() => this._stateManager.getSessionState(channel)?.title === this._lastAppliedTitle.get(channel),
@@ -499,7 +501,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 		}
 		await this._startTitleGeneration(
 			session,
-			{ content: userPrompt, isConversation: false, gitHubReferenceSource: userPrompt },
+			{ content: userPrompt, isConversation: false, gitHubReferenceSource: userPrompt, modelContext: { session } },
 			'',
 			title => this._applyExternalSessionTitle(session, title),
 			() => true,
@@ -705,9 +707,8 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 			return undefined;
 		}
 
-		const githubToken = this._options.getGitHubCopilotToken?.();
-		const copilotApiService = this._options.copilotApiService;
-		if (!githubToken || !copilotApiService) {
+		const utilityModelService = this._options.utilityModelService;
+		if (!utilityModelService) {
 			return undefined;
 		}
 
@@ -720,7 +721,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 			if (token.isCancellationRequested) {
 				return undefined;
 			}
-			const rawTitle = await copilotApiService.utilityChatCompletion(githubToken, {
+			const rawTitle = await utilityModelService.chatCompletion(prompt.modelContext, {
 				messages: this._buildTitlePrompt(titlePromptContent, prompt),
 				maxTokens: MAX_TITLE_TOKENS,
 			}, {
@@ -729,6 +730,10 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 			return this._cleanTitle(rawTitle, titlePromptContent);
 		} catch (err) {
 			if (token.isCancellationRequested) {
+				return undefined;
+			}
+			if (err instanceof AgentHostUtilityModelUnavailableError) {
+				this._logService.trace(`[AgentHostSessionTitleController] Skipping title generation: ${err.message}`);
 				return undefined;
 			}
 			this._logService.warn('[AgentHostSessionTitleController] Failed to generate session title', err);

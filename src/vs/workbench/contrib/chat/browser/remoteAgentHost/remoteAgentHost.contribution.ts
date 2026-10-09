@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../../nls.js';
-import { CloudSandboxEnabledSettingId, ICloudSandboxAgentHostService, ICloudSandboxApiService } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { CloudSandboxAutoConnectOnOpenSettingId, CloudSandboxEnabledSettingId, ICloudSandboxAgentHostService, ICloudSandboxApiService } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
@@ -45,10 +45,10 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	properties: {
 		[AgentHostRemoteConnectionsSettingId]: {
 			type: 'string',
-			enum: ['devTunnel', 'missionControl'],
+			enum: ['devTunnel', 'githubEnvironment'],
 			enumDescriptions: [
 				localize('remoteConnections.devTunnel', "Allow remote connections through a Dev Tunnel."),
-				localize('remoteConnections.missionControl', "Register the native Agent Host with Mission Control through Azure Web PubSub. Remote clients receive trusted-owner access to sessions, tools, and workspace resources. Native session actions are mirrored for catalog/history storage; conversation content is not end-to-end encrypted."),
+				localize('remoteConnections.githubEnvironment', "Register the native Agent Host as a GitHub environment through Azure Web PubSub. Remote clients receive trusted-owner access to sessions, tools, and workspace resources. Native session actions are mirrored for catalog/history storage; conversation content is not end-to-end encrypted."),
 			],
 			description: localize('remoteConnections', "Choose the backend used by Allow Remote Connections. Selecting a backend does not enable sharing. Changing the backend turns sharing off."),
 			default: 'devTunnel',
@@ -71,6 +71,13 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],
 			experiment: { mode: 'auto' },
+		},
+		[CloudSandboxAutoConnectOnOpenSettingId]: {
+			type: 'boolean',
+			description: localize('chat.agentHost.cloudSandbox.autoConnectOnOpen', "Automatically connect to or wake a cloud sandbox environment in the background when opening or restoring its chat in the Agents Window. When disabled, connecting waits until you start composing or explicitly connect."),
+			default: true,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental', 'advanced'],
 		},
 	},
 });
