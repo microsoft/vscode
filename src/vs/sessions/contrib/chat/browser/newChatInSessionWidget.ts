@@ -7,7 +7,8 @@ import './media/chatWidget.css';
 import './media/newChatInSession.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { isCancellationError } from '../../../../base/common/errors.js';
+import { disposableTimeout } from '../../../../base/common/async.js';
+import { isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, IObservable, observableFromEvent } from '../../../../base/common/observable.js';
 import { Event } from '../../../../base/common/event.js';
@@ -20,6 +21,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IActiveSession, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { ISessionsListModelService } from '../../../services/sessions/browser/sessionsListModelService.js';
 import { NewChatInputWidget } from './newChatInput.js';
 import { isExperimentalSessionComposerLayoutEnabled } from './newChatWidget.js';
 import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
@@ -43,6 +45,7 @@ export class NewChatInSessionWidget extends Disposable {
 
 	private readonly _newChatInput: NewChatInputWidget;
 	private readonly _tipDisposable = this._register(new MutableDisposable());
+	private readonly _inboxRedirect = this._register(new MutableDisposable());
 	private readonly _session: IObservable<IActiveSession | undefined>;
 	/**
 	 * When the experimental composer layout is enabled, the in-session input mirrors the
@@ -58,6 +61,7 @@ export class NewChatInSessionWidget extends Disposable {
 		@ILogService private readonly logService: ILogService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
+		@ISessionsListModelService private readonly sessionsListModelService: ISessionsListModelService,
 		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
@@ -216,20 +220,27 @@ export class NewChatInSessionWidget extends Disposable {
 		if (!activeSession) {
 			return false;
 		}
+		const inboxViewEnabled = this.sessionsListModelService.inboxViewEnabled.get();
+		const startInBackground = background === true || inboxViewEnabled;
 		const activeChat = activeSession.activeChat.get();
 		try {
 			// Reset the composer before dispatching the send: both touch shared
 			// chat-session state for chats in the same group, and running them
 			// concurrently races and leaves the sent chat stuck spinning.
-			if (background) {
+			if (startInBackground) {
 				await this.sessionsService.openNewChatInSession(activeSession, { forceNew: true });
 			}
 
 			userInteraction?.handoff(activeSession, activeChat);
 			await this.sessionsManagementService.sendRequest(activeSession, activeChat, {
-				query, attachedContext, background,
+				query, attachedContext, background: startInBackground || undefined,
 				...(userInteraction ? { onDidCreateResponse: userInteraction.onDidCreateResponse } : {}),
 			});
+			if (inboxViewEnabled) {
+				this._inboxRedirect.value = disposableTimeout(() => {
+					this.sessionsService.openNewSession({ cancelRestore: true }).catch(onUnexpectedError);
+				}, 0);
+			}
 			return true;
 		} catch (e) {
 			userInteraction?.cancel(isCancellationError(e) ? 'cancelled' : 'error');

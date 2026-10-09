@@ -78,7 +78,7 @@ import { IActiveSession, ISessionsManagementService } from '../../../../services
 import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { computeReorderSortChanges, groupByDate, groupByWorkspace, groupSessionsForInbox, groupSessionsForList, ISessionChatItem, ISessionSection, limitSessionsForList, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemIsArchivedContext, SessionChatItemIsUntitledContext, SessionItemInExternalSectionContext, SessionSectionRenderer, SessionSectionToolbarMenuId, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsList, SessionsListFocusedChatItemContext, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { computeReorderSortChanges, getSessionsInboxEmptyState, groupByDate, groupByWorkspace, groupSessionsForInbox, groupSessionsForList, ISessionChatItem, ISessionSection, limitSessionsForList, SessionChatItemCanArchiveContext, SessionChatItemCanDeleteContext, SessionChatItemIsArchivedContext, SessionChatItemIsUntitledContext, SessionItemInExternalSectionContext, SessionSectionRenderer, SessionSectionToolbarMenuId, SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING, SESSIONS_LIST_SHOW_EMPTY_DEFAULT_GROUPS_SETTING, SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsFlatList, SessionsInboxEmptyState, SessionsList, SessionsListFocusedChatItemContext, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 import { IChatService, IChatToolInvocation } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../../../workbench/contrib/chat/common/constants.js';
@@ -2629,6 +2629,26 @@ suite('Sessions - SessionsList', () => {
 
 		suite('groupSessionsForInbox', () => {
 
+			test('distinguishes an empty inbox from one waiting only on running sessions', () => {
+				const running = createSession('running', { status: SessionStatus.InProgress });
+				const completed = createSession('completed', { status: SessionStatus.Completed });
+				const archived = createSession('archived', { status: SessionStatus.Completed, isArchived: true });
+
+				assert.deepStrictEqual({
+					empty: getSessionsInboxEmptyState([]),
+					running: getSessionsInboxEmptyState([running]),
+					visible: getSessionsInboxEmptyState([running, completed]),
+					revealed: getSessionsInboxEmptyState([running], running.sessionId),
+					pinnedAndDone: getSessionsInboxEmptyState([completed, archived], undefined, session => session === completed),
+				}, {
+					empty: SessionsInboxEmptyState.Empty,
+					running: SessionsInboxEmptyState.Running,
+					visible: SessionsInboxEmptyState.NotEmpty,
+					revealed: SessionsInboxEmptyState.NotEmpty,
+					pinnedAndDone: SessionsInboxEmptyState.Empty,
+				});
+			});
+
 			test('hides running sessions and merges remaining session kinds by updated time', () => {
 				const sessions = [
 					createSession('older-workspace', { workspaceLabel: 'Alpha', updatedAt: new Date('2024-06-01T10:00:00Z') }),
@@ -3139,14 +3159,14 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
-		test('quick chats never show a workspace badge', () => {
+		test('quick chats expose a no-workspace badge for hover presentation', () => {
 			const quickChat = createTestSession('Quick Chat', { isQuickChat: true }).session;
 			const { container } = renderList([quickChat], SessionsGrouping.Date, {
 				memberships: new Map([[quickChat.sessionId, group.id]]),
 			});
 
 			assert.deepStrictEqual(rowSnapshot(container).map(row => ({ title: row.title, badge: row.badge, details: row.details })), [
-				{ title: 'Quick Chat', badge: undefined, details: '' },
+				{ title: 'Quick Chat', badge: 'No workspace', details: '' },
 			]);
 		});
 
@@ -7592,10 +7612,10 @@ suite('Sessions - SessionsList', () => {
 					hasUnreadIcon: true,
 					statusIconFontSize: '16px',
 					hasChatIcon: false,
-					badge: undefined,
+					badge: 'No workspace',
 					time: undefined,
 					hasDiff: false,
-					ariaLabel: 'Investigate failure, updated now, unread',
+					ariaLabel: 'Investigate failure, updated now, unread, no workspace',
 				},
 				regular: {
 					usesStandardRowHeight: true,
@@ -7607,7 +7627,7 @@ suite('Sessions - SessionsList', () => {
 					badge: 'No workspace',
 					time: 'now',
 					hasDiff: false,
-					ariaLabel: 'Investigate failure, chat, updated now, unread',
+					ariaLabel: 'Investigate failure, chat, updated now, unread, no workspace',
 				},
 			});
 		});

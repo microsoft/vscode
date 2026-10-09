@@ -13,7 +13,7 @@ This specification defines stable placement and state-ownership rules. Row styli
 | Concern | Owner |
 |---------|-------|
 | Session catalog and lifecycle | `ISessionsManagementService` |
-| Pin and per-sort ordering state | `ISessionsListModelService` |
+| Inbox mode, pin, and per-sort ordering state | `ISessionsListModelService` |
 | Custom groups and membership | `ISessionGroupsService` |
 | Top-level group/workspace order | `ISessionSectionOrderService` |
 | Tree composition and presentation | `SessionsView` and `SessionsList` |
@@ -55,7 +55,7 @@ The active session remains visible even when a filter would otherwise exclude it
 
 A caller can acquire a disposable reveal of a session row or its archive action for onboarding. The list temporarily includes that session despite filters and presentation caps, expands its section, and exposes the requested spotlight target. An archive-action reveal also keeps the action visible without hover or focus. Releasing the reveal restores normal filtering and action visibility without changing the user's saved filters.
 
-Inbox presentation is an alternate list-owned view mode. It hides in-progress sessions, including pinned and active sessions, while preserving an explicit onboarding reveal. Remaining unarchived sessions bypass custom, external, quick-chat, workspace, and date sections and render as one top-level list ordered by natural updated time. Pinned sessions retain their fixed section above that list, and archived sessions retain their fixed final section when included.
+Inbox presentation is an alternate list-owned view mode. It removes in-progress sessions from the flat inbox while preserving an explicit onboarding reveal. Remaining unarchived sessions bypass custom, external, quick-chat, workspace, and date sections and render as one top-level list ordered by natural updated time. Pinned sessions retain their fixed section above that list, archived sessions retain their fixed final section when included, and in-progress sessions appear in a collapsed section anchored below the scrolling list. Running-section children use the same row spacing and compact-mode presentation as the primary list. Sending from the new-session composer while Inbox presentation is enabled starts the session in the background, keeps a fresh composer visible, and notifies the user that the session started. Sending from an active chat or completing an agent question form returns the active slot to the new-session composer while the request continues.
 
 ## Grouping
 

@@ -6,6 +6,7 @@
 import '../media/sessionsViewPane.css';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -15,6 +16,8 @@ import { isWeb } from '../../../../../base/common/platform.js';
 import { Orientation } from '../../../../../base/browser/ui/sash/sash.js';
 import { IView, Sizing, SplitView } from '../../../../../base/browser/ui/splitview/splitview.js';
 import { Color } from '../../../../../base/common/color.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
@@ -31,8 +34,8 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { localize } from '../../../../../nls.js';
-import { SessionsList, SessionsGrouping, SessionsSorting } from './sessionsList.js';
-import { ISession } from '../../../../services/sessions/common/session.js';
+import { type ISessionsFlatListOptions, SessionsFlatList, SessionsInboxEmptyState, SessionsList, SessionsGrouping, SessionsSorting } from './sessionsList.js';
+import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionComparisonService } from '../../../../services/sessions/common/sessionComparison.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { getSessionFilterOptions, ISessionFilterOption, sessionFilterKey } from './sessionsListFilters.js';
@@ -49,6 +52,7 @@ import { PANEL_SECTION_BORDER } from '../../../../../workbench/common/theme.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { ISessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { Menus } from '../../../../browser/menus.js';
 import { MobileSessionFilterChips } from '../../../../browser/parts/mobile/mobileSessionFilterChips.js';
@@ -64,18 +68,36 @@ import { CustomizationsNavigationState } from '../customizationsNavigationState.
 import { createSessionsListNotices } from './sessionsListNotice.js';
 import { SessionStorageCleanupNotice } from './sessionStorageCleanupNotice.js';
 import { SessionsListNotification } from './sessionsListNotification.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { SessionStatusIcon } from '../../../../browser/sessionStatusIcon.js';
 
 const $ = DOM.$;
 export const SessionsViewId = 'sessions.workbench.view.sessionsView';
 const GROUPING_STORAGE_KEY = 'sessionsViewPane.grouping';
 const SORTING_STORAGE_KEY = 'sessionsViewPane.sorting';
 const COMPACT_STORAGE_KEY = 'sessionsViewPane.compact';
-const INBOX_STORAGE_KEY = 'sessionsViewPane.inbox';
 const INBOX_VIEW_SHEET_ID = 'inbox';
 const CUSTOMIZATIONS_MIN_HEIGHT = 129;
 const SESSIONS_SECTION_MIN_HEIGHT = 120;
 const SESSIONS_HEADER_ELLIPSIS_MIN_WIDTH = 8;
 export type CustomizationsPresentation = 'hidden' | 'control' | 'treatment';
+
+export function getSessionsViewTitle(inbox: boolean): string {
+	return inbox ? localize('inboxHeader', "Inbox") : localize('sessionsHeader', "Sessions");
+}
+
+export function getSessionsInboxEmptyLabel(state: SessionsInboxEmptyState): string | undefined {
+	switch (state) {
+		case SessionsInboxEmptyState.Empty:
+		case SessionsInboxEmptyState.EmptyAfterPinned:
+			return localize('inboxEmpty', "Inbox empty");
+		case SessionsInboxEmptyState.Running:
+		case SessionsInboxEmptyState.RunningAfterPinned:
+			return localize('inboxWaiting', "Waiting for agents to respond");
+		default:
+			return undefined;
+	}
+}
 
 export function getCustomizationsPresentation(phoneLayout: boolean, aiEnabled: boolean, aiHidden: boolean, treatment: boolean): CustomizationsPresentation {
 	if (phoneLayout || !aiEnabled || aiHidden) {
@@ -111,7 +133,7 @@ export function renderSessionsHeader(
 	let toolbar: MenuWorkbenchToolBar | undefined;
 
 	if (!phoneLayout) {
-		label.textContent = localize('sessionsHeader', "Sessions");
+		label.textContent = getSessionsViewTitle(false);
 		const scopedInstantiationService = disposables.add(instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
 		toolbar = disposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, actions, Menus.SidebarSessionsHeader, {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
@@ -148,6 +170,125 @@ class SessionsFilterActionViewItem extends SubmenuEntryActionViewItem {
 	}
 }
 
+export class SessionsRunningSection extends DisposableStore {
+
+	private static readonly MAX_LIST_HEIGHT = 240;
+
+	readonly element: HTMLElement;
+	private readonly header: HTMLElement;
+	private readonly label: HTMLElement;
+	private readonly chevron: HTMLElement;
+	private readonly listContainer: HTMLElement;
+	private readonly list: SessionsFlatList;
+	private expanded = false;
+	private width = 0;
+
+	constructor(
+		parent: HTMLElement,
+		runningSessions: IObservable<readonly ISession[]>,
+		private readonly compact: () => boolean,
+		private readonly onDidChangeLayout: () => void,
+		onSessionOpen: (resource: URI, preserveFocus: boolean, sideBySide: boolean) => void,
+		overrideStyles: ISessionsFlatListOptions['overrideStyles'],
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IAccessibilityService accessibilityService: IAccessibilityService,
+		@IHoverService hoverService: IHoverService,
+	) {
+		super();
+
+		this.element = DOM.append(parent, $('.agent-sessions-running-section'));
+		this.element.setAttribute('role', 'tree');
+		this.header = DOM.append(this.element, $('.agent-sessions-running-header'));
+		this.header.setAttribute('role', 'treeitem');
+		this.header.tabIndex = 0;
+		const updateReducedMotion = () => this.element.classList.toggle('reduced-motion', accessibilityService.isMotionReduced());
+		updateReducedMotion();
+		this.add(accessibilityService.onDidChangeReducedMotion(updateReducedMotion));
+
+		const icon = DOM.append(this.header, $('.agent-sessions-running-icon'));
+		icon.setAttribute('aria-hidden', 'true');
+		const statusIcon = this.add(instantiationService.createInstance(SessionStatusIcon, icon));
+		statusIcon.setStatus(SessionStatus.InProgress, true, false);
+		this.label = DOM.append(this.header, $('.agent-sessions-running-label'));
+		this.chevron = DOM.append(this.header, $('.agent-sessions-running-chevron'));
+		this.chevron.setAttribute('aria-hidden', 'true');
+		this.listContainer = DOM.append(this.element, $('.agent-sessions-running-list'));
+		this.listContainer.setAttribute('role', 'group');
+		this.list = this.add(instantiationService.createInstance(SessionsFlatList, this.listContainer, {
+			overrideStyles,
+			showSessionHover: false,
+			compact: this.compact,
+			rowSpacing: true,
+			suppressInProgressStatusIcon: true,
+			alwaysConsumeMouseWheel: false,
+			useCompactQuickChatRows: false,
+			onSessionOpen,
+		}));
+
+		const toggle = () => this.setExpanded(!this.expanded);
+		this.add(DOM.addDisposableListener(this.header, DOM.EventType.CLICK, toggle));
+		this.add(DOM.addDisposableListener(this.header, DOM.EventType.KEY_DOWN, event => {
+			if (event.key === 'Enter' || event.key === ' ') {
+				event.preventDefault();
+				toggle();
+			} else if (event.key === 'ArrowRight' && !this.expanded) {
+				event.preventDefault();
+				this.setExpanded(true);
+			} else if (event.key === 'ArrowLeft' && this.expanded) {
+				event.preventDefault();
+				this.setExpanded(false);
+			}
+		}));
+		this.add(hoverService.setupDelayedHover(this.label, () => ({ content: this.label.textContent ?? '' })));
+		this.add(this.list.onDidChangeContentHeight(() => this.layout(this.width)));
+		this.add(autorun(reader => {
+			const sessions = runningSessions.read(reader);
+			const count = sessions.length;
+			this.element.classList.toggle('visible', count > 0);
+			const label = count === 1
+				? localize('sessionRunningStatus.single', "1 session running")
+				: localize('sessionRunningStatus.multiple', "{0} sessions running", count);
+			this.label.textContent = label;
+			this.header.setAttribute('aria-label', label);
+			this.list.setSessions(sessions);
+			if (count === 0) {
+				this.expanded = false;
+			}
+			this.updateExpandedState();
+			this.layout(this.width);
+		}));
+		this.updateExpandedState();
+	}
+
+	private setExpanded(expanded: boolean): void {
+		if (this.expanded === expanded) {
+			return;
+		}
+		this.expanded = expanded;
+		this.updateExpandedState();
+		this.layout(this.width);
+		this.onDidChangeLayout();
+	}
+
+	private updateExpandedState(): void {
+		this.element.classList.toggle('expanded', this.expanded);
+		this.header.setAttribute('aria-expanded', String(this.expanded));
+		this.chevron.className = `agent-sessions-running-chevron ${ThemeIcon.asClassName(this.expanded ? Codicon.chevronDown : Codicon.chevronRight)}`;
+	}
+
+	layout(width: number): void {
+		this.width = width;
+		const height = this.expanded ? Math.min(this.list.getContentHeight(), SessionsRunningSection.MAX_LIST_HEIGHT) : 0;
+		this.listContainer.style.height = `${height}px`;
+		this.list.layout(height, width);
+	}
+
+	setCompact(): void {
+		this.list.setCompact();
+		this.layout(this.width);
+	}
+}
+
 export class SessionsView extends ViewPane {
 
 	private viewPaneContainer: HTMLElement | undefined;
@@ -155,6 +296,7 @@ export class SessionsView extends ViewPane {
 	private sidebarSplitView: SplitView | undefined;
 	private readonly customizationsPaneDisposables = this._register(new MutableDisposable<DisposableStore>());
 	private sessionsControlContainer: HTMLElement | undefined;
+	private runningSection: SessionsRunningSection | undefined;
 	private findWidgetContainer: HTMLElement | undefined;
 	private readonly sessionsHeaders = new Set<ISessionsHeaderElements>();
 	private isFindWidgetOpen = false;
@@ -169,7 +311,6 @@ export class SessionsView extends ViewPane {
 	private currentGrouping: SessionsGrouping = SessionsGrouping.Workspace;
 	private currentSorting: SessionsSorting = SessionsSorting.Created;
 	private currentCompact = false;
-	private currentInbox = false;
 	private groupingContextKey: IContextKey | undefined;
 	private sortingContextKey: IContextKey | undefined;
 	private compactContextKey: IContextKey<boolean> | undefined;
@@ -195,6 +336,7 @@ export class SessionsView extends ViewPane {
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@ISessionsPartService private readonly sessionsPartService: ISessionsPartService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
+		@ISessionsListModelService private readonly sessionsListModelService: ISessionsListModelService,
 		@ISessionComparisonService private readonly sessionComparisonService: ISessionComparisonService,
 		@IHostService private readonly hostService: IHostService,
 		@IAgentWorkbenchLayoutService private readonly layoutService: IAgentWorkbenchLayoutService,
@@ -219,7 +361,6 @@ export class SessionsView extends ViewPane {
 			this.currentSorting = storedSorting as SessionsSorting;
 		}
 		this.currentCompact = this.storageService.getBoolean(COMPACT_STORAGE_KEY, StorageScope.PROFILE, false);
-		this.currentInbox = this.storageService.getBoolean(INBOX_STORAGE_KEY, StorageScope.PROFILE, false);
 		logSessionsListCompactViewState(telemetryService, this.currentCompact);
 
 		// Ensure context keys reflect restored state immediately
@@ -288,6 +429,7 @@ export class SessionsView extends ViewPane {
 		const navigationContainer = DOM.append(sessionsContent, $('.agent-sessions-navigation-container'));
 		const sessionsHeaderContainer = DOM.append(sessionsContent, $('.agent-sessions-header-container'));
 		const header = this.createSessionsHeader(sessionsHeaderContainer, phoneLayout, this._register(new DisposableStore()));
+		const inboxEmptyLabel = DOM.append(sessionsContent, $('.agent-sessions-inbox-empty-label'));
 
 		// Container for the tree's find widget (toggled by the toolbar's Find action)
 		const findWidgetContainer = this.findWidgetContainer = DOM.append(header.row, $('.agent-sessions-find-widget-container'));
@@ -301,6 +443,18 @@ export class SessionsView extends ViewPane {
 
 		// Sessions List Control
 		this.sessionsControlContainer = DOM.append(sessionsContent, $('.agent-sessions-control-container'));
+		const openSession = (resource: URI, preserveFocus: boolean, sideBySide: boolean): void => {
+			const session = this.sessionsManagementService.getSession(resource);
+			if (!session) {
+				onUnexpectedError(new Error(`Unable to open session because '${resource.toString()}' is not available`));
+				return;
+			}
+			const onOpened = () => this._handleSessionOpened(session);
+			const opening = sideBySide
+				? this.sessionsService.openSessionToSide(session, { preserveFocus, source: 'sessionsList', forceMainChat: true })
+				: this.sessionsService.openSession(session.resource, { preserveFocus, source: 'sessionsList', forceMainChat: true });
+			opening.then(onOpened).catch(onUnexpectedError);
+		};
 		const sessionsControl = this.sessionsControl = this._register(this.instantiationService.createInstance(SessionsList, this.sessionsControlContainer, {
 			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 			grouping: () => this.currentGrouping,
@@ -314,19 +468,7 @@ export class SessionsView extends ViewPane {
 			onDidChangeNavigationHeight: () => this.layoutSidebarSplitView(),
 			focusNewSessionInput: () => this.sessionsPartService.focusSession(this.sessionsService.activeSession.get()),
 			findWidgetContainer,
-			onSessionOpen: (resource, preserveFocus, sideBySide) => {
-				const session = this.sessionsManagementService.getSession(resource);
-				if (!session) {
-					onUnexpectedError(new Error(`Unable to open session because '${resource.toString()}' is not available`));
-					return;
-				}
-				const onOpened = () => this._handleSessionOpened(session);
-				if (sideBySide) {
-					// Alt-click: open the session to the right of the last visible session in the grid.
-					return this.sessionsService.openSessionToSide(session, { preserveFocus, source: 'sessionsList', forceMainChat: true }).then(onOpened).catch(onUnexpectedError);
-				}
-				return this.sessionsService.openSession(session.resource, { preserveFocus, source: 'sessionsList', forceMainChat: true }).then(onOpened).catch(onUnexpectedError);
-			},
+			onSessionOpen: openSession,
 			canOpenSession: session => this.sessionsService.canOpenSession(session),
 			onChatOpen: (session, chat, preserveFocus, sideBySide) => {
 				const onOpened = () => {
@@ -387,6 +529,15 @@ export class SessionsView extends ViewPane {
 		this.registerSessionFilters(sessionsControl);
 		this.registerArchivedFilter(sessionsControl);
 
+		const updateInboxEmptyLabel = () => {
+			const state = sessionsControl.getInboxEmptyState();
+			const emptyLabel = state === SessionsInboxEmptyState.EmptyAfterPinned || state === SessionsInboxEmptyState.RunningAfterPinned
+				? undefined
+				: getSessionsInboxEmptyLabel(state);
+			inboxEmptyLabel.textContent = emptyLabel ?? '';
+			inboxEmptyLabel.classList.toggle('visible', emptyLabel !== undefined);
+		};
+
 		// Refresh sessions when window gets focus to compensate for missing events
 		this._register(this.hostService.onDidChangeFocus(hasFocus => {
 			if (hasFocus) {
@@ -396,10 +547,12 @@ export class SessionsView extends ViewPane {
 
 		// Listen to list updates and restore selection if nothing is selected
 		this._register(sessionsControl.onDidUpdate(() => {
+			updateInboxEmptyLabel();
 			if (!sessionsControl.hasFocusOrSelection()) {
 				this.restoreLastSelectedSession();
 			}
 		}));
+		updateInboxEmptyLabel();
 
 		if (filterChipsContainer) {
 			const chips = this._register(new MobileSessionFilterChips(filterChipsContainer));
@@ -457,6 +610,28 @@ export class SessionsView extends ViewPane {
 		updateSplitViewStyles();
 		this._register(this.themeService.onDidColorThemeChange(updateSplitViewStyles));
 
+		const sessionsChanged = observableSignalFromEvent(this, this.sessionsManagementService.onDidChangeSessions);
+		const runningSessions = derivedOpts({ owner: this }, reader => {
+			sessionsChanged.read(reader);
+			if (!this.sessionsListModelService.inboxViewEnabled.read(reader)) {
+				return [];
+			}
+			return this.sessionsManagementService.getSessions().filter(session =>
+				session.status.read(reader) === SessionStatus.InProgress
+				&& !session.isArchived.read(reader)
+				&& session.isAutomation?.read(reader) !== true
+			);
+		});
+		this.runningSection = this._register(this.instantiationService.createInstance(
+			SessionsRunningSection,
+			sessionsContainer,
+			runningSessions,
+			() => this.currentCompact,
+			() => this.layoutSidebarSplitView(),
+			openSession,
+			this.getLocationBasedColors().listOverrideStyles,
+		));
+
 		// Agent Host toolbar (bottom, below customizations). Only rendered
 		// in the sessions window on web desktop layouts: electron has no
 		// host picker today (gated out at the menu level), phone layout
@@ -482,8 +657,20 @@ export class SessionsView extends ViewPane {
 		const header = renderSessionsHeader(parent, phoneLayout, this.instantiationService, this.scopedContextKeyService, disposables, () => this.sessionsControl?.reportArchivedFilterShown());
 		this.sessionsHeaders.add(header);
 		disposables.add(toDisposable(() => this.sessionsHeaders.delete(header)));
+		if (!phoneLayout) {
+			header.label.textContent = getSessionsViewTitle(this.currentInbox);
+		}
 		this.updateHeaderLayout();
 		return header;
+	}
+
+	private updateSessionsHeaderLabels(): void {
+		const title = getSessionsViewTitle(this.currentInbox);
+		for (const header of this.sessionsHeaders) {
+			if (!header.row.classList.contains('phone-layout-empty')) {
+				header.label.textContent = title;
+			}
+		}
 	}
 
 	private updateCustomizationsPresentation(presentation: CustomizationsPresentation): void {
@@ -778,6 +965,7 @@ export class SessionsView extends ViewPane {
 	}
 
 	private layoutSidebarSplitView(): void {
+		this.runningSection?.layout(this.currentBodyWidth);
 		if (!this.sidebarSplitView || !this.sidebarSplitViewContainer) {
 			return;
 		}
@@ -942,10 +1130,15 @@ export class SessionsView extends ViewPane {
 		this.storageService.store(COMPACT_STORAGE_KEY, compact, StorageScope.PROFILE, StorageTarget.USER);
 		this.compactContextKey?.set(compact);
 		this.sessionsControl?.setCompact();
+		this.runningSection?.setCompact();
 	}
 
 	toggleCompact(): void {
 		this.setCompact(!this.currentCompact);
+	}
+
+	private get currentInbox(): boolean {
+		return this.sessionsListModelService.inboxViewEnabled.get();
 	}
 
 	setInbox(inbox: boolean): void {
@@ -953,9 +1146,9 @@ export class SessionsView extends ViewPane {
 			return;
 		}
 
-		this.currentInbox = inbox;
-		this.storageService.store(INBOX_STORAGE_KEY, inbox, StorageScope.PROFILE, StorageTarget.USER);
+		this.sessionsListModelService.setInboxViewEnabled(inbox);
 		this.inboxContextKey?.set(inbox);
+		this.updateSessionsHeaderLabels();
 		this.sessionsControl?.update(true);
 	}
 

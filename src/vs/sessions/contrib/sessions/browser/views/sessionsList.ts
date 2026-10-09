@@ -176,6 +176,14 @@ export enum SessionsSorting {
 	Updated = 'updated',
 }
 
+export const enum SessionsInboxEmptyState {
+	NotEmpty = 'notEmpty',
+	Empty = 'empty',
+	EmptyAfterPinned = 'emptyAfterPinned',
+	Running = 'running',
+	RunningAfterPinned = 'runningAfterPinned',
+}
+
 function sortingToMode(sorting: SessionsSorting): SessionSortMode {
 	return sorting === SessionsSorting.Updated ? 'updated' : 'created';
 }
@@ -1312,6 +1320,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 	constructor(
 		private readonly options: {
 			grouping: () => SessionsGrouping; isPinned: (session: ISession) => boolean; isRenderedInCustomGroup?: (session: ISession) => boolean; getGroupConnectorPosition?: (session: ISession) => SessionGroupConnectorPosition | undefined; getComparisonAttemptLabel?: (session: ISession) => string | undefined; shouldShowComparisonAttemptStatus?: (session: ISession, reader: IReader) => boolean; visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>; getMultiSelectedSessions: (session: ISession) => ISession[]; showHover: boolean; useCompactQuickChatRows: boolean; compact: () => boolean; approvalRowMaxLines: number; aggregateChatApprovals: boolean; toolbarMenuId: MenuId | undefined; toolbarTelemetrySource: string; inlineRename: boolean; contextViewService?: IContextViewService; handleToolbarAction?: (action: IAction, session: ISession) => boolean | Promise<boolean>; onDidDoubleClickRename?: (session: ISession) => void; onDidFinishRename?: () => void; onDidRequestRename?: (session: ISession) => void; activeGuideSessionIds?: IObservable<ReadonlySet<string>>;
+			suppressInProgressStatusIcon?: boolean;
 			/** Whether status presentation derives from the main chat instead of the aggregate session. */
 			deriveStatusFromMainChat?: boolean;
 			activeSession?: IObservable<IActiveSession | undefined>;
@@ -1641,7 +1650,13 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			}
 
 			// The status icon widget snaps on row recycling and cross-fades real state changes.
-			template.statusIcon.setStatus(sessionStatus, isRead, isArchived, completedStateIcon, element.resource);
+			const suppressStatusIcon = this.options.suppressInProgressStatusIcon === true && sessionStatus === SessionStatus.InProgress;
+			template.container.classList.toggle('suppress-in-progress-status-icon', suppressStatusIcon);
+			if (suppressStatusIcon) {
+				template.statusIcon.reset();
+			} else {
+				template.statusIcon.setStatus(sessionStatus, isRead, isArchived, completedStateIcon, element.resource);
+			}
 			// The shared progress clock owns the title's phase across row recycling.
 			template.container.classList.toggle('in-progress', sessionStatus === SessionStatus.InProgress);
 			template.container.classList.toggle('needs-input', sessionStatus === SessionStatus.NeedsInput);
@@ -1725,27 +1740,35 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			DOM.clearNode(template.compactHoverDescription);
 
 			// Compact quick chats have no details row.
-			if (comparisonAttemptLabel !== undefined || (isQuickChat && this.options.useCompactQuickChatRows)) {
+			if (comparisonAttemptLabel !== undefined) {
 				descriptionDisposable.clear();
 				timeDisposable.clear();
 				return;
 			}
 
-			const workspaceBadgeLabel = workspace && (
+			const workspaceBadgeLabel = workspace ? getWorkspaceBadgeLabel(workspace) : undefined;
+			const noWorkspaceBadgeLabel = !workspace ? localize('quickChatBadge', "No workspace") : undefined;
+			if (isQuickChat && this.options.useCompactQuickChatRows) {
+				descriptionDisposable.clear();
+				timeDisposable.clear();
+				const badge = DOM.append(template.compactHoverDescription, $('span.session-badge'));
+				badge.textContent = noWorkspaceBadgeLabel ?? '';
+				return;
+			}
+			const showWorkspaceBadgeInDetails = workspaceBadgeLabel && (
 				this.options.grouping() !== SessionsGrouping.Workspace ||
 				this.options.isPinned(element) ||
 				element.isArchived.read(reader) ||
 				this.options.isRenderedInCustomGroup?.(element) ||
 				this.options.isRenderedInExternalSection?.(element)
-			)
-				? getWorkspaceBadgeLabel(workspace)
-				: undefined;
+			);
 			if (this.options.compact()) {
 				descriptionDisposable.clear();
 				timeDisposable.clear();
 
-				if (workspaceBadgeLabel) {
-					DOM.append(template.compactHoverDescription, $('span.session-badge', undefined, workspaceBadgeLabel));
+				const compactBadgeLabel = workspaceBadgeLabel ?? noWorkspaceBadgeLabel;
+				if (compactBadgeLabel) {
+					DOM.append(template.compactHoverDescription, $('span.session-badge', undefined, compactBadgeLabel));
 				}
 				return;
 			}
@@ -1794,7 +1817,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			if (!hideDetails) {
 				const badgeLabel = isQuickChat
 					? localize('quickChatBadge', "No workspace")
-					: workspaceBadgeLabel;
+					: showWorkspaceBadgeInDetails ? workspaceBadgeLabel : undefined;
 				if (badgeLabel) {
 					const badgeEl = DOM.append(template.detailsRow, $('span.session-badge'));
 					badgeEl.textContent = badgeLabel;
@@ -2836,6 +2859,7 @@ class SessionPlaceholderRenderer implements ITreeRenderer<SessionListItem, Fuzzy
 			return;
 		}
 		template.label.textContent = element.label;
+		template.container.classList.toggle('inbox-empty', element.sectionId === 'inbox-empty');
 		template.hover.value = element.hover
 			? this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), template.container, element.hover)
 			: undefined;
@@ -3043,6 +3067,8 @@ class SessionsAccessibilityProvider {
 				)
 			) {
 				label = localize('sessionItemWorkspaceAria', "{0}, in {1}", label, workspaceLabel);
+			} else if (!workspace && element.isQuickChat?.read(reader)) {
+				label = localize('sessionItemNoWorkspaceAria', "{0}, no workspace", label);
 			}
 			return label;
 		});
@@ -3562,6 +3588,7 @@ export interface ISessionsList {
 	 * Sessions hidden by section capping ("show more") are excluded.
 	 */
 	getVisibleSessions(): readonly ISession[];
+	getInboxEmptyState(): SessionsInboxEmptyState;
 	clearFocus(): void;
 	hasFocusOrSelection(): boolean;
 	setVisible(visible: boolean): void;
@@ -3704,6 +3731,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 	private readonly _onDidUpdate = this._register(new Emitter<void>());
 	readonly onDidUpdate: Event<void> = this._onDidUpdate.event;
+	private inboxEmptyState = SessionsInboxEmptyState.NotEmpty;
 	private readonly _onDidOpenSession = this._register(new Emitter<URI>());
 	readonly onDidOpenSession = this._onDidOpenSession.event;
 	private readonly _onDidActivateNewSession = this._register(new Emitter<void>());
@@ -4494,6 +4522,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 		});
 
 		const inbox = this.options.inbox?.() ?? false;
+		this.inboxEmptyState = inbox
+			? getSessionsInboxEmptyState(filtered, onboardingSession?.sessionId, session => this.isSessionPinned(session))
+			: SessionsInboxEmptyState.NotEmpty;
 		const grouping = this.options.grouping();
 		const sorting = inbox ? SessionsSorting.Updated : this.options.sorting();
 		const sortKeyForGrouping = (s: ISession, srt: SessionsSorting) => this._sessionsListModelService.getSortKey(s, sortingToMode(srt));
@@ -4822,12 +4853,25 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this.setNavigationSections(navigationSections);
 
 		const pinnedSection = sections.find(s => s.id === 'pinned');
+		const inboxSection = sections.find(section => section.id === INBOX_SECTION_ID);
 		if (pinnedSection) {
 			children.push(renderSection(pinnedSection));
+			if (this.inboxEmptyState === SessionsInboxEmptyState.Empty || this.inboxEmptyState === SessionsInboxEmptyState.Running) {
+				const running = this.inboxEmptyState === SessionsInboxEmptyState.Running;
+				this.inboxEmptyState = running ? SessionsInboxEmptyState.RunningAfterPinned : SessionsInboxEmptyState.EmptyAfterPinned;
+				children.push({
+					element: {
+						placeholder: true,
+						sectionId: 'inbox-empty',
+						label: running
+							? localize('inboxWaiting', "Waiting for agents to respond")
+							: localize('inboxEmpty', "Inbox empty"),
+					},
+				});
+			}
 		}
 
 		if (inbox) {
-			const inboxSection = sections.find(section => section.id === INBOX_SECTION_ID);
 			if (inboxSection) {
 				children.push(...toSessionChildren(inboxSection.sessions));
 			}
@@ -5109,6 +5153,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 		return visibleSessions;
 	}
 
+	getInboxEmptyState(): SessionsInboxEmptyState {
+		return this.inboxEmptyState;
+	}
+
 	reveal(sessionResource: URI): boolean {
 		const resourceStr = sessionResource.toString();
 		for (const session of this.sessions) {
@@ -5224,6 +5272,17 @@ export class SessionsList extends Disposable implements ISessionsList {
 	setCompact(): void {
 		this.listContainer.classList.toggle('compact', this.isCompact());
 		this.update();
+		this.tree.rerender();
+		this.updateTreeElementHeights(this.tree.getNode());
+	}
+
+	private updateTreeElementHeights(node: ITreeNode<SessionListItem | null, FuzzyScore | undefined>): void {
+		for (const child of node.children) {
+			if (child.element) {
+				this.tree.updateElementHeight(child.element, this._delegate.getHeight(child.element));
+			}
+			this.updateTreeElementHeights(child);
+		}
 	}
 
 	focus(): void {
@@ -6630,6 +6689,14 @@ export function groupSessionsForInbox(
 	return sections;
 }
 
+export function getSessionsInboxEmptyState(sessions: readonly ISession[], revealSessionId?: string, isSessionPinned: (session: ISession) => boolean = () => false): SessionsInboxEmptyState {
+	const inboxSessions = sessions.filter(session => !session.isArchived.get() && !isSessionPinned(session));
+	if (inboxSessions.some(session => session.status.get() !== SessionStatus.InProgress || session.sessionId === revealSessionId)) {
+		return SessionsInboxEmptyState.NotEmpty;
+	}
+	return inboxSessions.length > 0 ? SessionsInboxEmptyState.Running : SessionsInboxEmptyState.Empty;
+}
+
 /** The workspace group label a session belongs to (matches {@link groupByWorkspace}). */
 function sessionWorkspaceLabel(session: ISession): string {
 	return session.workspace.get()?.label || localize('unknown', "Unknown");
@@ -6723,6 +6790,9 @@ export function groupByDate(sessions: ISession[], sorting: SessionsSorting, getS
 export interface ISessionsFlatListOptions {
 	readonly overrideStyles?: IStyleOverride<IListStyles>;
 	readonly showSessionHover?: boolean;
+	readonly compact?: () => boolean;
+	readonly rowSpacing?: boolean;
+	readonly suppressInProgressStatusIcon?: boolean;
 	/** Called when a session row is opened (clicked / activated). */
 	onSessionOpen(resource: URI, preserveFocus: boolean, sideBySide: boolean): void;
 	/**
@@ -6797,6 +6867,7 @@ export class SessionsFlatList extends Disposable {
 	readonly onDidApproveSession: Event<IApprovedSession> = this._onDidApproveSession.event;
 	private readonly tree: WorkbenchObjectTree<SessionListItem, FuzzyScore>;
 	private readonly _delegate: SessionsTreeDelegate;
+	private readonly listRoot: HTMLElement;
 	private _sessions: readonly ISession[] = [];
 
 	constructor(
@@ -6825,7 +6896,9 @@ export class SessionsFlatList extends Disposable {
 
 		// Wrap in `.sessions-list-control` so the row styles scoped to that class
 		// (needs-input/pinned row highlights) apply exactly like the main list.
-		const listRoot = DOM.append(container, $('.sessions-list-control'));
+		this.listRoot = DOM.append(container, $('.sessions-list-control'));
+		this.listRoot.classList.toggle('session-list-row-spacing', this.options.rowSpacing === true);
+		this.listRoot.classList.toggle('compact', this.isCompact());
 		const approvalModel = this.options.approvalModel ?? this._register(instantiationService.createInstance(AgentSessionApprovalModel));
 
 		// TEMPORARY (#320480): the row renderer reaches into a Copilot-provider
@@ -6847,7 +6920,7 @@ export class SessionsFlatList extends Disposable {
 				getMultiSelectedSessions: s => [s],
 				showHover: this.options.showSessionHover ?? true,
 				useCompactQuickChatRows,
-				compact: () => false,
+				compact: () => this.isCompact(),
 				approvalRowMaxLines: this.options.approvalRowMaxLines ?? DEFAULT_APPROVAL_ROW_MAX_LINES,
 				// This list renders no nested chat rows, so the session row is the
 				// only place an approval on any of its chats can surface.
@@ -6863,6 +6936,7 @@ export class SessionsFlatList extends Disposable {
 				getAdditionalContextKeys: this.options.getAdditionalContextKeys,
 				showMetadataWhileActive: this.options.showMetadataWhileActive,
 				getCompletedStatusMessage: this.options.getCompletedStatusMessage,
+				suppressInProgressStatusIcon: this.options.suppressInProgressStatusIcon,
 			},
 			approvalModel,
 			this.options.ciFixModel,
@@ -6881,12 +6955,12 @@ export class SessionsFlatList extends Disposable {
 			voicePlaybackService,
 		);
 
-		this._delegate = new SessionsTreeDelegate(approvalModel, () => false, () => false, session => session.status.get(), this.options.approvalRowMaxLines ?? DEFAULT_APPROVAL_ROW_MAX_LINES, this.options.ciFixModel, useCompactQuickChatRows, true /* aggregateChatApprovals */);
+		this._delegate = new SessionsTreeDelegate(approvalModel, () => false, () => this.isCompact(), session => session.status.get(), this.options.approvalRowMaxLines ?? DEFAULT_APPROVAL_ROW_MAX_LINES, this.options.ciFixModel, useCompactQuickChatRows, true /* aggregateChatApprovals */);
 
 		this.tree = this._register(instantiationService.createInstance(
 			WorkbenchObjectTree<SessionListItem, FuzzyScore>,
 			'SessionsFlatList',
-			listRoot,
+			this.listRoot,
 			this._delegate,
 			[sessionRenderer],
 			{
@@ -6979,6 +7053,20 @@ export class SessionsFlatList extends Disposable {
 	setSessions(sessions: readonly ISession[]): void {
 		this._sessions = sessions;
 		this.tree.setChildren(null, sessions.map(session => ({ element: session })));
+	}
+
+	private isCompact(): boolean {
+		return this.options.compact?.() ?? false;
+	}
+
+	setCompact(): void {
+		this.listRoot.classList.toggle('compact', this.isCompact());
+		this.setSessions(this._sessions);
+		this.tree.rerender();
+		for (const session of this._sessions) {
+			this.tree.updateElementHeight(session, this._delegate.getHeight(session));
+		}
+		this._onDidChangeContentHeight.fire();
 	}
 
 	/** The total pixel height required to render all current rows without scrolling. */

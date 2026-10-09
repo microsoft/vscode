@@ -118,6 +118,14 @@ const COMPACT_NEEDS_INPUT_SESSIONS: readonly ISessionsListFixtureSession[] = [
 	{ id: 'approval', title: 'Publish the release branch', workspace: 'vscode', minutesAgo: 5, status: SessionStatus.NeedsInput, approvalCommand: 'git push origin release/1.139' },
 	{ id: 'completed', title: 'Update onboarding copy', workspace: 'vscode', minutesAgo: 12 },
 ];
+const INBOX_SESSIONS: readonly ISessionsListFixtureSession[] = [
+	{ id: 'running', title: 'Run smoke tests', workspace: 'vscode', minutesAgo: 1, status: SessionStatus.InProgress, description: 'Running the macOS smoke suite' },
+	{ id: 'approval', title: 'Publish the release branch', workspace: 'vscode', minutesAgo: 2, status: SessionStatus.NeedsInput, approvalCommand: 'git push origin release/1.139' },
+	{ id: 'quick', title: 'Summarize the latest review feedback', isQuickChat: true, minutesAgo: 5 },
+	{ id: 'grouped', title: 'Investigate flaky integration test', workspace: 'vscode-tools', minutesAgo: 12 },
+	{ id: 'pinned', title: 'Plan authentication migration', workspace: 'vscode', minutesAgo: 30, pinned: true },
+	{ id: 'older', title: 'Update onboarding copy', workspace: 'vscode-docs', minutesAgo: 60 },
+];
 
 /** Sessions for the custom group fixtures. */
 const GROUP_SESSIONS: readonly ISessionsListFixtureSession[] = [
@@ -278,21 +286,100 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		sessions: [{ id: 'c', title: 'Update onboarding copy', workspace: 'vscode-docs', minutesAgo: 180 }],
 	}),
 	SessionsList_Inbox: defineSessionsListFixture({
-		sessions: [
-			{ id: 'running', title: 'Run smoke tests', workspace: 'vscode', minutesAgo: 1, status: SessionStatus.InProgress, description: 'Running the macOS smoke suite' },
-			{ id: 'approval', title: 'Publish the release branch', workspace: 'vscode', minutesAgo: 2, status: SessionStatus.NeedsInput, approvalCommand: 'git push origin release/1.139' },
-			{ id: 'quick', title: 'Summarize the latest review feedback', isQuickChat: true, minutesAgo: 5 },
-			{ id: 'grouped', title: 'Investigate flaky integration test', workspace: 'vscode-tools', minutesAgo: 12 },
-			{ id: 'pinned', title: 'Plan authentication migration', workspace: 'vscode', minutesAgo: 30, pinned: true },
-			{ id: 'older', title: 'Update onboarding copy', workspace: 'vscode-docs', minutesAgo: 60 },
-		],
+		sessions: INBOX_SESSIONS,
 		groups: [releaseWork('grouped')],
 		header: {},
-		view: { inbox: true, height: 330, expanded: [{ section: 'pinned' }] },
+		view: { inbox: true, height: 420, expanded: [{ section: 'pinned' }], reducedMotion: false },
 	}, {
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast'],
-		expectedVisualDescriptions: ['Inbox View shows the expanded Pinned section followed by a flat recency-ordered list containing workspace sessions, a workspace-less chat, and a custom-group member. The in-progress session and the Chats, custom-group, workspace, and time section headers are absent.'],
+		expectedVisualDescriptions: ['Inbox View shows the expanded Pinned section followed by a flat recency-ordered list containing workspace sessions, a workspace-less chat, and a custom-group member. The Chats, custom-group, workspace, and time section headers are absent. A collapsed "1 session running" tree section with an animated blue pixel spinner appears at the bottom.'],
+	}),
+	SessionsList_Inbox_ReducedMotion: defineSessionsListFixture({
+		sessions: INBOX_SESSIONS,
+		groups: [releaseWork('grouped')],
+		header: {},
+		view: { inbox: true, height: 420, expanded: [{ section: 'pinned' }], reducedMotion: true },
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['Inbox View shows the same flat list and collapsed "1 session running" tree section with reduced motion enabled. The running section uses a static session-in-progress icon and plain text without shimmer.'],
+	}),
+	SessionsList_Inbox_Compact: defineSessionsListFixture({
+		sessions: INBOX_SESSIONS,
+		groups: [releaseWork('grouped')],
+		header: {},
+		view: { inbox: true, compact: true, height: 300, expanded: [{ section: 'pinned' }], reducedMotion: false },
+		interaction: { hovered: { session: 'grouped' } },
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['Inbox View applies Compact View to the primary session list: every visible session is a single-line row without secondary metadata. The expanded Pinned section flows directly into the regular Inbox sessions. The hovered regular session reveals its vscode-tools workspace badge, and the running section remains anchored at the bottom.'],
+	}),
+	SessionsList_Inbox_RowCorners: defineSessionsListFixture({
+		sessions: [
+			{ id: 'pinned', title: 'Pinned context', workspace: 'vscode', minutesAgo: 10, pinned: true },
+			{ id: 'first', title: 'First regular session', workspace: 'vscode', minutesAgo: 5 },
+			{ id: 'last', title: 'Last regular session', isQuickChat: true, minutesAgo: 7 },
+		],
+		header: {},
+		view: { inbox: true, compact: true, height: 220, expanded: [{ section: 'pinned' }] },
+		interaction: { hovered: { session: 'first' }, selected: [{ session: 'last' }] },
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The first regular Inbox row is hovered directly after the expanded Pinned section and has equal Control-tier rounding on both top corners. The selected final row has matching Control-tier rounding on both bottom corners despite the inter-row spacing.'],
+	}),
+	SessionsList_Inbox_Empty: defineSessionsListFixture({
+		sessions: [],
+		header: {},
+		view: { inbox: true, height: 180 },
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The section title is "Inbox". Directly below it, the otherwise empty list area says "Inbox empty" in concise muted text. No running-session footer is shown.'],
+	}),
+	SessionsList_Inbox_PinnedOnly: defineSessionsListFixture({
+		sessions: [
+			{ id: 'pinned', title: 'Keep release context nearby', workspace: 'vscode', minutesAgo: 10, pinned: true },
+			{ id: 'done', title: 'Completed implementation', workspace: 'vscode', minutesAgo: 20, isArchived: true },
+		],
+		header: {},
+		view: { inbox: true, height: 220, showArchived: false, expanded: [{ section: 'pinned' }] },
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The Inbox contains only an expanded Pinned section because every non-pinned session is done. "Inbox empty" appears immediately below the pinned session row rather than below the Inbox title.'],
+	}),
+	SessionsList_Inbox_PinnedRunning: defineSessionsListFixture({
+		sessions: [
+			{ id: 'pinned', title: 'Keep release context nearby', workspace: 'vscode', minutesAgo: 10, pinned: true },
+			{ id: 'running', title: 'Run deployment checks', workspace: 'vscode', minutesAgo: 1, status: SessionStatus.InProgress },
+		],
+		header: {},
+		view: { inbox: true, height: 240, expanded: [{ section: 'pinned' }], reducedMotion: false },
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The Inbox has an expanded Pinned section and no regular sessions because the only non-pinned session is running. "Waiting for agents to respond" appears immediately below Pinned, and the running section remains anchored at the bottom.'],
+	}),
+	SessionsList_Inbox_Waiting: defineSessionsListFixture({
+		sessions: [
+			{ id: 'running-one', title: 'Run smoke tests', workspace: 'vscode', minutesAgo: 1, status: SessionStatus.InProgress },
+			{ id: 'running-two', title: 'Review accessibility', workspace: 'vscode', minutesAgo: 2, status: SessionStatus.InProgress },
+		],
+		header: {},
+		view: { inbox: true, height: 180, reducedMotion: false },
+		interaction: { hovered: { section: 'running' } },
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The section title is "Inbox". Directly below it, the empty list area says "Waiting for agents to respond" in concise muted text because both sessions are running. The pointer is over the collapsed "2 sessions running" tree section at the bottom, revealing a right-pointing chevron on the row’s right edge while retaining the animated blue pixel spinner on the left.'],
+	}),
+	SessionsList_Inbox_RunningExpanded: defineSessionsListFixture({
+		sessions: [
+			{ id: 'running-one', title: 'Run smoke tests', workspace: 'vscode', minutesAgo: 1, status: SessionStatus.InProgress },
+			{ id: 'running-two', title: 'Review accessibility', workspace: 'vscode', minutesAgo: 2, status: SessionStatus.InProgress },
+		],
+		header: {},
+		view: { inbox: true, compact: true, height: 180, reducedMotion: false, expanded: [{ section: 'running' }] },
+		interaction: { hovered: { session: 'running-one' } },
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The "2 sessions running" tree section is expanded below the waiting message while Compact View is enabled. Its two child rows use compact single-line presentation with glowing titles, no grid status icons, and no secondary "Working..." labels. The first child is hovered and uses the same rounded inset hover surface as ordinary session rows.'],
 	}),
 	SessionsList_UnreadStatusIcons: defineSessionsListFixture({
 		sessions: UNREAD_STATUS_ICON_SESSIONS,
@@ -580,6 +667,22 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	}, {
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: ['A compact vscode workspace section shows a hovered, expanded session with its nested-chat twistie visible in place of the status icon. The twistie is vertically centered with the session title.'],
+	}),
+	SessionsList_CompactRegularWorkspaceHover: defineSessionsListFixture({
+		sessions: [{ id: 'regular', title: 'Fix workspace hover parity', workspace: 'vscode-tools', minutesAgo: 4 }],
+		view: { compact: true, width: 360 },
+		interaction: { hovered: { session: 'regular' } },
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['A regular compact session row inside its workspace section reveals the vscode-tools workspace badge on hover, matching the existing pinned-session hover behavior.'],
+	}),
+	SessionsList_CompactNoWorkspaceHover: defineSessionsListFixture({
+		sessions: [{ id: 'chat', title: 'Summarize review feedback', isQuickChat: true, minutesAgo: 4 }],
+		view: { compact: true, width: 360 },
+		interaction: { hovered: { session: 'chat' } },
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['A hovered compact workspace-less chat row reveals a "No workspace" badge in the same position where workspace-backed rows show their workspace name.'],
 	}),
 	SessionsList_CompactUnreadStatusIcons: defineSessionsListFixture({
 		sessions: UNREAD_STATUS_ICON_SESSIONS,

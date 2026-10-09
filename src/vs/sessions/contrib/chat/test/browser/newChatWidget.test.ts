@@ -247,9 +247,10 @@ interface ISessionOptionsPersistenceHarness {
 }
 
 interface ISendHarness {
-	readonly notificationService: { error(message: string): void };
+	readonly notificationService: { error(message: string): void; info(message: string): void };
 	readonly _pendingBackgroundSends: { set(key: object, value: IDisposable): void; deleteAndDispose(key: object): void };
 	readonly recentWorkspacesService: { restoreDismissedWorkspace(folderUri: URI): void };
+	readonly sessionsListModelService: { readonly inboxViewEnabled: IObservable<boolean> };
 	readonly newSessionComposerService: { notifyWillSendRequest(options: ISendRequestOptions, selection: IWorkspaceSelectionSnapshot | undefined): void };
 	readonly _session: IObservable<ISession | undefined>;
 	readonly _feedbackItems: IObservable<readonly never[]>;
@@ -2030,9 +2031,10 @@ suite('NewChatWidget', () => {
 		let clearAttachedContextCount = 0;
 
 		const result = await send.call({
-			notificationService: { error: () => { } },
+			notificationService: { error: () => { }, info: () => assert.fail('Unexpected notification') },
 			_pendingBackgroundSends: { set: () => { }, deleteAndDispose: () => { } },
 			recentWorkspacesService: { restoreDismissedWorkspace: uri => stages.push(`restore:${uri.toString()}`) },
+			sessionsListModelService: { inboxViewEnabled: constObservable(false) },
 			_session: constObservable(session),
 			_feedbackItems: constObservable([]),
 			_workspacePicker: {
@@ -2100,9 +2102,10 @@ suite('NewChatWidget', () => {
 		let sendCount = 0;
 
 		const result = await send.call({
-			notificationService: { error: () => { } },
+			notificationService: { error: () => { }, info: () => assert.fail('Unexpected notification') },
 			_pendingBackgroundSends: { set: () => { }, deleteAndDispose: () => { } },
 			recentWorkspacesService: { restoreDismissedWorkspace: () => assert.fail('No session was sent') },
+			sessionsListModelService: { inboxViewEnabled: constObservable(false) },
 			_session: constObservable(undefined),
 			_feedbackItems: constObservable([]),
 			_workspacePicker: {
@@ -2140,9 +2143,10 @@ suite('NewChatWidget', () => {
 		for (const error of [new Error('Container build failed'), new CancellationError(), new WorkspaceNotTrustedError()]) {
 			const harness: ISendHarness & { send: typeof send } = {
 				send,
-				notificationService: { error: message => notifications.push(message) },
+				notificationService: { error: message => notifications.push(message), info: () => assert.fail('Unexpected notification') },
 				_pendingBackgroundSends: { set: () => { }, deleteAndDispose: () => { } },
 				recentWorkspacesService: { restoreDismissedWorkspace: () => assert.fail('Failed sends must not restore dismissed workspaces') },
+				sessionsListModelService: { inboxViewEnabled: constObservable(false) },
 				_session: constObservable(session),
 				_feedbackItems: constObservable([]),
 				_comparisonSelection: { enabled: constObservable(false) },
@@ -2173,9 +2177,10 @@ suite('NewChatWidget', () => {
 		let sentOptions: ISendRequestOptions | undefined;
 		const picker = { selectedFolderUri: folderUri, clearAttachedContext: () => { }, showPicker: () => { } };
 		const harness: ISendHarness = {
-			notificationService: { error: () => assert.fail('Unexpected error') },
+			notificationService: { error: () => assert.fail('Unexpected error'), info: () => assert.fail('Unexpected notification') },
 			_pendingBackgroundSends: pendingSends,
 			recentWorkspacesService: { restoreDismissedWorkspace: uri => restored.push(uri) },
+			sessionsListModelService: { inboxViewEnabled: constObservable(false) },
 			_session: constObservable(session),
 			_feedbackItems: constObservable([]),
 			_comparisonSelection: { enabled: constObservable(false) },
@@ -2199,6 +2204,59 @@ suite('NewChatWidget', () => {
 		onDidSendRequest.fire(upcastPartial<ISendRequestSentEvent>({ options: sentOptions }));
 		assert.deepStrictEqual({ beforeSuccess, afterUnrelatedSend, restored, pending: pendingSends.size }, {
 			beforeSuccess: [], afterUnrelatedSend: [], restored: [folderUri], pending: 0,
+		});
+	});
+
+	test('starts in the background and keeps the composer ready in Inbox View', async () => {
+		const onDidSendRequest = disposables.add(new Emitter<ISendRequestSentEvent>());
+		const pendingSends = disposables.add(new DisposableMap<object, IDisposable>());
+		const folderUri = URI.file('/workspace');
+		const session = upcastPartial<ISession>({ sessionId: 'draft' });
+		const notifications: string[] = [];
+		const reseeded: URI[] = [];
+		let sentOptions: ISendRequestOptions | undefined;
+		let cleared = 0;
+		const result = await send.call({
+			notificationService: { error: () => assert.fail('Unexpected error'), info: message => notifications.push(message) },
+			_pendingBackgroundSends: pendingSends,
+			recentWorkspacesService: { restoreDismissedWorkspace: () => { } },
+			sessionsListModelService: { inboxViewEnabled: constObservable(true) },
+			_session: constObservable(session),
+			_feedbackItems: constObservable([]),
+			_comparisonSelection: { enabled: constObservable(false) },
+			_workspacePicker: {
+				selectedFolderUri: folderUri,
+				clearAttachedContext: () => cleared++,
+				showPicker: () => { },
+			},
+			_isQuickChatComposer: constObservable(false),
+			agentFeedbackService: { removeFeedback: () => { } },
+			newSessionComposerService: { notifyWillSendRequest: () => { } },
+			sessionsManagementService: {
+				onDidSendRequest: onDidSendRequest.event,
+				sendNewChatRequest: async (_session, options) => { sentOptions = options; },
+			},
+			logService: { error: () => assert.fail('Unexpected error') },
+			_getWorkspaceRoots: () => [folderUri],
+			_createNewSession: async folder => { reseeded.push(folder); },
+		}, 'start more work');
+		assert.ok(sentOptions);
+		onDidSendRequest.fire(upcastPartial<ISendRequestSentEvent>({ options: sentOptions }));
+
+		assert.deepStrictEqual({
+			result,
+			background: sentOptions?.background,
+			reseeded: reseeded.map(uri => uri.toString()),
+			cleared,
+			notifications,
+			pending: pendingSends.size,
+		}, {
+			result: true,
+			background: true,
+			reseeded: [folderUri.toString()],
+			cleared: 1,
+			notifications: ['New session started in the background.'],
+			pending: 0,
 		});
 	});
 
