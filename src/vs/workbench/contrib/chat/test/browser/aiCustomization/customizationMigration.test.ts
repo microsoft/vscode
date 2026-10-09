@@ -423,6 +423,11 @@ suite('customizationMigration', () => {
 				expectedLine: 'description: "Review the first change.\\nReview the second change."',
 				expectedDescription: 'Review the first change.\nReview the second change.',
 			},
+			{
+				content: 'description: "Review\\x7Fchanges"',
+				expectedLine: 'description: "Review\\u007fchanges"',
+				expectedDescription: 'Review\u007Fchanges',
+			},
 		];
 
 		const actual = cases.map(testCase => {

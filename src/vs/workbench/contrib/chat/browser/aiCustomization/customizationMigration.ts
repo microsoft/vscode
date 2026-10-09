@@ -159,8 +159,8 @@ export function migratePromptFileToSkill(promptFile: MigratableConfiguration, co
 }
 
 function formatMigratedDescription(value: string, sourceAttribute: IHeaderAttribute | undefined): string {
-	if (/[\u0000-\u001F\u007F]/.test(value)) {
-		return JSON.stringify(value);
+	if (/[\u0000-\u001F\u007F-\u009F]/.test(value)) {
+		return quoteYamlString(value);
 	}
 
 	if (sourceAttribute?.value.type === 'scalar') {
@@ -168,7 +168,7 @@ function formatMigratedDescription(value: string, sourceAttribute: IHeaderAttrib
 			case 'single':
 				return `'${value.replace(/'/g, `''`)}'`;
 			case 'double':
-				return JSON.stringify(value);
+				return quoteYamlString(value);
 			case 'none':
 				if (isSafePlainYamlScalar(value)) {
 					return value;
@@ -176,7 +176,11 @@ function formatMigratedDescription(value: string, sourceAttribute: IHeaderAttrib
 		}
 	}
 
-	return isSafePlainYamlScalar(value) ? value : JSON.stringify(value);
+	return isSafePlainYamlScalar(value) ? value : quoteYamlString(value);
+}
+
+function quoteYamlString(value: string): string {
+	return JSON.stringify(value).replace(/[\u007F-\u009F]/g, character => `\\u${character.charCodeAt(0).toString(16).padStart(4, '0')}`);
 }
 
 function isSafePlainYamlScalar(value: string): boolean {
