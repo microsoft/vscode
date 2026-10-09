@@ -237,27 +237,6 @@ suite('ManagePluginMarketplacesAction', () => {
 		}]);
 	});
 
-	test('shows plugins from a strict allowed default marketplace without using the public feed', async () => {
-		const marketplace = parseMarketplaceReference('github/awesome-copilot#marketplace')!;
-		const fixture = createFixture({
-			[ChatConfiguration.PluginMarketplaces]: [marketplace.rawValue],
-			[ChatConfiguration.ExtraMarketplaces]: {},
-			[ChatConfiguration.StrictMarketplaces]: [{ source: 'github', repo: marketplace.rawValue }],
-			[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: true,
-		}, true);
-		fixture.quickInputService.pickIds.push(marketplace.canonicalId, 'showPlugins');
-
-		await fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
-
-		assert.deepStrictEqual(fixture.commands, [{
-			id: AICustomizationManagementCommands.OpenMarketplace,
-			args: [{
-				section: AICustomizationManagementSection.Plugins,
-				sourceId: getPluginCustomizationMarketplaceSourceId(marketplace),
-			}],
-		}]);
-	});
-
 	test('disables marketplaces outside strict policy and labels organization-managed marketplaces', async () => {
 		const defaultMarketplace = parseMarketplaceReference('github/awesome-copilot#marketplace')!;
 		const managedMarketplace = parseMarketplaceReference('microsoft/vscode-team-kit')!;

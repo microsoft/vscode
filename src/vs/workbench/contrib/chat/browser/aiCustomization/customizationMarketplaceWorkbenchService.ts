@@ -160,11 +160,6 @@ export class CustomizationMarketplaceWorkbenchService extends Disposable impleme
 		return this.service;
 	}
 
-	private isGitHubFeedAvailable(): boolean {
-		return getStrictKnownMarketplaces(this.configurationService.getValue(ChatConfiguration.StrictMarketplaces)) === undefined
-			&& !!this.harnessService.getActiveDescriptor().marketplaceSearchProvider;
-	}
-
 	getSourceRecoveryAction(sourceId: string): ICustomizationMarketplaceSourceRecoveryAction | undefined {
 		if (sourceId === CustomizationMarketplaceSources.AgentFinderPublicFeed.id) {
 			return this.isGitHubFeedAvailable()
