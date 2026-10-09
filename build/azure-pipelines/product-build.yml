@@ -325,8 +325,8 @@ extends:
         enableExclusions: true
         exclusionsFilePath: $(Build.SourcesDirectory)/.eslint-ignore
       sourceAnalysisPool:
-        name: ${{ variables.VSCODE_UBUNTU_POOL }}
-        os: linux
+        name: ${{ variables.VSCODE_WINDOWS_POOL }}
+        os: windows
       createAdoIssuesForJustificationsForDisablement: false
     containers:
       ubuntu-2004-arm64:

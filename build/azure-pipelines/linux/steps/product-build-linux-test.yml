@@ -118,45 +118,7 @@ steps:
             APP_NAME=$(node -p "require(\"$APP_ROOT/resources/app/product.json\").applicationName")
             export INTEGRATION_TEST_APP_NAME="$APP_NAME"
             export INTEGRATION_TEST_ELECTRON_PATH="$APP_ROOT/$APP_NAME"
-            test -x "$INTEGRATION_TEST_ELECTRON_PATH"
-            test -x ".build/electron/$(node -p 'require("./product.json").applicationName')"
-            test -x "$VSCODE_REMOTE_SERVER_PATH/bin/code-server"
-            test -s .build/extensions/copilot/package.json
-            test -s out-build/vs/platform/agentHost/node/agentHostServerMain.js
-            for entrypoint in \
-              conformance/agentHostConformance \
-              providers/claudeAgentHostE2E \
-              providers/codexAgentHostE2E \
-              providers/copilotAgentHostE2E \
-              providers/copilotOtelAgentHostE2E \
-              providers/copilotManagedSettingsAgentHostE2E; do
-              test -s "out-build/vs/platform/agentHost/test/node/e2e/$entrypoint.integrationTest.js"
-            done
-            test -s src/vs/platform/agentHost/test/node/e2e/captures/empty.yaml
-            node -e '
-              const assert = require("node:assert/strict");
-              const fs = require("node:fs");
-              const crypto = require("node:crypto");
-              const lock = require("./package-lock.json").packages;
-              assert.equal(process.platform, "linux");
-              assert.equal(process.arch, "x64");
-              for (const name of ["@github/copilot-sdk", "@github/copilot-sdk-linux-x64", "@anthropic-ai/claude-agent-sdk", "@openai/codex"]) {
-                const installed = require(`./node_modules/${name}/package.json`).version;
-                assert.equal(installed, lock[`node_modules/${name}`].version);
-                console.log(JSON.stringify({ package: name, version: installed }));
-              }
-              const runtime = "node_modules/@github/copilot-sdk-linux-x64/prebuilds/linux-x64/copilot-runtime";
-              fs.accessSync(runtime, fs.constants.X_OK);
-              fs.accessSync("node_modules/@github/copilot-sdk-linux-x64/prebuilds/linux-x64/runtime.node", fs.constants.R_OK);
-              console.log(JSON.stringify({ runtimeSha256: crypto.createHash("sha256").update(fs.readFileSync(runtime)).digest("hex") }));
-            '
-            echo "Tmpfs probe compiler, packaged runtime, provider, and fixture inputs verified."
-            bash test/integration/agentHost/tmpfs.sh node test/integration/agentHost/holderProbe.ts --self-test
-            for iteration in 1 2; do
-              echo "Tmpfs holder probe: full concurrent replay iteration $iteration of 2"
-              AGENT_HOST_E2E_HOLDER_PROBE=1 node test/integration/agentHost/runner.ts \
-                --storage split --jobs 5 --build --tfs "Integration Tests Probe $iteration"
-            done
+            node test/integration/agentHost/nativeProbe.ts
           env:
             VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)
             VSCODE_SKIP_PRELAUNCH: '1'
@@ -192,10 +154,11 @@ steps:
           displayName: 🧪 Run integration tests (Remote)
           timeoutInMinutes: 30
 
-  - script: bash build/azure-pipelines/linux/collect-test-diagnostics.sh before "$(Agent.TempDirectory)"
-    displayName: Diagnostics before smoke test run (disk space, processes, max_user_watches, number of opened file handles)
-    continueOnError: true
-    condition: succeededOrFailed()
+  - ${{ if or(containsValue(parameters.VSCODE_TEST_IDS, 'smoke-electron'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-browser-chromium'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-remote')) }}:
+    - script: bash build/azure-pipelines/linux/collect-test-diagnostics.sh before "$(Agent.TempDirectory)"
+      displayName: Diagnostics before smoke test run (disk space, processes, max_user_watches, number of opened file handles)
+      continueOnError: true
+      condition: succeededOrFailed()
 
   - ${{ if containsValue(parameters.VSCODE_TEST_IDS, 'smoke-electron') }}:
     - script: |
@@ -258,10 +221,11 @@ steps:
           timeoutInMinutes: 30
           displayName: 🧪 Run smoke tests (Remote)
 
-  - script: bash build/azure-pipelines/linux/collect-test-diagnostics.sh after "$(Agent.TempDirectory)"
-    displayName: Diagnostics after smoke test run (disk space, processes, max_user_watches, number of opened file handles)
-    continueOnError: true
-    condition: succeededOrFailed()
+  - ${{ if or(containsValue(parameters.VSCODE_TEST_IDS, 'smoke-electron'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-browser-chromium'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-remote')) }}:
+    - script: bash build/azure-pipelines/linux/collect-test-diagnostics.sh after "$(Agent.TempDirectory)"
+      displayName: Diagnostics after smoke test run (disk space, processes, max_user_watches, number of opened file handles)
+      continueOnError: true
+      condition: succeededOrFailed()
 
   - ${{ if containsValue(parameters.VSCODE_TEST_IDS, 'copilot') }}:
     - template: ../../copilot/test-integration-steps.yml@self

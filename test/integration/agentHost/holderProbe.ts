@@ -111,13 +111,27 @@ async function verifyCapture(): Promise<void> {
 		assert.equal(identity.cwd, mountDirectory);
 		assert.ok(identity.startTicks && identity.executable);
 		assert.ok(identity.fds.some(fd => fd.link === path.join(mountDirectory, 'holder-probe-control')));
+		const sameUserFuser = spawnSync('fuser', ['-vm', mountDirectory], { encoding: 'utf8' });
+		if (sameUserFuser.error) {
+			throw sameUserFuser.error;
+		}
+		record({ phase: 'control-fuser-same-user', childPid: child.pid, status: sameUserFuser.status, stdout: sameUserFuser.stdout, stderr: sameUserFuser.stderr });
+		assert.equal(sameUserFuser.status, 0, sameUserFuser.stderr);
+		assert.ok(sameUserFuser.stdout.trim().split(/\s+/).includes(String(child.pid)), 'Same-user fuser must identify the owned control child');
+		const rootCwd = spawnSync('sudo', ['-n', 'readlink', `/proc/${child.pid}/cwd`], { encoding: 'utf8' });
+		if (rootCwd.error) {
+			throw rootCwd.error;
+		}
+		record({ phase: 'control-root-proc-read', childPid: child.pid, status: rootCwd.status, scopedCwd: rootCwd.stdout.trim() === mountDirectory ? mountDirectory : undefined, stderr: rootCwd.stderr });
+		assert.equal(rootCwd.status, 0, 'Native sudo-root observer must be able to read its control child cwd');
+		assert.equal(rootCwd.stdout.trim(), mountDirectory);
 		const fuser = spawnSync('sudo', ['-n', 'timeout', '--signal=KILL', '10s', 'fuser', '-vm', mountDirectory], { encoding: 'utf8' });
 		if (fuser.error) {
 			throw fuser.error;
 		}
+		record({ phase: 'control-fuser', childPid: child.pid, status: fuser.status, stdout: fuser.stdout, stderr: fuser.stderr });
 		assert.equal(fuser.status, 0, fuser.stderr);
-		assert.ok(fuser.stdout.trim().split(/\s+/).includes(String(child.pid)), 'Real fuser must identify the same holder as /proc');
-		record({ phase: 'control-fuser', stdout: fuser.stdout, stderr: fuser.stderr });
+		assert.ok(fuser.stdout.trim().split(/\s+/).includes(String(child.pid)), `Real fuser must identify the same holder as /proc: ${fuser.stdout}; ${fuser.stderr}`);
 	} finally {
 		child.stdin!.end();
 		const [code, signal] = await exited;
