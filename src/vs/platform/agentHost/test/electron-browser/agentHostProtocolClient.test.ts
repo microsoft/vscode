@@ -2124,7 +2124,7 @@ suite('AgentHostProtocolClient', () => {
 		assert.deepStrictEqual(getRootConfig(enabled), { [AgentHostDisableRepoInfoTelemetryConfigKey]: false });
 	});
 
-	test('forwards and clears legacy managed permissions for the local host', async () => {
+	test('forwards global approval through root policy instead of flattening it into a bypass ban', async () => {
 		const configurationService = new ManagedPermissionsConfigurationService({
 			[TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID]: false,
 		});
@@ -2139,14 +2139,12 @@ suite('AgentHostProtocolClient', () => {
 
 		await connectClient(client, transport);
 
-		assert.deepStrictEqual(findLastManagedSettingsNotification(transport.sentMessages), {
-			jsonrpc: '2.0',
-			method: 'setClientManagedSettingsPermissions',
-			params: {
-				permissions: {
-					disableBypassPermissionsMode: 'disable',
-				},
-			},
+		assert.deepStrictEqual({
+			restricted: findRootConfigValue(transport.sentMessages, 'autoApprovePolicyRestricted'),
+			notification: findLastManagedSettingsNotification(transport.sentMessages),
+		}, {
+			restricted: true,
+			notification: { jsonrpc: '2.0', method: 'setClientManagedSettingsPermissions', params: { permissions: {} } },
 		});
 
 		transport.sentMessages.length = 0;

@@ -41,6 +41,7 @@ export interface IExtensionPermissionState {
 }
 
 export interface IPermissionPickerDelegate {
+	readonly isPolicyRestricted?: () => boolean;
 	readonly currentPermissionLevel: IObservable<ChatPermissionLevel>;
 	readonly setPermissionLevel: (level: ChatPermissionLevel) => void;
 	/**
@@ -172,7 +173,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 		@IStorageService storageService: IStorageService,
 		@IHoverService private readonly hoverService: IHoverService,
 	) {
-		const isAutoApprovePolicyRestricted = () => configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
+		const isAutoApprovePolicyRestricted = () => delegate.isPolicyRestricted?.() ?? configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
 		const actionProvider: IActionWidgetDropdownActionProvider = {
 			getActions: () => {
 				// If the active session contributes its own permission items, surface those instead

@@ -13,7 +13,7 @@ import { IWorkspaceContextService } from '../../../../../../platform/workspace/c
 import { applyAgentHostCompletionAction } from '../../agentHostCompletionAction.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
-import { applyAgentHostSessionConfigChange } from './applyAgentHostSessionConfig.js';
+import { applyAgentHostSessionConfigChange, getAgentHostSessionConfig } from './applyAgentHostSessionConfig.js';
 
 export interface IApplyAgentHostSubmitConfigServices {
 	readonly agentHostService: IAgentHostService;
@@ -34,6 +34,6 @@ export async function applyAgentHostSubmitConfig(
 	let applied = false;
 	const confirmed = await applyAgentHostCompletionAction({ applyConfig: config }, services.dialogService, services.storageService, async config => {
 		applied = await applyAgentHostSessionConfigChange(sessionResource, config, services);
-	});
+	}, getAgentHostSessionConfig(sessionResource, services.provisionalService, services.connectionsService));
 	return confirmed && applied;
 }

@@ -48,7 +48,7 @@ import { readAgentRuntimeModelConfiguration } from '../../common/meta/agentModel
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, readAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { readAgentSandboxDiagnostics } from '../../common/meta/agentSandboxDiagnostics.js';
 import { toSlashCommandResourceMeta } from '../../common/meta/agentSlashCommandOutputMeta.js';
-import { toSessionEvents } from './copilotTestEvents.js';
+import { createUnmanagedCopilotSettings, toSessionEvents } from './copilotTestEvents.js';
 import { fusionTestData } from './copilotFusionTestEvents.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDataService, type ISessionDatabase } from '../../common/sessionDataService.js';
@@ -481,6 +481,7 @@ class MockCopilotSession {
 			},
 		},
 		permissions: {
+			getMode: async () => ({ mode: this.permissionModeSetCalls.at(-1) ?? 'manual' as const }),
 			setMode: async (params: { mode?: PermissionMode }) => {
 				const mode = params.mode ?? 'manual';
 				this.operationLog.push('permissions.setMode');
@@ -1194,7 +1195,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 
 	const launchPlanBase = {
 		client: {
-			rpc: { account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { proxyCa: new class extends mock<CopilotClient['rpc']['sandbox']['proxyCa']>() { }, getHostSupport: options?.getSandboxHostSupport ?? (async () => ({ supported: true, capabilities: [] })) } },
+			rpc: { managedSettings: createUnmanagedCopilotSettings(), account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { proxyCa: new class extends mock<CopilotClient['rpc']['sandbox']['proxyCa']>() { }, getHostSupport: options?.getSandboxHostSupport ?? (async () => ({ supported: true, capabilities: [] })) } },
 			createSession: async () => mockSession as unknown as CopilotSession,
 			resumeSession: async () => mockSession as unknown as CopilotSession,
 		},
@@ -10386,6 +10387,150 @@ suite('CopilotAgentSession', () => {
 			await timeout(0);
 
 			assert.deepStrictEqual(mockSession.permissionModeSetCalls, ['manual', 'allow-all']);
+		});
+
+		test('mode synchronization records the actual runtime mode, not the requested mode', async () => {
+			const { session, mockSession } = await createAgentSession(disposables, { configValues: { autoApprove: 'autoApprove' } });
+			mockSession.rpc.permissions.setMode = async params => {
+				mockSession.permissionModeSetCalls.push(params.mode ?? 'manual');
+				return { success: true, mode: 'manual', enabled: false };
+			};
+			mockSession.fire('session.managed_settings_resolved', { source: 'none', serverManaged: false, deviceManaged: false, failClosed: false, bypassPermissionsDisabled: false, managedKeys: [] });
+			await session.syncPermissionMode('turn-start');
+			await session.syncPermissionMode('turn-start');
+			assert.deepStrictEqual({ calls: mockSession.permissionModeSetCalls, mode: session['_lastAppliedPermissionMode'] }, {
+				calls: ['allow-all', 'allow-all'], mode: 'manual',
+			});
+		});
+
+		test('publishes changed runtime approval availability while the existing session is idle', async () => {
+			const { session, runtime, mockSession, sessionConfigUpdates } = await createAgentSession(disposables, {
+				configValues: { autoApprove: 'assisted' },
+			});
+			await session.syncPermissionMode('turn-start');
+			const initialUpdateCount = sessionConfigUpdates.length;
+			runtime.onSessionEvent?.({
+				type: 'session.managed_settings_resolved', id: 'updated-policy', timestamp: new Date().toISOString(), parentId: null, ephemeral: true,
+				data: {
+					source: 'server', serverManaged: true, deviceManaged: false, failClosed: false, bypassPermissionsDisabled: true,
+					managedKeys: ['permissions'], settings: { permissions: { disableBypassPermissionsMode: 'disable', disableAssistedPermissionsMode: true } },
+				},
+			});
+			assert.deepStrictEqual({
+				reports: sessionConfigUpdates.slice(initialUpdateCount).map(update => update.patch),
+				modeCalls: mockSession.permissionModeSetCalls,
+			}, {
+				reports: [{ availableApprovalModes: ['default'] }],
+				modeCalls: ['assisted'],
+			});
+		});
+
+		for (const legacy of [false, true]) {
+			test(`idle runtime reports preserve composed host restrictions (legacy=${legacy})`, async () => {
+				const { session, runtime, sessionConfigUpdates } = await createAgentSession(disposables, {
+					configValues: { autoApprove: 'default' },
+					rootValues: { [AgentHostAutoApprovePolicyRestrictedConfigKey]: legacy },
+				});
+				const resolved = { source: 'none' as const, serverManaged: false, deviceManaged: false, failClosed: false, bypassPermissionsDisabled: false, managedKeys: [] };
+				runtime.setApprovalPolicy?.(resolved, legacy ? {} : { disableAssistedPermissionsMode: true });
+				await session.syncPermissionMode('turn-start');
+				const initialUpdateCount = sessionConfigUpdates.length;
+				runtime.onSessionEvent?.({
+					type: 'session.managed_settings_resolved', id: 'updated-policy', timestamp: new Date().toISOString(), parentId: null, ephemeral: true,
+					data: resolved,
+				});
+				assert.deepStrictEqual(sessionConfigUpdates.slice(initialUpdateCount).map(update => update.patch), [
+					{ availableApprovalModes: legacy ? ['default'] : ['default', 'autoApprove'] },
+				]);
+			});
+		}
+
+		for (const success of [false, true]) {
+			test(`direct approval toggle records the actual runtime mode (success=${success})`, async () => {
+				const { session, runtime, mockSession, sessionConfigUpdates } = await createAgentSession(disposables, {
+					configValues: { autoApprove: 'default' },
+				});
+				runtime.setApprovalPolicy?.({
+					source: 'none', serverManaged: false, deviceManaged: false, failClosed: false, bypassPermissionsDisabled: false, managedKeys: [],
+				}, {});
+				await session.syncPermissionMode('turn-start');
+				mockSession.rpc.permissions.setMode = async () => {
+					runtime.onSessionEvent?.({
+						type: 'session.managed_settings_resolved', id: 'runtime-policy', timestamp: new Date().toISOString(), parentId: null, ephemeral: true,
+						data: {
+							source: 'server', serverManaged: true, deviceManaged: false, failClosed: false, bypassPermissionsDisabled: true,
+							managedKeys: ['permissions'], settings: { permissions: { disableBypassPermissionsMode: 'disable' } },
+						},
+					});
+					return { success, mode: 'manual', enabled: false };
+				};
+
+				await session.setSessionApproveAll(true);
+
+				assert.deepStrictEqual({
+					applied: session['_lastAppliedPermissionMode'],
+					selections: sessionConfigUpdates.filter(update => Object.hasOwn(update.patch, 'autoApprove')).map(update => update.patch.autoApprove),
+				}, { applied: 'manual', selections: ['default'] });
+			});
+		}
+
+		test('direct approval toggle uses new mode precedence instead of the legacy blanket', async () => {
+			const { session, runtime, mockSession, sessionConfigUpdates } = await createAgentSession(disposables, {
+				configValues: { autoApprove: 'default' }, rootValues: { [AgentHostAutoApprovePolicyRestrictedConfigKey]: true },
+			});
+			runtime.setApprovalPolicy?.({
+				source: 'server', serverManaged: true, deviceManaged: false, failClosed: false, bypassPermissionsDisabled: false,
+				managedKeys: ['permissions'], settings: { permissions: { disableAssistedPermissionsMode: true } },
+			}, {});
+			await session.setSessionApproveAll(true);
+			assert.deepStrictEqual({
+				calls: mockSession.permissionModeSetCalls, selected: sessionConfigUpdates.at(-1)?.patch.autoApprove,
+			}, { calls: ['allow-all'], selected: 'autoApprove' });
+		});
+
+		test('direct approval toggle rejects a managed bypass restriction before the SDK call', async () => {
+			const { session, runtime, mockSession, sessionConfigUpdates } = await createAgentSession(disposables, { configValues: { autoApprove: 'default' } });
+			runtime.setApprovalPolicy?.({
+				source: 'server', serverManaged: true, deviceManaged: false, failClosed: false, bypassPermissionsDisabled: true,
+				managedKeys: ['permissions'], settings: { permissions: { disableBypassPermissionsMode: 'disable' } },
+			}, {});
+			await assert.rejects(session.setSessionApproveAll(true), /restricted by policy/);
+			assert.deepStrictEqual({ calls: mockSession.permissionModeSetCalls, updates: sessionConfigUpdates }, { calls: [], updates: [] });
+		});
+
+		test('native mode policy preserves global toggle behavior and legacy fallback', async () => {
+			const { session, runtime, mockSession, setRootValue, fireRootConfigChange, sessionConfigUpdates } = await createAgentSession(disposables, {
+				configValues: { autoApprove: 'assisted' },
+			});
+			runtime.setApprovalPolicy?.({ source: 'none', serverManaged: false, deviceManaged: false, failClosed: false, bypassPermissionsDisabled: false, managedKeys: [] }, {});
+			await session.syncPermissionMode('turn-start');
+			for (const [key, value] of [
+				[AgentHostGlobalAutoApproveEnabledConfigKey, true],
+				[AgentHostGlobalAutoApproveEnabledConfigKey, false],
+				[AgentHostAutoApprovePolicyRestrictedConfigKey, true],
+				[AgentHostAutoApprovePolicyRestrictedConfigKey, false],
+			] as const) {
+				setRootValue(key, value);
+				fireRootConfigChange();
+				await session.syncPermissionMode('config-change');
+			}
+			assert.deepStrictEqual({
+				modes: mockSession.permissionModeSetCalls,
+				writesSelection: sessionConfigUpdates.some(update => Object.hasOwn(update.patch, 'autoApprove')),
+			}, { modes: ['assisted', 'allow-all', 'assisted', 'manual', 'assisted'], writesSelection: false });
+		});
+
+		test('native mode restrictions replace the legacy blanket on every Copilot host', async () => {
+			const { session, runtime, mockSession } = await createAgentSession(disposables, {
+				configValues: { autoApprove: 'autoApprove' },
+				rootValues: { [AgentHostAutoApprovePolicyRestrictedConfigKey]: true },
+			});
+			runtime.setApprovalPolicy?.({
+				source: 'server', serverManaged: true, deviceManaged: false, failClosed: false, bypassPermissionsDisabled: false, managedKeys: ['permissions'],
+				settings: { permissions: { disableAssistedPermissionsMode: true } }
+			}, {});
+			await session.syncPermissionMode('turn-start');
+			assert.deepStrictEqual(mockSession.permissionModeSetCalls, ['allow-all']);
 		});
 
 		test('revokes and restores elevated permission modes when policy changes', async () => {
