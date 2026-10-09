@@ -7792,9 +7792,6 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			if (!base) {
 				continue;
 			}
-			const sessionMeta = adapter.isQuickChat.get()
-				? withSessionWorkspaceless(adapter.sessionMeta, true)
-				: adapter.sessionMeta;
 			entries.push(serializeMetadata({
 				...base,
 				summary: adapter.title.get() || base.summary,
@@ -7808,8 +7805,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 					withSessionStatusFlag(base.status ?? ProtocolSessionStatus.Idle, ProtocolSessionStatus.IsRead, adapter.isRead.get()),
 					ProtocolSessionStatus.IsArchived,
 					adapter.isArchived.get()),
-				// Session-state updates can refine presentation metadata without another listing.
-				_meta: sessionMeta,
+				// Keep discovery-derived workspace-less state out of host metadata.
+				_meta: adapter.sessionMeta,
 			}, adapter.discoveryMetadata));
 		}
 		if (entries.length === 0) {
