@@ -52,7 +52,7 @@ import { prepareOwnerOnlyDirectory } from './localAgentHostMetadata.js';
 import { buildCreateDevContainerCacheCommand, buildLinkDevContainerServerCacheCommand, canAddDevContainerServerCacheMount, devContainerServerCacheMount, getDevContainerCliCachePath, getDevContainerServerCachePath } from './devContainerServerCache.js';
 import { DevContainerSample, devContainerSamples, devContainerSampleUri, getDevContainerSampleFolder, IDevContainerRepository, IDevContainerSampleSource } from '../common/devContainerSamples.js';
 import { IPreparedDevContainerSample, prepareDevContainerSample } from './devContainerSamples.js';
-import { isDevContainerSandboxSupported, prepareDevContainerSandboxConfiguration } from './devContainerSandbox.js';
+import { IDevContainerSandboxConfiguration, isDevContainerSandboxSupported, prepareDevContainerSandboxConfiguration } from './devContainerSandbox.js';
 
 const LOG_PREFIX = '[DevContainerAgentHost]';
 const DETECT_MUSL_COMMAND = 'if [ -e /etc/alpine-release ]; then printf musl; elif command -v ldd >/dev/null 2>&1; then case "$(ldd --version 2>&1)" in *musl*) printf musl;; esac; fi';
@@ -263,6 +263,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 			this._logService.info(`${LOG_PREFIX} Starting Dev Container for ${config.name}`);
 			let upResult: IDevContainerUpResult;
 			let workspaceSelector: string | readonly string[];
+			let sandboxEnvironment: NodeJS.ProcessEnv | undefined;
 			let repository: IDevContainerRepository | undefined;
 			if (hasKey(config, { sampleId: true })) {
 				const sample = devContainerSamples.find(sample => sample.id === config.sampleId)!;
@@ -281,13 +282,15 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 					store.add(toDisposable(() => {
 						void rm(directory, { recursive: true, force: true }).catch(error => this._logService.error(`${LOG_PREFIX} Failed to remove sandbox override`, error));
 					}));
-					const sandboxArgs = await this._prepareSandboxConfiguration(config.connectionId, config.workspaceFolder, directory, tokenSource.token);
-					workspaceSelector = ['--workspace-folder', config.workspaceFolder, ...sandboxArgs];
+					const sandbox = await this._prepareSandboxConfiguration(config.connectionId, config.workspaceFolder, directory, tokenSource.token);
+					workspaceSelector = ['--workspace-folder', config.workspaceFolder, ...sandbox.args];
+					sandboxEnvironment = sandbox.environment;
 				}
 				const up = await this._runDevContainer(
 					config.connectionId,
 					['up', ...DEV_CONTAINER_LOG_ARGS, ...typeof workspaceSelector === 'string' ? ['--workspace-folder', workspaceSelector] : workspaceSelector, ...cacheMountArgs],
 					tokenSource.token,
+					sandboxEnvironment,
 				);
 				const parsed = parseDevContainerUpResult(up.stdout);
 				if (up.code !== 0 || !parsed) {
@@ -299,7 +302,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 
 			const sandboxSupported = await this._getSandboxSupported(config.connectionId, upResult.containerId, tokenSource.token);
 			this._onDidChangeSandboxSupport.fire({ connectionId: config.connectionId, supported: sandboxSupported });
-			const exec = this._createExec(config.connectionId, workspaceSelector, tokenSource.token);
+			const exec = this._createExec(config.connectionId, workspaceSelector, tokenSource.token, sandboxEnvironment);
 			const safeDirectoryStopWatch = StopWatch.create(false);
 			try {
 				await this._configureGitSafeDirectory(config.connectionId, upResult.containerId, upResult.remoteWorkspaceFolder, exec, tokenSource.token);
@@ -389,6 +392,7 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 				endpoint.endpoint,
 				endpoint.connectionToken,
 				tokenSource.token,
+				sandboxEnvironment,
 			);
 			if (tokenSource.token.isCancellationRequested) {
 				relay.dispose();
@@ -450,12 +454,12 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 		}, sandboxEnabled);
 	}
 
-	protected async _prepareSandboxConfiguration(connectionId: string, workspaceFolder: string, directory: string, token: CancellationToken): Promise<readonly string[]> {
+	protected async _prepareSandboxConfiguration(connectionId: string, workspaceFolder: string, directory: string, token: CancellationToken): Promise<IDevContainerSandboxConfiguration> {
 		const result = await this._runDevContainer(connectionId, ['read-configuration', ...DEV_CONTAINER_LOG_ARGS, '--workspace-folder', workspaceFolder], token);
 		if (result.code !== 0) {
 			throw new Error(`Cannot read Dev Container configuration for sandboxing (exit ${result.code}): ${result.stderr}`);
 		}
-		return prepareDevContainerSandboxConfiguration(result.stdout, directory);
+		return prepareDevContainerSandboxConfiguration(result.stdout, directory, workspaceFolder, await this._resolveDevContainerEnvironment());
 	}
 
 	protected async _getSandboxSupported(_connectionId: string, containerId: string, token: CancellationToken): Promise<boolean> {
@@ -650,12 +654,13 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 		return !!owner && owner === user;
 	}
 
-	protected _createExec(connectionId: string, workspaceFolder: string | readonly string[], token: CancellationToken): ISshExec {
+	protected _createExec(connectionId: string, workspaceFolder: string | readonly string[], token: CancellationToken, environment?: NodeJS.ProcessEnv): ISshExec {
 		return async (command, options) => {
 			const result = await this._runDevContainer(
 				connectionId,
 				getDevContainerExecArgs(workspaceFolder, command),
 				token,
+				environment,
 			);
 			if (result.code !== 0 && !options?.ignoreExitCode) {
 				throw new Error(localize('devContainerAgentHost.commandFailed', "Dev Container command failed (exit {0}): {1}\nstderr: {2}", result.code, command, result.stderr));
@@ -712,12 +717,13 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 		endpoint: AgentHostEndpointAddress,
 		connectionToken: string | undefined,
 		token: CancellationToken,
+		environmentOverride?: NodeJS.ProcessEnv,
 	): Promise<IDevContainerRelay> {
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
 		const [environment, nativeRequire] = await Promise.all([
-			this._resolveDevContainerEnvironment(),
+			environmentOverride ?? this._resolveDevContainerEnvironment(),
 			this._getNativeRequire(),
 		]);
 		if (token.isCancellationRequested) {
@@ -780,8 +786,8 @@ export abstract class DevContainerAgentHostService extends Disposable implements
 		return relay;
 	}
 
-	protected async _runDevContainer(connectionId: string, args: readonly string[], token: CancellationToken): Promise<{ stdout: string; stderr: string; code: number }> {
-		const environment = await this._resolveDevContainerEnvironment();
+	protected async _runDevContainer(connectionId: string, args: readonly string[], token: CancellationToken, environmentOverride?: NodeJS.ProcessEnv): Promise<{ stdout: string; stderr: string; code: number }> {
+		const environment = environmentOverride ?? await this._resolveDevContainerEnvironment();
 		return new Promise((resolve, reject) => {
 			if (token.isCancellationRequested) {
 				reject(new CancellationError());

@@ -466,6 +466,8 @@ export class PermissionPicker extends Disposable {
 			const disabled = standaloneToggle?.disabled === true;
 			this.actionWidgetService.updateItems(items.map(item => item.standaloneToggle ? {
 				...item,
+				label: standaloneToggle?.label ?? item.label,
+				item: item.item && standaloneToggle ? { ...item.item, label: standaloneToggle.label } : item.item,
 				standaloneToggle,
 				disabled,
 				hover: standaloneToggle && (disabled || this._delegate.sandboxDevContainer?.read(reader)) ? { content: standaloneToggle.title } : undefined,

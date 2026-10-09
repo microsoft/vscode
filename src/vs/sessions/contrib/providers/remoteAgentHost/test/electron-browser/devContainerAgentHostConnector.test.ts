@@ -18,6 +18,7 @@ import { IDevContainerAgentHostConfig, IDevContainerAgentHostMainService } from 
 import { devContainerSamples, devContainerSampleUri, IDevContainerSampleSource } from '../../../../../../platform/agentHost/common/devContainerSamples.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { isClientTransport } from '../../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { getEntryAddress, IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../../platform/configuration/common/configurationRegistry.js';
 import { IEnvironmentService } from '../../../../../../platform/environment/common/environment.js';
@@ -45,6 +46,64 @@ suite('Dev Container Agent Host Connector', () => {
 	const devContainerIdleTimeoutProperty = configurationRegistry.getConfigurationProperties()[DevContainerIdleTimeoutSettingId];
 	const devContainerWorktreeEnabledProperty = configurationRegistry.getExcludedConfigurationProperties()[DevContainerWorktreeEnabledSettingId];
 	const devContainerSamplesProperty = configurationRegistry.getConfigurationProperties()[DevContainerSamplesEnabledSettingId];
+
+	for (const sandboxEnabled of [false, true]) {
+		test(`relay reconnect retains requested sandbox options (requested: ${sandboxEnabled})`, async () => {
+			const configs: IDevContainerAgentHostConfig[] = [];
+			const service = new class extends mock<IDevContainerAgentHostMainService>() {
+				override readonly onDidOutput = Event.None;
+				override readonly onDidChangeSandboxSupport = Event.None;
+				override readonly onDidRelayMessage = Event.None;
+				override readonly onDidRelayActivity = Event.None;
+				override readonly onDidRelayClose = Event.None;
+				override readonly onDidCloseConnection = Event.None;
+				override async connect(config: IDevContainerAgentHostConfig) {
+					configs.push(config);
+					return { connectionId: config.connectionId, address: 'devcontainer:sample', name: config.name, remoteWorkspaceFolder: '/workspace', sandboxSupported: !sandboxEnabled };
+				}
+				override async disconnect() { }
+			}();
+			const connector = store.add(new DevContainerAgentHostConnector(
+				new class extends mock<ISharedProcessService>() {
+					override getChannel(): IChannel {
+						const channel = ProxyChannel.fromService(service, store.add(new DisposableStore()), { unbufferedEvents: ['onDidChangeSandboxSupport'] });
+						return {
+							listen: (event, arg) => channel.listen(undefined, event, arg),
+							call: (command, arg) => channel.call(undefined, command, arg),
+						};
+					}
+				}(),
+				store.add(new TestInstantiationService()),
+				store.add(new NullLogService()),
+				new TestConfigurationService({
+					[DevContainerSamplesEnabledSettingId]: true,
+					[DevContainerAgentHostEnabledSettingId]: true,
+					[RemoteAgentHostsEnabledSettingId]: true,
+				}),
+				new class extends mock<IEnvironmentService>() { }(),
+				new class extends mock<IOutputService>() {
+					override getChannel() {
+						return new class extends mock<IOutputChannel>() { override append() { } }();
+					}
+				}(),
+				new class extends mock<IFileService>() { }(),
+				new class extends mock<IRemoteAgentHostService>() { }(),
+				new class extends mock<ISessionsProvidersService>() { }(),
+			));
+			const target = await connector.createConnection(devContainerSampleUri(devContainerSamples[0]), 'devcontainer:sample', CancellationToken.None, { resume: true, sandboxEnabled });
+			store.add(target.transportDisposable!);
+			const first = store.add(target.transportFactory());
+			assert.ok(isClientTransport(first));
+			await first.connect();
+			const reconnected = store.add(target.transportFactory());
+			assert.ok(isClientTransport(reconnected));
+			await reconnected.connect();
+			assert.deepStrictEqual(configs.map(config => ({ resume: config.resume, sandboxEnabled: config.sandboxEnabled })), [
+				{ resume: true, sandboxEnabled },
+				{ resume: false, sandboxEnabled },
+			]);
+		});
+	}
 
 	test('sample setting is application scoped, experiment controlled, and off by default', () => {
 		assert.deepStrictEqual({
@@ -481,6 +540,7 @@ suite('Dev Container Agent Host Connector', () => {
 				workspaces: configs.map(config => hasKey(config, { workspaceFolder: true }) ? config.workspaceFolder : undefined),
 				output: output.filter(value => value === 'remote container output'),
 				workspace: target.workspaceUri,
+				sandboxSupported: target.sandboxSupported,
 				disconnected: disconnected.length,
 				lifecycleOperations,
 			}, {
@@ -488,6 +548,7 @@ suite('Dev Container Agent Host Connector', () => {
 				workspaces: ['/remote/project'],
 				output: ['remote container output'],
 				workspace: URI.from({ scheme: AGENT_HOST_SCHEME, authority: agentHostAuthority('devcontainer:test'), path: '/workspaces/project' }),
+				sandboxSupported: undefined,
 				disconnected: 1,
 				lifecycleOperations: ['stop:/remote/project', 'remove:/remote/project'],
 			});

@@ -14,6 +14,7 @@ import { localize } from '../../../../../../nls.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionListItemInlineToggle } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetDropdownAction, IActionWidgetDropdownActionProvider } from '../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
+import { equalsAgentHostSandboxTogglePresentation } from '../../../../../../platform/agentHost/browser/agentHostSandboxToggle.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
@@ -159,6 +160,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 	private _currentTooltip: string = '';
 	private _hoverElement: HTMLElement | undefined;
 	private readonly _hover = this._register(new MutableDisposable<IDisposable>());
+	private _sandboxTogglePresentation: IActionListItemInlineToggle | undefined;
 
 	constructor(
 		action: MenuItemAction,
@@ -319,8 +321,11 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 			const settingId = this.getSandboxToggleSettingId();
 			const affectsSandboxToggle = (settingId !== undefined && e.affectsConfiguration(settingId))
 				|| this.delegate.sandboxToggleConfigurationKeys?.some(key => e.affectsConfiguration(key)) === true;
-			if (affectsSandboxToggle && this.element) {
-				this.renderLabel(this.element);
+			if (affectsSandboxToggle) {
+				this.refreshSandboxToggle();
+				if (this.element) {
+					this.renderLabel(this.element);
+				}
 			}
 		}));
 		let sandboxSettingId: string | undefined;
@@ -336,10 +341,20 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 			delegate.sandboxDevContainerSupported?.read(reader);
 			delegate.managedSandboxEnforced?.read(reader);
 			delegate.managedSandboxAllowsBypass?.read(reader);
+			this.refreshSandboxToggle();
 			if (this.element) {
 				this.renderLabel(this.element);
 			}
 		}));
+	}
+
+	private refreshSandboxToggle(): void {
+		const toggle = this.delegate.getSandboxToggle?.();
+		if (!equalsAgentHostSandboxTogglePresentation(this._sandboxTogglePresentation, toggle)) {
+			// Snapshot getters before an optimistic toggle mutates its displayed state.
+			this._sandboxTogglePresentation = toggle ? { ...toggle } : undefined;
+			this.hide();
+		}
 	}
 
 	private isSandboxingEnabled(): boolean {

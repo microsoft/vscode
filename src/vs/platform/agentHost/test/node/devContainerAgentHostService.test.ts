@@ -7,12 +7,12 @@ import assert from 'assert';
 import { EventEmitter as NodeEventEmitter } from 'events';
 import { spawnSync } from 'child_process';
 import { existsSync } from 'fs';
-import { lstat, mkdir, mkdtemp, readFile, readdir, rm, symlink } from 'fs/promises';
+import { lstat, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationError } from '../../../../base/common/errors.js';
-import { join } from '../../../../base/common/path.js';
+import { delimiter, join } from '../../../../base/common/path.js';
 import { isLinux } from '../../../../base/common/platform.js';
 import { getCaseInsensitive } from '../../../../base/common/objects.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -32,6 +32,7 @@ import { ISshExec, shellEscape } from '../../node/sshRemoteAgentHostHelpers.js';
 import { devContainerServerCacheMount } from '../../node/devContainerServerCache.js';
 import { DevContainerSample } from '../../common/devContainerSamples.js';
 import { IPreparedDevContainerSample } from '../../node/devContainerSamples.js';
+import { IDevContainerSandboxConfiguration } from '../../node/devContainerSandbox.js';
 
 class TestRelay implements IDevContainerRelay {
 	readonly sent: string[] = [];
@@ -66,6 +67,11 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 	readonly execCommands: string[] = [];
 	readonly dockerCommands: string[][] = [];
 	readonly devContainerArgs: string[][] = [];
+	readonly devContainerEnvironments: (NodeJS.ProcessEnv | undefined)[] = [];
+	execEnvironment: NodeJS.ProcessEnv | undefined;
+	relayEnvironment: NodeJS.ProcessEnv | undefined;
+	sandboxEnvironment: NodeJS.ProcessEnv | undefined;
+	sandboxConfigurationOutput: string | undefined;
 	readonly localCommands: { readonly command: string; readonly args: readonly string[] }[] = [];
 	relayCommand: string | undefined;
 	failDevContainerUp = false;
@@ -205,10 +211,11 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 		}
 	}
 
-	protected override _runDevContainer(connectionId: string, args: readonly string[]): Promise<{ stdout: string; stderr: string; code: number }> {
+	protected override _runDevContainer(connectionId: string, args: readonly string[], _token: CancellationToken, environment?: NodeJS.ProcessEnv): Promise<{ stdout: string; stderr: string; code: number }> {
 		this.devContainerArgs.push([...args]);
+		this.devContainerEnvironments.push(environment);
 		if (args[0] === 'read-configuration') {
-			return Promise.resolve({ stdout: JSON.stringify({ configuration: {}, mergedConfiguration: { mounts: this.cacheMountConfigured ? [{ target: '/vscode' }] : [] } }), stderr: '', code: 0 });
+			return Promise.resolve({ stdout: this.sandboxConfigurationOutput ?? JSON.stringify({ configuration: {}, mergedConfiguration: { mounts: this.cacheMountConfigured ? [{ target: '/vscode' }] : [] } }), stderr: '', code: 0 });
 		}
 		if (args[0] === 'exec') {
 			return Promise.resolve({ stdout: '', stderr: '', code: 0 });
@@ -232,9 +239,16 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 		return Promise.resolve(this.containerMounts);
 	}
 
-	protected override async _prepareSandboxConfiguration(): Promise<readonly string[]> {
+	protected override async _prepareSandboxConfiguration(): Promise<IDevContainerSandboxConfiguration> {
 		this.sandboxConfigurationPrepared = true;
-		return ['--config', '/workspace/.devcontainer/devcontainer.json', '--override-config', '/sandbox/devcontainer.json'];
+		return {
+			args: ['--config', '/workspace/.devcontainer/devcontainer.json', '--override-config', '/sandbox/devcontainer.json'],
+			environment: this.sandboxEnvironment ?? this._testShellEnvironment,
+		};
+	}
+
+	prepareRealSandboxConfiguration(workspaceFolder: string, directory: string): Promise<IDevContainerSandboxConfiguration> {
+		return super._prepareSandboxConfiguration('sandbox', workspaceFolder, directory, CancellationToken.None);
 	}
 
 	protected override async _getSandboxSupported(): Promise<boolean> {
@@ -265,11 +279,12 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 		throw new Error(`Unexpected local command: ${command} ${args.join(' ')}`);
 	}
 
-	createDevContainerExec(connectionId: string, workspaceFolder: string, token: CancellationToken): ISshExec {
-		return super._createExec(connectionId, workspaceFolder, token);
+	createDevContainerExec(connectionId: string, workspaceFolder: string, token: CancellationToken, environment?: NodeJS.ProcessEnv): ISshExec {
+		return super._createExec(connectionId, workspaceFolder, token, environment);
 	}
 
-	protected override _createExec(): ISshExec {
+	protected override _createExec(_connectionId: string, _workspaceFolder: string | readonly string[], _token: CancellationToken, environment?: NodeJS.ProcessEnv): ISshExec {
+		this.execEnvironment = environment;
 		return async command => {
 			this.execCommands.push(command);
 			if (command === 'id -u; id -g') {
@@ -354,13 +369,15 @@ class TestDevContainerAgentHostMainService extends DevContainerAgentHostMainServ
 
 	protected override _createRelay(
 		_connectionId: string,
-		_workspaceFolder: string,
+		_workspaceFolder: string | readonly string[],
 		command: string,
 		_endpoint: { readonly type: 'tcp'; readonly host: string; readonly port: number } | { readonly type: 'socket'; readonly path: string },
 		_connectionToken: string | undefined,
 		_token: CancellationToken,
+		environment?: NodeJS.ProcessEnv,
 	): Promise<IDevContainerRelay> {
 		this.relayCommand = command;
+		this.relayEnvironment = environment;
 		void this.relayStarted.complete();
 		return this.relayResult ?? Promise.resolve(this.relay);
 	}
@@ -656,6 +673,61 @@ suite('Dev Container Agent Host Main Service', () => {
 			sandboxSupported: true,
 			up: ['up', '--log-level', 'debug', '--workspace-folder', '/workspace', '--config', '/workspace/.devcontainer/devcontainer.json', '--override-config', '/sandbox/devcontainer.json', '--mount', devContainerServerCacheMount],
 		});
+	});
+
+	test('prepares implicit Compose using the resolved launcher environment, not process.env or the workspace .env', async () => {
+		const directory = await mkdtemp(join(process.cwd(), '.build', 'dev-container-sandbox-env-'));
+		try {
+			const configPath = join(directory, '.devcontainer', 'devcontainer.json');
+			const overrideDirectory = join(directory, 'override');
+			await mkdir(join(directory, '.devcontainer'));
+			await mkdir(overrideDirectory);
+			await writeFile(configPath, JSON.stringify({ dockerComposeFile: [], service: 'workspace' }));
+			await writeFile(join(directory, 'shell-compose.yml'), 'version: "3.8"\nservices:\n  workspace:\n    image: test-image\n');
+			await writeFile(join(directory, '.env'), 'COMPOSE_FILE=dotenv-compose.yml\n');
+			const environment = { COMPOSE_FILE: 'shell-compose.yml', PATH: '/shell/bin' };
+			const service = store.add(new TestDevContainerAgentHostMainService('', false, undefined, environment, false));
+			service.inheritedEnvironment = { COMPOSE_FILE: 'inherited-compose.yml' };
+			service.sandboxConfigurationOutput = JSON.stringify({ configuration: { configFilePath: URI.file(configPath).toJSON(), service: 'workspace', dockerComposeFile: [] } });
+			const prepared = await service.prepareRealSandboxConfiguration(directory, overrideDirectory);
+			assert.deepStrictEqual({
+				args: prepared.args,
+				environment: prepared.environment,
+				configuration: JSON.parse(await readFile(join(overrideDirectory, 'devcontainer.json'), 'utf8')),
+			}, {
+				args: ['--config', URI.file(configPath).fsPath, '--override-config', join(overrideDirectory, 'devcontainer.json')],
+				environment: { ...environment, COMPOSE_FILE: [join(directory, 'shell-compose.yml'), join(overrideDirectory, 'compose.json')].join(delimiter) },
+				configuration: { dockerComposeFile: [], service: 'workspace' },
+			});
+			assert.deepStrictEqual(service.devContainerArgs, [['read-configuration', '--log-level', 'debug', '--workspace-folder', directory]]);
+			assert.deepStrictEqual(await service.resolveDevContainerEnvironment(), environment);
+		} finally {
+			await rm(directory, { recursive: true, force: true });
+		}
+	});
+
+	test('keeps the implicit Compose environment scoped to sandbox startup, exec and relay', async () => {
+		const directory = await mkdtemp(join(process.cwd(), '.build', 'dev-container-sandbox-launch-'));
+		const service = store.add(new TestDevContainerAgentHostMainService('', false, undefined, {}, false, [], new Set(), directory));
+		try {
+			const environment = { COMPOSE_FILE: ['/workspace/compose.yml', '/sandbox/compose.json'].join(delimiter) };
+			service.sandboxEnvironment = environment;
+			await service.connect({ connectionId: 'sandbox', workspaceFolder: '/workspace', name: 'Project', sandboxEnabled: true });
+			assert.strictEqual(service.devContainerEnvironments[service.devContainerArgs.findIndex(args => args[0] === 'up')], environment);
+			assert.strictEqual(service.execEnvironment, environment);
+			assert.strictEqual(service.relayEnvironment, environment);
+
+			await service.createDevContainerExec('sandbox', '/workspace', CancellationToken.None, environment)('printf test');
+			assert.strictEqual(service.devContainerEnvironments.at(-1), environment);
+			service.sandboxConfigurationPrepared = false;
+			await service.connect({ connectionId: 'unsandboxed', workspaceFolder: '/workspace', name: 'Project' });
+			assert.strictEqual(service.devContainerEnvironments[service.devContainerArgs.findLastIndex(args => args[0] === 'up')], undefined);
+			assert.strictEqual(service.execEnvironment, undefined);
+			assert.strictEqual(service.relayEnvironment, undefined);
+		} finally {
+			service.dispose();
+			await rm(directory, { recursive: true, force: true });
+		}
 	});
 
 	test('continues connecting when up reuses a container without sandbox options and reports unsupported status', async () => {

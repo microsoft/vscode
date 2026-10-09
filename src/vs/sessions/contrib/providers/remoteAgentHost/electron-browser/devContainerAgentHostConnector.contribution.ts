@@ -438,7 +438,7 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 						...source,
 						name,
 						resume: false,
-						...(result.sandboxSupported === true ? { sandboxEnabled: true } : {}),
+						...(options?.sandboxEnabled !== undefined ? { sandboxEnabled: options.sandboxEnabled } : {}),
 					});
 					return {
 						connectionId: reconnectConnectionId,
@@ -480,7 +480,7 @@ export class DevContainerAgentHostConnector extends Disposable implements IDevCo
 				name: result.name,
 				hostWorkspaceFolder: result.hostWorkspaceFolder,
 				repository: result.repository,
-				sandboxSupported: result.sandboxSupported === true,
+				sandboxSupported: result.sandboxSupported,
 				transportFactory,
 				transportDisposable: combinedDisposable(
 					connectionStore,
