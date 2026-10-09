@@ -21,7 +21,7 @@ import { IAgentHostConnectionsService, IAgentHostSessionResolutionPolicy } from 
 import { agentHostAuthority, createAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { remoteAgentHostSessionTypeId } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
-import { CLOUD_SANDBOX_AGENT_PROVIDER, cloudSandboxAddress, CloudSandboxEnabledSettingId, ICloudSandboxAgentHostService, ICloudSandboxApiService, ICloudSandboxConnectOptions, ICloudSandboxDiscoveredSession, ICloudSandboxDiscoveryResult } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { CLOUD_SANDBOX_AGENT_PROVIDER, cloudSandboxAddress, CloudSandboxEnabledSettingId, ICloudSandboxAgentHostService, ICloudSandboxApiService, ICloudSandboxConnectOptions, ICloudSandboxCreatedSession, ICloudSandboxCreateSessionRequest, ICloudSandboxDiscoveredSession, ICloudSandboxDiscoveryResult } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { INotification, NotificationType } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
@@ -37,6 +37,7 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService, NotificationMessage } from '../../../../../../platform/notification/common/notification.js';
 import { IPathService } from '../../../../../../platform/path/common/pathService.js';
+import { IProgress, IProgressOptions, IProgressService, IProgressStep } from '../../../../../../platform/progress/common/progress.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent, toWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
@@ -55,7 +56,7 @@ import { AgentSessionProviders } from '../../../browser/agentSessions/agentSessi
 import { DeleteAgentSessionAction } from '../../../browser/agentSessions/agentSessionsActions.js';
 import { AgentSessionsFilter } from '../../../browser/agentSessions/agentSessionsFilter.js';
 import { IAgentSession } from '../../../browser/agentSessions/agentSessionsModel.js';
-import { EditorCloudSandboxContribution, EditorCloudSandboxSessionContribution } from '../../../browser/remoteAgentHost/editorCloudSandboxContribution.js';
+import { CLOUD_SANDBOX_REPOSITORY_OPTION_GROUP, CLOUD_SANDBOX_SESSION_TYPE, EditorCloudSandboxContribution, EditorCloudSandboxSessionContribution } from '../../../browser/remoteAgentHost/editorCloudSandboxContribution.js';
 import '../../../browser/remoteAgentHost/remoteAgentHostChatContribution.js';
 import { IRemoteAgentHostAuthenticationService, RemoteAgentHostAuthenticationService } from '../../../browser/remoteAgentHost/remoteAgentHostAuthentication.js';
 import { IRemoteAgentHostConnectionCustomizationService, RemoteAgentHostConnectionCustomizationService } from '../../../browser/remoteAgentHost/remoteAgentHostConnectionCustomization.js';
@@ -63,7 +64,7 @@ import { ChatSessionsService } from '../../../browser/chatSessions/chatSessions.
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { IChatWidgetService } from '../../../browser/chat.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
-import { ChatSessionStatus, IChatSessionContentProvider, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionsService, IChatSessionsExtensionPoint, ResolvedChatSessionsExtensionPoint, SessionType } from '../../../common/chatSessionsService.js';
+import { ChatSessionStatus, IChatSessionContentProvider, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionProviderOptionGroup, IChatSessionsService, IChatSessionsExtensionPoint, ResolvedChatSessionsExtensionPoint, SessionType } from '../../../common/chatSessionsService.js';
 
 const discovered: ICloudSandboxDiscoveredSession = {
 	environmentId: 'environment-one',
@@ -153,6 +154,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	readonly connect?: (options: ICloudSandboxConnectOptions, token: CancellationToken) => Promise<void>;
 	readonly deleteTask?: (taskId: string, token: CancellationToken) => Promise<void>;
 	readonly setTaskArchived?: (taskId: string, archived: boolean, token: CancellationToken) => Promise<void>;
+	readonly createSession?: (request: ICloudSandboxCreateSessionRequest, token: CancellationToken) => Promise<ICloudSandboxCreatedSession>;
 }) {
 	const instantiationService = store.add(new TestInstantiationService());
 	const configuration = new TestConfigurationService({
@@ -173,13 +175,16 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	const controllers = new Map<string, IChatSessionItemController>();
 	const contributions = new Map<string, ResolvedChatSessionsExtensionPoint>();
 	const contentProviders = new Map<string, IChatSessionContentProvider>();
+	const contentProviderSchemesChanged = store.add(new Emitter<{ readonly added: string[]; readonly removed: string[] }>());
+	const optionGroups = new Map<string, readonly IChatSessionProviderOptionGroup[]>();
+	const progressMessages: string[] = [];
 	const initialRefreshes: Promise<void>[] = [];
 	const discoveryModes: boolean[] = [];
 	const errorNotifications: NotificationMessage[] = [];
 	instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
 		override error(message: NotificationMessage): void { errorNotifications.push(message); }
 	}());
-	const calls = { discovered: 0, created: 0, connected: [] as ICloudSandboxConnectOptions[], connectTokens: [] as CancellationToken[], history: [] as string[], clearedHistory: [] as (string | undefined)[], removed: [] as string[], repositoryErrors: [] as string[], deletedTasks: [] as string[], disposedSessions: [] as string[], archivedTasks: [] as { taskId: string; archived: boolean }[] };
+	const calls = { discovered: 0, created: 0, createRequests: [] as ICloudSandboxCreateSessionRequest[], connected: [] as ICloudSandboxConnectOptions[], connectTokens: [] as CancellationToken[], history: [] as string[], clearedHistory: [] as (string | undefined)[], removed: [] as string[], repositoryErrors: [] as string[], deletedTasks: [] as string[], disposedSessions: [] as string[], archivedTasks: [] as { taskId: string; archived: boolean }[] };
 	const state = {
 		workspaceFolders: (options?.workspaceFolders ?? [workspaceFolder]).map(toWorkspaceFolder),
 		repositories: [...(options?.repositories ?? [repository(['https://github.com/example/project.git'])])],
@@ -229,12 +234,24 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 			initialRefreshes.push(controller.refresh(CancellationToken.None));
 			return toDisposable(() => controllers.delete(type));
 		}
+		override readonly onDidChangeContentProviderSchemes = contentProviderSchemesChanged.event;
 		override registerChatSessionContentProvider(type: string, provider: IChatSessionContentProvider) {
 			assert.ok(!contentProviders.has(type), 'only one content provider can own a session type');
 			contentProviders.set(type, provider);
-			return toDisposable(() => contentProviders.delete(type));
+			contentProviderSchemesChanged.fire({ added: [type], removed: [] });
+			return toDisposable(() => {
+				contentProviders.delete(type);
+				contentProviderSchemesChanged.fire({ added: [], removed: [type] });
+			});
 		}
 		override getContentProviderSchemes() { return [...contentProviders.keys()]; }
+		override setOptionGroupsForSessionType(type: string, _handle: number, groups?: readonly IChatSessionProviderOptionGroup[]) {
+			if (groups) {
+				optionGroups.set(type, groups);
+			} else {
+				optionGroups.delete(type);
+			}
+		}
 		override async deleteChatSessionItem(resource: URI, token: CancellationToken): Promise<void> {
 			const controller = controllers.get(resource.scheme);
 			assert.ok(controller?.deleteChatSessionItem);
@@ -268,9 +285,13 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 			discoveryModes.push(discoveryOptions?.incremental === true);
 			return options?.listSessions ? options.listSessions() : state.result;
 		}
-		override async createSession(): Promise<never> {
+		override async createSession(request: ICloudSandboxCreateSessionRequest, token: CancellationToken): Promise<ICloudSandboxCreatedSession> {
 			calls.created++;
-			throw new Error('Opening a discovered session must not create a task');
+			calls.createRequests.push(request);
+			if (!options?.createSession) {
+				throw new Error('Opening a discovered session must not create a task');
+			}
+			return options.createSession(request, token);
 		}
 		override async getEnvironment(id: string) { return { id, status: state.online ? 'online' as const : 'offline' as const }; }
 		override async getSessionHistory(taskId: string) {
@@ -333,6 +354,11 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 		override readonly resourceUris = createAgentHostResourceUriMapper('local');
 	}());
 	instantiationService.stub(IPathService, { registerPathProvider: () => Disposable.None });
+	instantiationService.stub(IProgressService, new class extends mock<IProgressService>() {
+		override withProgress<R>(_options: IProgressOptions, task: (progress: IProgress<IProgressStep>) => Promise<R>): Promise<R> {
+			return task({ report: step => { if (typeof step.message === 'string') { progressMessages.push(step.message); } } });
+		}
+	}());
 	const policies: string[] = [];
 	instantiationService.stub(IAgentHostConnectionsService, store.add(instantiationService.createInstance(class extends AgentHostConnectionsService {
 		override registerSessionResolutionPolicy(connectionAuthority: string, policy: IAgentHostSessionResolutionPolicy) {
@@ -388,7 +414,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	instantiationService.stub(IAgentHostNewSessionFolderService, new class extends mock<IAgentHostNewSessionFolderService>() { }());
 	const contribution = store.add(instantiationService.createInstance(TestEditorCloudSandboxContribution));
 	return {
-		instantiationService, contribution, controllers, contributions, contentProviders, chatSessionsService, state, calls, policies, notifications, errorNotifications, resolvers, sentimentChanged, accountChanged, authenticationPending, initialRefreshes, connectionsChanged, focusChanged, discoveryModes, workspaceTrust,
+		instantiationService, contribution, controllers, contributions, contentProviders, optionGroups, progressMessages, chatSessionsService, state, calls, policies, notifications, errorNotifications, resolvers, sentimentChanged, accountChanged, authenticationPending, initialRefreshes, connectionsChanged, focusChanged, discoveryModes, workspaceTrust,
 		whenConnected: initialConnection.p,
 		refresh: async () => {
 			await contribution.refresh(CancellationToken.None);
@@ -707,7 +733,7 @@ suite('Editor cloud sandbox discovery', () => {
 		assert.doesNotThrow(() => store.add(instantiationService.createInstance(EditorCloudSandboxContribution)));
 	});
 
-	test('keeps sandbox history registered without offering creation targets', async () => {
+	test('offers one creation target in the picker and keeps discovered environments hidden', async () => {
 		const h = createHarness(store);
 		await h.refresh();
 		assert.deepStrictEqual({
@@ -717,14 +743,98 @@ suite('Editor cloud sandbox discovery', () => {
 				canDelegate: contribution.canDelegate,
 				canCreate: !!h.controllers.get(type)?.newChatSessionItem,
 			})),
+			repositoryOptions: h.optionGroups.get(CLOUD_SANDBOX_SESSION_TYPE)?.map(group => ({ id: group.id, items: group.items.map(item => `${item.id}${item.default ? '*' : ''}`) })),
 			created: h.calls.created,
 		}, {
 			providers: [
-				{ type: 'cloud-sandbox', hiddenFromPicker: true, canDelegate: false, canCreate: false },
+				{ type: CLOUD_SANDBOX_SESSION_TYPE, hiddenFromPicker: false, canDelegate: false, canCreate: true },
 				{ type: sessionType, hiddenFromPicker: true, canDelegate: false, canCreate: false },
 			],
+			repositoryOptions: [{ id: CLOUD_SANDBOX_REPOSITORY_OPTION_GROUP, items: ['example/project*', 'none'] }],
 			created: 0,
 		});
+	});
+
+	test('the creation type only serves untitled drafts', async () => {
+		const h = createHarness(store);
+		await h.refresh();
+		const provider = h.contentProviders.get(CLOUD_SANDBOX_SESSION_TYPE);
+		assert.ok(provider);
+		const draft = store.add(await provider.provideChatSessionContent(URI.from({ scheme: CLOUD_SANDBOX_SESSION_TYPE, path: '/untitled-draft' }), CancellationToken.None));
+		await assert.rejects(provider.provideChatSessionContent(URI.from({ scheme: CLOUD_SANDBOX_SESSION_TYPE, path: '/real' }), CancellationToken.None));
+		assert.deepStrictEqual(draft.history, []);
+	});
+
+	test('creating a session provisions a sandbox for the selected repository and rebinds to its environment', async () => {
+		const created: ICloudSandboxCreatedSession = { taskId: 'new-task', sessionId: 'new-session', environmentId: discovered.environmentId };
+		const h = createHarness(store, {
+			createSession: async () => created,
+			connect: async () => {
+				// The live agent registers its content provider once the connection is up.
+				h.contentProviders.set(sessionType, upcastPartial<IChatSessionContentProvider>({}));
+			},
+		});
+		h.state.result = { kind: 'complete', sessions: [] };
+		await h.refresh();
+		const controller = h.controllers.get(CLOUD_SANDBOX_SESSION_TYPE);
+		assert.ok(controller?.newChatSessionItem);
+		const item = await controller.newChatSessionItem({
+			prompt: 'Fix the build',
+			initialSessionOptions: new Map([[CLOUD_SANDBOX_REPOSITORY_OPTION_GROUP, { id: 'example/project', name: 'example/project' }]]),
+		}, CancellationToken.None);
+		const newResource = URI.from({ scheme: sessionType, path: `/${created.sessionId}` });
+		assert.deepStrictEqual({
+			item: item && { resource: item.resource.toString(), label: item.label, status: item.status },
+			createRequests: h.calls.createRequests,
+			connected: h.calls.connected.map(options => ({ environmentId: options.environmentId, sessionId: options.sessionId, connectionSource: options.connectionSource })),
+			isNew: h.resolvers.get(sessionType)?.isNew(newResource),
+			workingDirectory: h.resolvers.get(sessionType)?.resolve(newResource)?.toString(),
+			progress: h.progressMessages,
+		}, {
+			item: { resource: newResource.toString(), label: 'Fix the build', status: ChatSessionStatus.InProgress },
+			createRequests: [{ repoNwo: 'example/project', prompt: 'Fix the build' }],
+			connected: [{ environmentId: discovered.environmentId, sessionId: created.sessionId, connectionSource: 'created' }],
+			isNew: true,
+			workingDirectory: 'https://github.com/example/project',
+			progress: ['Setting up cloud container', 'Connecting to cloud container'],
+		});
+		h.controllers.get(sessionType)?.notifySessionMaterialized?.(newResource);
+		assert.strictEqual(h.resolvers.get(sessionType)?.isNew(newResource), false);
+	});
+
+	test('creating a session without a repository starts in the host default directory', async () => {
+		const created: ICloudSandboxCreatedSession = { taskId: 'new-task', sessionId: 'new-session', environmentId: discovered.environmentId };
+		const h = createHarness(store, {
+			createSession: async () => created,
+			connect: async () => { h.contentProviders.set(sessionType, upcastPartial<IChatSessionContentProvider>({})); },
+		});
+		h.state.result = { kind: 'complete', sessions: [] };
+		await h.refresh();
+		const controller = h.controllers.get(CLOUD_SANDBOX_SESSION_TYPE);
+		assert.ok(controller?.newChatSessionItem);
+		const item = await controller.newChatSessionItem({ prompt: '', initialSessionOptions: new Map([[CLOUD_SANDBOX_REPOSITORY_OPTION_GROUP, 'none']]) }, CancellationToken.None);
+		const newResource = URI.from({ scheme: sessionType, path: `/${created.sessionId}` });
+		assert.deepStrictEqual({
+			label: item?.label,
+			createRequests: h.calls.createRequests,
+			workingDirectory: h.resolvers.get(sessionType)?.resolve(newResource),
+		}, {
+			label: created.taskId,
+			createRequests: [{ repoNwo: undefined, prompt: '' }],
+			workingDirectory: undefined,
+		});
+	});
+
+	test('a failed connection after provisioning surfaces the error without leaving creation pending', async () => {
+		const created: ICloudSandboxCreatedSession = { taskId: 'new-task', sessionId: 'new-session', environmentId: discovered.environmentId };
+		const h = createHarness(store, { createSession: async () => created });
+		h.state.result = { kind: 'complete', sessions: [] };
+		h.state.connectError = new Error('relay unavailable');
+		await h.refresh();
+		const controller = h.controllers.get(CLOUD_SANDBOX_SESSION_TYPE);
+		assert.ok(controller?.newChatSessionItem);
+		await assert.rejects(controller.newChatSessionItem({ prompt: 'Fix the build' }, CancellationToken.None), /relay unavailable/);
+		assert.deepStrictEqual({ created: h.calls.created, connected: h.calls.connected.length }, { created: 1, connected: 1 });
 	});
 
 	test('discovers matching repositories without connecting or creating a session', async () => {
