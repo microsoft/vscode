@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isSafari, isWebkitWebView } from './browser.js';
-import { getComputedStyle, getWindow, scheduleAtNextAnimationFrame, setParentFlowTo } from './dom.js';
-import { IDisposable, MutableDisposable } from '../common/lifecycle.js';
+import { getComputedStyle, getWindow, scheduleAtNextAnimationFrame, setParentFlowTo, sharedMutationObserver } from './dom.js';
+import { DisposableStore, IDisposable, MutableDisposable } from '../common/lifecycle.js';
 import { generateUuid } from '../common/uuid.js';
 
 /**
@@ -90,10 +90,18 @@ export class OverlayLayoutElement implements IDisposable {
 	 */
 	private readonly _root: HTMLElement;
 
-	private readonly _manualSync = new MutableDisposable<IDisposable>();
+	private readonly _manualSyncListeners = new DisposableStore();
+	private readonly _manualSyncFrame = new MutableDisposable<IDisposable>();
 	private _manualSyncWindow?: Window;
 
-	constructor() {
+	/**
+	 * @param _manualAnchorSync Keep the overlay in sync with its anchor from script as well (see {@link needsManualAnchorSync}).
+	 * @param _scheduleFrame Schedules the next sync. Only meant to be replaced in tests.
+	 */
+	constructor(
+		private readonly _manualAnchorSync: boolean = needsManualAnchorSync,
+		private readonly _scheduleFrame: (targetWindow: Window, runner: () => void) => IDisposable = scheduleAtNextAnimationFrame,
+	) {
 		this.content = document.createElement('div');
 		this.content.style.position = 'absolute';
 		this.content.style.overflow = 'hidden';
@@ -117,7 +125,8 @@ export class OverlayLayoutElement implements IDisposable {
 	}
 
 	public dispose(): void {
-		this._manualSync.dispose();
+		this._manualSyncFrame.dispose();
+		this._manualSyncListeners.dispose();
 		this.root.remove();
 	}
 
@@ -155,30 +164,52 @@ export class OverlayLayoutElement implements IDisposable {
 		this._updateClipping(options?.clippingContainer);
 		this._updateZIndex(anchorElement);
 
-		if (needsManualAnchorSync) {
+		if (this._manualAnchorSync) {
 			this._startManualSync(getWindow(anchorElement));
 		}
 	}
 
 	/**
-	 * Re-check the overlay against its anchors on every animation frame (see {@link needsManualAnchorSync}).
+	 * Re-check the overlay against its anchors on every animation frame while the overlay is visible.
+	 *
+	 * Owners show and hide the overlay through `content.style.visibility` without disposing it,
+	 * so the frame loop pauses while the content is hidden and resumes when it is shown again.
 	 */
 	private _startManualSync(targetWindow: Window): void {
-		if (this._manualSyncWindow === targetWindow && this._manualSync.value) {
+		if (this._manualSyncWindow !== targetWindow) {
+			this._manualSyncWindow = targetWindow;
+			this._manualSyncFrame.clear();
+			this._manualSyncListeners.clear();
+			sharedMutationObserver.observe(this.content, this._manualSyncListeners, { attributes: true, attributeFilter: ['style'] })(() => this._updateManualSync(), undefined, this._manualSyncListeners);
+		}
+		this._updateManualSync();
+	}
+
+	private _updateManualSync(): void {
+		const targetWindow = this._manualSyncWindow;
+		if (!targetWindow || this.content.style.visibility === 'hidden') {
+			this._manualSyncFrame.clear();
 			return;
 		}
-		this._manualSyncWindow = targetWindow;
+		if (!this._manualSyncFrame.value) {
+			this._manualSyncFrame.value = this._scheduleFrame(targetWindow, () => {
+				this._manualSyncFrame.clear();
+				this._syncWithAnchors();
+				this._updateManualSync();
+			});
+		}
+	}
 
-		const tick = () => {
-			if (this._clippingAnchor) {
-				syncToAnchor(this._root, this._clippingAnchor.element);
-			}
-			if (this._currentAnchor && this.content.style.visibility !== 'hidden') {
-				syncToAnchor(this.content, this._currentAnchor.element);
-			}
-			this._manualSync.value = scheduleAtNextAnimationFrame(targetWindow, tick);
-		};
-		this._manualSync.value = scheduleAtNextAnimationFrame(targetWindow, tick);
+	private _syncWithAnchors(): void {
+		if (this.content.style.visibility === 'hidden') {
+			return;
+		}
+		if (this._clippingAnchor) {
+			syncToAnchor(this._root, this._clippingAnchor.element);
+		}
+		if (this._currentAnchor) {
+			syncToAnchor(this.content, this._currentAnchor.element);
+		}
 	}
 
 	/**
