@@ -43,7 +43,7 @@ suite('Continue in Copilot policy recovery', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	for (const sidebar of [false, true]) {
-		for (const scenario of ['local', SessionType.AgentHostClaude, SessionType.AgentHostCodex, 'empty', 'unavailable', 'prepare-failed', 'import-failed', 'import-missing', 'open-failed', 'open-cancelled', 'double-click', 'archived', 'unresolved-history', 'missing-history', 'cancelled', 'in-progress']) {
+		for (const scenario of ['local', SessionType.AgentHostClaude, SessionType.AgentHostCodex, 'empty', 'unavailable', 'prepare-failed', 'import-failed', 'import-missing', 'open-failed', 'open-cancelled', 'double-click', 'archived', 'unresolved-history', 'missing-history', 'cancelled', 'in-progress', 'hidden', 'switched', 'hidden-during-preparation', 'hidden-during-materialization', 'switched-during-materialization', 'cleanup-failed']) {
 			test(`preserves draft and does not send for ${scenario} in ${sidebar ? 'panel' : 'editor'}`, async () => {
 				const services = store.add(new TestInstantiationService());
 				const imports = new AgentHostImportConversationStore();
@@ -59,6 +59,7 @@ suite('Continue in Copilot policy recovery', () => {
 				const model = upcastPartial<IChatModel>({ sessionResource: source, getRequests: () => scenario === 'empty' ? [] : [request], requestInProgress: constObservable(scenario === 'in-progress') });
 				const attachment = { kind: 'file' as const, id: 'file', name: 'example.txt', value: URI.file('/workspace/example.txt') };
 				const widget = upcastPartial<IChatWidget>({
+					visible: true,
 					viewModel: upcastPartial<ChatViewModel>({ sessionResource: source, model }),
 					viewContext: sidebar ? { viewId: ChatViewId } : {},
 					input: upcastPartial<ChatInputPart>({
@@ -81,7 +82,16 @@ suite('Continue in Copilot policy recovery', () => {
 				let historyResolved = scenario !== 'unresolved-history';
 				const openStarted = new DeferredPromise<void>();
 				const opening = new DeferredPromise<void>();
+				const materializationStarted = new DeferredPromise<void>();
+				const materializing = new DeferredPromise<void>();
+				const cancelDuringMaterialization = scenario === 'hidden-during-materialization' || scenario === 'switched-during-materialization' || scenario === 'cleanup-failed';
 				const real = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/imported' });
+				let provisionalResource: URI | undefined;
+				let backendExists = false;
+				let listed = false;
+				const deleted: URI[] = [];
+				const published: URI[] = [];
+				const aliases: URI[] = [];
 				const open = (resource: URI) => {
 					preparation.push('open');
 					if (scenario === 'open-failed') {
@@ -116,6 +126,11 @@ suite('Continue in Copilot policy recovery', () => {
 						if (scenario === 'cancelled') {
 							throw new CancellationError();
 						}
+						if (scenario === 'hidden') {
+							Object.defineProperty(widget, 'visible', { value: false });
+						} else if (scenario === 'switched') {
+							Object.defineProperty(widget, 'viewModel', { value: undefined });
+						}
 						return scenario !== 'unavailable';
 					},
 					createNewChatSessionItem: async (_type, request) => {
@@ -128,16 +143,48 @@ suite('Continue in Copilot policy recovery', () => {
 							return undefined;
 						}
 						imported = imports.take(request.untitledResource!);
+						provisionalResource = real;
+						listed = true;
+						materializationStarted.complete();
+						if (cancelDuringMaterialization) {
+							await materializing.p;
+						}
 						return { resource: real, label: 'Imported', timing: { created: 0, lastRequestStarted: undefined, lastRequestEnded: undefined } };
 					},
-					registerSessionResourceAlias: () => { },
-					notifySessionMaterialized: () => { },
+					deleteChatSessionItem: async resource => {
+						deleted.push(resource);
+						if (scenario === 'cleanup-failed') {
+							throw new Error('Cleanup failed');
+						}
+						backendExists = false;
+						listed = false;
+					},
+					registerSessionResourceAlias: (_untitled, resource) => { aliases.push(resource); },
+					notifySessionMaterialized: resource => { published.push(resource); },
 				});
 				services.stub(IAgentHostUntitledProvisionalSessionService, {
-					getOrCreate: async () => { preparation.push('prepare'); return scenario === 'prepare-failed' ? undefined : real; },
-					get: () => real,
-					disposeSession: async () => { preparation.push('release draft'); },
-					releaseSession: () => { preparation.push('retain imported session'); },
+					getOrCreate: async resource => {
+						preparation.push('prepare');
+						provisionalResource = resource;
+						backendExists = scenario !== 'prepare-failed';
+						if (scenario === 'hidden-during-preparation') {
+							Object.defineProperty(widget, 'visible', { value: false });
+						}
+						return scenario === 'prepare-failed' ? undefined : real;
+					},
+					get: resource => provisionalResource?.toString() === resource.toString() ? real : undefined,
+					disposeSession: async resource => {
+						preparation.push('release draft');
+						if (provisionalResource?.toString() === resource.toString()) {
+							provisionalResource = undefined;
+							backendExists = false;
+						}
+					},
+					releaseSession: resource => {
+						assert.strictEqual(resource.toString(), provisionalResource?.toString());
+						provisionalResource = undefined;
+						preparation.push('release imported ownership');
+					},
 				});
 				services.stub(IAgentHostNewSessionFolderService, { resolveNewSessionPrimary: () => undefined });
 				services.stub(ICustomizationHarnessService, {});
@@ -172,6 +219,27 @@ suite('Continue in Copilot policy recovery', () => {
 				const action = new ContinueChatInCopilotAction();
 				const execute = () => services.invokeFunction(accessor => action.run(accessor, { $mid: MarshalledId.ChatViewContext, sessionResource: source, inputUri }));
 				const run = execute();
+				if (cancelDuringMaterialization) {
+					await materializationStarted.p;
+					if (scenario === 'switched-during-materialization') {
+						Object.defineProperty(widget, 'viewModel', { value: undefined });
+					} else {
+						Object.defineProperty(widget, 'visible', { value: false });
+					}
+					materializing.complete();
+					const cleanupFailed = scenario === 'cleanup-failed';
+					await assert.rejects(run, cleanupFailed ? /Cleanup failed/ : CancellationError);
+					assertTelemetry(cleanupFailed ? 'failed' : 'cancelled');
+					assert.deepStrictEqual({
+						target, draft, archived, backendExists, listed, provisionalResource,
+						deleted, published, aliases, sourceRequests: model.getRequests().length, sourceDraft: widget.getInput(),
+					}, {
+						target: undefined, draft: undefined, archived: false,
+						backendExists: cleanupFailed, listed: cleanupFailed, provisionalResource: cleanupFailed ? real : undefined,
+						deleted: [real], published: [], aliases: [], sourceRequests: 1, sourceDraft: 'Unsent follow-up',
+					});
+					return;
+				}
 				if (scenario === 'double-click') {
 					await openStarted.p;
 					services.stub(IChatWidgetService, { getWidgetByInputUri: () => upcastPartial<IChatWidget>({ ...widget }) });
@@ -182,6 +250,15 @@ suite('Continue in Copilot policy recovery', () => {
 						opening.complete();
 					}
 					await duplicate;
+				}
+				if (scenario === 'hidden' || scenario === 'switched' || scenario === 'hidden-during-preparation') {
+					await assert.rejects(run, CancellationError);
+					assertTelemetry('cancelled');
+					assert.deepStrictEqual({ target, archived, draft, preparation }, {
+						target: undefined, archived: false, draft: undefined,
+						preparation: scenario === 'hidden-during-preparation' ? ['prepare', 'release draft'] : [],
+					});
+					return;
 				}
 				if (scenario === 'unavailable' || scenario === 'prepare-failed' || scenario === 'import-failed' || scenario === 'import-missing' || scenario === 'open-failed' || scenario === 'open-cancelled' || scenario === 'archived' || scenario === 'missing-history' || scenario === 'cancelled' || scenario === 'in-progress') {
 					const error = scenario === 'import-failed' ? /Import rejected/
@@ -201,13 +278,16 @@ suite('Continue in Copilot policy recovery', () => {
 				assert.deepStrictEqual({
 					target: target && getChatSessionType(target),
 					history: imported?.turns.map(turn => ({ text: turn.message.text, response: turn.responseParts.map(part => part.kind === 'markdown' ? { kind: part.kind, content: part.content } : part) })),
-					draft, preparation, archived, modelOverride: imported?.model, originalDraft: widget.getInput(), originalRequests: model.getRequests().length,
+					draft, preparation, archived, backendExists, listed, deleted, aliases, published, modelOverride: imported?.model, originalDraft: widget.getInput(), originalRequests: model.getRequests().length,
 				}, {
 					target: SessionType.AgentHostCopilot,
 					history: scenario === 'empty' ? undefined : [{ text: 'Original question', response: [{ kind: 'markdown', content: 'Original answer' }] }],
 					draft: { inputText: 'Unsent follow-up', attachments: [attachment], selections: [] },
-					preparation: scenario === 'empty' ? ['open'] : ['prepare', 'import', 'release draft', 'open', 'retain imported session', 'archive'],
+					preparation: scenario === 'empty' ? ['open'] : ['prepare', 'import', 'release draft', 'open', 'release imported ownership', 'archive'],
 					archived: scenario !== 'empty',
+					backendExists: scenario !== 'empty', listed: scenario !== 'empty', deleted: [],
+					aliases: scenario === 'empty' ? [] : [real],
+					published: scenario === 'empty' ? [] : [real],
 					modelOverride: undefined, originalDraft: 'Unsent follow-up', originalRequests: scenario === 'empty' ? 0 : 1,
 				});
 			});

@@ -35,6 +35,7 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { CustomizationMcpServerCompatibilityKind, ICustomizationHarnessService, ICustomizationMcpServerCompatibility } from '../../common/customizationHarnessService.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { IMcpWorkbenchService, IWorkbenchMcpServer, McpServerInstallState } from '../../../mcp/common/mcpTypes.js';
+import { IMcpServerConfigurationFormInput, McpServerConfigurationForm } from '../../../mcp/browser/mcpServerConfigurationForm.js';
 import { mcpServerIcon } from './aiCustomizationIcons.js';
 import { renderCustomizationMarketplaceIcon } from './aiCustomizationPresentation.js';
 
@@ -127,9 +128,13 @@ export class EmbeddedMcpServerDetail extends Disposable {
 	private readonly titleActionsEl: HTMLElement;
 	private readonly editConfigurationButton: Button;
 	private readonly bodyEl: HTMLElement;
-	private readonly diagnosticsEmpty: HTMLElement;
+	private readonly diagnosticsEl: HTMLElement;
+	private readonly definitionHeading: HTMLElement;
 	private readonly definitionEditorContainer: HTMLElement;
 	private readonly definitionEmptyEl: HTMLElement;
+	private readonly configurationFormContainer: HTMLElement;
+	private configurationForm: McpServerConfigurationForm | undefined;
+	private configurationFormInput: IMcpServerConfigurationFormInput | undefined;
 	private readonly errorsSection: IMcpDiagnosticSection;
 	private readonly compatibilitySection: IMcpDiagnosticSection;
 	private readonly migrationSection: IMcpDiagnosticSection;
@@ -197,20 +202,20 @@ export class EmbeddedMcpServerDetail extends Disposable {
 		}));
 
 		this.bodyEl = DOM.append(this.root, $('.mcp-detail-body'));
-		const diagnostics = DOM.append(this.bodyEl, $('section.mcp-detail-diagnostics'));
+		const diagnostics = this.diagnosticsEl = DOM.append(this.bodyEl, $('section.mcp-detail-diagnostics'));
 		this.errorsSection = this.createDiagnosticSection(diagnostics);
 		this.compatibilitySection = this.createDiagnosticSection(diagnostics);
 		this.migrationSection = this.createDiagnosticSection(diagnostics);
-		this.diagnosticsEmpty = DOM.append(diagnostics, $('p.mcp-detail-diagnostics-empty'));
-		this.diagnosticsEmpty.textContent = localize('mcpNoDiagnostics', "No diagnostics to show");
 
 		const definitionSection = DOM.append(this.bodyEl, $('section.mcp-detail-definition-section'));
-		const definitionHeading = DOM.append(definitionSection, $('h2.mcp-detail-section-title'));
-		definitionHeading.textContent = localize('mcpConfigurationSection', "Configuration");
+		this.definitionHeading = DOM.append(definitionSection, $('h2.mcp-detail-section-title'));
+		this.definitionHeading.textContent = localize('mcpConfigurationSection', "Configuration");
 		this.definitionEditorContainer = DOM.append(definitionSection, $('.embedded-editor-container.mcp-detail-definition-editor'));
 		this.definitionEmptyEl = DOM.append(definitionSection, $('.embedded-detail-empty.mcp-detail-definition-empty'));
 		this.definitionEmptyEl.tabIndex = -1;
 		this.definitionEmptyEl.textContent = localize('mcpDefinitionUnavailable', "No definition is available for this MCP server.");
+		this.configurationFormContainer = DOM.append(definitionSection, $('.mcp-detail-configuration-form'));
+		this.configurationFormContainer.style.display = 'none';
 
 		this.emptyEl = DOM.append(this.root, $('.embedded-detail-empty'));
 		this.emptyEl.textContent = localize('mcpDetailEmpty', "No MCP server selected.");
@@ -294,6 +299,10 @@ export class EmbeddedMcpServerDetail extends Disposable {
 	}
 
 	focus(): void {
+		if (this.configurationForm && this.configurationFormInput) {
+			this.configurationForm.focus();
+			return;
+		}
 		if (this.currentDefinition !== undefined) {
 			this.ensureDefinitionEditor().focus();
 			return;
@@ -312,13 +321,23 @@ export class EmbeddedMcpServerDetail extends Disposable {
 		if (!server) {
 			this.nameEl.textContent = '';
 			this.renderSource(undefined);
+			this.setConfigurationForm(undefined);
 			this.setDefinition(undefined);
-			this.definitionEmptyEl.style.display = 'none';
 			return;
 		}
 
 		this.nameEl.textContent = server.label || server.name;
 		this.renderSource(server);
+		// Keep the form of the same server on screen while its source is re-resolved, so refreshes do not flicker.
+		if (this.configurationFormInput?.id !== server.id) {
+			this.setConfigurationForm(undefined);
+		}
+		if (server.installState === McpServerInstallState.Installed && server.source) {
+			void this.resolveSourceFormInput(server, server.source.uri, renderGeneration);
+		} else {
+			this.setConfigurationForm(undefined);
+		}
+
 		if (server.installState !== McpServerInstallState.Installed) {
 			this.setDefinition(undefined, localize('mcpDefinitionAvailableAfterInstall', "Details are available after install when the MCP server can be inspected locally."));
 		} else if (server.config) {
@@ -329,6 +348,49 @@ export class EmbeddedMcpServerDetail extends Disposable {
 		} else {
 			this.setDefinition(undefined, server.definitionUnavailable?.message, server.definitionUnavailable?.settingId);
 		}
+	}
+
+	/**
+	 * Shows the form for a server from a file shared with other MCP clients: a workspace root
+	 * `.mcp.json` or the Copilot CLI's `mcp-config.json`. VS Code's own `mcp.json` files and other
+	 * sources, such as extensions or agent host plugins, keep the read-only definition.
+	 */
+	private async resolveSourceFormInput(server: IMcpServerDetailInput, source: URI, renderGeneration: number): Promise<void> {
+		let input: IMcpServerConfigurationFormInput | undefined;
+		try {
+			const editable = await this.mcpWorkbenchService.resolveEditableMcpServerConfiguration(source, server.name);
+			input = editable && { ...editable, id: server.id, name: server.name, label: server.label };
+		} catch {
+			// An unreadable or invalid file keeps the read-only definition, which explains the problem.
+		}
+		if (this.renderGeneration === renderGeneration) {
+			this.setConfigurationForm(input);
+		}
+	}
+
+	private setConfigurationForm(input: IMcpServerConfigurationFormInput | undefined): void {
+		this.configurationFormInput = input;
+		this.configurationFormContainer.style.display = input ? '' : 'none';
+		this.definitionHeading.style.display = input ? 'none' : '';
+		this.updateDefinitionVisibility();
+		if (!input) {
+			this._onDidChangeContent.fire();
+			return;
+		}
+		if (!this.configurationForm) {
+			this.configurationForm = this._register(this.instantiationService.createInstance(McpServerConfigurationForm, this.configurationFormContainer, {
+				openConfiguration: () => void this.editConfiguration(),
+			}));
+			this._register(this.configurationForm.onDidChangeContent(() => this._onDidChangeContent.fire()));
+		}
+		this.configurationForm.setInput(input);
+	}
+
+	/** The form replaces the read-only definition while it is shown. */
+	private updateDefinitionVisibility(): void {
+		const showDefinition = !this.configurationFormInput && !!this.current;
+		this.definitionEditorContainer.style.display = showDefinition && this.currentDefinition !== undefined ? '' : 'none';
+		this.definitionEmptyEl.style.display = showDefinition && this.currentDefinition === undefined ? '' : 'none';
 	}
 
 	private renderIcon(): void {
@@ -558,7 +620,7 @@ export class EmbeddedMcpServerDetail extends Disposable {
 		const hasDiagnostics = this.errorsSection.section.style.display !== 'none'
 			|| this.compatibilitySection.section.style.display !== 'none'
 			|| this.migrationSection.section.style.display !== 'none';
-		this.diagnosticsEmpty.style.display = hasDiagnostics ? 'none' : '';
+		this.diagnosticsEl.style.display = hasDiagnostics ? '' : 'none';
 		this._onDidChangeContent.fire();
 	}
 
@@ -598,16 +660,16 @@ export class EmbeddedMcpServerDetail extends Disposable {
 
 	private setDefinition(definition: string | undefined, emptyMessage = localize('mcpDefinitionUnavailable', "No definition is available for this MCP server."), settingId?: string): void {
 		const hasDefinition = definition !== undefined;
-		this.definitionEditorContainer.style.display = hasDefinition ? '' : 'none';
-		this.definitionEmptyEl.style.display = hasDefinition ? 'none' : '';
 		this.renderDefinitionEmpty(emptyMessage, hasDefinition ? undefined : settingId);
 
 		if (this.currentDefinition === definition) {
+			this.updateDefinitionVisibility();
 			this._onDidChangeContent.fire();
 			return;
 		}
 
 		this.currentDefinition = definition;
+		this.updateDefinitionVisibility();
 
 		if (!hasDefinition) {
 			this.definitionEditor?.setModel(null);

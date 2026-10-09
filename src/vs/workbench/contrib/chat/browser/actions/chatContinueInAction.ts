@@ -5,7 +5,7 @@
 
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { isCancellationError } from '../../../../../base/common/errors.js';
+import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { h } from '../../../../../base/browser/dom.js';
 import { Disposable, IDisposable, markAsSingleton } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
@@ -221,6 +221,11 @@ export class ContinueChatInCopilotAction extends Action2 {
 		const provisional = accessor.get(IAgentHostUntitledProvisionalSessionService);
 		const folders = accessor.get(IAgentHostNewSessionFolderService);
 		const sourceModel = widget.viewModel.model;
+		const ensureSourceVisible = () => {
+			if (!widget.visible || widget.viewModel?.model !== sourceModel) {
+				throw new CancellationError();
+			}
+		};
 		const turns = importedTurnsFromChatModel(sourceModel);
 		const input = widget.getInputState();
 		const draft = { inputText: widget.getInput(), attachments: input?.attachments ?? [], selections: input?.selections ?? [] };
@@ -257,12 +262,14 @@ export class ContinueChatInCopilotAction extends Action2 {
 			if (!await sessions.canResolveChatSession(SessionType.AgentHostCopilot)) {
 				throw new Error(continueInCopilotFailedMessage());
 			}
+			ensureSourceVisible();
 			if (turns.length) {
 				imports.set(untitledResource, { turns });
 				try {
 					if (!await provisional.getOrCreate(untitledResource, COPILOT_CLI_AGENT_PROVIDER_ID, folders.resolveNewSessionPrimary(untitledResource))) {
 						throw new Error(continueInCopilotFailedMessage());
 					}
+					ensureSourceVisible();
 					const item = await sessions.createNewChatSessionItem(openOptions.type, { prompt: '', untitledResource }, CancellationToken.None);
 					if (item) {
 						sessionResource = item.resource;
@@ -270,11 +277,22 @@ export class ContinueChatInCopilotAction extends Action2 {
 					if (!item || !provisional.get(sessionResource)) {
 						throw new Error(continueInCopilotFailedMessage());
 					}
-					sessions.registerSessionResourceAlias(untitledResource, sessionResource);
-					sessions.notifySessionMaterialized?.(sessionResource);
 				} finally {
 					await provisional.disposeSession(untitledResource);
 				}
+			}
+			try {
+				ensureSourceVisible();
+			} catch (error) {
+				if (turns.length) {
+					await sessions.deleteChatSessionItem(sessionResource, CancellationToken.None);
+					provisional.releaseSession(sessionResource);
+				}
+				throw error;
+			}
+			if (turns.length) {
+				sessions.registerSessionResourceAlias(untitledResource, sessionResource);
+				sessions.notifySessionMaterialized?.(sessionResource);
 			}
 			const opened = await instantiationService.invokeFunction(innerAccessor => openChatSession(innerAccessor, { ...openOptions, sessionResource }));
 			const destination = opened && chatService.getSession(opened);

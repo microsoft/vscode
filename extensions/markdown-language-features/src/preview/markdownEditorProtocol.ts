@@ -59,7 +59,7 @@ const linkStatus = z.object({
 	label: z.string(),
 });
 const richLinkPresentationUpdate = z.object({
-	href: z.string(),
+	subscriptionId: z.string(),
 	presentation: z.optional(z.object({
 		kind: z.enum(['resource', 'issue', 'pullRequest', 'commit', 'file', 'folder', 'session', 'repository', 'branch']),
 		title: z.optional(z.string()),
@@ -72,6 +72,10 @@ const richLinkPresentationUpdate = z.object({
 		isLoading: z.optional(z.boolean()),
 	})),
 });
+const richLinkSubscriptions = z.object({
+	subscribe: z.readonly(z.array(z.object({ subscriptionId: z.string(), href: z.string() }))),
+	unsubscribe: z.readonly(z.array(z.string())),
+});
 const runtime = z.object({ runtimeId: z.string() });
 // The nested editor owns its protocol. Only its routing and lifetime belong to this bridge.
 const runtimeMessage = z.extend(runtime, { message: z.unknown() });
@@ -83,7 +87,7 @@ export const markdownEditorHost = defineInterface({ id: 'markdown.editor.host' }
 	openLink: requestType(z.object({ href: z.string() }), z.void()),
 	setReadonly: requestType(z.object({ readonly: z.boolean() }), z.void()),
 	editorFocusChanged: requestType(z.object({ focused: z.boolean() }), z.void()),
-	richLinkTargets: notificationType(z.object({ hrefs: z.readonly(z.array(z.string())) })),
+	richLinkSubscriptions: notificationType(richLinkSubscriptions),
 	resolveCodeBlockEditor: requestType(z.object({ providerId: z.string(), language: z.string() }), z.object({ descriptor: z.optional(resolvedCodeBlockEditor) })),
 	createCodeBlockEditorHostTransport: requestType(z.extend(runtime, { providerId: z.string(), runtimeKey: z.string() }), z.void()),
 	codeBlockEditorHostTransportMessage: requestType(runtimeMessage, z.void()),
@@ -130,5 +134,6 @@ export type CodeBlockEditorProviderDefinition = z.infer<typeof codeBlockEditorPr
 export type ResolvedCodeBlockEditor = z.infer<typeof resolvedCodeBlockEditor>;
 export type HighlightResult = z.infer<typeof highlightResult>;
 export type RichLinkPresentationUpdate = z.infer<typeof richLinkPresentationUpdate>;
+export type RichLinkSubscriptions = z.infer<typeof richLinkSubscriptions>;
 export type MarkdownDiagnostic = z.infer<typeof diagnostic>;
 export type MarkdownCompletion = z.infer<typeof completion>;

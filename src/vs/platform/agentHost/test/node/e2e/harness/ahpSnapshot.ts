@@ -15,6 +15,7 @@ import { ActionType, type ActionEnvelope, type StateAction } from '../../../../c
 import type { DispatchActionParams } from '../../../../common/state/protocol/commands.js';
 import type { AhpNotification } from '../../../../common/state/sessionProtocol.js';
 import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolResultContentType, buildDefaultChatUri, type StringOrMarkdown, type ToolCallContributor } from '../../../../common/state/sessionState.js';
+import { withAgentHostE2ESnapshotDiagnostics } from './agentHostE2EDiagnostics.js';
 
 const nodeRequire = createRequire(import.meta.url);
 const yamlModule = nodeRequire('js-yaml') as { load(input: string): unknown; dump(obj: unknown, opts?: { lineWidth?: number; noRefs?: boolean }): string };
@@ -202,7 +203,7 @@ export async function assertRecordedAhpSnapshot(test: Mocha.Runnable, client: IA
 		writeFileSync(snapshotPathForTest(test, 'traffic', 'ahp.yaml'), actual);
 		return;
 	}
-	await assertSnapshot(actual, { name: 'traffic', extension: 'ahp.yaml' });
+	await withAgentHostE2ESnapshotDiagnostics(() => assertSnapshot(actual, { name: 'traffic', extension: 'ahp.yaml' }));
 }
 
 export async function waitForChatUnreadAfterTurn(client: Pick<IAhpSnapshotClient, 'waitForNotification'>, chat: string, afterServerSeq: number): Promise<void> {
@@ -305,7 +306,7 @@ export class AhpSnapshotScenario {
 				})),
 			}));
 		} else {
-			await assertSnapshot(actual, { name: 'traffic', extension: 'ahp.yaml' });
+			await withAgentHostE2ESnapshotDiagnostics(() => assertSnapshot(actual, { name: 'traffic', extension: 'ahp.yaml' }));
 		}
 	}
 }
