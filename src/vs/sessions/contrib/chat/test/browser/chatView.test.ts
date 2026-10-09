@@ -246,6 +246,7 @@ suite('Sessions - Chat View', () => {
 		const resource = URI.parse('remote-agent:/session');
 		const interactivity = observableValue('interactivity', ChatInteractivity.DraftOnly);
 		const liveModelReady = observableValue('liveModelReady', false);
+		const modelReadOnly = observableValue('modelReadOnly', false);
 		const loading = observableValue('loading', false);
 		const loadedChatResource = observableValue<URI | undefined>('loadedChatResource', undefined);
 		const chat = new class extends mock<IChat>() {
@@ -265,6 +266,7 @@ suite('Sessions - Chat View', () => {
 			_modelRef: { value: undefined },
 			_interactiveDisposable: disposables.add(new MutableDisposable()),
 			_liveModelReady: liveModelReady,
+			_modelReadOnly: modelReadOnly,
 			_loadedChatResource: loadedChatResource,
 			isInputBlocked: constObservable(false),
 			chatPillsDebugService: { clear: () => { } },
@@ -286,18 +288,22 @@ suite('Sessions - Chat View', () => {
 		const waitingForLiveContent = inputState;
 		liveModelReady.set(true, undefined);
 		const ready = inputState;
+		modelReadOnly.set(true, undefined);
+		const revoked = inputState;
+		modelReadOnly.set(false, undefined);
 		loading.set(true, undefined);
 		const authenticating = inputState;
 		interactivity.set(ChatInteractivity.ReadOnly, undefined);
 		view.setChat(chat, undefined, session);
 		view._handleDraftInput();
 
-		assert.deepStrictEqual({ restoringSavedDraft, offline, waitingForLiveContent, ready, authenticating, archived: inputState, attempts }, {
+		assert.deepStrictEqual({ restoringSavedDraft, offline, waitingForLiveContent, ready, authenticating, revoked, archived: inputState, attempts }, {
 			restoringSavedDraft: { readOnly: true, keepInputVisible: false },
 			offline: { inputState: { readOnly: true, keepInputVisible: true }, attempts: 0 },
 			waitingForLiveContent: { readOnly: true, keepInputVisible: true },
 			ready: { readOnly: false, keepInputVisible: false },
 			authenticating: { readOnly: true, keepInputVisible: true },
+			revoked: { readOnly: true, keepInputVisible: false },
 			archived: { readOnly: true, keepInputVisible: false },
 			attempts: 1,
 		});
@@ -315,7 +321,7 @@ suite('Sessions - Chat View', () => {
 	}
 
 	/** Reaches the provider-replacement reload without standing up the widget's service graph. */
-	function createProviderReplacementView(resource: URI) {
+	function createProviderReplacementView(resource: URI, configurationService = new TestConfigurationService()) {
 		const loads: URI[] = [];
 		const cleared: URI[] = [];
 		const loading: boolean[] = [];
@@ -324,11 +330,13 @@ suite('Sessions - Chat View', () => {
 		const onDidDisposeSession = disposables.add(new Emitter<{ readonly sessionResources: readonly URI[]; readonly reason: 'cleared' | 'disposed' }>());
 		const model = createChatModel(resource);
 		const reference: IChatModelReference = { object: model, dispose: () => model.dispose() };
-		const modelRef: { value: IChatModelReference | undefined } = { value: reference };
+		const modelRef = disposables.add(new MutableDisposable<IChatModelReference>());
+		modelRef.value = reference;
 		const viewStore = disposables.add(new DisposableStore());
 		const loadCts = viewStore.add(new MutableDisposable<CancellationTokenSource>());
 		const view = Object.assign(Object.create(ChatView.prototype), {
 			_store: viewStore,
+			configurationService,
 			_currentChatResource: resource,
 			_currentSessionObs: { get: () => undefined },
 			_modelRef: modelRef,
@@ -359,6 +367,34 @@ suite('Sessions - Chat View', () => {
 		return { view, loads, cleared, loading, loadCts, modelRef, reference, preservedInputModels, warnings, onDidDisposeSession };
 	}
 
+	for (const provider of ['claude', 'codex']) {
+		test(`policy-disabled ${provider} keeps the held transcript until its live provider returns`, async () => {
+			const setting = `chat.agentHost.${provider}Agent.enabled`;
+			const configurationService = new class extends TestConfigurationService {
+				blocked = true;
+				override inspect<T>(key: string) {
+					const value = super.inspect<T>(key);
+					return { ...value, policyValue: key === setting && this.blocked ? value.value : undefined };
+				}
+			}({ [setting]: false });
+			const resource = URI.parse(`agent-host-${provider}:/saved`);
+			const { view, loads, cleared, reference, modelRef, preservedInputModels, onDidDisposeSession } = createProviderReplacementView(resource, configurationService);
+			reference.object.inputModel.setState({ inputText: 'Unsent draft' });
+			view._trackUnregisteredContentProvider([resource.scheme]);
+			view._reloadChatForReplacedProvider([resource.scheme]);
+			assert.deepStrictEqual({ loads, cleared, sameModel: modelRef.value === reference, draft: reference.object.inputModel.state.get()?.inputText }, {
+				loads: [], cleared: [], sameModel: true, draft: 'Unsent draft',
+			});
+			configurationService.blocked = false;
+			view._trackUnregisteredContentProvider([resource.scheme]);
+			view._reloadChatForReplacedProvider([resource.scheme]);
+			assert.deepStrictEqual({ cleared, loads }, { cleared: [], loads: [] });
+			onDidDisposeSession.fire({ sessionResources: [resource], reason: 'disposed' });
+			await timeout(0);
+			assert.deepStrictEqual({ loads, preserved: preservedInputModels[0] === reference.object.inputModel }, { loads: [resource], preserved: true });
+		});
+	}
+
 	test('reloads a bound chat once its content provider is replaced and the old model is released', async () => {
 		const resource = URI.parse('remote-agent:/session');
 		const { view, loads, cleared, loading, reference, preservedInputModels, onDidDisposeSession } = createProviderReplacementView(resource);
@@ -382,7 +418,7 @@ suite('Sessions - Chat View', () => {
 
 		assert.deepStrictEqual({ untouched, released, loads, preservedInputModels }, {
 			untouched: { cleared: [], loads: [] },
-			released: { cleared: [resource], loading: [true], loads: [] },
+			released: { cleared: [], loading: [], loads: [] },
 			loads: [resource],
 			preservedInputModels: [reference.object.inputModel],
 		});
@@ -465,8 +501,10 @@ suite('Sessions - Chat View', () => {
 			const { view, modelRef, onDidDisposeSession } = createProviderReplacementView(resource);
 			modelRef.value = original;
 			disposables.add(cache.onDidDisposeModel(model => onDidDisposeSession.fire({ sessionResources: [model.sessionResource], reason: 'disposed' })));
+			let cleared = false;
 			Object.assign(view, {
 				_clearCurrentChat: () => {
+					cleared = true;
 					modelRef.value?.dispose();
 					modelRef.value = undefined;
 				},
@@ -476,14 +514,14 @@ suite('Sessions - Chat View', () => {
 			view._reloadChatForReplacedProvider(['remote-agent']);
 
 			await timeout(ChatView.REPLACED_PROVIDER_RELEASE_WARNING_DELAY_MS + 1);
-			const beforeEviction = { created, cachedOriginal: cache.get(resource) === originalModel, reloaded: !!rebound.value };
+			const beforeEviction = { cleared, created, cachedOriginal: cache.get(resource) === originalModel, reloaded: !!rebound.value };
 			other.clear();
 			await persistence.complete();
 			await cache.waitForModelDisposals();
 			await timeout(0);
 
 			assert.deepStrictEqual({ beforeEviction, created, fresh: !!rebound.value && rebound.value.object !== originalModel }, {
-				beforeEviction: { created: 1, cachedOriginal: true, reloaded: false },
+				beforeEviction: { cleared: false, created: 1, cachedOriginal: true, reloaded: false },
 				created: 2,
 				fresh: true,
 			});
@@ -491,6 +529,38 @@ suite('Sessions - Chat View', () => {
 			await cache.waitForModelDisposals();
 		}));
 	}
+
+	test('policy reapplication cancels a waiting reload and retains the old model', async () => {
+		const resource = URI.parse('agent-host-claude:/retained-policy');
+		const configurationService = new class extends TestConfigurationService {
+			blocked = false;
+			override inspect<T>(key: string) {
+				const value = super.inspect<T>(key);
+				return { ...value, policyValue: this.blocked ? value.value : undefined };
+			}
+		}({ 'chat.agentHost.claudeAgent.enabled': false });
+		const cache = disposables.add(new ChatModelStore({ createModel: props => createChatModel(props.sessionResource), willDisposeModel: async () => { } }, new NullLogService()));
+		const original = disposables.add(cache.acquireOrCreate({ sessionResource: resource, location: ChatAgentLocation.Chat, canUseTools: false }));
+		const originalModel = original.object;
+		const other = disposables.add(cache.acquireExisting(resource)!);
+		const { view, modelRef, loads, cleared, onDidDisposeSession } = createProviderReplacementView(resource, configurationService);
+		modelRef.value = original;
+		Object.assign(view, { chatService: { onDidDisposeSession: onDidDisposeSession.event, acquireExistingSession: (resource: URI) => cache.acquireExisting(resource) } });
+		disposables.add(cache.onDidDisposeModel(model => onDidDisposeSession.fire({ sessionResources: [model.sessionResource], reason: 'disposed' })));
+		view._trackUnregisteredContentProvider([resource.scheme]);
+		view._reloadChatForReplacedProvider([resource.scheme]);
+		configurationService.blocked = true;
+		view._trackUnregisteredContentProvider([resource.scheme]);
+		view._reloadChatForReplacedProvider([resource.scheme]);
+		other.dispose();
+		await cache.waitForModelDisposals();
+		await timeout(0);
+		assert.deepStrictEqual({ retained: modelRef.value?.object === originalModel, cached: cache.get(resource) === originalModel, loads, cleared }, {
+			retained: true, cached: true, loads: [], cleared: [],
+		});
+		modelRef.clear();
+		await cache.waitForModelDisposals();
+	});
 
 	test('disposing the view cancels a slow provider reload and releases its listener', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const resource = URI.parse('remote-agent:/session');

@@ -21,7 +21,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { MessageKind } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IEnvironmentService } from '../../../../../../platform/environment/common/environment.js';
@@ -3637,7 +3637,7 @@ suite('ChatService', () => {
 				kind: 'history', message: 'Recent messages may be missing.',
 				action: { label: 'Refresh', run: async () => { refreshes++; } },
 			}, undefined);
-			await ref.object.historyStatus!.get()!.action.run();
+			await ref.object.historyStatus!.get()!.action!.run();
 			changes.fire([...first,
 			{ type: 'request', id: 'two', prompt: 'Sent in ChatGPT', participant: remoteScheme },
 			{ type: 'response', parts: [{ kind: 'markdownContent', content: new MarkdownString('Partial') }], participant: remoteScheme },
@@ -4385,19 +4385,23 @@ suite('ChatService', () => {
 					instantiationService.stub(IChatSessionsService, sessionsService);
 					const resource = URI.from({ scheme: `agent-host-${provider}`, path });
 					testDisposables.add(sessionsService.registerChatSessionContentProvider(resource.scheme, {
-						provideChatSessionContent: async () => ({ sessionResource: resource, history: [], onWillDispose: Event.None, dispose() { } }),
+						provideChatSessionContent: async () => ({ sessionResource: resource, history: path === '/saved' ? [{ type: 'request', prompt: 'Saved question', participant: resource.scheme }] : [], onWillDispose: Event.None, dispose() { } }),
 					}));
 					const service = createChatService();
 					const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
 					assert.ok(ref);
 					testDisposables.add(ref);
+					ref.object.inputModel.setState({ inputText: 'Unsent draft' });
+					const requests = ref.object.getRequests();
 					const states = [ref.object.isReadOnly.get()];
 					for (const blocked of [true, false, true]) {
 						configurationService.policyBlocked = blocked;
-						configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: key => key === setting, affectedKeys: new Set([setting]), change: { keys: [setting], overrides: [] }, source: 7 });
+						configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: key => key === setting, affectedKeys: new Set([setting]), change: { keys: [setting], overrides: [] }, source: ConfigurationTarget.MEMORY });
 						states.push(ref.object.isReadOnly.get());
 					}
-					assert.deepStrictEqual(states, [false, true, true, true]);
+					assert.deepStrictEqual({ states, draft: ref.object.inputModel.state.get()?.inputText, requests: ref.object.getRequests().length }, { states: [false, true, true, true], draft: 'Unsent draft', requests: path === '/saved' ? 1 : 0 });
+					assert.strictEqual(ref.object.getRequests()[0], requests[0]);
+					assert.strictEqual(ref.object.historyStatus?.get()?.kind, 'history');
 					assert.deepStrictEqual(await service.sendRequest(resource, 'Do not send'), { kind: 'rejected', reason: 'Session is read-only' });
 				});
 			}

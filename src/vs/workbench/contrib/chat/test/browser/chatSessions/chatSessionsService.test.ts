@@ -808,6 +808,32 @@ suite('ChatSessionsService - session resolution', () => {
 		});
 	});
 
+	test('provider replacement cancels shared pending content and resolves through the replacement', async () => {
+		const type = 'replaced-pending-content';
+		const resource = URI.from({ scheme: type, path: '/saved' });
+		const started = new DeferredPromise<void>();
+		const delayed = new DeferredPromise<IChatSession>();
+		let cancelled = 0;
+		let lateDisposed = 0;
+		let replacementReadOnly: boolean | undefined;
+		const registration = store.add(service.registerChatSessionContentProvider(type, {
+			provideChatSessionContent: () => { started.complete(); return delayed.p; },
+		}));
+		const first = service.getOrCreateChatSession(resource, CancellationToken.None).catch(error => { if (isCancellationError(error)) { cancelled++; } });
+		const second = service.getOrCreateChatSession(resource, CancellationToken.None).catch(error => { if (isCancellationError(error)) { cancelled++; } });
+		await started.p;
+		registration.dispose();
+		store.add(service.registerChatSessionContentProvider(type, {
+			provideChatSessionContent: async () => ({ sessionResource: resource, history: [], isReadOnly: constObservable(true), onWillDispose: Event.None, dispose: () => { } }),
+		}));
+		const replacement = service.getOrCreateChatSession(resource, CancellationToken.None).then(session => { replacementReadOnly = session.isReadOnly?.get(); });
+		await timeout(0);
+		const beforeLateResult = { cancelled, replacementReadOnly };
+		await delayed.complete({ sessionResource: resource, history: [], onWillDispose: Event.None, dispose: () => { lateDisposed++; } });
+		await Promise.all([first, second, replacement]);
+		assert.deepStrictEqual({ beforeLateResult, lateDisposed }, { beforeLateResult: { cancelled: 2, replacementReadOnly: true }, lateDisposed: 1 });
+	});
+
 	test('does not let one caller cancellation cancel the shared resolution', async () => {
 		const type = 'independent-cancellation';
 		const resource = URI.from({ scheme: type, path: '/session-1' });

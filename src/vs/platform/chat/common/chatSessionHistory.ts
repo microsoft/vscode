@@ -7,5 +7,5 @@
 export interface IChatSessionHistoryStatus {
 	readonly kind: 'history' | 'live';
 	readonly message: string;
-	readonly action: { readonly label: string; readonly run: () => Promise<void> };
+	readonly action?: { readonly label: string; readonly run: () => Promise<void> };
 }

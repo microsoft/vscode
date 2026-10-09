@@ -80,7 +80,7 @@ import { IChatDebugService } from '../../../common/chatDebugService.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
 import { IChatResponseFileChangesService } from '../../../browser/chatResponseFileChangesService.js';
 import { IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { IChatSessionsService, type IChatSession, type IChatSessionHistoryItem, type IChatSessionContentProvider, IChatSessionItemController, type IChatSessionRequestHistoryItem, type IChatSessionServerRequest, type IChatSessionsExtensionPoint } from '../../../common/chatSessionsService.js';
+import { IChatSessionsService, type IChatSession, type IChatSessionHistoryItem, type IChatSessionContentProvider, type IChatSessionItemController, type IChatSessionRequestHistoryItem, type IChatSessionServerRequest, type IChatSessionsExtensionPoint } from '../../../common/chatSessionsService.js';
 import { ILanguageModelsService, type ILanguageModelChatMetadata } from '../../../common/languageModels.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
@@ -3780,6 +3780,21 @@ suite('AgentHostChatContribution', () => {
 	// ---- Session disposal -----------------------------------------------
 
 	suite('disposal', () => {
+
+		test('disposed content stays read-only and rejects captured mutations', async () => {
+			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const resource = URI.parse('agent-host-copilot:/disposed-mutations');
+			const session = await sessionHandler.provideChatSessionContent(resource, CancellationToken.None);
+			const states = [session.isReadOnly?.get()];
+			sessionHandler.dispose();
+			states.push(session.isReadOnly?.get());
+			assert.throws(() => session.renameSession?.('Changed', CancellationToken.None), /read-only/);
+			assert.throws(() => session.forkSession?.(undefined, CancellationToken.None), /read-only/);
+			await assert.rejects(session.prepareForClientTools!(CancellationToken.None), /Canceled/);
+			assert.deepStrictEqual({ states, stopped: await session.interruptActiveResponseCallback?.(), actions: agentHostService.dispatchedActions }, {
+				states: [false, true], stopped: false, actions: [],
+			});
+		});
 
 		test('fires onWillDispose before session is disposed', async () => {
 			const { sessionHandler } = createContribution(disposables);
@@ -13383,13 +13398,14 @@ suite('AgentHostChatContribution', () => {
 
 		test('policy-disabled providers retain history-only registrations without root agents', async () => {
 			const { instantiationService, agentHostService, chatSessionContributions, chatSessionItemControllers } = createTestServices(disposables);
-			instantiationService.stub(IConfigurationService, {
-				onDidChangeConfiguration: Event.None,
-				inspect: () => ({ policyValue: false }),
-				getValue: key => key === 'chat.editor.codex.preferAgentHost',
-			});
+			instantiationService.stub(IConfigurationService, new class extends TestConfigurationService {
+				override inspect<T>(key: string) {
+					const value = super.inspect<T>(key);
+					return { ...value, policyValue: key === 'chat.agentHost.claudeAgent.enabled' || key === 'chat.agentHost.codexAgent.enabled' ? value.value : undefined };
+				}
+			}({ 'chat.agentHost.claudeAgent.enabled': false, 'chat.agentHost.codexAgent.enabled': false, 'chat.editor.codex.preferAgentHost': true }));
 			const contentProviders = new Map<string, IChatSessionContentProvider>();
-			instantiationService.stub(IChatSessionsService, 'registerChatSessionContentProvider', (type, provider) => {
+			instantiationService.stub(IChatSessionsService, 'registerChatSessionContentProvider', (type: string, provider: IChatSessionContentProvider) => {
 				contentProviders.set(type, provider);
 				return toDisposable(() => contentProviders.delete(type));
 			});
@@ -13412,6 +13428,20 @@ suite('AgentHostChatContribution', () => {
 				});
 			}
 		});
+
+		for (const policy of [false, true]) {
+			test(`history registration preserves manual disablement and editor Codex routing (policy=${policy})`, () => {
+				const { instantiationService, chatSessionItemControllers } = createTestServices(disposables);
+				instantiationService.stub(IConfigurationService, new class extends TestConfigurationService {
+					override inspect<T>(key: string) {
+						const value = super.inspect<T>(key);
+						return { ...value, policyValue: policy ? value.value : undefined };
+					}
+				}({ 'chat.agentHost.claudeAgent.enabled': false, 'chat.agentHost.codexAgent.enabled': false, 'chat.editor.codex.preferAgentHost': false }));
+				disposables.add(instantiationService.createInstance(AgentHostSessionListContribution));
+				assert.deepStrictEqual(chatSessionItemControllers.map(controller => controller.type), policy ? ['agent-host-claude'] : []);
+			});
+		}
 
 		test('session list contribution registers item controller in editor window', () => {
 			const { instantiationService, agentHostService, chatSessionItemControllers } = createTestServices(disposables);

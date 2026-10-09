@@ -99,7 +99,7 @@ export class AgentHostSessionListStore extends Disposable {
 
 	constructor(
 		private readonly _connection: IAgentHostSessionListConnection,
-		private readonly _options: { readonly filterToWorkspace?: boolean; readonly sessionSchemeAlias?: IAgentHostSessionSchemeAlias; readonly connectionAuthority?: string } = {},
+		private readonly _options: { readonly filterToWorkspace?: boolean; readonly sessionSchemeAlias?: IAgentHostSessionSchemeAlias; readonly connectionAuthority?: string; readonly retainUnlistedProvider?: (provider: string) => boolean } = {},
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
@@ -305,6 +305,13 @@ export class AgentHostSessionListStore extends Disposable {
 				if (this._isSessionInWorkspace(entry)) {
 					nextEntries.push(entry);
 				}
+			}
+		}
+
+		const listedKeys = new Set(nextEntries.map(entry => this._key(entry.provider, entry.rawId)));
+		for (const entry of previousEntries) {
+			if (!listedKeys.has(this._key(entry.provider, entry.rawId)) && this._options.retainUnlistedProvider?.(entry.provider)) {
+				nextEntries.push(entry);
 			}
 		}
 

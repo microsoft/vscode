@@ -3100,6 +3100,7 @@ class NewSession extends Disposable {
 	private readonly _isResolvingConfig: ISettableObservable<boolean>;
 	private readonly _lifetimeCts = this._register(new CancellationTokenSource());
 	private _eagerCreateTask: Promise<void> | undefined;
+	private _eagerCreateSuspended = false;
 
 	/** Backend session URI, set immediately before the eager `createSession` call. */
 	private _backendUri: URI | undefined;
@@ -3215,7 +3216,7 @@ class NewSession extends Disposable {
 			modelId: this._modelId,
 			modelSource: this._modelSource,
 			mode, isArchived, isRead,
-			interactivity: constObservable(ChatInteractivity.Full),
+			interactivity: derived(reader => applyConnectionInteractivity(ChatInteractivity.Full, this._options.readOnly?.read(reader) ?? false, this._options.allowOfflineDrafts?.read(reader) ?? false)),
 			description: this._description, lastTurnEnd,
 		};
 		this._mainChat = observableValue<IChat>(this, mainChat);
@@ -3640,7 +3641,7 @@ class NewSession extends Disposable {
 	 * `AgentHostSessionHandler._invokeAgent` re-issues `createSession` if
 	 * no session state exists at send time.
 	 */
-	eagerCreate(connection: IAgentConnection, canCreate?: () => Promise<boolean>): void {
+	eagerCreate(connection: IAgentConnection, canCreate: (() => Promise<boolean>) | undefined, isAllowed: () => boolean): void {
 		const backendUri = this.backendUri;
 		if (this._eagerCreateTask || this._backendUri?.toString() === backendUri.toString() || this._subscription) {
 			return;
@@ -3657,12 +3658,9 @@ class NewSession extends Disposable {
 					return;
 				}
 			}
-			if (this.cancellationToken.isCancellationRequested) {
+			if (this.cancellationToken.isCancellationRequested || this._eagerCreateSuspended || !isAllowed()) {
 				return;
 			}
-
-			this._backendUri = backendUri;
-			this._connection = connection;
 
 			// Seeds the publisher below so its first run is a no-op when nothing
 			// changed, without depending on the state subscription having
@@ -3674,9 +3672,11 @@ class NewSession extends Disposable {
 					await this.waitForConfigurationReady();
 				}
 				await this._activeClientScope.whenResolved();
-				if (this._backendUri?.toString() !== backendUri.toString()) {
+				if (this.cancellationToken.isCancellationRequested || this._eagerCreateSuspended || !isAllowed()) {
 					return;
 				}
+				this._backendUri = backendUri;
+				this._connection = connection;
 				const activeClient = this._activeClientScope.activeClient(connection.clientId).get();
 				createdWithActiveClient = activeClient;
 				const createdSession = await connection.createSession({
@@ -3714,7 +3714,7 @@ class NewSession extends Disposable {
 
 			// Bail if the user switched workspaces, graduated this session,
 			// or otherwise disposed it while the round-trip was in flight.
-			if (this._backendUri?.toString() !== backendUri.toString()) {
+			if (this._backendUri?.toString() !== backendUri.toString() || this._eagerCreateSuspended || !isAllowed()) {
 				return;
 			}
 			this._onSessionCreated(backendUri);
@@ -3775,6 +3775,18 @@ class NewSession extends Disposable {
 				});
 			});
 		})();
+	}
+
+	/** Release passive state while preserving the local unsent draft. */
+	suspend(): void {
+		this._eagerCreateSuspended = true;
+		this._stateListener.clear();
+		this._chatStateListener.clear();
+		this._activeClientPublisher.clear();
+		this._subscription?.dispose();
+		this._subscription = undefined;
+		this._chatSubscription?.dispose();
+		this._chatSubscription = undefined;
 	}
 
 	async waitForEagerCreate(): Promise<void> {
@@ -4263,7 +4275,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * the bits that are uniform across hosts (`icon`, `loading`,
 	 * `mapDiffUri`) from the corresponding hooks.
 	 */
-	protected abstract _adapterOptions(): Pick<IAgentHostAdapterOptions, 'buildWorkspace' | 'readOnly' | 'defaultChangesetKind' | 'preserveStatusWhenDisconnected' | 'externalSessionState' | 'useSessionTitleForDefaultChat' | 'isSessionTitlePlaceholder' | 'supportsCanvasPresentation'>;
+	protected abstract _adapterOptions(agentProvider: string): Pick<IAgentHostAdapterOptions, 'buildWorkspace' | 'readOnly' | 'defaultChangesetKind' | 'preserveStatusWhenDisconnected' | 'externalSessionState' | 'useSessionTitleForDefaultChat' | 'isSessionTitlePlaceholder' | 'supportsCanvasPresentation'>;
 
 	/**
 	 * Hook to normalize a session's metadata before it is cached, keyed, or
@@ -4328,7 +4340,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			backendSessionScheme: this._backendSessionScheme(provider),
 			mapBackendSessionResource: resource => this._mapBackendSessionResource(resource),
 			connectionStatus: this.remoteConnectionStatus,
-			...this._adapterOptions(),
+			...this._adapterOptions(provider),
 		} satisfies IAgentHostAdapterOptions;
 
 		const rawId = meta.session.toString();
@@ -4390,6 +4402,45 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 */
 	protected _shouldAdvertiseAgent(_provider: string): boolean {
 		return true;
+	}
+
+	protected _shouldShowSavedSession(provider: string): boolean {
+		return this._shouldAdvertiseAgent(provider);
+	}
+
+	protected _isAgentDisabledByPolicy(_provider: string): boolean {
+		return false;
+	}
+
+	private _isSessionDisabledByPolicy(sessionId: string): boolean {
+		const rawId = this._sessionKeyFromChatId(sessionId);
+		const provider = this._getNewSession(sessionId)?.agentProvider ?? (rawId ? this._sessionCache.get(rawId)?.agentProvider : undefined);
+		return provider !== undefined && this._isAgentDisabledByPolicy(provider);
+	}
+
+	private _assertSessionAvailable(sessionId: string): void {
+		if (this._isSessionDisabledByPolicy(sessionId)) {
+			throw new Error(localize('agentDisabledByPolicy', "Your organization has disabled this agent."));
+		}
+	}
+
+	protected _onSessionPolicyChanged(): void {
+		for (const cached of this._sessionCache.values()) {
+			if (!this._isAgentDisabledByPolicy(cached.agentProvider)) {
+				continue;
+			}
+			this._sessionStateIdleTimers.deleteAndDispose(cached.sessionId);
+			this._sessionStateSubscriptions.deleteAndDispose(cached.sessionId);
+			this._agentMergeSessionStateIdleTimers.deleteAndDispose(cached.sessionId);
+			this._agentMergeSessionStateSubscriptions.deleteAndDispose(cached.sessionId);
+			this._getChatCatalogLoading(cached.backendUri.toString()).set(false, undefined);
+		}
+		for (const session of this._newSessions.values()) {
+			if (this._isAgentDisabledByPolicy(session.agentProvider)) {
+				session.suspend();
+			}
+		}
+		this._syncActiveClient();
 	}
 
 	protected _syncRootState(rootState: RootState | Error | undefined): void {
@@ -4530,7 +4581,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const rawId = this._sessionKeyFromChatId(activeSession.sessionId);
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
 		const connection = this.connection;
-		if (!rawId || !cached || !connection) {
+		if (!rawId || !cached || !connection || this._isAgentDisabledByPolicy(cached.agentProvider)) {
 			this._clearActiveSessionScope();
 			return;
 		}
@@ -4559,6 +4610,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const activeSession = this._sessionsService.activeSession.get();
 		if (
 			token.isCancellationRequested ||
+			this._isAgentDisabledByPolicy(cached.agentProvider) ||
 			scope !== this._activeSessionScope.value ||
 			this.connection !== connection ||
 			this._sessionCache.get(rawId) !== cached ||
@@ -4609,7 +4661,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			if (pendingSessions.some(pendingSession => isEqual(cached.resource, pendingSession.resource))) {
 				continue;
 			}
-			if (this._shouldAdvertiseAgent(cached.agentProvider)) {
+			if (this._shouldShowSavedSession(cached.agentProvider)) {
 				sessions.push(cached);
 			}
 		}
@@ -4934,7 +4986,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				agentCapabilities: this._agentCapabilities,
 				mapBackendSessionResource: resource => this._mapBackendSessionResource(resource),
 				connectionStatus: this.remoteConnectionStatus,
-				...this._adapterOptions(),
+				...this._adapterOptions(sessionType.id),
 			} satisfies IAgentHostAdapterOptions);
 		} catch (err) {
 			activeClientScope.dispose();
@@ -4999,6 +5051,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	private _startNewSessionBackend(newSession: NewSession, connection: IAgentConnection): void {
+		if (this._isAgentDisabledByPolicy(newSession.agentProvider)) {
+			return;
+		}
 		// Resolving the session config (schema + defaults for the picker chips)
 		// is part of viewing the new-session UI and stays ungated.
 		void newSession.trackConfigResolution(this._refreshNewSessionConfig(newSession, { markSessionLoading: true }));
@@ -5038,7 +5093,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			}
 			return true;
 		} : undefined;
-		newSession.eagerCreate(connection, canCreate);
+		newSession.eagerCreate(connection, canCreate, () => !this._isAgentDisabledByPolicy(newSession.agentProvider));
 	}
 
 	/**
@@ -5449,6 +5504,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	async setSessionConfigValue(sessionId: string, property: string, value: unknown): Promise<void> {
+		this._assertSessionAvailable(sessionId);
 		const policyRestricted = isAutoApprovePolicyRestricted(this._baseConfigurationService, this.getSessionConfig(sessionId)?.schema);
 		const normalizedValue = normalizeSessionConfigValue(property, value, policyRestricted);
 
@@ -5525,6 +5581,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	async replaceSessionConfig(sessionId: string, values: Record<string, unknown>): Promise<void> {
+		this._assertSessionAvailable(sessionId);
 		const runningConfig = this._runningSessionConfigs.get(sessionId);
 		const connection = this.connection;
 		if (!runningConfig || !connection) {
@@ -5707,6 +5764,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	private async _writeAgentMergeClientState(sessionId: string, enabled: boolean, overrides: AgentMergeSessionOverrides | undefined, chat: URI | undefined): Promise<void> {
+		this._assertSessionAvailable(sessionId);
 		const rawId = this._sessionKeyFromChatId(sessionId);
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
 		const connection = this.connection;
@@ -5751,7 +5809,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	private async _resolveRunningSessionConfig(sessionId: string, cached: AgentHostSessionAdapter, values: Record<string, unknown>): Promise<void> {
 		const connection = this.connection;
 		const schema = this._runningSessionConfigs.get(sessionId)?.schema;
-		if (!connection || !schema) {
+		if (!connection || !schema || this._isAgentDisabledByPolicy(cached.agentProvider)) {
 			return;
 		}
 		const seq = (this._runningSessionConfigResolveSeq.get(sessionId) ?? 0) + 1;
@@ -6067,6 +6125,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	setModel(sessionId: string, chatResource: URI, modelId: string, source: ChatModelSource): void {
+		this._assertSessionAvailable(sessionId);
 		const newSession = this._getNewSession(sessionId);
 		if (newSession) {
 			const previousModelId = newSession.getSelectedModelId();
@@ -6091,6 +6150,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	setAgent(sessionId: string, agent: ISessionAgentRef | undefined): void {
+		this._assertSessionAvailable(sessionId);
 		const newSession = this._getNewSession(sessionId);
 		if (newSession) {
 			newSession.setSelectedAgent(agent);
@@ -6204,6 +6264,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				status: server.state.kind,
 				state: server.state,
 				setEnabled: (enabled: boolean) => {
+					this._assertSessionAvailable(sessionId);
 					const connection = this.connection;
 					if (!connection) {
 						return;
@@ -6215,6 +6276,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 					});
 				},
 				start: async () => {
+					this._assertSessionAvailable(sessionId);
 					const connection = this.connection;
 					if (!connection) {
 						return;
@@ -6225,6 +6287,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 					});
 				},
 				stop: async () => {
+					this._assertSessionAvailable(sessionId);
 					const connection = this.connection;
 					if (!connection) {
 						return;
@@ -6236,6 +6299,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				},
 				...(server.state.kind === McpServerStatus.Starting && server.state.blocking ? {
 					background: async () => {
+						this._assertSessionAvailable(sessionId);
 						const connection = this.connection;
 						if (!connection) {
 							return;
@@ -6250,6 +6314,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	setCustomizationEnablement(sessionId: string, customizationId: string, enablement: readonly CustomizationEnablement[]): void {
+		this._assertSessionAvailable(sessionId);
 		const sessionUri = this._getBackendSessionUri(sessionId);
 		const connection = this.connection;
 		if (!sessionUri || !connection) {
@@ -6292,6 +6357,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	async importSession(sessionId: string): Promise<void> {
+		this._assertSessionAvailable(sessionId);
 		const rawId = this._sessionKeyFromChatId(sessionId);
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
 		const connection = this.connection;
@@ -6340,6 +6406,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	private async _setChatArchived(sessionId: string, chatResource: URI, archived: boolean): Promise<void> {
+		this._assertSessionAvailable(sessionId);
 		const chatId = chatResource.fragment;
 		const rawId = this._sessionKeyFromChatId(sessionId);
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
@@ -6367,6 +6434,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * the change can never be recorded is worse than appearing not to archive.
 	 */
 	protected _setSessionArchived(sessionId: string, isArchived: boolean): boolean {
+		this._assertSessionAvailable(sessionId);
 		const rawId = this._sessionKeyFromChatId(sessionId);
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
 		const connection = this.connection;
@@ -6390,6 +6458,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	async setSessionReadState(sessionId: string, isRead: boolean): Promise<void> {
+		if (this._isSessionDisabledByPolicy(sessionId)) {
+			return;
+		}
 		const rawId = this._sessionKeyFromChatId(sessionId);
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
 		if (cached && rawId) {
@@ -6419,6 +6490,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	async setChatReadState(sessionId: string, chatResource: URI, isRead: boolean): Promise<boolean> {
+		if (this._isSessionDisabledByPolicy(sessionId)) {
+			return false;
+		}
 		const rawId = this._sessionKeyFromChatId(sessionId);
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
 		const connection = this.connection;
@@ -6474,6 +6548,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		const targets: { rawId: string; cached: AgentHostSessionAdapter }[] = [];
 		for (const sessionId of sessionIds) {
+			this._assertSessionAvailable(sessionId);
 			const rawId = this._sessionKeyFromChatId(sessionId);
 			const cached = rawId ? this._sessionCache.get(rawId) : undefined;
 			if (cached && rawId) {
@@ -6503,6 +6578,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	async renameChat(sessionId: string, chatUri: URI, title: string): Promise<void> {
+		this._assertSessionAvailable(sessionId);
 		const rawId = this._sessionKeyFromChatId(sessionId);
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
 		const connection = this.connection;
@@ -6510,7 +6586,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			return;
 		}
 		const chatId = chatUri.fragment;
-		if (!chatId && this._adapterOptions().useSessionTitleForDefaultChat) {
+		if (!chatId && this._adapterOptions(cached.agentProvider).useSessionTitleForDefaultChat) {
 			return this.renameSession(sessionId, title);
 		}
 		if (!connection) {
@@ -6537,6 +6613,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	async renameSession(sessionId: string, title: string): Promise<void> {
+		this._assertSessionAvailable(sessionId);
 		const rawId = this._sessionKeyFromChatId(sessionId);
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
 		const connection = this.connection;
@@ -6550,6 +6627,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	async removeSessionArtifact(sessionId: string, artifactId: string): Promise<void> {
+		this._assertSessionAvailable(sessionId);
 		const rawId = this._sessionKeyFromChatId(sessionId);
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
 		const connection = this.connection;
@@ -6560,6 +6638,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	async deleteChat(sessionId: string, chatUri: URI, options?: IDeleteChatOptions): Promise<boolean> {
+		this._assertSessionAvailable(sessionId);
 		const chatId = chatUri.fragment;
 		if (!chatId) {
 			// The default chat lives and dies with its session and cannot be
@@ -6597,6 +6676,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	async createNewChat(chatId: string): Promise<IChat> {
+		this._assertSessionAvailable(chatId);
 		const connection = this.connection;
 		if (!connection) {
 			throw new Error(this._notConnectedSendErrorMessage());
@@ -6655,6 +6735,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	async forkChat(sessionId: string, sourceChat: URI, turnId: string): Promise<IChat> {
+		this._assertSessionAvailable(sessionId);
 		const connection = this.connection;
 		if (!connection) {
 			throw new Error(this._notConnectedSendErrorMessage());
@@ -6704,6 +6785,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	async createSideChat(sessionId: string, sourceChat: URI, turnId: string, selection?: ISideChatSelection): Promise<IChat> {
+		this._assertSessionAvailable(sessionId);
 		const connection = this.connection;
 		if (!connection) {
 			throw new Error(this._notConnectedSendErrorMessage());
@@ -6766,6 +6848,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * its active or most recent turn. `undefined` when the chat state is not hydrated.
 	 */
 	private _readRunningChatModel(connection: IAgentConnection, chat: URI): ModelSelection | undefined {
+		const session = parseChatUri(chat.toString())?.session;
+		const cached = session ? this._sessionCache.get(session) : undefined;
+		if (cached && this._isAgentDisabledByPolicy(cached.agentProvider)) {
+			return undefined;
+		}
 		const ref = connection.getSubscription(StateComponents.Chat, chat, 'BaseAgentHostSessionsProvider.runningChatModel');
 		try {
 			const state = ref.object.value;
@@ -6803,6 +6890,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	async sendRequest(chatId: string, chatResource: URI, options: ISendRequestOptions): Promise<ISession> {
+		this._assertSessionAvailable(chatId);
 		const newSession = this._getNewSession(chatId);
 		if (newSession) {
 			return this._sendNewSessionRequest(newSession, chatId, chatResource, options);
@@ -7186,6 +7274,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	private static readonly CHAT_MODEL_RETENTION_MS = 10_000;
 
 	private _keepAgentMergeSessionStateAlive(sessionId: string): void {
+		if (this._isSessionDisabledByPolicy(sessionId)) {
+			return;
+		}
 		this._agentMergeSessionStateIdleTimers.deleteAndDispose(sessionId);
 		if (this._agentMergeSessionStateSubscriptions.has(sessionId)) {
 			return;
@@ -7319,6 +7410,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * shares the existing wire subscription rather than opening a new one.
 	 */
 	private _ensureSessionStateSubscription(sessionId: string): void {
+		if (this._isSessionDisabledByPolicy(sessionId)) {
+			return;
+		}
 		if (this._sessionStateSubscriptions.has(sessionId)) {
 			return;
 		}
@@ -7956,8 +8050,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * Whether a cached session the host did not list may be evicted. Subclasses override this to
 	 * protect a session that exists but that the host has not materialized yet.
 	 */
-	protected _isSessionEvictable(_rawId: string): boolean {
-		return true;
+	protected _isSessionEvictable(rawId: string): boolean {
+		const cached = this._sessionCache.get(rawId);
+		return !cached || !this._isAgentDisabledByPolicy(cached.agentProvider);
 	}
 
 	/** Raw ids the host listed, reported before eviction runs so subclasses can retire protections. */
