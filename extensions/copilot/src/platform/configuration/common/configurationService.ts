@@ -799,7 +799,7 @@ export namespace ConfigKey {
 		/** Model to use for the execution subagent */
 		/** Use the agentic proxy for the execution subagent */
 		export const ExecutionSubagentUseAgenticProxy = defineSetting<boolean>('chat.executionSubagent.useAgenticProxy', ConfigType.ExperimentBased, false);
-		/** Model to use for the execution subagent, defaulting to gpt-5.6-luna. When empty, uses 'exec-subagent-router-a' with the agentic proxy or the main agent model otherwise. */
+		/** Model to use for the execution subagent. When useAgenticProxy is true, defaults to 'exec-subagent-router-a'. When false, defaults to Gemini-3-Flash. */
 		export const ExecutionSubagentModel = defineSetting<string>('chat.executionSubagent.model', ConfigType.ExperimentBased, 'gpt-5.6-luna');
 		/** Maximum number of tool calls the execution subagent can make */
 		export const ExecutionSubagentToolCallLimit = defineSetting<number>('chat.executionSubagent.toolCallLimit', ConfigType.ExperimentBased, 10);
