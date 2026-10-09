@@ -22,6 +22,8 @@ import { SessionModelInfo } from './state/protocol/state.js';
 /** Configuration key gating the cloud-sandbox connection path. Disabled by default. */
 export const CloudSandboxEnabledSettingId = 'chat.agentHost.cloudSandbox.enabled';
 
+export const CloudSandboxAutoConnectOnOpenSettingId = 'chat.agentHost.cloudSandbox.autoConnectOnOpen';
+
 /**
  * Whether cloud sandbox sessions can be created or connected to. A sandbox is reached over the
  * remote-agent-host relay, so it needs that setting too.
