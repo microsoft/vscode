@@ -15,7 +15,7 @@ import { TerminalGroupService } from '../../../contrib/terminal/browser/terminal
 import { TerminalInstanceService } from '../../../contrib/terminal/browser/terminalInstanceService.js';
 import { TerminalService } from '../../../contrib/terminal/browser/terminalService.js';
 import { ITerminalProfileService } from '../../../contrib/terminal/common/terminal.js';
-import { TestViewDescriptorService } from '../../../contrib/terminal/test/browser/xterm/xtermTerminal.test.js';
+import { TestViewDescriptorService } from '../../../contrib/terminal/test/browser/xterm/xtermTestUtils.js';
 import { ITerminalLinkProviderService } from '../../../contrib/terminalContrib/links/browser/links.js';
 import { ITerminalQuickFixService } from '../../../contrib/terminalContrib/quickFix/browser/quickFix.js';
 import { ITerminalCompletionService } from '../../../contrib/terminalContrib/suggest/browser/terminalCompletionService.js';
