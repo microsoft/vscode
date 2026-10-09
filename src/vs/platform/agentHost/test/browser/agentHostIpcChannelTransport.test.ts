@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -13,6 +14,8 @@ import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentHostIpcChannelTransport } from '../../browser/agentHostIpcChannelTransport.js';
+import { AgentHostClientConnectionKind } from '../../common/agentHostTelemetry.js';
+import type { IAgentHostIpcConnectionOptions } from '../../common/agentService.js';
 import { AhpJsonlLogger } from '../../common/ahpJsonlLogger.js';
 
 class FakeChannel extends Disposable implements IChannel {
@@ -91,6 +94,55 @@ suite('AgentHostIpcChannelTransport', () => {
 		assert.strictEqual(channel.calls.find(c => c.command === 'send'), undefined);
 	});
 
+	test('waits for the resolver environment before connecting', async () => {
+		const channel = ds.add(new FakeChannel());
+		const options = new DeferredPromise<IAgentHostIpcConnectionOptions>();
+		const transport = ds.add(new AgentHostIpcChannelTransport(channel, undefined, AgentHostClientConnectionKind.RemoteExtensionHost, () => options.p));
+		const connecting = transport.connect();
+		const callsBeforeResolution = channel.calls.length;
+		await options.complete({ env: { GITHUB_TOKEN: 'codespace-token', GH_TOKEN: null } });
+		await connecting;
+
+		assert.deepStrictEqual({ callsBeforeResolution, calls: channel.calls }, {
+			callsBeforeResolution: 0,
+			calls: [{ command: 'connect', arg: { env: { GITHUB_TOKEN: 'codespace-token', GH_TOKEN: null } } }],
+		});
+	});
+
+	test('does not connect after disposal while resolving the environment', async () => {
+		const channel = ds.add(new FakeChannel());
+		const options = new DeferredPromise<IAgentHostIpcConnectionOptions>();
+		const transport = ds.add(new AgentHostIpcChannelTransport(channel, undefined, AgentHostClientConnectionKind.RemoteExtensionHost, () => options.p));
+		const connecting = transport.connect();
+		transport.dispose();
+		await options.complete({ env: { GITHUB_TOKEN: 'codespace-token' } });
+
+		await assert.rejects(connecting, /Transport is disposed/);
+		assert.deepStrictEqual(channel.calls, []);
+	});
+
+	test('connects without overrides when the connection options are unavailable', async () => {
+		const channel = ds.add(new FakeChannel());
+		const transport = ds.add(new AgentHostIpcChannelTransport(channel, undefined, AgentHostClientConnectionKind.RemoteExtensionHost, async () => undefined));
+
+		await transport.connect();
+
+		assert.deepStrictEqual({ calls: channel.calls, isOpen: transport.isOpen }, {
+			calls: [{ command: 'connect', arg: undefined }],
+			isOpen: true,
+		});
+	});
+
+	test('surfaces unexpected connection option errors without starting the host', async () => {
+		const channel = ds.add(new FakeChannel());
+		const transport = ds.add(new AgentHostIpcChannelTransport(channel, undefined, AgentHostClientConnectionKind.RemoteExtensionHost, async () => {
+			throw new Error('Remote authority resolution failed');
+		}));
+
+		await assert.rejects(transport.connect(), /Remote authority resolution failed/);
+		assert.deepStrictEqual(channel.calls, []);
+	});
+
 	test('logs real frames and redacts authentication tokens', async () => {
 		const channel = ds.add(new FakeChannel());
 		const fileService = ds.add(new FileService(new NullLogService()));
@@ -100,7 +152,9 @@ suite('AgentHostIpcChannelTransport', () => {
 			fileService,
 			new NullLogService(),
 		));
-		const transport = ds.add(new AgentHostIpcChannelTransport(channel, logger));
+		const transport = ds.add(new AgentHostIpcChannelTransport(channel, logger, AgentHostClientConnectionKind.RemoteExtensionHost, async () => ({
+			env: { GITHUB_TOKEN: 'secret-environment-token' },
+		})));
 
 		await transport.connect();
 		transport.send({ jsonrpc: '2.0', id: 1, method: 'authenticate', params: { channel: 'ahp-root://', resource: 'https://example.com', token: 'secret-token' } });
