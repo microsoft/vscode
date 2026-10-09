@@ -19,6 +19,7 @@ import { isEqual } from '../../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { hasKey } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { equals } from '../../../../../../base/common/objects.js';
 import { localize } from '../../../../../../nls.js';
 import { IActionListOptions, ActionListItemKind, IActionListDelegate, IActionListItem, IActionListItemInlineToggle } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
@@ -558,7 +559,13 @@ export class AgentHostChatInputPicker extends Disposable {
 		this._cancelInitialResolve();
 		const ref = resolution.connection.getSubscription(StateComponents.Session, resolution.backendSession, 'AgentHostChatInputPicker');
 		const sub = ref.object;
+		let availableApprovalModes = sub.value && !(sub.value instanceof Error) ? sub.value.config?.values.availableApprovalModes : undefined;
 		const listener = sub.onDidChange(() => {
+			const available = sub.value && !(sub.value instanceof Error) ? sub.value.config?.values.availableApprovalModes : undefined;
+			if (!equals(availableApprovalModes, available)) {
+				availableApprovalModes = available;
+				this._hidePicker();
+			}
 			this._renderChip();
 			this._sandboxConfigChanged.trigger(undefined);
 		});
@@ -776,7 +783,8 @@ export class AgentHostChatInputPicker extends Disposable {
 			});
 			const requested = values[key] ?? propertySchema.default;
 			const effective = getEffectiveSessionApprovalValue(approval, configSchema, values);
-			const value = readSessionApprovalLevel(approval, effective) ?? effective;
+			const available = getAvailableSessionApprovalValues(approval, configSchema, values);
+			const value = typeof effective === 'string' && available.includes(effective) ? readSessionApprovalLevel(approval, effective) ?? effective : ChatPermissionLevel.Default;
 			const indexes = configValues.map(value => propertySchema.enum?.indexOf(value) ?? -1);
 			const schema: SessionConfigPropertySchema = {
 				...propertySchema,
@@ -818,7 +826,8 @@ export class AgentHostChatInputPicker extends Disposable {
 			}
 			const values = { ...this._readCurrentValues() };
 			for (const key of Object.keys(schemaSource.properties)) {
-				values[key] = resolveConfigChipValue(isUntitledChatSession(sessionResource), state.config?.values[key], overlay?.values[key], schemaSource.properties[key].default);
+				const hostOwnedAvailability = key === 'availableApprovalModes' && schemaSource.properties[key].readOnly;
+				values[key] = resolveConfigChipValue(isUntitledChatSession(sessionResource) && !hostOwnedAvailability, state.config?.values[key], overlay?.values[key], schemaSource.properties[key].default);
 			}
 			const bound = this._bindContext(property, schemaSource, values);
 			return bound ? { ...this._subRef.value, provider: state.provider, ...bound } : undefined;

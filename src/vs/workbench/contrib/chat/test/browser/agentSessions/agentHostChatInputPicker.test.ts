@@ -668,6 +668,70 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		});
 	}
 
+	for (const combined of [false, true]) {
+		test(`an existing chat closes stale permission choices when the host restricts approval (${combined ? 'combined' : 'separate'})`, async () => {
+			const rig = setup(combined);
+			rig.config.schema.properties.availableApprovalModes = { type: 'array', title: 'Available', readOnly: true };
+			rig.config.values.availableApprovalModes = ['default', 'assisted', 'autoApprove'];
+			const state = rig.setSession(URI.parse('agent-host-copilotcli:/existing'), URI.parse('copilotcli:/existing'), rig.connection, 'copilotcli');
+			const changed = store.add(new Emitter<SessionState>());
+			const sub = new class extends mock<IAgentSubscription<SessionState>>() {
+				override readonly value = state;
+				override readonly onDidChange = changed.event;
+			}();
+			rig.instantiationService.stub(IAgentHostService, rig.connection, 'getSubscription', () => ({ object: sub, dispose: () => { } }));
+			rig.instantiationService.stub(IAgentHostService, rig.connection, 'onDidNotification', Event.None);
+			const picker = combined ? rig.modePicker : rig.permissionPicker;
+			picker['_reattach']();
+			await picker['_showPicker'](dom.$('div'), combined);
+			const before = rig.actionWidget.items.filter(item => item.label === 'Assisted permissions').map(item => !!item.disabled);
+			rig.config.values.availableApprovalModes = ['default'];
+			changed.fire(state);
+			const closed = !rig.actionWidget.isVisible;
+			rig.actionWidget.hide();
+			await picker['_showPicker'](dom.$('div'), combined);
+			const after = rig.actionWidget.items.filter(item => item.label === 'Assisted permissions').map(item => !!item.disabled);
+			assert.deepStrictEqual({ before, closed, after, writes: rig.dispatches }, {
+				before: [false], closed: true, after: [true], writes: [],
+			});
+		});
+	}
+
+	test('host-owned approval reports override stale draft overlays without discarding the requested draft mode', async () => {
+		const rig = setup(false);
+		rig.config.schema.properties.availableApprovalModes = { type: 'array', title: 'Available', readOnly: true };
+		rig.config.schema.properties.effectiveApprovalMode = { type: 'string', title: 'Effective', readOnly: true };
+		rig.config.values = { mode: 'interactive', autoApprove: 'default', effectiveApprovalMode: 'default', availableApprovalModes: ['default'] };
+		rig.setSession(URI.parse('agent-host-copilotcli:/untitled-existing'), URI.parse('copilotcli:/provisional'), rig.connection);
+		rig.instantiationService.stub(IAgentHostUntitledProvisionalSessionService, 'getResolvedConfig', () => ({
+			schema: rig.config.schema,
+			values: { mode: 'plan', autoApprove: 'assisted', effectiveApprovalMode: 'assisted', availableApprovalModes: ['default', 'assisted', 'autoApprove'] },
+		}));
+		await rig.permissionPicker['_showPicker'](dom.$('div'));
+		const ctx = rig.permissionPicker['_readContext']();
+		assert.deepStrictEqual({
+			effective: ctx?.value, requested: ctx?.values.autoApprove, requestedMode: ctx?.values.mode,
+			assisted: rig.actionWidget.items.filter(item => item.label === 'Assisted permissions').map(item => !!item.disabled),
+		}, { effective: 'default', requested: 'assisted', requestedMode: 'plan', assisted: [true] });
+	});
+
+	test('an allowed draft approval change displays before the backend session starts', async () => {
+		const rig = setup();
+		rig.config.schema.properties.availableApprovalModes = { type: 'array', title: 'Available', readOnly: true };
+		rig.config.schema.properties.effectiveApprovalMode = { type: 'string', title: 'Effective', readOnly: true };
+		rig.config.values = { mode: 'interactive', autoApprove: 'default', effectiveApprovalMode: 'default', availableApprovalModes: ['default', 'assisted', 'autoApprove'] };
+		rig.setSession(URI.parse('agent-host-copilotcli:/untitled-existing'), URI.parse('copilotcli:/provisional'), rig.connection);
+		rig.instantiationService.stub(IAgentHostUntitledProvisionalSessionService, 'getResolvedConfig', () => ({
+			schema: rig.config.schema,
+			values: { autoApprove: 'autoApprove', effectiveApprovalMode: 'autoApprove', availableApprovalModes: ['default', 'assisted', 'autoApprove'] },
+		}));
+		await rig.modePicker['_showPicker'](dom.$('div'), true);
+		const ctx = rig.permissionPicker['_readContext']();
+		assert.deepStrictEqual({ effective: ctx?.value, requested: ctx?.values.autoApprove, selected: rig.actionWidget.selectedLabels }, {
+			effective: 'autoApprove', requested: 'autoApprove', selected: ['Interactive', 'Allow all'],
+		});
+	});
+
 	test('uses one shared tooltip for the combined label', () => {
 		const { modeContainer, hoverTargets } = setup();
 		assert.deepStrictEqual(hoverTargets.map(target => target === modeContainer.querySelector('.action-label')), [true]);

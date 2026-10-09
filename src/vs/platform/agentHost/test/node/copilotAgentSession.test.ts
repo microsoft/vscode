@@ -10346,6 +10346,48 @@ suite('CopilotAgentSession', () => {
 			});
 		});
 
+		test('publishes changed runtime approval availability while the existing session is idle', async () => {
+			const { session, runtime, mockSession, sessionConfigUpdates } = await createAgentSession(disposables, {
+				configValues: { autoApprove: 'assisted' },
+			});
+			await session.syncPermissionMode('turn-start');
+			const initialUpdateCount = sessionConfigUpdates.length;
+			runtime.onSessionEvent?.({
+				type: 'session.managed_settings_resolved', id: 'updated-policy', timestamp: new Date().toISOString(), parentId: null, ephemeral: true,
+				data: {
+					source: 'server', serverManaged: true, deviceManaged: false, failClosed: false, bypassPermissionsDisabled: true,
+					managedKeys: ['permissions'], settings: { permissions: { disableBypassPermissionsMode: 'disable', disableAssistedPermissionsMode: true } },
+				},
+			});
+			assert.deepStrictEqual({
+				reports: sessionConfigUpdates.slice(initialUpdateCount).map(update => update.patch),
+				modeCalls: mockSession.permissionModeSetCalls,
+			}, {
+				reports: [{ availableApprovalModes: ['default'] }],
+				modeCalls: ['assisted'],
+			});
+		});
+
+		for (const legacy of [false, true]) {
+			test(`idle runtime reports preserve composed host restrictions (legacy=${legacy})`, async () => {
+				const { session, runtime, sessionConfigUpdates } = await createAgentSession(disposables, {
+					configValues: { autoApprove: 'default' },
+					rootValues: { [AgentHostAutoApprovePolicyRestrictedConfigKey]: legacy },
+				});
+				const resolved = { source: 'none' as const, serverManaged: false, deviceManaged: false, failClosed: false, bypassPermissionsDisabled: false, managedKeys: [] };
+				runtime.setApprovalPolicy?.(resolved, legacy ? {} : { disableAssistedPermissionsMode: true });
+				await session.syncPermissionMode('turn-start');
+				const initialUpdateCount = sessionConfigUpdates.length;
+				runtime.onSessionEvent?.({
+					type: 'session.managed_settings_resolved', id: 'updated-policy', timestamp: new Date().toISOString(), parentId: null, ephemeral: true,
+					data: resolved,
+				});
+				assert.deepStrictEqual(sessionConfigUpdates.slice(initialUpdateCount).map(update => update.patch), [
+					{ availableApprovalModes: legacy ? ['default'] : ['default', 'autoApprove'] },
+				]);
+			});
+		}
+
 		for (const success of [false, true]) {
 			test(`direct approval toggle records the actual runtime mode (success=${success})`, async () => {
 				const { session, runtime, mockSession, sessionConfigUpdates } = await createAgentSession(disposables, {

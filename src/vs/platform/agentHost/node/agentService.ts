@@ -31,7 +31,7 @@ import { type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, 
 import { ISessionDatabase, ISessionDataService, ISessionStorageAccessCounts, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
 import { IAgentEditAttributionService, ICancelEditAttributionFlushParams, ICommitEditAttributionFlushParams, IEditAttributionFlushResult, IPrepareEditAttributionFlushParams, IPreparedEditAttributionFlush, parseEditAttributionResource } from '../common/fileEditAttribution.js';
 import { getPersistedSessionConfigValues, getSessionPullRequestUrl, omitTransientSessionConfigValues, SessionConfigKey } from '../common/sessionConfigKeys.js';
-import { validateSessionConfigWrite } from '../common/sessionConfigProperties.js';
+import { getSessionApprovalProperty, validateSessionConfigWrite } from '../common/sessionConfigProperties.js';
 import type { IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
 import { buildAnnotationsUri, parseAnnotationsUri } from '../common/annotationsUri.js';
 import { parseChangesetUri, parseFolderChangesetOwnerUri } from '../common/changesetUri.js';
@@ -8275,11 +8275,12 @@ export class AgentService extends Disposable implements IAgentService {
 					if (['availableApprovalModes', 'effectiveApprovalMode'].some(key => Object.hasOwn(configAction.config, key) && !equals(configAction.config[key], current.values[key]))) {
 						throw new Error('Reported permission modes are host-owned.');
 					}
-					if (Object.hasOwn(configAction.config, SessionConfigKey.AutoApprove)) {
-						if (current.schema.properties[SessionConfigKey.AutoApprove]?.readOnly) {
+					const approvalKey = getSessionApprovalProperty(current.schema)?.key ?? SessionConfigKey.AutoApprove;
+					if (Object.hasOwn(configAction.config, approvalKey)) {
+						if (current.schema.properties[approvalKey]?.readOnly) {
 							throw new Error('Session approval mode is read-only.');
 						}
-						validateSessionConfigWrite(current.schema, current.values, SessionConfigKey.AutoApprove, configAction.config[SessionConfigKey.AutoApprove], false);
+						validateSessionConfigWrite(current.schema, current.values, approvalKey, configAction.config[approvalKey], false);
 					}
 				} catch (error) {
 					this._stateManager.rejectClientAction(channel, action, origin, toErrorMessage(error));

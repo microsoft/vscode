@@ -4553,6 +4553,33 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		}
 
+		for (const restriction of ['unavailable', 'readOnly', 'immutable', 'allowed'] as const) {
+			test(`validates standard approvalMode runtime writes (${restriction})`, async () => {
+				const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+				const agent = new MockAgent('other');
+				disposables.add(toDisposable(() => agent.dispose()));
+				registerTestAgentProvider(svc, agent);
+				const session = await svc.createSession({ provider: 'other' });
+				const state = getStateManager(svc);
+				const available = restriction === 'unavailable' ? ['manual'] : ['manual', 'assisted'];
+				state.setSessionConfig(session.toString(), {
+					schema: {
+						type: 'object', properties: {
+							approvalMode: { type: 'string', title: 'Approvals', enum: ['manual', 'assisted', 'allow-all'], sessionMutable: restriction !== 'immutable', readOnly: restriction === 'readOnly' },
+							availableApprovalModes: { type: 'array', title: 'Available', readOnly: true },
+						}
+					},
+					values: { approvalMode: 'manual', availableApprovalModes: available },
+				});
+				const response = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
+				svc.dispatchAction(session.toString(), { type: ActionType.SessionConfigChanged, config: { approvalMode: 'assisted' }, replace: true }, 'client', 1);
+				assert.deepStrictEqual({ rejected: !!(await response).rejectionReason, values: state.getSessionState(session.toString())?.config?.values }, {
+					rejected: restriction !== 'allowed',
+					values: { approvalMode: restriction === 'allowed' ? 'assisted' : 'manual', availableApprovalModes: available },
+				});
+			});
+		}
+
 		test('rejects client writes to host-owned Agent Merge controller state', async () => {
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const agent = new MockAgent('copilot');

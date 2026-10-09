@@ -3458,6 +3458,12 @@ export class CopilotAgentSession extends Disposable {
 				if (!this._store.isDisposed) {
 					if (event.type === 'session.managed_settings_resolved' && !event.agentId) {
 						this._approvalPolicy.observeRuntimePolicy(event.data);
+						const availableApprovalModes = this._approvalPolicy.getAvailableModes(this._getApprovalInputs());
+						const owner = this._ownerSessionUri.toString();
+						const current = this._configurationService.getSessionConfigValues(owner);
+						if (current && isDefaultChatUri(this._chatChannelUri.toString()) && !equals(current.availableApprovalModes, availableApprovalModes)) {
+							this._configurationService.updateSessionConfig(owner, { availableApprovalModes });
+						}
 						void this._managedSettingsResolved.complete();
 					}
 					this._recordSdkTiming(event);

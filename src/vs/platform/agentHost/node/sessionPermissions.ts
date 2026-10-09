@@ -24,6 +24,7 @@ import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostEditAutoApprove
 import type { IAgentToolPendingConfirmationSignal } from '../common/agent.js';
 import { ISessionDataService, isSessionAttachmentPath } from '../common/sessionDataService.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
+import { getAvailableSessionApprovalValues, getSessionApprovalProperty, readSessionApprovalLevel } from '../common/sessionConfigProperties.js';
 import { readToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { ConfirmationOptionKind, type ConfirmationOption } from '../common/state/protocol/state.js';
 import { ActionType, type IToolCallReadyAction } from '../common/state/sessionActions.js';
@@ -426,7 +427,9 @@ export class SessionPermissionManager extends Disposable {
 		const policyOwned = config?.schema.properties.availableApprovalModes?.readOnly === true;
 		if (policyOwned) {
 			const effective = config.values.effectiveApprovalMode;
-			return typeof effective === 'string' && Array.isArray(config.values.availableApprovalModes) && config.values.availableApprovalModes.includes(effective) ? effective : 'default';
+			const approval = getSessionApprovalProperty(config.schema);
+			return approval && typeof effective === 'string' && Array.isArray(config.values.availableApprovalModes) && getAvailableSessionApprovalValues(approval, config.schema, config.values).includes(effective)
+				? readSessionApprovalLevel(approval, effective) ?? 'default' : 'default';
 		}
 		if (!policyOwned && this._configService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) === true) {
 			return 'default';

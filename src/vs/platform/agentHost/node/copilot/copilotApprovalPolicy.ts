@@ -78,6 +78,11 @@ export class CopilotSessionApprovalPolicy {
 		this._runtimeModes = this._policy.available;
 	}
 
+	getAvailableModes(inputs: ICopilotApprovalInputs): readonly AutoApproveLevel[] | undefined {
+		this.resolveSelection(inputs);
+		return this._policy?.available;
+	}
+
 	resolveSelection(inputs: ICopilotApprovalInputs): { mode: PermissionMode; configuredLevel: AutoApproveLevel } {
 		if (this._nativePolicy) {
 			const policy = getCopilotApprovalPolicy(this._nativePolicy, inputs.legacyRestricted, this._bridgedPermissions);
