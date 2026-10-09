@@ -6562,6 +6562,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 				},
 				serverToolHost: this._serverToolHost,
 				onTurnEnded: () => this._onChatTurnEnded(),
+				onManagedToolsPolicyChanged: () => queueMicrotask(() => {
+					this._requestClientRestart('managed tool policy changed').catch(error => this._logService.error('[Copilot] Failed to apply managed tool policy', error));
+				}),
 				onSteeringReady: session => {
 					if (session.hasRunningTurn && !this._preparedTurnLaunches.has(session) && this._findChatByUri(chatChannelUri) === session) {
 						this._deliverPendingSteering(chatChannelUri, session);

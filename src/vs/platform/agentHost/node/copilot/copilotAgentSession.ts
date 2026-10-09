@@ -47,6 +47,7 @@ import { canStopBackgroundWork, toStoppableBackgroundWorkMeta } from '../../comm
 import { readCopilotShellAttachment, readCopilotShellId, toCopilotBackgroundShellMeta } from '../../common/meta/copilotBackgroundWorkMeta.js';
 import { getSessionSandboxConfig } from '../sessionSandbox.js';
 import { getCopilotBrowserSandboxNetworkRestrictions } from './copilotSandboxPolicy.js';
+import { requiresNativeToolsForManagedPolicy } from './copilotManagedTools.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostAutoReplyAnswer, AgentHostAutoReplyEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostMcpToolRoutingEnabledConfigKey, platformRootSchema, platformSessionSchema } from '../../common/agentHostSchema.js';
 import { createUnknownAgentHostClientTelemetryContext, type IAgentHostClientTelemetryContext, type IAgentProviderSendStageRecorder } from '../../common/agentHostTelemetry.js';
 import { measureAgentProviderOperation } from '../../common/agentHostProviderTiming.js';
@@ -620,6 +621,7 @@ export interface ICopilotAgentSessionOptions {
 	 * could dispose this session off the current stack.
 	 */
 	readonly onTurnEnded?: () => void;
+	readonly onManagedToolsPolicyChanged?: () => void;
 	/** Invoked after a root SDK message or turn-start event establishes steering readiness. */
 	readonly onSteeringReady?: (session: CopilotAgentSession) => void;
 
@@ -1432,6 +1434,9 @@ export class CopilotAgentSession extends Disposable {
 	private _detectInterruptedTurnOnRestore: boolean;
 	/** Notifies the agent that this chat's turn ended. See {@link ICopilotAgentSessionOptions.onTurnEnded}. */
 	private readonly _onTurnEnded: () => void;
+	private readonly _onManagedToolsPolicyChanged: (() => void) | undefined;
+	private _customTerminalEnabled: boolean | undefined;
+	private _nativeToolsRequired: boolean | undefined;
 	private readonly _onSteeringReady: ((session: CopilotAgentSession) => void) | undefined;
 	private readonly _shellManager: ShellManager | undefined;
 	/** Streams runtime-executed shell output into output-only (non-pty) terminal channels. */
@@ -1573,6 +1578,7 @@ export class CopilotAgentSession extends Disposable {
 		this._sandboxDiagnostics = this._register(this._instantiationService.createInstance(CopilotSandboxDiagnostics, this._ownerSessionUri.toString(), () => this._launchPlan.client.rpc.sandbox.getHostSupport()));
 		this._detectInterruptedTurnOnRestore = options.launchPlan.kind === 'resume';
 		this._onTurnEnded = options.onTurnEnded ?? (() => { });
+		this._onManagedToolsPolicyChanged = options.onManagedToolsPolicyChanged;
 		this._onSteeringReady = options.onSteeringReady;
 		this._shellManager = options.shellManager;
 		this._nonPtyShellTerminals = this._register(this._instantiationService.createInstance(NonPtyShellTerminalStreams, options.sessionUri, this._storageUri, options.chatChannelUri));
@@ -3506,12 +3512,24 @@ export class CopilotAgentSession extends Disposable {
 
 	private _createRuntimeAdapter(): ICopilotSessionRuntime {
 		return {
+			setNativeToolsRequired: required => { this._nativeToolsRequired = required; },
+			setCustomTerminalEnabled: enabled => { this._customTerminalEnabled = enabled; },
+			assertCustomTerminalPolicy: async () => {
+				const policy = await this._wrapper.session.rpc.managedSettings.get();
+				if (requiresNativeToolsForManagedPolicy(policy)) {
+					throw new Error(localize('copilot.managedTerminalPolicy', "Your organization's permission or sandbox policy requires the native Copilot terminal. Retry after this turn finishes."));
+				}
+			},
 			setApprovalPolicy: (resolved, bridged) => {
 				this._approvalPolicy.setLaunchPolicy(resolved, bridged);
 			},
 			onSessionEvent: event => {
 				if (!this._store.isDisposed) {
 					if (event.type === 'session.managed_settings_resolved' && !event.agentId) {
+						if (this._nativeToolsRequired !== undefined
+							&& this._nativeToolsRequired !== requiresNativeToolsForManagedPolicy(event.data)) {
+							this._onManagedToolsPolicyChanged?.();
+						}
 						this._approvalPolicy.observeRuntimePolicy(event.data);
 						const availableApprovalModes = this._approvalPolicy.getAvailableModes(this._getApprovalInputs());
 						const owner = this._ownerSessionUri.toString();
@@ -5862,7 +5880,7 @@ export class CopilotAgentSession extends Disposable {
 
 	/** Whether the Agent Host's own shell tools replace the SDK's built-in shell. */
 	private _isCustomTerminalToolEnabled(): boolean {
-		return this._platform !== 'win32' && this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.EnableCustomTerminalTool) === true;
+		return this._customTerminalEnabled ?? (this._platform !== 'win32' && this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.EnableCustomTerminalTool) === true);
 	}
 
 	/** The effective SDK sandbox policy, or `undefined` when sandboxing is disabled. */

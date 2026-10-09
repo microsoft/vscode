@@ -282,13 +282,21 @@ export class NullManagedSettingsService implements IManagedSettingsService {
 
 /** Presence selects the runtime harness; interpreting permission values remains runtime-owned. */
 export function hasManagedPermissions(service: IManagedSettingsService): boolean {
-	const settings = service.getManagedSettings();
+	return hasManagedPermissionSettings(service.getManagedSettings());
+}
+
+function hasManagedPermissionSettings(settings: ManagedSettingsData): boolean {
 	return Object.keys(settings).some(key => (key === 'permissions' || key.startsWith('permissions.')) && settings[key] !== undefined);
+}
+
+/** Shared requirement for clients and hosts reading normalized managed settings. */
+export function requiresCopilotAgentHostForSettings(settings: ManagedSettingsData): boolean {
+	return settings[COPILOT_SANDBOX_ENABLED_KEY] === true || hasManagedPermissionSettings(settings);
 }
 
 /** Whether effective policy requires enforcement unavailable in the Local harness. */
 export function requiresCopilotAgentHost(service: IManagedSettingsService): boolean {
-	return service.getManagedSettingValue(COPILOT_SANDBOX_ENABLED_KEY) === true || hasManagedPermissions(service);
+	return requiresCopilotAgentHostForSettings(service.getManagedSettings());
 }
 
 let managedModelValueCallback: ((policyData: IPolicyData) => ManagedSettingValue | undefined) | undefined;

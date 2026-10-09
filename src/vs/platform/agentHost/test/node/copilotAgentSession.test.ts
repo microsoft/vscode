@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type Anthropic from '@anthropic-ai/sdk';
-import type { AutoTier, CopilotClient, CopilotSession, CurrentToolMetadata, PermissionMode, PermissionRequest, PermissionRequestResult, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, Tool, ToolResultObject, TypedSessionEventHandler } from '@github/copilot-sdk';
+import type { AutoTier, CopilotClient, CopilotSession, CurrentToolMetadata, JsonValue, PermissionMode, PermissionRequest, PermissionRequestResult, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, Tool, ToolResultObject, TypedSessionEventHandler } from '@github/copilot-sdk';
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
 import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'fs';
@@ -401,6 +401,11 @@ class MockCopilotSession {
 	currentModelGate: Promise<void> | undefined;
 
 	readonly rpc = {
+		managedSettings: {
+			get: async (): Promise<SessionEventPayload<'session.managed_settings_resolved'>['data']> => ({
+				source: 'none', serverManaged: false, deviceManaged: false, failClosed: false, bypassPermissionsDisabled: false, managedKeys: [],
+			}),
+		},
 		model: {
 			getCurrent: async () => {
 				await this.currentModelGate;
@@ -1141,6 +1146,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	restrictedTelemetryContextError?: Error;
 	telemetryContext?: IAgentTelemetryContext;
 	onTurnEnded?: () => void;
+	onManagedToolsPolicyChanged?: () => void;
 	modelId?: string;
 	enableDevelopmentErrorInjection?: boolean;
 	resume?: boolean;
@@ -1462,6 +1468,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			serverToolHost: options?.serverToolHost,
 			platform: options?.platform ?? 'linux',
 			onTurnEnded: options?.onTurnEnded,
+			onManagedToolsPolicyChanged: options?.onManagedToolsPolicyChanged,
 			enableDevelopmentErrorInjection: options?.enableDevelopmentErrorInjection ?? true,
 			realpath: options?.realpath,
 			controlPlaneRpcTimeoutMs: options?.controlPlaneRpcTimeoutMs,
@@ -10487,6 +10494,64 @@ suite('CopilotAgentSession', () => {
 				calls: ['allow-all', 'allow-all'], mode: 'manual',
 			});
 		});
+
+		const terminalPolicies: { settings: Record<string, JsonValue>; permissionsAllowIntersected?: boolean }[] = [
+			{ settings: { permissions: { defaultMode: 'manual' } } },
+			{ settings: { permissions: { deny: [] } } },
+			{ settings: { sandbox: { enabled: true } } },
+			{ settings: { permissions: {} }, permissionsAllowIntersected: true },
+		];
+		for (const platform of ['linux', 'win32'] as const) {
+			test(`managed fetch policy changes request a restart without the experimental terminal on ${platform}`, async () => {
+				let restarts = 0;
+				const { runtime, mockSession } = await createAgentSession(disposables, {
+					platform,
+					onManagedToolsPolicyChanged: () => { restarts++; },
+				});
+				runtime.setNativeToolsRequired?.(false);
+				runtime.onSessionEvent?.({
+					type: 'session.managed_settings_resolved', id: 'fetch-policy', timestamp: new Date().toISOString(), parentId: null, ephemeral: true,
+					data: { ...await mockSession.rpc.managedSettings.get(), settings: { permissions: { defaultMode: 'manual' } } },
+				});
+				assert.strictEqual(restarts, 1);
+			});
+		}
+
+		for (const resolved of terminalPolicies) {
+			test(`managed terminal policy guards execution and switches implementations on policy changes: ${JSON.stringify(resolved)}`, async () => {
+				let restarts = 0;
+				const { runtime, mockSession } = await createAgentSession(disposables, {
+					rootValues: { [CopilotCliConfigKey.EnableCustomTerminalTool]: true },
+					onManagedToolsPolicyChanged: () => { restarts++; },
+				});
+				const initial = await mockSession.rpc.managedSettings.get();
+				const policy = { ...initial, ...resolved };
+				runtime.setCustomTerminalEnabled?.(true);
+				runtime.setNativeToolsRequired?.(false);
+				await runtime.assertCustomTerminalPolicy?.();
+				mockSession.rpc.managedSettings.get = async () => policy;
+				runtime.onSessionEvent?.({
+					type: 'session.managed_settings_resolved', id: 'terminal-policy', timestamp: new Date().toISOString(), parentId: null, ephemeral: true,
+					data: policy,
+				});
+				await assert.rejects(() => runtime.assertCustomTerminalPolicy!(), /requires the native Copilot terminal/);
+				const afterPolicy = restarts;
+				runtime.setCustomTerminalEnabled?.(false);
+				runtime.setNativeToolsRequired?.(true);
+				runtime.onSessionEvent?.({
+					type: 'session.managed_settings_resolved', id: 'same-terminal-policy', timestamp: new Date().toISOString(), parentId: null, ephemeral: true,
+					data: policy,
+				});
+				const whileNative = restarts;
+				mockSession.rpc.managedSettings.get = async () => initial;
+				runtime.onSessionEvent?.({
+					type: 'session.managed_settings_resolved', id: 'removed-terminal-policy', timestamp: new Date().toISOString(), parentId: null, ephemeral: true,
+					data: initial,
+				});
+				await runtime.assertCustomTerminalPolicy?.();
+				assert.deepStrictEqual({ afterPolicy, whileNative, afterRemoval: restarts }, { afterPolicy: 1, whileNative: 1, afterRemoval: 2 });
+			});
+		}
 
 		test('publishes changed runtime approval availability while the existing session is idle', async () => {
 			const { session, runtime, mockSession, sessionConfigUpdates } = await createAgentSession(disposables, {

@@ -40,6 +40,24 @@ lists. VS Code preserves permission-key presence across server and file delivery
 and watches the runtime's declared permission keys in native MDM; it does not
 parse or enforce rule grammar. Permissions do not turn sandboxing on.
 
+The experimental `chat.agentHost.customTerminalTool.enabled` override is unavailable
+under the same managed requirement, including mode-only permissions and empty rule
+lists, and under fail-closed policy. Copilot uses its native SDK terminal instead,
+without changing sandbox preferences. Bridged managed permissions also require the
+native terminal. Runtime-resolved policy changes block further custom execution and
+stdin while the host switches implementations at its idle restart boundary.
+Bridged legacy changes take effect at that restart, not mid-turn; removal restores
+the configured preference on the next launch. Use the public
+`permissionsAllowIntersected` flag when native composition omits flattened allow
+rules; never infer policy presence from opaque context internals.
+
+Governed Copilot sessions exclude the VS Code `fetch` client tool and use the SDK's
+native `web_fetch`. Unmanaged and Local fetch retain their existing implementation.
+Native `limitTo` enforcement in the integrated browser is deferred: existing
+browser controls remain unchanged and do not automatically enforce runtime-native
+permissions. Arbitrary extension/MCP networking and client-run code are outside
+this runtime-tool integration's scope.
+
 Resolve initial account policy before choosing or activating Local. Governed new
 chats select Copilot Agent Host, including explicit or remembered Local choices.
 An unavailable host must produce an actionable error, never a Local fallback.
@@ -136,10 +154,12 @@ Bridge invariants:
 - the bridge is unconditional; the former `chat.agentHost.copilot.mapLegacySettingsToManagedSettings` setting is removed and stale values cannot disable mapped restrictions;
 - add mappings only for legacy settings that already exist; never create a new setting for this bridge;
 - mappings select one VS Code setting and use a callback typed against the host-owned managed permissions DTO;
-- mappings contribute only fields that can be flattened restrictively (`disable`, `deny`, and `ask`); do not flatten independent `allow` lists in VS Code;
+- mappings contribute restrictions (`disable`, `deny`, `ask`, and canonical hostname `limitTo` boundaries); never flatten independent `allow` lists into approval grants;
 - approval-setting mappings use only exact enterprise `policyValue`; user, application, default, workspace, and folder values do not become managed approval restrictions;
 - global auto-approval is resolved by the Copilot host against native mode settings, rather than flattened into an unconditional bypass ban by this table;
 - the network-domain composite retains global precedence (policy, user, then application) and registered global defaults to preserve the filter's empty-list deny-all behavior;
+- nonempty allow-lists become native boundaries only when both the filter and the allow-list are policy-owned; each connected client's boundary must admit the host, and an empty intersection stays deny-all;
+- unsupported legacy allow-list entries are logged and skipped individually, preserving valid siblings; when no entries survive, the boundary remains deny-all;
 - personal approval settings remain on the ordinary root-config path, where session/global Allow All overrides them and default mode honors them; user/application settings are not an administrator enforcement boundary;
 - administrator terminal approval restrictions become managed asks and still require confirmation under Allow All or assisted approval;
 - contributions aggregate restrictively and are transported without parsing their rule grammar in VS Code;
@@ -153,7 +173,7 @@ Keep additional legacy mappings in the shared bridge table and cover their scope
 
 `chat.tools.terminal.enableAutoApprove` has a registered VS Code policy; `chat.tools.terminal.autoApprove` does not. Per-command `policyValue` fixtures exercise the resolver synthetically, not a currently deployable VS Code policy. Test targeted managed shell asks directly at the SDK boundary, and test the registered terminal approval policy through the bridge.
 
-Default-on bridging is not full policy parity. Unsupported allowlists, patterns,
+Default-on bridging is not full policy parity. Other configuration sources, patterns,
 per-tool approval, and discovery paths are still tracked in
 `agentHostPolicySupport.ts`. Policy Diagnostics reports applied migration concerns
 without changing rollout or harness selection. Report-only gaps do not disable

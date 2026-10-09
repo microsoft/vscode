@@ -792,6 +792,24 @@ suite('CopilotShellTools', () => {
 		shellRef.dispose();
 	});
 
+	test('managed policy rejects custom execution and stdin before side effects', async () => {
+		const { instantiationService, terminalManager } = createServices();
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
+		const tools = await createShellTools(shellManager, TEST_CHAT_URI, terminalManager, new NullLogService(), undefined, async () => {
+			throw new Error('Native terminal required by managed policy');
+		});
+		for (const toolName of ['bash', 'write_bash']) {
+			const tool = tools.find(tool => tool.name === toolName)!;
+			const args = { command: 'echo test' };
+			await assert.rejects(async () => tool.handler!(args, {
+				sessionId: 'session-1', toolCallId: 'policy-blocked', toolName, arguments: args,
+			}), /Native terminal required/);
+		}
+		assert.deepStrictEqual({ sent: terminalManager.sentTexts, writes: terminalManager.writes, shells: shellManager.listShells() }, {
+			sent: [], writes: [], shells: [],
+		});
+	});
+
 	test('getOrCreateSandboxEngine returns the same engine across calls', async () => {
 		const { instantiationService } = createServices();
 		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
