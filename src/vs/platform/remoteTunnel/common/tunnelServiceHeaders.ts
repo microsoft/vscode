@@ -11,25 +11,31 @@ export interface ITunnelServiceCorrelation {
 	readonly operationId: string;
 }
 
-export function createTunnelServiceCorrelation(telemetryService: ITelemetryService, operation: 'list' | 'connect' | 'delete' | 'host'): ITunnelServiceCorrelation {
+type TunnelServiceOperation = 'list' | 'connect' | 'delete' | 'host';
+
+type TunnelServiceOperationEvent = {
+	tunnelSessionId: string;
+	operationId: string;
+	operation: TunnelServiceOperation;
+};
+
+type TunnelServiceOperationClassification = {
+	owner: 'connor4312';
+	comment: 'Correlates a tunnel service operation with management and relay requests.';
+	tunnelSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The originating VS Code telemetry session ID.' };
+	operationId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'A random ID shared by requests belonging to this tunnel operation.' };
+	operation: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The kind of tunnel operation.' };
+};
+
+export function createTunnelServiceCorrelation(telemetryService: ITelemetryService, operation: TunnelServiceOperation | undefined): ITunnelServiceCorrelation {
 	const correlation = { sessionId: telemetryService.sessionId, operationId: generateUuid() };
-	type TunnelServiceOperationEvent = {
-		tunnelSessionId: string;
-		operationId: string;
-		operation: string;
-	};
-	type TunnelServiceOperationClassification = {
-		owner: 'connor4312';
-		comment: 'Correlates a tunnel service operation with management and relay requests.';
-		tunnelSessionId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The originating VS Code telemetry session ID.' };
-		operationId: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'A random ID shared by requests belonging to this tunnel operation.' };
-		operation: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The kind of tunnel operation.' };
-	};
-	telemetryService.publicLog2<TunnelServiceOperationEvent, TunnelServiceOperationClassification>('tunnelServiceOperation', {
-		tunnelSessionId: correlation.sessionId,
-		operationId: correlation.operationId,
-		operation,
-	});
+	if (operation !== undefined) {
+		telemetryService.publicLog2<TunnelServiceOperationEvent, TunnelServiceOperationClassification>('tunnelServiceOperation', {
+			tunnelSessionId: correlation.sessionId,
+			operationId: correlation.operationId,
+			operation,
+		});
+	}
 	return correlation;
 }
 

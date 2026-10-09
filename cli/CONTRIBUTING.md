@@ -42,5 +42,7 @@ VS Code passes its telemetry session and operation IDs through
 These IDs are preserved verbatim; telemetry session IDs are not necessarily UUIDs.
 Standalone commands use a process-local session ID and a new operation ID for each
 management client. Correlation IDs are sent in service headers, not written to CLI logs.
+Local CLI status, login, and service-management invocations retain correlation IDs but
+do not emit host-operation telemetry.
 Attaching to an already-running tunnel does not replace that process's correlation IDs;
 its service requests retain the IDs of the original host process.

@@ -363,7 +363,7 @@ export class TunnelProcessCoordinator extends Disposable implements ITunnelProce
 	}
 
 	private async _runTransient(logLabel: string, args: readonly string[], mode: TunnelProcessMode, generation: number, env?: Record<string, string>, onOutput?: CodeTunnelCliOutput): Promise<number> {
-		const correlation = createTunnelServiceCorrelation(this.telemetryService, 'host');
+		const correlation = createTunnelServiceCorrelation(this.telemetryService, undefined);
 		const run = this._tunnelCli.run(logLabel, args, (message, isError) => {
 			onOutput?.(message, isError);
 			this._fireOutput(mode, message, isError, false, () => run.result.cancel(), generation, correlation);

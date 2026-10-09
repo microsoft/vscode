@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import { ChildProcess, SpawnOptions } from 'child_process';
 import { EventEmitter } from 'events';
 import { PassThrough } from 'stream';
@@ -16,6 +17,7 @@ import { CodeTunnelCli, CodeTunnelSpawn } from '../../node/codeTunnelCliProcess.
 import { ITunnelProcessMachineStatus, resolveTunnelProcessMode, TunnelProcessCoordinator } from '../../node/tunnelProcessCoordinator.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
+import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 
 interface TestChildProcess {
 	readonly child: ChildProcess;
@@ -105,21 +107,25 @@ suite('TunnelProcessCoordinator', () => {
 		], ['none', 'remoteAccess', 'service']);
 	});
 
-	test('passes telemetry correlation to every CLI invocation', async () => {
+	test('passes correlation to every CLI invocation but only logs operations for host launches', async () => {
 		const { coordinator, processes } = createCoordinator();
 		const statuses: ITunnelProcessMachineStatus[] = [];
 		const listener = coordinator.onDidMachineStatus(status => statuses.push(status));
+		const telemetryService: ITelemetryService = NullTelemetryService;
+		const telemetry = sinon.spy(telemetryService, 'publicLog2');
 		try {
-			await coordinator.setRemoteAccess(activeMode(), LogLevel.Info);
-			const tunnel = processes.find(process => process.args.includes('--accept-server-license-terms'))!;
+			await coordinator.setRemoteAccess(activeMode(true), LogLevel.Info);
+			const tunnel = processes.find(process => process.args.includes('--parent-process-id'))!;
 			tunnel.stdout.write('__VSCODE_CLI_STATUS__{"type":"connected","tunnelName":"test_host","isAttached":false}\n');
 			tunnel.stdout.write('__VSCODE_CLI_STATUS__{"type":"connected","tunnelName":"test_host","isAttached":true}\n');
+			await coordinator.setRemoteAccess(INACTIVE_TUNNEL_MODE, LogLevel.Info);
 			assert.deepStrictEqual({
 				sessionIds: [...new Set(processes.map(process => process.env?.VSCODE_TUNNEL_SESSION_ID))],
 				uniqueOperations: new Set(processes.map(process => process.env?.VSCODE_TUNNEL_OPERATION_ID)).size,
 				processCount: processes.length,
 				hasOperations: processes.every(process => !!process.env?.VSCODE_TUNNEL_OPERATION_ID),
 				correlation: statuses.map(status => status.correlation),
+				telemetry: telemetry.getCalls().map(call => call.args),
 			}, {
 				sessionIds: [NullTelemetryService.sessionId],
 				uniqueOperations: processes.length,
@@ -129,8 +135,14 @@ suite('TunnelProcessCoordinator', () => {
 					{ sessionId: tunnel.env?.VSCODE_TUNNEL_SESSION_ID, operationId: tunnel.env?.VSCODE_TUNNEL_OPERATION_ID },
 					undefined,
 				],
+				telemetry: [['tunnelServiceOperation', {
+					tunnelSessionId: NullTelemetryService.sessionId,
+					operationId: tunnel.env?.VSCODE_TUNNEL_OPERATION_ID,
+					operation: 'host',
+				}]],
 			});
 		} finally {
+			telemetry.restore();
 			listener.dispose();
 			for (const process of processes) {
 				process.emitExit();

@@ -45,24 +45,23 @@ fn tunnel_correlation_id(
 	value: Result<String, std::env::VarError>,
 	fallback: uuid::Uuid,
 ) -> HeaderValue {
+	let fallback = HeaderValue::from_str(&fallback.to_string()).unwrap();
 	match value {
 		Ok(value) if !value.is_empty() => match HeaderValue::from_str(&value) {
 			Ok(id) => id,
 			Err(error) => {
 				warning!(log, "Invalid {}: {}", name, error);
-				HeaderValue::from_str(&fallback.to_string()).unwrap()
+				fallback
 			}
 		},
 		Ok(_) => {
 			warning!(log, "Invalid {}: empty correlation ID", name);
-			HeaderValue::from_str(&fallback.to_string()).unwrap()
+			fallback
 		}
-		Err(std::env::VarError::NotPresent) => {
-			HeaderValue::from_str(&fallback.to_string()).unwrap()
-		}
+		Err(std::env::VarError::NotPresent) => fallback,
 		Err(error) => {
 			warning!(log, "Invalid {}: {}", name, error);
-			HeaderValue::from_str(&fallback.to_string()).unwrap()
+			fallback
 		}
 	}
 }
