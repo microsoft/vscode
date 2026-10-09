@@ -93,7 +93,7 @@ import { buildCopilotSystemNotification, getCopilotSubagentDisplayNames } from '
 import { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostAutoReplyAnswer, AgentHostAutoReplyEnabledConfigKey, AgentHostDisableRepoInfoTelemetryConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpToolRoutingEnabledConfigKey } from '../../common/agentHostSchema.js';
-import { AgentHostHydraFusionEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey } from '../../common/copilotCliConfig.js';
+import { AgentHostCopilotExecutionSubagentEnabledSettingId, AgentHostCopilotExecutionSubagentModelSettingId, AgentHostHydraFusionEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey } from '../../common/copilotCliConfig.js';
 import { TestExperimentTriggerTelemetryService } from '../../../telemetry/test/common/experimentTriggerTestUtils.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
@@ -15296,6 +15296,63 @@ Use the attached image as context.
 			assert.deepStrictEqual(results, {
 				v2: { beforeRoute: [], afterRoute: [treatment] },
 				v1: { beforeRoute: [], afterRoute: [treatment] },
+			});
+		});
+
+		test('reports runtime execution exposure in both enablement arms and every model arm, not for child turns', async () => {
+			const results: Record<string, { beforeParentTurn: readonly string[]; afterParentTurn: readonly string[] }> = {};
+			for (const [name, enabled, model] of [
+				['control', false, ''],
+				['inherit', true, ''],
+				['specific', true, 'exec-agent-b'],
+				['unavailable', true, 'unavailable-model'],
+			] as const) {
+				const telemetryService = new TestExperimentTriggerTelemetryService();
+				const { session, mockSession } = await createAgentSession(disposables, {
+					telemetryService,
+					rootValues: {
+						[CopilotCliConfigKey.ExecutionSubagent]: enabled,
+						[CopilotCliConfigKey.ExecutionSubagentModel]: model,
+						[CopilotCliVSCodeAssignmentContextKey]: 'assignment-context',
+					},
+				});
+				session.resetTurnState('execution-turn');
+				mockSession.fire('assistant.turn_start', { turnId: 'child-turn' }, { agentId: 'child' });
+				const beforeParentTurn = [...telemetryService.triggers];
+				mockSession.fire('assistant.turn_start', { turnId: 'parent-turn' });
+				mockSession.fire('assistant.turn_start', { turnId: 'parent-turn' });
+				results[name] = { beforeParentTurn, afterParentTurn: telemetryService.triggers };
+			}
+
+			const enabled = `config.${AgentHostCopilotExecutionSubagentEnabledSettingId}`;
+			const model = `config.${AgentHostCopilotExecutionSubagentModelSettingId}`;
+			assert.deepStrictEqual(results, {
+				control: { beforeParentTurn: [], afterParentTurn: [enabled] },
+				inherit: { beforeParentTurn: [], afterParentTurn: [enabled, model] },
+				specific: { beforeParentTurn: [], afterParentTurn: [enabled, model] },
+				unavailable: { beforeParentTurn: [], afterParentTurn: [enabled, model] },
+			});
+		});
+
+		test('holds runtime execution experiment triggers until assignment context arrives', async () => {
+			const telemetryService = new TestExperimentTriggerTelemetryService();
+			const { session, mockSession, setRootValue, fireRootConfigChange } = await createAgentSession(disposables, {
+				telemetryService,
+				rootValues: { [CopilotCliConfigKey.ExecutionSubagent]: true },
+			});
+			session.resetTurnState('execution-turn');
+			mockSession.fire('assistant.turn_start', { turnId: 'parent-turn' });
+			const beforeContext = [...telemetryService.triggers];
+			setRootValue(CopilotCliVSCodeAssignmentContextKey, 'assignment-context');
+			fireRootConfigChange();
+			await Promise.resolve();
+
+			assert.deepStrictEqual({ beforeContext, afterContext: telemetryService.triggers }, {
+				beforeContext: [],
+				afterContext: [
+					`config.${AgentHostCopilotExecutionSubagentEnabledSettingId}`,
+					`config.${AgentHostCopilotExecutionSubagentModelSettingId}`,
+				],
 			});
 		});
 

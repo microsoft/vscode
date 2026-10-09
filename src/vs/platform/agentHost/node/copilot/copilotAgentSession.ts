@@ -36,7 +36,7 @@ import { ILogService, LogLevel } from '../../../log/common/log.js';
 import product from '../../../product/common/product.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { getCopilotHomePath, getCopilotMcpConfigurationPath } from '../../../environment/common/copilotHome.js';
-import { AgentHostHydraFusionEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
+import { AgentHostCopilotExecutionSubagentEnabledSettingId, AgentHostCopilotExecutionSubagentModelSettingId, AgentHostHydraFusionEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema } from '../../common/copilotCliConfig.js';
 import { logSettingExperimentTrigger } from '../../../telemetry/common/experimentTrigger.js';
 import { withCustomizationEnablement } from '../../common/customizationEnablement.js';
 import { isAutoModeRoutingTier, type AutoModeRoutingTier, type AutoModeTier } from '../../common/autoModeTiers.js';
@@ -1475,7 +1475,7 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _pendingFusionEvents: CopilotFusionEvent[] = [];
 	private _requiresFusionEventOwnership = false;
 	private _fusionTurnCancelled = false;
-	private _hydraFusionV2ExperimentTriggerPending = false;
+	private readonly _pendingSettingExperimentTriggers = new Set<string>();
 	private _hasFusionRootTurnBoundary = false;
 	private readonly _activities: Record<'intent' | 'command' | 'fusion', string | undefined> = { intent: undefined, command: undefined, fusion: undefined };
 	private _publishedActivity: string | undefined;
@@ -5917,14 +5917,15 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	/**
-	 * Marks where HydraFusion starts routing as v1 or v2, in every arm of a HydraFusion version
-	 * experiment. Held until the workbench forwards its assignment context, because
+	 * Holds setting exposure until the workbench forwards its assignment context, because
 	 * agent host telemetry cannot be attributed to an experiment before then.
 	 */
-	private _reportHydraFusionV2ExperimentTrigger(): void {
-		this._hydraFusionV2ExperimentTriggerPending = typeof this._configurationService.getRootConfigValues?.()[CopilotCliVSCodeAssignmentContextKey] !== 'string';
-		if (!this._hydraFusionV2ExperimentTriggerPending) {
-			logSettingExperimentTrigger(this._telemetryService, AgentHostHydraFusionEnabledSettingId);
+	private _reportSettingExperimentTrigger(settingId: string): void {
+		if (typeof this._configurationService.getRootConfigValues?.()[CopilotCliVSCodeAssignmentContextKey] !== 'string') {
+			this._pendingSettingExperimentTriggers.add(settingId);
+		} else {
+			this._pendingSettingExperimentTriggers.delete(settingId);
+			logSettingExperimentTrigger(this._telemetryService, settingId);
 		}
 	}
 
@@ -5933,11 +5934,13 @@ export class CopilotAgentSession extends Disposable {
 			void this._syncPermissionModeAfterConfigChange();
 			// The forwarded shell init setting lives in root config.
 			void this._syncShellInitScript();
-			if (this._hydraFusionV2ExperimentTriggerPending) {
+			if (this._pendingSettingExperimentTriggers.size > 0) {
 				// Deferred so that the listener installing the forwarded assignment context on telemetry runs first.
 				queueMicrotask(() => {
-					if (this._hydraFusionV2ExperimentTriggerPending && !this._store.isDisposed) {
-						this._reportHydraFusionV2ExperimentTrigger();
+					if (!this._store.isDisposed) {
+						for (const settingId of this._pendingSettingExperimentTriggers) {
+							this._reportSettingExperimentTrigger(settingId);
+						}
 					}
 				});
 			}
@@ -9158,7 +9161,7 @@ export class CopilotAgentSession extends Disposable {
 			return;
 		}
 		if (event.type === 'session.fusion_route_started') {
-			this._reportHydraFusionV2ExperimentTrigger();
+			this._reportSettingExperimentTrigger(AgentHostHydraFusionEnabledSettingId);
 		}
 		const update = this._fusionProgress.accept(event);
 		if (update) {
@@ -9510,6 +9513,12 @@ export class CopilotAgentSession extends Disposable {
 			this._resumeSubagentForEvent(e);
 			if (!e.agentId) {
 				if (this._currentTurn.value) {
+					// Log enablement in both arms before tool selection; invocation-only
+					// exposure would exclude control and unavailable-model treatments.
+					this._reportSettingExperimentTrigger(AgentHostCopilotExecutionSubagentEnabledSettingId);
+					if (this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ExecutionSubagent) === true) {
+						this._reportSettingExperimentTrigger(AgentHostCopilotExecutionSubagentModelSettingId);
+					}
 					this._currentTurn.value.activeSdkTurnId = e.data.turnId;
 					this._currentTurn.value.sdkTurnIds.add(e.data.turnId);
 					this._hasFusionRootTurnBoundary = true;

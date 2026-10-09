@@ -849,6 +849,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			await this._applyScriptSafety(raw, plan.sessionId);
 			await sandboxConfig(raw);
 			runtime.setMcpServerDisplayNames(await this._reconcileCopilotConnectors(raw, plan));
+			await this._configureExecutionSubagentTool(raw, config);
 		} catch (err) {
 			// Nothing owns `raw` until it is wrapped below, so a fail-closed launch has
 			// to disconnect it here or the runtime keeps an orphaned session alive.
@@ -860,6 +861,18 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			await this._applyVerbosity(raw, 'medium', plan.sessionId);
 		}
 		return new CopilotSessionWrapper(raw, config.requestCanvasRenderer === true, { providers: config.providers, models: config.models }, this._logService);
+	}
+
+	private async _configureExecutionSubagentTool(session: CopilotSessionWrapper['session'], config: ResumeSessionConfig): Promise<void> {
+		if (!config.tools?.some(tool => tool.name === 'executionSubagent')) {
+			return;
+		}
+		// Resolve before handing the session to its first turn: runtime assignments
+		// and model availability, not the VS Code default, decide which tool wins.
+		const { tools } = await session.rpc.tools.getBuiltinDescriptors({});
+		if (tools.some(tool => tool.name === 'execution_subagent')) {
+			await session.setTools(config.tools.filter(tool => tool.name !== 'executionSubagent'));
+		}
 	}
 
 	private async _reconcileCopilotConnectors(session: CopilotSessionWrapper['session'], plan: CopilotSessionLaunchPlan): Promise<ReadonlyMap<string, string>> {

@@ -1681,6 +1681,106 @@ suite('CopilotSessionLauncher resume fallback', () => {
 	});
 });
 
+suite('CopilotSessionLauncher execution subagent', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function setup(kind: 'create' | 'resume', defaultEnabled: boolean, runtimeAvailable: boolean, hasClientTool = true, setToolsError?: Error) {
+		const toolUpdates: string[][] = [];
+		let descriptorRequests = 0;
+		let disconnects = 0;
+		const session = {
+			sessionId: 'execution-session',
+			on: () => () => { },
+			disconnect: async () => { disconnects++; },
+			setTools: async (tools: Parameters<CopilotSession['setTools']>[0]) => {
+				if (setToolsError) {
+					throw setToolsError;
+				}
+				toolUpdates.push(tools.map(tool => tool.name));
+			},
+			rpc: {
+				options: { update: async () => ({ success: true }) },
+				tools: {
+					getBuiltinDescriptors: async () => {
+						descriptorRequests++;
+						return { tools: runtimeAvailable ? [{ name: 'execution_subagent' }] : [] };
+					},
+				},
+			},
+		} as unknown as CopilotSession;
+		const launcher = createTestLauncher(undefined, {
+			[CopilotCliConfigKey.ExecutionSubagent]: defaultEnabled,
+			[CopilotCliConfigKey.ModelCapabilityOverrides]: {
+				'*': { availableTools: ['builtin:*', 'custom:*'], excludedTools: ['mcp:*'] },
+			},
+		});
+		const base = {
+			client: returningSession(session),
+			extensionSdkPath: '/copilot-sdk',
+			sessionId: session.sessionId,
+			workingDirectory: testWorkingDirectory,
+			resolvedAgentName: undefined,
+			snapshot: { tools: hasClientTool ? [{ name: 'executionSubagent' }, { name: 'clientRead' }] : [], plugins: [], mcpServers: {} },
+			activeClientToolSet: new ActiveClientToolSet(),
+			shellManager: undefined,
+			githubCredentials: CopilotGitHubSessionCredentials.fromToken('token'),
+		};
+		const plan: CopilotSessionLaunchPlan = kind === 'create'
+			? { ...base, kind, model: undefined }
+			: { ...base, kind, fallback: { model: undefined } };
+		const runtime: ICopilotSessionRuntime = {
+			...testRuntime,
+			createClientSdkTools: () => base.snapshot.tools.map(tool => ({
+				name: tool.name,
+				description: tool.name,
+				handler: () => 'done',
+			})),
+		};
+		return { launch: () => launcher.launch(plan, runtime), toolUpdates, descriptorRequests: () => descriptorRequests, disconnects: () => disconnects };
+	}
+
+	for (const kind of ['create', 'resume'] as const) {
+		for (const defaultEnabled of [false, true]) {
+			for (const runtimeAvailable of [false, true]) {
+				test(`${kind}: runtime execution availability=${runtimeAvailable} controls client tool suppression with VS Code default=${defaultEnabled}`, async () => {
+					const fixture = setup(kind, defaultEnabled, runtimeAvailable);
+					const launched = await fixture.launch();
+					try {
+						assert.deepStrictEqual({
+							descriptorRequests: fixture.descriptorRequests(),
+							toolUpdates: fixture.toolUpdates,
+						}, {
+							descriptorRequests: 1,
+							toolUpdates: runtimeAvailable ? [['clientRead']] : [],
+						});
+					} finally {
+						launched.dispose();
+					}
+				});
+			}
+		}
+	}
+
+	test('does not resolve the runtime tool catalog when the extension execution tool is absent', async () => {
+		const fixture = setup('create', true, true, false);
+		const launched = await fixture.launch();
+		try {
+			assert.deepStrictEqual({ descriptorRequests: fixture.descriptorRequests(), toolUpdates: fixture.toolUpdates }, {
+				descriptorRequests: 0, toolUpdates: [],
+			});
+		} finally {
+			launched.dispose();
+		}
+	});
+
+	test('disconnects and surfaces a failure to remove the competing extension execution tool', async () => {
+		const error = new Error('setTools failed');
+		const fixture = setup('resume', false, true, true, error);
+		await assert.rejects(fixture.launch(), failure => failure === error);
+		assert.strictEqual(fixture.disconnects(), 1);
+	});
+});
+
 suite('CopilotSessionLauncher verbosity', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();

@@ -5,17 +5,22 @@
 
 import { AiAgentEnvValue, AiAgentEnvVar } from '../../../chat/common/aiAgentEnv.js';
 import { isWindows } from '../../../../base/common/platform.js';
-import { DEFAULT_COPILOT_SKILL_CHAR_BUDGET } from '../../common/copilotCliConfig.js';
+import { DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL, DEFAULT_COPILOT_SKILL_CHAR_BUDGET } from '../../common/copilotCliConfig.js';
 
 const HYDRAFUSION_ENV_KEYS = new Set(['HYDRAFUSION', 'HYDRAFUSION_ROLLOUT', 'HYDRAFUSION_PLAN_V2']);
 const ENABLED_FEATURE_FLAGS_ENV_KEY = 'COPILOT_CLI_ENABLED_FEATURE_FLAGS';
+const EXECUTION_SUBAGENT_ENV_KEYS = new Set([
+	'COPILOT_EXP_COPILOT_CLI_EXECUTION_SUBAGENT',
+	'COPILOT_EXP_COPILOT_CLI_EXECUTION_SUBAGENT_MODEL',
+	'EXECUTION_SUBAGENT_MODEL',
+]);
 
-export function createCopilotCliEnvironment(environment: NodeJS.ProcessEnv = process.env, omittedKeys: readonly string[] = [], claudeAdvisorEnabled = false, skillCharBudget = DEFAULT_COPILOT_SKILL_CHAR_BUDGET): Record<string, string | undefined> {
+export function createCopilotCliEnvironment(environment: NodeJS.ProcessEnv = process.env, omittedKeys: readonly string[] = [], claudeAdvisorEnabled = false, skillCharBudget = DEFAULT_COPILOT_SKILL_CHAR_BUDGET, executionSubagent: { enabled: boolean; model: string } = { enabled: false, model: DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL }): Record<string, string | undefined> {
 	const normalizedOmittedKeys = new Set(omittedKeys.map(key => isWindows ? key.toLowerCase() : key));
 	const env: Record<string, string | undefined> = {};
 	for (const [key, value] of Object.entries(environment)) {
 		const normalizedKey = isWindows ? key.toUpperCase() : key;
-		if (!normalizedOmittedKeys.has(isWindows ? key.toLowerCase() : key) && !HYDRAFUSION_ENV_KEYS.has(normalizedKey)) {
+		if (!normalizedOmittedKeys.has(isWindows ? key.toLowerCase() : key) && !HYDRAFUSION_ENV_KEYS.has(normalizedKey) && !EXECUTION_SUBAGENT_ENV_KEYS.has(normalizedKey)) {
 			env[key] = value;
 		}
 	}
@@ -51,5 +56,10 @@ export function createCopilotCliEnvironment(environment: NodeJS.ProcessEnv = pro
 	env['AUTO_APPROVAL'] = 'true';
 	env['SKILL_CHAR_BUDGET'] = String(skillCharBudget);
 	env['ANTHROPIC_ADVISOR'] = String(claudeAdvisorEnabled);
+	// Supply VS Code's defaults through ExP, so runtime assignments can override
+	// either setting. Do not inherit the direct model override, which bypasses ExP.
+	env['COPILOT_EXP_COPILOT_CLI_EXECUTION_SUBAGENT'] = String(executionSubagent.enabled);
+	const executionSubagentModel = executionSubagent.model.trim();
+	env['COPILOT_EXP_COPILOT_CLI_EXECUTION_SUBAGENT_MODEL'] = executionSubagentModel || 'null';
 	return env;
 }

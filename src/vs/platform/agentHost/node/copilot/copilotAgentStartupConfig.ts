@@ -5,7 +5,7 @@
 
 import { equals } from '../../../../base/common/objects.js';
 import type { IAgentHostManagedSettingsPermissions } from '../../common/agentHostManagedSettings.js';
-import type { CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
+import { DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
 
 export class CopilotAgentStartupConfig {
 	constructor(
@@ -28,6 +28,8 @@ export class CopilotAgentStartupConfig {
 		readonly managedSettingsPermissions: IAgentHostManagedSettingsPermissions,
 		readonly localIndexEnabled: boolean,
 		readonly legacyApprovalRestricted = false,
+		readonly executionSubagent = false,
+		readonly executionSubagentModel = DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL,
 	) { }
 
 	equals(other: CopilotAgentStartupConfig): boolean {
