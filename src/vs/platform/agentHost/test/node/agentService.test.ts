@@ -10774,6 +10774,35 @@ suite('AgentService (node dispatcher)', () => {
 				}, { listed: [], provisional: [session.toString()] });
 			});
 
+			for (const provisional of [false, true]) {
+				test(`registry fallback is not backing confirmation (provisional: ${provisional})`, async () => {
+					let confirmed = false;
+					class RegistryFallbackAgent extends DeferredBackingAgent {
+						override readonly onDidDiscoverChats = Event.None;
+						override async listChatsToMigrate(): Promise<typeof AgentChatMigrationDeferred> {
+							return AgentChatMigrationDeferred;
+						}
+						override async getChatMetadata(chat: URI, _context: URI | IAgentChatContext, _providerData?: string, options?: IAgentChatMetadataOptions): Promise<IAgentChatMetadata | undefined> {
+							return confirmed
+								? { chat, startTime: 10, modifiedTime: 10, summary: 'Confirmed conversation' }
+								: options?.registryFallback ? { chat, ...options.registryFallback } : undefined;
+						}
+					}
+					const { orchestratorDatabase, session } = await seedCrashedProvisional(provisional, new CentralCatalogDatabase(), `registry-fallback-${provisional}`, false);
+					const svc = await createCrashedService(orchestratorDatabase, createSessionDataService(), disposables.add(new RegistryFallbackAgent('copilot')));
+					const before = await svc.listSessions();
+					confirmed = true;
+					const after = await svc.listSessions();
+					assert.deepStrictEqual({
+						before: before.map(metadata => metadata.session.toString()),
+						after: after.map(metadata => metadata.session.toString()),
+					}, {
+						before: provisional ? [] : [session.toString()],
+						after: [session.toString()],
+					});
+				});
+			}
+
 			test('keeps active provisional sessions in the live overlay when metadata cannot be confirmed', async () => {
 				const { orchestratorDatabase, session } = await seedCrashedProvisional(true);
 				const svc = await createCrashedService(orchestratorDatabase);

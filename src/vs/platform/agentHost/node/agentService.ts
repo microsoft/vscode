@@ -2072,11 +2072,11 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 			const agent = this._providerService.getProvider(entry.provider);
 			try {
-				if (!agent || !await this._registeredSessionMetadata(agent, entry.session, entry.external, entry)) {
+				if (!agent || !await this._registeredSessionMetadata(agent, entry.session, entry.external)) {
 					unmaterialized.add(key);
 				}
 			} catch (err) {
-				// An erroring provider is not evidence that the backing is missing.
+				// An erroring provider is not evidence that the backing is missing; hide the row until confirmation succeeds.
 				unmaterialized.add(key);
 				this._logService.warn(`[AgentService] listSessions: hiding unconfirmed provisional session ${key}`, err);
 			}
