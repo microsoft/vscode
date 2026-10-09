@@ -787,7 +787,8 @@ export class TabbedModelPicker extends Disposable {
 		const routingModel = isAutoModel(model) || isHydraFusionModel(model);
 		const modelBadge = getModelBadge(model, { providerLabel });
 		// A routing model's detail, e.g. Auto's discount, is its badge when nothing outranks it.
-		const routingBadge = !modelBadge && routingModel ? model.metadata.detail : undefined;
+		// Auto with its HydraFusion tier shows HydraFusion's instead.
+		const routingBadge = !modelBadge && routingModel ? (hydraFusionTier ?? model).metadata.detail : undefined;
 		const badgeClassName = modelBadge ? `chat-model-picker-badge-${modelBadge.tone}` : routingBadge ? 'chat-model-picker-badge-preview' : undefined;
 		const summary = hydraFusionTier?.metadata.name ?? getModelConfigSummary(model, context.configurationAccess);
 		const configDescription = hydraFusionTier
@@ -857,7 +858,8 @@ export class TabbedModelPicker extends Disposable {
 			speedVariants: this._speedVariants.get(model.identifier),
 			routingAlternative: hydraFusion ? {
 				model: hydraFusion,
-				description: localize('chat.modelPicker.hydraFusionTierDescription', "{0} is a research preview. It picks a workflow per task, using one or more models to draft, review, or escalate.", hydraFusion.metadata.name),
+				description: localize('chat.modelPicker.hydraFusionTierDescription', "{0} is a research preview.", hydraFusion.metadata.name),
+				tooltip: localize('chat.modelPicker.hydraFusionTierTooltip', "It picks a workflow per task, using one or more models to draft, review, or escalate."),
 				learnMoreUrl: HYDRA_FUSION_LEARN_MORE_URL,
 				selected: context.selectedModelId === hydraFusion.identifier,
 			} : undefined,
