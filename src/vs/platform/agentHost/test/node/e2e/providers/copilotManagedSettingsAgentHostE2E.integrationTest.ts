@@ -633,6 +633,7 @@ suite('Agent Host E2E — Copilot managed plugin lifecycle', function () {
 				throw new Error(managedPluginLifecycleUnavailable);
 			}
 			const failedProjection = managedPluginProjection(context.client, chat);
+			context.client.clearReceived();
 			const recovered = await driveTurnToCompletion(context.client, session, 'turn-retries', '/env', 2);
 			const recoveredProjection = managedPluginProjection(context.client, chat);
 
