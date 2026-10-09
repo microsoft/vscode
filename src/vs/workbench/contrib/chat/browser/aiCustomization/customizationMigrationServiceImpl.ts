@@ -91,12 +91,12 @@ export class CustomizationMigrationService extends Disposable implements ICustom
 		]);
 	}
 
-	async migrateMcpServers(sessionResource: URI, requestedCandidates: readonly IMcpServerCustomizationMigrationCandidate[]): Promise<IMcpServerCustomizationMigrationResult> {
+	async migrateMcpServers(sessionResource: URI, requestedCandidates: readonly IMcpServerCustomizationMigrationCandidate[], isContextCurrent?: () => boolean | Promise<boolean>): Promise<IMcpServerCustomizationMigrationResult> {
 		if (requestedCandidates.length === 0) {
 			return { migratedCount: 0, failures: [] };
 		}
 		const provider = this.customizationHarnessService.findHarnessById(getChatSessionType(sessionResource))?.mcpServerMigrationProvider;
-		return provider?.migrate(sessionResource, requestedCandidates) ?? {
+		return provider?.migrate(sessionResource, requestedCandidates, isContextCurrent) ?? {
 			migratedCount: 0,
 			failures: requestedCandidates.map(candidate => ({
 				storage: candidate.storage,

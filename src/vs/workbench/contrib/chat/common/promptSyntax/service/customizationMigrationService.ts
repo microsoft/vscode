@@ -207,7 +207,7 @@ export interface ICustomizationMigrationService {
 
 	computeMigration(sessionResource: URI, type: FileCustomizationMigrationType, token?: CancellationToken): Promise<FileCustomizationMigration>;
 	computeMigration(sessionResource: URI, type: CustomizationMigrationType.McpServers, token?: CancellationToken): Promise<McpServerCustomizationMigration>;
-	migrateMcpServers(sessionResource: URI, candidates: readonly IMcpServerCustomizationMigrationCandidate[]): Promise<IMcpServerCustomizationMigrationResult>;
+	migrateMcpServers(sessionResource: URI, candidates: readonly IMcpServerCustomizationMigrationCandidate[], isContextCurrent?: () => boolean | Promise<boolean>): Promise<IMcpServerCustomizationMigrationResult>;
 	computeMigrations(sessionResource: URI, token?: CancellationToken): Promise<CustomizationMigration[]>;
 	computeMigrationHint(sessionResource: URI, token?: CancellationToken): Promise<ICustomizationMigrationHint | undefined>;
 }
