@@ -1698,12 +1698,20 @@ suite('CopilotAgent', () => {
 				defaultChat: (await agent.getSessionStateFile(session))?.toString(),
 				explicitDefaultChat: (await agent.getSessionStateFile(session, URI.parse(buildDefaultChatUri(session))))?.toString(),
 				peerChat: (await agent.getSessionStateFile(session, peerChat))?.toString(),
+				defaultPlan: agent.getSessionPlanFile(session, URI.parse(buildDefaultChatUri(session)))?.toString(),
+				peerPlan: agent.getSessionPlanFile(session, peerChat)?.toString(),
+				unknownPeerPlan: agent.getSessionPlanFile(session, URI.parse(buildChatUri(session, 'unknown')))?.toString(),
 			}, {
 				beforeCreate: undefined,
 				defaultChat: 'file:///home/test/.copilot/session-state/sdk-conversation-id/events.jsonl',
 				explicitDefaultChat: 'file:///home/test/.copilot/session-state/sdk-conversation-id/events.jsonl',
 				peerChat: 'file:///home/test/.copilot/session-state/peer-sdk-conversation-id/events.jsonl',
+				defaultPlan: 'file:///home/test/.copilot/session-state/sdk-conversation-id/plan.md',
+				peerPlan: 'file:///home/test/.copilot/session-state/peer-sdk-conversation-id/plan.md',
+				unknownPeerPlan: undefined,
 			});
+			chatBackings(agent).set(peerChat.toString(), { sdkSessionId: '../unrelated-session' });
+			assert.strictEqual(agent.getSessionPlanFile(session, peerChat), undefined);
 		} finally {
 			await disposeAgent(agent);
 		}
