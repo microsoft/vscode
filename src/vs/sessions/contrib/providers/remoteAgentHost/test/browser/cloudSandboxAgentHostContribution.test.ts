@@ -23,19 +23,18 @@ import { IReplayedTaskHistory } from '../../../../../../platform/agentHost/commo
 import {
 	CLOUD_SANDBOX_AGENT_PROVIDER,
 	CloudSandboxEnabledSettingId,
+	CloudSandboxAutoConnectOnOpenSettingId,
 	ICloudSandboxAgentHostService,
 	ICloudSandboxApiService,
 	cloudSandboxAddress,
-	type CloudSandboxEnvironmentStatus,
 	type ICloudSandboxConnectOptions,
 	type ICloudSandboxCreateSessionRequest,
 	type ICloudSandboxCreatedSession,
 	type ICloudSandboxDiscoveredSession,
 	type ICloudSandboxDiscoveryResult,
-	type ICloudSandboxEnvironment as ICloudSandboxEnvironmentRecord,
 } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { SessionStatus } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { readSessionWorkspaceless, SessionStatus } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { RootStateSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { RootState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { constObservable, IObservable, observableValue, waitForState } from '../../../../../../base/common/observable.js';
@@ -44,7 +43,7 @@ import { ChatAIDisabledSettingId } from '../../../../../../platform/chat/common/
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
-import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { INotification, INotificationService, NoOpNotification } from '../../../../../../platform/notification/common/notification.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { TestWorkspaceTrustManagementService } from '../../../../../../workbench/test/common/workbenchTestServices.js';
@@ -240,8 +239,6 @@ interface ITestHarness {
 	/** Runs while a `connect` is in flight, for testing what can race with it. */
 	onConnect?: (options: ICloudSandboxConnectOptions, token: CancellationToken) => Promise<void>;
 	onDisconnect?: () => Promise<void>;
-	/** The state Mission Control reports for an environment. Defaults to `offline`. */
-	environmentStatus: CloudSandboxEnvironmentStatus;
 	/** Session types currently served from replayed history. */
 	readonly readOnlySessionTypes: string[];
 	readonly contentProviders: Map<string, IChatSessionContentProvider>;
@@ -252,6 +249,7 @@ interface ITestHarness {
 	readonly connectedTo: string[];
 	readonly disconnectedFrom: string[];
 	readonly historyRequests: string[];
+	readonly notifications: INotification[];
 	readonly deletedTasks: string[];
 	readonly renamedTasks: { taskId: string; title: string }[];
 	readonly archivedTasks: { taskId: string; archived: boolean }[];
@@ -272,12 +270,12 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 	/** Task Mission Control returns from `createSession`, or a rejection. */
 	readonly createSession?: () => Promise<ICloudSandboxCreatedSession>;
 	readonly listSessions?: (token: CancellationToken, options?: { readonly incremental?: boolean }) => Promise<ICloudSandboxDiscoveryResult>;
-	readonly getEnvironment?: (id: string, token: CancellationToken) => Promise<ICloudSandboxEnvironmentRecord>;
 	readonly deleteTask?: (taskId: string, token: CancellationToken) => Promise<void>;
 	readonly renameTask?: (taskId: string, title: string, token: CancellationToken) => Promise<void>;
 	readonly setTaskArchived?: (taskId: string, archived: boolean, token: CancellationToken) => Promise<void>;
 	/** Whether the sandbox feature settings start on. Defaults to `true`. */
 	readonly enabled?: boolean;
+	readonly autoConnectOnOpen?: boolean;
 	readonly aiDisabled?: boolean;
 	readonly chatHidden?: boolean;
 	readonly logService?: ILogService;
@@ -299,6 +297,7 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 	const connectedTo: string[] = [];
 	const disconnectedFrom: string[] = [];
 	const historyRequests: string[] = [];
+	const notifications: INotification[] = [];
 	const deletedTasks: string[] = [];
 	const renamedTasks: { taskId: string; title: string }[] = [];
 	const archivedTasks: { taskId: string; archived: boolean }[] = [];
@@ -316,7 +315,6 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 	const harness: ITestHarness = {
 		workspaceTrust,
 		discovered: sessions,
-		environmentStatus: 'offline',
 		readOnlySessionTypes,
 		contentProviders,
 		registerLiveProvider: (environmentId, provider) => {
@@ -328,6 +326,7 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 		connectedTo,
 		disconnectedFrom,
 		historyRequests,
+		notifications,
 		deletedTasks,
 		renamedTasks,
 		archivedTasks,
@@ -376,12 +375,6 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 				return options.listSessions(token, discoveryOptions);
 			}
 			return { kind: 'complete', sessions: harness.discovered };
-		}
-		override async getEnvironment(id: string, token: CancellationToken): Promise<ICloudSandboxEnvironmentRecord> {
-			if (options?.getEnvironment) {
-				return options.getEnvironment(id, token);
-			}
-			return { id, status: harness.environmentStatus };
 		}
 		override async getSessionHistory(taskId: string): Promise<IReplayedTaskHistory> {
 			historyRequests.push(taskId);
@@ -459,6 +452,7 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 	}());
 	const configurationService = new TestConfigurationService({
 		[CloudSandboxEnabledSettingId]: options?.enabled ?? true,
+		[CloudSandboxAutoConnectOnOpenSettingId]: options?.autoConnectOnOpen ?? true,
 		[RemoteAgentHostsEnabledSettingId]: options?.enabled ?? true,
 		[ChatAIDisabledSettingId]: options?.aiDisabled ?? false,
 	});
@@ -477,7 +471,12 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 			return { hidden: chatHidden || configurationService.getValue<boolean>(ChatAIDisabledSettingId) };
 		}
 	}());
-	instantiationService.stub(INotificationService, new class extends mock<INotificationService>() { }());
+	instantiationService.stub(INotificationService, new class extends mock<INotificationService>() {
+		override notify(notification: INotification) {
+			notifications.push(notification);
+			return new NoOpNotification();
+		}
+	}());
 	instantiationService.stub(IChatSessionsService, new class extends mock<IChatSessionsService>() {
 		override getContentProviderSchemes(): string[] { return [...readOnlySessionTypes]; }
 		override registerChatSessionContentProvider(sessionType: string, provider: IChatSessionContentProvider): IDisposable {
@@ -900,60 +899,128 @@ suite('CloudSandboxAgentHostContribution', () => {
 		});
 	});
 
-	test('serves a dormant environment from history instead of waking it to open a session', async () => {
-		// Resuming costs minutes and Mission Control cannot say in advance whether a dormant
-		// environment will come back, so opening a session must not gamble that on the user's
-		// behalf. The session still opens — from replayed history — and the connect is offered.
+	test('opens history immediately while waking the environment in the background', async () => {
 		const harness = await createContribution(store, [discoveredSession()]);
-		harness.environmentStatus = 'offline';
+		const wake = new DeferredPromise<void>();
+		harness.onConnect = () => wake.p;
 
 		const opened = await harness.activate('env-1');
+		const sessionType = harness.readOnlySessionTypes[0];
+		store.add(await harness.contentProviders.get(sessionType)!.provideChatSessionContent(URI.from({ scheme: sessionType, path: '/sess-1' }), CancellationToken.None));
+		const duringWake = {
+			opened,
+			connectedTo: [...harness.connectedTo],
+			historyRequests: [...harness.historyRequests],
+			servedFromHistory: harness.readOnlySessionTypes.length,
+			status: harness.contribution.stubProviders.get(cloudSandboxAddress('env-1'))?.connectionStatus.get().kind,
+		};
+		await wake.complete();
 
-		assert.deepStrictEqual({ opened, connectedTo: harness.connectedTo, servedFromHistory: harness.readOnlySessionTypes.length }, {
+		assert.deepStrictEqual(duringWake, {
 			opened: true,
-			connectedTo: [],
+			connectedTo: ['env-1'],
+			historyRequests: ['task-1'],
 			servedFromHistory: 1,
+			status: 'connecting',
 		});
 	});
 
-	test('connects when opening a session on an environment that is already online', async () => {
+	test('concurrent opens share the background wake and history provider', async () => {
 		const harness = await createContribution(store, [discoveredSession()]);
-		harness.environmentStatus = 'online';
+		const wake = new DeferredPromise<void>();
+		harness.onConnect = () => wake.p;
+		const opened = await Promise.all([harness.activate('env-1'), harness.activate('env-1')]);
+		await wake.complete();
 
-		await harness.activate('env-1');
-
-		assert.deepStrictEqual({ connectedTo: harness.connectedTo, servedFromHistory: harness.readOnlySessionTypes.length }, {
+		assert.deepStrictEqual({ opened, connectedTo: harness.connectedTo, servedFromHistory: harness.readOnlySessionTypes.length }, {
+			opened: [true, true],
 			connectedTo: ['env-1'],
 			servedFromHistory: 1,
 		});
 	});
 
-	test('renders history before availability resolves and promotes without replacing its provider or session', async () => {
-		const environment = new DeferredPromise<ICloudSandboxEnvironmentRecord>();
-		const harness = await createContribution(store, [discoveredSession()], {
-			getEnvironment: () => environment.p,
+	for (const hasHistory of [false, true]) {
+		test(`does not wake on open when auto-connect is disabled (${hasHistory ? 'with' : 'without'} history)`, async () => {
+			const harness = await createContribution(store, [discoveredSession({ taskId: hasHistory ? 'task-1' : undefined })], { autoConnectOnOpen: false });
+
+			const opened = await harness.activate('env-1');
+
+			assert.deepStrictEqual({
+				opened,
+				connectedTo: harness.connectedTo,
+				historyRequests: harness.historyRequests,
+				servedFromHistory: harness.readOnlySessionTypes.length,
+			}, {
+				opened: hasHistory,
+				connectedTo: [],
+				historyRequests: [],
+				servedFromHistory: hasHistory ? 1 : 0,
+			});
 		});
+	}
+
+	test('renders history during automatic resume and promotes without replacing its provider or session', async () => {
+		const wake = new DeferredPromise<void>();
+		const harness = await createContribution(store, [discoveredSession()]);
+		harness.onConnect = () => wake.p;
 		const activated = await harness.activate('env-1');
 		const sessionType = harness.readOnlySessionTypes[0];
 		const provider = harness.contentProviders.get(sessionType)!;
 		const resource = URI.from({ scheme: sessionType, path: '/sess-1' });
 		const session = store.add(await provider.provideChatSessionContent(resource, CancellationToken.None));
-		const before = { readOnly: session.isReadOnly?.get(), connected: [...harness.connectedTo] };
+		const before = { readOnly: session.isReadOnly?.get(), connected: [...harness.connectedTo], status: session.historyStatus?.get() };
 		const live = store.add(new ReadOnlyChatSession(resource, [{
 			id: 'turn', type: 'request', prompt: 'Live history', participant: sessionType,
 		}], 'Live title', constObservable(false)));
 		store.add(harness.registerLiveProvider('env-1', { provideChatSessionContent: async () => live })!);
-		await environment.complete({ id: 'env-1', status: 'online' });
-		await timeout(0);
+		await wake.complete();
+		await waitForState(session.isReadOnly!, value => !value);
 
 		assert.deepStrictEqual({
 			activated, before, sameProvider: harness.contentProviders.get(sessionType) === provider,
 			sameSession: await provider.provideChatSessionContent(resource, CancellationToken.None) === session,
 			readOnly: session.isReadOnly?.get(), history: session.history, historyRequests: harness.historyRequests,
 		}, {
-			activated: true, before: { readOnly: true, connected: [] }, sameProvider: true,
+			activated: true, before: { readOnly: true, connected: ['env-1'], status: undefined }, sameProvider: true,
 			sameSession: true, readOnly: false, history: live.history, historyRequests: ['task-1'],
 		});
+	});
+
+	test('honors enabling auto-connect for the next open without restarting the provider', async () => {
+		const harness = await createContribution(store, [discoveredSession()], { autoConnectOnOpen: false });
+		const provider = harness.contribution.stubProviders.get(cloudSandboxAddress('env-1'));
+		await harness.activate('env-1');
+		const before = [...harness.connectedTo];
+		await harness.configurationService.setUserConfiguration(CloudSandboxAutoConnectOnOpenSettingId, true);
+		const wake = new DeferredPromise<void>();
+		harness.onConnect = () => wake.p;
+
+		const opened = await harness.activate('env-1');
+		await wake.complete();
+
+		assert.deepStrictEqual({
+			before,
+			opened,
+			connectedTo: harness.connectedTo,
+			sameProvider: harness.contribution.stubProviders.get(cloudSandboxAddress('env-1')) === provider,
+		}, { before: [], opened: true, connectedTo: ['env-1'], sameProvider: true });
+	});
+
+	test('keeps an explicit connection available with auto-connect disabled', async () => {
+		const harness = await createContribution(store, [discoveredSession()], { autoConnectOnOpen: false });
+		const wake = new DeferredPromise<void>();
+		harness.onConnect = () => wake.p;
+		await harness.activate('env-1');
+		const connection = harness.contribution.connect({ environmentId: 'env-1', sessionId: 'sess-1', name: 'Sandbox' });
+		const opened = await harness.activate('env-1');
+		await wake.complete();
+		await connection;
+
+		assert.deepStrictEqual({
+			opened,
+			connectedTo: harness.connectedTo,
+			servedFromHistory: harness.readOnlySessionTypes.length,
+		}, { opened: true, connectedTo: ['env-1'], servedFromHistory: 1 });
 	});
 
 	for (const fails of [false, true]) {
@@ -963,9 +1030,7 @@ suite('CloudSandboxAgentHostContribution', () => {
 			harness.onConnect = () => wake.p;
 			const connection = harness.contribution.connect({ environmentId: 'env-1', sessionId: 'sess-1', name: 'Sandbox' });
 			const connectionResult = connection.then(() => 'connected', () => 'failed');
-			let opened: boolean | undefined;
-			const activation = harness.activate('env-1').then(result => { opened = result; });
-			await timeout(0);
+			const opened = await harness.activate('env-1');
 
 			const duringWake = { opened, historyRequests: [...harness.historyRequests], servedFromHistory: harness.readOnlySessionTypes.length };
 			if (fails) {
@@ -973,7 +1038,6 @@ suite('CloudSandboxAgentHostContribution', () => {
 			} else {
 				await wake.complete();
 			}
-			await activation;
 
 			assert.deepStrictEqual({
 				duringWake,
@@ -991,145 +1055,73 @@ suite('CloudSandboxAgentHostContribution', () => {
 		});
 	}
 
-	test('joins a sandbox wake that starts during the environment lookup', async () => {
-		const environment = new DeferredPromise<ICloudSandboxEnvironmentRecord>();
-		const requested = new DeferredPromise<void>();
-		const wake = new DeferredPromise<void>();
-		const harness = await createContribution(store, [discoveredSession()], {
-			getEnvironment: () => {
-				requested.complete();
-				return environment.p;
-			},
-		});
-		let opened: boolean | undefined;
-		const activation = harness.activate('env-1').then(result => { opened = result; });
-		await requested.p;
-		harness.onConnect = () => wake.p;
-		const connection = harness.contribution.connect({ environmentId: 'env-1', sessionId: 'sess-1', name: 'Sandbox' });
-		await environment.complete({ id: 'env-1', status: 'offline' });
-		await timeout(0);
-
-		const duringWake = { opened, historyRequests: [...harness.historyRequests], servedFromHistory: harness.readOnlySessionTypes.length };
-		await wake.complete();
-		await Promise.all([connection, activation]);
-
-		assert.deepStrictEqual({
-			duringWake,
-			connectedTo: harness.connectedTo,
-			historyRequests: harness.historyRequests,
-			servedFromHistory: harness.readOnlySessionTypes.length,
-		}, {
-			duringWake: { opened: true, historyRequests: [], servedFromHistory: 1 },
-			connectedTo: ['env-1'],
-			historyRequests: [],
-			servedFromHistory: 1,
-		});
-	});
-
-	test('does not wake an environment whose state could not be read', async () => {
-		const harness = await createContribution(store, [discoveredSession()], {
-			getEnvironment: async () => { throw new Error('Expected environment lookup failure'); },
-		});
-
-		const opened = await harness.activate('env-1');
-
-		assert.deepStrictEqual({
-			opened,
-			connectedTo: harness.connectedTo,
-			historyRequests: harness.historyRequests,
-			servedFromHistory: harness.readOnlySessionTypes.length,
-		}, { opened: true, connectedTo: [], historyRequests: [], servedFromHistory: 1 });
-	});
-
 	for (const reenable of [false, true]) {
-		test(`abandons a cancelled environment lookup when the feature is ${reenable ? 're-enabled' : 'disabled'}`, async () => {
-			const environment = new DeferredPromise<ICloudSandboxEnvironmentRecord>();
-			const requestedToken = new DeferredPromise<CancellationToken>();
-			const harness = await createContribution(store, [discoveredSession()], {
-				getEnvironment: (_id, token) => {
-					void requestedToken.complete(token);
-					return environment.p;
-				},
-			});
-			const activation = harness.activate('env-1');
-			const token = await requestedToken.p;
+		test(`cancels background waking and clears history when the feature is ${reenable ? 're-enabled' : 'disabled'}`, async () => {
+			const wake = new DeferredPromise<void>();
+			const harness = await createContribution(store, [discoveredSession()]);
+			let connectToken = CancellationToken.None;
+			harness.onConnect = (_options, token) => {
+				connectToken = token;
+				return wake.p;
+			};
+			const opened = await harness.activate('env-1');
 
 			await harness.setEnabled(false);
 			if (reenable) {
 				await harness.setEnabled(true);
 				await harness.runDiscovery();
 			}
-			await environment.error(new CancellationError());
+			await wake.error(new CancellationError());
+			await timeout(0);
 
 			assert.deepStrictEqual({
-				opened: await activation,
-				cancelled: token.isCancellationRequested,
+				opened,
+				cancelled: connectToken.isCancellationRequested,
 				connectedTo: harness.connectedTo,
 				historyRequests: harness.historyRequests,
 				readOnlySessionTypes: harness.readOnlySessionTypes,
-			}, { opened: true, cancelled: true, connectedTo: [], historyRequests: [], readOnlySessionTypes: [] });
+			}, { opened: true, cancelled: true, connectedTo: ['env-1'], historyRequests: [], readOnlySessionTypes: [] });
 		});
 	}
 
-	for (const status of ['online', 'offline'] as const) {
-		test(`does not reactivate a removed environment after a late ${status} record`, async () => {
-			const environment = new DeferredPromise<ICloudSandboxEnvironmentRecord>();
-			const harness = await createContribution(store, [discoveredSession()], {
-				getEnvironment: () => environment.p,
-			});
-			const activation = harness.activate('env-1');
-			harness.discovered = [];
-			await harness.runDiscovery();
-			await environment.complete({ id: 'env-1', status });
-
-			assert.deepStrictEqual({
-				opened: await activation,
-				connectedTo: harness.connectedTo,
-				historyRequests: harness.historyRequests,
-				readOnlySessionTypes: harness.readOnlySessionTypes,
-			}, { opened: true, connectedTo: [], historyRequests: [], readOnlySessionTypes: [] });
-		});
-	}
-
-	test('does not register old history against a replacement provider at the same address', async () => {
-		const environment = new DeferredPromise<ICloudSandboxEnvironmentRecord>();
-		const harness = await createContribution(store, [discoveredSession()], {
-			getEnvironment: () => environment.p,
-		});
-		const activation = harness.activate('env-1');
+	test('does not restore old history after a removed environment is replaced during background waking', async () => {
+		const wake = new DeferredPromise<void>();
+		const harness = await createContribution(store, [discoveredSession()]);
+		harness.onConnect = () => wake.p;
+		const opened = await harness.activate('env-1');
 		harness.discovered = [];
 		await harness.runDiscovery();
 		harness.discovered = [discoveredSession({ taskId: 'task-2' })];
 		await harness.runDiscovery();
-		await environment.complete({ id: 'env-1', status: 'offline' });
+		await wake.error(new Error('Old connection failed'));
+		await timeout(0);
 
 		assert.deepStrictEqual({
-			opened: await activation,
+			opened,
 			historyRequests: harness.historyRequests,
 			readOnlySessionTypes: harness.readOnlySessionTypes,
 		}, { opened: true, historyRequests: [], readOnlySessionTypes: [] });
 	});
 
-	test('keeps activation valid across a discovery refresh of the same provider', async () => {
-		const environment = new DeferredPromise<ICloudSandboxEnvironmentRecord>();
-		const harness = await createContribution(store, [discoveredSession()], {
-			getEnvironment: () => environment.p,
-		});
-		const activation = harness.activate('env-1');
+	test('keeps history available across a discovery refresh during background waking', async () => {
+		const wake = new DeferredPromise<void>();
+		const harness = await createContribution(store, [discoveredSession()]);
+		harness.onConnect = () => wake.p;
+		const opened = await harness.activate('env-1');
 		await harness.runDiscovery();
-		await environment.complete({ id: 'env-1', status: 'offline' });
+		await wake.complete();
 
 		assert.deepStrictEqual({
-			opened: await activation,
+			opened,
 			connectedTo: harness.connectedTo,
 			historyRequests: harness.historyRequests,
-		}, { opened: true, connectedTo: [], historyRequests: [] });
+			servedFromHistory: harness.readOnlySessionTypes.length,
+		}, { opened: true, connectedTo: ['env-1'], historyRequests: [], servedFromHistory: 1 });
 	});
 
 	test('does not restore history after an old connect fails across disable and re-enable', async () => {
 		const harness = await createContribution(store, [discoveredSession()]);
 		const settled = new DeferredPromise<void>();
-		harness.environmentStatus = 'online';
 		harness.onConnect = async () => {
 			await harness.setEnabled(false);
 			await harness.setEnabled(true);
@@ -1152,7 +1144,6 @@ suite('CloudSandboxAgentHostContribution', () => {
 		// the session unopenable rather than merely offline. The harness models no live protocol
 		// client, so the dial itself is what this asserts.
 		const harness = await createContribution(store, [discoveredSession({ taskId: undefined })]);
-		harness.environmentStatus = 'offline';
 
 		await harness.activate('env-1');
 
@@ -1167,14 +1158,38 @@ suite('CloudSandboxAgentHostContribution', () => {
 		// connections-changed event follows. Left alone the provider would sit at `connecting`
 		// forever: a permanent spinner, a permanently hidden composer, and no way to retry.
 		const harness = await createContribution(store, [discoveredSession()]);
-		harness.environmentStatus = 'online';
 		harness.onConnect = () => Promise.reject(new Error('Timed out waiting for sandbox environment to wake.'));
 
 		await harness.activate('env-1');
+		await timeout(0);
 
 		const provider = harness.contribution.stubProviders.get(cloudSandboxAddress('env-1'))!;
 		await waitForState(provider.connectionStatus, status => status.kind === 'disconnected' && provider.statuses.length >= 2);
 		assert.deepStrictEqual(provider.statuses, ['connecting', 'disconnected']);
+	});
+
+	test('logs a background incompatibility without showing a notification', async () => {
+		const logService = new TestLogService();
+		const harness = await createContribution(store, [discoveredSession()], { logService });
+		const wake = new DeferredPromise<void>();
+		const provider = harness.contribution.stubProviders.get(cloudSandboxAddress('env-1'))!;
+		harness.onConnect = async () => {
+			await wake.p;
+			provider.setConnectionStatus(RemoteAgentHostConnectionStatus.incompatible('Unsupported protocol', []));
+			throw new Error('Unsupported protocol');
+		};
+
+		const opened = await harness.activate('env-1');
+		await wake.complete();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			opened,
+			status: provider.connectionStatus.get().kind,
+			notifications: harness.notifications.length,
+			servedFromHistory: harness.readOnlySessionTypes.length,
+			logged: logService.warnings.some(message => String(message).includes('Unsupported protocol')),
+		}, { opened: true, status: 'incompatible', notifications: 0, servedFromHistory: 1, logged: true });
 	});
 
 	test('provider disconnect uses sandbox cleanup and retains the discovered provider', async () => {
@@ -1900,6 +1915,32 @@ suite('CloudSandboxAgentHostContribution provisioning', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('passes task creation start to the first connection but not to subsequent resumes', () => runWithFakedTimers({}, async () => {
+		const harness = await createContribution(store, [], {
+			createSession: async () => {
+				await timeout(200);
+				return { taskId: 'task-new', sessionId: 'sess-new', environmentId: 'env-new' };
+			},
+		});
+		const connectionTimings: { source: ICloudSandboxConnectOptions['connectionSource']; provisioningElapsed: number | undefined }[] = [];
+		harness.onConnect = async options => {
+			connectionTimings.push({
+				source: options.connectionSource,
+				provisioningElapsed: options.provisioningStartedAt === undefined ? undefined : Date.now() - options.provisioningStartedAt,
+			});
+			await timeout(50);
+		};
+		await timeout(1000);
+		await harness.contribution.provisionSession({ prompt: 'hello' }, CancellationToken.None);
+		await timeout(1000);
+		await harness.contribution.connect({ environmentId: 'env-new', name: 'Sandbox' });
+		harness.contribution.dispose();
+		assert.deepStrictEqual(connectionTimings, [
+			{ source: 'created', provisioningElapsed: 200 },
+			{ source: undefined, provisioningElapsed: undefined },
+		]);
+	}));
+
 	test('creates the task, seeds it like a discovered one, and connects to the bound environment', async () => {
 		const harness = await createContribution(store, []);
 		let connectionSource: ICloudSandboxConnectOptions['connectionSource'];
@@ -1925,6 +1966,26 @@ suite('CloudSandboxAgentHostContribution provisioning', () => {
 			connectionSource: 'created',
 			resolvedSession: '/sess-new',
 			progress: ['Setting up cloud container', 'Connecting to cloud container'],
+		});
+	});
+
+	test('provisions a repo-less sandbox with workspace-less session metadata', async () => {
+		const harness = await createContribution(store, []);
+
+		const provisioned = await harness.contribution.provisionSession({ prompt: 'hello' }, CancellationToken.None);
+
+		const provider = harness.contribution.stubProviders.get(cloudSandboxAddress(provisioned.environmentId));
+		assert.deepStrictEqual({
+			seeded: provider?.seeded.map(meta => ({
+				session: meta.session.toString(),
+				workspaceless: readSessionWorkspaceless(meta._meta),
+				project: meta.project,
+				workingDirectories: meta.workingDirectories,
+			})),
+			connectedTo: harness.connectedTo,
+		}, {
+			seeded: [{ session: 'ahp-session:/sess-new', workspaceless: true, project: undefined, workingDirectories: undefined }],
+			connectedTo: ['env-new'],
 		});
 	});
 

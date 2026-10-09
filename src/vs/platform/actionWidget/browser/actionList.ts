@@ -8,6 +8,7 @@ import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { renderMarkdown } from '../../../base/browser/markdownRenderer.js';
 import { EventType as TouchEventType } from '../../../base/browser/touch.js';
 import { ActionBar } from '../../../base/browser/ui/actionbar/actionbar.js';
+import { ActionViewItem } from '../../../base/browser/ui/actionbar/actionViewItems.js';
 import { getAnchorRect, IAnchor, IContextViewCloseAnimation } from '../../../base/browser/ui/contextview/contextview.js';
 import { KeybindingLabel } from '../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { IHoverAction } from '../../../base/browser/ui/hover/hover.js';
@@ -161,6 +162,11 @@ export interface IActionListItem<T> {
 	 */
 	readonly ariaDescription?: string;
 	/**
+	 * Announces that the row opens a dialog, e.g. from a key its owner handles. Rows
+	 * with an expandable hover or submenu announce their popup without this.
+	 */
+	readonly opensDialog?: boolean;
+	/**
 	 * Optional hover configuration shown when focusing/hovering over the item.
 	 */
 	readonly hover?: IActionListItemHover;
@@ -193,6 +199,8 @@ export interface IActionListItem<T> {
 	readonly toolbarActions?: IAction[];
 	/** Show toolbar action labels instead of icons. */
 	readonly toolbarLabels?: boolean;
+	/** IDs of {@link toolbarActions} that open a dialog, so screen readers announce the popup. */
+	readonly toolbarDialogActionIds?: readonly string[];
 	/**
 	 * Optional section identifier. Items with the same section belong to the same
 	 * collapsible group. Only meaningful when the ActionList is created with
@@ -212,6 +220,8 @@ export interface IActionListItem<T> {
 	 * Optional badge text to display after the label (e.g., "New").
 	 */
 	readonly badge?: string;
+	/** Displays the badge before the label instead of after it. */
+	readonly badgeBeforeLabel?: boolean;
 	/** Badges displayed alongside {@link badge}, each with an optional single CSS class and hover. */
 	readonly additionalBadges?: readonly {
 		readonly label: string;
@@ -343,6 +353,14 @@ function hasSubmenuIndicator<T>(item: IActionListItem<T>): boolean {
 	return hasExpandablePanel(item) && item.hover?.showIndicator !== false;
 }
 
+/** A row toolbar action that opens a dialog. */
+class DialogActionViewItem extends ActionViewItem {
+	override render(container: HTMLElement): void {
+		super.render(container);
+		this.label?.setAttribute('aria-haspopup', 'dialog');
+	}
+}
+
 class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IActionMenuTemplateData> {
 
 	get templateId(): string { return ActionListItemKind.Action; }
@@ -455,6 +473,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		data.previousClassNames = classNames;
 
 		data.text.textContent = stripNewlines(element.label);
+		data.container.insertBefore(data.badge, element.badgeBeforeLabel ? data.text : data.text.nextSibling);
 
 		// Render optional badge
 		if (element.badge) {
@@ -600,7 +619,10 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		}
 		data.container.classList.toggle('has-toolbar', toolbarActions.length > 0);
 		if (toolbarActions.length > 0) {
-			const actionBar = new ActionBar(data.toolbar);
+			const dialogActionIds = element.toolbarDialogActionIds;
+			const actionBar = new ActionBar(data.toolbar, dialogActionIds?.length ? {
+				actionViewItemProvider: (action, options) => dialogActionIds.includes(action.id) ? new DialogActionViewItem(undefined, action, options) : undefined,
+			} : undefined);
 			data.elementDisposables.add(actionBar);
 			if (this._stopToolbarPointerPropagation) {
 				data.elementDisposables.add(dom.addDisposableGenericMouseDownListener(data.toolbar, e => {
@@ -639,7 +661,11 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 			data.container.setAttribute('aria-haspopup', element.hover?.expandable ? 'dialog' : 'menu');
 			data.container.setAttribute('aria-expanded', 'false');
 		} else {
-			data.container.removeAttribute('aria-haspopup');
+			if (element.opensDialog) {
+				data.container.setAttribute('aria-haspopup', 'dialog');
+			} else {
+				data.container.removeAttribute('aria-haspopup');
+			}
 			if (!element.isSectionToggle) {
 				data.container.removeAttribute('aria-expanded');
 			}
@@ -1078,7 +1104,9 @@ export class ActionListWidget<T> extends Disposable {
 					if (element.kind === ActionListItemKind.Action) {
 						let label = element.label ? stripNewlines(element?.label) : '';
 						if (element.badge) {
-							label = label + ', ' + stripNewlines(element.badge);
+							label = element.badgeBeforeLabel
+								? stripNewlines(element.badge) + ', ' + label
+								: label + ', ' + stripNewlines(element.badge);
 						}
 						for (const badge of element.additionalBadges ?? []) {
 							label = label + ', ' + stripNewlines(badge.label);
@@ -1396,7 +1424,7 @@ export class ActionListWidget<T> extends Disposable {
 
 		// ArrowRight opens submenu for the focused item and moves focus into it
 		this._register(dom.addDisposableListener(this.domNode, 'keydown', (e: KeyboardEvent) => {
-			if (e.key === 'ArrowRight' && !e.isComposing) {
+			if (e.key === 'ArrowRight' && !e.isComposing && !e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
 				const focused = this._list.getFocus();
 				if (focused.length > 0) {
 					const element = this._list.element(focused[0]);

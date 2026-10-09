@@ -6,15 +6,12 @@
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Limiter } from '../../../base/common/async.js';
 import { URI } from '../../../base/common/uri.js';
-import { basename } from '../../../base/common/path.js';
-import { isUUID } from '../../../base/common/uuid.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
-import { AgentSession, COPILOT_CLI_AGENT_PROVIDER_ID } from '../common/agent.js';
 import type { AgentHostCatalogDatabaseReference } from './agentHostCatalogSyncService.js';
 import { ChatInteractivity, ChatOrigin } from '../common/state/protocol/state.js';
-import { AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, buildChatUri, isDefaultChatUri, parseRequiredSessionUriFromChatUri } from '../common/state/sessionState.js';
+import { AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, isDefaultChatUri, parseRequiredSessionUriFromChatUri } from '../common/state/sessionState.js';
 import { fromCatalogChatOrigin, toCatalogSummary, toSerializableJsonValue } from './agentHostCatalogSourceResolver.js';
 import { AGENT_HOST_CATALOG_CHILD_LIMIT, agentHostCatalogChangesValidator } from './agentHostCatalogProjection.js';
 import { IAgentHostDatabase, type IAgentHostDatabaseCatalogSnapshotEntry, type IAgentHostDatabaseChatV2, type IAgentHostDatabaseChatV2Patch, type IAgentHostDatabaseChatV2NormalizationChat, type IAgentHostDatabaseChatV2NormalizationCandidate, type IAgentHostDatabaseChatV2Mutation } from './agentHostDatabase.js';
@@ -112,9 +109,12 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		return tracked;
 	}
 
-	persistPrivateChat(session: URI, chat: IAgentHostDatabaseChatV2NormalizationChat, restore = false): Promise<void> {
+	persistPrivateChat(session: URI, chat: IAgentHostDatabaseChatV2NormalizationChat, restore = false, validate?: () => boolean): Promise<void> {
 		return this._enqueue(session, async () => {
 			while (true) {
+				if (validate && !validate()) {
+					return;
+				}
 				const [snapshot] = await this._database.readCatalogSnapshot([session.toString()]);
 				if (snapshot?.authorityVersion !== 2) {
 					return;
@@ -160,8 +160,11 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 						...(chat.origin !== undefined ? { origin: chat.origin } : {}),
 						...(chat.workingDirectories !== undefined ? { workingDirectories: chat.workingDirectories } : {}),
 						metadata: { ...existing.metadata, ...metadata, interactivity: ChatInteractivity.Hidden },
-					})
-					: await this._database.insertPrivateChatV2(session.toString(), { ...chat, metadata }, snapshot.header.revision);
+					}, validate)
+					: await this._database.insertPrivateChatV2(session.toString(), { ...chat, metadata }, snapshot.header.revision, validate);
+				if (result.status === 'cancelled') {
+					return;
+				}
 				if (result.status === 'conflict') {
 					const [current] = await this._database.readCatalogSnapshot([session.toString()]);
 					if (current?.header?.revision === snapshot.header.revision) {
@@ -363,179 +366,6 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 
 	async tryRead(session: URI, repairLegacyMirror = true): Promise<IPersistedPeerChat[] | undefined> {
 		return this._readCentral(session, repairLegacyMirror);
-	}
-
-	/** Checks the durable completion marker without discovering or restoring any chats. */
-	async hasCompletedChatSelectionRecovery(session: URI): Promise<boolean> {
-		if ((await this._database.readCatalogSnapshot([session.toString()]))[0]?.authorityVersion === 2) {
-			return true;
-		}
-		const database = await this._sessionDataService.tryOpenDatabase(session);
-		if (!database) {
-			return false;
-		}
-		try {
-			const raw = await database.object.getMetadata('agentHost.peerChatRecovery339409');
-			return raw !== undefined && this._parseRecoveryBackup(raw).completed === true;
-		} finally {
-			database.dispose();
-		}
-	}
-
-	/** Recovers legacy peer membership only when a restored chat-selection phantom is independently verified. */
-	async recoverChatSelectionCorruption(session: URI, phantomChatIds: readonly string[]): Promise<{ readonly entries: readonly IPersistedPeerChat[]; readonly verifiedPhantomChatIds: readonly string[] } | undefined> {
-		if ((await this._database.readCatalogSnapshot([session.toString()]))[0]?.authorityVersion === 2) {
-			return undefined;
-		}
-		if (AgentSession.provider(session) !== COPILOT_CLI_AGENT_PROVIDER_ID || session.authority || session.query || session.fragment || !isUUID(session.path.slice(1)) || !this._sessionDataService.listSessionDataIds) {
-			return undefined;
-		}
-		const dataIds = await this._sessionDataService.listSessionDataIds('');
-		let recovered: { readonly entries: readonly IPersistedPeerChat[]; readonly verifiedPhantomChatIds: readonly string[] } | undefined;
-		await this._enqueue(session, async () => {
-			const parent = await this._sessionDataService.tryOpenDatabase(session);
-			if (!parent) {
-				return;
-			}
-			try {
-				const catalog = await this._database.getSessionChatCatalog(session.toString());
-				if (!catalog) {
-					return;
-				}
-				const backupKey = 'agentHost.peerChatRecovery339409';
-				const rawBackup = await parent.object.getMetadata(backupKey);
-				const backup = rawBackup === undefined ? undefined : this._parseRecoveryBackup(rawBackup);
-				const legacy = await parent.object.getMetadata(PEER_CHATS_METADATA_KEY);
-				const shouldRecover = !backup?.completed && (backup !== undefined || legacy?.trim() === '[]');
-				const sample = URI.parse(buildChatUri(session, 'recovery'));
-				const suffix = basename(this._sessionDataService.getSessionDataDir(sample).path).slice('recovery'.length);
-				const eligible: IPersistedPeerChat[] = [];
-				const verifiedPhantomChatIds: string[] = [];
-				const selectedIds = new Set(phantomChatIds.filter(isUUID));
-				const titleSources = new Set(['user', 'auto', 'agent']);
-				for (const id of [...dataIds].sort()) {
-					if (!id.endsWith(suffix)) {
-						continue;
-					}
-					const chatId = id.slice(0, -suffix.length);
-					const selected = selectedIds.has(chatId);
-					if (!isUUID(chatId) || (!shouldRecover && !selected)) {
-						continue;
-					}
-					const chat = URI.parse(buildChatUri(session, chatId));
-					const uri = chat.toString();
-					if (this._sessionDataService.getSessionDataDir(chat).path !== this._sessionDataService.getSessionDataDirById(id).path) {
-						continue;
-					}
-					const metadata = await parent.object.getMetadataObject({
-						[customChatTitleMetadataKey(uri)]: true,
-						[customChatTitleSourceMetadataKey(uri)]: true,
-					});
-					const deleted = metadata[customChatTitleMetadataKey(uri)] === '' && metadata[customChatTitleSourceMetadataKey(uri)] === '';
-					const remembered = metadata[customChatTitleMetadataKey(uri)] && titleSources.has(metadata[customChatTitleSourceMetadataKey(uri)] ?? '');
-					if (!selected && (!remembered || deleted || (backup && !backup.recovered.includes(uri)))) {
-						continue;
-					}
-					const backing = await this._sessionDataService.tryOpenDatabase(chat);
-					if (!backing) {
-						continue;
-					}
-					try {
-						if (!await backing.object.getMetadata(CHAT_PROVIDER_DATA_METADATA_KEY)) {
-							continue;
-						}
-					} finally {
-						backing.dispose();
-					}
-					if (selected) {
-						verifiedPhantomChatIds.push(chatId);
-					}
-					if (shouldRecover && !deleted && (!backup || backup.recovered.includes(uri))) {
-						eligible.push(await this._readChatMetadata({ uri }));
-					}
-				}
-				if (verifiedPhantomChatIds.length === 0) {
-					return;
-				}
-				const current = this._entriesFromCatalog(catalog.chats);
-				if (!shouldRecover) {
-					recovered = { entries: await this._readWorkingDirectories(current), verifiedPhantomChatIds };
-					return;
-				}
-				const currentCatalog = await this._database.getSessionChatCatalog(session.toString());
-				if (!currentCatalog) {
-					return;
-				}
-				const recoveryRevision = backup?.revision ?? catalog.revision;
-				const missing = eligible.filter(candidate => !current.some(entry => entry.uri === candidate.uri));
-				const entries = [...current, ...missing];
-				if (!backup) {
-					await parent.object.setMetadata(backupKey, JSON.stringify({
-						entries: current,
-						legacy,
-						recovered: eligible.map(entry => entry.uri),
-						revision: recoveryRevision,
-					}));
-				}
-				if (missing.length > 0 && currentCatalog.revision === recoveryRevision) {
-					const result = await this._database.recoverSessionChatCatalog(session.toString(), this._catalogRows(entries), recoveryRevision);
-					if (result.status === 'conflict') {
-						this._logService.warn(`[AgentHostPeerChatStore] Catalogue changed during recovery; preserving current membership for ${session.toString()}`);
-					} else if (result.status !== 'applied') {
-						return;
-					}
-				} else if (missing.length > 0 && currentCatalog.revision !== recoveryRevision) {
-					this._logService.warn(`[AgentHostPeerChatStore] Catalogue changed since recovery was prepared; preserving current membership for ${session.toString()}`);
-				}
-				while (true) {
-					const latest = await this._database.getSessionChatCatalog(session.toString());
-					if (!latest) {
-						return;
-					}
-					const entries = await this._readWorkingDirectories(this._entriesFromCatalog(latest.chats));
-					if (!await this._writeLegacyMirror(session, entries, latest.revision, parent)) {
-						continue;
-					}
-					const saved = await parent.object.getMetadata(backupKey);
-					if (saved === undefined) {
-						throw new Error(`Missing peer-chat recovery backup for ${session.toString()}`);
-					}
-					await parent.object.setMetadata(backupKey, JSON.stringify({ ...this._parseRecoveryBackup(saved), completed: true }));
-					recovered = { entries, verifiedPhantomChatIds };
-					const restoredCount = entries.filter(entry => !current.some(previous => previous.uri === entry.uri)).length;
-					if (restoredCount < missing.length) {
-						this._logService.warn(`[AgentHostPeerChatStore] Skipped ${missing.length - restoredCount} recovery candidates due to current ownership or concurrent changes for ${session.toString()}`);
-					}
-					this._logService.info(`[AgentHostPeerChatStore] Recovered ${restoredCount} peer chats affected by #339409 for ${session.toString()}`);
-					return;
-				}
-			} finally {
-				parent.dispose();
-			}
-		});
-		return recovered;
-	}
-
-	private _parseRecoveryBackup(raw: string): { readonly recovered: readonly string[]; readonly completed?: boolean; readonly entries: readonly unknown[]; readonly legacy?: string; readonly revision: number } {
-		const parsed: unknown = JSON.parse(raw);
-		if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-			throw new Error('Invalid peer-chat recovery backup');
-		}
-		const value = parsed as Record<string, unknown>;
-		if (!Array.isArray(value.recovered) || !value.recovered.every(uri => typeof uri === 'string')
-			|| !Array.isArray(value.entries)
-			|| typeof value.revision !== 'number' || !Number.isSafeInteger(value.revision) || value.revision <= 0
-			|| (value.completed !== undefined && typeof value.completed !== 'boolean')
-			|| (value.legacy !== undefined && typeof value.legacy !== 'string')) {
-			throw new Error('Invalid peer-chat recovery backup');
-		}
-		return {
-			recovered: value.recovered,
-			entries: value.entries,
-			revision: value.revision,
-			...(typeof value.completed === 'boolean' ? { completed: value.completed } : {}),
-			...(typeof value.legacy === 'string' ? { legacy: value.legacy } : {}),
-		};
 	}
 
 	/** Imports membership changed by an older build, then returns central authority. */

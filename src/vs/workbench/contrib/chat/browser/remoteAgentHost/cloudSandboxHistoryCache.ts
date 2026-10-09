@@ -116,7 +116,7 @@ export class CloudSandboxHistoryCache extends Disposable {
 				}
 			}
 		};
-		const cancellation = token.onCancellationRequested(release);
+		const cancellation = request.store.add(token.onCancellationRequested(release));
 		try {
 			const cached = await raceCancellationError(request.cached, token);
 			if (token.isCancellationRequested || request.source.token.isCancellationRequested) {
@@ -131,15 +131,15 @@ export class CloudSandboxHistoryCache extends Disposable {
 			}
 			return history && structuredClone(history);
 		} finally {
-			cancellation.dispose();
+			request.store.delete(cancellation);
 			release();
 		}
 	}
 
 	/** Live changes invalidate stored data and prevent an older in-flight read from repopulating it. */
-	invalidate(taskId: string, cancelPending = false): void {
+	invalidate(taskId: string, cancelPending = false, preserveCached = false): void {
 		for (const [key, entry] of [...this.entries]) {
-			if (entry.taskId === taskId) {
+			if (entry.taskId === taskId && !preserveCached) {
 				this.entries.delete(key);
 				this.estimatedBytes -= entry.estimatedBytes;
 			}
@@ -160,11 +160,11 @@ export class CloudSandboxHistoryCache extends Disposable {
 	}
 
 	private cache(key: string, taskId: string, history: IReplayedTaskHistory | undefined): void {
-		const old = this.entries.remove(key);
-		this.estimatedBytes -= old?.estimatedBytes ?? 0;
-		if (!history || history.truncated) {
+		if (!history || !history.sessions.length || history.truncated) {
 			return;
 		}
+		const old = this.entries.remove(key);
+		this.estimatedBytes -= old?.estimatedBytes ?? 0;
 		// Account for the normalized data's UTF-16 JSON size, not the discarded raw event stream.
 		const estimatedBytes = JSON.stringify({
 			...history,

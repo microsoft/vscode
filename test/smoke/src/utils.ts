@@ -43,16 +43,16 @@ export function latestUserInputCarriesTag(body: unknown, scenarioTag: string): b
 }
 
 /**
- * The model-configuration button label the mock server's `mock-config-model`
- * must show before any option is picked, i.e. the labels of its two schema
- * defaults: reasoning effort `medium` (the `mock-config` family default) and the
- * `default` billing tier's 272000-token context window.
+ * The model-configuration readout the mock server's `mock-config-model` must
+ * show before any option is picked, i.e. the labels of its two schema defaults:
+ * reasoning effort `medium` (the `mock-config` family default) and the `default`
+ * billing tier's 272000-token context window.
  */
-export const MOCK_CONFIG_MODEL_DEFAULT_LABEL = 'Medium 272K';
+export const MOCK_CONFIG_MODEL_DEFAULT_LABEL = 'Medium \u00b7 272K';
 
 /**
  * Every option `mock-config-model` declares in its configuration schema, in the
- * order the model-configuration dropdown renders them. The `Thinking Effort`
+ * order the model details page renders them. The `Thinking Effort`
  * options come from `capabilities.supports.reasoning_effort`, the `Context Size`
  * options from the `default` / `long_context` billing tiers (272000 and
  * `max_context_window_tokens - max_output_tokens` = 922000, which
@@ -65,16 +65,16 @@ export const MOCK_CONFIG_MODEL_DEFAULT_SECTIONS: readonly IModelConfigSection[] 
 	{
 		header: 'Thinking Effort',
 		options: [
-			{ label: 'Low', description: '', checked: false },
-			{ label: 'Medium', description: 'Default', checked: true },
-			{ label: 'High', description: '', checked: false },
+			{ label: 'Low', checked: false },
+			{ label: 'Medium', checked: true },
+			{ label: 'High', checked: false },
 		],
 	},
 	{
 		header: 'Context Size',
 		options: [
-			{ label: '272K', description: 'Default', checked: true },
-			{ label: '1M', description: '', checked: false },
+			{ label: '272K', checked: true },
+			{ label: '1M', checked: false },
 		],
 	},
 ];

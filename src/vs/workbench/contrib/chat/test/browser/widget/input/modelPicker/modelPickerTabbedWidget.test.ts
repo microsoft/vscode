@@ -7,11 +7,13 @@ import assert from 'assert';
 import * as dom from '../../../../../../../../base/browser/dom.js';
 import { DeferredPromise, timeout } from '../../../../../../../../base/common/async.js';
 import { IStringDictionary } from '../../../../../../../../base/common/collections.js';
+import { Codicon } from '../../../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../../../base/common/event.js';
 import { AnchorPosition } from '../../../../../../../../base/common/layout.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../../../../../../../base/common/errors.js';
 import { MutableDisposable, toDisposable } from '../../../../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../../../../../base/common/themables.js';
 import { upcastPartial } from '../../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../../base/test/common/utils.js';
 import { IAccessibilityService } from '../../../../../../../../platform/accessibility/common/accessibility.js';
@@ -186,7 +188,7 @@ suite('TabbedModelPicker', () => {
 		const availableModels = options.models ?? models;
 		const context: ITabbedModelPickerContext = {
 			workflow: options.workflow,
-			models: availableModels, selectedModelId: options.selectedModelId ?? availableModels[0].identifier,
+			models: availableModels, selectedModelId: options.selectedModelId ?? availableModels[0]?.identifier,
 			recentModelIds: [], pinnedModelIds: options.pinnedModelIds ?? [],
 			controlModels: options.controlModels ?? Object.fromEntries(availableModels.map(model => [model.metadata.id, { exists: true, featured: true, label: model.metadata.name }])),
 			configurationAccess: access, isUBB: false, showManageModels: false, providerPlaceholders: options.providerPlaceholders ?? [],
@@ -227,7 +229,7 @@ suite('TabbedModelPicker', () => {
 	}
 
 	function goBack(popup: HTMLElement): void {
-		element(popup, '[role="button"][aria-label="Back to Models"]').click();
+		element(popup, '[role="button"][aria-label^="Back to Models"]').click();
 	}
 
 	test('dialog-hosted details preserve the requested popup layer and below-anchor placement', () => {
@@ -488,7 +490,7 @@ suite('TabbedModelPicker', () => {
 				search: 'input',
 				details: '.tabbed-action-list-details',
 				detailsControl: '.tabbed-action-list-details [role="radio"]',
-				back: '[aria-label="Back to Models"]',
+				back: '[aria-label^="Back to Models"]',
 			};
 			const control = element(popup, selectors[target]);
 			control.focus();
@@ -947,6 +949,35 @@ suite('TabbedModelPicker', () => {
 		});
 	});
 
+	test('without models the Copilot tab explains why, with the placeholder\'s own icon and action and nothing to search', () => {
+		let trustRequests = 0;
+		const result = createPicker({
+			models: [],
+			providerPlaceholders: [{
+				vendor: 'copilot',
+				label: 'Restricted Mode',
+				icon: Codicon.workspaceUntrusted,
+				message: 'Trust this workspace to enable models.',
+				action: { label: 'Trust Workspace', run: () => trustRequests++ },
+			}],
+		});
+		const welcome = element(result.popup, '.chat-model-picker-welcome');
+		element(welcome, '.monaco-button').click();
+		assert.deepStrictEqual({
+			tabs: Array.from(result.popup.querySelectorAll('.chat-model-picker-tabbar [role="radio"]'), tab => tab.getAttribute('aria-label')),
+			icon: !!welcome.querySelector(`.chat-model-picker-welcome-icon${ThemeIcon.asCSSSelector(Codicon.workspaceUntrusted)}`),
+			text: Array.from(welcome.querySelectorAll('.chat-model-picker-welcome-title, .chat-model-picker-welcome-message, .monaco-button'), part => part.textContent),
+			tabBarActions: Array.from(result.popup.querySelectorAll<HTMLElement>('.tabbed-action-list-tabbar-action'), action => action.dataset.id),
+			trustRequests,
+		}, {
+			tabs: ['Copilot'],
+			icon: true,
+			text: ['Restricted Mode', 'Trust this workspace to enable models.', 'Trust Workspace'],
+			tabBarActions: [],
+			trustRequests: 1,
+		});
+	});
+
 	test('Auto-only plans name the tab Auto without a switch and retain unavailable models and provider navigation', () => {
 		const result = createPicker({
 			models: [createAutoModel()],
@@ -1147,7 +1178,7 @@ suite('TabbedModelPicker', () => {
 			}
 			openDetails(popup, 'Second');
 			element(popup, '[aria-label^="Second Details"]').style.visibility = 'hidden';
-			const back = element(popup, '[role="button"][aria-label="Back to Models"]');
+			const back = element(popup, '[role="button"][aria-label^="Back to Models"]');
 			back.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
 			back.click();
 			await timeout(0);
@@ -1161,7 +1192,7 @@ suite('TabbedModelPicker', () => {
 		const result = createPicker({ details: models[0].identifier });
 		const header = element(result.popup, '.tabbed-action-list-details-header');
 		const viewport = element(result.popup, '.tabbed-action-list-details-viewport');
-		const back = element(header, '[role="button"][aria-label="Back to Models"]');
+		const back = element(header, '[role="button"][aria-label^="Back to Models"]');
 		assert.deepStrictEqual({
 			backText: back.textContent,
 			backIcon: back.classList.contains('codicon-arrow-left'),
@@ -1186,6 +1217,37 @@ suite('TabbedModelPicker', () => {
 		});
 	}
 
+	test('Right Arrow opens a model\'s details on its configuration and Back returns to its row', async () => {
+		const { picker, popup, selections } = createPicker();
+		const list = element(popup, '.monaco-list');
+		const detailsButton = element(popup, '[role="button"][aria-label^="First Details"]');
+		const rowPopup = detailsButton.closest('.monaco-list-row')?.getAttribute('aria-haspopup');
+		const right = new KeyboardEvent('keydown', { key: 'ArrowRight', keyCode: 39, bubbles: true, cancelable: true });
+		list.dispatchEvent(right);
+		const opened = {
+			prevented: right.defaultPrevented,
+			model: popup.querySelector('.tabbed-action-list-details .chat-model-card-name')?.textContent,
+			focusedControl: document.activeElement?.closest('[role="radiogroup"]')?.getAttribute('aria-label'),
+		};
+		goBack(popup);
+		await timeout(0);
+		assert.deepStrictEqual({
+			hasPopup: { row: rowPopup, button: detailsButton.getAttribute('aria-haspopup') },
+			opened,
+			listFocused: document.activeElement === element(popup, '.monaco-list'),
+			focusedRow: popup.querySelector('.monaco-list-row.focused .title')?.textContent,
+			visible: picker.isVisible,
+			selections,
+		}, {
+			hasPopup: { row: 'dialog', button: 'dialog' },
+			opened: { prevented: true, model: 'First', focusedControl: 'Thinking Effort' },
+			listFocused: true,
+			focusedRow: 'First',
+			visible: true,
+			selections: [],
+		});
+	});
+
 	for (const direct of [false, true]) {
 		test(`hovering Back preserves focus after ${direct ? 'direct' : 'configuration readout'} details entry`, () => {
 			const result = createPicker({ details: direct ? models[0].identifier : undefined });
@@ -1193,7 +1255,7 @@ suite('TabbedModelPicker', () => {
 				openDetails(result.popup, 'First');
 			}
 			const page = element(result.popup, '.tabbed-action-list-details');
-			const back = element(page, '[role="button"][aria-label="Back to Models"]');
+			const back = element(page, '[role="button"][aria-label^="Back to Models"]');
 			back.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
 			back.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
 			assert.deepStrictEqual({

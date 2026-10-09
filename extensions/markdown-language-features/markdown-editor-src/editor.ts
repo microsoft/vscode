@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AsyncClipboardStrategy, CommentModeController, CommentsModel, CommentsView, EditorController, EditorModel, EditorView, GutterMarker, OffsetRange, Selection, StringEdit, StringReplacement, StringValue, commands, findNodeOffsetById, vscodeHostKeyboardProfile, vscodeLocalKeyboardProfile, type CodeBlockAstNode, type LinkPresentationKind } from '@vscode/markdown-editor';
+import { CommentModeController, CommentsModel, CommentsView, EditorController, EditorModel, EditorView, GutterMarker, OffsetRange, Selection, StringEdit, StringReplacement, StringValue, commands, findNodeOffsetById, vscodeHostKeyboardProfile, vscodeLocalKeyboardProfile, type CodeBlockAstNode, type LinkPresentationKind } from '@vscode/markdown-editor';
 import type { IframeEmbeddedEditorHostTransport, IframeEmbeddedEditorProvider, ResolvedIframeEmbeddedEditor } from '@vscode/markdown-editor/web-editors';
 import { Disposable, autorun, observableValue, transaction } from '@vscode/observables';
 import { HubRpcConnection } from '@vscode/hubrpc';
@@ -16,8 +16,12 @@ import './markdownEditor.css';
 import { WebviewSyntaxHighlighter } from './syntaxHighlighter';
 import { WebviewLinkPresentationProvider } from './linkPresentationProvider';
 import { markdownEditorHost, markdownEditorRenderer, type CodeBlockEditorProviderDefinition, type MarkdownEditorHost } from '../src/preview/markdownEditorProtocol';
-import { MarkdownEditorRpcTransport } from '../src/preview/markdownEditorRpc';
+import { createMarkdownEditorRpcConnection, MarkdownEditorRpcTransport } from '../src/preview/markdownEditorRpc';
 import { LazyCodeBlockEditorFactory } from '../src/preview/lazyCodeBlockEditorFactory';
+import { RenameController } from './renameController';
+import { CompletionController } from './completionController';
+import { DiagnosticsController } from './diagnosticsController';
+import { ImagePasteController } from './imagePasteController';
 
 interface VsCodeApi {
 	postMessage(message: unknown): void;
@@ -118,6 +122,9 @@ class Editor extends Disposable {
 	#nextCodeBlockEditorRuntimeId = 1;
 	readonly #codeBlockEditorHostTransports = new Map<string, CodeBlockEditorHostTransport>();
 	#controller: EditorController | undefined;
+	#rename: RenameController | undefined;
+	#completion: CompletionController | undefined;
+	#diagnostics: DiagnosticsController | undefined;
 	#view: EditorView | undefined;
 	#embeddedCodeEditorFactory: LazyCodeBlockEditorFactory | undefined;
 	/** Identifies the authoritative text baseline against which local edits are computed. */
@@ -151,7 +158,11 @@ class Editor extends Disposable {
 				return { dispose: () => window.removeEventListener('message', onMessage) };
 			},
 		);
-		this.#connection = HubRpcConnection.fromTransport(this.#transport);
+		this.#connection = createMarkdownEditorRpcConnection(this.#transport, (operation, error) => {
+			if (!this.#disposed) {
+				console.error(`Markdown editor ${operation} failed`, error);
+			}
+		});
 		this.#host = this.#connection.get(markdownEditorHost);
 		this.#syntaxHighlighter = new WebviewSyntaxHighlighter(this.#host);
 		this.#editEpoch = initialState.editEpoch;
@@ -166,6 +177,7 @@ class Editor extends Disposable {
 		this.model.readonlyMode.set(initialState.readonly, undefined);
 
 		this._register(this.#connection.register(markdownEditorRenderer, {
+			diagnosticsChanged: () => this.#diagnostics?.refresh(),
 			update: ({ content, editEpoch }) => {
 				// Applying authoritative text maps selection and clears stale pending-paragraph state.
 				this.#editEpoch = editEpoch;
@@ -219,7 +231,15 @@ class Editor extends Disposable {
 					this.#view?.revealRangeAtTop(OffsetRange.fromTo(start, endExclusive));
 				}
 			},
-			command: ({ command: commandId }) => {
+			command: async ({ command: commandId }) => {
+				if (commandId === 'markdown.editor.triggerSuggest') {
+					await this.#completion?.start();
+					return;
+				}
+				if (commandId === 'markdown.editor.rename') {
+					await this.#rename?.start();
+					return;
+				}
 				const command = commands.find(command => command.id === commandId);
 				if (command) {
 					this.#controller?.executeCommand(command);
@@ -242,8 +262,8 @@ class Editor extends Disposable {
 
 	readonly #onPageHide = (): void => this.dispose();
 
-	#send(operation: string, request: Promise<void>): void {
-		void request.catch(error => {
+	#send(operation: string, request: Promise<void> | void): void {
+		void request?.catch(error => {
 			if (!this.#disposed) {
 				console.error(`Markdown editor ${operation} failed`, error);
 			}
@@ -296,6 +316,7 @@ class Editor extends Disposable {
 
 		const view = this._register(new EditorView(model, {
 			classNames: ['md-theme-vscode-default'],
+			presentation: model.readonlyMode.get() ? 'reading' : 'editing',
 			syntaxHighlighter: this.#syntaxHighlighter,
 			linkPresentationProvider: this.#linkPresentationProvider,
 			embeddedCodeEditorFactory,
@@ -343,13 +364,16 @@ class Editor extends Disposable {
 			},
 		}));
 		this.#view = view;
+		this.#rename = this._register(new RenameController(model, view, this.#host, () => this.#editEpoch));
+		this.#completion = this._register(new CompletionController(model, view, this.#host, () => this.#editEpoch));
+		this.#diagnostics = this._register(new DiagnosticsController(model, view, this.#host, () => this.#editEpoch));
 
 		// Wire history chords (undo/redo) to the extension so they run against the
 		// backing TextDocument's own undo stack. `record` is deliberately omitted:
 		// the TextDocument owns the history, and a second local stack would drift
 		// from the Edit menu, dirty state and hot exit.
 		this.#controller = this._register(new EditorController(model, view, {
-			clipboardStrategy: new AsyncClipboardStrategy(),
+			clipboardStrategy: this._register(new ImagePasteController(model, view, this.#host, () => this.#editEpoch)),
 			keyboardProfile: vscodeLocalKeyboardProfile,
 			forwardedKeyboardProfile: vscodeHostKeyboardProfile,
 			historyStrategy: {
@@ -467,6 +491,7 @@ class Editor extends Disposable {
 		let firstReadonly = true;
 		this._register(autorun((reader) => {
 			const isReadonly = reader.readObservable(this.model.readonlyMode);
+			this.model.presentation.set(isReadonly ? 'reading' : 'editing', undefined);
 			if (!firstReadonly) {
 				this.#send('setReadonly', this.#host.setReadonly({ readonly: isReadonly }));
 			}

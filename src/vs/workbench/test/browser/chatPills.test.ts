@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { getWindow } from '../../../base/browser/dom.js';
+import { addDisposableListener, getWindow } from '../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { IAnchor } from '../../../base/browser/ui/contextview/contextview.js';
 import { ensureCodeWindow, mainWindow } from '../../../base/browser/window.js';
@@ -27,7 +27,8 @@ import { IFileContent, IFileService } from '../../../platform/files/common/files
 import { ChatDropdownPillActionViewItem, ChatPillSingleEntry, createChatSectionPill } from '../../browser/chatDropdownPill.js';
 import { ChatResourcePillActionViewItem } from '../../browser/chatResourcePill.js';
 import { createChatImageHoverContent } from '../../browser/chatImagePreview.js';
-import { ChatPillsRow, ChatPillsWidget, createChatPillImagePreview, getChatPillLocationHover, type ChatPillsCompactMode, type IChatPill, type IChatPillEntry, type IChatPillSection, withChatPillHoverLabel } from '../../browser/chatPills.js';
+import { ChatPillHoverCache, createChatPillHover, type IChatPillHoverContent } from '../../browser/chatPillHover.js';
+import { ChatPillsRow, ChatPillsWidget, createChatPillImagePreview, getChatPillLocationHover, getChatReferencePillPresentation, type ChatPillsCompactMode, type IChatPill, type IChatPillEntry, type IChatPillSection, withChatPillHoverLabel } from '../../browser/chatPills.js';
 import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../browser/labels.js';
 import { workbenchInstantiationService } from './workbenchTestServices.js';
 
@@ -38,6 +39,42 @@ const getResourcePillHoverOptions = Reflect.get(ChatResourcePillActionViewItem.p
 
 suite('ChatPills', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const kind of ['pullRequest', 'issue'] as const) {
+		const typeLabel = kind === 'pullRequest' ? 'Pull Request' : 'Issue';
+		for (const title of [undefined, '', 'Live title']) {
+			test(`${kind} keeps identity separate from ${title === undefined ? 'missing' : title === '' ? 'empty' : 'resolved'} titles`, () => {
+				const result = getChatReferencePillPresentation(kind, '#123', title);
+				assert.deepStrictEqual(result, {
+					resourceLabel: `${typeLabel} #123${title ? ': Live title' : ''}`,
+					entry: {
+						label: title || typeLabel,
+						badge: '#123',
+						badgeBeforeLabel: true,
+						pillLabel: '#123',
+						className: 'chat-pill-reference',
+						preserveLabelOnRefresh: title !== undefined,
+						ariaLabel: `Open ${typeLabel} #123${title ? ': Live title' : ''}`,
+						dropdownAriaLabel: `#123, Open ${typeLabel}${title ? ': Live title' : ''}`,
+					},
+				});
+			});
+		}
+
+		test(`${kind} enriches a recorded title without changing identity`, () => {
+			const initial = getChatReferencePillPresentation(kind, '#123', undefined, 'Recorded title').entry;
+			const resolved = getChatReferencePillPresentation(kind, '#123', 'Live title', 'Recorded title').entry;
+			assert.deepStrictEqual({
+				labels: [initial.label, resolved.label],
+				identity: [initial, resolved].map(entry => ({ badge: entry.badge, badgeBeforeLabel: entry.badgeBeforeLabel, pillLabel: entry.pillLabel })),
+				preserveLabelOnRefresh: [initial.preserveLabelOnRefresh, resolved.preserveLabelOnRefresh],
+			}, {
+				labels: ['Recorded title', 'Live title'],
+				identity: Array.from({ length: 2 }, () => ({ badge: '#123', badgeBeforeLabel: true, pillLabel: '#123' })),
+				preserveLabelOnRefresh: [false, true],
+			});
+		});
+	}
 
 	test('forwards optional dropdown placement without forcing a side', () => {
 		const actual = [undefined, AnchorPosition.ABOVE, AnchorPosition.BELOW].map(preferredAnchorPosition => {
@@ -126,6 +163,65 @@ suite('ChatPills', () => {
 				'reference-3',
 				'reference-4',
 			], prefetched: entries.map(entry => entry.id)
+		});
+	});
+
+	test('fills missing reference titles and refreshes status icons while keeping resolved labels stable until reopening', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		let items: readonly IActionListItem<IChatPillEntry>[] = [];
+		let accessibleLabel: string | undefined;
+		let onHide = () => { };
+		let visible = false;
+		instantiationService.stub(IActionWidgetService, upcastPartial<IActionWidgetService>({
+			get isVisible() { return visible; },
+			show: (_user, _preview, shownItems, delegate, _anchor, _container, _actions, accessibility) => {
+				visible = true;
+				items = shownItems as readonly IActionListItem<IChatPillEntry>[];
+				onHide = delegate.onHide;
+				const label = accessibility?.getAriaLabel?.(shownItems[1]);
+				accessibleLabel = typeof label === 'string' ? label : undefined;
+			},
+			updateItems: shownItems => { items = shownItems as readonly IActionListItem<IChatPillEntry>[]; },
+			hide: () => { visible = false; onHide(); },
+		}));
+		const sections = observableValue<readonly IChatPillSection[]>('references', []);
+		const update = (label: string, resolved: boolean, icon = Codicon.gitPullRequest) => sections.set([{
+			title: 'References', entries: [{
+				id: 'reference', label, icon, ariaLabel: `Open ${label}`, badge: '#123', badgeBeforeLabel: true, preserveLabelOnRefresh: resolved, open: () => { },
+			}],
+		}], undefined);
+		update('Pull Request', false);
+		const action = store.add(new Action('references', 'References'));
+		const viewItem = store.add(instantiationService.createInstance(ChatDropdownPillActionViewItem, action, {}, sections, {
+			widgetId: 'references', icon: Codicon.references, title: 'References',
+			summaryLabel: count => `${count} References`, summaryAriaLabel: count => `Show ${count} references`,
+			singleEntry: ChatPillSingleEntry.Summary,
+		}));
+		const container = mainWindow.document.createElement('div');
+		mainWindow.document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+		viewItem.render(container);
+		const button = container.querySelector<HTMLElement>('.chat-dropdown-pill-button')!;
+		button.click();
+		const initial = items[1].label;
+		update('Resolved title', true);
+		const resolved = items[1].label;
+		update('Renamed title', true, Codicon.gitPullRequestDone);
+		const refreshed = items[1].label;
+		const refreshedIcon = items[1].group?.icon?.id;
+		const accessibleWhileOpen = items[1].item?.ariaLabel;
+		instantiationService.get(IActionWidgetService).hide();
+		button.click();
+		const reopened = items[1].label;
+		const reopenedIcon = items[1].group?.icon?.id;
+		update('Pull Request', false);
+		update('Recovered title', true);
+		assert.deepStrictEqual({ initial, resolved, refreshed, refreshedIcon, accessibleWhileOpen, reopened, reopenedIcon, accessibleLabel, recovered: items[1].label }, {
+			initial: 'Pull Request', resolved: 'Resolved title', refreshed: 'Resolved title',
+			refreshedIcon: 'git-pull-request-done',
+			accessibleWhileOpen: 'Open Resolved title',
+			reopened: 'Renamed title', reopenedIcon: 'git-pull-request-done', accessibleLabel: '#123, Open Renamed title',
+			recovered: 'Recovered title',
 		});
 	});
 
@@ -465,6 +561,62 @@ suite('ChatPills', () => {
 			removed: [true, true],
 		});
 	});
+
+	for (const replacement of ['controller', 'scope'] as const) {
+		test(`keeps rich content, keyboard controls and callbacks together after a ${replacement} replacement`, () => {
+			const instantiationService = workbenchInstantiationService(undefined, store);
+			const cache = store.add(new ChatPillHoverCache());
+			const calls: string[] = [];
+			const content = (value: string): IChatPillHoverContent => {
+				const element = mainWindow.document.createElement('div');
+				const controls = ['Repository', 'Commit'].map(label => {
+					const button = mainWindow.document.createElement('button');
+					button.textContent = label;
+					element.appendChild(button);
+					store.add(addDisposableListener(button, 'click', () => calls.push(value)));
+					return button;
+				});
+				return { element, tabbableElements: controls };
+			};
+			const entry = (value: string): IChatPillEntry => {
+				const base: IChatPillEntry = { id: 'commit', label: 'Commit title', open: () => { } };
+				return {
+					...base,
+					...(replacement === 'scope'
+						? cache.get(base.id, base, () => content(value))
+						: createChatPillHover({ fallback: base.label, createContent: () => content(value) })),
+				};
+			};
+			cache.retain(new Set(['commit']), 'session-1');
+			const sections = observableValue<readonly IChatPillSection[]>('richHoverReplacement', [{ title: 'Commits', entries: [entry('old')] }]);
+			const viewItem = store.add(instantiationService.createInstance(ChatDropdownPillActionViewItem, store.add(new Action('references', 'References')), {}, sections, {
+				widgetId: 'references', icon: Codicon.references, title: 'References',
+				summaryLabel: count => `${count} References`, summaryAriaLabel: count => `Show ${count} references`,
+				singleEntry: ChatPillSingleEntry.Summary,
+			}));
+			const render = () => {
+				const hover = getDropdownPillItems.call(viewItem)[1].hover!;
+				const element = typeof hover.content === 'function' ? hover.content() : undefined;
+				assert.ok(element instanceof HTMLElement);
+				return { element, hover };
+			};
+			const initial = render();
+			mainWindow.document.body.appendChild(initial.element);
+			store.add(toDisposable(() => initial.element.remove()));
+			if (replacement === 'scope') {
+				cache.retain(new Set(['commit']), 'session-2');
+			}
+			sections.set([{ title: 'Commits', entries: [entry('new')] }], undefined);
+			const updated = render();
+			const rebuilt = { visibleControls: updated.element.querySelectorAll('button').length, keyboardControls: updated.hover.getTabbableElements?.().length };
+			initial.element.remove();
+			const reopened = render();
+			reopened.hover.getTabbableElements?.()[0].click();
+			assert.deepStrictEqual({ rebuilt, reopenedControls: reopened.hover.getTabbableElements?.().length, calls }, {
+				rebuilt: { visibleControls: 2, keyboardControls: 2 }, reopenedControls: 2, calls: ['new'],
+			});
+		});
+	}
 
 	test('preserves location content but refreshes actions and changed paths', async () => {
 		const instantiationService = workbenchInstantiationService(undefined, store);
@@ -904,7 +1056,8 @@ suite('ChatPills', () => {
 			title: 'Pull Requests', entries: [{
 				...entry('1', richHover),
 				badge: '#1',
-				className: 'chat-pill-github-reference',
+				badgeBeforeLabel: true,
+				className: 'chat-pill-reference',
 				hover: { content: mainWindow.document.createElement('div') },
 				toolbarActions: [copyAction],
 				hoverActions: [copyHashAction],
@@ -924,6 +1077,7 @@ suite('ChatPills', () => {
 			mappedEntry: {
 				label: mappedEntry.label,
 				badge: mappedEntry.badge,
+				badgeBeforeLabel: mappedEntry.badgeBeforeLabel,
 				className: mappedEntry.className,
 				rowActions: mappedEntry.toolbarActions?.map(action => action.label),
 				footerActions: mappedEntry.hover?.actions?.map(action => action.label),
@@ -936,7 +1090,8 @@ suite('ChatPills', () => {
 			mappedEntry: {
 				label: 'Pull Request #1',
 				badge: '#1',
-				className: 'chat-pill-github-reference',
+				badgeBeforeLabel: true,
+				className: 'chat-pill-reference',
 				rowActions: ['Copy Pull Request URL', 'Remove Pull Request Reference from Session'],
 				footerActions: ['Copy Hash'],
 			},

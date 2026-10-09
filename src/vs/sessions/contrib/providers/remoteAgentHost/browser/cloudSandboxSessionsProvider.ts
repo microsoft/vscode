@@ -11,7 +11,7 @@ import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
-import { CLOUD_SANDBOX_AGENT_PROVIDER, CLOUD_SANDBOX_SESSION_SCHEME, CloudSandboxRequestError, isRetryableCloudSandboxError } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { CLOUD_SANDBOX_AGENT_PROVIDER, CLOUD_SANDBOX_SESSION_SCHEME, CloudSandboxAutoConnectOnOpenSettingId, CloudSandboxRequestError, isRetryableCloudSandboxError } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import type { ISession } from '../../../../services/sessions/common/session.js';
 import type { AgentHostSessionAdapter } from '../../agentHost/browser/baseAgentHostSessionsProvider.js';
@@ -130,8 +130,15 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 		this._pendingSessionTitles.delete(rawId);
 	}
 
-	/** Chat activation loads recorded history independently and connects only to an online environment. */
-	override async prepareSessionForOpen(): Promise<void> { }
+	/** Reopened cached chats also need a background connection, even when content activation is skipped. */
+	override async prepareSessionForOpen(): Promise<void> {
+		if (this._baseConfigurationService.getValue<boolean>(CloudSandboxAutoConnectOnOpenSettingId) === true
+			&& !this.connection && RemoteAgentHostConnectionStatus.isDisconnected(this.connectionStatus.get())) {
+			void this.connect().catch(error => {
+				this._logService.warn('[CloudSandboxSessionsProvider] Background connection on open failed', error);
+			});
+		}
+	}
 
 	override isSessionConfigResolving(sessionId: string): IObservable<boolean> {
 		const resolving = super.isSessionConfigResolving(sessionId);

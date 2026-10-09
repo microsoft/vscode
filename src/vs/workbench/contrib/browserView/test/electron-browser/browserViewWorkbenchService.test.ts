@@ -173,4 +173,16 @@ suite('BrowserViewWorkbenchService', () => {
 			externalModel.dispose();
 		}
 	});
+
+	test('cleans event lifetimes when embedded canvas models are repeatedly disposed', async () => {
+		const { service } = createService();
+		const closed: string[] = [];
+		for (let index = 0; index < 3; index++) {
+			const model = await service.createExternalBrowserView(`https://example.test/canvas-${index}`);
+			store.add(model.onWillDispose(() => closed.push(model.id)));
+			model.dispose();
+			await Promise.resolve();
+		}
+		assert.deepStrictEqual({ closed: closed.length, listed: service.getKnownBrowserViews().size }, { closed: 3, listed: 0 });
+	});
 });

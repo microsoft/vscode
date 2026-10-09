@@ -17,6 +17,7 @@ import {
 	CLOUD_SANDBOX_AGENT_PROVIDER,
 	CLOUD_SANDBOX_SESSION_SCHEME,
 	CloudSandboxEnabledSettingId,
+	CloudSandboxAutoConnectOnOpenSettingId,
 	CloudSandboxAuthenticationRequiredError,
 	cloudSandboxAddress,
 	ICloudSandboxAgentHostService,
@@ -618,7 +619,10 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		return authority ? byAuthority.get(authority) : undefined;
 	}
 
-	/** Makes recorded history available while an online environment connects independently. */
+	/** Whether the chat surface can hand off persisted history and offline drafts to a live connection. */
+	protected get supportsBackgroundConnection(): boolean { return false; }
+
+	/** Makes recorded history available independently of the surface's connection-on-open policy. */
 	protected async _waitForActivation(sessionType: string): Promise<boolean> {
 		const address = this._findAddressForSessionType(sessionType);
 		const env = address ? this._environments.get(address) : undefined;
@@ -654,24 +658,28 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 	}
 
 	private async _connectOnOpen(sessionType: string, address: string, env: ICloudSandboxSessionEnvironment, token: CancellationToken, isCurrentActivation: () => boolean): Promise<boolean> {
-		// Without a task there is no history fallback, so connecting is the only way to open it.
-		const shouldConnect = !env.taskId || this._pendingConnects.has(address) || await this._isEnvironmentOnline(env, token);
+		const shouldConnect = this.supportsBackgroundConnection
+			? this._configurationService.getValue<boolean>(CloudSandboxAutoConnectOnOpenSettingId) === true
+			: !env.taskId || this._pendingConnects.has(address) || await this._isEnvironmentOnline(env, token);
 		if (!isCurrentActivation()) {
 			return false;
 		}
 		if (!shouldConnect && !this._pendingConnects.has(address)) {
-			this._logService.info(`${LOG_PREFIX} Environment for ${address} is not online; serving history and leaving the connect to the user.`);
-			return true;
+			this._logService.info(`${LOG_PREFIX} Not connecting automatically to ${address}; serving history and leaving the connect to the user.`);
+			return !!env.taskId;
 		}
-
-		const connectError = await this
-			.connect({ environmentId: env.environmentId, sessionId: env.sessionId, name: env.name })
-			.then(() => undefined, (error: unknown) => error ?? new Error('connect failed'));
+		const connecting = this.connect({ environmentId: env.environmentId, sessionId: env.sessionId, name: env.name }).then(
+			() => undefined,
+			(error: unknown) => {
+				this._logService.warn(`${LOG_PREFIX} connect-on-open failed for ${address}: ${error instanceof Error ? error.message : String(error)}`);
+				return error ?? new Error('connect failed');
+			},
+		);
+		const connectError = await connecting;
 		if (!isCurrentActivation()) {
 			return false;
 		}
 		if (connectError !== undefined) {
-			this._logService.warn(`${LOG_PREFIX} connect-on-open failed for ${address}: ${connectError instanceof Error ? connectError.message : String(connectError)}`);
 			return !!env.taskId;
 		}
 		if (env.taskId) {
@@ -694,7 +702,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		}
 	}
 
-	/** An unreadable record must not trigger an automatic resume. */
+	/** An unreadable record must not trigger an automatic resume in surfaces without background connection support. */
 	private async _isEnvironmentOnline(env: ICloudSandboxSessionEnvironment, token: CancellationToken): Promise<boolean> {
 		try {
 			const record = await this._apiService.getEnvironment(env.environmentId, token);
@@ -727,6 +735,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			// history attributed to the same participant.
 			agentId: sessionType,
 			connectionAuthority: agentHostAuthority(address),
+			connectionStatus: this._providerInstances.get(address)!.connectionStatus,
 		}));
 		store.add(this._chatSessionsService.registerChatSessionContentProvider(sessionType, handler));
 		this._historyHandlers.set(sessionType, { handler, dispose: () => store.dispose() });

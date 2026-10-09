@@ -16,7 +16,7 @@ import { InstantiationService } from '../../../instantiation/common/instantiatio
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { IFileService } from '../../../files/common/files.js';
-import { ILogService, NullLogService } from '../../../log/common/log.js';
+import { ILogService, LogLevel, NullLogService } from '../../../log/common/log.js';
 import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { TelemetryTrustedValue } from '../../../telemetry/common/telemetryUtils.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
@@ -60,11 +60,12 @@ import { AgentHostClientConnectionService, IAgentHostClientConnectionService } f
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { IAgentHostChangesetService } from '../../common/agentHostChangesetService.js';
 import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
+import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { AgentSideEffects } from '../../node/agentSideEffects.js';
 import type { IAgentHostCustomizationEnablementService } from '../../node/agentHostCustomizationEnablementService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { IAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
-import { createNoopGitStateService, createNullSessionDataService } from '../common/sessionTestHelpers.js';
+import { createNoopGitService, createNoopGitStateService, createNullSessionDataService } from '../common/sessionTestHelpers.js';
 import { createLegacyChatMetadataPersistence } from './chatMetadataTestHelpers.js';
 import { createNoopWorktreeIsolation } from './worktreeTestHelpers.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
@@ -277,6 +278,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			[IAgentHostChangesetService, new FakeChangesetService()],
 			[IAgentHostCheckpointService, NULL_CHECKPOINT_SERVICE],
 			[IAgentHostGitStateService, createNoopGitStateService()],
+			[IAgentHostGitService, createNoopGitService()],
 			[IAgentHostStateManager, stateManager],
 			[IAgentSessionRegistry, disposables.add(new AgentSessionRegistry(disposables.add(new AgentHostDatabase(':memory:'))))],
 			[IFileService, disposables.add(new FileService(logService))],
@@ -573,19 +575,38 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 	test('does not record resuming the same failed turn as a new send', () => {
 		setupSession();
 		startTurn('resumed');
+		const previousRecorder = turnTracker.createProviderStageRecorder(defaultChatUri, 'resumed');
 		fire({ type: ActionType.ChatError, turnId: 'resumed', duration: 100, part: createErrorResponsePart({ errorType: 'requestFailed', message: 'failed' }, true) });
 		const turn = stateManager.getChatState(defaultChatUri)?.turns.at(-1);
 		assert.ok(turn);
 		const action: ChatAction = { type: ActionType.ChatTurnResume, turnId: turn.id };
 		stateManager.dispatchServerAction(defaultChatUri, action);
-		agent.chats.resumeTurn = async () => { };
+		agent.chats.resumeTurn = async (_chat, _turnId, context) => {
+			if (!URI.isUri(context)) {
+				const operation = context.sendStageRecorder?.startOperation?.('permission');
+				operation?.start();
+				operation?.end(false);
+				context.sendStageRecorder?.markMilestone?.('sdkSend');
+			}
+			previousRecorder.markMilestone?.('sdkText');
+		};
 		sideEffects.handleAction(defaultChatUri, action, 'test', AgentHostClientType.EditorWindow, turn);
 		fire({ type: ActionType.ChatTurnComplete, turnId: turn.id, duration: 1000 });
 
 		assert.deepStrictEqual({
 			sends: sentEvents().map(event => event.data?.turnId),
 			completions: completedEvents().length,
-		}, { sends: ['resumed'], completions: 2 });
+			timings: telemetry.events.filter(event => event.eventName === 'agentHost.providerTiming').map(event => ({
+				group: event.data?.group, result: event.data?.result,
+				permissionCount: event.data?.['permission.count'], staleText: event.data?.['milestone.sdkText'],
+			})),
+		}, {
+			sends: ['resumed'], completions: 2,
+			timings: [
+				{ group: 'permissions', result: 'success', permissionCount: 1, staleText: undefined },
+				{ group: 'milestones', result: 'success', permissionCount: undefined, staleText: undefined },
+			],
+		});
 	});
 
 	test('does not record provider-promoted turns as admitted sends', () => {
@@ -1962,6 +1983,44 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		fire({ type: ActionType.ChatTurnComplete, turnId: 'turn-1', duration: 1000 });
 
 		assert.strictEqual((completedEvents()[0].data as Record<string, unknown>).billedNanoAiu, 2_000_000_000);
+	});
+
+	test('provider timing survives cancellation and late recorders cannot affect a reused turn ID', () => {
+		setupSession();
+		turnTracker.turnStarted(agent, defaultChatUri, 'turn-timing', undefined, undefined, 'default', undefined, undefined);
+		const recorder = turnTracker.createProviderStageRecorder(defaultChatUri, 'turn-timing');
+		const pending = recorder.startOperation!('permission')!;
+		pending.start();
+		recorder.markMilestone!('sdkSend');
+		turnTracker.turnCompleted(defaultChatUri, 'turn-timing', 'cancelled');
+		turnTracker.turnStarted(agent, defaultChatUri, 'turn-timing', undefined, undefined, 'default', undefined, undefined);
+		recorder.markMilestone!('sdkText');
+		pending.end(false);
+		turnTracker.turnCompleted(defaultChatUri, 'turn-timing', 'success');
+		assert.deepStrictEqual(telemetry.events.filter(event => event.eventName === 'agentHost.providerTiming').map(event => ({
+			group: event.data?.group, result: event.data?.result, count: event.data?.['permission.count'], incompleteCount: event.data?.['permission.incompleteCount'],
+		})), [
+			{ group: 'permissions', result: 'cancelled', count: 1, incompleteCount: 1 },
+			{ group: 'milestones', result: 'cancelled', count: undefined, incompleteCount: undefined },
+		]);
+	});
+
+	test('detailed provider timing logs require Debug level', () => {
+		setupSession();
+		const level = sinon.stub(logService, 'getLevel');
+		const debug = sinon.spy(logService, 'debug');
+		const info = sinon.spy(logService, 'info');
+		for (const verbosity of [LogLevel.Info, LogLevel.Debug]) {
+			level.returns(verbosity);
+			const turnId = `timing-log-${verbosity}`;
+			turnTracker.turnStarted(agent, defaultChatUri, turnId, undefined, undefined, 'default', undefined, undefined);
+			turnTracker.createProviderStageRecorder(defaultChatUri, turnId).markMilestone!('sdkSend');
+			turnTracker.turnCompleted(defaultChatUri, turnId, 'success');
+		}
+		assert.deepStrictEqual({
+			debug: debug.getCalls().filter(call => String(call.args[0]).startsWith('[AgentHostProviderTiming]')).length,
+			info: info.getCalls().filter(call => String(call.args[0]).startsWith('[AgentHostProviderTiming]')).length,
+		}, { debug: 1, info: 0 });
 	});
 
 	test('does not report billed nano-AIU when the provider does not supply it', () => {

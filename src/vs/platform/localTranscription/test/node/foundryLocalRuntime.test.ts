@@ -57,26 +57,26 @@ flakySuite('FoundryLocalRuntime', () => {
 		assert.strictEqual(foundryLocalPlatformKey() !== undefined, expected);
 	});
 
-	test('isRuntimeProvisioned: false when nothing is present', () => {
-		assert.strictEqual(isRuntimeProvisioned(testDir, platformKey), false);
+	test('isRuntimeProvisioned: false when nothing is present', async () => {
+		assert.strictEqual(await isRuntimeProvisioned(testDir, platformKey), false);
 	});
 
-	test('isRuntimeProvisioned: true only when marker AND payload are present (cache hit)', () => {
+	test('isRuntimeProvisioned: true only when marker AND payload are present (cache hit)', async () => {
 		writePayload(testDir, platformKey);
 		writeMarker(testDir, platformKey);
-		assert.strictEqual(isRuntimeProvisioned(testDir, platformKey), true);
+		assert.strictEqual(await isRuntimeProvisioned(testDir, platformKey), true);
 	});
 
-	test('isRuntimeProvisioned: false when marker present but payload missing (partial cache)', () => {
+	test('isRuntimeProvisioned: false when marker present but payload missing (partial cache)', async () => {
 		writeMarker(testDir, platformKey);
-		assert.strictEqual(isRuntimeProvisioned(testDir, platformKey), false);
+		assert.strictEqual(await isRuntimeProvisioned(testDir, platformKey), false);
 	});
 
-	test('isRuntimeProvisioned: false when one shared library is missing (partial cache)', () => {
+	test('isRuntimeProvisioned: false when one shared library is missing (partial cache)', async () => {
 		writePayload(testDir, platformKey);
 		writeMarker(testDir, platformKey);
 		fs.rmSync(join(testDir, 'prebuilds', platformKey, 'libonnxruntime-genai.so'));
-		assert.strictEqual(isRuntimeProvisioned(testDir, platformKey), false);
+		assert.strictEqual(await isRuntimeProvisioned(testDir, platformKey), false);
 	});
 
 	test('requiredRuntimeFileNames: includes addons and shared libraries', () => {
@@ -91,12 +91,12 @@ flakySuite('FoundryLocalRuntime', () => {
 		});
 	});
 
-	test('isRuntimeProvisioned: a different arch marker does not satisfy this arch', () => {
+	test('isRuntimeProvisioned: a different arch marker does not satisfy this arch', async () => {
 		// A first run for another architecture wrote its marker + payload; this
 		// arch has neither and must not be considered provisioned.
 		writePayload(testDir, 'win32-x64');
 		writeMarker(testDir, 'win32-x64');
-		assert.strictEqual(isRuntimeProvisioned(testDir, platformKey), false);
+		assert.strictEqual(await isRuntimeProvisioned(testDir, platformKey), false);
 	});
 
 	test('promoteDir: moves a staged dir into place', async () => {
@@ -240,7 +240,7 @@ flakySuite('FoundryLocalRuntime', () => {
 			for (const name of requiredRuntimeFileNames(platformKey)) {
 				assert.strictEqual(fs.existsSync(join(overrideDir, 'prebuilds', platformKey, name)), true);
 			}
-			assert.strictEqual(isRuntimeProvisioned(overrideDir, platformKey), true);
+			assert.strictEqual(await isRuntimeProvisioned(overrideDir, platformKey), true);
 		} finally {
 			await server.dispose();
 		}
@@ -254,7 +254,7 @@ flakySuite('FoundryLocalRuntime', () => {
 				provisionRuntime(overrideDir, platformKey, `${server.url}/{target}.tgz`, '1.2.3', CancellationToken.None),
 				/status 404/,
 			);
-			assert.strictEqual(isRuntimeProvisioned(overrideDir, platformKey), false);
+			assert.strictEqual(await isRuntimeProvisioned(overrideDir, platformKey), false);
 		} finally {
 			await server.dispose();
 		}
@@ -269,7 +269,7 @@ flakySuite('FoundryLocalRuntime', () => {
 				provisionRuntime(overrideDir, platformKey, `${server.url}/{target}.tgz`, '1.2.3', CancellationToken.None),
 				/expected files are missing/,
 			);
-			assert.strictEqual(isRuntimeProvisioned(overrideDir, platformKey), false);
+			assert.strictEqual(await isRuntimeProvisioned(overrideDir, platformKey), false);
 		} finally {
 			await server.dispose();
 		}

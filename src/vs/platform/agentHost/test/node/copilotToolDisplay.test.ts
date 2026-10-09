@@ -8,7 +8,7 @@ import type { PermissionRequest } from '@github/copilot-sdk';
 import * as marked from '../../../../base/common/marked/marked.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { getEditFilePath, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getSdkImageGenerationMetadata, getShellIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, getToolMarkdownContent, isEditTool, isHiddenTool, isMarkdownRenderedTool, synthesizeSkillToolCall } from '../../node/copilot/copilotToolDisplay.js';
+import { getEditFilePath, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getSdkImageGenerationMetadata, getShellIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, getToolMarkdownContent, getToolSummaryInputContract, isEditTool, isHiddenTool, isMarkdownRenderedTool, synthesizeSkillToolCall } from '../../node/copilot/copilotToolDisplay.js';
 
 type CopilotShellPermissionRequest = Extract<PermissionRequest, { kind: 'shell' }>;
 type CopilotCustomToolPermissionRequest = Extract<PermissionRequest, { kind: 'custom-tool' }>;
@@ -41,6 +41,13 @@ function customToolPermissionRequest(toolName: string, args: CopilotCustomToolPe
 suite('copilotToolDisplay — friendly tool names', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('limits the summary input contract to supported native schemas', () => {
+		assert.deepStrictEqual(['view', 'edit', 'grep', 'rg', 'glob', 'bash', 'tool_search', 'my_tool', 'mcp__server__view'].map(getToolSummaryInputContract), [
+			'copilot-cli-v1', 'copilot-cli-v1', 'copilot-cli-v1', 'copilot-cli-v1', 'copilot-cli-v1',
+			undefined, undefined, undefined, undefined,
+		]);
+	});
 
 	test('mirrors internal Copilot CLI friendly labels for representative tools', () => {
 		const cases: Array<[toolName: string, displayName: string]> = [

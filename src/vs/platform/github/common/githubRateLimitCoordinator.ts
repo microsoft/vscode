@@ -18,7 +18,7 @@ export class GitHubRateLimitCoordinator extends CooldownState {
 	/** Adds REST admission waits without changing the bucket-specific identity cooldown checks. */
 	getRequestDelay(account: RequestAccount, resource: string): number {
 		let delay = super.getDelay(account, resource);
-		if (resource !== 'graphql') {
+		if (resource !== 'graphql' && resource !== 'agents') {
 			delay = Math.max(delay, super.getDelay(account, unclassifiedRestResource));
 			for (const alias of restResourceAliases(resource)) {
 				delay = Math.max(delay, super.getDelay(account, alias));
@@ -75,6 +75,16 @@ export class GitHubRateLimitCoordinator extends CooldownState {
 				? Math.max(previousBlockedUntil, blockedUntil ?? 0) : blockedUntil,
 		});
 		this._onDidChange.fire();
+	}
+
+	/** Mission Control uses refusal/service hints, not GitHub REST counters or successful polling hints. */
+	updateFromAgentsResponse(account: RequestAccount, response: Response, responseBody?: string): void {
+		const retryAfter = parseRetryAfter(response.headers.get('retry-after'), this._scheduler.now(), true);
+		if (classifyGitHubHttpRateLimit(response, responseBody)) {
+			this.updateCooldown(account, 'agents', retryAfter !== undefined && retryAfter > 0 ? retryAfter * 1000 : unhintedRateLimitCooldown);
+		} else if (response.status >= 500 && retryAfter !== undefined) {
+			this.updateCooldown(account, 'agents', retryAfter * 1000);
+		}
 	}
 
 	updateFromGraphQL(account: RequestAccount, rateLimit: { readonly limit?: number; readonly remaining?: number; readonly used?: number; readonly resetAt?: string } | undefined): void {

@@ -35,6 +35,7 @@ import { getEntryAddress, IRemoteAgentHostService, RemoteAgentHostConnectionStat
 import { DEFAULT_RECONNECT_POLICY } from '../../../../../platform/agentHost/common/reconnectPolicy.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
+import { IPowerService } from '../../../../services/power/common/powerService.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { CloudSandboxCredentialRefresher, CloudSandboxCredentialRefreshState, MAX_CONSECUTIVE_CREDENTIAL_REFRESH_FAILURES, MIN_CREDENTIAL_REFRESH_DELAY_MS, type ICloudSandboxCreds } from './cloudSandboxCredentialRefresh.js';
@@ -86,6 +87,7 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@ICloudSandboxTelemetryService private readonly _telemetryService: ICloudSandboxTelemetryService,
+		@IPowerService private readonly _powerService: IPowerService,
 	) {
 		super();
 		this.entries = this._entries;
@@ -99,11 +101,11 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 		// are terminal.
 	}
 
-	beginConnect(address: string, source: ICloudSandboxConnectOptions['connectionSource'], environmentKind: ICloudSandboxConnectOptions['environmentKind']): ICloudSandboxConnectionTelemetry | undefined {
+	beginConnect(address: string, options: ICloudSandboxConnectOptions): ICloudSandboxConnectionTelemetry | undefined {
 		if (this._store.isDisposed || this._connectionTelemetry.has(address)) {
 			return undefined;
 		}
-		const telemetry = this._telemetryService.trackConnection('credentials', this._surface, source, environmentKind);
+		const telemetry = this._telemetryService.trackConnection('credentials', this._surface, options.connectionSource, options);
 		this._connectionTelemetry.set(address, telemetry);
 		return telemetry;
 	}
@@ -129,7 +131,8 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 		const staged = this._stagedConnections.get(address);
 		let telemetry = this._connectionTelemetry.get(address);
 		if (!telemetry) {
-			telemetry = this._telemetryService.trackConnection('connection', this._surface, staged?.options.connectionSource, staged?.options.environmentKind);
+			// A new tracker for retained credentials is a new attachment, not the original provisioning flow.
+			telemetry = this._telemetryService.trackConnection('connection', this._surface, 'existing', { environmentKind: staged?.options.environmentKind });
 			this._connectionTelemetry.set(address, telemetry);
 		}
 		const connectionTelemetry = telemetry;
@@ -251,6 +254,8 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 					clientId: staged.clientId,
 					clientInfo: this._environmentService.isSessionsWindow ? agentsWindowAgentHostClientInfo : editorWindowAgentHostClientInfo,
 					reconnectPolicy: staged.options.environmentKind === 'user-local' ? USER_LOCAL_RECONNECT_POLICY : SANDBOX_RECONNECT_POLICY,
+					onDidSuspend: this._powerService.onDidSuspend,
+					onDidResume: this._powerService.onDidResume,
 					prepareReconnect: () => traceConnectionOperation(diagnosticObserver, 'credentials', async () => {
 						try {
 							if (staged.reconnectRequiresRefresh || staged.options.environmentKind === 'user-local') {
@@ -395,7 +400,7 @@ export class CloudSandboxAgentHostService extends Disposable implements ICloudSa
 		const watch = StopWatch.create(false);
 		this._logService.info(`${LOG_PREFIX} Connecting to sandbox environment ${options.environmentId}; sessionId=${options.sessionId ?? 'none'}`);
 
-		const telemetry = this._connectionFactory.beginConnect(address, options.connectionSource, options.environmentKind);
+		const telemetry = this._connectionFactory.beginConnect(address, options);
 		const operation = new DisposableStore();
 		const source = operation.add(new CancellationTokenSource(token));
 		let timedOut = false;

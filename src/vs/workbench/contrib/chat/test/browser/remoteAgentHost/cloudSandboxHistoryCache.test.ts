@@ -161,11 +161,11 @@ suite('CloudSandboxHistoryCache', () => {
 	});
 
 	for (const replacement of [undefined, { ...snapshot(), truncated: true }]) {
-		test(`does not retain ${replacement ? 'truncated' : 'absent'} results or the snapshot they replace`, async () => {
+		test(`does not replace usable cached history with ${replacement ? 'truncated' : 'absent'} results`, async () => {
 			const cache = store.add(new CloudSandboxHistoryCache());
 			await read(cache);
 			await cache.load('task', CancellationToken.None, async () => ({ account: 'account', fetch: async () => replacement }));
-			assert.strictEqual(await preview(cache), undefined);
+			assert.deepStrictEqual(await preview(cache), snapshot());
 		});
 	}
 
@@ -273,6 +273,21 @@ suite('CloudSandboxHistoryCache', () => {
 			return { account: 'account', fetch: async () => { fetches++; return snapshot(); } };
 		}, () => previews++), isCancellationError);
 		assert.deepStrictEqual({ previews, fetches, cached: await preview(cache) }, { previews: 0, fetches: 0, cached: undefined });
+	});
+
+	test('matching live history preserves the snapshot but prevents an older in-flight refresh from replacing it', async () => {
+		const cache = store.add(new CloudSandboxHistoryCache());
+		await read(cache);
+		const started = new DeferredPromise<void>();
+		const response = new DeferredPromise<IReplayedTaskHistory>();
+		const pending = cache.load('task', CancellationToken.None, async () => ({
+			account: 'account', fetch: () => { void started.complete(); return response.p; },
+		}));
+		await started.p;
+		cache.invalidate('task', false, true);
+		await response.complete(snapshot('Older response'));
+		await pending;
+		assert.deepStrictEqual(await preview(cache), snapshot());
 	});
 
 	test('a cancelled response cannot evict or overwrite a replacement operation for the same task', async () => {

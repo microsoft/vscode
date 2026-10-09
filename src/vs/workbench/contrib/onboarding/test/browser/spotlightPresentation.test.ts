@@ -65,6 +65,64 @@ suite('SpotlightPresentation', () => {
 		};
 	}
 
+	for (const hideNext of [false, true]) {
+		for (const finishWith of ['activation', 'escape', 'advanceOnly'] as const) {
+			test(`uses a separate keyboard focus target for ${finishWith} (hideNext: ${hideNext})`, async () => {
+				const container = createContainer();
+				const previous = $('input');
+				const keyboardOwner = $('div');
+				keyboardOwner.tabIndex = 0;
+				container.append(previous, keyboardOwner);
+				previous.focus();
+				const activated = disposables.add(new Emitter<void>());
+				let focused = 0;
+				let activations = 0;
+				const target = createTarget(keyboardOwner, 'test.focusOwner', {
+					focusTarget: { element: keyboardOwner, focus: () => { focused++; keyboardOwner.focus(); } },
+					onDidActivate: activated.event,
+				});
+				target.tabIndex = -1;
+				disposables.add(addDisposableListener(keyboardOwner, EventType.KEY_DOWN, event => {
+					if (event.key === 'Enter') {
+						activations++;
+						activated.fire();
+					}
+				}));
+				const contextKeys = disposables.add(new ContextKeyService(new TestConfigurationService()));
+				const presentation = disposables.add(new SpotlightPresentation(new SpotlightTestLayoutService(container), new TestHostService(), contextKeys));
+				const shown = new DeferredPromise<void>();
+				const result = presentation.run(createScenario('test.focusOwner', {
+					id: 'focusOwner', targetId: 'test.focusOwner', title: 'New Session', description: 'Start another task.',
+					allowTargetInteraction: true, advanceOnTargetClick: finishWith === 'advanceOnly' ? 'advanceOnly' : true, hideNext,
+				}), { targetWindow: mainWindow, onAbort: Event.None, onDidShow: () => { void shown.complete(); } });
+				await shown.p;
+				if (!hideNext) {
+					const next = [...container.querySelectorAll<HTMLElement>('.monaco-button')].at(-1)!;
+					next.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', keyCode: 9, bubbles: true, cancelable: true }));
+				}
+				assert.strictEqual(mainWindow.document.activeElement, keyboardOwner);
+				const key = finishWith === 'escape' ? 'Escape' : 'Enter';
+				const keyCode = finishWith === 'escape' ? 27 : 13;
+				keyboardOwner.dispatchEvent(new KeyboardEvent('keydown', { key, keyCode, bubbles: true, cancelable: true }));
+				keyboardOwner.dispatchEvent(new KeyboardEvent('keyup', { key, keyCode, bubbles: true, cancelable: true }));
+				const outcome = (await result).outcome;
+				assert.deepStrictEqual({
+					focused,
+					activations,
+					outcome,
+					restoredFocus: mainWindow.document.activeElement === previous,
+					overlayRemaining: !!container.querySelector('.spotlight-callout'),
+				}, {
+					focused: 1,
+					activations: finishWith === 'activation' ? 1 : 0,
+					outcome: finishWith === 'escape' ? OnboardingOutcome.Skipped : OnboardingOutcome.Completed,
+					restoredFocus: finishWith !== 'activation',
+					overlayRemaining: false,
+				});
+			});
+		}
+	}
+
 	test('a primary action runs only on click and waits for accepted selection', async () => {
 		const container = createContainer();
 		const contextKeys = disposables.add(new ContextKeyService(new TestConfigurationService()));

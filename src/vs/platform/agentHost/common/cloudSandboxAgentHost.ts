@@ -22,6 +22,8 @@ import { SessionModelInfo } from './state/protocol/state.js';
 /** Configuration key gating the cloud-sandbox connection path. Disabled by default. */
 export const CloudSandboxEnabledSettingId = 'chat.agentHost.cloudSandbox.enabled';
 
+export const CloudSandboxAutoConnectOnOpenSettingId = 'chat.agentHost.cloudSandbox.autoConnectOnOpen';
+
 /**
  * Whether cloud sandbox sessions can be created or connected to. A sandbox is reached over the
  * remote-agent-host relay, so it needs that setting too.
@@ -159,7 +161,7 @@ export interface IHostEncryptionKey {
 	readonly key_id: string;
 	/** Trust domain the key serves (e.g. `auth-token`). */
 	readonly use: string;
-	/** Sealing scheme (only `x25519-sealedbox` is defined today). */
+	/** Sealing scheme, such as `x25519-sealedbox` or `hpke-x25519-hkdf-sha256-aes256gcm`. */
 	readonly algorithm: string;
 	/** Recipient public key in standard (padded) base64. */
 	readonly public_key: string;
@@ -313,8 +315,8 @@ export interface ICloudSandboxApiService {
 	 */
 	getSessionHistory(taskId: string, token: CancellationToken, diagnosticId?: string, onCachedHistory?: (history: IReplayedTaskHistory) => void): Promise<IReplayedTaskHistory | undefined>;
 
-	/** Invalidate recorded data after an observed live change without cancelling other readers. */
-	invalidateSessionHistory(taskId: string): void;
+	/** Prevent in-flight reads from refilling the cache; preserve stored data only when live history matches. */
+	invalidateSessionHistory(taskId: string, preserveCached?: boolean): void;
 
 	/** Drop recorded data and cancel reads for an account/feature lifetime or a removed task. */
 	clearSessionHistory(taskId?: string): void;
@@ -386,6 +388,8 @@ export interface ICloudSandboxConnectOptions {
 	readonly accountKey?: string;
 	/** Caller provenance, not a claim about warm or cold compute. */
 	readonly connectionSource?: 'created' | 'existing';
+	/** Local task-creation start time for end-to-end provisioning telemetry; never persisted or sent to MC. */
+	readonly provisioningStartedAt?: number;
 }
 
 /**

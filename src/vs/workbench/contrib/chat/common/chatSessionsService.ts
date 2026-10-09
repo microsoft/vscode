@@ -23,6 +23,8 @@ import { IChatRequestOrigin } from './chatRequestOrigin.js';
 import { IChatProgress, IChatResponseErrorDetails, IChatSessionTiming } from './chatService/chatService.js';
 import { ChatAgentLocation } from './constants.js';
 import { Target } from './promptSyntax/promptTypes.js';
+import type { ICanvasContext } from '../../canvases/common/canvas.js';
+import type { IChatSessionHistoryStatus } from '../../../../platform/chat/common/chatSessionHistory.js';
 
 export const enum ChatSessionsExtensions {
 	AsyncActivation = 'workbench.contrib.chatSessions.asyncActivation'
@@ -466,11 +468,13 @@ export interface IChatSession extends IDisposable {
 
 	readonly progressObs?: IObservable<IChatProgress[]>;
 	readonly isCompleteObs?: IObservable<boolean>;
+	/** Active shells across all turns, or undefined when the provider does not report them. */
+	readonly backgroundShellCount?: IObservable<number | undefined>;
 	readonly isReadOnly?: IObservable<boolean>;
 	/** Temporarily prevents sending while keeping the draft visible and editable. */
 	readonly isInputBlocked?: IObservable<boolean>;
-	/** A transient, plain-text explanation of cached history freshness. */
-	readonly historyStatus?: IObservable<string | undefined>;
+	readonly historyStatus?: IObservable<IChatSessionHistoryStatus | undefined>;
+	readonly canvasContext?: IObservable<ICanvasContext | undefined>;
 	/** Recheck a temporary input restriction without sending a message. */
 	readonly retryInput?: () => Promise<void>;
 	readonly interruptActiveResponseCallback?: () => Promise<boolean>;

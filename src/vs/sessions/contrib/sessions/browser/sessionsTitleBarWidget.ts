@@ -6,6 +6,7 @@
 import './media/sessionsTitleBarWidget.css';
 import { $, addDisposableGenericMouseDownListener, addDisposableListener, EventType, getDomNodePagePosition, getWindow, isAncestor, reset } from '../../../../base/browser/dom.js';
 import { combinedDisposable, Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Event as EventUtils } from '../../../../base/common/event.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { localize } from '../../../../nls.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
@@ -39,6 +40,7 @@ import { BlockedSessionsIndicatorModel, RequiresInputKind } from './blockedSessi
 import { getSessionWorkspaceDisplayInfo, ISessionWorkspaceDisplayInfo } from '../../../browser/sessionWorkspace.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../../../workbench/services/environment/browser/environmentService.js';
+import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 
 /**
  * Internal command behind the blocked-sessions dropdown header's "Show All
@@ -73,7 +75,7 @@ export function registerBlockedSessionsHeaderActions(): IDisposable {
 		MenuRegistry.appendMenuItem(Menus.BlockedSessionsHeader, {
 			command: {
 				id: IGNORE_ALL_INPUT_NEEDED_COMMAND_ID,
-				title: localize('ignoreAllInputNeeded', "Ignore All Input Needed"),
+				title: localize('ignoreAllInputNeeded', "Ignore All Needs Attention Alerts"),
 				icon: Codicon.bellSlash,
 			},
 			group: 'navigation',
@@ -227,8 +229,10 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			this._render();
 		}));
 
-		// Re-render when sessions data changes (e.g., changes info updated)
-		this._register(this.sessionsManagementService.onDidChangeSessions(() => {
+		this._register(EventUtils.any(
+			this.sessionsManagementService.onDidChangeSessions,
+			this.sessionsManagementService.onDidChangeSessionTypes,
+		)(() => {
 			this._lastRenderState = undefined;
 			this._render();
 		}));
@@ -428,7 +432,16 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	}
 
 	private _getCommandCenterTitle(): string | undefined {
-		return this._sessionTitle ?? this._workspaceInfo?.label ?? (this._isQuickChat ? localize('noWorkspace', "No workspace") : undefined);
+		const title = this._sessionTitle ?? this._workspaceInfo?.label;
+		if (title || !this._isQuickChat) {
+			return title;
+		}
+
+		const session = this.sessionsService.activeSession.get();
+		const provider = session ? this.sessionsProvidersService.getProvider(session.providerId) : undefined;
+		return provider && isAgentHostProvider(provider) && provider.remoteAddress
+			? localize('noWorkspaceOnRemoteHost', "No workspace [{0}]", provider.label)
+			: localize('noWorkspace', "No workspace");
 	}
 
 	/**
