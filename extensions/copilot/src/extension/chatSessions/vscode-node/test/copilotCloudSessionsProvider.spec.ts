@@ -484,10 +484,12 @@ describe('cloud session visibility', () => {
 			await registration![1](resource);
 			await registration![1](resource, { allowRepositoryUrl: true });
 			await registration![1](resource);
+			const session = await provider.provideChatSessionContent(resource, CancellationToken.None);
 
 			expect({
 				changes,
 				storedValues: updates.mock.calls.map(([, value]) => value),
+				sessionRepository: session.options?.repositories,
 			}).toEqual({
 				changes: [{
 					resource,
@@ -497,6 +499,7 @@ describe('cloud session visibility', () => {
 					}],
 				}],
 				storedValues: [[{ name: 'microsoft/vscode', timestamp: now }]],
+				sessionRepository: 'microsoft/vscode',
 			});
 		});
 
