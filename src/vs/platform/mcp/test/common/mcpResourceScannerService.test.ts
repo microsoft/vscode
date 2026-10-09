@@ -131,6 +131,47 @@ suite('McpResourceScannerService', () => {
 				assert.strictEqual(await read(), concurrent);
 			});
 		}
+
+		test('updates only changed properties and keeps CLI-owned fields', async () => {
+			await write('{\n  "mcpServers": {\n    "github": { "type": "stdio", "command": "npx", "args": ["server"], "tools": ["read", "write"], "timeout": 30, "env": { "A": "1" } }\n  }\n}\n');
+			const previous = (await scanner.scanMcpServers(resource, undefined, format)).servers!.github;
+			await scanner.updateMcpServer('github', previous, { type: McpServerType.LOCAL, command: 'npx', args: ['server'], env: { A: '2', B: '3' }, cwd: '/work' }, resource, undefined, format);
+			await assert.rejects(scanner.updateMcpServer('missing', previous, previous, resource, undefined, format));
+			await assert.rejects(scanner.updateMcpServer('github', previous, { type: McpServerType.LOCAL, command: 'npx', env: { A: '${input:token}' } }, resource, undefined, format));
+
+			assert.deepStrictEqual(JSON.parse(await read()), {
+				mcpServers: { github: { type: 'stdio', command: 'npx', args: ['server'], tools: ['read', 'write'], timeout: 30, env: { A: '2', B: '3' }, cwd: '/work' } },
+			});
+		});
+
+		test('switching transport replaces type-specific properties only', async () => {
+			await write('{"mcpServers":{"remote":{"type":"local","command":"node","args":["server.js"],"tools":["*"],"custom":1}}}');
+			const previous = (await scanner.scanMcpServers(resource, undefined, format)).servers!.remote;
+			await scanner.updateMcpServer('remote', previous, { type: McpServerType.REMOTE, transport: 'sse', url: 'https://example.com/sse' }, resource, undefined, format);
+
+			assert.deepStrictEqual(JSON.parse(await read()), {
+				mcpServers: { remote: { type: 'sse', tools: ['*'], custom: 1, url: 'https://example.com/sse' } },
+			});
+		});
+	});
+
+	test('unsupported properties already in a root server do not block edits to other properties', async () => {
+		await write('{ "mcpServers": { "keep": { "command": "node", "cwd": "/work", "envFile": ".env" } } }');
+		const previous = { type: McpServerType.LOCAL, command: 'node', cwd: '/work', envFile: '.env' } as const;
+		await scanner.updateMcpServer('keep', previous, { ...previous, env: { A: '1' } }, resource, target, format);
+		await assert.rejects(scanner.updateMcpServer('keep', previous, { ...previous, cwd: '/other' }, resource, target, format));
+
+		assert.deepStrictEqual(parse(await read()), { mcpServers: { keep: { command: 'node', cwd: '/work', envFile: '.env', env: { A: '1' } } } });
+	});
+
+	test('updates only changed properties of a root server', async () => {
+		await write('{\n  // comment\n  "mcpServers": { "keep": { "command": "node", "args": ["a"], "custom": true } }\n}\n');
+		await scanner.updateMcpServer('keep', { type: McpServerType.LOCAL, command: 'node', args: ['a'] }, { type: McpServerType.LOCAL, command: 'node', args: ['b'], env: { A: '1' } }, resource, target, format);
+		const content = await read();
+		assert.deepStrictEqual({ document: parse(content), comment: content.includes('// comment') }, {
+			document: { mcpServers: { keep: { command: 'node', args: ['b'], custom: true, env: { A: '1' } } } },
+			comment: true,
+		});
 	});
 
 	test('creates a canonical wrapped JSON document and merges concurrent additions', async () => {
