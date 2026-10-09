@@ -1150,8 +1150,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	}
 
 	private _shouldAllowTransparency(theme: IColorTheme = this._themeService.getColorTheme()): boolean {
-		// Image canvases handle their own alpha. Transparent glyph bitmaps are only needed for a
-		// translucent terminal background; using them for opaque backgrounds changes text antialiasing.
+		// Transparent glyph bitmaps alter text antialiasing and are only needed for translucent terminal backgrounds.
 		const backgroundColor = this._xtermColorProvider.getBackgroundColor(theme);
 		return backgroundColor !== undefined && !backgroundColor.isOpaque();
 	}
