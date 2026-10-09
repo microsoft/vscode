@@ -275,8 +275,13 @@ export class MissionControlEnvironment extends Disposable {
 				throw new Error('Mission Control is already configured; disable it before changing its scope');
 			}
 			this._roots = [...new Set([...this._roots, ...roots])];
+			const remoteControlPolicyOverrideChanged = (this._options.ignoreRemoteControlPolicy === true) !== (options.ignoreRemoteControlPolicy === true);
+			if (remoteControlPolicyOverrideChanged) {
+				this._policyRefresh++;
+			}
 			if (this._options.credential !== options.credential || this._credentialRejected
-				|| (this._options.useLocalCredentials === true) !== (options.useLocalCredentials === true)) {
+				|| (this._options.useLocalCredentials === true) !== (options.useLocalCredentials === true)
+				|| remoteControlPolicyOverrideChanged) {
 				this._generation++;
 				this._handler.clear();
 				this._mirrorAttachment.clear();
@@ -561,7 +566,7 @@ export class MissionControlEnvironment extends Disposable {
 		}
 		const capabilities = { ahp_version: PROTOCOL_VERSION, features: [], current_sessions: await this._boundedRegistrationWork(this._host.getSessionCount?.() ?? Promise.resolve(0), 'session count') };
 		let remoteControl: Record<string, unknown> | undefined;
-		if (options.live) {
+		if (options.live && options.ignoreRemoteControlPolicy !== true) {
 			if (!this._host.getRemoteControlPolicy) {
 				throw new Error('Cannot register before reading device remote-control policy');
 			}

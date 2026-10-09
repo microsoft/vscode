@@ -35,6 +35,7 @@ import { basename } from '../../../../base/common/resources.js';
 import { DEFAULT_MAX_CHUNK_BYTES, Reassembler } from '../../common/webPubSub/chunking.js';
 import { parseInbound } from '../../common/webPubSub/framing.js';
 import type { ProtocolMessage } from '../../common/state/sessionProtocol.js';
+import type { IMissionControlOptions } from '../../common/agentService.js';
 
 const prefix = 'user.owner.env.environment';
 const order = BigInt('0xffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551');
@@ -1313,7 +1314,7 @@ suite('Mission Control WPS', () => {
 				heartbeats: { time: number; status: string }[];
 				errors: string[];
 				sockets: FakeWpsSocket[];
-				options: { baseUrl: string; live: boolean; accountId: string; credential: string; roots: string[] };
+				options: IMissionControlOptions;
 				changeIdentityAuthority: (base: string) => void;
 				tokens: number[];
 				directory: string;
@@ -1326,6 +1327,10 @@ suite('Mission Control WPS', () => {
 			}) => Promise<void>,
 			bootstrapLifetime?: number,
 			openWorkspace = false,
+			overrides: {
+				ignoreRemoteControlPolicy?: boolean;
+				getRemoteControlPolicy?: () => Promise<Record<string, unknown> | undefined>;
+			} = {},
 		): Promise<void> {
 			const path = await mkdtemp(join(process.cwd(), '.build', 'mission-control-retry-after-'));
 			const clock = sinon.useFakeTimers({ now: Date.UTC(2026, 9, 2), toFake: ['Date', 'setTimeout', 'clearTimeout'] });
@@ -1394,13 +1399,13 @@ suite('Mission Control WPS', () => {
 						queueMicrotask(() => socket.emit('message', JSON.stringify({ type: 'system', event: 'connected' })));
 						return socket;
 					},
-					getRemoteControlPolicy: async () => policy,
+					getRemoteControlPolicy: overrides.getRemoteControlPolicy ?? (async () => policy),
 					getIdentityApiBase: () => identityApiBase,
 					onDidChangeIdentityAuthority: identityAuthorityChanged.event,
 					onDidChangeRemoteControlPolicy: policyChanged.event
 				}
 				));
-				const options = { baseUrl: 'https://api.github.com', live: true, accountId: '123', credential: 'fake-token', roots: openWorkspace ? [path] : [] };
+				const options: IMissionControlOptions = { baseUrl: 'https://api.github.com', live: true, accountId: '123', credential: 'fake-token', roots: openWorkspace ? [path] : [], ...(overrides.ignoreRemoteControlPolicy ? { ignoreRemoteControlPolicy: true } : {}) };
 				await service.configure(options);
 				await run({
 					service, clock, heartbeats, errors, sockets, options, tokens, directory: path, attachments, requests, signedSpawn: signed,
@@ -1886,6 +1891,53 @@ suite('Mission Control WPS', () => {
 					heartbeats: [{ time: 0, status: 'online' }, { time: 300_000, status: 'online' }],
 					sockets: 1, errors: [],
 				});
+			});
+		});
+
+		test('omits device policy only while opted in and fences existing lanes on override changes', async () => {
+			await withEnvironment([], async ({ service, options, changePolicy, requests, sockets, errors }) => {
+				const policy = { mode: 'disabled' };
+				await changePolicy(policy);
+				await service.configure({ ...options, ignoreRemoteControlPolicy: true });
+				const ignored = sockets[1];
+				await service.configure({ ...options, ignoreRemoteControlPolicy: true });
+				await service.configure({ ...options, ignoreRemoteControlPolicy: false });
+				assert.deepStrictEqual({
+					policies: requests.filter(request => request.path.endsWith('/register')).map(request => request.body?.managed_settings),
+					sockets: sockets.length,
+					initialClosed: sockets[0].closed,
+					ignoredClosed: ignored.closed,
+					restoredClosed: sockets[2].closed,
+					errors,
+				}, {
+					policies: [undefined, { remoteControl: policy }, undefined, { remoteControl: policy }],
+					sockets: 3, initialClosed: true, ignoredClosed: true, restoredClosed: false, errors: [],
+				});
+			});
+		});
+
+		test('explicit policy override skips failed device reads on registration and heartbeat', async () => {
+			let policyReads = 0;
+			await withEnvironment([], async ({ clock, requests, service, options, sockets, errors }) => {
+				await clock.tickAsync(60_000);
+				const beforeRestoring = {
+					policyReads,
+					policies: requests.filter(request => request.path.endsWith('/register')).map(request => request.body?.managed_settings),
+					errors: [...errors],
+				};
+				await assert.rejects(service.configure({ ...options, ignoreRemoteControlPolicy: false }), /Device policy unavailable/);
+				assert.deepStrictEqual({
+					beforeRestoring, policyReads, socketsClosed: sockets.map(socket => socket.closed),
+				}, {
+					beforeRestoring: { policyReads: 0, policies: [undefined], errors: [] },
+					policyReads: 1, socketsClosed: [true],
+				});
+			}, undefined, false, {
+				ignoreRemoteControlPolicy: true,
+				getRemoteControlPolicy: async () => {
+					policyReads++;
+					throw new Error('Device policy unavailable');
+				},
 			});
 		});
 	});
