@@ -12,7 +12,7 @@ import { IGitHubTransport } from '../githubTransport.js';
 import { GitHubRequestError } from '../githubTypes.js';
 import { parseResponseJson } from '../responseReader.js';
 import { AccountHandle, RequestError, RequestErrorKind } from '../types.js';
-import { ActivationContext, ApiError, ApiErrorResponse, CodedApiErrorResponse, PaginatedResponse, PaginationOptions, User } from './missionControl.js';
+import { ActivationContext, ApiError, ApiErrorResponse, CodedApiErrorResponse, PaginatedResponse, User } from './missionControl.js';
 
 /** An explicitly approved API base and the headers allowed to accompany its credential. */
 export interface ApiEndpoint {
@@ -278,15 +278,6 @@ function requestUrl(endpoint: ApiEndpoint, path: string): string {
 		throw new GitHubRequestError('API request escaped its approved endpoint', 'validation');
 	}
 	return url.href;
-}
-
-/** Validates explicit pagination values without applying client-side defaults. */
-export function pagination(options: PaginationOptions = {}): PaginationOptions {
-	if (options.page !== undefined && (!Number.isSafeInteger(options.page) || options.page < 1)
-		|| options.per_page !== undefined && (!Number.isSafeInteger(options.per_page) || options.per_page < 1 || options.per_page > 100)) {
-		throw new GitHubRequestError('Invalid API pagination', 'validation');
-	}
-	return { page: options.page, per_page: options.per_page };
 }
 
 /** Combines a parsed page with the server's continuation link and Date metadata. */
