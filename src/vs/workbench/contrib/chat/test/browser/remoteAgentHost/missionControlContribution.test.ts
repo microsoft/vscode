@@ -257,10 +257,13 @@ suite('Mission Control sharing service', () => {
 				if (resource.path === '/missing') {
 					throw new FileOperationError('Missing directory', FileOperationResult.FILE_NOT_FOUND);
 				}
+				if (resource.path === '/file/child') {
+					throw new FileOperationError('Parent is not a directory', FileOperationResult.FILE_NOT_DIRECTORY);
+				}
 				return upcastPartial<IFileStatWithPartialMetadata>({ resource, isDirectory: resource.path !== '/file' });
 			},
 		});
-		sharing.setProjectFolders([URI.file('/missing'), URI.file('/file'), workspaceRoot]);
+		sharing.setProjectFolders([URI.file('/missing'), URI.file('/file'), URI.file('/file/child'), workspaceRoot]);
 		await sharing.setEnabled(true);
 		assert.deepStrictEqual(calls, [{ options: expectedOptions, withdrawingAccountId: undefined }]);
 	}));

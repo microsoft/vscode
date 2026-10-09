@@ -207,10 +207,11 @@ export class MissionControlSharingService extends Disposable implements IMission
 					}
 					this._logService.warn('[Mission Control] Ignoring a recent project path that is not a directory', folder.toString());
 				} catch (error) {
-					if (!(error instanceof Error) || toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
+					const result = error instanceof Error ? toFileOperationResult(error) : undefined;
+					if (result !== FileOperationResult.FILE_NOT_FOUND && result !== FileOperationResult.FILE_NOT_DIRECTORY) {
 						throw error;
 					}
-					this._logService.warn('[Mission Control] Ignoring a missing recent project directory', folder.toString());
+					this._logService.warn('[Mission Control] Ignoring a missing or invalid recent project directory', folder.toString());
 				}
 				return undefined;
 			}))).filter(project => project !== undefined);
