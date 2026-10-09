@@ -218,11 +218,12 @@ suite('Chat Accessibility Help', () => {
 			visibility: help.includes('on the hovered, selected, or keyboard-focused model'),
 			preferences: help.includes('Auto\'s details hold its "Optimize for" preference: Efficiency, Balance, or Intelligence, followed by HydraFusion when available'),
 			activation: help.includes('Choosing a preference selects Auto and keeps its details open'),
+			discount: help.includes('When Auto has a discount, it is described below the preferences'),
 			hydra: help.includes('HydraFusion is a research preview'),
-			hydraDescription: help.includes('shows its description below the preferences, with Learn more reachable by Tab'),
+			hydraDescription: help.includes('shows its description below the preferences in place of Auto\'s discount, with Learn more reachable by Tab'),
 			hydraSelection: help.includes('Auto stays checked in the model list with HydraFusion as its preference'),
 			autoEntry: help.includes('The preference readout beside Auto in the chat input opens the same details'),
-		}, { details: true, inspection: true, inputShortcut: true, defaults: true, visibility: true, preferences: true, activation: true, hydra: true, hydraDescription: true, hydraSelection: true, autoEntry: true });
+		}, { details: true, inspection: true, inputShortcut: true, defaults: true, visibility: true, preferences: true, activation: true, discount: true, hydra: true, hydraDescription: true, hydraSelection: true, autoEntry: true });
 	});
 
 	test('documents Right Arrow details, provider tab keys, and the Back keys', () => {
