@@ -1375,6 +1375,15 @@ export interface IAgentChatAdoptionResult {
 		readonly markerStatus: 'valid' | 'missing' | 'invalid' | 'readError';
 		readonly provenance: 'legacy' | 'external' | 'unknown';
 		readonly markerFromCache: boolean;
+		readonly markerOrigin?: 'vscode' | 'other' | 'missing' | 'unrecognized' | 'invalidType' | 'unavailable';
+		readonly sessionIdStatus?: 'opaque' | 'empty' | 'controlCharacters' | 'pathSeparators' | 'dotSegment';
+		readonly copilotHomeSource?: 'environment' | 'userHome';
+		readonly sessionStateRootStatus?: 'directory' | 'file' | 'other' | 'missing' | 'readError' | 'notChecked';
+		readonly sessionDirectoryStatus?: 'directory' | 'file' | 'other' | 'missing' | 'readError' | 'notChecked';
+		readonly eventsFileStatus?: 'directory' | 'file' | 'other' | 'missing' | 'readError' | 'notChecked';
+		readonly workspaceMetadataStatus?: 'valid' | 'missing' | 'invalid' | 'readError' | 'tooLarge' | 'notFile' | 'notChecked';
+		/** Persisted runtime client, which can change on resume; not immutable creator provenance. */
+		readonly lastKnownClient?: 'vscode' | 'vscode-agent-host' | 'github/cli' | 'github/autopilot' | 'missing' | 'unrecognized' | 'invalidType' | 'unavailable';
 		readonly errorCode?: string;
 		readonly errorMessage?: string;
 	};

@@ -1959,7 +1959,7 @@ suite('stateToProgressAdapter', () => {
 						const content: ToolResultContent[] = resourceReference
 							? [{ type: ToolResultContentType.Resource, uri, contentType: 'image/png' }]
 							: [{ type: ToolResultContentType.EmbeddedResource, data: 'aW1hZ2U=', contentType: 'image/png' }];
-						const completed = createCompletedToolCall({ toolName, toolInput, content });
+						const completed = createCompletedToolCall({ toolName, toolInput, content, _meta: { 'vscode.toolCallDurationMs': 43_500 } });
 						const responseParts: ToolCallResponsePart[] = [{ kind: ResponsePartKind.ToolCall, toolCall: completed }];
 						const live = rawToolCallStateToInvocation(createToolCallState({ toolName, toolInput }), undefined, backendSession, connectionAuthority);
 						rawFinalizeToolInvocation(live, completed, backendSession, connectionAuthority);
@@ -1976,7 +1976,7 @@ suite('stateToProgressAdapter', () => {
 						assert.ok(restored.kind === 'toolInvocationSerialized');
 
 						const expected = {
-							toolSpecificData: { kind: 'generatedImage' },
+							toolSpecificData: { kind: 'generatedImage', durationMs: 43_500 },
 							resultDetails: {
 								input: toolInput ?? '',
 								inputLanguage: 'json',
