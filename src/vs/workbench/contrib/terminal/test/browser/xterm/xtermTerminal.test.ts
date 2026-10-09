@@ -6,7 +6,7 @@
 import type { IDecoration, IDecorationOptions, Terminal } from '@xterm/xterm';
 import { deepStrictEqual, ok, strictEqual } from 'assert';
 import { importAMDNodeModule } from '../../../../../../amdX.js';
-import { timeout } from '../../../../../../base/common/async.js';
+import { retry, timeout } from '../../../../../../base/common/async.js';
 import { Color, RGBA } from '../../../../../../base/common/color.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -21,6 +21,7 @@ import { ITerminalCommand, TerminalCapability } from '../../../../../../platform
 import { CommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/commandDetectionCapability.js';
 import { PartialCommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/partialCommandDetectionCapability.js';
 import { TerminalCapabilityStore } from '../../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
+import { ColorScheme } from '../../../../../../platform/theme/common/theme.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
 import { TestColorTheme, TestThemeService } from '../../../../../../platform/theme/test/common/testThemeService.js';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from '../../../../../common/theme.js';
@@ -261,11 +262,11 @@ suite('XtermTerminal', () => {
 			return setTerminalConfiguration({ fontRendering });
 		}
 
-		function attach(terminal: XtermTerminal = xterm): HTMLElement {
+		function attach(terminal: XtermTerminal = xterm, enableGpu = false): HTMLElement {
 			const container = document.createElement('div');
 			document.body.appendChild(container);
 			store.add(toDisposable(() => container.remove()));
-			terminal.attachToElement(container, { enableGpu: false });
+			terminal.attachToElement(container, { enableGpu });
 			return container;
 		}
 
@@ -338,16 +339,80 @@ suite('XtermTerminal', () => {
 			});
 		});
 
-		test('keeps transparency controlled by images rather than font rendering', async () => {
+		test('keeps text rendering opaque when images or font rendering change', async () => {
 			const transparencyStates: (boolean | undefined)[] = [];
-			for (const enableImages of [false, true]) {
+			for (const enableImages of [false, true, false]) {
 				for (const fontRendering of ['grayscale', 'inherit'] as const) {
 					await setTerminalConfiguration({ enableImages, fontRendering });
 					transparencyStates.push(xterm.raw.options.allowTransparency);
 				}
 			}
-			deepStrictEqual(transparencyStates, [false, false, true, true]);
+			deepStrictEqual(transparencyStates, [false, false, false, false, false, false]);
 		});
+
+		for (const type of [ColorScheme.LIGHT, ColorScheme.DARK]) {
+			for (const detached of [false, true]) {
+				for (const translucent of [false, true]) {
+					test(`image support preserves text rendering in a ${translucent ? 'translucent' : 'opaque'} ${type} ${detached ? 'detached' : 'regular'} terminal`, async () => {
+						const background = type === ColorScheme.LIGHT ? '#ffffff' : '#181818';
+						const foreground = type === ColorScheme.LIGHT ? '#333333' : '#cccccc';
+						const initialBackground = translucent ? `${background}80` : background;
+						themeService.setTheme(new TestColorTheme({
+							[TERMINAL_BACKGROUND_COLOR]: initialBackground,
+							[TERMINAL_FOREGROUND_COLOR]: foreground,
+						}, type));
+						await setTerminalConfiguration({ enableImages: true, fontRendering: 'grayscale', gpuAcceleration: 'on' });
+						const terminal = store.add(instantiationService.createInstance(XtermTerminal, undefined, XTermBaseCtor, {
+							cols: 80,
+							rows: 30,
+							xtermColorProvider: { getBackgroundColor: theme => theme.getColor(TERMINAL_BACKGROUND_COLOR) },
+							capabilities: store.add(new TerminalCapabilityStore()),
+							disableShellIntegrationReporting: true,
+							xtermAddonImporter: new TestXtermAddonImporter(),
+							detached,
+						}, undefined));
+						attach(terminal, true);
+						await retry(async () => strictEqual(terminal.isImageAddonLoaded, true), 10, 100);
+						const initialOptions = {
+							fontFamily: terminal.raw.options.fontFamily,
+							fontSize: terminal.raw.options.fontSize,
+							fontWeight: terminal.raw.options.fontWeight,
+						};
+						const transparencyStates = [terminal.raw.options.allowTransparency];
+						for (const enableImages of [false, true, false]) {
+							await setTerminalConfiguration({ enableImages, fontRendering: 'grayscale', gpuAcceleration: 'on' });
+							if (detached) {
+								terminal.updateConfig();
+							}
+							transparencyStates.push(terminal.raw.options.allowTransparency);
+						}
+						for (const themeBackground of [translucent ? background : `${background}80`, initialBackground]) {
+							themeService.setTheme(new TestColorTheme({
+								[TERMINAL_BACKGROUND_COLOR]: themeBackground,
+								[TERMINAL_FOREGROUND_COLOR]: foreground,
+							}, type));
+							if (detached) {
+								terminal.updateTheme();
+							}
+							transparencyStates.push(terminal.raw.options.allowTransparency);
+						}
+						deepStrictEqual({
+							transparencyStates,
+							background: terminal.raw.options.theme?.background,
+							foreground: terminal.raw.options.theme?.foreground,
+							fontFamily: terminal.raw.options.fontFamily,
+							fontSize: terminal.raw.options.fontSize,
+							fontWeight: terminal.raw.options.fontWeight,
+						}, {
+							transparencyStates: [translucent, translucent, translucent, translucent, !translucent, translucent],
+							background: Color.fromHex(initialBackground).toString(),
+							foreground,
+							...initialOptions,
+						});
+				});
+				}
+			}
+		}
 
 		test('applies configuration changes when a detached terminal is updated', async () => {
 			const terminal = store.add(instantiationService.createInstance(XtermTerminal, undefined, XTermBaseCtor, {

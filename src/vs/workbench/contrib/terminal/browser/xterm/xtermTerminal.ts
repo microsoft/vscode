@@ -281,7 +281,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 				kittyKeyboard: config.enableKittyKeyboardProtocol,
 				win32InputMode: config.enableWin32InputMode,
 			},
-			allowTransparency: config.enableImages,
+			allowTransparency: this._shouldAllowTransparency(),
 			windowOptions: {
 				getWinSizePixels: true,
 				getCellSizePixels: true,
@@ -617,7 +617,6 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		this.raw.options.scrollbar = this._getScrollbarOptions();
 		this.raw.options.ignoreBracketedPasteMode = config.ignoreBracketedPasteMode;
 		this.raw.options.rescaleOverlappingGlyphs = config.rescaleOverlappingGlyphs;
-		this.raw.options.allowTransparency = config.enableImages;
 		updateTerminalFontRendering(this.raw, config.fontRendering);
 		this.raw.options.vtExtensions = {
 			kittyKeyboard: config.enableKittyKeyboardProtocol,
@@ -1146,7 +1145,15 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	}
 
 	private _updateTheme(theme?: IColorTheme): void {
+		this.raw.options.allowTransparency = this._shouldAllowTransparency(theme);
 		this.raw.options.theme = this.getXtermTheme(theme);
+	}
+
+	private _shouldAllowTransparency(theme: IColorTheme = this._themeService.getColorTheme()): boolean {
+		// Image canvases handle their own alpha. Transparent glyph bitmaps are only needed for a
+		// translucent terminal background; using them for opaque backgrounds changes text antialiasing.
+		const backgroundColor = this._xtermColorProvider.getBackgroundColor(theme);
+		return backgroundColor !== undefined && !backgroundColor.isOpaque();
 	}
 
 	/**
