@@ -154,6 +154,8 @@ The `regression coverage:` history cases inspect actual provider-bound continued
 
 Historical checkpoint comparisons use completed provider turns rather than bang commands. Per-turn subscriptions currently select the file-edit tracker, which cannot see shell edits; compare-turn subscriptions use Git checkpoints. Checkpoint capture is asynchronous after turn completion, so these historical scenarios finish a subsequent no-tool turn before comparing earlier turns. Seed staged user changes before the baseline turn, and use an ignored execution witness when an edit-and-restore scenario intentionally has no final diff.
 
+Working-tree captures must read current bytes without changing the user's index, even when same-size edits retain cached file timestamps. The host copies an index only when it matches HEAD; with staged changes it seeds the temporary index from HEAD so restaging cannot silently reuse stale staged blobs. Keep staged additions, modifications, and linked-worktree cases covered.
+
 Session-wide changeset subscriptions and background refreshes use Git checkpoints with tracked-edit fallback while the session is idle, preserving shell edits after the end-of-turn checkpoint has been published. While any chat has an active turn, automatic refreshes use tracked edits so an older completed checkpoint cannot overwrite live edits. The provider aggregation scenario verifies both chats' files on disk and resubscribes after observing their combined changes. Chat-scoped Session Changes continue to use only that chat's tracked edits.
 
 Detached-worktree include-file tests cover wholly ignored and partially selected directories, overlapping globs, binary contents, and collisions with files or directories tracked on another branch. They use unstarted sessions and explicitly delete their handles, avoiding the background Git work associated with model-backed worktree disposal.
@@ -294,7 +296,7 @@ with the marker when the upstream fix is adopted.
 
 The native inherited-identity redaction scenario runs this way by default.
 Its expected-failure marker remains accountable in `KNOWN_ISSUES.md`; the
-managed-telemetry no-restart scenario passes normally with runtime `1.0.94-3`.
+managed-telemetry no-restart scenario passes normally with runtime `1.0.95-0`.
 Do not replace an expected-failure marker with a permanent negative assertion.
 
 If a recognized failure prevents later model turns, pass
@@ -436,6 +438,8 @@ The body is pretty-printed rather than reproduced byte-for-byte — the CLI mini
 
 It keeps as much real prompt text as possible. What is elided is the session id, the clock, the environment probe (OS name, tools found on `PATH`), the platform-specific package-manager hint in the Bash tool, the injected repository instructions, and the model catalog — each keeping its surrounding label or wrapper, so a change to the *shape* of those lines still fails. Request metadata outside the body is deliberately out of scope.
 
+The suite pins `gh` discovery with a temporary executable probe on its test-owned `PATH`, so the runtime's GitHub CLI guidance remains asserted independently of worker-installed tools. The probe fails explicitly if invoked: these snapshots test model guidance, not GitHub CLI execution. It is removed after the suite, and no production environment or prompt normalization changes.
+
 Pinning a new model is opt-in. Nothing here is derived from the live `/models` catalog, so a newly released model does not appear until a maintainer adds it to `capiStubs.ts` — and adding it there alone does not fail the suite, because the CLI's inlined model listing is elided. A model is only pinned once someone also adds it to `SNAPSHOT_MODELS` and commits its fixture and baseline.
 
 The repository instructions and the model catalog are the two elisions that are not about run-to-run variance. The CLI injects `.github/copilot-instructions.md` and `AGENTS.md` verbatim, and their content is stable across machines, so it could be pinned. It is not, because the cost would land on the wrong file: appending a single line to `AGENTS.md` would rewrite every baseline here and fail CI for an unrelated docs edit. The `<custom_instruction>` wrappers still assert that instructions are injected, how many, and where they sit in the prompt.
@@ -471,6 +475,24 @@ After recording, **review the diff** (paths normalized? no usernames, tokens, or
 > Recording creates real agent sessions. Keep prompts read-only / trivial (`echo`, `pwd`, list files) and scoped to isolated temp dirs.
 
 ---
+
+### Managed-settings schema snapshot
+
+[`../copilotSdkManagedSettings.integrationTest.ts`](../copilotSdkManagedSettings.integrationTest.ts)
+snapshots the complete `managedSettings.schema()` response from the bundled SDK/runtime.
+This is a sessionless SDK integration test, not an AHP scenario: it creates no chat,
+calls no model, and starts no MCP servers. It uses an isolated home without login credentials.
+The snapshot preserves the schema's descriptions, defaults, validation rules, and composition metadata.
+
+```bash
+# Compare with the committed baseline.
+./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/copilotSdkManagedSettings.integrationTest.ts
+
+# Regenerate after an intentional SDK/schema change, then review and rerun without the flag.
+AGENT_HOST_UPDATE_AHP_SNAPSHOTS=1 ./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/copilotSdkManagedSettings.integrationTest.ts
+```
+
+A missing baseline fails unless the explicit update flag is set, matching the prompt snapshots.
 
 ## Writing a new test
 
@@ -658,6 +680,10 @@ Codex's native plugin marketplace starts a background Git fetch of `openai/plugi
 
 Codex record/replay servers disable `features.plugins` to keep this unrelated marketplace bootstrap out of the tests. Client-provided plugin skills, agents, and MCP servers are configured by the host independently and remain covered by the same tests. Keep cleanup strict and retain its underlying filesystem errors so other teardown failures remain diagnosable.
 
+### Linux suites pass but tmpfs cannot be unmounted
+
+An `umount: target is busy` failure means a process or kernel reference still holds the mount; passing test bodies do not prove that cleanup finished. The wrapper runs a read-only `fuser -vm` probe for at most ten seconds to report holder PIDs, command names, and access types in the task log. Probe errors are reported separately, and the original cleanup failure remains fatal. Correlate the holders with server/provider cleanup logs before changing ownership; do not use lazy unmounts, process-name kills, or retries to conceal a leak.
+
 ### Fixture leaks a username / absolute path / token
 
 Normalization missed something (e.g. a path that `ls` line-wrapped, or a new secret field). Add/extend a placeholder in `capiReplayProxy.ts` (`_normalize` + the `*_RE` redactors), then re-record. Never hand-edit secrets back in.
@@ -674,6 +700,10 @@ You're accidentally in record mode (`AGENT_HOST_REPLAY_RECORD` set) without a to
 
 In replay one server serves every test (see [Server lifecycle](#server-lifecycle)), so a test that returns **mid-turn** leaks: the SDK's continuation call fires after the fixture is swapped and lands in a later test's window as an unrecorded call (a `POST /v1/messages` / `POST /responses` cache miss, usually attributed to the *next* test's teardown). Fix the culprit — the test that returned mid-turn — by draining its turn to `turnComplete` before it ends. (Verify by running the suspected test alone via `--grep`, which gives it a clean one-test server; if it passes alone but fails after a sibling, that's the leak.)
 
+### A Copilot recovery turn completes empty before its request is sent
+
+Check for the preceding execution's `session.error`, a new host turn, a late root `session.idle`, and `Turn changed during preparation; dropping send`. The host can prepare a replacement before the failed execution publishes its final idle; that idle must not complete the replacement. Only a new root execution boundary can release this protection: a background child's turn-start is not proof that the replacement started. Keep the real response assertions and coverage for zero-output completions, early errors, and cancellation; do not delay the retry or discard valid idle events globally.
+
 ### Read or archive state is lost after a graceful host restart
 
 Check the logs from both sides of the restart for storage load errors and failed shutdown drains. A `root/sessionSummaryChanged` notification precedes background catalog synchronization; graceful shutdown must drain those writes even if global storage or another persistence flush fails. Host-owned JSON storage uses atomic replacement so an interrupted write cannot leave the next host with a truncated file. Keep the restart assertions intact: sleeping after the notification would hide a persistence failure rather than fix it.
@@ -685,6 +715,10 @@ Turn completion precedes the unread lifecycle action. Use `waitForChatTurnComple
 ### A later test fails on unexpected console output after a snapshot mismatch
 
 Check for a `Deleting 1 old snapshots` message from the preceding test. A previous failed iteration leaves a diagnostic `.actual` file; a passing iteration removes it. Diagnostic cleanup must not report a baseline mutation, which CI correctly rejects. The snapshot helper cleans these artifacts silently while continuing to report removal of actual baselines.
+
+### CI truncates a prompt or AHP snapshot difference
+
+The reporter can truncate large comparisons at 8192 characters. Failed prompt and AHP comparisons retain the complete, already-normalized `.expected` and `.actual` strings under `.build/logs/integration-tests/agent-host-e2e-snapshots-<pid>/`, which is included in the uploaded logs artifact. Compare those files locally; a later passing assertion does not remove the retained evidence. The original mismatch still fails the test, and artifact-write failures report both errors. Raw provider requests and credentials are not added to these files.
 
 ### CI infra flakes (not your code)
 

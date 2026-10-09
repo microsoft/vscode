@@ -223,7 +223,7 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 		}
 
 		await this.configurationEditing.write(settingsResource, path, value);
-		await this.reloadConfiguration();
+		await this.reloadConfiguration(target);
 	}
 
 	private deriveConfigurationTargets(_key: string, value: unknown, inspect: IConfigurationValue<unknown>): ConfigurationTarget[] {
@@ -282,7 +282,9 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 	}
 
 	async reloadConfiguration(_target?: ConfigurationTarget | IWorkspaceFolder): Promise<void> {
-		this.reloadDefaultConfiguration();
+		if (_target === undefined || _target === ConfigurationTarget.DEFAULT) {
+			this.reloadDefaultConfiguration();
+		}
 		if (_target === ConfigurationTarget.DEFAULT) {
 			return;
 		}

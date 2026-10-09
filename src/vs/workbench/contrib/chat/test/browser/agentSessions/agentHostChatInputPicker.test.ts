@@ -36,7 +36,7 @@ import { MockKeybindingService } from '../../../../../../platform/keybinding/tes
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { NullOpenerService } from '../../../../../../platform/opener/test/common/nullOpenerService.js';
 import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
-import { COPILOT_SANDBOX_ALLOW_BYPASS_KEY, IManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_SANDBOX_ALLOW_BYPASS_KEY, IManagedSettingsService, ManagedSettingsData } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IAgentHostNewSessionFolderService } from '../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
@@ -108,6 +108,9 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			override inspect<T>(key: string): IConfigurationValue<T> {
 				const result = super.inspect<T>(key);
 				return { ...result, policyValue: this.policyRestricted && key === ChatConfiguration.GlobalAutoApprove ? result.value : undefined };
+			}
+			override updateValue(key: string, value: unknown): Promise<void> {
+				return this.setUserConfiguration(key, value);
 			}
 		}({
 			[ChatConfiguration.ExperimentalModePermissionsPicker]: combined,
@@ -182,6 +185,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		}()));
 		const connection = instantiationService.stub(IAgentHostService, {
 			onAgentHostStart: onAgentHostStart.event,
+			onAgentHostExit: Event.None,
 			getNetworkDiagnosticsInfo: () => {
 				diagnosticsRequests++;
 				return getHostInfo();
@@ -293,7 +297,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		rig.permissionPicker.render(rig.permissionContainer);
 		const context = rig.permissionPicker['_readContext']();
 		await rig.modePicker['_showPicker'](rig.modeContainer.querySelector<HTMLElement>('.agent-host-permissions-button')!, true);
-		const choices = rig.actionWidget.items.filter(item => ['Manual permissions', 'Assisted permissions', 'Allow all'].includes(item.label ?? '')).map(item => item.label);
+		const choices = rig.actionWidget.items.filter(item => ['Manual permissions', 'Assisted permissions', 'Allow all'].includes(item.label ?? '')).map(item => ({ label: item.label, disabled: !!item.disabled }));
 		await rig.actionWidget.select('Assisted permissions');
 		assert.deepStrictEqual({
 			choices,
@@ -303,12 +307,12 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			dispatches: rig.dispatches,
 			refreshes: rig.resolvedRefreshes,
 		}, {
-			choices: ['Manual permissions', 'Assisted permissions'],
+			choices: [{ label: 'Manual permissions', disabled: false }, { label: 'Assisted permissions', disabled: false }, { label: 'Allow all', disabled: true }],
 			effective: 'default',
 			hover: 'Effective permissions: manual. Requested permissions: allow-all.',
 			standaloneHidden: 'none',
 			dispatches: [{ type: ActionType.SessionConfigChanged, config: { approvalMode: 'assisted' } }],
-			refreshes: [{ mode: 'interactive', approvalMode: 'assisted', effectiveApprovalMode: 'manual', availableApprovalModes: ['manual', 'assisted'] }],
+			refreshes: [{ mode: 'interactive', approvalMode: 'assisted' }],
 		});
 	});
 
@@ -668,6 +672,70 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		});
 	}
 
+	for (const combined of [false, true]) {
+		test(`an existing chat closes stale permission choices when the host restricts approval (${combined ? 'combined' : 'separate'})`, async () => {
+			const rig = setup(combined);
+			rig.config.schema.properties.availableApprovalModes = { type: 'array', title: 'Available', readOnly: true };
+			rig.config.values.availableApprovalModes = ['default', 'assisted', 'autoApprove'];
+			const state = rig.setSession(URI.parse('agent-host-copilotcli:/existing'), URI.parse('copilotcli:/existing'), rig.connection, 'copilotcli');
+			const changed = store.add(new Emitter<SessionState>());
+			const sub = new class extends mock<IAgentSubscription<SessionState>>() {
+				override readonly value = state;
+				override readonly onDidChange = changed.event;
+			}();
+			rig.instantiationService.stub(IAgentHostService, rig.connection, 'getSubscription', () => ({ object: sub, dispose: () => { } }));
+			rig.instantiationService.stub(IAgentHostService, rig.connection, 'onDidNotification', Event.None);
+			const picker = combined ? rig.modePicker : rig.permissionPicker;
+			picker['_reattach']();
+			await picker['_showPicker'](dom.$('div'), combined);
+			const before = rig.actionWidget.items.filter(item => item.label === 'Assisted permissions').map(item => !!item.disabled);
+			rig.config.values.availableApprovalModes = ['default'];
+			changed.fire(state);
+			const closed = !rig.actionWidget.isVisible;
+			rig.actionWidget.hide();
+			await picker['_showPicker'](dom.$('div'), combined);
+			const after = rig.actionWidget.items.filter(item => item.label === 'Assisted permissions').map(item => !!item.disabled);
+			assert.deepStrictEqual({ before, closed, after, writes: rig.dispatches }, {
+				before: [false], closed: true, after: [true], writes: [],
+			});
+		});
+	}
+
+	test('host-owned approval reports override stale draft overlays without discarding the requested draft mode', async () => {
+		const rig = setup(false);
+		rig.config.schema.properties.availableApprovalModes = { type: 'array', title: 'Available', readOnly: true };
+		rig.config.schema.properties.effectiveApprovalMode = { type: 'string', title: 'Effective', readOnly: true };
+		rig.config.values = { mode: 'interactive', autoApprove: 'default', effectiveApprovalMode: 'default', availableApprovalModes: ['default'] };
+		rig.setSession(URI.parse('agent-host-copilotcli:/untitled-existing'), URI.parse('copilotcli:/provisional'), rig.connection);
+		rig.instantiationService.stub(IAgentHostUntitledProvisionalSessionService, 'getResolvedConfig', () => ({
+			schema: rig.config.schema,
+			values: { mode: 'plan', autoApprove: 'assisted', effectiveApprovalMode: 'assisted', availableApprovalModes: ['default', 'assisted', 'autoApprove'] },
+		}));
+		await rig.permissionPicker['_showPicker'](dom.$('div'));
+		const ctx = rig.permissionPicker['_readContext']();
+		assert.deepStrictEqual({
+			effective: ctx?.value, requested: ctx?.values.autoApprove, requestedMode: ctx?.values.mode,
+			assisted: rig.actionWidget.items.filter(item => item.label === 'Assisted permissions').map(item => !!item.disabled),
+		}, { effective: 'default', requested: 'assisted', requestedMode: 'plan', assisted: [true] });
+	});
+
+	test('an allowed draft approval change displays before the backend session starts', async () => {
+		const rig = setup();
+		rig.config.schema.properties.availableApprovalModes = { type: 'array', title: 'Available', readOnly: true };
+		rig.config.schema.properties.effectiveApprovalMode = { type: 'string', title: 'Effective', readOnly: true };
+		rig.config.values = { mode: 'interactive', autoApprove: 'default', effectiveApprovalMode: 'default', availableApprovalModes: ['default', 'assisted', 'autoApprove'] };
+		rig.setSession(URI.parse('agent-host-copilotcli:/untitled-existing'), URI.parse('copilotcli:/provisional'), rig.connection);
+		rig.instantiationService.stub(IAgentHostUntitledProvisionalSessionService, 'getResolvedConfig', () => ({
+			schema: rig.config.schema,
+			values: { autoApprove: 'autoApprove', effectiveApprovalMode: 'autoApprove', availableApprovalModes: ['default', 'assisted', 'autoApprove'] },
+		}));
+		await rig.modePicker['_showPicker'](dom.$('div'), true);
+		const ctx = rig.permissionPicker['_readContext']();
+		assert.deepStrictEqual({ effective: ctx?.value, requested: ctx?.values.autoApprove, selected: rig.actionWidget.selectedLabels }, {
+			effective: 'autoApprove', requested: 'autoApprove', selected: ['Interactive', 'Allow all'],
+		});
+	});
+
 	test('uses one shared tooltip for the combined label', () => {
 		const { modeContainer, hoverTargets } = setup();
 		assert.deepStrictEqual(hoverTargets.map(target => target === modeContainer.querySelector('.action-label')), [true]);
@@ -938,6 +1006,23 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 	});
 
 	for (const combined of [false, true]) {
+		test(`turns off global auto approve when selecting lower permissions (${combined ? 'combined' : 'separate'} picker)`, async () => {
+			const { modePicker, permissionPicker, configuration, config, actionWidget, dispatches } = setup(combined);
+			await configuration.setUserConfiguration(ChatConfiguration.GlobalAutoApprove, true);
+			config.values.autoApprove = 'autoApprove';
+			const picker = combined ? modePicker : permissionPicker;
+			await picker['_showPicker'](document.createElement('div'), combined);
+			await actionWidget.select('Manual permissions');
+
+			assert.deepStrictEqual({
+				globalAutoApprove: configuration.getValue(ChatConfiguration.GlobalAutoApprove),
+				dispatches,
+			}, {
+				globalAutoApprove: false,
+				dispatches: [{ type: ActionType.SessionConfigChanged, config: { autoApprove: 'default' } }],
+			});
+		});
+
 		test(`offers experimental Assisted permissions without an opt-in setting (${combined ? 'combined' : 'separate'} picker)`, async () => {
 			const { modePicker, permissionPicker, configuration, config, actionWidget, dispatches } = setup(combined);
 			await configuration.setUserConfiguration('chat.assistedPermissions.enabled', false);
@@ -960,14 +1045,16 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 			});
 		});
 
-		test(`preserves enterprise approval restrictions (${combined ? 'combined' : 'separate'} picker)`, async () => {
-			const { modePicker, permissionPicker, configuration, actionWidget, dispatches } = setup(combined);
+		test(`renders host approval restrictions as disabled rows (${combined ? 'combined' : 'separate'} picker)`, async () => {
+			const { modePicker, permissionPicker, configuration, config, actionWidget, dispatches } = setup(combined);
 			configuration.policyRestricted = true;
+			config.schema.properties.availableApprovalModes = { type: 'array', title: 'Available', readOnly: true };
+			config.values.availableApprovalModes = ['default'];
 			const picker = combined ? modePicker : permissionPicker;
 			await picker['_showPicker'](document.createElement('div'));
 			const levels = actionWidget.items.filter(item => ['Manual permissions', 'Assisted permissions', 'Allow all'].includes(item.label ?? ''))
 				.map(item => ({ label: item.label, disabled: item.disabled, badge: item.badge }));
-			await actionWidget.select('Assisted permissions');
+			await assert.rejects(actionWidget.select('Assisted permissions'), /does not offer/);
 
 			assert.deepStrictEqual({ levels, dispatches }, {
 				levels: [
@@ -975,7 +1062,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 					{ label: 'Assisted permissions', disabled: true, badge: 'Experimental' },
 					{ label: 'Allow all', disabled: true, badge: undefined },
 				],
-				dispatches: [{ type: ActionType.SessionConfigChanged, config: { autoApprove: 'default' } }],
+				dispatches: [],
 			});
 		});
 
@@ -1375,6 +1462,7 @@ suite('AgentHostChatInputPicker - sandbox toggle', () => {
 			_serviceBrand: undefined,
 			onDidChangeManagedSettings: managedSettingsChanged.event,
 			getManagedSettingValue: key => key === COPILOT_SANDBOX_ALLOW_BYPASS_KEY ? allowBypass : undefined,
+			getManagedSettings: (): ManagedSettingsData => allowBypass === undefined ? {} : { [COPILOT_SANDBOX_ALLOW_BYPASS_KEY]: allowBypass },
 		};
 		const enablementService: IAgentHostEnablementService = {
 			_serviceBrand: undefined,
@@ -1405,6 +1493,7 @@ suite('AgentHostChatInputPicker - sandbox toggle', () => {
 		}();
 		const connection = new class extends mock<IAgentHostService>() {
 			override readonly onAgentHostStart = Event.None;
+			override readonly onAgentHostExit = Event.None;
 			override async getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> {
 				return { version: '1', os: 'linux', arch: 'x64', proxySettings: {}, proxyEnv: {}, endpoints: [] };
 			}

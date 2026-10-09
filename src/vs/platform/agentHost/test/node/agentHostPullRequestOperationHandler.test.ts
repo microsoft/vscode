@@ -20,6 +20,9 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { buildChatUri, buildDefaultChatUri, withSessionGitHubState, withSessionGitState, type ISessionFileDiff, type ISessionGitState, MessageKind, ResponsePartKind, SessionStatus, TurnState, type Turn } from '../../common/state/sessionState.js';
 import type { IAgentHostGitService, IBranch, IDefaultBranch, IPushOptions } from '../../common/agentHostGitService.js';
 import { AgentHostPullRequestOperationHandler } from '../../node/agentHostPullRequestOperationHandler.js';
+import type { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
+import { AgentHostUtilityModelService } from '../../node/agentHostUtilityModelService.js';
+import { NullByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { CreatedPullRequest, CreatePullRequestOptions, EnablePullRequestAutoMergeOptions } from '../../../github/common/githubPullRequestMutationService.js';
@@ -325,6 +328,13 @@ function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitSer
 			sessionConfigUpdates.push(patch);
 		}
 	}();
+	const authenticationService = createAuthenticationService(options?.withCopilotToken);
+	const gitHubEndpointService = createTestGitHubEndpointService();
+	const logService = options?.logService ?? new NullLogService();
+	const providerService = new class extends mock<IAgentHostProviderService>() {
+		override getProviderForSession() { return undefined; }
+	}();
+	const utilityModelService = new AgentHostUtilityModelService(true, configurationService, copilotApiService, new NullByokLmBridgeRegistry(), providerService, stateManager, authenticationService, gitHubEndpointService, logService);
 	return {
 		handler: new AgentHostPullRequestOperationHandler(
 			options?.draft ?? false,
@@ -346,7 +356,7 @@ function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitSer
 				createdConversationChats.push(event.conversationChat);
 				createdBranches.push(event.branchName);
 			},
-			createAuthenticationService(options?.withCopilotToken), gitService, createTestGitHubService(gitHubClient), createTestGitHubEndpointService(), copilotApiService, branchNameGenerator, configurationService, options?.logService ?? new NullLogService(), stateManager),
+			authenticationService, gitService, createTestGitHubService(gitHubClient), gitHubEndpointService, utilityModelService, branchNameGenerator, configurationService, logService, stateManager),
 		session,
 		stateManager,
 		createdEvents,

@@ -33,7 +33,7 @@ jiff = { version = "0.2", default-features = false, features = ["std", "serde"] 
 http = "1"
 gethostname = "0.4.3"
 libc = "0.2.144"
-tunnels = { git = "https://github.com/microsoft/dev-tunnels", rev = "64048c1409ff56cb958b879de7ea069ec71edc8b", default-features = false, features = ["connections"] }
+tunnels = { git = "https://github.com/microsoft/dev-tunnels", rev = "b73b0eb774b86a5b519c300f2f41c9072a66f663", default-features = false, features = ["connections"] }
 keyring = { version = "2.0.3", default-features = false, features = ["linux-secret-service-rt-tokio-crypto-openssl", "platform-windows", "platform-macos", "linux-keyutils"] }
 dialoguer = "0.10.4"
 hyper = { version = "1", features = ["server", "http1", "client"] }

@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { GitHubGraphQLError } from '../../common/githubTypes.js';
@@ -551,6 +552,123 @@ suite('GitHubTransport', () => {
 		await response.complete(Response.json({}));
 		await Promise.all([first, last, rejected]);
 		assert.deepStrictEqual({ calls, dispatched }, { calls: 2, dispatched: ['first', 'last'] });
+	});
+
+	for (const api of ['REST', 'GraphQL'] as const) {
+		for (const firstFailure of ['fetch', 'server', 'body'] as const) {
+			test(`${api} body failures share the retry budget with ${firstFailure} failures`, () => runWithFakedTimers({}, async () => {
+				let attempts = 0;
+				const streams: ReadableStream<Uint8Array>[] = [];
+				const transport = disposables.add(new GitHubTransport(async () => {
+					if (++attempts === 1) {
+						if (firstFailure === 'fetch') {
+							throw new TypeError('Failed to fetch');
+						}
+						if (firstFailure === 'server') {
+							return new Response(null, { status: 503 });
+						}
+					}
+					const stream = new ReadableStream<Uint8Array>({
+						start(controller) { controller.enqueue(new TextEncoder().encode('{"data":')); },
+						pull(controller) { controller.error(new Error('private response content')); },
+					}, { highWaterMark: 0 });
+					streams.push(stream);
+					return new Response(stream, { headers: { etag: '"incomplete"' } });
+				}));
+				try {
+					const pending = api === 'REST'
+						? transport.rest(accountA, 'token-a', { method: 'GET', url: 'https://github.example.test/repos/o/r' }, signal())
+						: transport.graphql(accountA, 'token-a', 'https://github.example.test/graphql', 'query { viewer { login } }', {}, signal());
+					await assert.rejects(pending, { name: 'GitHubRequestError', kind: 'network', message: 'GitHub response body failed (codes: unknown)' });
+					assert.deepStrictEqual({ attempts, locked: streams.some(stream => stream.locked) }, { attempts: 2, locked: false });
+				} finally {
+					transport.dispose();
+				}
+			}));
+		}
+	}
+
+	test('GraphQL reads recover from a response body failure', () => runWithFakedTimers({}, async () => {
+		let attempts = 0;
+		const transport = disposables.add(new GitHubTransport(async () => ++attempts === 1
+			? new Response(new ReadableStream<Uint8Array>({ pull: controller => controller.error(new Error('connection lost')) }))
+			: Response.json({ data: { viewer: { login: 'octocat' } } })));
+		try {
+			const result = await transport.graphql(accountA, 'token-a', 'https://github.example.test/graphql', 'query { viewer { login } }', {}, signal());
+			assert.deepStrictEqual({ data: result.data, attempts }, { data: { viewer: { login: 'octocat' } }, attempts: 2 });
+		} finally {
+			transport.dispose();
+		}
+	}));
+
+	test('GraphQL mutations do not retry response body failures', async () => {
+		let attempts = 0;
+		const transport = disposables.add(new GitHubTransport(async () => {
+			attempts++;
+			return new Response(new ReadableStream<Uint8Array>({ pull: controller => controller.error(new Error('connection lost')) }));
+		}));
+		await assert.rejects(transport.graphql(accountA, 'token-a', 'https://github.example.test/graphql', 'mutation { updateIssue(input: {}) { clientMutationId } }', {}, signal()), { kind: 'network' });
+		assert.strictEqual(attempts, 1);
+	});
+
+	for (const interruption of ['cancellation', 'deadline'] as const) {
+		test(`preserves ${interruption} during response body reads`, async () => {
+			const scheduler = disposables.add(new FakeScheduler());
+			const controller = new AbortController();
+			const reason = new Error('cancelled while reading');
+			const started = new DeferredPromise<void>();
+			const cancelled = new DeferredPromise<void>();
+			let attempts = 0;
+			const stream = new ReadableStream<Uint8Array>({
+				pull: () => { void started.complete(); },
+				cancel: () => { void cancelled.complete(); },
+			}, { highWaterMark: 0 });
+			const transport = disposables.add(new GitHubTransport(async () => {
+				attempts++;
+				return new Response(stream);
+			}, scheduler, false, undefined, { requestTimeout: 1_000 }));
+			const pending = transport.rest(accountA, 'token-a', { method: 'GET', url: 'https://github.example.test/repos/o/r', coalesce: false }, controller.signal);
+			const rejected = interruption === 'cancellation'
+				? assert.rejects(pending, error => error === reason)
+				: assert.rejects(pending, { kind: 'timeout', requestDispatched: true });
+			await started.p;
+			if (interruption === 'cancellation') {
+				controller.abort(reason);
+			} else {
+				scheduler.advanceBy(1_000);
+			}
+			await Promise.all([rejected, cancelled.p]);
+			assert.deepStrictEqual({ attempts, locked: stream.locked, timers: scheduler.pendingCount }, { attempts: 1, locked: false, timers: 0 });
+		});
+	}
+
+	for (const kind of ['responseTooLarge', 'malformedResponse'] as const) {
+		test(`does not reclassify or retry ${kind} body validation failures`, async () => {
+			let attempts = 0;
+			const transport = disposables.add(new GitHubTransport(async () => {
+				attempts++;
+				return new Response(kind === 'responseTooLarge' ? '{"value":123}' : '{');
+			}, undefined, false, undefined, { maximumResponseBytes: 8 }));
+			await assert.rejects(transport.rest(accountA, 'token-a', { method: 'GET', url: 'https://github.example.test/repos/o/r' }, signal()), { kind });
+			assert.strictEqual(attempts, 1);
+		});
+	}
+
+	test('body failures honor a cooldown received with the response headers', async () => {
+		const scheduler = disposables.add(new FakeScheduler());
+		let attempts = 0;
+		const transport = disposables.add(new GitHubTransport(async () => {
+			attempts++;
+			return new Response(new ReadableStream<Uint8Array>({ pull: controller => controller.error(new Error('connection lost')) }), {
+				status: 503, headers: { 'retry-after': '2' },
+			});
+		}, scheduler));
+		await assert.rejects(transport.rest(accountA, 'token-a', {
+			method: 'GET', url: 'https://github.example.test/agents/tasks', rateLimitResource: 'agents',
+		}, signal()), { kind: 'network' });
+		assert.deepStrictEqual({ attempts, delay: transport.rateLimits.getRequestDelay(accountA, 'agents'), timers: scheduler.pendingCount }, {
+			attempts: 1, delay: 2_000, timers: 0,
+		});
 	});
 
 	test('shares rate-limit backoff across requests for an account', async () => {
@@ -1162,7 +1280,7 @@ suite('GitHubTransport', () => {
 		await assert.rejects(() => transport.download(accountA, 'token-a', {
 			url: 'https://api.example.test/log', maximumBytes: 3, timeout: 30_000,
 		}, signal()), {
-			name: 'GitHubRequestError', kind: 'network', message: 'GitHub download body failed (codes: unknown)',
+			name: 'GitHubRequestError', kind: 'network', message: 'GitHub response body failed (codes: unknown)',
 		});
 		assert.deepStrictEqual({ locked: stream.locked, pendingTimers: scheduler.pendingCount }, { locked: false, pendingTimers: 0 });
 	});

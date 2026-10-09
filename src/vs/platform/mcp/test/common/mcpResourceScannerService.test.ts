@@ -131,6 +131,106 @@ suite('McpResourceScannerService', () => {
 				assert.strictEqual(await read(), concurrent);
 			});
 		}
+
+		test('updates only changed properties and keeps CLI-owned fields', async () => {
+			await write('{\n  "mcpServers": {\n    "github": { "type": "stdio", "command": "npx", "args": ["server"], "tools": ["read", "write"], "timeout": 30, "env": { "A": "1" } }\n  }\n}\n');
+			const previous = (await scanner.scanMcpServers(resource, undefined, format)).servers!.github;
+			await scanner.updateMcpServer('github', previous, { type: McpServerType.LOCAL, command: 'npx', args: ['server'], env: { A: '2', B: '3' }, cwd: '/work' }, resource, undefined, format);
+			await assert.rejects(scanner.updateMcpServer('missing', previous, previous, resource, undefined, format));
+			await assert.rejects(scanner.updateMcpServer('github', previous, { type: McpServerType.LOCAL, command: 'npx', env: { A: '${input:token}' } }, resource, undefined, format));
+
+			assert.deepStrictEqual(JSON.parse(await read()), {
+				mcpServers: { github: { type: 'stdio', command: 'npx', args: ['server'], tools: ['read', 'write'], timeout: 30, env: { A: '2', B: '3' }, cwd: '/work' } },
+			});
+		});
+
+		test('keeps number and null env values and writes the canonical stdio type', async () => {
+			await write('{"mcpServers":{"server":{"type":"local","command":"node","env":{"A":"1","PORT":3000,"UNSET":null}},"remote":{"type":"http","url":"https://example.com/mcp","tools":["*"]}}}');
+			const servers = (await scanner.scanMcpServers(resource, undefined, format)).servers!;
+			await scanner.updateMcpServer('server', servers.server, { type: McpServerType.LOCAL, command: 'node', env: { A: '2', PORT: 3000, UNSET: null } }, resource, undefined, format);
+			await scanner.updateMcpServer('remote', servers.remote, { type: McpServerType.LOCAL, command: 'node' }, resource, undefined, format);
+
+			assert.deepStrictEqual(JSON.parse(await read()).mcpServers, {
+				server: { type: 'local', command: 'node', env: { A: '2', PORT: 3000, UNSET: null } },
+				remote: { type: 'stdio', tools: ['*'], command: 'node', args: [] },
+			});
+		});
+
+		test('switching from SSE to HTTP rewrites the type however the file spells SSE', async () => {
+			await write('{"mcpServers":{"typed":{"type":"sse","url":"https://example.com/a","tools":["*"]},"transport":{"type":"http","transport":"sse","url":"https://example.com/b"}}}');
+			const servers = (await scanner.scanMcpServers(resource, undefined, format)).servers!;
+			for (const name of ['typed', 'transport']) {
+				const previous = servers[name];
+				assert.ok(previous.type === McpServerType.REMOTE && previous.transport === 'sse');
+				await scanner.updateMcpServer(name, previous, { ...previous, transport: undefined }, resource, undefined, format);
+			}
+			const reloaded = (await scanner.scanMcpServers(resource, undefined, format)).servers!;
+
+			assert.deepStrictEqual({
+				document: JSON.parse(await read()).mcpServers,
+				reloadedTransports: Object.values(reloaded).map(server => server.type === McpServerType.REMOTE ? server.transport : undefined),
+			}, {
+				document: { typed: { type: 'http', url: 'https://example.com/a', tools: ['*'] }, transport: { type: 'http', url: 'https://example.com/b' } },
+				reloadedTransports: [undefined, undefined],
+			});
+		});
+
+		test('switching transport replaces type-specific properties only', async () => {
+			await write('{"mcpServers":{"remote":{"type":"local","command":"node","args":["server.js"],"tools":["*"],"custom":1}}}');
+			const previous = (await scanner.scanMcpServers(resource, undefined, format)).servers!.remote;
+			await scanner.updateMcpServer('remote', previous, { type: McpServerType.REMOTE, transport: 'sse', url: 'https://example.com/sse' }, resource, undefined, format);
+
+			assert.deepStrictEqual(JSON.parse(await read()), {
+				mcpServers: { remote: { type: 'sse', tools: ['*'], custom: 1, url: 'https://example.com/sse' } },
+			});
+		});
+	});
+
+	test('switching a root server from SSE to HTTP rewrites the type however the file spells SSE', async () => {
+		await write('{ "mcpServers": { "typed": { "type": "sse", "url": "https://example.com/a", "custom": 1 }, "transport": { "type": "http", "transport": "sse", "url": "https://example.com/b" } } }');
+		const servers = (await scanner.scanMcpServers(resource, target, format)).servers!;
+		for (const name of ['typed', 'transport']) {
+			const previous = servers[name];
+			assert.ok(previous.type === McpServerType.REMOTE && previous.transport === 'sse');
+			await scanner.updateMcpServer(name, previous, { ...previous, transport: undefined }, resource, target, format);
+		}
+		const reloaded = (await scanner.scanMcpServers(resource, target, format)).servers!;
+
+		assert.deepStrictEqual({
+			document: parse(await read()).mcpServers,
+			reloadedTransports: Object.values(reloaded).map(server => server.type === McpServerType.REMOTE ? server.transport : undefined),
+		}, {
+			document: { typed: { type: 'http', url: 'https://example.com/a', custom: 1 }, transport: { type: 'http', url: 'https://example.com/b' } },
+			reloadedTransports: [undefined, undefined],
+		});
+	});
+
+	test('unsupported entries already in a root server env do not block edits to other entries', async () => {
+		await write('{ "mcpServers": { "keep": { "command": "node", "env": { "UNSET": null, "PORT": "1" } } } }');
+		const previous = { type: McpServerType.LOCAL, command: 'node', env: { UNSET: null, PORT: '1' } } as const;
+		await scanner.updateMcpServer('keep', previous, { ...previous, env: { UNSET: null, PORT: '2' } }, resource, target, format);
+		await assert.rejects(scanner.updateMcpServer('keep', previous, { ...previous, env: { UNSET: null, PORT: '1', OTHER: null } }, resource, target, format));
+
+		assert.deepStrictEqual(parse(await read()), { mcpServers: { keep: { command: 'node', env: { UNSET: null, PORT: '2' } } } });
+	});
+
+	test('unsupported properties already in a root server do not block edits to other properties', async () => {
+		await write('{ "mcpServers": { "keep": { "command": "node", "cwd": "/work", "envFile": ".env" } } }');
+		const previous = { type: McpServerType.LOCAL, command: 'node', cwd: '/work', envFile: '.env' } as const;
+		await scanner.updateMcpServer('keep', previous, { ...previous, env: { A: '1' } }, resource, target, format);
+		await assert.rejects(scanner.updateMcpServer('keep', previous, { ...previous, cwd: '/other' }, resource, target, format));
+
+		assert.deepStrictEqual(parse(await read()), { mcpServers: { keep: { command: 'node', cwd: '/work', envFile: '.env', env: { A: '1' } } } });
+	});
+
+	test('updates only changed properties of a root server', async () => {
+		await write('{\n  // comment\n  "mcpServers": { "keep": { "command": "node", "args": ["a"], "custom": true } }\n}\n');
+		await scanner.updateMcpServer('keep', { type: McpServerType.LOCAL, command: 'node', args: ['a'] }, { type: McpServerType.LOCAL, command: 'node', args: ['b'], env: { A: '1' } }, resource, target, format);
+		const content = await read();
+		assert.deepStrictEqual({ document: parse(content), comment: content.includes('// comment') }, {
+			document: { mcpServers: { keep: { command: 'node', args: ['b'], custom: true, env: { A: '1' } } } },
+			comment: true,
+		});
 	});
 
 	test('creates a canonical wrapped JSON document and merges concurrent additions', async () => {

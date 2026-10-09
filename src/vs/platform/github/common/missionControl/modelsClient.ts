@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { parse } from '../schema.js';
+import { parse } from '../client/schema.js';
 import { MissionControlClient } from './missionControlClient.js';
 import { IModelsClient, ListModelsResponse } from './models.js';
 

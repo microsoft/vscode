@@ -764,8 +764,9 @@
 	padding-bottom: calc(var(--vscode-spacing-size360) + var(--vscode-strokeThickness));
 }
 
-.interactive-item-container .value > :last-child,
-.interactive-item-container .value > :last-child.rendered-markdown > :last-child,
+/* Hidden summaries must not keep the preceding content's trailing margin. */
+.interactive-item-container .value > :nth-last-child(1 of :not([hidden])),
+.interactive-item-container .value > :nth-last-child(1 of :not([hidden])).rendered-markdown > :last-child,
 .interactive-item-container.interactive-request .value .rendered-markdown > :last-child {
 	margin-bottom: 0px;
 }
@@ -4937,8 +4938,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-item-container.pending-divider .pending-divider-label {
 	font-size: var(--vscode-chat-font-size-body-xs);
 	font-weight: var(--vscode-fontWeight-semiBold);
-	text-transform: uppercase;
-	letter-spacing: 0.5px;
 	color: var(--vscode-descriptionForeground);
 }
 

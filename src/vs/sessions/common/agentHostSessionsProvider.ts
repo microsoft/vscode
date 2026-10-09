@@ -271,6 +271,8 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	getSessionSandboxPolicy?(sessionId: string): ISessionSandboxPolicy | undefined;
 	/** Last sandbox enablement successfully applied by the host. */
 	getSessionSandboxEnabled?(sessionId: string): boolean | undefined;
+	/** Docker prerequisites for sandboxing, undefined when the session does not target a known container. */
+	getDevContainerSandboxSupported?(sessionId: string): boolean | undefined;
 	/**
 	 * Observable: `true` while a `resolveSessionConfig` round-trip is in
 	 * flight. Pickers gate on this rather than `session.loading` so they

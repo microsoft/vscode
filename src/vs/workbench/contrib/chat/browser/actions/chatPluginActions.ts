@@ -19,12 +19,16 @@ import { INotificationService, Severity } from '../../../../../platform/notifica
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
 import { ChatConfiguration } from '../../common/constants.js';
+import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { IAgentPluginRepositoryService } from '../../common/plugins/agentPluginRepositoryService.js';
 import { IPluginInstallService } from '../../common/plugins/pluginInstallService.js';
 import { type IMarketplaceReference, MarketplaceReferenceKind, parseMarketplaceReference, parseMarketplaceReferences, readConfiguredMarketplaces } from '../../common/plugins/pluginMarketplaceService.js';
 import { getStrictKnownMarketplaces, isMarketplaceReferenceAllowed } from '../../common/plugins/strictKnownMarketplaces.js';
 import { InstalledAgentPluginsViewId } from '../chat.js';
+import { isAgentFinderPublicFeedAvailable } from '../aiCustomization/customizationMarketplaceConfiguration.js';
+import { getPluginCustomizationMarketplaceNavigationSourceId } from '../aiCustomization/pluginCustomizationMarketplaceProvider.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 
 export class ManagePluginsAction extends Action2 {
@@ -221,10 +225,12 @@ export class ManagePluginMarketplacesAction extends Action2 {
 		const commandService = accessor.get(ICommandService);
 		const fileService = accessor.get(IFileService);
 		const notificationService = accessor.get(INotificationService);
+		const customizationHarnessService = accessor.get(ICustomizationHarnessService);
 
 		while (true) {
 			const { extraValues, effectiveValues } = readConfiguredMarketplaces(configurationService);
 			const refs = parseMarketplaceReferences(effectiveValues);
+			const strictMarketplaces = getStrictKnownMarketplaces(configurationService.getValue(ChatConfiguration.StrictMarketplaces));
 			const policyCanonicalIds = new Set(parseMarketplaceReferences(extraValues).map(reference => reference.canonicalId));
 			const defaultCanonicalIds = new Set(parseMarketplaceReferences(
 				configurationService.inspect<readonly unknown[]>(ChatConfiguration.PluginMarketplaces)?.defaultValue ?? []
@@ -241,9 +247,11 @@ export class ManagePluginMarketplacesAction extends Action2 {
 			if (refs.length > 0) {
 				items.push({ type: 'separator', label: localize('configuredMarketplaces', "Configured Marketplaces") });
 				items.push(...refs.map(reference => {
+					const allowed = isMarketplaceReferenceAllowed(strictMarketplaces, reference);
 					const descriptions = [
 						defaultCanonicalIds.has(reference.canonicalId) ? localize('defaultMarketplace', "Default") : undefined,
-						policyCanonicalIds.has(reference.canonicalId) ? localize('managedMarketplace', "Managed by Enterprise Policy") : undefined,
+						policyCanonicalIds.has(reference.canonicalId) ? localize('managedMarketplace', "Managed by Organization") : undefined,
+						!allowed ? localize('disabledMarketplace', "Disabled by Organization") : undefined,
 					].filter((description): description is string => description !== undefined);
 					return {
 						id: reference.canonicalId,
@@ -255,6 +263,8 @@ export class ManagePluginMarketplacesAction extends Action2 {
 						kind: 'marketplace' as const,
 						reference,
 						managedByPolicy: policyCanonicalIds.has(reference.canonicalId),
+						disabled: !allowed,
+						pickable: allowed,
 					};
 				}));
 			}
@@ -284,6 +294,7 @@ export class ManagePluginMarketplacesAction extends Action2 {
 				return;
 			}
 			const actionItems: IQuickPickItem[] = [];
+			actionItems.push({ id: 'showPlugins', label: localize('showPlugins', "Show Plugins") });
 			const repoUri = pluginRepositoryService.getRepositoryUri(ref);
 			if (await fileService.exists(repoUri)) {
 				actionItems.push({ id: 'openDirectory', label: localize('openMarketplaceDirectory', "Open Folder") });
@@ -302,8 +313,21 @@ export class ManagePluginMarketplacesAction extends Action2 {
 			if (!action) {
 				return;
 			}
-
 			switch (action.id) {
+				case 'showPlugins': {
+					const githubFeedAvailable = isAgentFinderPublicFeedAvailable(
+						configurationService,
+						!!customizationHarnessService.getActiveDescriptor().marketplaceSearchProvider,
+					);
+					await commandService.executeCommand(
+						AICustomizationManagementCommands.OpenMarketplace,
+						{
+							section: AICustomizationManagementSection.Plugins,
+							sourceId: getPluginCustomizationMarketplaceNavigationSourceId(configurationService, ref, githubFeedAvailable),
+						},
+					);
+					return;
+				}
 				case 'openDirectory':
 					await commandService.executeCommand('revealFileInOS', repoUri);
 					return;
@@ -360,10 +384,6 @@ export class ManagePluginMarketplacesAction extends Action2 {
 		const configured = parseMarketplaceReferences(readConfiguredMarketplaces(configurationService).effectiveValues);
 		if (configured.some(candidate => candidate.canonicalId === reference.canonicalId)) {
 			return localize('marketplaceAlreadyConfigured', "This marketplace is already configured.");
-		}
-		const allowlist = getStrictKnownMarketplaces(configurationService.getValue(ChatConfiguration.StrictMarketplaces));
-		if (!isMarketplaceReferenceAllowed(allowlist, reference)) {
-			return localize('marketplaceNotAllowed', "This marketplace is not allowed by enterprise policy.");
 		}
 		return undefined;
 	}

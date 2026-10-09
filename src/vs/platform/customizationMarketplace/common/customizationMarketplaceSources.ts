@@ -29,7 +29,7 @@ export const CustomizationMarketplaceSources = {
 		id: 'mcpGallery',
 		displayName: localize('customizationMarketplace.mcpGallery', "MCP Gallery"),
 		enablementSetting: CustomizationMarketplaceConfiguration.MarketplaceEnabled,
-		configurationDependencies: [mcpGalleryServiceUrlConfig, CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled],
+		configurationDependencies: [mcpGalleryServiceUrlConfig],
 	},
 	AgentFinderPublicFeed: {
 		id: 'agentFinder',

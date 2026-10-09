@@ -168,8 +168,10 @@ export interface IMcpServerCustomizationMigrationResult {
 export const enum FileCustomizationMigrationFailureReason {
 	/** The source customization file could not be read. */
 	SourceReadFailed = 'sourceReadFailed',
-	/** A destination folder or available destination name could not be resolved. */
+	/** A destination folder could not be resolved. */
 	TargetResolutionFailed = 'targetResolutionFailed',
+	/** A customization already exists at the migration destination. */
+	TargetAlreadyExists = 'targetAlreadyExists',
 	/** A prompt file could not be converted to a skill. */
 	ConversionFailed = 'conversionFailed',
 	/** The migrated customization could not be written to its destination. */

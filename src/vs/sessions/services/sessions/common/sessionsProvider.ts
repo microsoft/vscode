@@ -16,7 +16,7 @@ import { ILanguageModelChatMetadataAndIdentifier, type IModelConfigurationAccess
 import { ModelIdentifierResolution } from '../../../../workbench/contrib/chat/common/modelSelection.js';
 import { IAutomationSessionTemplate } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationUnavailableReasonCode, IAutomationProviderConfiguration, IAutomationStore } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
-import { ChatModelSource, IChat, ISession, ISessionCreationReference, ISessionEnvironment, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection } from './session.js';
+import { ChatModelSource, IChat, ISession, ISessionCanvasDefinition, ISessionCreationReference, ISessionEnvironment, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection } from './session.js';
 
 /**
  * Event fired when sessions change within a provider.
@@ -81,6 +81,8 @@ export interface ISendRequestOptions {
 
 /** Provider options applied when creating a new session draft. */
 export interface ISessionsProviderCreateSessionOptions {
+	/** Whether this draft configures an Automation rather than an interactive session. */
+	readonly isAutomationDraft?: boolean;
 	/** Initial provider metadata to associate with the session. */
 	readonly metadata?: Record<string, unknown>;
 	/** Session that created this session, when it should be presented as a child. */
@@ -410,6 +412,12 @@ export interface ISessionsProvider {
 
 	/** Remove a recorded artifact without changing independent session associations. */
 	removeSessionArtifact?(sessionId: string, artifactId: string): Promise<void>;
+
+	/** List canvas types registered in one live chat. */
+	listCanvases?(sessionId: string, chatResource: URI): Promise<readonly ISessionCanvasDefinition[]>;
+
+	/** Open or focus one stable instance of a registered canvas type. */
+	openCanvas?(sessionId: string, chatResource: URI, canvas: ISessionCanvasDefinition, instanceId: string): Promise<void>;
 
 	/**
 	 * Get selectable models and the current resolution of `desiredModelId`.

@@ -43,7 +43,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IQuickInputService, IQuickTreeItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
-import { defaultButtonStyles, defaultCheckboxStyles, defaultInputBoxStyles, defaultSelectBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { defaultButtonStyles, defaultCheckboxStyles, defaultSelectBoxStyles, getInputBoxStyle } from '../../../../platform/theme/browser/defaultStyles.js';
 import { hasNativeContextMenu } from '../../../../platform/window/common/window.js';
 import { IWorkspacePickerItem, WorkspacePicker } from '../../chat/browser/sessionWorkspacePicker.js';
 import { BranchPicker, IBranchPickerBranch, NEW_WORKTREE_LABEL } from '../../chat/browser/branchPicker.js';
@@ -61,6 +61,7 @@ import { AgentSessionTarget } from '../../../../workbench/contrib/chat/browser/a
 import { IChatWidget, ISessionTypePickerDelegate } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPart.js';
 import { ChatInputPickerResponsiveLayout, IChatInputPickerResponsiveLayoutItem } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerResponsiveLayout.js';
+import { settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground } from '../../../../workbench/contrib/preferences/common/settingsEditorColorRegistry.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { AutomationIsolationModel, normalizeAutomationBranchNames } from '../common/isolationGroupModel.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
@@ -78,10 +79,17 @@ import { Menus } from '../../../browser/menus.js';
 
 const $ = DOM.$;
 
+const automationNameInputBoxStyles = getInputBoxStyle({
+	inputBackground: settingsTextInputBackground,
+	inputForeground: settingsTextInputForeground,
+	inputBorder: settingsTextInputBorder,
+});
+
 const INTERVALS: { readonly value: AutomationInterval; readonly label: string }[] = [
 	{ value: 'manual', label: localize('automation.interval.manual', "Manual") },
 	{ value: 'hourly', label: localize('automation.interval.hourly', "Hourly") },
 	{ value: 'daily', label: localize('automation.interval.daily', "Daily") },
+	{ value: 'weekdays', label: localize('automation.interval.weekdays', "Weekdays") },
 	{ value: 'weekly', label: localize('automation.interval.weekly', "Weekly") },
 ];
 
@@ -224,6 +232,7 @@ export interface IFormState {
 	timezoneOffset?: number;
 	resolvedFolderUri?: URI;
 	targetDisabledReason?: string;
+	targetPending?: { readonly message: string };
 }
 
 export interface IValidationState {
@@ -1064,7 +1073,7 @@ export function renderForm(
 	DOM.append(nameRow, $('span.automation-form-label', undefined, localize('automation.form.name', "Name")));
 	const nameInputContainer = DOM.append(nameRow, $('.automation-form-input-host'));
 	const nameInput = disposables.add(new InputBox(nameInputContainer, contextViewService, {
-		inputBoxStyles: defaultInputBoxStyles,
+		inputBoxStyles: automationNameInputBoxStyles,
 		placeholder: localize('automation.form.namePlaceholder', "e.g. Morning standup notes"),
 		ariaLabel: localize('automation.form.name', "Name"),
 	}));
@@ -1084,7 +1093,8 @@ export function renderForm(
 
 	const intervalGroup = DOM.append(scheduleRow, $('.automation-form-schedule-group'));
 	DOM.append(intervalGroup, $('span.automation-form-label', undefined, localize('automation.form.interval', "Schedule")));
-	const intervalOptions: ISelectOptionItem[] = INTERVALS.map(item => ({ text: item.label }));
+	let intervals = INTERVALS;
+	const intervalOptions: ISelectOptionItem[] = intervals.map(item => ({ text: item.label }));
 	const intervalIndex = Math.max(0, INTERVALS.findIndex(item => item.value === state.interval));
 	const intervalSelect = disposables.add(new SelectBox(
 		intervalOptions,
@@ -1136,15 +1146,27 @@ export function renderForm(
 	DOM.hide(scheduleError);
 
 	const applyIntervalVisibility = () => {
-		const showTime = state.interval === 'daily' || state.interval === 'weekly';
+		const showTime = state.interval === 'daily' || state.interval === 'weekdays' || state.interval === 'weekly';
 		const showDay = state.interval === 'weekly';
 		timeGroup.style.display = showTime ? '' : 'none';
 		dayGroup.style.display = showDay ? '' : 'none';
 	};
+	const updateIntervalOptions = (cloud: boolean) => {
+		intervals = INTERVALS.filter(item => !cloud || item.value !== 'weekdays');
+		const unsupportedInterval = !intervals.some(item => item.value === state.interval);
+		if (unsupportedInterval) {
+			intervals = [{ value: state.interval, label: localize('automation.interval.choose', "Choose a schedule") }, ...intervals];
+		}
+		intervalSelect.setOptions(intervals.map(item => ({
+			text: item.label,
+			isDisabled: unsupportedInterval && item.value === state.interval,
+		})), Math.max(0, intervals.findIndex(item => item.value === state.interval)));
+		applyIntervalVisibility();
+	};
 	applyIntervalVisibility();
 	disposables.add(intervalSelect.onDidSelect(e => {
-		state.interval = INTERVALS[e.index].value;
-		applyIntervalVisibility();
+		state.interval = intervals[e.index].value;
+		updateIntervalOptions(getProviderConfiguration(state.providerId) !== undefined);
 		revalidate();
 	}));
 
@@ -1227,7 +1249,8 @@ export function renderForm(
 		const configuration = cloudConfiguration.get();
 		const target = configuration?.getWorkspaceTarget(state.folderUri).get();
 		state.resolvedFolderUri = target?.workspace;
-		state.targetDisabledReason = target?.disabledReason;
+		state.targetPending = target?.pending ? { message: target.disabledReason ?? localize('automation.form.checkingTarget', "Checking target availability...") } : undefined;
+		state.targetDisabledReason = target?.pending ? undefined : target?.disabledReason;
 		state.timeZone = configuration?.timeZone;
 		if (runInCloud.get()) {
 			state.isolationMode = undefined;
@@ -1301,7 +1324,7 @@ export function renderForm(
 		const folderUri = runInCloud.get() ? state.resolvedFolderUri : isolationModel.folderUriObs.get();
 		const pick = sessionTypePicker.selectedPick;
 		const isQuickChat = isolationModel.isQuickChatObs.get();
-		if (!pick || state.targetDisabledReason || pick.providerId === undefined || !allowedProviders.get().includes(pick.providerId) || (!isQuickChat && !folderUri)) {
+		if (!pick || state.targetDisabledReason || state.targetPending || pick.providerId === undefined || !allowedProviders.get().includes(pick.providerId) || (!isQuickChat && !folderUri)) {
 			automationSessionDraftSynchronizer.update(undefined);
 			return;
 		}
@@ -1359,7 +1382,8 @@ export function renderForm(
 		switchingTarget = true;
 		formContent.toggleAttribute('inert', true);
 		formContent.setAttribute('aria-busy', 'true');
-		state.targetDisabledReason = localize('automation.form.switchingTarget', "Saving the current session configuration...");
+		state.targetDisabledReason = undefined;
+		state.targetPending = { message: localize('automation.form.switchingTarget', "Saving the current session configuration...") };
 		revalidate();
 		try {
 			const capture = await automationSessionDraftSynchronizer.getSessionConfiguration(targetSwitchCancellation);
@@ -1435,6 +1459,13 @@ export function renderForm(
 		'aria-atomic': 'true',
 	}));
 	DOM.hide(targetError);
+	const targetProgress = DOM.append(targetRow, $('span.automation-target-progress', {
+		id: 'automation-target-progress',
+		role: 'status',
+		'aria-live': 'polite',
+		'aria-atomic': 'true',
+	}));
+	DOM.hide(targetProgress);
 	if (isEdit && initialProviderConfiguration) {
 		DOM.append(targetRow, $('span.automation-form-hint', undefined, initialProviderConfiguration.targetChangeDisabledReason));
 	}
@@ -1722,6 +1753,7 @@ export function renderForm(
 	disposables.add(autorun(reader => {
 		const configuration = cloudConfiguration.read(reader);
 		toolsPicker.clear();
+		updateIntervalOptions(configuration !== undefined);
 		setAutomationControlVisible(providerDetails, configuration !== undefined);
 		timeLabel.textContent = configuration?.timeZone === 'UTC' ? localize('automation.form.timeLocal', "Time (Local)") : localize('automation.form.time', "Time");
 		timeSelect.setAriaLabel(timeLabel.textContent);
@@ -1835,19 +1867,29 @@ export function renderForm(
 		waitForCustomizationChoices: async token => customizationSelection?.waitForChoices(token),
 		showTargetValidationError: message => {
 			const text = message ?? '';
-			if (targetError.textContent === text) {
-				return;
+			const pending = state.targetPending;
+			setAutomationControlVisible(targetProgress, !!pending && message === undefined);
+			const progressText = pending?.message ?? '';
+			if (targetProgress.textContent !== progressText) {
+				targetProgress.textContent = progressText;
 			}
+			targetContainer.setAttribute('aria-busy', String(!!pending));
 			if (message !== undefined) {
 				DOM.show(targetError);
 				targetContainer.setAttribute('aria-describedby', targetError.id);
 				targetContainer.setAttribute('aria-invalid', 'true');
 			} else {
 				DOM.hide(targetError);
-				targetContainer.removeAttribute('aria-describedby');
+				if (pending) {
+					targetContainer.setAttribute('aria-describedby', targetProgress.id);
+				} else {
+					targetContainer.removeAttribute('aria-describedby');
+				}
 				targetContainer.removeAttribute('aria-invalid');
 			}
-			targetError.textContent = text;
+			if (targetError.textContent !== text) {
+				targetError.textContent = text;
+			}
 		},
 		waitForAutomationSessionSync: token => {
 			updateAutomationSessionTarget();
@@ -2123,6 +2165,8 @@ export function updateSaveButtonState(
 		: undefined;
 	if (originalProviderId !== undefined && state.providerId !== originalProviderId) {
 		validation.sessionTypeError = localize('automation.form.hostChanged', "To use another Agent Host, duplicate this automation. The original keeps its schedule until you disable it.");
+	} else if (state.targetPending) {
+		validation.sessionTypeError = undefined;
 	} else if (state.targetDisabledReason !== undefined) {
 		validation.sessionTypeError = state.targetDisabledReason;
 	} else if (!providerAvailable) {
@@ -2146,12 +2190,16 @@ export function updateSaveButtonState(
 	const utcSchedule = state.timeZone === 'UTC' ? automationScheduleToUTC({
 		interval: state.interval, scheduleHour: state.hour, scheduleMinute: state.minute, scheduleDay: state.day,
 	}, state.timezoneOffset) : undefined;
-	validation.scheduleError = utcSchedule && (state.interval === 'daily' || state.interval === 'weekly') && utcSchedule.scheduleMinute % 15 !== 0
-		? localize('automation.form.cloudScheduleMinute', "Choose a time that corresponds to minute 00, 15, 30, or 45 in UTC.")
-		: undefined;
+	validation.scheduleError = !INTERVALS.some(item => item.value === state.interval)
+		? localize('automation.form.scheduleRequired', "Choose a supported schedule.")
+		: utcSchedule && state.interval === 'weekdays'
+			? localize('automation.form.cloudWeekdays', "Weekdays is only available for local automations. Choose a supported schedule for Cloud.")
+			: utcSchedule && (state.interval === 'daily' || state.interval === 'weekly') && utcSchedule.scheduleMinute % 15 !== 0
+				? localize('automation.form.cloudScheduleMinute', "Choose a time that corresponds to minute 00, 15, 30, or 45 in UTC.")
+				: undefined;
 	const valid = !validation.nameError && !validation.promptError && !validation.folderError && !validation.sessionTypeError && !validation.branchError && !validation.scheduleError;
 	if (saveButton) {
-		saveButton.enabled = valid;
+		saveButton.enabled = valid && !state.targetPending;
 	}
 	form.classList.toggle('automation-form-invalid', !valid);
 }
