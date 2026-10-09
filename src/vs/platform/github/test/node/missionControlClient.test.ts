@@ -10,6 +10,7 @@ import { runWithFakedTimers } from '../../../../base/test/common/timeTravelSched
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
+import { SchemaError } from '../../common/client/schema.js';
 import { GitHubService, IGitHubClient } from '../../common/githubService.js';
 import { GitHubRestRequest, GitHubTransport } from '../../common/githubTransport.js';
 import { GitHubClientOptions, IGitHubCredentialProvider } from '../../common/githubTypes.js';
@@ -17,7 +18,6 @@ import { AutomationDetail, AutomationToolGroup, AutomationTriggerDefinition } fr
 import { ClientTokenResponse } from '../../common/missionControl/environments.js';
 import { ApiRequestError } from '../../common/missionControl/missionControlClient.js';
 import { Task } from '../../common/missionControl/tasks.js';
-import { SchemaError } from '../../common/schema.js';
 
 const signal = () => new AbortController().signal;
 const repository = { owner: 'owner', name: 'repo' };
@@ -363,13 +363,16 @@ suite('Mission Control client', () => {
 		assert.deepStrictEqual(requests.map(request => new Headers(request.init.headers).get('If-None-Match')), [null, '"one"', null]);
 	});
 
-	for (const failure of ['network', 500, 501, 502, 503, 504] as const) {
+	for (const failure of ['network', 'body', 500, 501, 502, 503, 504] as const) {
 		test(`ordinary reads retain one transient retry for ${failure}`, () => runWithFakedTimers({}, async () => {
 			let calls = 0;
 			const { service, client, requests } = setup(() => {
 				if (++calls === 1) {
 					if (failure === 'network') {
 						throw new Error('network unavailable');
+					}
+					if (failure === 'body') {
+						return new Response(new ReadableStream<Uint8Array>({ pull: controller => controller.error(new Error('connection lost')) }));
 					}
 					return Response.json({}, { status: failure });
 				}
@@ -500,11 +503,14 @@ suite('Mission Control client', () => {
 	});
 
 	for (const operation of ['create', 'dispatch', 'connect', 'events', 'ahpEvents'] as const) {
-		for (const failure of ['network', 'server'] as const) {
+		for (const failure of ['network', 'body', 'server'] as const) {
 			test(`${operation} does not retry a ${failure} failure`, async () => {
 				const { client, requests } = setup(() => {
 					if (failure === 'network') {
 						throw new Error('failed');
+					}
+					if (failure === 'body') {
+						return new Response(new ReadableStream<Uint8Array>({ pull: controller => controller.error(new Error('private response content')) }));
 					}
 					return Response.json({}, { status: 503 });
 				});
@@ -514,8 +520,8 @@ suite('Mission Control client', () => {
 							: operation === 'events' ? client.tasks.getEvents(task.id, signal())
 								: client.tasks.getAhpEvents(task.id, signal());
 				await assert.rejects(pending, operation === 'events' || operation === 'ahpEvents'
-					? { kind: failure === 'network' ? 'network' : 'server' }
-					: { kind: failure === 'network' ? 'network' : 'server', outcome: 'indeterminate' });
+					? { kind: failure === 'server' ? 'server' : 'network' }
+					: { kind: failure === 'server' ? 'server' : 'network', outcome: 'indeterminate' });
 				assert.strictEqual(requests.length, 1);
 			});
 		}
@@ -617,6 +623,11 @@ suite('Mission Control client', () => {
 				['GET', undefined, 'application/json'], ['GET', undefined, 'application/vnd.github.ahp+json'],
 			],
 		});
+	});
+
+	test('rejects a task response with a different ID', async () => {
+		const { client } = setup(() => Response.json({ ...task, id: 'other-task' }));
+		await assert.rejects(client.tasks.get(task.id, signal()), new SchemaError('Task response did not match the requested task'));
 	});
 
 	test('tasks and SWE models use their existing contracts and configured service routes', async () => {
