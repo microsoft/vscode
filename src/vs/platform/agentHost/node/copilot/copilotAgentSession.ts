@@ -103,7 +103,7 @@ import type { IAgentHostRestrictedTelemetryContext } from '../agentHostRestricte
 import { buildChatErrorInfoFromCopilotSdkFields } from './copilotSdkChatError.js';
 import { buildMcpTopLevelCustomizationId, getMcpServerCustomizations, McpCustomizationController, type IMcpServerProvenance, type ISdkMcpServer } from '../shared/mcpCustomizationController.js';
 import { getSdkMcpServerEnablement, resolveCustomizationEnablement, targetForMcpServer } from '../shared/customizationEnablementGate.js';
-import { appendSdkToolResultContent, getSdkToolResultText, mapSessionEvents } from './mapSessionEvents.js';
+import { appendSdkToolResultContent, getSdkToolResultContent, getSdkToolResultText, mapSessionEvents } from './mapSessionEvents.js';
 import { withPermissionDiff } from '../../common/meta/agentPermissionRequestMeta.js';
 import { COPILOT_FUSION_PHASE_AGENT_NAME, CopilotFusionProgress, formatFusionReviewContent, getFusionPhaseToolCallId, type CopilotFusionEvent, type ICopilotFusionProgressUpdate } from './copilotFusionProgress.js';
 import { getFusionEventKey, getFusionEventSdkTurnId } from './copilotFusionEventIdentity.js';
@@ -7376,9 +7376,10 @@ export class CopilotAgentSession extends Disposable {
 				});
 			}
 
+			const resultContent = getSdkToolResultContent(tracked.toolName, e.data.result);
 			const shellExit = appendSdkToolResultContent(
 				content,
-				e.data.result?.contents,
+				resultContent?.contents,
 				isShellCommandTool ? {
 					storage: this._storageUri,
 					session: this._ownerSessionUri,
@@ -7386,7 +7387,7 @@ export class CopilotAgentSession extends Disposable {
 					toolCallId: e.data.toolCallId,
 					title: tracked.displayName,
 				} : undefined,
-				e.data.result?.binaryResultsForLlm,
+				resultContent?.binaryResultsForLlm,
 			);
 			let nonPtyCompletion: INonPtyShellToolCompletion | undefined;
 			if (isShellCommandTool && !ptyTerminalUri) {

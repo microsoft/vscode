@@ -34,7 +34,7 @@ export function getImageGenerationInvocationMessage(toolInvocation: IChatToolInv
 		? toolInvocation.toolSpecificData.imageGeneration?.requestedModel
 		: undefined;
 	return model
-		? localize('imageGeneration.usingModel', "Using {0} to generate an image", model.name ?? model.id)
+		? localize('imageGeneration.generatingWithModel', "Generating image with {0}", model.name ?? model.id)
 		: localize('imageGeneration.progress', "Generating image");
 }
 

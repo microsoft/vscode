@@ -71,13 +71,13 @@ suite('Chat Accessibility Help', () => {
 			harnesses: help.includes('Copilot and Codex agent sessions share this presentation'),
 			position: help.includes('Completed steps collapse only before the first image-generation tool, keeping image tools in their original position'),
 			placeholder: help.includes('A compact decorative band of shifting glyphs remains visible below the dropdown'),
-			overlapping: help.includes('Overlapping image-generation attempts each keep their own input dropdown and share one animation'),
+			overlapping: help.includes('Multiple image-generation calls in a response share one batch preview'),
 			reducedMotion: help.includes('does not indicate a percentage complete and stays still when reduced motion is enabled or a high contrast theme is active'),
 			reveal: help.includes('The reveal is skipped in those modes and when reopening a chat'),
 			dropdown: help.includes('While generation runs, expand the tool dropdown to inspect the submitted prompt'),
 			expand: help.includes('Tab to focus the dropdown and Enter or Space to expand or collapse it'),
 			progress: help.includes('Only the persistent progress line rotates through painting-themed phrases, without repeatedly announcing them'),
-			imageModel: help.includes('Its title says Using the image model to generate an image when the model is available, and does not shimmer'),
+			imageModel: help.includes('Its title says Generating image with the image model when the model is available, and does not shimmer'),
 			imageAndDropdown: help.includes('Successful generation shows the Generated image dropdown, including the image model when available, with a single image below it even when collapsed'),
 			failure: help.includes('Generated image failed row can be expanded to inspect the error'),
 			restoredState: help.includes('Completed and failed image tools keep their final status when you reopen the chat'),
@@ -90,6 +90,18 @@ suite('Chat Accessibility Help', () => {
 		}, { standalone: true, harnesses: true, position: true, placeholder: true, overlapping: true, reducedMotion: true, reveal: true, dropdown: true, expand: true, progress: true, imageModel: true, imageAndDropdown: true, failure: true, restoredState: true, cancelledState: true, previews: true, loading: true, loadFailure: true, keyboard: true, save: true });
 	});
 
+	test('documents batch selection and visible approval requests', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
+		assert.deepStrictEqual({
+			keyboard: help.includes('Left or Right Arrow, Home, or End to select another image or its progress'),
+			stableSelection: help.includes('without changing your selection'),
+			selectedBorder: help.includes('The selected thumbnail has a highlighted border'),
+			countsBelowThumbnails: help.includes('The Image batch status below the thumbnails shows how many images are ready out of the total'),
+			details: help.includes('Expand the selected tool dropdown to inspect its prompt and output'),
+			approvals: help.includes('Approval and authentication requests remain visible even when another image is selected'),
+		}, { keyboard: true, stableSelection: true, selectedBorder: true, countsBelowThumbnails: true, details: true, approvals: true });
+	});
+
 	test('documents generated image artifacts and conversation carousel navigation', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
 		assert.deepStrictEqual({
@@ -98,6 +110,17 @@ suite('Chat Accessibility Help', () => {
 			keyboard: help.includes('Use the Left and Right Arrow keys to move between images'),
 			immediateResize: help.includes('the preview begins resizing immediately, followed by the glyph-to-image reveal'),
 		}, { artifacts: true, conversation: true, keyboard: true, immediateResize: true });
+	});
+
+	test('documents the shared editor artifacts pill and its actions', () => {
+		const help = getAccessibilityHelpText('panelChat', new MockKeybindingService(), true);
+		assert.deepStrictEqual({
+			shared: help.includes('same compact Artifacts pill as the Agents Window'),
+			noLegacyList: help.includes('rather than an expanded list above the input'),
+			automatic: help.includes('Generated images appear automatically'),
+			dropdown: help.includes('multiple artifacts open a dropdown with a Generated Images section'),
+			actions: help.includes('to save an artifact or copy its path'),
+		}, { shared: true, noLegacyList: true, automatic: true, dropdown: true, actions: true });
 	});
 
 	for (const type of ['panelChat', 'editsView', 'agentView'] as const) {

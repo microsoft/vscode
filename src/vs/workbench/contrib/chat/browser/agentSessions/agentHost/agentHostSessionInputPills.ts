@@ -53,6 +53,7 @@ import { chatPersistentContentVisibleClass, type ChatWidget } from '../../widget
 import { openChatTurnFile, previewKind } from '../../widget/chatTurnPills.js';
 import { openChatFileChanges } from '../../editorChatResponseFileChangesService.js';
 import { ChatInputPills, StandardChatInputPillSources } from '../../chatInputPills.js';
+import { ChatArtifactPillSource, mergeChatArtifactSections } from '../../chatArtifactPillSource.js';
 import { SessionBackgroundShellsControl } from '../../sessionBackgroundShellsControl.js';
 import { createSessionPullRequestPillData, type IChatPullRequestPillEntry } from '../../sessionPullRequestPill.js';
 import { SessionCustomizations } from '../../sessionCustomizations.js';
@@ -529,6 +530,7 @@ export class AgentHostSessionInputPills extends Disposable {
 		const gitHubCommitResolver = this._register(instantiationService.createInstance(GitHubCommitResolver));
 
 		const sessionResource = observableFromEvent(this, this._widget.onDidChangeViewModel, () => this._widget.viewModel?.sessionResource);
+		const transcriptArtifacts = this._register(instantiationService.createInstance(ChatArtifactPillSource, sessionResource));
 		const sessionResolutionChanged = observableSignalFromEvent(this, connectionsService.onDidChangeSessionResolution);
 		const provisionalSessionChanged = observableSignalFromEvent(this, provisionalSessions.onDidChange);
 		const resolution = derivedOpts<IAgentHostSessionResolution | undefined>({ owner: this, equalsFn: resolutionEquals }, reader => {
@@ -721,9 +723,10 @@ export class AgentHostSessionInputPills extends Disposable {
 		})));
 		const artifactSections = derived(this, reader => {
 			const currentResolution = resolution.read(reader);
-			return currentResolution
+			const recorded = currentResolution
 				? this._buildArtifactSections(metadata.read(reader).artifacts, browserUrls.read(reader), currentResolution, gitHubCommitResolver, reader, this._getRemoveArtifactAction(currentResolution, reader))
 				: [];
+			return mergeChatArtifactSections(recorded, transcriptArtifacts.sections.read(reader));
 		});
 		const referenceSections = derived(this, reader => {
 			const currentResolution = resolution.read(reader);

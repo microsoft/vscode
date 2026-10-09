@@ -500,6 +500,10 @@ suite('SessionsChatAccessibilityHelp', () => {
 		assert.deepStrictEqual({
 			recordedArtifactsAndReferences: content.includes('Recorded artifacts and references'),
 			generatedImages: content.includes('Generated images from this chat automatically appear in the Generated Images section of the Artifacts pill'),
+			imageBatch: content.includes('Multiple image-generation calls in a response share one batch preview'),
+			batchKeyboard: content.includes('Left or Right Arrow, Home, or End to select another image or its progress'),
+			selectedImageBorder: content.includes('The selected thumbnail has a highlighted border'),
+			countsBelowThumbnails: content.includes('The Image batch status below the thumbnails shows how many images are ready out of the total'),
 			imageNavigation: content.includes('use the Left and Right Arrow keys to browse generated images and user attachments'),
 			transcriptImages: content.includes('Images shown from the transcript do not offer Remove from Session unless they were also recorded as artifacts'),
 			singleItemActions: content.includes('pill hover actions or context menu'),
@@ -510,6 +514,10 @@ suite('SessionsChatAccessibilityHelp', () => {
 		}, {
 			recordedArtifactsAndReferences: true,
 			generatedImages: true,
+			imageBatch: true,
+			batchKeyboard: true,
+			selectedImageBorder: true,
+			countsBelowThumbnails: true,
 			imageNavigation: true,
 			transcriptImages: true,
 			singleItemActions: true,

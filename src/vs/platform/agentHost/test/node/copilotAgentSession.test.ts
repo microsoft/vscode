@@ -13532,6 +13532,35 @@ Use the attached image as context.
 			});
 		});
 
+		test('native image completion publishes the original instead of both original and model-facing copy', async () => {
+			const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables);
+			session.resetTurnState('turn-image-copies');
+			mockSession.fire('tool.execution_start', { toolCallId: 'image-copies', toolName: 'image_generation' });
+			mockSession.fire('tool.execution_complete', {
+				toolCallId: 'image-copies', success: true,
+				result: {
+					content: 'Image generated successfully.',
+					structuredContent: {
+						imageGeneration: {
+							requestedModel: { id: 'image-model' },
+							images: [{ contentIndex: 0, mimeType: 'image/png', width: 1536, height: 1024 }],
+						}
+					},
+					contents: [
+						{ type: 'image', data: 'original-image', mimeType: 'image/png' },
+						{ type: 'image', data: 'resized-model-copy', mimeType: 'image/png' },
+					],
+					binaryResultsForLlm: [{ type: 'image', data: 'resized-model-copy', mimeType: 'image/png' }],
+				},
+			});
+			await waitForSignal(signal => isAction(signal, ActionType.ChatToolCallComplete));
+			const completed = getActions(signals).find(action => action.type === ActionType.ChatToolCallComplete);
+			assert.deepStrictEqual(completed?.result.content, [
+				{ type: ToolResultContentType.Text, text: 'Image generated successfully.' },
+				{ type: ToolResultContentType.EmbeddedResource, data: 'original-image', contentType: 'image/png' },
+			]);
+		});
+
 		test('tool completion preserves MCP structured content without parsing text output', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 			session.resetTurnState('turn-mcp-structured');
