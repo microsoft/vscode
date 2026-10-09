@@ -10017,7 +10017,7 @@ suite('AgentHostChatContribution', () => {
 				});
 			}
 
-			for (const recorded of ['empty', 'existing', 'unavailable'] as const) {
+			for (const recorded of ['empty', 'existing', 'unavailable', 'truncated', 'truncated other session'] as const) {
 				test(`handles a missing root session only after checking ${recorded} recorded history`, async () => {
 					const sandbox = await createSandbox({ cached: false });
 					sandbox.agentHostService.failNextSubscriptionFor.add(sandbox.backend.toString());
@@ -10032,6 +10032,13 @@ suite('AgentHostChatContribution', () => {
 					const beforeHistory = { opened, cancelled: sandbox.historyTokens[0].isCancellationRequested };
 					if (recorded === 'unavailable') {
 						await sandbox.fresh.error(new Error('History unavailable'));
+					} else if (recorded === 'truncated' || recorded === 'truncated other session') {
+						const otherSession = AgentSession.uri(CLOUD_SANDBOX_SESSION_SCHEME, 'other').toString();
+						const original = sandbox.history.sessions[0];
+						await sandbox.fresh.complete({
+							truncated: true,
+							sessions: recorded === 'truncated' ? [] : [{ ...original, session: otherSession, state: { ...original.state, resource: otherSession } }],
+						});
 					} else {
 						await sandbox.fresh.complete(recorded === 'existing' ? sandbox.history : undefined);
 					}

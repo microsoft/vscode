@@ -107,7 +107,7 @@ export class CloudSandboxReadOnlySessionHandler extends Disposable implements IC
 		const session = this._findSession(sessionResource, replayed);
 		const chatResource = session && this._getChatResource(sessionResource, session);
 		const chat = chatResource ? session?.chats.get(chatResource) : undefined;
-		if (hasHistory && (!this._hasChatHistory(chat) || replayed?.truncated)) {
+		if ((hasHistory && !this._hasChatHistory(chat)) || (replayed?.truncated && (hasHistory || !session))) {
 			throw new Error(localize('cloudSandbox.incompleteHistoryRefresh', "The latest recorded conversation is unavailable or incomplete."));
 		}
 		if (!session) {
