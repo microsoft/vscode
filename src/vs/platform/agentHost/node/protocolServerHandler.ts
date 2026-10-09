@@ -2317,8 +2317,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		if (client.transport.relayClientId === undefined || !this._config.relayResourceRoots) {
 			return;
 		}
+		// MCP resources/* methods use provider-owned app authorization, not filesystem grants.
 		const fields = method === 'resourceCopy' || method === 'resourceMove' ? ['source', 'destination']
-			: method.startsWith('resource') || method === 'createResourceWatch' ? ['uri']
+			: ['resourceList', 'resourceRead', 'resourceWrite', 'resourceDelete', 'resourceResolve', 'resourceMkdir', 'resourceRequest', 'createResourceWatch'].includes(method) ? ['uri']
 				: method === 'createTerminal' ? ['cwd'] : [];
 		for (const field of fields) {
 			const value = isParamsObject(params) ? params[field] ?? (field === 'cwd' ? this._config.defaultDirectory : undefined) : undefined;
