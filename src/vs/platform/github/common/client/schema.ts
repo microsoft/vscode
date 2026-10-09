@@ -45,10 +45,12 @@ export namespace parse {
 		return value;
 	}
 
+	const dateTimePattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
+
 	/** Reads an RFC 3339 date-time string without changing its representation. */
 	export const dateTime = refine(
 		string,
-		value => /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(value) && Number.isFinite(Date.parse(value)),
+		value => dateTimePattern.test(value) && Number.isFinite(Date.parse(value)),
 		'Expected a date-time in RFC 3339 format',
 	);
 
@@ -104,16 +106,17 @@ export namespace parse {
 
 	/** Builds a reusable object parser that omits unknown and undefined properties. */
 	export function object<T extends object>(schema: ObjectSchema<T>): Parser<T> {
+		const keys = Object.keys(schema) as (keyof T & string)[];
 		return value => {
 			if (typeof value !== 'object' || value === null || Array.isArray(value)) {
 				throw new SchemaError('Expected an object');
 			}
 			const record = value as Record<string, unknown>;
-			const result: Partial<T> = {};
-			for (const key in schema) {
-				const property = parseAt(record[key], schema[key], key);
+			const result: Record<string, unknown> = {};
+			for (const key of keys) {
+				const property = parseAt(Object.hasOwn(record, key) ? record[key] : undefined, schema[key], key);
 				if (property !== undefined) {
-					result[key] = property;
+					defineEntry(result, key, property);
 				}
 			}
 			return result as T;
@@ -126,38 +129,58 @@ export namespace parse {
 			if (typeof value !== 'object' || value === null || Array.isArray(value)) {
 				throw new SchemaError('Expected a record');
 			}
-			return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, parseAt(entry, parser, key)]));
+			const record = value as Record<string, unknown>;
+			const result: Record<string, T> = {};
+			for (const key of Object.keys(record)) {
+				defineEntry(result, key, parseAt(record[key], parser, key));
+			}
+			return result;
 		};
 	}
 
-	/** Preserves opaque JSON payloads without interpreting event-specific fields. */
+	/**
+	 * Preserves opaque JSON payloads without interpreting event-specific fields.
+	 * Accepts only values that `JSON.parse` can produce and returns them without copying.
+	 */
 	export function jsonValue(value: unknown): JsonValue {
-		if (value === null || typeof value === 'string' || typeof value === 'boolean' || typeof value === 'number' && Number.isFinite(value)) {
+		if (isJsonPrimitive(value)) {
 			return value;
 		}
 		if (Array.isArray(value)) {
-			return value.map((entry, index) => parseAt(entry, jsonValue, index));
+			return jsonArray(value);
+		}
+		if (typeof value !== 'object' || value === null) {
+			throw new SchemaError('Expected a JSON value');
 		}
 		return jsonObject(value);
 	}
 
-	/** Parses each object property as a JSON value while preserving its key. */
+	/**
+	 * Validates each property of a plain object as a JSON value and returns the object without copying.
+	 * Rejects objects with any other prototype, such as class instances, `Date` or `Map`.
+	 */
 	export function jsonObject(value: unknown): JsonObject {
-		if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+		if (typeof value !== 'object' || value === null || Object.getPrototypeOf(value) !== Object.prototype) {
 			throw new SchemaError('Expected a JSON object');
 		}
-		return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, parseAt(entry, jsonValue, key)]));
+		const record = value as Record<string, unknown>;
+		for (const key of Object.keys(record)) {
+			const entry = record[key];
+			if (!isJsonPrimitive(entry)) {
+				parseAt(entry, jsonValue, key);
+			}
+		}
+		return record as JsonObject;
 	}
 
 	/** Reads a declared string, numeric, or boolean literal. */
 	export function oneOf<const T extends string | number | boolean>(...values: readonly T[]): Parser<T> {
+		const allowed = new Set<unknown>(values);
 		return value => {
-			for (const candidate of values) {
-				if (value === candidate) {
-					return candidate;
-				}
+			if (!allowed.has(value)) {
+				throw new SchemaError('Expected a supported value');
 			}
-			throw new SchemaError('Expected a supported value');
+			return value as T;
 		};
 	}
 
@@ -190,16 +213,47 @@ export namespace parse {
 		return value => value === null ? null : parser(value);
 	}
 
-	/** Adds property or array-index context to schema validation errors. */
+	/**
+	 * Adds property or array-index context to schema validation errors. The original
+	 * error is rethrown so that nested failures allocate a single error object.
+	 */
 	function parseAt<T>(value: unknown, parser: Parser<T>, key: string | number): T {
 		try {
 			return parser(value);
 		} catch (error) {
 			if (error instanceof SchemaError) {
 				const location = typeof key === 'number' ? `index ${key}` : `key ${JSON.stringify(key)}`;
-				throw new SchemaError(`Invalid value at ${location}: ${error.message}`);
+				error.message = `Invalid value at ${location}: ${error.message}`;
 			}
 			throw error;
+		}
+	}
+
+	/** Checks for JSON scalars, excluding non-finite numbers. */
+	function isJsonPrimitive(value: unknown): value is string | number | boolean | null {
+		return value === null || typeof value === 'string' || typeof value === 'boolean' || typeof value === 'number' && Number.isFinite(value);
+	}
+
+	/** Validates every entry of a plain array, rejecting holes and array subclasses, and returns it without copying. */
+	function jsonArray(value: readonly unknown[]): readonly JsonValue[] {
+		if (Object.getPrototypeOf(value) !== Array.prototype) {
+			throw new SchemaError('Expected a JSON array');
+		}
+		for (let index = 0; index < value.length; index++) {
+			const entry = value[index];
+			if (!isJsonPrimitive(entry)) {
+				parseAt(entry, jsonValue, index);
+			}
+		}
+		return value as readonly JsonValue[];
+	}
+
+	/** Assigns an own property, defining `__proto__` as data instead of changing the prototype. */
+	function defineEntry(target: Record<string, unknown>, key: string, value: unknown): void {
+		if (key === '__proto__') {
+			Object.defineProperty(target, key, { value, enumerable: true, writable: true, configurable: true });
+		} else {
+			target[key] = value;
 		}
 	}
 }

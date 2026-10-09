@@ -41,7 +41,7 @@ import { toSdkHooks, toSdkInstructionDirectories, toSdkMcpServers, toSdkMcpServe
 import { CopilotSessionWrapper, type ICopilotByokSessionConfig } from './copilotSessionWrapper.js';
 import { ShellManager, createShellTools, type IUnsandboxedCommandConfirmationRequest } from './copilotShellTools.js';
 import { isAutoModel, isGpt56Model } from './modelIdentifiers.js';
-import { EPHEMERAL_DISABLED_COPILOT_TOOLS } from './copilotToolDisplay.js';
+import { CopilotToolName, EPHEMERAL_DISABLED_COPILOT_TOOLS } from './copilotToolDisplay.js';
 import './prompts/allPrompts.js';
 import { agentHostPromptRegistry, type IAgentHostPromptContext } from './prompts/promptRegistry.js';
 import { applyConfiguredPromptOverrides } from './prompts/promptOverride.js';
@@ -1027,6 +1027,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		const memoryEnabled = !plan.isEphemeral && this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.Memory) === true;
 		const localMemoryEnabled = memoryEnabled && this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.LocalMemory) === true;
 		const tgrepEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.Tgrep) === true;
+		const searchSubagentEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.SearchSubagent) === true;
 		const copilotConnectorsEnabled = this._configurationService.getRootValue(platformRootSchema, AgentHostMcpConnectorsEnabledConfigKey) === true;
 		const stabilityOrderedPromptEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.StabilityOrderedPrompt) === true;
 		// The runtime defaults CONNECTORS on, so the VS Code rollout gate must explicitly disable it.
@@ -1100,6 +1101,8 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			// Keep dynamic workflows disabled until Agent Host support is validated.
 			'builtin:run_dynamic_workflow',
 			'builtin:dynamic_workflows_manage',
+			// Keep the runtime's search subagent disabled until it is validated in the Agent Host.
+			...(searchSubagentEnabled ? [] : [`builtin:${CopilotToolName.SearchCodeSubagent}`]),
 			...(plan.isEphemeral ? EPHEMERAL_DISABLED_COPILOT_TOOLS : []),
 		];
 		const clientToolNames = filterClientToolNames(clientToolNamesFromSnapshot(plan.snapshot), availableTools, excludedTools);

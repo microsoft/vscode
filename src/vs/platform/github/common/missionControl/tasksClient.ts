@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isNumber } from '../../../../base/common/types.js';
+import { pathSegment, queryPath } from '../client/routing.js';
 import { GitHubRequestError } from '../githubTypes.js';
-import { parse, SchemaError } from '../schema.js';
+import { parse } from '../client/schema.js';
 import { PaginatedResponse, PaginationOptions } from './missionControl.js';
-import { MissionControlClient, paginated, pagination, parseEnvironmentKind, parseUser, pathSegment, queryPath } from './missionControlClient.js';
+import { MissionControlClient, paginated, pagination, parseEnvironmentKind, parseUser } from './missionControlClient.js';
 import { AhpPayload, CreateTaskRequest, GetTaskResponse, ITasksClient, ListTaskEventsResponse, ListTasksOptions, ListTasksResponse, Repository, SteerTaskRequest, Task, TaskAHPEventsResponse, TaskArtifact, UpdateTaskRequest } from './tasks.js';
 
 export class TasksClient implements ITasksClient {
@@ -222,11 +223,11 @@ function parseArtifact(value: unknown): TaskArtifact {
 }
 
 function parseTask(value: unknown, expectedId?: string): Task {
-	const task = parseTaskFields(value);
-	if (expectedId !== undefined && task.id !== expectedId) {
-		throw new SchemaError('Task response did not match the requested task');
-	}
-	return task;
+	return parse.refine(
+		parseTaskFields,
+		task => expectedId === undefined || task.id === expectedId,
+		'Task response did not match the requested task',
+	)(value);
 }
 
 function parseTaskDetail(value: unknown, expectedId?: string): GetTaskResponse {

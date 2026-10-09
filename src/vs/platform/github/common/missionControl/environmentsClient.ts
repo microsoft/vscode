@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { parse, SchemaError } from '../schema.js';
+import { pathSegment, queryPath } from '../client/routing.js';
+import { parse, SchemaError } from '../client/schema.js';
 import { AdvertisedEncryptionKey, ClientTokenResponse, ConnectEnvironmentOptions, Environment, EnvironmentConnectionOptions, EnvironmentConnectResult, IEnvironmentsClient, ListEnvironmentsOptions, WakingResponse } from './environments.js';
-import { ApiResponse, MissionControlClient, parseActivationContext, parseEnvironmentKind, pathSegment, queryPath } from './missionControlClient.js';
+import { ApiResponse, MissionControlClient, parseActivationContext, parseEnvironmentKind } from './missionControlClient.js';
 
 export class EnvironmentsClient implements IEnvironmentsClient {
 	constructor(private readonly _client: MissionControlClient) { }
