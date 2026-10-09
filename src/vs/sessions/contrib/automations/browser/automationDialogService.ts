@@ -95,8 +95,8 @@ export class AutomationDialogService implements IAutomationDialogService {
 			day: initial?.schedule.scheduleDay ?? 1,
 			isQuickChat: initialTarget?.kind === 'quickChat',
 			folderUri: initialWorkspaceTarget?.folderUri,
-			providerId: initialTarget?.providerId,
-			sessionTypeId: initialTarget?.sessionTypeId,
+			providerId: initialTarget?.providerId ?? options.preferredSessionType?.providerId,
+			sessionTypeId: initialTarget?.sessionTypeId ?? options.preferredSessionType?.sessionTypeId,
 			isolationMode: initialWorkspaceTarget?.isolation.kind === 'default'
 				? undefined
 				: initialWorkspaceTarget?.isolation.kind === 'worktree' ? 'worktree' : 'workspace',

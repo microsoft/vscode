@@ -1008,12 +1008,21 @@ registerAction2(class NewAutomationAction extends Action2 {
 		const configurationService = accessor.get(IConfigurationService);
 		const dialogService = accessor.get(IDialogService);
 		const logService = accessor.get(ILogService);
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const isEnabled = () => configurationService.getValue<boolean>(CHAT_AUTOMATIONS_ENABLED_SETTING) === true;
 		if (!isEnabled()) {
 			await showAutomationsDisabled(dialogService);
 			return;
 		}
-		const result = await automationDialogService.showAutomationDialog({});
+		// Seed the dialog with the Copilot provider so it is the default
+		// for new automations, regardless of the provider registration order.
+		const copilot = sessionsManagementService.getAllProviderSessionTypes()
+			.find(t => t.sessionType.id === 'copilotcli');
+		const result = await automationDialogService.showAutomationDialog({
+			preferredSessionType: copilot
+				? { providerId: copilot.providerId, sessionTypeId: copilot.sessionType.id }
+				: undefined,
+		});
 		if (!result || result.kind !== 'create') {
 			return;
 		}

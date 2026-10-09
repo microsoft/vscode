@@ -9,6 +9,8 @@ import { ICreateAutomationOptions, IUpdateAutomationOptions } from './automation
 
 export interface IShowAutomationDialogOptions {
 	readonly existing?: IAutomationDescriptor;
+	/** When creating a new automation, seed the session-type picker with this provider instead of the folder default. */
+	readonly preferredSessionType?: { readonly providerId: string; readonly sessionTypeId: string };
 }
 
 export type IAutomationDialogResult =
