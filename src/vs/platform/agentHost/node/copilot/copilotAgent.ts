@@ -2557,15 +2557,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	/**
 	 * Whether the runtime listed a concrete model that HydraFusion could route to.
-	 * HydraFusion only runs catalog models the account's allowed-model policy
-	 * permits, so a catalog that is not loaded yet, lists nothing (as for Copilot
-	 * Free and Student), or lists only policy-disabled models cannot execute it.
+	 * HydraFusion only runs catalog models whose policy is enabled or absent, so a
+	 * catalog that is not loaded yet, lists nothing (as for Copilot Free and
+	 * Student), or lists only disabled or unconfigured models cannot execute it.
 	 */
 	private _hasHydraFusionRoutableModel(): boolean {
 		return this._capiModels.some(model =>
 			!isAutoModel(model.id) &&
 			model.id !== COPILOT_HYDRA_FUSION_MODEL_ID &&
-			model.policyState !== PolicyState.Disabled);
+			(model.policyState === undefined || model.policyState === PolicyState.Enabled));
 	}
 
 	private _getClaudeDefaultReasoningEffort(): string | undefined {

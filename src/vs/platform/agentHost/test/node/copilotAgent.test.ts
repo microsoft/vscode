@@ -10351,10 +10351,11 @@ suite('CopilotAgent', () => {
 		}
 	});
 
-	test('publishes HydraFusion only when the catalog lists a policy-enabled concrete model', async () => {
+	test('publishes HydraFusion only when the catalog lists a concrete model with an enabled or absent policy', async () => {
 		const client = new TestCopilotClient([], [
 			{ id: 'auto', name: 'Auto' },
 			{ id: 'gpt-5', name: 'GPT-5', policy: { state: 'disabled' } },
+			{ id: 'claude-opus-5', name: 'Claude Opus 5', policy: { state: 'unconfigured' } },
 		]);
 		const { agent } = createTestAgentContext(disposables, {
 			copilotClient: client,
@@ -10363,20 +10364,21 @@ suite('CopilotAgent', () => {
 		try {
 			await agent.authenticate('https://api.github.com', 'token');
 			await agent.refreshModels();
-			const disabledOnly = agent.models.get().map(model => model.id);
+			const notEnabled = agent.models.get().map(model => model.id);
 			client.modelListResponses.push([
 				{ id: 'auto', name: 'Auto' },
 				{ id: 'gpt-5', name: 'GPT-5', policy: { state: 'disabled' } },
+				{ id: 'claude-opus-5', name: 'Claude Opus 5', policy: { state: 'unconfigured' } },
 				{ id: 'claude-sonnet-4.6', name: 'Claude Sonnet 4.6', policy: { state: 'enabled' } },
 			]);
 			await agent.refreshModels();
 
 			assert.deepStrictEqual({
-				disabledOnly,
+				notEnabled,
 				withEnabledModel: agent.models.get().map(model => model.id),
 			}, {
-				disabledOnly: ['auto', 'gpt-5'],
-				withEnabledModel: ['auto', 'gpt-5', 'claude-sonnet-4.6', 'hydrafusion'],
+				notEnabled: ['auto', 'gpt-5', 'claude-opus-5'],
+				withEnabledModel: ['auto', 'gpt-5', 'claude-opus-5', 'claude-sonnet-4.6', 'hydrafusion'],
 			});
 		} finally {
 			await disposeAgent(agent);
