@@ -3943,6 +3943,10 @@ declare namespace monaco.editor {
 		 */
 		lineHeight?: number;
 		/**
+		 * Controls whether empty lines use a reduced line height.
+		 */
+		shrinkEmptyLines?: 'off' | 'compact' | 'veryCompact';
+		/**
 		 * The letter spacing
 		 */
 		letterSpacing?: number;
@@ -5236,55 +5240,57 @@ declare namespace monaco.editor {
 		selectOnLineNumbers = 127,
 		showFoldingControls = 128,
 		showUnused = 129,
-		snippetSuggestions = 130,
-		smartSelect = 131,
-		smoothScrolling = 132,
-		stickyScroll = 133,
-		stickyTabStops = 134,
-		stopRenderingLineAfter = 135,
-		suggest = 136,
-		suggestFontSize = 137,
-		suggestLineHeight = 138,
-		suggestOnTriggerCharacters = 139,
-		suggestSelection = 140,
-		tabCompletion = 141,
-		tabIndex = 142,
-		trimWhitespaceOnDelete = 143,
-		unicodeHighlighting = 144,
-		unusualLineTerminators = 145,
-		useShadowDOM = 146,
-		useTabStops = 147,
-		wordBreak = 148,
-		wordSegmenterLocales = 149,
-		wordSeparators = 150,
-		wordWrap = 151,
-		wordWrapBreakAfterCharacters = 152,
-		wordWrapBreakBeforeCharacters = 153,
-		wordWrapColumn = 154,
-		wordWrapOverride1 = 155,
-		wordWrapOverride2 = 156,
-		wrappingIndent = 157,
-		wrappingStrategy = 158,
-		showDeprecated = 159,
-		inertialScroll = 160,
-		inlayHints = 161,
-		wrapOnEscapedLineFeeds = 162,
-		wordWrapIndicator = 163,
-		effectiveCursorStyle = 164,
-		editorClassName = 165,
-		pixelRatio = 166,
-		tabFocusMode = 167,
-		layoutInfo = 168,
-		wrappingInfo = 169,
-		defaultColorDecorators = 170,
-		colorDecoratorsActivatedOn = 171,
-		inlineCompletionsAccessibilityVerbose = 172,
-		effectiveEditContext = 173,
-		scrollOnMiddleClick = 174,
-		effectiveAllowVariableFonts = 175,
-		doubleClickSelectsBlock = 176,
-		fullwidthCharacterWidth = 177,
-		effectiveFullwidthCharacterWidth = 178
+		shrinkEmptyLines = 130,
+		snippetSuggestions = 131,
+		smartSelect = 132,
+		smoothScrolling = 133,
+		stickyScroll = 134,
+		stickyTabStops = 135,
+		stopRenderingLineAfter = 136,
+		suggest = 137,
+		suggestFontSize = 138,
+		suggestLineHeight = 139,
+		suggestOnTriggerCharacters = 140,
+		suggestSelection = 141,
+		tabCompletion = 142,
+		tabIndex = 143,
+		trimWhitespaceOnDelete = 144,
+		unicodeHighlighting = 145,
+		unusualLineTerminators = 146,
+		useShadowDOM = 147,
+		useTabStops = 148,
+		wordBreak = 149,
+		wordSegmenterLocales = 150,
+		wordSeparators = 151,
+		wordWrap = 152,
+		wordWrapBreakAfterCharacters = 153,
+		wordWrapBreakBeforeCharacters = 154,
+		wordWrapColumn = 155,
+		wordWrapOverride1 = 156,
+		wordWrapOverride2 = 157,
+		wrappingIndent = 158,
+		wrappingStrategy = 159,
+		showDeprecated = 160,
+		inertialScroll = 161,
+		inlayHints = 162,
+		wrapOnEscapedLineFeeds = 163,
+		wordWrapIndicator = 164,
+		effectiveCursorStyle = 165,
+		editorClassName = 166,
+		pixelRatio = 167,
+		tabFocusMode = 168,
+		layoutInfo = 169,
+		wrappingInfo = 170,
+		defaultColorDecorators = 171,
+		colorDecoratorsActivatedOn = 172,
+		inlineCompletionsAccessibilityVerbose = 173,
+		effectiveEditContext = 174,
+		scrollOnMiddleClick = 175,
+		effectiveAllowVariableFonts = 176,
+		doubleClickSelectsBlock = 177,
+		fullwidthCharacterWidth = 178,
+		effectiveFullwidthCharacterWidth = 179,
+		effectiveShrinkEmptyLines = 180
 	}
 
 	export const EditorOptions: {
@@ -5424,6 +5430,7 @@ declare namespace monaco.editor {
 		selectOnLineNumbers: IEditorOption<EditorOption.selectOnLineNumbers, boolean>;
 		showFoldingControls: IEditorOption<EditorOption.showFoldingControls, 'always' | 'never' | 'mouseover'>;
 		showUnused: IEditorOption<EditorOption.showUnused, boolean>;
+		shrinkEmptyLines: IEditorOption<EditorOption.shrinkEmptyLines, 'off' | 'compact' | 'veryCompact'>;
 		showDeprecated: IEditorOption<EditorOption.showDeprecated, boolean>;
 		inlayHints: IEditorOption<EditorOption.inlayHints, Readonly<Required<IEditorInlayHintsOptions>>>;
 		snippetSuggestions: IEditorOption<EditorOption.snippetSuggestions, 'none' | 'inline' | 'top' | 'bottom'>;
@@ -5467,6 +5474,7 @@ declare namespace monaco.editor {
 		effectiveEditContextEnabled: IEditorOption<EditorOption.effectiveEditContext, boolean>;
 		effectiveAllowVariableFonts: IEditorOption<EditorOption.effectiveAllowVariableFonts, boolean>;
 		effectiveFullwidthCharacterWidth: IEditorOption<EditorOption.effectiveFullwidthCharacterWidth, 'font' | 'twoCells'>;
+		effectiveShrinkEmptyLines: IEditorOption<EditorOption.effectiveShrinkEmptyLines, 'off' | 'compact' | 'veryCompact'>;
 	};
 
 	type EditorOptionsType = typeof EditorOptions;
