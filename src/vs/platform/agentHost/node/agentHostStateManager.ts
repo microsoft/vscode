@@ -63,11 +63,13 @@ const enum SessionUse {
  * {@link SessionState} with the {@link SessionSummary} catalog-only fields that
  * do not live on the state. The session URI (catalog `resource`) is the map
  * key, and the catalog `_meta` is the same object as {@link SessionState._meta},
- * so the only extra fields the record carries are the timestamps and the
+ * so the extra fields carry the physical default identity, timestamps and
  * aggregate change counts.
  */
 interface ISessionEntry {
 	state: SessionState;
+	/** Stable catalog default identity, independent of the current routing default. */
+	readonly defaultChatUri: URI;
 	/** Creation timestamp (ISO 8601). Catalog-only; immutable after creation. */
 	readonly createdAt: string;
 	/** Last modification timestamp (ISO 8601). Catalog-only; derived from chat aggregation. */
@@ -256,6 +258,7 @@ export class AgentHostStateManager extends Disposable {
 	 * `root/sessionSummaryChanged`.
 	 */
 	private readonly _sessionStates = new Map<string, ISessionEntry>();
+	private readonly _evictedDefaultChatUris = new Map<string, URI>();
 	private readonly _sessionSummaryChats = new WeakMap<readonly ChatSummary[], SessionChatSummary[]>();
 
 	/**
@@ -426,7 +429,7 @@ export class AgentHostStateManager extends Disposable {
 		if (!entry) {
 			return undefined;
 		}
-		const chatUri = isChat ? sessionOrChat : buildDefaultChatUri(session);
+		const chatUri = isChat ? sessionOrChat : entry.state.defaultChat ?? buildDefaultChatUri(session);
 		return mergeSessionWithDefaultChat(entry.state, this._chatEntries.get(chatUri)?.state);
 	}
 
@@ -557,8 +560,13 @@ export class AgentHostStateManager extends Disposable {
 	 * caller specifically needs conversation contents (turns, activeTurn,
 	 * pending/input state) rather than the session summary.
 	 */
+	getDefaultChatUri(session: URI | string): string {
+		const key = session.toString();
+		return this._sessionStates.get(key)?.defaultChatUri ?? this._evictedDefaultChatUris.get(key) ?? this.getSurfacedSessionSummary(key)?.defaultChat ?? buildDefaultChatUri(session);
+	}
+
 	getDefaultChatState(session: URI): ChatState | undefined {
-		return this._chatEntries.get(buildDefaultChatUri(session))?.state;
+		return this._chatEntries.get(this.getDefaultChatUri(session))?.state;
 	}
 
 	/** Refreshes persisted history without running turn lifecycle side effects or changing the draft. */
@@ -662,7 +670,7 @@ export class AgentHostStateManager extends Disposable {
 	 * with a slice of the source session's turns.
 	 */
 	seedDefaultChatTurns(session: URI, turns: Turn[]): void {
-		const chatState = this._chatEntries.get(buildDefaultChatUri(session))?.state;
+		const chatState = this._chatEntries.get(this.getDefaultChatUri(session))?.state;
 		if (chatState) {
 			chatState.turns = turns;
 		}
@@ -729,7 +737,7 @@ export class AgentHostStateManager extends Disposable {
 	private _isIdleProvisional(session: string, lifecycle: SessionLifecycle): boolean {
 		// Turn activity lives on the session's default chat after the multi-chat
 		// protocol move, so consult that chat's turns/activeTurn.
-		const chat = this._chatEntries.get(buildDefaultChatUri(session))?.state;
+		const chat = this._chatEntries.get(this.getDefaultChatUri(session))?.state;
 		return lifecycle === SessionLifecycle.Creating && !chat?.activeTurn && (chat?.turns.length ?? 0) === 0;
 	}
 
@@ -940,7 +948,8 @@ export class AgentHostStateManager extends Disposable {
 
 	/** Builds the authoritative {@link ISessionEntry} for a freshly seeded state. */
 	private _newEntry(state: SessionState, summary: SessionSummary, use: SessionUse): ISessionEntry {
-		return { state, createdAt: summary.createdAt, modifiedAt: summary.modifiedAt, project: summary.project, changes: summary.changes, use };
+		this._evictedDefaultChatUris.delete(summary.resource);
+		return { state, defaultChatUri: summary.defaultChat ?? buildDefaultChatUri(summary.resource), createdAt: summary.createdAt, modifiedAt: summary.modifiedAt, project: summary.project, changes: summary.changes, use };
 	}
 
 	/**
@@ -1042,6 +1051,7 @@ export class AgentHostStateManager extends Disposable {
 		if (this._sessionStates.has(session)) {
 			return;
 		}
+		this._evictedDefaultChatUris.delete(session);
 		const wasPublished = this._publishedSessionSummaries.delete(session);
 		const wasAdded = this._addedSessionSummaries.delete(session);
 		if (!wasPublished && !wasAdded) {
@@ -1104,6 +1114,7 @@ export class AgentHostStateManager extends Disposable {
 			const summary = this._toSummary(session, entry);
 			this._emitSessionAdded(summary);
 		} else {
+			this._evictedDefaultChatUris.delete(session);
 			const wasPublished = this._publishedSessionSummaries.delete(session);
 			const wasAdded = this._addedSessionSummaries.delete(session);
 			if (!wasPublished && !wasAdded) {
@@ -1204,7 +1215,7 @@ export class AgentHostStateManager extends Disposable {
 		this._sessionStates.set(key, entry);
 		this._ensureDefaultChat(key, summary, turns, options?.draft, options?.defaultChatTitle, options?.defaultChatModifiedAt, options?.defaultChatWorkingDirectories, options?.defaultChatIsRead);
 		for (const chat of summary.chats ?? []) {
-			if (chat.resource === state.defaultChat || isDefaultChatUri(chat.resource)) {
+			if (chat.resource === state.defaultChat) {
 				continue;
 			}
 			this.registerRestoredChatSummary(key, chat.resource, {
@@ -1250,7 +1261,7 @@ export class AgentHostStateManager extends Disposable {
 	 * subscribe already reflects the default chat.
 	 */
 	private _ensureDefaultChat(sessionKey: string, summary: SessionSummary, turns?: Turn[], draft?: Message, defaultChatTitle?: string, modifiedAt?: string, workingDirectories?: readonly string[], isRead?: boolean): void {
-		const chatUri = buildDefaultChatUri(sessionKey);
+		const chatUri = summary.defaultChat ?? buildDefaultChatUri(sessionKey);
 		const changes = summary.chats?.find(chat => chat.resource === chatUri)?.changes;
 		// Empty title means "inherit the session title"; a persisted independent
 		// rename (`defaultChatTitle`) is seeded back here so it survives restore.
@@ -1415,7 +1426,7 @@ export class AgentHostStateManager extends Disposable {
 	}
 
 	private _snapshotDefaultChatTitle(session: URI, state: SessionState): void {
-		const defaultChat = buildDefaultChatUri(session);
+		const defaultChat = this.getDefaultChatUri(session);
 		const summary = state.chats.find(chat => chat.resource === defaultChat);
 		if (summary && !summary.title && state.title) {
 			this.updateChatTitle(session, defaultChat, state.title);
@@ -1532,7 +1543,10 @@ export class AgentHostStateManager extends Disposable {
 		for (const chat of entry.state.chats) {
 			this._invalidateChatEntry(chat.resource);
 		}
-		this._invalidateChatEntry(buildDefaultChatUri(session));
+		this._invalidateChatEntry(this.getDefaultChatUri(session));
+		if (this._publishedSessionSummaries.has(session)) {
+			this._evictedDefaultChatUris.set(session, entry.defaultChatUri);
+		}
 		this._sessionStates.delete(session);
 		this._onDidRemoveSession.fire(session);
 		// The announced baseline outlives in-memory state: this is also the
@@ -1569,6 +1583,7 @@ export class AgentHostStateManager extends Disposable {
 		this.disposeSessionChangesets(session);
 		this.disposeSessionAnnotations(session);
 		this.removeSession(session);
+		this._evictedDefaultChatUris.delete(session);
 		// Unlike eviction, deletion retracts the catalogue entry, so the
 		// announced baseline that `removeSession` deliberately preserves must go.
 		this._summaryNotifier.remove(session.toString());
@@ -1853,11 +1868,16 @@ export class AgentHostStateManager extends Disposable {
 	 * with the correct active turn.
 	 */
 	getActiveTurnId(sessionOrChat: URI): string | undefined {
-		const chatUri = isAhpChatChannel(sessionOrChat) ? sessionOrChat : buildDefaultChatUri(sessionOrChat);
+		const chatUri = isAhpChatChannel(sessionOrChat) ? sessionOrChat : this.getDefaultChatUri(sessionOrChat);
 		return this._chatEntries.get(chatUri)?.state?.activeTurn?.id;
 	}
 
 	// ---- Action dispatch ----------------------------------------------------
+
+	/** Allocates an ordered action for listener-owned state without applying it to shared host state. */
+	createServerActionEnvelope(channel: URI, action: StateAction): ActionEnvelope {
+		return { channel, action, serverSeq: ++this._serverSeq, origin: undefined };
+	}
 
 	/**
 	 * Dispatch a server-originated action (from the agent backend).

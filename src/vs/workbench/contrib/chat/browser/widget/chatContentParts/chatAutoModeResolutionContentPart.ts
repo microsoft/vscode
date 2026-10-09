@@ -61,6 +61,7 @@ export class ChatAutoModeResolutionContentPart extends ChatThinkingStyleContentP
 		if (this.isRouting && element.isComplete) {
 			return false;
 		}
-		return other.resolved?.id === this.content.resolved?.id;
+		return other.resolved?.id === this.content.resolved?.id
+			&& other.resolved?.reason === this.content.resolved?.reason;
 	}
 }

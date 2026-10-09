@@ -19,6 +19,7 @@ import { IAgentHostEnablementService } from '../../../../../platform/agentHost/c
 import { IWorkbenchEnvironmentService } from '../../../environment/common/environmentService.js';
 import { AgentHostClientState, AgentHostProtocolClient } from '../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
 import { editorWindowAgentHostClientInfo } from '../../../../../platform/agentHost/common/agentHostClientInfo.js';
+import { AgentHostClientConnectionKind } from '../../../../../platform/agentHost/common/agentHostTelemetry.js';
 import { agentHostAuthority, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import type { IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
 import type { IClientTransport } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
@@ -153,6 +154,7 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 		const onDidChangeConnectionState = disposables.add(new Emitter<AgentHostClientState>());
 		const protocolClient = {
 			clientId: 'test-client',
+			clientConnectionKind: AgentHostClientConnectionKind.RemoteExtensionHost,
 			connect: async () => {
 				connectCalls++;
 				throw new Error('Initial connection failed');
@@ -221,6 +223,8 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 		assert.deepStrictEqual({
 			beforeReady,
 			afterReady: connectCalls,
+			connectionKind: service.clientConnectionKind,
+			transportConnectionKind: transport.clientConnectionKind,
 			clientInfo: protocolClientCall?.args[3]?.clientInfo,
 			registeredAuthorities,
 			registeredFormatters: registeredFormatters.map(formatter => formatter.formatting),
@@ -228,6 +232,8 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 		}, {
 			beforeReady: 0,
 			afterReady: 1,
+			connectionKind: AgentHostClientConnectionKind.RemoteExtensionHost,
+			transportConnectionKind: AgentHostClientConnectionKind.RemoteExtensionHost,
 			clientInfo: editorWindowAgentHostClientInfo,
 			registeredAuthorities: [agentHostAuthority('vscode-remote://ssh-remote+test')],
 			registeredFormatters: [{

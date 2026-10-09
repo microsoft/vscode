@@ -11,7 +11,7 @@ import { hash } from '../../../../base/common/hash.js';
 import { isAbsolute } from '../../../../base/common/path.js';
 import { localize } from '../../../../nls.js';
 import type { IAgentToolPendingConfirmationSignal } from '../../common/agent.js';
-import type { ToolKind } from '../../common/meta/agentToolCallMeta.js';
+import { copilotCliToolInputContract, type ToolKind } from '../../common/meta/agentToolCallMeta.js';
 import { parseImageGenerationToolMetadata, type IImageGenerationToolMetadata } from '../../common/meta/agentImageGenerationMeta.js';
 import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { parsePartialToolInput } from '../../common/partialToolInput.js';
@@ -97,6 +97,20 @@ export const enum CopilotToolName {
 	McpValidate = 'mcp_validate',
 	ToolSearchToolRegex = 'tool_search_tool_regex',
 	CodeqlChecker = 'codeql_checker',
+}
+
+/** Identifies native input schemas understood by the tool-group summary adapter. */
+export function getToolSummaryInputContract(toolName: string): typeof copilotCliToolInputContract | undefined {
+	switch (toolName) {
+		case CopilotToolName.View:
+		case CopilotToolName.Edit:
+		case CopilotToolName.Grep:
+		case CopilotToolName.Rg:
+		case CopilotToolName.Glob:
+			return copilotCliToolInputContract;
+		default:
+			return undefined;
+	}
 }
 
 /**

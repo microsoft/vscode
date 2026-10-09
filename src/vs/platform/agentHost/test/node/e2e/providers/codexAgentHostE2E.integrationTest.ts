@@ -8,7 +8,7 @@
  */
 
 import assert from 'assert';
-import { mkdirSync, mkdtempSync, realpathSync, statSync, writeFileSync } from 'fs';
+import { mkdirSync, statSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -22,6 +22,7 @@ import { AgentHostE2EServerLease, createRealSession, dispatchTurn, driveTurnToCo
 import { defineAgentHostE2ETests } from '../suites/agentHostE2ESuites.js';
 import { getActionEnvelope, isActionNotification, TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
 import { CODEX_CONFIG } from './codexTestConfiguration.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
 
 const RECORD = process.env['AGENT_HOST_REPLAY_RECORD'] === '1' || process.env['AGENT_HOST_UPDATE_SNAPSHOTS'] === '1';
 const portableShellToolReplayEnabled = RECORD || process.platform !== 'linux' || !CODEX_CONFIG.shellToolReplayUnstableOnLinux;
@@ -59,7 +60,7 @@ defineAgentHostE2ETests(CODEX_CONFIG);
 	test('invalid workspace skills retain their paths and validation diagnostics', async function () {
 		this.timeout(120_000);
 
-		const workspace = realpathSync(mkdtempSync(join(tmpdir(), 'ahp-codex-invalid-skills-')));
+		const workspace = createTestDirectory(join(tmpdir(), 'ahp-codex-invalid-skills-'));
 		tempDirs.push(workspace);
 		mkdirSync(join(workspace, '.git'));
 		const names = ['missing-description-one', 'missing-description-two'];
@@ -114,7 +115,7 @@ defineAgentHostE2ETests(CODEX_CONFIG);
 	(portableShellToolReplayEnabled ? test : test.skip)('secondary workspace skill reaches the Codex model request', async function () {
 		this.timeout(120_000);
 
-		const parent = mkdtempSync(join(tmpdir(), 'ahp-codex-multiroot-'));
+		const parent = createTestDirectory(join(tmpdir(), 'ahp-codex-multiroot-'));
 		tempDirs.push(parent);
 		const rootA = join(parent, 'a');
 		const rootB = join(parent, 'b');

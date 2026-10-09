@@ -10,9 +10,11 @@ import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../platform/agentHost/comm
 import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME, agentHostLabelFormatter, LOCAL_AGENT_HOST_AUTHORITY } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../../platform/files/common/inMemoryFilesystemProvider.js';
-import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
+import { ISearchService, SearchProviderType } from '../../search/common/search.js';
+import { AgentHostFileSearchProvider } from './agentHostFileSearchProvider.js';
 
 export { SYNCED_CUSTOMIZATION_SCHEME };
 
@@ -44,11 +46,15 @@ class AgentHostFileSystemService extends Disposable implements IAgentHostFileSys
 	constructor(
 		@IFileService private readonly _fileService: IFileService,
 		@ILabelService labelService: ILabelService,
+		@ISearchService searchService: ISearchService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
 
 		this._fsProvider = this._register(new AgentHostFileSystemProvider());
 		this._register(_fileService.registerProvider(AGENT_HOST_SCHEME, this._fsProvider));
+		const searchProvider = this._register(instantiationService.createInstance(AgentHostFileSearchProvider));
+		this._register(searchService.registerSearchResultProvider(AGENT_HOST_SCHEME, SearchProviderType.file, searchProvider));
 
 		// Two formatters: the scheme-wide fallback for hosts whose operating
 		// system is unknown, and a more specific one for the in-process host.

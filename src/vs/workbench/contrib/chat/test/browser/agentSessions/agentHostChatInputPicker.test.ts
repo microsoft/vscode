@@ -182,6 +182,7 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 		}()));
 		const connection = instantiationService.stub(IAgentHostService, {
 			onAgentHostStart: onAgentHostStart.event,
+			onAgentHostExit: Event.None,
 			getNetworkDiagnosticsInfo: () => {
 				diagnosticsRequests++;
 				return getHostInfo();
@@ -1405,6 +1406,7 @@ suite('AgentHostChatInputPicker - sandbox toggle', () => {
 		}();
 		const connection = new class extends mock<IAgentHostService>() {
 			override readonly onAgentHostStart = Event.None;
+			override readonly onAgentHostExit = Event.None;
 			override async getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> {
 				return { version: '1', os: 'linux', arch: 'x64', proxySettings: {}, proxyEnv: {}, endpoints: [] };
 			}
