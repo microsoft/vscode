@@ -108,7 +108,7 @@
 	display: flex;
 }
 
-.chat-agent-merge .chat-agent-merge-message-toggle.codicon {
+.chat-agent-merge > .chat-agent-merge-card .chat-agent-merge-message-toggle.codicon {
 	font-size: var(--vscode-codiconFontSize-compact);
 }
 
@@ -126,9 +126,8 @@
 	background-color: var(--vscode-toolbar-activeBackground);
 }
 
-/* `.codicon` joins each compound so these sizes outrank the `font` shorthand on
-the codicon base rule, which would otherwise force every glyph to 16px. */
-.chat-agent-merge .chat-agent-merge-twistie.codicon {
+/* The card scope keeps compact sizing ahead of the workbench codicon rule. */
+.chat-agent-merge > .chat-agent-merge-card .chat-agent-merge-twistie.codicon {
 	position: relative;
 	z-index: 1;
 	flex: 0 0 auto;
@@ -222,7 +221,7 @@ which sits either on an ancestor or on the workbench element itself. */
 }
 
 /* Shared leading icon: a fixed width keeps comment bodies and check names on one indent. */
-.chat-agent-merge .chat-agent-merge-row-icon.codicon {
+.chat-agent-merge > .chat-agent-merge-card .chat-agent-merge-row-icon.codicon {
 	flex: 0 0 auto;
 	width: var(--vscode-codiconFontSize-compact);
 	font-size: var(--vscode-codiconFontSize-compact);

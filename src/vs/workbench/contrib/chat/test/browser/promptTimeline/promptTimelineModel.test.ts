@@ -125,7 +125,7 @@ suite('PromptTimelineModel', () => {
 		]);
 	});
 
-	test('previews an Agent Merge turn with its summary, not the state block', () => {
+	test('keeps merge-shaped user text and excludes system-initiated Agent Merge turns', () => {
 		const agentMergePrompt = buildAgentMergePrompt(['addressReviews', 'fixCI'], {
 			pullRequestUrl: 'https://github.com/microsoft/vscode/pull/1',
 			title: 'chat: keep the timeline readable',
@@ -143,11 +143,12 @@ suite('PromptTimelineModel', () => {
 		const { model } = createModel([
 			{ item: request('request-1', 'First prompt', 1), top: 0 },
 			{ item: request('request-2', agentMergePrompt, 2), top: 400 },
+			{ item: { ...request('request-3', agentMergePrompt, 3, true), requestSource: 'agentMerge' }, top: 800 },
 		]);
 
 		assert.deepStrictEqual(model.promptTicks.get().map(tick => tick.text), [
 			'First prompt',
-			'1 Review Comment and 1 Failing Check, Agent Merge',
+			'<agent_merge_state>',
 		]);
 	});
 });

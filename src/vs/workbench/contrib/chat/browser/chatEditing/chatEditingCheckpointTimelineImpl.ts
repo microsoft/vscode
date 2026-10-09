@@ -7,6 +7,7 @@ import { equals as arraysEqual } from '../../../../../base/common/arrays.js';
 import { findFirst, findLast, findLastIdx } from '../../../../../base/common/arraysFind.js';
 import { assertNever } from '../../../../../base/common/assert.js';
 import { ThrottledDelayer } from '../../../../../base/common/async.js';
+import { CharCode } from '../../../../../base/common/charCode.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { mapsStrictEqualIgnoreOrder, ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
@@ -563,8 +564,21 @@ export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpoint
 			}
 		}
 
-		for (const operation of operations) {
-			currentState = await this._applyOperationToState(currentState, operation, baseline.telemetryInfo);
+		for (let i = 0; i < operations.length; i++) {
+			const operation = operations[i];
+			if (operation.type === FileOperationType.TextEdit && currentState.exists && !currentState.notebook) {
+				const editGroups = [operation.edits];
+				let nextOperation = operations[i + 1];
+				while (nextOperation?.type === FileOperationType.TextEdit) {
+					editGroups.push(nextOperation.edits);
+					i++;
+					nextOperation = operations[i + 1];
+				}
+
+				currentState.content = this._applyTextEditsToContent(currentState.content, editGroups);
+			} else {
+				currentState = await this._applyOperationToState(currentState, operation, baseline.telemetryInfo);
+			}
 		}
 
 		if (currentState.exists && currentState.notebook) {
@@ -624,7 +638,7 @@ export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpoint
 
 				const nbCell = operation.cellIndex !== undefined && state.notebook?.cells.at(operation.cellIndex);
 				if (nbCell) {
-					const newContent = this._applyTextEditsToContent(nbCell.getValue(), operation.edits);
+					const newContent = this._applyTextEditsToContent(nbCell.getValue(), [operation.edits]);
 					state.notebook!.applyEdits([{
 						editType: CellEditType.Replace,
 						index: operation.cellIndex,
@@ -634,10 +648,9 @@ export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpoint
 					return state;
 				}
 
-				// Apply text edits using a temporary text model
 				return {
 					...state,
-					content: this._applyTextEditsToContent(state.content, operation.edits)
+					content: this._applyTextEditsToContent(state.content, [operation.edits])
 				};
 			}
 			case FileOperationType.NotebookEdit:
@@ -720,12 +733,23 @@ export class ChatEditingCheckpointTimelineImpl implements IChatEditingCheckpoint
 		}
 	}
 
-	private _applyTextEditsToContent(content: string, edits: readonly TextEdit[]): string {
+	private _applyTextEditsToContent(content: string, editGroups: readonly (readonly TextEdit[])[]): string {
 		const { textBuffer, disposable } = createTextBuffer(content, DefaultEndOfLine.LF);
 		try {
-			textBuffer.applyEdits(edits.map(edit =>
-				new ValidAnnotatedEditOperation(null, Range.lift(edit.range), edit.text, false, false, false)
-			), false, false);
+			for (const [index, edits] of editGroups.entries()) {
+				if (index > 0) {
+					// Preserve the normalization previously performed when recreating the buffer.
+					if (textBuffer.getLineCharCode(1, 0) === CharCode.UTF8_BOM) {
+						textBuffer.applyEdits([new ValidAnnotatedEditOperation(null, new Range(1, 1, 1, 2), '', false, false, false)], false, false);
+					}
+					if (textBuffer.getLineCount() === 1 && textBuffer.getEOL() !== '\n') {
+						textBuffer.setEOL('\n');
+					}
+				}
+				textBuffer.applyEdits(edits.map(edit =>
+					new ValidAnnotatedEditOperation(null, Range.lift(edit.range), edit.text, false, false, false)
+				), false, false);
+			}
 			const fullRange = textBuffer.getRangeAt(0, textBuffer.getLength());
 			return textBuffer.getValueInRange(fullRange, EndOfLinePreference.TextDefined);
 		} finally {

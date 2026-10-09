@@ -894,6 +894,14 @@ export class XtabProvider implements IStatelessNextEditProvider {
 		telemetry.setFetchStartedAt();
 		logContext.setFetchStartTime();
 
+		const requestOptions: OptionalChatRequestParams = { temperature: 0, stream: true, prediction };
+		if (!this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderUsePrediction, this.expService)
+			&& !this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderUseMaxTokens, this.expService)) {
+			// ChatMLFetcher adds { max_tokens: endpoint.maxOutputTokens, ...requestOptions } when not using prediction.
+			// Explicit undefined overrides that default. JSON serialization then omits max_tokens
+			requestOptions.max_tokens = undefined;
+		}
+
 		// we must not await this promise because we want to stream edits as they come in
 		const fetchResultPromise = endpoint.makeChatRequest2(
 			{
@@ -915,11 +923,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 				},
 				location: ChatLocation.Other,
 				source: undefined,
-				requestOptions: {
-					temperature: 0,
-					stream: true,
-					prediction,
-				} satisfies OptionalChatRequestParams,
+				requestOptions,
 				userInitiatedRequest: undefined,
 				telemetryProperties: {
 					requestId,
@@ -1822,6 +1826,7 @@ export function pickSystemPrompt(promptingStrategy: xtabPromptOptions.PromptingS
 		case xtabPromptOptions.PromptingStrategy.PatchBased02:
 		case xtabPromptOptions.PromptingStrategy.PatchBased02WithRecentLineNumbers:
 		case xtabPromptOptions.PromptingStrategy.PatchBased02Unified:
+		case xtabPromptOptions.PromptingStrategy.PatchBased02UnifiedEagerness:
 		case xtabPromptOptions.PromptingStrategy.PatchBased02WithoutRecentLineNumbers:
 		case xtabPromptOptions.PromptingStrategy.Xtab275:
 		case xtabPromptOptions.PromptingStrategy.XtabAggressiveness:

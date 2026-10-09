@@ -1,0 +1,105 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+@supports (backdrop-filter: blur(12px)) and (background-color: color-mix(in srgb, black 92%, transparent)) {
+	@media (prefers-reduced-transparency: no-preference) and (forced-colors: none) {
+		.monaco-workbench.modern-ui-frosted-glass:not(.hc-black):not(.hc-light) {
+			/* Resolve theme colors here, before the surfaces replace their inherited background tokens. */
+			--modern-ui-glass-quick-input-background: color-mix(in srgb, var(--modern-ui-solid-quick-input-background) var(--modern-ui-glass-opacity, 92%), transparent);
+			--modern-ui-glass-menu-background: color-mix(in srgb, var(--modern-ui-solid-menu-background) var(--modern-ui-glass-opacity, 92%), transparent);
+			--modern-ui-glass-hover-background: color-mix(in srgb, var(--vscode-editorHoverWidget-background) var(--modern-ui-glass-opacity, 92%), transparent);
+			--modern-ui-glass-dialog-background: color-mix(in srgb, var(--modern-ui-solid-dialog-background) var(--modern-ui-glass-opacity, 92%), transparent);
+			--modern-ui-glass-notifications-background: color-mix(in srgb, var(--vscode-notifications-background) var(--modern-ui-glass-opacity, 92%), transparent);
+			--modern-ui-solid-dialog-background: var(--vscode-editorWidget-background);
+			--modern-ui-solid-menu-background: var(--vscode-menu-background);
+			--modern-ui-solid-quick-input-background: var(--vscode-quickInput-background);
+
+			& .quick-input-widget:not(.quick-input-widget-overlay) {
+				--vscode-quickInput-background: transparent;
+				--modern-ui-glass-background: var(--modern-ui-glass-quick-input-background);
+				/* A persistent opacity animation would isolate the blur from the workbench backdrop. */
+				animation: none;
+				will-change: auto;
+			}
+
+			& .quick-input-widget:not(.quick-input-widget-overlay) .monaco-tree-sticky-container {
+				--vscode-quickInput-background: var(--modern-ui-solid-quick-input-background);
+			}
+
+			& .action-widget {
+				--vscode-menu-background: transparent;
+				--modern-ui-glass-background: color-mix(in srgb, var(--modern-ui-solid-menu-background) var(--vscode-context-view-menu-motion-backdrop-opacity, 0%), var(--modern-ui-glass-menu-background));
+			}
+
+			& .action-widget:not(.action-list-submenu-panel) {
+				position: relative;
+			}
+
+			&.monaco-enable-motion .action-widget.action-widget-animated:not(.action-widget-dropdown-closing) {
+				animation: action-widget-scale-open 250ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+				transform-origin: bottom left;
+			}
+
+			&.monaco-enable-motion .context-view.bottom .action-widget.action-widget-animated {
+				transform-origin: top left;
+			}
+
+			&.monaco-enable-motion .action-widget.action-widget-dropdown {
+				/* Keep the existing containing block without retaining opacity isolation. */
+				will-change: transform;
+			}
+
+			&.monaco-enable-motion .action-widget.action-widget-dropdown-closing {
+				animation: action-widget-dropdown-close 150ms cubic-bezier(0.22, 1, 0.36, 1) both;
+				pointer-events: none;
+			}
+
+			& .monaco-resizable-hover,
+			& .monaco-hover {
+				--vscode-editorHoverWidget-background: transparent;
+				--modern-ui-glass-background: var(--modern-ui-glass-hover-background);
+			}
+
+			& .monaco-dialog-box {
+				--vscode-editorWidget-background: transparent;
+				--modern-ui-glass-background: var(--modern-ui-glass-dialog-background);
+			}
+
+			& .notifications-center,
+			& .notifications-toasts .notification-toast.notification-fade-in-done,
+			&.monaco-reduce-motion .notifications-toasts .notification-toast.notification-fade-in {
+				--vscode-notifications-background: transparent;
+				--modern-ui-glass-background: var(--modern-ui-glass-notifications-background);
+			}
+
+			& .notifications-toasts .notification-toast.notification-fade-in-done,
+			&.monaco-reduce-motion .notifications-toasts .notification-toast.notification-fade-in {
+				position: relative;
+			}
+
+			& .quick-input-widget:not(.quick-input-widget-overlay),
+			& .action-widget,
+			& .monaco-hover,
+			& .monaco-dialog-box,
+			& .notifications-center,
+			& .notifications-toasts .notification-toast.notification-fade-in-done,
+			&.monaco-reduce-motion .notifications-toasts .notification-toast.notification-fade-in {
+				isolation: isolate;
+
+				/* Filtering only this paint layer keeps fixed descendants anchored to the viewport. */
+				&::before {
+					content: '';
+					position: absolute;
+					inset: 0;
+					z-index: -1;
+					border-radius: inherit;
+					pointer-events: none;
+					background-color: var(--modern-ui-glass-background);
+					backdrop-filter: blur(12px);
+				}
+			}
+		}
+	}
+}

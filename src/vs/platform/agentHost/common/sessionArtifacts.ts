@@ -6,10 +6,9 @@
 import type { SessionSummaryMeta } from './state/sessionState.js';
 
 /**
- * The kinds an agent can record on its session, as either an artifact (the
- * session produced it) or a reference (the session found it worth returning
- * to). Each kind carries the one field the client needs to open it, plus a
- * label.
+ * The kinds an agent can record for a chat, as either an artifact (the chat
+ * produced it) or a reference (the chat found it worth returning to). Each kind
+ * carries the one field the client needs to open it, plus a label.
  */
 export const enum SessionArtifactType {
 	PullRequest = 'pullRequest',
@@ -29,14 +28,16 @@ export const SESSION_ARTIFACT_TYPES: readonly SessionArtifactType[] = [
 	SessionArtifactType.Resource,
 ];
 
-/** A session artifact or reference as stored by the host and published to clients. */
+/** A chat artifact or reference as stored by the host and published to clients. */
 export interface ISessionArtifact {
 	readonly id: string;
+	/** Chat that recorded this entry. Older entries have no owner and default to the session's main chat. */
+	readonly chat?: string;
 	readonly type: SessionArtifactType;
 	readonly label: string;
 	/**
-	 * `true` for an artifact — something this session produced — and `false` for
-	 * a reference, something it only points the user at.
+	 * `true` for an artifact — something this chat produced — and `false` for a
+	 * reference, something it only points the user at.
 	 */
 	readonly isArtifact: boolean;
 	/** Link for pull request, issue, commit and website entries. */
@@ -50,9 +51,9 @@ export interface ISessionArtifact {
 }
 
 /**
- * Reserved key under {@link SessionSummaryMeta} holding the session's agent-set
- * artifacts and references. VS Code convention layered on the protocol's
- * generic `_meta` bag.
+ * Reserved key under {@link SessionSummaryMeta} holding the aggregate artifacts
+ * and references recorded across the session's chats. VS Code convention
+ * layered on the protocol's generic `_meta` bag.
  */
 export const SESSION_META_ARTIFACTS_KEY = 'agentHost/sessionArtifacts';
 
@@ -77,6 +78,7 @@ function parseSessionArtifact(value: unknown): ISessionArtifact | undefined {
 	}
 	const artifact: {
 		id: string;
+		chat?: string;
 		type: SessionArtifactType;
 		label: string;
 		isArtifact: boolean;
@@ -86,6 +88,7 @@ function parseSessionArtifact(value: unknown): ISessionArtifact | undefined {
 		isGitHub?: boolean;
 	} = {
 		id: raw['id'],
+		...(typeof raw['chat'] === 'string' ? { chat: raw['chat'] } : {}),
 		type: raw['type'],
 		label: raw['label'],
 		isArtifact: isArtifact ?? true,
@@ -112,6 +115,16 @@ export function readSessionArtifacts(meta: SessionSummaryMeta | undefined): read
 		}
 	}
 	return artifacts;
+}
+
+/**
+ * The artifacts recorded on a session's `_meta` bag, most recent first.
+ * Artifacts are appended as the agent records them, so the stored order runs
+ * oldest to newest, while every surface lists the newest entry at the top of
+ * its group.
+ */
+export function readSessionArtifactsNewestFirst(meta: SessionSummaryMeta | undefined): readonly ISessionArtifact[] {
+	return readSessionArtifacts(meta).slice().reverse();
 }
 
 /** Returns `meta` with the artifact slot replaced, dropping it when empty. */

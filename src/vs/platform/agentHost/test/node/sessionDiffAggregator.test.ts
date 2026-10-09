@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FileEditKind, type ISessionFileDiff } from '../../common/state/sessionState.js';
@@ -490,24 +491,78 @@ suite('computeSessionDiffs', () => {
 		assert.deepStrictEqual(result, previousDiffs);
 	});
 
-	test('throws when a folderScope is combined with incremental mode (unsupported combination)', async () => {
+	test('incremental mode applies the folderScope to computed and carried-over diffs', async () => {
 		const db = new TestSessionDatabase();
 		db.addEdit({
-			turnId: 't1', toolCallId: 'tc1', filePath: '/a.txt', kind: FileEditKind.Edit,
+			turnId: 't1', toolCallId: 'tc1', filePath: '/repo/a.txt', kind: FileEditKind.Edit,
 			addedLines: undefined, removedLines: undefined,
 			beforeContent: encodeString('before'), afterContent: encodeString('after'),
 		});
+		db.addEdit({
+			turnId: 't2', toolCallId: 'tc2', filePath: '/repo/new.txt', kind: FileEditKind.Create,
+			addedLines: undefined, removedLines: undefined,
+			afterContent: encodeString('new'),
+		});
+		db.addEdit({
+			turnId: 't2', toolCallId: 'tc3', filePath: '/session-state/plan.md', kind: FileEditKind.Create,
+			addedLines: undefined, removedLines: undefined,
+			afterContent: encodeString('plan'),
+		});
+		const previousDiffs = [fileDiff('/repo/a.txt', 1, 1), fileDiff('/outside/stale.txt', 2, 0)];
+		const scope = [URI.file('/repo')];
 
-		await assert.rejects(
-			() => computeSessionDiffs(
-				TEST_SESSION_URI,
-				db,
-				createTestDiffService(),
-				{ changedTurnId: 't1', previousDiffs: [] },
-				[URI.file('/a')],
-			),
-			/folderScope` is not supported in incremental mode/,
+		const fastPath = await computeSessionDiffs(TEST_SESSION_URI, db, createTestDiffService(), { changedTurnId: 't2', previousDiffs }, scope);
+		const noTurnEdits = await computeSessionDiffs(TEST_SESSION_URI, db, createTestDiffService(), { changedTurnId: 't3', previousDiffs }, scope);
+
+		fastPath.sort((a, b) => (getDiffUri(a) ?? '').localeCompare(getDiffUri(b) ?? ''));
+		assert.deepStrictEqual({
+			fastPath: fastPath.map(simplify),
+			noTurnEdits: noTurnEdits.map(simplify),
+		}, {
+			fastPath: [simpleDiff('/repo/a.txt', 1, 1), simpleDiff('/repo/new.txt', 1, 0)],
+			noTurnEdits: [simpleDiff('/repo/a.txt', 1, 1)],
+		});
+	});
+
+	test('incremental slow path applies the folderScope by final path', async () => {
+		const db = new TestSessionDatabase();
+		db.addEdit({
+			turnId: 't1', toolCallId: 'tc1', filePath: '/session-state/draft.md', kind: FileEditKind.Create,
+			addedLines: undefined, removedLines: undefined,
+			afterContent: encodeString('draft'),
+		});
+		db.addEdit({
+			turnId: 't1', toolCallId: 'tc2', filePath: '/session-state/plan.md', kind: FileEditKind.Create,
+			addedLines: undefined, removedLines: undefined,
+			afterContent: encodeString('plan'),
+		});
+		db.addEdit({
+			turnId: 't2', toolCallId: 'tc3', filePath: '/repo/draft.md', kind: FileEditKind.Rename,
+			originalPath: '/session-state/draft.md',
+			addedLines: undefined, removedLines: undefined,
+			beforeContent: encodeString('draft'), afterContent: encodeString('draft'),
+		});
+		db.addEdit({
+			turnId: 't2', toolCallId: 'tc4', filePath: '/session-state/plan.md', kind: FileEditKind.Edit,
+			addedLines: undefined, removedLines: undefined,
+			beforeContent: encodeString('plan'), afterContent: encodeString('plan\nmore'),
+		});
+
+		const result = await computeSessionDiffs(
+			TEST_SESSION_URI,
+			db,
+			createTestDiffService(),
+			{ changedTurnId: 't2', previousDiffs: [] },
+			[URI.file('/repo')],
 		);
+
+		assert.deepStrictEqual({
+			result: result.map(simplify),
+			fullHistoryReads: db.getAllFileEditsCalls,
+		}, {
+			result: [simpleDiff('/repo/draft.md', 1, 0)],
+			fullHistoryReads: 1,
+		});
 	});
 });
 
@@ -523,6 +578,43 @@ suite('computeUnionedDiffs', () => {
 			createTestDiffService(),
 		);
 		assert.deepStrictEqual(result, []);
+	});
+
+	test('waits for every database read before rejecting a failed source', async () => {
+		const pending = new DeferredPromise<void>();
+		const started = new DeferredPromise<void>();
+		let peerReadFinished = false;
+		class FailingDatabase extends TestSessionDatabase {
+			override async getAllFileEdits(): Promise<never> { throw new Error('source unavailable'); }
+		}
+		class DelayedDatabase extends TestSessionDatabase {
+			override async getAllFileEdits() {
+				started.complete();
+				await pending.p;
+				peerReadFinished = true;
+				return super.getAllFileEdits();
+			}
+		}
+		const result = computeUnionedDiffs([
+			{ sessionUri: TEST_SESSION_URI, db: new FailingDatabase() },
+			{ sessionUri: PEER_CHAT_URI, db: new DelayedDatabase() },
+		], createTestDiffService());
+		const rejected = assert.rejects(result, error => {
+			assert.strictEqual(peerReadFinished, true);
+			return error instanceof Error && error.message === 'source unavailable';
+		});
+		await started.p;
+		pending.complete();
+		await rejected;
+	});
+
+	test('rejects a file-content failure instead of returning a partial diff list', async () => {
+		class FailingDatabase extends TestSessionDatabase {
+			override async readFileEditContent(): Promise<never> { throw new Error('content unavailable'); }
+		}
+		const db = new FailingDatabase();
+		db.addEdit({ turnId: 'turn', toolCallId: 'edit', filePath: '/a.txt', kind: FileEditKind.Edit, addedLines: undefined, removedLines: undefined, beforeContent: encodeString('before'), afterContent: encodeString('after') });
+		await assert.rejects(computeUnionedDiffs([{ sessionUri: TEST_SESSION_URI, db }], createTestDiffService()), /content unavailable/);
 	});
 
 	test('unions edits from the session DB and a peer chat DB', async () => {

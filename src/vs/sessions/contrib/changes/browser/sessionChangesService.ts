@@ -16,11 +16,12 @@ import { MultiDiffEditorInput } from '../../../../workbench/contrib/multiDiffEdi
 import { IDecorationData, IDecorationsProvider, IDecorationsService } from '../../../../workbench/services/decorations/common/decorations.js';
 import { IEditorGroup } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService, PreferredGroup } from '../../../../workbench/services/editor/common/editorService.js';
-import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
+import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { getSessionChangesFileCountLabel } from '../common/changes.js';
 import { IChangesViewService } from '../common/changesViewService.js';
 import { SessionChangesEditorInput } from './sessionChangesEditorInput.js';
 import { ISessionChangesEditorOptions, ISessionChangesService } from '../common/sessionChangesService.js';
+import { UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
 
 export { ISessionChangesService } from '../common/sessionChangesService.js';
 export type { ISessionChangesEditorOptions } from '../common/sessionChangesService.js';
@@ -34,12 +35,12 @@ interface IChangesMultiDiffUriFields {
 export class SessionChangesService extends Disposable implements ISessionChangesService {
 
 	declare readonly _serviceBrand: undefined;
-	readonly activeSessionChangeCountObs: IObservable<number>;
+	readonly activeSessionUncommittedChangesCountObs: IObservable<number | undefined>;
 
 	private readonly _onDidChangeDecorations = this._register(new Emitter<readonly URI[]>());
 
-	private _decoratedChangeCount = 0;
 	private _decoratedResource: URI | undefined;
+	private _decoratedChangeCount: number | undefined;
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
@@ -50,9 +51,15 @@ export class SessionChangesService extends Disposable implements ISessionChanges
 	) {
 		super();
 
-		this.activeSessionChangeCountObs = derived(this, reader => changesViewService.activeSessionChangesObs.read(reader).length);
+		this.activeSessionUncommittedChangesCountObs = derived(this, reader => {
+			if (changesViewService.activeSessionChangesetObs.read(reader)?.id !== UNCOMMITTED_CHANGES_CHANGESET_ID) {
+				return undefined;
+			}
 
-		if (!layoutService.isSinglePaneLayoutEnabled) {
+			return changesViewService.activeSessionChangesObs.read(reader).length;
+		});
+
+		if (layoutService.agentWorkbenchLayout !== AgentWorkbenchLayout.Desktop) {
 			return;
 		}
 
@@ -65,7 +72,7 @@ export class SessionChangesService extends Disposable implements ISessionChanges
 
 		this._register(autorun(reader => {
 			const activeSessionResource = changesViewService.activeSessionResourceObs.read(reader);
-			const changeCount = this.activeSessionChangeCountObs.read(reader);
+			const changeCount = this.activeSessionUncommittedChangesCountObs.read(reader);
 			const resource = activeSessionResource ? this.getChangesEditorResource(activeSessionResource) : undefined;
 			if (isEqual(this._decoratedResource, resource) && this._decoratedChangeCount === changeCount) {
 				return;
@@ -128,7 +135,7 @@ export class SessionChangesService extends Disposable implements ISessionChanges
 		}
 		const multiDiffSource = this.getChangesEditorResource(sessionResource);
 
-		if (this.layoutService.isSinglePaneLayoutEnabled) {
+		if (this.layoutService.agentWorkbenchLayout === AgentWorkbenchLayout.Desktop) {
 			const input = this.instantiationService.createInstance(SessionChangesEditorInput, multiDiffSource);
 			const pane = await this.editorService.openEditor(input, { ...editorOptions, pinned: true }, group);
 			await this.expandRevealTarget(pane?.input, editorOptions);
@@ -145,7 +152,7 @@ export class SessionChangesService extends Disposable implements ISessionChanges
 	}
 
 	private _provideDecoration(resource: URI): IDecorationData | undefined {
-		if (this._decoratedChangeCount === 0 || !isEqual(resource, this._decoratedResource)) {
+		if (!this._decoratedChangeCount || !isEqual(resource, this._decoratedResource)) {
 			return undefined;
 		}
 

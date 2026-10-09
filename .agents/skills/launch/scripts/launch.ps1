@@ -328,6 +328,8 @@ function Start-Code([string]$codeBat, [string[]]$arguments, [string]$logFile) {
 	# Core only, and `powershell.exe` is still the built-in Windows shell.
 	[void]($processInfo.EnvironmentVariables['VSCODE_SKIP_PRELAUNCH'] = '1')
 	[void]$processInfo.EnvironmentVariables.Remove('ELECTRON_RUN_AS_NODE')
+	[void]$processInfo.EnvironmentVariables.Remove('GIT_CONFIG_COUNT')
+	[void]$processInfo.EnvironmentVariables.Remove('GIT_CONFIG_PARAMETERS')
 
 	$process = [Diagnostics.Process]::new()
 	$process.StartInfo = $processInfo
@@ -400,10 +402,6 @@ for ($index = 0; $index -lt $cliArgs.Count; $index++) {
 	}
 }
 
-if ($agents -and -not [string]::IsNullOrWhiteSpace($sessionTitle)) {
-	Exit-Usage '--session-title is only supported for regular editor windows; window.title is read-only in the Agents window.'
-}
-
 try {
 	$launchStopwatch = [Diagnostics.Stopwatch]::StartNew()
 	if ([string]::IsNullOrWhiteSpace($repo)) {
@@ -428,10 +426,11 @@ try {
 			Join-Path $env:USERPROFILE '.vscode-oss-dev'
 		}
 	}
-	if (-not (Test-Path -LiteralPath $sourceUserDataDir -PathType Container)) {
-		Exit-Usage "Source user-data-dir does not exist: $sourceUserDataDir`nPass --source-user-data-dir <path> or set CODE_OSS_DEV_AUTHED_USER_DATA_DIR."
+	$sourceUserDataDir = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($sourceUserDataDir)
+	$sourceProfileExists = Test-Path -LiteralPath $sourceUserDataDir -PathType Container
+	if (-not $sourceProfileExists) {
+		Write-LaunchError "[launch.ps1] no source profile at $sourceUserDataDir; launching with an empty isolated profile so the user can sign in."
 	}
-	$sourceUserDataDir = [IO.Path]::GetFullPath($sourceUserDataDir)
 
 	$node = Get-UsableNode $repo
 	Write-LaunchError "[launch.ps1] using Node: $node"
@@ -464,25 +463,32 @@ try {
 		# below decide whether a sign-in is actually coming.
 		Write-LaunchError "[launch.ps1] no shared-data-dir at $sourceSharedDataDir; nothing to seed"
 	}
-	$hasGitHubAuthenticationSecret = Test-SourceHasGitHubAuthenticationSecret $node $sourceUserDataDir $sourceSharedDataDir (Join-Path $runDir 'auth-preflight.vscdb')
+	$hasGitHubAuthenticationSecret = if ($sourceProfileExists) {
+		Test-SourceHasGitHubAuthenticationSecret $node $sourceUserDataDir $sourceSharedDataDir (Join-Path $runDir 'auth-preflight.vscdb')
+	} else {
+		$false
+	}
 	if ($hasGitHubAuthenticationSecret -eq $false) {
 		Write-LaunchError "[launch.ps1] WARNING: source profile $sourceUserDataDir has no stored GitHub session; the launched instance will prompt you to sign in."
-		Write-LaunchError 'To fix once and for all, launch Code OSS directly against the source profile (no copy), sign in, then close it:'
-		Write-LaunchError "  .\scripts\code.bat --user-data-dir=$sourceUserDataDir"
+		Write-LaunchError 'To pre-authenticate future launches, use .agents\skills\launch\scripts\bootstrap\bootstrap-profile.ps1 after the user chooses the bootstrap option.'
 		Write-LaunchError 'Every future launch copies that profile and inherits the session.'
 	}
 
-	if ($full) {
+	if (-not $sourceProfileExists) {
+		New-Item -ItemType Directory -Force -Path $destinationUdd | Out-Null
+	} elseif ($full) {
 		Write-LaunchError "[launch.ps1] full copy: $sourceUserDataDir -> $destinationUdd"
 		Copy-ProfileDirectory $sourceUserDataDir $destinationUdd $false
 	} else {
 		Write-LaunchError "[launch.ps1] slim copy: $sourceUserDataDir -> $destinationUdd"
 		Copy-ProfileDirectory $sourceUserDataDir $destinationUdd $true
 	}
-	Assert-AuthCriticalProfileFiles $destinationUdd
+	if ($sourceProfileExists -and $hasGitHubAuthenticationSecret -ne $false) {
+		Assert-AuthCriticalProfileFiles $destinationUdd
+	}
 
 	New-Item -ItemType Directory -Force -Path $extensionsDir | Out-Null
-	if (-not $full -and $cloneExtensions) {
+	if (-not $full -and $cloneExtensions -and $sourceProfileExists) {
 		$sourceExtensions = Join-Path $sourceUserDataDir 'extensions'
 		Write-LaunchError "[launch.ps1] copying extensions: $sourceExtensions -> $extensionsDir"
 		Copy-ProfileDirectory $sourceExtensions $extensionsDir $false
@@ -490,20 +496,30 @@ try {
 
 	$settingsFile = Join-Path $destinationUdd 'User\settings.json'
 	$sourceSettingsFile = Join-Path $sourceUserDataDir 'User\settings.json'
+	New-Item -ItemType Directory -Force -Path (Split-Path -Parent $settingsFile) | Out-Null
 	$settingsScript = Join-Path $PSScriptRoot 'updateSettings.ts'
-	& $node $settingsScript $settingsFile $sessionTitle $sourceSettingsFile
+	$settingsSessionTitle = if ($agents) { '' } else { $sessionTitle }
+	& $node $settingsScript $settingsFile $settingsSessionTitle $sourceSettingsFile
 	if ($LASTEXITCODE -ne 0) {
 		throw "Failed to update launch settings in $settingsFile"
 	}
 	Write-LaunchError "[launch.ps1] ensured files.simpleDialog.enable=true in $settingsFile"
 	if (-not [string]::IsNullOrWhiteSpace($sessionTitle)) {
-		Write-LaunchError "[launch.ps1] set window.title for session: $sessionTitle"
+		if ($agents) {
+			Write-LaunchError "[launch.ps1] set Agents command center title for session: $sessionTitle"
+		} else {
+			Write-LaunchError "[launch.ps1] set window.title for session: $sessionTitle"
+		}
 	}
 	$profileReadyMs = $launchStopwatch.ElapsedMilliseconds
 
 	$launchArgs = [System.Collections.Generic.List[string]]::new()
 	if ($agents) {
 		$launchArgs.Add('--agents')
+		if (-not [string]::IsNullOrWhiteSpace($sessionTitle)) {
+			$sessionTitleBase64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($sessionTitle)).TrimEnd('=').Replace('+', '-').Replace('/', '_')
+			$launchArgs.Add("--session-title-base64=$sessionTitleBase64")
+		}
 	}
 	$launchArgs.Add("--user-data-dir=$destinationUdd")
 	$launchArgs.Add("--extensions-dir=$extensionsDir")

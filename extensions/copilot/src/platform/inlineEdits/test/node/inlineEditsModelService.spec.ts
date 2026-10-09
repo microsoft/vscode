@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { beforeEach, describe, expect, it } from 'vitest';
+import { CopilotToken, createTestExtendedTokenInfo } from '../../../authentication/common/copilotToken';
 import { ICopilotTokenStore } from '../../../authentication/common/copilotTokenStore';
 import { ConfigKey } from '../../../configuration/common/configurationService';
 import { DefaultsOnlyConfigurationService } from '../../../configuration/common/defaultsOnlyConfigurationService';
@@ -41,7 +42,7 @@ class FakeProxyModelsService implements IProxyModelsService {
 	}
 }
 
-describe('InlineEditsModelService - supportsUnifiedCompletions', () => {
+describe('InlineEditsModelService', () => {
 	const store = new DisposableStore();
 	let proxyModelsService: FakeProxyModelsService;
 	let configurationService: InMemoryConfigurationService;
@@ -52,8 +53,8 @@ describe('InlineEditsModelService - supportsUnifiedCompletions', () => {
 		configurationService = new InMemoryConfigurationService(new DefaultsOnlyConfigurationService());
 	});
 
-	function createService(): InlineEditsModelService {
-		const tokenStore: ICopilotTokenStore = { copilotToken: undefined, onDidStoreUpdate: Event.None } as ICopilotTokenStore;
+	function createService(copilotToken?: CopilotToken): InlineEditsModelService {
+		const tokenStore: ICopilotTokenStore = { copilotToken, onDidStoreUpdate: Event.None } as ICopilotTokenStore;
 		return store.add(new InlineEditsModelService(
 			tokenStore,
 			proxyModelsService,
@@ -64,6 +65,22 @@ describe('InlineEditsModelService - supportsUnifiedCompletions', () => {
 			new TestLogService() as unknown as ILogService,
 		));
 	}
+
+	it('uses Lysithea 24 as the default model for paid users', () => {
+		const paidToken = new CopilotToken(createTestExtendedTokenInfo({
+			sku: 'copilot_individual',
+			copilot_plan: 'individual',
+		}));
+		const service = createService(paidToken);
+
+		expect(service.defaultModelConfiguration().modelName).toBe('copilot-nes-lysithea-24');
+	});
+
+	it('keeps the existing default model while the user plan is unknown', () => {
+		const service = createService();
+
+		expect(service.defaultModelConfiguration().modelName).toBe('copilot-nes-oct');
+	});
 
 	it('reports no opinion for a model whose strategy does not bake the capability in', () => {
 		const service = createService();

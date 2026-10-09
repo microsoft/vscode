@@ -18,6 +18,7 @@
  * they do while waiting: Workbench chat shows a stand-in, since being wrong costs a repaint, while
  * the Agents Window waits, since it writes through to a backend.
  */
+import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
@@ -51,6 +52,8 @@ export interface IChatInputModelSelectionRuntime {
 	// -- only for surfaces that have them
 	/** Whether this session type's models are still loading, so defaulting would pick over them. */
 	readonly isAwaitingSessionModels?: (sessionType: string) => boolean;
+	/** Whether a model the pool does not offer is gone for good rather than not yet published. */
+	readonly isModelAbsenceConclusive?: (modelId: string) => boolean;
 	/** Omitted by a surface that drives reconciliation itself rather than being notified. */
 	readonly subscribeToModelChanges?: (listener: () => void) => IDisposable;
 	/** Omitted by a surface with no per-model configuration to restore. */
@@ -69,6 +72,8 @@ export class ChatInputModelSelectionController extends Disposable {
 
 	private readonly _currentModel = observableValue<ILanguageModelChatMetadataAndIdentifier | undefined>(this, undefined);
 	readonly currentModel: IObservable<ILanguageModelChatMetadataAndIdentifier | undefined> = this._currentModel;
+	private readonly _onDidChangeUserSelectedModel = this._register(new Emitter<{ readonly fromModelId: string; readonly toModelId: string }>());
+	readonly onDidChangeUserSelectedModel = this._onDidChangeUserSelectedModel.event;
 	private _selectionReason: ModelSelectionReason | undefined;
 	private _pendingProgrammaticSelection: IPendingProgrammaticSelection | undefined;
 
@@ -140,6 +145,9 @@ export class ChatInputModelSelectionController extends Disposable {
 			this._diagnostics.report('explicit-selection-failed', { model: model.identifier, error: String(error) }, 'error');
 			throw error;
 		}
+		if (previousModel && previousModel.identifier !== model.identifier) {
+			this._onDidChangeUserSelectedModel.fire({ fromModelId: previousModel.identifier, toModelId: model.identifier });
+		}
 	}
 
 	applyProgrammaticSelection(model: ILanguageModelChatMetadataAndIdentifier): void {
@@ -179,17 +187,21 @@ export class ChatInputModelSelectionController extends Disposable {
 			this._remember(rememberedModelId ? { modelId: rememberedModelId, reason: ModelSelectionReason.Remembered } : undefined);
 		}
 		const resolveSelection = (): InitialModelSelectionResult => {
-			const configuredModelValue = this._runtime.getConfiguredModelValue();
 			const models = this._pool();
-			// `chat.defaultModel` seeds new conversations only; a conversation with history keeps
-			// the model it was started with.
-			const configuredModel = this._runtime.isEmpty() ? resolveConfiguredModel(configuredModelValue, models) : undefined;
-			const resolution = resolveModelIdentifier(models, rememberedModelId, false);
+			const configuredModel = resolveConfiguredModel(this._runtime.getConfiguredModelValue(), models);
+			let resolution = resolveModelIdentifier(models, rememberedModelId, false);
+			if (resolution.kind === 'pending' && this._runtime.isModelAbsenceConclusive?.(resolution.identifier)) {
+				resolution = { kind: 'unavailable', identifier: resolution.identifier };
+			}
 			return resolveInitialModelSelection({
-				configuredModel,
+				// `chat.defaultModel` seeds new conversations only; a conversation with history keeps
+				// the model it was started with.
+				configuredModel: this._runtime.isEmpty() ? configuredModel : undefined,
 				desiredModelResolution: resolution,
 				desiredReason: ModelSelectionReason.Remembered,
-				fallbackModel: this._defaultModel(models),
+				// Unless that model is gone for good. The default only stands in for it then, so the
+				// model is still reclaimed should it come back.
+				fallbackModel: (resolution.kind === 'unavailable' ? configuredModel : undefined) ?? this._defaultModel(models),
 				fallbackReason: ModelSelectionReason.FirstAvailable,
 			});
 		};
@@ -289,23 +301,31 @@ export class ChatInputModelSelectionController extends Disposable {
 	}
 
 	reconcileModelListChange(models: readonly ILanguageModelChatMetadataAndIdentifier[]): void {
+		const currentModel = this._currentModel.get();
+		const republishedCurrentModel = currentModel && models.find(model => model.identifier === currentModel.identifier);
+		if (republishedCurrentModel && republishedCurrentModel !== currentModel) {
+			// A provider can enrich a model after it was selected (for example, when a
+			// second catalogue supplies its context-size schema). Refresh the displayed
+			// snapshot without reapplying or persisting a selection that did not change.
+			this._display(republishedCurrentModel);
+		}
 		if (this.applyConfiguredDefault() || this._reconcilePendingProgrammaticSelection() || this._restoreRememberedModel()) {
 			return;
 		}
-		const currentModel = this._currentModel.get();
+		const reconciledCurrentModel = this._currentModel.get();
 		const declaredDefault = this._runtime.getDeclaredDefaultModel(models);
 		if (this._runtime.isEmpty()
 			&& this._selectionReason === ModelSelectionReason.FirstAvailable
 			&& declaredDefault
-			&& currentModel?.identifier !== declaredDefault.identifier) {
+			&& reconciledCurrentModel?.identifier !== declaredDefault.identifier) {
 			// Still the first thing on offer, only now the pool has said which that is.
 			this._applyModel(declaredDefault, ModelSelectionReason.FirstAvailable);
 			return;
 		}
-		if (!shouldResetOnModelListChange(currentModel?.identifier, [...models])) {
+		if (!shouldResetOnModelListChange(reconciledCurrentModel?.identifier, [...models])) {
 			return;
 		}
-		const match = findBestMatchingModel(currentModel, models);
+		const match = findBestMatchingModel(reconciledCurrentModel, models);
 		if (match) {
 			// The same selection republished under another identifier, so whoever chose it still has.
 			this._applyModel(match, this._selectionReason);

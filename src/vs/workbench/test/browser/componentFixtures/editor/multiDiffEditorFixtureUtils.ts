@@ -13,6 +13,7 @@ import { MultiDiffEditorWidget } from '../../../../../editor/browser/widget/mult
 import { DiffItemSource, IDocumentDiffItem } from '../../../../../editor/browser/widget/multiDiffEditor/model.js';
 import { IResourceLabel as IMultiDiffResourceLabel, IWorkbenchUIElementFactory } from '../../../../../editor/browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
 import { IDiffEditorOptions } from '../../../../../editor/common/config/editorOptions.js';
+import type { MultiDiffEditorVariant } from '../../../../../editor/common/multiDiffEditor.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IEditorProgressService } from '../../../../../platform/progress/common/progress.js';
@@ -122,14 +123,52 @@ export function createMultiDiffEditorFixtureServices(disposableStore: Disposable
 	});
 }
 
-export function createMultiDiffEditorFixtureWidget(instantiationService: IInstantiationService, container: HTMLElement, diffEditorOptions?: IDiffEditorOptions) {
+export function createMultiDiffEditorFixtureWidget(
+	instantiationService: IInstantiationService,
+	container: HTMLElement,
+	diffEditorOptions?: IDiffEditorOptions,
+	variant: MultiDiffEditorVariant = 'noCards',
+) {
 	const uiFactory = instantiationService.createInstance(FixtureWorkbenchUIElementFactory);
 	return instantiationService.createInstance(
 		MultiDiffEditorWidget,
 		container,
 		uiFactory,
-		diffEditorOptions,
+		{
+			variant,
+			diffEditorOptions,
+		},
 	);
+}
+
+export interface IMultiDiffEditorFixtureDocumentSide {
+	readonly uri: string;
+	readonly text?: string;
+}
+
+export function createMultiDiffEditorFixtureDocument(
+	instantiationService: TestInstantiationService,
+	textModels: DisposableStore,
+	sides: {
+		readonly original?: IMultiDiffEditorFixtureDocumentSide;
+		readonly modified?: IMultiDiffEditorFixtureDocumentSide;
+		readonly languageId?: string;
+	}
+): RefCounted<IDocumentDiffItem> {
+	const createSource = (side: IMultiDiffEditorFixtureDocumentSide | undefined): DiffItemSource | undefined => {
+		if (!side) {
+			return undefined;
+		}
+		const uri = URI.parse(side.uri);
+		const model = side.text === undefined
+			? undefined
+			: textModels.add(createTextModel(instantiationService, side.text, uri, sides.languageId ?? 'typescript'));
+		return new DiffItemSource(uri, model);
+	};
+	return RefCounted.createOfNonDisposable<IDocumentDiffItem>({
+		original: createSource(sides.original),
+		modified: createSource(sides.modified),
+	}, { dispose() { } });
 }
 
 export function createMultiDiffEditorFixtureDocuments(instantiationService: TestInstantiationService, textModels: DisposableStore) {

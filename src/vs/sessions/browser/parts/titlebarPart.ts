@@ -15,12 +15,12 @@ import { IConfigurationService } from '../../../platform/configuration/common/co
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { agentsBackground, agentsPanelForeground } from '../../common/theme.js';
-import { isMacintosh, isWeb, isNative, platformLocale } from '../../../base/common/platform.js';
-import { EventType, EventHelper, append, $, addDisposableListener, prepend, getWindow, getWindowId } from '../../../base/browser/dom.js';
+import { isLinux, isMacintosh, isWeb, isNative, platformLocale } from '../../../base/common/platform.js';
+import { EventType, EventHelper, append, $, addDisposableListener, prepend, getWindow, getWindowId, AnimationFrameScheduler } from '../../../base/browser/dom.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { IStorageService } from '../../../platform/storage/common/storage.js';
-import { Parts, IWorkbenchLayoutService } from '../../../workbench/services/layout/browser/layoutService.js';
+import { Parts, IWorkbenchLayoutService, LayoutSettings, ModernUIDensity } from '../../../workbench/services/layout/browser/layoutService.js';
 
 import { IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IHostService } from '../../../workbench/services/host/browser/host.js';
@@ -35,6 +35,7 @@ import { Menus } from '../menus.js';
 import { IsNewChatSessionContext } from '../../common/contextkeys.js';
 
 const commandCenterContextKeys = new Set([IsNewChatSessionContext.key]);
+const DEFAULT_SESSIONS_TITLEBAR_HEIGHT = 44;
 
 /**
  * Simplified agent sessions titlebar part.
@@ -55,7 +56,9 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 
 	get minimumHeight(): number {
 		const wcoEnabled = isWeb && isWCOEnabled();
-		let value = DEFAULT_CUSTOM_TITLEBAR_HEIGHT;
+		let value = this.configurationService.getValue<ModernUIDensity>(LayoutSettings.MODERN_UI_DENSITY) === ModernUIDensity.Compact
+			? DEFAULT_CUSTOM_TITLEBAR_HEIGHT
+			: DEFAULT_SESSIONS_TITLEBAR_HEIGHT;
 		if (wcoEnabled) {
 			value = Math.max(value, getWCOTitlebarAreaRect(getWindow(this.element))?.height ?? 0);
 		}
@@ -85,6 +88,7 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 	private centerContent!: HTMLElement;
 	private rightContent!: HTMLElement;
 	private readonly overflowManagedToolBarElements: HTMLElement[] = [];
+	private titleBarToolBarOverflowScheduler!: AnimationFrameScheduler;
 
 	get leftContainer(): HTMLElement { return this.leftContent; }
 	get rightContainer(): HTMLElement { return this.rightContent; }
@@ -117,6 +121,11 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 	private registerListeners(targetWindowId: number): void {
 		this._register(this.hostService.onDidChangeFocus(focused => focused ? this.onFocus() : this.onBlur()));
 		this._register(this.hostService.onDidChangeActiveWindow(windowId => windowId === targetWindowId ? this.onFocus() : this.onBlur()));
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(LayoutSettings.MODERN_UI_DENSITY)) {
+				this._onDidChange.fire(undefined);
+			}
+		}));
 	}
 
 	private onBlur(): void {
@@ -138,12 +147,14 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 	}
 
 	updateOptions(_options: { compact: boolean }): void {
-		// No compact mode support in agent sessions titlebar
+		// Auxiliary-window compact mode does not override the configured layout density.
 	}
 
 	protected override createContentArea(parent: HTMLElement): HTMLElement {
 		this.element = parent;
 		this.rootContainer = append(parent, $('.titlebar-container.sessions-titlebar-container.has-center'));
+		// Measure in the render phase so DOM reads do not force layout during startup.
+		this.titleBarToolBarOverflowScheduler = this._register(new AnimationFrameScheduler(this.rootContainer, () => this.updateTitleBarToolBarOverflow()));
 
 		// Draggable region
 		prepend(this.rootContainer, $('div.titlebar-drag-region'));
@@ -186,12 +197,13 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 				// controls explicitly disabled
 			} else {
 				this.windowControlsContainer = append(primaryWindowControlsLocation === 'left' ? this.leftContent : this.rightContent, $('div.window-controls-container'));
-				if (isWeb) {
-					append(primaryWindowControlsLocation === 'left' ? this.rightContent : this.leftContent, $('div.window-controls-container'));
-				}
-
 				if (isWCOEnabled()) {
 					this.windowControlsContainer.classList.add('wco-enabled');
+					if (isWeb || isLinux) {
+						append(primaryWindowControlsLocation === 'left' ? this.rightContent : this.leftContent, $('div.window-controls-container.wco-enabled'));
+					}
+				} else if (isWeb) {
+					append(primaryWindowControlsLocation === 'left' ? this.rightContent : this.leftContent, $('div.window-controls-container'));
 				}
 			}
 		}
@@ -268,7 +280,7 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 		}));
 		const updateScreenReaderButtonBar = () => {
 			screenReaderToolBarElement.classList.toggle('has-no-actions', screenReaderButtonBar.buttons.length === 0);
-			this.updateTitleBarToolBarOverflow();
+			this.titleBarToolBarOverflowScheduler.schedule();
 		};
 		this._register(screenReaderButtonBar.onDidChange(updateScreenReaderButtonBar));
 		updateScreenReaderButtonBar();
@@ -328,12 +340,13 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 	override layout(width: number, height: number): void {
 		this.updateLayout();
 		super.layoutContents(width, height);
-		this.updateTitleBarToolBarOverflow();
+		this.titleBarToolBarOverflowScheduler.schedule();
+		this.layoutService.getContainer(getWindow(this.element)).style.setProperty('--modern-ui-notifications-block-start-inset', `${height + 5}px`);
 	}
 
 	private registerOverflowManagedToolBar(element: HTMLElement, toolBar: MenuWorkbenchToolBar): void {
 		this.overflowManagedToolBarElements.push(element);
-		this._register(toolBar.onDidChangeMenuItems(() => this.updateTitleBarToolBarOverflow()));
+		this._register(toolBar.onDidChangeMenuItems(() => this.titleBarToolBarOverflowScheduler.schedule()));
 	}
 
 	private updateTitleBarToolBarOverflow(): void {
