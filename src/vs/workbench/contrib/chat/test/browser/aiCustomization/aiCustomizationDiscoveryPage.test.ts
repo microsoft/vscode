@@ -20,7 +20,7 @@ import { ICommandService } from '../../../../../../platform/commands/common/comm
 import { IConfigurationChangeEvent } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
-import { CustomizationMarketplaceMediaType, CustomizationMarketplaceService, getCustomizationMarketplaceResourceKey, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceResource, ICustomizationMarketplaceService, ICustomizationMarketplaceSourceRecoveryAction } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceMediaType, CustomizationMarketplaceRecoveryGroup, CustomizationMarketplaceService, getCustomizationMarketplaceResourceKey, ICustomizationMarketplacePage, ICustomizationMarketplaceQuery, ICustomizationMarketplaceResource, ICustomizationMarketplaceService, ICustomizationMarketplaceSourceRecoveryAction } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IListService, ListService, WorkbenchList } from '../../../../../../platform/list/browser/listService.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
@@ -150,6 +150,7 @@ suite('AICustomizationDiscoveryPage', () => {
 		const recordedResources = new Map<string, ICustomizationMarketplaceResource>();
 		const repairs: string[] = [];
 		const cancellations: string[] = [];
+		const uninstalls: string[] = [];
 		let onRepair: ((resource: ICustomizationMarketplaceResource) => Promise<void>) | undefined;
 		const getInstallations = () => createCustomizationMarketplaceInstallationSnapshot([...recordedResources.values()].flatMap(resource => {
 			const state = installStates.get(getCustomizationMarketplaceResourceKey(resource));
@@ -185,6 +186,12 @@ suite('AICustomizationDiscoveryPage', () => {
 				const result = new DeferredPromise<void>();
 				installs.push({ identifier: resource.identifier, result });
 				await result.p;
+			}
+			override async uninstall(resource: ICustomizationMarketplaceResource): Promise<void> {
+				const key = getCustomizationMarketplaceResourceKey(resource);
+				uninstalls.push(resource.identifier);
+				installStates.set(key, { kind: 'available' });
+				installChanges.fire();
 			}
 			override cancelConnectorOperation(resource: ICustomizationMarketplaceResource): void {
 				cancellations.push(resource.identifier);
@@ -238,7 +245,7 @@ suite('AICustomizationDiscoveryPage', () => {
 			return sourceMenu.getActions();
 		}
 		return {
-			page, container, configuration, requests, marketplaceChanges, entitlement, sentimentChanged, recoveryActions, notifications, getSourceActions, listService, creationEvents, opened, openedDetails, openedInstalled, deletions, installs, repairs, cancellations, commands,
+			page, container, configuration, requests, marketplaceChanges, entitlement, sentimentChanged, recoveryActions, notifications, getSourceActions, listService, creationEvents, opened, openedDetails, openedInstalled, deletions, installs, repairs, cancellations, uninstalls, commands,
 			setInstallState: (resource: ICustomizationMarketplaceResource, state: CustomizationMarketplaceInstallState) => {
 				const key = getCustomizationMarketplaceResourceKey(resource);
 				installStates.set(key, state);
@@ -971,6 +978,44 @@ suite('AICustomizationDiscoveryPage', () => {
 		});
 	});
 
+	test('installed browse cards can uninstall without opening details', async () => {
+		const candidate = resource('installed-mcp', {
+			displayName: 'Azure AI Foundry',
+			mediaType: CustomizationMarketplaceMediaType.McpServer,
+		});
+		const fixture = createPage(['agentFinder']);
+		fixture.setInstallState(candidate, { kind: 'installed', target: { kind: 'mcp', id: 'azure-ai-foundry' } });
+		fixture.notifyInstallChange();
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({ items: [candidate] });
+		await timeout(0);
+		const action = fixture.container.querySelector<HTMLButtonElement>('.customization-discovery-card-actions .monaco-button');
+		assert.ok(action);
+		const before = {
+			label: action.textContent,
+			disabled: action.getAttribute('aria-disabled'),
+			ariaLabel: action.getAttribute('aria-label'),
+		};
+		action.click();
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			before,
+			uninstalls: fixture.uninstalls,
+			openedDetails: fixture.openedDetails,
+			actionAfter: fixture.container.querySelector<HTMLButtonElement>('.customization-discovery-card-actions .monaco-button')?.textContent,
+		}, {
+			before: {
+				label: 'Uninstall',
+				disabled: 'false',
+				ariaLabel: 'Uninstall Azure AI Foundry',
+			},
+			uninstalls: ['installed-mcp'],
+			openedDetails: [],
+			actionAfter: 'Install',
+		});
+	});
+
 	test('installed Connector browse cards preserve the Connector identity', async () => {
 		const candidate = resource('mail', {
 			sourceId: CustomizationMarketplaceSources.CopilotConnectors.id,
@@ -1371,6 +1416,54 @@ suite('AICustomizationDiscoveryPage', () => {
 		});
 	});
 
+	test('marketplace navigation applies its source and clears stale sources for general browse', async () => {
+		const fixture = createPage(
+			['agentFinder'],
+			[AICustomizationManagementSection.McpServers, AICustomizationManagementSection.Plugins],
+		);
+		fixture.page.setVisible(true);
+		await fixture.requests[0].result.complete({ items: [] });
+
+		fixture.page.showMarketplace('@type:plugin', configuredMarketplaceSourceId);
+		await timeout(0);
+		await fixture.requests[1].result.complete({ items: [] });
+		const configuredPluginSource = fixture.container.querySelector('.customization-discovery-source .monaco-button')?.textContent;
+
+		fixture.page.showMarketplace('@type:mcp', undefined);
+		await timeout(0);
+		await fixture.requests[2].result.complete({ items: [] });
+		const generalMcpSource = fixture.container.querySelector('.customization-discovery-source .monaco-button')?.textContent;
+
+		fixture.page.showMarketplace('@type:mcp', CustomizationMarketplaceSources.AgentFinderPublicFeed.id);
+		await timeout(0);
+		await fixture.requests[3].result.complete({ items: [] });
+
+		fixture.page.showMarketplace('@type:plugin', undefined);
+		await timeout(0);
+		await fixture.requests[4].result.complete({ items: [] });
+		const generalPluginSource = fixture.container.querySelector('.customization-discovery-source .monaco-button')?.textContent;
+
+		assert.deepStrictEqual({
+			requests: fixture.requests.slice(1).map(request => ({
+				query: request.options.query,
+				sourceIds: request.options.sourceIds,
+			})),
+			configuredPluginSource,
+			generalMcpSource,
+			generalPluginSource,
+		}, {
+			requests: [
+				{ query: undefined, sourceIds: [configuredMarketplaceSourceId] },
+				{ query: undefined, sourceIds: undefined },
+				{ query: undefined, sourceIds: [CustomizationMarketplaceSources.AgentFinderPublicFeed.id] },
+				{ query: undefined, sourceIds: undefined },
+			],
+			configuredPluginSource: 'owner/catalog',
+			generalMcpSource: 'All Sources',
+			generalPluginSource: 'All Sources',
+		});
+	});
+
 	test('different configured plugins with the same name remain available', async () => {
 		const installedPlugin = new class extends mock<IAgentPlugin>() {
 			override readonly uri = URI.file('/plugins/review');
@@ -1753,7 +1846,7 @@ suite('AICustomizationDiscoveryPage', () => {
 				authorizations: 0,
 				healthyVisible: true,
 				accessibleAction: true,
-				label: 'Sign In to view Copilot Connectors.',
+				label: 'Sign In to access Copilot Connectors.',
 				primary: true,
 				warnings: 0,
 			},
@@ -1809,6 +1902,51 @@ suite('AICustomizationDiscoveryPage', () => {
 		});
 	}
 
+
+	test('coalesces shared GitHub account recovery into one sign-in invitation', async () => {
+		const fixture = createPage(['agentFinder', 'copilotConnectors']);
+		const recoveries: string[] = [];
+		for (const sourceId of ['agentFinder', 'copilotConnectors']) {
+			fixture.recoveryActions.set(sourceId, {
+				label: 'Sign In',
+				kind: 'signIn',
+				groupId: CustomizationMarketplaceRecoveryGroup.GitHubDefaultAccount,
+				run: async () => { recoveries.push(sourceId); },
+			});
+		}
+		fixture.page.setSearchQuery('figma');
+		fixture.page.setVisible(true);
+		const sourceErrors = [
+			{ sourceId: 'agentFinder', message: 'Sign in to Copilot to search the GitHub Feed.' },
+			{ sourceId: 'copilotConnectors', message: 'Sign in to view connectors.' },
+		];
+		await fixture.requests[0].result.complete({ items: [], sourceErrors });
+		await timeout(0);
+		const actions = fixture.container.querySelectorAll<HTMLElement>('.customization-marketplace-source-signin .monaco-button');
+		assert.strictEqual(actions.length, 1);
+		const initialMessage = fixture.container.querySelector('.customization-marketplace-source-signin .customization-marketplace-source-message')?.textContent;
+		const ariaLabel = actions[0].getAttribute('aria-label');
+		actions[0].click();
+		await timeout(0);
+		await fixture.requests[1].result.complete({ items: [resource('figma')] });
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			initialMessage,
+			ariaLabel,
+			recoveries,
+			queries: fixture.requests.map(request => request.options.query),
+			signInPrompts: fixture.container.querySelectorAll('.customization-marketplace-source-signin').length,
+			results: fixture.page.getAccessibilityContent().match(/^figma$/gm),
+		}, {
+			initialMessage: 'Sign in to access GitHub Feed and Copilot Connectors.',
+			ariaLabel: 'Sign In to access GitHub Feed and Copilot Connectors.',
+			recoveries: ['agentFinder'],
+			queries: ['figma', 'figma'],
+			signInPrompts: 0,
+			results: ['figma'],
+		});
+	});
 
 	for (const query of ['', '@type:mcp mail']) {
 		test(`connector sign-in with no ${query ? 'search' : 'browse'} results is an invitation, not a warning or empty success`, async () => {

@@ -12,7 +12,6 @@ import { TestConfigurationService } from '../../../configuration/test/common/tes
 import { IMcpGalleryManifest, IMcpGalleryManifestService } from '../../../mcp/common/mcpGalleryManifest.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { CustomizationMarketplaceMediaType } from '../../common/customizationMarketplaceService.js';
-import { CustomizationMarketplaceConfiguration } from '../../common/customizationMarketplaceSources.js';
 import { getCustomizationMarketplaceSourceInfos, McpGalleryMarketplaceProvider } from '../../common/mcpGalleryMarketplaceProvider.js';
 import { GalleryMcpServerStatus, IGalleryMcpServer, IMcpGalleryService, IMcpGalleryQueryPageOptions, mcpGalleryServiceUrlConfig } from '../../../mcp/common/mcpManagement.js';
 
@@ -40,9 +39,8 @@ suite('McpGalleryMarketplaceProvider', () => {
 	const manifest = (url: string) => new class extends mock<IMcpGalleryManifestService>() {
 		override async getMcpGalleryManifest() { return { url, version: 'v0.1', resources: [] }; }
 	}();
-	const configuration = (url = customUrl, publicFeed = false) => new TestConfigurationService({
+	const configuration = (url = customUrl) => new TestConfigurationService({
 		[mcpGalleryServiceUrlConfig]: url,
-		[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: publicFeed,
 	});
 
 	test('maps metadata, never executable configuration, and continues with the native cursor', async () => {
@@ -96,16 +94,8 @@ suite('McpGalleryMarketplaceProvider', () => {
 		});
 	});
 
-	test('advertises one MCP source when either registry contributes content', () => {
-		const cases = [
-			{ configuredUrl: '', publicFeed: false, sourceIds: ['mcpGallery', 'agentFinder'] },
-			{ configuredUrl: '', publicFeed: true, sourceIds: ['agentFinder'] },
-			{ configuredUrl: productUrl, publicFeed: false, sourceIds: ['mcpGallery', 'agentFinder'] },
-			{ configuredUrl: customUrl, publicFeed: true, sourceIds: ['mcpGallery', 'agentFinder'] },
-		];
-		assert.deepStrictEqual(cases.map(({ configuredUrl, publicFeed }) =>
-			getCustomizationMarketplaceSourceInfos(configuration(configuredUrl, publicFeed), product).map(source => source.id)),
-			cases.map(({ sourceIds }) => sourceIds));
+	test('advertises only the MCP Gallery platform source', () => {
+		assert.deepStrictEqual(getCustomizationMarketplaceSourceInfos().map(source => source.id), ['mcpGallery']);
 	});
 
 	test('uses an item page or repository as its review link, never the registry root', async () => {
@@ -187,18 +177,18 @@ suite('McpGalleryMarketplaceProvider', () => {
 		}();
 		const provider = new McpGalleryMarketplaceProvider('default', gallery, manifests, configuration(), product);
 		const page = await provider.query({}, CancellationToken.None);
-		const excluded = await new McpGalleryMarketplaceProvider('default', gallery, manifests, configuration(customUrl, true), product).query({}, CancellationToken.None);
+		const repeated = await new McpGalleryMarketplaceProvider('default', gallery, manifests, configuration(customUrl), product).query({}, CancellationToken.None);
 		assert.deepStrictEqual({
 			id: provider.id, sourceId: provider.sourceId, urls, identifier: page.items[0].identifier,
-			priority: page.items[0].priority, installation: page.items[0].installation, excluded,
+			priority: page.items[0].priority, installation: page.items[0].installation, repeated: repeated.items.map(item => item.identifier),
 		}, {
-			id: 'mcpGallery.default', sourceId: 'mcpGallery', urls: [productUrl], identifier: `default:${server.name}`, priority: 0,
+			id: 'mcpGallery.default', sourceId: 'mcpGallery', urls: [productUrl, productUrl], identifier: `default:${server.name}`, priority: 0,
 			installation: { kind: 'mcpGallery', name: server.name, registry: 'default', registryUrl: productUrl },
-			excluded: { items: [], total: 0 },
+			repeated: [`default:${server.name}`],
 		});
 	});
 
-	test('uses the active MCP gallery when the public feed is disabled and no product gallery is declared', async () => {
+	test('uses the active MCP gallery when no product gallery is declared', async () => {
 		const activeUrl = 'https://active.registry.test';
 		let queryCalls = 0;
 		let activeManifestCalls = 0;
@@ -214,7 +204,7 @@ suite('McpGalleryMarketplaceProvider', () => {
 			override async getMcpGalleryManifest() { activeManifestCalls++; return { url: activeUrl, version: 'v0.1', resources: [] }; }
 			override async getDefaultMcpGalleryManifest() { defaultManifestCalls++; return null; }
 		}();
-		const provider = new McpGalleryMarketplaceProvider('default', gallery, manifests, configuration('', false), {} as IProductService);
+		const provider = new McpGalleryMarketplaceProvider('default', gallery, manifests, configuration(''), {} as IProductService);
 		const page = await provider.query({}, CancellationToken.None);
 		assert.deepStrictEqual({
 			queryCalls,

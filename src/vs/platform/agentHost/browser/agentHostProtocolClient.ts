@@ -1201,6 +1201,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 
 	private async _restoreAuthentication(expectedState: AgentHostClientState.Connecting | AgentHostClientState.Reconnecting): Promise<void> {
 		const state = this._state;
+		const transport = this._transport;
 		this._authenticationRestorePending = true;
 		if (this._prepareAuthentication) {
 			await this._raceClose(this._prepareAuthentication());
@@ -1228,7 +1229,15 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				throw new InitialAuthenticationError(error);
 			}
 		}
-		await Promise.all([...this._authentication.entries()].map(async ([key, authentication]) => {
+		const authenticationKeys = [...this._authentication.keys()];
+		const restoreAuthentication = async (key: string) => {
+			if (this._state !== state || this._transport !== transport) {
+				throw transportLostError(this._address);
+			}
+			const authentication = this._authentication.get(key);
+			if (!authentication) {
+				return;
+			}
 			const now = Date.now();
 			if (isExpired(authentication.expiresAt, now)) {
 				this._authentication.delete(key);
@@ -1262,7 +1271,20 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 				}
 				this._logService.warn(`[AgentHostProtocolClient] Failed to restore authentication for ${params.resource}: ${error instanceof Error ? error.message : String(error)}`);
 			}
-		}));
+		};
+		if (this._isWebPubSubRelay()) {
+			// Relay identity validation must finish before another credential can supersede it.
+			if (initialAuthenticationKey !== undefined) {
+				await restoreAuthentication(initialAuthenticationKey);
+			}
+			for (const key of authenticationKeys) {
+				if (key !== initialAuthenticationKey) {
+					await restoreAuthentication(key);
+				}
+			}
+		} else {
+			await Promise.all(authenticationKeys.map(restoreAuthentication));
+		}
 		await this._refreshRelayRootSnapshot();
 		this._authenticationRestorePending = false;
 	}
