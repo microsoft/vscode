@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { Emitter } from '../../../../base/common/event.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { DisposableMap } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -30,7 +31,7 @@ suite('MainThreadTimeline', () => {
 			}
 		};
 		const customer = store.add(new MainThreadTimeline(SingleProxyRPCProtocol(proxy), new NullLogService(), service));
-		const emitters: Map<string, Emitter<TimelineChangeEvent>> = Reflect.get(customer, '_providerEmitters');
+		const emitters: DisposableMap<string, Emitter<TimelineChangeEvent>> = Reflect.get(customer, '_providerEmitters');
 		// Cleanup the unfixed allocations after red assertions, without hiding their observed lifetime.
 		store.add({ dispose: () => { for (const emitter of emitters.values()) { emitter.dispose(); } } });
 		return { customer, service, emitters };
