@@ -391,7 +391,9 @@
 	width: var(--modern-ui-connected-tab-cap-radius);
 	box-sizing: border-box;
 	background-color: var(--modern-ui-connected-tab-active-background);
-	border-top: var(--vscode-strokeThickness) solid var(--modern-ui-connected-tab-border);
+	background-image: var(--modern-ui-connected-tab-overflow-top-background, none);
+	background-origin: border-box;
+	border-top: var(--vscode-strokeThickness) solid var(--modern-ui-connected-tab-overflow-top-border, var(--modern-ui-connected-tab-border));
 }
 
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container > .monaco-scrollable-element > .tab-connected-overflow-edge.connected-tab-left-clipped.connected-tab-hovered::before,
@@ -598,7 +600,9 @@
 	bottom: 0;
 	right: var(--modern-ui-connected-tab-shoulder-radius);
 	width: var(--modern-ui-connected-tab-cap-radius);
-	border-top: var(--vscode-strokeThickness) solid var(--modern-ui-connected-tab-border);
+	background-image: var(--modern-ui-connected-tab-overflow-top-background, none);
+	background-origin: border-box;
+	border-top: var(--vscode-strokeThickness) solid var(--modern-ui-connected-tab-overflow-top-border, var(--modern-ui-connected-tab-border));
 	border-right: var(--vscode-strokeThickness) solid var(--modern-ui-connected-tab-border);
 	border-top-right-radius: var(--modern-ui-connected-tab-cap-radius);
 	box-sizing: border-box;

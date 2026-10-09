@@ -1111,6 +1111,8 @@
 		"--modern-ui-connected-tab-fill-block-inset",
 		"--modern-ui-connected-tab-fill-inline-inset",
 		"--modern-ui-connected-tab-gutter",
+		"--modern-ui-connected-tab-overflow-top-background",
+		"--modern-ui-connected-tab-overflow-top-border",
 		"--modern-ui-connected-tab-radius",
 		"--modern-ui-connected-tab-row-height",
 		"--modern-ui-connected-tab-shoulder-radius",

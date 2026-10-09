@@ -2407,6 +2407,9 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			const scrollableBounds = tabsScrollbar.getDomNode().getBoundingClientRect();
 			const targetWindow = getWindow(activeTabFill);
 			overflowEdge.style.setProperty('--modern-ui-connected-tab-border', targetWindow.getComputedStyle(activeTab).getPropertyValue('--modern-ui-connected-tab-border'));
+			const edgeStyle = targetWindow.getComputedStyle(assertReturnsDefined(activeTabFill.nextElementSibling));
+			overflowEdge.style.setProperty('--modern-ui-connected-tab-overflow-top-border', edgeStyle.borderTopColor);
+			overflowEdge.style.setProperty('--modern-ui-connected-tab-overflow-top-background', edgeStyle.backgroundImage);
 			// DOM rectangles include CSS zoom; scroll offsets and viewport widths do not.
 			const scale = visibleTabsWidth > 0 ? tabsBounds.width / visibleTabsWidth : 1;
 			const fillLeft = (fillBounds.left - tabsBounds.left) / scale + scrollLeft;
@@ -2466,7 +2469,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			? Math.floor(this.connectedTabBounds.fillLeft - activeTabLeftShoulderWidth)
 			: activeTabPosX) - stickyTabsWidth;
 		const activeTabRight = this.connectedTabBounds
-			? Math.ceil(this.connectedTabBounds.fillRight + activeTabShoulderWidth) - stickyTabsWidth
+			? Math.ceil(this.connectedTabBounds.fillRight + activeTabShoulderWidth) + (this.connectedTabBounds.tab.classList.contains('connected-tab-last') ? 1 : 0) - stickyTabsWidth
 			: adjustedActiveTabPosX + activeTabWidth;
 		const activeTabFits = activeTabRight - adjustedActiveTabPosX <= availableTabsContainerWidth;
 
@@ -2535,6 +2538,8 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	private clearConnectedTabClipping(): void {
 		clearConnectedTabClipping(this.connectedTabBounds?.tab, this.connectedTabOverflowEdge);
 		this.connectedTabOverflowEdge?.style.removeProperty('--modern-ui-connected-tab-border');
+		this.connectedTabOverflowEdge?.style.removeProperty('--modern-ui-connected-tab-overflow-top-border');
+		this.connectedTabOverflowEdge?.style.removeProperty('--modern-ui-connected-tab-overflow-top-background');
 		this.connectedTabBounds = undefined;
 	}
 

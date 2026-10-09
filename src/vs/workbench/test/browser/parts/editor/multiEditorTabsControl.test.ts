@@ -2482,6 +2482,62 @@ suite('MultiEditorTabsControl', () => {
 		});
 	});
 
+	test('clipped Connected caps preserve explicit and modified top paint separately from side strokes', async () => {
+		const group = connectedGroup();
+		const root = group.closest<HTMLElement>('.monaco-workbench')!;
+		root.style.setProperty('--vscode-focusBorder', '#00ff00');
+		root.style.setProperty('--vscode-contrastActiveBorder', '#ff0000');
+		group.style.setProperty('--modern-ui-editor-tab-custom-active-border-top', '#22d3ee');
+		group.style.setProperty('--modern-ui-editor-tab-custom-unfocused-active-border-top', '#c084fc');
+		const oldOptions = partOptions;
+		partOptions = { ...partOptions, tabSizing: 'fixed', tabSizingFixedMinWidth: 160, tabSizingFixedMaxWidth: 160, editorActionsLocation: 'hidden' };
+		control.updateOptions(oldOptions, partOptions);
+		const active = model.getEditorByIndex(1)!;
+		model.openEditor(active, { active: true });
+		control.openEditors(model.getEditors(EditorsOrder.SEQUENTIAL));
+		const results = [];
+		for (const theme of ['vs-dark', 'hc-black', 'hc-light']) {
+			root.classList.add(theme);
+			for (const activeGroup of [true, false]) {
+				group.classList.toggle('active', activeGroup);
+				for (const modified of [false, true]) {
+					await layoutConnectedGroup(group, 240);
+					const tab = container.querySelector<HTMLElement>('.tab.active')!;
+					tab.classList.add('tab-border-top');
+					tab.classList.toggle('dirty-border-top', modified);
+					tab.style.setProperty('--tab-dirty-border-top-color', '#ffffff');
+					control.layout({ container: new Dimension(240, 33), available: new Dimension(240, 300) }, { forceRevealActiveTab: true });
+					await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+					const tabs = container.querySelector<HTMLElement>('.tabs-container')!;
+					tabs.classList.add('scroll');
+					tabs.scrollLeft = 0;
+					tabs.dispatchEvent(new mainWindow.Event(EventType.SCROLL));
+					const capStyle = getTabStrokeStyle(tab);
+					const overflow = container.querySelector<HTMLElement>('.tab-connected-overflow-edge')!;
+					const clippedStyle = mainWindow.getComputedStyle(overflow.querySelector<HTMLElement>('.tab-connected-overflow-right-edge')!);
+					results.push({
+						theme, activeGroup, modified,
+						rightClipped: overflow.classList.contains('connected-tab-right-clipped'),
+						topColor: clippedStyle.borderTopColor,
+						sameSides: clippedStyle.borderRightColor === capStyle.borderRightColor,
+						sameModifiedPaint: clippedStyle.backgroundImage === capStyle.backgroundImage,
+					});
+				}
+			}
+			root.classList.remove(theme);
+		}
+		root.classList.remove('modern-ui-connected-editor-tabs');
+		await layoutConnectedGroup(group, 240);
+		const overflow = container.querySelector<HTMLElement>('.tab-connected-overflow-edge')!;
+		assert.deepStrictEqual({
+			results,
+			cleared: [overflow.style.getPropertyValue('--modern-ui-connected-tab-overflow-top-border'), overflow.style.getPropertyValue('--modern-ui-connected-tab-overflow-top-background')],
+		}, {
+			results: results.map(result => ({ ...result, rightClipped: true, topColor: result.modified ? 'rgb(255, 255, 255)' : result.activeGroup ? 'rgb(34, 211, 238)' : 'rgb(192, 132, 252)', sameSides: true, sameModifiedPaint: true })),
+			cleared: ['', ''],
+		});
+	});
+
 	test('customized bottom accents stay inside the upper Connected pill clipping boundary', async () => {
 		const group = connectedGroup();
 		const oldOptions = partOptions;

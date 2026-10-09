@@ -767,7 +767,8 @@ function createDensityFixtures() {
 			WrappedUpperActive: defineComponentFixture({
 				render: renderDensityLayout('wrapped', 'compact'),
 				expectedVisualDescriptions: ['Compact-density tabs wrap into equal-height rows while labels and actions remain vertically centered.'],
-			}),}),
+			}),
+		}),
 		Default: defineThemedFixtureGroup({
 			AcrossTabStyles: defineComponentFixture({
 				render: renderTabStyleDensityComparison('default'),
@@ -782,6 +783,7 @@ function createDensityFixtures() {
 					editors: [{ resource: file('/project/README.md'), pinned: true, active: true }],
 					partOptions: { editorActionsLocation: 'hidden' },
 				}),
+				additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 				expectedVisualDescriptions: ['A single editor retains balanced label and Close action spacing without crowding either connected shoulder.'],
 			}),
 			WrappedBottomActive: defineComponentFixture({
@@ -791,7 +793,9 @@ function createDensityFixtures() {
 			WrappedUpperActive: defineComponentFixture({
 				render: renderDensityLayout('wrapped', 'default'),
 				expectedVisualDescriptions: ['Default-density tabs wrap into equal-height rows. Upper connected rows remain separate pills and the bottom selected tab joins the editor.'],
-			}),}),};
+			}),
+		}),
+	};
 }
 
 function createLayoutFixtures() {
@@ -985,23 +989,24 @@ export default defineThemedFixtureGroup({ path: 'editor/' }, {
 	Styles: defineThemedFixtureGroup({
 		Connected: defineComponentFixture({
 			render: render(true, {}),
-			additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+			additionalThemes: ['darkModern', 'darkHighContrast', 'lightHighContrast'],
 			expectedVisualDescriptions: [
 				'Connected tabs use the dedicated connected strip color while the active tab remains joined to the editor surface.',
 			],
 		}),
 		Legacy: defineComponentFixture({
 			render: render(false, {}),
-			additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+			additionalThemes: ['darkModern', 'darkHighContrast', 'lightHighContrast'],
 			expectedVisualDescriptions: [
 				'With Modern UI disabled, the legacy tab strip and inactive tabs retain the theme legacy background instead of adopting the connected-tab strip color.',
 			],
 		}),
 		Pill: defineComponentFixture({
 			render: render(true, { editorTabStyle: ModernUIEditorTabStyle.Pill }),
-			additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+			additionalThemes: ['darkModern', 'darkHighContrast', 'lightHighContrast'],
 			expectedVisualDescriptions: [
 				'Pill tabs retain their transparent modern surface and separate rounded geometry instead of adopting the connected-tab strip color.',
 			],
-		}),}),
+		}),
+	}),
 });
