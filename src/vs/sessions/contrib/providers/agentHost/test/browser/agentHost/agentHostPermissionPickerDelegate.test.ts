@@ -402,7 +402,7 @@ suite('AgentHostPermissionPickerDelegate', () => {
 		});
 	});
 
-	test('Dev Container drafts expose sandbox-aware startup copy', () => {
+	test('Dev Container drafts keep sandbox guidance on the sandbox toggle', () => {
 		const configuration = new TestConfigurationService({ [AgentSandboxSettingId.AgentSandboxEnabled]: 'on' });
 		const { delegate, provider } = setup(store, makeActiveSession(), 'default', undefined, undefined, configuration);
 		provider.devContainerDrafts.add(SESSION_ID);
@@ -410,11 +410,13 @@ suite('AgentHostPermissionPickerDelegate', () => {
 		assert.deepStrictEqual({
 			container: delegate.sandboxDevContainer.get(),
 			label: delegate.getSandboxToggle()?.label,
+			sandboxGuidance: delegate.getSandboxToggle()?.title?.includes('relaxes the outer container\'s isolation'),
 			hover: delegate.getPermissionLevelHover(ChatPermissionLevel.Default, getPermissionLevelMeta(ChatPermissionLevel.Default)),
 		}, {
 			container: true,
 			label: 'Sandboxing in Dev Container',
-			hover: 'Copilot asks before running tools unless your configured settings allow the tool.\n\nThe Dev Container will start with relaxed Docker security options and access to /dev/net/tun so terminal commands can run in a nested sandbox.',
+			sandboxGuidance: true,
+			hover: 'Copilot asks before running tools unless your configured settings allow the tool.',
 		});
 	});
 
