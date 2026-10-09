@@ -2376,7 +2376,8 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					const expectedDirectory = resolve(await realpath(dirname(directory)), basename(directory));
 					return relative(expectedDirectory, await realpath(directory)) === ''
 						&& relative(resolve(expectedDirectory, basename(owned.fsPath)), await realpath(owned.fsPath)) === ''
-						&& (await stat(owned.fsPath)).isFile();
+						&& relative(resolve(expectedDirectory, basename(owned.fsPath)), await realpath(uri.fsPath)) === ''
+						&& (await stat(uri.fsPath)).isFile();
 				} catch (error) {
 					if (isParamsObject(error) && (error.code === 'ENOENT' || error.code === 'ENOTDIR')) {
 						return false;

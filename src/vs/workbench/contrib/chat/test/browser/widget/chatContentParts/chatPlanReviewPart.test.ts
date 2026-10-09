@@ -569,6 +569,56 @@ suite('ChatPlanReviewPart', () => {
 	});
 
 	suite('Inline comments list', () => {
+		test('failed feedback submission preserves comments and overall feedback for retry', async () => {
+			const review = createMockReviewWithPlan();
+			let failSubmission = true;
+			createWidget(review, undefined, () => {
+				if (failSubmission) {
+					throw new Error('Submission failed');
+				}
+			});
+			const planUri = URI.revive(review.planUri!);
+			const service = lastFeedbackService!;
+			service.addFeedback(planUri, 5, 1, 'Keep this comment');
+			const textarea = widget.domNode.querySelector('.chat-plan-review-feedback-textarea') as HTMLTextAreaElement;
+			textarea.value = 'Keep this overall feedback';
+			textarea.dispatchEvent(new Event('input'));
+			const submitted = await service.submitAllFeedback(planUri);
+
+			assert.deepStrictEqual({
+				submitted,
+				used: widget.domNode.classList.contains('chat-plan-review-used'),
+				comments: service.getFeedback(planUri).map(item => item.text),
+				overall: textarea.value,
+				errors: notificationErrors,
+			}, {
+				submitted: false,
+				used: false,
+				comments: ['Keep this comment'],
+				overall: 'Keep this overall feedback',
+				errors: ['Unable to submit plan feedback: Submission failed'],
+			});
+
+			failSubmission = false;
+			const retried = await service.submitAllFeedback(planUri);
+			assert.deepStrictEqual({
+				retried,
+				used: widget.domNode.classList.contains('chat-plan-review-used'),
+				comments: service.getFeedback(planUri),
+				result: lastSubmitResult,
+			}, {
+				retried: true,
+				used: true,
+				comments: [],
+				result: {
+					rejected: false,
+					feedback: 'Keep this overall feedback\n\nInline comments on `plan.md`:\n- **Line 5:** Keep this comment',
+					feedbackOverall: 'Keep this overall feedback',
+					feedbackInlineMarkdown: 'Inline comments on `plan.md`:\n- **Line 5:** Keep this comment',
+				},
+			});
+		});
+
 		test('renders comments list and updates Submit Feedback count when service has items', async () => {
 			const review = createMockReviewWithPlan();
 			createWidget(review);
@@ -713,7 +763,7 @@ suite('ChatPlanReviewPart', () => {
 					feedbackInlineMarkdown: 'Inline comments on `plan.md`:\n- **Line 5:** Fix this step',
 				},
 				didSubmit: true,
-				commentsChanged: 2,
+				commentsChanged: 1,
 				remainingComments: [],
 			});
 			assert.ok(widget.domNode.classList.contains('chat-plan-review-used'));

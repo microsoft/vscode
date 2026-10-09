@@ -3193,6 +3193,65 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
+	test('MC plan access denies distinct case-variant requested files and session directories', async function () {
+		const path = await mkdtemp(join(process.cwd(), '.build', 'mission-control-plan-case-grants-'));
+		try {
+			const workspace = join(path, 'workspace');
+			const owner = join(path, 'session-state', 'native-backing');
+			const variantOwner = join(path, 'session-state', 'NATIVE-BACKING');
+			await Promise.all([mkdir(workspace), mkdir(owner, { recursive: true })]);
+			const plan = URI.file(join(owner, 'plan.md'));
+			const variantPlan = URI.file(join(owner, 'PLAN.md'));
+			const variantDirectoryPlan = URI.file(join(variantOwner, 'plan.md'));
+			await writeFile(plan.fsPath, '# Owned plan');
+			try {
+				await writeFile(variantPlan.fsPath, 'private case-variant file', { flag: 'wx' });
+				await mkdir(variantOwner);
+				await writeFile(variantDirectoryPlan.fsPath, 'private case-variant directory');
+			} catch (error) {
+				if (hasKey(error, { code: true }) && error.code === 'EEXIST') {
+					this.skip();
+				}
+				throw error;
+			}
+
+			stateManager.createSession(makeSessionSummary());
+			const chat = buildDefaultChatUri(sessionUri);
+			agentService.getSessionPlanFile = () => plan;
+			agentService.resourceRead = async uri => ({ data: await readFile(uri.fsPath, 'utf8'), encoding: ContentEncoding.Utf8 });
+			stateManager.dispatchServerAction(chat, {
+				type: ActionType.ChatTurnStarted, turnId: 'case-plan-turn', startedAt: '2026-10-08T20:00:00.000Z',
+				message: { text: 'Plan a change', origin: { kind: MessageKind.User } },
+			});
+			const inputRequest: ChatInputRequestWithPlanReview = {
+				id: 'case-plan-review',
+				planReview: { title: 'Review Plan', content: 'Summary', actions: [{ id: 'implement', label: 'Implement Plan' }], canProvideFeedback: true, answerQuestionId: 'choice', planUri: plan.toString() },
+			};
+			stateManager.dispatchServerAction(chat, { type: ActionType.ChatInputRequested, request: inputRequest });
+			const relay = disposables.add(new MockProtocolServer());
+			const scopedHandler = disposables.add(new ProtocolServerHandler(
+				agentService, stateManager, relay, { allowExtensionMethods: false, relayResourceRoots: () => [workspace] },
+				disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+			));
+			const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'case-plan-lane', false));
+			transport.relayAuthenticated = true;
+			relay.simulateConnection(transport);
+			transport.simulateMessage(request(1, 'initialize', { clientId: 'case-plan-lane', protocolVersions: [PROTOCOL_VERSION] }));
+			for (const [index, uri] of [plan, variantPlan, variantDirectoryPlan].entries()) {
+				transport.simulateMessage(request(index + 2, 'resourceRead', { uri: uri.toString() }));
+			}
+			await scopedHandler.whenIdle();
+			assert.deepStrictEqual([2, 3, 4].map(id => {
+				const response = findResponse(transport.sent, id);
+				return response && hasKey(response, { result: true }) ? response.result
+					: response && hasKey(response, { error: true }) ? response.error.code : undefined;
+			}), [{ data: '# Owned plan', encoding: ContentEncoding.Utf8 }, AhpErrorCodes.PermissionDenied, AhpErrorCodes.PermissionDenied]);
+		} finally {
+			await rm(path, { recursive: true });
+		}
+	});
+
 	test('MC plan access is bound to the published review, provider backing and pending write lifetime', async () => {
 		const path = await mkdtemp(join(process.cwd(), '.build', 'mission-control-plan-grants-'));
 		try {

@@ -937,6 +937,12 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 			}
 
 			const feedback = sections.join('\n\n');
+			this._options.onSubmit({
+				rejected: false,
+				feedback,
+				feedbackOverall: textareaFeedback || undefined,
+				feedbackInlineMarkdown,
+			});
 			this._isSubmitted = true;
 			const planUri = this.review.planUri ? URI.revive(this.review.planUri) : undefined;
 			if (planUri) {
@@ -944,12 +950,6 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 					this._planReviewFeedbackService.removeFeedback(planUri, item.id);
 				}
 			}
-			this._options.onSubmit({
-				rejected: false,
-				feedback,
-				feedbackOverall: textareaFeedback || undefined,
-				feedbackInlineMarkdown,
-			});
 			await this.markUsed();
 			return true;
 		} catch (error) {
