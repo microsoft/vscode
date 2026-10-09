@@ -29238,6 +29238,38 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('restored sandbox off survives a config change and another restore before runtime confirmation', async () => {
+			const sessionDb = disposables.add(await SessionDatabase.open(':memory:'));
+			const sessionDataService = createSessionDataService(sessionDb);
+			const localAgent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => localAgent.dispose()));
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			registerTestAgentProvider(localService, localAgent);
+			const configuration = getConfigurationService(localService);
+			configuration.updateRootConfig({ sandbox: { enabled: 'on' } });
+			const { session } = await createAgentSession(localAgent);
+			await sessionDb.setMetadata('configValues', JSON.stringify({ sandboxEnabled: 'off', mode: 'interactive' }));
+
+			await localService.restoreSession(session);
+			configuration.updateSessionConfig(session.toString(), { mode: 'plan' });
+			await sessionDb.whenIdle();
+			const persisted = JSON.parse((await sessionDb.getMetadata('configValues'))!);
+			getStateManager(localService).removeSession(session.toString());
+			await localService.restoreSession(session);
+
+			assert.deepStrictEqual({
+				persisted,
+				restored: configuration.getSessionConfigValues(session.toString()),
+				confirmed: configuration.getSessionSandboxEnabled(session.toString()),
+				effective: getSessionSandboxConfig(configuration, session.toString()).enabled,
+			}, {
+				persisted: { sandboxEnabled: 'off', mode: 'plan' },
+				restored: { sandboxEnabled: 'off', mode: 'plan' },
+				confirmed: undefined,
+				effective: 'off',
+			});
+		});
+
 		test('restoreSession replaces persisted off with applied on when current managed policy requires sandboxing', async () => {
 			const sessionDb = disposables.add(await SessionDatabase.open(':memory:'));
 			const sessionDataService = createSessionDataService(sessionDb);

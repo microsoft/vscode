@@ -47,7 +47,8 @@ export class SessionFlagsContribution extends Disposable implements IAgentHostCh
 			const state = this._stateManager.getSessionState(dispatched.channel);
 			const values = state?.config?.values;
 			if (values) {
-				persistSessionMetadata(this._sessionDataService, this._logService, dispatched.channel, 'configValues', JSON.stringify(getPersistedSessionConfigValues(values, readSessionSandboxState(state)?.enabled)));
+				const appliedSandboxEnabled = readSessionSandboxState(state)?.enabled;
+				persistSessionMetadata(this._sessionDataService, this._logService, dispatched.channel, 'configValues', previous => JSON.stringify(getPersistedSessionConfigValues(values, appliedSandboxEnabled, previous)));
 			}
 		}
 		// Persisting here rather than in `handleAction` covers client- and
