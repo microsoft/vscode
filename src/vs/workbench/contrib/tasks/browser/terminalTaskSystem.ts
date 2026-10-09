@@ -1726,12 +1726,10 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 
 		let commandLine = result.join(' ');
 		// There are special rules quoted command line in cmd.exe
-		if (platform === Platform.Platform.Windows) {
-			if (basename === 'cmd' && commandQuoted && argQuoted) {
-				commandLine = '"' + commandLine + '"';
-			} else if ((basename === 'powershell' || basename === 'pwsh') && commandQuoted) {
-				commandLine = '& ' + commandLine;
-			}
+		if (basename === 'cmd' && platform === Platform.Platform.Windows && commandQuoted && argQuoted) {
+			commandLine = '"' + commandLine + '"';
+		} else if ((basename === 'powershell' || basename === 'pwsh') && commandQuoted) {
+			commandLine = '& ' + commandLine;
 		}
 
 		return commandLine;

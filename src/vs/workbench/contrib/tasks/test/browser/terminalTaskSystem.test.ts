@@ -123,11 +123,13 @@ suite('TerminalTaskSystem shell command line', () => {
 		assert.deepStrictEqual([
 			build('bash', [], Platform.Linux, '/tmp/tool name', '${file}'),
 			build('bash', [], Platform.Linux, '/tmp/tool;name', '${file}'),
+			build('pwsh', ['arg'], Platform.Linux, '/tmp/tool%name'),
 			build('pwsh', [], Platform.Windows, 'C:\\tool name.exe', '${file}'),
 			build('cmd.exe', [], Platform.Windows, 'C:\\tool name.exe', '${file}')
 		], [
 			'\'/tmp/tool name\'',
 			'\'/tmp/tool;name\'',
+			'& \'/tmp/tool%name\' arg',
 			'& \'C:\\tool name.exe\'',
 			'"C:\\tool name.exe"'
 		]);
