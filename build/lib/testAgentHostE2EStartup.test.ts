@@ -75,7 +75,7 @@ test('Agent Host E2E startup reuses, repairs, forces and explicitly skips Electr
 			reused: firstPreparationMissing,
 			suitesPassed: (firstRun.match(/PASS /g) ?? []).length,
 			preparations: await fs.readFile(path.join(repoRoot, '.build/preparations'), 'utf8'),
-		}, { reused: true, suitesPassed: 6, preparations: 'prepared\nprepared\n' });
+		}, { reused: true, suitesPassed: 7, preparations: 'prepared\nprepared\n' });
 	} finally {
 		await fs.rm(repoRoot, { recursive: true, force: true });
 	}
