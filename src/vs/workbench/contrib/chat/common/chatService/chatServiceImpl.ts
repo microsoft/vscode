@@ -48,7 +48,7 @@ import { chatAgentLeader, ChatRequestAgentPart, ChatRequestAgentSubcommandPart, 
 import { ChatRequestParser } from '../requestParser/chatRequestParser.js';
 import { ChatMcpServersStarting, ChatPendingRequestChangeClassification, ChatPendingRequestChangeEvent, ChatPendingRequestChangeEventName, ChatRequestQueueKind, ChatSendResult, ChatSendResultQueued, ChatSendResultSent, ChatStopCancellationNoopClassification, ChatStopCancellationNoopEvent, ChatStopCancellationNoopEventName, IChatCompleteResponse, IChatDetail, IChatFollowup, IChatModelReference, IChatProgress, IChatQuestionAnswers, IChatRequestAcceptedEvent, IChatRequestSubmittedEvent, IChatSendRequestOptions, IChatSendRequestResponseState, IChatService, IChatSessionStartOptions, IChatUserActionEvent, IRemotePendingRequest, ResponseModelState } from './chatService.js';
 import { ChatRequestTelemetry, ChatServiceTelemetry } from './chatServiceTelemetry.js';
-import { IChatSessionsService, IChatSessionHistoryItem, isAgentHostTarget, isTerminalCommandPrompt, localChatSessionType } from '../chatSessionsService.js';
+import { getChatSessionHistoryContent, IChatSessionsService, IChatSessionHistoryItem, isAgentHostTarget, isTerminalCommandPrompt, localChatSessionType } from '../chatSessionsService.js';
 import { ChatSessionStore, IChatSessionEntryMetadata } from '../model/chatSessionStore.js';
 import { IChatSlashCommandService } from '../participants/chatSlashCommands.js';
 import { IChatTransferService } from '../model/chatTransferService.js';
@@ -1051,7 +1051,18 @@ export class ChatService extends Disposable implements IChatService {
 					const currentRequests = model.getRequests();
 					const existing = turn.id === undefined ? undefined : requestsById.get(turn.id);
 					// An unchanged turn may be absent because the user removed it locally.
-					if (equals(turn.items, previousTurns.get(turn.id)?.items)) {
+					const previous = previousTurns.get(turn.id);
+					if (equals(turn.items, previous?.items)) {
+						continue;
+					}
+					if (providedSession.preserveHistoryItemIdentity && previous && equals(getChatSessionHistoryContent(turn.items), getChatSessionHistoryContent(previous.items))) {
+						if (existing) {
+							model.updateRequestModelId(existing, turn.request.modelId);
+							const responses = turn.items.filter(item => item.type === 'response');
+							const details = responses.findLast(item => item.details || item.errorDetails)?.details;
+							const metadata = responses.flatMap(item => item.parts).filter(part => part.kind === 'usage' || part.kind === 'autoModeResolution');
+							existing.response?.updateHistoryMetadata(details, metadata);
+						}
 						continue;
 					}
 					let insertionIndex = existing ? currentRequests.indexOf(existing) : currentRequests.length;

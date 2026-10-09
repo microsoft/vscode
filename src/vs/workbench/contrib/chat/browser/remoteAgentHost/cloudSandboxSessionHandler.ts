@@ -20,7 +20,7 @@ import { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHo
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IChatProgress, IChatService } from '../../common/chatService/chatService.js';
-import { IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionServerRequest } from '../../common/chatSessionsService.js';
+import { getChatSessionHistoryContent, IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionServerRequest } from '../../common/chatSessionsService.js';
 import { IChatSessionHistoryStatus } from '../../../../../platform/chat/common/chatSessionHistory.js';
 import { CloudSandboxSessionTrace } from '../../common/cloudSandboxSessionTrace.js';
 import { CloudSandboxReadOnlySessionHandler, ICloudSandboxReadOnlyConfig, ReadOnlyChatSession } from './cloudSandboxReadOnlySessionHandler.js';
@@ -32,17 +32,9 @@ interface ICloudSandboxSessionConfig extends ICloudSandboxReadOnlyConfig {
 	readonly connectionStatus?: IObservable<RemoteAgentHostConnectionStatus>;
 }
 
-/** Live model labels and usage decoration are not changes to recorded message content. */
-function getHistoryContent(history: readonly IChatSessionHistoryItem[]): readonly IChatSessionHistoryItem[] {
-	return history.map(item => item.type === 'request' ? { ...item, modelId: undefined } : {
-		...item,
-		details: undefined,
-		parts: item.parts.filter(part => part.kind !== 'usage' && part.kind !== 'autoModeResolution'),
-	});
-}
-
 /** Keeps the contributed session and its model alive while recorded history becomes live. */
 class PromotableCloudSandboxChatSession extends Disposable implements IChatSession {
+	readonly preserveHistoryItemIdentity = true;
 	private readonly _sourceStore = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _onWillDispose = this._register(new Emitter<void>());
 	readonly onWillDispose = this._onWillDispose.event;
@@ -189,6 +181,7 @@ class CloudSandboxChatSessionReference extends Disposable implements IChatSessio
 
 	get sessionResource() { return this._session.sessionResource; }
 	get history() { return this._session.history; }
+	get preserveHistoryItemIdentity() { return this._session.preserveHistoryItemIdentity; }
 	get title() { return this._session.title; }
 	get options() { return this._session.options; }
 	get transferredState() { return this._session.transferredState; }
@@ -356,7 +349,7 @@ export class CloudSandboxSessionHandler extends Disposable implements IChatSessi
 			throw new Error('The sandbox content provider returned a different session resource.');
 		}
 		if (live) {
-			const unchanged = entry.hasHistory && !!entry.session && equals(getHistoryContent(entry.session.history), getHistoryContent(source.history));
+			const unchanged = entry.hasHistory && !!entry.session && equals(getChatSessionHistoryContent(entry.session.history), getChatSessionHistoryContent(source.history));
 			this._apiService.invalidateSessionHistory(this._config.taskId, unchanged);
 		}
 		if (entry.session) {

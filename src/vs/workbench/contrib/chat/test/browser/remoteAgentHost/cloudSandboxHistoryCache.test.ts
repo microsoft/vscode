@@ -179,6 +179,46 @@ suite('CloudSandboxHistoryCache', () => {
 		assert.deepStrictEqual(await preview(cache), snapshot());
 	});
 
+	for (const lateReader of [false, true]) {
+		test(`all readers validate shared cache admission${lateReader ? ' including a reader joining during delivery' : ''}`, async () => {
+			const cache = store.add(new CloudSandboxHistoryCache());
+			await read(cache);
+			let fetches = 0;
+			const initialize = async () => ({
+				account: 'account', fetch: async () => { fetches++; return snapshot('Fresh'); },
+			});
+			const rejectSnapshot = () => cache.load('task', CancellationToken.None, initialize, undefined, () => false);
+			let second: Promise<IReplayedTaskHistory | undefined> | undefined;
+			const first = cache.load('task', CancellationToken.None, initialize, undefined, () => {
+				if (lateReader) {
+					second = rejectSnapshot();
+				}
+				return true;
+			});
+			if (!lateReader) {
+				second = rejectSnapshot();
+			}
+			const firstResult = await first;
+			const secondResult = await second;
+			const retained = await preview(cache);
+			await read(cache, 'task', snapshot('Recovered'));
+			assert.deepStrictEqual({ fetches, firstResult, secondResult, retained, recovered: await preview(cache) }, {
+				fetches: 1, firstResult: snapshot('Fresh'), secondResult: snapshot('Fresh'),
+				retained: snapshot(), recovered: snapshot('Recovered'),
+			});
+		});
+	}
+
+	test('a validation error preserves the cache and propagates to the reader', async () => {
+		const cache = store.add(new CloudSandboxHistoryCache());
+		await read(cache);
+		const failure = new Error('Invalid conversation');
+		await assert.rejects(cache.load('task', CancellationToken.None, async () => ({
+			account: 'account', fetch: async () => snapshot('Invalid'),
+		}), undefined, () => { throw failure; }), error => error === failure);
+		assert.deepStrictEqual(await preview(cache), snapshot());
+	});
+
 	test('cancelling one reader preserves a shared request needed by another', async () => {
 		const cache = store.add(new CloudSandboxHistoryCache());
 		const cancellation = store.add(new CancellationTokenSource());

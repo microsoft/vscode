@@ -34,6 +34,8 @@ export interface IAsyncChatSessionActivationContribution {
 	/** Higher priorities activate first. Defaults to 0, with registration order breaking ties. */
 	readonly priority?: number;
 	matchSessionType(sessionType: string): boolean;
+	/** Optional owner lifetime, captured before activation; cancellation also ends provider-registration waits. */
+	getActivationToken?(sessionType: string): CancellationToken;
 	waitForActivation(accessor: ServicesAccessor, sessionType: string): Promise<boolean>;
 }
 
@@ -356,6 +358,15 @@ export type IChatSessionHistoryItem = {
 
 export type IChatSessionRequestHistoryItem = Extract<IChatSessionHistoryItem, { type: 'request' }>;
 
+/** Excludes model and usage decoration when comparing recorded and live transcript content. */
+export function getChatSessionHistoryContent(history: readonly IChatSessionHistoryItem[]): readonly IChatSessionHistoryItem[] {
+	return history.map(item => item.type === 'request' ? { ...item, modelId: undefined } : {
+		...item,
+		details: undefined,
+		parts: item.parts.filter(part => part.kind !== 'usage' && part.kind !== 'autoModeResolution'),
+	});
+}
+
 export interface IChatSessionServerRequest {
 	readonly metadata?: Record<string, unknown>;
 	/**
@@ -462,7 +473,8 @@ export interface IChatSession extends IDisposable {
 	 * Unchanged turns must not resurrect locally removed requests.
 	 */
 	readonly onDidChangeHistory?: Event<readonly IChatSessionHistoryItem[]>;
-
+	/** Updates model and usage decoration in place for otherwise unchanged turns with stable request IDs. */
+	readonly preserveHistoryItemIdentity?: boolean;
 
 	readonly options?: ReadonlyChatSessionOptionsMap;
 

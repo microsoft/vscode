@@ -24,6 +24,8 @@ interface IPendingHistory extends IDisposable {
 	waiters: number;
 	cacheable: boolean;
 	completed: boolean;
+	accepted: boolean;
+	commit?: () => void;
 }
 
 /** Shares reads within an authentication lifetime. The owner must clear synchronously when authentication changes. */
@@ -44,6 +46,7 @@ export class CloudSandboxHistoryCache extends Disposable {
 		token: CancellationToken,
 		initialize: (token: CancellationToken) => Promise<{ readonly account: string; readonly fetch: (token: CancellationToken) => Promise<IReplayedTaskHistory | undefined> }>,
 		onCachedHistory?: (history: IReplayedTaskHistory) => void,
+		canCacheHistory?: (history: IReplayedTaskHistory | undefined) => boolean,
 	): Promise<IReplayedTaskHistory | undefined> {
 		if (this._store.isDisposed || token.isCancellationRequested) {
 			throw new CancellationError();
@@ -65,7 +68,7 @@ export class CloudSandboxHistoryCache extends Disposable {
 				return context;
 			})();
 			operation = {
-				store, source, waiters: 0, cacheable: true, completed: false,
+				store, source, waiters: 0, cacheable: true, completed: false, accepted: false,
 				cached: (async () => {
 					const context = await initialized;
 					const key = JSON.stringify([context.account, taskId]);
@@ -82,9 +85,8 @@ export class CloudSandboxHistoryCache extends Disposable {
 					if (source.token.isCancellationRequested || current?.source !== source) {
 						throw new CancellationError();
 					}
-					if (current.cacheable) {
-						this.cache(JSON.stringify([context.account, taskId]), taskId, history);
-					}
+					const key = JSON.stringify([context.account, taskId]);
+					current.commit = () => this.cache(key, taskId, history);
 					return history;
 				})(),
 				dispose: () => { source.cancel(); store.dispose(); },
@@ -110,7 +112,14 @@ export class CloudSandboxHistoryCache extends Disposable {
 			if (request.waiters === 0 && this.pending.get(taskId) === request) {
 				if (request.completed) {
 					this.pending.deleteAndLeak(taskId);
-					request.store.dispose();
+					try {
+						// Every remaining reader must validate its conversation before the shared snapshot replaces the cache.
+						if (request.cacheable && request.accepted) {
+							request.commit?.();
+						}
+					} finally {
+						request.store.dispose();
+					}
 				} else {
 					this.pending.deleteAndDispose(taskId);
 				}
@@ -129,7 +138,18 @@ export class CloudSandboxHistoryCache extends Disposable {
 			if (token.isCancellationRequested || request.source.token.isCancellationRequested) {
 				throw new CancellationError();
 			}
-			return history && structuredClone(history);
+			const result = history && structuredClone(history);
+			try {
+				if (canCacheHistory && !canCacheHistory(result)) {
+					request.cacheable = false;
+				} else {
+					request.accepted = true;
+				}
+			} catch (error) {
+				request.cacheable = false;
+				throw error;
+			}
+			return result;
 		} finally {
 			request.store.delete(cancellation);
 			release();

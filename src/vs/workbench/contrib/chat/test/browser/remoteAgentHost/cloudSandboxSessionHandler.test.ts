@@ -103,7 +103,7 @@ class LiveSession extends Disposable implements IChatSession {
 suite('CloudSandboxSessionHandler', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createHandler(read: (token: CancellationToken, diagnosticId?: string, onCachedHistory?: (history: IReplayedTaskHistory) => void) => Promise<IReplayedTaskHistory | undefined> = async () => recordedHistory(), notificationService: INotificationService = new TestNotificationService(), logService: ILogService = new NullLogService(), invalidate: (preserveCached?: boolean) => void = () => { }, onDidSubmitRequest: Event<IChatRequestSubmittedEvent> = Event.None, connectionStatus?: IObservable<RemoteAgentHostConnectionStatus>, setSessionTitle: IChatService['setSessionTitle'] = () => { }) {
+	function createHandler(read: (token: CancellationToken, diagnosticId?: string, onCachedHistory?: (history: IReplayedTaskHistory) => void, canCacheHistory?: (history: IReplayedTaskHistory | undefined) => boolean) => Promise<IReplayedTaskHistory | undefined> = async () => recordedHistory(), notificationService: INotificationService = new TestNotificationService(), logService: ILogService = new NullLogService(), invalidate: (preserveCached?: boolean) => void = () => { }, onDidSubmitRequest: Event<IChatRequestSubmittedEvent> = Event.None, connectionStatus?: IObservable<RemoteAgentHostConnectionStatus>, setSessionTitle: IChatService['setSessionTitle'] = () => { }) {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, logService);
 		instantiationService.stub(INotificationService, notificationService);
@@ -112,7 +112,7 @@ suite('CloudSandboxSessionHandler', () => {
 			override setSessionTitle(resource: URI, title: string): void { setSessionTitle(resource, title); }
 		}());
 		instantiationService.stub(ICloudSandboxApiService, new class extends mock<ICloudSandboxApiService>() {
-			override getSessionHistory(_taskId: string, token: CancellationToken, diagnosticId?: string, onCachedHistory?: (history: IReplayedTaskHistory) => void) { return read(token, diagnosticId, onCachedHistory); }
+			override getSessionHistory(_taskId: string, token: CancellationToken, diagnosticId?: string, onCachedHistory?: (history: IReplayedTaskHistory) => void, canCacheHistory?: (history: IReplayedTaskHistory | undefined) => boolean) { return read(token, diagnosticId, onCachedHistory, canCacheHistory); }
 			override invalidateSessionHistory(_taskId: string, preserveCached?: boolean): void { invalidate(preserveCached); }
 		}());
 		return store.add(instantiationService.createInstance(CloudSandboxSessionHandler, {
@@ -227,9 +227,9 @@ suite('CloudSandboxSessionHandler', () => {
 		const cache = store.add(new CloudSandboxHistoryCache());
 		const fresh = new DeferredPromise<IReplayedTaskHistory>();
 		let reads = 0;
-		const handler = createHandler((token, _diagnosticId, onCachedHistory) => cache.load('task', token, async () => ({
+		const handler = createHandler((token, _diagnosticId, onCachedHistory, canCacheHistory) => cache.load('task', token, async () => ({
 			account: 'account', fetch: async () => ++reads === 1 ? recordedHistory() : fresh.p,
-		}), onCachedHistory));
+		}), onCachedHistory, canCacheHistory));
 		const original = await handler.provideChatSessionContent(resource, CancellationToken.None);
 		original.dispose();
 		const reopened = await handler.provideChatSessionContent(resource, CancellationToken.None);
@@ -438,6 +438,47 @@ suite('CloudSandboxSessionHandler', () => {
 		});
 	}
 
+	for (const failure of ['missing session', 'missing chat'] as const) {
+		test(`reopening retains cached messages after a refresh with a ${failure} and recovers on valid history`, async () => {
+			const cache = store.add(new CloudSandboxHistoryCache());
+			const history = recordedHistory();
+			const original = history.sessions[0];
+			const invalid = {
+				...history,
+				sessions: [failure === 'missing session'
+					? { ...original, session: 'ahp-session:/other', state: { ...original.state, resource: 'ahp-session:/other' } }
+					: { ...original, chats: new Map([[original.defaultChat, original.chats.get(original.defaultChat)!]]) }],
+			};
+			const requested = failure === 'missing chat'
+				? resource.with({ query: `${CHAT_SUBAGENT_RESOURCE_QUERY_PARAM}=${encodeURIComponent(peerChat)}` })
+				: resource;
+			const fresh = new DeferredPromise<IReplayedTaskHistory>();
+			let reads = 0;
+			const handler = createHandler((token, _diagnosticId, onCachedHistory, canCacheHistory) => cache.load('task', token, async () => ({
+				account: 'account', fetch: async () => ++reads === 1 ? recordedHistory() : reads === 2 ? invalid : fresh.p,
+			}), onCachedHistory, canCacheHistory));
+			const first = await handler.provideChatSessionContent(requested, CancellationToken.None);
+			first.dispose();
+			const second = await handler.provideChatSessionContent(requested, CancellationToken.None);
+			await waitForState(second.historyStatus!, value => value?.kind === 'history');
+			second.dispose();
+			const reopened = await handler.provideChatSessionContent(requested, CancellationToken.None);
+			const before = { items: reopened.history.length, pending: !fresh.isSettled, status: reopened.historyStatus?.get() };
+			const recovered = recordedHistory();
+			recovered.sessions[0].chats.get(failure === 'missing chat' ? peerChat : original.defaultChat)!.turns[0].message.text = 'Recovered conversation';
+			const refreshed = Event.toPromise(reopened.onDidChangeHistory!);
+			await fresh.complete(recovered);
+			await refreshed;
+			assert.deepStrictEqual({
+				before, reads, prompts: reopened.history.filter(item => item.type === 'request').map(item => item.prompt),
+				status: reopened.historyStatus?.get(),
+			}, {
+				before: { items: 2, pending: true, status: undefined }, reads: 3,
+				prompts: ['Recovered conversation'], status: undefined,
+			});
+		});
+	}
+
 	test('a cancelled refresh does not create a stale-history warning', async () => {
 		const handler = createHandler(async (_token, _diagnosticId, onCachedHistory) => {
 			onCachedHistory?.(recordedHistory());
@@ -479,9 +520,9 @@ suite('CloudSandboxSessionHandler', () => {
 		};
 		let reads = 0;
 		const preserved: boolean[] = [];
-		const handler = createHandler((token, _diagnosticId, onCachedHistory) => cache.load('task', token, async () => ({
+		const handler = createHandler((token, _diagnosticId, onCachedHistory, canCacheHistory) => cache.load('task', token, async () => ({
 			account: 'account', fetch: async () => ++reads === 1 ? recorded : pending.p,
-		}), onCachedHistory), undefined, undefined, preserveCached => {
+		}), onCachedHistory, canCacheHistory), undefined, undefined, preserveCached => {
 			preserved.push(!!preserveCached);
 			cache.invalidate('task', false, preserveCached);
 		});
@@ -502,7 +543,8 @@ suite('CloudSandboxSessionHandler', () => {
 		assert.deepStrictEqual({
 			preserved, items: reopened.history.length, readOnly: reopened.isReadOnly?.get(),
 			pending: !pending.isSettled && !nextLive.isSettled, status: reopened.historyStatus?.get(),
-		}, { preserved: [true], items: 2, readOnly: true, pending: true, status: undefined });
+			preserveHistoryItemIdentity: reopened.preserveHistoryItemIdentity,
+		}, { preserved: [true], items: 2, readOnly: true, pending: true, status: undefined, preserveHistoryItemIdentity: true });
 	});
 
 	for (const status of [401, 403, 404]) {

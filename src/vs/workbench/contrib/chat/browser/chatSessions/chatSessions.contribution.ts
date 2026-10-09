@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { sep } from '../../../../../base/common/path.js';
-import { AsyncIterableProducer, DeferredPromise, raceCancellationError } from '../../../../../base/common/async.js';
+import { AsyncIterableProducer, DeferredPromise, raceCancellation, raceCancellationError } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -1014,38 +1014,32 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 		const asyncActivators = this._asyncActivationRegistry.getActivators(sessionType);
 		if (asyncActivators.length) {
-			const store = new DisposableStore();
-			const registered = new DeferredPromise<void>();
-			const removed = new DeferredPromise<false>();
-			// Observe removal before activation can register and synchronously retire a provider.
-			store.add(this.onDidChangeContentProviderSchemes(event => {
-				if (event.added.includes(sessionType)) {
-					void registered.complete();
+			for (const activator of asyncActivators) {
+				const token = activator.getActivationToken?.(sessionType) ?? CancellationToken.None;
+				if (token.isCancellationRequested) {
+					return false;
 				}
-				if (event.removed.includes(sessionType)) {
-					void removed.complete(false);
+				const activated = await raceCancellation(
+					this._instantiationService.invokeFunction(accessor => activator.waitForActivation(accessor, sessionType)), token, false);
+				if (token.isCancellationRequested) {
+					return false;
 				}
-			}));
-			try {
-				for (const activator of asyncActivators) {
-					const activated = await Promise.race([
-						this._instantiationService.invokeFunction(accessor => activator.waitForActivation(accessor, sessionType)),
-						removed.p,
-					]);
-					if (removed.isSettled) {
-						return this._contentProviders.has(sessionType);
-					}
-					if (activated) {
-						if (!this._contentProviders.has(sessionType)) {
-							await Promise.race([registered.p, removed.p]);
+				if (activated) {
+					const store = new DisposableStore();
+					try {
+						while (!this._contentProviders.has(sessionType)) {
+							await raceCancellation(Event.toPromise(Event.filter(this.onDidChangeContentProviderSchemes, event => event.added.includes(sessionType)), store), token);
+							if (token.isCancellationRequested) {
+								return false;
+							}
 						}
-						return this._contentProviders.has(sessionType);
+						return true;
+					} finally {
+						store.dispose();
 					}
 				}
-				return false;
-			} finally {
-				store.dispose();
 			}
+			return false;
 		}
 
 		await this._extensionService.activateByEvent(`onChatSession:${sessionType}`);

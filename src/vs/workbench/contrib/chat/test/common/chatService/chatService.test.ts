@@ -3535,6 +3535,7 @@ suite('ChatService', () => {
 			readonly onDidStartServerRequest?: Event<IChatSessionServerRequest>;
 			readonly onDidChangeHistory?: Event<readonly IChatSessionHistoryItem[]>;
 			readonly history?: readonly IChatSessionHistoryItem[];
+			readonly preserveHistoryItemIdentity?: boolean;
 		}
 
 		function setupRemoteProvider(opts: IProvidedSessionOptions): { resource: URI; provided: IChatSession; resolutionCount: () => number } {
@@ -3560,6 +3561,7 @@ suite('ChatService', () => {
 				interruptActiveResponseCallback: opts.interruptActiveResponseCallback,
 				onDidStartServerRequest: opts.onDidStartServerRequest,
 				onDidChangeHistory: opts.onDidChangeHistory,
+				preserveHistoryItemIdentity: opts.preserveHistoryItemIdentity,
 				dispose: () => { },
 			};
 			testDisposables.add(mockSessionsService.registerChatSessionContentProvider(remoteScheme, {
@@ -3659,6 +3661,119 @@ suite('ChatService', () => {
 			});
 		});
 
+		for (const preserveHistoryItemIdentity of [true, false]) {
+			test(`history metadata updates preserve request and view identity only when opted in: ${preserveHistoryItemIdentity}`, async () => {
+				const changes = testDisposables.add(new Emitter<readonly IChatSessionHistoryItem[]>());
+				const first: IChatSessionHistoryItem[] = [
+					{ type: 'request', id: 'one', prompt: 'Hello', participant: remoteScheme, modelId: 'raw-model' },
+					{ type: 'response', participant: remoteScheme, parts: [
+						{ kind: 'usage', promptTokens: 100, completionTokens: 20 },
+						{ kind: 'markdownContent', content: new MarkdownString('Response') },
+					] },
+				];
+				const { resource } = setupRemoteProvider({ history: first, onDidChangeHistory: changes.event, preserveHistoryItemIdentity });
+				const service = createChatService();
+				const ref = testDisposables.add((await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None))!);
+				const model = ref.object;
+				const request = model.getRequests()[0];
+				const response = request.response;
+				const viewModel = testDisposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+				const views = viewModel.getItems();
+				const responseView = views.filter(isResponseVM)[0];
+				const renderData = { renderedParts: [], renderedWordCount: 1, lastRenderTime: 42 };
+				responseView.renderData = renderData;
+				responseView.currentRenderedHeight = 120;
+				responseView.usedReferencesExpanded = true;
+				responseView.vulnerabilitiesListExpanded = true;
+				const requestDataId = views.filter(isRequestVM)[0].dataId;
+				let updated: IChatSessionHistoryItem[] = [];
+				for (const revision of [1, 2]) {
+					updated = [
+						{ type: 'request', id: 'one', prompt: 'Hello', participant: remoteScheme, modelId: `live-model-${revision}` },
+						{ type: 'response', participant: remoteScheme, details: `Live model ${revision}`, parts: [
+							{ kind: 'autoModeResolution', resolved: { id: 'first', name: `First model ${revision}` } },
+							{ kind: 'autoModeResolution', resolved: { id: 'second', name: `Second model ${revision}` } },
+							{ kind: 'usage', promptTokens: 120, completionTokens: 27, actualModelId: `live-model-${revision}` },
+							{ kind: 'markdownContent', content: new MarkdownString('Response') },
+						] },
+					];
+					changes.fire(updated);
+				}
+				const current = model.getRequests()[0];
+				const currentViews = viewModel.getItems();
+				const currentResponseView = currentViews.filter(isResponseVM)[0];
+				const live = {
+					sameRequest: current === request, sameResponse: current.response === response,
+					sameViews: currentViews.every((item, index) => item === views[index]),
+					renderData: currentResponseView.renderData === renderData,
+					height: currentResponseView.currentRenderedHeight,
+					referencesExpanded: currentResponseView.usedReferencesExpanded,
+					vulnerabilitiesExpanded: currentResponseView.vulnerabilitiesListExpanded,
+					requestRenderInvalidated: currentViews.filter(isRequestVM)[0].dataId !== requestDataId,
+					modelId: current.modelId, details: current.response?.result?.details,
+					actualModelId: current.response?.usage?.actualModelId,
+					completionTokens: current.response?.completionTokenCountObs.get(),
+					routes: current.response?.response.value.filter(part => part.kind === 'autoModeResolution').map(part => part.resolved?.name),
+				};
+				changes.fire(updated);
+				const repeated = model.getRequests()[0] === current && viewModel.getItems().every((item, index) => item === currentViews[index]);
+				changes.fire([
+					{ type: 'request', id: 'one', prompt: 'Hello', participant: remoteScheme },
+					{ type: 'response', participant: remoteScheme, parts: [{ kind: 'markdownContent', content: new MarkdownString('Response') }] },
+				]);
+				const cleared = model.getRequests()[0];
+				assert.deepStrictEqual({
+					live, repeated,
+					cleared: {
+						sameRequest: cleared === current, modelId: cleared.modelId, details: cleared.response?.result?.details,
+						usage: cleared.response?.usage, completionTokens: cleared.response?.completionTokenCountObs.get(),
+						parts: cleared.response?.response.value.map(part => part.kind),
+					},
+				}, {
+					live: {
+						sameRequest: preserveHistoryItemIdentity, sameResponse: preserveHistoryItemIdentity, sameViews: preserveHistoryItemIdentity,
+						renderData: preserveHistoryItemIdentity, height: preserveHistoryItemIdentity ? 120 : undefined,
+						referencesExpanded: preserveHistoryItemIdentity ? true : undefined, vulnerabilitiesExpanded: preserveHistoryItemIdentity,
+						requestRenderInvalidated: true, modelId: 'live-model-2', details: 'Live model 2',
+						actualModelId: 'live-model-2', completionTokens: 27, routes: ['First model 2', 'Second model 2'],
+					},
+					repeated: true,
+					cleared: { sameRequest: preserveHistoryItemIdentity, modelId: undefined, details: undefined, usage: undefined, completionTokens: undefined, parts: ['markdownContent'] },
+				});
+			});
+		}
+
+		test('metadata-only promotion preserves local removals while reconciling changed content and new turns', async () => {
+			const changes = testDisposables.add(new Emitter<readonly IChatSessionHistoryItem[]>());
+			const turn = (id: string, text: string, modelId = 'recorded'): IChatSessionHistoryItem[] => [
+				{ type: 'request', id, prompt: id, participant: remoteScheme, modelId },
+				{ type: 'response', participant: remoteScheme, details: modelId, parts: [{ kind: 'markdownContent', content: new MarkdownString(text) }] },
+			];
+			const { resource } = setupRemoteProvider({
+				history: [...turn('keep', 'Retained'), ...turn('change', 'Old'), ...turn('removed', 'Removed')],
+				onDidChangeHistory: changes.event, preserveHistoryItemIdentity: true,
+			});
+			const service = createChatService();
+			const ref = testDisposables.add((await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None))!);
+			const model = ref.object as ChatModel;
+			const [retained, changed] = model.getRequests();
+			const viewModel = testDisposables.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+			const views = viewModel.getItems().slice(0, 2);
+			model.removeRequest('removed');
+			model.inputModel.setState({ inputText: 'Unsent draft' });
+			changes.fire([...turn('keep', 'Retained', 'live'), ...turn('change', 'New', 'live'), ...turn('removed', 'Removed', 'live'), ...turn('new', 'Added', 'live')]);
+			assert.deepStrictEqual({
+				requests: model.getRequests().map(request => [request.id, request.modelId, request.response?.response.toString()]),
+				sameRetained: model.getRequests()[0] === retained,
+				changedReplaced: model.getRequests()[1] !== changed,
+				viewsRetained: viewModel.getItems().slice(0, 2).every((item, index) => item === views[index]),
+				draft: model.inputModel.state.get()?.inputText,
+			}, {
+				requests: [['keep', 'live', 'Retained'], ['change', 'live', 'New'], ['new', 'live', 'Added']],
+				sameRetained: true, changedReplaced: true, viewsRetained: true, draft: 'Unsent draft',
+			});
+		});
+
 		test('promotes recorded history to a live turn without replacing the model, input, or unchanged requests', async () => {
 			const traceMessages: string[] = [];
 			const loadTrace = testDisposables.add(new CloudSandboxSessionTrace(new class extends NullLogService {
@@ -3678,6 +3793,7 @@ suite('ChatService', () => {
 				history: [...first, active, { type: 'response', parts: [{ kind: 'markdownContent', content: new MarkdownString('Recorded prefix') }], participant: remoteScheme }],
 				onDidChangeHistory: historyChanges.event, onDidStartServerRequest: serverRequests.event,
 				progressObs, isCompleteObs, isReadOnly, interruptActiveResponseCallback: async () => true,
+				preserveHistoryItemIdentity: true,
 			});
 			loadTrace.associate(provided);
 			const service = createChatService();
@@ -3689,7 +3805,8 @@ suite('ChatService', () => {
 			input.setState({ inputText: 'Unsent draft' });
 
 			transaction(tx => {
-				historyChanges.fire([...first, active, { type: 'response', parts: [], participant: remoteScheme }]);
+				const liveFirst = first.map(item => item.type === 'request' ? { ...item, modelId: 'live-model' } : { ...item, details: 'Live model' });
+				historyChanges.fire([...liveFirst, active, { type: 'response', parts: [], participant: remoteScheme }]);
 				serverRequests.fire({ id: 'active', prompt: 'Continue', resume: true });
 				progressObs.set([{ kind: 'markdownContent', content: new MarkdownString('Recorded prefix and live continuation') }], tx);
 				isCompleteObs.set(false, tx);

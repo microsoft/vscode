@@ -195,23 +195,28 @@ suite('ChatSessionsService - async activation', () => {
 		return store.add(toDisposable(() => provider.dispose()));
 	}
 
-	test('does not wait for a provider registered and removed before activation resolves', async () => {
+	test('does not wait after an opted-in activation lifetime ends before activation resolves', async () => {
+		const lifetime = store.add(new CancellationTokenSource());
 		store.add(registry.register({
 			matchSessionType: type => type === sessionType,
+			getActivationToken: () => lifetime.token,
 			waitForActivation: async () => {
 				const provider = registerProvider();
 				provider.dispose();
+				lifetime.cancel();
 				return true;
 			},
 		}));
 		assert.strictEqual(await service.canResolveChatSession(sessionType), false);
 	});
 
-	test('provider removal releases a pending activation without waiting for its background work', async () => {
+	test('an opted-in lifetime releases a pending activation without waiting for its background work', async () => {
+		const lifetime = store.add(new CancellationTokenSource());
 		const started = new DeferredPromise<IDisposable>();
 		const activation = new DeferredPromise<boolean>();
 		store.add(registry.register({
 			matchSessionType: type => type === sessionType,
+			getActivationToken: () => lifetime.token,
 			waitForActivation: () => {
 				void started.complete(registerProvider());
 				return activation.p;
@@ -219,9 +224,52 @@ suite('ChatSessionsService - async activation', () => {
 		}));
 		const pending = service.canResolveChatSession(sessionType);
 		(await started.p).dispose();
+		lifetime.cancel();
 		const resolved = await pending;
 		await activation.complete(true);
 		assert.strictEqual(resolved, false);
+	});
+
+	test('captures the activation lifetime before a replacement owner is registered', async () => {
+		const first = store.add(new CancellationTokenSource());
+		const second = store.add(new CancellationTokenSource());
+		let current = first;
+		store.add(registry.register({
+			matchSessionType: type => type === sessionType,
+			getActivationToken: () => current.token,
+			waitForActivation: async () => {
+				first.cancel();
+				current = second;
+				registerProvider();
+				return true;
+			},
+		}));
+		assert.strictEqual(await service.canResolveChatSession(sessionType), false);
+	});
+
+	test('an opted-in lifetime releases the provider-registration wait after successful activation', async () => {
+		const lifetime = store.add(new CancellationTokenSource());
+		const started = new DeferredPromise<void>();
+		store.add(registry.register({
+			matchSessionType: type => type === sessionType,
+			getActivationToken: () => lifetime.token,
+			waitForActivation: async () => { void started.complete(); return true; },
+		}));
+		const pending = service.canResolveChatSession(sessionType);
+		await started.p;
+		await timeout(0);
+		lifetime.cancel();
+		assert.strictEqual(await pending, false);
+	});
+
+	test('does not activate an already cancelled owner', async () => {
+		let activated = false;
+		store.add(registry.register({
+			matchSessionType: type => type === sessionType,
+			getActivationToken: () => CancellationToken.Cancelled,
+			waitForActivation: async () => { activated = true; return true; },
+		}));
+		assert.deepStrictEqual({ resolved: await service.canResolveChatSession(sessionType), activated }, { resolved: false, activated: false });
 	});
 
 	test('still waits for asynchronous registration and ignores unrelated provider removal', async () => {
@@ -249,17 +297,45 @@ suite('ChatSessionsService - async activation', () => {
 		assert.strictEqual(await service.canResolveChatSession(sessionType), true);
 	});
 
-	test('provider removal after activation but before its registration is consumed does not succeed', async () => {
+	test('ordinary activation waits for delayed replacement after a registration is retired before consumption', async () => {
 		const started = new DeferredPromise<void>();
 		store.add(registry.register({
 			matchSessionType: type => type === sessionType,
 			waitForActivation: async () => { void started.complete(); return true; },
 		}));
-		const pending = service.canResolveChatSession(sessionType);
+		let resolved = false;
+		const pending = service.canResolveChatSession(sessionType).then(value => { resolved = true; return value; });
 		await started.p;
 		await timeout(0);
 		registerProvider().dispose();
-		assert.strictEqual(await pending, false);
+		await timeout(0);
+		const afterRemoval = resolved;
+		registerProvider();
+		assert.deepStrictEqual({ afterRemoval, result: await pending }, { afterRemoval: false, result: true });
+	});
+
+	test('ordinary activation waits for a replacement when a provider is removed during activation', async () => {
+		const activation = new DeferredPromise<boolean>();
+		const started = new DeferredPromise<IDisposable>();
+		store.add(registry.register({
+			matchSessionType: type => type === sessionType,
+			waitForActivation: () => {
+				void started.complete(registerProvider());
+				return activation.p;
+			},
+		}));
+		let resolved = false;
+		const pending = service.canResolveChatSession(sessionType).then(value => { resolved = true; return value; });
+		(await started.p).dispose();
+		await timeout(0);
+		const duringActivation = resolved;
+		await activation.complete(true);
+		await timeout(0);
+		const awaitingReplacement = resolved;
+		registerProvider();
+		assert.deepStrictEqual({ duringActivation, awaitingReplacement, result: await pending }, {
+			duringActivation: false, awaitingReplacement: false, result: true,
+		});
 	});
 
 	test('preserves registration order for default and equal priorities, ignoring unmatched and disposed activators', async () => {

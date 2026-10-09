@@ -76,7 +76,11 @@ export class CloudSandboxReadOnlySessionHandler extends Disposable implements IC
 			}
 			hasHistory = true;
 			onCachedSession(this._createSession(sessionResource, history));
-		}));
+		}), history => {
+			const session = this._findSession(sessionResource, history);
+			const chatResource = session && this._getChatResource(sessionResource, session);
+			return !!chatResource && !!session?.chats.has(chatResource);
+		});
 		return this._createSession(sessionResource, replayed, hasHistory);
 	}
 

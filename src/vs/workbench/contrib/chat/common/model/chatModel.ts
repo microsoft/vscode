@@ -16,7 +16,7 @@ import { revive } from '../../../../../base/common/marshalling.js';
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { equals } from '../../../../../base/common/objects.js';
-import { IObservable, IReader, autorun, constObservable, derived, derivedOpts, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue, observableValueOpts, registerAutorunSelfDisposable } from '../../../../../base/common/observable.js';
+import { IObservable, IReader, autorun, constObservable, derived, derivedOpts, observableFromEvent, observableSignal, observableSignalFromEvent, observableValue, observableValueOpts, registerAutorunSelfDisposable, transaction } from '../../../../../base/common/observable.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { hasKey, WithDefinedProps } from '../../../../../base/common/types.js';
 import { isUriComponents, URI, UriDto } from '../../../../../base/common/uri.js';
@@ -451,7 +451,7 @@ export class ChatRequestModel implements IChatRequestModel {
 	public readonly requestTimestamp: number | undefined;
 	public readonly message: IParsedChatRequest;
 	public readonly isCompleteAddedRequest: boolean;
-	public readonly modelId?: string;
+	private _modelId?: string;
 	public readonly modelConfiguration?: IStringDictionary<unknown>;
 	public readonly modeInfo?: IChatRequestModeInfo;
 	public readonly userSelectedTools?: UserSelectedTools;
@@ -498,6 +498,15 @@ export class ChatRequestModel implements IChatRequestModel {
 		this._variableData = v;
 	}
 
+	public get modelId(): string | undefined {
+		return this._modelId;
+	}
+
+	public set modelId(modelId: string | undefined) {
+		this._version++;
+		this._modelId = modelId;
+	}
+
 	public get agentHostMetadata(): Record<string, unknown> | undefined {
 		return this._agentHostMetadata;
 	}
@@ -541,7 +550,7 @@ export class ChatRequestModel implements IChatRequestModel {
 		this._locationData = params.locationData;
 		this._attachedContext = params.attachedContext;
 		this.isCompleteAddedRequest = params.isCompleteAddedRequest ?? false;
-		this.modelId = params.modelId;
+		this._modelId = params.modelId;
 		this.modelConfiguration = params.modelConfiguration;
 		this.id = params.restoredId ?? 'request_' + generateUuid();
 		this._editedFileEvents = params.editedFileEvents;
@@ -1158,6 +1167,14 @@ export class Response extends AbstractResponse implements IDisposable {
 		}
 	}
 
+	replaceAutoModeResolutions(parts: readonly IChatAutoModeResolutionPart[]): void {
+		if (equals(this._responseParts.filter(part => part.kind === 'autoModeResolution'), parts)) {
+			return;
+		}
+		this._responseParts = [...parts, ...this._responseParts.filter(part => part.kind !== 'autoModeResolution')];
+		this._contentChanged();
+	}
+
 	/**
 	 * Persists the duration of the active reasoning interval.
 	 */
@@ -1739,6 +1756,22 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	setUsage(usage: IChatUsage): void {
 		this._parentUsage = usage;
 		this._setUsage(this._withSubagentCopilotCredits(usage), true);
+	}
+
+	/** Replaces settled history metadata without recreating the response or accumulating replayed usage. */
+	updateHistoryMetadata(details: string | undefined, parts: readonly (IChatUsage | IChatAutoModeResolutionPart)[]): void {
+		transaction(tx => {
+			this._parentUsage = undefined;
+			this._usageObs.set(undefined, tx);
+			this._completionTokenCountObs.set(undefined, tx);
+			for (const part of parts) {
+				if (part.kind === 'usage') {
+					this.setUsage(part);
+				}
+			}
+			this._response.replaceAutoModeResolutions(parts.filter(part => part.kind === 'autoModeResolution'));
+			this.setResult({ ...this._result, details });
+		});
 	}
 
 	setSubagentCopilotCredits(subagentCallId: string, copilotCredits: number): void {
@@ -3459,6 +3492,13 @@ export class ChatModel extends Disposable implements IChatModel {
 			request.agentHostMetadata = agentHostMetadata;
 		}
 		this._onDidChange.fire({ kind: 'changedRequest', request });
+	}
+
+	updateRequestModelId(request: ChatRequestModel, modelId: string | undefined): void {
+		if (request.modelId !== modelId) {
+			request.modelId = modelId;
+			this._onDidChange.fire({ kind: 'changedRequest', request });
+		}
 	}
 
 	adoptRequest(request: ChatRequestModel): void {

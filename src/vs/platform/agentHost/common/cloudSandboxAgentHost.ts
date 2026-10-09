@@ -311,11 +311,10 @@ export interface ICloudSandboxApiService {
 	setTaskArchived(taskId: string, archived: boolean, token: CancellationToken): Promise<void>;
 
 	/**
-	 * Read recorded history from Mission Control without a live sandbox (`undefined` when absent).
-	 * `diagnosticId` links local logs and performance marks only; it is never sent to the server.
-	 * `onCachedHistory` can preview authenticated cached data; the promise always represents a fresh read.
+	 * Reads fresh recorded history without a live sandbox (`undefined` when absent); `diagnosticId` remains local.
+	 * Optional callbacks preview authenticated cached history and validate snapshots before cache replacement.
 	 */
-	getSessionHistory(taskId: string, token: CancellationToken, diagnosticId?: string, onCachedHistory?: (history: IReplayedTaskHistory) => void): Promise<IReplayedTaskHistory | undefined>;
+	getSessionHistory(taskId: string, token: CancellationToken, diagnosticId?: string, onCachedHistory?: (history: IReplayedTaskHistory) => void, canCacheHistory?: (history: IReplayedTaskHistory | undefined) => boolean): Promise<IReplayedTaskHistory | undefined>;
 
 	/** Prevent in-flight reads from refilling the cache; preserve stored data only when live history matches. */
 	invalidateSessionHistory(taskId: string, preserveCached?: boolean): void;

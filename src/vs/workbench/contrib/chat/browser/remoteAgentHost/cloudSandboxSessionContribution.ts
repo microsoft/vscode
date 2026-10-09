@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { raceCancellationError } from '../../../../../base/common/async.js';
-import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { raceCancellation, raceCancellationError } from '../../../../../base/common/async.js';
+import { cancelOnDispose, CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -113,7 +113,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 
 	/** Provider instances keyed by connection address (`cloudsandbox:<envId>`). */
 	protected readonly _providerInstances = new Map<string, T>();
-	private readonly _providerStores = this._register(new DisposableMap<string>());
+	private readonly _providerStores = this._register(new DisposableMap<string, IDisposable & { readonly token: CancellationToken }>());
 	private _persistedInventory = new Map<string, string>();
 	/** Environment metadata keyed by connection address, for on-demand reconnect. */
 	private readonly _environments = new Map<string, ICloudSandboxSessionEnvironment>();
@@ -243,6 +243,10 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			// Serve recorded history before the generic activator waits for a live host.
 			priority: 1,
 			matchSessionType: sessionType => this._findAddressForSessionType(sessionType) !== undefined,
+			getActivationToken: sessionType => {
+				const address = this._findAddressForSessionType(sessionType);
+				return (address ? this._providerStores.get(address)?.token : undefined) ?? CancellationToken.Cancelled;
+			},
 			waitForActivation: (_accessor, sessionType) => this._waitForActivation(sessionType),
 		}));
 	}
@@ -633,7 +637,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 		if (!address || !env || !provider) {
 			return false;
 		}
-		const token = this._enabledCts.token;
+		const token = this._providerStores.get(address)?.token ?? CancellationToken.Cancelled;
 		const isCurrentActivation = () => {
 			const current = !token.isCancellationRequested
 				&& this._isEnabled()
@@ -689,7 +693,7 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			return true;
 		}
 		const authority = agentHostAuthority(address);
-		while (true) {
+		while (isCurrentActivation()) {
 			const connection = this._remoteAgentHostService.getConnection(address);
 			if (!connection) {
 				return false;
@@ -701,8 +705,14 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			if (rootState) {
 				return rootState.agents.some(agent => remoteAgentHostSessionTypeId(authority, agent.provider) === sessionType);
 			}
-			await Event.toPromise(connection.rootState.onDidChange);
+			const changed = Event.toPromise(connection.rootState.onDidChange);
+			try {
+				await raceCancellation(changed, token);
+			} finally {
+				changed.cancel();
+			}
 		}
+		return false;
 	}
 
 	/** An unreadable record must not trigger an automatic resume in surfaces without background connection support. */
@@ -865,7 +875,8 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			return;
 		}
 		const store = new DisposableStore();
-		this._providerStores.set(address, store);
+		const token = cancelOnDispose(store);
+		this._providerStores.set(address, { token, dispose: () => store.dispose() });
 		store.add(this._workspaceTrustManagementService.registerTrustedAuthority(AGENT_HOST_SCHEME, agentHostAuthority(address)));
 		const provider = this._createProvider(env, store);
 		this._providerInstances.set(address, provider);

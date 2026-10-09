@@ -43,13 +43,14 @@ import { ChatAIDisabledSettingId } from '../../../../../../platform/chat/common/
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { Registry } from '../../../../../../platform/registry/common/platform.js';
 import { INotification, INotificationService, NoOpNotification } from '../../../../../../platform/notification/common/notification.js';
 import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { TestWorkspaceTrustManagementService } from '../../../../../../workbench/test/common/workbenchTestServices.js';
 import { IHostService } from '../../../../../../workbench/services/host/browser/host.js';
 import { IChatEntitlementService, IChatSentiment } from '../../../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { IChatSessionContentProvider, IChatSessionsService } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatSessionContentProvider, IChatSessionsService } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IChatService } from '../../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IAgentHostGroup } from '../../../../../common/agentHostSessionsProvider.js';
 import { IAgentHostFilterService } from '../../../../../services/agentHostFilter/common/agentHostFilter.js';
@@ -1081,6 +1082,48 @@ suite('CloudSandboxAgentHostContribution', () => {
 				historyRequests: [],
 				servedFromHistory: 1,
 			});
+		});
+	}
+
+	test('activation lifetime survives content-provider replacement and ends only for the removed environment', async () => {
+		const harness = await createContribution(store, [discoveredSession(), discoveredSession({ environmentId: 'env-2', taskId: 'task-2' })], { autoConnectOnOpen: false });
+		const type = (environmentId: string) => remoteAgentHostSessionTypeId(agentHostAuthority(cloudSandboxAddress(environmentId)), CLOUD_SANDBOX_AGENT_PROVIDER);
+		const activator = Registry.as<IAsyncChatSessionActivationRegistry>(ChatSessionsExtensions.AsyncActivation).getActivators(type('env-1')).find(activator => activator.getActivationToken);
+		assert.ok(activator?.getActivationToken);
+		const first = activator.getActivationToken(type('env-1'));
+		const second = activator.getActivationToken(type('env-2'));
+		await harness.activate('env-1');
+		const live = store.add(harness.registerLiveProvider('env-1', {
+			provideChatSessionContent: async () => { throw new Error('Content is not requested during activation'); },
+		})!);
+		live.dispose();
+		const afterReplacement = first.isCancellationRequested;
+		harness.discovered = [discoveredSession({ environmentId: 'env-2', taskId: 'task-2' })];
+		await harness.runDiscovery();
+		harness.discovered = [discoveredSession(), ...harness.discovered];
+		await harness.runDiscovery();
+		const renewed = activator.getActivationToken(type('env-1'));
+		assert.deepStrictEqual({
+			afterReplacement, firstCancelled: first.isCancellationRequested, secondCancelled: second.isCancellationRequested,
+			newLifetime: renewed !== first, renewedCancelled: renewed.isCancellationRequested,
+		}, { afterReplacement: false, firstCancelled: true, secondCancelled: false, newLifetime: true, renewedCancelled: false });
+	});
+
+	for (const teardown of ['feature disable', 'account change', 'disposal'] as const) {
+		test(`ends registered activation lifetimes on ${teardown}`, async () => {
+			const harness = await createContribution(store, [discoveredSession()]);
+			const sessionType = remoteAgentHostSessionTypeId(agentHostAuthority(cloudSandboxAddress('env-1')), CLOUD_SANDBOX_AGENT_PROVIDER);
+			const activator = Registry.as<IAsyncChatSessionActivationRegistry>(ChatSessionsExtensions.AsyncActivation).getActivators(sessionType).find(activator => activator.getActivationToken);
+			assert.ok(activator?.getActivationToken);
+			const token = activator.getActivationToken(sessionType);
+			if (teardown === 'feature disable') {
+				await harness.setEnabled(false);
+			} else if (teardown === 'account change') {
+				harness.changeAccount('["github","another-account"]');
+			} else {
+				harness.contribution.dispose();
+			}
+			assert.strictEqual(token.isCancellationRequested, true);
 		});
 	}
 

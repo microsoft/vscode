@@ -692,7 +692,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 	 * mirror, not the environment. The `vnd.github.ahp+json` media type selects the raw relayed
 	 * frames rather than the cloud-task event summaries the endpoint serves by default.
 	 */
-	async getSessionHistory(taskId: string, token: CancellationToken, diagnosticId?: string, onCachedHistory?: (history: IReplayedTaskHistory) => void): Promise<IReplayedTaskHistory | undefined> {
+	async getSessionHistory(taskId: string, token: CancellationToken, diagnosticId?: string, onCachedHistory?: (history: IReplayedTaskHistory) => void, canCacheHistory?: (history: IReplayedTaskHistory | undefined) => boolean): Promise<IReplayedTaskHistory | undefined> {
 		const watch = StopWatch.create(false);
 		return this._historyCache.load(taskId, token,
 			async sharedToken => {
@@ -713,7 +713,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 			onCachedHistory && (history => {
 				this._logService.info(`${LOG_PREFIX} historyCacheHit traceId=${diagnosticId ?? 'standalone'} elapsedMs=${watch.elapsed()}`);
 				onCachedHistory(history);
-			}));
+			}), canCacheHistory);
 	}
 
 	invalidateSessionHistory(taskId: string, preserveCached = false): void {
