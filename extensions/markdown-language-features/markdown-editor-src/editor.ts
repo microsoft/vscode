@@ -22,6 +22,9 @@ import { RenameController } from './renameController';
 import { CompletionController } from './completionController';
 import { DiagnosticsController } from './diagnosticsController';
 import { ImagePasteController } from './imagePasteController';
+import { createTaskProgressProvider, isTaskProgressLabels } from './taskProgress/taskProgressProvider';
+import { codeBlockEditorTheme } from './codeBlockEditorTheme';
+import type { MarkdownEditorInitialState } from '../src/preview/webviewInitialState';
 
 interface VsCodeApi {
 	postMessage(message: unknown): void;
@@ -41,14 +44,7 @@ interface PersistedViewState {
 	selection?: { anchor: number; active: number };
 }
 
-interface InitialState {
-	readonly content: string;
-	readonly documentVersion: number;
-	/** Identifies the authoritative text baseline against which local edits are computed. */
-	readonly editEpoch: number;
-	readonly readonly: boolean;
-	readonly highlightActiveBlock: boolean;
-	readonly richLinksEnabled: boolean;
+interface InitialState extends MarkdownEditorInitialState {
 	readonly linkPresentationRules: readonly { id: string; source: string; flags: string; kind: LinkPresentationKind }[];
 }
 
@@ -116,6 +112,7 @@ class CodeBlockEditorHostTransport implements IframeEmbeddedEditorHostTransport 
 
 class Editor extends Disposable {
 	readonly model = new EditorModel();
+	readonly #taskProgressProvider: IframeEmbeddedEditorProvider;
 	isUpdatingFromExtension = false;
 	#isUpdatingComments = false;
 	#mermaidCounter = 0;
@@ -151,6 +148,7 @@ class Editor extends Disposable {
 	constructor(host: HTMLElement, initialState: InitialState) {
 		super();
 		this.#scrollHost = host;
+		this.#taskProgressProvider = createTaskProgressProvider(this.model, initialState.taskProgressLabels);
 
 		const messageSecret = document.querySelector<HTMLMetaElement>('meta[name="vscode-markdown-editor-message-secret"]')?.content;
 		if (!messageSecret) {
@@ -368,7 +366,7 @@ class Editor extends Disposable {
 		const embeddedCodeEditorFactory = this._register(new LazyCodeBlockEditorFactory({
 			providers: this.#createIframeProviders(this.#codeBlockEditorProviders),
 			scriptNonce,
-			themeCss: () => `:root { ${document.documentElement.getAttribute('style') ?? ''} }`,
+			...codeBlockEditorTheme(document),
 			iframeBootstrapUrl: iframeBootstrapUrl.href,
 			onAmbiguous: (language, providers) => this.#send('codeBlockEditorDiagnostic', this.#host.codeBlockEditorDiagnostic({
 				message: `Ambiguous providers for ${language}: ${providers.map(provider => provider.id).join(', ')}`,
@@ -603,14 +601,14 @@ class Editor extends Disposable {
 	}
 
 	#createIframeProviders(definitions: readonly CodeBlockEditorProviderDefinition[]): readonly IframeEmbeddedEditorProvider[] {
-		return definitions.map(definition => ({
+		return [...definitions.map<IframeEmbeddedEditorProvider>(definition => ({
 			id: definition.id,
 			selector: definition.selector,
 			createHostTransport: runtimeKey => this.#createCodeBlockEditorHostTransport(definition.id, runtimeKey),
 			resolve: definition.source.kind === 'static'
 				? async () => definition.source.kind === 'static' ? definition.source.descriptor : undefined
 				: language => this.#resolveCodeBlockEditor(definition.id, language),
-		}));
+		})), this.#taskProgressProvider];
 	}
 
 	#createCodeBlockEditorHostTransport(providerId: string, runtimeKey: string): CodeBlockEditorHostTransport {
@@ -703,6 +701,7 @@ function isInitialState(value: unknown): value is InitialState {
 	}
 	const candidate = value as Record<string, unknown>;
 	return typeof candidate.content === 'string'
+		&& isTaskProgressLabels(candidate.taskProgressLabels)
 		&& typeof candidate.documentVersion === 'number'
 		&& typeof candidate.editEpoch === 'number'
 		&& Number.isInteger(candidate.editEpoch)
