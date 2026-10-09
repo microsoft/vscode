@@ -300,6 +300,7 @@ export class CustomizationMigrationDashboard extends Disposable {
 		);
 
 		if (migrationGroups.length) {
+			this.renderMigrationWarnings(page, migrationGroups);
 			this.renderMigrationTree(page, migrationGroups);
 		} else {
 			DOM.append(page, $('p.migration-empty', {}, overview.hasIgnoredGroups
@@ -432,6 +433,22 @@ export class CustomizationMigrationDashboard extends Disposable {
 			: migrationGroups;
 	}
 
+	private renderMigrationWarnings(parent: HTMLElement, groups: ReturnType<CustomizationMigrationDashboard['getMigrationGroups']>): void {
+		const promptMigration = groups.find(group => group.kind === 'migration' && group.category.id === CustomizationMigrationCategoryId.PromptFiles);
+		if (!promptMigration || promptMigration.kind !== 'migration') {
+			return;
+		}
+
+		const warning = DOM.append(parent, $('section.mcp-detail-diagnostic-card.migration.warning.migration-warning-banner'));
+		const header = DOM.append(warning, $('.mcp-detail-diagnostic-header'));
+		const icon = DOM.append(header, $('.mcp-detail-diagnostic-icon'));
+		icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.warning));
+		icon.setAttribute('aria-hidden', 'true');
+		DOM.append(header, $('.mcp-detail-diagnostic-summary', {}, localize('promptMigrationWarningSummary', "Prompt-to-skill conversion changes")));
+		const details = DOM.append(warning, $('.mcp-detail-diagnostic-details'));
+		DOM.append(details, $('p.mcp-detail-diagnostic-message', {}, promptMigration.category.description));
+	}
+
 	private renderMigrationTree(parent: HTMLElement, groups: ReturnType<CustomizationMigrationDashboard['getMigrationGroups']>): void {
 		const treeContainer = DOM.append(parent, $('.migration-tree.customization-tree-container'));
 		const groupRenderer = new CustomizationGroupHeaderRenderer<IMigrationGroupEntry>(
@@ -529,7 +546,7 @@ export class CustomizationMigrationDashboard extends Disposable {
 				count: items.length,
 				isFirst: index === 0,
 				description: category.highRisk
-					? localize('highRiskMigrationDescription', "High risk. {0}", category.description)
+					? localize('highRiskMigrationDescription', "High risk")
 					: category.description,
 				collapsed: this.collapsedMigrationGroups.has(groupId),
 				categoryId: category.id,

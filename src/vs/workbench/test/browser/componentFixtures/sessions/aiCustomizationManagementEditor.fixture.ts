@@ -112,7 +112,7 @@ import { ICodeReviewService } from '../../../../../sessions/contrib/codeReview/b
 import { createMockCodeReviewService } from './mockCodeReviewService.js';
 import { IChatEditingService } from '../../../../contrib/chat/common/editing/chatEditingService.js';
 import { IAgentSessionsService } from '../../../../contrib/chat/browser/agentSessions/agentSessionsService.js';
-import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
+import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices, waitForFixtureCondition } from '../fixtureUtils.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 
 // Ensure theme colors & widget CSS are loaded
@@ -1059,6 +1059,7 @@ interface IRenderEditorOptions {
 	readonly pluginReadmeContent?: string;
 	readonly editorDisplayMode?: 'preview' | 'raw';
 	readonly migrationDashboard?: boolean;
+	readonly openFirstMigrationItem?: boolean;
 	readonly migrationActivity?: boolean;
 }
 
@@ -2119,6 +2120,22 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 
 	if (options.migrationDashboard) {
 		editor.showCustomizationMigrationDashboard();
+	}
+
+	if (options.openFirstMigrationItem) {
+		await waitForFixtureCondition(
+			() => ctx.container.querySelector('.migration-tree-item') !== null,
+			'Migration item did not appear',
+		);
+		const firstMigrationItem = ctx.container.querySelector<HTMLElement>('.migration-tree-item');
+		if (!firstMigrationItem) {
+			throw new Error('Migration item not found');
+		}
+		firstMigrationItem.click();
+		await waitForFixtureCondition(
+			() => ctx.container.querySelector<HTMLElement>('.migration-detail-warning')?.style.display !== 'none',
+			'Prompt migration detail warning did not appear',
+		);
 	}
 
 	if (options.openFirstItem) {
@@ -3292,6 +3309,17 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 			migrationDashboard: true,
+			width: 550,
+			height: 500,
+		}),
+	}),
+
+	MigrationPromptDetailNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			migrationDashboard: true,
+			openFirstMigrationItem: true,
 			width: 550,
 			height: 500,
 		}),

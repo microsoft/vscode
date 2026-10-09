@@ -87,7 +87,6 @@ suite('CustomizationMigrationDashboard', () => {
 								label: 'Build',
 								scopeLabel: 'Workspace',
 								sourceLabel: '.github/prompts/build.prompt.md',
-								changesLabel: 'Unsupported prompt-only headers are removed. Converted skills set disable-model-invocation: true, so the agent will not load them automatically; invoke them manually with /name.',
 							}],
 						},
 						{
@@ -141,6 +140,7 @@ suite('CustomizationMigrationDashboard', () => {
 			items: [...parent.querySelectorAll('.migration-tree-item-label')].map(element => element.textContent),
 			sources: [...parent.querySelectorAll('.migration-tree-item-source')].map(element => element.textContent),
 			changes: [...parent.querySelectorAll('.migration-tree-item-changes')].filter(element => (element as HTMLElement).style.display !== 'none').map(element => element.textContent),
+			warning: parent.querySelector('.migration-warning-banner')?.textContent,
 			checklistCopy: parent.textContent?.includes('Your migration checklist'),
 			intro: parent.querySelector('.migration-intro')?.textContent,
 			agentButtonInTitleRow: agentMigrationButton.parentElement?.classList.contains('migration-page-title-actions'),
@@ -157,9 +157,9 @@ suite('CustomizationMigrationDashboard', () => {
 			items: ['Build', 'Release', 'Triage', 'Postgres', 'Planner', 'Review', 'Team rules'],
 			sources: ['.github/prompts/build.prompt.md', '~/.copilot/prompts/release.prompt.md', '~/.copilot/prompts/triage.prompt.md', '.vscode/mcp.json', '~/.copilot/agents/planner.agent.md', '~/.copilot/instructions/review.instructions.md', 'team/rules.instructions.md'],
 			changes: [
-				'Unsupported prompt-only headers are removed. Converted skills set disable-model-invocation: true, so the agent will not load them automatically; invoke them manually with /name.',
 				'The gallery property will be removed.',
 			],
+			warning: 'Prompt-to-skill conversion changesConvert prompts to skills.',
 			checklistCopy: false,
 			intro: 'Some of your agent customizations need an update to keep working. Use Migrate to have VS Code update selected customizations, or Migrate with Agent for a guided migration in chat. Agent migration uses credits.',
 			agentButtonInTitleRow: true,

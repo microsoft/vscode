@@ -152,7 +152,7 @@ suite('customizationMigration', () => {
 			confirmation: category.getConfirmation([workspacePrompt, userPrompt], 'Copilot'),
 		}, {
 			consequences,
-			candidateWarnings: [consequences],
+			candidateWarnings: undefined,
 			confirmation: {
 				message: 'Convert prompt files to skills?',
 				detail: `This converts 1 workspace prompt files and 1 user prompt files into skills.\n\n${consequences}`,

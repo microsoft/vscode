@@ -100,7 +100,6 @@ const promptFilesMigrationCategory: ICustomizationMigrationCategory = {
 
 	isCandidate: isPromptFileMigrationCandidate,
 	getCandidateLabel: getFileCandidateLabel,
-	getCandidateWarnings: () => [promptFileMigrationConsequences],
 
 	getShortcutAriaLabel(count) {
 		return localize('promptMigrationShortcutAriaLabelWithCount', "Prompts, {0} deprecated prompt files need migration", count);
