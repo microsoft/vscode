@@ -9,6 +9,7 @@ import { localize } from '../../../../../nls.js';
 import { autorun, derived } from '../../../../../base/common/observable.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
+import { isWeb } from '../../../../../base/common/platform.js';
 import { MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
@@ -17,8 +18,9 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { cloudSandboxAddress, cloudSandboxEnvironmentId } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IMissionControlEnvironmentService } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
-import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, type IRemoteAgentHostEntry } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostService, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, type IRemoteAgentHostEntry } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { EntryDrivenProviderContribution, type IEntryDrivenProviderOptions } from './entryDrivenProviderContribution.js';
@@ -32,6 +34,8 @@ import { IUserDataProfileService } from '../../../../../workbench/services/userD
 export class MissionControlAgentHostContribution extends EntryDrivenProviderContribution {
 	static readonly ID = 'workbench.contrib.missionControlAgentHosts';
 	protected readonly _entryType = RemoteAgentHostEntryType.CloudSandbox;
+	protected get isWebPlatform(): boolean { return isWeb; }
+	private readonly _pendingConnects = new Map<string, Promise<void>>();
 
 	constructor(
 		@IRemoteAgentHostService remoteAgentHostService: IRemoteAgentHostService,
@@ -41,23 +45,65 @@ export class MissionControlAgentHostContribution extends EntryDrivenProviderCont
 		@INotificationService notificationService: INotificationService,
 		@IMissionControlEnvironmentService private readonly _inventory: IMissionControlEnvironmentService,
 		@IAgentHostFilterService filterService: IAgentHostFilterService,
-		@ILogService logService: ILogService,
+		@ILogService private readonly _logService: ILogService,
 		@IUserDataProfileService private readonly _profileService: IUserDataProfileService,
+		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		super(remoteAgentHostService, configurationService, instantiationService, sessionsProvidersService, notificationService);
 		this._register(remoteAgentHostService.onDidChangeConfiguredEntries(() => this._reconcile()));
 		this._register(remoteAgentHostService.onDidChangeConnections(() => this._reconcile()));
-		this._register(configurationService.onDidChangeConfiguration(() => this._reconcile()));
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			this._reconcile();
+			if (e.affectsConfiguration(RemoteAgentHostAutoConnectSettingId) || e.affectsConfiguration(RemoteAgentHostsEnabledSettingId)) {
+				this._requestAutoConnections();
+			}
+		}));
 		this._register(autorun(reader => {
 			this._inventory.hosts.read(reader);
 			this._reconcile();
+			this._requestAutoConnections();
 		}));
-		this._register(filterService.registerDiscoveryHandler(() => this._inventory.refresh(CancellationToken.None)));
-		void this._inventory.refresh(CancellationToken.None).catch(error => {
+		this._register(filterService.registerDiscoveryHandler(() => this._discover()));
+		void filterService.rediscover();
+	}
+
+	private _autoConnectSuppressionKey(id: string, account: string): string {
+		return `missionControl.userLocalAutoConnectSuppressed.v1.${encodeURIComponent(this._profileService.currentProfile.id)}.${encodeURIComponent(account)}.${id}`;
+	}
+
+	private async _discover(): Promise<void> {
+		try {
+			await this._inventory.refresh(CancellationToken.None);
+		} catch (error) {
 			if (!isCancellationError(error)) {
-				logService.warn('Mission Control discovery failed; retaining known hosts', error);
+				this._logService.warn('Mission Control discovery failed; retaining known hosts', error);
 			}
-		});
+			throw error;
+		}
+	}
+
+	private _requestAutoConnections(): void {
+		if (!this.isWebPlatform || !this._inventory.enabled
+			|| !this._configurationService.getValue<boolean>(RemoteAgentHostAutoConnectSettingId)) {
+			return;
+		}
+		const account = this._inventory.accountKey;
+		if (!account) {
+			return;
+		}
+		for (const host of this._inventory.hosts.get()) {
+			const provider = this._providerInstances.get(cloudSandboxAddress(host.id));
+			if (host.status !== 'online' || !provider
+				|| this._storageService.getBoolean(this._autoConnectSuppressionKey(host.id, account), StorageScope.PROFILE, false)
+				|| !RemoteAgentHostConnectionStatus.isDisconnected(provider.connectionStatus.get())) {
+				continue;
+			}
+			void provider.connect().catch(error => {
+				if (!isCancellationError(error)) {
+					this._logService.warn('Mission Control automatic connection failed; retaining the environment for retry', error);
+				}
+			});
+		}
 	}
 
 	protected override _getProviderEntries(): readonly IRemoteAgentHostEntry[] {
@@ -107,10 +153,16 @@ export class MissionControlAgentHostContribution extends EntryDrivenProviderCont
 	}
 
 	protected override _reconcile(): void {
+		if (this._store.isDisposed) {
+			return;
+		}
 		super._reconcile();
 		for (const [address, provider] of this._providerInstances) {
 			if (!this._remoteAgentHostService.connections.some(connection => connection.address === address)) {
-				provider.setConnectionStatus(RemoteAgentHostConnectionStatus.disconnected);
+				const key = this._autoConnectSuppressionKey(cloudSandboxEnvironmentId(address)!, this._inventory.accountKey!);
+				provider.setConnectionStatus(this._pendingConnects.has(key)
+					? RemoteAgentHostConnectionStatus.connecting
+					: RemoteAgentHostConnectionStatus.disconnected);
 			}
 		}
 	}
@@ -121,6 +173,7 @@ export class MissionControlAgentHostContribution extends EntryDrivenProviderCont
 		}
 		const id = entry.connection.environmentId;
 		const account = this._inventory.accountKey!;
+		const suppressionKey = this._autoConnectSuppressionKey(id, account);
 		const checkAccount = () => {
 			if (!this._inventory.enabled || this._inventory.accountKey !== account) {
 				throw new CancellationError();
@@ -131,8 +184,27 @@ export class MissionControlAgentHostContribution extends EntryDrivenProviderCont
 			await operation();
 		};
 		return {
-			connectOnDemand: () => forCurrentAccount(() => this._inventory.connect(id, CancellationToken.None)),
-			disconnectOnDemand: () => forCurrentAccount(() => this._inventory.disconnect(id)),
+			connectOnDemand: () => forCurrentAccount(async () => {
+				this._storageService.remove(suppressionKey, StorageScope.PROFILE);
+				const pending = this._pendingConnects.get(suppressionKey);
+				if (pending) {
+					await pending;
+					return;
+				}
+				const promise = this._inventory.connect(id, CancellationToken.None);
+				this._pendingConnects.set(suppressionKey, promise);
+				this._reconcile();
+				try {
+					await promise;
+				} finally {
+					this._pendingConnects.delete(suppressionKey);
+					this._reconcile();
+				}
+			}),
+			disconnectOnDemand: () => forCurrentAccount(async () => {
+				this._storageService.store(suppressionKey, true, StorageScope.PROFILE, StorageTarget.MACHINE);
+				await this._inventory.disconnect(id);
+			}),
 			canRemove: false,
 			setDisplayName: name => {
 				checkAccount();
