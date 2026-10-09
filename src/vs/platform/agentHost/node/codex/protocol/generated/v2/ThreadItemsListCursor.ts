@@ -4,6 +4,11 @@
 // Modified by VS Code to rewrite imports and apply repository formatting.
 // See README.md in this directory for provenance and licensing notes.
 // Regenerate: npm run codex:gen-protocol
-// Source file: v2/SubAgentActivityKind.ts
+// Source file: v2/ThreadItemsListCursor.ts
 
-export type SubAgentActivityKind = "started" | "interacted" | "interrupted" | "completed";
+import type { ThreadItemsListAnchor } from "./ThreadItemsListAnchor.js";
+
+/**
+ * Starting position for an item-history page.
+ */
+export type ThreadItemsListCursor = string | ThreadItemsListAnchor;
