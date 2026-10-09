@@ -336,6 +336,47 @@ suite('MultiEditorTabsControl', () => {
 		});
 	}
 
+	for (const tabSizing of ['fit', 'shrink', 'fixed'] as const) {
+		for (const imageIcon of [false, true]) {
+			test(`connected tabs preserve short filename icons without compression (${tabSizing}, image: ${imageIcon})`, async () => {
+				const group = connectedGroup();
+				const root = group.closest<HTMLElement>('.monaco-workbench')!;
+				root.style.fontFamily = 'Segoe UI, sans-serif';
+				root.style.fontSize = '13px';
+				const iconStyle = document.createElement('style');
+				iconStyle.textContent = '.connected-tabs-labels .file-icon::before { content: ""; }';
+				group.appendChild(iconStyle);
+				const names = [
+					'ast.hpp', 'Ast.hpp', 'aSt.hpp', 'ASt.hpp', 'asT.hpp', 'aST.hpp', 'AsT.hpp', 'AST.hpp',
+					'ast.h', 'ast.cpp', 'ast.txt', 'foo.hpp',
+					'xast.hpp', 'astx.hpp', '_ast.hpp', 'ast_.hpp', 'ast1.hpp', 'a.hpp', 'i.hpp', 'ast',
+				];
+				for (const name of names) {
+					const editor = disposables.add(new class extends TestFileEditorInput {
+						override getName(): string { return name; }
+						override getIcon(): URI | undefined { return imageIcon ? URI.parse('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg"/%3E') : undefined; }
+					}(URI.file(`/path/${name}`), 'testEditorInput'));
+					model.openEditor(editor, { pinned: true, active: false, index: model.count });
+				}
+				control.openEditors(model.getEditors(EditorsOrder.SEQUENTIAL));
+				const oldOptions = partOptions;
+				partOptions = { ...partOptions, tabSizing, tabSizingFixedMinWidth: 160, tabSizingFixedMaxWidth: 160, hasIcons: true, editorActionsLocation: 'hidden' };
+				control.updateOptions(oldOptions, partOptions);
+				await layoutConnectedGroup(group, 5000);
+				const tabs = Array.from(container.querySelectorAll<HTMLElement>('.tabs-container > .tab')).slice(2);
+				assert.deepStrictEqual(tabs.map(tab => {
+					const label = tab.querySelector<HTMLElement>('.tab-label')!;
+					const icon = label.querySelector<HTMLElement>('.monaco-icon-label-iconpath');
+					return {
+						name: tab.getAttribute('data-resource-name'),
+						narrow: tab.classList.contains('connected-tab-narrow'),
+						iconVisible: (icon ? mainWindow.getComputedStyle(icon) : mainWindow.getComputedStyle(label, '::before')).display !== 'none',
+					};
+				}), names.map(name => ({ name, narrow: false, iconVisible: true })));
+			});
+		}
+	}
+
 	test('connected shrink tabs collapse and restore icons as the editor width changes', async () => {
 		const group = connectedGroup();
 		const iconStyle = document.createElement('style');

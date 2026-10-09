@@ -2163,7 +2163,12 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				tab.style.setProperty('--connected-tab-min-width', `${minimum}px`);
 			}
 		}
-		const narrowTabs = Array.from(minimumWidths, ([tab, minimum]) => ({ tab, narrow: tab.offsetWidth < minimum + 22 }));
+		// Fit tabs use their natural width, which can be smaller than the estimated minimum for short names.
+		// Only fixed and shrink tabs need to collapse icons to make room for the filename.
+		const narrowTabs = Array.from(minimumWidths, ([tab, minimum]) => ({
+			tab,
+			narrow: (tab.classList.contains('sizing-fixed') || tab.classList.contains('sizing-shrink')) && tab.offsetWidth < minimum + 22
+		}));
 		for (const { tab, narrow } of narrowTabs) {
 			tab.classList.toggle('connected-tab-narrow', narrow);
 		}
