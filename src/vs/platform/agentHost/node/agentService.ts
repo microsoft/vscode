@@ -5340,19 +5340,26 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	async listSessionCanvases(session: URI, chat: URI): Promise<readonly IAgentCanvasInfo[]> {
+		await this._restoreSessionCanvasChat(session, chat);
 		const provider = this._providerService.getProviderForSession(session);
 		if (!provider?.listSessionCanvases) {
 			throw new Error(`Canvas inventory is unavailable for session '${session.toString()}'.`);
 		}
-		return provider.listSessionCanvases(session, chat);
+		return provider.listSessionCanvases(session, chat, this._chatContext(session, chat));
 	}
 
 	async openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest, chat: URI): Promise<void> {
+		await this._restoreSessionCanvasChat(session, chat);
 		const provider = this._providerService.getProviderForSession(session);
 		if (!provider?.openSessionCanvas) {
 			throw new Error(`Opening canvases is unavailable for session '${session.toString()}'.`);
 		}
-		await provider.openSessionCanvas(session, request, chat);
+		await provider.openSessionCanvas(session, request, chat, this._chatContext(session, chat));
+	}
+
+	private async _restoreSessionCanvasChat(session: URI, chat: URI): Promise<void> {
+		await this.restoreSession(session);
+		await this._stateManager.resolveChatState(chat.toString());
 	}
 
 	async installPlugin(providerId: AgentProvider, request: IAgentPluginInstallRequest): Promise<void> {

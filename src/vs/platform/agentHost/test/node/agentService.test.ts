@@ -2792,8 +2792,9 @@ suite('AgentService (node dispatcher)', () => {
 		test('lists and opens canvases through the owning provider', async () => {
 			const calls: unknown[] = [];
 			const provider: IAgent = copilotAgent;
-			provider.listSessionCanvases = async (session, chat) => {
-				calls.push(['list', session.toString(), chat.toString()]);
+			provider.listSessionCanvases = async (session, chat, context) => {
+				const resolved = resolveAgentChatContext(context, chat);
+				calls.push(['list', session.toString(), chat.toString(), resolved.resource.toString(), resolved.configurationResource.toString()]);
 				return [{
 					canvasId: 'preview',
 					extensionId: 'project:preview',
@@ -2804,10 +2805,12 @@ suite('AgentService (node dispatcher)', () => {
 					actionCount: 0,
 				}];
 			};
-			provider.openSessionCanvas = async (session, request, chat) => {
-				calls.push(['open', session.toString(), chat.toString(), request]);
+			provider.openSessionCanvas = async (session, request, chat, context) => {
+				const resolved = resolveAgentChatContext(context, chat);
+				calls.push(['open', session.toString(), chat.toString(), resolved.resource.toString(), resolved.configurationResource.toString(), request]);
 			};
 			registerTestAgentProvider(service, provider);
+			service.restoreSession = async session => { calls.push(['restore', session.toString()]); };
 			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService());
 			const session = AgentSession.uri('copilot', 'canvas-session');
 			const chat = URI.parse(buildDefaultChatUri(session.toString()));
@@ -2833,8 +2836,10 @@ suite('AgentService (node dispatcher)', () => {
 					actionCount: 0,
 				}],
 				calls: [
-					['list', 'copilot:/canvas-session', chat.toString()],
-					['open', 'copilot:/canvas-session', chat.toString(), {
+					['restore', 'copilot:/canvas-session'],
+					['list', 'copilot:/canvas-session', chat.toString(), 'copilot:/canvas-session', 'copilot:/canvas-session'],
+					['restore', 'copilot:/canvas-session'],
+					['open', 'copilot:/canvas-session', chat.toString(), 'copilot:/canvas-session', 'copilot:/canvas-session', {
 						canvasId: 'preview',
 						extensionId: 'project:preview',
 						instanceId: 'project-preview-preview',
