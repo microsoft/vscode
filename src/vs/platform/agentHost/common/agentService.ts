@@ -814,6 +814,9 @@ export interface IMissionControlOptions {
 	readonly accountId: string;
 	readonly credential: string;
 	readonly roots: readonly string[];
+	/** Catalogue entries, separate from filesystem grants. Defaults to the granted roots when omitted. */
+	readonly projects?: readonly string[];
+	readonly defaultDirectory?: string;
 	readonly live?: boolean;
 	readonly requireConnectionBinding?: boolean;
 	/** Explicit host-owner opt-in; validated relay clients use the local credential for Copilot authentication. */

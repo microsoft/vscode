@@ -46,7 +46,8 @@ export interface IMissionControlEnvironmentHost {
 	readonly userDataPath: string;
 	readonly name: string;
 	readonly fetch: typeof fetch;
-	readonly attach: (server: MissionControlProtocolServer, initialRoots: readonly string[], getRoots: () => readonly string[]) => IDisposable;
+	readonly attach: (server: MissionControlProtocolServer, initialRoots: readonly string[], getRoots: () => readonly string[], getProjects: () => readonly string[], defaultDirectory?: string) => IDisposable;
+	readonly updateProjects?: () => Promise<void>;
 	readonly onError: (error: unknown) => void;
 	readonly onDiagnostic?: ConnectionDiagnosticObserver;
 	readonly socketFactory?: (url: string, protocol: string) => IMissionControlSocket;
@@ -260,6 +261,9 @@ export class MissionControlEnvironment extends Disposable {
 			throw new Error('Credential does not match the Agent Host owner');
 		}
 		const roots = await Promise.all(options.roots.map(root => realpath(root)));
+		const projects = options.projects === undefined ? undefined : await Promise.all(options.projects.map(project => realpath(project)));
+		const defaultDirectory = options.defaultDirectory === undefined ? undefined : await realpath(options.defaultDirectory);
+		options = { ...options, projects, defaultDirectory };
 		if (epoch !== this._configurationEpoch || this._store.isDisposed) {
 			return;
 		}
@@ -280,6 +284,7 @@ export class MissionControlEnvironment extends Disposable {
 				this._policyRefresh++;
 			}
 			if (this._options.credential !== options.credential || this._credentialRejected
+				|| this._options.defaultDirectory !== options.defaultDirectory
 				|| (this._options.useLocalCredentials === true) !== (options.useLocalCredentials === true)
 				|| remoteControlPolicyOverrideChanged) {
 				this._generation++;
@@ -290,7 +295,10 @@ export class MissionControlEnvironment extends Disposable {
 				this._options = { ...options, roots: this._roots };
 				this._credentialRejected = false;
 				await this._checkIn();
+			} else {
+				this._options = { ...options, roots: this._roots };
 			}
+			await this._host.updateProjects?.();
 			return;
 		}
 		this._ownerAccount = options.accountId;
@@ -690,7 +698,7 @@ export class MissionControlEnvironment extends Disposable {
 		this._server.value = server;
 		const connectionWatch = StopWatch.create(false);
 		let relayReady = false;
-		this._handler.value = combinedDisposable(this._host.attach(server, this._initialRoots ?? [], () => this._roots), server.onClose(() => {
+		this._handler.value = combinedDisposable(this._host.attach(server, this._initialRoots ?? [], () => this._roots, () => this._options?.projects ?? this._roots, options.defaultDirectory), server.onClose(() => {
 			if (generation === this._generation && !this._store.isDisposed && this._server.value === server && this._options && !this._credentialRejected) {
 				if (relayReady) {
 					emitConnectionDiagnostic(this._host.onDiagnostic, { operationId: '', phase: 'relayDisconnected', timestamp: Date.now(), outcome: 'info', durationMs: connectionWatch.elapsed() });

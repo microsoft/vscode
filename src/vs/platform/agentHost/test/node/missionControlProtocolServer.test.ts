@@ -1318,7 +1318,8 @@ suite('Mission Control WPS', () => {
 				changeIdentityAuthority: (base: string) => void;
 				tokens: number[];
 				directory: string;
-				attachments: { initialRoots: readonly string[]; getRoots: () => readonly string[]; rootMeta?: Record<string, unknown>; server: MissionControlProtocolServer }[];
+				attachments: { initialRoots: readonly string[]; getRoots: () => readonly string[]; getProjects: () => readonly string[]; defaultDirectory?: string; rootMeta?: Record<string, unknown>; server: MissionControlProtocolServer }[];
+				readonly projectUpdates: number;
 				signedSpawn: (clientId: string, nonce: string) => object;
 				requests: { path: string; credential: string | null; body?: Record<string, unknown> }[];
 				delayHeartbeat: () => { started: Promise<void>; complete: (response?: Response) => Promise<void> };
@@ -1342,7 +1343,8 @@ suite('Mission Control WPS', () => {
 				const sockets: FakeWpsSocket[] = [];
 				const tokens: number[] = [];
 				const requests: { path: string; credential: string | null; body?: Record<string, unknown> }[] = [];
-				const attachments: { initialRoots: readonly string[]; getRoots: () => readonly string[]; rootMeta?: Record<string, unknown>; server: MissionControlProtocolServer }[] = [];
+				const attachments: { initialRoots: readonly string[]; getRoots: () => readonly string[]; getProjects: () => readonly string[]; defaultDirectory?: string; rootMeta?: Record<string, unknown>; server: MissionControlProtocolServer }[] = [];
+				let projectUpdates = 0;
 				let delayedHeartbeat: { started: DeferredPromise<void>; response: DeferredPromise<Response> } | undefined;
 				let delayedIdentity: { started: DeferredPromise<void>; response: DeferredPromise<Response> } | undefined;
 				let policy: Record<string, unknown> | undefined;
@@ -1388,10 +1390,11 @@ suite('Mission Control WPS', () => {
 						}
 						return Response.json(url.pathname === '/user' ? { id: 123, type: 'User' } : url.pathname.endsWith('/jwks.json') ? { keys: [key] } : environment);
 					},
-					attach: (server, initialRoots, getRoots) => {
-						attachments.push({ initialRoots, getRoots, rootMeta: server.rootMeta, server });
+					attach: (server, initialRoots, getRoots, getProjects, defaultDirectory) => {
+						attachments.push({ initialRoots, getRoots, getProjects, defaultDirectory, rootMeta: server.rootMeta, server });
 						return { dispose() { } };
 					},
+					updateProjects: async () => { projectUpdates++; },
 					onError: error => errors.push(error instanceof Error ? error.message : String(error)),
 					socketFactory: () => {
 						const socket = new FakeWpsSocket();
@@ -1409,6 +1412,7 @@ suite('Mission Control WPS', () => {
 				await service.configure(options);
 				await run({
 					service, clock, heartbeats, errors, sockets, options, tokens, directory: path, attachments, requests, signedSpawn: signed,
+					get projectUpdates() { return projectUpdates; },
 					delayHeartbeat: () => {
 						const started = new DeferredPromise<void>();
 						const response = new DeferredPromise<Response>();
@@ -1488,6 +1492,29 @@ suite('Mission Control WPS', () => {
 				assert.deepStrictEqual(await disabled.relayAuthenticate!({ resource, token: remoteToken }), { resource, token: 'mobile-token' });
 				await service.configure(undefined, options.accountId);
 				await assert.rejects(disabled.relayAuthenticate!({ resource, token: remoteToken }), /closed/);
+			});
+		});
+
+		test('updates canonical project folders without widening home grants or reconnecting the relay', async () => {
+			await withEnvironment([], async f => {
+				const home = realpathSync(f.directory);
+				const defaultDirectory = await mkdtemp(join(home, '.copilot-'));
+				const project = await mkdtemp(join(home, 'project-'));
+				await f.service.configure({ ...f.options, roots: [home], projects: [project], defaultDirectory });
+				const attachment = f.attachments.at(-1)!;
+				const before = { projects: attachment.getProjects(), defaultDirectory: attachment.defaultDirectory };
+				const sockets = f.sockets.length;
+				await f.service.configure({ ...f.options, roots: [home], projects: [], defaultDirectory });
+				assert.deepStrictEqual({
+					before,
+					projects: attachment.getProjects(),
+					grants: attachment.getRoots(),
+					newConnections: f.sockets.length - sockets,
+					projectUpdates: f.projectUpdates,
+				}, {
+					before: { projects: [realpathSync(project)], defaultDirectory: realpathSync(defaultDirectory) },
+					projects: [], grants: [home], newConnections: 0, projectUpdates: 2,
+				});
 			});
 		});
 
