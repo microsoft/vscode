@@ -141,10 +141,19 @@ parameters:
     displayName: "Temporary original-context native exit investigation"
     type: boolean
     default: false
+  - name: VSCODE_NATIVE_EXIT_PROBE_MODE
+    displayName: "Native exit investigation workload"
+    type: string
+    default: serial
+    values:
+      - serial
+      - parallel
 
 variables:
   - name: VSCODE_NATIVE_EXIT_PROBE
     value: ${{ parameters.VSCODE_NATIVE_EXIT_PROBE }}
+  - name: VSCODE_NATIVE_EXIT_PROBE_MODE
+    value: ${{ parameters.VSCODE_NATIVE_EXIT_PROBE_MODE }}
   - name: VSCODE_BUILD_TITLE_PREFIX
     ${{ if eq(parameters.VSCODE_BUILD_TITLE_PREFIX, 'none') }}:
       value: ""
@@ -407,6 +416,7 @@ extends:
                   VSCODE_JOB_NAME: Integration
                   VSCODE_JOB_DISPLAY_NAME: Integration Tests (Electron)
                   VSCODE_NATIVE_EXIT_PROBE: ${{ parameters.VSCODE_NATIVE_EXIT_PROBE }}
+                  VSCODE_NATIVE_EXIT_PROBE_MODE: ${{ parameters.VSCODE_NATIVE_EXIT_PROBE_MODE }}
                   VSCODE_TEST_IDS:
                     - integration-electron
               - ${{ if ne(parameters.VSCODE_NATIVE_EXIT_PROBE, true) }}:

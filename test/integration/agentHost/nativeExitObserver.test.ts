@@ -85,13 +85,41 @@ test('already exited children are observed once and listener registration is not
 	assert.equal(native.listenerCount('exit'), 0);
 });
 
+test('force stop has distinct intent and preserves the return promise and disposal', async () => {
+	const records: INativeExitRecord[] = [];
+	const observer = new NativeExitObserver(record => records.push(record), '/probe/copilot-runtime.exe');
+	const native = child();
+	const result = Promise.resolve();
+	class Client {
+		start(): Promise<void> { observer.observeChild(native, 1); return Promise.resolve(); }
+		stop(): Promise<Error[]> { return Promise.resolve([]); }
+		forceStop(): Promise<void> { return result; }
+	}
+	const originalForceStop = Client.prototype.forceStop;
+	try {
+		observer.install(Client.prototype);
+		const client = new Client();
+		await client.start();
+		assert.equal(client.forceStop(), result);
+		native.emit('exit', 0, null);
+		native.emit('close', 0, null);
+		assert.deepStrictEqual(records.filter(record => record.event.endsWith('Requested')).map(record => record.event), ['forceStopRequested']);
+		assert.equal(records.find(record => record.event === 'exit')?.unexpected, false);
+		assert.equal(native.listenerCount('exit'), 0);
+	} finally {
+		observer.dispose();
+	}
+	assert.equal(Client.prototype.forceStop, originalForceStop);
+});
+
 test('schema rejects error text, paths, arguments, environment, and forged signal content', () => {
 	const safe: INativeExitRecord = {
 		timestamp: new Date().toISOString(), event: 'exit', hostPid: 1, nativePid: 2,
 		clientInstance: 1, processInstance: 1, exitCode: 0, signal: null, unexpected: true,
 	};
 	validateNativeExitRecord(safe);
-	for (const extra of [{ stderr: 'secret' }, { args: ['secret'] }, { env: { secret: 'secret' } }, { path: '/private' }, { signal: 'private content' }, { event: 'private content' }]) {
+	validateNativeExitRecord({ ...safe, testPid: 3, testNodeVersion: '24.21.0', testElectronVersion: '43.7.7', testSha256: '0'.repeat(64) });
+	for (const extra of [{ stderr: 'secret' }, { args: ['secret'] }, { env: { secret: 'secret' } }, { path: '/private' }, { signal: 'private content' }, { event: 'private content' }, { testPid: 'private' }, { testSha256: '/private' }, { testElectronVersion: 'private' }]) {
 		assert.throws(() => validateNativeExitRecord({ ...safe, ...extra }));
 	}
 });

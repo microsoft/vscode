@@ -7,6 +7,9 @@ parameters:
   - name: VSCODE_NATIVE_EXIT_PROBE
     type: boolean
     default: false
+  - name: VSCODE_NATIVE_EXIT_PROBE_MODE
+    type: string
+    default: serial
 
 # Each test task records a checkpoint once it passes, and retries of the job
 # skip the test tasks that already passed in an earlier attempt of the same
@@ -137,11 +140,20 @@ steps:
         $env:INTEGRATION_TEST_ELECTRON_PATH = "$AppRoot\$AppNameShort.exe"
         $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\test\vscode-server-win32-$(VSCODE_ARCH)"
         exec { node build/node_modules/esbuild/bin/esbuild test/integration/agentHost/nativeExitProductProbe.ts --bundle --packages=external --platform=node --format=esm --outfile=.build/native-exit-probe/runner.mjs }
-        exec { node .build/native-exit-probe/runner.mjs --run "$AppRoot" }
+        $Mode = '${{ parameters.VSCODE_NATIVE_EXIT_PROBE_MODE }}'
+        if ($Mode -eq 'parallel') {
+          exec { node .build/native-exit-probe/runner.mjs --parallel "$AppRoot" }
+        } else {
+          exec { node .build/native-exit-probe/runner.mjs --run "$AppRoot" }
+        }
       env:
         VSCODE_SKIP_PRELAUNCH: '1'
-      displayName: Exact original managed-resource case, 20 all-must-pass executions
-      timeoutInMinutes: 15
+      ${{ if eq(parameters.VSCODE_NATIVE_EXIT_PROBE_MODE, 'parallel') }}:
+        displayName: Original six-worker Agent Host workload with native exit observer
+        timeoutInMinutes: 30
+      ${{ if ne(parameters.VSCODE_NATIVE_EXIT_PROBE_MODE, 'parallel') }}:
+        displayName: Exact original managed-resource case, 20 all-must-pass executions
+        timeoutInMinutes: 15
 
   - ${{ if containsValue(parameters.VSCODE_TEST_IDS, 'integration-browser-firefox') }}:
     - template: ../../common/run-test-with-checkpoint.yml@self

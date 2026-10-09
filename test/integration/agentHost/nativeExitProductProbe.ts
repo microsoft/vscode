@@ -11,6 +11,7 @@ import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { validateNativeExitRecord, type INativeExitRecord } from './nativeExitObserver.ts';
+import { runParallelWorkload } from './nativeExitParallelWorkload.ts';
 
 const root = resolve(process.env['BUILD_SOURCESDIRECTORY'] ?? resolve(dirname(fileURLToPath(import.meta.url)), '../../..'));
 const scratch = join(root, '.build', 'native-exit-probe');
@@ -115,10 +116,10 @@ async function runIteration(iteration: number, runtime: string, bootstrap: strin
 }
 async function main(): Promise<void> {
 	if (process.argv.includes('--help')) {
-		process.stdout.write('Usage: nativeExitProductProbe.ts --run <new-packaged-app-root>\nRuns the exact original managed-resource test 20 times, all-must-pass, under the original CI Electron test harness. Stops on first failure; emits structural lifecycle/provenance only. The packaged app input is verified separately and is not assumed to be the node-test host executable.\n');
+		process.stdout.write('Usage: nativeExitProductProbe.ts --run|--parallel <new-packaged-app-root>\n--run executes 20 strict fresh managed-resource cases. --parallel runs the unchanged original six-suite runner once with six workers and preceding OTel cases. Unexpected native exit is fatal; only structural lifecycle/provenance and suite counts are emitted. The packaged input is verified separately, not assumed to be the test host executable.\n');
 		return;
 	}
-	assert.ok(process.argv[2] === '--run' && process.argv[3]);
+	assert.ok((process.argv[2] === '--run' || process.argv[2] === '--parallel') && process.argv[3]);
 	status('sourceInput', process.platform === 'win32' && process.arch === 'x64');
 	mkdirSync(scratch, { recursive: true });
 	const sourcePackage = json(join(root, 'package.json'));
@@ -170,8 +171,15 @@ async function main(): Promise<void> {
 		outfile: bootstrap, bundle: true, platform: 'node', format: 'esm',
 		packages: 'external', target: 'node24', logLevel: 'silent',
 	});
-	for (let iteration = 1; iteration <= 20; iteration++) {
-		await runIteration(iteration, runtime, bootstrap, packagedExecutable, ciElectronHash);
+	if (process.argv[2] === '--parallel') {
+		await runParallelWorkload({
+			root, scratch, runtime, bootstrap, packagedApp: packagedExecutable,
+			ciElectronHash, nativeHash: expectedNativeHash, targetTitle: testTitle,
+		});
+	} else {
+		for (let iteration = 1; iteration <= 20; iteration++) {
+			await runIteration(iteration, runtime, bootstrap, packagedExecutable, ciElectronHash);
+		}
 	}
 }
 void main().catch(() => {

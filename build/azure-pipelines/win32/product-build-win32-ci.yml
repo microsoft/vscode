@@ -12,6 +12,9 @@ parameters:
   - name: VSCODE_NATIVE_EXIT_PROBE
     type: boolean
     default: false
+  - name: VSCODE_NATIVE_EXIT_PROBE_MODE
+    type: string
+    default: serial
 
 # Each CI job builds the product in parallel, then runs the selected test IDs.
 jobs:
@@ -29,6 +32,7 @@ jobs:
       VSCODE_ARCH: x64
       BUILDS_API_URL: $(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/
       VSCODE_NATIVE_EXIT_PROBE: ${{ parameters.VSCODE_NATIVE_EXIT_PROBE }}
+      VSCODE_NATIVE_EXIT_PROBE_MODE: ${{ parameters.VSCODE_NATIVE_EXIT_PROBE_MODE }}
     templateContext:
       outputs:
         - ${{ if ne(parameters.VSCODE_NATIVE_EXIT_PROBE, true) }}:
@@ -61,3 +65,4 @@ jobs:
           VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
           VSCODE_TEST_IDS: ${{ parameters.VSCODE_TEST_IDS }}
           VSCODE_NATIVE_EXIT_PROBE: ${{ parameters.VSCODE_NATIVE_EXIT_PROBE }}
+          VSCODE_NATIVE_EXIT_PROBE_MODE: ${{ parameters.VSCODE_NATIVE_EXIT_PROBE_MODE }}

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ChildProcess, execFile, fork } from 'child_process';
+import { createHash } from 'crypto';
 import { cp, lstat, mkdir, readFile, readdir, realpath, rename, rm, stat, writeFile } from 'fs/promises';
 import { DeferredPromise, Promises, raceTimeout, timeout } from '../../../../base/common/async.js';
 import { getErrorCode } from '../../../../base/common/errors.js';
@@ -70,6 +71,7 @@ import { killTree } from '../../../../base/node/processes.js';
 import { createIsolatedProviderEnvironment } from './providerTestEnvironment.js';
 
 const AGENT_HOST_E2E_COVERAGE = process.env['AGENT_HOST_E2E_COVERAGE'] === '1';
+let nativeExitProbeTestContext: Promise<string> | undefined;
 
 // ---- JSON-RPC test client ---------------------------------------------------
 
@@ -1069,6 +1071,11 @@ export async function startServer(options?: { readonly quiet?: boolean; readonly
  * The server is started with logging enabled so the CopilotAgent is registered.
  */
 export async function startRealServer(options: { readonly homeDir: string; readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly codexHomeDir?: string; readonly codexAgentEnabled?: boolean; readonly mockLlm?: boolean; readonly userDataDir?: string; readonly logLevel?: string; readonly env?: NodeJS.ProcessEnv; readonly capiReplay?: { readonly fixturePath: string; readonly mode?: CapiReplayMode; readonly workDir?: string; readonly real?: boolean; readonly allowPosixCommands?: boolean; readonly allowStaleRecordedRequest?: boolean; readonly matchModelRequestsByProjection?: boolean; readonly recordingModelResponse?: ICapiReplayResponse }; readonly existingCapiReplay?: CapiReplayProxy; readonly mockScenarios?: readonly IMockScenario[] }): Promise<IServerHandle> {
+	const nativeExitBootstrap = process.env['AGENT_HOST_NATIVE_EXIT_BOOTSTRAP'];
+	const testContext = nativeExitBootstrap ? await (nativeExitProbeTestContext ??= readFile(process.execPath).then(executable => JSON.stringify({
+		testPid: process.pid, testNodeVersion: process.versions.node, testElectronVersion: process.versions.electron,
+		testSha256: createHash('sha256').update(executable).digest('hex'),
+	}))) : undefined;
 	// `capiReplay` records/replays in front of the mock LLM server, so it implies
 	// a mock upstream even when `mockLlm` was not explicitly requested — unless
 	// `real` is set, in which case the proxy forwards to real CAPI/GitHub.
@@ -1162,10 +1169,14 @@ export async function startRealServer(options: { readonly homeDir: string; reado
 		});
 		let child: ChildProcess;
 		try {
-			const nativeExitBootstrap = process.env['AGENT_HOST_NATIVE_EXIT_BOOTSTRAP'];
 			child = fork(nativeExitBootstrap ?? serverPath, args, {
 				stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
-				env: nativeExitBootstrap ? { ...childEnv, AGENT_HOST_NATIVE_EXIT_SERVER_MAIN: serverPath } : childEnv,
+				env: nativeExitBootstrap ? {
+					...childEnv,
+					AGENT_HOST_NATIVE_EXIT_SERVER_MAIN: serverPath,
+					AGENT_HOST_NATIVE_EXIT_TEST_CONTEXT: testContext,
+					AGENT_HOST_NATIVE_EXIT_TARGET_CASE: String(options.capiReplay?.fixturePath.endsWith('copilotcli-managed-resource-attributes-override-conflicts-and-retain-unrelated-environment-attributes.yaml') === true),
+				} : childEnv,
 			});
 		} catch (err) {
 			void mockLlmServer?.close();

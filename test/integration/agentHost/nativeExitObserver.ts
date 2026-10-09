@@ -27,17 +27,22 @@ export interface INativeExitRecord {
 	readonly hostSha256?: string;
 	readonly nativeSha256?: string;
 	readonly sdkVersion?: string;
+	readonly targetCase?: boolean;
+	readonly testPid?: number;
+	readonly testNodeVersion?: string;
+	readonly testElectronVersion?: string;
+	readonly testSha256?: string;
 }
 
 export function validateNativeExitRecord(value: unknown): asserts value is INativeExitRecord {
 	assert.ok(value !== null && typeof value === 'object');
 	const record: Record<string, unknown> = Object.fromEntries(Object.entries(value));
-	assert.ok(Object.keys(record).every(key => ['timestamp', 'event', 'hostPid', 'nativePid', 'clientInstance', 'processInstance', 'exitCode', 'signal', 'pipe', 'stopRequested', 'killRequested', 'unexpected', 'nodeVersion', 'electronVersion', 'hostSha256', 'nativeSha256', 'sdkVersion'].includes(key)));
+	assert.ok(Object.keys(record).every(key => ['timestamp', 'event', 'hostPid', 'nativePid', 'clientInstance', 'processInstance', 'exitCode', 'signal', 'pipe', 'stopRequested', 'killRequested', 'unexpected', 'nodeVersion', 'electronVersion', 'hostSha256', 'nativeSha256', 'sdkVersion', 'targetCase', 'testPid', 'testNodeVersion', 'testElectronVersion', 'testSha256'].includes(key)));
 	assert.equal(typeof record.timestamp, 'string');
 	assert.match(String(record.timestamp), /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/);
 	assert.ok(['spawn', 'exit', 'close', 'pipeClose', 'stdoutEnd', 'killRequested', 'stopRequested', 'forceStopRequested', 'processError', 'pipeError', 'observerReady'].includes(String(record.event)));
-	for (const key of ['hostPid', 'nativePid', 'clientInstance', 'processInstance']) {
-		if (key !== 'nativePid' || record[key] !== undefined) {
+	for (const key of ['hostPid', 'nativePid', 'clientInstance', 'processInstance', 'testPid']) {
+		if (!['nativePid', 'testPid'].includes(key) || record[key] !== undefined) {
 			assert.ok(typeof record[key] === 'number' && Number.isSafeInteger(record[key]) && record[key] >= 0);
 		}
 	}
@@ -55,17 +60,17 @@ export function validateNativeExitRecord(value: unknown): asserts value is INati
 	if (record.pipe !== undefined) {
 		assert.ok(['stdin', 'stdout', 'stderr'].includes(String(record.pipe)));
 	}
-	for (const key of ['stopRequested', 'killRequested', 'unexpected']) {
+	for (const key of ['stopRequested', 'killRequested', 'unexpected', 'targetCase']) {
 		if (record[key] !== undefined) {
 			assert.equal(typeof record[key], 'boolean');
 		}
-		for (const key of ['nodeVersion', 'electronVersion', 'sdkVersion']) {
+		for (const key of ['nodeVersion', 'electronVersion', 'sdkVersion', 'testNodeVersion', 'testElectronVersion']) {
 			if (record[key] !== undefined) {
 				assert.equal(typeof record[key], 'string');
 				assert.match(String(record[key]), key === 'sdkVersion' ? /^\d+\.\d+\.\d+-preview\.\d+$/ : /^\d+\.\d+\.\d+$/);
 			}
 		}
-		for (const key of ['hostSha256', 'nativeSha256']) {
+		for (const key of ['hostSha256', 'nativeSha256', 'testSha256']) {
 			if (record[key] !== undefined) {
 				assert.equal(typeof record[key], 'string');
 				assert.match(String(record[key]), /^[a-f0-9]{64}$/);

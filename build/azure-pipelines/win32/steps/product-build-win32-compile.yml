@@ -14,6 +14,9 @@ parameters:
   - name: VSCODE_NATIVE_EXIT_PROBE
     type: boolean
     default: false
+  - name: VSCODE_NATIVE_EXIT_PROBE_MODE
+    type: string
+    default: serial
 
 steps:
   - template: product-build-win32-setup.yml@self
@@ -156,3 +159,4 @@ steps:
         VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
         VSCODE_TEST_IDS: ${{ parameters.VSCODE_TEST_IDS }}
         VSCODE_NATIVE_EXIT_PROBE: ${{ parameters.VSCODE_NATIVE_EXIT_PROBE }}
+        VSCODE_NATIVE_EXIT_PROBE_MODE: ${{ parameters.VSCODE_NATIVE_EXIT_PROBE_MODE }}
