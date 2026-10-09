@@ -12,7 +12,6 @@ import { localize } from '../../../../nls.js';
 import { getChatSessionArchiveActionWording } from '../../../../platform/chat/common/sessionArchiveActions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { parseGitHubPullRequestUrl } from '../../../../platform/github/common/githubUrls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -27,10 +26,11 @@ import { IOnboardingScenarioService, ONBOARDING_ENABLED_CONFIG } from '../../../
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { hashSessionIdForTelemetry } from '../../../common/sessionsTelemetry.js';
-import { getSessionOwnedGitHubPullRequestRefs, isActiveSessionStatus, ISession, SessionArtifactKind, SessionStatus } from '../../../services/sessions/common/session.js';
+import { isActiveSessionStatus, ISession, SessionStatus } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
 import { GitHubPullRequestState } from '../../github/common/types.js';
+import { getSessionOwnedPullRequests } from '../../github/common/sessionGitHubReferences.js';
 import { getPullRequestKey } from '../../github/common/utils.js';
 import { AUTOMATIC_MERGED_SESSION_CLEANUP_SETTINGS_QUERY } from '../../github/common/sessionLifecycleSettings.js';
 import { createSessionArchiveTour, SESSION_ARCHIVE_TOUR_ID } from '../../onboardingTours/browser/tours/sessionArchiveTour.js';
@@ -301,44 +301,6 @@ function isSessionAvailableForArchiveNudge(session: ISession, reader: IReader | 
 	return !connectionStatus || connectionStatus.kind === 'connected';
 }
 
-function getSessionPullRequests(session: ISession, reader: IReader): readonly { owner: string; repo: string; number: number }[] | undefined {
-	const pullRequests = new Map<string, { owner: string; repo: string; number: number }>();
-	function addPullRequest(pullRequest: { owner: string; repo: string; number: number }): boolean {
-		const { number } = pullRequest;
-		if (!Number.isSafeInteger(number) || number < 1) {
-			return false;
-		}
-		const owner = pullRequest.owner.toLowerCase();
-		const repo = pullRequest.repo.toLowerCase();
-		pullRequests.set(getPullRequestKey(owner, repo, number), { owner, repo, number });
-		return true;
-	}
-	for (const artifact of session.artifacts?.read(reader) ?? []) {
-		if (!artifact.isArtifact || artifact.kind !== SessionArtifactKind.PullRequest || artifact.isGitHub === false) {
-			continue;
-		}
-		const pullRequest = artifact.link && parseGitHubPullRequestUrl(artifact.link.toString());
-		if (!pullRequest) {
-			if (artifact.isGitHub || artifact.link?.authority.toLowerCase() === 'github.com') {
-				return undefined;
-			}
-			continue;
-		}
-		if (!addPullRequest(pullRequest)) {
-			return undefined;
-		}
-	}
-	for (const folder of session.workspace.read(reader)?.folders ?? []) {
-		for (const ref of getSessionOwnedGitHubPullRequestRefs(folder.gitRepository?.gitHubInfo.read(reader))) {
-			const pullRequest = parseGitHubPullRequestUrl(ref.uri.toString());
-			if (!pullRequest || !addPullRequest(pullRequest)) {
-				return undefined;
-			}
-		}
-	}
-	return [...pullRequests.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([, pullRequest]) => pullRequest);
-}
-
 export class SessionArchiveNudge extends Disposable {
 	readonly options: IObservable<IChatSessionArchiveNudgeOptions | undefined>;
 	private readonly _state: IObservable<ISessionArchiveNudgeCandidate | undefined>;
@@ -367,10 +329,10 @@ export class SessionArchiveNudge extends Disposable {
 			}
 			return current;
 		});
-		const pullRequests = derivedOpts<ReturnType<typeof getSessionPullRequests>>({ owner: this, equalsFn: structuralEquals }, reader => {
+		const pullRequests = derivedOpts<ReturnType<typeof getSessionOwnedPullRequests>>({ owner: this, equalsFn: structuralEquals }, reader => {
 			const current = eligibleSession.read(reader);
 			// The shared model must not resolve github.com pull requests against an enterprise host.
-			const refs = current && !gitHubService.enterpriseHost ? getSessionPullRequests(current, reader) : undefined;
+			const refs = current && !gitHubService.enterpriseHost ? getSessionOwnedPullRequests(current, reader) : undefined;
 			return current && refs && !this._nudgeService.hasContinued(current, refs.map(ref => getPullRequestKey(ref.owner, ref.repo, ref.number)), reader) ? refs : undefined;
 		});
 		const models = derived(this, reader => {

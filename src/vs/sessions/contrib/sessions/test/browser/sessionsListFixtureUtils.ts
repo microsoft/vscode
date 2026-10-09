@@ -62,7 +62,7 @@ import { IsPhoneLayoutContext, SessionsListRearrangeContext } from '../../../../
 import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { ISessionGroupsService, SessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
-import { ISessionsListModelService, SessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
+import { ISessionsListModelService, SessionInboxDisposition, SessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { ISessionSectionOrderService, SessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
@@ -74,7 +74,7 @@ import { BlockedSessionReason, BlockedSessions } from '../../../blockedSessions/
 import { NEW_SESSION_ACTION_ID } from '../../../chat/common/constants.js';
 import { NEW_SESSION_BUTTON_STYLE_SETTING, NEW_SESSION_BUTTON_STYLE_TREATMENT, NewSessionActionViewItemContribution, type NewSessionButtonStyle } from '../../browser/sessionsActions.js';
 import { SessionChatItem, SessionsGrouping, SessionsInboxEmptyState, SessionsList, SessionsListItemReference, SessionsSorting } from '../../browser/views/sessionsList.js';
-import { getSessionsInboxEmptyLabel, getSessionsViewTitle, renderSessionsHeader, SessionsRunningSection } from '../../browser/views/sessionsView.js';
+import { getSessionsInboxEmptyLabel, getSessionsViewTitle, renderSessionsHeader, SessionsDeferredSection, SessionsRunningSection, SessionsViewInboxContext } from '../../browser/views/sessionsView.js';
 import { SessionsArchiveActionsContribution, getSessionsArchiveActionConstructors } from '../../browser/views/sessionsViewActions.js';
 import { TestSessionsList } from './testSessionsList.js';
 
@@ -95,6 +95,8 @@ export interface ISessionsListFixtureSession extends ITestSessionSpec {
 	readonly chats?: readonly ISessionsListFixtureChat[];
 	/** Pinned to the sidebar's Pinned section. */
 	readonly pinned?: boolean;
+	/** Removed from the primary Inbox into an anchored deferred-work section. */
+	readonly inboxDisposition?: SessionInboxDisposition;
 	/** The session's view is pinned in the sessions grid. */
 	readonly sticky?: boolean;
 	readonly hasFailingCI?: boolean;
@@ -679,6 +681,7 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 	const contextKeyService = instantiationService.get(IContextKeyService);
 	ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
 	SessionsListRearrangeContext.bindTo(contextKeyService).set(header?.navigationShortcuts ?? false);
+	SessionsViewInboxContext.bindTo(contextKeyService).set(view.inbox ?? false);
 	// Phone layout drives both the visual CSS class and the tree delegate's row heights.
 	if (view.phone) {
 		IsPhoneLayoutContext.bindTo(contextKeyService).set(true);
@@ -728,13 +731,13 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 	let listParent = container;
 	let navigationContainer: HTMLElement | undefined;
 	let inboxEmptyLabel: HTMLElement | undefined;
-	let runningSectionParent: HTMLElement | undefined;
-	let runningSessionIds: readonly string[] = [];
+	let bottomSectionsParent: HTMLElement | undefined;
+	const bottomSectionSessionIds = new Map<string, readonly string[]>();
 	if (header) {
 		container.classList.add('agent-sessions-viewpane');
 		const sessionsContainer = view.inbox ? DOM.append(container, DOM.$('.agent-sessions-container')) : container;
-		runningSectionParent = view.inbox ? sessionsContainer : undefined;
 		const sessionsSection = view.inbox ? DOM.append(sessionsContainer, DOM.$('.agent-sessions-section')) : container;
+		bottomSectionsParent = view.inbox ? DOM.append(sessionsContainer, DOM.$('.agent-sessions-bottom-sections')) : undefined;
 		if (!view.inbox) {
 			sessionsSection.classList.add('agent-sessions-section');
 		}
@@ -776,13 +779,14 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 	if (view.showArchived ?? state.sessions.some(spec => spec.isArchived)) {
 		list.setExcludeArchived(false);
 	}
-	if (runningSectionParent) {
+	if (bottomSectionsParent) {
 		const runningSpecs = state.sessions.filter(session => session.status === SessionStatus.InProgress && !session.isArchived);
-		runningSessionIds = runningSpecs.map(session => session.id);
+		const runningSessionIds = runningSpecs.map(session => session.id);
+		bottomSectionSessionIds.set('running', runningSessionIds);
 		const runningSessions = runningSpecs.map(session => sessions.get(session.id)!.session);
 		const runningSection = disposableStore.add(instantiationService.createInstance(
 			SessionsRunningSection,
-			runningSectionParent,
+			bottomSectionsParent,
 			constObservable(runningSessions),
 			() => view.compact ?? false,
 			() => { },
@@ -791,7 +795,26 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 		));
 		runningSection.layout(width);
 		if (view.expanded?.some(row => hasKey(row, { section: true }) && row.section === 'running')) {
-			runningSectionParent.querySelector<HTMLElement>('.agent-sessions-running-header')?.click();
+			runningSection.element.querySelector<HTMLElement>('.agent-sessions-bottom-header')?.click();
+		}
+		for (const disposition of [SessionInboxDisposition.OnHold, SessionInboxDisposition.ReadyToMerge]) {
+			const sectionId = disposition === SessionInboxDisposition.OnHold ? 'onHold' : 'readyToMerge';
+			const sectionSpecs = state.sessions.filter(session => session.inboxDisposition === disposition && session.status !== SessionStatus.InProgress && !session.isArchived);
+			bottomSectionSessionIds.set(sectionId, sectionSpecs.map(session => session.id));
+			const section = disposableStore.add(instantiationService.createInstance(
+				SessionsDeferredSection,
+				bottomSectionsParent,
+				constObservable(sectionSpecs.map(session => sessions.get(session.id)!.session)),
+				disposition,
+				() => view.compact ?? false,
+				() => { },
+				() => { },
+				undefined,
+			));
+			section.layout(width);
+			if (view.expanded?.some(row => hasKey(row, { section: true }) && row.section === sectionId)) {
+				section.element.querySelector<HTMLElement>('.agent-sessions-bottom-header')?.click();
+			}
 		}
 	}
 	if (inboxEmptyLabel) {
@@ -807,13 +830,13 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 		list.collapseAllSections();
 	} else {
 		for (const row of view.collapsed ?? []) {
-			if (!(hasKey(row, { section: true }) && row.section === 'running')) {
+			if (!(hasKey(row, { section: true }) && bottomSectionSessionIds.has(row.section))) {
 				setCollapsed(list, resolve(row), true);
 			}
 		}
 	}
 	for (const row of view.expanded ?? []) {
-		if (!(hasKey(row, { section: true }) && row.section === 'running')) {
+		if (!(hasKey(row, { section: true }) && bottomSectionSessionIds.has(row.section))) {
 			setCollapsed(list, resolve(row), false);
 		}
 	}
@@ -823,15 +846,35 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 	}
 
 	await timeout(SETTLE_DELAY);
-	const runningHeaderHovered = interaction.hovered && hasKey(interaction.hovered, { section: true }) && interaction.hovered.section === 'running';
-	const runningSessionHovered = interaction.hovered && hasKey(interaction.hovered, { session: true }) && runningSessionIds.includes(interaction.hovered.session);
-	applyInteraction(context, list, runningHeaderHovered || runningSessionHovered ? { ...interaction, hovered: undefined } : interaction, resolve, getSession, groupIds);
-	if (runningHeaderHovered) {
-		runningSectionParent?.querySelector('.agent-sessions-running-header')?.classList.add('hovered');
-	}
-	if (runningSessionHovered) {
-		const index = runningSessionIds.indexOf(interaction.hovered.session);
-		runningSectionParent?.querySelectorAll('.agent-sessions-running-list .monaco-list-row')[index]?.classList.add('hovered');
+	const hovered = interaction.hovered;
+	const bottomSectionHovered = !!hovered && (
+		hasKey(hovered, { section: true })
+			? bottomSectionSessionIds.has(hovered.section)
+			: hasKey(hovered, { session: true }) && [...bottomSectionSessionIds.values()].some(ids => ids.includes(hovered.session))
+	);
+	applyInteraction(context, list, bottomSectionHovered ? { ...interaction, hovered: undefined } : interaction, resolve, getSession, groupIds);
+	if (bottomSectionHovered && hovered) {
+		if (hasKey(hovered, { section: true })) {
+			const selector = hovered.section === 'running'
+				? '.agent-sessions-bottom-section-running'
+				: hovered.section === 'onHold'
+					? '.agent-sessions-bottom-section-on-hold'
+					: '.agent-sessions-bottom-section-ready-to-merge';
+			bottomSectionsParent?.querySelector(`${selector} .agent-sessions-bottom-header`)?.classList.add('hovered');
+		} else if (hasKey(hovered, { session: true })) {
+			for (const [sectionId, ids] of bottomSectionSessionIds) {
+				const index = ids.indexOf(hovered.session);
+				if (index < 0) {
+					continue;
+				}
+				const selector = sectionId === 'running'
+					? '.agent-sessions-bottom-section-running'
+					: sectionId === 'onHold'
+						? '.agent-sessions-bottom-section-on-hold'
+						: '.agent-sessions-bottom-section-ready-to-merge';
+				bottomSectionsParent?.querySelectorAll(`${selector} .agent-sessions-bottom-list .monaco-list-row`)[index]?.classList.add('hovered');
+			}
+		}
 	}
 	await timeout(SETTLE_DELAY);
 
@@ -844,6 +887,8 @@ function seedListState(instantiationService: TestInstantiationService, state: IS
 	for (const spec of state.sessions) {
 		if (spec.pinned) {
 			listModelService.pinSession(getSession(spec.id).session);
+		} else if (spec.inboxDisposition) {
+			listModelService.setSessionInboxDisposition(getSession(spec.id).session, spec.inboxDisposition);
 		}
 	}
 

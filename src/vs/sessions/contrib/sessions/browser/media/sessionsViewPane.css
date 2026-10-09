@@ -18,17 +18,23 @@
 		overflow: hidden;
 	}
 
-	.agent-sessions-running-section {
+	.agent-sessions-bottom-sections {
+		flex: 0 1 auto;
+		max-height: 50%;
+		overflow: auto;
+	}
+
+	.agent-sessions-bottom-section {
 		display: none;
 		flex-shrink: 0;
 		padding: 0 var(--vscode-spacing-size40) var(--vscode-spacing-size40);
 	}
 
-	.agent-sessions-running-section.visible {
+	.agent-sessions-bottom-section.visible {
 		display: block;
 	}
 
-	.agent-sessions-running-header {
+	.agent-sessions-bottom-header {
 		display: flex;
 		align-items: center;
 		min-height: var(--vscode-spacing-size280);
@@ -40,16 +46,16 @@
 		outline: none;
 	}
 
-	.agent-sessions-running-header:is(:hover, .hovered) {
+	.agent-sessions-bottom-header:is(:hover, .hovered) {
 		background-color: var(--vscode-list-hoverBackground);
 	}
 
-	.agent-sessions-running-header:focus-visible {
+	.agent-sessions-bottom-header:focus-visible {
 		outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
 		outline-offset: calc(-1 * var(--vscode-strokeThickness));
 	}
 
-	.agent-sessions-running-icon {
+	.agent-sessions-bottom-icon {
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -59,7 +65,7 @@
 		margin-right: var(--vscode-spacing-size60);
 	}
 
-	.agent-sessions-running-label {
+	.agent-sessions-bottom-label {
 		flex: 1;
 		min-width: 0;
 		overflow: hidden;
@@ -69,7 +75,7 @@
 		font-weight: var(--vscode-fontWeight-regular);
 	}
 
-	.agent-sessions-running-chevron {
+	.agent-sessions-bottom-chevron {
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -81,16 +87,16 @@
 		font-size: var(--vscode-codiconFontSize-compact);
 	}
 
-	.agent-sessions-running-header:is(:hover, .hovered) .agent-sessions-running-chevron,
-	.agent-sessions-running-header:focus-visible .agent-sessions-running-chevron {
+	.agent-sessions-bottom-header:is(:hover, .hovered) .agent-sessions-bottom-chevron,
+	.agent-sessions-bottom-header:focus-visible .agent-sessions-bottom-chevron {
 		opacity: 1;
 	}
 
-	.agent-sessions-running-list {
+	.agent-sessions-bottom-list {
 		overflow: hidden;
 	}
 
-	.agent-sessions-running-list .sessions-list-control {
+	.agent-sessions-bottom-list .sessions-list-control {
 		height: 100%;
 	}
 
@@ -344,7 +350,7 @@
 
 @supports ((background-clip: text) or (-webkit-background-clip: text)) {
 	@media not (prefers-reduced-motion: reduce) {
-		.agent-sessions-running-section:not(.reduced-motion) .agent-sessions-running-label {
+		.agent-sessions-bottom-section-running:not(.reduced-motion) .agent-sessions-bottom-label {
 			background: linear-gradient(
 				90deg,
 				var(--vscode-descriptionForeground) 0%,

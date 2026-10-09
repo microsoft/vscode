@@ -9,6 +9,7 @@ import { SpotlightOverlay } from '../../../../../workbench/contrib/onboarding/br
 import { ComponentFixtureContext, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SHOW_FROM_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
 import { SessionStatus } from '../../../../services/sessions/common/session.js';
+import { SessionInboxDisposition } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { createSessionArchiveTour } from '../../../onboardingTours/browser/tours/sessionArchiveTour.js';
 import { SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING, SessionsGrouping } from '../../browser/views/sessionsList.js';
 import { defineSessionsListFixture, ISessionsListFixture, ISessionsListFixtureGroup, ISessionsListFixtureSession } from './sessionsListFixtureUtils.js';
@@ -326,6 +327,21 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	}, {
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: ['The first regular Inbox row is hovered directly after the expanded Pinned section and has equal Control-tier rounding on both top corners. The selected final row has matching Control-tier rounding on both bottom corners despite the inter-row spacing.'],
+	}),
+	SessionsList_Inbox_DeferredSections: defineSessionsListFixture({
+		sessions: [
+			{ id: 'inbox', title: 'Review updated implementation', workspace: 'vscode', minutesAgo: 2 },
+			{ id: 'running', title: 'Run integration tests', workspace: 'vscode', minutesAgo: 3, status: SessionStatus.InProgress },
+			{ id: 'hold-design', title: 'Wait for design feedback', workspace: 'vscode', minutesAgo: 8, inboxDisposition: SessionInboxDisposition.OnHold },
+			{ id: 'hold-api', title: 'Wait for API decision', workspace: 'vscode-tools', minutesAgo: 12, inboxDisposition: SessionInboxDisposition.OnHold },
+			{ id: 'merge', title: 'Finalize session list update', workspace: 'vscode', minutesAgo: 18, inboxDisposition: SessionInboxDisposition.ReadyToMerge },
+		],
+		header: {},
+		view: { inbox: true, compact: true, height: 420, expanded: [{ section: 'onHold' }, { section: 'readyToMerge' }] },
+		interaction: { hovered: { session: 'merge' } },
+	}, {
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['Inbox View keeps one actionable session in the primary list. Three collapsed-by-default anchored sections sit at the bottom in this order: Sessions Running, On Hold, and Ready to Merge. On Hold and Ready to Merge are expanded here to show compact session rows, and the hovered Ready to Merge row exposes its standard row actions including Move to Inbox.'],
 	}),
 	SessionsList_Inbox_Empty: defineSessionsListFixture({
 		sessions: [],

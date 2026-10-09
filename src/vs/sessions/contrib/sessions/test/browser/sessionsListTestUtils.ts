@@ -260,6 +260,7 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 	instantiationService.stub(ISessionsListModelService, new class extends mock<ISessionsListModelService>() {
 		override readonly onDidChange = Event.None;
 		override isSessionPinned(session: ISession): boolean { return pinnedSessionIds.has(session.sessionId); }
+		override getSessionInboxDisposition(): undefined { return undefined; }
 		override unpinSessions(): void { }
 		override migrateLegacyReadState(): void { }
 		override getSortKey(session: ISession, mode: SessionSortMode): number {

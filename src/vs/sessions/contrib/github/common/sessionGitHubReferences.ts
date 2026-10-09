@@ -9,11 +9,56 @@ import { isDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { parseGitHubIssueUrl, parseGitHubPullRequestUrl } from '../../../../platform/github/common/githubUrls.js';
 import { linkKey } from '../../../common/sessionLinks.js';
-import { getGitHubPullRequestRefs, IChat, IGitHubIssueRef, IGitHubPullRequestRef, ISession, ISessionArtifact, SessionArtifactKind } from '../../../services/sessions/common/session.js';
+import { getGitHubPullRequestRefs, getSessionOwnedGitHubPullRequestRefs, IChat, IGitHubIssueRef, IGitHubPullRequestRef, ISession, ISessionArtifact, SessionArtifactKind } from '../../../services/sessions/common/session.js';
+import { getPullRequestKey } from './utils.js';
 
 export interface ISessionGitHubReferences {
 	readonly pullRequests: readonly IGitHubPullRequestRef[];
 	readonly issues: readonly IGitHubIssueRef[];
+}
+
+/** Resolves only pull requests produced by the session, rejecting malformed GitHub identities. */
+export function getSessionOwnedPullRequests(session: ISession, reader: IReader | undefined): readonly IGitHubPullRequestRef[] | undefined {
+	const pullRequests = new Map<string, IGitHubPullRequestRef>();
+	const addPullRequest = (pullRequest: IGitHubPullRequestRef): boolean => {
+		if (!Number.isSafeInteger(pullRequest.number) || pullRequest.number < 1) {
+			return false;
+		}
+		const owner = pullRequest.owner.toLowerCase();
+		const repo = pullRequest.repo.toLowerCase();
+		pullRequests.set(getPullRequestKey(owner, repo, pullRequest.number), { ...pullRequest, owner, repo });
+		return true;
+	};
+	for (const artifact of session.artifacts?.read(reader) ?? []) {
+		if (!artifact.isArtifact || artifact.kind !== SessionArtifactKind.PullRequest || artifact.isGitHub === false) {
+			continue;
+		}
+		const link = artifact.link;
+		const parsed = link && parseGitHubPullRequestUrl(link.toString());
+		if (!parsed) {
+			if (artifact.isGitHub || link?.authority.toLowerCase() === 'github.com') {
+				return undefined;
+			}
+			continue;
+		}
+		if (!addPullRequest({
+			...parsed,
+			uri: link,
+			title: artifact.label,
+			recordedReferenceId: artifact.id,
+			createdByThisSession: true,
+		})) {
+			return undefined;
+		}
+	}
+	for (const folder of session.workspace.read(reader)?.folders ?? []) {
+		for (const ref of getSessionOwnedGitHubPullRequestRefs(folder.gitRepository?.gitHubInfo.read(reader))) {
+			if (!parseGitHubPullRequestUrl(ref.uri.toString()) || !addPullRequest(ref)) {
+				return undefined;
+			}
+		}
+	}
+	return [...pullRequests.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([, pullRequest]) => pullRequest);
 }
 
 /** Recognizes recorded links supported by the dedicated GitHub surfaces. */

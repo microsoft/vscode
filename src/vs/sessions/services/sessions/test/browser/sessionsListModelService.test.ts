@@ -12,7 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IChat, ISession, SessionStatus } from '../../common/session.js';
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../common/sessionsManagement.js';
-import { ISessionListModelChangeEvent, SessionListModelChangeKind, SessionsListModelService } from '../../browser/sessionsListModelService.js';
+import { ISessionListModelChangeEvent, SessionInboxDisposition, SessionListModelChangeKind, SessionsListModelService } from '../../browser/sessionsListModelService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 
@@ -128,6 +128,55 @@ suite('SessionsListModelService', () => {
 		service.unpinSession(session);
 
 		assert.strictEqual(service.isSessionPinned(session), false);
+	});
+
+	test('persists Inbox dispositions and pull request identity', () => {
+		const session = createSession('s1', SessionStatus.Completed, { updatedAt: new Date(1234) });
+		service.setSessionInboxDisposition(session, SessionInboxDisposition.ReadyToMerge, ['owner/repo#2', 'owner/repo#1']);
+		const restored = disposables.add(instantiationService.createInstance(SessionsListModelService));
+
+		assert.deepStrictEqual(restored.getSessionInboxDispositionState(session), {
+			disposition: SessionInboxDisposition.ReadyToMerge,
+			updatedAt: 1234,
+			pullRequestKeys: ['owner/repo#1', 'owner/repo#2'],
+		});
+	});
+
+	test('keeps pinning and Inbox dispositions mutually exclusive', () => {
+		const session = createSession('s1');
+		service.pinSession(session);
+		service.setSessionInboxDisposition(session, SessionInboxDisposition.OnHold);
+		const held = {
+			pinned: service.isSessionPinned(session),
+			disposition: service.getSessionInboxDisposition(session),
+		};
+
+		service.pinSession(session);
+
+		assert.deepStrictEqual({
+			held,
+			pinned: service.isSessionPinned(session),
+			disposition: service.getSessionInboxDisposition(session),
+		}, {
+			held: { pinned: false, disposition: SessionInboxDisposition.OnHold },
+			pinned: true,
+			disposition: undefined,
+		});
+	});
+
+	test('clears Inbox disposition state after definitive deletion', () => {
+		const session = createSession('s1');
+		service.setSessionInboxDisposition(session, SessionInboxDisposition.OnHold);
+
+		sessionDeletedEmitter.fire(session);
+
+		assert.deepStrictEqual({
+			disposition: service.getSessionInboxDisposition(session),
+			stored: storageService.get('sessionsListControl.inboxDispositions', StorageScope.PROFILE),
+		}, {
+			disposition: undefined,
+			stored: undefined,
+		});
 	});
 
 	test('pinSession is idempotent and fires onDidChange only once', () => {

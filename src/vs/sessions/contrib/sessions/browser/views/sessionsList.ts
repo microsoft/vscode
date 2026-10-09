@@ -71,7 +71,8 @@ import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/ho
 import { ISessionsManagementService, IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { getSessionComparisonHarnessLabel, getSessionComparisonParticipantsInDisplayOrder, ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ISessionsListModelService, SessionSortMode } from '../../../../services/sessions/browser/sessionsListModelService.js';
+import { ISessionsListModelService, SessionInboxDisposition, SessionSortMode } from '../../../../services/sessions/browser/sessionsListModelService.js';
+import { getSessionOwnedPullRequests } from '../../../github/common/sessionGitHubReferences.js';
 import { ISessionGroup, ISessionGroupsService } from '../../../../services/sessions/browser/sessionGroupsService.js';
 import { ISessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
 import { InputBox, MessageType } from '../../../../../base/browser/ui/inputbox/inputBox.js';
@@ -144,6 +145,7 @@ export const SESSIONS_LIST_SHOW_UNREAD_IN_COLLAPSED_SECTIONS_SETTING = 'sessions
 export const SESSIONS_LIST_SHOW_ARCHIVED_BY_DEFAULT_SETTING = 'sessions.list.showArchivedByDefault';
 
 export const IsSessionPinnedContext = new RawContextKey<boolean>('sessionItem.isPinned', false);
+export const SessionInboxDispositionContext = new RawContextKey<SessionInboxDisposition | ''>('sessionItem.inboxDisposition', '');
 export const SessionItemStatusContext = new RawContextKey<SessionStatus>('sessionItem.status', SessionStatus.Completed);
 export const SessionItemHasUnreadNestedSessionsContext = new RawContextKey<boolean>('sessionItem.hasUnreadNestedSessions', false);
 type SessionContextKeyProvider = (session: ISession, reader: IReader | undefined) => Iterable<[string, ContextKeyValue]>;
@@ -1253,6 +1255,8 @@ interface ISessionItemTemplate {
 	readonly isQuickChatContext: IContextKey<boolean>;
 	readonly supportsMultipleChatsContext: IContextKey<boolean>;
 	readonly supportsDeleteContext: IContextKey<boolean>;
+	readonly hasPullRequestContext: IContextKey<boolean>;
+	readonly inboxDispositionContext: IContextKey<SessionInboxDisposition | ''>;
 	readonly disposables: DisposableStore;
 	readonly elementDisposables: DisposableStore;
 }
@@ -1321,6 +1325,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		private readonly options: {
 			grouping: () => SessionsGrouping; isPinned: (session: ISession) => boolean; isRenderedInCustomGroup?: (session: ISession) => boolean; getGroupConnectorPosition?: (session: ISession) => SessionGroupConnectorPosition | undefined; getComparisonAttemptLabel?: (session: ISession) => string | undefined; shouldShowComparisonAttemptStatus?: (session: ISession, reader: IReader) => boolean; visibleSessions: IObservable<readonly (IActiveSession | undefined)[]>; getMultiSelectedSessions: (session: ISession) => ISession[]; showHover: boolean; useCompactQuickChatRows: boolean; compact: () => boolean; approvalRowMaxLines: number; aggregateChatApprovals: boolean; toolbarMenuId: MenuId | undefined; toolbarTelemetrySource: string; inlineRename: boolean; contextViewService?: IContextViewService; handleToolbarAction?: (action: IAction, session: ISession) => boolean | Promise<boolean>; onDidDoubleClickRename?: (session: ISession) => void; onDidFinishRename?: () => void; onDidRequestRename?: (session: ISession) => void; activeGuideSessionIds?: IObservable<ReadonlySet<string>>;
 			suppressInProgressStatusIcon?: boolean;
+			getInboxDisposition: (session: ISession) => SessionInboxDisposition | undefined;
 			/** Whether status presentation derives from the main chat instead of the aggregate session. */
 			deriveStatusFromMainChat?: boolean;
 			activeSession?: IObservable<IActiveSession | undefined>;
@@ -1433,6 +1438,8 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		const isQuickChatContext = IsQuickChatSessionContext.bindTo(contextKeyService);
 		const supportsMultipleChatsContext = SessionSupportsMultipleChatsContext.bindTo(contextKeyService);
 		const supportsDeleteContext = SessionSupportsDeleteContext.bindTo(contextKeyService);
+		const hasPullRequestContext = SessionHasPullRequestContext.bindTo(contextKeyService);
+		const inboxDispositionContext = SessionInboxDispositionContext.bindTo(contextKeyService);
 		const scopedInstantiationService = disposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
 		let titleToolbar: MenuWorkbenchToolBar | undefined;
 		if (this.options.toolbarMenuId) {
@@ -1461,7 +1468,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			}));
 		}
 
-		return { container, statusIcon, title, titleRow, titleContainer, externalApplicationBadge, externalApplicationBadgeLabel, titleInputContainer, compactHoverDescription, titleToolbar, renderedSession, pendingVoiceIndicator, comparisonAttemptStatus, comparisonAttemptStatusIcon, comparisonAttemptStatusLabel, detailsRow, approvalRow, approvalLabel, approvalButtonContainer, inputNeededRow, inputNeededLabel, ciRow, ciLabel, ciButtonContainer, contextKeyService, statusContext, isReadContext, isArchivedContext, isQuickChatContext, supportsMultipleChatsContext, supportsDeleteContext, disposables, elementDisposables };
+		return { container, statusIcon, title, titleRow, titleContainer, externalApplicationBadge, externalApplicationBadgeLabel, titleInputContainer, compactHoverDescription, titleToolbar, renderedSession, pendingVoiceIndicator, comparisonAttemptStatus, comparisonAttemptStatusIcon, comparisonAttemptStatusLabel, detailsRow, approvalRow, approvalLabel, approvalButtonContainer, inputNeededRow, inputNeededLabel, ciRow, ciLabel, ciButtonContainer, contextKeyService, statusContext, isReadContext, isArchivedContext, isQuickChatContext, supportsMultipleChatsContext, supportsDeleteContext, hasPullRequestContext, inboxDispositionContext, disposables, elementDisposables };
 	}
 
 	renderElement(node: ITreeNode<SessionListItem, FuzzyScore>, _index: number, template: ISessionItemTemplate): void {
@@ -1559,6 +1566,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		// Context keys
 		const isPinned = this.options.isPinned(element);
 		IsSessionPinnedContext.bindTo(template.contextKeyService).set(isPinned);
+		template.inboxDispositionContext.set(this.options.getInboxDisposition(element) ?? '');
 		const getAdditionalContextKeys = this.options.getAdditionalContextKeys;
 		if (getAdditionalContextKeys) {
 			const contextKeys = new Map<string, IContextKey<ContextKeyValue>>();
@@ -1591,6 +1599,9 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		}
 		SessionItemInExternalSectionContext.bindTo(template.contextKeyService).set(this.options.isRenderedInExternalSection?.(element) ?? false);
 		const canImportContext = SessionItemCanImportContext.bindTo(template.contextKeyService);
+		template.elementDisposables.add(autorun(reader => {
+			template.hasPullRequestContext.set((getSessionOwnedPullRequests(element, reader)?.length ?? 0) > 0);
+		}));
 
 		// Pinned & archived styling — reactive
 		template.elementDisposables.add(autorun(reader => {
@@ -3873,6 +3884,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				reportExternalApplicationBadgeShowFromExperimentTrigger,
 				collapsedSessionIds: this.collapsedSessionIds,
 				onboardingTarget: this.onboardingTarget,
+				getInboxDisposition: session => this._sessionsListModelService.getSessionInboxDisposition(session),
 			},
 			approvalModel,
 			undefined,
@@ -4522,6 +4534,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 		});
 
 		const inbox = this.options.inbox?.() ?? false;
+		if (inbox) {
+			filtered = filtered.filter(session => this._sessionsListModelService.getSessionInboxDisposition(session) === undefined);
+		}
 		this.inboxEmptyState = inbox
 			? getSessionsInboxEmptyState(filtered, onboardingSession?.sessionId, session => this.isSessionPinned(session))
 			: SessionsInboxEmptyState.NotEmpty;
@@ -5775,7 +5790,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const selectedSessions = this.getMultiSelectedSessions(element);
 
 		const inGroup = this._sessionGroupsService.getGroupOfSession(element.sessionId) !== undefined;
-		const contextOverlay: [string, boolean | string][] = [
+		const contextOverlay: [string, boolean | number | string][] = [
 			[IsSessionPinnedContext.key, this.isSessionPinned(element)],
 			[SessionItemIsMultiSelectionContext.key, selectedSessions.length > 1],
 			[SessionItemHasUnreadNestedSessionsContext.key, selectedSessions.some(session =>
@@ -5787,13 +5802,15 @@ export class SessionsList extends Disposable implements ISessionsList {
 			[SessionItemInGroupContext.key, inGroup],
 			[SessionItemInExternalSectionContext.key, this.isRenderedInExternalSection(element)],
 			[SessionItemCanImportContext.key, element.isExternal?.get() === true && element.capabilities.get().supportsImport === true],
+			[SessionItemStatusContext.key, element.status.get()],
 			[SessionTypeContext.key, element.sessionType],
 			[SessionProviderIdContext.key, element.providerId],
 			[SessionSupportsMultipleChatsContext.key, element.capabilities.get().supportsMultipleChats],
 			[SessionSupportsRenameContext.key, element.capabilities.get().supportsRename ?? false],
 			[SessionSupportsDeleteContext.key, element.capabilities.get().supportsDelete ?? false],
 			[IsQuickChatSessionContext.key, element.isQuickChat?.get() ?? false],
-			[SessionHasPullRequestContext.key, !!element.workspace.get()?.folders[0]?.gitRepository?.gitHubInfo.get()?.pullRequest],
+			[SessionHasPullRequestContext.key, (getSessionOwnedPullRequests(element, undefined)?.length ?? 0) > 0],
+			[SessionInboxDispositionContext.key, this._sessionsListModelService.getSessionInboxDisposition(element) ?? ''],
 		];
 
 		const disposables = new DisposableStore();
@@ -6929,6 +6946,7 @@ export class SessionsFlatList extends Disposable {
 				toolbarTelemetrySource: this.options.toolbarTelemetrySource ?? 'sessionsFlatList.row',
 				inlineRename: false,
 				handleToolbarAction: this.options.onToolbarAction,
+				getInboxDisposition: session => this._sessionsListModelService.getSessionInboxDisposition(session),
 				externalApplicationBadgeMode,
 				externalApplicationBadgeShowFrom,
 				reportExternalApplicationBadgeModeExperimentTrigger,
@@ -7097,6 +7115,14 @@ export class SessionsFlatList extends Disposable {
 	getFocusedSession(): ISession | undefined {
 		const focused = this.tree.getFocus()[0];
 		return focused && isSessionItem(focused) ? focused : undefined;
+	}
+
+	getFocusedSessions(): readonly ISession[] | undefined {
+		if (!DOM.isAncestorOfActiveElement(this.listRoot)) {
+			return undefined;
+		}
+		const focused = this.getFocusedSession();
+		return focused ? [focused] : [];
 	}
 }
 
