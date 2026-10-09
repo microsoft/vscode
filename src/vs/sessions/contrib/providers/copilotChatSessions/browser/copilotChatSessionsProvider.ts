@@ -1216,13 +1216,13 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 					let wasRunning = false;
 					this._cloudChatObservers.set(model, autorun(reader => {
 						const running = model.requestInProgress.read(reader);
-						if (running && !wasRunning) {
+						const session = this._sessionCache.get(model.sessionResource.toString());
+						if (running && !wasRunning && session instanceof AgentSessionAdapter && session.isAutomation.read(undefined)) {
 							this.automations?.observeLocalRequest(model.sessionResource);
 						}
 						const completed = wasRunning && !running;
 						wasRunning = running;
 						if (completed && model.lastRequest?.response?.isComplete && !model.lastRequest.response.isCanceled) {
-							const session = this._sessionCache.get(model.sessionResource.toString());
 							if (session instanceof AgentSessionAdapter) {
 								session.lastObservedLocalCompletion = model.lastRequest.response.completionTimestamp ?? Date.now();
 							}

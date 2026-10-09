@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { spy } from 'sinon';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
@@ -1386,6 +1387,25 @@ suite('CopilotChatSessionsProvider', () => {
 		model.replaceSession(createMockAgentSession(resource, { title: 'Running (updated)', createdAt: 1, status: ChatSessionStatus.InProgress, read: true }));
 
 		assert.strictEqual(provider.getSessions()[0].isRead.get(), true);
+	});
+
+	test('only known automation follow-ups request history discovery, without waiting for a history entry', () => {
+		const automated = URI.parse('copilot-cloud-agent:/task/automation');
+		const ordinary = URI.parse('copilot-cloud-agent:/task/ordinary');
+		const unknown = URI.parse('copilot-cloud-agent:/task/unknown');
+		const running = [automated, ordinary, unknown].map(resource => ({ resource, running: observableValue(resource.toString(), false) }));
+		const chatModels = constObservable(running.map(({ resource, running }) => upcastPartial<IChatModel>({
+			sessionResource: resource, requestInProgress: running,
+		})));
+		model.addSession(createMockAgentSession(automated, { metadata: { isAutomation: true } }));
+		model.addSession(createMockAgentSession(ordinary));
+		const provider = createProvider(disposables, model, { chatModels });
+		const observe = spy(provider.automations!, 'observeLocalRequest');
+		disposables.add(toDisposable(() => observe.restore()));
+		for (const request of running) {
+			request.running.set(true, undefined);
+		}
+		assert.deepStrictEqual(observe.args.map(([resource]) => resource.toString()), [automated.toString()]);
 	});
 
 	test('automation provenance updates the stable session facade without changing external ownership', () => {

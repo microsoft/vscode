@@ -754,7 +754,13 @@ suite('AutomationsCardsWidget', () => {
 	});
 
 	test('local follow-up progress and completion override stale cloud history without losing unread state', async () => {
-		const { widget, automationService, sessionsManagementService, chatModels } = setup();
+		const { widget, automationService, sessionsManagementService, chatModels, instantiationService } = setup();
+		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() { });
+		const accessibleView = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'sessions-automations-view');
+		assert.ok(accessibleView);
+		const accessibleProvider = instantiationService.invokeFunction(accessor => accessibleView.getProvider(accessor));
+		assert.ok(accessibleProvider);
+		disposables.add(accessibleProvider);
 		const running = observableValue('running', false);
 		const lastRequest = observableValue<IChatRequestModel | undefined>('lastRequest', undefined);
 		chatModels.set([upcastPartial<IChatModel>({
@@ -767,14 +773,17 @@ suite('AutomationsCardsWidget', () => {
 		running.set(true, undefined);
 		const inProgress = !!widget.element.querySelector('.session-item.in-progress');
 		const unreadDuringFollowUp = isMarkAllReadVisible(widget);
+		const accessibleWhileRunning = accessibleProvider.provideContent().includes('Daily review, Running, started');
 		automationService.setRuns([{ ...external, status: 'running' }]);
 		lastRequest.set(upcastPartial<IChatRequestModel>({ response: upcastPartial<IChatResponseModel>({ isComplete: true, isCanceled: false, completionTimestamp: Date.parse('2026-01-02T00:00:00Z') }) }), undefined);
 		running.set(false, undefined);
 		assert.deepStrictEqual({
 			inProgress, unreadDuringFollowUp,
+			accessibleWhileRunning,
+			accessibleAfterCompletion: accessibleProvider.provideContent().includes('Daily review, Completed, started'),
 			completed: !widget.element.querySelector('.session-item.in-progress'),
 			unreadAfter: isMarkAllReadVisible(widget), read: sessionsManagementService.isRead.get(),
-		}, { inProgress: true, unreadDuringFollowUp: false, completed: true, unreadAfter: true, read: false });
+		}, { inProgress: true, unreadDuringFollowUp: false, accessibleWhileRunning: true, accessibleAfterCompletion: true, completed: true, unreadAfter: true, read: false });
 	});
 
 	test('unresolved cloud history opens only its exact task and reports unavailable native sessions', async () => {
@@ -3404,6 +3413,65 @@ suite('AutomationsCardsWidget', () => {
 			buildAutomationsAccessibleContent([automation()], [run({ status: 'failed', errorMessage: 'boom' })], 'ready').includes('Daily review, Failed'),
 			true,
 		);
+	});
+
+	test('accessible local progress clears stale descriptions and errors and reports input and failures', () => {
+		const external = run({
+			status: 'failed', updatedAt: '2026-01-01T00:00:00Z',
+			errorMessage: 'old failure', statusDescription: 'Old remote status',
+			externalResource: URI.parse('https://github.com/owner/private/tasks/exact'),
+		});
+		const running = observableValue('running', true);
+		const needsInput = observableValue<{ title: string } | undefined>('needsInput', undefined);
+		const lastRequest = observableValue<IChatRequestModel | undefined>('lastRequest', undefined);
+		const model = upcastPartial<IChatModel>({
+			sessionResource: SESSION_RESOURCE, requestInProgress: running, requestNeedsInput: needsInput, lastRequestObs: lastRequest,
+		});
+		const content = () => buildAutomationsAccessibleContent([automation()], [external], 'ready', [], [], 'ready', [model]);
+		const active = content();
+		needsInput.set({ title: 'Permission needed' }, undefined);
+		const waiting = content();
+		lastRequest.set(upcastPartial<IChatRequestModel>({
+			response: upcastPartial<IChatResponseModel>({
+				isComplete: true, isCanceled: false, completionTimestamp: Date.parse('2026-01-02T00:00:00Z'),
+				result: { errorDetails: { message: 'New local failure' } },
+			}),
+		}), undefined);
+		running.set(false, undefined);
+		const failed = content();
+		assert.deepStrictEqual({
+			running: active.includes('Daily review, Running, started'),
+			needsInput: waiting.includes('Daily review, Needs input, started'),
+			failed: failed.includes('Daily review, Failed, started'),
+			error: failed.includes('Error: New local failure'),
+			stale: [active, waiting, failed].some(value => value.includes('old failure') || value.includes('Old remote status')),
+		}, { running: true, needsInput: true, failed: true, error: true, stale: false });
+	});
+
+	test('accessible history ignores cancelled, older, unrelated and non-cloud local progress', () => {
+		const external = run({
+			status: 'completed', updatedAt: '2026-01-02T00:00:00Z', statusDescription: 'Authoritative remote status',
+			externalResource: URI.parse('https://github.com/owner/private/tasks/exact'),
+		});
+		const cases = [
+			{ run: external, resource: SESSION_RESOURCE, running: false, cancelled: true, completedAt: '2026-01-03T00:00:00Z' },
+			{ run: external, resource: SESSION_RESOURCE, running: false, cancelled: false, completedAt: '2026-01-01T00:00:00Z' },
+			{ run: external, resource: SECOND_SESSION_RESOURCE, running: true, cancelled: false },
+			{ run: { ...external, externalResource: undefined }, resource: SESSION_RESOURCE, running: true, cancelled: false },
+		];
+		assert.deepStrictEqual(cases.map(value => {
+			const model = upcastPartial<IChatModel>({
+				sessionResource: value.resource, requestInProgress: constObservable(value.running), requestNeedsInput: constObservable(undefined),
+				lastRequestObs: constObservable(upcastPartial<IChatRequestModel>({
+					response: upcastPartial<IChatResponseModel>({
+						isComplete: true, isCanceled: value.cancelled,
+						completionTimestamp: value.completedAt ? Date.parse(value.completedAt) : undefined,
+					}),
+				})),
+			});
+			return buildAutomationsAccessibleContent([automation()], [value.run], 'ready', [], [], 'ready', [model])
+				.includes('Daily review, Authoritative remote status, started');
+		}), [true, true, true, true]);
 	});
 
 	test('accessible view summarizes templates without reading full prompts', () => {
