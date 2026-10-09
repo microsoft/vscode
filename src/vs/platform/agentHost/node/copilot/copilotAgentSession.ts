@@ -528,6 +528,15 @@ function isCopilotSdkToolOutputTempFile(filePath: string, tmpDir: string): boole
 	return isCopilotSdkToolOutputFile(filePath);
 }
 
+function getCopilotSdkToolOutputPath(data: SessionEventPayload<'tool.execution_complete'>['data']): string | undefined {
+	const spillData = data as SessionEventPayload<'tool.execution_complete'>['data'] & { largeOutputWrittenToFile?: boolean };
+	if (spillData.largeOutputWrittenToFile !== true) {
+		return undefined;
+	}
+	const path = data.result?.content.match(/\bSaved to: (?<path>[^\r\n]+)/)?.groups?.path?.trim();
+	return path && isAbsolute(path) ? normalizePath(URI.file(path)).fsPath : undefined;
+}
+
 const realpath = promisify(fsRealpath);
 // A non-settling control RPC must not permanently block the per-chat sequencer.
 const CONTROL_PLANE_RPC_TIMEOUT_MS = 30_000;
@@ -1514,6 +1523,7 @@ export class CopilotAgentSession extends Disposable {
 	/** Platform used to compute the SDK sandbox policy (injectable for tests). */
 	private readonly _platform: NodeJS.Platform;
 	private readonly _realpath: (path: string) => Promise<string>;
+	private readonly _registeredSdkToolOutputPaths = new Set<string>();
 
 	get mcpServerStates() {
 		return this._mcpCustomizations.runtimeStates;
@@ -5558,12 +5568,11 @@ export class CopilotAgentSession extends Disposable {
 				return attributePermissionResult({ kind: 'approve-once' }, 'host_policy');
 			}
 
-			// Auto-approve reads of large-tool-output temp files written by the
-			// Copilot SDK itself. The SDK spills oversized tool results to
-			// `os.tmpdir()/copilot-tool-output-…txt` and then asks the model
-			// to read them back in a follow-up turn — no need to confirm.
 			if (!managedApprovalRequired && request.kind === 'read' && typeof request.path === 'string') {
-				if (isCopilotSdkToolOutputTempFile(request.path, this._environmentService.tmpDir.fsPath)) {
+				const canonicalPath = isAbsolute(request.path)
+					? extUriBiasedIgnorePathCase.getComparisonKey(normalizePath(URI.file(request.path)))
+					: undefined;
+				if (canonicalPath && this._registeredSdkToolOutputPaths.has(canonicalPath)) {
 					this._logService.info(`[Copilot:${this.sessionId}] Auto-approving Copilot SDK tool-output temp file ${request.path}`);
 					return attributePermissionResult({ kind: 'approve-once' }, 'host_policy');
 				}
@@ -7304,6 +7313,10 @@ export class CopilotAgentSession extends Disposable {
 
 		const handleToolComplete = (e: SessionEventPayload<'tool.execution_complete'>): void => {
 			this._approvedDuplicablePermissionSignatures.delete(e.data.toolCallId);
+			const sdkToolOutputPath = getCopilotSdkToolOutputPath(e.data);
+			if (sdkToolOutputPath) {
+				this._registeredSdkToolOutputPaths.add(extUriBiasedIgnorePathCase.getComparisonKey(URI.file(sdkToolOutputPath)));
+			}
 			const tracked = this._activeToolCalls.get(e.data.toolCallId);
 			if (!tracked) {
 				this._unroutableSubagentToolCallIds.delete(e.data.toolCallId);
