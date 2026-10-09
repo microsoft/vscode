@@ -15,6 +15,7 @@ import { localize } from '../../../../../nls.js';
 import { AgentSession } from '../../../../../platform/agentHost/common/agent.js';
 import { getAgentHostChatId } from '../../../../../platform/agentHost/common/agentHostChatIdentity.js';
 import { ICloudSandboxApiService } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { ChatState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IReplayedSession, IReplayedTaskHistory } from '../../../../../platform/agentHost/common/taskEventReplay.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { activeTurnToProgress, messageToRequestOrigin, messageToVariableData, turnsToHistory } from '../agentSessions/agentHost/stateToProgressAdapter.js';
@@ -70,7 +71,7 @@ export class CloudSandboxReadOnlySessionHandler extends Disposable implements IC
 			const session = this._findSession(sessionResource, history);
 			const chatResource = session && this._getChatResource(sessionResource, session);
 			const chat = chatResource ? session?.chats.get(chatResource) : undefined;
-			if (!chat || (!chat.turns.length && !chat.activeTurn)) {
+			if (!this._hasChatHistory(chat)) {
 				this._logService.trace(`${LOG_PREFIX} Cached history has no content for the requested conversation; waiting for fresh history.`);
 				return;
 			}
@@ -79,7 +80,8 @@ export class CloudSandboxReadOnlySessionHandler extends Disposable implements IC
 		}), history => {
 			const session = this._findSession(sessionResource, history);
 			const chatResource = session && this._getChatResource(sessionResource, session);
-			return !!chatResource && !!session?.chats.has(chatResource);
+			const chat = chatResource ? session?.chats.get(chatResource) : undefined;
+			return !!chat && (!hasHistory || this._hasChatHistory(chat));
 		});
 		return this._createSession(sessionResource, replayed, hasHistory);
 	}
@@ -94,6 +96,10 @@ export class CloudSandboxReadOnlySessionHandler extends Disposable implements IC
 			: session.defaultChat);
 	}
 
+	private _hasChatHistory(chat: ChatState | undefined): boolean {
+		return !!chat && (chat.turns.length > 0 || !!chat.activeTurn);
+	}
+
 	private _createSession(sessionResource: URI, replayed: IReplayedTaskHistory | undefined, hasHistory = false): IChatSession {
 		// Resolve from the *requested* resource, not the handler's config: one handler serves a
 		// whole session type, and an environment can own several sessions.
@@ -101,7 +107,7 @@ export class CloudSandboxReadOnlySessionHandler extends Disposable implements IC
 		const session = this._findSession(sessionResource, replayed);
 		const chatResource = session && this._getChatResource(sessionResource, session);
 		const chat = chatResource ? session?.chats.get(chatResource) : undefined;
-		if (hasHistory && (!session || !chat || replayed?.truncated)) {
+		if (hasHistory && (!this._hasChatHistory(chat) || replayed?.truncated)) {
 			throw new Error(localize('cloudSandbox.incompleteHistoryRefresh', "The latest recorded conversation is unavailable or incomplete."));
 		}
 		if (!session) {
