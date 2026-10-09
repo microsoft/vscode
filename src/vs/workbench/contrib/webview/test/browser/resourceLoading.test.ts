@@ -4,26 +4,37 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { isWindows } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { FileService } from '../../../../../platform/files/common/fileService.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { UriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentityService.js';
-import { getResourceToLoad } from '../../browser/resourceLoading.js';
+import { TestFileService } from '../../../../test/common/workbenchTestServices.js';
+import { getResourceToLoad, loadLocalResource, WebviewResourceResponse } from '../../browser/resourceLoading.js';
 
 suite('Webview Resource Loading - getResourceToLoad', () => {
 	const disposableStore = ensureNoDisposablesAreLeakedInTestSuite();
 
+	let instantiationService: TestInstantiationService;
+	let fileService: TestFileService;
 	let uriIdentityService: IUriIdentityService;
 
 	setup(() => {
-		const instantiationService = disposableStore.add(new TestInstantiationService());
+		instantiationService = disposableStore.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, NullLogService);
-		const fileService = disposableStore.add(new FileService(instantiationService.get(ILogService)));
+		fileService = new TestFileService();
+		instantiationService.stub(IFileService, fileService);
 		uriIdentityService = instantiationService.stub(IUriIdentityService, disposableStore.add(new UriIdentityService(fileService)));
+	});
+
+	teardown(() => {
+		sinon.restore();
 	});
 
 	test('Returns resource when file is under root', () => {
@@ -108,6 +119,109 @@ suite('Webview Resource Loading - getResourceToLoad', () => {
 			const resource = URI.file('\\\\server2\\share\\folder\\file.txt');
 			const result = getResourceToLoad(resource, [root], uriIdentityService);
 			assert.strictEqual(result, undefined);
+		});
+	});
+
+	(!isWindows ? suite.skip : suite)('Windows path handling', () => {
+		const root = URI.from({ scheme: Schemas.file, path: '/c:/Users/alice/project' });
+
+		test('Denies parent segments ending in spaces from every reported input', () => {
+			const cases = [
+				{
+					source: 'encoded webview URL',
+					raw: 'https://file+.vscode-resource.vscode-cdn.net/c:/Users/alice/project/..%20/.ssh/id_rsa',
+					path: decodeURIComponent(new URL('https://file+.vscode-resource.vscode-cdn.net/c:/Users/alice/project/..%20/.ssh/id_rsa').pathname)
+				},
+				{
+					source: 'literal-space webview URL',
+					raw: 'https://file+.vscode-resource.vscode-cdn.net/c:/Users/alice/project/.. /.ssh/id_rsa',
+					path: decodeURIComponent(new URL('https://file+.vscode-resource.vscode-cdn.net/c:/Users/alice/project/.. /.ssh/id_rsa').pathname)
+				},
+				{
+					source: 'load-resource message',
+					raw: '/c:/Users/alice/project/.. /.ssh/id_rsa',
+					path: '/c:/Users/alice/project/.. /.ssh/id_rsa'
+				}
+			];
+
+			assert.deepStrictEqual(cases.map(testCase => {
+				const resource = URI.from({ scheme: Schemas.file, path: testCase.path });
+				return {
+					source: testCase.source,
+					raw: testCase.raw,
+					path: testCase.path,
+					resourceToLoad: getResourceToLoad(resource, [root], uriIdentityService)?.toString()
+				};
+			}), cases.map(testCase => ({
+				source: testCase.source,
+				raw: testCase.raw,
+				path: '/c:/Users/alice/project/.. /.ssh/id_rsa',
+				resourceToLoad: undefined
+			})));
+		});
+
+		test('Does not read a resource through a parent segment ending in a space', async () => {
+			const requestResource = URI.from({ scheme: Schemas.file, path: '/c:/Users/alice/project/.. /outside.txt' });
+			const readFileStream = sinon.spy(fileService, 'readFileStream');
+
+			const result = await instantiationService.invokeFunction(accessor => loadLocalResource(
+				accessor,
+				requestResource,
+				{ ifNoneMatch: undefined, roots: [root] },
+				CancellationToken.None
+			));
+
+			assert.deepStrictEqual({
+				responseType: result.type,
+				readResources: readFileStream.getCalls().map(call => call.args[0].toString())
+			}, {
+				responseType: WebviewResourceResponse.Type.AccessDenied,
+				readResources: []
+			});
+		});
+
+		test('Does not alias distinct roots ending in spaces or dots', () => {
+			const resource = URI.from({ scheme: Schemas.file, path: '/c:/Users/alice/project/inside.txt' });
+			const roots = [
+				URI.from({ scheme: Schemas.file, path: '/c:/Users/alice/project ' }),
+				URI.from({ scheme: Schemas.file, path: '/c:/Users/alice/project.' }),
+				URI.from({ scheme: Schemas.file, path: '/c:/Users/alice/project..' }),
+			];
+
+			assert.deepStrictEqual(
+				roots.map(root => getResourceToLoad(resource, [root], uriIdentityService)),
+				[undefined, undefined, undefined]
+			);
+		});
+
+		test('Reads distinct in-root resources ending in spaces or dots without rewriting them', async () => {
+			const requestResources = [
+				URI.from({ scheme: Schemas.file, path: '/c:/Users/alice/project/nested /inside.txt' }),
+				URI.from({ scheme: Schemas.file, path: '/c:/Users/alice/project/nested./inside.txt' }),
+				URI.from({ scheme: Schemas.file, path: '/c:/Users/alice/project/nested../inside.txt' }),
+			];
+			const readFileStream = sinon.spy(fileService, 'readFileStream');
+
+			const results = await Promise.all(requestResources.map(requestResource =>
+				instantiationService.invokeFunction(accessor => loadLocalResource(
+					accessor,
+					requestResource,
+					{ ifNoneMatch: undefined, roots: [root] },
+					CancellationToken.None
+				))
+			));
+
+			assert.deepStrictEqual({
+				responseTypes: results.map(result => result.type),
+				readResources: readFileStream.getCalls().map(call => call.args[0].toString())
+			}, {
+				responseTypes: [
+					WebviewResourceResponse.Type.Success,
+					WebviewResourceResponse.Type.Success,
+					WebviewResourceResponse.Type.Success,
+				],
+				readResources: requestResources.map(resource => resource.toString())
+			});
 		});
 	});
 
