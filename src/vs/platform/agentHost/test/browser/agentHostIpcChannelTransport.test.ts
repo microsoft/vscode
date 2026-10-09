@@ -96,7 +96,7 @@ suite('AgentHostIpcChannelTransport', () => {
 		const fileService = ds.add(new FileService(new NullLogService()));
 		ds.add(fileService.registerProvider('file', ds.add(new InMemoryFileSystemProvider())));
 		const logger = ds.add(new AhpJsonlLogger(
-			{ logsHome: URI.file('/logs'), connectionId: 'local-client', transport: 'local' },
+			{ logsHome: URI.file('/logs'), logId: 'local-client', connectionId: 'local-client', transport: 'local' },
 			fileService,
 			new NullLogService(),
 		));

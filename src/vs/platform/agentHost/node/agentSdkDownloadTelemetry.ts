@@ -81,7 +81,7 @@ type AgentSdkDownloadClassification = IAgentHostCopilotSkuClassification & {
 	packageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Which agent SDK was being fetched, e.g. claude or codex.' };
 	phase: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the download started, completed, or failed.' };
 	failureReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Coarse bucket for a failed download (cancelled, network, filesystem, extract, notConfigured, unsupportedTarget, unknown). Empty unless the phase is failed.' };
-	explicitlyRequested: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user explicitly requested this download through the setup UI, rather than it starting from an agent turn or standing consent.' };
+	explicitlyRequested: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the user explicitly requested this download through the setup UI, rather than it starting from an agent turn or standing consent.' };
 	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'How long the download had been running when it reached this phase.' };
 	receivedBytes: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Bytes fetched by the time this phase was reached.' };
 	totalBytes: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Total size the server advertised, or zero when it did not.' };

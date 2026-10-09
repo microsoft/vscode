@@ -79,6 +79,7 @@ export class AgentHostCustomizationService extends AbstractAgentHostCustomizatio
 			rootConfig: provider.getRootConfig(),
 			isBundledMcpServer: (pluginUri, serverName) => this._activeClientService.isBundledMcpServer(pluginUri, serverName),
 			authenticate: request => provider.authenticate(request),
+			handleMcpRequest: provider.handleMcpRequest ? (channel, method, params) => provider.handleMcpRequest!(channel, method, params) : undefined,
 			setCustomizationEnablement: (rawId, enablement: readonly CustomizationEnablement[]) => {
 				provider.setCustomizationEnablement(session.sessionId, rawId, enablement);
 			},
@@ -87,6 +88,9 @@ export class AgentHostCustomizationService extends AbstractAgentHostCustomizatio
 			},
 			stopMcpServer: rawId => {
 				return provider.getMcpServers(session.sessionId).find(server => this._serverIdMatchesRawId(server.id, rawId))?.stop() ?? Promise.resolve();
+			},
+			backgroundMcpServer: rawId => {
+				return provider.getMcpServers(session.sessionId).find(server => this._serverIdMatchesRawId(server.id, rawId))?.background?.() ?? Promise.resolve();
 			},
 			setRootConfigValue: (property, value) => {
 				void provider.setRootConfigValue(property, value);

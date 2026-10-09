@@ -727,9 +727,9 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 					});
 				}
 
-				async run(accessor: ServicesAccessor, chatOptions?: { prompt: string; attachedContext?: IChatRequestVariableEntry[] }): Promise<void> {
+				async run(accessor: ServicesAccessor, chatOptions?: { prompt: string; attachedContext?: IChatRequestVariableEntry[] }): Promise<URI | undefined> {
 					const { type, displayName } = contribution;
-					await openChatSession(accessor, { type, displayName, position: ChatSessionPosition.Editor }, chatOptions);
+					return openChatSession(accessor, { type, displayName, position: ChatSessionPosition.Editor }, chatOptions);
 				}
 			}),
 			// New chat in sidebar chat (+ button)
@@ -749,9 +749,9 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 					});
 				}
 
-				async run(accessor: ServicesAccessor, chatOptions?: { prompt: string; attachedContext?: IChatRequestVariableEntry[] }): Promise<void> {
+				async run(accessor: ServicesAccessor, chatOptions?: { prompt: string; attachedContext?: IChatRequestVariableEntry[] }): Promise<URI | undefined> {
 					const { type, displayName } = contribution;
-					await openChatSession(accessor, { type, displayName, position: ChatSessionPosition.Sidebar }, chatOptions);
+					return openChatSession(accessor, { type, displayName, position: ChatSessionPosition.Sidebar }, chatOptions);
 				}
 			})
 		);
@@ -1091,7 +1091,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		}));
 	}
 
-	public getChatSessionItems(providersToResolve: readonly string[] | undefined, token: CancellationToken): AsyncIterable<{ readonly chatSessionType: string; readonly items: readonly IChatSessionItem[] }> {
+	public getChatSessionItems(providersToResolve: readonly string[] | undefined, token: CancellationToken, onError?: (error: unknown) => void): AsyncIterable<{ readonly chatSessionType: string; readonly items: readonly IChatSessionItem[] }> {
 		return new AsyncIterableProducer(async writer => {
 			// First, make sure contributed controller are active
 			await raceCancellationError(this.tryActivateControllers(providersToResolve), token);
@@ -1123,12 +1123,13 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 						// Log error but continue with other providers
 						this._logService.error(`[ChatSessionsService] Failed to resolve sessions for provider ${resolvedType}`, err);
 					}
+					onError?.(err);
 				}
 			}));
 		});
 	}
 
-	public async refreshChatSessionItems(providersToResolve: readonly string[] | undefined, token: CancellationToken): Promise<void> {
+	public async refreshChatSessionItems(providersToResolve: readonly string[] | undefined, token: CancellationToken, onError?: (error: unknown) => void): Promise<void> {
 		await this.tryActivateControllers(providersToResolve);
 
 		await Promise.all(Array.from(this._itemControllers).map(async ([chatSessionType, controllerEntry]) => {
@@ -1144,6 +1145,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 					// Log error but continue with other providers
 					this._logService.error(`[ChatSessionsService] Failed to resolve sessions for provider ${resolvedType}`, err);
 				}
+				onError?.(err);
 			}
 		}));
 	}
@@ -1736,6 +1738,8 @@ export type NewChatSessionOpenOptions = {
 	readonly type: string;
 	readonly position: ChatSessionPosition;
 	readonly displayName: string;
+	/** Open a prepared session instead of allocating a new draft. */
+	readonly sessionResource?: URI;
 	/**
 	 * When set, the editor showing this (source) session resource is replaced
 	 * in place with the newly opened session. The source resource is resolved
@@ -1745,7 +1749,7 @@ export type NewChatSessionOpenOptions = {
 	readonly replaceEditorForResource?: URI;
 };
 
-export async function openChatSession(accessor: ServicesAccessor, openOptions: NewChatSessionOpenOptions, chatSendOptions?: NewChatSessionSendOptions): Promise<void> {
+export async function openChatSession(accessor: ServicesAccessor, openOptions: NewChatSessionOpenOptions, chatSendOptions?: NewChatSessionSendOptions): Promise<URI | undefined> {
 	const viewsService = accessor.get(IViewsService);
 	const chatService = accessor.get(IChatService);
 	const chatSessionService = accessor.get(IChatSessionsService);
@@ -1758,7 +1762,8 @@ export async function openChatSession(accessor: ServicesAccessor, openOptions: N
 	const progressService = accessor.get(IProgressService);
 
 	// Determine resource to open
-	const sessionResource = getResourceForNewChatSession(openOptions);
+	const sessionResource = openOptions.sessionResource ?? getResourceForNewChatSession(openOptions);
+	let openedSessionResource = sessionResource;
 
 	// Stash any imported ("Continue in…") conversation before the session is
 	// opened: opening can eagerly pre-create the backend session (via the chat
@@ -1833,10 +1838,10 @@ export async function openChatSession(accessor: ServicesAccessor, openOptions: N
 			default: assertNever(openOptions.position, `Unknown chat session position: ${openOptions.position}`);
 		}
 	} catch (e) {
-		logService.error(`Failed to open '${openOptions.type}' chat session with openOptions: ${JSON.stringify(openOptions)}`, e);
+		logService.error(`Failed to open '${openOptions.type}' chat session`, e);
 		sessionsListSuppression?.dispose();
 		transitionProgress?.complete();
-		return;
+		return undefined;
 	}
 
 	// Send initial prompt if provided
@@ -1856,6 +1861,7 @@ export async function openChatSession(accessor: ServicesAccessor, openOptions: N
 			const result = await chatService.sendRequest(sessionResource, chatSendOptions.prompt, { agentIdSilent: openOptions.type, attachedContext });
 			const newSessionResource = result.kind === 'sent' || result.kind === 'rejected' ? result.newSessionResource : undefined;
 			if (newSessionResource && !resources.isEqual(newSessionResource, sessionResource)) {
+				openedSessionResource = newSessionResource;
 				switch (openOptions.position) {
 					case ChatSessionPosition.Sidebar: {
 						const view = await viewsService.openView(ChatViewId) as ChatViewPane;
@@ -1885,6 +1891,7 @@ export async function openChatSession(accessor: ServicesAccessor, openOptions: N
 	// working indicator.
 	sessionsListSuppression?.dispose();
 	transitionProgress?.complete();
+	return openedSessionResource;
 }
 
 /**

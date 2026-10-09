@@ -4,17 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../../base/common/uri.js';
-import { raceCancellation, raceTimeout } from '../../../../../../base/common/async.js';
+import { raceCancellation } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { StringSHA1 } from '../../../../../../base/common/hash.js';
 import { Disposable, DisposableResourceMap, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
+import { Schemas } from '../../../../../../base/common/network.js';
 import { AgentHostMcpServers, AgentHostMcpServersConfigKey } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { getEffectiveAgents } from '../../../../../../platform/agentHost/common/customAgents.js';
+import { readMcpServerControllingSetting, readMcpServerDisplayName, readMcpServerSource, readMcpServerSourcePlugin } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
 import { getCustomizationDisabledReason, isCustomizationEnabled, withCustomizationEnablement } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
 import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
@@ -30,10 +32,19 @@ import { isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostActiveClientService } from './agentHostActiveClientService.js';
 import { IAgentHostMcpServer } from '../../../../../../sessions/common/agentHostSessionsProvider.js';
-import { resolveMcpServerAuthentication, agentHostMcpServerId } from './agentHostAuth.js';
+import { resolveMcpServerAuthentication, agentHostMcpServerId, autoAuthenticateMcpServer } from './agentHostAuth.js';
 import { IOutputService } from '../../../../../services/output/common/output.js';
+import { IMcpService } from '../../../../../contrib/mcp/common/mcpTypes.js';
+import { MCP } from '../../../../mcp/common/modelContextProtocol.js';
+import { ContributionEnablementState } from '../../../common/enablement.js';
 
 export const IAgentHostCustomizationService = createDecorator<IAgentHostCustomizationService>('agentHostCustomizationService');
+
+export function getMcpServerDisplayLabel(server: Pick<IAgentHostMcpServer, 'name' | 'displayName'>): string {
+	return server.displayName
+		? localize('agentHost.mcpServer.connectorDisplayName', "{0} (Connector)", server.displayName)
+		: server.name;
+}
 
 export interface IAgentHostCustomizationService {
 	readonly _serviceBrand: undefined;
@@ -45,11 +56,11 @@ export interface IAgentHostCustomizationService {
 	getCustomizations(sessionResource: URI): readonly Customization[];
 
 	/**
-	 * Waits up to two seconds for {@link getCustomizations} to reflect the session's first state snapshot; it may resolve earlier on cancellation, failure, or when no agent-host session exists.
-	 * The wait is shared per session, so repeated calls observe one deadline rather than restarting it, and resolve immediately once it has elapsed.
-	 * Intended for one-shot reads; reactive callers should continue listening to {@link onDidChangeCustomizations}.
+	 * Waits for {@link getCustomizations} to reflect the session's first state snapshot, or until the caller cancels or the subscription fails.
+	 * The readiness wait is shared per session; callers choose their own cancellation or timeout policy.
+	 * Returns whether a session-state snapshot is available.
 	 */
-	whenCustomizationsReady(sessionResource: URI, token?: CancellationToken): Promise<void>;
+	whenCustomizationsReady(sessionResource: URI, token?: CancellationToken): Promise<boolean>;
 
 	/**
 	 * The harness-owned decision about the multi-root Folder picker for a
@@ -59,10 +70,10 @@ export interface IAgentHostCustomizationService {
 	 */
 	getFolderPickerDecision(sessionResource: URI): ISessionFolderPickerDecision | undefined;
 
-	/** The primary working-directory URI string in the agent host's URI space. */
+	/** The primary session root as exposed by the owning connection, including editor remote transport mapping. */
 	getWorkingDirectory(sessionResource: URI): string | undefined;
 
-	/** The ordered roots in the Agent Host's URI space, for protocol values and host-side comparisons. */
+	/** Ordered session roots for protocol values and comparisons, including editor remote transport mapping. */
 	getWorkingDirectories(sessionResource: URI): readonly string[];
 
 	/** The ordered roots in the client's URI space for filesystem access. */
@@ -117,8 +128,8 @@ export class NullAgentHostCustomizationService implements IAgentHostCustomizatio
 	getCustomizations(_sessionResource: URI): readonly Customization[] {
 		return [];
 	}
-	whenCustomizationsReady(_sessionResource: URI, _token?: CancellationToken): Promise<void> {
-		return Promise.resolve();
+	whenCustomizationsReady(_sessionResource: URI, _token?: CancellationToken): Promise<boolean> {
+		return Promise.resolve(true);
 	}
 	getFolderPickerDecision(_sessionResource: URI): ISessionFolderPickerDecision | undefined {
 		return undefined;
@@ -154,15 +165,28 @@ export interface IAgentHostCustomizationTarget {
 	readonly resourceUris: IAgentHostResourceUriMapper;
 	readonly folderPickerDecision?: ISessionFolderPickerDecision;
 	readonly workingDirectory?: string;
-	/** Host-side URI strings, also used in protocol enablement decisions. */
+	/** Session URI strings as exposed by the owning connection, also used in protocol enablement decisions. */
 	readonly workingDirectories?: readonly string[];
+	/** Client-space roots, including provisional roots and transport-mapped session snapshots. */
+	readonly clientWorkingDirectories?: readonly URI[];
 	readonly rootConfig?: RootConfigState;
 	isBundledMcpServer(pluginUri: string, serverName: string): boolean;
 	authenticate(request: { resource: string; scopes?: readonly string[]; token: string }): Promise<unknown>;
+	handleMcpRequest?(channel: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown>;
 	setCustomizationEnablement(rawId: string, enablement: readonly CustomizationEnablement[]): void;
 	startMcpServer(rawId: string): Promise<void>;
 	stopMcpServer(rawId: string): Promise<void>;
+	backgroundMcpServer(rawId: string): Promise<void>;
 	setRootConfigValue(property: string, value: unknown): void;
+}
+
+interface IMcpAutoAuthenticationAttempt {
+	readonly sessionResource: URI;
+	readonly serverId: string;
+	readonly challenge: string;
+	tokenForwarded: boolean | undefined;
+	restarted: boolean;
+	rejected: boolean;
 }
 
 export abstract class AbstractAgentHostCustomizationService extends Disposable implements IAgentHostCustomizationService {
@@ -181,6 +205,7 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 	 * so subsequent failures and recoveries land in the channel history.
 	 */
 	private readonly _mcpDiagnosticSessions = new ResourceSet();
+	private readonly _mcpAutoAuthentication = new Map<string, IMcpAutoAuthenticationAttempt>();
 
 	protected constructor(
 		protected readonly _instantiationService: IInstantiationService,
@@ -205,8 +230,8 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 	 * Targets resolved by this base are backed by already-materialized provider
 	 * state, so a snapshot is available as soon as the target resolves.
 	 */
-	whenCustomizationsReady(_sessionResource: URI, _token?: CancellationToken): Promise<void> {
-		return Promise.resolve();
+	whenCustomizationsReady(_sessionResource: URI, _token?: CancellationToken): Promise<boolean> {
+		return Promise.resolve(false);
 	}
 
 	getFolderPickerDecision(sessionResource: URI): ISessionFolderPickerDecision | undefined {
@@ -226,6 +251,9 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 		if (!target) {
 			return [];
 		}
+		if (target.clientWorkingDirectories !== undefined) {
+			return target.clientWorkingDirectories;
+		}
 		return target.workingDirectories?.map(root => target.resourceUris.fromAgentHost(URI.parse(root))) ?? [];
 	}
 
@@ -235,18 +263,27 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 			return [];
 		}
 		return getPresentableMcpServerCustomizations(target.customizations)
-			.map(({ server, plugin }): IAgentHostMcpServer => {
+			.map(({ server, plugin, isTopLevel }): IAgentHostMcpServer => {
 				const source = URI.parse(server.uri);
+				const channel = server.channel;
+				const handleMcpRequest = target.handleMcpRequest;
 				return {
 					id: this._scopedMcpServerId(sessionResource, server.id),
 					name: server.name,
+					displayName: readMcpServerDisplayName(server),
+					source: readMcpServerSource(server),
+					sourcePluginName: readMcpServerSourcePlugin(server),
+					hostConfiguration: isTopLevel ? getHostMcpServerConfiguration(target.rootConfig, server.name) : undefined,
+					controllingSettingId: readMcpServerControllingSetting(server),
 					enabled: isCustomizationEnabled(server) && (!plugin || isCustomizationEnabled(plugin)),
 					enablement: server.enablement,
 					isPluginProvided: plugin !== undefined,
+					pluginId: plugin?.id,
 					isClientBundled: plugin !== undefined && target.isBundledMcpServer(plugin.uri, server.name),
 					owningPluginClientId: plugin?.clientId,
 					disabledReason: getCustomizationDisabledReason(server, plugin),
 					status: server.state.kind,
+					authenticating: this._isAutoAuthenticatingMcpServer(sessionResource, target, server),
 					state: server.state,
 					sourceUri: source.scheme === 'mcp-top-level' ? undefined : target.resourceUris.fromAgentHost(source),
 					sourceRange: server.range,
@@ -254,8 +291,86 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 					setEnabled: (enabled: boolean) => target.setCustomizationEnablement(server.id, withCustomizationEnablement(server.enablement, CustomizationEnablementKind.Session, { kind: CustomizationEnablementKind.Session, enabled })),
 					start: () => target.startMcpServer(server.id),
 					stop: () => target.stopMcpServer(server.id),
+					...(server.state.kind === McpServerStatus.Starting && server.state.blocking ? { background: () => target.backgroundMcpServer(server.id) } : {}),
+					...(channel && handleMcpRequest ? { listTools: () => listMcpServerTools(handleMcpRequest, channel) } : {}),
 				};
 			});
+	}
+
+	private _isAutoAuthenticatingMcpServer(sessionResource: URI, target: IAgentHostCustomizationTarget, server: McpServerCustomization): boolean {
+		const key = `${sessionResource.toString()}\n${server.id}`;
+		const state = server.state;
+		let entry = this._mcpAutoAuthentication.get(key);
+		if (entry) {
+			this._updateMcpAutoAuthenticationAttempt(key, entry, state);
+			entry = this._mcpAutoAuthentication.get(key);
+		}
+		if (state.kind !== McpServerStatus.AuthRequired) {
+			return false;
+		}
+		const challenge = this._mcpAuthenticationChallenge(state);
+		if (!entry || entry.challenge !== challenge) {
+			entry = { sessionResource, serverId: server.id, challenge, tokenForwarded: undefined, restarted: false, rejected: false };
+			this._mcpAutoAuthentication.set(key, entry);
+			const currentEntry = entry;
+			this._instantiationService.invokeFunction(autoAuthenticateMcpServer, {
+				authenticate: request => target.authenticate(request) as ReturnType<IAgentConnection['authenticate']>,
+			}, { scheme: sessionResource.scheme, authority: sessionResource.authority }, server.name, state).catch(err => {
+				this._logService.warn(`[AgentHost] Failed to silently authenticate MCP server '${server.name}'`, err);
+				return false;
+			}).then(result => {
+				if (!this._store.isDisposed && this._mcpAutoAuthentication.get(key) === currentEntry) {
+					currentEntry.tokenForwarded = result;
+					this._fireCustomizationsChanged();
+				}
+			});
+		}
+		return !entry.rejected && entry.tokenForwarded !== false;
+	}
+
+	private _reconcileMcpAutoAuthenticationAttempts(): void {
+		for (const [key, entry] of this._mcpAutoAuthentication) {
+			const target = this._resolveTarget(entry.sessionResource);
+			if (!target) {
+				continue;
+			}
+			const server = this._findMcpServer(target.customizations, entry.serverId);
+			if (server) {
+				this._updateMcpAutoAuthenticationAttempt(key, entry, server.state);
+			} else {
+				this._mcpAutoAuthentication.delete(key);
+			}
+		}
+	}
+
+	private _updateMcpAutoAuthenticationAttempt(key: string, entry: IMcpAutoAuthenticationAttempt, state: McpServerState): void {
+		if (state.kind === McpServerStatus.AuthRequired) {
+			if (!entry.restarted) {
+				return;
+			}
+			if (entry.challenge === this._mcpAuthenticationChallenge(state)) {
+				entry.rejected = true;
+			} else {
+				this._mcpAutoAuthentication.delete(key);
+			}
+		} else if (state.kind === McpServerStatus.Starting && entry.tokenForwarded !== false) {
+			entry.restarted = true;
+		} else {
+			this._mcpAutoAuthentication.delete(key);
+		}
+	}
+
+	private _mcpAuthenticationChallenge(state: Extract<McpServerState, { kind: McpServerStatus.AuthRequired }>): string {
+		return JSON.stringify([
+			state.reason,
+			state.resource.resource,
+			state.resource.resource_name,
+			[...(state.resource.authorization_servers ?? [])].sort(),
+			[...(state.resource.scopes_supported ?? [])].sort(),
+			[...(state.requiredScopes ?? [])].sort(),
+			state.oauthClient?.clientId,
+			state.oauthClient?.clientSecret,
+		]);
 	}
 
 	showMcpServerLog(sessionResource: URI, serverId: string, beforeShow?: () => Promise<void>): Promise<void> {
@@ -303,6 +418,13 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 	protected _disposeMcpDiagnostics(sessionResource: URI): void {
 		this._mcpDiagnosticSessions.delete(sessionResource);
 		this._mcpLogRegistry.disposeForSession(sessionResource);
+		// Also drop the session's auth attempts.
+		const prefix = `${sessionResource.toString()}\n`;
+		for (const key of this._mcpAutoAuthentication.keys()) {
+			if (key.startsWith(prefix)) {
+				this._mcpAutoAuthentication.delete(key);
+			}
+		}
 	}
 
 	addMcpServer(sessionResource: URI, name: string, config: IMcpServerConfiguration): void {
@@ -329,13 +451,14 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 		if (!server || server.state.kind !== McpServerStatus.AuthRequired) {
 			return false;
 		}
-		const scopedServerId = agentHostMcpServerId(sessionResource.authority, server.name, server.state.resource.resource);
+		const displayName = readMcpServerDisplayName(server);
 		try {
+			await target.startMcpServer(server.id);
 			return await this._instantiationService.invokeFunction(resolveMcpServerAuthentication, server.state.resource, {
 				allowInteraction: true,
 				logPrefix: '[AgentHost]',
-				mcpServerId: scopedServerId,
-				mcpServerName: server.name,
+				mcpServerId: agentHostMcpServerId(sessionResource.authority, server.name, server.state.resource.resource),
+				mcpServerName: getMcpServerDisplayLabel({ name: server.name, displayName }),
 				mcpServerUrl: server.state.resource.resource,
 				oauthClient: server.state.oauthClient,
 				scopes: server.state.requiredScopes ?? [],
@@ -379,6 +502,7 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 	}
 
 	protected _fireCustomizationsChanged(): void {
+		this._reconcileMcpAutoAuthenticationAttempts();
 		this._onDidChangeCustomizations.fire();
 	}
 
@@ -412,6 +536,17 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 		const separator = serverId.indexOf('/');
 		return separator >= 0 && serverId.slice(separator + 1) === rawId;
 	}
+}
+
+async function listMcpServerTools(handleMcpRequest: NonNullable<IAgentHostCustomizationTarget['handleMcpRequest']>, channel: string): Promise<readonly MCP.Tool[]> {
+	const tools: MCP.Tool[] = [];
+	let cursor: string | undefined;
+	do {
+		const result = await handleMcpRequest(channel, 'tools/list', cursor ? { cursor } : {}) as MCP.ListToolsResult;
+		tools.push(...result.tools);
+		cursor = result.nextCursor;
+	} while (cursor);
+	return tools;
 }
 
 /** One MCP server customization, with the position it was published at. */
@@ -467,10 +602,21 @@ export function getPresentableMcpServerCustomizations(customizations: readonly C
 }
 
 /**
- * Upper bound on how long {@link WorkbenchAgentHostCustomizationService.whenCustomizationsReady}
- * waits for a session's first state snapshot.
+ * Reads the definition the agent host's own MCP server configuration holds for `serverName`. Such
+ * servers have no configuration file, so the runtime reports no source for them.
  */
-const SESSION_STATE_SNAPSHOT_TIMEOUT_MS = 2000;
+function getHostMcpServerConfiguration(rootConfig: RootConfigState | undefined, serverName: string): IMcpServerConfiguration | undefined {
+	const servers = rootConfig?.values[AgentHostMcpServersConfigKey];
+	if (!servers || typeof servers !== 'object' || Array.isArray(servers) || !Object.hasOwn(servers, serverName)) {
+		return undefined;
+	}
+	const configuration: unknown = (servers as Record<string, unknown>)[serverName];
+	return configuration && typeof configuration === 'object' && !Array.isArray(configuration) ? configuration as IMcpServerConfiguration : undefined;
+}
+
+function hasSessionSnapshot(subscription: IAgentSubscription<SessionState>): boolean {
+	return subscription.value !== undefined && !(subscription.value instanceof Error);
+}
 
 /**
  * A live session-state subscription plus the memoized readiness wait shared by
@@ -488,9 +634,6 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 
 	private readonly _sessionStateSubscriptions = this._register(new DisposableResourceMap<ISessionStateSubscriptionEntry>());
 
-	/** Overridable so tests can exercise the timeout without real-time waits. */
-	protected readonly _snapshotTimeoutMs: number = SESSION_STATE_SNAPSHOT_TIMEOUT_MS;
-
 	constructor(
 		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
 		@IAgentHostUntitledProvisionalSessionService private readonly _provisionalSessionService: IAgentHostUntitledProvisionalSessionService,
@@ -498,6 +641,7 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 		@ILogService logService: ILogService,
 		@IChatService private readonly _chatService: IChatService,
 		@IAgentHostActiveClientService private readonly _activeClientService: IAgentHostActiveClientService,
+		@IMcpService private readonly _mcpService: IMcpService,
 	) {
 		super(instantiationService, logService);
 
@@ -506,6 +650,13 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 				case ActionType.SessionCustomizationsChanged:
 				case ActionType.SessionCustomizationUpdated:
 				case ActionType.SessionMcpServerStateChanged:
+					this._fireCustomizationsChanged();
+					this._fireCustomAgentsChanged();
+					break;
+				case ActionType.SessionCustomizationToggled:
+					if (!envelope.rejectionReason) {
+						this._syncClientMcpEnablement(envelope.channel, envelope.action.id, envelope.action.enablement);
+					}
 					this._fireCustomizationsChanged();
 					this._fireCustomAgentsChanged();
 					break;
@@ -531,6 +682,35 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 		}));
 	}
 
+	private _syncClientMcpEnablement(channel: string, customizationId: string, enablement: readonly CustomizationEnablement[]): void {
+		const global = enablement.find(entry => entry.kind === CustomizationEnablementKind.Global);
+		if (!global) {
+			return;
+		}
+		const subscription = [...this._sessionStateSubscriptions.values()]
+			.find(entry => entry.backendSession.toString() === channel)?.sub;
+		const value = subscription?.value;
+		const state = value && !(value instanceof Error) ? value : subscription?.verifiedValue;
+		const entry = flattenMcpServerCustomizations(state?.customizations ?? [])
+			.find(candidate => candidate.server.id === customizationId);
+		if (!entry || (entry.plugin && !this._activeClientService.isBundledMcpServer(entry.plugin.uri, entry.server.name))) {
+			return;
+		}
+		const localServers = this._mcpService.servers.get()
+			.filter(server => server.definition.id === entry.server.name || server.definition.label === entry.server.name);
+		if (localServers.length === 0) {
+			return;
+		}
+		if (localServers.length > 1) {
+			this._logService.warn(`[AgentHostCustomizationService] Cannot synchronize global enablement for '${entry.server.name}' because multiple local MCP servers match.`);
+			return;
+		}
+		this._mcpService.enablementModel.setEnabled(
+			localServers[0].definition.id,
+			global.enabled ? ContributionEnablementState.EnabledProfile : ContributionEnablementState.DisabledProfile,
+		);
+	}
+
 	protected override _resolveTarget(sessionResource: URI): IAgentHostCustomizationTarget | undefined {
 		const target = this._resolveSessionTarget(sessionResource);
 		if (!target) {
@@ -539,9 +719,13 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 		const subscription = this._ensureSessionStateSubscription(sessionResource, target)?.sub;
 		const subscriptionValue = subscription?.value;
 		const sessionState = subscriptionValue && !(subscriptionValue instanceof Error) ? subscriptionValue : subscription?.verifiedValue;
-		const workingDirectories = sessionState
-			? sessionState.workingDirectories ?? []
-			: this._provisionalSessionService.getProvisionalWorkingDirectories(sessionResource)?.map(root => root.toString()) ?? [];
+		const provisionalWorkingDirectories = sessionState ? undefined : this._provisionalSessionService.getProvisionalWorkingDirectories(sessionResource);
+		const workingDirectories = sessionState?.workingDirectories ?? provisionalWorkingDirectories?.map(root => root.toString()) ?? [];
+		const clientWorkingDirectories = provisionalWorkingDirectories ?? workingDirectories.map(directory => {
+			const root = URI.parse(directory);
+			// Editor remote transports already map snapshot roots into the workspace's URI space.
+			return root.scheme === Schemas.vscodeRemote ? root : target.connection.resourceUris.fromAgentHost(root);
+		});
 		const rootState = target.connection.rootState.value;
 		const channel = target.backendSession.toString();
 		return {
@@ -550,9 +734,11 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 			folderPickerDecision: readSessionFolderPickerDecision(sessionState?._meta),
 			workingDirectory: workingDirectories[0],
 			workingDirectories,
+			clientWorkingDirectories,
 			rootConfig: rootState && !(rootState instanceof Error) ? rootState.config : undefined,
 			isBundledMcpServer: (pluginUri, serverName) => this._activeClientService.isBundledMcpServer(pluginUri, serverName),
 			authenticate: request => target.connection.authenticate(request),
+			handleMcpRequest: (channel, method, params) => target.connection.handleMcpRequest(channel, method, params),
 			setCustomizationEnablement: (rawId, enablement) => {
 				target.connection.dispatch(channel, {
 					type: ActionType.SessionCustomizationToggled,
@@ -574,6 +760,13 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 				});
 				return Promise.resolve();
 			},
+			backgroundMcpServer: rawId => {
+				target.connection.dispatch(channel, {
+					type: ActionType.SessionMcpServerBackgroundRequested,
+					id: rawId,
+				});
+				return Promise.resolve();
+			},
 			setRootConfigValue: (property, value) => {
 				target.connection.dispatch(ROOT_STATE_URI, {
 					type: ActionType.RootConfigChanged,
@@ -587,28 +780,24 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 	 * Session state arrives asynchronously over the protocol, so a freshly
 	 * created subscription reports `undefined` until its first snapshot lands.
 	 *
-	 * The wait is memoized per subscription so that the many source-folder
-	 * queries behind a single migration hint observe one shared deadline rather
-	 * than restarting it per prompt type. It is bounded because the chat request
-	 * path blocks on this before sending the user's message: once it elapses,
-	 * callers fall back to the current (possibly empty) snapshot rather than
-	 * stalling the send again on every subsequent query.
+	 * The wait is memoized per subscription so that callers can apply their own
+	 * cancellation or timeout policy without affecting other consumers.
 	 */
-	override async whenCustomizationsReady(sessionResource: URI, token: CancellationToken = CancellationToken.None): Promise<void> {
+	override async whenCustomizationsReady(sessionResource: URI, token: CancellationToken = CancellationToken.None): Promise<boolean> {
 		const target = this._resolveSessionTarget(sessionResource);
 		if (!target) {
-			return;
+			return false;
 		}
 		const entry = this._ensureSessionStateSubscription(sessionResource, target);
-		// An `Error` value counts as resolved: the subscription settled, just not with a snapshot.
 		if (!entry || entry.sub.value !== undefined) {
-			return;
+			return !!entry && hasSessionSnapshot(entry.sub);
 		}
 
 		// Each caller races the shared wait against its own token, so one
 		// cancellation cannot settle the wait for the others.
 		entry.readiness ??= this._awaitFirstSnapshot(entry.sub);
 		await raceCancellation(entry.readiness, token);
+		return hasSessionSnapshot(entry.sub);
 	}
 
 	private async _awaitFirstSnapshot(subscription: IAgentSubscription<SessionState>): Promise<void> {
@@ -621,7 +810,7 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 					store.add(onDidError(() => resolve()));
 				}
 			});
-			await raceTimeout(firstSnapshot, this._snapshotTimeoutMs);
+			await firstSnapshot;
 		} finally {
 			store.dispose();
 		}

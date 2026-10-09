@@ -16,6 +16,7 @@
 .chat-group-view {
 	position: relative;
 	overflow: hidden;
+	contain: paint;
 	background-color: var(--session-view-background);
 	color: var(--session-view-foreground);
 }
@@ -36,6 +37,14 @@
 .agent-sessions-workbench .part.sessionspart .chat-groups-view:not(.single-group) .interactive-session > .chat-suggest-next-widget,
 .agent-sessions-workbench .part.sessionspart .chat-groups-view:not(.single-group) .interactive-session .interactive-input-part,
 .agent-sessions-workbench .part.sessionspart .chat-groups-view:not(.single-group) .chat-view > .monaco-progress-container {
+	max-width: none;
+}
+
+.agent-sessions-workbench .part.sessionspart .chat-groups-view:not(.single-group) .interactive-session .chat-scroll-down {
+	right: var(--session-view-content-horizontal-padding, var(--vscode-spacing-size240));
+}
+
+.agent-sessions-workbench .part.sessionspart .chat-groups-view:not(.single-group) .interactive-session > .interactive-list > .chat-transcript-context {
 	max-width: none;
 }
 

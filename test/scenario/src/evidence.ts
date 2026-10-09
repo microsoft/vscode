@@ -86,7 +86,7 @@ export class EvidenceService {
 
 	constructor(private readonly appService: ApplicationService) { }
 
-	async start(scenarioId: string, title: string, source?: string, scenarioPath?: string, workspacePath?: string, userSettings?: Record<string, JSONValue>, extraArgs?: string[]): Promise<string> {
+	async start(scenarioId: string, title: string, source?: string, scenarioPath?: string, workspacePath?: string, userSettings?: Record<string, JSONValue>, extraArgs?: string[], extraEnv?: Readonly<Record<string, string | undefined>>): Promise<string> {
 		if (this.currentRun) {
 			throw new Error(`Evidence run '${this.currentRun.id}' is already active.`);
 		}
@@ -136,7 +136,7 @@ export class EvidenceService {
 		this.currentRun = run;
 		let app: Awaited<ReturnType<ApplicationService['getOrCreateApplication']>>;
 		try {
-			app = await this.appService.getOrCreateApplication({ recordVideo: true, workspacePath, userSettings, extraArgs });
+			app = await this.appService.getOrCreateApplication({ recordVideo: true, workspacePath, userSettings, extraArgs, extraEnv });
 		} catch (error) {
 			if (this.currentRun === run) {
 				this.currentRun = undefined;

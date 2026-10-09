@@ -21,9 +21,10 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 import { ILogService } from '../../log/common/log.js';
 import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
 import { IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile.js';
-import { DidUninstallMcpServerEvent, IGalleryMcpServer, ILocalMcpServer, IMcpGalleryService, IMcpManagementService, IMcpServerInput, IGalleryMcpServerConfiguration, InstallMcpServerEvent, InstallMcpServerResult, RegistryType, UninstallMcpServerEvent, InstallOptions, UninstallOptions, IInstallableMcpServer, IAllowedMcpServersService, IMcpServerArgument, IMcpServerKeyValueInput, McpServerConfigurationParseResult } from './mcpManagement.js';
+import { DidUninstallMcpServerEvent, IGalleryMcpServer, ILocalMcpServer, IMcpGalleryService, IMcpManagementService, IMcpServerInput, IGalleryMcpServerConfiguration, InstallMcpServerEvent, InstallMcpServerResult, RegistryType, UninstallMcpServerEvent, InstallOptions, UninstallOptions, IInstallableMcpServer, IAllowedMcpServersService, IMcpServerArgument, IMcpServerKeyValueInput, McpServerConfigurationParseResult, replaceMcpServerVariableReferences } from './mcpManagement.js';
 import { IMcpSandboxConfiguration, IMcpServerVariable, McpServerVariableType, IMcpServerConfiguration, McpServerType } from './mcpPlatformTypes.js';
 import { IMcpResourceScannerService, McpResourceTarget } from './mcpResourceScannerService.js';
+import { getWorkspaceRootMcpConfigurationError, McpResourceFormat } from './mcpWorkspaceConfiguration.js';
 
 export interface ILocalMcpServerInfo {
 	name: string;
@@ -73,19 +74,23 @@ export abstract class AbstractCommonMcpManagementService extends Disposable impl
 
 		// remote
 		if (packageType === RegistryType.REMOTE && manifest.remotes?.length) {
-			const url = manifest.remotes[0].url;
-			const headers = manifest.remotes[0].headers ?? [];
-			const { inputs, variables } = this.processKeyValueInputs(url.startsWith('https://api.githubcopilot.com/mcp') ? headers.filter(h => h.name.toLowerCase() !== 'authorization') : headers);
+			const remote = manifest.remotes[0];
+			const urlVariables = remote.variables ? this.getVariables(remote.variables) : [];
+			const url = replaceMcpServerVariableReferences(remote.url, remote.variables);
+			const headers = remote.headers ?? [];
+			const processedHeaders = this.processKeyValueInputs(url.startsWith('https://api.githubcopilot.com/mcp') ? headers.filter(h => h.name.toLowerCase() !== 'authorization') : headers);
+			const variables = [...urlVariables];
+			this.appendVariables(variables, processedHeaders.variables);
 			return {
 				mcpServerConfiguration: {
 					config: {
 						type: McpServerType.REMOTE,
-						url: manifest.remotes[0].url,
-						headers: Object.keys(inputs).length ? inputs : undefined,
+						url,
+						headers: Object.keys(processedHeaders.inputs).length ? processedHeaders.inputs : undefined,
 					},
 					inputs: variables.length ? variables : undefined,
 				},
-				notices: [],
+				notices: processedHeaders.notices,
 			};
 		}
 
@@ -193,6 +198,9 @@ export abstract class AbstractCommonMcpManagementService extends Disposable impl
 	protected getVariables(variableInputs: Record<string, IMcpServerInput>): IMcpServerVariable[] {
 		const variables: IMcpServerVariable[] = [];
 		for (const [key, value] of Object.entries(variableInputs)) {
+			if (value.value !== undefined) {
+				continue;
+			}
 			variables.push({
 				id: key,
 				type: value.choices ? McpServerVariableType.PICK : McpServerVariableType.PROMPT,
@@ -205,21 +213,29 @@ export abstract class AbstractCommonMcpManagementService extends Disposable impl
 		return variables;
 	}
 
+	private appendVariables(variables: IMcpServerVariable[], candidates: readonly IMcpServerVariable[]): void {
+		for (const candidate of candidates) {
+			const existing = variables.find(variable => variable.id === candidate.id);
+			if (!existing) {
+				variables.push(candidate);
+			} else if (!equals(existing, candidate)) {
+				throw new Error(localize('mcpVariableConflict', "Variable '{0}' has conflicting definitions.", candidate.id));
+			}
+		}
+	}
+
 	private processKeyValueInputs(keyValueInputs: ReadonlyArray<IMcpServerKeyValueInput>): { inputs: Record<string, string>; variables: IMcpServerVariable[]; notices: string[] } {
 		const notices: string[] = [];
 		const inputs: Record<string, string> = {};
 		const variables: IMcpServerVariable[] = [];
 
 		for (const input of keyValueInputs) {
-			const inputVariables = input.variables ? this.getVariables(input.variables) : [];
 			let value = input.value || '';
 
 			// If explicit variables exist, use them regardless of value
-			if (inputVariables.length) {
-				for (const variable of inputVariables) {
-					value = value.replace(`{${variable.id}}`, `\${input:${variable.id}}`);
-				}
-				variables.push(...inputVariables);
+			if (input.variables && Object.keys(input.variables).length) {
+				value = replaceMcpServerVariableReferences(value, input.variables);
+				variables.push(...this.getVariables(input.variables));
 			} else if (!value && (input.description || input.choices || input.default !== undefined)) {
 				// Only create auto-generated input variable if no explicit variables and no value
 				variables.push({
@@ -249,9 +265,7 @@ export abstract class AbstractCommonMcpManagementService extends Disposable impl
 			if (arg.type === 'positional') {
 				let value = arg.value;
 				if (value) {
-					for (const variable of argVariables) {
-						value = value.replace(`{${variable.id}}`, `\${input:${variable.id}}`);
-					}
+					value = replaceMcpServerVariableReferences(value, arg.variables);
 					args.push(value);
 					if (argVariables.length) {
 						variables.push(...argVariables);
@@ -277,10 +291,7 @@ export abstract class AbstractCommonMcpManagementService extends Disposable impl
 				}
 				args.push(arg.name);
 				if (arg.value) {
-					let value = arg.value;
-					for (const variable of argVariables) {
-						value = value.replace(`{${variable.id}}`, `\${input:${variable.id}}`);
-					}
+					const value = replaceMcpServerVariableReferences(arg.value, arg.variables);
 					args.push(value);
 					if (argVariables.length) {
 						variables.push(...argVariables);
@@ -328,6 +339,7 @@ export abstract class AbstractMcpResourceManagementService extends AbstractCommo
 	constructor(
 		protected readonly mcpResource: URI,
 		protected readonly target: McpResourceTarget,
+		protected readonly format: McpResourceFormat,
 		@IMcpGalleryService protected readonly mcpGalleryService: IMcpGalleryService,
 		@IFileService protected readonly fileService: IFileService,
 		@IUriIdentityService protected readonly uriIdentityService: IUriIdentityService,
@@ -370,7 +382,7 @@ export abstract class AbstractMcpResourceManagementService extends AbstractCommo
 		this.logService.trace('AbstractMcpResourceManagementService#populateLocalServers', this.mcpResource.toString());
 		const local = new Map<string, ILocalMcpServer>();
 		try {
-			const scannedMcpServers = await this.mcpResourceScannerService.scanMcpServers(this.mcpResource, this.target);
+			const scannedMcpServers = await this.mcpResourceScannerService.scanMcpServers(this.mcpResource, this.target, this.format);
 			if (scannedMcpServers.servers) {
 				await Promise.allSettled(Object.entries(scannedMcpServers.servers).map(async ([name, scannedServer]) => {
 					const server = await this.scanLocalServer(name, scannedServer, scannedMcpServers.sandbox);
@@ -471,11 +483,17 @@ export abstract class AbstractMcpResourceManagementService extends AbstractCommo
 
 	async install(server: IInstallableMcpServer, options?: Omit<InstallOptions, 'mcpResource'>): Promise<ILocalMcpServer> {
 		this.logService.trace('MCP Management Service: install', server.name);
+		if (this.format === McpResourceFormat.WorkspaceRoot) {
+			const error = getWorkspaceRootMcpConfigurationError(server);
+			if (error) {
+				throw new Error(error);
+			}
+		}
 		this.ensureServerAllowed(server);
 
 		this._onInstallMcpServer.fire({ name: server.name, mcpResource: this.mcpResource });
 		try {
-			await this.mcpResourceScannerService.addMcpServers([server], this.mcpResource, this.target);
+			await this.mcpResourceScannerService.addMcpServers([server], this.mcpResource, this.target, this.format);
 			await this.updateLocal();
 			const local = this.local.get(server.name);
 			if (!local) {
@@ -493,11 +511,11 @@ export abstract class AbstractMcpResourceManagementService extends AbstractCommo
 		this._onUninstallMcpServer.fire({ name: server.name, mcpResource: this.mcpResource });
 
 		try {
-			const currentServers = await this.mcpResourceScannerService.scanMcpServers(this.mcpResource, this.target);
+			const currentServers = await this.mcpResourceScannerService.scanMcpServers(this.mcpResource, this.target, this.format);
 			if (!currentServers.servers) {
 				return;
 			}
-			await this.mcpResourceScannerService.removeMcpServers([server.name], this.mcpResource, this.target);
+			await this.mcpResourceScannerService.removeMcpServers([server.name], this.mcpResource, this.target, this.format);
 			if (server.location) {
 				await this.fileService.del(URI.revive(server.location), { recursive: true });
 			}
@@ -526,7 +544,7 @@ export class McpUserResourceManagementService extends AbstractMcpResourceManagem
 		@IAllowedMcpServersService allowedMcpServersService: IAllowedMcpServersService,
 		@IEnvironmentService environmentService: IEnvironmentService
 	) {
-		super(mcpResource, ConfigurationTarget.USER, mcpGalleryService, fileService, uriIdentityService, logService, mcpResourceScannerService, allowedMcpServersService);
+		super(mcpResource, ConfigurationTarget.USER, McpResourceFormat.Vscode, mcpGalleryService, fileService, uriIdentityService, logService, mcpResourceScannerService, allowedMcpServersService);
 		this.mcpLocation = uriIdentityService.extUri.joinPath(environmentService.userRoamingDataHome, 'mcp');
 	}
 

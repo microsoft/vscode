@@ -15,8 +15,8 @@
   "dependencies": {
     "@vscode/l10n": "^0.0.18",
     "request-light": "^0.8.0",
-    "vscode-json-languageservice": "^6.0.0-next.3",
-    "vscode-languageserver": "^10.0.0-next.18",
+    "vscode-json-languageservice": "^6.0.0-next.4",
+    "vscode-languageserver": "^10.1.1",
     "vscode-uri": "^3.1.0"
   },
   "devDependencies": {

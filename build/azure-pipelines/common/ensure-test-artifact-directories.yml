@@ -1,0 +1,18 @@
+parameters:
+  - name: condition
+    type: string
+    default: succeededOrFailed()
+
+steps:
+  - pwsh: |
+      $ErrorActionPreference = "Stop"
+      # Fail if a file occupies a directory path; New-Item -Force would ignore it.
+      foreach ($directory in @(
+        "$(Build.SourcesDirectory)/.build/logs",
+        "$(Build.SourcesDirectory)/.build/crashes"
+      )) {
+        [System.IO.Directory]::CreateDirectory($directory) | Out-Null
+      }
+    displayName: Ensure diagnostic artifact directories exist
+    workingDirectory: $(Agent.BuildDirectory)
+    condition: ${{ parameters.condition }}

@@ -6,7 +6,7 @@
 import type { Event } from '../../../base/common/event.js';
 import { DisposableStore, type IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import type { IObservable } from '../../../base/common/observable.js';
-import { dirname, joinPath } from '../../../base/common/resources.js';
+import { localize } from '../../../nls.js';
 import { IInstantiationService, ServicesAccessor } from '../../instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { ILogService } from '../../log/common/log.js';
@@ -16,6 +16,8 @@ import { IAgentHostCheckpointService } from '../common/agentHostCheckpointServic
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { IAgentHostReviewService } from '../common/agentHostReviewService.js';
 import { AgentHostLaunchKind } from '../common/agentHostTelemetry.js';
+import { AgentHostAgentOrchestrationLimitsConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
+import { AH_META_AUTO_ARCHIVED_AT_DB_KEY } from '../common/state/sessionState.js';
 import type { IAgent } from '../common/agent.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
@@ -24,12 +26,13 @@ import { AgentHostChangesetCoordinator } from './agentHostChangesetCoordinator.j
 import { IAgentHostCompletions } from './agentHostCompletions.js';
 import { IAgentHostCustomizationEnablementService } from './agentHostCustomizationEnablementService.js';
 import { AgentHostDebugLogsCollector } from './agentHostDebugLogs.js';
-import { AgentHostDatabase } from './agentHostDatabase.js';
+import { IAgentHostDatabase } from './agentHostDatabase.js';
 import { AgentHostLocalTurns } from './agentHostLocalTurns.js';
+import { AgentHostLocalCommands, IAgentHostLocalCommands } from './localCommands/localChatCommand.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostTerminalManager } from './agentHostTerminalManager.js';
 import { AgentService, type IAgentServiceCollaborators, type IAgentServiceCore, type IAgentServiceOptions } from './agentService.js';
-import { AgentSessionRegistry } from './agentSessionRegistry.js';
+import { IAgentSessionRegistry } from './agentSessionRegistry.js';
 import { AgentSideEffects } from './agentSideEffects.js';
 import { AgentMergeController } from './agentMergeController.js';
 import { AgentMergeTools } from './agentMergeTools.js';
@@ -40,6 +43,10 @@ import { type IAgentServiceFoundation } from './agentServiceFoundation.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { ISessionWorkspaceConversionService, SessionWorkspaceConversionService } from './chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
 import { IAgentHostTurnTracker } from './agentHostTurnTracker.js';
+import { AgentHostSessionLifecycle } from './agentHostSessionLifecycle.js';
+import { persistSessionMetadataValues } from './shared/persistSessionMetadata.js';
+import { IAgentHostPullRequestStatusService } from './agentHostPullRequestStatusService.js';
+import { AgentHostPeerChatStore, IAgentHostPeerChatPersistenceService } from './agentHostPeerChatStore.js';
 
 export interface IAgentServiceComposition {
 	readonly agentService: AgentService;
@@ -80,20 +87,24 @@ export function createAgentServiceComposition(
 	const contributions = owned.add(new MutableDisposable<IDisposable>());
 	let agentService: AgentService | undefined;
 	try {
-		const databasePath = options.rootConfigResource
-			? joinPath(dirname(options.rootConfigResource), 'agent-host.db').fsPath
-			: ':memory:';
-		const orchestratorDatabase = owned.add(options.orchestratorDatabase ?? new AgentHostDatabase(databasePath));
+		if (options.orchestratorDatabase) {
+			owned.add(options.orchestratorDatabase);
+		}
+		const orchestratorDatabase = accessor.get(IAgentHostDatabase);
+		const peerChatStore = new AgentHostPeerChatStore(orchestratorDatabase, sessionDataService, logService);
+		services.set(IAgentHostPeerChatPersistenceService, peerChatStore);
+		services.set(IAgentHostLocalCommands, owned.add(instantiationService.createInstance(AgentHostLocalCommands)));
 		const debugLogsCollector = options.debugLogsEnvironment
 			? owned.add(new AgentHostDebugLogsCollector(options.debugLogsEnvironment, logService))
 			: undefined;
 		const { callbackAdapter, stateManager, configurationService, authenticationService, gitHubEndpointService } = foundation;
 		const providerService = accessor.get(IAgentHostProviderService);
-		const sessionRegistry = owned.add(new AgentSessionRegistry(orchestratorDatabase));
+		const sessionRegistry = accessor.get(IAgentSessionRegistry);
 		const core: IAgentServiceCore = {
 			disposables: owned,
 			authenticationService,
 			orchestratorDatabase,
+			peerChatStore,
 			debugLogsCollector,
 			sessionRegistry,
 			stateManager,
@@ -136,32 +147,49 @@ export function createAgentServiceComposition(
 				resolveChatAttachmentTurns: resource => callbackAdapter.value.resolveChatAttachmentTurns(resource),
 			},
 		));
-		const agentMergeTools = instantiationService.createInstance(
+		const agentMergeTools = owned.add(instantiationService.createInstance(
 			AgentMergeTools,
 			() => agentMergeController.isEnabled(),
-			session => agentMergeController.getTurnContext(session),
-		);
+			chat => agentMergeController.getTurnContext(chat),
+			(chat, enabled, overrides) => agentMergeController.setEnabled(chat, enabled, overrides),
+		));
 		const turnTracker = accessor.get(IAgentHostTurnTracker);
 		const workspaceConversionService: { value: ISessionWorkspaceConversionService | undefined } = { value: undefined };
 		const sessionServerToolAccessor: ISessionServerToolAccessor = {
 			...callbackAdapter.sessionServerToolAccessor,
 			requestSessionWorkspaceUpdate: (chat, turnId, workspaceFolder, isolation) => {
 				const initiatingClientId = turnTracker.getInitiatorClientId(chat.toString(), turnId);
-				if (!initiatingClientId) {
-					throw new Error('Session workspace conversion requires a turn initiated by a connected VS Code client.');
-				}
 				if (!workspaceConversionService.value) {
 					throw new Error('Session workspace conversion is unavailable.');
 				}
-				workspaceConversionService.value.requestSessionWorkspaceUpdate(chat, turnId, workspaceFolder, isolation, initiatingClientId);
+				return workspaceConversionService.value.requestSessionWorkspaceUpdate(chat, turnId, workspaceFolder, isolation, initiatingClientId);
 			},
 		};
 		const serverToolHost = new AgentServerToolHost(
 			stateManager,
-			buildServerToolGroups(sessionServerToolAccessor, agentMergeTools, callbackAdapter.artifactServerToolAccessor),
+			buildServerToolGroups(
+				sessionServerToolAccessor,
+				agentMergeTools,
+				callbackAdapter.artifactServerToolAccessor,
+				() => configurationService.getRootValue(platformRootSchema, AgentHostAgentOrchestrationLimitsConfigKey) !== 'off',
+				{
+					supportsChatIsolation: session => workspaceConversionService.value?.supportsChatIsolation(session) === true,
+					requestChatIsolation: (chat, turnId) => {
+						const initiatingClientId = turnTracker.getInitiatorClientId(chat.toString(), turnId);
+						if (!workspaceConversionService.value) {
+							throw new Error(localize('agentHost.chatIsolationClientRequired', "Moving a chat to a worktree with this tool requires a turn initiated by a connected client."));
+						}
+						workspaceConversionService.value.requestChatIsolation(chat, turnId, initiatingClientId);
+					},
+				},
+			),
 		);
 		services.set(IAgentHostServerToolService, serverToolHost);
-		workspaceConversionService.value = owned.add(instantiationService.createInstance(SessionWorkspaceConversionService));
+		workspaceConversionService.value = owned.add(instantiationService.createInstance(SessionWorkspaceConversionService, {
+			runWithChatCatalogLock: (session, operation) => agentService!.runWithChatCatalogLock(session, operation),
+			prepareChatWorkingDirectory: callbackAdapter.sessionServerToolAccessor.prepareChatWorkingDirectory,
+			setChatWorkingDirectory: (session, chat, directory, replaceSessionWorkspace, expectedSessionDirectories) => agentService!.setChatWorkingDirectory(session, chat, directory, replaceSessionWorkspace, expectedSessionDirectories),
+		}));
 		services.set(ISessionWorkspaceConversionService, workspaceConversionService.value);
 
 		const collaborators: IAgentServiceCollaborators = {
@@ -180,6 +208,37 @@ export function createAgentServiceComposition(
 			serverToolHost,
 		};
 		agentService = instantiationService.createInstance(AgentService, core, collaborators, options);
+		owned.add(new AgentHostSessionLifecycle(
+			{
+				listCandidates: (archiveCutoff, deleteCutoff) => agentService!.listSessionLifecycleCandidates(archiveCutoff, deleteCutoff),
+				restoreSession: session => agentService!.restoreSession(session),
+				getAutoArchivedAt: async session => {
+					const ref = await sessionDataService.tryOpenDatabase(session);
+					if (!ref) {
+						return undefined;
+					}
+					try {
+						const value = await ref.object.getMetadata(AH_META_AUTO_ARCHIVED_AT_DB_KEY);
+						const timestamp = value ? Number(value) : Number.NaN;
+						return Number.isFinite(timestamp) ? timestamp : undefined;
+					} finally {
+						ref.dispose();
+					}
+				},
+				setAutoArchivedAt: (session, timestamp) => persistSessionMetadataValues(sessionDataService, session.toString(), {
+					[AH_META_AUTO_ARCHIVED_AT_DB_KEY]: String(timestamp),
+				}),
+				archiveSession: session => agentService!.archiveSession(session),
+				canDeleteSession: session => agentService!.canAutomaticallyDeleteArchivedSession(session),
+				cleanupWorktree: (session, sessionId) => agentService!.cleanupWorktree(session, sessionId),
+				deleteSession: (session, validate, canCommit) => agentService!.disposeSessionIf(session, validate, canCommit),
+			},
+			configurationService,
+			stateManager,
+			accessor.get(IAgentHostPullRequestStatusService),
+			providerService,
+			logService,
+		));
 		for (const disposable of additionalDisposables) {
 			owned.add(disposable);
 		}

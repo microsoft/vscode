@@ -19,7 +19,7 @@ import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../common/agentHostFileSystem
 import { toClientPluginMcpDefaultCwdsMeta } from '../../../common/meta/clientPluginCustomizationMeta.js';
 import type { ISyncedCustomization } from '../../../common/agentPluginManager.js';
 import { CustomizationType, McpServerStatus, type PluginCustomization } from '../../../common/state/protocol/channels-session/state.js';
-import { CODEX_FILE_LINK_INSTRUCTIONS, CodexClientCustomizationStore, codexAgentRoleToml, codexCustomizationConfig, codexMcpServersFromPlugins, codexSkillCapabilityRoots, codexSkillRootsFromPlugins, type ICodexClientPlugin } from '../../../node/codex/codexClientCustomizations.js';
+import { CODEX_FILE_LINK_INSTRUCTIONS, CodexClientCustomizationStore, codexAgentRoleToml, codexClientSkillInstructions, codexCustomizationConfig, codexMcpServersFromPlugins, type ICodexClientPlugin } from '../../../node/codex/codexClientCustomizations.js';
 
 suite('codexClientCustomizations', () => {
 	const disposables = new DisposableStore();
@@ -131,16 +131,26 @@ suite('codexClientCustomizations', () => {
 		assert.deepStrictEqual(codexMcpServersFromPlugins(plugins), { dup: { command: 'first' } });
 	});
 
-	test('codexSkillRootsFromPlugins returns the skills root (dirname twice), deduped and sorted', () => {
+	test('advertises client skill metadata once per path without implicitly invoking manual-only skills', () => {
 		const plugins = [plugin('p', '/plugins/p', parsed({
-			skills: [skillDef('/plugins/p', 'b'), skillDef('/plugins/p', 'a')],
-		})), plugin('q', '/plugins/q', parsed({ skills: [skillDef('/plugins/q', 'c')] }))];
-		// The roots are native fsPaths (backslashes on Windows), so express the
-		// expectation with the same platform-aware transform rather than a
-		// hardcoded posix path.
-		const skillsRoot = (pluginDir: string) => URI.file(`${pluginDir}/skills`).fsPath;
-		assert.deepStrictEqual(codexSkillRootsFromPlugins(plugins), [skillsRoot('/plugins/p'), skillsRoot('/plugins/q')]);
-		assert.deepStrictEqual(codexSkillCapabilityRoots(plugins).map(root => root.fsPath), [skillsRoot('/plugins/p'), skillsRoot('/plugins/q')]);
+			skills: [skillDef('/plugins/p', 'greet'), { ...skillDef('/plugins/p', 'manual-only'), disableModelInvocation: true }],
+		})), plugin('q', '/plugins/q', parsed({
+			skills: [skillDef('/plugins/p', 'greet'), { ...skillDef('/plugins/q', 'greet'), disableUserInvocation: true }],
+		}))];
+
+		const catalog = codexClientSkillInstructions(plugins).match(/<client_skills>\n(?<catalog>[\s\S]*?)\n<\/client_skills>/)?.groups?.catalog;
+		assert.ok(catalog);
+		assert.deepStrictEqual(catalog.split('\n').slice(2), [
+			`- greet: greet desc (file: ${URI.file('/plugins/p/skills/greet/SKILL.md').fsPath})`,
+			`- greet: greet desc (file: ${URI.file('/plugins/q/skills/greet/SKILL.md').fsPath})`,
+		]);
+		assert.ok(catalog.includes('read its SKILL.md'));
+	});
+
+	test('an empty client skill catalog explicitly supersedes earlier skill selections', () => {
+		const catalog = codexClientSkillInstructions([]);
+		assert.ok(catalog.includes('replaces any earlier client skill catalog'));
+		assert.ok(catalog.includes('No client skills are currently available.'));
 	});
 
 	test('includes host file-link instructions without client customizations', async () => {

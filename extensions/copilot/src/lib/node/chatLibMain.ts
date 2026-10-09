@@ -334,7 +334,6 @@ class NESProvider extends Disposable implements INESProvider<NESResult> {
 			requestUuid: generateUuid(),
 			requestIssuedDateTime: Date.now(),
 			earliestShownDateTime: Date.now() + 200,
-			enforceCacheDelay: true,
 		};
 
 		// Create log context

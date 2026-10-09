@@ -156,6 +156,12 @@ export type IChatModelInformation = IModelAPIResponse & {
 	modelOptions?: Readonly<IChatModelRequestOptions>;
 	zeroDataRetentionEnabled?: boolean;
 	/**
+	 * BYOK Custom Endpoint setting declaring whether the Responses API server retains prior
+	 * responses, so requests may chain via `previous_response_id` and send only post-marker
+	 * history. Unset is treated as `true`; set `false` for stateless servers.
+	 */
+	statefulResponses?: boolean;
+	/**
 	 * BYOK-only override that forces the body shape used when forwarding the reasoning effort to the model.
 	 * Honored by `OpenAIEndpoint`. Unset — the body shape follows the API path (Responses API → nested `reasoning.effort`,
 	 * Anthropic Messages API → `output_config.effort`, Chat Completions → top-level `reasoning_effort`).

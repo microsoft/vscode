@@ -281,8 +281,7 @@ suite('pluginParsers', () => {
 				'/path with spaces',
 				'${PLUGIN_ROOT}'
 			);
-			assert.ok(result.includes('"'), 'should add quotes for path with spaces');
-			assert.ok(result.includes('/path with spaces'));
+			assert.strictEqual(result, 'cd \'/path with spaces\' && run');
 		});
 
 		test('returns unchanged when token not present', () => {
@@ -296,7 +295,16 @@ suite('pluginParsers', () => {
 				'/path with spaces',
 				'${PLUGIN_ROOT}'
 			);
-			assert.ok(!result.includes('""'), 'should not double-quote');
+			assert.strictEqual(result, '\'/path with spaces/script.sh\'');
+		});
+
+		test('preserves expansion characters as literal path content', () => {
+			const result = shellQuotePluginRootInCommand(
+				'printf %s ${PLUGIN_ROOT}/script.sh',
+				'/path/$HOME/`example`',
+				'${PLUGIN_ROOT}'
+			);
+			assert.strictEqual(result, 'printf %s \'/path/$HOME/`example`/script.sh\'');
 		});
 	});
 
@@ -556,6 +564,7 @@ suite('pluginParsers', () => {
 			});
 
 			test('reads Copilot components from the sanctioned extension directory by default', async () => {
+				const pluginFsPath = URI.from({ scheme: Schemas.inMemory, path: '/plugins/example' }).fsPath;
 				await write('/plugins/example/plugin.json', JSON.stringify({
 					$schema: AGENT_PLUGIN_SCHEMA,
 					name: 'example',
@@ -570,7 +579,7 @@ suite('pluginParsers', () => {
 				await write('/plugins/example/com.github.copilot/rules/project.instructions.md', '---\nname: project-rule\n---');
 				await write('/plugins/example/com.github.copilot/hooks/hooks.json', JSON.stringify({
 					hooks: {
-						PostToolUse: [{ hooks: [{ type: 'command', command: 'echo done' }] }],
+						PostToolUse: [{ hooks: [{ type: 'command', command: 'echo ${PLUGIN_ROOT}' }] }],
 					},
 				}));
 				await write('/plugins/example/agents/legacy.md', '# Legacy agent');
@@ -582,12 +591,21 @@ suite('pluginParsers', () => {
 					instructions: plugin.instructions.map(instruction => instruction.name),
 					hooks: plugin.hooks.map(hook => ({
 						type: hook.type,
-						commands: hook.commands.map(command => command.command),
+						commands: hook.commands.map(command => ({
+							command: command.command,
+							env: command.env,
+						})),
 					})),
 				}, {
 					agents: ['helper'],
 					instructions: ['project'],
-					hooks: [{ type: 'PostToolUse', commands: ['echo done'] }],
+					hooks: [{
+						type: 'PostToolUse',
+						commands: [{
+							command: `echo ${pluginFsPath}`,
+							env: { PLUGIN_ROOT: pluginFsPath },
+						}],
+					}],
 				});
 			});
 
@@ -727,28 +745,41 @@ suite('pluginParsers', () => {
 				]);
 			});
 
-			test('reads known MCP fields and leaves harness placeholders unresolved', async () => {
+			test('applies Agent Plugin MCP runtime path semantics', async () => {
+				const pluginRoot = URI.from({ scheme: Schemas.inMemory, path: '/plugins/example' });
+				const pluginFsPath = pluginRoot.fsPath;
 				await write('/plugins/example/plugin.json', JSON.stringify({ $schema: AGENT_PLUGIN_SCHEMA, name: 'example' }));
 				await write('/plugins/example/mcp.json', JSON.stringify({
 					$schema: AGENT_PLUGIN_MCP_SCHEMA.replace('/1.0.0/', '/1.0.1/'),
 					mcpServers: {
 						stdio: {
 							type: 'stdio',
-							command: 'server',
-							args: ['${PLUGIN_ROOT}', '${PLUGIN_DATA}', '${UNKNOWN}'],
-							env: { ROOT: '${PLUGIN_ROOT}' },
-							cwd: './work',
+							command: './bin/server',
+							args: ['${PLUGIN_ROOT}/data', '${PLUGIN_DATA}', '${UNKNOWN}'],
+							env: { ROOT: '${PLUGIN_ROOT}', DATA: '${PLUGIN_DATA}' },
+							cwd: '${PLUGIN_ROOT}/work',
 						},
+						literalCommand: { type: 'stdio', command: '${PLUGIN_ROOT}/bin/literal' },
+						escapedCommand: { type: 'stdio', command: './../outside' },
 						implicit: { type: 'stdio', command: 'implicit-server' },
-						http: { type: 'streamable-http', url: 'https://example.com/mcp' },
+						http: {
+							type: 'streamable-http',
+							url: 'https://example.com/${PLUGIN_ROOT}',
+							headers: { ROOT: '${PLUGIN_ROOT}' },
+						},
 						sse: { type: 'sse', url: 'http://127.0.0.2:3000/sse' },
 					},
 				}));
 
 				const parsed = await parse();
 				const servers = new Map(parsed.mcpServers.map(server => [server.name, server]));
-				assert.deepStrictEqual([...servers.keys()], ['http', 'implicit', 'sse', 'stdio']);
-				assert.strictEqual(servers.get('http')?.configuration.type, McpServerType.REMOTE);
+				assert.deepStrictEqual([...servers.keys()], ['http', 'implicit', 'literalCommand', 'sse', 'stdio']);
+				assert.deepStrictEqual(servers.get('http')?.configuration, {
+					type: McpServerType.REMOTE,
+					url: 'https://example.com/${PLUGIN_ROOT}',
+					headers: { ROOT: '${PLUGIN_ROOT}' },
+					dev: undefined,
+				});
 				assert.strictEqual(servers.get('sse')?.configuration.type, McpServerType.REMOTE);
 				const stdio = servers.get('stdio')?.configuration;
 				assert.ok(stdio?.type === McpServerType.LOCAL);
@@ -758,16 +789,19 @@ suite('pluginParsers', () => {
 					env: stdio.env,
 					cwd: stdio.cwd,
 				}, {
-					command: 'server',
-					args: ['${PLUGIN_ROOT}', '${PLUGIN_DATA}', '${UNKNOWN}'],
-					env: { ROOT: '${PLUGIN_ROOT}' },
-					cwd: './work',
+					command: URI.joinPath(pluginRoot, 'bin', 'server').fsPath,
+					args: [`${pluginFsPath}/data`, '${PLUGIN_DATA}', '${UNKNOWN}'],
+					env: { ROOT: pluginFsPath, DATA: '${PLUGIN_DATA}', PLUGIN_ROOT: pluginFsPath },
+					cwd: `${pluginFsPath}/work`,
 				});
 				const implicit = servers.get('implicit');
 				assert.ok(implicit);
 				assert.strictEqual(implicit?.configuration.type, McpServerType.LOCAL);
 				assert.strictEqual(implicit.configuration.type === McpServerType.LOCAL ? implicit.configuration.cwd : undefined, undefined);
-				assert.strictEqual(implicit.defaultCwd, undefined);
+				assert.strictEqual(implicit.defaultCwd?.fsPath, pluginFsPath);
+				const literalCommand = servers.get('literalCommand')?.configuration;
+				assert.ok(literalCommand?.type === McpServerType.LOCAL);
+				assert.strictEqual(literalCommand.command, '${PLUGIN_ROOT}/bin/literal');
 			});
 
 			test('rejects filesystem-resolved component escapes', async () => {

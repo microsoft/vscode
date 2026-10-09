@@ -36,7 +36,7 @@ import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 
 import { ConfigurationKeyValuePairs, IConfigurationMigrationRegistry, Extensions as WorkbenchConfigurationExtensions } from '../../../common/configuration.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 
-import { AgentsVoiceSettingId, AgentsVoiceStorageKeys, AGENTS_VOICE_CONNECTED, AGENTS_VOICE_CONNECTING, AGENTS_VOICE_ENABLED, AGENTS_VOICE_ENTITLED, AGENTS_VOICE_LISTENING, AGENTS_VOICE_RECONNECTING, getAgentsVoicePolicyValue } from '../common/agentsVoice.js';
+import { AgentsVoiceSettingId, AgentsVoiceStorageKeys, AGENTS_VOICE_CONNECTED, AGENTS_VOICE_CONNECTING, AGENTS_VOICE_ENABLED, AGENTS_VOICE_ENTITLED, AGENTS_VOICE_LISTENING, AGENTS_VOICE_MUTED, AGENTS_VOICE_RECONNECTING, AGENTS_VOICE_TOGGLE_MUTE_COMMAND_ID, getAgentsVoicePolicyValue } from '../common/agentsVoice.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -103,11 +103,13 @@ class AgentsVoiceConnectedKeyContribution extends Disposable implements IWorkben
 		const connectingKey = AGENTS_VOICE_CONNECTING.bindTo(contextKeyService);
 		const listeningKey = AGENTS_VOICE_LISTENING.bindTo(contextKeyService);
 		const reconnectingKey = AGENTS_VOICE_RECONNECTING.bindTo(contextKeyService);
+		const mutedKey = AGENTS_VOICE_MUTED.bindTo(contextKeyService);
 		this._register(autorun(reader => {
 			connectedKey.set(voiceSessionController.isConnected.read(reader));
 			connectingKey.set(voiceSessionController.isConnecting.read(reader));
 			reconnectingKey.set(voiceSessionController.isReconnecting.read(reader));
 			listeningKey.set(voiceSessionController.voiceState.read(reader) === 'listening');
+			mutedKey.set(voiceSessionController.isMuted.read(reader));
 		}));
 	}
 }
@@ -375,7 +377,7 @@ registerAction2(class extends Action2 {
 			f1: true,
 			precondition: ContextKeyExpr.and(
 				AGENTS_VOICE_ENABLED,
-				AGENTS_VOICE_CONNECTED.isEqualTo(true),
+				ContextKeyExpr.or(AGENTS_VOICE_CONNECTED, AGENTS_VOICE_CONNECTING),
 			),
 			menu: {
 				id: MenuId.ChatExecute,
@@ -402,7 +404,7 @@ registerAction2(class extends Action2 {
 				when: ContextKeyExpr.and(
 					AGENTS_VOICE_ENABLED,
 					ChatContextKeys.inChatInput,
-					AGENTS_VOICE_CONNECTED.isEqualTo(true),
+					ContextKeyExpr.or(AGENTS_VOICE_CONNECTED, AGENTS_VOICE_CONNECTING),
 					VOICE_ACTIVE_ON_SURFACE,
 					// Don't disconnect voice while a request is running — pressing
 					// Escape there is meant to interrupt/cancel that request, not
@@ -419,6 +421,46 @@ registerAction2(class extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const voiceController = accessor.get(IVoiceSessionController);
 		voiceController.disconnect('explicit');
+	}
+});
+
+// --- Toggle Mute Microphone (command palette + keybinding) ---
+//
+// Voice Mode is always listening while connected, so it can pick up
+// conversations the user is having with others. Muting keeps the session
+// connected (so the user can resume instantly) while dropping captured audio.
+// Expose it as a keybindable command so users can mute/unmute without reaching
+// for the mute button.
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: AGENTS_VOICE_TOGGLE_MUTE_COMMAND_ID,
+			title: nls.localize2('agentsVoice.toggleMute', "Voice Mode: Toggle Mute Microphone"),
+			f1: true,
+			toggled: {
+				condition: AGENTS_VOICE_MUTED.isEqualTo(true),
+				title: nls.localize('agentsVoice.unmuteMic', "Unmute Microphone"),
+			},
+			precondition: ContextKeyExpr.and(
+				AGENTS_VOICE_ENABLED,
+				AGENTS_VOICE_CONNECTED.isEqualTo(true),
+			),
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib + 1,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyM,
+				when: ContextKeyExpr.and(
+					AGENTS_VOICE_ENABLED,
+					AGENTS_VOICE_CONNECTED.isEqualTo(true),
+					VOICE_ACTIVE_ON_SURFACE,
+					ChatContextKeys.inputHasFocus,
+				),
+			},
+		});
+	}
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const voiceController = accessor.get(IVoiceSessionController);
+		voiceController.setMuted(!voiceController.isMuted.get());
 	}
 });
 

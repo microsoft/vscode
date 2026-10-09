@@ -685,6 +685,7 @@ export class ClaudeSdkPipeline extends Disposable {
 						turnDuration,
 						mode: this._currentPermissionMode,
 						clientContext,
+						signal: this._abortController.signal,
 					});
 				} catch (handlerErr) {
 					this._logService.warn(`[ClaudeSdkPipeline:${this.sessionId}] router threw, skipping: ${handlerErr}`);

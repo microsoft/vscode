@@ -76,8 +76,6 @@ export class CopilotInlineCompletionItemProvider extends Disposable implements I
 
 	private readonly telemetrySender: TelemetrySender;
 
-	public onDidChange = undefined;
-
 	private readonly logger: ILogger;
 
 	constructor(

@@ -22,6 +22,7 @@ import { OnboardingScenarioService } from './onboardingService.js';
 import { RunOnboardingStepPresentation } from './sequence/runOnboardingStep.js';
 import { OnboardingSequencePresentation } from './sequence/sequencePresentation.js';
 import { SpotlightPresentation } from './spotlight/spotlightPresentation.js';
+import './onboardingTryout.contribution.js';
 
 registerSingleton(IOnboardingScenarioService, OnboardingScenarioService, InstantiationType.Delayed);
 
@@ -38,7 +39,10 @@ function buildDeveloperModeConfigurationNode(): IConfigurationNode {
 	const defaultValue: IStringDictionary<boolean> = {};
 	const variationProperties: IStringDictionary<IConfigurationPropertySchema> = {};
 	const variationDefaultValue: IStringDictionary<string> = {};
-	for (const scenario of [...onboardingScenarioRegistry.getScenarios()].sort((a, b) => a.id.localeCompare(b.id))) {
+	for (const scenario of [...onboardingScenarioRegistry.getScenarioDescriptors()].sort((a, b) => a.id.localeCompare(b.id))) {
+		if (scenario.tryout) {
+			continue;
+		}
 		properties[scenario.id] = { type: 'boolean', default: false };
 		defaultValue[scenario.id] = false;
 		if (scenario.developerModeVariations?.length) {

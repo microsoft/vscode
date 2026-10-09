@@ -319,7 +319,7 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 			this.timeout(60000);
 
 			const configuration = vscode.workspace.getConfiguration();
-			await configuration.update('chat.agent.allowedNetworkDomains', ['example.com'], vscode.ConfigurationTarget.Global);
+			await configuration.update('chat.agent.sandbox.network.allowedDomains', ['example.com'], vscode.ConfigurationTarget.Global);
 			try {
 				const output = await invokeRunInTerminal('curl -s --max-time 5 https://example.com');
 				const trimmed = output.trim();
@@ -329,7 +329,7 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 				];
 				assert.ok(acceptable.some(value => trimmed.includes(value) || trimmed === value), `Unexpected output: ${JSON.stringify(trimmed)}`);
 			} finally {
-				await configuration.update('chat.agent.allowedNetworkDomains', undefined, vscode.ConfigurationTarget.Global);
+				await configuration.update('chat.agent.sandbox.network.allowedDomains', undefined, vscode.ConfigurationTarget.Global);
 			}
 		});
 

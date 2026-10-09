@@ -116,7 +116,7 @@ export class ToolEmbeddingsComputer implements IToolEmbeddingsComputer {
 			return [];
 		}
 
-		const queryEmbedding = await this._embeddingsComputer.computeEmbeddings(this._embeddingType, [query], {}, new TelemetryCorrelationId('ToolEmbeddingsComputer::searchToolsByQuery'), token);
+		const queryEmbedding = await this._embeddingsComputer.computeEmbeddings(this._embeddingType, [query], { inputType: 'query' }, new TelemetryCorrelationId('ToolEmbeddingsComputer::searchToolsByQuery'), token);
 		if (!queryEmbedding || queryEmbedding.values.length === 0) {
 			return [];
 		}
@@ -184,7 +184,7 @@ export class ToolEmbeddingsComputer implements IToolEmbeddingsComputer {
 
 		const toolNames = tools.map(t => t.name + '\n\n' + t.description);
 		const start = new StopWatch();
-		const embeddings = await this._embeddingsComputer.computeEmbeddings(this._embeddingType, toolNames, {}, new TelemetryCorrelationId('ToolEmbeddingsComputer::computeEmbeddingsForTools'), token);
+		const embeddings = await this._embeddingsComputer.computeEmbeddings(this._embeddingType, toolNames, { inputType: 'document' }, new TelemetryCorrelationId('ToolEmbeddingsComputer::computeEmbeddingsForTools'), token);
 		this._logService.trace(`[virtual-tools] Computed embeddings for ${toolNames.length} tools in ${start.elapsed()}ms`);
 
 		if (embeddings?.values.length === 0 || embeddings?.values.length !== toolNames.length) {
