@@ -348,6 +348,7 @@ describe('cloud session visibility', () => {
 		let fetchSessionList: MockInstance<TaskApiBackend['fetchSessionList']>;
 		let getComparisonChangedFiles: ReturnType<typeof vi.fn<IPullRequestFileChangesService['getComparisonChangedFiles']>>;
 		let authenticationChanged: Emitter<void>;
+		let logService: RecordingLogService;
 
 		const session = (taskId: string, lastActivity = now): CloudSessionData => ({
 			taskId,
@@ -366,6 +367,7 @@ describe('cloud session visibility', () => {
 			vi.setSystemTime(now);
 			store = new DisposableStore();
 			authenticationChanged = store.add(new Emitter<void>());
+			logService = new RecordingLogService();
 			configurationService = store.add(new InMemoryConfigurationService(store.add(new DefaultsOnlyConfigurationService())));
 			await configurationService.setNonExtensionConfig(SHOW_EXTERNAL_SESSIONS_SETTING, 'last30Days');
 			extensionContext = new class extends mock<IVSCodeExtensionContext>() {
@@ -390,7 +392,7 @@ describe('cloud session visibility', () => {
 				octoKitService,
 				new TestGitService(),
 				new NullTelemetryService(),
-				new TestLogService(),
+				logService,
 				new class extends mock<IGitExtensionService>() { }(),
 				new class extends mock<IPullRequestFileChangesService>() {
 					override getComparisonChangedFiles = getComparisonChangedFiles;
@@ -504,6 +506,50 @@ describe('cloud session visibility', () => {
 			expect({ running: running[0].status, completed: completed[0].status, end: completed[0].timing?.endTime, removed }).toEqual({
 				running: vscode.ChatSessionStatus.InProgress, completed: vscode.ChatSessionStatus.Completed, end: now, removed: [],
 			});
+		});
+
+		it('isolates exact-task failures while retaining its latest item and publishing ordinary updates', async () => {
+			const fetchSession = vi.spyOn(TaskApiBackend.prototype, 'fetchSession').mockResolvedValue(session('exact'));
+			const provider = createProvider();
+			const resolve = vi.mocked(vscode.commands.registerCommand).mock.calls.find(([id]) => id === 'github.copilot.chat.cloudSessions.resolveTask')![1];
+			await resolve(vscode.Uri.parse('copilot-cloud-agent:/task/exact'));
+			fetchSessionList.mockResolvedValue([{ ...session('exact'), title: 'Latest known exact task' }, session('ordinary')]);
+			await provider.provideChatSessionItems(CancellationToken.None);
+
+			const failure = new TaskApiError('Unavailable', 503, 'getTask');
+			fetchSession.mockRejectedValue(failure);
+			fetchSessionList.mockResolvedValue([{ ...session('ordinary'), title: 'Ordinary update' }, session('new')]);
+			provider.refresh();
+			const first = await provider.provideChatSessionItems(CancellationToken.None);
+			provider.refresh();
+			const second = await provider.provideChatSessionItems(CancellationToken.None);
+			expect({
+				first: first.map(item => item.label),
+				second: second.map(item => item.label),
+				warnings: logService.warn.mock.calls.filter(([message]) => String(message).includes('explicitly resolved cloud task')).length,
+			}).toEqual({
+				first: ['Ordinary update', 'new', 'Latest known exact task'],
+				second: ['Ordinary update', 'new', 'Latest known exact task'],
+				warnings: 2,
+			});
+			fetchSession.mockRejectedValue(new TaskApiError('Gone', 404, 'getTask'));
+			provider.refresh();
+			expect((await provider.provideChatSessionItems(CancellationToken.None)).map(item => item.label)).toEqual(['Ordinary update', 'new']);
+		});
+
+		it('does not retain an exact item from a refresh invalidated by an account change', async () => {
+			const fetchSession = vi.spyOn(TaskApiBackend.prototype, 'fetchSession').mockResolvedValue(session('exact'));
+			const provider = createProvider();
+			const resolve = vi.mocked(vscode.commands.registerCommand).mock.calls.find(([id]) => id === 'github.copilot.chat.cloudSessions.resolveTask')![1];
+			await resolve(vscode.Uri.parse('copilot-cloud-agent:/task/exact'));
+			const pending = new DeferredPromise<CloudSessionData>();
+			fetchSession.mockReturnValue(pending.p);
+			provider.refresh();
+			const refresh = provider.provideChatSessionItems(CancellationToken.None);
+			await vi.waitFor(() => expect(fetchSession).toHaveBeenCalledTimes(2));
+			authenticationChanged.fire();
+			await pending.error(new TaskApiError('Unavailable', 503, 'getTask'));
+			expect(await refresh).toEqual([]);
 		});
 
 		it('supplies the existing repository search to the shared picker', async () => {

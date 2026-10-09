@@ -521,7 +521,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		}
 	}, 0));
 	private sessionItemsRequestGeneration = 0;
-	private readonly explicitlyResolvedSessions = new LRUCache<string, true>(50);
+	private readonly explicitlyResolvedSessions = new LRUCache<string, vscode.ChatSessionItem>(50);
 	private sessionSourceGeneration = 0;
 	// Task ids with an in-flight "Create pull request" toolbar request, used to guard against
 	// re-entrant invocations (e.g. rapid double-clicks) that would otherwise submit duplicate PRs.
@@ -933,7 +933,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			if (item === undefined) {
 				throw new Error(l10n.t('Could not resolve cloud task {0}.', taskId));
 			}
-			this.explicitlyResolvedSessions.set(taskId, true);
+			this.explicitlyResolvedSessions.set(taskId, item);
 			this.sessionItemsRequestGeneration++;
 			this.chatSessionItemsPromise = undefined;
 			if (this.cachedSessionItems) {
@@ -1490,11 +1490,24 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 				return this.provideChatSessionItems(token);
 			}
 			const listed = new Set(filteredSessions.map(item => item.resource.toString()));
-			for (const taskId of [...this.explicitlyResolvedSessions.keys()]) {
+			for (const item of filteredSessions) {
+				const taskId = SessionIdForTask.parseTaskId(item.resource);
+				if (taskId && this.explicitlyResolvedSessions.has(taskId)) {
+					this.explicitlyResolvedSessions.set(taskId, item);
+				}
+			}
+			for (const [taskId, previousItem] of [...this.explicitlyResolvedSessions]) {
 				if (!listed.has(getCloudSessionResources(taskId, undefined).resource.toString())) {
-					let entry: CloudSessionData;
 					try {
-						entry = await this._backend.fetchSession(taskId);
+						const entry = await this._backend.fetchSession(taskId);
+						const item = await this.toChatSessionItem(entry, repoIds, true, isExternal(taskId));
+						if (this.sessionItemsRequestGeneration !== generation) {
+							return this.provideChatSessionItems(token);
+						}
+						if (item) {
+							this.explicitlyResolvedSessions.set(taskId, item);
+							filteredSessions.push(item);
+						}
 					} catch (error) {
 						if (this.sessionItemsRequestGeneration !== generation) {
 							return this.provideChatSessionItems(token);
@@ -1504,14 +1517,8 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 							this.logService.trace(`Explicitly resolved cloud task ${taskId} is no longer available.`);
 							continue;
 						}
-						throw error;
-					}
-					const item = await this.toChatSessionItem(entry, repoIds, true, isExternal(taskId));
-					if (this.sessionItemsRequestGeneration !== generation) {
-						return this.provideChatSessionItems(token);
-					}
-					if (item) {
-						filteredSessions.push(item);
+						this.logService.warn(`Failed to refresh explicitly resolved cloud task ${taskId}; retaining its last known item: ${error}`);
+						filteredSessions.push(previousItem);
 					}
 				}
 			}
