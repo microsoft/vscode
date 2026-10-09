@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Event } from '../../../../../base/common/event.js';
-import { observableValue } from '../../../../../base/common/observable.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { observableValue, waitForState } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -42,6 +42,7 @@ suite('SessionCanvasRegistryService', () => {
 		const activeSession = observableValue<IActiveSession | undefined>('activeSession', session);
 		const sessionsService = upcastPartial<ISessionsService>({ activeSession });
 		const listedChats: URI[] = [];
+		const didListCanvases = store.add(new Emitter<URI>());
 		const opened: Array<{ chat: URI; canvas: ISessionCanvasDefinition; instanceId: string }> = [];
 		let currentDefinitions = definitions;
 		const sessionsManagementService = upcastPartial<ISessionsManagementService>({
@@ -49,17 +50,17 @@ suite('SessionCanvasRegistryService', () => {
 			onDidDeleteChat: Event.None,
 			listCanvases: async (_session, targetChat) => {
 				listedChats.push(targetChat.resource);
+				didListCanvases.fire(targetChat.resource);
 				return currentDefinitions;
 			},
 			openCanvas: async (_session, targetChat, canvas, instanceId) => {
 				opened.push({ chat: targetChat.resource, canvas, instanceId });
 			},
 		});
-		const reveals: string[] = [];
 		const canvasService = upcastPartial<ICanvasService>({
 			enabled: observableValue('enabled', true),
 			reopenableCanvases: observableValue('reopenableCanvases', []),
-			revealCanvas: async reference => { reveals.push(reference.canvas.toString()); },
+			revealCanvas: async () => { },
 			reopenCanvas: async () => { },
 		});
 		const registryService = store.add(new SessionCanvasRegistryService(
@@ -72,11 +73,10 @@ suite('SessionCanvasRegistryService', () => {
 			activeChat,
 			canvases,
 			canvasService,
-			chat,
 			listedChats,
+			onDidListCanvases: didListCanvases.event,
 			opened,
 			registryService,
-			reveals,
 			setDefinitions: (value: readonly ISessionCanvasDefinition[]) => currentDefinitions = value,
 		};
 	}
@@ -99,26 +99,29 @@ suite('SessionCanvasRegistryService', () => {
 			requiresInput: false,
 		};
 		const harness = createHarness([first]);
-		await harness.registryService.refreshAvailableCanvases();
+		await waitForState(harness.registryService.availableCanvases, canvases => canvases.some(canvas => canvas.canvasId === 'first'));
 		const callsBeforeRegistryChange = harness.listedChats.length;
 		harness.setDefinitions([second]);
 
+		const registryList = Event.toPromise(Event.once(harness.onDidListCanvases));
 		harness.canvases.set([], undefined);
-		await Promise.resolve();
-		await Promise.resolve();
+		const registryChat = await registryList;
+		await waitForState(harness.registryService.availableCanvases, canvases => canvases.some(canvas => canvas.canvasId === 'second'));
 
 		const peer = upcastPartial<IChat>({
 			resource: URI.parse('agent-host-chat:/session/peer'),
 			canvases: observableValue<readonly ISessionCanvas[] | undefined>('peerCanvases', []),
 		});
+		const peerList = Event.toPromise(Event.once(harness.onDidListCanvases));
 		harness.activeChat.set(peer, undefined);
-		await harness.registryService.refreshAvailableCanvases();
+		const listedPeer = await peerList;
 		await harness.registryService.openCanvas(second);
 
 		assert.deepStrictEqual({
-			afterRegistryChange: harness.listedChats.slice(callsBeforeRegistryChange, -2).map(resource => resource.toString()),
+			afterRegistryChange: harness.listedChats.slice(callsBeforeRegistryChange, -1).map(resource => resource.toString()),
+			registryChat: registryChat.toString(),
 			available: harness.registryService.availableCanvases.get().map(canvas => canvas.canvasId),
-			listedChat: harness.listedChats.at(-1)?.toString(),
+			listedPeer: listedPeer.toString(),
 			opened: harness.opened.map(entry => ({
 				chat: entry.chat.toString(),
 				canvasId: entry.canvas.canvasId,
@@ -126,8 +129,9 @@ suite('SessionCanvasRegistryService', () => {
 			})),
 		}, {
 			afterRegistryChange: ['agent-host-chat:/session/main'],
+			registryChat: 'agent-host-chat:/session/main',
 			available: ['second'],
-			listedChat: 'agent-host-chat:/session/peer',
+			listedPeer: 'agent-host-chat:/session/peer',
 			opened: [{
 				chat: 'agent-host-chat:/session/peer',
 				canvasId: 'second',
@@ -174,7 +178,7 @@ suite('SessionCanvasRegistryService', () => {
 			},
 		];
 		const harness = createHarness(definitions);
-		await harness.registryService.refreshAvailableCanvases();
+		await waitForState(harness.registryService.availableCanvases, canvases => canvases.length === 2);
 		const registration = store.add(registerSessionCanvasActions(harness.canvasService, harness.registryService));
 		const submenus = MenuRegistry.getMenuItems(Menus.SessionsEditorTabsBarAddTab)
 			.filter(isISubmenuItem)
