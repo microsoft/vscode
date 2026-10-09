@@ -43,6 +43,7 @@ export interface IMissionControlProject {
 
 interface IMissionControlProjectsOptions {
 	readonly getRoots: () => readonly string[];
+	readonly getProjectRoots?: () => readonly string[];
 	readonly runGit?: typeof runGit;
 }
 
@@ -114,14 +115,18 @@ export class MissionControlProjects extends Disposable {
 	}
 
 	private _isCurrentProject(project: IMissionControlProject): boolean {
-		return !project.bootPinned || this._options.getRoots().some(root => extUriBiasedIgnorePathCase.isEqual(URI.file(root), URI.file(project.path)));
+		return !project.bootPinned || this._getProjectRoots().some(root => extUriBiasedIgnorePathCase.isEqual(URI.file(root), URI.file(project.path)));
+	}
+
+	private _getProjectRoots(): readonly string[] {
+		return this._options.getProjectRoots?.() ?? this._options.getRoots();
 	}
 
 	/** Reconciles shared folders, omitting directories that no longer exist. */
 	async initialize(): Promise<void> {
 		await (this._loaded ??= this._load());
 		await this._mutations.queue(async () => {
-			const paths = (await Promise.all(this._options.getRoots().map(async root => {
+			const paths = (await Promise.all(this._getProjectRoots().map(async root => {
 				try {
 					return await realpath(root);
 				} catch (error) {

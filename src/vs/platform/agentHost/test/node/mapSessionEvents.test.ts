@@ -10,7 +10,7 @@ import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { readAgentRuntimeModelConfiguration } from '../../common/meta/agentModelConfigurationMeta.js';
 import { AgentSession, subagentChatTitle } from '../../common/agent.js';
 import { getErrorResponsePart, getTurnError, MessageAttachmentKind, MessageKind, ResponsePartKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildSubagentSessionUri, type ResponsePart, type StringOrMarkdown, type ToolCallResponsePart, type ToolResultContent } from '../../common/state/sessionState.js';
-import { appendSdkToolResultContent, mapSessionEvents as mapSessionEventsWithRouting, type IMapSessionEventsOptions } from '../../node/copilot/mapSessionEvents.js';
+import { appendSdkToolResultContent, getSdkToolResultText, mapSessionEvents as mapSessionEventsWithRouting, type IMapSessionEventsOptions } from '../../node/copilot/mapSessionEvents.js';
 import { toSessionEvents, type ISessionEvent } from './copilotTestEvents.js';
 import { fusionTestData as fusion, fusionTestEvent as event } from './copilotFusionTestEvents.js';
 import { readAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
@@ -1185,6 +1185,42 @@ suite('mapSessionEvents — history replay', () => {
 		});
 	}
 
+	for (const withStart of [true, false]) {
+		test(`restores SDK intention summaries with execution_start=${withStart}`, async () => {
+			const requests = [
+				{ toolCallId: 'tc-bash', name: 'bash', intentionSummary: '  List project files \n', arguments: { command: 'ls', description: 'Fallback' } },
+				{ toolCallId: 'tc-powershell', name: 'powershell', intentionSummary: 'Inspect the directory', arguments: { command: 'Get-ChildItem' } },
+				{ toolCallId: 'tc-view', name: 'view', intentionSummary: 'Understand the entry point', arguments: { path: '/repo/file.ts' } },
+				{ toolCallId: 'tc-blank', name: 'bash', intentionSummary: ' \n', arguments: { command: 'ls', description: 'Fallback' } },
+				{ toolCallId: 'tc-absent', name: 'view', arguments: { path: '/repo/file.ts' } },
+			];
+			const events: ISessionEvent[] = [
+				{ type: 'user.message', data: { content: 'Inspect the project' } },
+				{ type: 'assistant.message', data: { messageId: 'm1', content: '', toolRequests: requests } },
+			];
+			for (const request of requests) {
+				if (withStart) {
+					events.push({
+						type: 'tool.execution_start',
+						data: { toolCallId: request.toolCallId, toolName: request.name, arguments: request.arguments },
+					});
+				}
+				events.push({ type: 'tool.execution_complete', data: { toolCallId: request.toolCallId, success: true } });
+			}
+
+			const { turns } = await mapSessionEvents(session, undefined, toSessionEvents(events));
+			assert.deepStrictEqual(turns[0].responseParts
+				.filter(part => part.kind === ResponsePartKind.ToolCall)
+				.map(part => ({ toolCallId: part.toolCall.toolCallId, intention: part.toolCall.intention })), [
+				{ toolCallId: 'tc-bash', intention: 'List project files' },
+				{ toolCallId: 'tc-powershell', intention: 'Inspect the directory' },
+				{ toolCallId: 'tc-view', intention: 'Understand the entry point' },
+				{ toolCallId: 'tc-blank', intention: 'Fallback' },
+				{ toolCallId: 'tc-absent', intention: undefined },
+			]);
+		});
+	}
+
 	test('derives shell tool intention from the description argument on replay', async () => {
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', data: { interactionId: 'm1', content: 'hi' } },
@@ -1197,7 +1233,14 @@ suite('mapSessionEvents — history replay', () => {
 
 		const part = turns[0].responseParts[0] as ToolCallResponsePart;
 		assert.strictEqual(part.kind, ResponsePartKind.ToolCall);
-		assert.strictEqual(part.toolCall.intention, 'List files in the repo root');
+		assert.ok(part.toolCall.status === ToolCallStatus.Completed);
+		assert.deepStrictEqual({
+			intention: part.toolCall.intention,
+			toolInput: part.toolCall.toolInput,
+		}, {
+			intention: 'List files in the repo root',
+			toolInput: JSON.stringify({ command: 'ls', description: 'List files in the repo root' }, null, 2),
+		});
 	});
 
 	test('restores image function tools before the final answer', async () => {
@@ -1218,6 +1261,47 @@ suite('mapSessionEvents — history replay', () => {
 			{ kind: ResponsePartKind.Markdown, content: 'I will create an image.' },
 			{ kind: ResponsePartKind.ToolCall, toolCallId: 'image-1', success: true },
 			{ kind: ResponsePartKind.Markdown, content: 'Image generation completed.' },
+		]);
+	});
+
+	test('replays UI output and binary assets without duplicating structured images', async () => {
+		const asset = { type: 'image' as const, assetId: 'asset-1', data: 'aW1hZ2U=', mimeType: 'image/png', byteLength: 5 };
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents([
+			{ type: 'session.binary_asset', data: asset },
+			{ type: 'user.message', data: { content: 'Inspect the image' } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'tc-image', toolName: 'view', arguments: { path: '/repo/image.png' } } },
+			{
+				type: 'tool.execution_complete', data: {
+					toolCallId: 'tc-image', success: true, result: {
+						content: 'Short result', detailedContent: 'Complete result for the UI',
+						binaryResultsForLlm: [{ type: 'image', assetId: asset.assetId, byteLength: 5, mimeType: 'image/png' }],
+					}
+				}
+			},
+			{ type: 'tool.execution_start', data: { toolCallId: 'tc-mcp', toolName: 'mcp_tool' } },
+			{
+				type: 'tool.execution_complete', data: {
+					toolCallId: 'tc-mcp', success: true, result: {
+						content: 'Summary', contents: [
+							{ type: 'text', text: 'Structured text' },
+							{ type: 'image', data: asset.data, mimeType: 'image/png' },
+						],
+						binaryResultsForLlm: [{ type: 'image', data: asset.data, mimeType: 'image/png' }],
+					}
+				}
+			},
+		]));
+		assert.deepStrictEqual(turns[0].responseParts.flatMap(part =>
+			part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed ? [part.toolCall.content] : []), [
+			[
+				{ type: ToolResultContentType.Text, text: 'Complete result for the UI' },
+				{ type: ToolResultContentType.EmbeddedResource, data: asset.data, contentType: 'image/png' },
+			],
+			[
+				{ type: ToolResultContentType.Text, text: 'Summary' },
+				{ type: ToolResultContentType.Text, text: 'Structured text' },
+				{ type: ToolResultContentType.EmbeddedResource, data: asset.data, contentType: 'image/png' },
+			],
 		]);
 	});
 
@@ -1255,9 +1339,10 @@ suite('mapSessionEvents — history replay', () => {
 		const imageGeneration = { requestedModel: { id: 'image-preview', name: 'Image Preview' } };
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', data: { interactionId: 'm1', content: 'Draw a puppy' } },
-			{ type: 'tool.execution_start', data: { toolCallId: 'tc-image', toolName: 'image_generation' } },
+			{ type: 'tool.execution_start', timestamp: '2026-10-08T12:00:00.000Z', data: { toolCallId: 'tc-image', toolName: 'image_generation' } },
 			{
 				type: 'tool.execution_complete',
+				timestamp: '2026-10-08T12:00:43.500Z',
 				data: {
 					toolCallId: 'tc-image',
 					success: true,
@@ -1282,7 +1367,7 @@ suite('mapSessionEvents — history replay', () => {
 				{ type: ToolResultContentType.Text, text: 'Generated an image.' },
 			],
 			title: 'Generated image with Image Preview',
-			meta: { 'vscode.imageGeneration': imageGeneration },
+			meta: { 'vscode.imageGeneration': imageGeneration, 'vscode.toolCallDurationMs': 43_500 },
 		});
 	});
 
@@ -2135,6 +2220,54 @@ suite('appendSdkToolResultContent', () => {
 	const chat = URI.parse(buildChatUri(session, 'default'));
 	const terminalDescriptor = { storage: session, session, chat, toolCallId: 'tc-1', title: 'Run Shell Command' };
 	const terminalResource = buildNonPtyShellTerminalUri(session, session, chat, 'tc-1');
+
+	test('retains detailed output unless structured text reproduces it', () => {
+		assert.deepStrictEqual([
+			getSdkToolResultText(undefined),
+			getSdkToolResultText({ content: 'Short' }),
+			getSdkToolResultText({ content: 'Short', detailedContent: 'Full' }),
+			getSdkToolResultText({ content: 'Short', detailedContent: 'Full', contents: [{ type: 'text', text: '' }] }),
+			getSdkToolResultText({ content: 'Short', contents: [{ type: 'text', text: 'Structured' }] }),
+			getSdkToolResultText({ content: 'Short', detailedContent: 'Complete diff', contents: [{ type: 'text', text: 'Summary' }] }),
+			getSdkToolResultText({ content: 'Short', detailedContent: 'Full', contents: [{ type: 'text', text: ' \n\t' }] }),
+			getSdkToolResultText({ content: 'Short', detailedContent: 'Full', contents: [{ type: 'text', text: ' Full\n' }] }),
+			getSdkToolResultText({ content: 'Short', detailedContent: 'First\n\nSecond', contents: [{ type: 'text', text: 'First' }, { type: 'text', text: 'Second' }] }),
+			getSdkToolResultText({ content: 'Short', detailedContent: 'Full', contents: [{ type: 'resource', resource: { uri: 'mcp:/text', text: 'Full' } }] }),
+		], [undefined, 'Short', 'Full', 'Full', 'Short', 'Complete diff', 'Full', undefined, undefined, undefined]);
+	});
+
+	test('maps structured text, audio, and inline resources', () => {
+		const content: ToolResultContent[] = [];
+		appendSdkToolResultContent(content, [
+			{ type: 'text', text: 'MCP result' },
+			{ type: 'audio', data: 'YXVkaW8=', mimeType: 'audio/wav' },
+			{ type: 'resource', resource: { uri: 'mcp:/text', text: 'Document body', mimeType: 'text/plain' } },
+			{ type: 'resource', resource: { uri: 'mcp:/blob', blob: 'YmxvYg==' } },
+		]);
+		assert.deepStrictEqual(content, [
+			{ type: ToolResultContentType.Text, text: 'MCP result' },
+			{ type: ToolResultContentType.EmbeddedResource, data: 'YXVkaW8=', contentType: 'audio/wav' },
+			{ type: ToolResultContentType.Text, text: 'Document body' },
+			{ type: ToolResultContentType.EmbeddedResource, data: 'YmxvYg==', contentType: 'application/octet-stream' },
+		]);
+	});
+
+	test('binary projection deduplicates against structured blocks but preserves carrier multiplicity', () => {
+		const content: ToolResultContent[] = [];
+		const asset = { type: 'image' as const, assetId: 'asset-1', data: 'YQ==', mimeType: 'image/png', byteLength: 1 };
+		appendSdkToolResultContent(content, [{ type: 'image', data: 'Yg==', mimeType: 'image/JPEG' }], undefined, [
+			{ type: 'image', data: 'Yg==', mimeType: 'image/jpeg' },
+			{ type: 'image', assetId: 'asset-1', byteLength: 1, mimeType: '' },
+			{ type: 'image', data: 'YQ==', mimeType: 'image/png' },
+			{ type: 'image', byteLength: 100, mimeType: 'image/png', omittedReason: 'too_large' },
+			{ type: 'image', assetId: 'missing', byteLength: 1, mimeType: 'image/png' },
+		], new Map([[asset.assetId, asset]]));
+		assert.deepStrictEqual(content, [
+			{ type: ToolResultContentType.EmbeddedResource, data: 'Yg==', contentType: 'image/JPEG' },
+			{ type: ToolResultContentType.EmbeddedResource, data: 'YQ==', contentType: 'image/png' },
+			{ type: ToolResultContentType.EmbeddedResource, data: 'YQ==', contentType: 'image/png' },
+		]);
+	});
 
 	for (const existingTerminal of [false, true]) {
 		for (const outputPreview of [undefined, null, '', 'preview\n']) {

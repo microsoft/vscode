@@ -190,7 +190,6 @@ export const sandboxSettingIdToAgentHostKey: Readonly<Record<string, AgentHostSa
 	[AgentSandboxSettingId.AgentSandboxUserConfiguredPaths]: AgentHostSandboxKey.UserConfiguredPaths,
 	[AgentSandboxSettingId.AgentSandboxLinuxFileSystem]: AgentHostSandboxKey.LinuxFileSystem,
 	[AgentSandboxSettingId.AgentSandboxMacFileSystem]: AgentHostSandboxKey.MacFileSystem,
-	[AgentSandboxSettingId.AgentSandboxWindowsFileSystem]: AgentHostSandboxKey.WindowsFileSystem,
 	[AgentSandboxSettingId.AgentSandboxAdvancedRuntime]: AgentHostSandboxKey.AdvancedRuntime,
 	[AgentNetworkDomainSettingId.AllowedNetworkDomains]: AgentHostSandboxKey.AllowedNetworkDomains,
 	[AgentNetworkDomainSettingId.DeniedNetworkDomains]: AgentHostSandboxKey.DeniedNetworkDomains,

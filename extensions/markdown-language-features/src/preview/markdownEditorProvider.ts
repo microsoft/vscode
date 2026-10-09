@@ -497,6 +497,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			rename: message => rename.rename(message),
 			cancelRename: message => rename.cancel(message.requestId),
 			ready: async (message, _context, { signal }) => {
+				richLinks.clear();
 				webviewReady = true;
 				editorWebview.acceptReady();
 				if (message.documentVersion !== document.version || message.editEpoch !== editQueue.epoch) {
@@ -533,8 +534,8 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 				this.#logger.trace('Markdown code block editor', message.message);
 			},
 
-			richLinkTargets: message => {
-				richLinks.updateTargets(message.hrefs);
+			richLinkSubscriptions: message => {
+				richLinks.updateSubscriptions(message);
 			},
 
 			editorFocusChanged: async message => {
@@ -648,6 +649,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			: this.#wireQuickDiff(document, editorWebview);
 		const reloadWebview = (): void => {
 			navigation.reset();
+			richLinks.clear();
 			imagePaste.dispose();
 			rename.cancel();
 			languageFeatures.cancel();
@@ -705,12 +707,10 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		const onDidChangeViewState = webviewPanel.onDidChangeViewState(() => this.#updateEditorFocusContext());
 		const onDidChangeRichLinksConfiguration = vscode.workspace.onDidChangeConfiguration(event => {
 			if (event.affectsConfiguration('markdown.experimental.richLinks.enabled', document.uri)) {
-				richLinks.updateTargets([]);
 				reloadWebview();
 			}
 		});
 		const onDidChangeLinkPresentationRules = vscode.window.onDidChangeLinkPresentationRules(() => {
-			richLinks.updateTargets([]);
 			reloadWebview();
 		});
 

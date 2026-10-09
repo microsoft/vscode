@@ -2052,7 +2052,8 @@ function buildGeneratedImageToolData(tc: ToolCallState): IChatGeneratedImageData
 		block.type === ToolResultContentType.EmbeddedResource
 			? block.contentType.startsWith('image/') && block.data.length > 0
 			: block.type === ToolResultContentType.Resource && block.contentType?.startsWith('image/') && block.uri.length > 0);
-	return hasImage ? { kind: 'generatedImage' } : undefined;
+	const durationMs = readToolCallMeta(tc)['vscode.toolCallDurationMs'];
+	return hasImage ? { kind: 'generatedImage', ...(durationMs !== undefined ? { durationMs } : {}) } : undefined;
 }
 
 function buildImageGenerationInputData(tc: ToolCallState): IChatToolInputInvocationData | undefined {

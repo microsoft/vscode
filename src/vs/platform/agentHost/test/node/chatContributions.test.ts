@@ -2798,6 +2798,40 @@ suite('AgentHostChatContributions', () => {
 		}, { persisted: '{}', live: values });
 	});
 
+	for (const sandboxEnabled of ['on', 'off']) {
+		test(`preserves persisted sandbox ${sandboxEnabled} until the runtime confirms a new selection`, async () => {
+			const contributions = createBuiltInContributions(disposables);
+			await contributions.database.setMetadata('configValues', JSON.stringify({ sandboxEnabled, mode: 'interactive' }));
+			const pending = sandboxEnabled === 'on' ? 'off' : 'on';
+			const values = { sandboxEnabled: pending, mode: 'plan' };
+			contributions.stateManager.setSessionConfig(contributions.session, {
+				schema: { type: 'object', properties: {} }, values,
+			});
+			contributions.service.didDispatchAction(dispatchedAction(contributions.session, contributions.session, {
+				type: ActionType.SessionConfigChanged, config: { mode: 'plan' },
+			}));
+			await Promise.resolve();
+			const beforeConfirmation = JSON.parse((await contributions.database.getMetadata('configValues'))!);
+
+			const meta = withSessionSandboxState(undefined, { enabled: pending === 'on' });
+			contributions.stateManager.setSessionMeta(contributions.session, meta);
+			contributions.service.didDispatchAction(dispatchedAction(contributions.session, contributions.session, {
+				type: ActionType.SessionMetaChanged, _meta: meta,
+			}));
+			await Promise.resolve();
+
+			assert.deepStrictEqual({
+				beforeConfirmation,
+				afterConfirmation: JSON.parse((await contributions.database.getMetadata('configValues'))!),
+				live: contributions.stateManager.getSessionState(contributions.session)?.config?.values,
+			}, {
+				beforeConfirmation: { sandboxEnabled, mode: 'plan' },
+				afterConfirmation: { sandboxEnabled: pending, mode: 'plan' },
+				live: values,
+			});
+		});
+	}
+
 	test('persists applied sandbox state instead of pending or failed selections', async () => {
 		const contributions = createBuiltInContributions(disposables);
 		const snapshots: string[] = [];

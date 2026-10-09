@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { JsonObject, JsonValue } from '../schema.js';
+import type { JsonObject, JsonValue } from '../client/schema.js';
 import type { EnvironmentKind, PaginatedResponse, PaginationOptions, RepositoryRef, User } from './missionControl.js';
 
 /** The current task state, derived from its most recent session. */

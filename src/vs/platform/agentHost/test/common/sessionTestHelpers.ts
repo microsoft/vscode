@@ -127,6 +127,10 @@ export class TestSessionDatabase implements ISessionDatabase {
 		this._metadata.set(key, value);
 	}
 
+	async updateMetadata(key: string, update: (value: string | undefined) => string): Promise<void> {
+		await this.setMetadata(key, update(this._metadata.get(key)));
+	}
+
 	async setMetadataValues(values: Readonly<Record<string, string>>): Promise<void> {
 		for (const [key, value] of Object.entries(values)) {
 			this.setMetadataCalls.push({ key, value });
