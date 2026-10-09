@@ -92,12 +92,13 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { mcpAccessConfig, McpAccessValue } from '../../../../../platform/mcp/common/mcpManagement.js';
 import { IMcpGalleryManifestService, McpGalleryManifestStatus } from '../../../../../platform/mcp/common/mcpGalleryManifest.js';
 import { McpServerType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { McpResourceFormat } from '../../../../../platform/mcp/common/mcpWorkspaceConfiguration.js';
 import { ChatConfiguration } from '../../../../contrib/chat/common/constants.js';
 import { PromptsConfig } from '../../../../contrib/chat/common/promptSyntax/config/config.js';
 import { IAutomationDialogService } from '../../../../contrib/chat/common/automations/automationDialogService.js';
 import { IAutomationRunner } from '../../../../contrib/chat/common/automations/automationRunner.js';
 import { IAutomationService } from '../../../../contrib/chat/common/automations/automationService.js';
-import { IMcpWorkbenchService, IWorkbenchMcpServer, IMcpServer, IMcpService, McpConnectionState, McpServerInstallState, MCP_PLUGIN_COLLECTION_ID_PREFIX } from '../../../../contrib/mcp/common/mcpTypes.js';
+import { IEditableMcpServerConfiguration, IMcpWorkbenchService, IWorkbenchMcpServer, IMcpServer, IMcpService, McpConnectionState, McpServerInstallState, MCP_PLUGIN_COLLECTION_ID_PREFIX } from '../../../../contrib/mcp/common/mcpTypes.js';
 import { IMcpRegistry } from '../../../../contrib/mcp/common/mcpRegistryTypes.js';
 import { IWorkbenchLocalMcpServer, LocalMcpServerScope } from '../../../../services/mcp/common/mcpWorkbenchManagementService.js';
 import { McpListWidget } from '../../../../contrib/chat/browser/aiCustomization/mcpListWidget.js';
@@ -1826,6 +1827,14 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			&& Math.abs(featuredCard.getBoundingClientRect().height - browsePrimaryAction.getBoundingClientRect().height) <= 1,
 			'The Discover card primary action must cover the entire card behind its independent action.',
 		);
+		const cardActions = featuredCard?.querySelector<HTMLElement>('.customization-discovery-card-actions');
+		const lastCardAction = cardActions?.lastElementChild;
+		const cardPaddingRight = featuredCard ? parseFloat(DOM.getWindow(featuredCard).getComputedStyle(featuredCard).paddingRight) : 0;
+		assert(
+			!featuredCard || !cardActions || !(lastCardAction instanceof HTMLElement)
+			|| Math.abs(featuredCard.getBoundingClientRect().right - cardPaddingRight - lastCardAction.getBoundingClientRect().right) <= 1,
+			'Discover card actions must remain right-aligned.',
+		);
 		const cardIcon = featuredCard?.querySelector<HTMLElement>('.customization-discovery-card-icon');
 		assert(!cardIcon || cardIcon.offsetWidth === 40 && cardIcon.offsetHeight === 40, 'Discover cards must use the compact marketplace icon size.');
 		const header = ctx.container.querySelector<HTMLElement>('.customization-discovery-header');
@@ -2683,6 +2692,8 @@ function renderEmbeddedMcpDetail(
 		/** Replaces the server's configuration file with a non-file provenance. */
 		readonly provenance?: IMcpServerDetailInput['provenance'];
 		readonly definitionUnavailable?: IMcpServerDetailInput['definitionUnavailable'];
+		/** Serves the server from a file such as the Copilot CLI's `mcp-config.json` rather than as an installed server. */
+		readonly editableConfiguration?: IEditableMcpServerConfiguration;
 	} = {},
 ): void {
 	const width = options.width ?? 480;
@@ -2713,8 +2724,9 @@ function renderEmbeddedMcpDetail(
 				override readonly onChange = Event.None;
 				override readonly onReset = Event.None;
 				override readonly whenInitialLocalMcpServersLoaded = Promise.resolve();
-				override readonly local: IWorkbenchMcpServer[] = server ? [server] : [];
+				override readonly local: IWorkbenchMcpServer[] = server && !options.editableConfiguration ? [server] : [];
 				override async open() { /* no-op in fixture */ }
+				override async resolveEditableMcpServerConfiguration() { return options.editableConfiguration; }
 			}());
 			reg.defineInstance(IFileService, new class extends mock<IFileService>() { }());
 			reg.defineInstance(IEditorService, new class extends mock<IEditorService>() {
@@ -2899,13 +2911,13 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// Welcome page — default state with no section selected
 	WelcomePage: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['Wide Discover uses the same centered content measure as the management pages. Its title, compact Marketplace-style search and filter control, browse sections, and state messages share horizontal edges; featured cards retain their recessed surface and two-line text hierarchy.'],
+		expectedVisualDescriptions: ['Wide Discover uses the same centered content measure as the management pages. Its title, compact Marketplace-style search and filter control, browse sections, and state messages share horizontal edges; two-column cards keep actions right-aligned and featured cards retain their recessed surface and two-line text hierarchy.'],
 		render: ctx => renderEditor(ctx, { sessionResource: localSessionResource, marketplaceVisibilityEnabled: true, width: 1200, expectedDiscoveryContentWidth: 840 }),
 	}),
 
 	WelcomePageNarrow: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['Narrow Discover uses one browse-card column, the same horizontal inset as Plugins, a toolbar filter, and no horizontal overflow. Featured cards retain their subtle recessed surface and two-line text hierarchy.'],
+		expectedVisualDescriptions: ['Narrow Discover uses one browse-card column with right-aligned actions, the same horizontal inset as Plugins, a toolbar filter, and no horizontal overflow. Featured cards retain their subtle recessed surface and two-line text hierarchy.'],
 		render: ctx => renderEditor(ctx, { sessionResource: localSessionResource, marketplaceVisibilityEnabled: true, width: 550, height: 500, expectedDiscoveryContentWidth: 302 }),
 	}),
 
@@ -3904,6 +3916,39 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		})),
 	}),
 
+	// Configuration form for a server from a workspace root .mcp.json, which supports a subset of mcp.json.
+	EmbeddedMcpDetailConfigurationForm: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		additionalThemes: ['light2026', 'darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The MCP detail shows an editable configuration form with a stdio/http type switch, command and argument fields, environment variable name/value rows with remove buttons and a left-aligned Add Variable button, and Discard Changes/Save buttons. There is no Configuration heading, diagnostics text or footer divider.'],
+		render: ctx => renderEmbeddedMcpDetail(ctx, makeLocalMcpServer('github', 'GitHub', LocalMcpServerScope.Workspace, 'GitHub repositories, issues and pull requests'), {
+			width: 560,
+			height: 700,
+			source: { uri: URI.file('/workspace/.mcp.json') },
+			editableConfiguration: {
+				config: { type: McpServerType.LOCAL, command: 'npx', args: ['-y', '@modelcontextprotocol/server-github'], env: { GITHUB_PERSONAL_ACCESS_TOKEN: '${GITHUB_TOKEN}', GITHUB_HOST: 'github.com' } },
+				format: McpResourceFormat.WorkspaceRoot,
+				save: async () => { },
+			},
+		}),
+	}),
+
+	// Configuration form for a server from the Copilot CLI's mcp-config.json, which has no environment file.
+	EmbeddedMcpDetailCopilotGlobalForm: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		additionalThemes: ['light2026'],
+		render: ctx => renderEmbeddedMcpDetail(ctx, makeLocalMcpServer('local-memory', 'local-memory', LocalMcpServerScope.User), {
+			width: 560,
+			height: 760,
+			source: { uri: URI.file('/Users/me/.copilot/mcp-config.json') },
+			editableConfiguration: {
+				config: { type: McpServerType.LOCAL, command: 'npx', args: ['-y', '@modelcontextprotocol/server-memory'], env: { MEMORY_FILE_PATH: '/Users/me/.copilot/memory.json' } },
+				format: McpResourceFormat.CopilotGlobal,
+				save: async () => { },
+			},
+		}),
+	}),
+
 	EmbeddedMcpDetailSourceLink: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
 		expectedVisualDescriptions: ['The MCP detail header shows mcp.json as a themed source link above the configuration.'],
@@ -4054,7 +4099,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	EmbeddedMcpDetailCompatible: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['The text No diagnostics to show appears above Configuration. No diagnostics header or diagnostic cards are shown.'],
+		expectedVisualDescriptions: ['The Configuration heading appears directly below the header. No diagnostics text, header or diagnostic cards are shown.'],
 		render: ctx => renderEmbeddedMcpDetail(
 			ctx,
 			makeLocalMcpServer('component-explorer', 'component-explorer', LocalMcpServerScope.Workspace, 'Component fixtures', {
@@ -4105,6 +4150,8 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// Standalone embedded plugin detail widget — installed plugin.
 	EmbeddedPluginDetailInstalled: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The installed plugin detail has Uninstall and Disable actions. The Disable split-button divider is visible without leaking through the outer border at its top or bottom edge.'],
 		render: ctx => renderEmbeddedPluginDetail(ctx, makeInstalledPluginItem('Linear', 'Issue tracking and project management integration')),
 	}),
 

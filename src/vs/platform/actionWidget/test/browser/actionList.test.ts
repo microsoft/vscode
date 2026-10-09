@@ -277,6 +277,29 @@ suite('ActionListWidget', () => {
 		});
 	});
 
+	test('keeps leading badges in visual and accessible order when rows resolve or are reused', () => {
+		const widget = createActionListWidget(disposables, {
+			items: [{ ...action('Pull Request'), badge: '#123', badgeBeforeLabel: true }],
+			listOptions: { showFilter: false },
+		});
+		const read = () => {
+			const row = widget.domNode.querySelector<HTMLElement>('.monaco-list-row.action')!;
+			return {
+				ariaLabel: row.ariaLabel,
+				order: [...row.children].filter(element => element.classList.contains('title') || element.classList.contains('action-item-badge')).map(element => element.textContent),
+			};
+		};
+		const initial = read();
+		widget.updateItems([{ ...action('Resolved title'), badge: '#123', badgeBeforeLabel: true }]);
+		const resolved = read();
+		widget.updateItems([{ ...action('Ordinary action'), badge: 'New' }]);
+		assert.deepStrictEqual({ initial, resolved, reused: read() }, {
+			initial: { ariaLabel: '#123, Pull Request', order: ['#123', 'Pull Request'] },
+			resolved: { ariaLabel: '#123, Resolved title', order: ['#123', 'Resolved title'] },
+			reused: { ariaLabel: 'Ordinary action, New', order: ['Ordinary action', 'New'] },
+		});
+	});
+
 	test('toolbar labels remain actionable and revert to icons when a row is reused', () => {
 		const selected: string[] = [];
 		let configured = 0;

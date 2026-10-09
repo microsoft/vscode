@@ -5,7 +5,8 @@
 
 import '../../../workbench/browser/parts/panel/media/panelpart.css';
 import './media/panelPart.css';
-import { IAction } from '../../../base/common/actions.js';
+import { localize } from '../../../nls.js';
+import { IAction, SubmenuAction } from '../../../base/common/actions.js';
 import { ActionsOrientation } from '../../../base/browser/ui/actionbar/actionbar.js';
 import { ActivePanelContext, PanelFocusContext } from '../../../workbench/common/contextkeys.js';
 import { IWorkbenchLayoutService, Parts, Position } from '../../../workbench/services/layout/browser/layoutService.js';
@@ -23,7 +24,8 @@ import { assertReturnsDefined } from '../../../base/common/types.js';
 import { IExtensionService } from '../../../workbench/services/extensions/common/extensions.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../workbench/common/views.js';
 import { HoverPosition } from '../../../base/browser/ui/hover/hoverWidget.js';
-import { IMenuService } from '../../../platform/actions/common/actions.js';
+import { IMenuService, MenuId } from '../../../platform/actions/common/actions.js';
+import { getContextMenuActions } from '../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { Menus } from '../menus.js';
 import { AbstractPaneCompositePart, CompositeBarPosition } from '../../../workbench/browser/parts/paneCompositePart.js';
 import { Part } from '../../../workbench/browser/part.js';
@@ -158,6 +160,7 @@ export class PanelPart extends AbstractPaneCompositePart {
 			activityHoverOptions: {
 				position: () => this.layoutService.getPanelPosition() === Position.BOTTOM && !this.layoutService.isPanelMaximized() ? HoverPosition.ABOVE : HoverPosition.BELOW,
 			},
+			transformContextMenuActionsForComposite: actions => this.transformContextMenuActionsForComposite(actions),
 			fillExtraContextMenuActions: actions => this.fillExtraContextMenuActions(actions),
 			compositeSize: 0,
 			iconSize: 16,
@@ -174,6 +177,20 @@ export class PanelPart extends AbstractPaneCompositePart {
 				dragAndDropBorder: theme.getColor(PANEL_DRAG_AND_DROP_BORDER)
 			})
 		};
+	}
+
+	private transformContextMenuActionsForComposite(actions: IAction[]): IAction[] {
+		if (isPhoneLayout(this.layoutService)) {
+			return actions;
+		}
+
+		const alignmentActions = getContextMenuActions(
+			this.menuService.getMenuActions(MenuId.PanelAlignmentMenu, this.contextKeyService, { shouldForwardArgs: true })
+		).secondary.filter(action => action.id === 'workbench.action.alignPanelCenter' || action.id === 'workbench.action.alignPanelJustify');
+
+		return actions.map(action => action.id === 'moveToMenu'
+			? new SubmenuAction('workbench.action.panel.align', localize('alignPanel', "Align Panel"), alignmentActions)
+			: action);
 	}
 
 	private fillExtraContextMenuActions(_actions: IAction[]): void { }

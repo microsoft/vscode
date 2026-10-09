@@ -27,6 +27,7 @@ import { TestInstantiationService } from '../../../../../../../platform/instanti
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IAccessibleViewService } from '../../../../../../../platform/accessibility/browser/accessibleView.js';
+import { AGENT_HOST_TERMINAL_MAX_CONTENT_LENGTH } from '../../../../../../../platform/agentHost/common/terminalConstants.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { TerminalCapabilityStore } from '../../../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
@@ -1055,6 +1056,18 @@ suite('ChatTerminalToolProgressPart full output', () => {
 	});
 });
 
+suite('ChatTerminalToolProgressPart output scrollback', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('keeps all the output an Agent Host output terminal retains scrollable', async () => {
+		const harness = await createTerminalFullOutputHarness(store);
+		const { part } = harness.createPart({ mode: 'plain' });
+		await harness.expand(part, 'plain');
+
+		assert.strictEqual(harness.raw(part).options.scrollback, AGENT_HOST_TERMINAL_MAX_CONTENT_LENGTH);
+	});
+});
+
 suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -1323,6 +1336,7 @@ suite('ChatTerminalToolOutputSection layout', () => {
 			() => options?.source,
 			() => output,
 			() => 'echo test',
+			() => undefined,
 			() => undefined,
 			() => options?.isRunning?.() ?? false,
 			() => fullOutputAction,
@@ -1719,24 +1733,46 @@ suite('ChatTerminalToolOutputSection layout', () => {
 		assert.deepStrictEqual({ layouts, scrolls }, { layouts: 0, scrolls: 0 });
 	});
 
-	test('coalesces scheduled output layouts', async () => {
+	test('defers and coalesces mirror reflow with output layout', async () => {
 		const section = createSection(undefined);
+		await section.toggle(true);
+		section['_outputRelayout'].clear();
+		const laidOut = new DeferredPromise<void>();
+		let reflows = 0;
 		let layouts = 0;
 		let scrolls = 0;
-		section['_layoutOutput'] = () => layouts++;
+		section['_layoutMirrorWidth'] = async () => {
+			reflows++;
+			return { lineCount: 3 };
+		};
+		section['_layoutOutput'] = () => {
+			layouts++;
+			void laidOut.complete();
+		};
 		section['_scrollOutputToBottom'] = () => scrolls++;
 
 		section['_scheduleOutputRelayout']();
 		section['_scheduleOutputRelayout']();
-		await new Promise<void>(resolve => store.add(scheduleAtNextAnimationFrame(mainWindow, resolve)));
+		const beforeFrame = { reflows, layouts, scrolls };
+		await laidOut.p;
 
-		assert.deepStrictEqual({ layouts, scrolls }, { layouts: 1, scrolls: 1 });
+		assert.deepStrictEqual({ beforeFrame, afterFrame: { reflows, layouts, scrolls } }, {
+			beforeFrame: { reflows: 0, layouts: 0, scrolls: 0 },
+			afterFrame: { reflows: 1, layouts: 1, scrolls: 1 },
+		});
 	});
 
 	test('cancels scheduled output layout on disposal', async () => {
 		const section = createSection(undefined);
+		await section.toggle(true);
+		section['_outputRelayout'].clear();
+		let reflows = 0;
 		let layouts = 0;
 		let scrolls = 0;
+		section['_layoutMirrorWidth'] = async () => {
+			reflows++;
+			return { lineCount: 3 };
+		};
 		section['_layoutOutput'] = () => layouts++;
 		section['_scrollOutputToBottom'] = () => scrolls++;
 
@@ -1744,7 +1780,7 @@ suite('ChatTerminalToolOutputSection layout', () => {
 		section.dispose();
 		await new Promise<void>(resolve => store.add(scheduleAtNextAnimationFrame(mainWindow, resolve)));
 
-		assert.deepStrictEqual({ layouts, scrolls }, { layouts: 0, scrolls: 0 });
+		assert.deepStrictEqual({ reflows, layouts, scrolls }, { reflows: 0, layouts: 0, scrolls: 0 });
 	});
 	/* eslint-enable local/code-no-bracket-notation-for-identifiers */
 

@@ -19,6 +19,35 @@ import { KeybindingWeight } from '../../../platform/keybinding/common/keybinding
 import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
 import { getActiveWindow } from '../../../base/browser/dom.js';
 import { isAuxiliaryWindow } from '../../../base/browser/window.js';
+import { ContextKeyExpression, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
+import { ICommandService } from '../../../platform/commands/common/commands.js';
+import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+
+export const NAVIGATE_VIEW_COMMANDS = {
+	left: 'workbench.action.navigateLeft',
+	right: 'workbench.action.navigateRight',
+	up: 'workbench.action.navigateUp',
+	down: 'workbench.action.navigateDown',
+} as const;
+
+interface IViewNavigationCommand {
+	readonly direction: Direction;
+	readonly commandId: string;
+	readonly when: ContextKeyExpression;
+}
+
+const viewNavigationCommands: IViewNavigationCommand[] = [];
+
+export function registerViewNavigationCommand(direction: Direction, commandId: string, when: ContextKeyExpression): IDisposable {
+	const command = { direction, commandId, when };
+	viewNavigationCommands.unshift(command);
+	return toDisposable(() => {
+		const index = viewNavigationCommands.indexOf(command);
+		if (index !== -1) {
+			viewNavigationCommands.splice(index, 1);
+		}
+	});
+}
 
 abstract class BaseNavigationAction extends Action2 {
 
@@ -29,7 +58,14 @@ abstract class BaseNavigationAction extends Action2 {
 		super(options);
 	}
 
-	run(accessor: ServicesAccessor): void {
+	run(accessor: ServicesAccessor): void | Promise<unknown> {
+		const contextKeyService = accessor.get(IContextKeyService);
+		const viewNavigationCommand = viewNavigationCommands.find(command =>
+			command.direction === this.direction && contextKeyService.contextMatchesRules(command.when));
+		if (viewNavigationCommand) {
+			return accessor.get(ICommandService).executeCommand(viewNavigationCommand.commandId);
+		}
+
 		const layoutService = accessor.get(IWorkbenchLayoutService);
 		const editorGroupService = accessor.get(IEditorGroupsService);
 		const paneCompositeService = accessor.get(IPaneCompositePartService);
@@ -194,7 +230,7 @@ registerAction2(class extends BaseNavigationAction {
 
 	constructor() {
 		super({
-			id: 'workbench.action.navigateLeft',
+			id: NAVIGATE_VIEW_COMMANDS.left,
 			title: localize2('navigateLeft', 'Navigate to the View on the Left'),
 			category: Categories.View,
 			f1: true
@@ -206,7 +242,7 @@ registerAction2(class extends BaseNavigationAction {
 
 	constructor() {
 		super({
-			id: 'workbench.action.navigateRight',
+			id: NAVIGATE_VIEW_COMMANDS.right,
 			title: localize2('navigateRight', 'Navigate to the View on the Right'),
 			category: Categories.View,
 			f1: true
@@ -218,7 +254,7 @@ registerAction2(class extends BaseNavigationAction {
 
 	constructor() {
 		super({
-			id: 'workbench.action.navigateUp',
+			id: NAVIGATE_VIEW_COMMANDS.up,
 			title: localize2('navigateUp', 'Navigate to the View Above'),
 			category: Categories.View,
 			f1: true
@@ -230,7 +266,7 @@ registerAction2(class extends BaseNavigationAction {
 
 	constructor() {
 		super({
-			id: 'workbench.action.navigateDown',
+			id: NAVIGATE_VIEW_COMMANDS.down,
 			title: localize2('navigateDown', 'Navigate to the View Below'),
 			category: Categories.View,
 			f1: true

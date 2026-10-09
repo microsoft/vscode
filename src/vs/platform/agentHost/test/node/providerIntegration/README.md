@@ -14,6 +14,12 @@ Run one suite with:
 
 `copilotAutoTier.integrationTest.ts` checks that a scalar default selected by the client travels through the existing `ModelSelection.config.tier` / SDK `capi.autoTier` boundary to the actual first `/auto` request and survives resume. It uses the production scalar reader and tier accessor with the bundled SDK and isolated HTTP service. Picker scope/lifecycle and send/model-change ordering are covered separately in the browser store and Copilot agent unit suites. These tests characterize client startup preferences, not runtime policy enforcement or backend authoring semantics; they do not require a real account or modify device policy.
 
+`copilotOtel.integrationTest.ts` checks that native shell-tool execution and concurrent session-event delivery complete with OpenTelemetry both enabled and disabled. It runs the bundled SDK against the synthetic BYOK Responses service, verifies every real tool result, requires progress before the runtime's 30-second session-lock timeout, and checks that the enabled file exporter produces native tool spans. Content capture is disabled. The enabled variant has a strict expected-failure marker for [github/copilot-agent-runtime#25128](https://github.com/github/copilot-agent-runtime/issues/25128): only the known progress-deadline failure is accepted; an unexpected pass or any other failure fails the test. Remove the marker when the runtime is fixed, retaining all desired-behavior assertions. This is a concurrency regression test, not a deterministic thread-scheduling test. Run it with:
+
+```bash
+./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/providerIntegration/copilotOtel.integrationTest.ts
+```
+
 `copilotManagedPermissions.integrationTest.ts` exercises the default-on legacy bridge
 against the bundled runtime with an isolated synthetic BYOK model. It checks URL
 denials and terminal managed asks on create, cold resume, and removal, preserving
