@@ -22,7 +22,7 @@ import { Task } from '../../../../../platform/github/common/missionControl/tasks
 import { AccountHandle } from '../../../../../platform/github/common/types.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { AutomationCatalogueState, AutomationMutationUncertainError, IAutomationWorkspaceTarget } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { AutomationCatalogueState, AutomationMutationUncertainError, AutomationUnavailableError, IAutomationWorkspaceTarget } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { IWorkbenchGitHubService } from '../../../../../workbench/services/github/common/githubService.js';
 import { ISessionsRecentWorkspacesService } from '../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { GITHUB_REMOTE_FILE_SCHEME } from '../../../../services/sessions/common/session.js';
@@ -298,7 +298,16 @@ export class GitHubCloudAutomationStore extends Disposable {
 
 	async run(entry: ICloudAutomationEntry, token: CancellationToken = CancellationToken.None, guard?: () => void): Promise<void> {
 		await this.mutate(entry.repository, async (client, ref, signal) => {
-			const current = await client.automations.get(ref, entry.definition.id, signal);
+			let current: AutomationDetail;
+			try {
+				current = await client.automations.get(ref, entry.definition.id, signal);
+			} catch (error) {
+				if (!(error instanceof ApiRequestError) || error.statusCode !== 404) {
+					throw error;
+				}
+				this.removeEntry(entry, signal);
+				throw new AutomationUnavailableError(localize('cloudAutomations.missing', "This cloud automation is no longer available. Refresh the catalogue."));
+			}
 			this.publish(entry.repository, current, signal);
 			guard?.();
 			await client.automations.dispatch(ref, current.id, { event: 'manual' }, signal);
