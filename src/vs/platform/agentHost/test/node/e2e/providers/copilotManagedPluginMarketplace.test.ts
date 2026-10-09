@@ -10,12 +10,18 @@ import { tmpdir } from 'os';
 import { promisify } from 'util';
 import { join } from '../../../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { disableTestGitMaintenance } from '../harness/agentHostE2ETestHarness.js';
 import { createManagedPluginMarketplace } from './copilotManagedPluginMarketplace.js';
 
 const execFileAsync = promisify(execFile);
 
 suite('Copilot managed plugin marketplace fixture', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	async function cloneMarketplace(sourceUrl: string, checkout: string): Promise<void> {
+		await execFileAsync('git', ['-c', 'gc.auto=0', '-c', 'maintenance.auto=false', 'clone', sourceUrl, checkout]);
+		disableTestGitMaintenance(checkout);
+	}
 
 	async function withMarketplace(run: (root: string, marketplace: Awaited<ReturnType<typeof createManagedPluginMarketplace>>) => Promise<void>): Promise<void> {
 		const root = await mkdtemp(join(tmpdir(), 'managed-plugin-marketplace-'));
@@ -54,7 +60,7 @@ suite('Copilot managed plugin marketplace fixture', () => {
 			const checkout = join(root, 'checkout');
 			const gate = marketplace.holdNextRequest();
 			let cloneComplete = false;
-			const clone = execFileAsync('git', ['clone', marketplace.sourceUrl, checkout]).then(() => {
+			const clone = cloneMarketplace(marketplace.sourceUrl, checkout).then(() => {
 				cloneComplete = true;
 			});
 			try {
@@ -79,10 +85,10 @@ suite('Copilot managed plugin marketplace fixture', () => {
 		await withMarketplace(async (root, marketplace) => {
 			marketplace.failNextRequest();
 			await assert.rejects(
-				execFileAsync('git', ['clone', marketplace.sourceUrl, join(root, 'failed-checkout')]),
+				execFileAsync('git', ['-c', 'gc.auto=0', '-c', 'maintenance.auto=false', 'clone', marketplace.sourceUrl, join(root, 'failed-checkout')]),
 				/requested URL returned error: 503|Marketplace temporarily unavailable/,
 			);
-			await execFileAsync('git', ['clone', marketplace.sourceUrl, join(root, 'recovered-checkout')]);
+			await cloneMarketplace(marketplace.sourceUrl, join(root, 'recovered-checkout'));
 			assert.ok(marketplace.requestCount > 1);
 		});
 	});
@@ -92,13 +98,34 @@ suite('Copilot managed plugin marketplace fixture', () => {
 			marketplace.setUnavailable(true);
 			for (const checkout of ['unavailable-a', 'unavailable-b']) {
 				await assert.rejects(
-					execFileAsync('git', ['clone', marketplace.sourceUrl, join(root, checkout)]),
+					execFileAsync('git', ['-c', 'gc.auto=0', '-c', 'maintenance.auto=false', 'clone', marketplace.sourceUrl, join(root, checkout)]),
 					/requested URL returned error: 503|Marketplace temporarily unavailable/,
 				);
 			}
 			marketplace.setUnavailable(false);
-			await execFileAsync('git', ['clone', marketplace.sourceUrl, join(root, 'available')]);
+			await cloneMarketplace(marketplace.sourceUrl, join(root, 'available'));
 			assert.ok(marketplace.requestCount > 2);
+		});
+	});
+
+	test('publishes an update that an existing checkout can pull', async () => {
+		await withMarketplace(async (root, marketplace) => {
+			const checkout = join(root, 'update-checkout');
+			await cloneMarketplace(marketplace.sourceUrl, checkout);
+			await marketplace.publish([{
+				name: 'gated-plugin',
+				version: '2.0.0',
+				skillName: 'updated-gated-skill',
+			}]);
+			await execFileAsync('git', ['pull', '--ff-only'], { cwd: checkout });
+
+			assert.deepStrictEqual({
+				version: await readFile(join(checkout, 'plugins', 'gated-plugin', 'VERSION'), 'utf8'),
+				skill: (await readFile(join(checkout, 'plugins', 'gated-plugin', 'skills', 'updated-gated-skill', 'SKILL.md'), 'utf8')).replace(/\r\n/g, '\n'),
+			}, {
+				version: '2.0.0',
+				skill: '---\nname: updated-gated-skill\ndescription: Managed plugin skill updated-gated-skill.\n---\n\nManaged plugin skill updated-gated-skill.',
+			});
 		});
 	});
 });

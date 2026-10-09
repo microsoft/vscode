@@ -11,6 +11,7 @@ import { createRequire } from 'module';
 import { promisify } from 'util';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { dirname, join } from '../../../../../../base/common/path.js';
+import { initTestGitRepo } from '../harness/agentHostE2ETestHarness.js';
 
 const execFileAsync = promisify(execFile);
 const nodeRequire = createRequire(import.meta.url);
@@ -85,7 +86,6 @@ async function readRequestBody(request: IncomingMessage): Promise<Buffer> {
 async function closeServer(server: Server): Promise<void> {
 	await new Promise<void>((resolve, reject) => {
 		server.close(error => error ? reject(error) : resolve());
-		server.closeAllConnections?.();
 	});
 }
 
@@ -100,9 +100,8 @@ export async function createManagedPluginMarketplace(
 	const remoteDirectory = join(remoteRoot, remoteName);
 	await mkdir(sourceDirectory, { recursive: true });
 	await mkdir(remoteRoot, { recursive: true });
-	await runGit(sourceDirectory, 'init', '--initial-branch=main');
-	await runGit(sourceDirectory, 'config', 'user.name', 'Agent Host E2E');
-	await runGit(sourceDirectory, 'config', 'user.email', 'agent-host-e2e@example.invalid');
+	initTestGitRepo(sourceDirectory);
+	await runGit(sourceDirectory, 'branch', '-M', 'main');
 	const gitHttpBackend = await resolveGitHttpBackend();
 
 	let published = false;
@@ -141,8 +140,11 @@ export async function createManagedPluginMarketplace(
 		await runGit(sourceDirectory, 'add', '-A');
 		await runGit(sourceDirectory, 'commit', '-q', '-m', `Publish ${definitions.map(plugin => `${plugin.name}@${plugin.version}`).join(', ')}`);
 		if (!published) {
-			await runGit(root, 'clone', '--bare', sourceDirectory, remoteDirectory);
+			await mkdir(remoteDirectory, { recursive: true });
+			initTestGitRepo(remoteDirectory, { bare: true });
+			await runGit(remoteDirectory, '--git-dir=.', 'symbolic-ref', 'HEAD', 'refs/heads/main');
 			await runGit(sourceDirectory, 'remote', 'add', 'origin', remoteDirectory);
+			await runGit(sourceDirectory, 'push', '-q', '-u', 'origin', 'main');
 			published = true;
 		} else {
 			await runGit(sourceDirectory, 'push', '-q', 'origin', 'main');
@@ -205,8 +207,9 @@ export async function createManagedPluginMarketplace(
 		response.end(backendResponse.subarray(separatorIndex + separatorLength));
 	};
 
+	const activeHandlers = new Set<Promise<void>>();
 	const server = httpModule.createServer((request, response) => {
-		void (async () => {
+		const handler = (async () => {
 			requestCount++;
 			if (unavailable || failedRequests > 0) {
 				failedRequests = Math.max(0, failedRequests - 1);
@@ -229,6 +232,11 @@ export async function createManagedPluginMarketplace(
 			}
 			response.end(failure.message);
 		});
+		activeHandlers.add(handler);
+		void handler.then(
+			() => { activeHandlers.delete(handler); },
+			() => { activeHandlers.delete(handler); },
+		);
 	});
 	await new Promise<void>((resolve, reject) => {
 		server.once('error', reject);
@@ -267,6 +275,7 @@ export async function createManagedPluginMarketplace(
 		close: async () => {
 			nextRequestGate?.released.complete();
 			await closeServer(server);
+			await Promise.allSettled(activeHandlers);
 			if (errors.length > 0) {
 				throw new AggregateError(errors, `Managed plugin marketplace server failed: ${errors.map(error => error.message).join('; ')}`);
 			}
