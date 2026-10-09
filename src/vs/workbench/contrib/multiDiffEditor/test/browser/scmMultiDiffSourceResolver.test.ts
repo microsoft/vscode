@@ -9,6 +9,8 @@ import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IActivityService } from '../../../../services/activity/common/activity.js';
 import { ISCMHistoryProvider } from '../../../scm/common/history.js';
 import { ISCMProvider, ISCMRepository, ISCMResource, ISCMResourceGroup, ISCMService } from '../../../scm/common/scm.js';
@@ -85,6 +87,14 @@ suite('ScmHistoryItemResolver', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	function createFileService(existingFiles: URI[]): IFileService {
+		return new class extends mock<IFileService>() {
+			override async exists(resource: URI): Promise<boolean> {
+				return existingFiles.some(file => file.toString() === resource.toString());
+			}
+		}();
+	}
+
 	test('waits for the repository to be added', async () => {
 		const calls: [string, string | undefined][] = [];
 		const originalUri = URI.file('original.ts');
@@ -116,7 +126,7 @@ suite('ScmHistoryItemResolver', () => {
 			}
 		}();
 
-		const resolver = new ScmHistoryItemResolver(scmService);
+		const resolver = new ScmHistoryItemResolver(scmService, new TestConfigurationService(), createFileService([]));
 		const sourceUri = ScmHistoryItemResolver.getMultiDiffSourceUri(provider, 'commit', 'parent', 'display');
 		const sourcePromise = resolver.resolveDiffSource(sourceUri);
 
@@ -140,6 +150,67 @@ suite('ScmHistoryItemResolver', () => {
 				goToFileUri: modifiedUri.toString(),
 				goToFileEditorTitle: 'modified.ts (display)',
 			}]
+		});
+	});
+
+	suite('scm.graph.openFileInWorkingTree', () => {
+
+		// Mirrors the git extension: the change uri is the working tree file
+		// with the revision in the query, the diff uris point at revisions.
+		const workingTreeUri = URI.file('/repository/app.ts');
+		const change = {
+			uri: workingTreeUri.with({ query: 'ref=commit' }),
+			originalUri: URI.from({ scheme: 'git', path: '/repository/app.ts', query: 'parent' }),
+			modifiedUri: URI.from({ scheme: 'git', path: '/repository/app.ts', query: 'commit' }),
+		};
+
+		async function resolveGoToFile(openFileInWorkingTree: boolean, existingFiles: URI[]) {
+			const historyProvider = new class extends mock<ISCMHistoryProvider>() {
+				override async provideHistoryItemChanges() { return [change]; }
+			}();
+			const provider = new class extends mock<ISCMProvider>() {
+				override readonly id = 'scm0';
+				override readonly rootUri = URI.file('/repository');
+				override readonly historyProvider = observableValue<ISCMHistoryProvider | undefined>(this, historyProvider);
+			}();
+			const repository = new class extends mock<ISCMRepository>() {
+				override readonly id = provider.id;
+				override readonly provider = provider;
+			}();
+			const scmService = new class extends mock<ISCMService>() {
+				override readonly onDidAddRepository = Event.None;
+				override getRepository(): ISCMRepository | undefined { return repository; }
+			}();
+
+			const configurationService = new TestConfigurationService({ 'scm.graph.openFileInWorkingTree': openFileInWorkingTree });
+			const resolver = new ScmHistoryItemResolver(scmService, configurationService, createFileService(existingFiles));
+			const source = await resolver.resolveDiffSource(ScmHistoryItemResolver.getMultiDiffSourceUri(provider, 'commit', 'parent', 'display'));
+
+			return source.resources.value.map(resource => ({
+				goToFileUri: resource.goToFileUri?.toString(),
+				goToFileEditorTitle: resource.goToFileEditorTitle,
+			}));
+		}
+
+		test('disabled opens the file from the history item', async () => {
+			assert.deepStrictEqual(await resolveGoToFile(false, [workingTreeUri]), [{
+				goToFileUri: change.modifiedUri.toString(),
+				goToFileEditorTitle: 'app.ts (display)',
+			}]);
+		});
+
+		test('enabled opens the file from the working tree', async () => {
+			assert.deepStrictEqual(await resolveGoToFile(true, [workingTreeUri]), [{
+				goToFileUri: workingTreeUri.toString(),
+				goToFileEditorTitle: undefined,
+			}]);
+		});
+
+		test('enabled falls back to the history item when the file no longer exists', async () => {
+			assert.deepStrictEqual(await resolveGoToFile(true, []), [{
+				goToFileUri: change.modifiedUri.toString(),
+				goToFileEditorTitle: 'app.ts (display)',
+			}]);
 		});
 	});
 });

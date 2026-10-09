@@ -8,11 +8,35 @@ import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
 import { ColorIdentifier } from '../../../../platform/theme/common/colorUtils.js';
 import { ISCMRepository } from './scm.js';
 
 export const SCMIncomingHistoryItemId = 'scm-graph-incoming-changes';
 export const SCMOutgoingHistoryItemId = 'scm-graph-outgoing-changes';
+
+export const SCMGraphOpenFileInWorkingTreeSetting = 'scm.graph.openFileInWorkingTree';
+
+/**
+ * Returns the working tree file of a history item change when the
+ * `scm.graph.openFileInWorkingTree` setting is enabled and that file exists.
+ * Returns `undefined` otherwise, in which case callers open the revision.
+ */
+export async function getHistoryItemChangeWorkingTreeUri(change: ISCMHistoryItemChange, configurationService: IConfigurationService, fileService: IFileService): Promise<URI | undefined> {
+	if (configurationService.getValue<boolean>(SCMGraphOpenFileInWorkingTreeSetting) !== true) {
+		return undefined;
+	}
+
+	// The change uri identifies the file in the working tree, with the
+	// revision encoded in the query (e.g. `?ref=<commit>` for git).
+	const uri = change.uri.with({ query: '', fragment: '' });
+	try {
+		return await fileService.exists(uri) ? uri : undefined;
+	} catch {
+		return undefined;
+	}
+}
 
 export interface ISCMHistoryProvider {
 	readonly historyItemRef: IObservable<ISCMHistoryItemRef | undefined>;
