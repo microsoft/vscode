@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { $, Dimension, EventType, ModifierKeyEmitter, reset, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -23,6 +23,8 @@ import { MultiRowEditorControl } from '../../../../browser/parts/editor/multiRow
 import { EditorInputCapabilities, EditorsOrder, IEditorPartOptions, Verbosity } from '../../../../common/editor.js';
 import { EditorGroupModel } from '../../../../common/editor/editorGroupModel.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
+import { DecorationsService } from '../../../../services/decorations/browser/decorationsService.js';
+import { IDecorationsService } from '../../../../services/decorations/common/decorations.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { INotebookDocumentService, NotebookDocumentWorkbenchService } from '../../../../services/notebook/common/notebookDocumentService.js';
 import { TestFileEditorInput, TestHostService, TestMenuService, workbenchInstantiationService } from '../../workbenchTestServices.js';
@@ -459,6 +461,41 @@ suite('MultiEditorTabsControl', () => {
 			root.classList.remove(theme);
 		}
 		assert.deepStrictEqual(measurements, expected);
+	});
+
+	test('unreserved fit widths refresh when a decoration provider adds or removes a badge', async () => {
+		const group = connectedGroup();
+		control.dispose();
+		reset(container);
+		const service = disposables.add(instantiationService.createInstance(DecorationsService));
+		instantiationService.stub(IDecorationsService, service);
+		const changed = disposables.add(new Emitter<readonly URI[]>());
+		const resource = model.getEditorByIndex(1)!.resource!;
+		let decorated = false;
+		disposables.add(service.registerDecorationsProvider({
+			label: 'Fit tab badge',
+			onDidChange: changed.event,
+			provideDecorations: uri => decorated && uri.toString() === resource.toString() ? { letter: 'M', tooltip: 'Modified' } : undefined,
+		}));
+		partOptions = { ...partOptions, tabActionReserveSpace: false, tabSizing: 'fit', decorations: { badges: true, colors: true } };
+		control = createControl();
+		await layoutConnectedGroup(group, 600);
+		const tab = container.querySelectorAll<HTMLElement>('.tab')[1];
+		const originalWidth = tab.getBoundingClientRect().width;
+		const widths = [];
+		for (const enabled of [true, false]) {
+			decorated = enabled;
+			changed.fire([resource]);
+			const deadline = Date.now() + 3000;
+			while (tab.querySelector('.tab-label')!.classList.contains('monaco-decoration-badge') !== enabled || (enabled ? tab.getBoundingClientRect().width <= originalWidth : Math.abs(tab.getBoundingClientRect().width - originalWidth) >= 1 / 32)) {
+				if (Date.now() >= deadline) {
+					assert.fail(`Decoration layout did not settle for badge state ${enabled}`);
+				}
+				await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+			}
+			widths.push(tab.getBoundingClientRect().width);
+		}
+		assert.deepStrictEqual({ expanded: widths[0] > originalWidth, restored: Math.abs(widths[1] - originalWidth) < 1 / 32 }, { expanded: true, restored: true });
 	});
 
 	test('connected fit tabs reallocate filename width to transient actions', async () => {
