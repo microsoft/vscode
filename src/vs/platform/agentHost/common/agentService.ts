@@ -901,6 +901,9 @@ export interface IAgentService {
 	/** List all available sessions from the Copilot CLI. */
 	listSessions(): Promise<IAgentSessionMetadata[]>;
 
+	/** Counts durable registry identities without provider metadata reads or presentation filtering. */
+	getSessionCount(): Promise<number>;
+
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI>;
 	/** Permanently adopts an external session without sending a message. */
 	importSession?(session: URI): Promise<void>;

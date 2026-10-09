@@ -350,12 +350,12 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 			}
 			// Explain connection-related read-only state before falling back to the generic notice.
 			const connectionBanner = this._connection.bannerContent.read(reader);
-			const idleDraft = activeChat.read(reader)?.interactivity.read(reader) === ChatInteractivity.DraftOnly
-				&& this._connection.isIdleDisconnected.read(reader);
-			if (connectionBanner && !idleDraft) {
+			const quietDraft = activeChat.read(reader)?.interactivity.read(reader) === ChatInteractivity.DraftOnly
+				&& this._connection.isQuiet.read(reader);
+			if (connectionBanner && !quietDraft) {
 				return { banner: connectionBanner, recovery: undefined };
 			}
-			if (activeChat.read(reader)?.interactivity.read(reader) === ChatInteractivity.DraftOnly && context.session.remoteConnectionStatus?.read(reader)?.kind === 'connected') {
+			if (!quietDraft && activeChat.read(reader)?.interactivity.read(reader) === ChatInteractivity.DraftOnly && context.session.remoteConnectionStatus?.read(reader)?.kind === 'connected') {
 				return { banner: { icon: Codicon.sync, message: localize('sessionReadOnlyBanner.preparing', "Preparing the session...") }, recovery: undefined };
 			}
 

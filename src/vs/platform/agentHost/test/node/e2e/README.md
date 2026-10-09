@@ -154,6 +154,8 @@ The `regression coverage:` history cases inspect actual provider-bound continued
 
 Historical checkpoint comparisons use completed provider turns rather than bang commands. Per-turn subscriptions currently select the file-edit tracker, which cannot see shell edits; compare-turn subscriptions use Git checkpoints. Checkpoint capture is asynchronous after turn completion, so these historical scenarios finish a subsequent no-tool turn before comparing earlier turns. Seed staged user changes before the baseline turn, and use an ignored execution witness when an edit-and-restore scenario intentionally has no final diff.
 
+Working-tree captures must read current bytes without changing the user's index, even when same-size edits retain cached file timestamps. The host copies an index only when it matches HEAD; with staged changes it seeds the temporary index from HEAD so restaging cannot silently reuse stale staged blobs. Keep staged additions, modifications, and linked-worktree cases covered.
+
 Session-wide changeset subscriptions and background refreshes use Git checkpoints with tracked-edit fallback while the session is idle, preserving shell edits after the end-of-turn checkpoint has been published. While any chat has an active turn, automatic refreshes use tracked edits so an older completed checkpoint cannot overwrite live edits. The provider aggregation scenario verifies both chats' files on disk and resubscribes after observing their combined changes. Chat-scoped Session Changes continue to use only that chat's tracked edits.
 
 Detached-worktree include-file tests cover wholly ignored and partially selected directories, overlapping globs, binary contents, and collisions with files or directories tracked on another branch. They use unstarted sessions and explicitly delete their handles, avoiding the background Git work associated with model-backed worktree disposal.
@@ -660,6 +662,10 @@ Codex's native plugin marketplace starts a background Git fetch of `openai/plugi
 
 Codex record/replay servers disable `features.plugins` to keep this unrelated marketplace bootstrap out of the tests. Client-provided plugin skills, agents, and MCP servers are configured by the host independently and remain covered by the same tests. Keep cleanup strict and retain its underlying filesystem errors so other teardown failures remain diagnosable.
 
+### Linux suites pass but tmpfs cannot be unmounted
+
+An `umount: target is busy` failure means a process or kernel reference still holds the mount; passing test bodies do not prove that cleanup finished. The wrapper runs a read-only `fuser -vm` probe for at most ten seconds to report holder PIDs, command names, and access types in the task log. Probe errors are reported separately, and the original cleanup failure remains fatal. Correlate the holders with server/provider cleanup logs before changing ownership; do not use lazy unmounts, process-name kills, or retries to conceal a leak.
+
 ### Fixture leaks a username / absolute path / token
 
 Normalization missed something (e.g. a path that `ls` line-wrapped, or a new secret field). Add/extend a placeholder in `capiReplayProxy.ts` (`_normalize` + the `*_RE` redactors), then re-record. Never hand-edit secrets back in.
@@ -675,6 +681,10 @@ You're accidentally in record mode (`AGENT_HOST_REPLAY_RECORD` set) without a to
 ### A test passes alone but fails only when run after another test (shared server)
 
 In replay one server serves every test (see [Server lifecycle](#server-lifecycle)), so a test that returns **mid-turn** leaks: the SDK's continuation call fires after the fixture is swapped and lands in a later test's window as an unrecorded call (a `POST /v1/messages` / `POST /responses` cache miss, usually attributed to the *next* test's teardown). Fix the culprit — the test that returned mid-turn — by draining its turn to `turnComplete` before it ends. (Verify by running the suspected test alone via `--grep`, which gives it a clean one-test server; if it passes alone but fails after a sibling, that's the leak.)
+
+### A Copilot recovery turn completes empty before its request is sent
+
+Check for the preceding execution's `session.error`, a new host turn, a late root `session.idle`, and `Turn changed during preparation; dropping send`. The host can prepare a replacement before the failed execution publishes its final idle; that idle must not complete the replacement. Only a new root execution boundary can release this protection: a background child's turn-start is not proof that the replacement started. Keep the real response assertions and coverage for zero-output completions, early errors, and cancellation; do not delay the retry or discard valid idle events globally.
 
 ### Read or archive state is lost after a graceful host restart
 

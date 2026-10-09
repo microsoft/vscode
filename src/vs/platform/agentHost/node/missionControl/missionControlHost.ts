@@ -112,7 +112,7 @@ export class MissionControlHost extends Disposable {
 			updateProjects: () => this._projects.initialize(),
 			onError: error => this._logService.error(`[AgentHost] Mission Control failure: ${formatConnectionDiagnosticError(getConnectionDiagnosticError(error))}`),
 			onDiagnostic: event => this._reportOperation(event),
-			getSessionCount: async () => (await this._agentService.listSessions()).length,
+			getSessionCount: () => this._agentService.getSessionCount(),
 			getRemoteControlPolicy: () => this._readRemoteControlPolicy(),
 			onReady: environmentId => this._logService.info(`[AgentHost] Mission Control ready; environmentId=${environmentId}`),
 			getIdentityApiBase: () => gitHubEndpoints.getApiBaseUri(),

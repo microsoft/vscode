@@ -2138,34 +2138,99 @@ suite('Mission Control WPS', () => {
 		}
 	});
 
-	test('registration metadata is bounded and late answers cannot register a disabled host', async () => {
-		const path = await mkdtemp(join(process.cwd(), '.build', 'mission-control-metadata-timeout-'));
+	for (const metadataKind of ['session count', 'remote-control policy'] as const) {
+		test(`${metadataKind} is bounded to 60 seconds and late answers cannot register a disabled host`, async () => {
+			const path = await mkdtemp(join(process.cwd(), '.build', 'mission-control-metadata-timeout-'));
+			const clock = sinon.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+			try {
+				const metadata = new DeferredPromise<void>();
+				const started = new DeferredPromise<void>();
+				const requests: string[] = [];
+				const service = store.add(new MissionControlEnvironment({
+					userDataPath: path,
+					name: 'VS Code OSS',
+					fetch: async input => {
+						requests.push(input.toString());
+						return Response.json({ id: 123, type: 'User' });
+					},
+					attach: () => { throw new Error('Timed-out registration must not attach a server'); },
+					onError: error => { throw error; },
+					getSessionCount: async () => {
+						if (metadataKind === 'session count') {
+							started.complete();
+							await metadata.p;
+						}
+						return 42;
+					},
+					getRemoteControlPolicy: async () => {
+						if (metadataKind === 'remote-control policy') {
+							started.complete();
+							await metadata.p;
+						}
+						return undefined;
+					}
+				}));
+				const configuring = service.configure({ baseUrl: 'https://api.github.com', live: true, accountId: '123', credential: 'fake-token', roots: [] });
+				let settled = false;
+				void configuring.then(() => settled = true, () => settled = true);
+				const rejected = assert.rejects(configuring, error => error instanceof Error && error.message === `Mission Control registration metadata timed out (${metadataKind})`);
+				await started.p;
+				await clock.tickAsync(59_999);
+				assert.strictEqual(settled, false);
+				await clock.tickAsync(1);
+				await rejected;
+				await metadata.complete();
+				await clock.tickAsync(60_000);
+				assert.deepStrictEqual(requests, ['https://api.github.com/user']);
+				service.dispose();
+			} finally {
+				clock.restore();
+				await rm(path, { recursive: true });
+			}
+		});
+	}
+
+	test('live registration waits for metadata beyond 15 seconds without bypassing device policy', async () => {
+		const path = await mkdtemp(join(process.cwd(), '.build', 'mission-control-slow-metadata-'));
 		const clock = sinon.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
 		try {
-			const metadata = new DeferredPromise<number>();
-			const started = new DeferredPromise<void>();
-			const requests: string[] = [];
+			const { key } = signingFixture();
+			const policyStarted = new DeferredPromise<void>();
+			const policy = new DeferredPromise<Record<string, unknown>>();
+			const registrations: object[] = [];
 			const service = store.add(new MissionControlEnvironment({
 				userDataPath: path,
 				name: 'VS Code OSS',
-				fetch: async input => {
-					requests.push(input.toString());
-					return Response.json({ id: 123, type: 'User' });
+				fetch: async (input, init) => {
+					const url = new URL(input.toString());
+					if (url.pathname.endsWith('/register')) {
+						registrations.push(JSON.parse(String(init?.body)));
+					}
+					return Response.json(url.pathname === '/user' ? { id: 123, type: 'User' } : url.pathname.endsWith('/jwks.json') ? { keys: [key] } : {
+						id: 'environment', user_id: '123', owner_id: '123', owner_type: 'user', kind: 'user-local',
+						webpubsub: { url: 'wss://wps.test/client/hubs/test', access_token: 'fake-token', subprotocol: 'json.reliable.webpubsub.azure.v1', groups: { control: 'user.123.env.environment.control' } },
+					});
 				},
-				attach: () => { throw new Error('Timed-out registration must not attach a server'); },
+				attach: () => ({ dispose() { } }),
 				onError: error => { throw error; },
-				getSessionCount: () => { started.complete(); return metadata.p; },
-				getRemoteControlPolicy: async () => undefined
-			}
-			));
+				socketFactory: () => {
+					const socket = new FakeWpsSocket();
+					queueMicrotask(() => socket.emit('message', JSON.stringify({ type: 'system', event: 'connected' })));
+					return socket;
+				},
+				getSessionCount: async () => 42,
+				getRemoteControlPolicy: () => { policyStarted.complete(); return policy.p; },
+			}));
 			const configuring = service.configure({ baseUrl: 'https://api.github.com', live: true, accountId: '123', credential: 'fake-token', roots: [] });
-			const rejected = assert.rejects(configuring, /registration metadata timed out/);
-			await started.p;
-			await clock.tickAsync(15_000);
-			await rejected;
-			await metadata.complete(42);
-			await clock.tickAsync(60_000);
-			assert.deepStrictEqual(requests, ['https://api.github.com/user']);
+			await policyStarted.p;
+			await clock.tickAsync(45_000);
+			assert.deepStrictEqual(registrations, []);
+			await policy.complete({ allowed: false });
+			await configuring;
+			assert.deepStrictEqual(registrations.map(body => {
+				const registration = body as { capabilities: { current_sessions: number }; managed_settings: object };
+				return { sessions: registration.capabilities.current_sessions, managedSettings: registration.managed_settings };
+			}), [{ sessions: 42, managedSettings: { remoteControl: { allowed: false } } }]);
 			service.dispose();
 		} finally {
 			clock.restore();
