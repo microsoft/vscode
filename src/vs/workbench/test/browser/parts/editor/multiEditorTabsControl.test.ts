@@ -6,14 +6,14 @@
 import assert from 'assert';
 import { $, Dimension, EventType, ModifierKeyEmitter, reset, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TreeViewsDnDService } from '../../../../../editor/common/services/treeViewsDnd.js';
 import { ITreeViewsDnDService } from '../../../../../editor/common/services/treeViewsDndService.js';
-import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { IMenu, IMenuChangeEvent, IMenuService, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { DEFAULT_EDITOR_PART_OPTIONS, IEditorGroupMenuIds, IEditorGroupsView, IEditorGroupView, IEditorPartsView } from '../../../../browser/parts/editor/editor.js';
 import { MultiEditorTabsControl } from '../../../../browser/parts/editor/multiEditorTabsControl.js';
 import { MultiRowEditorControl } from '../../../../browser/parts/editor/multiRowEditorTabsControl.js';
@@ -25,6 +25,7 @@ import { INotebookDocumentService, NotebookDocumentWorkbenchService } from '../.
 import { TestFileEditorInput, TestHostService, TestMenuService, workbenchInstantiationService } from '../../workbenchTestServices.js';
 import '../../../../contrib/modernUI/browser/media/tabs.css';
 import '../../../../contrib/modernUI/browser/connectedEditorTabs.js';
+import '../../../../browser/parts/editor/media/editorgroupview.css';
 
 suite('MultiEditorTabsControl', () => {
 
@@ -35,11 +36,13 @@ suite('MultiEditorTabsControl', () => {
 	let control: MultiEditorTabsControl;
 	let partOptions: IEditorPartOptions;
 	let model: EditorGroupModel;
-	let createControl: (menuIds?: IEditorGroupMenuIds) => MultiEditorTabsControl;
+	let createControl: (menuIds?: IEditorGroupMenuIds, addTabMenu?: IMenu) => MultiEditorTabsControl;
 	let instantiationService: ReturnType<typeof workbenchInstantiationService>;
 	let groupView: IEditorGroupView;
 	let groupsView: IEditorGroupsView;
 	let editorPartsView: IEditorPartsView;
+	let relayoutCount: number;
+	let stubAddTabMenu: (menuId: MenuId, menu?: IMenu) => void;
 
 	setup(() => {
 		disposables = new DisposableStore();
@@ -64,6 +67,7 @@ suite('MultiEditorTabsControl', () => {
 			model.openEditor(editor, { pinned: true, active: i === 0 });
 		}
 
+		relayoutCount = 0;
 		groupView = new class extends mock<IEditorGroupView>() {
 			override get id() { return model.id; }
 			override get count() { return model.count; }
@@ -81,7 +85,7 @@ suite('MultiEditorTabsControl', () => {
 			override isSticky(editorOrIndex: EditorInput | number) { return model.isSticky(editorOrIndex); }
 			override isSelected(editorOrIndex: EditorInput | number) { return model.isSelected(editorOrIndex); }
 			override createEditorActions() { return { actions: { primary: [], secondary: [] }, onDidChange: Event.None }; }
-			override relayout() { }
+			override relayout() { relayoutCount++; }
 			override readonly onDidActiveEditorChange = Event.None;
 		};
 
@@ -101,19 +105,25 @@ suite('MultiEditorTabsControl', () => {
 		container = $('.title.tabs');
 		mainWindow.document.body.appendChild(container);
 
-		createControl = menuIds => {
-			if (menuIds?.tabsBarAddTab) {
-				instantiationService.stub(IMenuService, new class extends TestMenuService {
-					override createMenu(id: MenuId): IMenu {
-						return {
-							onDidChange: Event.None,
-							dispose: () => { },
-							getActions: options => id === menuIds.tabsBarAddTab ? [['navigation', [
-								instantiationService.createInstance(MenuItemAction, { id: 'test.connectedTabs.newEditor', title: 'New Editor' }, undefined, options, undefined, undefined),
-							]]] : [],
-						};
+		stubAddTabMenu = (menuId, menu) => {
+			instantiationService.stub(IMenuService, new class extends TestMenuService {
+				override createMenu(id: MenuId): IMenu {
+					if (id === menuId && menu) {
+						return menu;
 					}
-				}());
+					return {
+						onDidChange: Event.None,
+						dispose: () => { },
+						getActions: options => id === menuId ? [['navigation', [
+							instantiationService.createInstance(MenuItemAction, { id: 'test.connectedTabs.newEditor', title: 'New Editor' }, undefined, options, undefined, undefined),
+						]]] : [],
+					};
+				}
+			}());
+		};
+		createControl = (menuIds, addTabMenu) => {
+			if (menuIds?.tabsBarAddTab) {
+				stubAddTabMenu(menuIds.tabsBarAddTab, addTabMenu);
 			}
 			const control = disposables.add(instantiationService.createInstance(MultiEditorTabsControl, container, editorPartsView, groupsView, groupView, model, menuIds, false, false));
 			control.openEditors(model.getEditors(EditorsOrder.SEQUENTIAL));
@@ -184,6 +194,7 @@ suite('MultiEditorTabsControl', () => {
 		for (const editor of editors) {
 			model.closeEditor(editor);
 		}
+		group.classList.add('empty');
 		control.dispose();
 		reset(container);
 		const menuId = MenuId.for('test.connectedTabs.addTab');
@@ -194,7 +205,9 @@ suite('MultiEditorTabsControl', () => {
 			hasVisibleAddTabControl: container.classList.contains('has-visible-add-tab-control'),
 			rowEmpty: container.querySelector('.tabs-and-actions-container')!.classList.contains('empty'),
 			addTabVisible: !container.querySelector('.tabs-bar-add-tab')!.classList.contains('hidden'),
+			titleVisible: mainWindow.getComputedStyle(container).display === 'block',
 		};
+		group.classList.remove('empty');
 		for (const [index, editor] of editors.entries()) {
 			model.openEditor(editor, { pinned: true, active: index === 0 });
 		}
@@ -231,6 +244,7 @@ suite('MultiEditorTabsControl', () => {
 				hasVisibleAddTabControl: true,
 				rowEmpty: false,
 				addTabVisible: true,
+				titleVisible: true,
 			},
 			results: ['default', 'compact'].flatMap(tabHeight => [600, 220, 600].map(width => ({
 				tabHeight,
@@ -240,6 +254,122 @@ suite('MultiEditorTabsControl', () => {
 				measuredEditors: true,
 				addTab: { visible: true, isLast: true, measuredWidth: '', upperRow: false },
 			}))),
+		});
+	});
+
+	test('updates empty Add Tab visibility when menu actions change', async () => {
+		for (const editor of model.getEditors(EditorsOrder.SEQUENTIAL)) {
+			model.closeEditor(editor);
+		}
+		control.dispose();
+		reset(container);
+		const group = connectedGroup();
+		group.classList.add('empty');
+
+		const menuId = MenuId.for('test.connectedTabs.dynamicAddTab');
+		const onDidChange = disposables.add(new Emitter<IMenuChangeEvent>());
+		let hasActions = false;
+		const menu: IMenu = {
+			onDidChange: onDidChange.event,
+			dispose: () => { },
+			getActions: options => hasActions ? [['navigation', [
+				instantiationService.createInstance(MenuItemAction, { id: 'test.connectedTabs.newEditor', title: 'New Editor' }, undefined, options, undefined, undefined),
+			]]] : [],
+		};
+		control = createControl({ tabsBarAddTab: menuId }, menu);
+		await layoutConnectedGroup(group, 600);
+
+		const state = () => ({
+			height: control.getHeight(),
+			hasVisibleAddTabControl: container.classList.contains('has-visible-add-tab-control'),
+			rowEmpty: container.querySelector('.tabs-and-actions-container')!.classList.contains('empty'),
+			addTabVisible: !container.querySelector('.tabs-bar-add-tab')!.classList.contains('hidden'),
+			titleVisible: mainWindow.getComputedStyle(container).display !== 'none',
+		});
+		const initial = state();
+
+		hasActions = true;
+		const relayoutsBeforeVisible = relayoutCount;
+		onDidChange.fire({ menu, isStructuralChange: true, isToggleChange: false, isEnablementChange: false });
+		const visibleRelayouts = relayoutCount - relayoutsBeforeVisible;
+		await layoutConnectedGroup(group, 600);
+		const visible = state();
+
+		const relayoutsBeforeUnchanged = relayoutCount;
+		onDidChange.fire({ menu, isStructuralChange: true, isToggleChange: false, isEnablementChange: false });
+		const unchangedRelayouts = relayoutCount - relayoutsBeforeUnchanged;
+		await layoutConnectedGroup(group, 600);
+		const unchanged = state();
+
+		hasActions = false;
+		const relayoutsBeforeHidden = relayoutCount;
+		onDidChange.fire({ menu, isStructuralChange: true, isToggleChange: false, isEnablementChange: false });
+		const hiddenRelayouts = relayoutCount - relayoutsBeforeHidden;
+		await layoutConnectedGroup(group, 600);
+		const hidden = state();
+
+		assert.deepStrictEqual({ initial, visible, unchanged, hidden, menuChangeRelayouts: [visibleRelayouts, unchangedRelayouts, hiddenRelayouts] }, {
+			initial: {
+				height: 0,
+				hasVisibleAddTabControl: false,
+				rowEmpty: true,
+				addTabVisible: false,
+				titleVisible: false,
+			},
+			visible: {
+				height: 33,
+				hasVisibleAddTabControl: true,
+				rowEmpty: false,
+				addTabVisible: true,
+				titleVisible: true,
+			},
+			unchanged: {
+				height: 33,
+				hasVisibleAddTabControl: true,
+				rowEmpty: false,
+				addTabVisible: true,
+				titleVisible: true,
+			},
+			hidden: {
+				height: 0,
+				hasVisibleAddTabControl: false,
+				rowEmpty: true,
+				addTabVisible: false,
+				titleVisible: false,
+			},
+			menuChangeRelayouts: [1, 0, 1],
+		});
+	});
+
+	test('empty multi-row tabs render Add Tab only on the unpinned row', async () => {
+		for (const editor of model.getEditors(EditorsOrder.SEQUENTIAL)) {
+			model.closeEditor(editor);
+		}
+		control.dispose();
+		reset(container);
+		const group = connectedGroup();
+		group.classList.add('empty');
+
+		const menuIds = { tabsBarAddTab: MenuId.for('test.connectedTabs.multiRowAddTab') };
+		stubAddTabMenu(menuIds.tabsBarAddTab);
+
+		const multiRowControl = disposables.add(instantiationService.createInstance(MultiRowEditorControl, container, editorPartsView, groupsView, groupView, model, menuIds, false, false));
+		multiRowControl.openEditors([]);
+		await layoutConnectedGroup(group, 600, multiRowControl);
+
+		const rows = Array.from(container.querySelectorAll<HTMLElement>('.tabs-and-actions-container'));
+		assert.deepStrictEqual({
+			height: multiRowControl.getHeight(),
+			rowEmpty: rows.map(row => row.classList.contains('empty')),
+			addTabControls: rows.map(row => row.querySelectorAll('.tabs-bar-add-tab').length),
+			hasVisibleAddTabControl: container.classList.contains('has-visible-add-tab-control'),
+			titleVisible: mainWindow.getComputedStyle(container).display === 'block',
+		}, {
+			height: 33,
+			rowEmpty: [true, false],
+			addTabControls: [0, 1],
+			hasVisibleAddTabControl: true,
+			titleVisible: true,
 		});
 	});
 

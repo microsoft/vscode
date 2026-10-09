@@ -2551,7 +2551,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	}
 
 	private get visible(): boolean {
-		return this.tabsModel.count > 0 || this.parent.classList.contains('has-visible-add-tab-control');
+		return this.tabsModel.count > 0 || this.isAddTabControlVisible;
 	}
 
 	protected override onDidChangeAddTabControlVisibility(): void {

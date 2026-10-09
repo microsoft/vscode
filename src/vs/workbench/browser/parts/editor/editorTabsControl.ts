@@ -143,6 +143,11 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	private groupLockedContext: IContextKey<boolean>;
 
 	private renderDropdownAsChildElement: boolean;
+	private addTabControlVisible: boolean | undefined;
+
+	protected get isAddTabControlVisible(): boolean {
+		return this.addTabControlVisible === true;
+	}
 
 	constructor(
 		protected readonly parent: HTMLElement,
@@ -241,17 +246,17 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		}));
 		toolbar.setActions([addTabAction]);
 
-		let initialized = false;
 		const updateVisibility = () => {
 			const visible = getActions().length > 0;
+			const visibilityChanged = this.addTabControlVisible !== undefined && this.addTabControlVisible !== visible;
+			this.addTabControlVisible = visible;
 			container.classList.toggle('hidden', !visible);
 			this.parent.classList.toggle('has-visible-add-tab-control', visible);
-			if (initialized) {
+			if (visibilityChanged) {
 				this.onDidChangeAddTabControlVisibility();
 			}
 		};
 		updateVisibility();
-		initialized = true;
 		this._register(menu.onDidChange(updateVisibility));
 
 		return container;
