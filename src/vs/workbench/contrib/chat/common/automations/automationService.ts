@@ -80,6 +80,9 @@ export type AutomationMutationGuard = () => void;
 /** The selected Automation authority cannot currently accept the operation. */
 export class AutomationUnavailableError extends Error { }
 
+/** The provider may have accepted a mutation; reconcile its outcome before retrying. */
+export class AutomationMutationUncertainError extends Error { }
+
 /** Rejects ownership changes because AHP has no history-preserving cross-host transfer operation. */
 export function assertAutomationTargetAuthority(current: IAutomationDescriptor, target: AutomationTarget | undefined): void {
 	if (target !== undefined && target.providerId !== current.target.providerId) {

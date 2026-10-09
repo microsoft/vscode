@@ -19,14 +19,13 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { AutomationDetail, AutomationTrigger, CreateAutomationRequest, EditAutomationRequest } from '../../../../../platform/github/common/missionControl/automations.js';
 import { Task } from '../../../../../platform/github/common/missionControl/tasks.js';
-import { ApiRequestError, MutationUncertainError } from '../../../../../platform/github/common/missionControl/missionControlClient.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { getGitHubRepositoryId } from '../../../../../platform/github/common/githubUrls.js';
 import { RepositoryPicker } from '../../../../../workbench/contrib/chat/browser/agentSessions/repositoryPicker.js';
 import { IGitHubService } from '../../../github/browser/githubService.js';
 import { AutomationTarget, IAutomationDescriptor, IAutomationRun, IAutomationSchedule, IAutomationSessionTemplate } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { AutomationCatalogueState, AutomationMutationGuard, AutomationToolCatalog, AutomationUnavailableError, assertAutomationSessionTemplateAuthority, IAutomationProviderConfiguration, IAutomationRunRequestResult, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions, serializeAutomationEditableState } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { AutomationCatalogueState, AutomationMutationGuard, AutomationMutationUncertainError, AutomationToolCatalog, AutomationUnavailableError, assertAutomationSessionTemplateAuthority, IAutomationProviderConfiguration, IAutomationRunRequestResult, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions, serializeAutomationEditableState } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING, CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IWorkbenchGitHubService } from '../../../../../workbench/services/github/common/githubService.js';
@@ -309,7 +308,7 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 		try {
 			await store.run(this.requireEntry(id), token, guard);
 		} catch (error) {
-			if ((error instanceof MutationUncertainError || error instanceof ApiRequestError && error.outcome === 'indeterminate') && this.store.get() === store) {
+			if (error instanceof AutomationMutationUncertainError && this.store.get() === store) {
 				this.discoveryAttempts = 4;
 				this.refreshHistoryInBackground();
 			}

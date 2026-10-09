@@ -11,14 +11,13 @@ import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ConfirmationOptionKind } from '../../../../../platform/agentHost/common/state/protocol/channels-chat/state.js';
 import { ChatAIDisabledSettingId } from '../../../../../platform/chat/common/chatSettings.js';
-import { ApiRequestError, MutationUncertainError } from '../../../../../platform/github/common/missionControl/missionControlClient.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { AutomationTarget, IAutomationDescriptor, IAutomationRun, IAutomationSchedule } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationRunDispatch, IAutomationRunner, IAutomationRunOperation } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
-import { type AutomationCatalogueState, AutomationSessionTemplateAuthorityError, AutomationUnavailableError, IAutomationProviderConfiguration, IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { type AutomationCatalogueState, AutomationMutationUncertainError, AutomationSessionTemplateAuthorityError, AutomationUnavailableError, IAutomationProviderConfiguration, IAutomationService, ICreateAutomationOptions, IGuardedAutomationUpdateResult, IUpdateAutomationOptions } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ChatAutomationsEnabledContext, CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IToolImpl, IToolInvocation, IToolResult, ToolProgress } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -364,7 +363,9 @@ suite('AutomationTools', () => {
 			credits: description.includes('may consume credits'),
 			local: run.includes('Local automations can run with scheduling disabled'),
 			uncertain: run.includes('Do not repeat accepted or unknown'),
-		}, { scope: true, schedule: true, enabled: true, catalog: true, reset: true, credits: true, local: true, uncertain: true });
+			runState: run.includes('inspect activeRun and historyState'),
+			missingRun: run.includes('A missing activeRun does not prove an uncertain request failed'),
+		}, { scope: true, schedule: true, enabled: true, catalog: true, reset: true, credits: true, local: true, uncertain: true, runState: true, missingRun: true });
 	});
 
 	test('UTC partial updates retain their timezone and explicit targets respect provider session types', async () => {
@@ -379,27 +380,39 @@ suite('AutomationTools', () => {
 		});
 	});
 
-	for (const error of [new MutationUncertainError('network'), new ApiRequestError(503, 'unknown', undefined, undefined, undefined, 'indeterminate')]) {
-		test(`${error.name} definition mutations preserve unknown outcomes instead of claiming success`, async () => {
-			const automation = createAutomation();
-			const service = new class extends FakeAutomationService {
-				override async createAutomation(): Promise<IAutomationDescriptor> { throw error; }
-				override async updateAutomationIfUnchanged(): Promise<IGuardedAutomationUpdateResult> { throw error; }
-				override async deleteAutomation(): Promise<void> { throw error; }
-			}([automation]);
-			const config = createConfigurationService();
-			const tool = createConfigureAutomationTool(service, new FakeSessionsManagementService(createSession({ workspace: FOLDER })), config);
-			const results = [
-				await invoke(tool, { name: 'New', prompt: 'Review', schedule: { interval: 'manual' } }),
-				await invoke(tool, { automationId: automation.id, name: 'Changed' }),
-				await invoke(new DeleteAutomationTool(service, config), { automationId: automation.id }),
-			];
-			assert.deepStrictEqual(results.map(result => ({ text: JSON.parse(getText(result)), data: result.toolSpecificData })), [
-				{ text: { status: 'unknown', message: error.message }, data: undefined },
-				...[0, 1].map(() => ({ text: { status: 'unknown', message: error.message, automation: { id: automation.id, name: automation.name } }, data: undefined })),
-			]);
+	test('provider-neutral uncertain definition mutations preserve unknown outcomes instead of claiming success', async () => {
+		const error = new AutomationMutationUncertainError('Provider outcome unknown');
+		const automation = createAutomation();
+		const service = new class extends FakeAutomationService {
+			override async createAutomation(): Promise<IAutomationDescriptor> { throw error; }
+			override async updateAutomationIfUnchanged(): Promise<IGuardedAutomationUpdateResult> { throw error; }
+			override async deleteAutomation(): Promise<void> { throw error; }
+		}([automation]);
+		const config = createConfigurationService();
+		const tool = createConfigureAutomationTool(service, new FakeSessionsManagementService(createSession({ workspace: FOLDER })), config);
+		const results = [
+			await invoke(tool, { name: 'New', prompt: 'Review', schedule: { interval: 'manual' } }),
+			await invoke(tool, { automationId: automation.id, name: 'Changed' }),
+			await invoke(new DeleteAutomationTool(service, config), { automationId: automation.id }),
+		];
+		assert.deepStrictEqual(results.map(result => ({ text: JSON.parse(getText(result)), data: result.toolSpecificData })), [
+			{ text: { status: 'unknown', message: error.message }, data: undefined },
+			...[0, 1].map(() => ({ text: { status: 'unknown', message: error.message, automation: { id: automation.id, name: automation.name } }, data: undefined })),
+		]);
+	});
+
+	test('listAutomations includes known active runs without changing providers or inventing runs', async () => {
+		const automation = createAutomation();
+		const service = new FakeAutomationService([automation]);
+		service.addRun({ id: 'active', automationId: automation.id, status: 'running', trigger: 'manual', startedAt: NOW, sessionResource: SESSION_RESOURCE });
+		const tool = createListAutomationsTool(service, createConfigurationService());
+		const [running] = JSON.parse(getText(await invoke(tool, {})));
+		service.runs.set([], undefined);
+		const [idle] = JSON.parse(getText(await invoke(tool, {})));
+		assert.deepStrictEqual({ active: running.automations[0].activeRun, idle: idle.automations[0].activeRun, history: running.historyState }, {
+			active: { id: 'active', status: 'running', startedAt: NOW }, idle: undefined, history: undefined,
 		});
-	}
+	});
 
 	test('AI-disabled invocations block all automation tools independently of context keys', async () => {
 		const service = new FakeAutomationService();

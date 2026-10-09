@@ -14,13 +14,12 @@ import { ChatAIDisabledSettingId } from '../../../../platform/chat/common/chatSe
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { ApiRequestError, MutationUncertainError } from '../../../../platform/github/common/missionControl/missionControlClient.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { AutomationInterval, AutomationTarget, AutomationWorkspaceIsolation, IAutomationDescriptor, IAutomationRun, IAutomationSchedule, IAutomationSessionTemplate, isAutomationModelConfiguration } from '../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationRunDispatch, IAutomationRunner } from '../../../../workbench/contrib/chat/common/automations/automationRunner.js';
-import { type AutomationCatalogueState, type AutomationMutationGuard, AutomationToolCatalog, AutomationSessionTemplateAuthorityError, AutomationUnavailableError, assertAutomationTargetAuthority, ConfigureAutomationToolReferenceName, IAutomationProviderConfiguration, IAutomationService, ICreateAutomationOptions, IUpdateAutomationOptions, serializeAutomationEditableState } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { type AutomationCatalogueState, type AutomationMutationGuard, AutomationMutationUncertainError, AutomationToolCatalog, AutomationSessionTemplateAuthorityError, AutomationUnavailableError, assertAutomationTargetAuthority, ConfigureAutomationToolReferenceName, IAutomationProviderConfiguration, IAutomationService, ICreateAutomationOptions, IUpdateAutomationOptions, serializeAutomationEditableState } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ChatAutomationsEnabledContext, CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IChatAutomationConfiguredData } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { ChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
@@ -76,12 +75,14 @@ interface IAutomationToolOutput {
 
 interface IAutomationListToolOutput extends IAutomationToolOutput {
 	readonly availableOperations: readonly ('run' | 'update' | 'delete')[];
+	readonly activeRun?: Pick<IAutomationRun, 'id' | 'status' | 'startedAt'>;
 }
 
 interface IAutomationProviderToolOutput {
 	readonly providerId: string;
 	readonly providerLabel: string;
 	readonly state: AutomationCatalogueState;
+	readonly historyState?: AutomationCatalogueState;
 	readonly canCreateAutomation: boolean;
 	readonly configuration?: Pick<IAutomationProviderConfiguration, 'sessionTypes' | 'description' | 'timeZone' | 'targetChangeDisabledReason'> & { readonly tools: AutomationToolCatalog };
 	readonly unavailableReason?: string;
@@ -126,7 +127,7 @@ export class ListAutomationsTool implements IToolImpl {
 			icon: Codicon.calendar,
 			displayName: localize('automation.tool.list.displayName', "List Automations"),
 			userDescription: localize('automation.tool.list.userDescription', "List scheduled agent automations"),
-			modelDescription: 'List enabled Automation providers and their currently visible automations. Use this before configuring or running an automation to obtain stable IDs, provider configuration, canCreateAutomation, and availableOperations. A provider\'s state applies only to that provider and never makes automations from another provider unavailable. When a provider is "ready", its automations array is complete for its known repositories; otherwise it may be incomplete, including when empty. Cloud discovery is not account-wide. This tool refreshes cloud definitions and requests the provider tool catalog without changing saved automations. Only a ready tool catalog supplies selectable tool IDs; loading or error is not an empty catalog. List again after loading completes or to retry a catalog error.',
+			modelDescription: 'List enabled Automation providers and their currently visible automations. Use this before configuring or running an automation to obtain stable IDs, provider configuration, canCreateAutomation, and availableOperations. A provider\'s state applies only to that provider and never makes automations from another provider unavailable. When a provider is "ready", its automations array is complete for its known repositories; otherwise it may be incomplete, including when empty. Cloud discovery is not account-wide. This tool refreshes cloud definitions and requests the provider tool catalog without changing saved automations. activeRun reports a known active run; historyState, when available, reports history readiness separately from definition readiness. A missing activeRun does not prove an uncertain request failed or is safe to repeat. Only a ready tool catalog supplies selectable tool IDs; loading or error is not an empty catalog. List again after loading completes or to retry a catalog error.',
 			source: ToolDataSource.Internal,
 			when: automationToolWhen,
 			runsInWorkspace: false,
@@ -173,12 +174,14 @@ export class ListAutomationsTool implements IToolImpl {
 			if (store.enabled?.get() === false) {
 				return [];
 			}
-			const state = refreshError !== undefined ? 'error' : store.catalogueState.get();
-			const unavailableReason = refreshError ?? store.unavailableReason?.get();
+			const state = store.catalogueState.get();
+			const unavailableReason = (state !== 'ready' ? refreshError : undefined) ?? store.unavailableReason?.get();
+			const historyState = store.historyState?.get();
 			return [{
 				providerId: provider.id,
 				providerLabel: provider.label,
 				state,
+				...(historyState !== undefined ? { historyState } : {}),
 				canCreateAutomation: store.canCreateAutomation.get(),
 				...(configuration && tools ? {
 					configuration: {
@@ -225,7 +228,7 @@ export class RunAutomationTool implements IToolImpl {
 			icon: Codicon.play,
 			displayName: localize('automation.tool.run.displayName', "Run Automation"),
 			userDescription: localize('automation.tool.run.userDescription', "Run a configured agent automation now"),
-			modelDescription: 'Request a run of an existing automation by stable ID. Call listAutomations first and check availableOperations. Local automations can run with scheduling disabled; cloud automations must be enabled and may consume credits. A cloud acknowledgement means accepted, not completed, and may contain no run ID. An unknown outcome may already have started work. Do not repeat accepted or unknown requests unless the user asks; use listAutomations to reconcile an unknown outcome first.',
+			modelDescription: 'Request a run of an existing automation by stable ID. Call listAutomations first and check availableOperations. Local automations can run with scheduling disabled; cloud automations must be enabled and may consume credits. A cloud acknowledgement means accepted, not completed, and may contain no run ID. An unknown outcome may already have started work. Do not repeat accepted or unknown requests unless the user asks; use listAutomations to inspect activeRun and historyState first. A missing activeRun does not prove an uncertain request failed or is safe to repeat.',
 			source: ToolDataSource.Internal,
 			when: automationToolWhen,
 			runsInWorkspace: false,
@@ -411,7 +414,7 @@ export class DeleteAutomationTool implements IToolImpl {
 			if (error instanceof AutomationToolMutationBlockedError) {
 				return error.result;
 			}
-			if (error instanceof MutationUncertainError || error instanceof ApiRequestError && error.outcome === 'indeterminate') {
+			if (error instanceof AutomationMutationUncertainError) {
 				return automationUnknownOutcome(error.message, automation);
 			}
 			if (error instanceof AutomationUnavailableError) {
@@ -702,7 +705,7 @@ The change uses the current tool-approval policy. When approval is required, the
 			if (error instanceof AutomationToolMutationBlockedError) {
 				return this.completeOperation(proposal.kind, error.result);
 			}
-			if (error instanceof MutationUncertainError || error instanceof ApiRequestError && error.outcome === 'indeterminate') {
+			if (error instanceof AutomationMutationUncertainError) {
 				logAutomationConfigureOutcome(this.telemetryService, proposal.kind, 'failed');
 				return automationUnknownOutcome(error.message, proposal.existing);
 			}
@@ -1161,8 +1164,10 @@ function toAutomationToolOutput(automation: IAutomationDescriptor): IAutomationT
 }
 
 function toAutomationListToolOutput(automation: IAutomationDescriptor, automationService: IAutomationService): IAutomationListToolOutput {
+	const activeRun = automationService.getActiveRunFor(automation.id);
 	return {
 		...toAutomationToolOutput(automation),
+		...(activeRun ? { activeRun: { id: activeRun.id, status: activeRun.status, startedAt: activeRun.startedAt } } : {}),
 		availableOperations: [
 			...(automationService.canRunAutomation(automation.id) ? ['run'] as const : []),
 			...(automationService.canUpdateAutomation(automation.id) ? ['update'] as const : []),
