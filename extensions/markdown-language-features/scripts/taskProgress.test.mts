@@ -122,7 +122,7 @@ describe('built-in task progress', () => {
 
 	it('isolates runtime listeners, supports zero tasks and localized labels, and releases subscriptions on disposal', () => {
 		const model = new EditorModel();
-		const provider = createTaskProgressProvider(model, { title: 'Tâches', summary: '{0} tâches terminées sur {1}', language: 'fr' });
+		const provider = createTaskProgressProvider(model, { title: 'T\u00e2ches', summary: '{0} t\u00e2ches termin\u00e9es sur {1}', language: 'fr' });
 		const first = provider.createHostTransport!('first');
 		const second = provider.createHostTransport!('second');
 		const firstMessages: unknown[] = [];
@@ -139,10 +139,10 @@ describe('built-in task progress', () => {
 		setSource(model, '- [ ] Todo');
 		first.sendMessage({ type: 'ready' });
 		assert.deepEqual({ firstMessages, secondMessages }, {
-			firstMessages: [{ type: 'taskProgress', checked: 0, total: 0, title: 'Tâches', label: '0 tâches terminées sur 0', language: 'fr' }],
+			firstMessages: [{ type: 'taskProgress', checked: 0, total: 0, title: 'T\u00e2ches', label: '0 t\u00e2ches termin\u00e9es sur 0', language: 'fr' }],
 			secondMessages: [
-				{ type: 'taskProgress', checked: 0, total: 0, title: 'Tâches', label: '0 tâches terminées sur 0', language: 'fr' },
-				{ type: 'taskProgress', checked: 1, total: 1, title: 'Tâches', label: '1 tâches terminées sur 1', language: 'fr' },
+				{ type: 'taskProgress', checked: 0, total: 0, title: 'T\u00e2ches', label: '0 t\u00e2ches termin\u00e9es sur 0', language: 'fr' },
+				{ type: 'taskProgress', checked: 1, total: 1, title: 'T\u00e2ches', label: '1 t\u00e2ches termin\u00e9es sur 1', language: 'fr' },
 			],
 		});
 	});

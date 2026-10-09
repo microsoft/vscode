@@ -38,7 +38,7 @@ it('renders isolated progress widgets with live checkbox/source updates, localiz
 				model.sourceText.set(new StringValue(${JSON.stringify(source)}), undefined);
 				model.presentation.set('reading', undefined);
 				const provider = createTaskProgressProvider(model, {
-					title: 'Tâches', summary: '{0} tâches terminées sur {1}', language: 'fr',
+					title: 'T\u00e2ches', summary: '{0} t\u00e2ches termin\u00e9es sur {1}', language: 'fr',
 				});
 				let view: EditorView | undefined;
 				const themes = ${JSON.stringify(themes)};
@@ -114,7 +114,7 @@ it('renders isolated progress widgets with live checkbox/source updates, localiz
 		const summaries = () => page.frames().filter(frame => frame.parentFrame()).map(frame => frame.locator('#summary'));
 		await Promise.all(summaries().map(summary => summary.waitFor({ state: 'visible' })));
 		assert.deepEqual(await Promise.all(summaries().map(summary => summary.textContent())), [
-			'1 tâches terminées sur 2', '1 tâches terminées sur 2',
+			'1 t\u00e2ches termin\u00e9es sur 2', '1 t\u00e2ches termin\u00e9es sur 2',
 		]);
 		assert.deepEqual(await page.locator('.md-embedded-code-editor').evaluateAll(elements => elements.map(element => ({
 			background: getComputedStyle(element).backgroundColor,
@@ -188,7 +188,7 @@ it('renders isolated progress widgets with live checkbox/source updates, localiz
 		});
 		await page.locator('input.md-checkbox').first().check();
 		await page.waitForFunction(() => Array.from(document.querySelectorAll('iframe')).every(frame =>
-			frame.contentDocument?.getElementById('summary')?.textContent === '2 tâches terminées sur 2'));
+			frame.contentDocument?.getElementById('summary')?.textContent === '2 t\u00e2ches termin\u00e9es sur 2'));
 		await page.frames().find(frame => frame.parentFrame())!.waitForFunction(() =>
 			document.getElementById('fill')?.dataset.transitionEnded === 'true');
 		const animated = await page.frames().find(frame => frame.parentFrame())!.locator('#fill').evaluate(fill => ({
@@ -201,16 +201,16 @@ it('renders isolated progress widgets with live checkbox/source updates, localiz
 		await page.evaluate('window.taskProgressTest.refreshProviders()');
 		await page.waitForFunction(() => document.querySelectorAll('iframe').length === 2
 			&& Array.from(document.querySelectorAll('iframe')).every(frame =>
-				frame.contentDocument?.getElementById('summary')?.textContent === '2 tâches terminées sur 2'));
+				frame.contentDocument?.getElementById('summary')?.textContent === '2 t\u00e2ches termin\u00e9es sur 2'));
 		await page.evaluate(`window.taskProgressTest.setSource(${JSON.stringify(source.replace('- [x] Done', '- [ ] Done\n- [ ] New'))})`);
 		await page.waitForFunction(() => document.querySelectorAll('iframe').length === 2
 			&& Array.from(document.querySelectorAll('iframe')).every(frame =>
-				frame.contentDocument?.getElementById('summary')?.textContent === '0 tâches terminées sur 3'));
+				frame.contentDocument?.getElementById('summary')?.textContent === '0 t\u00e2ches termin\u00e9es sur 3'));
 		await page.evaluate('window.taskProgressTest.setReadonly(true)');
 		const zeroSource = '```widget:task-progress\n```\n';
 		await page.evaluate(`window.taskProgressTest.setSource(${JSON.stringify(zeroSource)})`);
 		await page.waitForFunction(() => Array.from(document.querySelectorAll('iframe')).some(frame =>
-			frame.contentDocument?.getElementById('summary')?.textContent === '0 tâches terminées sur 0'));
+			frame.contentDocument?.getElementById('summary')?.textContent === '0 t\u00e2ches termin\u00e9es sur 0'));
 		const zeroFrame = page.frames().find(frame => frame.parentFrame() && frame.locator('main'));
 		assert.ok(zeroFrame);
 		const accessible = await zeroFrame.locator('main').evaluate(main => {
@@ -226,12 +226,12 @@ it('renders isolated progress widgets with live checkbox/source updates, localiz
 			};
 		});
 		assert.deepEqual(accessible, {
-			label: 'title', description: 'summary', valueText: '0 tâches terminées sur 0',
+			label: 'title', description: 'summary', valueText: '0 t\u00e2ches termin\u00e9es sur 0',
 			value: 0, max: 1, language: 'fr', color: 'rgb(204, 204, 204)',
 		});
 		await page.evaluate('window.taskProgressTest.setTheme("light")');
 		await page.waitForFunction(() => Array.from(document.querySelectorAll('iframe')).some(frame =>
-			frame.contentDocument?.getElementById('summary')?.textContent === '0 tâches terminées sur 0'
+			frame.contentDocument?.getElementById('summary')?.textContent === '0 t\u00e2ches termin\u00e9es sur 0'
 			&& getComputedStyle(frame.contentDocument.body).color === 'rgb(59, 59, 59)'));
 		assert.deepEqual(await appearance(), {
 			foreground: 'rgb(59, 59, 59)', description: 'rgb(59, 59, 59)',
@@ -242,7 +242,7 @@ it('renders isolated progress widgets with live checkbox/source updates, localiz
 		await page.emulateMedia({ reducedMotion: 'reduce' });
 		await page.evaluate(`window.taskProgressTest.setSource(${JSON.stringify('- [x] Done\n- [ ] Todo\n\n' + zeroSource)})`);
 		await page.waitForFunction(() => Array.from(document.querySelectorAll('iframe')).some(frame =>
-			frame.contentDocument?.getElementById('summary')?.textContent === '1 tâches terminées sur 2'));
+			frame.contentDocument?.getElementById('summary')?.textContent === '1 t\u00e2ches termin\u00e9es sur 2'));
 		const lightFrame = page.frames().find(frame => frame.parentFrame())!;
 		assert.deepEqual(await lightFrame.locator('#fill').evaluate(fill => ({
 			duration: getComputedStyle(fill).transitionDuration,
@@ -251,7 +251,7 @@ it('renders isolated progress widgets with live checkbox/source updates, localiz
 		})), { duration: '0s', animations: 0, ratio: 0.5 });
 		await page.evaluate(`window.taskProgressTest.setSource(${JSON.stringify(zeroSource)})`);
 		await page.waitForFunction(() => Array.from(document.querySelectorAll('iframe')).some(frame =>
-			frame.contentDocument?.getElementById('summary')?.textContent === '0 tâches terminées sur 0'));
+			frame.contentDocument?.getElementById('summary')?.textContent === '0 t\u00e2ches termin\u00e9es sur 0'));
 		await page.setViewportSize({ width: 240, height: 600 });
 		await page.waitForFunction(() => Array.from(document.querySelectorAll('iframe')).every(frame =>
 			frame.getBoundingClientRect().height >= (frame.contentDocument?.querySelector('main')?.getBoundingClientRect().height ?? 0)));
