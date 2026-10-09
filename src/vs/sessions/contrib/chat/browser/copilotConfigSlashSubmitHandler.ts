@@ -56,7 +56,7 @@ export class SessionsCopilotConfigSlashSubmitHandlerContribution extends Disposa
 		}
 		await applyAgentHostCompletionAction({ applyConfig: configAction.applyConfig }, this._dialogService, this._storageService, async config => {
 			await Promise.all(Object.entries(config).map(([key, value]) => provider.setSessionConfigValue(sessionId, key, value)));
-		});
+		}, provider.getSessionConfig(sessionId));
 		return !configAction.strippedPrompt;
 	}
 }
