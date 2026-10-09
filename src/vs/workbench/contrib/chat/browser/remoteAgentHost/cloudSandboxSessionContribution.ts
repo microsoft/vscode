@@ -17,6 +17,7 @@ import {
 	CLOUD_SANDBOX_AGENT_PROVIDER,
 	CLOUD_SANDBOX_SESSION_SCHEME,
 	CloudSandboxEnabledSettingId,
+	CloudSandboxAutoConnectOnOpenSettingId,
 	CloudSandboxAuthenticationRequiredError,
 	cloudSandboxAddress,
 	ICloudSandboxAgentHostService,
@@ -643,12 +644,14 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 			return current;
 		};
 
-		const shouldConnect = this.supportsBackgroundConnection || !env.taskId || this._pendingConnects.has(address) || await this._isEnvironmentOnline(env, token);
+		const shouldConnect = this.supportsBackgroundConnection
+			? this._configurationService.getValue<boolean>(CloudSandboxAutoConnectOnOpenSettingId) === true
+			: !env.taskId || this._pendingConnects.has(address) || await this._isEnvironmentOnline(env, token);
 		if (!isCurrentActivation()) {
 			return false;
 		}
 		if (!shouldConnect && !this._pendingConnects.has(address)) {
-			this._logService.info(`${LOG_PREFIX} Environment for ${address} is not online; serving history and leaving the connect to the user.`);
+			this._logService.info(`${LOG_PREFIX} Not connecting automatically to ${address}; serving history and leaving the connect to the user.`);
 			return this._activateReadOnly(sessionType, address, env, this._fetchTaskHistory(env, token));
 		}
 		const connecting = this.connect({ environmentId: env.environmentId, sessionId: env.sessionId, name: env.name }).then(

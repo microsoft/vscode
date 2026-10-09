@@ -86,11 +86,12 @@ suite('SessionsChatAccessibilityHelp', () => {
 		const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
 
 		assert.deepStrictEqual({
-			backgroundWake: content.includes('Opening a cloud sandbox conversation connects or wakes its environment in the background.'),
+			backgroundWake: content.includes('By default, opening a cloud sandbox conversation connects or wakes its environment in the background.'),
+			optOut: content.includes('Turn off chat.agentHost.cloudSandbox.autoConnectOnOpen to wait until you start composing or explicitly connect instead.'),
 			feedbackOnInput: content.includes('Connection progress and failures appear in a banner only after you type, paste, or add an attachment.'),
 			readyBeforeInput: content.includes('If the session is ready before you start composing, no connection banner appears.'),
 			neverSends: content.includes('Connecting never sends your draft automatically.'),
-		}, { backgroundWake: true, feedbackOnInput: true, readyBeforeInput: true, neverSends: true });
+		}, { backgroundWake: true, optOut: true, feedbackOnInput: true, readyBeforeInput: true, neverSends: true });
 	});
 
 	test('documents layout density only on desktop', () => {

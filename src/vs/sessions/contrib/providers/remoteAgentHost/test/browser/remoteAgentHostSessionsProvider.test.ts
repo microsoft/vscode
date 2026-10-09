@@ -26,7 +26,7 @@ import { agentHostAuthority, toAgentHostUri } from '../../../../../../platform/a
 import { ChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { IAgentHostService, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IRemoteAgentHostService, NullRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { CloudSandboxRequestError } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { CloudSandboxAutoConnectOnOpenSettingId, CloudSandboxRequestError } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { readRemoteSessionOrigin, withRemoteSessionOrigin } from '../../../../../../platform/agentHost/common/meta/agentRemoteSessionMeta.js';
 import { AgentHostTransportFailureReason } from '../../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
@@ -5293,11 +5293,13 @@ suite('CloudSandboxSessionsProvider opening', () => {
 	test('wakes cached sessions on open and restore without blocking or sending their draft', async () => {
 		let connectCalls = 0;
 		let wake = new DeferredPromise<void>();
+		const configurationService = new TestConfigurationService({ [CloudSandboxAutoConnectOnOpenSettingId]: true });
 		const provider = createProvider(disposables, connection, {
 			address: 'cloudsandbox:open-test',
 			sessionSchemeAlias: { ui: 'copilot', backend: 'ahp-session' },
 			ctor: CloudSandboxSessionsProvider,
 			noConnection: true,
+			configurationService,
 			connectOnDemand: async () => {
 				connectCalls++;
 				provider.setConnectionStatus(RemoteAgentHostConnectionStatus.connecting);
@@ -5315,6 +5317,10 @@ suite('CloudSandboxSessionsProvider opening', () => {
 		await wake.complete();
 		provider.setConnectionStatus(RemoteAgentHostConnectionStatus.disconnected);
 		wake = new DeferredPromise<void>();
+		await configurationService.setUserConfiguration(CloudSandboxAutoConnectOnOpenSettingId, false);
+		await provider.prepareSessionForOpen(session, 'open');
+		const disabled = connectCalls;
+		await configurationService.setUserConfiguration(CloudSandboxAutoConnectOnOpenSettingId, true);
 		await provider.prepareSessionForOpen(session, 'open');
 		const reopened = { connectCalls, wakeSettled: wake.isSettled };
 		await wake.complete();
@@ -5323,16 +5329,40 @@ suite('CloudSandboxSessionsProvider opening', () => {
 			resolved: resolved?.toString(),
 			restored,
 			stillWaking,
+			disabled,
 			reopened,
 			hostActions: connection.dispatchedActions,
 		}, {
 			resolved: session.resource.toString(),
 			restored: { connectCalls: 1, wakeSettled: false },
 			stillWaking: 1,
+			disabled: 1,
 			reopened: { connectCalls: 2, wakeSettled: false },
 			hostActions: [],
 		});
 	});
+
+	for (const reason of ['open', 'restore'] as const) {
+		test(`does not auto-connect cached chats on ${reason} when disabled but allows explicit connections`, async () => {
+			let connectCalls = 0;
+			const provider = createProvider(disposables, connection, {
+				address: 'cloudsandbox:open-test',
+				sessionSchemeAlias: { ui: 'copilot', backend: 'ahp-session' },
+				ctor: CloudSandboxSessionsProvider,
+				noConnection: true,
+				configurationService: new TestConfigurationService({ [CloudSandboxAutoConnectOnOpenSettingId]: false }),
+				connectOnDemand: async () => { connectCalls++; },
+			});
+			provider.seedSessions([createSession('sandbox-session', { provider: 'copilot' })]);
+			await provider.prepareSessionForOpen(provider.getSessions()[0], reason);
+			const beforeExplicitConnect = connectCalls;
+			await provider.connect();
+
+			assert.deepStrictEqual({ beforeExplicitConnect, connectCalls, hostActions: connection.dispatchedActions }, {
+				beforeExplicitConnect: 0, connectCalls: 1, hostActions: [],
+			});
+		});
+	}
 });
 
 suite('CloudSandboxSessionsProvider provisional sessions', () => {

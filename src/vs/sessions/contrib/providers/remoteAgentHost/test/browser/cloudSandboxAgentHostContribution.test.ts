@@ -23,6 +23,7 @@ import { IReplayedTaskHistory } from '../../../../../../platform/agentHost/commo
 import {
 	CLOUD_SANDBOX_AGENT_PROVIDER,
 	CloudSandboxEnabledSettingId,
+	CloudSandboxAutoConnectOnOpenSettingId,
 	ICloudSandboxAgentHostService,
 	ICloudSandboxApiService,
 	cloudSandboxAddress,
@@ -270,6 +271,7 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 	readonly setTaskArchived?: (taskId: string, archived: boolean, token: CancellationToken) => Promise<void>;
 	/** Whether the sandbox feature settings start on. Defaults to `true`. */
 	readonly enabled?: boolean;
+	readonly autoConnectOnOpen?: boolean;
 	readonly aiDisabled?: boolean;
 	readonly chatHidden?: boolean;
 	readonly logService?: ILogService;
@@ -429,6 +431,7 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 	}());
 	const configurationService = new TestConfigurationService({
 		[CloudSandboxEnabledSettingId]: options?.enabled ?? true,
+		[CloudSandboxAutoConnectOnOpenSettingId]: options?.autoConnectOnOpen ?? true,
 		[RemoteAgentHostsEnabledSettingId]: options?.enabled ?? true,
 		[ChatAIDisabledSettingId]: options?.aiDisabled ?? false,
 	});
@@ -909,6 +912,63 @@ suite('CloudSandboxAgentHostContribution', () => {
 			connectedTo: ['env-1'],
 			servedFromHistory: 1,
 		});
+	});
+
+	for (const hasHistory of [false, true]) {
+		test(`does not wake on open when auto-connect is disabled (${hasHistory ? 'with' : 'without'} history)`, async () => {
+			const harness = await createContribution(store, [discoveredSession({ taskId: hasHistory ? 'task-1' : undefined })], { autoConnectOnOpen: false });
+
+			const opened = await harness.activate('env-1');
+
+			assert.deepStrictEqual({
+				opened,
+				connectedTo: harness.connectedTo,
+				historyRequests: harness.historyRequests,
+				servedFromHistory: harness.readOnlySessionTypes.length,
+			}, {
+				opened: hasHistory,
+				connectedTo: [],
+				historyRequests: hasHistory ? ['task-1'] : [],
+				servedFromHistory: hasHistory ? 1 : 0,
+			});
+		});
+	}
+
+	test('honors enabling auto-connect for the next open without restarting the provider', async () => {
+		const harness = await createContribution(store, [discoveredSession()], { autoConnectOnOpen: false });
+		const provider = harness.contribution.stubProviders.get(cloudSandboxAddress('env-1'));
+		await harness.activate('env-1');
+		const before = [...harness.connectedTo];
+		await harness.configurationService.setUserConfiguration(CloudSandboxAutoConnectOnOpenSettingId, true);
+		const wake = new DeferredPromise<void>();
+		harness.onConnect = () => wake.p;
+
+		const opened = await harness.activate('env-1');
+		await wake.complete();
+
+		assert.deepStrictEqual({
+			before,
+			opened,
+			connectedTo: harness.connectedTo,
+			sameProvider: harness.contribution.stubProviders.get(cloudSandboxAddress('env-1')) === provider,
+		}, { before: [], opened: true, connectedTo: ['env-1'], sameProvider: true });
+	});
+
+	test('keeps an explicit connection available with auto-connect disabled', async () => {
+		const harness = await createContribution(store, [discoveredSession()], { autoConnectOnOpen: false });
+		const wake = new DeferredPromise<void>();
+		harness.onConnect = () => wake.p;
+		await harness.activate('env-1');
+		const connection = harness.contribution.connect({ environmentId: 'env-1', sessionId: 'sess-1', name: 'Sandbox' });
+		const opened = await harness.activate('env-1');
+		await wake.complete();
+		await connection;
+
+		assert.deepStrictEqual({
+			opened,
+			connectedTo: harness.connectedTo,
+			servedFromHistory: harness.readOnlySessionTypes.length,
+		}, { opened: true, connectedTo: ['env-1'], servedFromHistory: 1 });
 	});
 
 	for (const fails of [false, true]) {
