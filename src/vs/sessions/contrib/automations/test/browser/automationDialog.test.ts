@@ -303,7 +303,7 @@ suite('Automation dialog creation', () => {
 			id: 'foreign-weekdays', name: 'Weekday review', prompt: 'Review changes', enabled: true, createdAt: '', updatedAt: '',
 			target: { kind: 'quickChat', providerId: 'host', sessionTypeId: 'copilotcli' },
 			schedule: { interval: 'custom', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
-			readOnlyReason: 'This automation uses a schedule that cannot be edited in this time zone.',
+			readOnlyReason: 'This automation uses a schedule that cannot be edited in VS Code.',
 		};
 		let commits = 0;
 		const dialog = openDialog({ initialValues: automation, commit: async () => { commits++; } });

@@ -1641,6 +1641,59 @@ suite('AgentHostAutomationStore', () => {
 		});
 	});
 
+	for (const day of ['1-5', 'MON-FRI', 'mon-fri', 'MoN-FrI', '1,2,3,4,5', '1-6']) {
+		for (const foreignTimeZone of [false, true]) {
+			test(`projects host weekday field ${day} in ${foreignTimeZone ? 'a foreign' : 'the local'} time zone without losing its schedule`, async () => {
+				const connection = disposables.add(new TestAutomationConnection());
+				const storage = disposables.add(new InMemoryStorageService());
+				const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
+				const localTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+				const timeZone = foreignTimeZone ? (localTimeZone === 'UTC' ? 'Asia/Tokyo' : 'UTC') : localTimeZone;
+				const triggers: AutomationEntry['definition']['triggers'] = [{
+					id: 'host-weekdays', kind: AutomationTriggerKind.Schedule,
+					schedule: { expression: `30 9 * * ${day}`, timeZone },
+					misfirePolicy: AutomationMisfirePolicy.RunOnce,
+				}];
+				const timestamp = new Date().toISOString();
+				const entry: AutomationEntry = {
+					resource: 'ahp-automation:/host-weekdays',
+					definition: {
+						title: 'Host weekdays',
+						message: { text: 'Review changes.', origin: { kind: MessageKind.Automation } },
+						session: { provider: 'mock' }, enabled: true, triggers,
+					},
+					runs: [],
+					operations: [AutomationOperation.Update, AutomationOperation.Remove, AutomationOperation.Run],
+					createdAt: timestamp, modifiedAt: timestamp,
+				};
+				connection.setAutomation(entry);
+				const id = 'local-agent-host:ahp-automation:/host-weekdays';
+				const automation = store.getAutomation(id)!;
+				if (foreignTimeZone || day === '1-6') {
+					await assert.rejects(store.updateAutomation(id, { name: 'Renamed' }), /cannot be edited in VS Code/);
+					assert.deepStrictEqual({
+						schedule: automation.schedule, canUpdate: store.canUpdateAutomation(id),
+						dispatched: connection.dispatched, triggers: entry.definition.triggers,
+					}, {
+						schedule: { interval: 'custom', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+						canUpdate: false, dispatched: [], triggers,
+					});
+				} else {
+					await store.updateAutomation(id, { name: 'Renamed' });
+					const update = connection.dispatched.at(-1)?.action;
+					assert.deepStrictEqual({
+						schedule: automation.schedule, canUpdate: store.canUpdateAutomation(id),
+						triggers: update?.type === ActionType.AutomationUpdateRequested ? update.changes.triggers : undefined,
+					}, {
+						schedule: { interval: 'weekdays', scheduleHour: 9, scheduleMinute: 30, scheduleDay: 0 },
+						canUpdate: true,
+						triggers: [{ ...triggers[0], id: 'schedule', schedule: { expression: '30 9 * * 1-5', timeZone } }],
+					});
+				}
+			});
+		}
+	}
+
 	test('keeps host-authored Weekdays in other time zones read-only without changing triggers', async () => {
 		const connection = disposables.add(new TestAutomationConnection());
 		const storage = disposables.add(new InMemoryStorageService());
@@ -1670,11 +1723,11 @@ suite('AgentHostAutomationStore', () => {
 			});
 			const id = 'local-agent-host:ahp-automation:/host-weekdays';
 			const automation = store.getAutomation(id)!;
-			await assert.rejects(store.updateAutomation(id, { name: 'Renamed' }), /cannot be edited in this time zone/);
-			await assert.rejects(store.updateAutomationIfUnchanged(id, { enabled: false }, automation), /cannot be edited in this time zone/);
+			await assert.rejects(store.updateAutomation(id, { name: 'Renamed' }), /cannot be edited in VS Code/);
+			await assert.rejects(store.updateAutomationIfUnchanged(id, { enabled: false }, automation), /cannot be edited in VS Code/);
 			await assert.rejects(store.updateAutomation(id, {
 				schedule: { interval: 'weekdays', scheduleHour: 10, scheduleMinute: 0, scheduleDay: 0 },
-			}), /cannot be edited in this time zone/);
+			}), /cannot be edited in VS Code/);
 			assert.deepStrictEqual({
 				schedule: automation.schedule,
 				readOnlyReason: automation.readOnlyReason,
@@ -1685,7 +1738,7 @@ suite('AgentHostAutomationStore', () => {
 				automation: store.getAutomation(id),
 			}, {
 				schedule: { interval: 'custom', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
-				readOnlyReason: 'This automation uses a schedule that cannot be edited in this time zone.',
+				readOnlyReason: 'This automation uses a schedule that cannot be edited in VS Code.',
 				canUpdate: false,
 				canRun: true,
 				canDelete: true,

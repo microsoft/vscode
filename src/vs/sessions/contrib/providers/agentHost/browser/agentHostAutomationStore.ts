@@ -367,7 +367,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 			name: state.definition.title,
 			prompt: state.definition.message.text,
 			schedule,
-			...(schedule.interval === 'custom' ? { readOnlyReason: localize('agentHostAutomation.customSchedule', "This automation uses a schedule that cannot be edited in this time zone.") } : {}),
+			...(schedule.interval === 'custom' ? { readOnlyReason: localize('agentHostAutomation.customSchedule', "This automation uses a schedule that cannot be edited in VS Code.") } : {}),
 			target,
 			sessionTemplate: projectAutomationSessionTemplate(state.definition, modelId),
 			enabled: state.definition.enabled,
@@ -839,23 +839,23 @@ function projectSchedule(triggers: AutomationDefinition['triggers']): IAutomatio
 	}
 	const [minuteValue, hourValue, dayOfMonth, month, dayValue, ...remaining] = trigger.schedule.expression.trim().split(/\s+/);
 	if (remaining.length > 0 || dayOfMonth !== '*' || month !== '*') {
-		return { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
+		return { interval: 'custom', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
 	}
 	const scheduleMinute = parseCronValue(minuteValue, 0, 59);
 	if (scheduleMinute === undefined) {
-		return { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
+		return { interval: 'custom', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
 	}
 	if (hourValue === '*' && dayValue === '*') {
 		return { interval: 'hourly', scheduleHour: 0, scheduleMinute, scheduleDay: 0 };
 	}
 	const scheduleHour = parseCronValue(hourValue, 0, 23);
 	if (scheduleHour === undefined) {
-		return { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
+		return { interval: 'custom', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
 	}
 	if (dayValue === '*') {
 		return { interval: 'daily', scheduleHour, scheduleMinute, scheduleDay: 0 };
 	}
-	if (dayValue === '1-5') {
+	if (dayValue === '1-5' || dayValue?.toUpperCase() === 'MON-FRI' || dayValue === '1,2,3,4,5') {
 		if (trigger.schedule.timeZone !== (Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC')) {
 			return { interval: 'custom', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
 		}
@@ -863,7 +863,7 @@ function projectSchedule(triggers: AutomationDefinition['triggers']): IAutomatio
 	}
 	const scheduleDay = parseCronValue(dayValue, 0, 6);
 	return scheduleDay === undefined
-		? { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 }
+		? { interval: 'custom', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 }
 		: { interval: 'weekly', scheduleHour, scheduleMinute, scheduleDay };
 }
 
