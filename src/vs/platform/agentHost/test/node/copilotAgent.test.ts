@@ -2176,7 +2176,7 @@ suite('CopilotAgent', () => {
 		}
 	});
 
-	test('forwards non-response telemetry without reading turn correlation state', async () => {
+	test('enriches non-response telemetry without changing its runtime turn identity', async () => {
 		const events: { eventName: string | undefined; data: ITelemetryData | undefined }[] = [];
 		const telemetryService = new class extends RecordingTelemetryService {
 			override publicLog(eventName?: string, data?: ITelemetryData): void {
@@ -2217,7 +2217,7 @@ suite('CopilotAgent', () => {
 				})),
 			}, {
 				turnReads: 0,
-				correlationReads: 0,
+				correlationReads: 1,
 				events: [{ eventName: 'copilotSdk/tool_call_executed', turnId: 'runtime-turn', tool: 'grep', duration: 12, diagnostics: [] }],
 			});
 		} finally {
@@ -2241,7 +2241,7 @@ suite('CopilotAgent', () => {
 			const subagentCorrelation = new DeferredPromise<IModelCallTurnCorrelationResult>();
 			const forwardedModelCallIds: string[] = [];
 			const activeSession: Pick<CopilotAgentSession, 'currentTurnId' | 'isDisposed'> & {
-				modelCallTurnCorrelation: Pick<CopilotAgentSession['modelCallTurnCorrelation'], 'take' | 'wait' | 'markResponseForwarded'>;
+				modelCallTurnCorrelation: Pick<CopilotAgentSession['modelCallTurnCorrelation'], 'take' | 'wait' | 'markResponseForwarded' | 'getTelemetryContext'>;
 			} = {
 				currentTurnId: 'turn-1',
 				isDisposed: false,
@@ -2249,6 +2249,7 @@ suite('CopilotAgent', () => {
 					take: () => undefined,
 					wait: modelCallId => modelCallId === 'unresolved-model-call' ? Promise.resolve({ turnId: undefined, outcome: 'waitExpired', waitMs: 100 }) : subagentCorrelation.p,
 					markResponseForwarded: modelCallId => forwardedModelCallIds.push(modelCallId),
+					getTelemetryContext: () => undefined,
 				},
 			};
 			setLiveChatStub(agent, 'active-session', activeSession);
@@ -2268,7 +2269,7 @@ suite('CopilotAgent', () => {
 				},
 			});
 
-			await forward(notification('active-session', 'runtime-active', 'root-model-call', 'user'));
+			await forward(notification('active-session', 'runtime-active', 'root-model-call'));
 			await forward(notification('active-session', 'runtime-subagent', 'subagent-model-call', 'agent'));
 			subagentCorrelation.complete({ turnId: 'subagent-turn', outcome: 'mappingWaited', waitMs: 4 });
 			await timeout(0);
@@ -2356,6 +2357,103 @@ suite('CopilotAgent', () => {
 			}
 		});
 	}
+
+	test('does not relabel SDK responses when credentials change before notification arrival', async () => {
+		const events: ITelemetryData[] = [];
+		let received = new DeferredPromise<void>();
+		const telemetryService = new class extends RecordingTelemetryService {
+			override publicLog(eventName?: string, data?: ITelemetryData): void {
+				if ((eventName === 'copilotSdk/response.success' || eventName === 'copilotSdk/tool_call_executed') && data) {
+					events.push(data);
+					received.complete();
+				}
+			}
+		}();
+		const copilotApiService = disposables.add(new CopilotApiService(async () => Response.json({
+			endpoints: { api: 'https://api.githubcopilot.com' }, access_type_sku: 'sku', analytics_tracking_id: 'analytics',
+		}), new NullLogService(), TEST_PRODUCT_SERVICE, createTestGitHubEndpointService()));
+		const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]), telemetryService, copilotApiService });
+		try {
+			await agent.authenticate('https://api.github.com', 'token-a');
+			await agent.refreshModels();
+			const forward = getCreatedClientOptions(agent).at(-1)?.onGitHubTelemetry;
+			assert.ok(forward);
+			const correlation = new ModelCallTurnCorrelation();
+			const context = agent.getTelemetryContext();
+			correlation.recordTelemetryContext('call-a', context);
+			correlation.record('call-a', 'turn-a');
+			correlation.recordTelemetryContext('delayed-a', context);
+			correlation.record('delayed-a', 'turn-a');
+			setLiveChatStub(agent, 'sdk-session', {
+				sessionId: 'sdk-session', currentTurnId: 'turn-a', modelCallTurnCorrelation: correlation, isDisposed: false,
+			});
+			const notification = (modelCallId: string, kind = 'response.success'): GitHubTelemetryNotification => ({
+				sessionId: 'sdk-session', restricted: false,
+				event: { kind, model_call_id: modelCallId, properties: {}, metrics: {} },
+			});
+			await forward(notification('call-a'));
+			await received.p;
+			received = new DeferredPromise<void>();
+			await forward(notification('call-a', 'tool_call_executed'));
+			await received.p;
+			received = new DeferredPromise<void>();
+			await agent.authenticate('https://api.github.com', 'token-b');
+			await forward(notification('delayed-a'));
+			await received.p;
+			received = new DeferredPromise<void>();
+			await forward(notification('unmatched'));
+			await received.p;
+			received = new DeferredPromise<void>();
+			await forward(notification('delayed-a', 'tool_call_executed'));
+			await received.p;
+			assert.deepStrictEqual(events.map(data => ({
+				copilotSku: data.copilotSku, trackingId: data['common.copilotTrackingId'],
+			})), [
+				{ copilotSku: 'sku', trackingId: 'analytics' },
+				{ copilotSku: 'sku', trackingId: 'analytics' },
+				{ copilotSku: undefined, trackingId: undefined },
+				{ copilotSku: undefined, trackingId: undefined },
+				{ copilotSku: undefined, trackingId: undefined },
+			]);
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('waits for originating account context for user and agent initiated SDK responses', async () => {
+		for (const initiatorType of ['user', 'agent']) {
+			const received = new DeferredPromise<ITelemetryData>();
+			const telemetryService = new class extends RecordingTelemetryService {
+				override publicLog(eventName?: string, data?: ITelemetryData): void {
+					if (eventName === 'copilotSdk/response.success' && data) {
+						received.complete(data);
+					}
+				}
+			}();
+			const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]), telemetryService });
+			try {
+				await agent.listChatsToMigrate();
+				const forward = getCreatedClientOptions(agent).at(-1)?.onGitHubTelemetry;
+				assert.ok(forward);
+				const correlation = new ModelCallTurnCorrelation();
+				setLiveChatStub(agent, 'sdk-session', { currentTurnId: 'turn', modelCallTurnCorrelation: correlation });
+				await forward({
+					sessionId: 'sdk-session', restricted: false,
+					event: { kind: 'response.success', properties: { modelCallId: 'call', initiatorType }, metrics: {} },
+				});
+				correlation.recordTelemetryContext('call', { copilotSku: 'sku-a', 'common.copilotTrackingId': 'analytics-a' });
+				correlation.record('call', 'turn');
+				const event = await received.p;
+				assert.deepStrictEqual({
+					turnId: event.turnId, outcome: event.ahCorrelationOutcome, copilotSku: event.copilotSku, trackingId: event['common.copilotTrackingId'],
+				}, {
+					turnId: 'turn', outcome: 'mappingWaited', copilotSku: 'sku-a', trackingId: 'analytics-a',
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		}
+	});
 
 	test('keeps host-remapped correlation for both event orders when the active turn changes', async () => {
 		const events: ITelemetryData[] = [];
@@ -2451,7 +2549,7 @@ suite('CopilotAgent', () => {
 			const notification = (modelCallId: string): GitHubTelemetryNotification => ({
 				sessionId: 'sdk-session',
 				restricted: false,
-				event: { kind: 'response.success', model_call_id: modelCallId, properties: { initiatorType: 'user' }, metrics: { promptTokenCount: 42 } },
+				event: { kind: 'response.success', model_call_id: modelCallId, properties: {}, metrics: { promptTokenCount: 42 } },
 			});
 			await forward(notification('late-call'));
 			agent.recordModelCallTurnCorrelation(chat, 'late-call', 'child-turn');
@@ -3363,7 +3461,7 @@ suite('CopilotAgent', () => {
 				copilotDiscoveryStarted.complete();
 				return copilotDiscovery.p;
 			}
-			return Response.json({ endpoints: { api: 'https://api.githubcopilot.com' }, access_type_sku: 'codex-sku' });
+			return Response.json({ endpoints: { api: 'https://api.githubcopilot.com' }, access_type_sku: 'codex-sku', analytics_tracking_id: 'codex-analytics' });
 		}, new NullLogService(), TEST_PRODUCT_SERVICE, endpoints));
 		const events: ITelemetryData[] = [];
 		const sdkEvents: ITelemetryData[] = [];
@@ -3372,7 +3470,7 @@ suite('CopilotAgent', () => {
 			appenders: [{
 				log: (name, data) => {
 					if (name === 'agentHost.executionModeChanged') {
-						events.push({ provider: data.provider, copilotSku: data.copilotSku });
+						events.push({ provider: data.provider, copilotSku: data.copilotSku, trackingId: data['common.copilotTrackingId'] });
 					} else if (name === 'copilotSdk/response.success') {
 						sdkEvents.push(data);
 					}
@@ -3398,7 +3496,7 @@ suite('CopilotAgent', () => {
 			await copilotDiscoveryStarted.p;
 			await codex.authenticate('https://api.github.com', 'test-token-b');
 			report(codex);
-			copilotDiscovery.complete(Response.json({ endpoints: { api: 'https://api.githubcopilot.com' }, access_type_sku: 'copilot-sku' }));
+			copilotDiscovery.complete(Response.json({ endpoints: { api: 'https://api.githubcopilot.com' }, access_type_sku: 'copilot-sku', analytics_tracking_id: 'copilot-analytics' }));
 			await authenticating;
 			report(codex);
 			report(agent);
@@ -3416,15 +3514,15 @@ suite('CopilotAgent', () => {
 				event: { kind: 'response.success', properties: {}, metrics: {}, exp_assignment_context: '' },
 			});
 
-			assert.deepStrictEqual({ events, sdkSkus: sdkEvents.map(event => event.copilotSku) }, {
+			assert.deepStrictEqual({ events, sdkContexts: sdkEvents.map(event => ({ copilotSku: event.copilotSku, trackingId: event['common.copilotTrackingId'] })) }, {
 				events: [
-					{ provider: 'codex', copilotSku: 'codex-sku' },
-					{ provider: 'codex', copilotSku: 'codex-sku' },
-					{ provider: 'copilotcli', copilotSku: 'copilot-sku' },
-					{ provider: 'codex', copilotSku: 'codex-sku' },
-					{ provider: 'codex', copilotSku: undefined },
+					{ provider: 'codex', copilotSku: 'codex-sku', trackingId: 'codex-analytics' },
+					{ provider: 'codex', copilotSku: 'codex-sku', trackingId: 'codex-analytics' },
+					{ provider: 'copilotcli', copilotSku: 'copilot-sku', trackingId: 'copilot-analytics' },
+					{ provider: 'codex', copilotSku: 'codex-sku', trackingId: 'codex-analytics' },
+					{ provider: 'codex', copilotSku: undefined, trackingId: undefined },
 				],
-				sdkSkus: ['copilot-sku'],
+				sdkContexts: [{ copilotSku: undefined, trackingId: undefined }],
 			});
 		} finally {
 			await disposeAgent(agent);

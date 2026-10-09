@@ -1325,7 +1325,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		this._githubMcpServerEnabled = this._isGitHubMcpServerEnabled();
 		this._publishAccountInfo({ status: 'unknown' });
 		if (isAgentHostTelemetryService(this._telemetryService)) {
-			this._register(this._telemetryService.registerCopilotSkuProvider(this.id, () => this.getTelemetryContext().copilotSku));
+			this._register(this._telemetryService.registerCopilotTelemetryProvider(this.id, () => this.getTelemetryContext()));
 		}
 
 		// Session titles are host-owned; Codex only observes them to correlate a

@@ -1022,7 +1022,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		super();
 		this._register(this._githubCredentials.onDidRequestRefresh(() => this._handleCopilotSessionAuthRequired(false)));
 		if (isAgentHostTelemetryService(this._telemetryService)) {
-			this._register(this._telemetryService.registerCopilotSkuProvider(this.id, () => this.getTelemetryContext().copilotSku));
+			this._register(this._telemetryService.registerCopilotTelemetryProvider(this.id, () => this.getTelemetryContext()));
 		}
 		this._worktree = worktree;
 		this._configurationService.publishRootTransientValues?.({
@@ -2229,24 +2229,29 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (notification.event.kind === 'response.success' || notification.event.kind === 'response.error') {
 			await this._forwardResponseTelemetry(notification);
 		} else {
-			this._gitHubTelemetryForwarder.forward(notification, undefined, undefined, this.getTelemetryContext());
+			const modelCallId = this._modelCallIdForTelemetry(notification);
+			const session = notification.sessionId ? this._findSessionBySdkId(notification.sessionId) : undefined;
+			this._gitHubTelemetryForwarder.forward(notification, undefined, undefined, modelCallId ? session?.modelCallTurnCorrelation.getTelemetryContext(modelCallId) : undefined);
 		}
 	}
 
+	private _modelCallIdForTelemetry(notification: GitHubTelemetryNotification): string | undefined {
+		const modelCallId = notification.event.properties.modelCallId ?? notification.event.model_call_id;
+		return typeof modelCallId === 'string' && modelCallId.length > 0 ? modelCallId : undefined;
+	}
+
 	private async _forwardResponseTelemetry(notification: GitHubTelemetryNotification): Promise<void> {
-		const telemetryContext = this.getTelemetryContext();
 		const session = notification.sessionId ? this._findSessionBySdkId(notification.sessionId) : undefined;
 		const fallbackTurnId = session?.currentTurnId;
 		const event = notification.event;
-		const nativeModelCallId = event.properties.modelCallId ?? event.model_call_id;
-		const modelCallId = typeof nativeModelCallId === 'string' && nativeModelCallId.length > 0 ? nativeModelCallId : undefined;
+		const modelCallId = this._modelCallIdForTelemetry(notification);
 		const forward = (turnId: string | undefined, outcome: ICopilotModelCallCorrelationTelemetry['ahCorrelationOutcome'], waitMs?: number): void => {
 			this._gitHubTelemetryForwarder.forward(notification, turnId, {
 				ahCorrelationOutcome: outcome,
 				ahCorrelationWaitMs: waitMs,
 				ahActiveRootTurnIdAtResponse: !turnId ? fallbackTurnId : undefined,
 				ahSessionDisposedDuringWait: !turnId && waitMs !== undefined ? session?.isDisposed : undefined,
-			}, telemetryContext);
+			}, modelCallId ? session?.modelCallTurnCorrelation.getTelemetryContext(modelCallId) : undefined);
 		};
 		if (!session) {
 			forward(undefined, 'sessionNotFound');
@@ -2258,7 +2263,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				forward(correlatedTurnId, 'mappingAvailable');
 				return;
 			}
-			if (event.properties.initiatorType === 'agent') {
+			if (event.properties.initiatorType === 'agent' || event.properties.initiatorType === 'user') {
 				const result = await session.modelCallTurnCorrelation.wait(modelCallId);
 				forward(result.turnId, result.outcome, result.waitMs);
 				return;

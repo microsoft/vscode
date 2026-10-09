@@ -1099,15 +1099,14 @@ export class AgentHostTelemetryReporter {
 		return typeof ts.sendEnhancedGHTelemetryEvent === 'function' ? ts as IAgentHostRestrictedTelemetry : undefined;
 	}
 
-	private _copilotSku(provider: string): IAgentHostCopilotSkuTelemetry {
-		const copilotSku = isAgentHostTelemetryService(this._telemetryService) ? this._telemetryService.getCopilotSku(provider) : undefined;
-		return copilotSku === undefined ? {} : { copilotSku };
+	private _copilotTelemetryContext(provider: string): IAgentHostCopilotSkuTelemetry {
+		return isAgentHostTelemetryService(this._telemetryService) ? this._telemetryService.getCopilotTelemetryContext(provider) ?? {} : {};
 	}
 
 	executionModeChanged(provider: string, session: string, previousMode: SessionMode, newMode: SessionMode, turnCount: number, clientContext?: IAgentHostClientTelemetryContext): void {
 		this._telemetryService.publicLog2<IAgentHostExecutionModeChangedEvent, IAgentHostExecutionModeChangedClassification>('agentHost.executionModeChanged', {
 			...toInitiatorTelemetry(clientContext),
-			...this._copilotSku(provider),
+			...this._copilotTelemetryContext(provider),
 			provider,
 			agentSessionId: AgentSession.id(session),
 			isSubagentSession: isSubagentSession(session),
@@ -1122,12 +1121,12 @@ export class AgentHostTelemetryReporter {
 	}
 
 	userMessageSent(provider: string, clientId: string | undefined, clientContext: IAgentHostClientTelemetryContext, session: string, turnId: string, sessionState: ISessionWithDefaultChat | undefined, source: AgentHostUserMessageSentSource, message: Message, isEphemeralSession: boolean): void {
-		const copilotSku = this._copilotSku(provider);
+		const telemetryContext = this._copilotTelemetryContext(provider);
 		const attachmentCount = message.attachments?.length ?? 0;
 		const activeClients = sessionState?.activeClients ?? [];
 		const sessionUri = isAhpChatChannel(session) ? parseRequiredSessionUriFromChatUri(session) : session;
 		this._telemetryService.publicLog2<IAgentHostUserMessageSentEvent, IAgentHostUserMessageSentClassification>('agentHost.userMessageSent', {
-			...copilotSku,
+			...telemetryContext,
 			provider,
 			hostLaunchKind: clientContext.hostLaunchKind,
 			initiatorClientId: clientId,
@@ -1152,7 +1151,7 @@ export class AgentHostTelemetryReporter {
 			attachmentCount,
 		});
 		this._restricted?.sendGHTelemetryEvent('agentHost.userMessageSent', {
-			...copilotSku,
+			...telemetryContext,
 			provider,
 			initiatorClientType: clientContext.clientType,
 			conversationId: AgentSession.id(sessionUri),

@@ -1262,6 +1262,8 @@ export interface IAgentPendingMessageSender {
 /** Account-scoped telemetry metadata; captured contexts become empty when their credentials are superseded. */
 export interface IAgentTelemetryContext {
 	readonly copilotSku: string | undefined;
+	/** Analytics ID from the same account discovery as the SKU, without an additional hash. */
+	readonly 'common.copilotTrackingId'?: string;
 }
 
 /**

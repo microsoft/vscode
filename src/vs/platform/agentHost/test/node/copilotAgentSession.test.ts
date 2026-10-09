@@ -6951,6 +6951,25 @@ suite('CopilotAgentSession', () => {
 		);
 	});
 
+	test('does not attribute a background subagent model call to a replacement root turn', async () => {
+		const context = { copilotSku: 'sku-a', 'common.copilotTrackingId': 'analytics-a' };
+		const { session, mockSession } = await createAgentSession(disposables, { telemetryContext: context });
+		session.resetTurnState('turn-1');
+		mockSession.fire('subagent.started', {
+			toolCallId: 'tc-subagent', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore tests',
+		} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'agent-1' });
+		const completeCall = (id: string) => mockSession.fire('assistant.message', {
+			messageId: id, apiCallId: id, content: 'done',
+		} as SessionEventPayload<'assistant.message'>['data'], { agentId: 'agent-1' });
+		completeCall('call-1');
+		session.resetTurnState('turn-2');
+		completeCall('call-2');
+		assert.deepStrictEqual({
+			original: session.modelCallTurnCorrelation.getTelemetryContext('call-1'),
+			replacement: session.modelCallTurnCorrelation.getTelemetryContext('call-2'),
+		}, { original: context, replacement: undefined });
+	});
+
 	test('keeps a subagent Auto resolution when the root turn moves on beneath it', async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables);
 
@@ -14587,7 +14606,7 @@ Use the attached image as context.
 			const peerChatUri = URI.parse(buildChatUri(sessionUri, 'peer-1'));
 			const { session, mockSession, signals } = await createAgentSession(disposables, {
 				telemetryService,
-				telemetryContext: { copilotSku: 'sku-a' },
+				telemetryContext: { copilotSku: 'sku-a', 'common.copilotTrackingId': 'analytics-a' },
 				sessionUri,
 				chatChannelUri: peerChatUri,
 				resource: peerChatUri,
@@ -14639,6 +14658,7 @@ Use the attached image as context.
 				modelCalls: signals.filter(signal => signal.kind === 'model_call_completed').map(signal => ({
 					turnId: signal.kind === 'model_call_completed' ? signal.turnId : undefined,
 					modelCallId: signal.kind === 'model_call_completed' ? signal.modelCallId : undefined,
+					context: signal.kind === 'model_call_completed' ? session.modelCallTurnCorrelation.getTelemetryContext(signal.modelCallId) : undefined,
 				})),
 			}, {
 				telemetry: [{
@@ -14659,8 +14679,8 @@ Use the attached image as context.
 					copilotSku: 'sku-a',
 				}],
 				modelCalls: [
-					{ turnId: 'turn-tool-details', modelCallId: 'api-tools' },
-					{ turnId: 'turn-tool-details', modelCallId: 'api-final' },
+					{ turnId: 'turn-tool-details', modelCallId: 'api-tools', context: { copilotSku: 'sku-a', 'common.copilotTrackingId': 'analytics-a' } },
+					{ turnId: 'turn-tool-details', modelCallId: 'api-final', context: { copilotSku: 'sku-a', 'common.copilotTrackingId': 'analytics-a' } },
 				],
 			});
 		});
