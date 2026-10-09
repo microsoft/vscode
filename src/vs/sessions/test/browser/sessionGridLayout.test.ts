@@ -167,13 +167,104 @@ suite('Sessions - Grid Layout', () => {
 		grid.layout(400, 600, 0, 0, false, 4);
 		const resizable = snapshot();
 		grid.layout(160, 600, 0, 0, false, 4);
-		const constrained = snapshot();
+		const constrained = {
+			...snapshot(),
+			contentWidths: [a.view.size.width, b.view.size.width],
+			wrapperWidths: [grid.getSize('a')?.width, grid.getSize('b')?.width],
+		};
 		grid.layout(400, 600, 0, 0, false, 4);
 
 		assert.deepStrictEqual({ resizable, constrained, restored: snapshot() }, {
 			resizable: { disabled: false, gripper: '""' },
-			constrained: { disabled: true, gripper: 'none' },
+			constrained: {
+				disabled: true,
+				gripper: 'none',
+				contentWidths: [80, 80],
+				wrapperWidths: [82, 82],
+			},
 			restored: { disabled: false, gripper: '""' },
+		});
+	});
+
+	test('updates constraints when the density gap changes', () => {
+		const { grid, a, b } = harness();
+		const leaves = Reflect.get(grid, 'leaves') as ReadonlyMap<string, IView>;
+		const events: number[] = [];
+		store.add(leaves.get('a')!.onDidChange(() => events.push(leaves.get('a')!.minimumWidth)));
+		const snapshot = () => ({
+			constraints: [leaves.get('a')!.minimumWidth, leaves.get('b')!.minimumWidth],
+			contentWidths: [a.view.size.width, b.view.size.width],
+			wrapperWidths: [grid.getSize('a')?.width, grid.getSize('b')?.width],
+		});
+
+		grid.layout(160, 600, 0, 0, false, 4);
+		const gapped = snapshot();
+		grid.layout(160, 600, 0, 0, false);
+		const compact = snapshot();
+		grid.layout(160, 600, 0, 0, false, 4);
+
+		assert.deepStrictEqual({ gapped, compact, restored: snapshot(), events }, {
+			gapped: {
+				constraints: [82, 82],
+				contentWidths: [80, 80],
+				wrapperWidths: [82, 82],
+			},
+			compact: {
+				constraints: [80, 80],
+				contentWidths: [80, 80],
+				wrapperWidths: [80, 80],
+			},
+			restored: {
+				constraints: [82, 82],
+				contentWidths: [80, 80],
+				wrapperWidths: [82, 82],
+			},
+			events: [82, 80, 82],
+		});
+	});
+
+	test('updates constraints when the grid topology changes', () => {
+		const { grid, a, b, c } = harness();
+		const leaves = Reflect.get(grid, 'leaves') as ReadonlyMap<string, IView>;
+		const bEvents: { width: number; height: number }[] = [];
+		store.add(leaves.get('b')!.onDidChange(() => bEvents.push({
+			width: leaves.get('b')!.minimumWidth,
+			height: leaves.get('b')!.minimumHeight,
+		})));
+
+		grid.reconcile([a, b, c], 'a');
+		grid.layout(160, 160, 0, 0, false, 4);
+		const nested = {
+			constraints: [b, c].map(entry => {
+				const leaf = leaves.get(entry.id)!;
+				return { width: leaf.minimumWidth, height: leaf.minimumHeight };
+			}),
+			contentSizes: [b, c].map(entry => entry.view.size),
+			wrapperSizes: [b, c].map(entry => grid.getSize(entry.id)),
+		};
+
+		grid.reconcile([a, b], 'a');
+		grid.layout(160, 160, 0, 0, false, 4);
+
+		assert.deepStrictEqual({
+			nested,
+			flattenedConstraint: {
+				width: leaves.get('b')!.minimumWidth,
+				height: leaves.get('b')!.minimumHeight,
+			},
+			flattenedContentSize: b.view.size,
+			flattenedWrapperSize: grid.getSize('b'),
+			bEvents,
+		}, {
+			nested: {
+				constraints: [{ width: 82, height: 82 }, { width: 82, height: 82 }],
+				contentSizes: [{ width: 80, height: 80 }, { width: 80, height: 80 }],
+				wrapperSizes: [{ width: 82, height: 82 }, { width: 82, height: 82 }],
+			},
+			flattenedConstraint: { width: 82, height: 80 },
+			flattenedContentSize: { width: 80, height: 160 },
+			flattenedWrapperSize: { width: 82, height: 160 },
+			bEvents: [{ width: 82, height: 82 }, { width: 82, height: 80 }],
 		});
 	});
 
