@@ -80,12 +80,6 @@ fn tunnel_management_client(log: &log::Logger) -> TunnelClientBuilder {
 		std::env::var("VSCODE_TUNNEL_OPERATION_ID"),
 		uuid::Uuid::new_v4(),
 	);
-	trace!(
-		log,
-		"Tunnel service correlation: session={:?}, operation={:?}",
-		session_id,
-		operation_id
-	);
 	let mut client = new_tunnel_management(&TUNNEL_SERVICE_USER_AGENT);
 	client.additional_headers(vec![
 		(
