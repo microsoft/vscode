@@ -1212,6 +1212,23 @@ suite('CustomizationMigrationService', () => {
 		const sourceBeforeSupportSettled = (await fileService.readFile(sourceUri)).value.toString();
 		supportScope.settle(disabledSnapshot);
 		const changedDuringWriteResult = await changedDuringWrite;
+		supportScope.settle(supportedSnapshot);
+		await fileService.writeFile(sourceUri, VSBuffer.fromString('{"servers":{"server":{"command":"node"}}}'));
+		await fileService.writeFile(targetUri, VSBuffer.fromString('{"mcpServers":{}}'));
+		let editorContextCurrent = true;
+		const targetWrittenForEditorContext = new DeferredPromise<void>();
+		fileProvider.afterTargetWrite = () => {
+			editorContextCurrent = false;
+			targetWrittenForEditorContext.complete();
+		};
+		const editorContextChangedDuringWrite = service.migrateMcpServers(
+			activeSessionResource.get(),
+			migration.candidates,
+			() => editorContextCurrent,
+		);
+		await targetWrittenForEditorContext.p;
+		const sourceBeforeEditorContextCheck = (await fileService.readFile(sourceUri)).value.toString();
+		const editorContextChangedDuringWriteResult = await editorContextChangedDuringWrite;
 
 		assert.deepStrictEqual({
 			candidates: migration.candidates.map(candidate => ({
@@ -1228,7 +1245,12 @@ suite('CustomizationMigrationService', () => {
 				migratedCount: changedDuringWriteResult.migratedCount,
 				failures: changedDuringWriteResult.failures.map(failure => failure.reason),
 			},
+			editorContextChangedDuringWriteResult: {
+				migratedCount: editorContextChangedDuringWriteResult.migratedCount,
+				failures: editorContextChangedDuringWriteResult.failures.map(failure => failure.reason),
+			},
 			sourceBeforeSupportSettled,
+			sourceBeforeEditorContextCheck,
 			source: (await fileService.readFile(sourceUri)).value.toString(),
 			target: (await fileService.readFile(targetUri)).value.toString(),
 		}, {
@@ -1240,9 +1262,11 @@ suite('CustomizationMigrationService', () => {
 			},
 			result: { migratedCount: 0, failures: ['noLongerEligible'] },
 			changedDuringWriteResult: { migratedCount: 1, failures: [] },
+			editorContextChangedDuringWriteResult: { migratedCount: 0, failures: ['noLongerEligible'] },
 			sourceBeforeSupportSettled: '{"servers":{"server":{"command":"node"}}}',
-			source: '{\n\t"servers": {}\n}',
-			target: '{\n\t"mcpServers": {\n\t\t"server": {\n\t\t\t"type": "local",\n\t\t\t"command": "node",\n\t\t\t"args": [],\n\t\t\t"tools": [\n\t\t\t\t"*"\n\t\t\t]\n\t\t}\n\t}\n}',
+			sourceBeforeEditorContextCheck: '{"servers":{"server":{"command":"node"}}}',
+			source: '{"servers":{"server":{"command":"node"}}}',
+			target: '{"mcpServers":{}}',
 		});
 	});
 

@@ -51,6 +51,17 @@ class ConcurrentTargetFileSystemProvider extends InMemoryFileSystemProvider {
 	}
 }
 
+class ContextChangingFileSystemProvider extends InMemoryFileSystemProvider {
+	afterDelete: (() => void) | undefined;
+
+	override async delete(resource: URI, options: IFileDeleteOptions): Promise<void> {
+		await super.delete(resource, options);
+		const afterDelete = this.afterDelete;
+		this.afterDelete = undefined;
+		afterDelete?.();
+	}
+}
+
 suite('customizationMigration', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -813,6 +824,74 @@ suite('customizationMigration', () => {
 			migratedUris: [migratedUri.path],
 			originalExists: true,
 			migratedExists: true,
+		});
+	});
+
+	test('returns completed migrations when the context changes between source files', async () => {
+		const first: IPromptPath = {
+			uri: URI.file('/home/test/.vscode/prompts/style.instructions.md'),
+			name: 'Style',
+			storage: PromptsStorage.user,
+			type: PromptsType.instructions,
+			source: PromptFileSource.UserData,
+		};
+		const second: IPromptPath = {
+			uri: URI.file('/home/test/.vscode/prompts/review.instructions.md'),
+			name: 'Review',
+			storage: PromptsStorage.user,
+			type: PromptsType.instructions,
+			source: PromptFileSource.UserData,
+		};
+		const instructionsRoot: ICustomizationSourceFolder = {
+			uri: URI.file('/home/test/.copilot/instructions'),
+			label: '~/.copilot/instructions',
+			source: PromptsStorage.user,
+		};
+		const firstTargetUri = URI.joinPath(instructionsRoot.uri, 'style.instructions.md');
+		const secondTargetUri = URI.joinPath(instructionsRoot.uri, 'review.instructions.md');
+		const fileService = store.add(new FileService(new NullLogService()));
+		const fileSystemProvider = store.add(new ContextChangingFileSystemProvider());
+		store.add(fileService.registerProvider(Schemas.file, fileSystemProvider));
+		await fileService.writeFile(first.uri, VSBuffer.fromString('Use tabs.'));
+		await fileService.writeFile(second.uri, VSBuffer.fromString('Review carefully.'));
+		let writeAllowed = true;
+		fileSystemProvider.afterDelete = () => writeAllowed = false;
+		let validationCount = 0;
+
+		const result = await migrateCustomizations(
+			[first, second],
+			new Map([[PromptsType.instructions, new Map([[PromptsStorage.user, instructionsRoot]])]]),
+			fileService,
+			undefined,
+			{
+				isWriteAllowed: async () => {
+					validationCount++;
+					return writeAllowed;
+				},
+			},
+		);
+
+		assert.deepStrictEqual({
+			result: {
+				...result,
+				migratedCustomizations: result.migratedCustomizations.map(customization => customization.uri.path),
+				migratedSources: result.migratedSources.map(source => source.uri.path),
+			},
+			validationCount,
+			sourceExists: await Promise.all([first.uri, second.uri].map(uri => fileService.exists(uri))),
+			targetExists: await Promise.all([firstTargetUri, secondTargetUri].map(uri => fileService.exists(uri))),
+		}, {
+			result: {
+				migratedCount: 1,
+				failedCustomizationFileNames: [],
+				unsupportedHeaderKeys: [],
+				migratedCustomizations: [firstTargetUri.path],
+				migratedSources: [first.uri.path],
+				cancelled: true,
+			},
+			validationCount: 5,
+			sourceExists: [false, true],
+			targetExists: [true, false],
 		});
 	});
 

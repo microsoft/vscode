@@ -95,7 +95,7 @@ export interface ICustomizationMcpServerCompatibilityProvider {
 
 export interface ICustomizationMcpServerMigrationProvider {
 	computeMigration(sessionResource: URI, token: CancellationToken): Promise<McpServerCustomizationMigration>;
-	migrate(sessionResource: URI, candidates: readonly IMcpServerCustomizationMigrationCandidate[]): Promise<IMcpServerCustomizationMigrationResult>;
+	migrate(sessionResource: URI, candidates: readonly IMcpServerCustomizationMigrationCandidate[], isContextCurrent?: () => boolean | Promise<boolean>): Promise<IMcpServerCustomizationMigrationResult>;
 }
 
 export interface ICustomizationMarketplaceSearchProvider {

@@ -111,14 +111,14 @@ export class AgentHostMcpServerMigrationProvider extends Disposable implements I
 		}
 	}
 
-	async migrate(sessionResource: URI, requestedCandidates: readonly IMcpServerCustomizationMigrationCandidate[]): Promise<IMcpServerCustomizationMigrationResult> {
+	async migrate(sessionResource: URI, requestedCandidates: readonly IMcpServerCustomizationMigrationCandidate[], isContextCurrent?: () => boolean | Promise<boolean>): Promise<IMcpServerCustomizationMigrationResult> {
 		if (requestedCandidates.length === 0) {
 			return { migratedCount: 0, failures: [] };
 		}
 
 		const roots = this.agentHostCustomizationService.getClientWorkingDirectoryUris(sessionResource);
 		const contextGeneration = this.activeContextGeneration;
-		if (!this.isExecutionContextCurrent(sessionResource, roots, contextGeneration)) {
+		if (!this.isExecutionContextCurrent(sessionResource, roots, contextGeneration) || await isContextCurrent?.() === false) {
 			return { migratedCount: 0, failures: requestedCandidates.map(candidate => this.noLongerEligible(candidate)) };
 		}
 
@@ -139,6 +139,9 @@ export class AgentHostMcpServerMigrationProvider extends Disposable implements I
 			const userTarget = await this.getUserTarget(sessionResource, supportSnapshot);
 			const plan = await this.mcpServerMigration.createPlan(supportSnapshot, roots, CancellationToken.None, userTarget);
 			const isExecutionCurrent = async (candidates: readonly IMcpServerCustomizationMigrationCandidate[]): Promise<boolean> => {
+				if (await isContextCurrent?.() === false) {
+					return false;
+				}
 				if (userTarget && !isEqual(userTarget, await this.getUserTarget(sessionResource, supportSnapshot))) {
 					return false;
 				}
