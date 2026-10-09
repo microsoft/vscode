@@ -586,37 +586,7 @@ extends:
             name: ${{ variables.VSCODE_UBUNTU_POOL }}
             os: linux
           jobs:
-            - ${{ if and(eq(variables['VSCODE_CIBUILD'], true), eq(parameters.VSCODE_BUILD_LINUX, true)) }}:
-              - template: build/azure-pipelines/linux/product-build-linux-cli.yml@self
-                parameters:
-                  VSCODE_ARCH: x64
-                  VSCODE_CHECK_ONLY: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                  VSCODE_POOL_NAME: ${{ variables.VSCODE_UBUNTU_POOL }}
-
             - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
-              - template: build/azure-pipelines/linux/product-build-linux-ci.yml@self
-                parameters:
-                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                  VSCODE_JOB_NAME: Unit
-                  VSCODE_JOB_DISPLAY_NAME: Unit Tests
-                  VSCODE_TEST_IDS:
-                    - unit-electron
-                    - unit-node
-                    - unit-browser-chromium
-                    - copilot
-              - template: build/azure-pipelines/linux/product-build-linux-ci.yml@self
-                parameters:
-                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                  VSCODE_JOB_NAME: BrowserRemote
-                  VSCODE_JOB_DISPLAY_NAME: Browser & Remote Tests
-                  VSCODE_TEST_IDS:
-                    - integration-browser-chromium
-                    - integration-remote
-                    - smoke-browser-chromium
-                    - smoke-remote
               - template: build/azure-pipelines/linux/product-build-linux-ci.yml@self
                 parameters:
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
@@ -625,14 +595,6 @@ extends:
                   VSCODE_JOB_DISPLAY_NAME: Integration Tests (Electron)
                   VSCODE_TEST_IDS:
                     - integration-electron
-              - template: build/azure-pipelines/linux/product-build-linux-ci.yml@self
-                parameters:
-                  VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                  VSCODE_JOB_NAME: Smoke
-                  VSCODE_JOB_DISPLAY_NAME: Smoke Tests (Electron)
-                  VSCODE_TEST_IDS:
-                    - smoke-electron
 
       - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(variables['VSCODE_BUILD_STAGE_ALPINE'], true)) }}:
         - stage: Alpine
