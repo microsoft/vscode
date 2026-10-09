@@ -524,7 +524,10 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		this.server.registerChannel(SSH_REMOTE_AGENT_HOST_CHANNEL, sshRemoteAgentHostChannel);
 
 		// Dev Container Agent Host
-		const devContainerAgentHostChannel = ProxyChannel.fromService(accessor.get(IDevContainerAgentHostMainService), this._store);
+		// Deliver inspection facts before a rejected connect RPC disposes its listeners.
+		const devContainerAgentHostChannel = ProxyChannel.fromService(accessor.get(IDevContainerAgentHostMainService), this._store, {
+			unbufferedEvents: ['onDidChangeSandboxSupport'],
+		});
 		this.server.registerChannel(DEV_CONTAINER_AGENT_HOST_CHANNEL, devContainerAgentHostChannel);
 
 		// WSL Remote Agent Host

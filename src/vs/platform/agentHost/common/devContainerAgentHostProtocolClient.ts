@@ -7,8 +7,8 @@ import { CancellationError } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { hasKey } from '../../../base/common/types.js';
-import { DevContainerCloseConnectionNotification, DevContainerConnectExtensionMethod, devContainerConnectResultValidator, devContainerConnectionParamsValidator, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayCloseNotification, DevContainerRelayMessageNotification, devContainerRelayMessageValidator, DevContainerRelaySendExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, type IAgentHostExtensionCommandMap } from './agentHostExtensionProtocol.js';
-import type { IDevContainerAgentHostConfig, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService, IDevContainerAgentHostOutput } from './devContainerAgentHost.js';
+import { DevContainerCloseConnectionNotification, DevContainerConnectExtensionMethod, devContainerConnectResultValidator, devContainerConnectionParamsValidator, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerSandboxSupportNotification, devContainerSandboxSupportValidator, DevContainerRelayCloseNotification, DevContainerRelayMessageNotification, devContainerRelayMessageValidator, DevContainerRelaySendExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, type IAgentHostExtensionCommandMap } from './agentHostExtensionProtocol.js';
+import type { IDevContainerAgentHostConfig, IDevContainerAgentHostConnectResult, IDevContainerAgentHostMainService, IDevContainerAgentHostOutput, IDevContainerAgentHostSandboxSupport } from './devContainerAgentHost.js';
 import type { IRelayMessage } from './relayTransport.js';
 import type { IDevContainerSampleSource } from './devContainerSamples.js';
 
@@ -26,6 +26,8 @@ export class DevContainerAgentHostProtocolClient extends Disposable implements I
 	readonly onDidCloseConnection = this._onDidCloseConnection.event;
 	private readonly _onDidOutput = this._register(new Emitter<IDevContainerAgentHostOutput>());
 	readonly onDidOutput = this._onDidOutput.event;
+	private readonly _onDidChangeSandboxSupport = this._register(new Emitter<IDevContainerAgentHostSandboxSupport>());
+	readonly onDidChangeSandboxSupport = this._onDidChangeSandboxSupport.event;
 	private readonly _connections = new Map<string, object>();
 
 	constructor(
@@ -105,6 +107,13 @@ export class DevContainerAgentHostProtocolClient extends Disposable implements I
 
 	handleNotification(method: string, params: unknown): boolean {
 		switch (method) {
+			case DevContainerSandboxSupportNotification: {
+				const result = devContainerSandboxSupportValidator.validate(params);
+				if (!result.error && this._connections.has(result.content.connectionId)) {
+					this._onDidChangeSandboxSupport.fire(result.content);
+				}
+				return true;
+			}
 			case DevContainerRelayMessageNotification:
 			case DevContainerOutputNotification: {
 				const result = devContainerRelayMessageValidator.validate(params);

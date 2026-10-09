@@ -51,6 +51,8 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 	readonly managedSandboxAllowsBypass: IObservable<boolean>;
 	readonly sandboxEnabled: IObservable<boolean | undefined>;
 	readonly sandboxConfirmedEnabled: IObservable<boolean | undefined>;
+	readonly sandboxDevContainer: IObservable<boolean>;
+	readonly sandboxDevContainerSupported: IObservable<boolean | undefined>;
 	readonly sandboxToggleSettingId: IObservable<string | undefined>;
 	readonly sandboxToggleConfigurationKeys = [
 		AgentHostCustomTerminalToolEnabledSettingId,
@@ -122,6 +124,12 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 			this._configChangedSignal.read(reader);
 			const session = this._session.read(reader);
 			return !!session && this._getAgentHostProvider(session.providerId)?.isDevContainerRequested?.(session.sessionId) === true;
+		});
+		this.sandboxDevContainer = isDevContainer;
+		this.sandboxDevContainerSupported = derived(this, reader => {
+			this._configChangedSignal.read(reader);
+			const session = this._session.read(reader);
+			return session && this._getAgentHostProvider(session.providerId)?.getDevContainerSandboxSupported?.(session.sessionId);
 		});
 		const sandboxPolicy = derived(this, reader => {
 			if (isDevContainer.read(reader)) {
@@ -223,6 +231,8 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 				globalEnabled: settingId !== undefined && isAgentSandboxEnabledValue(this._configurationService.getValue<AgentSandboxEnabledSettingValue>(settingId)),
 				managedEnabled: this.managedSandboxEnforced.get(),
 				allowsBypass: this.managedSandboxAllowsBypass.get(),
+				devContainer: this.sandboxDevContainer.get(),
+				devContainerSandboxSupported: this.sandboxDevContainerSupported.get(),
 			};
 		}, enabled => this.setSandboxEnabled(enabled));
 	}
@@ -232,6 +242,9 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 		const provider = session && this._getProvider(session.providerId);
 		if (!session || !provider || !this.isSandboxToggleApplicable()) {
 			throw new Error('Sandbox configuration is unavailable for this session');
+		}
+		if (enabled && this.sandboxDevContainerSupported.get() === false) {
+			throw new Error(localize('agentHostPermissionPicker.devContainerSandboxUnavailable', "Recreate the Dev Container with sandboxing enabled before enabling sandboxing for this session."));
 		}
 		const operation = provider.setSessionConfigValue(session.sessionId, SessionConfigKey.SandboxEnabled, enabled ? 'on' : 'off');
 		provider.trackSessionConfigOperation?.(session.sessionId, operation);

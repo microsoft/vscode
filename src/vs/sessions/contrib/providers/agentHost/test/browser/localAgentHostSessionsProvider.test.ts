@@ -43,6 +43,7 @@ import { toRemoteSessionMessageMetadata, withRemoteSessionOrigin } from '../../.
 import { USE_WORKTREE_SETTING } from '../../../../../common/sessionConfig.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { AgentSandboxSettingId } from '../../../../../../platform/sandbox/common/settings.js';
 import { IDialogService, IFileDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -5166,6 +5167,80 @@ suite('LocalAgentHostSessionsProvider', () => {
 		);
 		assert.strictEqual(connectCalls, 0);
 	});
+
+	for (const isolation of ['folder', 'worktree']) {
+		test(`uses sandbox support only for the actual Dev Container target (${isolation})`, async () => {
+			agentHost.resolveSessionConfigResult = { schema: createVSCodeSessionConfigSchema(), values: { isolation } };
+			const queried: string[] = [];
+			const provider = createProvider(disposables, agentHost, undefined, {
+				configurationService: new TestConfigurationService({ [DevContainerWorktreeEnabledSettingId]: true }),
+				devContainerAgentHostService: new class extends mock<IDevContainerAgentHostService>() {
+					override async isAvailable(): Promise<boolean> { return true; }
+					override getSandboxSupported(workspace: URI): boolean {
+						queried.push(workspace.toString());
+						return false;
+					}
+				}(),
+			});
+			const workspace = URI.file('/sandbox-target');
+			const session = provider.createNewSession(workspace, provider.sessionTypes[0].id);
+			await waitForSessionConfig(provider, session.sessionId, config => !!config?.schema.properties[SessionConfigKey.Isolation] && provider.isDevContainerAvailable(session.sessionId));
+			provider.setDevContainerEnabled(session.sessionId, true);
+			await provider.setSessionConfigValue(session.sessionId, SessionConfigKey.Isolation, isolation);
+			await provider.whenSessionConfigResolved(session.sessionId, CancellationToken.None);
+			assert.deepStrictEqual({ support: provider.getDevContainerSandboxSupported(session.sessionId), queried }, {
+				support: isolation === 'folder' ? false : undefined,
+				queried: isolation === 'folder' ? [workspace.toString()] : [],
+			});
+		});
+	}
+
+	test('sample drafts retain their source sandbox support when isolation is set to worktree', async () => {
+		const provider = createProvider(disposables, agentHost, undefined, {
+			configurationService: new TestConfigurationService({
+				[DevContainerWorktreeEnabledSettingId]: true,
+				[DevContainerSamplesEnabledSettingId]: true,
+				[DevContainerAgentHostEnabledSettingId]: true,
+				[RemoteAgentHostsEnabledSettingId]: true,
+			}),
+			devContainerAgentHostService: new class extends mock<IDevContainerAgentHostService>() {
+				override async isAvailable(): Promise<boolean> { return true; }
+				override getSandboxSupported(): boolean { return false; }
+			}(),
+		});
+		const session = provider.createNewSession(devContainerSampleUri(devContainerSamples[0]), provider.sessionTypes[0].id);
+		await waitForSessionConfig(provider, session.sessionId, config => !!config?.schema.properties[SessionConfigKey.Isolation] && provider.isDevContainerAvailable(session.sessionId));
+		await provider.setSessionConfigValue(session.sessionId, SessionConfigKey.Isolation, 'worktree');
+		await provider.whenSessionConfigResolved(session.sessionId, CancellationToken.None);
+		assert.strictEqual(provider.getDevContainerSandboxSupported(session.sessionId), false);
+	});
+
+	for (const scenario of [
+		{ global: 'on', choice: 'default', expected: true },
+		{ global: 'off', choice: 'default', expected: false },
+		{ global: 'on', choice: 'off', expected: false },
+		{ global: 'off', choice: 'on', expected: true },
+	]) {
+		test(`passes the effective sandbox choice to Dev Container startup (${scenario.global}, ${scenario.choice})`, async () => {
+			let options: { readonly sandboxEnabled: boolean } | undefined;
+			const provider = createProvider(disposables, agentHost, undefined, {
+				configurationService: new TestConfigurationService({ [AgentSandboxSettingId.AgentSandboxEnabled]: scenario.global }),
+				devContainerAgentHostService: new class extends mock<IDevContainerAgentHostService>() {
+					override async isAvailable(): Promise<boolean> { return true; }
+					override async connect(_workspace: URI, _token: CancellationToken, requested?: { readonly sandboxEnabled: boolean }): Promise<never> {
+						options = requested;
+						throw new Error('Stopped after startup request');
+					}
+				}(),
+			});
+			const session = provider.createNewSession(URI.file('/sandbox-project'), provider.sessionTypes[0].id);
+			await waitForSessionConfig(provider, session.sessionId, config => !!config?.schema.properties[SessionConfigKey.SandboxEnabled] && provider.isDevContainerAvailable(session.sessionId));
+			provider.setDevContainerEnabled(session.sessionId, true);
+			await provider.setSessionConfigValue(session.sessionId, SessionConfigKey.SandboxEnabled, scenario.choice);
+			await assert.rejects(provider.prepareNewSession(session.sessionId, CancellationToken.None, 'hello'), /Stopped after startup request/);
+			assert.deepStrictEqual(options, { sandboxEnabled: scenario.expected });
+		});
+	}
 
 	test('Dev Container preparation links to the workspace log and supports cancellation without committing the draft', async () => {
 		const connecting = new DeferredPromise<void>();
