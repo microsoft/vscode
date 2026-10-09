@@ -10290,7 +10290,7 @@ suite('CopilotAgent', () => {
 		}
 	});
 
-	test('does not retry an empty refresh with only fallback Auto and HydraFusion and accepts a later catalog', async () => {
+	test('does not retry an empty refresh with only fallback Auto and accepts a later catalog with HydraFusion', async () => {
 		const client = new TestCopilotClient([], []);
 		const { agent } = createTestAgentContext(disposables, {
 			copilotClient: client,
@@ -10314,7 +10314,7 @@ suite('CopilotAgent', () => {
 				models: agent.models.get().map(model => model.id),
 				requestCount: client.modelListRequests.length,
 			}, {
-				emptyCatalogModels: ['auto', 'hydrafusion'],
+				emptyCatalogModels: ['auto'],
 				requestsAfterEmptyRefresh: 2,
 				models: ['gpt-4o', 'hydrafusion'],
 				requestCount: 3,
@@ -10325,7 +10325,7 @@ suite('CopilotAgent', () => {
 		}
 	});
 
-	test('a runtime that lists no models accepts unlisted models beside HydraFusion, as an empty catalog does', async () => {
+	test('a runtime that lists no models hides and rejects HydraFusion but accepts other unlisted models, as an empty catalog does', async () => {
 		const { agent } = createTestAgentContext(disposables, {
 			copilotClient: new TestCopilotClient([], []),
 			rootConfig: { [CopilotCliConfigKey.HydraFusion]: true },
@@ -10333,12 +10333,68 @@ suite('CopilotAgent', () => {
 		try {
 			await agent.authenticate('https://api.github.com', 'token');
 			await agent.refreshModels();
+			const validate = (id: string) => (agent as unknown as { _validateModelSelection(model: ModelSelection): Promise<void> })
+				._validateModelSelection({ id })
+				.then(() => 'accepted', () => 'rejected');
+
+			assert.deepStrictEqual({
+				models: agent.models.get().map(model => model.id),
+				unlisted: await validate('claude-haiku-4.5'),
+				hydraFusion: await validate('hydrafusion'),
+			}, {
+				models: ['auto'],
+				unlisted: 'accepted',
+				hydraFusion: 'rejected',
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('publishes HydraFusion only when the catalog lists a policy-enabled concrete model', async () => {
+		const client = new TestCopilotClient([], [
+			{ id: 'auto', name: 'Auto' },
+			{ id: 'gpt-5', name: 'GPT-5', policy: { state: 'disabled' } },
+		]);
+		const { agent } = createTestAgentContext(disposables, {
+			copilotClient: client,
+			rootConfig: { [CopilotCliConfigKey.HydraFusion]: true },
+		});
+		try {
+			await agent.authenticate('https://api.github.com', 'token');
+			await agent.refreshModels();
+			const disabledOnly = agent.models.get().map(model => model.id);
+			client.modelListResponses.push([
+				{ id: 'auto', name: 'Auto' },
+				{ id: 'gpt-5', name: 'GPT-5', policy: { state: 'disabled' } },
+				{ id: 'claude-sonnet-4.6', name: 'Claude Sonnet 4.6', policy: { state: 'enabled' } },
+			]);
+			await agent.refreshModels();
+
+			assert.deepStrictEqual({
+				disabledOnly,
+				withEnabledModel: agent.models.get().map(model => model.id),
+			}, {
+				disabledOnly: ['auto', 'gpt-5'],
+				withEnabledModel: ['auto', 'gpt-5', 'claude-sonnet-4.6', 'hydrafusion'],
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
+	test('does not publish HydraFusion before the catalog loads and keeps its selection fail-open', async () => {
+		const { agent } = createTestAgentContext(disposables, {
+			copilotClient: new TestCopilotClient([], [{ id: 'gpt-5', name: 'GPT-5' }]),
+			rootConfig: { [CopilotCliConfigKey.HydraFusion]: true },
+		});
+		try {
 			const validation = await (agent as unknown as { _validateModelSelection(model: ModelSelection): Promise<void> })
-				._validateModelSelection({ id: 'claude-haiku-4.5' })
+				._validateModelSelection({ id: 'hydrafusion' })
 				.then(() => 'accepted', () => 'rejected');
 
 			assert.deepStrictEqual({ models: agent.models.get().map(model => model.id), validation }, {
-				models: ['auto', 'hydrafusion'],
+				models: [],
 				validation: 'accepted',
 			});
 		} finally {

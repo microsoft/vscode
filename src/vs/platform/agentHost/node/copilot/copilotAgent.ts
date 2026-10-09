@@ -68,7 +68,7 @@ import type { ErrorInfo } from '../../common/state/protocol/common/state.js';
 import { ProtectedResourceMetadata, type AgentSelection, type BackgroundWork, type ConfigPropertySchema, type ConfigSchema, type CustomizationEnablement, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, AuthRequiredReason, type AuthRequiredParams, type SessionAction } from '../../common/state/sessionActions.js';
 import { areAdditionalWorkingDirectoriesEqual } from '../../common/state/sessionWorkingDirectories.js';
-import { CustomizationLoadStatus, CustomizationType, ChatInputResponseKind, customizationId, buildChatUri, buildDefaultChatUri, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_EHCLI_LAST_TURN_DB_KEY, AH_META_IS_READ_DB_KEY, isDefaultChatUri, parseRequiredSessionUriFromChatUri, withSessionEhcliAdoptable, withSessionWorkspaceless, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type ISessionFolderPickerDecision, type MessageAttachment, type PendingMessage, type PluginCustomization, type PolicyState, type ChatInputAnswer, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
+import { CustomizationLoadStatus, CustomizationType, ChatInputResponseKind, customizationId, buildChatUri, buildDefaultChatUri, AH_META_WORKSPACELESS_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_EHCLI_LAST_TURN_DB_KEY, AH_META_IS_READ_DB_KEY, isDefaultChatUri, parseRequiredSessionUriFromChatUri, withSessionEhcliAdoptable, withSessionWorkspaceless, type ChildCustomization, type ClientPluginCustomization, type Customization, type DirectoryCustomization, type ISessionFolderPickerDecision, type MessageAttachment, type PendingMessage, type PluginCustomization, PolicyState, type ChatInputAnswer, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
 import { CopilotChatDiscovery, ICopilotChatDiscoveryScan } from './copilotChatDiscovery.js';
 import { getByokLmAgentModelId, resolveByokLmEnablement } from '../../common/agentHostByokLm.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
@@ -2545,7 +2545,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * allocated each call so the observable always notifies its consumers.
 	 */
 	private _publishModels(): void {
-		const hydraFusionModels: readonly IAgentModelInfo[] = this._isHydraFusionEnabled() && !this._capiModels.some(model => model.id === COPILOT_HYDRA_FUSION_MODEL_ID) ? [{
+		const hydraFusionModels: readonly IAgentModelInfo[] = this._isHydraFusionEnabled() && !this._capiModels.some(model => model.id === COPILOT_HYDRA_FUSION_MODEL_ID) && this._hasHydraFusionRoutableModel() ? [{
 			provider: this.id,
 			id: COPILOT_HYDRA_FUSION_MODEL_ID,
 			name: COPILOT_HYDRA_FUSION_MODEL_NAME,
@@ -2553,6 +2553,19 @@ export class CopilotAgent extends Disposable implements IAgent {
 			_meta: createPricingMetaFromBilling(undefined, undefined, 'powerful'),
 		}] : [];
 		this._models.set([...this._withClaudeDefaultReasoningEffort(this._capiModels), ...hydraFusionModels, ...this._byokModels], undefined);
+	}
+
+	/**
+	 * Whether the runtime listed a concrete model that HydraFusion could route to.
+	 * HydraFusion only runs catalog models the account's allowed-model policy
+	 * permits, so a catalog that is not loaded yet, lists nothing (as for Copilot
+	 * Free and Student), or lists only policy-disabled models cannot execute it.
+	 */
+	private _hasHydraFusionRoutableModel(): boolean {
+		return this._capiModels.some(model =>
+			!isAutoModel(model.id) &&
+			model.id !== COPILOT_HYDRA_FUSION_MODEL_ID &&
+			model.policyState !== PolicyState.Disabled);
 	}
 
 	private _getClaudeDefaultReasoningEffort(): string | undefined {
@@ -6209,6 +6222,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return;
 		}
 		await (this._invalidatingModelRefresh ?? this._modelRefreshInFlight);
+		// Once the runtime has answered, a catalog without HydraFusion confirms it
+		// cannot run, so reject it here instead of failing the turn later. An
+		// unloaded catalog stays fail-open below.
+		if (model.id === COPILOT_HYDRA_FUSION_MODEL_ID && this._capiModels.length > 0 && !this._models.get().some(candidate => candidate.id === model.id)) {
+			throw new Error(localize('copilotAgent.modelNotAvailable', "Model '{0}' is not available.", model.id));
+		}
 		// An empty catalog can mean the provider is unauthenticated or temporarily
 		// unavailable, so preserve the SDK's existing fail-open behavior in that case.
 		// A runtime that listed nothing, leaving only the fallback Auto, counts as empty
