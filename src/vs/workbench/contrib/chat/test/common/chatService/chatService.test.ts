@@ -256,13 +256,21 @@ suite('ChatService', () => {
 	});
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	for (const policyKey of ['permissions.ask', 'sandbox.enabled']) {
+	for (const [policyKey, policyValue] of [
+		['permissions.ask', '["Shell"]'],
+		['permissions.disableBypassPermissionsMode', 'disable'],
+		['permissions.disableAssistedPermissionsMode', false],
+		['permissions.defaultMode', 'manual'],
+		['permissions.allow', '[]'],
+		['sandbox.enabled', true],
+	] as const) {
 		test(`${policyKey} blocks existing and restored Local requests without deleting history`, async () => {
 			const changes = testDisposables.add(new Emitter<void>());
 			let rules: string | boolean | undefined;
 			instantiationService.stub(IManagedSettingsService, {
 				_serviceBrand: undefined, onDidChangeManagedSettings: changes.event,
 				getManagedSettingValue: key => key === policyKey ? rules : undefined,
+				getManagedSettings: () => rules === undefined ? {} : { [policyKey]: rules },
 			});
 			const service = createChatService();
 			const model = startSessionModel(service).object;
@@ -270,7 +278,7 @@ suite('ChatService', () => {
 			ChatSendResult.assertSent(initial);
 			await initial.data.responseCompletePromise;
 			const history: ISerializableChatData = JSON.parse(JSON.stringify(model));
-			rules = policyKey === 'sandbox.enabled' ? true : '["Shell"]';
+			rules = policyValue;
 			changes.fire();
 			const invoke = spy(chatAgentService, 'invokeAgent');
 			testDisposables.add(toDisposable(() => invoke.restore()));
@@ -280,7 +288,7 @@ suite('ChatService', () => {
 			const restored = testDisposables.add(service.loadSessionFromData(history)).object;
 			const restoredResult = await service.sendRequest(restored.sessionResource, 'blocked restore');
 			const blocked = { existing: model.isInputBlocked.get(), restored: restored.isInputBlocked.get(), calls: invoke.callCount };
-			rules = policyKey === 'sandbox.enabled' ? false : '[]';
+			rules = undefined;
 			changes.fire();
 			assert.deepStrictEqual({
 				results: [existingResult.kind, queuedResult.kind, restoredResult.kind], blocked,
@@ -299,6 +307,7 @@ suite('ChatService', () => {
 			instantiationService.stub(IManagedSettingsService, {
 				_serviceBrand: undefined, onDidChangeManagedSettings: changes.event,
 				getManagedSettingValue: key => key === policyKey ? rules : undefined,
+				getManagedSettings: () => rules === undefined ? {} : { [policyKey]: rules },
 			});
 			const service = createChatService();
 			const activate = spy(service, 'activateDefaultAgent');
@@ -306,7 +315,7 @@ suite('ChatService', () => {
 			const model = startSessionModel(service).object;
 			const pending = service.sendRequest(model.sessionResource, 'do not start Local');
 			const before = activate.callCount;
-			rules = policyKey === 'sandbox.enabled' ? true : '["Shell"]';
+			rules = policyValue;
 			changes.fire();
 			ready.complete();
 			const result = await pending;
@@ -317,7 +326,8 @@ suite('ChatService', () => {
 			test(`${policyKey} cannot be bypassed by a Local ${location} session`, async () => {
 				instantiationService.stub(IManagedSettingsService, {
 					_serviceBrand: undefined, onDidChangeManagedSettings: Event.None,
-					getManagedSettingValue: key => key === policyKey ? (policyKey === 'sandbox.enabled' ? true : '["Shell"]') : undefined,
+					getManagedSettingValue: key => key === policyKey ? policyValue : undefined,
+					getManagedSettings: () => ({ [policyKey]: policyValue }),
 				});
 				const service = createChatService();
 				const model = startSessionModel(service, location).object;
@@ -335,7 +345,8 @@ suite('ChatService', () => {
 			});
 			instantiationService.stub(IManagedSettingsService, {
 				_serviceBrand: undefined, onDidChangeManagedSettings: Event.None,
-				getManagedSettingValue: key => key === policyKey ? (policyKey === 'sandbox.enabled' ? true : '["Shell"]') : undefined,
+				getManagedSettingValue: key => key === policyKey ? policyValue : undefined,
+				getManagedSettings: () => ({ [policyKey]: policyValue }),
 			});
 			testDisposables.add(chatAgentService.registerAgent('inlineAgent', { ...getAgentData('inlineAgent'), isDefault: true, locations: [ChatAgentLocation.EditorInline] }));
 			let invocations = 0;
@@ -365,12 +376,13 @@ suite('ChatService', () => {
 				const changes = testDisposables.add(new Emitter<void>());
 				let rules: string | boolean | undefined;
 				const applyPolicy = () => {
-					rules = policyKey === 'sandbox.enabled' ? true : '["Shell"]';
+					rules = policyValue;
 					changes.fire();
 				};
 				instantiationService.stub(IManagedSettingsService, {
 					_serviceBrand: undefined, onDidChangeManagedSettings: changes.event,
 					getManagedSettingValue: key => key === policyKey ? rules : undefined,
+					getManagedSettings: () => rules === undefined ? {} : { [policyKey]: rules },
 				});
 				const extensionService = new TestExtensionService();
 				const activate = stub(extensionService, 'activateByEvent').callsFake(async () => {

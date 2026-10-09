@@ -263,7 +263,9 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		if (connection.registerMcpAuthenticationHandler) {
 			// Remote chat URIs encode the host in their scheme, not their authority.
 			store.add(connection.registerMcpAuthenticationHandler(request =>
-				this._instantiationService.invokeFunction(autoAuthenticateMcpServer, connection, { scheme: AGENT_HOST_SCHEME, authority: '' }, request.serverName, request.auth)));
+				this._instantiationService.invokeFunction(autoAuthenticateMcpServer,
+					{ authenticate: this._authenticateCallback(address, connection) },
+					{ scheme: AGENT_HOST_SCHEME, authority: '' }, request.serverName, request.auth)));
 		}
 		connState.prepareSession = this._connectionCustomizations.get(address)?.createSessionPreparation?.(connection, store);
 

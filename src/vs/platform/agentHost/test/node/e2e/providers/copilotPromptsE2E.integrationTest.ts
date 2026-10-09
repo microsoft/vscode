@@ -41,6 +41,7 @@ import {
 import { TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
 import { COPILOT_CONFIG } from './copilotTestConfiguration.js';
 import { createTestDirectory } from '../harness/testDirectories.js';
+import { withAgentHostE2ESnapshotDiagnostics } from '../harness/agentHostE2EDiagnostics.js';
 
 /** Only the replay-scoped flag accepts a baseline; the other one implies recording. */
 const UPDATE_SNAPSHOTS = process.env[AgentHostUpdateAhpSnapshotsEnvVar] === '1';
@@ -325,7 +326,7 @@ async function assertPromptSnapshot(test: Mocha.Runnable, content: string): Prom
 	if (!existsSync(snapshotPath)) {
 		throw new Error(`no committed prompt baseline at ${snapshotPath}. Generate it with ${AgentHostUpdateAhpSnapshotsEnvVar}=1 and commit the result.`);
 	}
-	await assertSnapshot(content, { name: 'prompt', extension: 'md' });
+	await withAgentHostE2ESnapshotDiagnostics(() => assertSnapshot(content, { name: 'prompt', extension: 'md' }));
 }
 
 /** A partial view for the shape guard; the cast strips nothing from the serialized body. */

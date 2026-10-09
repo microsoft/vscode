@@ -19,6 +19,7 @@ import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvid
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { validateSessionConfigWrite } from '../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { RemoteAgentHostConnectionStatus } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { readSessionWorkspaceless } from '../../../../../platform/agentHost/common/state/sessionState.js';
 
 /**
  * Sessions provider for a Copilot cloud sandbox.
@@ -92,6 +93,7 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 			...super._adapterOptions(),
 			preserveStatusWhenDisconnected: true,
 			useSessionTitleForDefaultChat: true,
+			isSessionTitlePlaceholder: (title: string, session: URI) => session.scheme === CLOUD_SANDBOX_SESSION_SCHEME && title === AgentSession.id(session),
 			externalSessionState: (resource: URI, store: DisposableStore) => {
 				const key = this._localSessionStorageKey(AgentSession.id(resource));
 				store.add(this._chatService.onDidAcceptRequest(({ chatSessionResource }) => {
@@ -218,7 +220,7 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 		} else if (this.connection) {
 			return super.renameSession(sessionId, title);
 		}
-		session.title.set(title, undefined);
+		session.setTitleFromUser(title);
 		this._onDidChangeSessions.fire({ added: [], removed: [], changed: [session] });
 	}
 
@@ -278,7 +280,7 @@ export class CloudSandboxSessionsProvider extends RemoteAgentHostSessionsProvide
 			return;
 		}
 		const adapter = this.createAdapter(meta);
-		adapter.updateDiscoveryMetadata(meta);
+		adapter.updateDiscoveryMetadata(meta, readSessionWorkspaceless(meta._meta) || undefined);
 		this._sessionCache.set(meta.session.toString(), adapter);
 		this._withheldSessions.add(meta.session.toString());
 		// No deadline yet: the clock starts when the host first omits it.

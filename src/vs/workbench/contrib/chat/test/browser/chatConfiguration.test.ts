@@ -12,7 +12,8 @@ import { ChatConfiguration } from '../../common/constants.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IConfigurationService, IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
 import { chatProgressConfigurationProperties } from '../../browser/chatProgressConfiguration.js';
-import { customizationMarketplaceConfigurationProperties, isCustomizationMarketplaceValueFromDefault } from '../../browser/aiCustomization/customizationMarketplaceConfiguration.js';
+import { customizationMarketplaceConfigurationProperties, isAgentFinderPublicFeedAvailable, isCustomizationMarketplaceValueFromDefault } from '../../browser/aiCustomization/customizationMarketplaceConfiguration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import '../../browser/agentSessionsConfiguration.js';
 
 const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
@@ -98,6 +99,18 @@ suite('Chat configuration', () => {
 			},
 			publicFeed: true,
 		});
+	});
+
+	test('strict marketplace policy disables the GitHub Feed', () => {
+		assert.deepStrictEqual([
+			{ strictMarketplaces: undefined, harnessProvidesMarketplaceSearch: true },
+			{ strictMarketplaces: null, harnessProvidesMarketplaceSearch: true },
+			{ strictMarketplaces: [], harnessProvidesMarketplaceSearch: true },
+			{ strictMarketplaces: [{ source: 'github', repo: 'owner/catalog' }], harnessProvidesMarketplaceSearch: true },
+			{ strictMarketplaces: undefined, harnessProvidesMarketplaceSearch: false },
+		].map(({ strictMarketplaces, harnessProvidesMarketplaceSearch }) => isAgentFinderPublicFeedAvailable(new TestConfigurationService({
+			[ChatConfiguration.StrictMarketplaces]: strictMarketplaces,
+		}), harnessProvidesMarketplaceSearch)), [true, true, false, false, false]);
 	});
 
 	test('Marketplace experiment eligibility excludes every explicit configuration layer', () => {
