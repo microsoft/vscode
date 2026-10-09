@@ -81,6 +81,10 @@ export class OpenRouterLMProvider extends AbstractOpenAICompatibleLMProvider {
 		return 'https://openrouter.ai/api/v1';
 	}
 
+	protected override getModelsDiscoveryUrl(modelsBaseUrl: string): string {
+		return `${modelsBaseUrl}/models?supported_parameters=tools`;
+	}
+
 	protected override resolveModelCapabilities(modelData: unknown): BYOKModelCapabilities | undefined {
 		const openRouterModelData = modelData as OpenRouterModelData;
 		const supportedParameters = openRouterModelData.supported_parameters ?? [];

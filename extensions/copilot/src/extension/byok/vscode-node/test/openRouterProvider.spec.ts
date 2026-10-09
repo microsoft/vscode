@@ -46,14 +46,11 @@ function createProvider(fetch: IFetcherService['fetch'] = vi.fn(), createInstanc
 }
 
 describe('OpenRouterLMProvider model discovery', () => {
-	it('discovers aliases from the unfiltered catalog without changing their IDs or capabilities', async () => {
+	it('requests tool-capable models and preserves returned alias IDs and capabilities', async () => {
 		const modelData = [
 			{ id: '~anthropic/claude-fable-latest', name: 'Anthropic: Claude Fable Latest', supported_parameters: ['tools', 'reasoning'] },
 			{ id: '~google/gemini-flash-latest', name: 'Google: Gemini Flash Latest', supported_parameters: ['tools'] },
 			{ id: 'openai/gpt-chat-latest', name: 'OpenAI: GPT Chat Latest', supported_parameters: ['tools'] },
-			{ id: 'example/chat-only', name: 'Chat Only', supported_parameters: ['temperature'] },
-			{ id: '~example/chat-only-latest', name: 'Chat Only Latest', supported_parameters: [] },
-			{ id: '~example/unknown-latest', name: 'Unknown Capabilities Latest' },
 		].map(model => ({
 			...model,
 			context_length: 200000,
@@ -68,14 +65,11 @@ describe('OpenRouterLMProvider model discovery', () => {
 			urls: fetch.mock.calls.map(([url]) => url),
 			models: models.map(model => ({ id: model.id, name: model.name, toolCalling: model.capabilities.toolCalling })),
 		}).toEqual({
-			urls: ['https://openrouter.ai/api/v1/models'],
+			urls: ['https://openrouter.ai/api/v1/models?supported_parameters=tools'],
 			models: [
 				{ id: '~anthropic/claude-fable-latest', name: 'Anthropic: Claude Fable Latest', toolCalling: true },
 				{ id: '~google/gemini-flash-latest', name: 'Google: Gemini Flash Latest', toolCalling: true },
 				{ id: 'openai/gpt-chat-latest', name: 'OpenAI: GPT Chat Latest', toolCalling: true },
-				{ id: 'example/chat-only', name: 'Chat Only', toolCalling: false },
-				{ id: '~example/chat-only-latest', name: 'Chat Only Latest', toolCalling: false },
-				{ id: '~example/unknown-latest', name: 'Unknown Capabilities Latest', toolCalling: false },
 			],
 		});
 	});
