@@ -522,6 +522,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 	}, 0));
 	private sessionItemsRequestGeneration = 0;
 	private readonly explicitlyResolvedSessions = new LRUCache<string, vscode.ChatSessionItem>(50);
+	private readonly unpublishedExactTasks = new Set<string>();
 	private sessionSourceGeneration = 0;
 	// Task ids with an in-flight "Create pull request" toolbar request, used to guard against
 	// re-entrant invocations (e.g. rapid double-clicks) that would otherwise submit duplicate PRs.
@@ -933,8 +934,22 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			if (item === undefined) {
 				throw new Error(l10n.t('Could not resolve cloud task {0}.', taskId));
 			}
+			const previousTaskIds = new Set(this.explicitlyResolvedSessions.keys());
 			this.explicitlyResolvedSessions.set(taskId, item);
-			this.refresh();
+			this.unpublishedExactTasks.add(taskId);
+			for (const id of previousTaskIds) {
+				if (!this.explicitlyResolvedSessions.has(id)) {
+					this.unpublishedExactTasks.delete(id);
+				}
+			}
+			if (this.cachedSessionItems) {
+				this.cachedSessionItems = this.cachedSessionItems.filter(existing => {
+					const existingTaskId = SessionIdForTask.parseTaskId(existing.resource);
+					return existingTaskId !== taskId && (!existingTaskId || !previousTaskIds.has(existingTaskId) || this.explicitlyResolvedSessions.has(existingTaskId));
+				});
+				this.cachedSessionItems.push(item);
+			}
+			this._onDidChangeChatSessionItems.fire();
 		}));
 		this._register(vscode.commands.registerCommand(OPEN_PULL_REQUEST_FOR_TASK_COMMAND_ID, (sessionItemOrResource?: vscode.ChatSessionItem | vscode.Uri) => this.handleOpenPullRequestForTaskCommand(sessionItemOrResource)));
 	}
@@ -957,6 +972,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 	}
 
 	public refresh(): void {
+		this.unpublishedExactTasks.clear();
 		this.cachedSessionItemsExpiryScheduler.cancel();
 		this.sessionItemsRequestGeneration++;
 		this.cachedSessionItems = undefined;
@@ -1464,6 +1480,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			return this.chatSessionItemsPromise;
 		}
 		const generation = ++this.sessionItemsRequestGeneration;
+		const exactItemsToRefresh = new Map(this.explicitlyResolvedSessions);
 		this.chatSessionItemsPromise = (async (): Promise<vscode.ChatSessionItem[]> => {
 			const repoIds = await getRepoId(this._gitService);
 			this.logService.debug(`copilotCloudSessionsProvider#provideChatSessionItems: repoIds=${JSON.stringify(repoIds?.map(r => ({ org: r.org, repo: r.repo, host: r.host })))}, isAgentSessionsWorkspace=${vscode.workspace.isAgentSessionsWorkspace}`);
@@ -1476,7 +1493,10 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			const { sessions: sessionList, expiresAt, isExternal } = await this.fetchSessionList(repoIds);
 			this.logService.debug(`copilotCloudSessionsProvider#provideChatSessionItems: fetched ${sessionList.length} grouped sessions`);
 			const sessionItems = await Promise.all(sessionList.map(entry => this.toChatSessionItem(entry, repoIds, false, isExternal(entry.taskId))));
-			const filteredSessions = sessionItems.filter((item): item is vscode.ChatSessionItem => item !== undefined);
+			const filteredSessions = sessionItems.filter((item): item is vscode.ChatSessionItem => item !== undefined).map(item => {
+				const taskId = SessionIdForTask.parseTaskId(item.resource);
+				return taskId && this.unpublishedExactTasks.has(taskId) ? this.explicitlyResolvedSessions.get(taskId) ?? item : item;
+			});
 
 			if (this.sessionItemsRequestGeneration !== generation) {
 				return this.provideChatSessionItems(token);
@@ -1488,7 +1508,10 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 					this.explicitlyResolvedSessions.set(taskId, item);
 				}
 			}
-			for (const [taskId, previousItem] of [...this.explicitlyResolvedSessions]) {
+			for (const [taskId, previousItem] of exactItemsToRefresh) {
+				if (this.unpublishedExactTasks.has(taskId) || this.explicitlyResolvedSessions.get(taskId) !== previousItem) {
+					continue;
+				}
 				if (!listed.has(getCloudSessionResources(taskId, undefined).resource.toString())) {
 					try {
 						const entry = await this._backend.fetchSession(taskId);
@@ -1497,21 +1520,28 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 							return this.provideChatSessionItems(token);
 						}
 						if (item) {
-							this.explicitlyResolvedSessions.set(taskId, item);
-							filteredSessions.push(item);
+							if (this.explicitlyResolvedSessions.get(taskId) === previousItem) {
+								this.explicitlyResolvedSessions.set(taskId, item);
+							}
 						}
 					} catch (error) {
 						if (this.sessionItemsRequestGeneration !== generation) {
 							return this.provideChatSessionItems(token);
 						}
 						if (error instanceof TaskApiError && error.status === 404) {
-							this.explicitlyResolvedSessions.delete(taskId);
+							if (this.explicitlyResolvedSessions.get(taskId) === previousItem) {
+								this.explicitlyResolvedSessions.delete(taskId);
+							}
 							this.logService.trace(`Explicitly resolved cloud task ${taskId} is no longer available.`);
 							continue;
 						}
 						this.logService.warn(`Failed to refresh explicitly resolved cloud task ${taskId}; retaining its last known item: ${error}`);
-						filteredSessions.push(previousItem);
 					}
+				}
+			}
+			for (const item of this.explicitlyResolvedSessions.values()) {
+				if (!listed.has(item.resource.toString())) {
+					filteredSessions.push(item);
 				}
 			}
 			vscode.commands.executeCommand('setContext', 'github.copilot.chat.cloudSessionsEmpty', filteredSessions.length === 0);
@@ -1520,6 +1550,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			// Cache the results
 			this.cachedSessionsSize = sessionList.length;
 			this.cachedSessionItems = filteredSessions;
+			this.unpublishedExactTasks.clear();
 			this.cachedSessionItemsExpiresAt = expiresAt;
 			this.scheduleCachedSessionItemsExpiry();
 

@@ -483,6 +483,22 @@ describe('cloud session visibility', () => {
 			});
 		});
 
+		it('publishes exact resolutions without refetching them or older retained tasks', async () => {
+			const fetchSession = vi.spyOn(TaskApiBackend.prototype, 'fetchSession').mockImplementation(async taskId => session(taskId));
+			fetchSessionList.mockResolvedValue([session('ordinary')]);
+			const provider = createProvider();
+			const resolve = vi.mocked(vscode.commands.registerCommand).mock.calls.find(([id]) => id === 'github.copilot.chat.cloudSessions.resolveTask')![1];
+			await resolve(vscode.Uri.parse('copilot-cloud-agent:/task/older'));
+			await provider.provideChatSessionItems(CancellationToken.None);
+			await resolve(vscode.Uri.parse('copilot-cloud-agent:/task/current'));
+			const items = await provider.provideChatSessionItems(CancellationToken.None);
+			expect({
+				exactFetches: fetchSession.mock.calls,
+				discoveries: fetchSessionList.mock.calls.length,
+				items: items.map(item => item.label),
+			}).toEqual({ exactFetches: [['older'], ['current']], discoveries: 1, items: ['ordinary', 'older', 'current'] });
+		});
+
 		it('rejects malformed task resources and discards hydration after an account change', async () => {
 			const pending = new DeferredPromise<CloudSessionData>();
 			const fetchSession = vi.spyOn(TaskApiBackend.prototype, 'fetchSession').mockReturnValue(pending.p);
@@ -499,7 +515,7 @@ describe('cloud session visibility', () => {
 		it('merges exact resolution racing initial discovery without losing ordinary sessions', async () => {
 			const discovery = new DeferredPromise<CloudSessionData[]>();
 			fetchSessionList.mockReturnValueOnce(discovery.p).mockResolvedValue([session('ordinary')]);
-			vi.spyOn(TaskApiBackend.prototype, 'fetchSession').mockResolvedValue(session('exact'));
+			const fetchSession = vi.spyOn(TaskApiBackend.prototype, 'fetchSession').mockResolvedValue(session('exact'));
 			const provider = createProvider();
 			const listing = provider.provideChatSessionItems(CancellationToken.None);
 			await vi.waitFor(() => expect(fetchSessionList).toHaveBeenCalled());
@@ -510,6 +526,22 @@ describe('cloud session visibility', () => {
 			expect(items.map(item => ({ path: item.resource.path, external: item.metadata?.external }))).toEqual([
 				{ path: '/task/ordinary', external: true }, { path: '/task/exact', external: true },
 			]);
+			expect(fetchSession.mock.calls).toEqual([['exact']]);
+		});
+
+		it('keeps a fresh exact result when an older in-flight discovery contains the same task', async () => {
+			const discovery = new DeferredPromise<CloudSessionData[]>();
+			fetchSessionList.mockReturnValueOnce(discovery.p);
+			const fetchSession = vi.spyOn(TaskApiBackend.prototype, 'fetchSession').mockResolvedValue({ ...session('exact'), title: 'Fresh title' });
+			const provider = createProvider();
+			const listing = provider.provideChatSessionItems(CancellationToken.None);
+			await vi.waitFor(() => expect(fetchSessionList).toHaveBeenCalled());
+			const resolve = vi.mocked(vscode.commands.registerCommand).mock.calls.find(([id]) => id === 'github.copilot.chat.cloudSessions.resolveTask')![1];
+			await resolve(vscode.Uri.parse('copilot-cloud-agent:/task/exact'));
+			await discovery.complete([session('ordinary'), { ...session('exact'), title: 'Old title' }]);
+			expect({ labels: (await listing).map(item => item.label), requests: fetchSession.mock.calls }).toEqual({
+				labels: ['ordinary', 'Fresh title'], requests: [['exact']],
+			});
 		});
 
 		it('refreshes unlisted exact tasks and removes deleted tasks rather than replaying stale snapshots', async () => {
@@ -535,6 +567,7 @@ describe('cloud session visibility', () => {
 			const resolve = vi.mocked(vscode.commands.registerCommand).mock.calls.find(([id]) => id === 'github.copilot.chat.cloudSessions.resolveTask')![1];
 			await resolve(vscode.Uri.parse('copilot-cloud-agent:/task/exact'));
 			fetchSessionList.mockResolvedValue([{ ...session('exact'), title: 'Latest known exact task' }, session('ordinary')]);
+			provider.refresh();
 			await provider.provideChatSessionItems(CancellationToken.None);
 
 			const failure = new TaskApiError('Unavailable', 503, 'getTask');
