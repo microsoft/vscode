@@ -35,7 +35,7 @@ import { MessageKind, StateComponents, TurnState, type AgentInfo, type Component
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
-import { AgentHostUntitledProvisionalSessionService, IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
+import { AgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { AgentHostNewSessionFolderService, IAgentHostNewSessionFolderService } from '../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { AgentHostImportConversationStore, IAgentHostImportConversationStore } from '../../../browser/agentSessions/agentHost/agentHostImportConversationStore.js';
 import { areCustomizationScopeRootsEqual, IAgentHostActiveClientService } from '../../../browser/agentSessions/agentHost/agentHostActiveClientService.js';
@@ -242,9 +242,10 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 	let agentHost: MockAgentHostService;
 	let sessionResolutions: ResourceMap<IAgentHostSessionResolution | undefined>;
 	let onDidChangeSessionResolution: Emitter<void>;
+	let onDidDisposeChatSession: Emitter<{ sessionResources: readonly URI[]; reason: 'disposed' }>;
 	let warnings: string[];
 	let importStore: AgentHostImportConversationStore;
-	let provisional: IAgentHostUntitledProvisionalSessionService;
+	let provisional: AgentHostUntitledProvisionalSessionService;
 	let folderService: IAgentHostNewSessionFolderService;
 	let cleanup: DisposableStore;
 	let workspaceTrusted: boolean;
@@ -262,6 +263,7 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		agentHost = ds.add(new MockAgentHostService());
 		sessionResolutions = new ResourceMap();
 		onDidChangeSessionResolution = ds.add(new Emitter<void>());
+		onDidDisposeChatSession = ds.add(new Emitter<{ sessionResources: readonly URI[]; reason: 'disposed' }>());
 		warnings = [];
 		workspaceTrusted = true;
 		untrustedFolders = new Set<string>();
@@ -288,7 +290,9 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		insta.stub(ILogService, new class extends NullLogService {
 			override warn(message: string): void { warnings.push(message); }
 		}());
-		insta.stub(IChatService, new MockChatService());
+		insta.stub(IChatService, new class extends MockChatService {
+			override readonly onDidDisposeSession = onDidDisposeChatSession.event;
+		}());
 		insta.stub(IConfigurationService, new TestConfigurationService());
 		insta.stub(IWorkbenchEnvironmentService, { get isSessionsWindow() { return isSessionsWindow; } } as Partial<IWorkbenchEnvironmentService>);
 		insta.stub(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() {
@@ -711,6 +715,40 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 			remainingImport: undefined,
 		});
 	});
+
+	for (const standardUris of [false, true]) {
+		test(`released imported history survives navigation and service shutdown (standard URIs=${standardUris})`, async () => {
+			agentHost.initializeResult.set({
+				protocolVersion: '0.9.0', serverSeq: 0, snapshots: [], _meta: { 'vscode.agentHost': true, 'vscode.ahpSessionUris': standardUris },
+			}, undefined);
+			const draft = URI.parse('agent-host-copilotcli:/untitled-migrate');
+			const destination = draft.with({ path: '/migrated-history' });
+			const provisionalBackend = await provisional.getOrCreate(draft, 'copilotcli', undefined);
+			assert.ok(provisionalBackend);
+			seedImportedConversation(destination);
+			const importedBackend = await provisional.tryRebind(draft, destination, 'copilotcli');
+			assert.ok(importedBackend);
+			const importedResource = destination.with({ path: importedBackend.path });
+
+			provisional.releaseSession(importedResource);
+			onDidDisposeChatSession.fire({ sessionResources: [draft, importedResource], reason: 'disposed' });
+			await provisional.disposeSession(importedResource);
+			const abandonedDraft = URI.parse('agent-host-copilotcli:/untitled-abandoned');
+			const abandonedBackend = await provisional.getOrCreate(abandonedDraft, 'copilotcli', undefined);
+			assert.ok(abandonedBackend);
+			provisional.dispose();
+
+			assert.deepStrictEqual({
+				mapping: provisional.get(importedResource),
+				importedTurns: agentHost.createCalls[1].importConversation?.turns.map(turn => turn.id),
+				disposed: agentHost.disposed.map(uri => uri.toString()),
+			}, {
+				mapping: undefined,
+				importedTurns: ['imported-turn'],
+				disposed: [provisionalBackend.toString(), abandonedBackend.toString()],
+			});
+		});
+	}
 
 	for (const provider of ['copilotcli', 'codex', 'claude']) {
 		for (const supported of [false, true]) {

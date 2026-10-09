@@ -90,6 +90,14 @@ suite('AutomationRunner', () => {
 		assert.deepStrictEqual(calls, ['automation']);
 	});
 
+	test('acknowledges cloud dispatch without inventing a run, session or completion outcome', async () => {
+		const { runner, calls, errors } = setup(async () => ({ kind: 'accepted' }));
+		const operation = runner.runOnce(automation);
+		const dispatch = await operation.whenDispatched;
+		await operation.whenCompleted;
+		assert.deepStrictEqual({ dispatch, calls, errors }, { dispatch: { kind: 'accepted' }, calls: ['automation'], errors: [] });
+	});
+
 	test('unavailable or disconnected hosts cannot dispatch locally', async () => {
 		for (const exists of [true, false]) {
 			const { runner, calls, errors } = setup(async () => { throw new Error('Must not dispatch'); }, false, exists);

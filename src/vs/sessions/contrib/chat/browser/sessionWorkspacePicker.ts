@@ -1124,7 +1124,7 @@ export class WorkspacePicker extends Disposable {
 		return true;
 	}
 
-	private _findRelatedLocalWorkspace(workspace: ISessionWorkspace): IResolvedFolderWorkspace | undefined {
+	protected _findRelatedLocalWorkspace(workspace: ISessionWorkspace): IResolvedFolderWorkspace | undefined {
 		const repositoryId = this._getRepositoryId(workspace);
 		if (!repositoryId) {
 			return undefined;

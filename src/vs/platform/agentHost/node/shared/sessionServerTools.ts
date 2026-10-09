@@ -1860,6 +1860,10 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 				return definition;
 			}
 			const titleGenerationStrategy = accessor?.getAutomaticTitleGenerationStrategy(sessionUri);
+			// Active-agent naming reminds the agent to rename on its first turn, so skip the tool-search round-trip.
+			if (titleGenerationStrategy === 'activeAgent') {
+				return { ...definition, deferLoading: false };
+			}
 			if (titleGenerationStrategy === 'agentReview') {
 				return {
 					...definition,

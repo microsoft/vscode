@@ -94,12 +94,24 @@
 
 .monaco-dialog-box.automation-dialog > .automation-dialog-footer-row {
 	flex-grow: 0;
+	flex-direction: row;
+	align-items: center;
 	margin-top: 0;
 	padding: 8px 10px 10px;
 }
 
 .monaco-dialog-box.automation-dialog:not(.align-vertical) > .automation-dialog-footer-row > .automation-dialog-footer-actions {
-	margin-left: 0;
+	flex: 0 0 auto;
+	width: auto;
+	margin-left: auto;
+}
+
+.monaco-dialog-box.automation-dialog > .automation-dialog-footer-row > .automation-dialog-footer-note {
+	flex: 1 1 auto;
+	min-width: 0;
+	margin: 0 var(--vscode-spacing-size120) 0 var(--vscode-spacing-size160);
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
 }
 
 /*
@@ -225,6 +237,41 @@
 	flex-direction: column;
 	gap: var(--vscode-spacing-size100);
 	padding: 2px 2px 4px;
+}
+
+.automation-provider-details {
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-fontSize-label1);
+}
+
+.automation-provider-tools {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size80) var(--vscode-spacing-size160);
+}
+
+.automation-provider-tools > .monaco-button {
+	width: fit-content;
+	padding-inline: var(--vscode-spacing-size160);
+}
+
+.automation-provider-details > p {
+	margin: 0;
+}
+
+.automation-provider-tools > p {
+	flex-basis: 100%;
+}
+
+.automation-provider-tools-status {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+}
+
+.automation-provider-tools-status > .monaco-button {
+	width: fit-content;
+	padding-inline: var(--vscode-spacing-size120);
 }
 
 .automation-form-content {

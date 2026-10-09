@@ -71,8 +71,8 @@ suite('Agents window launch enablement', () => {
 	];
 	const explicitTargets: IOpenAgentsWindowOptions[] = [
 		{ folderUri: URI.file('/explicit') },
-		{ sessionResource: URI.parse('agent-host-copilot:/session') },
-		{ draft: { inputText: 'Keep this prompt', attachments: '[]' } },
+		{ reveal: URI.parse('agent-host-copilot:/session') },
+		{ reveal: 'new', draft: { inputText: 'Keep this prompt', attachments: '[]' } },
 	];
 	const scenarios = [
 		...actions.map(action => ({ name: action.desc.id, command: action.desc.id, args: [] })),
@@ -300,7 +300,7 @@ suite('OpenAgentsWindowAction workspace defaults', () => {
 		const calls: IOpenAgentsWindowOptions[] = [];
 		instantiationService.stub(INativeHostService, upcastPartial<INativeHostService>({ openAgentsWindow: async options => { calls.push(options ?? {}); } }));
 		const explicit = { folderUri: URI.file('/explicit') };
-		const existing = { sessionResource: URI.parse('agent-host-copilot:/session') };
+		const existing = { reveal: URI.parse('agent-host-copilot:/session') };
 		await instantiationService.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor, explicit));
 		await instantiationService.invokeFunction(accessor => new OpenAgentsWindowAction().run(accessor, existing));
 		assert.deepStrictEqual(calls, [

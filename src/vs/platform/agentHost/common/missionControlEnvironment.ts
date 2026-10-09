@@ -9,7 +9,13 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { IMissionControlEnvironment } from './cloudSandboxAgentHost.js';
 
 export const AgentHostRemoteConnectionsSettingId = 'chat.agentHost.remoteConnections';
-export type AgentHostRemoteConnectionsBackend = 'devTunnel' | 'missionControl';
+/** Logical identity for host-side Mission Control wire logs, including failed handshakes. */
+export const MISSION_CONTROL_AHP_LOG_ID = 'mission-control';
+export type AgentHostRemoteConnectionsBackend = 'devTunnel' | 'githubEnvironment' | 'missionControl';
+
+export function isGitHubEnvironmentBackend(backend: AgentHostRemoteConnectionsBackend): boolean {
+	return backend === 'githubEnvironment' || backend === 'missionControl';
+}
 
 export const IMissionControlSharingService = createDecorator<IMissionControlSharingService>('missionControlSharingService');
 

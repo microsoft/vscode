@@ -230,7 +230,7 @@ export class ChatArtifactsWidget extends Disposable {
 		// all images from the chat widget session automatically.
 		const first = group.artifacts[0];
 		if (first?.uri) {
-			await this._chatImageCarouselService.openCarouselAtResource(URI.parse(first.uri));
+			await this._chatImageCarouselService.openCarouselAtResource(URI.parse(first.uri), undefined, { sessionResource: this._sessionResource.get() });
 		}
 	}
 
@@ -253,7 +253,7 @@ export class ChatArtifactsWidget extends Disposable {
 
 	private async _openScreenshotInCarousel(clicked: IChatArtifact): Promise<void> {
 		if (clicked.uri) {
-			await this._chatImageCarouselService.openCarouselAtResource(URI.parse(clicked.uri));
+			await this._chatImageCarouselService.openCarouselAtResource(URI.parse(clicked.uri), undefined, { sessionResource: this._sessionResource.get() });
 		}
 	}
 
@@ -291,7 +291,7 @@ export class ChatArtifactsWidget extends Disposable {
 
 	private async _saveArtifact(artifact: IChatArtifact): Promise<void> {
 		const sourceUri = URI.parse(artifact.uri);
-		const defaultFileName = sourceUri.path.split('/').pop() ?? artifact.label;
+		const defaultFileName = artifact.fileName ?? sourceUri.path.split('/').pop() ?? artifact.label;
 		const defaultPath = await this._fileDialogService.defaultFilePath();
 		const defaultUri = URI.joinPath(defaultPath, defaultFileName);
 

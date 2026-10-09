@@ -1353,6 +1353,8 @@ export interface IChatSessionCreatedData {
  */
 export interface IChatGeneratedImageData {
 	readonly kind: 'generatedImage';
+	/** Tool execution time in milliseconds, when known. */
+	readonly durationMs?: number;
 }
 
 /**

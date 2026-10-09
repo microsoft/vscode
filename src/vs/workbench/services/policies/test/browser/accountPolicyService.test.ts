@@ -17,7 +17,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { IDefaultAccountProvider, IDefaultAccountService, MANAGED_SETTINGS_FRESHNESS_NOT_REQUIRED } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { COPILOT_AUTO_TIER_KEY, COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, COPILOT_OTEL_CAPTURE_IDENTITY_KEY, COPILOT_SANDBOX_ENABLED_KEY, INativeManagedSettingsService, IFileManagedSettingsService, RawManagedSettingsData, managedSettingsDisabledValue, managedSettingValue, normalizeManagedSettings } from '../../../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_AUTO_TIER_KEY, COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, COPILOT_ENABLED_PLUGINS_KEY, COPILOT_OTEL_CAPTURE_IDENTITY_KEY, COPILOT_PERMISSION_RULES_KEYS, COPILOT_SANDBOX_ENABLED_KEY, hasManagedPermissionRules, INativeManagedSettingsService, IFileManagedSettingsService, RawManagedSettingsData, managedSettingsDisabledValue, managedSettingValue, normalizeManagedSettings, thirdPartyAgentEnabledValue } from '../../../../../platform/policy/common/copilotManagedSettings.js';
 import { IManagedSettingsFreshness, ManagedSettingsFreshnessFailure, ManagedSettingsFreshnessState } from '../../../../../platform/policy/common/managedSettingsFreshness.js';
 import { AbstractPolicyService, IPolicyService, PolicyDefinition, PolicyValue, PolicyValueSource } from '../../../../../platform/policy/common/policy.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
@@ -554,6 +554,51 @@ suite('AccountPolicyService', () => {
 			removed: { managedSandboxEnforced: false, computed: localChatSessionType, remembered: localChatSessionType },
 		});
 	});
+
+	for (const channel of ['nativeMdm', 'server', 'file'] as const) {
+		test(`permission rules require Agent Host across ${channel} refresh and removal without enabling sandbox`, async () => {
+			const native = disposables.add(new FakeNativeManagedSettingsService());
+			const file = disposables.add(new FakeFileManagedSettingsService());
+			const changed = disposables.add(new Emitter<IPolicyData | null>());
+			const provider = new class extends DefaultAccountProvider {
+				override readonly onDidChangePolicyData = changed.event;
+				override policyData: IPolicyData = {};
+			}(BASE_DEFAULT_ACCOUNT);
+			defaultAccountService.setDefaultAccountProvider(provider);
+			await defaultAccountService.refresh();
+			policyService = disposables.add(new AccountPolicyService(logService, defaultAccountService, undefined, native, file));
+			const definitions: Record<string, PolicyDefinition> = {
+				Claude: { type: 'boolean', value: thirdPartyAgentEnabledValue },
+				Codex: { type: 'boolean', value: thirdPartyAgentEnabledValue },
+			};
+			await policyService.updatePolicyDefinitions(definitions);
+			const results = [];
+			for (const key of COPILOT_PERMISSION_RULES_KEYS) {
+				for (const rules of ['["Shell"]', '[]', undefined]) {
+					const values = rules === undefined ? {} : { [key]: rules };
+					if (channel === 'nativeMdm') {
+						native.setManagedSettings(values);
+					} else if (channel === 'file') {
+						file.setManagedSettings(values);
+					} else {
+						provider.policyData = { managedSettings: values };
+						changed.fire(provider.policyData);
+					}
+					await policyService.updatePolicyDefinitions(definitions);
+					results.push({
+						required: hasManagedPermissionRules(policyService),
+						sandbox: policyService.getManagedSettingValue(COPILOT_SANDBOX_ENABLED_KEY),
+						claude: policyService.getPolicyValue('Claude'), codex: policyService.getPolicyValue('Codex'),
+					});
+				}
+			}
+			assert.deepStrictEqual(results, COPILOT_PERMISSION_RULES_KEYS.flatMap(() => [
+				{ required: true, sandbox: undefined, claude: false, codex: false },
+				{ required: false, sandbox: undefined, claude: false, codex: false },
+				{ required: false, sandbox: undefined, claude: undefined, codex: undefined },
+			]));
+		});
+	}
 
 	test('managed settings: file-based settings apply when server and MDM are empty', async () => {
 		// Only the file channel provides a value — it should be used.

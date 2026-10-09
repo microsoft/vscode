@@ -1738,6 +1738,8 @@ export type NewChatSessionOpenOptions = {
 	readonly type: string;
 	readonly position: ChatSessionPosition;
 	readonly displayName: string;
+	/** Open a prepared session instead of allocating a new draft. */
+	readonly sessionResource?: URI;
 	/**
 	 * When set, the editor showing this (source) session resource is replaced
 	 * in place with the newly opened session. The source resource is resolved
@@ -1760,7 +1762,7 @@ export async function openChatSession(accessor: ServicesAccessor, openOptions: N
 	const progressService = accessor.get(IProgressService);
 
 	// Determine resource to open
-	const sessionResource = getResourceForNewChatSession(openOptions);
+	const sessionResource = openOptions.sessionResource ?? getResourceForNewChatSession(openOptions);
 	let openedSessionResource = sessionResource;
 
 	// Stash any imported ("Continue in…") conversation before the session is
@@ -1836,7 +1838,7 @@ export async function openChatSession(accessor: ServicesAccessor, openOptions: N
 			default: assertNever(openOptions.position, `Unknown chat session position: ${openOptions.position}`);
 		}
 	} catch (e) {
-		logService.error(`Failed to open '${openOptions.type}' chat session with openOptions: ${JSON.stringify(openOptions)}`, e);
+		logService.error(`Failed to open '${openOptions.type}' chat session`, e);
 		sessionsListSuppression?.dispose();
 		transitionProgress?.complete();
 		return undefined;

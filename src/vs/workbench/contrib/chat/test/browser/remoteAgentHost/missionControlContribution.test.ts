@@ -65,7 +65,7 @@ suite('Mission Control sharing service', () => {
 		localCredentialConfig?: IConfigurationValue<boolean>;
 	} = {}) {
 		const instantiation = store.add(new TestInstantiationService());
-		const configuration = new TestConfigurationService({ [AgentHostRemoteConnectionsSettingId]: options.backend ?? 'missionControl', ...removedSettings });
+		const configuration = new TestConfigurationService({ [AgentHostRemoteConnectionsSettingId]: options.backend ?? 'githubEnvironment', ...removedSettings });
 		const storage = options.storage ?? store.add(new InMemoryStorageService());
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		if (options.localCredentialConfig) {
@@ -120,10 +120,10 @@ suite('Mission Control sharing service', () => {
 				default: remoteConnectionsSetting.default,
 				enum: remoteConnectionsSetting.enum,
 			},
-		}, { removed: [], localCredentialSettingRegistered: false, backend: { default: 'devTunnel', enum: ['devTunnel', 'missionControl'] } });
+		}, { removed: [], localCredentialSettingRegistered: false, backend: { default: 'devTunnel', enum: ['devTunnel', 'githubEnvironment'] } });
 	});
 
-	for (const backend of ['devTunnel', 'missionControl'] as const) {
+	for (const backend of ['devTunnel', 'githubEnvironment', 'missionControl'] as const) {
 		test(`selecting ${backend} does not enable sharing`, () => runWithFakedTimers({}, async () => {
 			const { sharing, calls, starts } = fixture({ backend });
 			await timeout(0);
@@ -240,7 +240,7 @@ suite('Mission Control sharing service', () => {
 	test('changing backends withdraws registration and requires a new opt-in', () => runWithFakedTimers({}, async () => {
 		const { sharing, calls, configuration, storage } = fixture();
 		await sharing.setEnabled(true);
-		for (const backend of ['devTunnel', 'missionControl']) {
+		for (const backend of ['devTunnel', 'githubEnvironment']) {
 			await configuration.setUserConfiguration(AgentHostRemoteConnectionsSettingId, backend);
 			configuration.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
 				override affectsConfiguration(section: string) { return section === AgentHostRemoteConnectionsSettingId; }
@@ -261,16 +261,18 @@ suite('Mission Control sharing service', () => {
 		});
 	}));
 
-	test('restores an explicit sharing choice after window reload', () => runWithFakedTimers({}, async () => {
-		const first = fixture();
-		await first.sharing.setEnabled(true);
-		first.sharing.dispose();
-		const restored = fixture({ storage: first.storage });
-		await timeout(0);
-		assert.deepStrictEqual({ state: restored.sharing.state.get(), calls: restored.calls }, {
-			state: 'enabled', calls: [{ options: expectedOptions, withdrawingAccountId: undefined }],
-		});
-	}));
+	for (const backend of ['githubEnvironment', 'missionControl'] as const) {
+		test(`restores an explicit sharing choice after window reload (${backend})`, () => runWithFakedTimers({}, async () => {
+			const first = fixture({ backend });
+			await first.sharing.setEnabled(true);
+			first.sharing.dispose();
+			const restored = fixture({ backend, storage: first.storage });
+			await timeout(0);
+			assert.deepStrictEqual({ state: restored.sharing.state.get(), calls: restored.calls }, {
+				state: 'enabled', calls: [{ options: expectedOptions, withdrawingAccountId: undefined }],
+			});
+		}));
+	}
 
 	test('reconfigures after the native host restarts', () => runWithFakedTimers({}, async () => {
 		const { sharing, calls, hostStarted } = fixture();

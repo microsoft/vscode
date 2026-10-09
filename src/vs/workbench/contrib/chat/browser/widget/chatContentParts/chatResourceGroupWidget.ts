@@ -10,6 +10,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
+import { extname as pathExtname } from '../../../../../../base/common/path.js';
 import { basename, extname, joinPath } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
@@ -80,6 +81,7 @@ export class ChatResourceGroupWidget extends Disposable {
 
 		for (let i = 0; i < parts.length; i++) {
 			const part = parts[i];
+			const name = part.name ?? basename(part.uri);
 			const imageMimeType = getResourceImageMimeType(part);
 			if (imageMimeType) {
 				if (this._options?.imagePresentation === 'inline') {
@@ -88,23 +90,23 @@ export class ChatResourceGroupWidget extends Disposable {
 						imageBase64Data.set(id, { data: part.base64Value, mimeType: imageMimeType });
 					}
 					const value = part.base64Value === undefined ? part.value : undefined;
-					entries.push({ kind: 'image', id, name: basename(part.uri), value: value ?? part.uri, mimeType: imageMimeType, isURL: !value && part.base64Value === undefined, references: [{ kind: 'reference', reference: part.uri }] });
+					entries.push({ kind: 'image', id, name, value: value ?? part.uri, mimeType: imageMimeType, isURL: !value && part.base64Value === undefined, references: [{ kind: 'reference', reference: part.uri }] });
 				} else if (part.base64Value) {
 					// Defer base64 decode - use file placeholder for now
-					entries.push({ kind: 'file', id: generateUuid(), name: basename(part.uri), fullName: part.uri.path, value: part.uri });
+					entries.push({ kind: 'file', id: generateUuid(), name, fullName: part.uri.path, value: part.uri });
 					deferredImageParts.push({ index: i, part, mimeType: imageMimeType });
 				} else if (part.value) {
-					entries.push({ kind: 'image', id: generateUuid(), name: basename(part.uri), value: part.value, mimeType: imageMimeType, isURL: false, references: [{ kind: 'reference', reference: part.uri }] });
+					entries.push({ kind: 'image', id: generateUuid(), name, value: part.value, mimeType: imageMimeType, isURL: false, references: [{ kind: 'reference', reference: part.uri }] });
 				} else {
 					const value = await this._fileService.readFile(part.uri).then(f => f.value.buffer, () => undefined);
 					if (!value) {
-						entries.push({ kind: 'file', id: generateUuid(), name: basename(part.uri), fullName: part.uri.path, value: part.uri });
+						entries.push({ kind: 'file', id: generateUuid(), name, fullName: part.uri.path, value: part.uri });
 					} else {
-						entries.push({ kind: 'image', id: generateUuid(), name: basename(part.uri), value, mimeType: imageMimeType, isURL: false, references: [{ kind: 'reference', reference: part.uri }] });
+						entries.push({ kind: 'image', id: generateUuid(), name, value, mimeType: imageMimeType, isURL: false, references: [{ kind: 'reference', reference: part.uri }] });
 					}
 				}
 			} else {
-				entries.push({ kind: 'file', id: generateUuid(), name: basename(part.uri), fullName: part.uri.path, value: part.uri });
+				entries.push({ kind: 'file', id: generateUuid(), name, fullName: part.uri.path, value: part.uri });
 			}
 		}
 
@@ -159,7 +161,7 @@ export class ChatResourceGroupWidget extends Disposable {
 				for (const { index, part, mimeType } of deferredImageParts) {
 					try {
 						const value = decodeBase64(part.base64Value!).buffer;
-						entries[index] = { kind: 'image', id: generateUuid(), name: basename(part.uri), value, mimeType, isURL: false, references: [{ kind: 'reference', reference: part.uri }] };
+						entries[index] = { kind: 'image', id: generateUuid(), name: part.name ?? basename(part.uri), value, mimeType, isURL: false, references: [{ kind: 'reference', reference: part.uri }] };
 					} catch {
 						// Keep the file placeholder on decode failure
 					}
@@ -245,7 +247,7 @@ class SaveResourcesAction extends Action2 {
 
 		if (context.parts.length === 1) {
 			const part = context.parts[0];
-			const uri = await fileDialog.pickFileToSave(joinPath(defaultFilepath, basename(part.uri)));
+			const uri = await fileDialog.pickFileToSave(joinPath(defaultFilepath, part.name ?? basename(part.uri)));
 			if (!uri) {
 				return;
 			}
@@ -266,13 +268,13 @@ class SaveResourcesAction extends Action2 {
 			const folder = uris[0];
 			const caseSensitive = fileService.hasCapability(folder, FileSystemProviderCapabilities.PathCaseSensitive);
 			const nameKey = (name: string) => caseSensitive ? name : name.toLowerCase();
-			const reservedNames = new Set(context.parts.map(part => nameKey(basename(part.uri))));
+			const reservedNames = new Set(context.parts.map(part => nameKey(part.name ?? basename(part.uri))));
 			const usedNames = new Set<string>();
 			const saves = context.parts.map(part => {
-				const name = basename(part.uri);
+				const name = part.name ?? basename(part.uri);
 				let targetName = name;
 				if (usedNames.has(nameKey(targetName))) {
-					const extension = extname(part.uri);
+					const extension = pathExtname(name);
 					const stem = name.slice(0, name.length - extension.length);
 					let suffix = 2;
 					do {

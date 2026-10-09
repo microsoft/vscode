@@ -34,6 +34,8 @@ import { MissionControlProjects } from './missionControlProjects.js';
 import { AhpErrorCodes, JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { isObject } from '../../../../base/common/types.js';
 import { ActionType } from '../../common/state/sessionActions.js';
+import { AhpJsonlLogger, AhpJsonlLogRetention } from '../../common/ahpJsonlLogger.js';
+import { MISSION_CONTROL_AHP_LOG_ID } from '../../common/missionControlEnvironment.js';
 
 interface IMissionControlHostOptions {
 	readonly hostLaunchKind: AgentHostLaunchKind;
@@ -91,6 +93,12 @@ export class MissionControlHost extends Disposable {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
+		const retention = this._instantiationService.createInstance(AhpJsonlLogRetention, {
+			logsHome: environmentService.logsHome,
+			logId: MISSION_CONTROL_AHP_LOG_ID,
+			maxFiles: 10,
+			maxSizeBytes: 750 * 1024 * 1024,
+		});
 		this._projects = this._register(this._instantiationService.createInstance(MissionControlProjects, {
 			getRoots: () => this._grantedRoots(),
 		}));
@@ -101,12 +109,19 @@ export class MissionControlHost extends Disposable {
 			attach: (relay, roots, getRoots) => this._attachRelay(relay, roots, getRoots),
 			onError: error => this._logService.error(`[AgentHost] Mission Control failure: ${formatConnectionDiagnosticError(getConnectionDiagnosticError(error))}`),
 			onDiagnostic: event => this._reportOperation(event),
-			getSessionCount: async () => (await this._agentService.listSessions()).length,
+			getSessionCount: () => this._agentService.getSessionCount(),
 			getRemoteControlPolicy: () => this._readRemoteControlPolicy(),
 			onReady: environmentId => this._logService.info(`[AgentHost] Mission Control ready; environmentId=${environmentId}`),
 			getIdentityApiBase: () => gitHubEndpoints.getApiBaseUri(),
 			onDidChangeIdentityAuthority: gitHubEndpoints.onDidChange,
 			createMirror: environmentId => this._createMirror(environmentId),
+			createAhpLogger: (clientId, generation) => this._instantiationService.createInstance(AhpJsonlLogger, {
+				logsHome: environmentService.logsHome,
+				logId: MISSION_CONTROL_AHP_LOG_ID,
+				connectionId: `${clientId}-${generation}`,
+				transport: 'mission-control',
+				retention,
+			}),
 		}));
 	}
 
@@ -163,6 +178,7 @@ export class MissionControlHost extends Disposable {
 				relayRoots: relay.rootMeta ? undefined : roots,
 				relayRootMeta: relay.rootMeta,
 				advertisedModelProviders: ['copilotcli'],
+				copilotSessionConfig: true,
 				copilotProjects: relay.rootMeta ? this._projects : undefined,
 				copilotSessionRequest: (method, params) => this._handleSessionRequest(method, params),
 				relayResourceRoots: readOnly => this._resourceRoots(readOnly, getRoots()),

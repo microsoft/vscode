@@ -383,7 +383,7 @@ export class ModelPickerWidget extends Disposable {
 		this._renderLabel();
 
 		this._registerButtonAction(this._nameButton, fromKeyboard => this.show(undefined, false, false, { entryPoint: 'modelName', inputMethod: fromKeyboard ? 'keyboard' : 'mouse' }));
-		this._registerButtonAction(this._configButton, fromKeyboard => this.show(undefined, true, fromKeyboard, { entryPoint: 'configuration', inputMethod: fromKeyboard ? 'keyboard' : 'mouse' }));
+		this._registerButtonAction(this._configButton, fromKeyboard => this.show(undefined, true, true, { entryPoint: 'configuration', inputMethod: fromKeyboard ? 'keyboard' : 'mouse' }));
 
 		// Managed hover for the combined configuration button
 		this._register(getBaseLayerHoverDelegate().setupManagedHover(

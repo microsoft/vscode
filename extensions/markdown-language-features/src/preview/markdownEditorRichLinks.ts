@@ -4,18 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { DisposableStore } from '@vscode/observables';
 import type { ILogger } from '../logging';
 import { Disposable } from '../util/dispose';
 import { getAbsoluteUri, MdLinkOpener } from '../util/openDocumentLink';
 import type { LinkPresentation } from './linkPresentation/linkPresentationResolver';
-import type { MarkdownEditorRenderer } from './markdownEditorProtocol';
+import type { MarkdownEditorRenderer, RichLinkSubscriptions } from './markdownEditorProtocol';
 
 export class MarkdownEditorRichLinkController extends Disposable {
 	readonly #documentUri: vscode.Uri;
 	readonly #linkOpener: MdLinkOpener;
 	readonly #logger: ILogger;
 	readonly #publish: MarkdownEditorRenderer['richLinkPresentations'];
-	readonly #entries = new Map<string, vscode.Disposable>();
+	readonly #subscriptions = new Map<string, DisposableStore>();
 
 	constructor(
 		document: vscode.TextDocument,
@@ -30,68 +31,48 @@ export class MarkdownEditorRichLinkController extends Disposable {
 		this.#publish = publish;
 	}
 
-	updateTargets(hrefs: readonly string[]): void {
-		const targets = new Set(hrefs);
-		for (const [href, entry] of this.#entries) {
-			if (!targets.has(href)) {
-				entry.dispose();
-				this.#entries.delete(href);
-			}
+	updateSubscriptions({ subscribe, unsubscribe }: RichLinkSubscriptions): void {
+		if (this.isDisposed) {
+			throw new Error('Rich link controller is disposed');
 		}
-		for (const href of targets) {
-			if (!this.#entries.has(href)) {
-				this.#entries.set(href, new ApiLinkPresentationEntry(
-					href,
-					this.#documentUri,
-					this.#linkOpener,
-					presentation => this.#publishPresentation(href, presentation),
-					this.#logger,
-				));
-			}
+		for (const subscriptionId of unsubscribe) {
+			this.#subscriptions.get(subscriptionId)?.dispose();
+			this.#subscriptions.delete(subscriptionId);
 		}
+		for (const { subscriptionId, href } of subscribe) {
+			if (this.#subscriptions.has(subscriptionId)) {
+				throw new Error(`Duplicate rich link subscription: ${subscriptionId}`);
+			}
+			const store = new DisposableStore();
+			this.#subscriptions.set(subscriptionId, store);
+			void this.#watch(href, store, presentation => {
+				if (!store.isDisposed) {
+					this.#publish({ presentations: [{ subscriptionId, presentation }] });
+				}
+			});
+		}
+	}
+
+	clear(): void {
+		for (const store of this.#subscriptions.values()) {
+			store.dispose();
+		}
+		this.#subscriptions.clear();
 	}
 
 	override dispose(): void {
-		for (const entry of this.#entries.values()) {
-			entry.dispose();
-		}
-		this.#entries.clear();
+		this.clear();
 		super.dispose();
 	}
 
-	async #publishPresentation(href: string, presentation: LinkPresentation | undefined): Promise<void> {
-		try {
-			await this.#publish({
-				presentations: [{ href, presentation }],
-			});
-		} catch (error) {
-			this.#logger.trace('Markdown rich link', `Failed to publish ${href}`, error);
-		}
-	}
-}
-
-class ApiLinkPresentationEntry extends Disposable {
-	constructor(
+	async #watch(
 		href: string,
-		documentUri: vscode.Uri,
-		linkOpener: MdLinkOpener,
+		store: DisposableStore,
 		publishPresentation: (presentation: LinkPresentation | undefined) => void,
-		logger: ILogger,
-	) {
-		super();
-		void this.#initialize(href, documentUri, linkOpener, publishPresentation, logger);
-	}
-
-	async #initialize(
-		href: string,
-		documentUri: vscode.Uri,
-		linkOpener: MdLinkOpener,
-		publishPresentation: (presentation: LinkPresentation | undefined) => void,
-		logger: ILogger,
 	): Promise<void> {
 		try {
-			const resource = await resolveLinkResource(href, documentUri, linkOpener);
-			if (this.isDisposed) {
+			const resource = await resolveLinkResource(href, this.#documentUri, this.#linkOpener);
+			if (store.isDisposed) {
 				return;
 			}
 			if (!resource) {
@@ -105,16 +86,13 @@ class ApiLinkPresentationEntry extends Disposable {
 				return;
 			}
 
-			const watcher = this._register(vscode.window.createLinkPresentationWatcher(rule.id, resource));
+			const watcher = store.add(vscode.window.createLinkPresentationWatcher(rule.id, resource));
+			store.add(watcher.onDidChangePresentation(() => publishPresentation(toMarkdownEditorPresentation(watcher.presentation))));
 			publishPresentation(toMarkdownEditorPresentation(watcher.presentation));
-			this._register(watcher.onDidChangePresentation(() => publishPresentation(toMarkdownEditorPresentation(watcher.presentation))));
 		} catch (error) {
-			logger.trace('Markdown rich link', `Failed to resolve ${href}`, error);
-			if (!this.isDisposed) {
-				publishPresentation(undefined);
-			}
+			this.#logger.trace('Markdown rich link', `Failed to resolve ${href}`, error);
+			publishPresentation(undefined);
 		}
-
 	}
 }
 

@@ -13,12 +13,14 @@ Registration is opt-in and default-off. The activation path is available to buil
 ## Enable the real service
 
 1. Sign in to GitHub in the owning VS Code window.
-2. Set `chat.agentHost.remoteConnections` to `missionControl` (the default is `devTunnel`).
-3. Enable **Allow Remote Connections** in the Agents Window title bar or the local Agent Host chat toolbar. Selecting Mission Control in settings does not register the environment.
+2. Set `chat.agentHost.remoteConnections` to `githubEnvironment` (the default is `devTunnel`).
+3. Enable **Allow Remote Connections** in the Agents Window title bar or the local Agent Host chat toolbar. Selecting GitHub environment in settings does not register the environment.
 4. Wait for `Mission Control ready; environmentId=...` in the Agent Host log.
 5. Create/use native sessions normally. From another compatible MC client, discover the environment, connect, authenticate with a sealed credential, and use standard AHP session operations.
 
 Registration uses `https://api.github.com`. An empty window can register the host without advertising a home-directory default. Disable **Allow Remote Connections** to withdraw remote access. The sharing choice is remembered locally across restarts, not synchronized to other machines. Changing the backend turns sharing off until explicitly enabled again. Withdrawal disconnects relay ingress immediately; it does not delete native sessions, conversations or checkouts.
+
+Registration and heartbeat `capabilities.current_sessions` count durable session-registry identities, independently of sidebar filters and provider availability. Counting does not load provider metadata or session transcripts. Metadata reads have a 60-second budget; a failed or timed-out device remote-control policy read prevents registration.
 
 ### Local integration testing
 
@@ -89,6 +91,10 @@ The host uses proxy-aware bounded HTTP, a normal heartbeat cadence, and service-
 Host-wide diagnostic log channels are not advertised on Mission Control ingress. Diagnostic logs remain available locally; they do not share the relay's bounded publisher with session operations. This does not change provider-native OTel export.
 
 A single ordered publisher and bounded reassembly/queue/lane limits preserve live protocol ordering. Replacement connections have distinct generations; stale predecessor frames/closures are fenced. Request-form compatibility for `dispatchAction` and `unsubscribe` shares the native notification path and does not make arbitrary notifications successful requests.
+
+Clients can advertise receive support with `{ "kind": "capabilities", "accepts": ["batch"] }` on their configured per-client `to-host` group. The host accepts this framing control only from the registered WPS owner on an existing client lane; it is not an AHP request and does not authenticate session access. Support is scoped to that lane and resets on lane replacement or host relay recovery. Clients should advertise after joining their receive groups and re-advertise after each successful initialize/reconnect response. An updated `accepts` list replaces the previous list.
+
+For supporting clients, the ordered publisher packs adjacent already-queued raw AHP messages with the same destination group and host generation into `{ "kind": "batch", "items": [...], "generation": ... }`, with at most 256 items and 900 KiB of serialized envelope bytes. It adds no batching delay. Single messages and oversized payloads retain the message/chunk framing, and closures and mirror events remain ordering barriers. Each published batch uses one WPS acknowledgement; queue limits still account for the original queued frames and bytes.
 
 Independent AHP/SDK spools use durable ingest acknowledgements and bounded failure/truncation signals. Signed backfill replays retained AHP frames exactly. SDK sequence ranges are reserved durably before publication; native journal cursors advance only after durable SDK acknowledgement. AHP process-restart epochs/spool durability and complete pre-registration history remain deferred. Native titles are synchronized through the runtime naming API, not fabricated SDK events.
 

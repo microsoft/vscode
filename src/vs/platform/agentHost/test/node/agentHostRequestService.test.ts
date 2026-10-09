@@ -18,7 +18,7 @@ import { AgentHostClientProxyChannel, createAgentHostClientProxyConnection, type
 import { AgentHostProxyConfigKey } from '../../common/agentHostSchema.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
-import { AgentHostProxyResolver, IAgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
+import { AgentHostProxyResolver, IAgentHostProxyResolver, loadAgentHostCertificates } from '../../node/agentHostProxyResolver.js';
 import { AgentHostRequestService } from '../../node/agentHostRequestService.js';
 import { NetworkDiagnosticsService } from '../../node/networkDiagnosticsService.js';
 
@@ -67,6 +67,28 @@ function createAgentConfigurationService(disposables: Pick<DisposableStore, 'add
 
 suite('AgentHostProxyResolver', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('loads system and process CA certificates without changing the source arrays', async () => {
+		const systemCertificates = ['system-ca'];
+		const extraCertificates = ['extra-ca'];
+		const certificates = await loadAgentHostCertificates(new NullLogService(), extraCertificates, async () => systemCertificates);
+
+		assert.deepStrictEqual({ certificates, systemCertificates, extraCertificates }, {
+			certificates: ['system-ca', 'extra-ca'],
+			systemCertificates: ['system-ca'],
+			extraCertificates: ['extra-ca'],
+		});
+	});
+
+	test('preserves system CA certificates when no process CA certificates are supplied', async () => {
+		const certificates = await loadAgentHostCertificates(new NullLogService(), [], async () => ['system-ca']);
+		assert.deepStrictEqual(certificates, ['system-ca']);
+	});
+
+	test('propagates certificate loading errors', async () => {
+		const error = new Error('Certificate loading failed');
+		await assert.rejects(loadAgentHostCertificates(new NullLogService(), ['extra-ca'], async () => { throw error; }), error);
+	});
 
 	test('fires when the first connection registers and after all connections reconnect', () => {
 		const configurationService = createAgentConfigurationService(disposables);

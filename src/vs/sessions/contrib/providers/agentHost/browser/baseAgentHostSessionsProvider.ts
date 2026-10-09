@@ -12,7 +12,6 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString, markdownStringEqual } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, MutableDisposable, ReferenceCollection, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { mapsStrictEqualIgnoreOrder, ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
-import { Schemas } from '../../../../../base/common/network.js';
 import { deepClone, equals } from '../../../../../base/common/objects.js';
 import { constObservable, derived, derivedOpts, IObservable, IReader, ISettableObservable, ITransaction, mapObservableArrayCached, observableFromEvent, observableSignal, observableSignalFromEvent, observableValueOpts, subtransaction, transaction, waitForState, autorun, observableValue } from '../../../../../base/common/observable.js';
 import { basename, dirname, extUriIgnorePathCase, getComparisonKey, isEqual, isEqualOrParent, joinPath, relativePath } from '../../../../../base/common/resources.js';
@@ -71,6 +70,7 @@ import { IAgentCustomizationScope, IAgentHostActiveClientService } from '../../.
 import { AgentHostBackgroundShellOutputs } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostBackgroundShells.js';
 import type { IChatBackgroundShell } from '../../../../../workbench/contrib/chat/common/sessionChatPills.js';
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
+import { AgentHostCanvas } from '../../../../../workbench/contrib/canvases/common/agentHostCanvas.js';
 import { ChatMode } from '../../../../../workbench/contrib/chat/common/chatModes.js';
 import { IChatSendRequestOptions, IChatService, type IChatModelReference } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionFileChange, IChatSessionFileChange2, IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
@@ -975,37 +975,6 @@ interface IChatOutputObs {
 	readonly getFolderGitHubInfo: (reader: IReader) => IFolderGitHubInfoResolver;
 	/** Resolves the Git state persisted for the chat's working-directory scope. */
 	readonly getScopeGitState: (reader: IReader, workingDirectories: readonly string[] | undefined) => ISessionGitState | undefined;
-}
-
-class AgentHostSessionCanvas implements ISessionCanvas {
-	readonly resource: URI;
-	readonly instanceId: string | undefined;
-	readonly title: string;
-	readonly status: string | undefined;
-	readonly source: URI | undefined;
-
-	constructor(
-		resource: URI,
-		canvas: CanvasState | undefined,
-		@ILogService logService: ILogService,
-	) {
-		this.resource = resource;
-		this.instanceId = canvas?.instanceId;
-		this.title = canvas?.title ?? canvas?.extensionName ?? canvas?.canvasId ?? localize('canvas.pendingTitle', "Canvas");
-		this.status = canvas?.status;
-		if (canvas?.url !== undefined) {
-			try {
-				const source = URI.parse(canvas.url, true);
-				if ((source.scheme === Schemas.http || source.scheme === Schemas.https) && source.authority) {
-					this.source = source;
-				} else {
-					logService.warn('[AgentHostSessionCanvas] Unsupported canvas source');
-				}
-			} catch {
-				logService.warn('[AgentHostSessionCanvas] Invalid canvas source');
-			}
-		}
-	}
 }
 
 /** Shares one retained session-state subscription across all observed peer-chat details. */
@@ -2853,7 +2822,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 		const outputs = new AgentHostBackgroundShellOutputs(reader => this._options.getConnection(reader));
 		return derivedOpts<readonly IChatBackgroundShell[]>({ owner: this, equalsFn: structuralEquals }, reader => {
 			const chatState = chatStateObs.read(reader).read(reader);
-			return chatState && !(chatState instanceof Error) ? outputs.project(chatState.backgroundWork) : [];
+			return chatState && !(chatState instanceof Error) ? outputs.project(chatState.backgroundWork, chatUriObs.read(reader)) : [];
 		});
 	}
 
@@ -2876,7 +2845,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 			);
 			return derived(reader => {
 				const state = stateObs.read(reader).read(reader);
-				return this._options.instantiationService.createInstance(AgentHostSessionCanvas, resource,
+				return this._options.instantiationService.createInstance(AgentHostCanvas, resource,
 					state && !(state instanceof Error) ? state : undefined);
 			});
 		}, canvas => canvas.resource);
