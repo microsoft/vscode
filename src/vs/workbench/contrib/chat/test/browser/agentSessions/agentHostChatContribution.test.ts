@@ -80,7 +80,7 @@ import { IChatDebugService } from '../../../common/chatDebugService.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
 import { IChatResponseFileChangesService } from '../../../browser/chatResponseFileChangesService.js';
 import { IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { IChatSessionsService, type IChatSession, type IChatSessionHistoryItem, type IChatSessionItemController, type IChatSessionRequestHistoryItem, type IChatSessionServerRequest, type IChatSessionsExtensionPoint } from '../../../common/chatSessionsService.js';
+import { IChatSessionsService, type IChatSession, type IChatSessionHistoryItem, type IChatSessionContentProvider, IChatSessionItemController, type IChatSessionRequestHistoryItem, type IChatSessionServerRequest, type IChatSessionsExtensionPoint } from '../../../common/chatSessionsService.js';
 import { ILanguageModelsService, type ILanguageModelChatMetadata } from '../../../common/languageModels.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
@@ -13379,6 +13379,38 @@ suite('AgentHostChatContribution', () => {
 				afterReenablement: ['agent-host-copilot'],
 				progressStarts: 2,
 			});
+		});
+
+		test('policy-disabled providers retain history-only registrations without root agents', async () => {
+			const { instantiationService, agentHostService, chatSessionContributions, chatSessionItemControllers } = createTestServices(disposables);
+			instantiationService.stub(IConfigurationService, {
+				onDidChangeConfiguration: Event.None,
+				inspect: () => ({ policyValue: false }),
+				getValue: key => key === 'chat.editor.codex.preferAgentHost',
+			});
+			const contentProviders = new Map<string, IChatSessionContentProvider>();
+			instantiationService.stub(IChatSessionsService, 'registerChatSessionContentProvider', (type, provider) => {
+				contentProviders.set(type, provider);
+				return toDisposable(() => contentProviders.delete(type));
+			});
+			disposables.add(instantiationService.createInstance(AgentHostContribution));
+			disposables.add(instantiationService.createInstance(AgentHostSessionListContribution));
+			agentHostService.setRootState({ agents: [], activeSessions: 0 });
+			assert.deepStrictEqual({
+				contributions: chatSessionContributions.map(c => c.type),
+				items: chatSessionItemControllers.map(c => ({ type: c.type, canCreate: !!c.controller.newChatSessionItem })),
+				content: [...contentProviders.keys()],
+			}, {
+				contributions: [],
+				items: [{ type: 'agent-host-claude', canCreate: false }, { type: 'agent-host-codex', canCreate: false }],
+				content: ['agent-host-claude', 'agent-host-codex'],
+			});
+			for (const [type, provider] of contentProviders) {
+				const session = disposables.add(await provider.provideChatSessionContent(URI.from({ scheme: type, path: '/saved' }), CancellationToken.None));
+				assert.deepStrictEqual({ history: session.history, readOnly: session.isReadOnly?.get(), requestHandler: session.requestHandler }, {
+					history: [], readOnly: true, requestHandler: undefined,
+				});
+			}
 		});
 
 		test('session list contribution registers item controller in editor window', () => {

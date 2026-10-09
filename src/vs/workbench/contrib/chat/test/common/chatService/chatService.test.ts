@@ -4369,6 +4369,40 @@ suite('ChatService', () => {
 			return `${Date.now()}-${idCounter++}`;
 		}
 
+		for (const provider of ['claude', 'codex']) {
+			for (const path of ['/saved', '/untitled-draft']) {
+				test(`policy revocation keeps a held ${provider} ${path} model read-only after removal`, async () => {
+					const setting = `chat.agentHost.${provider}Agent.enabled`;
+					const configurationService = new class extends TestConfigurationService {
+						policyBlocked = false;
+						override inspect<T>(key: string) {
+							const value = super.inspect<T>(key);
+							return { ...value, policyValue: key === setting && this.policyBlocked ? value.value : undefined };
+						}
+					}({ [setting]: false });
+					instantiationService.stub(IConfigurationService, configurationService);
+					const sessionsService = new MockChatSessionsService();
+					instantiationService.stub(IChatSessionsService, sessionsService);
+					const resource = URI.from({ scheme: `agent-host-${provider}`, path });
+					testDisposables.add(sessionsService.registerChatSessionContentProvider(resource.scheme, {
+						provideChatSessionContent: async () => ({ sessionResource: resource, history: [], onWillDispose: Event.None, dispose() { } }),
+					}));
+					const service = createChatService();
+					const ref = await service.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+					assert.ok(ref);
+					testDisposables.add(ref);
+					const states = [ref.object.isReadOnly.get()];
+					for (const blocked of [true, false, true]) {
+						configurationService.policyBlocked = blocked;
+						configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: key => key === setting, affectedKeys: new Set([setting]), change: { keys: [setting], overrides: [] }, source: 7 });
+						states.push(ref.object.isReadOnly.get());
+					}
+					assert.deepStrictEqual(states, [false, true, true, true]);
+					assert.deepStrictEqual(await service.sendRequest(resource, 'Do not send'), { kind: 'rejected', reason: 'Session is read-only' });
+				});
+			}
+		}
+
 		test('contributed session read-only state is preserved on the chat model', async () => {
 			const isReadOnly = observableValue<boolean>('isReadOnly', true);
 			const { resource } = setupRemoteProvider({ isReadOnly });

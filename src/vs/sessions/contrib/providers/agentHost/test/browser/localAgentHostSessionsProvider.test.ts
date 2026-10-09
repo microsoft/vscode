@@ -1440,6 +1440,22 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
+	test('policy-disabled saved sessions remain visible without advertising creation', () => {
+		const configurationService = new class extends TestConfigurationService {
+			override inspect<T>(key: string) {
+				const value = super.inspect<T>(key);
+				return { ...value, policyValue: key === 'chat.agentHost.claudeAgent.enabled' || key === 'chat.agentHost.codexAgent.enabled' ? value.value : undefined };
+			}
+		}({ 'chat.agentHost.claudeAgent.enabled': false, 'chat.agentHost.codexAgent.enabled': false });
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService, isSessionsWindow: true });
+		fireSessionAdded(agentHost, 'claude-saved', { title: 'Claude saved', provider: 'claude' });
+		fireSessionAdded(agentHost, 'codex-saved', { title: 'Codex saved', provider: 'codex' });
+		assert.deepStrictEqual({
+			saved: provider.getSessions().map(s => s.sessionType).sort(),
+			creation: provider.sessionTypes.map(t => t.id),
+		}, { saved: ['claude', 'codex'], creation: ['copilotcli'] });
+	});
+
 	test('getSessions includes agent-host Claude sessions', () => {
 		agentHost.setAgents([
 			{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] } as AgentInfo,
