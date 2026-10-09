@@ -81,10 +81,6 @@ export class OpenRouterLMProvider extends AbstractOpenAICompatibleLMProvider {
 		return 'https://openrouter.ai/api/v1';
 	}
 
-	protected override getModelsDiscoveryUrl(modelsBaseUrl: string): string {
-		return `${modelsBaseUrl}/models?supported_parameters=tools`;
-	}
-
 	protected override resolveModelCapabilities(modelData: unknown): BYOKModelCapabilities | undefined {
 		const openRouterModelData = modelData as OpenRouterModelData;
 		const supportedParameters = openRouterModelData.supported_parameters ?? [];
@@ -141,10 +137,10 @@ export class OpenRouterLMProvider extends AbstractOpenAICompatibleLMProvider {
 /**
  * Checks whether an OpenRouter model ID refers to an Anthropic model.
  * OpenRouter model IDs follow the format `provider/model-name`, e.g.
- * `anthropic/claude-sonnet-4` or `anthropic/claude-opus-4`.
+ * `anthropic/claude-sonnet-4`, or aliases such as `~anthropic/claude-sonnet-latest`.
  */
 function isAnthropicModelId(modelId: string): boolean {
-	return modelId.startsWith('anthropic/');
+	return modelId.startsWith('anthropic/') || modelId.startsWith('~anthropic/');
 }
 
 /**
