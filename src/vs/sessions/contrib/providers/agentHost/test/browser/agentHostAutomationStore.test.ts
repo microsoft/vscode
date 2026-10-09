@@ -1694,6 +1694,62 @@ suite('AgentHostAutomationStore', () => {
 		}
 	}
 
+	for (const variant of ['omitted policy', 'skip policy', 'companion schedule', 'companion event']) {
+		test(`preserves weekday trigger semantics with ${variant}`, async () => {
+			const connection = disposables.add(new TestAutomationConnection());
+			const storage = disposables.add(new InMemoryStorageService());
+			const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
+			const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+			const triggers: AutomationEntry['definition']['triggers'] = [{
+				id: 'host-weekdays', kind: AutomationTriggerKind.Schedule,
+				schedule: { expression: '30 9 * * MON-FRI', timeZone },
+				...(variant === 'skip policy' ? { misfirePolicy: AutomationMisfirePolicy.Skip } : {}),
+			}];
+			if (variant === 'companion schedule') {
+				triggers.push({ id: 'weekend', kind: AutomationTriggerKind.Schedule, schedule: { expression: '0 10 * * 6', timeZone } });
+			} else if (variant === 'companion event') {
+				triggers.unshift({ id: 'event', kind: AutomationTriggerKind.Event, type: 'host.event', title: 'Host event', events: [] });
+			}
+			const timestamp = new Date().toISOString();
+			connection.setAutomation({
+				resource: 'ahp-automation:/host-weekdays',
+				definition: {
+					title: 'Host weekdays', message: { text: 'Review changes.', origin: { kind: MessageKind.Automation } },
+					session: { provider: 'mock' }, enabled: true, triggers,
+				},
+				runs: [],
+				operations: [AutomationOperation.Update, AutomationOperation.Remove, AutomationOperation.Run],
+				createdAt: timestamp, modifiedAt: timestamp,
+			});
+			const id = 'local-agent-host:ahp-automation:/host-weekdays';
+			if (variant === 'omitted policy') {
+				const updated = await store.updateAutomation(id, { name: 'Renamed' });
+				const update = connection.dispatched.at(-1)?.action;
+				assert.deepStrictEqual({
+					schedule: updated.schedule,
+					triggers: update?.type === ActionType.AutomationUpdateRequested ? update.changes.triggers : undefined,
+				}, {
+					schedule: { interval: 'weekdays', scheduleHour: 9, scheduleMinute: 30, scheduleDay: 0 },
+					triggers: [{
+						id: 'schedule', kind: AutomationTriggerKind.Schedule,
+						schedule: { expression: '30 9 * * 1-5', timeZone }, misfirePolicy: AutomationMisfirePolicy.RunOnce,
+					}],
+				});
+			} else {
+				const automation = store.getAutomation(id)!;
+				await assert.rejects(store.updateAutomation(id, { name: 'Renamed' }), /cannot be edited in VS Code/);
+				await assert.rejects(store.updateAutomationIfUnchanged(id, { enabled: false }, automation), /cannot be edited in VS Code/);
+				assert.deepStrictEqual({
+					schedule: automation.schedule, canUpdate: store.canUpdateAutomation(id),
+					dispatched: connection.dispatched, automation: store.getAutomation(id),
+				}, {
+					schedule: { interval: 'custom', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+					canUpdate: false, dispatched: [], automation,
+				});
+			}
+		});
+	}
+
 	test('keeps host-authored Weekdays in other time zones read-only without changing triggers', async () => {
 		const connection = disposables.add(new TestAutomationConnection());
 		const storage = disposables.add(new InMemoryStorageService());

@@ -856,7 +856,9 @@ function projectSchedule(triggers: AutomationDefinition['triggers']): IAutomatio
 		return { interval: 'daily', scheduleHour, scheduleMinute, scheduleDay: 0 };
 	}
 	if (dayValue === '1-5' || dayValue?.toUpperCase() === 'MON-FRI' || dayValue === '1,2,3,4,5') {
-		if (trigger.schedule.timeZone !== (Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC')) {
+		if (triggers.length !== 1
+			|| (trigger.misfirePolicy !== undefined && trigger.misfirePolicy !== AutomationMisfirePolicy.RunOnce)
+			|| trigger.schedule.timeZone !== (Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC')) {
 			return { interval: 'custom', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
 		}
 		return { interval: 'weekdays', scheduleHour, scheduleMinute, scheduleDay: 0 };
