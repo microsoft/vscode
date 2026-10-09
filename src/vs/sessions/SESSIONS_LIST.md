@@ -13,7 +13,7 @@ This specification defines stable placement and state-ownership rules. Row styli
 | Concern | Owner |
 |---------|-------|
 | Session catalog and lifecycle | `ISessionsManagementService` |
-| Inbox mode, pin, and per-sort ordering state | `ISessionsListModelService` |
+| Inbox mode, pin, Inbox disposition, and per-sort ordering state | `ISessionsListModelService` |
 | Order of a session's nested chats | The session's provider |
 | Custom groups and membership | `ISessionGroupsService` |
 | Top-level group/workspace order | `ISessionSectionOrderService` |
@@ -56,7 +56,11 @@ The active session remains visible even when a filter would otherwise exclude it
 
 A caller can acquire a disposable reveal of a session row or its archive action for onboarding. The list temporarily includes that session despite filters and presentation caps, expands its section, and exposes the requested spotlight target. An archive-action reveal also keeps the action visible without hover or focus. Releasing the reveal restores normal filtering and action visibility without changing the user's saved filters.
 
-Inbox presentation is an alternate list-owned view mode. It removes in-progress sessions from the flat inbox while preserving an explicit onboarding reveal. Remaining unarchived sessions bypass custom, external, quick-chat, workspace, and date sections and render as one top-level list ordered by natural updated time. Pinned sessions retain their fixed section above that list, archived sessions retain their fixed final section when included, and in-progress sessions appear in a collapsed section anchored below the scrolling list. Running-section children use the same row spacing and compact-mode presentation as the primary list. Sending from the new-session composer while Inbox presentation is enabled starts the session in the background, keeps a fresh composer visible, and notifies the user that the session started. Sending from an active chat or completing an agent question form returns the active slot to the new-session composer while the request continues.
+Inbox presentation is an alternate list-owned view mode. It removes in-progress sessions from the flat inbox while preserving an explicit onboarding reveal. Remaining unarchived sessions bypass custom, external, quick-chat, workspace, and date sections and render as one top-level list ordered by natural updated time. Pinned sessions retain their fixed section above that list, archived sessions retain their fixed final section when included, and in-progress sessions appear in a collapsed section anchored below the scrolling list. Running-section children use the same row spacing and compact-mode presentation as the primary list.
+
+Inbox dispositions are profile-scoped user intent and are mutually exclusive with pinning. **On Hold** removes a session from the primary Inbox until the user explicitly moves it back. **Ready to Merge** is available for completed sessions with session-owned GitHub pull requests; it returns to the Inbox when the session becomes active, needs input, changes, gains or loses a tracked pull request, has failing CI, or has a pull request close without merging. When every tracked pull request merges, the session is marked as done. Non-running deferred sessions appear in collapsed On Hold and Ready to Merge sections below the Running section. A running On Hold session temporarily appears in Running and returns to On Hold when it stops without changing the saved disposition.
+
+Sending from the new-session composer while Inbox presentation is enabled starts the session in the background, keeps a fresh composer visible, and notifies the user that the session started. Sending from an active chat or completing an agent question form returns the active slot to the new-session composer while the request continues.
 
 ## Grouping
 
@@ -78,7 +82,7 @@ Archiving removes custom-group membership. Restoring a session does not restore 
 
 ## Durable user intent
 
-Pin, group, and ordering state survives temporary provider-catalog removal. Providers may transiently publish incomplete catalogs while reconnecting or hydrating, so `onDidChangeSessions.removed` is not proof of deletion.
+Pin, Inbox disposition, group, and ordering state survives temporary provider-catalog removal. Providers may transiently publish incomplete catalogs while reconnecting or hydrating, so `onDidChangeSessions.removed` is not proof of deletion.
 
 List-owned state is removed only when:
 

@@ -8382,6 +8382,32 @@ suite('Sessions - SessionsList', () => {
 		});
 	});
 
+	suite('SessionsFlatList focus', () => {
+
+		test('reports a focused session only while the list owns DOM focus', () => {
+			const session = createTestSession('Running session').session;
+			const harness = createListHarness(disposables, [session]);
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsFlatList, container, {
+				onSessionOpen: () => { },
+			}));
+			list.setSessions([session]);
+			list.layout(list.getContentHeight(), 400);
+			list.focusSession(session);
+			const focused = list.getFocusedSessions()?.map(item => item.sessionId);
+
+			const outside = mainWindow.document.createElement('button');
+			container.appendChild(outside);
+			outside.focus();
+			const unfocused = list.getFocusedSessions();
+
+			assert.deepStrictEqual({ focused, unfocused }, {
+				focused: [session.sessionId],
+				unfocused: undefined,
+			});
+		});
+	});
+
 	suite('SessionsFlatList quick-chat presentation', () => {
 
 		function renderQuickChat(useCompactQuickChatRows: boolean) {

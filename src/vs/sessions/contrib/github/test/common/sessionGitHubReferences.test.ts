@@ -10,7 +10,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IChat, IGitHubInfo, ISession, ISessionArtifact, ISessionWorkspace, SessionArtifactKind } from '../../../../services/sessions/common/session.js';
-import { getSessionGitHubReferences } from '../../common/sessionGitHubReferences.js';
+import { getSessionGitHubReferences, getSessionOwnedPullRequests } from '../../common/sessionGitHubReferences.js';
 
 suite('Session GitHub References', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -59,6 +59,42 @@ suite('Session GitHub References', () => {
 		}, {
 			pullRequests: [['other', 'project', 1, 'pr', true], ['owner', 'repo', 3, undefined, undefined]],
 			issues: [['another', 'project', 2, 'issue']],
+		});
+
+		test('resolves only session-owned pull requests for lifecycle automation', () => {
+			const artifactUri = URI.parse('https://github.com/other/project/pull/1');
+			const ownedUri = URI.parse('https://github.com/owner/repo/pull/2');
+			const inheritedUri = URI.parse('https://github.com/owner/repo/pull/3');
+			const session = createSession([
+				{ id: 'artifact', kind: SessionArtifactKind.PullRequest, label: 'Artifact PR', isArtifact: true, isGitHub: true, link: artifactUri },
+			], {
+				owner: 'owner',
+				repo: 'repo',
+				pullRequests: [
+					{ owner: 'owner', repo: 'repo', number: 2, uri: ownedUri, createdByThisSession: true, liveState: 'open' },
+					{ owner: 'owner', repo: 'repo', number: 3, uri: inheritedUri, createdByThisSession: false },
+				],
+			});
+			const malformed = createSession([
+				{ id: 'invalid', kind: SessionArtifactKind.PullRequest, label: 'Invalid PR', isArtifact: true, isGitHub: true, link: URI.parse('https://github.com/owner/repo/issues/4') },
+			]);
+
+			assert.deepStrictEqual({
+				owned: getSessionOwnedPullRequests(session, undefined)?.map(ref => ({
+					owner: ref.owner,
+					repo: ref.repo,
+					number: ref.number,
+					title: ref.title,
+					state: ref.liveState ?? ref.state,
+				})),
+				malformed: getSessionOwnedPullRequests(malformed, undefined),
+			}, {
+				owned: [
+					{ owner: 'other', repo: 'project', number: 1, title: 'Artifact PR', state: undefined },
+					{ owner: 'owner', repo: 'repo', number: 2, title: undefined, state: 'open' },
+				],
+				malformed: undefined,
+			});
 		});
 	});
 

@@ -15,7 +15,19 @@ import { ISession, SessionStatus } from '../common/session.js';
 import { ISessionsManagementService } from '../common/sessionsManagement.js';
 export const enum SessionListModelChangeKind {
 	Pinned = 'pinned',
+	InboxDisposition = 'inboxDisposition',
 	Sort = 'sort',
+}
+
+export const enum SessionInboxDisposition {
+	OnHold = 'onHold',
+	ReadyToMerge = 'readyToMerge',
+}
+
+export interface ISessionInboxDispositionState {
+	readonly disposition: SessionInboxDisposition;
+	readonly updatedAt: number;
+	readonly pullRequestKeys?: readonly string[];
 }
 
 /**
@@ -44,7 +56,7 @@ export interface ISessionListModelChangeEvent {
 export interface ISessionsListModelService {
 	readonly _serviceBrand: undefined;
 
-	/** Fires when a session's pinned or sort state changes. */
+	/** Fires when a session's pinned, Inbox disposition, or sort state changes. */
 	readonly onDidChange: Event<ISessionListModelChangeEvent>;
 
 	// -- View mode --
@@ -58,6 +70,13 @@ export interface ISessionsListModelService {
 	unpinSession(session: ISession): void;
 	unpinSessions(sessions: ISession[]): void;
 	isSessionPinned(session: ISession): boolean;
+
+	// -- Inbox disposition --
+
+	getSessionInboxDisposition(session: ISession): SessionInboxDisposition | undefined;
+	getSessionInboxDispositionState(session: ISession): ISessionInboxDispositionState | undefined;
+	setSessionInboxDisposition(session: ISession, disposition: SessionInboxDisposition, pullRequestKeys?: readonly string[]): void;
+	clearSessionInboxDisposition(session: ISession): void;
 
 	// -- Legacy read-state migration --
 
@@ -110,6 +129,7 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 	declare readonly _serviceBrand: undefined;
 
 	private static readonly PINNED_SESSIONS_KEY = 'sessionsListControl.pinnedSessions';
+	private static readonly INBOX_DISPOSITIONS_KEY = 'sessionsListControl.inboxDispositions';
 	private static readonly SORT_OVERRIDES_KEY = 'sessionsListControl.sortOverrides';
 	private static readonly UPDATED_DEFAULT_PLACEMENTS_KEY = 'sessionsListControl.updatedDefaultPlacements';
 	/** Retired: a list-owned order of nested chats, which conflicted with the order their provider owns. */
@@ -125,6 +145,7 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 	readonly inboxViewEnabled: IObservable<boolean> = this._inboxViewEnabled;
 
 	private readonly _pinnedSessionIds: Set<string>;
+	private readonly _inboxDispositions: Map<string, ISessionInboxDispositionState>;
 	private readonly _sortOverrides: Record<SessionSortMode, Map<string, number>>;
 	private readonly _updatedDefaultPlacements: Map<string, number | null>;
 	private readonly _legacyReadSessionIds: Set<string> | undefined;
@@ -137,6 +158,7 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 		super();
 
 		this._pinnedSessionIds = this.loadSet(SessionsListModelService.PINNED_SESSIONS_KEY);
+		this._inboxDispositions = this.loadInboxDispositions();
 		this._sortOverrides = this.loadSortOverrides();
 		this._updatedDefaultPlacements = this.loadUpdatedDefaultPlacements();
 		this.storageService.remove(SessionsListModelService.RETIRED_CHAT_ORDER_KEY, StorageScope.PROFILE);
@@ -191,12 +213,20 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 	// -- Pinning --
 
 	pinSession(session: ISession): void {
-		if (this._pinnedSessionIds.has(session.sessionId)) {
+		const changes: { sessionId: string; kind: SessionListModelChangeKind }[] = [];
+		if (!this._pinnedSessionIds.has(session.sessionId)) {
+			this._pinnedSessionIds.add(session.sessionId);
+			this.saveSet(SessionsListModelService.PINNED_SESSIONS_KEY, this._pinnedSessionIds);
+			changes.push({ sessionId: session.sessionId, kind: SessionListModelChangeKind.Pinned });
+		}
+		if (this._inboxDispositions.delete(session.sessionId)) {
+			this.saveInboxDispositions();
+			changes.push({ sessionId: session.sessionId, kind: SessionListModelChangeKind.InboxDisposition });
+		}
+		if (changes.length === 0) {
 			return;
 		}
-		this._pinnedSessionIds.add(session.sessionId);
-		this.saveSet(SessionsListModelService.PINNED_SESSIONS_KEY, this._pinnedSessionIds);
-		this._onDidChange.fire({ changes: [{ sessionId: session.sessionId, kind: SessionListModelChangeKind.Pinned }] });
+		this._onDidChange.fire({ changes });
 	}
 
 	unpinSession(session: ISession): void {
@@ -223,6 +253,43 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 
 	isSessionPinned(session: ISession): boolean {
 		return this._pinnedSessionIds.has(session.sessionId);
+	}
+
+	// -- Inbox disposition --
+
+	getSessionInboxDisposition(session: ISession): SessionInboxDisposition | undefined {
+		return this._inboxDispositions.get(session.sessionId)?.disposition;
+	}
+
+	getSessionInboxDispositionState(session: ISession): ISessionInboxDispositionState | undefined {
+		return this._inboxDispositions.get(session.sessionId);
+	}
+
+	setSessionInboxDisposition(session: ISession, disposition: SessionInboxDisposition, pullRequestKeys?: readonly string[]): void {
+		if (this._inboxDispositions.get(session.sessionId)?.disposition === disposition) {
+			return;
+		}
+		const changes: { sessionId: string; kind: SessionListModelChangeKind }[] = [];
+		if (this._pinnedSessionIds.delete(session.sessionId)) {
+			this.saveSet(SessionsListModelService.PINNED_SESSIONS_KEY, this._pinnedSessionIds);
+			changes.push({ sessionId: session.sessionId, kind: SessionListModelChangeKind.Pinned });
+		}
+		this._inboxDispositions.set(session.sessionId, {
+			disposition,
+			updatedAt: session.updatedAt.get().getTime(),
+			...(pullRequestKeys?.length ? { pullRequestKeys: [...new Set(pullRequestKeys)].sort() } : {}),
+		});
+		this.saveInboxDispositions();
+		changes.push({ sessionId: session.sessionId, kind: SessionListModelChangeKind.InboxDisposition });
+		this._onDidChange.fire({ changes });
+	}
+
+	clearSessionInboxDisposition(session: ISession): void {
+		if (!this._inboxDispositions.delete(session.sessionId)) {
+			return;
+		}
+		this.saveInboxDispositions();
+		this._onDidChange.fire({ changes: [{ sessionId: session.sessionId, kind: SessionListModelChangeKind.InboxDisposition }] });
 	}
 
 	// -- Manual sort order --
@@ -387,6 +454,10 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 			this.saveSet(SessionsListModelService.PINNED_SESSIONS_KEY, this._pinnedSessionIds);
 			changes.push({ sessionId: session.sessionId, kind: SessionListModelChangeKind.Pinned });
 		}
+		if (this._inboxDispositions.delete(session.sessionId)) {
+			this.saveInboxDispositions();
+			changes.push({ sessionId: session.sessionId, kind: SessionListModelChangeKind.InboxDisposition });
+		}
 		let sortChanged = false;
 		if (this._sortOverrides.created.delete(session.sessionId)) {
 			sortChanged = true;
@@ -429,6 +500,42 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 		} else {
 			this.storageService.store(key, JSON.stringify([...set]), StorageScope.PROFILE, StorageTarget.USER);
 		}
+	}
+
+	private loadInboxDispositions(): Map<string, ISessionInboxDispositionState> {
+		const result = new Map<string, ISessionInboxDispositionState>();
+		const raw = this.storageService.get(SessionsListModelService.INBOX_DISPOSITIONS_KEY, StorageScope.PROFILE);
+		if (!raw) {
+			return result;
+		}
+		try {
+			const parsed = JSON.parse(raw) as Record<string, ISessionInboxDispositionState>;
+			for (const [sessionId, state] of Object.entries(parsed)) {
+				if (
+					(state?.disposition === SessionInboxDisposition.OnHold || state?.disposition === SessionInboxDisposition.ReadyToMerge)
+					&& typeof state.updatedAt === 'number'
+					&& (state.pullRequestKeys === undefined || (Array.isArray(state.pullRequestKeys) && state.pullRequestKeys.every(key => typeof key === 'string')))
+				) {
+					result.set(sessionId, state);
+				}
+			}
+		} catch {
+			// Ignore corrupt persisted UI state.
+		}
+		return result;
+	}
+
+	private saveInboxDispositions(): void {
+		if (this._inboxDispositions.size === 0) {
+			this.storageService.remove(SessionsListModelService.INBOX_DISPOSITIONS_KEY, StorageScope.PROFILE);
+			return;
+		}
+		this.storageService.store(
+			SessionsListModelService.INBOX_DISPOSITIONS_KEY,
+			JSON.stringify(Object.fromEntries(this._inboxDispositions)),
+			StorageScope.PROFILE,
+			StorageTarget.USER,
+		);
 	}
 
 	private loadSortOverrides(): Record<SessionSortMode, Map<string, number>> {

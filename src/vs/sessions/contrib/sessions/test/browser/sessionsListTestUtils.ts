@@ -292,6 +292,7 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 				}
 			}
 		}
+		override getSessionInboxDisposition(): undefined { return undefined; }
 		override migrateLegacyReadState(): void { }
 		override getSortKey(session: ISession, mode: SessionSortMode): number {
 			return sortOverrides.get(mode)?.get(session.sessionId) ?? getNaturalSortKey(session, mode);

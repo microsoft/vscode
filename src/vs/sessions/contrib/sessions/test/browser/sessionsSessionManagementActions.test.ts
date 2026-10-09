@@ -35,9 +35,10 @@ import { SessionActiveChatIsDeletableContext, SessionFocusedChatIsRenameTargetCo
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { SessionView } from '../../../../browser/parts/sessionView.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { ISessionsListModelService, SessionInboxDisposition } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { ArchiveSessionAction } from '../../browser/views/sessionsViewActions.js';
+import { ArchiveSessionAction, MOVE_SESSION_ON_HOLD_COMMAND_ID, MOVE_SESSION_TO_INBOX_COMMAND_ID } from '../../browser/views/sessionsViewActions.js';
 import { ISessionChatItem, SessionsList, SessionsListFocusedChatItemContext } from '../../browser/views/sessionsList.js';
 import { SessionsView, SessionsViewId } from '../../browser/views/sessionsView.js';
 import { createTestSession, TestSessionsManagementService } from './sessionsListTestUtils.js';
@@ -268,7 +269,7 @@ suite('Sessions - Session management actions', () => {
 		focusedChat?: ISessionChatItem,
 		focusedGroupChat?: IChat,
 		renameFocusedTab = false,
-		options: { confettiEnabled?: boolean; reducedMotion?: boolean; focusedChats?: readonly ISessionChatItem[] } = {},
+		options: { confettiEnabled?: boolean; reducedMotion?: boolean; focusedChats?: readonly ISessionChatItem[]; viewFocusedSessions?: readonly ISession[] } = {},
 	) {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		const managementService = new TestSessionsManagementService([]);
@@ -285,6 +286,7 @@ suite('Sessions - Session management actions', () => {
 		const inlineRenamedChats: ISessionChatItem[] = [];
 		const inlineRenamedTabs: URI[] = [];
 		let inlineRenamedFocusedTabs = 0;
+		const inboxDispositions = new Map<string, SessionInboxDisposition>();
 		const sessionsControl = upcastPartial<SessionsList>({
 			getFocusedSessions: () => focusedSessions,
 			getFocusedChatItem: () => focusedChat,
@@ -298,7 +300,10 @@ suite('Sessions - Session management actions', () => {
 				return true;
 			},
 		});
-		const sessionsView = upcastPartial<SessionsView>({ sessionsControl });
+		const sessionsView = upcastPartial<SessionsView>({
+			sessionsControl,
+			getFocusedSessions: () => options.viewFocusedSessions ?? focusedSessions,
+		});
 		const getViewWithId = <T extends IView>(id: string): T | null => id === SessionsViewId ? sessionsView as unknown as T : null;
 
 		instantiationService.stub(IViewsService, upcastPartial<IViewsService>({ getViewWithId }));
@@ -329,6 +334,17 @@ suite('Sessions - Session management actions', () => {
 			}
 		}());
 		instantiationService.stub(ISessionsManagementService, managementService);
+		instantiationService.stub(ISessionsListModelService, new class extends mock<ISessionsListModelService>() {
+			override getSessionInboxDisposition(session: ISession): SessionInboxDisposition | undefined {
+				return inboxDispositions.get(session.sessionId);
+			}
+			override setSessionInboxDisposition(session: ISession, disposition: SessionInboxDisposition): void {
+				inboxDispositions.set(session.sessionId, disposition);
+			}
+			override clearSessionInboxDisposition(session: ISession): void {
+				inboxDispositions.delete(session.sessionId);
+			}
+		}());
 		instantiationService.stub(IConfigurationService, new TestConfigurationService({
 			[SESSIONS_MARK_AS_DONE_CONFETTI_SETTING]: options.confettiEnabled ?? true,
 		}));
@@ -348,8 +364,29 @@ suite('Sessions - Session management actions', () => {
 			input: async () => 'Renamed',
 		}));
 
-		return { instantiationService, managementService, dialogService, playedSignals, inlineRenamedSessions, inlineRenamedChats, inlineRenamedTabs, inlineRenamedFocusedTabs: () => inlineRenamedFocusedTabs };
+		return { instantiationService, managementService, dialogService, playedSignals, inboxDispositions, inlineRenamedSessions, inlineRenamedChats, inlineRenamedTabs, inlineRenamedFocusedTabs: () => inlineRenamedFocusedTabs };
 	}
+
+	test('moves a session between the Inbox and On Hold', async () => {
+		const session = createTestSession('Deferred').session;
+		const harness = createActionHarness(undefined, undefined);
+		const moveOnHold = CommandsRegistry.getCommand(MOVE_SESSION_ON_HOLD_COMMAND_ID)?.handler;
+		const moveToInbox = CommandsRegistry.getCommand(MOVE_SESSION_TO_INBOX_COMMAND_ID)?.handler;
+		assert.ok(moveOnHold);
+		assert.ok(moveToInbox);
+
+		await moveOnHold(harness.instantiationService, session);
+		const held = harness.inboxDispositions.get(session.sessionId);
+		await moveToInbox(harness.instantiationService, session);
+
+		assert.deepStrictEqual({
+			held,
+			restored: harness.inboxDispositions.get(session.sessionId),
+		}, {
+			held: SessionInboxDisposition.OnHold,
+			restored: undefined,
+		});
+	});
 
 	test('archives active sessions without confirmation', async () => {
 		const active = createTestSession('Running', { status: SessionStatus.InProgress }).session;
@@ -386,6 +423,18 @@ suite('Sessions - Session management actions', () => {
 			disabled: [],
 			reducedMotion: [],
 		});
+	});
+
+	test('archives the running-section session focused by the unified Sessions view', async () => {
+		const primarySession = createTestSession('Primary list session').session;
+		const runningSession = createTestSession('Running section session').session;
+		const harness = createActionHarness([primarySession], undefined, undefined, undefined, false, {
+			viewFocusedSessions: [runningSession],
+		});
+
+		await harness.instantiationService.invokeFunction(accessor => new ArchiveSessionAction().run(accessor));
+
+		assert.deepStrictEqual(harness.managementService.archived.map(session => session.sessionId), [runningSession.sessionId]);
 	});
 
 	test('routes session and chat rename commands to their focused targets', async () => {

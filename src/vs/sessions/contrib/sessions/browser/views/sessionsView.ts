@@ -52,7 +52,7 @@ import { PANEL_SECTION_BORDER } from '../../../../../workbench/common/theme.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ISessionsListModelService } from '../../../../services/sessions/browser/sessionsListModelService.js';
+import { ISessionsListModelService, SessionInboxDisposition } from '../../../../services/sessions/browser/sessionsListModelService.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { Menus } from '../../../../browser/menus.js';
 import { MobileSessionFilterChips } from '../../../../browser/parts/mobile/mobileSessionFilterChips.js';
@@ -170,8 +170,14 @@ class SessionsFilterActionViewItem extends SubmenuEntryActionViewItem {
 	}
 }
 
-export class SessionsRunningSection extends DisposableStore {
+interface ISessionsBottomSectionPresentation {
+	readonly className: string;
+	readonly icon: ThemeIcon;
+	readonly suppressInProgressStatusIcon: boolean;
+	readonly label: (count: number) => string;
+}
 
+class SessionsBottomSection extends DisposableStore {
 	private static readonly MAX_LIST_HEIGHT = 240;
 
 	readonly element: HTMLElement;
@@ -185,41 +191,46 @@ export class SessionsRunningSection extends DisposableStore {
 
 	constructor(
 		parent: HTMLElement,
-		runningSessions: IObservable<readonly ISession[]>,
+		sessionsObservable: IObservable<readonly ISession[]>,
+		presentation: ISessionsBottomSectionPresentation,
 		private readonly compact: () => boolean,
 		private readonly onDidChangeLayout: () => void,
 		onSessionOpen: (resource: URI, preserveFocus: boolean, sideBySide: boolean) => void,
 		overrideStyles: ISessionsFlatListOptions['overrideStyles'],
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IAccessibilityService accessibilityService: IAccessibilityService,
-		@IHoverService hoverService: IHoverService,
+		instantiationService: IInstantiationService,
+		accessibilityService: IAccessibilityService,
+		hoverService: IHoverService,
 	) {
 		super();
 
-		this.element = DOM.append(parent, $('.agent-sessions-running-section'));
+		this.element = DOM.append(parent, $(`.agent-sessions-bottom-section.${presentation.className}`));
 		this.element.setAttribute('role', 'tree');
-		this.header = DOM.append(this.element, $('.agent-sessions-running-header'));
+		this.header = DOM.append(this.element, $('.agent-sessions-bottom-header'));
 		this.header.setAttribute('role', 'treeitem');
 		this.header.tabIndex = 0;
 		const updateReducedMotion = () => this.element.classList.toggle('reduced-motion', accessibilityService.isMotionReduced());
 		updateReducedMotion();
 		this.add(accessibilityService.onDidChangeReducedMotion(updateReducedMotion));
 
-		const icon = DOM.append(this.header, $('.agent-sessions-running-icon'));
+		const icon = DOM.append(this.header, $('.agent-sessions-bottom-icon'));
 		icon.setAttribute('aria-hidden', 'true');
-		const statusIcon = this.add(instantiationService.createInstance(SessionStatusIcon, icon));
-		statusIcon.setStatus(SessionStatus.InProgress, true, false);
-		this.label = DOM.append(this.header, $('.agent-sessions-running-label'));
-		this.chevron = DOM.append(this.header, $('.agent-sessions-running-chevron'));
+		if (presentation.suppressInProgressStatusIcon) {
+			const statusIcon = this.add(instantiationService.createInstance(SessionStatusIcon, icon));
+			statusIcon.setStatus(SessionStatus.InProgress, true, false);
+		} else {
+			icon.classList.add(...ThemeIcon.asClassNameArray(presentation.icon));
+		}
+		this.label = DOM.append(this.header, $('.agent-sessions-bottom-label'));
+		this.chevron = DOM.append(this.header, $('.agent-sessions-bottom-chevron'));
 		this.chevron.setAttribute('aria-hidden', 'true');
-		this.listContainer = DOM.append(this.element, $('.agent-sessions-running-list'));
+		this.listContainer = DOM.append(this.element, $('.agent-sessions-bottom-list'));
 		this.listContainer.setAttribute('role', 'group');
 		this.list = this.add(instantiationService.createInstance(SessionsFlatList, this.listContainer, {
 			overrideStyles,
 			showSessionHover: false,
 			compact: this.compact,
 			rowSpacing: true,
-			suppressInProgressStatusIcon: true,
+			suppressInProgressStatusIcon: presentation.suppressInProgressStatusIcon,
 			alwaysConsumeMouseWheel: false,
 			useCompactQuickChatRows: false,
 			onSessionOpen,
@@ -242,12 +253,10 @@ export class SessionsRunningSection extends DisposableStore {
 		this.add(hoverService.setupDelayedHover(this.label, () => ({ content: this.label.textContent ?? '' })));
 		this.add(this.list.onDidChangeContentHeight(() => this.layout(this.width)));
 		this.add(autorun(reader => {
-			const sessions = runningSessions.read(reader);
+			const sessions = sessionsObservable.read(reader);
 			const count = sessions.length;
 			this.element.classList.toggle('visible', count > 0);
-			const label = count === 1
-				? localize('sessionRunningStatus.single', "1 session running")
-				: localize('sessionRunningStatus.multiple', "{0} sessions running", count);
+			const label = presentation.label(count);
 			this.label.textContent = label;
 			this.header.setAttribute('aria-label', label);
 			this.list.setSessions(sessions);
@@ -273,12 +282,12 @@ export class SessionsRunningSection extends DisposableStore {
 	private updateExpandedState(): void {
 		this.element.classList.toggle('expanded', this.expanded);
 		this.header.setAttribute('aria-expanded', String(this.expanded));
-		this.chevron.className = `agent-sessions-running-chevron ${ThemeIcon.asClassName(this.expanded ? Codicon.chevronDown : Codicon.chevronRight)}`;
+		this.chevron.className = `agent-sessions-bottom-chevron ${ThemeIcon.asClassName(this.expanded ? Codicon.chevronDown : Codicon.chevronRight)}`;
 	}
 
 	layout(width: number): void {
 		this.width = width;
-		const height = this.expanded ? Math.min(this.list.getContentHeight(), SessionsRunningSection.MAX_LIST_HEIGHT) : 0;
+		const height = this.expanded ? Math.min(this.list.getContentHeight(), SessionsBottomSection.MAX_LIST_HEIGHT) : 0;
 		this.listContainer.style.height = `${height}px`;
 		this.list.layout(height, width);
 	}
@@ -286,6 +295,118 @@ export class SessionsRunningSection extends DisposableStore {
 	setCompact(): void {
 		this.list.setCompact();
 		this.layout(this.width);
+	}
+
+	getFocusedSessions(): readonly ISession[] | undefined {
+		return this.list.getFocusedSessions();
+	}
+}
+
+export class SessionsRunningSection extends DisposableStore {
+	private readonly section: SessionsBottomSection;
+	readonly element: HTMLElement;
+
+	constructor(
+		parent: HTMLElement,
+		runningSessions: IObservable<readonly ISession[]>,
+		compact: () => boolean,
+		onDidChangeLayout: () => void,
+		onSessionOpen: (resource: URI, preserveFocus: boolean, sideBySide: boolean) => void,
+		overrideStyles: ISessionsFlatListOptions['overrideStyles'],
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IAccessibilityService accessibilityService: IAccessibilityService,
+		@IHoverService hoverService: IHoverService,
+	) {
+		super();
+		this.section = this.add(new SessionsBottomSection(
+			parent,
+			runningSessions,
+			{
+				className: 'agent-sessions-bottom-section-running',
+				icon: Codicon.sessionInProgress,
+				suppressInProgressStatusIcon: true,
+				label: count => count === 1
+					? localize('sessionRunningStatus.single', "1 session running")
+					: localize('sessionRunningStatus.multiple', "{0} sessions running", count),
+			},
+			compact,
+			onDidChangeLayout,
+			onSessionOpen,
+			overrideStyles,
+			instantiationService,
+			accessibilityService,
+			hoverService,
+		));
+		this.element = this.section.element;
+	}
+
+	layout(width: number): void {
+		this.section.layout(width);
+	}
+
+	setCompact(): void {
+		this.section.setCompact();
+	}
+
+	getFocusedSessions(): readonly ISession[] | undefined {
+		return this.section.getFocusedSessions();
+	}
+}
+
+export class SessionsDeferredSection extends DisposableStore {
+	private readonly section: SessionsBottomSection;
+	readonly element: HTMLElement;
+
+	constructor(
+		parent: HTMLElement,
+		sessions: IObservable<readonly ISession[]>,
+		disposition: SessionInboxDisposition,
+		compact: () => boolean,
+		onDidChangeLayout: () => void,
+		onSessionOpen: (resource: URI, preserveFocus: boolean, sideBySide: boolean) => void,
+		overrideStyles: ISessionsFlatListOptions['overrideStyles'],
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IAccessibilityService accessibilityService: IAccessibilityService,
+		@IHoverService hoverService: IHoverService,
+	) {
+		super();
+		const onHold = disposition === SessionInboxDisposition.OnHold;
+		this.section = this.add(new SessionsBottomSection(
+			parent,
+			sessions,
+			{
+				className: onHold ? 'agent-sessions-bottom-section-on-hold' : 'agent-sessions-bottom-section-ready-to-merge',
+				icon: onHold ? Codicon.clock : Codicon.gitMerge,
+				suppressInProgressStatusIcon: false,
+				label: count => onHold
+					? count === 1
+						? localize('sessionOnHoldStatus.single', "1 session on hold")
+						: localize('sessionOnHoldStatus.multiple', "{0} sessions on hold", count)
+					: count === 1
+						? localize('sessionReadyToMergeStatus.single', "1 session ready to merge")
+						: localize('sessionReadyToMergeStatus.multiple', "{0} sessions ready to merge", count),
+			},
+			compact,
+			onDidChangeLayout,
+			onSessionOpen,
+			overrideStyles,
+			instantiationService,
+			accessibilityService,
+			hoverService,
+		));
+		this.element = this.section.element;
+	}
+
+	layout(width: number): void {
+		this.section.layout(width);
+	}
+
+	setCompact(): void {
+		this.section.setCompact();
+	}
+
+	getFocusedSessions(): readonly ISession[] | undefined {
+		return this.section.getFocusedSessions();
 	}
 }
 
@@ -297,6 +418,8 @@ export class SessionsView extends ViewPane {
 	private readonly customizationsPaneDisposables = this._register(new MutableDisposable<DisposableStore>());
 	private sessionsControlContainer: HTMLElement | undefined;
 	private runningSection: SessionsRunningSection | undefined;
+	private onHoldSection: SessionsDeferredSection | undefined;
+	private readyToMergeSection: SessionsDeferredSection | undefined;
 	private findWidgetContainer: HTMLElement | undefined;
 	private readonly sessionsHeaders = new Set<ISessionsHeaderElements>();
 	private isFindWidgetOpen = false;
@@ -611,8 +734,10 @@ export class SessionsView extends ViewPane {
 		this._register(this.themeService.onDidColorThemeChange(updateSplitViewStyles));
 
 		const sessionsChanged = observableSignalFromEvent(this, this.sessionsManagementService.onDidChangeSessions);
+		const listModelChanged = observableSignalFromEvent(this, this.sessionsListModelService.onDidChange);
 		const runningSessions = derivedOpts({ owner: this }, reader => {
 			sessionsChanged.read(reader);
+			listModelChanged.read(reader);
 			if (!this.sessionsListModelService.inboxViewEnabled.read(reader)) {
 				return [];
 			}
@@ -622,10 +747,46 @@ export class SessionsView extends ViewPane {
 				&& session.isAutomation?.read(reader) !== true
 			);
 		});
+		const deferredSessions = (disposition: SessionInboxDisposition) => derivedOpts({ owner: this }, reader => {
+			sessionsChanged.read(reader);
+			listModelChanged.read(reader);
+			if (!this.sessionsListModelService.inboxViewEnabled.read(reader)) {
+				return [];
+			}
+			return this.sessionsManagementService.getSessions()
+				.filter(session =>
+					this.sessionsListModelService.getSessionInboxDisposition(session) === disposition
+					&& session.status.read(reader) !== SessionStatus.InProgress
+					&& !session.isArchived.read(reader)
+					&& session.isAutomation?.read(reader) !== true
+				)
+				.sort((a, b) => b.updatedAt.read(reader).getTime() - a.updatedAt.read(reader).getTime());
+		});
+		const bottomSections = DOM.append(sessionsContainer, $('.agent-sessions-bottom-sections'));
 		this.runningSection = this._register(this.instantiationService.createInstance(
 			SessionsRunningSection,
-			sessionsContainer,
+			bottomSections,
 			runningSessions,
+			() => this.currentCompact,
+			() => this.layoutSidebarSplitView(),
+			openSession,
+			this.getLocationBasedColors().listOverrideStyles,
+		));
+		this.onHoldSection = this._register(this.instantiationService.createInstance(
+			SessionsDeferredSection,
+			bottomSections,
+			deferredSessions(SessionInboxDisposition.OnHold),
+			SessionInboxDisposition.OnHold,
+			() => this.currentCompact,
+			() => this.layoutSidebarSplitView(),
+			openSession,
+			this.getLocationBasedColors().listOverrideStyles,
+		));
+		this.readyToMergeSection = this._register(this.instantiationService.createInstance(
+			SessionsDeferredSection,
+			bottomSections,
+			deferredSessions(SessionInboxDisposition.ReadyToMerge),
+			SessionInboxDisposition.ReadyToMerge,
 			() => this.currentCompact,
 			() => this.layoutSidebarSplitView(),
 			openSession,
@@ -966,6 +1127,8 @@ export class SessionsView extends ViewPane {
 
 	private layoutSidebarSplitView(): void {
 		this.runningSection?.layout(this.currentBodyWidth);
+		this.onHoldSection?.layout(this.currentBodyWidth);
+		this.readyToMergeSection?.layout(this.currentBodyWidth);
 		if (!this.sidebarSplitView || !this.sidebarSplitViewContainer) {
 			return;
 		}
@@ -999,6 +1162,13 @@ export class SessionsView extends ViewPane {
 		super.focus();
 
 		this.sessionsControl?.focus();
+	}
+
+	getFocusedSessions(): readonly ISession[] | undefined {
+		return this.runningSection?.getFocusedSessions()
+			?? this.onHoldSection?.getFocusedSessions()
+			?? this.readyToMergeSection?.getFocusedSessions()
+			?? this.sessionsControl?.getFocusedSessions();
 	}
 
 	refresh(): void {
@@ -1131,6 +1301,8 @@ export class SessionsView extends ViewPane {
 		this.compactContextKey?.set(compact);
 		this.sessionsControl?.setCompact();
 		this.runningSection?.setCompact();
+		this.onHoldSection?.setCompact();
+		this.readyToMergeSection?.setCompact();
 	}
 
 	toggleCompact(): void {
