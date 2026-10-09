@@ -324,7 +324,9 @@ extends:
         enabled: true
         enableExclusions: true
         exclusionsFilePath: $(Build.SourcesDirectory)/.eslint-ignore
-      sourceAnalysisPool: ${{ variables.VSCODE_UBUNTU_POOL }}
+      sourceAnalysisPool:
+        name: ${{ variables.VSCODE_UBUNTU_POOL }}
+        os: linux
       createAdoIssuesForJustificationsForDisablement: false
     containers:
       ubuntu-2004-arm64:
@@ -332,6 +334,18 @@ extends:
     settings:
       networkIsolationPolicy: Permissive,CFSClean,CFSClean2,CFSClean3
     stages:
+
+      - stage: Copilot
+        dependsOn: []
+        pool:
+          name: ${{ variables.VSCODE_UBUNTU_POOL }}
+          os: linux
+        jobs:
+          - template: build/azure-pipelines/product-copilot.yml@self
+            parameters:
+              VSCODE_PUBLISH: ${{ variables.VSCODE_PUBLISH }}
+              VSCODE_RELEASE: ${{ parameters.VSCODE_RELEASE }}
+              VSCODE_UPLOAD_SOURCEMAPS: false
 
       - ${{ if eq(variables['VSCODE_BUILD_STAGE_WINDOWS'], true) }}:
         - stage: Windows

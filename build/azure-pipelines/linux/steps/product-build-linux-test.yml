@@ -118,6 +118,39 @@ steps:
             APP_NAME=$(node -p "require(\"$APP_ROOT/resources/app/product.json\").applicationName")
             export INTEGRATION_TEST_APP_NAME="$APP_NAME"
             export INTEGRATION_TEST_ELECTRON_PATH="$APP_ROOT/$APP_NAME"
+            test -x "$INTEGRATION_TEST_ELECTRON_PATH"
+            test -x ".build/electron/$(node -p 'require("./product.json").applicationName')"
+            test -x "$VSCODE_REMOTE_SERVER_PATH/bin/code-server"
+            test -s .build/extensions/copilot/package.json
+            test -s out-build/vs/platform/agentHost/node/agentHostServerMain.js
+            for entrypoint in \
+              conformance/agentHostConformance \
+              providers/claudeAgentHostE2E \
+              providers/codexAgentHostE2E \
+              providers/copilotAgentHostE2E \
+              providers/copilotOtelAgentHostE2E \
+              providers/copilotManagedSettingsAgentHostE2E; do
+              test -s "out-build/vs/platform/agentHost/test/node/e2e/$entrypoint.integrationTest.js"
+            done
+            test -s src/vs/platform/agentHost/test/node/e2e/captures/empty.yaml
+            node -e '
+              const assert = require("node:assert/strict");
+              const fs = require("node:fs");
+              const crypto = require("node:crypto");
+              const lock = require("./package-lock.json").packages;
+              assert.equal(process.platform, "linux");
+              assert.equal(process.arch, "x64");
+              for (const name of ["@github/copilot-sdk", "@github/copilot-sdk-linux-x64", "@anthropic-ai/claude-agent-sdk", "@openai/codex"]) {
+                const installed = require(`./node_modules/${name}/package.json`).version;
+                assert.equal(installed, lock[`node_modules/${name}`].version);
+                console.log(JSON.stringify({ package: name, version: installed }));
+              }
+              const runtime = "node_modules/@github/copilot-sdk-linux-x64/prebuilds/linux-x64/copilot-runtime";
+              fs.accessSync(runtime, fs.constants.X_OK);
+              fs.accessSync("node_modules/@github/copilot-sdk-linux-x64/prebuilds/linux-x64/runtime.node", fs.constants.R_OK);
+              console.log(JSON.stringify({ runtimeSha256: crypto.createHash("sha256").update(fs.readFileSync(runtime)).digest("hex") }));
+            '
+            echo "Tmpfs probe compiler, packaged runtime, provider, and fixture inputs verified."
             bash test/integration/agentHost/tmpfs.sh node test/integration/agentHost/holderProbe.ts --self-test
             for iteration in 1 2; do
               echo "Tmpfs holder probe: full concurrent replay iteration $iteration of 2"
