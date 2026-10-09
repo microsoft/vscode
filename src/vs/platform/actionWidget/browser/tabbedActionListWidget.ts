@@ -9,7 +9,6 @@ import { ActionBar } from '../../../base/browser/ui/actionbar/actionbar.js';
 import { Button } from '../../../base/browser/ui/button/button.js';
 import { IListAccessibilityProvider } from '../../../base/browser/ui/list/listWidget.js';
 import { Radio } from '../../../base/browser/ui/radio/radio.js';
-import { Switch } from '../../../base/browser/ui/toggle/switch.js';
 import { DomScrollableElement } from '../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { toAction } from '../../../base/common/actions.js';
 import { Codicon } from '../../../base/common/codicons.js';
@@ -82,11 +81,6 @@ function readTabBox(element: HTMLElement): ITabBox {
 export interface ITabbedActionListBuildResult<T> {
 	readonly items: readonly IActionListItem<T>[];
 	readonly listOptions?: IActionListOptions;
-	/**
-	 * For a sizing build, other layouts the sizing tab can show at rest, such as a
-	 * mode it can be switched into. The popup is sized to the tallest of them.
-	 */
-	readonly alternateSizingItems?: readonly (readonly IActionListItem<T>[])[];
 }
 
 /**
@@ -104,13 +98,6 @@ export interface ITabDescriptor {
 	readonly tooltip?: string;
 	/** Optional leading icon rendered before the label. */
 	readonly icon?: ThemeIcon;
-	/** A separate mode switch beside the active tab's button. */
-	readonly toggle?: {
-		readonly label: string;
-		readonly ariaLabel: string;
-		readonly getState: () => { readonly checked: boolean; readonly enabled: boolean; readonly description?: string } | undefined;
-		readonly onChange: (checked: boolean) => void;
-	};
 }
 
 /**
@@ -375,38 +362,6 @@ export class TabbedActionListWidget extends Disposable {
 					}
 				}));
 
-				const activeIndex = options.tabs.findIndex(tab => tab.id === activeTab);
-				const toggleOptions = options.tabs[activeIndex]?.toggle;
-				let updateTabToggle: (() => void) | undefined;
-				if (toggleOptions) {
-					const button = radio.optionElements[activeIndex];
-					const group = dom.$('.tabbed-action-list-tab');
-					button.before(group);
-					group.appendChild(button);
-					const toggleContainer = dom.append(group, dom.$('.tabbed-action-list-tab-toggle'));
-					dom.append(toggleContainer, dom.$('span', undefined, toggleOptions.label));
-					const toggle = renderDisposables.add(new Switch({ ariaLabel: toggleOptions.ariaLabel }));
-					toggleContainer.appendChild(toggle.domNode);
-					updateTabToggle = () => {
-						const state = toggleOptions.getState();
-						toggleContainer.hidden = !state;
-						group.classList.toggle('has-toggle', !!state);
-						toggle.checked = !!state?.checked;
-						toggle.disabled = !state?.enabled;
-						toggle.setAriaLabel(toggleOptions.ariaLabel, state?.description ?? toggleOptions.ariaLabel);
-						if (state?.description) {
-							toggle.domNode.setAttribute('aria-description', state.description);
-						} else {
-							toggle.domNode.removeAttribute('aria-description');
-						}
-					};
-					updateTabToggle();
-					renderDisposables.add(toggle.onChange(checked => {
-						toggleOptions.onChange(checked);
-						updateTabToggle?.();
-					}));
-				}
-
 				for (const tabAction of options.tabBarActions ?? []) {
 					const container = tabAction.alignEnd ? tabBar : tabStrip;
 					const button = dom.append(container, dom.$('button.tabbed-action-list-tabbar-action'));
@@ -456,8 +411,7 @@ export class TabbedActionListWidget extends Disposable {
 					options.anchor,
 				));
 				listRef = list;
-				const measureSizing = (sizing: ITabbedActionListBuildResult<T>) => Math.max(...[sizing.items, ...sizing.alternateSizingItems ?? []]
-					.map(sizingItems => list.computeHeightForItems(sizingItems, sizing.listOptions?.collapsedByDefault, sizing.listOptions))) || undefined;
+				const measureSizing = (sizing: ITabbedActionListBuildResult<T>) => list.computeHeightForItems(sizing.items, sizing.listOptions?.collapsedByDefault, sizing.listOptions) || undefined;
 				this._focusItemAction = (itemId, actionId) => !body.inert && list.focusItemAction(itemId, actionId);
 				this._focusItem = itemId => {
 					if (body.inert) {
@@ -484,7 +438,6 @@ export class TabbedActionListWidget extends Disposable {
 						list.setHoverEnabled(false);
 					}
 					applyWidgetClassNames();
-					updateTabToggle?.();
 					const sizing = sizingTab !== undefined
 						? options.createActionList(sizingTab, true)
 						: undefined;
@@ -781,7 +734,7 @@ export class TabbedActionListWidget extends Disposable {
 					// The empty body and the hover panel carry controls of their own, e.g. a
 					// sign-in button or the detail card's pin. Keys pressed there belong to
 					// those controls rather than to the list sitting behind them.
-					const onOwnControls = !!target?.closest('.tabbed-action-list-empty, .action-list-submenu-panel, .tabbed-action-list-details, .action-list-item-toolbar, .tabbed-action-list-tab-toggle');
+					const onOwnControls = !!target?.closest('.tabbed-action-list-empty, .action-list-submenu-panel, .tabbed-action-list-details, .action-list-item-toolbar');
 					const listNavigation = !onTabBar && !onFooter && !onOwnControls;
 
 					if (e.keyCode === KeyCode.Escape) {
