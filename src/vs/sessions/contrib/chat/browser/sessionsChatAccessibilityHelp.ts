@@ -34,7 +34,7 @@ import { SESSIONS_CHAT_TABS_DEFAULT, SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_G
 import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COMPARE_AGENTS_ENABLED_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../common/constants.js';
 import { IAgentHostFilterService } from '../../../services/agentHostFilter/common/agentHostFilter.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
-import { RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { RemoteAgentHostAutoConnectSettingId, RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING } from './responseSelectionSideChatController.js';
 import { areDevContainerSamplesEnabled } from '../../../common/devContainerAgentHostService.js';
@@ -61,7 +61,7 @@ export class SessionsChatAccessibilityHelp implements IAccessibleViewImplementat
 			&& configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
 			content.push(localize('sessionsChat.missionControlHosts', "In Manage Remote Agent Hosts or the workspace picker, choose Environments to discover your environments without starting compute or sessions. Use the arrow keys to choose an environment and Enter to connect. Tab reaches Refresh Environments. Escape returns to the previous control. Environment options offer Reconnect, Disconnect, and Rename. Rename changes only this profile's label, not the remote machine's name. The picker shows whether each environment is online or offline and whether you are connected to it."));
 			if (isWeb) {
-				content.push(localize('sessionsChat.webMissionControlHosts', "On the web, the host picker includes Dev Tunnels and GitHub environments. Online GitHub environments connect automatically when chat.remoteAgentHosts.autoConnect is enabled, so their sessions appear in the Sessions list. An explicit Disconnect keeps that environment disconnected until you connect it again. Use Tab to reach the host picker, Enter or Space to open it, and arrow keys and Enter to choose a host, Connect, Disconnect, or Re-discover Hosts. On phones, the Hosts sheet offers Re-discover hosts and Open Connection Information for connection controls."));
+				content.push(localize('sessionsChat.webMissionControlHosts', "On the web, the host picker includes Dev Tunnels and GitHub environments. Online GitHub environments connect automatically when {0} is enabled, so their sessions appear in the Sessions list. An explicit Disconnect keeps that environment disconnected until you connect it again. Use Tab to reach the host picker, Enter or Space to open it, and arrow keys and Enter to choose a host, Connect, Disconnect, or Re-discover Hosts. On phones, the Hosts sheet offers Re-discover hosts and Open Connection Information for connection controls.", RemoteAgentHostAutoConnectSettingId));
 			}
 		}
 		content.push(localize('sessionsChat.input', "You are in the chat input. Type a message and press Enter to send it."));

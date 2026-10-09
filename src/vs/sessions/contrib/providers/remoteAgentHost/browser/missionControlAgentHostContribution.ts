@@ -36,6 +36,7 @@ export class MissionControlAgentHostContribution extends EntryDrivenProviderCont
 	protected readonly _entryType = RemoteAgentHostEntryType.CloudSandbox;
 	protected get isWebPlatform(): boolean { return isWeb; }
 	private readonly _pendingConnects = new Map<string, Promise<void>>();
+	private _discovery: Promise<void> | undefined;
 
 	constructor(
 		@IRemoteAgentHostService remoteAgentHostService: IRemoteAgentHostService,
@@ -64,16 +65,29 @@ export class MissionControlAgentHostContribution extends EntryDrivenProviderCont
 			this._requestAutoConnections();
 		}));
 		this._register(filterService.registerDiscoveryHandler(() => this._discover()));
-		void filterService.rediscover();
+		void this._refreshInventory().catch(error => {
+			if (!isCancellationError(error)) {
+				this._logService.warn('Mission Control discovery failed; retaining known hosts', error);
+			}
+		});
 	}
 
 	private _autoConnectSuppressionKey(id: string, account: string): string {
 		return `missionControl.userLocalAutoConnectSuppressed.v1.${encodeURIComponent(this._profileService.currentProfile.id)}.${encodeURIComponent(account)}.${id}`;
 	}
 
+	private _refreshInventory(): Promise<void> {
+		if (!this._discovery) {
+			this._discovery = this._inventory.refresh(CancellationToken.None).finally(() => {
+				this._discovery = undefined;
+			});
+		}
+		return this._discovery;
+	}
+
 	private async _discover(): Promise<void> {
 		try {
-			await this._inventory.refresh(CancellationToken.None);
+			await this._refreshInventory();
 		} catch (error) {
 			if (!isCancellationError(error)) {
 				this._logService.warn('Mission Control discovery failed; retaining known hosts', error);

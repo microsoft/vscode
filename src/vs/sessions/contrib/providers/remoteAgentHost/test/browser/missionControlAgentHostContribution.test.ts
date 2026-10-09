@@ -87,6 +87,7 @@ suite('Mission Control native provider inventory', () => {
 		storage?: InMemoryStorageService;
 		connect?: () => Promise<void>;
 		refresh?: () => Promise<void>;
+		sharedStartupFirst?: boolean;
 	} = {}) {
 		const instantiation = store.add(new TestInstantiationService());
 		const hosts = observableValue<readonly IMissionControlHost[]>('hosts', []);
@@ -95,11 +96,15 @@ suite('Mission Control native provider inventory', () => {
 		const actions: string[] = [];
 		const connections = new Map<string, IRemoteAgentHostConnectionInfo>();
 		const connectionsChanged = store.add(new Emitter<void>());
-		let discover: () => Promise<void> = async () => { };
+		let sharedDiscoveries = 0;
+		let tunnelDiscoveries = 0;
+		const discoveryHandlers = new Set<() => Promise<void>>([async () => { tunnelDiscoveries++; }]);
 		const rediscover = async () => {
-			const results = await Promise.allSettled([discover()]);
-			return results[0].status === 'fulfilled';
+			sharedDiscoveries++;
+			const results = await Promise.allSettled([...discoveryHandlers].map(handler => handler()));
+			return results.every(result => result.status === 'fulfilled');
 		};
+		const sharedStartup = options.sharedStartupFirst ? rediscover() : undefined;
 		instantiation.stub(IStorageService, options.storage ?? store.add(new InMemoryStorageService()));
 		instantiation.stub(IUserDataProfileService, new class extends mock<IUserDataProfileService>() {
 			override readonly currentProfile = new class extends mock<IUserDataProfile>() {
@@ -123,8 +128,8 @@ suite('Mission Control native provider inventory', () => {
 		instantiation.stub(ILogService, store.add(new NullLogService()));
 		instantiation.stub(IAgentHostFilterService, new class extends mock<IAgentHostFilterService>() {
 			override registerDiscoveryHandler(handler: () => Promise<void>) {
-				discover = handler;
-				return toDisposable(() => { });
+				discoveryHandlers.add(handler);
+				return toDisposable(() => discoveryHandlers.delete(handler));
 			}
 			override rediscover() { return rediscover(); }
 		}());
@@ -162,7 +167,8 @@ suite('Mission Control native provider inventory', () => {
 			}
 		}));
 		return {
-			hosts, created, actions, contribution, rediscover, configuration,
+			hosts, created, actions, contribution, rediscover, configuration, sharedStartup,
+			getDiscoveryCounts: () => ({ sharedDiscoveries, tunnelDiscoveries, missionControlDiscoveries: actions.filter(action => action === 'discover').length }),
 			changeAccount: () => { hosts.set([], undefined); connections.clear(); account = 'second'; },
 		};
 	}
@@ -188,7 +194,23 @@ suite('Mission Control native provider inventory', () => {
 				addresses: ['cloudsandbox:online', 'cloudsandbox:offline'],
 				statuses: [connects ? 'connected' : 'disconnected', 'disconnected'],
 				connects: connects ? ['connect:online'] : [],
-				discoveries: 2,
+				discoveries: 1,
+			});
+		});
+	}
+
+	for (const sharedStartupFirst of [true, false]) {
+		test(`startup discovery does not repeat tunnel discovery (${sharedStartupFirst ? 'tunnel' : 'Mission Control'} first)`, async () => {
+			const gate = new DeferredPromise<void>();
+			const context = fixture('profile', { sharedStartupFirst, refresh: () => gate.p });
+			const sharedStartup = context.sharedStartup ?? context.rediscover();
+			const pending = context.getDiscoveryCounts();
+			await gate.complete();
+			await sharedStartup;
+			await context.rediscover();
+			assert.deepStrictEqual({ pending, refreshed: context.getDiscoveryCounts() }, {
+				pending: { sharedDiscoveries: 1, tunnelDiscoveries: 1, missionControlDiscoveries: 1 },
+				refreshed: { sharedDiscoveries: 2, tunnelDiscoveries: 2, missionControlDiscoveries: 2 },
 			});
 		});
 	}
