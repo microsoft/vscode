@@ -64,7 +64,7 @@ export function remoteSessionSnapshot(chat: ChatState): IRemoteSessionSnapshot {
 	const errorPart = getErrorResponsePart(turn);
 	const errorMessage = errorPart?.error.message ?? '';
 	const queuedMessages = chat.queuedMessages?.length ?? 0;
-	const hasSteeringMessage = chat.steeringMessage !== undefined;
+	const hasSteeringMessage = chat.steeringMessage !== undefined || (chat.steeringMessages?.length ?? 0) > 0;
 	const status = (chat.status & SessionStatus.InputNeeded) === SessionStatus.InputNeeded ? 'needsInput'
 		: chat.activeTurn || (chat.status & SessionStatus.InProgress) !== 0 ? 'running'
 			: turnStatus === 'failed' || (chat.status & SessionStatus.Error) !== 0 ? 'failed'

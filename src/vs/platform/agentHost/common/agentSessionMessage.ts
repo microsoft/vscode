@@ -7,20 +7,26 @@ import { isEqual } from '../../../base/common/resources.js';
 import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { readAgentMessageDelegationMeta, type IAgentMessageSessionDelegationMeta } from './meta/agentMessageDelegationMeta.js';
-import { PendingMessageKind, type ChatState, type Message } from './state/sessionState.js';
+import { PendingMessageKind, type ChatState, type Message, type PendingMessage } from './state/sessionState.js';
 
 export type AgentSessionMessageState =
 	| { readonly status: 'pending'; readonly kind: PendingMessageKind; readonly message: Message }
 	| { readonly status: 'processing'; readonly message: Message }
 	| { readonly status: 'completed'; readonly message: Message };
 
+/** Includes both legacy-slot and independently submitted steering messages. */
+export function getPendingSteeringMessages(state: Pick<ChatState, 'steeringMessage' | 'steeringMessages'>): readonly PendingMessage[] {
+	return state.steeringMessage ? [state.steeringMessage, ...state.steeringMessages ?? []] : state.steeringMessages ?? [];
+}
+
 /** Finds an inter-session message wherever it currently lives in a chat. */
 export function findAgentSessionMessage(state: ChatState | undefined, messageId: string): AgentSessionMessageState | undefined {
 	if (!state) {
 		return undefined;
 	}
-	if (state.steeringMessage?.id === messageId) {
-		return { status: 'pending', kind: PendingMessageKind.Steering, message: state.steeringMessage.message };
+	const steering = getPendingSteeringMessages(state).find(message => message.id === messageId);
+	if (steering) {
+		return { status: 'pending', kind: PendingMessageKind.Steering, message: steering.message };
 	}
 	const queued = state.queuedMessages?.find(message => message.id === messageId);
 	if (queued) {

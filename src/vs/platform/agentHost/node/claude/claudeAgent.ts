@@ -2435,7 +2435,11 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		sess.abort();
 	}
 
-	setPendingMessages(chat: URI, steeringMessage: PendingMessage | undefined, _queuedMessages: readonly PendingMessage[]): void {
+	sendSteeringMessage(chat: URI, message: PendingMessage): boolean {
+		return this.setPendingMessages(chat, message, []);
+	}
+
+	setPendingMessages(chat: URI, steeringMessage: PendingMessage | undefined, _queuedMessages: readonly PendingMessage[]): boolean {
 		// Queued messages are intentionally a no-op. CONTEXT.md M10 +
 		// AgentSideEffects confirm queued messages are consumed server-side;
 		// the agent boundary always receives an empty queue.
@@ -2446,11 +2450,15 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		this._logService.info(`[Claude] setPendingMessages for ${chat.toString()}: steering=${steeringMessage?.id ?? 'none'} queued=${_queuedMessages.length}`);
 		if (!target) {
 			this._logService.warn(`[Claude] setPendingMessages: target not found for ${chat.toString()}`);
-			return;
+			return false;
 		}
 		if (steeringMessage) {
+			if (!target.hasActiveTurn) {
+				return false;
+			}
 			target.injectSteering(steeringMessage);
 		}
+		return true;
 	}
 
 	private async _changeModel(chat: URI, model: ModelSelection, operationContext: URI | IAgentChatContext): Promise<void> {

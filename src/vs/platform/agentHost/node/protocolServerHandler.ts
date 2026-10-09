@@ -247,6 +247,7 @@ type ChannelSubscription =
  */
 interface IConnectedClient {
 	readonly legacySessionUris: boolean;
+	readonly steeringMessages: boolean;
 	devContainers?: DevContainerAgentHostProtocol;
 	readonly clientId: string;
 	readonly clientInfo: Implementation | undefined;
@@ -302,6 +303,7 @@ interface IActiveClientRecord {
 
 interface IGraceClientRecord {
 	readonly legacySessionUris?: boolean;
+	readonly steeringMessages?: boolean;
 	readonly state: 'grace';
 	readonly seenConnection: boolean;
 	readonly clientInfo: Implementation | undefined;
@@ -677,6 +679,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 							clientInfo: record.clientInfo,
 							telemetryContext: client.telemetryContext,
 							protocolVersion: client.protocolVersion,
+							steeringMessages: client.steeringMessages,
 							lastSeenAt: Date.now(),
 							disconnectTimeouts: new DisposableMap(),
 						});
@@ -733,6 +736,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		const telemetryContext = this._createClientTelemetryContext(params.clientInfo, params._meta, transport);
 		const client: IConnectedClient = {
 			legacySessionUris: getAgentHostClientType(params.clientInfo) !== AgentHostClientType.Unknown && !supportsAgentHostSessionUris(params),
+			steeringMessages: params.capabilities?.steeringMessages !== undefined && !this._config.relayRoots,
 			clientId: params.clientId,
 			clientInfo: params.clientInfo,
 			telemetryContext,
@@ -789,6 +793,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 
 			const response: IAgentHostExtensionInitializeResult = {
 				protocolVersion: negotiated,
+				steeringMessages: client.steeringMessages ? {} : undefined,
 				serverSeq: this._stateManager.serverSeq,
 				_meta: this._config.relayRoots || this._config.relayRootMeta ? {
 					[AgentHostNativeImplementationMetaKey]: true,
@@ -990,6 +995,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		const initializationDisposables = disposables.add(new DisposableStore());
 		const client: IConnectedClient = {
 			legacySessionUris: getAgentHostClientType(existingRecord.clientInfo) !== AgentHostClientType.Unknown && !supportsAgentHostSessionUris(params),
+			steeringMessages: (existingRecord.state === 'active' ? existingRecord.connections.at(-1)?.steeringMessages : existingRecord.steeringMessages) ?? false,
 			clientId: params.clientId,
 			clientInfo: existingRecord.clientInfo,
 			telemetryContext: this._createClientTelemetryContext(existingRecord.clientInfo, params._meta, transport, priorTelemetryContext?.connectionKind),
@@ -2220,6 +2226,8 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			rejection = 'Passive relay connections cannot mutate state';
 		} else if (IS_CLIENT_DISPATCHABLE[action.type] !== true) {
 			rejection = `Server-only action: ${action.type}`;
+		} else if ((action.type === ActionType.ChatSteeringMessageSet || action.type === ActionType.ChatSteeringMessageRemoved) && !client.steeringMessages) {
+			rejection = 'Independent steering messages were not negotiated.';
 		} else if (UNSUPPORTED_CLIENT_ACTION_TYPES.has(action.type)) {
 			rejection = `Unsupported action: ${action.type}`;
 		}
@@ -2473,6 +2481,10 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 
 	private _projectRelayRootSnapshot(client: IConnectedClient, snapshot: IStateSnapshot): IStateSnapshot {
 		snapshot = this._projectSnapshot(snapshot);
+		if (!client.steeringMessages && isAhpChatChannel(snapshot.resource) && hasKey(snapshot.state, { turns: true })) {
+			const { steeringMessages: _steeringMessages, ...state } = snapshot.state;
+			return { ...snapshot, state };
+		}
 		if (client.transport.relayClientId === undefined || !isAhpRootChannel(snapshot.resource) || !hasKey(snapshot.state, { agents: true })) {
 			return snapshot;
 		}
@@ -3113,6 +3125,11 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	}
 
 	private _isRelevantToClient(client: IConnectedClient, envelope: ActionEnvelope): boolean {
+		if (!client.steeringMessages
+			&& (envelope.action.type === ActionType.ChatSteeringMessageSet || envelope.action.type === ActionType.ChatSteeringMessageRemoved)
+			&& !(envelope.rejectionReason && envelope.origin?.clientId === client.clientId)) {
+			return false;
+		}
 		if (client.transport.relayAuthentication?.authenticated === false || !this._isChannelVisible(client, envelope.channel)) {
 			return false;
 		}

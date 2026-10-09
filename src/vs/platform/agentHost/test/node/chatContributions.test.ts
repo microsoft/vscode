@@ -1014,9 +1014,14 @@ function createQueueDrainContributions(disposables: ReturnType<typeof ensureNoDi
 	let agent: MockAgent | undefined = mockAgent;
 	const pendingMessages: (PendingMessage | undefined)[] = [];
 	const pendingMessageSenders: (string | undefined)[] = [];
+	let steeringReady = true;
 	mockAgent.setPendingMessages = (_chat, steeringMessage, _queuedMessages, steeringSender) => {
+		if (steeringMessage && !steeringReady) {
+			return false;
+		}
 		pendingMessages.push(steeringMessage);
 		pendingMessageSenders.push(steeringSender?.clientId);
+		return true;
 	};
 	services.set(IAgentHostProviderService, createTestAgentHostProviderService(() => agent));
 	services.set(IAgentHostLocalTurns, new AgentHostLocalTurns(sessionDataService, logService));
@@ -1041,7 +1046,7 @@ function createQueueDrainContributions(disposables: ReturnType<typeof ensureNoDi
 	disposables.add(service.registerContribution(LocalCommandContribution as unknown as IConstructorSignature<IAgentHostChatContribution, [IAgentHostChatContributionContext]> & { readonly id: string }));
 	disposables.add(service.registerContribution(SessionWorkspaceConversionContribution as unknown as IConstructorSignature<IAgentHostChatContribution, [IAgentHostChatContributionContext]> & { readonly id: string }));
 	disposables.add(service.registerContribution(QueueDrainContribution as unknown as IConstructorSignature<IAgentHostChatContribution, [IAgentHostChatContributionContext]> & { readonly id: string }));
-	return { service, stateManager, session, chat, pendingMessages, pendingMessageSenders, admitted, titleController, telemetryService, clearAgent: () => agent = undefined, setConversionPending: (pending: boolean) => conversionPending = pending };
+	return { service, stateManager, session, chat, pendingMessages, pendingMessageSenders, admitted, titleController, telemetryService, clearAgent: () => agent = undefined, setConversionPending: (pending: boolean) => conversionPending = pending, setSteeringReady: (ready: boolean) => steeringReady = ready };
 }
 
 function appliedClientAction(channel: string, session: string, action: IAppliedClientAction['action'], clientId = 'client'): IAppliedClientAction {
@@ -1607,6 +1612,99 @@ suite('AgentHostChatContributions', () => {
 			messages: ['first', 'second', 'second', 'second', undefined, 'second'],
 			senders: ['first-client', 'second-client', 'second-client', 'second-client', undefined, undefined],
 		});
+	});
+
+	test('queue drain delivers independent steering once with per-message senders', () => {
+		const queue = createQueueDrainContributions(disposables);
+		queue.stateManager.dispatchServerAction(queue.chat, {
+			type: ActionType.ChatTurnStarted, turnId: 'active-turn',
+			startedAt: '2026-10-08T00:00:00.000Z',
+			message: { text: 'Working', origin: { kind: MessageKind.User } },
+		});
+		for (const id of ['a', 'b']) {
+			const action: IAppliedClientAction['action'] = {
+				type: ActionType.ChatSteeringMessageSet,
+				steeringMessage: { id, message: { text: id, origin: { kind: MessageKind.User } } },
+			};
+			queue.stateManager.dispatchServerAction(queue.chat, action);
+			queue.service.didApplyClientAction(appliedClientAction(queue.chat, queue.session, action, `client-${id}`));
+			queue.service.didApplyClientAction(appliedClientAction(queue.chat, queue.session, action, `client-${id}`));
+		}
+		const remove: IDispatchedAction['action'] = { type: ActionType.ChatSteeringMessageRemoved, id: 'a' };
+		queue.stateManager.dispatchServerAction(queue.chat, remove);
+		queue.service.didDispatchAction(dispatchedAction(queue.chat, queue.session, remove));
+		assert.deepStrictEqual({
+			delivered: queue.pendingMessages.map(message => message?.id),
+			senders: queue.pendingMessageSenders,
+			pending: queue.stateManager.getChatState(queue.chat)?.steeringMessages?.map(message => message.id),
+		}, { delivered: ['a', 'b'], senders: ['client-a', 'client-b'], pending: ['b'] });
+	});
+
+	test('queue drain holds independent steering until a turn starts', () => {
+		const queue = createQueueDrainContributions(disposables);
+		const steer: IDispatchedAction['action'] = {
+			type: ActionType.ChatSteeringMessageSet,
+			steeringMessage: { id: 'a', message: { text: 'A', origin: { kind: MessageKind.User } } },
+		};
+		queue.stateManager.dispatchServerAction(queue.chat, steer);
+		queue.service.didDispatchAction(dispatchedAction(queue.chat, queue.session, steer));
+		const before = [...queue.pendingMessages];
+		const start: IDispatchedAction['action'] = {
+			type: ActionType.ChatTurnStarted, turnId: 'active-turn',
+			startedAt: '2026-10-08T00:00:00.000Z',
+			message: { text: 'Working', origin: { kind: MessageKind.User } },
+		};
+		queue.stateManager.dispatchServerAction(queue.chat, start);
+		queue.service.didDispatchAction(dispatchedAction(queue.chat, queue.session, start));
+		assert.deepStrictEqual({ before, after: queue.pendingMessages.map(message => message?.id) }, { before: [], after: ['a'] });
+	});
+
+	test('queue drain retries deferred steering when provider progress arrives', () => {
+		const queue = createQueueDrainContributions(disposables);
+		queue.setSteeringReady(false);
+		queue.stateManager.dispatchServerAction(queue.chat, {
+			type: ActionType.ChatTurnStarted, turnId: 'active-turn',
+			startedAt: '2026-10-08T00:00:00.000Z',
+			message: { text: 'Working', origin: { kind: MessageKind.User } },
+		});
+		const steer: IDispatchedAction['action'] = {
+			type: ActionType.ChatSteeringMessageSet,
+			steeringMessage: { id: 'a', message: { text: 'A', origin: { kind: MessageKind.User } } },
+		};
+		queue.stateManager.dispatchServerAction(queue.chat, steer);
+		queue.service.didDispatchAction(dispatchedAction(queue.chat, queue.session, steer));
+		const before = [...queue.pendingMessages];
+		queue.setSteeringReady(true);
+		const progress: IDispatchedAction['action'] = {
+			type: ActionType.ChatResponsePart, turnId: 'active-turn',
+			part: { kind: ResponsePartKind.Markdown, id: 'part', content: 'Working' },
+		};
+		queue.stateManager.dispatchServerAction(queue.chat, progress);
+		queue.service.didDispatchAction(dispatchedAction(queue.chat, queue.session, progress));
+		queue.service.didDispatchAction(dispatchedAction(queue.chat, queue.session, progress));
+		assert.deepStrictEqual({ before, after: queue.pendingMessages.map(message => message?.id) }, { before: [], after: ['a'] });
+	});
+
+	test('queue drain clears deferred independent steering when its turn is cancelled', () => {
+		const queue = createQueueDrainContributions(disposables);
+		queue.setSteeringReady(false);
+		queue.stateManager.dispatchServerAction(queue.chat, {
+			type: ActionType.ChatTurnStarted, turnId: 'active-turn',
+			startedAt: '2026-10-08T00:00:00.000Z',
+			message: { text: 'Working', origin: { kind: MessageKind.User } },
+		});
+		const steer: IDispatchedAction['action'] = {
+			type: ActionType.ChatSteeringMessageSet,
+			steeringMessage: { id: 'a', message: { text: 'A', origin: { kind: MessageKind.User } } },
+		};
+		queue.stateManager.dispatchServerAction(queue.chat, steer);
+		queue.service.didDispatchAction(dispatchedAction(queue.chat, queue.session, steer));
+		queue.stateManager.dispatchServerAction(queue.chat, { type: ActionType.ChatTurnCancelled, turnId: 'active-turn', duration: 0 });
+		queue.service.turnEnd({ session: queue.session, channel: queue.chat, turnId: 'active-turn', reason: { kind: 'cancelled' } });
+		assert.deepStrictEqual({
+			delivered: queue.pendingMessages,
+			pending: queue.stateManager.getChatState(queue.chat)?.steeringMessages,
+		}, { delivered: [], pending: undefined });
 	});
 
 	test('queue drain forwards server-dispatched steering to the provider', () => {

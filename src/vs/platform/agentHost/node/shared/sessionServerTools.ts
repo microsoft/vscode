@@ -7,7 +7,7 @@ import type { Mutable } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { basename, isEqual } from '../../../../base/common/resources.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { findAgentSessionMessage, readOwnedAgentSessionMessage } from '../../common/agentSessionMessage.js';
+import { findAgentSessionMessage, getPendingSteeringMessages, readOwnedAgentSessionMessage } from '../../common/agentSessionMessage.js';
 import { toAgentMessageDelegationMeta, type IAgentMessageDelegationMeta, type IAgentMessageSessionDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
 import { localize } from '../../../../nls.js';
 import { AgentSession, type AgentProvider, type IAgentCreateSessionConfig, type IAgentModelInfo, type IAgentSessionMetadata } from '../../common/agent.js';
@@ -1333,7 +1333,7 @@ export async function applySendMessageTool(accessor: ISessionServerToolAccessor,
 	} : undefined;
 	const targetState = stateManager?.getChatState(chat.toString());
 	if (args.delivery === 'steer') {
-		if (!stateManager || !targetState?.activeTurn || targetState.steeringMessage) {
+		if (!stateManager || !targetState?.activeTurn) {
 			return JSON.stringify({
 				action: 'rejected',
 				reason: 'cannotSteer',
@@ -1342,14 +1342,12 @@ export async function applySendMessageTool(accessor: ISessionServerToolAccessor,
 			});
 		}
 		stateManager.dispatchServerAction(chat.toString(), {
-			type: ActionType.ChatPendingMessageSet,
-			kind: PendingMessageKind.Steering,
-			id: messageId,
-			message: createAgentSessionMessage(args.message, delegation),
+			type: ActionType.ChatSteeringMessageSet,
+			steeringMessage: { id: messageId, message: createAgentSessionMessage(args.message, delegation) },
 		});
 		return JSON.stringify({ action: 'steered', messageId, revision, status: 'processing', openLink });
 	}
-	if (stateManager && (targetState?.activeTurn || targetState?.steeringMessage || targetState?.queuedMessages?.length)) {
+	if (stateManager && targetState && (targetState.activeTurn || getPendingSteeringMessages(targetState).length > 0 || targetState.queuedMessages?.length)) {
 		stateManager.dispatchServerAction(chat.toString(), {
 			type: ActionType.ChatPendingMessageSet,
 			kind: PendingMessageKind.Queued,

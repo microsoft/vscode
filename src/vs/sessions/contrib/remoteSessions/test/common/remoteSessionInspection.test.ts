@@ -86,6 +86,7 @@ suite('RemoteSessionInspection', () => {
 			chat(),
 			chat({ queuedMessages: [pending] }),
 			chat({ steeringMessage: pending }),
+			chat({ steeringMessages: [pending] }),
 			chat({ activeTurn, status: SessionStatus.InProgress | SessionStatus.IsRead }),
 			chat({ activeTurn, status: SessionStatus.InputNeeded | SessionStatus.IsRead | SessionStatus.IsArchived }),
 			chat({ turns: [turn()], status: SessionStatus.Idle | SessionStatus.IsArchived }),
@@ -94,7 +95,7 @@ suite('RemoteSessionInspection', () => {
 			chat({ status: SessionStatus.Error }),
 			chat({ turns: [turn({ state: TurnState.Error })], activeTurn, status: SessionStatus.InProgress }),
 		].map(state => remoteSessionSnapshot(state).status), [
-			'idle', 'queued', 'queued', 'running', 'needsInput', 'completed', 'cancelled', 'failed', 'failed', 'running',
+			'idle', 'queued', 'queued', 'queued', 'running', 'needsInput', 'completed', 'cancelled', 'failed', 'failed', 'running',
 		]);
 	});
 

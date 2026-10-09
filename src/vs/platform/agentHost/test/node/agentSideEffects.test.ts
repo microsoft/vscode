@@ -4999,6 +4999,28 @@ suite('AgentSideEffects', () => {
 			assert.strictEqual(state?.queuedMessages?.[0].id, 'q-wait');
 		});
 
+		test('steering_consumed removes only the matching independent steering message', () => {
+			setupSession();
+			disposables.add(sideEffects.registerProgressListener(agent));
+			const removals: string[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(envelope => {
+				if (envelope.action.type === ActionType.ChatSteeringMessageRemoved) {
+					removals.push(envelope.action.id);
+				}
+			}));
+			for (const id of ['a', 'b']) {
+				stateManager.dispatchServerAction(defaultChatUri, {
+					type: ActionType.ChatSteeringMessageSet,
+					steeringMessage: { id, message: { text: id, origin: { kind: MessageKind.User } } },
+				});
+			}
+			agent.fireProgress({ kind: 'steering_consumed', chat: URI.parse(defaultChatUri), id: 'a' });
+			assert.deepStrictEqual({
+				removals,
+				pending: stateManager.getChatState(defaultChatUri)?.steeringMessages?.map(message => message.id),
+			}, { removals: ['a'], pending: ['b'] });
+		});
+
 		test('dispatches ChatPendingMessageRemoved for steering messages on steering_consumed', () => {
 			setupSession();
 			disposables.add(sideEffects.registerProgressListener(agent));

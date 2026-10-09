@@ -696,7 +696,12 @@ export class AgentSideEffects extends Disposable {
 		}
 
 		if (signal.kind === 'steering_consumed') {
-			this._stateManager.dispatchServerAction(signal.chat.toString(), {
+			const channel = signal.chat.toString();
+			const isListed = this._stateManager.getChatState(channel)?.steeringMessages?.some(message => message.id === signal.id);
+			this._stateManager.dispatchServerAction(channel, isListed ? {
+				type: ActionType.ChatSteeringMessageRemoved,
+				id: signal.id,
+			} : {
 				type: ActionType.ChatPendingMessageRemoved,
 				kind: PendingMessageKind.Steering,
 				id: signal.id,
@@ -1795,6 +1800,8 @@ export class AgentSideEffects extends Disposable {
 			}
 			case ActionType.ChatPendingMessageSet:
 			case ActionType.ChatPendingMessageRemoved:
+			case ActionType.ChatSteeringMessageSet:
+			case ActionType.ChatSteeringMessageRemoved:
 			case ActionType.ChatQueuedMessagesReordered: {
 				if (!chatChannel) {
 					throw new Error(`${action.type} must be handled on an AHP chat channel: ${channel}`);

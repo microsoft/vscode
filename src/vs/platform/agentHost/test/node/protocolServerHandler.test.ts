@@ -553,6 +553,98 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
+	for (const supportsList of [false, true]) {
+		test(`independent steering negotiation filters snapshots, live actions and reconnect replay (supported=${supportsList})`, async () => {
+			stateManager.createSession(makeSessionSummary());
+			for (const id of ['a', 'b']) {
+				stateManager.dispatchServerAction(defaultChatUri, {
+					type: ActionType.ChatSteeringMessageSet,
+					steeringMessage: { id, message: { text: id, origin: { kind: MessageKind.User } } },
+				});
+			}
+			const transport = new MockProtocolTransport();
+			server.simulateConnection(transport);
+			const initialized = waitForResponse(transport, 1);
+			transport.simulateMessage(request(1, 'initialize', {
+				protocolVersions: [PROTOCOL_VERSION],
+				clientId: 'steering-client',
+				capabilities: supportsList ? { steeringMessages: {} } : undefined,
+				initialSubscriptions: [defaultChatUri],
+			}));
+			const response = await initialized;
+			assert.ok(hasKey(response, { result: true }));
+			const result = response.result as InitializeResult;
+			const initialState = result.snapshots.find(snapshot => snapshot.resource === defaultChatUri)?.state as ChatState;
+			const cursor = stateManager.serverSeq;
+			stateManager.dispatchServerAction(defaultChatUri, { type: ActionType.ChatSteeringMessageRemoved, id: 'a' });
+			const live = findNotifications(transport.sent, 'action')
+				.map(notification => notification.params as ActionEnvelope)
+				.filter(envelope => envelope.action.type === ActionType.ChatSteeringMessageRemoved);
+			transport.simulateClose();
+
+			const reconnected = new MockProtocolTransport();
+			server.simulateConnection(reconnected);
+			const replayed = waitForResponse(reconnected, 2);
+			reconnected.simulateMessage(request(2, 'reconnect', {
+				clientId: 'steering-client', lastSeenServerSeq: cursor, subscriptions: [defaultChatUri],
+			}));
+			const replayResponse = await replayed;
+			assert.ok(hasKey(replayResponse, { result: true }));
+			const replay = replayResponse.result as ReconnectResult;
+			assert.ok(replay.type === 'replay');
+			reconnected.simulateClose();
+
+			const snapshotTransport = new MockProtocolTransport();
+			server.simulateConnection(snapshotTransport);
+			const snapshotted = waitForResponse(snapshotTransport, 3);
+			snapshotTransport.simulateMessage(request(3, 'reconnect', {
+				clientId: 'steering-client', lastSeenServerSeq: -1, subscriptions: [defaultChatUri],
+			}));
+			const snapshotResponse = await snapshotted;
+			assert.ok(hasKey(snapshotResponse, { result: true }));
+			const snapshotResult = snapshotResponse.result as ReconnectResult;
+			assert.ok(snapshotResult.type === 'snapshot');
+			const restored = snapshotResult.snapshots.find(snapshot => snapshot.resource === defaultChatUri)?.state as ChatState;
+			assert.deepStrictEqual({
+				capability: result.steeringMessages,
+				initial: initialState.steeringMessages?.map(message => message.id),
+				live: live.map(envelope => envelope.action.type),
+				replay: replay.actions.map(envelope => envelope.action.type),
+				restored: restored.steeringMessages?.map(message => message.id),
+				authoritative: stateManager.getChatState(defaultChatUri)?.steeringMessages?.map(message => message.id),
+			}, {
+				capability: supportsList ? {} : undefined,
+				initial: supportsList ? ['a', 'b'] : undefined,
+				live: supportsList ? [ActionType.ChatSteeringMessageRemoved] : [],
+				replay: supportsList ? [ActionType.ChatSteeringMessageRemoved] : [],
+				restored: supportsList ? ['b'] : undefined,
+				authoritative: ['b'],
+			});
+		});
+	}
+
+	test('rejects independent steering actions without negotiation', async () => {
+		stateManager.createSession(makeSessionSummary());
+		const transport = connectClient('legacy-steering-client', [defaultChatUri]);
+		await handler.whenIdle();
+		transport.simulateMessage({
+			jsonrpc: '2.0', method: 'dispatchAction',
+			params: {
+				channel: defaultChatUri, clientSeq: 1,
+				action: {
+					type: ActionType.ChatSteeringMessageSet,
+					steeringMessage: { id: 'a', message: { text: 'A', origin: { kind: MessageKind.User } } },
+				},
+			},
+		});
+		await handler.whenIdle();
+		const actions = findNotifications(transport.sent, 'action').map(notification => notification.params as ActionEnvelope);
+		assert.deepStrictEqual({
+			rejections: actions.map(action => action.rejectionReason),
+			pending: stateManager.getChatState(defaultChatUri)?.steeringMessages,
+		}, { rejections: ['Independent steering messages were not negotiated.'], pending: undefined });
+	});
+
 	test('isLocalClient requires an active Local MessagePort connection', () => {
 		const results = [];
 		for (const connectionKind of [AgentHostClientConnectionKind.Local, AgentHostClientConnectionKind.SSH, AgentHostClientConnectionKind.Unknown]) {

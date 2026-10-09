@@ -2514,7 +2514,7 @@ suite('SessionServerTools', () => {
 		const steered = JSON.parse(await group.execute(stateManager, context, SessionServerToolName.SendMessage, {
 			operation: 'send', session: targetSession, delivery: 'steer', message: 'focus on tests',
 		}));
-		const rejected = JSON.parse(await group.execute(stateManager, context, SessionServerToolName.SendMessage, {
+		const second = JSON.parse(await group.execute(stateManager, context, SessionServerToolName.SendMessage, {
 			operation: 'send', session: targetSession, delivery: 'steer', message: 'second steering',
 		}));
 		const notReplaced = JSON.parse(await group.execute(stateManager, context, SessionServerToolName.SendMessage, {
@@ -2526,16 +2526,16 @@ suite('SessionServerTools', () => {
 
 		assert.deepStrictEqual({
 			steered: { action: steered.action, status: steered.status },
-			rejected: { action: rejected.action, reason: rejected.reason, targetStatus: rejected.targetStatus },
+			second: { action: second.action, status: second.status },
 			notReplaced: { action: notReplaced.action, reason: notReplaced.reason, status: notReplaced.status },
 			notCancelled: { action: notCancelled.action, reason: notCancelled.reason, status: notCancelled.status },
-			message: stateManager.getChatState(targetChat)?.steeringMessage?.message.text,
+			messages: stateManager.getChatState(targetChat)?.steeringMessages?.map(message => message.message.text),
 		}, {
 			steered: { action: 'steered', status: 'processing' },
-			rejected: { action: 'rejected', reason: 'cannotSteer', targetStatus: 'steeringPending' },
+			second: { action: 'steered', status: 'processing' },
 			notReplaced: { action: 'notReplaced', reason: 'processing', status: 'processing' },
 			notCancelled: { action: 'notCancelled', reason: 'processing', status: 'processing' },
-			message: 'focus on tests',
+			messages: ['focus on tests', 'second steering'],
 		});
 		store.dispose();
 	});

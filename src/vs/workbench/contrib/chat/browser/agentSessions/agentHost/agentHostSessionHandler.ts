@@ -40,6 +40,7 @@ import { AgentHostCanvasCollection } from '../../../../canvases/common/agentHost
 import { ICanvasContext, ICanvasOwner, isCanvasOwner } from '../../../../canvases/common/canvas.js';
 import { CanvasReference } from '../../../../../../platform/agentHost/common/state/protocol/channels-canvas/state.js';
 import { agentHostAuthority, LOCAL_AGENT_HOST_AUTHORITY } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { getPendingSteeringMessages } from '../../../../../../platform/agentHost/common/agentSessionMessage.js';
 import { isCopilotAgentHostProvider, isCopilotAgentHostSessionType } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { isCustomizationEnabled } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
 import { findDeepestContainingWorkingDirectory } from '../../../../../../platform/agentHost/common/agentHostWorkingDirectories.js';
@@ -1161,6 +1162,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	/** Per-session subscription to chat model pending request changes. */
 	private readonly _pendingMessageSubscriptions = this._register(new DisposableResourceMap());
 	private readonly _remotePendingMessageProjections = new ResourceSet();
+	/** Locally retained IDs; true means dispatched but not yet projected by the host. */
+	private readonly _localSteeringSubmissions = new ResourceMap<Map<string, boolean>>();
 	/** Per-session debounced sync from chat input state to AHP draft state. */
 	private readonly _draftSyncSubscriptions = this._register(new DisposableResourceMap());
 	/** Per-session subscription watching for server-initiated turns. */
@@ -2272,15 +2275,21 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const pending = chatModel.getPendingRequests();
 		const protocolState = this._getSessionState(session, chatURI);
 		const prevSteering = protocolState?.steeringMessage;
+		const prevListedSteering = protocolState?.steeringMessages ?? [];
 		const prevQueued = protocolState?.queuedMessages ?? [];
 		const previousMessages = new Map(prevQueued.map(p => [p.id, p.message]));
+		for (const message of prevListedSteering) {
+			previousMessages.set(message.id, message.message);
+		}
 		if (prevSteering) {
 			previousMessages.set(prevSteering.id, prevSteering.message);
 		}
+		const localSteering = this._localSteeringSubmissions.get(sessionResource) ?? new Map<string, boolean>();
+		this._localSteeringSubmissions.set(sessionResource, localSteering);
 
 		// Compute current state from chat model
 		interface IPendingSnapshot { id: string; message: Message }
-		let currentSteering: IPendingSnapshot | undefined;
+		const currentSteering: IPendingSnapshot[] = [];
 		const currentQueued: IPendingSnapshot[] = [];
 		for (const p of pending) {
 			const variables = p.request.variableData?.variables ?? [];
@@ -2299,20 +2308,53 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				},
 			};
 			if (p.kind === ChatRequestQueueKind.Steering) {
-				currentSteering = snapshot;
+				currentSteering.push(snapshot);
+				if (!previousMessages.has(snapshot.id) && !localSteering.has(snapshot.id)) {
+					localSteering.set(snapshot.id, false);
+				}
 			} else {
 				currentQueued.push(snapshot);
 			}
 		}
 
-		// --- Steering ---
-		if (currentSteering) {
-			if (currentSteering.id !== prevSteering?.id || !equals(currentSteering.message, prevSteering.message)) {
+		for (const id of localSteering.keys()) {
+			if (!currentSteering.some(message => message.id === id)) {
+				localSteering.delete(id);
+			}
+		}
+		const supportsSteeringList = this._config.connection.initializeResult.get()?.steeringMessages !== undefined;
+		if (supportsSteeringList) {
+			const listed = currentSteering.filter(message => message.id !== prevSteering?.id);
+			for (const previous of prevListedSteering) {
+				if (!listed.some(message => message.id === previous.id)) {
+					this._dispatchAction(backendSession, { type: ActionType.ChatSteeringMessageRemoved, id: previous.id }, chatURI);
+				}
+			}
+			for (const message of listed) {
+				const previous = prevListedSteering.find(pending => pending.id === message.id);
+				if ((!previous && localSteering.get(message.id) === true) || (previous && equals(previous.message, message.message))) {
+					continue;
+				}
+				if (!previous) {
+					localSteering.set(message.id, true);
+				}
+				this._dispatchAction(backendSession, { type: ActionType.ChatSteeringMessageSet, steeringMessage: message }, chatURI);
+			}
+		}
+
+		const currentLegacySteering = prevSteering
+			? currentSteering.find(message => message.id === prevSteering.id)
+			: !supportsSteeringList && ![...localSteering.values()].some(submitted => submitted) ? currentSteering[0] : undefined;
+		if (currentLegacySteering) {
+			if (currentLegacySteering.id !== prevSteering?.id || !equals(currentLegacySteering.message, prevSteering.message)) {
+				if (!prevSteering) {
+					localSteering.set(currentLegacySteering.id, true);
+				}
 				this._dispatchAction(backendSession, {
 					type: ActionType.ChatPendingMessageSet,
 					kind: PendingMessageKind.Steering,
-					id: currentSteering.id,
-					message: currentSteering.message,
+					id: currentLegacySteering.id,
+					message: currentLegacySteering.message,
 				}, chatURI);
 			}
 		} else if (prevSteering) {
@@ -2370,7 +2412,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * The protocol is authoritative, so matching local state is a no-op.
 	 */
 	private _applyRemotePendingMessages(sessionResource: URI, backendSession: URI): void {
-		if (!this._chatService.getSession(sessionResource)) {
+		const model = this._chatService.getSession(sessionResource);
+		if (!model) {
 			return;
 		}
 		const chatURI = this._chatURIsBySessionResource.get(sessionResource);
@@ -2399,6 +2442,30 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (state.steeringMessage) {
 			remote.push(toRemote(state.steeringMessage, ChatRequestQueueKind.Steering));
 		}
+		for (const message of state.steeringMessages ?? []) {
+			remote.push(toRemote(message, ChatRequestQueueKind.Steering));
+		}
+		const localSteering = this._localSteeringSubmissions.get(sessionResource);
+		for (const message of remote) {
+			localSteering?.delete(message.id);
+		}
+		for (const pending of model.getPendingRequests()) {
+			if (pending.kind !== ChatRequestQueueKind.Steering || !localSteering?.has(pending.request.id)) {
+				continue;
+			}
+			remote.push({
+				id: pending.request.id,
+				kind: pending.kind,
+				message: pending.request.message.text,
+				variableData: pending.request.variableData,
+				modelId: pending.request.modelId ?? pending.sendOptions.userSelectedModelId,
+				modelConfiguration: pending.request.modelConfiguration ?? pending.sendOptions.userSelectedModelConfiguration,
+				metadata: pending.sendOptions.metadata,
+				agentHostMessageOrigin: pending.sendOptions.agentHostMessageOrigin,
+				isSystemInitiated: pending.request.isSystemInitiated ?? pending.sendOptions.isSystemInitiated,
+				systemInitiatedLabel: pending.request.systemInitiatedLabel ?? pending.sendOptions.systemInitiatedLabel,
+			});
+		}
 		for (const queued of state.queuedMessages ?? []) {
 			remote.push(toRemote(queued, ChatRequestQueueKind.Queued));
 		}
@@ -2408,6 +2475,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			this._chatService.syncPendingRequestsFromRemote(sessionResource, remote);
 		} finally {
 			this._remotePendingMessageProjections.delete(sessionResource);
+		}
+		if (localSteering && [...localSteering.values()].some(submitted => !submitted)) {
+			this._syncPendingMessages(sessionResource, backendSession);
 		}
 	}
 
@@ -2570,7 +2640,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const currentState = this._getSessionState(sessionStr, chatURI);
 		let lastSeenTurnId: string | undefined = currentState?.activeTurn?.id;
 		let previousQueuedIds: Set<string> | undefined;
-		let previousSteeringId: string | undefined = currentState?.steeringMessage?.id;
+		let previousSteeringIds = new Set(currentState ? getPendingSteeringMessages(currentState).map(message => message.id) : []);
 		let previousTitle: string | undefined = currentState ? getChatTitle(currentState, chatURI) : undefined;
 		let previousTurnIds = new Set(currentState?.turns.map(turn => turn.id) ?? []);
 
@@ -2628,13 +2698,14 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 			// Track queued message IDs so we can detect which one was consumed
 			const currentQueuedIds = new Set((e.state.queuedMessages ?? []).map(m => m.id));
-			const currentSteeringId = e.state.steeringMessage?.id;
+			const currentSteeringIds = new Set(getPendingSteeringMessages(e.state).map(message => message.id));
 
 			// Detect steering message removal or replacement regardless of turn changes
-			if (previousSteeringId && previousSteeringId !== currentSteeringId) {
-				this._chatService.removePendingRequest(sessionResource, previousSteeringId);
+			const removedSteeringIds = [...previousSteeringIds].filter(id => !currentSteeringIds.has(id));
+			previousSteeringIds = currentSteeringIds;
+			for (const id of removedSteeringIds) {
+				this._chatService.removePendingRequest(sessionResource, id);
 			}
-			previousSteeringId = currentSteeringId;
 
 			const currentTitle = getChatTitle(e.state, chatURI);
 			if (currentTitle && currentTitle !== previousTitle) {
@@ -6163,6 +6234,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		if (chatModel) {
 			const store = new DisposableStore();
 			this._pendingMessageSubscriptions.set(sessionResource, store);
+			store.add(toDisposable(() => this._localSteeringSubmissions.delete(sessionResource)));
 
 			// Hydrate first so the initial outbound diff cannot remove another client's messages.
 			this._applyRemotePendingMessages(sessionResource, backendSession);
