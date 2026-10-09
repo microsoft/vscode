@@ -83,6 +83,7 @@ describe('OpenRouterLMProvider model discovery', () => {
 	it.each([
 		{ id: 'anthropic/claude-fable-5.1', path: 'messages', supportedEndpoints: [ModelSupportedEndpoint.Messages] },
 		{ id: '~anthropic/claude-fable-latest', path: 'messages', supportedEndpoints: [ModelSupportedEndpoint.Messages] },
+		{ id: 'example/anthropic/claude-fable-latest', path: 'messages', supportedEndpoints: [ModelSupportedEndpoint.Messages] },
 		{ id: 'openai/gpt-chat-latest', path: 'chat/completions', supportedEndpoints: undefined },
 		{ id: '~google/gemini-flash-latest', path: 'chat/completions', supportedEndpoints: undefined },
 	])('routes $id without rewriting the model ID', async ({ id, path, supportedEndpoints }) => {

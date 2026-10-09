@@ -140,7 +140,7 @@ export class OpenRouterLMProvider extends AbstractOpenAICompatibleLMProvider {
  * `anthropic/claude-sonnet-4`, or aliases such as `~anthropic/claude-sonnet-latest`.
  */
 function isAnthropicModelId(modelId: string): boolean {
-	return modelId.startsWith('anthropic/') || modelId.startsWith('~anthropic/');
+	return modelId.includes('anthropic/');
 }
 
 /**
