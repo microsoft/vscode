@@ -721,9 +721,8 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _readableProviderCatalogs = new Set<AgentProvider>();
 	/**
 	 * In-memory mirror of the durable provisional markers. Listing consults it
-	 * synchronously: the phase ordering there drives provider catalog migration,
-	 * so an extra read would change when migration passes run. An unloaded
-	 * mirror is empty, which surfaces sessions rather than hiding them.
+	 * after waiting for the initial marker load, so unloaded markers cannot
+	 * expose provisional sessions.
 	 */
 	private readonly _provisionalSessionKeys = new Set<string>();
 	private _provisionalSessionKeysLoaded: Promise<void> | undefined;
@@ -2024,14 +2023,9 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/**
 	 * Loads the durable provisional markers into {@link _provisionalSessionKeys}
-	 * once. Started at construction so listing can read the mirror synchronously;
+	 * once. Started at construction and awaited before draft suppression;
 	 * a read failure leaves the mirror empty, surfacing sessions rather than
 	 * hiding them.
-	 *
-	 * A listing that starts before this read lands cannot suppress anything, but
-	 * it consults the mirror after its provider phase, so one still running when
-	 * the markers arrive suppresses them; a settled one is evicted, so the next
-	 * listing recomputes. The window is therefore bounded by this read alone.
 	 */
 	private _whenProvisionalSessionKeysLoaded(): Promise<void> {
 		return this._provisionalSessionKeysLoaded ??= (async () => {
@@ -2057,19 +2051,12 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/**
 	 * Drops sessions that are still marked provisional and whose provider cannot
-	 * describe them: their registration points at a backing that was never
-	 * created, so no later run can resolve them (#321269).
+	 * describe them: they stay hidden from listing until their backing can be
+	 * confirmed, even when the provider's catalog is unavailable (#321269).
 	 *
-	 * Three conditions are required, and each guards a way real content could
-	 * otherwise be hidden: the marker must still be set; the provider's catalog
-	 * must be known readable this run, since a provider that cannot yet answer
-	 * returns `undefined` without throwing and that is not evidence of absence;
-	 * and the provider must then decline to describe the session. A materialized
-	 * session whose marker-clear never landed is kept visible by the third
-	 * condition, and one whose provider is merely unavailable by the second.
-	 *
-	 * Erring towards a visible junk row is deliberate: under-suppressing costs a
-	 * row the user can delete, over-suppressing costs their work.
+	 * A materialized session whose marker-clear never landed is kept visible
+	 * when its provider confirms the backing, and the live-state overlay
+	 * preserves sessions with turn activity.
 	 */
 	private async _withoutUnmaterializedProvisionalSessions(sessions: readonly IAgentSessionMetadata[], registered: readonly IRegisteredSession[]): Promise<readonly IAgentSessionMetadata[]> {
 		if (sessions.length === 0 || this._provisionalSessionKeys.size === 0) {
@@ -2084,19 +2071,14 @@ export class AgentService extends Disposable implements IAgentService {
 				return;
 			}
 			const agent = this._providerService.getProvider(entry.provider);
-			// Read synchronously: this runs inside the listing, whose phase ordering
-			// drives provider catalog migration, so awaiting a readability signal
-			// here would change when those passes run.
-			if (!agent || !this._readableProviderCatalogs.has(entry.provider)) {
-				return;
-			}
 			try {
-				if (!await this._registeredSessionMetadata(agent, entry.session, entry.external, entry)) {
+				if (!agent || !await this._registeredSessionMetadata(agent, entry.session, entry.external, entry)) {
 					unmaterialized.add(key);
 				}
 			} catch (err) {
 				// An erroring provider is not evidence that the backing is missing.
-				this._logService.warn(`[AgentService] listSessions: failed to confirm provisional session ${key}`, err);
+				unmaterialized.add(key);
+				this._logService.warn(`[AgentService] listSessions: hiding unconfirmed provisional session ${key}`, err);
 			}
 		}));
 		return unmaterialized.size === 0
@@ -4244,9 +4226,7 @@ export class AgentService extends Disposable implements IAgentService {
 			}, 0);
 		}
 		const result = results.filter((s): s is IAgentSessionMetadata => s !== undefined);
-		// Skipped without awaiting when no session is provisional: the phases above
-		// drive provider catalog migration, so an unconditional await here would
-		// change when those passes run.
+		await this._whenProvisionalSessionKeysLoaded();
 		const materialized = this._provisionalSessionKeys.size === 0
 			? result
 			: await this._withoutUnmaterializedProvisionalSessions(result, registered);
@@ -4697,11 +4677,11 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/**
 	 * Recomputes and republishes a provider's list after its catalog becomes
-	 * readable, so a fail-open listing computed while it was unreadable stops
-	 * showing rows that suppression would now hide (#321269).
+	 * readable or sessions are marked provisional, so previously published rows
+	 * that suppression now hides are retracted (#321269).
 	 *
 	 * The transition is one-shot, so the decision cannot depend on what happens
-	 * to be published at this instant: a fail-open listing may still be
+	 * to be published at this instant: a listing may still be
 	 * computing (publication happens inside `prepareSessionSummariesForListing`)
 	 * and the marker mirror loads asynchronously. Either being unpopulated here
 	 * would drop the refresh and leave the stale row with nothing left to
