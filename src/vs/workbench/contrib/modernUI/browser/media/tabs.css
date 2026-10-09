@@ -383,7 +383,7 @@
 /* The selected / multi-selected stroke hugs the pill, so it lives on the fill rather than the
  * full-height tab box. */
 .modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor .tabs-container > .tab.selected:not(.active).tab-border-top > .tab-fill,
-.modern-ui-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor .tabs-container > .tab.active.multi-selected.tab-border-top > .tab-fill {
+.modern-ui-tabs.monaco-workbench:where(:not(.modern-ui-connected-editor-tabs)):not(:is(.hc-black, .hc-light)) .part.editor .tabs-container > .tab.active.multi-selected.tab-border-top > .tab-fill {
 	border: var(--vscode-strokeThickness) solid var(--tab-border-top-color);
 	border-top-color: var(--modern-ui-connected-tab-top-accent, var(--tab-border-top-color));
 }

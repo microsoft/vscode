@@ -1669,6 +1669,45 @@ suite('MultiEditorTabsControl', () => {
 		});
 	});
 
+	test('regular-theme Connected active multi-selection leaves the document join open', async () => {
+		const group = connectedGroup();
+		const root = group.closest<HTMLElement>('.monaco-workbench')!;
+		root.style.setProperty('--vscode-tab-activeBorderTop', '#ffaa00');
+		const themeService = instantiationService.get(IThemeService);
+		assert.ok(themeService instanceof TestThemeService);
+		themeService.setTheme(new TestColorTheme({ 'tab.activeBorderTop': '#ffaa00', 'tab.selectedBorderTop': '#ffaa00' }));
+		const active = model.getEditorByIndex(1)!;
+		model.openEditor(active, { active: true });
+		control.openEditors(model.getEditors(EditorsOrder.SEQUENTIAL));
+		const results = [];
+		for (const theme of ['vs', 'vs-dark']) {
+			root.classList.add(theme);
+			for (const tabHeight of ['default', 'compact'] as const) {
+				for (const wrapTabs of [false, true]) {
+					const oldOptions = partOptions;
+					partOptions = { ...partOptions, tabHeight, wrapTabs, editorActionsLocation: 'hidden', tabSizing: 'fixed', tabSizingFixedMinWidth: 120, tabSizingFixedMaxWidth: 120 };
+					control.updateOptions(oldOptions, partOptions);
+					model.setSelection(active, [model.getEditorByIndex(0)!]);
+					control.updateEditorSelections();
+					await layoutConnectedGroup(group, wrapTabs ? 150 : 600);
+					const tab = container.querySelector<HTMLElement>('.tab.active')!;
+					const fill = tab.querySelector<HTMLElement>('.tab-fill')!;
+					const style = mainWindow.getComputedStyle(fill);
+					results.push({
+						theme, tabHeight, wrapTabs,
+						attachedSelection: tab.classList.contains('multi-selected') && !tab.classList.contains('connected-tab-upper-row'),
+						fillBottom: [style.borderBottomWidth, style.borderBottomColor],
+						capColor: getTabStrokeStyle(tab).borderRightColor,
+						capBottom: getTabStrokeStyle(tab).borderBottomWidth,
+						shoulderColor: mainWindow.getComputedStyle(fill, '::after').borderBottomColor,
+					});
+				}
+			}
+			root.classList.remove(theme);
+		}
+		assert.deepStrictEqual(results, results.map(result => ({ ...result, attachedSelection: true, fillBottom: ['0px', 'rgba(0, 0, 0, 0)'], capColor: 'rgb(255, 170, 0)', capBottom: '0px', shoulderColor: 'rgb(255, 170, 0)' })));
+	});
+
 	test('HC connected selection keeps its outline independent of modified highlighting', async () => {
 		const group = connectedGroup();
 		const root = group.closest<HTMLElement>('.monaco-workbench')!;
