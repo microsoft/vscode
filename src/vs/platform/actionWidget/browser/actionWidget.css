@@ -369,10 +369,22 @@
 	font-weight: var(--vscode-fontWeight-regular);
 }
 
+.action-widget .monaco-list-row.action .title:has(> .action-list-item-toggle-info),
+.action-widget .monaco-list-row.action .action-list-item-inline-toggle-label:has(> .action-list-item-toggle-info) {
+	display: flex;
+	align-items: center;
+}
+
+.action-widget .monaco-list-row.action .action-list-item-toggle-label-text {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
 .action-widget .monaco-list-row.action .action-list-item-toggle-info.codicon {
+	flex-shrink: 0;
 	margin-left: 6px;
 	font-size: 12px;
-	vertical-align: middle;
 	color: var(--vscode-descriptionForeground);
 }
 

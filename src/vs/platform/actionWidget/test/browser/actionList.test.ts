@@ -973,6 +973,33 @@ suite('ActionListWidget', () => {
 		assert.strictEqual(widget.domNode.querySelector('.action-list-item-toggle-info'), null);
 	});
 
+	for (const fontSize of [13, 16, 18]) {
+		test(`centers the toggle information icon beside its label at ${fontSize}px`, () => {
+			const label = 'Sandboxing in Dev Container';
+			const widget = createActionListWidget(disposables, {
+				items: [{
+					...action(label),
+					standaloneToggle: { label, checked: true, showInfoIcon: true, onChange: () => { } },
+				}],
+				listOptions: { showFilter: false },
+			});
+			widget.domNode.classList.add('action-widget');
+			widget.domNode.style.setProperty('--vscode-fontSize-body1', `${fontSize}px`);
+			widget.domNode.style.font = `${fontSize}px/20px "Segoe UI", sans-serif`;
+			widget.layout(400, 200);
+			const labelElement = widget.domNode.querySelector('.title');
+			const icon = labelElement?.querySelector('.codicon-info');
+			assert.ok(labelElement?.firstChild);
+			assert.ok(icon);
+			const textRange = document.createRange();
+			textRange.selectNodeContents(labelElement.firstChild);
+			const textBounds = textRange.getBoundingClientRect();
+			const iconBounds = icon.getBoundingClientRect();
+			const offset = iconBounds.top + iconBounds.height / 2 - textBounds.top - textBounds.height / 2;
+			assert.ok(Math.abs(offset) <= 1, `Information icon is vertically offset by ${offset}px at ${fontSize}px`);
+		});
+	}
+
 	test('nested action groups expose a keyboard-accessible submenu and select the parent item', () => {
 		const selected: string[] = [];
 		const widget = createActionListWidget(disposables, {

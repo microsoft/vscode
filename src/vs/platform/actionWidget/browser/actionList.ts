@@ -556,7 +556,9 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 			toggleLabel.className = 'action-list-item-inline-toggle-label';
 			toggleLabel.textContent = stripNewlines(toggleConfig.label);
 			if (toggleConfig.showInfoIcon) {
-				const infoIcon = dom.append(element.standaloneToggle ? data.text : toggleLabel, dom.$('span.action-list-item-toggle-info'));
+				const labelContainer = element.standaloneToggle ? data.text : toggleLabel;
+				labelContainer.replaceChildren(dom.$('span.action-list-item-toggle-label-text', undefined, labelContainer.textContent ?? ''));
+				const infoIcon = dom.append(labelContainer, dom.$('span.action-list-item-toggle-info'));
 				infoIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.info));
 				infoIcon.ariaHidden = 'true';
 			}
