@@ -17,10 +17,11 @@ export function automationRunWithLocalProgress(run: IAutomationRun, models: Iter
 		if (!isEqual(model.sessionResource, run.sessionResource)) {
 			continue;
 		}
-		if (model.requestInProgress.read(reader)) {
+		const needsInput = model.requestNeedsInput.read(reader);
+		if (model.requestInProgress.read(reader) || needsInput) {
 			const request = model.lastRequestObs.read(reader);
 			return {
-				...run, status: 'running', needsInput: !!model.requestNeedsInput.read(reader), statusDescription: undefined, errorMessage: undefined,
+				...run, status: 'running', needsInput: !!needsInput, statusDescription: undefined, errorMessage: undefined,
 				...(request ? { updatedAt: new Date(request.timestamp).toISOString() } : {}),
 			};
 		}

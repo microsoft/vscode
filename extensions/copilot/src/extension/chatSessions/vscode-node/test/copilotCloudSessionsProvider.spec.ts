@@ -662,6 +662,70 @@ describe('cloud session visibility', () => {
 			expect((await provider.provideChatSessionItems(CancellationToken.None)).map(item => item.label)).toEqual(['Ordinary update', 'new']);
 		});
 
+		it('refreshes exact tasks with four concurrent slots including metadata and publishes in stable order', async () => {
+			const fetchSession = vi.spyOn(TaskApiBackend.prototype, 'fetchSession').mockImplementation(async taskId => session(taskId));
+			const provider = createProvider();
+			const resolve = vi.mocked(vscode.commands.registerCommand).mock.calls.find(([id]) => id === 'github.copilot.chat.cloudSessions.resolveTask')![1];
+			const ids = Array.from({ length: 6 }, (_, i) => `exact-${i}`);
+			for (const id of ids) {
+				await resolve(vscode.Uri.parse(`copilot-cloud-agent:/task/${id}`));
+			}
+			await provider.provideChatSessionItems(CancellationToken.None);
+			const pending = ids.map(() => new DeferredPromise<CloudSessionData>());
+			const metadata = new DeferredPromise<vscode.ChatSessionChangedFile[]>();
+			const started: string[] = [];
+			let active = 0;
+			let maximum = 0;
+			fetchSession.mockImplementation(taskId => {
+				started.push(taskId);
+				maximum = Math.max(maximum, ++active);
+				return pending[ids.indexOf(taskId)].p;
+			});
+			getComparisonChangedFiles.mockImplementation(async refs => {
+				const changes = refs.headRef === ids[3] ? await metadata.p : [];
+				active--;
+				return changes;
+			});
+			provider.refresh();
+			const refreshing = provider.provideChatSessionItems(CancellationToken.None);
+			await vi.waitFor(() => expect(started).toHaveLength(4));
+			await pending[3].complete({ ...session(ids[3]), title: 'Updated 3' });
+			await vi.waitFor(() => expect(getComparisonChangedFiles).toHaveBeenLastCalledWith(expect.objectContaining({ headRef: ids[3] })));
+			expect(started).toEqual(ids.slice(0, 4));
+			await metadata.complete([]);
+			await vi.waitFor(() => expect(started).toHaveLength(5));
+			await pending[4].complete({ ...session(ids[4]), title: 'Updated 4' });
+			await vi.waitFor(() => expect(started).toHaveLength(6));
+			for (const i of [5, 2, 1, 0]) {
+				await pending[i].complete({ ...session(ids[i]), title: `Updated ${i}` });
+			}
+			expect({
+				labels: (await refreshing).map(item => item.label),
+				maximum, active, started,
+			}).toEqual({ labels: ids.map((_, i) => `Updated ${i}`), maximum: 4, active: 0, started: ids });
+		});
+
+		it('account invalidation prevents queued exact-task reads and discards in-flight results', async () => {
+			const fetchSession = vi.spyOn(TaskApiBackend.prototype, 'fetchSession').mockImplementation(async taskId => session(taskId));
+			const provider = createProvider();
+			const resolve = vi.mocked(vscode.commands.registerCommand).mock.calls.find(([id]) => id === 'github.copilot.chat.cloudSessions.resolveTask')![1];
+			const ids = Array.from({ length: 6 }, (_, i) => `exact-${i}`);
+			for (const id of ids) {
+				await resolve(vscode.Uri.parse(`copilot-cloud-agent:/task/${id}`));
+			}
+			await provider.provideChatSessionItems(CancellationToken.None);
+			const pending = new DeferredPromise<CloudSessionData>();
+			fetchSession.mockClear().mockReturnValue(pending.p);
+			provider.refresh();
+			const refreshing = provider.provideChatSessionItems(CancellationToken.None);
+			await vi.waitFor(() => expect(fetchSession).toHaveBeenCalledTimes(4));
+			authenticationChanged.fire();
+			await pending.complete(session('old-account'));
+			expect({ items: await refreshing, requests: fetchSession.mock.calls }).toEqual({
+				items: [], requests: ids.slice(0, 4).map(id => [id]),
+			});
+		});
+
 		it('does not retain an exact item from a refresh invalidated by an account change', async () => {
 			const fetchSession = vi.spyOn(TaskApiBackend.prototype, 'fetchSession').mockResolvedValue(session('exact'));
 			const provider = createProvider();

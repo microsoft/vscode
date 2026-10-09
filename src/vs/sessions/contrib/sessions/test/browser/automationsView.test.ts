@@ -62,6 +62,7 @@ import { IActionViewItemService } from '../../../../../platform/actions/browser/
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { AutomationsHasItemsContext } from '../../../../common/contextkeys.js';
 import { buildAutomationsAccessibleContent } from '../../browser/views/automationsAccessibility.js';
+import { automationRunWithLocalProgress } from '../../browser/views/automationRunProgress.js';
 import { AUTOMATION_TEMPLATES } from '../../browser/views/automationTemplates.js';
 import { AutomationsCardsWidget, AutomationsCustomViewContribution, SEEN_PLUGIN_AUTOMATION_TEMPLATES_STORAGE_KEY } from '../../browser/views/automationsView.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
@@ -792,6 +793,32 @@ suite('AutomationsCardsWidget', () => {
 			completed: !widget.element.querySelector('.session-item.in-progress'),
 			unreadAfter: isMarkAllReadVisible(widget), read: sessionsManagementService.isRead.get(),
 		}, { inProgress: true, unreadDuringFollowUp: false, accessibleWhileRunning: true, runningTime: '1 hr ago', runningTimeMatchesAria: true, completedTime: '1 min ago', completedTimeMatchesAria: true, accessibleAfterCompletion: true, completed: true, unreadAfter: true, read: false });
+	});
+
+	test('pending confirmation projects needs input while requestInProgress is false', () => {
+		const { widget, automationService, chatModels } = setup();
+		const timestamp = Date.now() - 60_000;
+		const needsInput = observableValue<{ title: string } | undefined>('needsInput', { title: 'Approval needed' });
+		const model = upcastPartial<IChatModel>({
+			sessionResource: SESSION_RESOURCE, requestInProgress: constObservable(false), requestNeedsInput: needsInput,
+			lastRequestObs: constObservable(upcastPartial<IChatRequestModel>({ timestamp })),
+			onDidChange: Event.None, getRequests: () => [],
+		});
+		chatModels.set([model], undefined);
+		automationService.setAutomations([automation()]);
+		const results = (['completed', 'running'] as const).map(status => {
+			const remote = run({ status, updatedAt: '2026-01-01T00:00:00Z', externalResource: URI.parse('https://github.com/owner/private/tasks/exact') });
+			automationService.setRuns([remote]);
+			const projected = automationRunWithLocalProgress(remote, [model]);
+			return {
+				status: projected.status, needsInput: projected.needsInput, updatedAt: projected.updatedAt,
+				unreadCompletion: isMarkAllReadVisible(widget),
+				accessible: buildAutomationsAccessibleContent([automation()], [remote], 'ready', [], [], 'ready', [model]).includes('Daily review, Needs input, started'),
+			};
+		});
+		assert.deepStrictEqual(results, Array.from({ length: 2 }, () => ({
+			status: 'running', needsInput: true, updatedAt: new Date(timestamp).toISOString(), unreadCompletion: false, accessible: true,
+		})));
 	});
 
 	test('unresolved cloud history opens only its exact task and reports unavailable native sessions', async () => {
@@ -3447,6 +3474,7 @@ suite('AutomationsCardsWidget', () => {
 			}),
 		}), undefined);
 		running.set(false, undefined);
+		needsInput.set(undefined, undefined);
 		const failed = content();
 		assert.deepStrictEqual({
 			running: active.includes('Daily review, Running, started'),

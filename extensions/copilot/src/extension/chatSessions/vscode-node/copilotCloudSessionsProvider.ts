@@ -25,7 +25,7 @@ import { GenAiMetrics } from '../../../platform/otel/common/genAiMetrics';
 import { IOTelService } from '../../../platform/otel/common/otelService';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
-import { IntervalTimer, RunOnceScheduler, timeout } from '../../../util/vs/base/common/async';
+import { IntervalTimer, Limiter, RunOnceScheduler, timeout } from '../../../util/vs/base/common/async';
 import { Event } from '../../../util/vs/base/common/event';
 import { CancellationError } from '../../../util/vs/base/common/errors';
 import { Disposable, DisposableStore, toDisposable } from '../../../util/vs/base/common/lifecycle';
@@ -1505,35 +1505,50 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 					this.explicitlyResolvedSessions.set(taskId, item);
 				}
 			}
-			for (const [taskId, previousItem] of exactItemsToRefresh) {
-				if (this.unpublishedExactTasks.has(taskId) || this.explicitlyResolvedSessions.get(taskId) !== previousItem) {
-					continue;
-				}
-				if (!listed.has(getCloudSessionResources(taskId, undefined).resource.toString())) {
+			const exactEntries = [...exactItemsToRefresh];
+			const limiter = new Limiter<vscode.ChatSessionItem | null | undefined>(4);
+			let refreshedItems: (vscode.ChatSessionItem | null | undefined)[];
+			try {
+				refreshedItems = await Promise.all(exactEntries.map(([taskId, previousItem]) => limiter.queue(async () => {
+					if (this._store.isDisposed || this.sessionItemsRequestGeneration !== generation
+						|| this.unpublishedExactTasks.has(taskId) || this.explicitlyResolvedSessions.get(taskId) !== previousItem
+						|| listed.has(getCloudSessionResources(taskId, undefined).resource.toString())) {
+						return undefined;
+					}
 					try {
 						const entry = await this._backend.fetchSession(taskId);
-						const item = await this.toChatSessionItem(entry, repoIds, true, isExternal(taskId));
-						if (this.sessionItemsRequestGeneration !== generation) {
-							return this.provideChatSessionItems(token);
+						if (this._store.isDisposed || this.sessionItemsRequestGeneration !== generation) {
+							return undefined;
 						}
-						if (item) {
-							if (this.explicitlyResolvedSessions.get(taskId) === previousItem) {
-								this.explicitlyResolvedSessions.set(taskId, item);
-							}
-						}
+						return await this.toChatSessionItem(entry, repoIds, true, isExternal(taskId));
 					} catch (error) {
-						if (this.sessionItemsRequestGeneration !== generation) {
-							return this.provideChatSessionItems(token);
+						if (this._store.isDisposed || this.sessionItemsRequestGeneration !== generation) {
+							return undefined;
 						}
 						if (error instanceof TaskApiError && error.status === 404) {
-							if (this.explicitlyResolvedSessions.get(taskId) === previousItem) {
-								this.explicitlyResolvedSessions.delete(taskId);
-							}
 							this.logService.trace(`Explicitly resolved cloud task ${taskId} is no longer available.`);
-							continue;
+							return null;
 						}
 						this.logService.warn(`Failed to refresh explicitly resolved cloud task ${taskId}; retaining its last known item: ${error}`);
+						return undefined;
 					}
+				})));
+			} finally {
+				limiter.dispose();
+			}
+			if (this.sessionItemsRequestGeneration !== generation) {
+				return this.provideChatSessionItems(token);
+			}
+			for (let i = 0; i < exactEntries.length; i++) {
+				const [taskId, previousItem] = exactEntries[i];
+				if (this.explicitlyResolvedSessions.get(taskId) !== previousItem) {
+					continue;
+				}
+				const item = refreshedItems[i];
+				if (item === null) {
+					this.explicitlyResolvedSessions.delete(taskId);
+				} else if (item) {
+					this.explicitlyResolvedSessions.set(taskId, item);
 				}
 			}
 			for (let i = 0; i < filteredSessions.length; i++) {
