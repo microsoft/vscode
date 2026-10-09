@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { LogLevel as ProxyLogLevel, ProxyAgentParams, createFetchPatch, createProxyAuthorizationLookup, createProxyResolver, loadSystemCertificates } from '@vscode/proxy-agent';
+import { getCACertificates } from 'tls';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { equals } from '../../../base/common/objects.js';
@@ -18,6 +19,19 @@ import { IAgentConfigurationService } from './agentConfigurationService.js';
 export const IAgentHostProxyResolver = createDecorator<IAgentHostProxyResolver>('agentHostProxyResolver');
 
 type AgentHostProxyConfigurationKey = keyof typeof agentHostProxyConfigSchema.definition & string;
+
+/** Load system and process-supplied CA certificates for Agent Host networking. */
+export async function loadAgentHostCertificates(
+	logService: ILogService,
+	extraCertificates: readonly string[] = getCACertificates('extra'),
+	systemCertificateLoader: typeof loadSystemCertificates = loadSystemCertificates,
+): Promise<string[]> {
+	const systemCertificates = await systemCertificateLoader({
+		loadSystemCertificatesFromNode: () => systemCertificatesNodeDefault,
+		log: logService,
+	});
+	return [...systemCertificates, ...extraCertificates];
+}
 
 /**
  * Node-side registry of renderer {@link IAgentHostClientProxyConnection}s keyed
@@ -138,10 +152,7 @@ export class AgentHostProxyResolver extends Disposable implements IAgentHostProx
 				addCertificatesV1: () => true,
 				addCertificatesV2: () => false,
 				loadSystemCertificatesFromNode: () => systemCertificatesNodeDefault,
-				loadAdditionalCertificates: async () => loadSystemCertificates({
-					loadSystemCertificatesFromNode: () => systemCertificatesNodeDefault,
-					log: this._logService,
-				}),
+				loadAdditionalCertificates: () => loadAgentHostCertificates(this._logService),
 				log: this._logService,
 				getLogLevel: () => {
 					switch (this._logService.getLevel()) {

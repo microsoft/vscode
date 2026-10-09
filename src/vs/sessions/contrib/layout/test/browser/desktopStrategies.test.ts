@@ -20,7 +20,7 @@ import { StorageScope, StorageTarget } from '../../../../../platform/storage/com
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { SessionStatus } from '../../../../services/sessions/common/session.js';
-import { SessionCanvasInput } from '../../../canvases/common/sessionCanvas.js';
+import { CanvasInput } from '../../../../../workbench/contrib/canvases/common/canvas.js';
 import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
 import { SESSIONS_FILES_CONTAINER_ID } from '../../../files/browser/files.contribution.js';
 import { DesktopDetailPanelCoordinator } from '../../browser/desktop/desktopDetailPanelCoordinator.js';
@@ -262,7 +262,7 @@ suite('Desktop layout strategies', () => {
 		state.isRestoringSessionLayout = true;
 		const session = makeSession(URI.parse('session:/existing'), { isCreated: true });
 		const canvasResource = URI.parse('agent-host-canvas:/preview');
-		const canvasEditor = store.add(new SessionCanvasInput({
+		const canvasEditor = store.add(harness.instaService.createInstance(CanvasInput, {
 			providerId: 'local-agent-host',
 			session: session.resource,
 			chat: URI.parse('agent-host-chat:/session/main'),

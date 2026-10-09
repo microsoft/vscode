@@ -18,7 +18,6 @@ const defaultMarketplaceId = parseMarketplaceReference(DEFAULT_PLUGIN_MARKETPLAC
 const pluginMarketplaceSourceInfo: ICustomizationMarketplaceSourceInfo = {
 	...CustomizationMarketplaceSources.PluginMarketplaces,
 	configurationDependencies: [
-		CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled,
 		ChatConfiguration.PluginsEnabled,
 		ChatConfiguration.PluginMarketplaces,
 		ChatConfiguration.ExtraMarketplaces,
@@ -37,6 +36,12 @@ export function getPluginCustomizationMarketplaceSourceId(reference: IMarketplac
 	return `${CustomizationMarketplaceSources.PluginMarketplaces.id}.${reference.canonicalId}`;
 }
 
+export function getPluginCustomizationMarketplaceNavigationSourceId(configurationService: IConfigurationService, reference: IMarketplaceReference, githubFeedAvailable: boolean): string {
+	return isPluginMarketplaceReferenceAvailableInDiscover(configurationService, reference, githubFeedAvailable)
+		? getPluginCustomizationMarketplaceSourceId(reference)
+		: CustomizationMarketplaceSources.AgentFinderPublicFeed.id;
+}
+
 export function getPluginCustomizationMarketplaceSourceIdFromIdentifier(identifier: string): string | undefined {
 	try {
 		const value: unknown = JSON.parse(identifier);
@@ -48,20 +53,22 @@ export function getPluginCustomizationMarketplaceSourceIdFromIdentifier(identifi
 	}
 }
 
-export function isPluginMarketplaceReferenceAvailableInDiscover(configurationService: IConfigurationService, reference: IMarketplacePlugin['marketplaceReference']): boolean {
-	return configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled) !== true ||
+export function isPluginMarketplaceReferenceAvailableInDiscover(configurationService: IConfigurationService, reference: IMarketplacePlugin['marketplaceReference'], githubFeedAvailable: boolean): boolean {
+	return !githubFeedAvailable ||
+		configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled) !== true ||
 		reference.canonicalId !== defaultMarketplaceId;
 }
 
 export function getPluginCustomizationMarketplaceSourceInfos(
 	configurationService: IConfigurationService,
 	marketplaceService: IPluginMarketplaceService,
+	githubFeedAvailable: boolean,
 ): readonly ICustomizationMarketplaceSourceInfo[] {
 	if (configurationService.getValue<boolean>(ChatConfiguration.PluginsEnabled) !== true) {
 		return [];
 	}
 	return marketplaceService.getMarketplaceReferences()
-		.filter(reference => isPluginMarketplaceReferenceAvailableInDiscover(configurationService, reference))
+		.filter(reference => isPluginMarketplaceReferenceAvailableInDiscover(configurationService, reference, githubFeedAvailable))
 		.map(toPluginCustomizationMarketplaceSourceInfo);
 }
 
@@ -76,9 +83,10 @@ export function createPluginCustomizationMarketplaceProviders(
 	instantiationService: IInstantiationService,
 	configurationService: IConfigurationService,
 	marketplaceService: IPluginMarketplaceService,
+	githubFeedAvailable: boolean,
 ): readonly ICustomizationMarketplaceProvider[] {
 	return marketplaceService.getMarketplaceReferences()
-		.filter(reference => isPluginMarketplaceReferenceAvailableInDiscover(configurationService, reference))
+		.filter(reference => isPluginMarketplaceReferenceAvailableInDiscover(configurationService, reference, githubFeedAvailable))
 		.map(reference => {
 			const id = getPluginCustomizationMarketplaceSourceId(reference);
 			return createLazyCustomizationMarketplaceProvider(
@@ -149,7 +157,13 @@ function toMarketplaceEntry(plugin: IMarketplacePlugin, registry: 'custom' | 'de
 		...(plugin.readmeUri ? { readmeUri: plugin.readmeUri } : {}),
 		score: search ? 0 : undefined,
 		priority: registry === 'custom' ? 1 : 0,
-		installation: { kind: 'configuredPlugin' },
+		installation: {
+			kind: 'configuredPlugin',
+			name: plugin.name,
+			marketplace: plugin.marketplaceName,
+			marketplaceId: plugin.marketplaceReference.canonicalId,
+			marketplaceSource: plugin.marketplaceReference.rawValue,
+		},
 	};
 }
 

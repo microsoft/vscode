@@ -7,6 +7,7 @@ import assert from 'assert';
 import { execFile } from 'child_process';
 import { lstat, mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'fs/promises';
 import { promisify } from 'util';
+import sinon from 'sinon';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -26,7 +27,7 @@ import { readCloudSandboxCloneResult, readCloudSandboxProjects } from '../../com
 import { ActionType, type ActionEnvelope } from '../../common/state/sessionActions.js';
 import { ROOT_STATE_URI } from '../../common/state/sessionState.js';
 import { GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE } from '../../common/agent.js';
-import { ProtocolError } from '../../common/state/sessionProtocol.js';
+import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 
 suite('Mission Control projects', () => {
 	const suiteStore = ensureNoDisposablesAreLeakedInTestSuite();
@@ -39,6 +40,7 @@ suite('Mission Control projects', () => {
 	});
 
 	teardown(async () => {
+		sinon.restore();
 		store.dispose();
 		await rm(directory, { recursive: true, force: true });
 	});
@@ -65,11 +67,29 @@ suite('Mission Control projects', () => {
 				override getCopilotResource() { return GITHUB_COPILOT_PROTECTED_RESOURCE; }
 			}(), state, log));
 		await projects.initialize();
-		return { projects, state, options, home, workspace };
+		return { projects, state, options, home, workspace, log };
 	}
 
 	function catalogue(projects: MissionControlProjects) {
 		return readCloudSandboxProjects({ agents: [], _meta: { 'copilot.projectManagement': { available: true } }, config: projects.config })!;
+	}
+
+	for (const method of ['extensions/addProject', 'extensions/cloneProject']) {
+		test(`${method} rechecks authorization after awaited preparation before mutating the catalogue`, async () => {
+			let clones = 0;
+			const { projects, workspace, home } = await fixture(async () => { clones++; });
+			let checks = 0;
+			const params = method === 'extensions/addProject' ? { path: workspace } : { url: 'https://github.com/owner/repo' };
+			await assert.rejects(projects.handleRequest(method, params, () => {
+				if (++checks === (method === 'extensions/addProject' ? 2 : 4)) {
+					throw new ProtocolError(AHP_AUTH_REQUIRED, 'Credential expired during project preparation');
+				}
+			})!, { code: AHP_AUTH_REQUIRED });
+			assert.deepStrictEqual({ clones, paths: catalogue(projects).map(project => project.path) }, { clones: 0, paths: [workspace] });
+			if (method === 'extensions/cloneProject') {
+				await assert.rejects(lstat(join(home, 'owner', 'repo')), { code: 'ENOENT' });
+			}
+		});
 	}
 
 	test('pins shared folders, lists and unpins without deleting user files, and restores runtime pins', async () => {
@@ -115,6 +135,58 @@ suite('Mission Control projects', () => {
 		assert.deepStrictEqual({ withdrawn, narrowed, reopened: projects.roots }, {
 			withdrawn: [folder], narrowed: [folder, next], reopened: [folder, workspace],
 		});
+	});
+
+	test('reconciles deleted shared directories without rejecting initialization or losing existing projects', async () => {
+		const { projects, options, workspace, home, log } = await fixture();
+		options.getRoots = () => [workspace, home];
+		await projects.initialize();
+		await rm(workspace, { recursive: true });
+		const warning = sinon.spy(log, 'warn');
+		await projects.initialize();
+		assert.deepStrictEqual({
+			roots: projects.roots,
+			projects: catalogue(projects).map(project => project.path),
+			warnings: warning.args,
+		}, {
+			roots: [home],
+			projects: [home],
+			warnings: [['[MissionControl] Ignoring a missing shared project directory', workspace]],
+		});
+	});
+
+	test('initializes with only missing shared directories and discovers them when they reappear', async () => {
+		const { projects, options } = await fixture();
+		const missing = join(directory, 'missing');
+		options.getRoots = () => [missing];
+		await projects.initialize();
+		const empty = catalogue(projects);
+		await mkdir(missing);
+		await projects.initialize();
+		assert.deepStrictEqual({ empty, roots: projects.roots, projects: catalogue(projects).map(project => project.path) }, {
+			empty: [], roots: [missing], projects: [missing],
+		});
+	});
+
+	test('ignores shared directories whose ancestor is no longer a directory', async () => {
+		const { projects, options, workspace, log } = await fixture();
+		const file = join(workspace, 'file');
+		await writeFile(file, '');
+		const missing = join(file, 'directory');
+		options.getRoots = () => [workspace, missing];
+		const warning = sinon.spy(log, 'warn');
+		await projects.initialize();
+		assert.deepStrictEqual({ roots: projects.roots, warnings: warning.args }, {
+			roots: [workspace],
+			warnings: [['[MissionControl] Ignoring a missing shared project directory', missing]],
+		});
+	});
+
+	test('does not suppress other shared directory resolution errors', async () => {
+		const { projects, options, workspace } = await fixture();
+		options.getRoots = () => [workspace, '\0'];
+		await assert.rejects(projects.initialize(), { code: 'ERR_INVALID_ARG_VALUE' });
+		assert.deepStrictEqual(projects.roots, [workspace]);
 	});
 
 	test('catalogue updates allocate ordered relay envelopes without changing private host configuration', async () => {
