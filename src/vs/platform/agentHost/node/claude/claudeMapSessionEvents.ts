@@ -57,6 +57,19 @@ export class ClaudeMapperState {
 	 */
 	readonly toolCalls = new ClaudeToolCallRegistry();
 	private _currentMessageId: string | undefined;
+	private _answeringModel: { turnId: string; model: string } | undefined;
+
+	/** Records the model of the latest completed top-level assistant message. */
+	recordAnsweringModel(turnId: string, model: string): void {
+		this._answeringModel = { turnId, model };
+	}
+
+	/** Consumes model attribution at each result boundary without leaking it to another turn. */
+	takeAnsweringModel(turnId: string): string | undefined {
+		const model = this._answeringModel?.turnId === turnId ? this._answeringModel.model : undefined;
+		this._answeringModel = undefined;
+		return model;
+	}
 
 	/**
 	 * Phase 8 — file-edit content pre-staged by
@@ -334,6 +347,9 @@ function mapAssistantCanonical(
 	};
 	const completedSignals = message.aborted ? [] : [completedSignal];
 	if (parentToolUseId === null) {
+		if (!message.aborted && message.message.model && message.message.model !== '<synthetic>') {
+			state.recordAnsweringModel(turnId, message.message.model);
+		}
 		const top: AgentSignal[] = [...completedSignals];
 		for (const block of message.message.content) {
 			if (block.type !== 'tool_use' || !SUBAGENT_SPAWNING_TOOL_NAMES.has(block.name)) {
@@ -479,11 +495,13 @@ function mapResult(
 	registry: SubagentRegistry,
 ): AgentSignal[] {
 	const signals: AgentSignal[] = [];
+	const answeringModel = state.takeAnsweringModel(turnId);
 	if (message.subtype === 'success') {
-		// `modelUsage` is keyed by model name; pick the first key as the
-		// reported model. Phase 6 turns are single-model; multi-model
-		// attribution is a Phase 7+ concern.
-		const modelKey = Object.keys(message.modelUsage)[0];
+		const modelKeys = Object.keys(message.modelUsage);
+		const soleModel = modelKeys.length === 1 ? modelKeys[0] : undefined;
+		const modelKey = answeringModel ?? soleModel;
+		// Aggregate usage cannot be split between the answering model and auxiliary models.
+		const canAttributeTokenTotals = modelKey !== undefined && modelKey === soleModel;
 		// Per-turn credits are deliberately NOT derived from
 		// `total_cost_usd`: that is the SDK's Anthropic-list-price USD
 		// estimate, not what CAPI actually bills. Real Copilot credits come
@@ -501,7 +519,7 @@ function mapResult(
 					outputTokens: message.usage.output_tokens,
 					cacheReadTokens: message.usage.cache_read_input_tokens,
 					...(modelKey ? { model: modelKey } : {}),
-					...(modelKey ? {
+					...(canAttributeTokenTotals ? {
 						_meta: {
 							turnTokenTotals: [{
 								model: modelKey,
