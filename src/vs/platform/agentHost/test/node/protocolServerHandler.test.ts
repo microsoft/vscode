@@ -392,7 +392,7 @@ class MockAgentService implements IAgentService {
 	}
 	async disposeTerminal(): Promise<void> { }
 	async invokeChangesetOperation(): Promise<{}> { return {}; }
-	async handleMcpRequest(): Promise<unknown> { throw new Error('Method not found'); }
+	async handleMcpRequest(_channel: string, _method: string, _params: Record<string, unknown> | undefined): Promise<unknown> { throw new Error('Method not found'); }
 
 	dispose(): void {
 		this._onDidAction.dispose();
@@ -3189,6 +3189,97 @@ suite('ProtocolServerHandler', () => {
 				created: [], dispatched: [], values: { autoApprove: 'default', mode: 'plan' },
 			});
 		});
+	});
+
+	test('MC MCP app resources route to their owning provider without filesystem grants', async () => {
+		const relay = disposables.add(new MockProtocolServer());
+		disposables.add(new ProtocolServerHandler(
+			agentService, stateManager, relay,
+			{ allowExtensionMethods: false, relayResourceRoots: () => [] },
+			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+		));
+		const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'mcp-lane', false));
+		transport.relayAuthenticated = true;
+		relay.simulateConnection(transport);
+		transport.simulateMessage(request(1, 'initialize', { clientId: 'mcp-lane', protocolVersions: [PROTOCOL_VERSION] }));
+		const channel = 'mcp://copilotcli/ahp-chat%3A%2F%2Fdefault%2Fsession/github-mcp-server';
+		const uri = 'ui://github-mcp-server/get-me';
+		const calls: { channel: string; method: string; params: Record<string, unknown> | undefined }[] = [];
+		const resource = { contents: [{ uri, mimeType: 'text/html;profile=mcp-app', text: '<html>GitHub profile</html>' }] };
+		agentService.handleMcpRequest = async (channel, method, params) => {
+			calls.push({ channel, method, params });
+			if (method === 'resources/read') {
+				if (params?.uri !== uri) {
+					throw new ProtocolError(AhpErrorCodes.PermissionDenied, 'MCP app resource is not allowed');
+				}
+				return resource;
+			}
+			if (method === 'resources/list') {
+				return { resources: [{ uri }] };
+			}
+			if (method === 'resources/templates/list') {
+				return { resourceTemplates: [] };
+			}
+			throw new Error(`Method not found: ${method}`);
+		};
+		const cases = [
+			{ method: 'resources/read', params: { channel, uri }, result: resource },
+			{ method: 'resources/read', params: { channel, uri }, result: resource },
+			{ method: 'resources/list', params: { channel }, result: { resources: [{ uri }] } },
+			{ method: 'resources/templates/list', params: { channel }, result: { resourceTemplates: [] } },
+			{ method: 'resources/read', params: { channel, uri: 'file:///private/secret' }, error: AhpErrorCodes.PermissionDenied },
+			{ method: 'resources/read', params: { channel, uri: 'ui://other-server/private' }, error: AhpErrorCodes.PermissionDenied },
+			{ method: 'resources/delete', params: { channel, uri }, error: JsonRpcErrorCodes.MethodNotFound },
+			{ method: 'resources/read', params: { channel, uri }, result: resource },
+		];
+		const results = [];
+		for (const [index, item] of cases.entries()) {
+			const id = index + 2;
+			const response = waitForResponse(transport, id);
+			transport.simulateMessage(request(id, item.method, item.params));
+			const message = await response;
+			results.push(isJsonRpcResponse(message) && hasKey(message, { error: true }) ? { error: message.error.code } : { result: isJsonRpcResponse(message) && hasKey(message, { result: true }) ? message.result : undefined });
+		}
+		assert.deepStrictEqual({ calls, results }, {
+			calls: cases.map(item => ({ channel, method: item.method, params: item.params })),
+			results: cases.map(item => item.error === undefined ? { result: item.result } : { error: item.error }),
+		});
+	});
+
+	test('MC MCP channel cannot bypass relay authentication, passive restrictions or filesystem grants', async () => {
+		const relay = disposables.add(new MockProtocolServer());
+		disposables.add(new ProtocolServerHandler(
+			agentService, stateManager, relay,
+			{ allowExtensionMethods: false, relayResourceRoots: () => [] },
+			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+		));
+		let mcpCalls = 0;
+		let fileReads = 0;
+		agentService.handleMcpRequest = async () => { mcpCalls++; return {}; };
+		agentService.resourceRead = async () => { fileReads++; return { data: 'private', encoding: ContentEncoding.Utf8 }; };
+		const channel = 'mcp://copilotcli/session/github-mcp-server';
+		const cases = [
+			{ authenticated: false, passive: false, method: 'resources/read', uri: 'ui://github-mcp-server/get-me', error: AHP_AUTH_REQUIRED },
+			{ authenticated: true, passive: true, method: 'resources/read', uri: 'ui://github-mcp-server/get-me', error: JsonRpcErrorCodes.InvalidRequest },
+			...['resourceRead', 'resourceResolve', 'resourceWrite', 'resourceDelete', 'resourceMkdir', 'resourceRequest', 'resourceList', 'createResourceWatch'].map(method =>
+				({ authenticated: true, passive: false, method, uri: 'file:///private/secret', error: AhpErrorCodes.PermissionDenied })),
+			{ authenticated: true, passive: false, method: 'resourceRead', uri: 'ui://github-mcp-server/get-me', error: AhpErrorCodes.PermissionDenied },
+		];
+		const errors = [];
+		for (const [index, item] of cases.entries()) {
+			const clientId = `denied-mcp-${index}`;
+			const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, clientId, item.passive));
+			transport.relayAuthenticated = item.authenticated;
+			relay.simulateConnection(transport);
+			transport.simulateMessage(request(1, 'initialize', { clientId, protocolVersions: [PROTOCOL_VERSION] }));
+			const response = waitForResponse(transport, 2);
+			transport.simulateMessage(request(2, item.method, { channel, uri: item.uri }));
+			const message = await response;
+			errors.push(isJsonRpcResponse(message) && hasKey(message, { error: true }) ? message.error.code : undefined);
+		}
+		assert.deepStrictEqual({ errors, mcpCalls, fileReads }, { errors: cases.map(item => item.error), mcpCalls: 0, fileReads: 0 });
 	});
 
 	test('MC filesystem grants cover workspace reads and writes without exposing private host files', async () => {

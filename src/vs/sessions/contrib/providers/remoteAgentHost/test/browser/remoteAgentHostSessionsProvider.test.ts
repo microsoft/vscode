@@ -33,7 +33,7 @@ import { SessionArtifactType, withSessionArtifacts } from '../../../../../../pla
 import type { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ChangesetStatus, CustomizationType, MessageKind, ResponsePartKind, SessionLifecycle, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type AgentCustomization, type AgentInfo, type AutomationState, type ChangesetFile, type ChangesetState, type ChatState, type RootState, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type ChatAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { buildChatUri, buildDefaultChatUri, createChatState, isAhpAutomationCatalogChannel, SessionStatus as ProtocolSessionStatus, StateComponents, withSessionExternal } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, createChatState, isAhpAutomationCatalogChannel, readSessionWorkspaceless, SessionStatus as ProtocolSessionStatus, StateComponents, withSessionExternal } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ConfigurationTarget, IConfigurationService, IConfigurationValue } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -5634,7 +5634,7 @@ suite('CloudSandboxSessionsProvider provisional sessions', () => {
 		provider.seedSessions([discoveryMetadata], { updateExisting: true });
 		const rediscoveredProvisional = snapshot(provider.getCachedSession('repo-less')!);
 
-		connection.addSession({ ...metadata, workingDirectories: [URI.file('/scratch')] });
+		connection.addSession({ ...metadata, _meta: {}, workingDirectories: [URI.file('/scratch')] });
 		provider.setConnection(connection);
 		await timeout(0);
 		provider.publishWithheldSession('repo-less');
@@ -5651,7 +5651,156 @@ suite('CloudSandboxSessionsProvider provisional sessions', () => {
 		});
 	}));
 
-	test('uncached repo-less discovery becomes a quick chat only after host metadata identifies it', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	for (const discoveredFirst of [true, false]) {
+		test(`repo-less discovery stays a quick chat through host hydration and reload (discovered first: ${discoveredFirst})`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			const storageService = disposables.add(new InMemoryStorageService());
+			const options = {
+				ctor: CloudSandboxSessionsProvider,
+				sessionSchemeAlias: { ui: 'copilot', backend: 'ahp-session' },
+				noConnection: true,
+				storageService,
+			};
+			const provider = createProvider(disposables, connection, options);
+			connection.handshakeState.set({ ...connection.handshakeState.get(), _meta: undefined }, undefined);
+			const metadata = createSession('remote-chat', { session: AgentSession.uri('ahp-session', 'remote-chat'), provider: 'copilot' });
+			const seed = () => provider.seedSessions([metadata], { updateExisting: true, workspaceless: true });
+			const snapshot = (session: ISession) => ({
+				quickChat: session.isQuickChat?.get(),
+				workspace: session.workspace.get()?.label,
+				chatWorkspace: session.mainChat.get().workspace.get()?.label,
+			});
+			if (discoveredFirst) {
+				seed();
+			}
+			const beforeConnection = discoveredFirst ? snapshot(provider.getSessions()[0]) : undefined;
+			connection.addSession({ ...metadata, workingDirectories: [URI.file('/root')] });
+			provider.setConnection(connection);
+			await timeout(0);
+			if (!discoveredFirst) {
+				seed();
+			}
+			const session = provider.getSessions()[0];
+			const hydrated = snapshot(session);
+			connection.fireNotification({
+				channel: 'ahp-root://',
+				type: NotificationType.SessionSummaryChanged,
+				session: metadata.session.toString(),
+				changes: { _meta: {}, workingDirectories: ['file:///root'] },
+			});
+			const afterMetadata = snapshot(session);
+			provider.clearConnection();
+			await storageService.flush();
+			provider.dispose();
+
+			const restoredConnection = disposables.add(new MockAgentConnection());
+			restoredConnection.addSession({ ...metadata, _meta: {}, workingDirectories: [URI.file('/root')] });
+			const restored = createProvider(disposables, restoredConnection, options);
+			const afterRestore = snapshot(restored.getSessions()[0]);
+			restored.seedSessions([metadata], { updateExisting: true });
+			restored.setConnection(restoredConnection);
+			await timeout(0);
+
+			const expected = { quickChat: true, workspace: undefined, chatWorkspace: undefined };
+			assert.deepStrictEqual({ beforeConnection, hydrated, afterMetadata, afterRestore, reconnected: snapshot(restored.getSessions()[0]) }, {
+				beforeConnection: discoveredFirst ? expected : undefined, hydrated: expected, afterMetadata: expected, afterRestore: expected, reconnected: expected,
+			});
+		}));
+	}
+
+	for (const hostWorkspaceless of [undefined, false, true]) {
+		test(`cache separates discovery intent from host classification (host hint: ${hostWorkspaceless})`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			const storageService = disposables.add(new InMemoryStorageService());
+			const options = {
+				ctor: CloudSandboxSessionsProvider,
+				sessionSchemeAlias: { ui: 'copilot', backend: 'ahp-session' },
+				noConnection: true,
+				storageService,
+			};
+			const metadata = createSession('repository-correction', {
+				session: AgentSession.uri('ahp-session', 'repository-correction'),
+				provider: 'copilot',
+			});
+			const provider = createProvider(disposables, connection, options);
+			provider.seedSessions([metadata], { updateExisting: true, workspaceless: true });
+			if (hostWorkspaceless !== undefined) {
+				connection.addSession({
+					...metadata,
+					_meta: hostWorkspaceless ? { workspaceless: true } : {},
+					workingDirectories: [URI.file('/root')],
+				});
+				provider.setConnection(connection);
+				await timeout(0);
+				provider.clearConnection();
+			}
+			await storageService.flush();
+			provider.dispose();
+
+			const restored = createProvider(disposables, disposables.add(new MockAgentConnection()), options);
+			const session = restored.getSessions()[0];
+			assert.ok(session instanceof AgentHostSessionAdapter);
+			const beforeCorrection = session.isQuickChat.get();
+			restored.seedSessions([{ ...metadata, modifiedTime: 4000 }], { updateExisting: true, workspaceless: false });
+
+			assert.deepStrictEqual({
+				beforeCorrection,
+				quickChat: session.isQuickChat.get(),
+				hostHint: readSessionWorkspaceless(session.sessionMeta),
+				discoveryIntent: session.discoveryMetadata?.workspaceless,
+				project: session.project,
+			}, {
+				beforeCorrection: true,
+				quickChat: hostWorkspaceless === true,
+				hostHint: hostWorkspaceless === true,
+				discoveryIntent: false,
+				project: undefined,
+			});
+		}));
+	}
+
+	for (const source of ['listing', 'summary', 'state']) {
+		test(`a host project from ${source} replaces the repo-less discovery fallback`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			const provider = createProvider(disposables, connection, {
+				ctor: CloudSandboxSessionsProvider,
+				sessionSchemeAlias: { ui: 'copilot', backend: 'ahp-session' },
+				noConnection: true,
+				omitHostFromWorkspaceLabel: true,
+			});
+			const metadata = createSession('promoted-chat', { session: AgentSession.uri('ahp-session', 'promoted-chat'), provider: 'copilot' });
+			provider.seedSessions([metadata], { updateExisting: true, workspaceless: true });
+			connection.addSession({ ...metadata, workingDirectories: [URI.file('/root')] });
+			provider.setConnection(connection);
+			await timeout(0);
+			const session = provider.getSessions()[0];
+			assert.ok(session instanceof AgentHostSessionAdapter);
+			const before = session.isQuickChat.get();
+			const project = { uri: URI.file('/work/repo'), displayName: 'Repository' };
+			if (source === 'listing') {
+				connection.addSession({ ...metadata, project, workingDirectories: [project.uri] });
+				provider.clearConnection();
+				provider.setConnection(connection);
+				await timeout(0);
+			} else if (source === 'summary') {
+				connection.fireNotification({
+					channel: 'ahp-root://',
+					type: NotificationType.SessionSummaryChanged,
+					session: metadata.session.toString(),
+					changes: { project: { uri: project.uri.toString(), displayName: project.displayName }, workingDirectories: [project.uri.toString()] },
+				});
+			} else {
+				session.applySessionStateMetadata({ project, workingDirectories: [project.uri] }, undefined);
+			}
+			provider.seedSessions([metadata], { updateExisting: true, workspaceless: true });
+
+			assert.deepStrictEqual({
+				before,
+				quickChat: session.isQuickChat.get(),
+				workspace: session.workspace.get()?.label,
+				chatWorkspace: session.mainChat.get().workspace.get()?.label,
+			}, { before: true, quickChat: false, workspace: 'Repository', chatWorkspace: 'Repository' });
+		}));
+	}
+
+	test('unknown repository association stays host-driven until metadata identifies a quick chat', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const provider = createProvider(disposables, connection, {
 			ctor: CloudSandboxSessionsProvider,
 			sessionSchemeAlias: { ui: 'copilot', backend: 'ahp-session' },
