@@ -80,6 +80,12 @@ Build outputs are written to `out/` (desktop), `dist/` (web), and `notebook-out/
 
    Markdown editor commands and their default keybindings are defined in `vscode-packages/vscode-team-tools/packages/markdown-editor/src/editorCommands.ts`. Do not manually edit entries marked with `"$generated": true` in this extension's `package.json` or their titles in `package.nls.json`: `npm run build-markdown-editor` and `npm run watch-markdown-editor` regenerate them while preserving manual entries. Run `npm run check-markdown-editor-package-json` to verify that the checked-in manifests are current without modifying them.
 
+### Outline and breadcrumbs
+
+The rich editor opts into `customTextEditorNavigation`. The workbench reuses the document's symbol providers for Outline and breadcrumbs; the extension reports each panel's source selection and routes reveal and view-state requests through the Markdown editor RPC bridge. Offset mapping uses the renderer's synchronized text, including when its line endings differ from the document.
+
+Keep navigation independent of editing mode. Breadcrumb previews must preserve focus and selection, canceled previews must not override newer navigation, and opening a symbol to the side must retain the custom editor type. Navigation regression coverage lives in `src/test/markdownEditorNavigation.test.ts` and `src/test/markdownEditorBridge.test.ts`, with workbench coverage in the custom-editor navigation and document-symbol Outline suites.
+
 ### Running tests
 
 You can run the VS Code extension tests by running the `Markdown Extension Tests` target in VS Code. This will run the tests under `./src/test`

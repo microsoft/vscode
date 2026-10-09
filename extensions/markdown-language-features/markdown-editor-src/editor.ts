@@ -129,6 +129,11 @@ class Editor extends Disposable {
 	#embeddedCodeEditorFactory: LazyCodeBlockEditorFactory | undefined;
 	/** Identifies the authoritative text baseline against which local edits are computed. */
 	#editEpoch: number;
+	#navigationRevision = 0;
+	#navigationReady = false;
+	#navigationReportScheduled = false;
+	readonly #pendingEdits = new Set<Promise<void>>();
+	readonly #scrollHost: HTMLElement;
 
 	readonly #comments = new CommentsModel();
 	#commentsView: CommentsView | undefined;
@@ -144,6 +149,7 @@ class Editor extends Disposable {
 
 	constructor(host: HTMLElement, initialState: InitialState) {
 		super();
+		this.#scrollHost = host;
 
 		const messageSecret = document.querySelector<HTMLMetaElement>('meta[name="vscode-markdown-editor-message-secret"]')?.content;
 		if (!messageSecret) {
@@ -187,6 +193,7 @@ class Editor extends Disposable {
 				} finally {
 					this.isUpdatingFromExtension = false;
 				}
+				this.#scheduleSelectionReport();
 			},
 			codeBlockEditorProviders: ({ codeBlockEditorProviders }) => {
 				this.#codeBlockEditorProviders = codeBlockEditorProviders;
@@ -220,16 +227,32 @@ class Editor extends Disposable {
 				this.#commentsView?.revealComment(id);
 			},
 			revealLinkTarget: ({ start, endExclusive, selectionStart }) => {
-				const contentLength = this.model.sourceText.get().value.length;
-				if (start <= endExclusive && endExclusive <= contentLength && selectionStart <= contentLength) {
-					transaction(tx => {
-						this.model.pendingParagraph.set(undefined, tx);
-						this.model.selectionSource.set('user', tx);
-						this.model.selection.set(Selection.collapsed(selectionStart), tx);
-					});
-					this.#view?.focus();
-					this.#view?.revealRangeAtTop(OffsetRange.fromTo(start, endExclusive));
+				this.#revealRange(start, endExclusive, { anchor: selectionStart, active: selectionStart }, false);
+			},
+			captureNavigationState: async (_message, _context, { signal }) => {
+				await this.#drainEdits();
+				signal.throwIfAborted();
+				const selection = this.model.selection.get();
+				return {
+					editEpoch: this.#editEpoch, revision: this.#navigationRevision,
+					selection: selection ? { anchor: selection.anchor, active: selection.active } : undefined,
+					scrollTop: this.#scrollHost.scrollTop,
+				};
+			},
+			revealRange: (message, _context, { signal }) => {
+				signal.throwIfAborted();
+				this.#checkNavigationState(message);
+				this.#revealRange(message.start, message.endExclusive, message.selection, message.preserveFocus);
+			},
+			restoreNavigationState: (state, _context, { signal }) => {
+				signal.throwIfAborted();
+				this.#checkNavigationState(state);
+				if (state.selection) {
+					this.#revealRange(state.selection.active, state.selection.active, state.selection, true);
+				} else {
+					this.model.selection.set(undefined, undefined);
 				}
+				this.#scrollHost.scrollTop = state.scrollTop;
 			},
 			command: async ({ command: commandId }) => {
 				if (commandId === 'markdown.editor.triggerSuggest') {
@@ -256,11 +279,59 @@ class Editor extends Disposable {
 		this.#send('ready', this.#host.ready({
 			documentVersion: initialState.documentVersion,
 			editEpoch: this.#editEpoch,
+		}).then(() => {
+			this.#navigationReady = true;
+			this.#scheduleSelectionReport();
 		}));
 		window.addEventListener('pagehide', this.#onPageHide);
 	}
 
 	readonly #onPageHide = (): void => this.dispose();
+
+	#checkNavigationState(state: { editEpoch: number; revision: number }): void {
+		if (this.#disposed || state.editEpoch !== this.#editEpoch || state.revision !== this.#navigationRevision) {
+			throw new Error('The Markdown document changed during navigation. Try again.');
+		}
+	}
+
+	#revealRange(start: number, endExclusive: number, selection: { anchor: number; active: number } | undefined, preserveFocus: boolean): void {
+		const length = this.model.sourceText.get().value.length;
+		if (start > endExclusive || endExclusive > length || selection && Math.max(selection.anchor, selection.active) > length) {
+			throw new Error('Invalid Markdown editor navigation range');
+		}
+		if (selection) {
+			transaction(tx => {
+				this.model.pendingParagraph.set(undefined, tx);
+				this.model.selectionSource.set('user', tx);
+				this.model.selection.set(new Selection(selection.anchor, selection.active), tx);
+			});
+		}
+		if (!preserveFocus) { this.#view?.focus(); }
+		this.#view?.revealRangeAtTop(OffsetRange.fromTo(start, endExclusive));
+	}
+
+	async #drainEdits(): Promise<void> {
+		while (this.#pendingEdits.size) {
+			await Promise.all(this.#pendingEdits);
+		}
+		if (this.#disposed) { throw new Error('Markdown editor is disposed'); }
+	}
+
+	#scheduleSelectionReport(): void {
+		if (!this.#navigationReady || this.#navigationReportScheduled || this.#disposed) { return; }
+		this.#navigationReportScheduled = true;
+		queueMicrotask(() => {
+			this.#navigationReportScheduled = false;
+			if (this.#disposed) { return; }
+			this.#send('selectionChanged', this.#drainEdits().then(() => {
+				const selection = this.model.selection.get();
+				return this.#host.selectionChanged({
+					editEpoch: this.#editEpoch,
+					selection: selection ? { anchor: selection.anchor, active: selection.active } : undefined,
+				});
+			}));
+		});
+	}
 
 	#send(operation: string, request: Promise<void> | void): void {
 		void request?.catch(error => {
@@ -483,6 +554,7 @@ class Editor extends Disposable {
 		this._register(autorun((reader) => {
 			const sel = reader.readObservable(this.model.selection);
 			this.#patchViewState({ selection: sel ? { anchor: sel.anchor, active: sel.active } : undefined });
+			this.#scheduleSelectionReport();
 		}));
 
 		// Persist the edit/read-only mode as the global default whenever the lock
@@ -504,11 +576,17 @@ class Editor extends Disposable {
 		let previousText = this.model.sourceText.get().value;
 		this._register(autorun((reader) => {
 			const text = reader.readObservable(this.model.sourceText).value;
+			if (text !== previousText) {
+				this.#navigationRevision++;
+				this.#scheduleSelectionReport();
+			}
 			if (!this.isUpdatingFromExtension && text !== previousText) {
-				this.#send('edit', this.#host.edit({
+				const edit = this.#host.edit({
 					...computeTextEdit(previousText, text),
 					editEpoch: this.#editEpoch,
-				}));
+				});
+				this.#pendingEdits.add(edit);
+				this.#send('edit', edit.finally(() => this.#pendingEdits.delete(edit)));
 			}
 			previousText = text;
 		}));
