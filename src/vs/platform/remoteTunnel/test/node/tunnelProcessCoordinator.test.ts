@@ -13,8 +13,9 @@ import { INativeEnvironmentService } from '../../../environment/common/environme
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { ActiveTunnelMode, INACTIVE_TUNNEL_MODE } from '../../common/remoteTunnel.js';
 import { CodeTunnelCli, CodeTunnelSpawn } from '../../node/codeTunnelCliProcess.js';
-import { resolveTunnelProcessMode, TunnelProcessCoordinator } from '../../node/tunnelProcessCoordinator.js';
+import { ITunnelProcessMachineStatus, resolveTunnelProcessMode, TunnelProcessCoordinator } from '../../node/tunnelProcessCoordinator.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 
 interface TestChildProcess {
 	readonly child: ChildProcess;
@@ -88,6 +89,7 @@ function createCoordinator(exitOnKill = true, ordering?: string[], installExitCo
 		new TestConfigurationService({ 'remote.tunnels.access.hostNameOverride': 'Test_Host' }),
 		environmentService,
 		{ tunnelApplicationName: 'code-tunnel' } as IProductService,
+		NullTelemetryService,
 	);
 	return { coordinator, processes };
 }
@@ -101,6 +103,41 @@ suite('TunnelProcessCoordinator', () => {
 			resolveTunnelProcessMode(activeMode()),
 			resolveTunnelProcessMode(activeMode(true)),
 		], ['none', 'remoteAccess', 'service']);
+	});
+
+	test('passes telemetry correlation to every CLI invocation', async () => {
+		const { coordinator, processes } = createCoordinator();
+		const statuses: ITunnelProcessMachineStatus[] = [];
+		const listener = coordinator.onDidMachineStatus(status => statuses.push(status));
+		try {
+			await coordinator.setRemoteAccess(activeMode(), LogLevel.Info);
+			const tunnel = processes.find(process => process.args.includes('--accept-server-license-terms'))!;
+			tunnel.stdout.write('__VSCODE_CLI_STATUS__{"type":"connected","tunnelName":"test_host","isAttached":false}\n');
+			tunnel.stdout.write('__VSCODE_CLI_STATUS__{"type":"connected","tunnelName":"test_host","isAttached":true}\n');
+			assert.deepStrictEqual({
+				sessionIds: [...new Set(processes.map(process => process.env?.VSCODE_TUNNEL_SESSION_ID))],
+				uniqueOperations: new Set(processes.map(process => process.env?.VSCODE_TUNNEL_OPERATION_ID)).size,
+				processCount: processes.length,
+				hasOperations: processes.every(process => !!process.env?.VSCODE_TUNNEL_OPERATION_ID),
+				correlation: statuses.map(status => status.correlation),
+			}, {
+				sessionIds: [NullTelemetryService.sessionId],
+				uniqueOperations: processes.length,
+				processCount: processes.length,
+				hasOperations: true,
+				correlation: [
+					{ sessionId: tunnel.env?.VSCODE_TUNNEL_SESSION_ID, operationId: tunnel.env?.VSCODE_TUNNEL_OPERATION_ID },
+					undefined,
+				],
+			});
+		} finally {
+			listener.dispose();
+			for (const process of processes) {
+				process.emitExit();
+			}
+			await new Promise<void>(resolve => setImmediate(resolve));
+			coordinator.dispose();
+		}
 	});
 
 	test('stops the tunnel instead of resuming a narrower mode when Remote Tunnel Access is disabled', async () => {
