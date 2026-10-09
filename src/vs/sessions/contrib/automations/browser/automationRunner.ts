@@ -7,6 +7,7 @@ import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { localize } from '../../../../nls.js';
+import { ApiRequestError, MutationUncertainError } from '../../../../platform/github/common/missionControl/missionControlClient.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IAutomationDescriptor } from '../../../../workbench/contrib/chat/common/automations/automation.js';
@@ -90,6 +91,12 @@ export class AutomationRunner implements IAutomationRunner {
 				cancellationListener?.dispose();
 			}
 		} catch (error) {
+			if (error instanceof MutationUncertainError || error instanceof ApiRequestError && error.outcome === 'indeterminate') {
+				this.logService.warn(`[AutomationRunner] Run request outcome unknown for ${automation.id}`, error);
+				this.notificationService.warn(error.message);
+				await dispatched.complete({ kind: 'uncertain', message: error.message });
+				return;
+			}
 			if (token.isCancellationRequested && isCancellationError(error)) {
 				await dispatched.complete({ kind: 'notStarted', reason: 'cancelled' });
 				return;
