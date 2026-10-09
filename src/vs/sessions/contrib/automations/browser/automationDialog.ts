@@ -1145,12 +1145,13 @@ export function renderForm(
 	};
 	const updateIntervalOptions = (cloud: boolean) => {
 		intervals = INTERVALS.filter(item => !cloud || item.value !== 'weekdays');
-		if (cloud && state.interval === 'weekdays') {
-			intervals = [{ value: 'weekdays', label: localize('automation.interval.choose', "Choose a schedule") }, ...intervals];
+		const unsupportedInterval = !intervals.some(item => item.value === state.interval);
+		if (unsupportedInterval) {
+			intervals = [{ value: state.interval, label: localize('automation.interval.choose', "Choose a schedule") }, ...intervals];
 		}
 		intervalSelect.setOptions(intervals.map(item => ({
 			text: item.label,
-			isDisabled: cloud && item.value === 'weekdays',
+			isDisabled: unsupportedInterval && item.value === state.interval,
 		})), Math.max(0, intervals.findIndex(item => item.value === state.interval)));
 		applyIntervalVisibility();
 	};
@@ -2160,11 +2161,13 @@ export function updateSaveButtonState(
 	const utcSchedule = state.timeZone === 'UTC' ? automationScheduleToUTC({
 		interval: state.interval, scheduleHour: state.hour, scheduleMinute: state.minute, scheduleDay: state.day,
 	}, state.timezoneOffset) : undefined;
-	validation.scheduleError = utcSchedule && state.interval === 'weekdays'
-		? localize('automation.form.cloudWeekdays', "Weekdays is only available for local automations. Choose a supported schedule for Cloud.")
-		: utcSchedule && (state.interval === 'daily' || state.interval === 'weekly') && utcSchedule.scheduleMinute % 15 !== 0
-			? localize('automation.form.cloudScheduleMinute', "Choose a time that corresponds to minute 00, 15, 30, or 45 in UTC.")
-			: undefined;
+	validation.scheduleError = !INTERVALS.some(item => item.value === state.interval)
+		? localize('automation.form.scheduleRequired', "Choose a supported schedule.")
+		: utcSchedule && state.interval === 'weekdays'
+			? localize('automation.form.cloudWeekdays', "Weekdays is only available for local automations. Choose a supported schedule for Cloud.")
+			: utcSchedule && (state.interval === 'daily' || state.interval === 'weekly') && utcSchedule.scheduleMinute % 15 !== 0
+				? localize('automation.form.cloudScheduleMinute', "Choose a time that corresponds to minute 00, 15, 30, or 45 in UTC.")
+				: undefined;
 	const valid = !validation.nameError && !validation.promptError && !validation.folderError && !validation.sessionTypeError && !validation.branchError && !validation.scheduleError;
 	if (saveButton) {
 		saveButton.enabled = valid;

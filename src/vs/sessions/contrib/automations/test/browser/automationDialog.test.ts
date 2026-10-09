@@ -298,6 +298,47 @@ suite('Automation dialog creation', () => {
 		});
 	}
 
+	test('duplicating foreign-time-zone Weekdays requires choosing a supported schedule', async () => {
+		const automation: IAutomationDescriptor = {
+			id: 'foreign-weekdays', name: 'Weekday review', prompt: 'Review changes', enabled: true, createdAt: '', updatedAt: '',
+			target: { kind: 'quickChat', providerId: 'host', sessionTypeId: 'copilotcli' },
+			schedule: { interval: 'custom', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			readOnlyReason: 'This automation uses a schedule that cannot be edited in this time zone.',
+		};
+		let commits = 0;
+		const dialog = openDialog({ initialValues: automation, commit: async () => { commits++; } });
+		const interval = dialog.container.querySelector<HTMLSelectElement>('select[aria-label="Schedule"]')!;
+		const initial = {
+			options: Array.from(interval.options, option => option.textContent),
+			selected: interval.selectedOptions[0].textContent,
+			placeholderDisabled: interval.selectedOptions[0].disabled,
+			saveDisabled: dialog.saveButton.getAttribute('aria-disabled'),
+			error: dialog.container.querySelector('.automation-form-content > .automation-target-error')?.textContent,
+		};
+		dialog.saveButton.click();
+		await timeout(0);
+		assert.deepStrictEqual({ ...initial, commits }, {
+			options: ['Choose a schedule', 'Manual', 'Hourly', 'Daily', 'Weekdays', 'Weekly'],
+			selected: 'Choose a schedule', placeholderDisabled: true, saveDisabled: 'true',
+			error: 'Choose a supported schedule.',
+			commits: 0,
+		});
+		interval.selectedIndex = Array.from(interval.options).findIndex(option => option.textContent === 'Weekdays');
+		interval.dispatchEvent(new (DOM.getWindow(interval).Event)('change', { bubbles: true }));
+		assert.deepStrictEqual({
+			options: Array.from(interval.options, option => option.textContent),
+			selected: interval.selectedOptions[0].textContent,
+			saveDisabled: dialog.saveButton.getAttribute('aria-disabled'),
+		}, { options: ['Manual', 'Hourly', 'Daily', 'Weekdays', 'Weekly'], selected: 'Weekdays', saveDisabled: 'false' });
+		dialog.saveButton.click();
+		const result = await dialog.result;
+		assert.deepStrictEqual({ kind: result?.kind, schedule: result?.value.schedule, commits }, {
+			kind: 'create',
+			schedule: { interval: 'weekdays', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			commits: 1,
+		});
+	});
+
 	test('switching Weekdays to Cloud hides the option and requires an explicit supported schedule', async () => {
 		const dialog = openDialog({
 			initialValues: {
