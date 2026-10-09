@@ -17,15 +17,11 @@ const pageTargets: Readonly<Record<string, AICustomizationManagementOpenEditorTa
 	agents: AICustomizationManagementSection.Agents,
 	skills: AICustomizationManagementSection.Skills,
 	instructions: AICustomizationManagementSection.Instructions,
-	prompts: AICustomizationManagementSection.Prompts,
 	hooks: AICustomizationManagementSection.Hooks,
-	automations: AICustomizationManagementSection.Automations,
 	'mcp-server': AICustomizationManagementSection.McpServers,
 	'mcp-servers': AICustomizationManagementSection.McpServers,
 	plugins: AICustomizationManagementSection.Plugins,
-	models: AICustomizationManagementSection.Models,
 	tools: AICustomizationManagementSection.Tools,
-	'harness-settings': AICustomizationManagementSection.HarnessSettings,
 	migrations: { migration: true },
 };
 

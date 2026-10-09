@@ -22,14 +22,10 @@ suite('AIChatCustomizationsUrlHandler', () => {
 			['agents', { section: AICustomizationManagementSection.Agents }],
 			['skills', { section: AICustomizationManagementSection.Skills }],
 			['instructions', { section: AICustomizationManagementSection.Instructions }],
-			['prompts', { section: AICustomizationManagementSection.Prompts }],
 			['hooks', { section: AICustomizationManagementSection.Hooks }],
-			['automations', { section: AICustomizationManagementSection.Automations }],
 			['mcp-servers', { section: AICustomizationManagementSection.McpServers }],
 			['plugins', { section: AICustomizationManagementSection.Plugins }],
-			['models', { section: AICustomizationManagementSection.Models }],
 			['tools', { section: AICustomizationManagementSection.Tools }],
-			['harness-settings', { section: AICustomizationManagementSection.HarnessSettings }],
 			['migrations', { migration: true }],
 		] as const;
 
@@ -60,11 +56,9 @@ suite('AIChatCustomizationsUrlHandler', () => {
 		assert.deepStrictEqual([
 			parseChatCustomizationsUrl(URI.parse('vscode://chat-customizations/open?page=mcp%20server')),
 			parseChatCustomizationsUrl(URI.parse('vscode://chat-customizations/open?page=mcpServers')),
-			parseChatCustomizationsUrl(URI.parse('vscode://chat-customizations/open?page=harnessSettings')),
 		], [
 			{ section: AICustomizationManagementSection.McpServers, searchQuery: undefined },
 			{ section: AICustomizationManagementSection.McpServers, searchQuery: undefined },
-			{ section: AICustomizationManagementSection.HarnessSettings, searchQuery: undefined },
 		]);
 	});
 

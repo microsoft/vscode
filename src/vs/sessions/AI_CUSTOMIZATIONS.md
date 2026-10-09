@@ -170,7 +170,7 @@ Optional sections and migrations remain behind their owning configuration or cap
 
 ## Protocol handler
 
-A customizations page can be opened through `vscode://chat-customizations/open?page=<page>&search=<query>`. Supported page values are `discover`, `agents`, `skills`, `instructions`, `prompts`, `hooks`, `automations`, `mcp-servers`, `plugins`, `models`, `tools`, `harness-settings`, and `migrations`. The optional `search` parameter populates the search field on pages that expose one.
+A customizations page can be opened through `vscode://chat-customizations/open?page=<page>&search=<query>`. Supported page values are `discover`, `agents`, `skills`, `instructions`, `hooks`, `mcp-servers`, `plugins`, `tools`, and `migrations`. The optional `search` parameter populates the search field on pages that expose one.
 
 Examples for VS Code Insiders:
 
