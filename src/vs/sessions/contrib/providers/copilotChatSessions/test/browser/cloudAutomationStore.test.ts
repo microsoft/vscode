@@ -21,7 +21,6 @@ import { ConfigurationTarget, IConfigurationService } from '../../../../../../pl
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { AutomationDetail, AutomationToolGroup, CreateAutomationRequest, CreateAutomationTaskResponse, EditAutomationRequest, IAutomationsClient, ListRepoAutomationsResponse } from '../../../../../../platform/github/common/missionControl/automations.js';
-import { PaginatedResponse, RepositoryRef } from '../../../../../../platform/github/common/missionControl/missionControl.js';
 import { ApiRequestError, MutationUncertainError } from '../../../../../../platform/github/common/missionControl/missionControlClient.js';
 import { ITasksClient, ListTasksResponse, Task } from '../../../../../../platform/github/common/missionControl/tasks.js';
 import { IGitHubCredentials } from '../../../../../../platform/github/common/githubCredentialService.js';
@@ -42,6 +41,8 @@ import { ISessionsRecentWorkspacesService } from '../../../../../services/sessio
 import { GITHUB_REMOTE_FILE_SCHEME } from '../../../../../services/sessions/common/session.js';
 import { CloudAutomationStore, cloudAutomationSchedule, cloudAutomationTriggers } from '../../browser/cloudAutomationStore.js';
 import { IRepositoryPickResult, RepositoryPicker } from '../../../../../../workbench/contrib/chat/browser/agentSessions/repositoryPicker.js';
+import { RepositoryRef } from '../../../../../../platform/github/common/client/types.js';
+import { PaginatedResponse } from '../../../../../../platform/github/common/missionControl/missionControl.js';
 
 const definition: AutomationDetail = { id: 'one', name: 'Review', description: '', created_by: { login: 'user' }, prompt: 'Review issues', created_at: '2026-09-01T00:00:00Z', updated_at: '2026-09-01T00:00:00Z', triggers: {} };
 const workspace = URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, authority: 'github', path: '/owner/private/HEAD' });

@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { pathSegment, queryPath, repositoryPath } from '../client/routing.js';
+import { pathSegment, withQuery, repositoryPath } from '../client/routing.js';
 import { parse, SchemaError } from '../client/schema.js';
+import { RepositoryRef } from '../client/types.js';
 import { AutomationDetail, AutomationSummary, AutomationToolDefinition, AutomationToolGroup, AutomationTriggerDefinition, AutomationTriggerFieldDefinition, CreateAutomationRequest, CreateAutomationTaskRequest, CreateAutomationTaskResponse, EditAutomationRequest, GetAutomationOptions, IAutomationsClient, ListAutomationsOptions, ListRepoAutomationsResponse } from './automations.js';
-import { PaginatedResponse, RepositoryRef } from './missionControl.js';
-import { MissionControlClient, paginated, pagination, parseUser } from './missionControlClient.js';
+import { PaginatedResponse } from './missionControl.js';
+import { MissionControlClient, paginated, parseUser } from './missionControlClient.js';
 import { ListTasksResponse, TaskListOptions } from './tasks.js';
 import { parseListTasksResponse } from './tasksClient.js';
 
@@ -17,7 +18,7 @@ export class AutomationsClient implements IAutomationsClient {
 	list(repository: RepositoryRef, signal: AbortSignal, options?: ListAutomationsOptions): Promise<PaginatedResponse<ListRepoAutomationsResponse>> {
 		return this._client.request({
 			method: 'GET',
-			path: queryPath(`${repositoryPath(repository)}/automations/v2`, { ...options, ...pagination(options) }),
+			path: withQuery(`${repositoryPath(repository)}/automations/v2`, { ...options }),
 			expectedStatus: [200],
 		}, signal, response => paginated(response, parseListAutomationsResponse(response.data)));
 	}
@@ -25,7 +26,7 @@ export class AutomationsClient implements IAutomationsClient {
 	get(repository: RepositoryRef, automationId: string, signal: AbortSignal, options?: GetAutomationOptions): Promise<AutomationDetail> {
 		return this._client.request({
 			method: 'GET',
-			path: queryPath(automationPath(repository, automationId), { ...options }),
+			path: withQuery(automationPath(repository, automationId), { ...options }),
 			expectedStatus: [200],
 		}, signal, response => parseAutomationDetail(response.data, automationId));
 	}
@@ -69,7 +70,7 @@ export class AutomationsClient implements IAutomationsClient {
 	listRuns(automationId: string, signal: AbortSignal, options?: TaskListOptions): Promise<PaginatedResponse<ListTasksResponse>> {
 		return this._client.request({
 			method: 'GET',
-			path: queryPath(`/automations/${pathSegment(automationId)}/tasks`, { ...options, ...pagination(options) }),
+			path: withQuery(`/automations/${pathSegment(automationId)}/tasks`, { ...options }),
 			expectedStatus: [200],
 		}, signal, response => {
 			const data = parseListTasksResponse(response.data);
