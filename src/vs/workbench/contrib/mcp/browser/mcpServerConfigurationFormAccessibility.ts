@@ -3,13 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from '../../../../base/browser/dom.js';
 import { localize } from '../../../../nls.js';
 import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
-import { McpServerConfigurationFormFocusContext } from './mcpServerConfigurationForm.js';
+import { getFocusedMcpServerConfigurationForm, McpServerConfigurationFormFocusContext } from './mcpServerConfigurationForm.js';
 
 /**
  * Accessibility help for {@link McpServerConfigurationForm}. The form uses native text fields,
@@ -23,16 +22,13 @@ export class McpServerConfigurationFormAccessibilityHelp implements IAccessibleV
 	readonly when = McpServerConfigurationFormFocusContext;
 
 	getProvider(_accessor: ServicesAccessor): AccessibleContentProvider {
-		const focused = DOM.getActiveElement();
+		// Captured now: a file change while Help is open can rebuild the focused row.
+		const restoreFocus = getFocusedMcpServerConfigurationForm()?.captureFocus();
 		return new AccessibleContentProvider(
 			AccessibleViewProviderId.McpServerConfiguration,
 			{ type: AccessibleViewType.Help },
 			() => getMcpServerConfigurationFormHelpContent(),
-			() => {
-				if (DOM.isHTMLElement(focused) && focused.isConnected) {
-					focused.focus();
-				}
-			},
+			() => restoreFocus?.(),
 			AccessibilityVerbositySettingId.McpServerConfiguration,
 		);
 	}

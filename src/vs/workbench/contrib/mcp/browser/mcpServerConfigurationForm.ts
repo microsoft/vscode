@@ -30,12 +30,26 @@ import { AccessibilityCommandId } from '../../accessibility/common/accessibility
 import { settingsTextInputBorder } from '../../preferences/common/settingsEditorColorRegistry.js';
 import { McpResourceFormat } from '../../../../platform/mcp/common/mcpWorkspaceConfiguration.js';
 import { IEditableMcpServerConfiguration } from '../common/mcpTypes.js';
-import { getMcpServerFormatError, getMcpServerFormCapabilities, IMcpServerFormCapabilities, IMcpServerFormKeyValue, IMcpServerFormState, IMcpServerFormValidation, isMcpServerFormValid, McpServerFormKind, toMcpServerConfiguration, toMcpServerFormState, validateMcpServerFormState } from '../common/mcpServerConfigurationForm.js';
+import { getMcpServerFormatError, getMcpServerFormCapabilities, IMcpServerFormCapabilities, IMcpServerFormKeyValue, IMcpServerFormState, IMcpServerFormValidation, isMcpServerFormValid, McpServerFormKind, mergeMcpServerFormKeyValues, toMcpServerConfiguration, toMcpServerFormState, validateMcpServerFormState } from '../common/mcpServerConfigurationForm.js';
 
 const $ = DOM.$;
 
 /** Whether focus is inside an {@link McpServerConfigurationForm}. */
 export const McpServerConfigurationFormFocusContext = new RawContextKey<boolean>('mcpServerConfigurationFormFocus', false, localize('mcpServerConfigurationFormFocus', "Whether focus is in an MCP server configuration form"));
+
+/** Forms that have not been disposed, used to find the form that has focus. */
+const liveForms = new Set<McpServerConfigurationForm>();
+
+/** The configuration form that contains the focused element, if any. */
+export function getFocusedMcpServerConfigurationForm(): McpServerConfigurationForm | undefined {
+	const active = DOM.getActiveElement();
+	for (const form of liveForms) {
+		if (DOM.isAncestor(active, form.element)) {
+			return form;
+		}
+	}
+	return undefined;
+}
 
 export interface IMcpServerConfigurationFormOptions {
 	/** Opens the configuration file at the server's entry, to edit properties the form does not show. */
@@ -55,6 +69,20 @@ export interface IMcpServerConfigurationFormInput extends IEditableMcpServerConf
 
 // Match the Settings and Profiles editors, whose inputs stay visible on themes with a faint `input.border`.
 const formInputBoxStyles = getInputBoxStyle({ inputBorder: settingsTextInputBorder });
+
+interface IKeyValueRow {
+	readonly entry: IMcpServerFormKeyValue;
+	readonly name: InputBox;
+	readonly value: InputBox;
+	readonly actions: ActionBar;
+}
+
+interface IKeyValueFocus {
+	readonly entry: IMcpServerFormKeyValue;
+	readonly index: number;
+	readonly control: 'name' | 'value' | 'remove';
+	readonly selection?: readonly [number | null, number | null];
+}
 
 interface IKeyValueListLabels {
 	readonly namePlaceholder: string;
@@ -83,7 +111,7 @@ class KeyValueList extends Disposable {
 	private readonly errorEl: HTMLElement;
 	private readonly addButton: Button;
 	private readonly rowDisposables = this._register(new DisposableStore());
-	private nameInputs: InputBox[] = [];
+	private rows: IKeyValueRow[] = [];
 	private entries: IMcpServerFormKeyValue[] = [];
 
 	constructor(
@@ -107,7 +135,7 @@ class KeyValueList extends Disposable {
 		this._register(this.addButton.onDidClick(() => {
 			this.entries.push({ name: '', value: '' });
 			this.renderRows();
-			this.nameInputs.at(-1)?.focus();
+			this.rows.at(-1)?.name.focus();
 			this._onDidChange.fire();
 		}));
 	}
@@ -117,8 +145,13 @@ class KeyValueList extends Disposable {
 	}
 
 	set value(entries: IMcpServerFormKeyValue[]) {
+		// Rebuilding the rows drops keyboard focus, so return it to the same row if it remains.
+		const focus = this.getFocus();
 		this.entries = entries;
 		this.renderRows();
+		if (focus) {
+			this.restoreFocus(focus);
+		}
 	}
 
 	setError(message: string | undefined): void {
@@ -129,7 +162,7 @@ class KeyValueList extends Disposable {
 	private renderRows(): void {
 		this.rowDisposables.clear();
 		DOM.clearNode(this.rowsEl);
-		this.nameInputs = [];
+		this.rows = [];
 		this.headerEl.style.display = this.entries.length ? '' : 'none';
 
 		this.entries.forEach((entry, index) => {
@@ -140,7 +173,6 @@ class KeyValueList extends Disposable {
 				inputBoxStyles: formInputBoxStyles,
 			}));
 			nameInput.value = entry.name;
-			this.nameInputs.push(nameInput);
 
 			const valueInput = this.rowDisposables.add(new InputBox(DOM.append(row, $('.mcp-config-form-kv-value')), this.contextViewService, {
 				placeholder: this.labels.valuePlaceholder,
@@ -152,6 +184,7 @@ class KeyValueList extends Disposable {
 			const removeAction = this.rowDisposables.add(new Action('mcpForm.removeEntry', this.labels.removeAriaLabel(entry.name, index + 1), ThemeIcon.asClassName(Codicon.close), true, () => this.removeEntry(index)));
 			const actionBar = this.rowDisposables.add(new ActionBar(DOM.append(row, $('.mcp-config-form-kv-actions'))));
 			actionBar.push(removeAction, { icon: true, label: false });
+			this.rows.push({ entry, name: nameInput, value: valueInput, actions: actionBar });
 
 			this.rowDisposables.add(nameInput.onDidChange(name => {
 				entry.name = name;
@@ -171,14 +204,52 @@ class KeyValueList extends Disposable {
 	private removeEntry(index: number): void {
 		this.entries.splice(index, 1);
 		this.renderRows();
-		// Keep keyboard focus in the list after the focused row disappears.
-		const next = this.nameInputs[Math.min(index, this.nameInputs.length - 1)];
+		this.focusRowAt(index);
+		this._onDidChange.fire();
+	}
+
+	/** Keeps keyboard focus in the list when the row at {@link index} is gone. */
+	private focusRowAt(index: number): void {
+		const next = this.rows[Math.min(index, this.rows.length - 1)];
 		if (next) {
-			next.focus();
+			next.name.focus();
 		} else {
 			this.addButton.focus();
 		}
-		this._onDidChange.fire();
+	}
+
+	/** Where focus is in the list, so {@link restoreFocus} can return it there after the rows are rebuilt. */
+	getFocus(): IKeyValueFocus | undefined {
+		const active = DOM.getActiveElement();
+		for (let index = 0; index < this.rows.length; index++) {
+			const { entry, name, value, actions } = this.rows[index];
+			for (const [control, input] of [['name', name], ['value', value]] as const) {
+				if (active === input.inputElement) {
+					return { entry, index, control, selection: [input.inputElement.selectionStart, input.inputElement.selectionEnd] };
+				}
+			}
+			if (DOM.isAncestor(active, actions.domNode)) {
+				return { entry, index, control: 'remove' };
+			}
+		}
+		return undefined;
+	}
+
+	restoreFocus({ entry, index, control, selection }: IKeyValueFocus): void {
+		const row = this.rows.find(row => row.entry === entry);
+		if (!row) {
+			this.focusRowAt(index);
+			return;
+		}
+		if (control === 'remove') {
+			row.actions.focus(0);
+			return;
+		}
+		const input = row[control];
+		input.focus();
+		if (selection) {
+			input.inputElement.setSelectionRange(selection[0], selection[1]);
+		}
 	}
 }
 
@@ -233,6 +304,8 @@ export class McpServerConfigurationForm extends Disposable {
 		super();
 
 		this.element = DOM.append(parent, $('.mcp-config-form', { role: 'group' }));
+		liveForms.add(this);
+		this._register(toDisposable(() => liveForms.delete(this)));
 		this.updateAriaLabel();
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AccessibilityVerbositySettingId.McpServerConfiguration)) {
@@ -383,6 +456,31 @@ export class McpServerConfigurationForm extends Disposable {
 		this.kindRadio.focusActiveItem();
 	}
 
+	/**
+	 * Remembers where focus is in the form and returns a function that moves it back there, for
+	 * example when a dialog closes. A file change in the meantime can rebuild the focused row, in
+	 * which case focus returns to the same row, the nearest remaining row or the form.
+	 */
+	captureFocus(): () => void {
+		const focused = DOM.getActiveElement();
+		const listFocus = [this.envList, this.headersList].map(list => ({ list, focus: list.getFocus() })).find(({ focus }) => focus);
+		return () => {
+			if (DOM.isHTMLElement(focused) && focused.isConnected) {
+				focused.focus();
+				if (DOM.getActiveElement() === focused) {
+					return;
+				}
+			}
+			if (listFocus?.focus) {
+				listFocus.list.restoreFocus(listFocus.focus);
+				if (DOM.isAncestor(DOM.getActiveElement(), this.element)) {
+					return;
+				}
+			}
+			this.focus();
+		};
+	}
+
 	private appendField(parent: HTMLElement, label: string, optional = false): HTMLElement {
 		const field = DOM.append(parent, $('.mcp-config-form-field'));
 		const labelEl = DOM.append(field, $('.mcp-config-form-label'));
@@ -466,17 +564,17 @@ export class McpServerConfigurationForm extends Disposable {
 		this.envFileInput.value = state.envFile;
 		this.cwdInput.value = state.cwd;
 		this.urlInput.value = state.url;
-		// Lists edit the state in place, so give them copies to keep the initial state intact. A list
-		// whose rows are unchanged keeps its DOM, so a refresh does not interrupt typing in a row.
+		// Lists edit their rows in place; the state's rows are never shared with the initial state. A
+		// list whose rows are unchanged keeps its DOM, so a refresh does not interrupt typing in a row.
 		if (equals(this.envList.value, state.env)) {
 			state.env = this.envList.value;
 		} else {
-			this.envList.value = state.env = state.env.map(entry => ({ ...entry }));
+			this.envList.value = state.env;
 		}
 		if (equals(this.headersList.value, state.headers)) {
 			state.headers = this.headersList.value;
 		} else {
-			this.headersList.value = state.headers = state.headers.map(entry => ({ ...entry }));
+			this.headersList.value = state.headers;
 		}
 		this.updateSections();
 		this.onDidChangeState();
@@ -540,9 +638,9 @@ export class McpServerConfigurationForm extends Disposable {
 			args: equals(state.args, initialState.args) ? next.args : state.args,
 			cwd: equals(state.cwd, initialState.cwd) ? next.cwd : state.cwd,
 			envFile: equals(state.envFile, initialState.envFile) ? next.envFile : state.envFile,
-			env: equals(state.env, initialState.env) ? next.env : state.env,
+			env: mergeMcpServerFormKeyValues(initialState.env, state.env, next.env),
 			url: equals(state.url, initialState.url) ? next.url : state.url,
-			headers: equals(state.headers, initialState.headers) ? next.headers : state.headers,
+			headers: mergeMcpServerFormKeyValues(initialState.headers, state.headers, next.headers),
 		};
 		this.baseline = config;
 		this.initialState = toMcpServerFormState(config);
@@ -585,6 +683,8 @@ export class McpServerConfigurationForm extends Disposable {
 		}
 
 		const config = toMcpServerConfiguration(state, baseline);
+		// The name each row is saved under, which becomes the row's origin once the save succeeds.
+		const savedRows = [...state.env, ...state.headers].map(row => [row, row.name.trim()] as const);
 		const label = input.label || input.name;
 		this.saving = true;
 		this.updateButtons();
@@ -593,6 +693,13 @@ export class McpServerConfigurationForm extends Disposable {
 			if (this.input?.id === input.id) {
 				this.baseline = config;
 				this.initialState = toMcpServerFormState(config);
+				for (const [row, name] of savedRows) {
+					if (name) {
+						row.origin = name;
+					} else {
+						delete row.origin;
+					}
+				}
 			}
 			status(localize('mcpForm.saved', "Saved configuration for {0}", label));
 		} catch (error) {

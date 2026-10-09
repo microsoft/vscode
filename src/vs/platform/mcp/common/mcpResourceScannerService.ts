@@ -451,7 +451,16 @@ export function getEditedMcpServerConfiguration(previous: IMcpServerConfiguratio
 		const before: unknown = Reflect.get(previous, key);
 		const after: unknown = Reflect.get(edited, key);
 		if (Array.isArray(before) && Array.isArray(after)) {
-			Reflect.set(edited, key, after.filter(item => !before.some(old => equals(old, item))));
+			// Each existing item accounts for one unchanged item, so an added duplicate is still validated.
+			const unmatched = [...before];
+			Reflect.set(edited, key, after.filter(item => {
+				const index = unmatched.findIndex(old => equals(old, item));
+				if (index === -1) {
+					return true;
+				}
+				unmatched.splice(index, 1);
+				return false;
+			}));
 		} else if (isObject(before) && isObject(after)) {
 			Reflect.set(edited, key, Object.fromEntries(Object.entries(after).filter(([name, value]) => !equals(value, Reflect.get(before, name)))));
 		}

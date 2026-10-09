@@ -330,13 +330,15 @@ suite('EmbeddedMcpServerDetail', () => {
 
 	test('a file change while the form has edits keeps the edits and shows the other changes', async () => {
 		const saves: { previous: IMcpServerConfiguration; config: IMcpServerConfiguration }[] = [];
-		const original: IMcpServerConfiguration = { type: McpServerType.LOCAL, command: 'server', args: ['--old'], env: { TOKEN: 'old' } };
+		const original: IMcpServerConfiguration = { type: McpServerType.LOCAL, command: 'server', args: ['--old'], env: { TOKEN: 'old', PORT: '1' } };
 		let config = original;
 		const { detail, input } = createDetail(() => ({
 			config,
 			format: McpResourceFormat.CopilotGlobal,
 			save: async (previous, next) => { saves.push({ previous, config: next }); },
 		}));
+		mainWindow.document.body.appendChild(detail.element);
+		store.add(toDisposable(() => detail.element.remove()));
 		const refresh = async () => {
 			detail.setInput(input);
 			await timeout(0);
@@ -345,21 +347,30 @@ suite('EmbeddedMcpServerDetail', () => {
 
 		const form = detail.element.querySelector<HTMLElement>('.mcp-detail-configuration-form')!;
 		const argsValue = () => [...form.querySelectorAll<HTMLElement>('.mcp-config-form-field')].find(field => field.querySelector('.mcp-config-form-label')?.firstChild?.textContent === 'Arguments')!.querySelector('input')!.value;
-		const valueInput = form.querySelector<HTMLInputElement>('.mcp-config-form-kv-value input')!;
-		valueInput.value = 'mine';
-		valueInput.dispatchEvent(new (getWindow(valueInput).Event)('input'));
+		const envRows = () => [...form.querySelectorAll<HTMLElement>('.mcp-config-form-kv-row')].map(row => [...row.querySelectorAll('input')].map(input => input.value));
+		const tokenValue = form.querySelector<HTMLInputElement>('.mcp-config-form-kv-value input')!;
+		tokenValue.focus();
+		tokenValue.value = 'mine';
+		tokenValue.dispatchEvent(new (getWindow(tokenValue).Event)('input'));
+		tokenValue.setSelectionRange(2, 2);
 
-		// Arguments change through Other Properties while the environment variable edit is unsaved.
-		config = { ...original, args: ['--new'] };
+		// While the TOKEN edit is unsaved, the file changes PORT and the arguments, for example through Other Properties.
+		config = { ...original, args: ['--new'], env: { TOKEN: 'old', PORT: '2' } };
 		await refresh();
-		const whileDirty = { args: argsValue(), sameRow: form.querySelector('.mcp-config-form-kv-value input') === valueInput, value: valueInput.value };
+		const focused = getActiveElement();
+		const whileDirty = {
+			args: argsValue(),
+			env: envRows(),
+			focusInTokenValue: focused === form.querySelector('.mcp-config-form-kv-value input'),
+			caret: focused instanceof HTMLInputElement ? focused.selectionStart : undefined,
+		};
 		const [, , saveButton] = form.querySelectorAll<HTMLElement>('.mcp-config-form-footer .monaco-button');
 		saveButton.click();
 		await timeout(0);
 
 		assert.deepStrictEqual({ whileDirty, saves }, {
-			whileDirty: { args: '--new', sameRow: true, value: 'mine' },
-			saves: [{ previous: config, config: { ...config, env: { TOKEN: 'mine' } } }],
+			whileDirty: { args: '--new', env: [['TOKEN', 'mine'], ['PORT', '2']], focusInTokenValue: true, caret: 2 },
+			saves: [{ previous: config, config: { ...config, env: { TOKEN: 'mine', PORT: '2' } } }],
 		});
 	});
 
@@ -411,6 +422,43 @@ suite('EmbeddedMcpServerDetail', () => {
 			verbositySetting: AccessibilityVerbositySettingId.McpServerConfiguration,
 			documentsArguments: true,
 			focusRestored: true,
+		});
+	});
+
+	test('closing accessibility help returns focus to the field when the focused row was rebuilt', async () => {
+		let config: IMcpServerConfiguration = { type: McpServerType.LOCAL, command: 'memory-server', env: { TOKEN: 'old' } };
+		const { detail, input, instantiationService } = createDetail(() => ({
+			config,
+			format: McpResourceFormat.CopilotGlobal,
+			save: async () => { },
+		}));
+		mainWindow.document.body.appendChild(detail.element);
+		store.add(toDisposable(() => detail.element.remove()));
+		detail.setInput(input);
+		await timeout(0);
+
+		const form = detail.element.querySelector<HTMLElement>('.mcp-config-form')!;
+		const tokenValue = form.querySelector<HTMLInputElement>('.mcp-config-form-kv-value input')!;
+		tokenValue.focus();
+		const provider = store.add(instantiationService.invokeFunction(accessor => new McpServerConfigurationFormAccessibilityHelp().getProvider(accessor)));
+		const outside = mainWindow.document.body.appendChild($('button'));
+		store.add(toDisposable(() => outside.remove()));
+		outside.focus();
+		// The file changes while Help is open, which rebuilds the environment variable rows.
+		config = { ...config, env: { TOKEN: 'new', PORT: '1' } };
+		detail.setInput(input);
+		await timeout(0);
+		provider.onClose();
+
+		const focused = getActiveElement();
+		assert.deepStrictEqual({
+			rowRebuilt: !tokenValue.isConnected,
+			focusInEnvironmentVariables: !!focused?.closest('.mcp-config-form-field')?.querySelector('.mcp-config-form-kv-rows'),
+			focused: focused === form.querySelector('.mcp-config-form-kv-name input'),
+		}, {
+			rowRebuilt: true,
+			focusInEnvironmentVariables: true,
+			focused: true,
 		});
 	});
 

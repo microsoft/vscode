@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IMcpServerConfiguration, McpServerType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { McpResourceFormat } from '../../../../../platform/mcp/common/mcpWorkspaceConfiguration.js';
-import { formatMcpServerArgs, getMcpServerFormatError, McpServerFormKind, parseMcpServerArgs, toMcpServerConfiguration, toMcpServerFormState, validateMcpServerFormState } from '../../common/mcpServerConfigurationForm.js';
+import { formatMcpServerArgs, getMcpServerFormatError, McpServerFormKind, mergeMcpServerFormKeyValues, parseMcpServerArgs, toMcpServerConfiguration, toMcpServerFormState, validateMcpServerFormState } from '../../common/mcpServerConfigurationForm.js';
 
 suite('MCP Server Configuration Form', () => {
 
@@ -81,6 +81,7 @@ suite('MCP Server Configuration Form', () => {
 			inputVariable: getMcpServerFormatError('server', previous, { ...previous, env: { A: '${input:a}' } }, McpResourceFormat.CopilotGlobal) !== undefined,
 			unchangedInputVariable: getMcpServerFormatError('server', { ...previous, env: { A: '${input:a}', B: '1' } }, { ...previous, env: { A: '${input:a}', B: '2' } }, McpResourceFormat.CopilotGlobal),
 			unchangedInputArgument: getMcpServerFormatError('server', { ...previous, args: ['${input:a}'] }, { ...previous, args: ['${input:a}', '--verbose'] }, McpResourceFormat.CopilotGlobal),
+			duplicatedInputArgument: getMcpServerFormatError('server', { ...previous, args: ['${input:a}'] }, { ...previous, args: ['${input:a}', '${input:a}'] }, McpResourceFormat.CopilotGlobal) !== undefined,
 		}, {
 			unchangedCwd: undefined,
 			changedCwd: true,
@@ -88,7 +89,26 @@ suite('MCP Server Configuration Form', () => {
 			inputVariable: true,
 			unchangedInputVariable: undefined,
 			unchangedInputArgument: undefined,
+			duplicatedInputArgument: true,
 		});
+	});
+
+	test('merging rows keeps the user\'s edits and takes every other change from the file', () => {
+		const base = toMcpServerFormState({ type: McpServerType.LOCAL, command: 'node', env: { EDITED: '1', UNTOUCHED: '1', REMOVED_LOCALLY: '1', REMOVED_REMOTELY: '1', RENAMED: '1' } }).env;
+		const local = base.map(row => ({ ...row }));
+		local[0].value = 'mine';
+		local[4].name = 'RENAMED_LOCALLY';
+		local.splice(2, 1);
+		local.push({ name: 'ADDED_LOCALLY', value: '1' });
+		const remote = toMcpServerFormState({ type: McpServerType.LOCAL, command: 'node', env: { EDITED: 'theirs', UNTOUCHED: 'theirs', REMOVED_LOCALLY: 'theirs', RENAMED: 'theirs', ADDED_REMOTELY: '1', ADDED_LOCALLY: 'theirs' } }).env;
+
+		assert.deepStrictEqual(mergeMcpServerFormKeyValues(base, local, remote).map(({ name, value }) => [name, value]), [
+			['EDITED', 'mine'],
+			['UNTOUCHED', 'theirs'],
+			['RENAMED_LOCALLY', '1'],
+			['ADDED_LOCALLY', '1'],
+			['ADDED_REMOTELY', '1'],
+		]);
 	});
 
 	test('validation reports missing and duplicate values', () => {
