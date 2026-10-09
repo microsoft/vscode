@@ -22,6 +22,8 @@ import { INotificationViewItem, NotificationViewItemContentChangeKind } from '..
 import { withSeverityPrefix } from '../../../../platform/notification/common/notification.js';
 import { NotificationText } from '../../../../platform/notification/common/notificationMessage.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { logNotificationAction, logNotificationInteraction, logNotificationShown } from '../../../common/notificationTelemetry.js';
 
 export class NotificationAccessibleView implements IAccessibleViewImplementation {
 	readonly priority = 90;
@@ -34,6 +36,7 @@ export class NotificationAccessibleView implements IAccessibleViewImplementation
 		const commandService = accessor.get(ICommandService);
 		const accessibilitySignalService = accessor.get(IAccessibilitySignalService);
 		const openerService = accessor.get(IOpenerService);
+		const telemetryService = accessor.get(ITelemetryService);
 
 		function getProvider() {
 			const initialNotification = getNotificationFromContext(listService);
@@ -75,7 +78,7 @@ export class NotificationAccessibleView implements IAccessibleViewImplementation
 
 			function updateContent(): void {
 				content = getContentForNotification();
-				provider.actions = getActionsFromNotification(notification, accessibilitySignalService, openerService);
+				provider.actions = getActionsFromNotification(notification, accessibilitySignalService, openerService, telemetryService);
 			}
 
 			function listenToNotification(): void {
@@ -103,6 +106,7 @@ export class NotificationAccessibleView implements IAccessibleViewImplementation
 				}
 				updateContent();
 				listenToNotification();
+				logNotificationShown(telemetryService, notification, 'accessibleView');
 				return content;
 			}
 
@@ -117,9 +121,10 @@ export class NotificationAccessibleView implements IAccessibleViewImplementation
 					notificationListeners = new DisposableStore();
 					updateContent();
 					listenToNotification();
+					logNotificationShown(telemetryService, notification, 'accessibleView');
 					return notificationListeners;
 				},
-				getActionsFromNotification(notification, accessibilitySignalService, openerService),
+				getActionsFromNotification(notification, accessibilitySignalService, openerService, telemetryService),
 				() => {
 					if (!list) {
 						return;
@@ -149,7 +154,7 @@ export class NotificationAccessibleView implements IAccessibleViewImplementation
 }
 
 
-function getActionsFromNotification(notification: INotificationViewItem, accessibilitySignalService: IAccessibilitySignalService, openerService: IOpenerService): IAction[] {
+function getActionsFromNotification(notification: INotificationViewItem, accessibilitySignalService: IAccessibilitySignalService, openerService: IOpenerService, telemetryService: ITelemetryService): IAction[] {
 	const actions = [...notification.actions?.primary ?? [], ...notification.actions?.secondary ?? []].map(action => toAction({
 		id: action.id,
 		label: action.label,
@@ -158,6 +163,7 @@ function getActionsFromNotification(notification: INotificationViewItem, accessi
 		checked: action.checked,
 		class: ThemeIcon.asClassName(Codicon.bell),
 		run: () => {
+			logNotificationAction(telemetryService, notification, action, 'accessibleView');
 			const result = action.run();
 			notification.close();
 			return result;
@@ -175,12 +181,16 @@ function getActionsFromNotification(notification: INotificationViewItem, accessi
 				label: node.label,
 				tooltip: node.title || node.href,
 				class: ThemeIcon.asClassName(Codicon.link),
-				run: () => openerService.open(URI.parse(node.href), { allowCommands: true }),
+				run: () => {
+					logNotificationInteraction(telemetryService, notification, 'link', 'accessibleView');
+					return openerService.open(URI.parse(node.href), { allowCommands: true });
+				},
 			}));
 		}
 	}
 	actions.push({
 		id: 'clearNotification', label: localize('clearNotification', "Clear Notification"), tooltip: localize('clearNotification', "Clear Notification"), run: () => {
+			logNotificationInteraction(telemetryService, notification, 'dismiss', 'accessibleView');
 			notification.close();
 			accessibilitySignalService.playSignal(AccessibilitySignal.clear);
 		}, enabled: true, class: ThemeIcon.asClassName(Codicon.clearAll)

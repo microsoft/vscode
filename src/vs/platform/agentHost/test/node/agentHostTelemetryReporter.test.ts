@@ -10,6 +10,7 @@ import { hash } from '../../../../base/common/hash.js';
 import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { TelemetryTrustedValue } from '../../../telemetry/common/telemetryUtils.js';
 import { createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
+import { NullAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { AgentSession } from '../../common/agent.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { toAgentMergeMessageMeta } from '../../common/meta/agentMergeMessageMeta.js';
@@ -20,6 +21,7 @@ import { AgentHostTelemetryReporter, type IAgentHostTurnCompletedReport, type IA
 import { getCodexAccountTelemetryContext } from '../../node/codex/codexAccountTelemetry.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { ActionType } from '../../common/state/sessionActions.js';
+import { AgentHostProviderTiming, type IAgentHostProviderTiming } from '../../common/agentHostProviderTiming.js';
 
 interface IRestrictedCall {
 	eventName: string;
@@ -82,6 +84,19 @@ suite('AgentHostTelemetryReporter', () => {
 	const tools: ToolDefinition[] = [{ name: 'grep' }, { name: 'edit' }];
 	const userMessage: Message = { text: 'hello', origin: { kind: MessageKind.User } };
 
+	for (const enabled of [false, true]) {
+		test(`reports resolved OTel enablement (${enabled}) on admitted messages`, () => {
+			const service = new TestRestrictedTelemetryService();
+			const reporter = new AgentHostTelemetryReporter(service, { ...NullAgentHostOTelService, enabled, diagnosticsEnabled: !enabled });
+			reporter.userMessageSent('copilotcli', undefined, createUnknownAgentHostClientTelemetryContext(AgentHostClientType.EditorWindow), session, 'turn', undefined, 'direct', userMessage, false);
+
+			assert.deepStrictEqual(service.standardEvents
+				.map(event => ({ eventName: event.eventName, isOtelEnabled: event.data?.isOtelEnabled })), [
+				{ eventName: 'agentHost.userMessageSent', isOtelEnabled: enabled },
+			]);
+		});
+	}
+
 	test('bounds canvas provenance without exposing unknown source strings', () => {
 		const service = new TestRestrictedTelemetryService();
 		const reporter = new AgentHostTelemetryReporter(service);
@@ -132,6 +147,40 @@ suite('AgentHostTelemetryReporter', () => {
 		}
 	});
 
+	test('provider timings keep typed measurements and strip extra data before product and OTel export', () => {
+		const service = new TestRestrictedTelemetryService();
+		const timing = new AgentHostProviderTiming(() => 0);
+		timing.markMilestone('sdkSend');
+		const row = timing.finish(0)[0];
+		const diagnostics: (readonly IAgentHostProviderTiming[] | undefined)[] = [];
+		const reporter = new AgentHostTelemetryReporter(service, {
+			...NullAgentHostOTelService,
+			emitTurnTiming: diagnostic => diagnostics.push(diagnostic.providerTimings),
+		});
+		reporter.turnCompleted({
+			provider: 'copilotcli', session, turnId: 'turn',
+			parentTurnId: undefined, parentToolCallId: undefined, subagentTaskModelSource: undefined,
+			timeToFirstProgress: undefined, timeToFirstSubstantiveProgress: undefined, timeToFirstEditMs: undefined,
+			startedWithSteering: false, receivedSteering: false,
+			totalTime: 100, result: 'success', model: undefined, modelTelemetryKind: undefined, modelSelectionKind: 'default',
+			permissionLevel: undefined, interactionMode: undefined, messageOriginKind: undefined, failure: undefined,
+			isMultiRoot: false, folderCount: 0, billedNanoAiu: undefined, directPromptTokenCount: undefined,
+			directPromptCacheTokenCount: undefined, directCompletionTokenCount: undefined, directBilledNanoAiu: undefined, modelCallCount: 0,
+			providerTimings: [Object.assign({}, row, { prompt: 'secret', server: 'secret' }), { ...row, startMs: NaN }],
+		});
+		const events = service.standardEvents.filter(event => event.eventName === 'agentHost.providerTiming');
+		assert.deepStrictEqual({
+			diagnostics,
+			events: events.map(event => ({
+				turnId: event.data?.turnId, schemaVersion: event.data?.schemaVersion, group: event.data?.group, sdkSend: event.data?.['milestone.sdkSend'],
+				prompt: event.data?.prompt, server: event.data?.server,
+			})),
+		}, {
+			diagnostics: [[row]],
+			events: [{ turnId: 'turn', schemaVersion: 2, group: 'milestones', sdkSend: 0, prompt: undefined, server: undefined }],
+		});
+	});
+
 	test('turnCompleted preserves optional root cohort fields and missing-field compatibility', () => {
 		const service = new TestRestrictedTelemetryService();
 		const reporter = new AgentHostTelemetryReporter(service);
@@ -153,6 +202,7 @@ suite('AgentHostTelemetryReporter', () => {
 				directPromptCacheTokenCount: undefined, directCompletionTokenCount: undefined, directBilledNanoAiu: undefined,
 				modelCallCount: 0, ...cohort,
 			});
+
 		}
 		const cohortKeys = ['hostRootTurnOrdinal', 'hostProcessAgeMs', 'titleGenerationStrategy'];
 		assert.deepStrictEqual(service.standardEvents.map(event => ({
@@ -288,6 +338,7 @@ suite('AgentHostTelemetryReporter', () => {
 			eventName: 'agentHost.userMessageSent',
 			data: {
 				provider: 'copilotcli',
+				isOtelEnabled: false,
 				hostLaunchKind: 'unknown',
 				initiatorClientId: 'client-1',
 				initiatorClientType: 'editor_window',

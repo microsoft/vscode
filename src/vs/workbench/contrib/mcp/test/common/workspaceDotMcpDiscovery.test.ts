@@ -145,6 +145,28 @@ suite('MCP Discovery - workspaceDotMcpDiscovery', () => {
 		});
 	}
 
+	test('flags servers for environment variable expansion without changing the launch or trust nonce', async () => {
+		const servers = {
+			local: { command: '${TOOLS}/server', env: { API_KEY: '${API_KEY}' } },
+			remote: { url: 'https://${HOST}/mcp?region=${REGION:-us}', headers: { Authorization: 'Bearer ${TOKEN}' } },
+		};
+		const f = fixture(JSON.stringify(servers));
+		const changed = Event.toPromise(f.onDidChange);
+		f.discovery.start();
+		await changed;
+		const definitions = f.collections.get('workspace-dot-mcp.0')!.serverDefinitions.get();
+		const unflagged = await claudeConfigToServerDefinition('workspace-dot-mcp.0', VSBuffer.fromString(JSON.stringify({ mcpServers: servers })), { defaultCwd: root });
+		assert.deepStrictEqual(definitions.map(definition => ({
+			expansion: definition.environmentVariableExpansion,
+			launch: definition.launch,
+			cacheNonce: definition.cacheNonce,
+		})), unflagged!.map((definition, index) => ({
+			expansion: index === 0 ? {} : { url: servers.remote.url },
+			launch: definition.launch,
+			cacheNonce: definition.cacheNonce,
+		})));
+	});
+
 	test('removes malformed or deleted roots and rediscovers repaired files', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const f = fixture('{"mcpServers":{"server":{"command":"node"}}}');
 		let changed = Event.toPromise(f.onDidChange);

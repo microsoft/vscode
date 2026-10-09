@@ -25,6 +25,7 @@ import { IExtHostUrlsService } from './extHostUrls.js';
 import { encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 import { equals as arraysEqual } from '../../../base/common/arrays.js';
 import { IExtHostProgress } from './extHostProgress.js';
+import { NotificationTelemetryId } from '../../../platform/notification/common/notificationTelemetry.js';
 import { IProgressStep } from '../../../platform/progress/common/progress.js';
 import { CancellationError, isCancellationError } from '../../../base/common/errors.js';
 import { raceCancellationError, SequencerByKey } from '../../../base/common/async.js';
@@ -450,6 +451,31 @@ class TaskSingler<T> {
 	}
 }
 
+// Mirrors `MICROSOFT_AUTH_HOSTNAMES` and the `is_microsoft_authorization_server` / `is_microsoft_auth_endpoint_aware`
+// matching in github/copilot-agent-runtime `src/runtime/src/auth_base/microsoft.rs`; keep them in sync.
+const MICROSOFT_AUTH_HOSTS = [
+	'login.microsoftonline.com',
+	'login.microsoftonline.de',
+	'login.microsoftonline.us',
+	'login.partner.microsoftonline.cn',
+	'login.microsoft.com',
+	'login.windows.net',
+	'sts.windows.net',
+];
+
+function isMicrosoftAuthUrl(url: string | undefined): boolean {
+	if (!url) {
+		return false;
+	}
+	let hostname: string;
+	try {
+		hostname = new URL(url).hostname;
+	} catch {
+		return false;
+	}
+	return MICROSOFT_AUTH_HOSTS.some(host => hostname === host || hostname.endsWith(`.${host}`));
+}
+
 export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 	id: string;
 	readonly label: string;
@@ -468,6 +494,7 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 	}>;
 
 	protected readonly _logger: ILogger;
+	protected readonly _isMicrosoftAuth: boolean;
 	private readonly _disposable: DisposableStore;
 
 	constructor(
@@ -493,6 +520,9 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 			: stringifiedServer;
 		// Auth Provider label is just the resource name if provided, otherwise the authority of the authorization server.
 		this.label = _resourceMetadata?.resource_name ?? this.authorizationServer.authority;
+		// Metadata is untrusted, so the token endpoint must also be Microsoft to earn Microsoft-specific treatment.
+		this._isMicrosoftAuth = (isMicrosoftAuthUrl(stringifiedServer) || isMicrosoftAuthUrl(_serverMetadata.authorization_endpoint))
+			&& isMicrosoftAuthUrl(_serverMetadata.token_endpoint);
 
 		this._logger = loggerService.createLogger(this.id, { name: `Auth: ${this.label}` });
 		this._disposable = new DisposableStore();
@@ -529,6 +559,24 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 		return this._clientSecret;
 	}
 
+	/**
+	 * The RFC 8707 resource indicator to send in requests. Omitted for Microsoft auth.
+	 */
+	protected get _resourceIndicator(): string | undefined {
+		return this._isMicrosoftAuth ? undefined : this._resourceMetadata?.resource;
+	}
+
+	/**
+	 * The scopes to send to the server, adding `offline_access` when the server advertises it.
+	 * Empty scopes are left empty so servers can still apply their default scopes.
+	 */
+	protected _getRequestScopes(scopes: readonly string[]): string[] {
+		if (scopes.length && this._serverMetadata.scopes_supported?.includes('offline_access') && !scopes.includes('offline_access')) {
+			return [...scopes, 'offline_access'];
+		}
+		return [...scopes];
+	}
+
 	async getSessions(scopes: readonly string[] | undefined, options: IAuthenticationProviderSessionOptions): Promise<vscode.AuthenticationSession[]> {
 		this._logger.info(`Getting sessions for scopes: ${scopes?.join(' ') ?? 'all'}`);
 		if (!scopes) {
@@ -560,7 +608,7 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 							continue;
 						}
 						try {
-							const newToken = await this.exchangeRefreshTokenForToken(token.refresh_token, options.silent !== true);
+							const newToken = await this.exchangeRefreshTokenForToken(token.refresh_token, session.scopes, options.silent !== true);
 							// TODO@TylerLeonhardt: When the core scope handling doesn't care about order, this check should be
 							// updated to not care about order
 							if (newToken.scope !== scopeStr) {
@@ -601,7 +649,8 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 						title: nls.localize('authenticatingTo', "Authenticating to '{0}'", this.label),
 						cancellable: true
 					},
-					(progress, token) => handler(scopes, progress, token));
+					(progress, token) => handler(scopes, progress, token),
+					NotificationTelemetryId.AuthenticationSignIn);
 				if (token) {
 					break;
 				}
@@ -686,13 +735,15 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 		authorizationUrl.searchParams.append('code_challenge', codeChallenge);
 		authorizationUrl.searchParams.append('code_challenge_method', 'S256');
 		const scopeString = scopes.join(' ');
-		if (scopeString) {
+		const requestScopeString = this._getRequestScopes(scopes).join(' ');
+		if (requestScopeString) {
 			// If non-empty scopes are provided, include scope parameter in the request
-			authorizationUrl.searchParams.append('scope', scopeString);
+			authorizationUrl.searchParams.append('scope', requestScopeString);
 		}
-		if (this._resourceMetadata?.resource) {
+		const resource = this._resourceIndicator;
+		if (resource) {
 			// If a resource is specified, include it in the request
-			authorizationUrl.searchParams.append('resource', this._resourceMetadata.resource);
+			authorizationUrl.searchParams.append('resource', resource);
 		}
 
 		// Use a redirect URI that matches what was registered during dynamic registration
@@ -778,8 +829,9 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 		tokenRequest.append('code_verifier', codeVerifier);
 
 		// Add resource indicator if available (RFC 8707)
-		if (this._resourceMetadata?.resource) {
-			tokenRequest.append('resource', this._resourceMetadata.resource);
+		const resource = this._resourceIndicator;
+		if (resource) {
+			tokenRequest.append('resource', resource);
 		}
 
 		// Add client secret if available
@@ -822,7 +874,7 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 		throw new Error(`Invalid authorization token response: ${JSON.stringify(result)}`);
 	}
 
-	protected async exchangeRefreshTokenForToken(refreshToken: string, allowClientRegistration: boolean): Promise<IAuthorizationToken> {
+	protected async exchangeRefreshTokenForToken(refreshToken: string, scopes: readonly string[], allowClientRegistration: boolean): Promise<IAuthorizationToken> {
 		if (!this._serverMetadata.token_endpoint) {
 			throw new Error('Token endpoint not available in server metadata');
 		}
@@ -832,9 +884,17 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 		tokenRequest.append('grant_type', 'refresh_token');
 		tokenRequest.append('refresh_token', refreshToken);
 
+		if (this._isMicrosoftAuth) {
+			const requestScopeString = this._getRequestScopes(scopes).join(' ');
+			if (requestScopeString) {
+				tokenRequest.append('scope', requestScopeString);
+			}
+		}
+
 		// Add resource indicator if available (RFC 8707)
-		if (this._resourceMetadata?.resource) {
-			tokenRequest.append('resource', this._resourceMetadata.resource);
+		const resource = this._resourceIndicator;
+		if (resource) {
+			tokenRequest.append('resource', resource);
 		}
 
 		// Add client secret if available

@@ -41,6 +41,7 @@ import { ExtensionsInput, IExtensionEditorOptions } from '../common/extensionsIn
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProgressOptions, IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { INotificationService, NotificationPriority, Severity } from '../../../../platform/notification/common/notification.js';
+import { NotificationTelemetryId } from '../../../../platform/notification/common/notificationTelemetry.js';
 import * as resources from '../../../../base/common/resources.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -1768,6 +1769,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				await this.extensionService.startExtensionHosts({ toAdd, toRemove });
 				if (auto) {
 					this.notificationService.notify({
+						telemetry: NotificationTelemetryId.ExtensionsAutoRestart,
 						severity: Severity.Info,
 						message: nls.localize('extensionsAutoRestart', "Extensions were auto restarted to enable updates."),
 						priority: NotificationPriority.SILENT
@@ -2154,14 +2156,14 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			return;
 		}
 
-		this.progressService.withProgress({ location: ProgressLocation.Notification }, async progress => {
+		this.progressService.withProgress({ location: ProgressLocation.Notification, telemetry: NotificationTelemetryId.ExtensionDownload }, async progress => {
 			try {
 				progress.report({ message: nls.localize('downloading...', "Downloading VSIX...") });
 				const name = `${galleryExtension.identifier.id}-${galleryExtension.version}${targetPlatform !== TargetPlatform.UNDEFINED && targetPlatform !== TargetPlatform.UNIVERSAL && targetPlatform !== TargetPlatform.UNKNOWN ? `-${targetPlatform}` : ''}.vsix`;
 				await this.galleryService.download(galleryExtension, this.uriIdentityService.extUri.joinPath(result[0], name), InstallOperation.None);
-				this.notificationService.info(nls.localize('download.completed', "Successfully downloaded the VSIX"));
+				this.notificationService.notify({ severity: Severity.Info, telemetry: NotificationTelemetryId.ExtensionDownloadComplete, message: nls.localize('download.completed', "Successfully downloaded the VSIX") });
 			} catch (error) {
-				this.notificationService.error(nls.localize('download.failed', "Error while downloading the VSIX: {0}", getErrorMessage(error)));
+				this.notificationService.notify({ severity: Severity.Error, telemetry: NotificationTelemetryId.ExtensionDownloadError, message: nls.localize('download.failed', "Error while downloading the VSIX: {0}", getErrorMessage(error)) });
 			}
 		});
 	}
@@ -3033,6 +3035,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		const title = extension ? nls.localize('installing named extension', "Installing '{0}' extension...", extension.displayName) : nls.localize('installing extension', 'Installing extension...');
 		return this.withProgress({
 			location: progressLocation ?? ProgressLocation.Extensions,
+			telemetry: NotificationTelemetryId.ExtensionInstall,
 			title
 		}, async () => {
 			try {

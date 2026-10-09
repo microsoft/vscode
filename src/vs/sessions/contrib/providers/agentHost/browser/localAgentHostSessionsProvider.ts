@@ -308,6 +308,14 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 
 	// -- BaseAgentHostSessionsProvider hooks ---------------------------------
 
+	protected override _adoptCachedSessionMeta(meta: IAgentSessionMetadata): IAgentSessionMetadata | undefined {
+		if (meta.session.scheme === 'ahp-session' && meta.provider === 'ahp-session') {
+			this._logService.warn('[LocalAgentHostSessionsProvider] Ignoring cached session whose provider is the native session URI scheme');
+			return undefined;
+		}
+		return super._adoptCachedSessionMeta(meta);
+	}
+
 	protected get connection(): IAgentConnection { return this._agentHostService; }
 
 	protected get authenticationPending(): IObservable<boolean> { return this._agentHostService.authenticationPending; }
@@ -346,7 +354,7 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 
 	protected override _diffUriMapper(): AgentHostUriMapper {
 		return (uri, options) => options?.contentRef
-			? toAgentHostContentUri(uri, LOCAL_AGENT_HOST_AUTHORITY)
+			? toAgentHostContentUri(uri, LOCAL_AGENT_HOST_AUTHORITY, options.fileUri)
 			: toAgentHostUri(uri, LOCAL_AGENT_HOST_AUTHORITY);
 	}
 

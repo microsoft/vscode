@@ -13,7 +13,7 @@ import { META_GITHUB_STATE, META_PENDING_RECORDED_PULL_REQUESTS } from '../../co
 import { ArtifactServerToolName } from '../../common/serverToolNames.js';
 import { SessionArtifactCollection } from '../../common/sessionArtifactCollection.js';
 import { readSessionArtifacts, SessionArtifactType, stringifySessionArtifacts, withSessionArtifacts, type ISessionArtifact } from '../../common/sessionArtifacts.js';
-import type { ISessionCatalogSyncPendingSnapshot, ISessionDatabase, SessionCatalogSyncWriteResult } from '../../common/sessionDataService.js';
+import type { ISessionCatalogSyncPendingSnapshot, ISessionDatabase, SessionCatalogSyncWriteResult, SessionCatalogSyncWriteValidator } from '../../common/sessionDataService.js';
 import { ActionType, type ActionEnvelope } from '../../common/state/sessionActions.js';
 import { buildChatUri, buildDefaultChatUri } from '../../common/state/sessionState.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
@@ -143,12 +143,12 @@ suite('Session Artifact Removal', () => {
 		const writeStarted = new DeferredPromise<void>();
 		const finishWrite = new DeferredPromise<void>();
 		class DelayedDatabase extends TestSessionDatabase {
-			override async setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot): Promise<SessionCatalogSyncWriteResult> {
+			override async setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot, validate?: SessionCatalogSyncWriteValidator): Promise<SessionCatalogSyncWriteResult> {
 				if (values[SESSION_ARTIFACTS_KEY]?.includes('"replacement"')) {
 					await writeStarted.complete();
 					await finishWrite.p;
 				}
-				return super.setMetadataValuesAndCatalogSyncSnapshot(values, snapshot);
+				return super.setMetadataValuesAndCatalogSyncSnapshot(values, snapshot, validate);
 			}
 		}
 		const database = new DelayedDatabase();
@@ -216,13 +216,13 @@ suite('Session Artifact Removal', () => {
 		const finishWrite = new DeferredPromise<void>();
 		class DelayedDatabase extends TestSessionDatabase {
 			delayNextArtifactWrite = false;
-			override async setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot): Promise<SessionCatalogSyncWriteResult> {
+			override async setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot, validate?: SessionCatalogSyncWriteValidator): Promise<SessionCatalogSyncWriteResult> {
 				if (this.delayNextArtifactWrite && values[SESSION_ARTIFACTS_KEY] !== undefined) {
 					this.delayNextArtifactWrite = false;
 					await writeStarted.complete();
 					await finishWrite.p;
 				}
-				return super.setMetadataValuesAndCatalogSyncSnapshot(values, snapshot);
+				return super.setMetadataValuesAndCatalogSyncSnapshot(values, snapshot, validate);
 			}
 		}
 		const database = new DelayedDatabase();
@@ -267,14 +267,14 @@ suite('Session Artifact Removal', () => {
 		const finishWrite = new DeferredPromise<void>();
 		class FailingDelayedDatabase extends TestSessionDatabase {
 			failNextArtifactWrite = false;
-			override async setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot): Promise<SessionCatalogSyncWriteResult> {
+			override async setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot, validate?: SessionCatalogSyncWriteValidator): Promise<SessionCatalogSyncWriteResult> {
 				if (this.failNextArtifactWrite && values[SESSION_ARTIFACTS_KEY] !== undefined) {
 					this.failNextArtifactWrite = false;
 					await writeStarted.complete();
 					await finishWrite.p;
 					throw new Error('artifact write failed');
 				}
-				return super.setMetadataValuesAndCatalogSyncSnapshot(values, snapshot);
+				return super.setMetadataValuesAndCatalogSyncSnapshot(values, snapshot, validate);
 			}
 		}
 		const database = new FailingDelayedDatabase();
@@ -319,11 +319,11 @@ suite('Session Artifact Removal', () => {
 	test('logs and propagates persistence failures without hiding the artifact and allows a durable retry', async () => {
 		class FailingDatabase extends TestSessionDatabase {
 			failArtifactWrites = false;
-			override async setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot): Promise<SessionCatalogSyncWriteResult> {
+			override async setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot, validate?: SessionCatalogSyncWriteValidator): Promise<SessionCatalogSyncWriteResult> {
 				if (this.failArtifactWrites && values[SESSION_ARTIFACTS_KEY] !== undefined) {
 					throw new Error('artifact write failed');
 				}
-				return super.setMetadataValuesAndCatalogSyncSnapshot(values, snapshot);
+				return super.setMetadataValuesAndCatalogSyncSnapshot(values, snapshot, validate);
 			}
 		}
 		const errors: string[] = [];

@@ -13,10 +13,15 @@ exchanges:
           id: toolcall_0
           name: ask_user
           input:
-            question: Continue?
-            choices:
-              - 'Yes'
-              - 'No'
+            message: Continue?
+            requestedSchema:
+              properties:
+                answer:
+                  type: string
+                  title: Continue?
+                  enum:
+                    - 'Yes'
+                    - 'No'
       stopReason: tool_use
   - request:
       model: claude-sonnet-5
@@ -26,18 +31,24 @@ exchanges:
           content: Call ask_user exactly once to ask "Continue?" with choices "Yes" and "No". If the request is cancelled, reply exactly "cancelled".
         - role: assistant
           content:
+            - type: thinking
             - type: tool_use
               name: ask_user
               input:
-                question: Continue?
-                choices:
-                  - 'Yes'
-                  - 'No'
+                message: Continue?
+                requestedSchema:
+                  properties:
+                    answer:
+                      type: string
+                      title: Continue?
+                      enum:
+                        - 'Yes'
+                        - 'No'
         - role: user
           content:
             - type: tool_result
               tool_use_id: toolcall_0
-              content: 'User responded:'
+              content: User cancelled the request.
     response:
       content: cancelled
       stopReason: end_turn

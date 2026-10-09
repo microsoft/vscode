@@ -71,11 +71,18 @@ export async function openSessionInVSCode(
 	sessionsProvidersService: ISessionsProvidersService,
 	remoteAgentHostService: IRemoteAgentHostService,
 ): Promise<void> {
-	const folderUris = session?.activeChat.get().workspace.get()?.folders.map(folder =>
-		resolveRemoteFolderUri(folder.workingDirectory, session.providerId, sessionsProvidersService, remoteAgentHostService)
-	);
-	if (!folderUris?.length) {
+	const folders = session?.activeChat.get().workspace.get()?.folders;
+	if (!session || !folders?.length) {
 		return nativeHostService.openWindow();
+	}
+
+	const folderUris: URI[] = [];
+	for (const folder of folders) {
+		const folderUri = resolveRemoteFolderUri(folder.workingDirectory, session.providerId, sessionsProvidersService, remoteAgentHostService);
+		if (!folderUri) {
+			return nativeHostService.openWindow({ remoteAuthority: null });
+		}
+		folderUris.push(folderUri);
 	}
 
 	const chatSessionToOpen = getChatSessionToOpenInEditor(session);

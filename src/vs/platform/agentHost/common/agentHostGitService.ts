@@ -6,6 +6,7 @@
 import { Sequencer } from '../../../base/common/async.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { LRUCache } from '../../../base/common/map.js';
+import type { IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ISessionFileDiff, ISessionGitState } from './state/sessionState.js';
@@ -234,7 +235,10 @@ export interface IAgentHostGitService {
 	getRefs(workingDirectory: URI, query?: IRefQuery): Promise<GitRef[]>;
 	getBranches(workingDirectory: URI, query?: IRefQuery): Promise<Branch[]>;
 	getBranch(workingDirectory: URI, name: string): Promise<Branch | undefined>;
-	getRepositoryRoot(workingDirectory: URI): Promise<URI | undefined>;
+	/** Observes exact probe results or a known ancestor root; undefined is unresolved, false is a confirmed non-repository. */
+	hasGitRoot(workingDirectory: URI): IObservable<boolean | undefined>;
+	/** Caches roots and confirmed non-repositories; refreshIfNone retries only cached non-repositories. */
+	getRepositoryRoot(workingDirectory: URI, options?: { readonly refreshIfNone?: boolean }): Promise<URI | undefined>;
 	/** Returns worktree roots in Git's porcelain order, with the primary worktree first. */
 	getWorktreeRoots(workingDirectory: URI): Promise<URI[]>;
 	/**

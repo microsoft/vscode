@@ -3,57 +3,43 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Limiter } from '../../../../../base/common/async.js';
 import { cancelOnDispose, CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { CancellationError, getErrorMessage } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, IObservable, observableFromEvent } from '../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../base/common/platform.js';
-import { basename, dirname, isEqual, joinPath } from '../../../../../base/common/resources.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { agentFinderMcpRegistryManifest } from '../../../../../platform/agentFinder/common/agentFinderMcpRegistry.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { CopilotConnectorsError } from '../../../../../platform/copilotConnectors/common/copilotConnectorsRequestService.js';
 import { CustomizationMarketplaceInstallation, CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceResource, ICustomizationMarketplaceService, isCustomizationMarketplaceIconEqual } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { normalizeMcpGalleryUrl } from '../../../../../platform/customizationMarketplace/common/mcpGalleryMarketplaceProvider.js';
 import { affectsCustomizationMarketplaceSources, CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources, getVisibleCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../../platform/files/common/files.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { mcpGalleryServiceUrlConfig } from '../../../../../platform/mcp/common/mcpManagement.js';
-import { UnsupportedMcpGalleryPackageError } from '../../../../../platform/mcp/common/mcpGalleryService.js';
 import { IMcpGalleryManifest, IMcpGalleryManifestService } from '../../../../../platform/mcp/common/mcpGalleryManifest.js';
-import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IMcpWorkbenchService, IWorkbenchMcpServer, McpServerInstallState } from '../../../mcp/common/mcpTypes.js';
-import { createCustomizationMarketplaceInstallationSnapshot, CustomizationMarketplaceInstallationTarget, CustomizationMarketplaceInstallState, ICustomizationMarketplaceInstallationSnapshot, ICustomizationMarketplaceInstallService, RecordedCustomizationMarketplaceInstallState } from '../../common/customizationMarketplaceInstallService.js';
-import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
+import { createCustomizationMarketplaceInstallationSnapshot, CustomizationMarketplaceInstallationTarget, CustomizationMarketplaceInstallState, ICustomizationMarketplaceInstallationSnapshot, ICustomizationMarketplaceInstallProvider, ICustomizationMarketplaceInstallService, IRecordedCustomizationMarketplaceResource, RecordedCustomizationMarketplaceInstallState } from '../../common/customizationMarketplaceInstallService.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { getCustomizationMarketplaceInstallTelemetryContext, runCustomizationMarketplaceInstallWithTelemetry } from '../../common/customizationMarketplaceInstallTelemetry.js';
-import { ICustomizationHarnessService, ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
+import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
-import { IAgentPluginRepositoryService } from '../../common/plugins/agentPluginRepositoryService.js';
-import { IPluginGitService } from '../../common/plugins/pluginGitService.js';
 import { IPluginInstallService } from '../../common/plugins/pluginInstallService.js';
-import { IMarketplacePlugin, IPluginMarketplaceService, PluginSourceKind } from '../../common/plugins/pluginMarketplaceService.js';
-import { SKILL_FILENAME } from '../../common/promptSyntax/config/promptFileLocations.js';
-import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
-import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
-import { DELETE_AI_CUSTOMIZATION_ID } from './aiCustomizationManagement.js';
+import { parseMarketplaceReference } from '../../common/plugins/marketplaceReference.js';
+import { IMarketplacePlugin, IMarketplaceReference, IPluginMarketplaceService } from '../../common/plugins/pluginMarketplaceService.js';
 import { getConnectorRowPresentation } from './connectorPresentation.js';
 import { ICopilotConnectorAccount, ICopilotConnectorsService, toCopilotConnectorMarketplaceEntry } from './copilotConnectorsService.js';
-import { CustomizationLocationPicker } from './customizationCreatorService.js';
-import { getPluginMarketplaceIdentifier, isPluginMarketplaceReferenceAvailableInDiscover } from './pluginCustomizationMarketplaceProvider.js';
-import { CustomizationMarketplaceInstallationRecordStore, CustomizationMarketplaceInstallationRecordTarget, getInstallationRecordResourceKey, ICustomizationMarketplaceInstallationRecord, toRecordedMarketplaceResource } from './customizationMarketplaceInstallationRecordStore.js';
-import { CustomizationMarketplaceSkillInstaller } from './customizationMarketplaceSkillInstaller.js';
+import { getGitHubMcpRegistryIdentity, getGitHubMcpRegistryResourceIdentity } from './githubMcpRegistryIcons.js';
+import { getPluginCustomizationMarketplaceSourceIdFromIdentifier, getPluginMarketplaceIdentifier } from './pluginCustomizationMarketplaceProvider.js';
+import { CustomizationMarketplaceInstallationAssociationCache as CustomizationMarketplaceInstallationRecordStore, CustomizationMarketplaceInstallationAssociationTarget as CustomizationMarketplaceInstallationRecordTarget, getInstallationAssociationResourceKey as getInstallationRecordResourceKey, ICustomizationMarketplaceInstallationAssociation as ICustomizationMarketplaceInstallationRecord, removeLegacyCustomizationMarketplaceInstallationRecords, toAssociatedMarketplaceResource as toRecordedMarketplaceResource } from './customizationMarketplaceInstallationAssociation.js';
 
 type McpGalleryInstallation = Extract<CustomizationMarketplaceInstallation, { readonly kind: 'mcpGallery' }>;
-type PluginInstallation = Extract<CustomizationMarketplaceInstallation, { readonly kind: 'plugin' }>;
-
 type InstallationRecordState =
 	| { readonly kind: 'checking' | 'installed' | 'missing' }
 	| { readonly kind: 'error'; readonly message: string };
@@ -63,19 +49,10 @@ interface IPendingOperation {
 	cancel(): void;
 }
 
-function matchesPluginInstallation(plugin: IMarketplacePlugin, source: PluginInstallation, resolvedRevision?: string): boolean {
-	const descriptor = plugin.sourceDescriptor;
-	if (descriptor.kind === PluginSourceKind.GitHub) {
-		return descriptor.repo.toLowerCase() === source.repository.toLowerCase() &&
-			(descriptor.path ?? '') === source.path &&
-			(descriptor.ref === source.ref || descriptor.sha === source.ref ||
-				resolvedRevision !== undefined && (descriptor.ref === resolvedRevision || descriptor.sha === resolvedRevision));
-	}
-	return descriptor.kind === PluginSourceKind.RelativePath &&
-		plugin.marketplaceReference.githubRepo?.toLowerCase() === source.repository.toLowerCase() &&
-		(plugin.marketplaceReference.ref === source.ref ||
-			resolvedRevision !== undefined && plugin.marketplaceReference.ref === resolvedRevision) &&
-		plugin.source.replace(/^\.\//, '').replace(/\/$/, '') === source.path;
+interface IInstallProviderBinding {
+	readonly provider: ICustomizationMarketplaceInstallProvider;
+	readonly session: URI;
+	refreshVersion: number;
 }
 
 export class CustomizationMarketplaceInstallService extends Disposable implements ICustomizationMarketplaceInstallService {
@@ -88,32 +65,27 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 	private readonly pending = new Map<string, IPendingOperation>();
 	private readonly pendingRepairs = new Map<string, IPendingOperation>();
 	private readonly pendingUninstalls = new Map<string, Promise<void>>();
-	private readonly manualMcpSetups = new Map<string, { readonly sourceId: string; readonly url?: URI }>();
 	private readonly recordStates = new Map<string, InstallationRecordState>();
-	private readonly skillVerificationLimiter = this._register(new Limiter<boolean>(16));
 	private readonly reconciliationVersions = new Map<string, number>();
 	private readonly recordStore: CustomizationMarketplaceInstallationRecordStore;
 	private readonly lifetimeToken = cancelOnDispose(this._store);
 	private readonly enabledDisposables = this._register(new DisposableStore());
 	private readonly connectorListeners = this._register(new MutableDisposable<DisposableStore>());
-	private readonly sourceFolderRequest = this._register(new MutableDisposable<DisposableStore>());
-	private readonly locationPicker: CustomizationLocationPicker;
-	private readonly skillInstaller: CustomizationMarketplaceSkillInstaller;
+	private readonly providerRequest = this._register(new MutableDisposable<DisposableStore>());
+	private providerInstallations: readonly IRecordedCustomizationMarketplaceResource[] = [];
+	private readonly knownResources = new Map<string, ICustomizationMarketplaceResource>();
+	private providerBinding: IInstallProviderBinding | undefined;
+	private providerChangeScheduled = false;
 	private observingInstallations = false;
-	private activeSkillSourceFolders: readonly ICustomizationSourceFolder[] | undefined;
-	private sourceFolderSequence = 0;
 
 	constructor(
 		@IPluginInstallService private readonly pluginInstallService: IPluginInstallService,
 		@IPluginMarketplaceService private readonly pluginMarketplaceService: IPluginMarketplaceService,
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
-		@IAgentPluginRepositoryService private readonly repositoryService: IAgentPluginRepositoryService,
-		@IPluginGitService private readonly pluginGitService: IPluginGitService,
 		@IMcpWorkbenchService private readonly mcpWorkbenchService: IMcpWorkbenchService,
 		@ICopilotConnectorsService private readonly copilotConnectorsService: ICopilotConnectorsService,
 		@IMcpGalleryManifestService private readonly mcpGalleryManifestService: IMcpGalleryManifestService,
 		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
-		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
 		@IChatEntitlementService private readonly entitlementService: IChatEntitlementService,
 		@ICustomizationMarketplaceService private readonly customizationMarketplaceService: ICustomizationMarketplaceService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -121,14 +93,11 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		@ILogService private readonly logService: ILogService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IStorageService storageService: IStorageService,
-		@ICommandService private readonly commandService: ICommandService,
-		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
-		this.locationPicker = instantiationService.createInstance(CustomizationLocationPicker);
-		this.skillInstaller = instantiationService.createInstance(CustomizationMarketplaceSkillInstaller, (sourceId, token) => this.checkEnabled(sourceId, token), this.locationPicker);
-		this.recordStore = this._register(new CustomizationMarketplaceInstallationRecordStore(storageService, logService));
-		for (const record of this.recordStore.records.values()) {
+		removeLegacyCustomizationMarketplaceInstallationRecords(storageService);
+		this.recordStore = this._register(new CustomizationMarketplaceInstallationRecordStore());
+		for (const record of this.recordStore.associations.values()) {
 			this.recordStates.set(record.id, { kind: 'checking' });
 		}
 		this.installations = observableFromEvent(this, this.onDidChange, () => this.getInstallationSnapshot());
@@ -143,13 +112,10 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		if (this.customizationMarketplaceService.onDidChangeSources) {
 			this._register(this.customizationMarketplaceService.onDidChangeSources(() => this.updateEnablement()));
 		}
-		this._register(this.recordStore.onDidChange(() => {
-			this.synchronizeRecordStates(true);
-			this.emitChange();
-			if (this.isEnabled()) {
-				void this.reconcileRecords([...this.getRecordsByKind('plugin'), ...this.getRecordsByKind('mcp'), ...this.getApplicableConnectorRecords()]);
-				void this.refreshActiveSkillSourceFolders();
-			}
+		this._register(autorun(reader => {
+			this.harnessService.activeHarness.read(reader);
+			this.harnessService.activeSessionResource.read(reader);
+			this.bindInstallProvider();
 		}));
 		this.updateEnablement();
 	}
@@ -160,10 +126,133 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 	}
 
 	private getInstallationSnapshot(): ICustomizationMarketplaceInstallationSnapshot {
-		return this.installationSnapshot ??= createCustomizationMarketplaceInstallationSnapshot(this.getRelevantRecords().map(record => {
+		const associations = this.getRelevantRecords().map(record => {
 			const resource = toRecordedMarketplaceResource(record);
 			return { resource, state: this.getRecordedInstallState(record, resource) };
-		}));
+		});
+		const providerInstallations = this.providerInstallations.map(installation => {
+			const resource = this.findKnownResource(installation.resource) ?? installation.resource;
+			return resource === installation.resource ? installation : { ...installation, resource };
+		});
+		return this.installationSnapshot ??= createCustomizationMarketplaceInstallationSnapshot(
+			[...providerInstallations, ...associations],
+			(recorded, resource) => this.isLegacyConfiguredPluginResource(recorded, resource),
+		);
+	}
+
+	private bindInstallProvider(): void {
+		this.providerRequest.clear();
+		const hadInstallations = this.providerInstallations.length > 0;
+		this.providerInstallations = [];
+		if (hadInstallations) {
+			this.emitChange();
+		}
+		const provider = this.harnessService.getActiveDescriptor().marketplaceInstallProvider;
+		if (!provider) {
+			this.providerBinding = undefined;
+			return;
+		}
+		const binding: IInstallProviderBinding = {
+			provider,
+			session: this.harnessService.activeSessionResource.get(),
+			refreshVersion: 0,
+		};
+		this.providerBinding = binding;
+		const store = new DisposableStore();
+		this.providerRequest.value = store;
+		store.add(provider.onDidChange(() => void this.refreshProviderInstallations(binding)));
+		void this.refreshProviderInstallations(binding);
+	}
+
+	private async refreshProviderInstallations(binding: IInstallProviderBinding): Promise<void> {
+		const refreshVersion = ++binding.refreshVersion;
+		const store = new DisposableStore();
+		const cancellation = store.add(new CancellationTokenSource(this.lifetimeToken));
+		try {
+			const installations = await binding.provider.getInstallations(binding.session, cancellation.token);
+			if (binding !== this.providerBinding || refreshVersion !== binding.refreshVersion || cancellation.token.isCancellationRequested || this._store.isDisposed) {
+				return;
+			}
+			this.providerInstallations = installations;
+			this.emitChange();
+		} catch (error) {
+			if (!cancellation.token.isCancellationRequested) {
+				this.logService.error('[CustomizationMarketplace] Unable to load provider-owned installations', error);
+			}
+		} finally {
+			store.dispose();
+		}
+	}
+
+	private rememberResource(resource: ICustomizationMarketplaceResource): void {
+		const key = getCustomizationMarketplaceResourceKey(resource);
+		const previous = this.knownResources.get(key);
+		if (previous && isCustomizationMarketplaceIconEqual(previous.icon, resource.icon)) {
+			return;
+		}
+		this.knownResources.set(key, resource);
+		while (this.knownResources.size > 1000) {
+			this.knownResources.delete(this.knownResources.keys().next().value!);
+		}
+		if (!this.providerChangeScheduled && this.providerInstallations.some(installation => this.matchesProviderInstallation(installation.resource, resource))) {
+			this.providerChangeScheduled = true;
+			queueMicrotask(() => {
+				this.providerChangeScheduled = false;
+				if (!this._store.isDisposed) {
+					this.emitChange();
+				}
+			});
+		}
+	}
+
+	private findKnownResource(resource: ICustomizationMarketplaceResource): ICustomizationMarketplaceResource | undefined {
+		const resourceKey = getCustomizationMarketplaceResourceKey(resource);
+		let exactResource: ICustomizationMarketplaceResource | undefined;
+		for (const candidate of this.knownResources.values()) {
+			if (!this.matchesProviderInstallation(resource, candidate)) {
+				continue;
+			}
+			if (getCustomizationMarketplaceResourceKey(candidate) !== resourceKey) {
+				return candidate;
+			}
+			exactResource ??= candidate;
+		}
+		return exactResource;
+	}
+
+	private matchesProviderInstallation(installed: ICustomizationMarketplaceResource, resource: ICustomizationMarketplaceResource): boolean {
+		if (getCustomizationMarketplaceResourceKey(installed) === getCustomizationMarketplaceResourceKey(resource)) {
+			return true;
+		}
+		const versionsCompatible = installed.version === undefined || resource.version === undefined || installed.version === resource.version;
+		if (versionsCompatible && installed.externalUrl && resource.externalUrl && installed.externalUrl === resource.externalUrl) {
+			return true;
+		}
+		const installedRegistryIdentity = this.getGitHubMcpRegistryIdentity(installed);
+		const resourceRegistryIdentity = this.getGitHubMcpRegistryIdentity(resource);
+		if (versionsCompatible && installedRegistryIdentity && resourceRegistryIdentity && installedRegistryIdentity === resourceRegistryIdentity) {
+			return true;
+		}
+		const installedSource = installed.installation;
+		const resourceSource = resource.installation;
+		if (installedSource?.kind === 'configuredPlugin' &&
+			(resourceSource?.kind === 'configuredPlugin' || resourceSource?.kind === 'providerPlugin')) {
+			return versionsCompatible && installedSource.name === resourceSource.name && installedSource.marketplace === resourceSource.marketplace;
+		}
+		if (installedSource?.kind === 'plugin' && resourceSource?.kind === 'plugin') {
+			return installedSource.repository.toLowerCase() === resourceSource.repository.toLowerCase()
+				&& installedSource.path === resourceSource.path
+				&& installedSource.ref === resourceSource.ref
+				&& versionsCompatible;
+		}
+		return false;
+	}
+
+	private getGitHubMcpRegistryIdentity(resource: ICustomizationMarketplaceResource): string | undefined {
+		const installation = resource.installation;
+		const itemUrl = installation?.kind === 'providerCatalog' ? installation.itemUrl : undefined;
+		return getGitHubMcpRegistryResourceIdentity(resource.identifier)?.toLowerCase()
+			?? getGitHubMcpRegistryIdentity(itemUrl ?? resource.externalUrl ?? resource.url?.toString(true) ?? resource.identifier)?.toLowerCase();
 	}
 
 	private isEnabled(): boolean {
@@ -171,17 +260,8 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 	}
 
 	private isSourceEnabled(sourceId: string): boolean {
-		const source = this.customizationMarketplaceService.sources.find(source => source.id === sourceId);
-		return !!source && getVisibleCustomizationMarketplaceSources(this.configurationService, this.customizationMarketplaceService.sources).includes(source);
-	}
-
-	private getInstalledMcpServer(name: string, version: string): IWorkbenchMcpServer | undefined {
-		return this.mcpWorkbenchService.local.find(server => server.name === name &&
-			server.local?.name === name &&
-			server.local?.galleryUrl === agentFinderMcpRegistryManifest.url &&
-			server.local.version === version &&
-			(!server.gallery || server.gallery.name === name) &&
-			server.installState === McpServerInstallState.Installed);
+		return getVisibleCustomizationMarketplaceSources(this.configurationService, this.customizationMarketplaceService.sources)
+			.some(source => source.id === sourceId);
 	}
 
 	private getInstalledGalleryMcpServer(source: McpGalleryInstallation): IWorkbenchMcpServer | undefined {
@@ -189,7 +269,6 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		return registryUrl ? this.mcpWorkbenchService.local.find(server => server.name === source.name &&
 			server.local?.name === source.name &&
 			normalizeMcpGalleryUrl(server.local.galleryUrl) === registryUrl &&
-			registryUrl !== normalizeMcpGalleryUrl(agentFinderMcpRegistryManifest.url) &&
 			server.gallery?.name === source.name &&
 			normalizeMcpGalleryUrl(server.gallery.galleryUrl) === registryUrl &&
 			server.installState === McpServerInstallState.Installed) : undefined;
@@ -197,7 +276,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 
 	private isMcpGallerySourceCurrent(source: McpGalleryInstallation): boolean {
 		return source.registry === 'default'
-			? this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled) !== true
+			? true
 			: normalizeMcpGalleryUrl(this.configurationService.getValue<string>(mcpGalleryServiceUrlConfig)) === normalizeMcpGalleryUrl(source.registryUrl);
 	}
 
@@ -227,11 +306,6 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		} else {
 			this.connectorListeners.clear();
 		}
-		for (const [key, setup] of this.manualMcpSetups) {
-			if (!this.isSourceEnabled(setup.sourceId)) {
-				this.manualMcpSetups.delete(key);
-			}
-		}
 		const enabled = this.isEnabled();
 		if (enabled === this.observingInstallations) {
 			this.emitChange();
@@ -241,9 +315,6 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		this.observingInstallations = enabled;
 		this.enabledDisposables.clear();
 		if (!enabled) {
-			this.sourceFolderSequence++;
-			this.sourceFolderRequest.clear();
-			this.activeSkillSourceFolders = undefined;
 			this.emitChange();
 			return;
 		}
@@ -252,14 +323,6 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			this.agentPluginService.plugins.read(reader);
 			this.emitChange();
 			void this.reconcileRecords(this.getRecordsByKind('plugin'));
-		}));
-		this.enabledDisposables.add(autorun(reader => {
-			this.harnessService.activeHarness.read(reader);
-			this.harnessService.activeSessionResource.read(reader);
-			this.workspaceService.activeProjectRoot.read(reader);
-			this.activeSkillSourceFolders = undefined;
-			this.emitChange();
-			void this.refreshActiveSkillSourceFolders();
 		}));
 		this.enabledDisposables.add(this.mcpWorkbenchService.onChange(() => {
 			this.emitChange();
@@ -270,74 +333,18 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			void this.reconcileRecords(this.getRecordsByKind('mcp'));
 		}));
 		this.enabledDisposables.add(this.entitlementService.onDidChangeSentiment(() => this.emitChange()));
-		this.enabledDisposables.add(this.fileService.onDidFilesChange(event => {
-			const affected = this.getApplicableSkillRecords().filter(record => record.target.kind === 'skill' && (event.affects(record.target.uri) || event.affects(dirname(record.target.uri))));
-			if (affected.length) {
-				void this.reconcileRecords(affected);
-			}
-		}));
 		void this.reconcileRecords(this.getRecordsByKind('mcp'));
 		void this.synchronizeConnectedConnectorRecords();
 	}
 
-	private async refreshActiveSkillSourceFolders(): Promise<void> {
-		const sequence = ++this.sourceFolderSequence;
-		if (this.entitlementService.sentiment.hidden || this.getRecordsByKind('skill').length === 0) {
-			this.activeSkillSourceFolders = undefined;
-			return;
-		}
-		const session = this.harnessService.activeSessionResource.get();
-		const request = new DisposableStore();
-		const token = cancelOnDispose(request);
-		this.sourceFolderRequest.value = request;
-		try {
-			const folders = await this.locationPicker.resolveTargetFolders(session, PromptsType.skill, undefined, token);
-			if (sequence !== this.sourceFolderSequence || !isEqual(session, this.harnessService.activeSessionResource.get()) || this._store.isDisposed) {
-				return;
-			}
-			this.activeSkillSourceFolders = folders;
-			this.rebaseSkillRecordTargets(folders ?? []);
-			this.emitChange();
-			await this.reconcileRecords(this.getApplicableSkillRecords());
-		} catch (error) {
-			if (sequence === this.sourceFolderSequence && !this._store.isDisposed) {
-				this.logService.error('[CustomizationMarketplace] Unable to resolve active skill destinations', error);
-			}
-		}
-	}
-
-	private rebaseSkillRecordTargets(folders: readonly ICustomizationSourceFolder[]): void {
-		for (const record of this.getRecordsByKind('skill')) {
-			if (record.target.kind !== 'skill' || !record.target.destinationGroupId || !this.isRecordApplicable(record)) {
-				continue;
-			}
-			const target = record.target;
-			const folder = folders.find(candidate => candidate.source === target.source && candidate.destinationGroupId === target.destinationGroupId);
-			if (!folder || isEqual(folder.uri, target.sourceFolder)) {
-				continue;
-			}
-			const skillName = basename(dirname(target.uri));
-			const updated: ICustomizationMarketplaceInstallationRecord = {
-				...record,
-				target: {
-					...target,
-					uri: joinPath(folder.uri, skillName, SKILL_FILENAME),
-					sourceFolder: folder.uri,
-				},
-			};
-			this.recordStore.upsert(updated);
-			this.recordStates.set(updated.id, { kind: 'checking' });
-		}
-	}
-
 	private synchronizeRecordStates(reset = false): void {
 		for (const id of [...this.recordStates.keys()]) {
-			if (!this.recordStore.records.has(id)) {
+			if (!this.recordStore.associations.has(id)) {
 				this.recordStates.delete(id);
 				this.reconciliationVersions.delete(id);
 			}
 		}
-		for (const record of this.recordStore.records.values()) {
+		for (const record of this.recordStore.associations.values()) {
 			if (reset || !this.recordStates.has(record.id)) {
 				this.recordStates.set(record.id, { kind: 'checking' });
 			}
@@ -345,11 +352,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 	}
 
 	private getRecordsByKind(kind: CustomizationMarketplaceInstallationRecordTarget['kind']): ICustomizationMarketplaceInstallationRecord[] {
-		return [...this.recordStore.records.values()].filter(record => record.target.kind === kind);
-	}
-
-	private getApplicableSkillRecords(): ICustomizationMarketplaceInstallationRecord[] {
-		return this.getRecordsByKind('skill').filter(record => this.isRecordApplicable(record));
+		return [...this.recordStore.associations.values()].filter(record => record.target.kind === kind);
 	}
 
 	private getApplicableConnectorRecords(): ICustomizationMarketplaceInstallationRecord[] {
@@ -359,7 +362,8 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 	}
 
 	private getRelevantRecords(): ICustomizationMarketplaceInstallationRecord[] {
-		return [...this.getRecordsByKind('plugin'), ...this.getRecordsByKind('mcp'), ...this.getApplicableSkillRecords(), ...this.getApplicableConnectorRecords()];
+		return [...this.getRecordsByKind('plugin'), ...this.getRecordsByKind('mcp'), ...this.getApplicableConnectorRecords()]
+			.filter(record => !this.isProviderManagedInstallation(record.installation));
 	}
 
 	private async synchronizeConnectedConnectorRecords(): Promise<void> {
@@ -444,12 +448,37 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 	}
 
 	private findRecord(resource: ICustomizationMarketplaceResource): ICustomizationMarketplaceInstallationRecord | undefined {
+		if (this.getInstallProviderBinding(resource)) {
+			return undefined;
+		}
 		if (resource.installation?.kind === 'copilotConnector') {
 			const account = this.copilotConnectorsService.account;
 			return account ? this.findConnectorRecord(resource.installation.name, account) : undefined;
 		}
 		const resourceKey = getCustomizationMarketplaceResourceKey(resource);
-		return [...this.recordStore.records.values()].find(record => getInstallationRecordResourceKey(record) === resourceKey && this.isRecordApplicable(record));
+		return [...this.recordStore.associations.values()].find(record =>
+			this.isRecordApplicable(record) && (
+				getInstallationRecordResourceKey(record) === resourceKey ||
+				this.isLegacyConfiguredPluginRecord(record, resource)
+			));
+	}
+
+	private isLegacyConfiguredPluginRecord(record: ICustomizationMarketplaceInstallationRecord, resource: ICustomizationMarketplaceResource): boolean {
+		return this.isLegacyConfiguredPluginResource(record, resource);
+	}
+
+	private isLegacyConfiguredPluginResource(recorded: ICustomizationMarketplaceInstallationRecord | ICustomizationMarketplaceResource, resource: ICustomizationMarketplaceResource): boolean {
+		return recorded.sourceId === CustomizationMarketplaceSources.PluginMarketplaces.id &&
+			recorded.installation?.kind === 'configuredPlugin' &&
+			resource.installation?.kind === 'configuredPlugin' &&
+			recorded.identifier === resource.identifier &&
+			recorded.version === resource.version;
+	}
+
+	private getRecordSourceId(record: ICustomizationMarketplaceInstallationRecord): string {
+		return record.sourceId === CustomizationMarketplaceSources.PluginMarketplaces.id && record.installation.kind === 'configuredPlugin'
+			? getPluginCustomizationMarketplaceSourceIdFromIdentifier(record.identifier) ?? record.sourceId
+			: record.sourceId;
 	}
 
 	private isRecordApplicable(record: ICustomizationMarketplaceInstallationRecord): boolean {
@@ -457,31 +486,11 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			const account = this.copilotConnectorsService.account;
 			return !!account && isConnectorAccountEqual(record.target, account);
 		}
-		if (record.target.kind !== 'skill') {
-			return true;
-		}
-		const target = record.target;
-		if (target.harness !== this.harnessService.activeHarness.get()) {
-			return false;
-		}
-		if (target.source === 'local' && target.project) {
-			return isEqual(target.project, this.workspaceService.getActiveProjectRoot());
-		}
-		if (this.activeSkillSourceFolders) {
-			return this.activeSkillSourceFolders.some(folder => folder.source === target.source && (
-				!!target.destinationGroupId && folder.destinationGroupId === target.destinationGroupId
-				|| isEqual(folder.uri, target.sourceFolder)
-			));
-		}
-		if (target.source === 'user') {
-			return true;
-		}
-		return !!target.session && isEqual(target.session, this.harnessService.activeSessionResource.get());
+		return true;
 	}
 
 	private toInstallationTarget(record: ICustomizationMarketplaceInstallationRecord): CustomizationMarketplaceInstallationTarget {
 		switch (record.target.kind) {
-			case 'skill': return { kind: 'skill', uri: record.target.uri };
 			case 'plugin': return { kind: 'plugin', uri: record.target.uri };
 			case 'mcp': return { kind: 'mcp', id: record.target.id };
 			case 'copilotConnector': return { kind: 'copilotConnector', name: record.target.name };
@@ -506,8 +515,6 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 						? 'checking'
 						: connector?.connectionStatus === 'connected' ? 'installed' : 'missing',
 				};
-			} else if (record.target.kind === 'skill') {
-				state = { kind: await this.isSkillInstallationComplete(record.target) ? 'installed' : 'missing' };
 			} else if (record.target.kind === 'plugin') {
 				const target = record.target;
 				const installed = await this.getExistingInstalledPlugin(record);
@@ -518,11 +525,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			} else {
 				const target = record.target;
 				const installed = this.mcpWorkbenchService.local.find(server => server.id === target.id && server.installState === McpServerInstallState.Installed)
-					?? (record.installation.kind === 'mcp'
-						? this.getInstalledMcpServer(record.installation.name, record.installation.version)
-						: record.installation.kind === 'mcpGallery'
-							? this.getInstalledGalleryMcpServer(record.installation)
-							: undefined);
+					?? (record.installation.kind === 'mcpGallery' ? this.getInstalledGalleryMcpServer(record.installation) : undefined);
 				state = { kind: installed ? 'installed' : 'missing' };
 				if (installed && installed.id !== target.id) {
 					record = { ...record, target: { kind: 'mcp', id: installed.id } };
@@ -532,7 +535,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			this.logService.error(`[CustomizationMarketplace] Unable to verify installation '${original.id}'`, error);
 			state = { kind: 'error', message: localize('customizationMarketplace.installationVerificationFailed', "Could not verify this customization installation. {0}", getErrorMessage(error)) };
 		}
-		if (this.reconciliationVersions.get(original.id) !== version || this._store.isDisposed || this.recordStore.records.get(original.id) !== original) {
+		if (this.reconciliationVersions.get(original.id) !== version || this._store.isDisposed || this.recordStore.associations.get(original.id) !== original) {
 			return;
 		}
 		const didUpdateRecord = record !== original;
@@ -544,22 +547,6 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			this.recordStates.set(record.id, state);
 			this.emitChange();
 		}
-	}
-
-	private async isSkillInstallationComplete(target: Extract<CustomizationMarketplaceInstallationRecordTarget, { kind: 'skill' }>): Promise<boolean> {
-		const root = dirname(target.uri);
-		const results = await Promise.all(target.files.map(path => this.skillVerificationLimiter.queue(async () => {
-			try {
-				const stat = await this.fileService.resolve(joinPath(root, ...path.split('/')));
-				return stat.isFile && !stat.isSymbolicLink;
-			} catch (error) {
-				if (toFileOperationResult(error) === FileOperationResult.FILE_NOT_FOUND) {
-					return false;
-				}
-				throw error;
-			}
-		})));
-		return results.every(Boolean);
 	}
 
 	private getSourceUnavailableMessage(sourceId: string): string | undefined {
@@ -576,7 +563,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		if (!this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled)) {
 			return localize('customizationMarketplace.disabled', "Enable the customization marketplace to install this resource.");
 		}
-		const sourceUnavailableMessage = this.getSourceUnavailableMessage(record.sourceId);
+		const sourceUnavailableMessage = this.getSourceUnavailableMessage(this.getRecordSourceId(record));
 		if (sourceUnavailableMessage) {
 			return sourceUnavailableMessage;
 		}
@@ -616,11 +603,22 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 	}
 
 	getInstallState(resource: ICustomizationMarketplaceResource): CustomizationMarketplaceInstallState {
+		this.rememberResource(resource);
 		if (resource.installation?.kind === 'copilotConnector' &&
 			this.configurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.CopilotConnectorsEnabled) !== true) {
 			return { kind: 'unavailable', message: localize('customizationMarketplace.connectorsDisabled', "Enable the Copilot connectors experiment to connect this resource.") };
 		}
-		const recorded = this.installations.get().findByResource(resource);
+		const providerInstallation = this.providerInstallations.find(installation => this.matchesProviderInstallation(installation.resource, resource));
+		if (providerInstallation) {
+			return this.getProviderInstallState(providerInstallation);
+		}
+		const providerBinding = this.getInstallProviderBinding(resource);
+		const ownerAssociation = this.findRecord(resource);
+		if (ownerAssociation?.id.startsWith('owner:') && !this.isOwnerAssociationCurrent(resource, ownerAssociation)) {
+			this.removeRecord(ownerAssociation);
+			this.installationSnapshot = undefined;
+		}
+		const recorded = providerBinding ? undefined : this.installations.get().findByResource(resource);
 		if (recorded) {
 			return recorded.state;
 		}
@@ -634,12 +632,15 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		if (this.entitlementService.sentiment.hidden) {
 			return { kind: 'unavailable', message: localize('customizationMarketplace.aiDisabled', "Enable AI features to install customizations.") };
 		}
-		const resourceKey = getCustomizationMarketplaceResourceKey(resource);
-		const operationKey = resource.installation?.kind === 'copilotConnector' ? getConnectorOperationKey(resource) : resourceKey;
+		const operationKey = resource.installation?.kind === 'copilotConnector' ? getConnectorOperationKey(resource) : getCustomizationMarketplaceResourceKey(resource);
 		if (this.pending.has(operationKey)) {
 			return { kind: 'installing' };
 		}
 		const source = resource.installation;
+		const providerUnavailableMessage = providerBinding?.provider.getInstallUnavailableMessage?.(resource);
+		if (providerUnavailableMessage) {
+			return { kind: 'unavailable', message: providerUnavailableMessage };
+		}
 		if (source?.kind === 'configuredPlugin') {
 			if (isWeb) {
 				return { kind: 'unavailable', message: localize('customizationMarketplace.pluginWebUnsupported', "Installing configured marketplace plugins is not available in VS Code for the Web.") };
@@ -647,8 +648,15 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			if (!this.configurationService.getValue<boolean>(ChatConfiguration.PluginsEnabled)) {
 				return { kind: 'unavailable', message: localize('customizationMarketplace.pluginsDisabled', "Enable agent plugins to install this resource.") };
 			}
+			const installed = providerBinding ? undefined : this.pluginMarketplaceService.installedPlugins.get().find(({ plugin }) => getPluginMarketplaceIdentifier(plugin) === resource.identifier);
+			if (installed) {
+				const target = { kind: 'plugin' as const, uri: installed.pluginUri };
+				this.associateInstalledResource(resource, target);
+				return { kind: 'installed', target };
+			}
 			return { kind: 'available' };
 		}
+
 		if (!source) {
 			return {
 				kind: 'unavailable',
@@ -657,11 +665,14 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 					: localize('customizationMarketplace.sourceUnavailable', "This resource does not provide a supported installation source."),
 			};
 		}
-		if (source.kind === 'plugin') {
-			if (!this.configurationService.getValue<boolean>(ChatConfiguration.PluginsEnabled)) {
+		if (source.kind === 'skill' || source.kind === 'mcp' || source.kind === 'plugin' || source.kind === 'providerPlugin' || source.kind === 'providerCatalog') {
+			if ((source.kind === 'plugin' || source.kind === 'providerPlugin') &&
+				!this.configurationService.getValue<boolean>(ChatConfiguration.PluginsEnabled)) {
 				return { kind: 'unavailable', message: localize('customizationMarketplace.pluginsDisabled', "Enable agent plugins to install this resource.") };
 			}
-			return { kind: 'available' };
+			return providerBinding
+				? { kind: 'available' }
+				: { kind: 'unavailable', message: localize('customizationMarketplace.providerCatalogUnavailable', "The active agent cannot install this catalog resource.") };
 		}
 		if (source.kind === 'copilotConnector') {
 			const target: CustomizationMarketplaceInstallationTarget = { kind: 'copilotConnector', name: source.name };
@@ -683,26 +694,89 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 				? { kind: 'available' }
 				: { kind: 'unavailable', message: localize('customizationMarketplace.connectorNotActionable', "This connector cannot be connected while its status is '{0}'. Refresh and try again.", presentation.statusLabel) };
 		}
-		if (source.kind === 'mcp') {
-			const manualSetup = this.manualMcpSetups.get(resourceKey);
-			if (manualSetup) {
-				return {
-					kind: 'unavailable',
-					message: manualSetup.url
-						? localize('customizationMarketplace.mcpManualSetup', "This MCP server requires manual setup. Review the publisher's instructions before adding it.")
-						: localize('customizationMarketplace.mcpManualSetupUnavailable', "This MCP server requires manual setup, but no publisher instructions are available."),
-					setupUrl: manualSetup.url,
-				};
-			}
-			return { kind: 'available' };
-		}
 		if (source.kind === 'mcpGallery') {
 			if (!this.isMcpGallerySourceCurrent(source)) {
 				return { kind: 'unavailable', message: localize('customizationMarketplace.mcpGalleryChanged', "The MCP registry changed after '{0}' was discovered. Refresh Discover and try again.", source.name) };
 			}
+			const installed = this.getInstalledGalleryMcpServer(source);
+			if (installed) {
+				const target = { kind: 'mcp' as const, id: installed.id };
+				this.associateInstalledResource(resource, target);
+				return { kind: 'installed', target };
+			}
 			return { kind: 'available' };
 		}
 		return { kind: 'available' };
+	}
+
+	private isOwnerAssociationCurrent(resource: ICustomizationMarketplaceResource, association: ICustomizationMarketplaceInstallationRecord): boolean {
+		const source = resource.installation;
+		if (association.target.kind === 'plugin') {
+			return source?.kind === 'configuredPlugin' && this.pluginMarketplaceService.installedPlugins.get().some(({ plugin }) => getPluginMarketplaceIdentifier(plugin) === resource.identifier);
+		}
+		if (association.target.kind === 'mcp') {
+			return source?.kind === 'mcpGallery' && !!this.getInstalledGalleryMcpServer(source);
+		}
+		return true;
+	}
+
+	private getProviderInstallState(installation: IRecordedCustomizationMarketplaceResource): RecordedCustomizationMarketplaceInstallState {
+		const key = installation.installationId ?? getCustomizationMarketplaceResourceKey(installation.resource);
+		if (this.pendingUninstalls.has(key)) {
+			return { kind: 'uninstalling', target: installation.state.target };
+		}
+		if (this.pendingRepairs.has(key)) {
+			return { kind: 'repairing', target: installation.state.target };
+		}
+		return installation.state;
+	}
+
+	private getInstallProviderBinding(resource: ICustomizationMarketplaceResource): IInstallProviderBinding | undefined {
+		const binding = this.providerBinding;
+		const provider = binding?.provider;
+		const kind = resource.installation?.kind;
+		return binding && provider && (kind === 'skill' || kind === 'mcp' || kind === 'plugin' || kind === 'configuredPlugin' || kind === 'providerPlugin'
+			|| kind === 'providerCatalog'
+			|| this.providerInstallations.some(installation => this.matchesProviderInstallation(installation.resource, resource)))
+			? binding
+			: undefined;
+	}
+
+	private isProviderManagedInstallation(installation: CustomizationMarketplaceInstallation): boolean {
+		return !!this.providerBinding && (installation.kind === 'skill' || installation.kind === 'mcp' || installation.kind === 'plugin' || installation.kind === 'configuredPlugin' || installation.kind === 'providerPlugin' || installation.kind === 'providerCatalog');
+	}
+
+	private associateInstalledResource(resource: ICustomizationMarketplaceResource, target: Extract<CustomizationMarketplaceInstallationRecordTarget, { readonly kind: 'plugin' | 'mcp' }>): void {
+		if (!resource.installation) {
+			return;
+		}
+		const id = `owner:${getCustomizationMarketplaceResourceKey(resource)}`;
+		if (this.recordStore.associations.has(id)) {
+			return;
+		}
+		this.recordStore.upsert({
+			id,
+			sourceId: resource.sourceId,
+			identifier: resource.identifier,
+			version: resource.version,
+			displayName: resource.displayName,
+			description: resource.description,
+			mediaType: resource.mediaType,
+			installation: resource.installation,
+			icon: resource.icon,
+			target,
+		});
+		this.installationSnapshot = undefined;
+		this.recordStates.set(id, { kind: 'installed' });
+		if (!this.providerChangeScheduled) {
+			this.providerChangeScheduled = true;
+			queueMicrotask(() => {
+				this.providerChangeScheduled = false;
+				if (!this._store.isDisposed) {
+					this.emitChange();
+				}
+			});
+		}
 	}
 
 	async install(resource: ICustomizationMarketplaceResource): Promise<void> {
@@ -719,19 +793,19 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			return;
 		}
 		const connector = resource.installation?.kind === 'copilotConnector' ? resource.installation : undefined;
+		const providerBinding = this.getInstallProviderBinding(resource);
 		const operationDisposables = new DisposableStore();
 		const token = cancelOnDispose(operationDisposables);
-		const isConfiguredPlugin = resource.installation?.kind === 'configuredPlugin';
+		const requiresMarketplaceTrust = resource.installation?.kind === 'configuredPlugin' || resource.installation?.kind === 'providerPlugin';
 		operationDisposables.add(this.lifetimeToken.onCancellationRequested(() => operationDisposables.dispose()));
-		if (isConfiguredPlugin) {
+		if (requiresMarketplaceTrust) {
 			operationDisposables.add(this.pluginMarketplaceService.onDidChangeMarketplaces(() => operationDisposables.dispose()));
 		}
 		operationDisposables.add(this.configurationService.onDidChangeConfiguration(event => {
 			if (
 				!this.isSourceEnabled(resource.sourceId) ||
-				(isConfiguredPlugin && (
-					event.affectsConfiguration(ChatConfiguration.StrictMarketplaces) ||
-					event.affectsConfiguration(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled)
+				(requiresMarketplaceTrust && (
+					event.affectsConfiguration(ChatConfiguration.StrictMarketplaces)
 				)) ||
 				(resource.installation?.kind === 'mcpGallery' && resource.installation.registry === 'custom' &&
 					event.affectsConfiguration(mcpGalleryServiceUrlConfig))
@@ -743,6 +817,21 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			this.telemetryService,
 			getCustomizationMarketplaceInstallTelemetryContext('marketplace', resource.installation),
 			async () => {
+				if (providerBinding) {
+					if (resource.installation?.kind === 'configuredPlugin' || resource.installation?.kind === 'providerPlugin') {
+						const marketplaceReference = resource.installation.kind === 'configuredPlugin'
+							? (await this.resolveConfiguredPlugin(resource, token)).marketplaceReference
+							: this.resolveProviderPluginMarketplaceReference(resource);
+						if (!await this.pluginInstallService.ensureMarketplaceTrusted(marketplaceReference, token)) {
+							throw new CancellationError();
+						}
+					}
+					await providerBinding.provider.install(providerBinding.session, resource, token);
+					if (providerBinding === this.providerBinding) {
+						await this.refreshProviderInstallations(providerBinding);
+					}
+					return;
+				}
 				if (!connector) {
 					const record = await this.doInstall(resource, token);
 					await this.addRecord(record);
@@ -778,6 +867,41 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 	}
 
 	async repair(resource: ICustomizationMarketplaceResource): Promise<void> {
+		const providerBinding = this.getInstallProviderBinding(resource);
+		const providerInstallation = providerBinding
+			? this.providerInstallations.find(installation => this.matchesProviderInstallation(installation.resource, resource))
+			: undefined;
+		if (providerBinding && providerInstallation) {
+			if (providerInstallation.state.kind !== 'missing' && providerInstallation.state.kind !== 'error') {
+				return;
+			}
+			const key = providerInstallation.installationId ?? getCustomizationMarketplaceResourceKey(providerInstallation.resource);
+			const pending = this.pendingRepairs.get(key);
+			if (pending) {
+				return pending.promise;
+			}
+			const operationDisposables = new DisposableStore();
+			const token = cancelOnDispose(operationDisposables);
+			const operation = (async () => {
+				await providerBinding.provider.repair(providerBinding.session, providerInstallation, token);
+				if (providerBinding === this.providerBinding) {
+					await this.refreshProviderInstallations(providerBinding);
+				}
+			})();
+			this.pendingRepairs.set(key, { promise: operation, cancel: () => operationDisposables.dispose() });
+			this.emitChange();
+			try {
+				await operation;
+			} finally {
+				operationDisposables.dispose();
+				this.pendingRepairs.delete(key);
+				this.emitChange();
+			}
+			return;
+		}
+		if (providerBinding) {
+			return;
+		}
 		const record = this.findRecord(resource);
 		if (!record || this.recordStates.get(record.id)?.kind !== 'missing') {
 			return;
@@ -794,7 +918,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		const token = cancelOnDispose(operationDisposables);
 		operationDisposables.add(this.lifetimeToken.onCancellationRequested(() => operationDisposables.dispose()));
 		operationDisposables.add(this.configurationService.onDidChangeConfiguration(() => {
-			if (!this.isSourceEnabled(record.sourceId)) {
+			if (!this.isSourceEnabled(this.getRecordSourceId(record))) {
 				operationDisposables.dispose();
 			}
 		}));
@@ -814,7 +938,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		try {
 			await operation;
 		} catch (error) {
-			if (token.isCancellationRequested || this.lifetimeToken.isCancellationRequested || !this.isSourceEnabled(record.sourceId)) {
+			if (token.isCancellationRequested || this.lifetimeToken.isCancellationRequested || !this.isSourceEnabled(this.getRecordSourceId(record))) {
 				throw new CancellationError();
 			}
 			throw error;
@@ -837,6 +961,38 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 	}
 
 	async uninstall(resource: ICustomizationMarketplaceResource): Promise<void> {
+		const providerBinding = this.getInstallProviderBinding(resource);
+		const providerInstallation = providerBinding
+			? this.providerInstallations.find(installation => this.matchesProviderInstallation(installation.resource, resource))
+			: undefined;
+		if (providerBinding && providerInstallation) {
+			const key = providerInstallation.installationId ?? getCustomizationMarketplaceResourceKey(providerInstallation.resource);
+			const pending = this.pendingUninstalls.get(key);
+			if (pending) {
+				return pending;
+			}
+			const operationDisposables = new DisposableStore();
+			const token = cancelOnDispose(operationDisposables);
+			const operation = (async () => {
+				await providerBinding.provider.uninstall(providerBinding.session, providerInstallation, token);
+				if (providerBinding === this.providerBinding) {
+					await this.refreshProviderInstallations(providerBinding);
+				}
+			})();
+			this.pendingUninstalls.set(key, operation);
+			this.emitChange();
+			try {
+				await operation;
+			} finally {
+				operationDisposables.dispose();
+				this.pendingUninstalls.delete(key);
+				this.emitChange();
+			}
+			return;
+		}
+		if (providerBinding) {
+			return;
+		}
 		const connector = resource.installation?.kind === 'copilotConnector' ? resource.installation : undefined;
 		if (connector) {
 			const record = this.findRecord(resource);
@@ -861,7 +1017,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			const operation = (async () => {
 				try {
 					await this.runConnectorOperation(resource.sourceId, token => this.copilotConnectorsService.disconnect(connector.name, token), this.lifetimeToken);
-					if (record && this.recordStore.records.has(record.id)) {
+					if (record && this.recordStore.associations.has(record.id)) {
 						this.removeRecord(record);
 						this.emitChange();
 					}
@@ -911,18 +1067,16 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 
 	private async doUninstall(record: ICustomizationMarketplaceInstallationRecord): Promise<void> {
 		const source = record.installation;
-		if (source.kind === 'mcp' || source.kind === 'mcpGallery') {
+		if (source.kind === 'mcpGallery') {
 			const targetId = record.target.kind === 'mcp' ? record.target.id : undefined;
 			const server = this.mcpWorkbenchService.local.find(candidate => candidate.id === targetId)
-				?? (source.kind === 'mcp'
-					? this.getInstalledMcpServer(source.name, source.version)
-					: this.getInstalledGalleryMcpServer(source));
+				?? this.getInstalledGalleryMcpServer(source);
 			if (server) {
 				await this.mcpWorkbenchService.uninstall(server);
 			}
 			return;
 		}
-		if (source.kind === 'plugin' || source.kind === 'configuredPlugin') {
+		if (source.kind === 'configuredPlugin') {
 			const targetUri = record.target.kind === 'plugin' ? record.target.uri : undefined;
 			const installed = (targetUri
 				? this.pluginMarketplaceService.installedPlugins.get().find(candidate => isEqual(candidate.pluginUri, targetUri))
@@ -940,28 +1094,6 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			this.agentPluginService.enablementModel.remove(installed.pluginUri.toString());
 			await this.pluginInstallService.uninstallPlugin(installed.pluginUri);
 			return;
-		}
-		if (record.target.kind !== 'skill') {
-			return;
-		}
-		const target = dirname(record.target.uri);
-		try {
-			await this.fileService.resolve(target);
-		} catch (error) {
-			if (toFileOperationResult(error) === FileOperationResult.FILE_NOT_FOUND) {
-				return;
-			}
-			throw error;
-		}
-		await this.commandService.executeCommand(DELETE_AI_CUSTOMIZATION_ID, {
-			uri: record.target.uri,
-			name: record.displayName,
-			promptType: PromptsType.skill,
-			storage: record.target.source === 'local' ? PromptsStorage.local : PromptsStorage.user,
-			skipMarketplaceUninstall: true,
-		});
-		if (await this.fileService.exists(target)) {
-			throw new CancellationError();
 		}
 	}
 
@@ -996,12 +1128,12 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		if (source.kind === 'copilotConnector') {
 			throw new Error(localize('customizationMarketplace.connectorInstallTargetUnavailable', "Copilot connectors do not have a local installation target."));
 		}
+		if (source.kind === 'providerCatalog') {
+			throw new Error(localize('customizationMarketplace.providerCatalogUnavailable', "The active agent cannot install this catalog resource."));
+		}
 		const target = await this.installTarget({ ...resource, installation: source }, token);
-		const slot = target.kind === 'skill'
-			? [getCustomizationMarketplaceResourceKey(resource), target.harness, target.source, target.destinationGroupId ?? target.sourceFolder.toString(), target.project?.toString() ?? target.session?.toString() ?? null]
-			: [getCustomizationMarketplaceResourceKey(resource)];
 		return {
-			id: await createInstallationRecordId(slot),
+			id: await createInstallationRecordId([getCustomizationMarketplaceResourceKey(resource)]),
 			sourceId: resource.sourceId,
 			identifier: resource.identifier,
 			version: resource.version,
@@ -1015,27 +1147,65 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 	}
 
 	private async doRepair(resource: ICustomizationMarketplaceResource, record: ICustomizationMarketplaceInstallationRecord, token: CancellationToken): Promise<ICustomizationMarketplaceInstallationRecord> {
-		this.checkEnabled(record.sourceId, token);
+		const sourceId = this.getRecordSourceId(record);
+		this.checkEnabled(sourceId, token);
 		if (record.target.kind === 'copilotConnector' && record.installation.kind === 'copilotConnector') {
 			const target = record.target;
-			await this.runConnectorOperation(record.sourceId, operationToken => this.copilotConnectorsService.connect(target.name, operationToken), token);
+			await this.runConnectorOperation(sourceId, operationToken => this.copilotConnectorsService.connect(target.name, operationToken), token);
 			return record;
 		}
-		if (record.target.kind === 'skill') {
-			await this.skillInstaller.repair(record, token, () => this.isRecordApplicable(record));
-			return record;
-		}
-		const installation = record.target.kind === 'plugin' && record.installation.kind === 'plugin' && record.target.resolvedRevision
-			? { ...record.installation, ref: record.target.resolvedRevision }
-			: record.installation;
 		const target = await this.installTarget({
 			...resource,
-			sourceId: record.sourceId,
+			sourceId,
 			identifier: record.identifier,
 			version: record.version,
-			installation,
+			installation: record.installation,
 		}, token);
 		return { ...record, target };
+	}
+
+	private async resolveConfiguredPlugin(resource: ICustomizationMarketplaceResource, token: CancellationToken): Promise<IMarketplacePlugin> {
+		const source = resource.installation;
+		if (source?.kind !== 'configuredPlugin') {
+			throw new Error(localize('customizationMarketplace.pluginIdentityUnavailable', "This plugin does not provide configured marketplace identity."));
+		}
+		const discoveredReference = source.marketplaceSource ? parseMarketplaceReference(source.marketplaceSource) : undefined;
+		if (source.marketplaceId && (!discoveredReference || discoveredReference.canonicalId !== source.marketplaceId)) {
+			throw new Error(localize('customizationMarketplace.pluginIdentityChanged', "This plugin's marketplace identity changed after discovery. Refresh Discover and try again."));
+		}
+		const currentReference = source.marketplaceId
+			? this.pluginMarketplaceService.getMarketplaceReferences().find(reference => reference.canonicalId === source.marketplaceId)
+			: undefined;
+		if (source.marketplaceId && !currentReference) {
+			if (discoveredReference && this.pluginMarketplaceService.isStrictMarketplacePolicyActive() &&
+				!await this.pluginInstallService.ensureMarketplaceTrusted(discoveredReference, token)) {
+				throw new CancellationError();
+			}
+			throw new Error(localize('customizationMarketplace.pluginUnavailable', "This plugin is no longer available from a configured marketplace. Refresh Discover and try again."));
+		}
+		const marketplaceIds = source.marketplaceId ? new Set([source.marketplaceId]) : undefined;
+		const plugins = await this.pluginMarketplaceService.fetchMarketplacePlugins(token, marketplaceIds);
+		this.checkEnabled(resource.sourceId, token);
+		const plugin = plugins.find(plugin =>
+			getPluginMarketplaceIdentifier(plugin) === resource.identifier);
+		if (!plugin || source.name && plugin.name !== source.name || source.marketplace && plugin.marketplaceName !== source.marketplace) {
+			throw new Error(localize('customizationMarketplace.pluginUnavailable', "This plugin is no longer available from a configured marketplace. Refresh Discover and try again."));
+		}
+		return plugin;
+	}
+
+	private resolveProviderPluginMarketplaceReference(resource: ICustomizationMarketplaceResource): IMarketplaceReference {
+		const source = resource.installation;
+		if (source?.kind !== 'providerPlugin' || !source.marketplaceSource) {
+			throw new Error(localize('customizationMarketplace.providerPluginIdentityUnavailable', "This plugin does not provide provider marketplace identity."));
+		}
+		const directReference = parseMarketplaceReference(source.marketplaceSource);
+		const githubSource = /^GitHub:\s+(?<source>.+)$/.exec(source.marketplaceSource)?.groups?.source;
+		const marketplaceReference = directReference ?? (githubSource ? parseMarketplaceReference(githubSource) : undefined);
+		if (!marketplaceReference) {
+			throw new Error(localize('customizationMarketplace.providerPluginUnavailable', "This featured plugin is no longer available from a registered marketplace. Refresh Discover and try again."));
+		}
+		return marketplaceReference;
 	}
 
 	private async installTarget(resource: ICustomizationMarketplaceResource, token: CancellationToken): Promise<CustomizationMarketplaceInstallationRecordTarget> {
@@ -1044,14 +1214,7 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			throw new Error(localize('customizationMarketplace.sourceUnavailable', "This resource does not provide a supported installation source."));
 		}
 		if (source.kind === 'configuredPlugin') {
-			const plugins = await this.pluginMarketplaceService.fetchMarketplacePlugins(token);
-			this.checkEnabled(resource.sourceId, token);
-			const plugin = plugins.find(plugin =>
-				isPluginMarketplaceReferenceAvailableInDiscover(this.configurationService, plugin.marketplaceReference) &&
-				getPluginMarketplaceIdentifier(plugin) === resource.identifier);
-			if (!plugin) {
-				throw new Error(localize('customizationMarketplace.pluginUnavailable', "This plugin is no longer available from a configured marketplace. Refresh Discover and try again."));
-			}
+			const plugin = await this.resolveConfiguredPlugin(resource, token);
 			await this.pluginInstallService.installPlugin(plugin, token);
 			this.checkEnabled(resource.sourceId, token);
 			const uri = this.pluginInstallService.getPluginInstallUri(plugin);
@@ -1079,72 +1242,10 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 			}
 			return { kind: 'mcp', id: installed.id };
 		}
-		if (source.kind === 'mcp') {
-			let server: IWorkbenchMcpServer | undefined;
-			try {
-				server = await this.mcpWorkbenchService.getMcpServerFromAgentFinder(source.name, source.version, token);
-			} catch (error) {
-				this.checkEnabled(resource.sourceId, token);
-				if (error instanceof UnsupportedMcpGalleryPackageError) {
-					const setupUrl = error.repositoryUrl ?? resource.repository;
-					this.manualMcpSetups.set(getCustomizationMarketplaceResourceKey(resource), { sourceId: resource.sourceId, url: setupUrl });
-					this.emitChange();
-					throw new Error(setupUrl
-						? localize('customizationMarketplace.mcpManualSetupRequired', "This MCP server requires manual setup. Open the publisher's instructions to configure it.")
-						: localize('customizationMarketplace.mcpManualSetupUnavailable', "This MCP server requires manual setup, but no publisher instructions are available."));
-				}
-				throw error;
-			}
-			this.checkEnabled(resource.sourceId, token);
-			if (!server) {
-				throw new Error(localize('customizationMarketplace.mcpUnavailable', "The MCP server '{0}' is no longer available from the GitHub Feed.", source.name));
-			}
-			const canInstall = this.mcpWorkbenchService.canInstall(server);
-			if (canInstall !== true) {
-				throw new Error(canInstall.value);
-			}
-			const installed = await this.mcpWorkbenchService.install(server);
-			if (installed.installState !== McpServerInstallState.Installed) {
-				throw new Error(localize('customizationMarketplace.mcpInstallIncomplete', "The MCP server could not be installed. Review the installation error and try again."));
-			}
-			return { kind: 'mcp', id: installed.id };
-		}
 		if (source.kind === 'copilotConnector') {
 			throw new Error(localize('customizationMarketplace.connectorInstallTargetUnavailable', "Copilot connectors do not have a local installation target."));
 		}
-		if (source.kind === 'plugin') {
-			const result = await this.pluginInstallService.installPluginFromSource(`${source.repository}#${source.ref}`, { path: source.path });
-			if (!result.success) {
-				if (result.message) {
-					throw new Error(result.message);
-				}
-				throw new CancellationError();
-			}
-			if (!result.matchedPlugin || resource.version !== undefined && result.matchedPlugin.version !== resource.version) {
-				throw new Error(localize('customizationMarketplace.pluginInstallIncomplete', "The plugin could not be installed. Review the installation error and try again."));
-			}
-			if (!matchesPluginInstallation(result.matchedPlugin, source)) {
-				throw new Error(localize('customizationMarketplace.pluginInstallIncomplete', "The plugin could not be installed. Review the installation error and try again."));
-			}
-			const descriptor = result.matchedPlugin.sourceDescriptor;
-			const repository = descriptor.kind === PluginSourceKind.RelativePath
-				? this.repositoryService.getRepositoryUri(result.matchedPlugin.marketplaceReference, result.matchedPlugin.marketplaceType)
-				: descriptor.kind === PluginSourceKind.GitHub
-					? this.repositoryService.getPluginSource(descriptor.kind).getCleanupTarget(this.repositoryService.agentPluginsHome, descriptor)
-					: undefined;
-			if (!repository) {
-				throw new Error(localize('customizationMarketplace.pluginInstallIncomplete', "The plugin could not be installed. Review the installation error and try again."));
-			}
-			const resolvedRevision = (await this.pluginGitService.revParse(repository, 'HEAD')).toLowerCase();
-			if (!/^[0-9a-f]{40}$/.test(resolvedRevision)) {
-				throw new Error(localize('customizationMarketplace.pluginInstallIncomplete', "The plugin could not be installed. Review the installation error and try again."));
-			}
-			if (/^[0-9a-f]{40}$/i.test(source.ref) && resolvedRevision !== source.ref.toLowerCase()) {
-				throw new Error(localize('customizationMarketplace.pluginRevisionMismatch', "The recorded plugin revision is no longer available from its source."));
-			}
-			return { kind: 'plugin', uri: this.pluginInstallService.getPluginInstallUri(result.matchedPlugin), resolvedRevision };
-		}
-		return this.skillInstaller.install(resource, token);
+		throw new Error(localize('customizationMarketplace.providerCatalogUnavailable', "The active agent cannot install this catalog resource."));
 	}
 
 	private async getMcpGalleryManifest(source: McpGalleryInstallation): Promise<IMcpGalleryManifest> {
@@ -1189,19 +1290,9 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 
 	private getInstalledPlugins(record: ICustomizationMarketplaceInstallationRecord) {
 		const source = record.installation;
-		if (source.kind === 'configuredPlugin') {
-			return this.pluginMarketplaceService.installedPlugins.get().filter(({ plugin }) => getPluginMarketplaceIdentifier(plugin) === record.identifier);
-		}
-		if (source.kind !== 'plugin') {
-			return [];
-		}
-		return this.pluginMarketplaceService.installedPlugins.get().filter(({ plugin }) => {
-			if (record.version !== undefined && plugin.version !== record.version) {
-				return false;
-			}
-			const resolvedRevision = record.target.kind === 'plugin' ? record.target.resolvedRevision : undefined;
-			return matchesPluginInstallation(plugin, source, resolvedRevision);
-		});
+		return source.kind === 'configuredPlugin'
+			? this.pluginMarketplaceService.installedPlugins.get().filter(({ plugin }) => getPluginMarketplaceIdentifier(plugin) === record.identifier)
+			: [];
 	}
 
 	private checkEnabled(sourceId: string, token: CancellationToken): void {
