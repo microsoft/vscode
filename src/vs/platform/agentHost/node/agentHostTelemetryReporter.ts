@@ -1226,7 +1226,7 @@ export class AgentHostTelemetryReporter {
 		const extensionSource = source === 'project' || source === 'user' || source === 'plugin' || source === 'session' ? source : 'unknown';
 		this._telemetryService.publicLog2<CanvasOpenedEvent, CanvasOpenedClassification>('agentHost.canvasOpened', {
 			...toInitiatorTelemetry(clientContext),
-			...this._copilotSku(provider),
+			...this._copilotTelemetryContext(provider),
 			schemaVersion: 1,
 			provider,
 			agentSessionId: AgentSession.id(session),
