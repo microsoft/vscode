@@ -33,6 +33,10 @@ export const enum CopilotCliConfigKey {
 	Tgrep = 'tgrep',
 	/** Offer the runtime's `search_code_subagent` tool to Copilot SDK sessions. Off by default. */
 	SearchSubagent = 'searchSubagent',
+	/** Use the runtime's execution subagent instead of the extension-native client tool. */
+	ExecutionSubagent = 'executionSubagent',
+	/** Runtime model ID for the execution subagent; empty inherits the session model. */
+	ExecutionSubagentModel = 'executionSubagentModel',
 	/** Enable the SDK cross-session store and Chronicle commands. */
 	LocalIndexEnabled = 'localIndexEnabled',
 	/** Apply Opus 4.8-tuned system-prompt overrides on Opus 4.8 models. Off by default. */
@@ -79,6 +83,12 @@ export const CopilotClaudeAdvisorEnabledSettingId = 'chat.copilot.claudeAdvisor.
 export const CopilotTgrepEnabledSettingId = 'chat.copilot.tgrep.enabled';
 
 export const CopilotSearchSubagentEnabledSettingId = 'chat.copilot.searchSubagent.enabled';
+
+export const AgentHostCopilotExecutionSubagentEnabledSettingId = 'chat.agentHost.copilot.executionSubagent.enabled';
+
+export const AgentHostCopilotExecutionSubagentModelSettingId = 'chat.agentHost.copilot.executionSubagent.model';
+
+export const DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL = 'gpt-5.6-luna';
 
 export const CopilotLocalIndexEnabledSettingId = 'github.copilot.chat.localIndex.enabled';
 
@@ -230,6 +240,18 @@ export const copilotCliConfigSchema = createSchema({
 		title: localize('agentHost.config.searchSubagent.title', "Search Subagent"),
 		description: localize('agentHost.config.searchSubagent.description', "When enabled, Copilot SDK sessions are offered the runtime's search subagent tool for codebase search. Applied when a session launches or resumes."),
 		default: false,
+	}),
+	[CopilotCliConfigKey.ExecutionSubagent]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.executionSubagent.title', "Runtime Execution Subagent"),
+		description: localize('agentHost.config.executionSubagent.description', "Opt into the Copilot runtime execution subagent in Copilot Agent Host sessions. Runtime experiment assignments may override this default. When available, the runtime implementation replaces the extension-native execution tool. Changing this setting restarts the Copilot runtime after active turns finish."),
+		default: false,
+	}),
+	[CopilotCliConfigKey.ExecutionSubagentModel]: schemaProperty<string>({
+		type: 'string',
+		title: localize('agentHost.config.executionSubagentModel.title', "Runtime Execution Subagent Model"),
+		description: localize('agentHost.config.executionSubagentModel.description', "Default model ID for the Copilot runtime execution subagent. Empty inherits the session model. Runtime experiment assignments may override this default. Changing this setting restarts the Copilot runtime after active turns finish."),
+		default: DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL,
 	}),
 	[CopilotCliConfigKey.LocalIndexEnabled]: schemaProperty<boolean>({
 		type: 'boolean',

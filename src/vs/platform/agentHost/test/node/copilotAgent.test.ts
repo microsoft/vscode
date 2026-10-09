@@ -8111,6 +8111,41 @@ suite('CopilotAgent', () => {
 			});
 		});
 
+		test('supplies runtime execution defaults through ExP without inheriting direct model overrides or mutating the parent environment', () => {
+			const inherited = {
+				COPILOT_CLI_ENABLED_FEATURE_FLAGS: 'copilot_swe_agent_cli_execution_subagent',
+				copilot_swe_agent_cli_execution_subagent: 'true',
+				COPILOT_EXP_COPILOT_CLI_EXECUTION_SUBAGENT: 'true',
+				COPILOT_EXP_COPILOT_CLI_EXECUTION_SUBAGENT_MODEL: 'inherited-experiment-model',
+				EXECUTION_SUBAGENT_MODEL: 'inherited-model',
+			};
+			const before = { ...inherited };
+			const readSettings = (executionSubagent?: { enabled: boolean; model: string }) => {
+				const env = createCopilotCliEnvironment(inherited, [], false, 30_000, executionSubagent);
+				return [
+					env['COPILOT_EXP_COPILOT_CLI_EXECUTION_SUBAGENT'],
+					env['EXECUTION_SUBAGENT_MODEL'],
+					env['COPILOT_EXP_COPILOT_CLI_EXECUTION_SUBAGENT_MODEL'],
+				];
+			};
+
+			assert.deepStrictEqual({
+				defaults: readSettings(),
+				explicitEmptyModel: readSettings({ enabled: true, model: '' }),
+				inheritedSessionModel: readSettings({ enabled: true, model: '   ' }),
+				specificModel: readSettings({ enabled: true, model: ' exec-agent-b ' }),
+				disabledWithModel: readSettings({ enabled: false, model: 'exec-agent-b' }),
+				parentEnvironment: inherited,
+			}, {
+				defaults: ['false', undefined, 'gpt-5.6-luna'],
+				explicitEmptyModel: ['true', undefined, 'null'],
+				inheritedSessionModel: ['true', undefined, 'null'],
+				specificModel: ['true', undefined, 'exec-agent-b'],
+				disabledWithModel: ['false', undefined, 'exec-agent-b'],
+				parentEnvironment: before,
+			});
+		});
+
 		test('does not block client startup on system proxy resolution', async () => {
 			const client = new TestCopilotClient([]);
 			const proxyResolver = new TestProxyResolver();
@@ -8859,6 +8894,46 @@ suite('CopilotAgent', () => {
 					localWithoutMemory: 0,
 					localWithMemory: 1,
 				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('restarts the runtime when execution enablement or model changes and restores session-model inheritance', async () => {
+			const client = new TestCopilotClient([]);
+			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client });
+			const observed: { enabled: string | undefined; model: string | undefined; experimentModel: string | undefined; stops: number }[] = [];
+			const capture = () => {
+				const env = getCreatedClientOptions(agent).at(-1)?.env;
+				observed.push({
+					enabled: env?.['COPILOT_EXP_COPILOT_CLI_EXECUTION_SUBAGENT'],
+					model: env?.['EXECUTION_SUBAGENT_MODEL'],
+					experimentModel: env?.['COPILOT_EXP_COPILOT_CLI_EXECUTION_SUBAGENT_MODEL'],
+					stops: client.stopCallCount,
+				});
+			};
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent.listChatsToMigrate();
+				capture();
+				for (const config of [
+					{ [CopilotCliConfigKey.ExecutionSubagent]: true },
+					{ [CopilotCliConfigKey.ExecutionSubagentModel]: ' exec-agent-b ' },
+					{ [CopilotCliConfigKey.ExecutionSubagentModel]: '' },
+					{ [CopilotCliConfigKey.ExecutionSubagent]: false },
+				]) {
+					configurationService.updateRootConfig(config);
+					await agent.listChatsToMigrate();
+					capture();
+				}
+
+				assert.deepStrictEqual(observed, [
+					{ enabled: 'false', model: undefined, experimentModel: 'gpt-5.6-luna', stops: 0 },
+					{ enabled: 'true', model: undefined, experimentModel: 'gpt-5.6-luna', stops: 1 },
+					{ enabled: 'true', model: undefined, experimentModel: 'exec-agent-b', stops: 2 },
+					{ enabled: 'true', model: undefined, experimentModel: 'null', stops: 3 },
+					{ enabled: 'false', model: undefined, experimentModel: 'null', stops: 4 },
+				]);
 			} finally {
 				await disposeAgent(agent);
 			}
