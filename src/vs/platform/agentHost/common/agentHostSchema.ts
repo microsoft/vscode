@@ -539,7 +539,7 @@ export const AgentHostGitHubMcpServerEnabledConfigKey = 'githubMcpServerEnabled'
 /** Root config key forwarded from the renderer for cached MCP tool routing. */
 export const AgentHostMcpToolRoutingEnabledConfigKey = 'mcpToolRoutingEnabled';
 
-/** Host-persisted server names explicitly approved for MCP sampling in all sessions. */
+/** Host-persisted server identities explicitly approved for MCP sampling in all sessions. */
 export const AgentHostMcpSamplingAllowedServersConfigKey = 'mcpSamplingAllowedServers';
 
 /** Root config key forwarded from the renderer for Copilot connector discovery. */
@@ -962,8 +962,8 @@ export const platformRootSchema = createSchema({
 	[AgentHostMcpSamplingAllowedServersConfigKey]: schemaProperty<string[]>({
 		type: 'array',
 		title: localize('agentHost.config.mcpSamplingAllowedServers.title', "MCP Sampling Allowed Servers"),
-		description: localize('agentHost.config.mcpSamplingAllowedServers.description', "MCP server names whose sampling requests are automatically approved in all sessions on this agent host. Names are matched exactly. Remove a server to require confirmation again. This does not approve its tool calls."),
-		items: { type: 'string', title: localize('agentHost.config.mcpSamplingAllowedServers.item', "MCP Server Name") },
+		description: localize('agentHost.config.mcpSamplingAllowedServers.description', "MCP server identities whose sampling requests are automatically approved in all sessions on this agent host. Approvals include known configuration and source identity, or the exact server name when no other identity is available. Remove an entry to require confirmation again. This does not approve its tool calls."),
+		items: { type: 'string', title: localize('agentHost.config.mcpSamplingAllowedServers.item', "MCP Server Identity") },
 		default: [],
 	}),
 	[AgentHostActiveAgentTitleGenerationConfigKey]: schemaProperty<boolean>({

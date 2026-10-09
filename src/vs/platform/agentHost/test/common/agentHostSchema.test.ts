@@ -72,7 +72,7 @@ suite('agentHostSchema', () => {
 		assert.strictEqual(property.default, true);
 	});
 
-	test('MCP sampling approval is a host-owned list of server names, disabled by default', () => {
+	test('MCP sampling approval is a host-owned list of server identities, disabled by default', () => {
 		const property = platformRootSchema.toProtocol().properties[AgentHostMcpSamplingAllowedServersConfigKey];
 		assert.deepStrictEqual({
 			type: property.type,

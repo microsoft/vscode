@@ -13197,6 +13197,88 @@ Use the attached image as context.
 				return ready;
 			}
 
+			function samplingSnapshot(configuration: IMcpServerConfiguration, pluginSource?: URI): IActiveClientSnapshot {
+				const uri = pluginSource ? URI.joinPath(pluginSource, '.mcp.json') : undefined;
+				return {
+					tools: [],
+					mcpServers: pluginSource ? {} : { 'test-server': configuration },
+					plugins: pluginSource && uri ? [{
+						format: PluginFormat.Copilot,
+						sourceUri: pluginSource,
+						hooks: [], agents: [], skills: [], instructions: [],
+						mcpServers: [{
+							name: 'test-server', configuration, uri, sdkRegistration: 'sessionConfig',
+							customization: {
+								type: CustomizationType.McpServer, id: 'test-server', name: 'test-server',
+								uri: uri.toString(), state: { kind: McpServerStatus.Stopped },
+							},
+						}],
+					}] : [],
+				};
+			}
+
+			test('known server configuration and plugin source bind host-wide sampling approval', async () => {
+				const configuration: IMcpServerConfiguration = { type: McpServerType.REMOTE, url: 'https://mcp.example.com/one', headers: { Authorization: 'test-credential' } };
+				const rootSnapshot = samplingSnapshot(configuration);
+				const first = await createAgentSession(disposables, { clientSnapshot: rootSnapshot });
+				first.session.resetTurnState('turn-sampling');
+				first.mockSession.fire('sampling.requested', samplingData);
+				first.session.respondToPermissionRequest(getSamplingReady(first.signals).toolCallId, true, { selectedOptionId: 'allow-sampling-always' });
+				await timeout(0);
+				const saved = first.rootConfigUpdates[0];
+				const serialized = JSON.stringify(saved);
+				assert.ok(serialized.includes('test-server') && !serialized.includes('mcp.example.com') && !serialized.includes('test-credential'));
+
+				const pluginSnapshot = samplingSnapshot(configuration, URI.file('/plugins/one'));
+				for (const [snapshot, approved] of [
+					[rootSnapshot, true],
+					[samplingSnapshot({ headers: { Authorization: 'test-credential' }, url: 'https://mcp.example.com/one', type: McpServerType.REMOTE }), true],
+					[samplingSnapshot({ type: McpServerType.REMOTE, url: 'https://mcp.example.com/two' }), false],
+					[{ ...pluginSnapshot, mcpServers: rootSnapshot.mcpServers }, false],
+				] as const) {
+					const next = await createAgentSession(disposables, { clientSnapshot: snapshot, rootValues: saved });
+					next.session.resetTurnState('turn-sampling');
+					next.mockSession.fire('sampling.requested', samplingData);
+					await timeout(0);
+					assert.deepStrictEqual({
+						confirmed: getSamplingReady(next.signals).confirmed,
+						executions: next.mockSession.samplingExecutions.length,
+					}, { confirmed: approved ? ToolCallConfirmationReason.Setting : undefined, executions: approved ? 1 : 0 });
+				}
+			});
+
+			test('same-named servers from different plugin sources require separate sampling approval', async () => {
+				const configuration: IMcpServerConfiguration = { type: McpServerType.REMOTE, url: 'https://mcp.example.com/server' };
+				const first = await createAgentSession(disposables, { clientSnapshot: samplingSnapshot(configuration, URI.file('/plugins/one')) });
+				first.session.resetTurnState('turn-sampling');
+				first.mockSession.fire('sampling.requested', samplingData);
+				first.session.respondToPermissionRequest(getSamplingReady(first.signals).toolCallId, true, { selectedOptionId: 'allow-sampling-always' });
+				await timeout(0);
+				const next = await createAgentSession(disposables, {
+					clientSnapshot: samplingSnapshot(configuration, URI.file('/plugins/two')),
+					rootValues: first.rootConfigUpdates[0],
+				});
+				next.session.resetTurnState('turn-sampling');
+				next.mockSession.fire('sampling.requested', samplingData);
+				assert.deepStrictEqual({
+					title: getSamplingReady(next.signals).confirmationTitle,
+					executions: next.mockSession.samplingExecutions.length,
+				}, { title: 'Allow Sampling from test-server?', executions: 0 });
+			});
+
+			test('bare-name approvals do not bypass known server configuration identity', async () => {
+				const { mockSession, session, signals } = await createAgentSession(disposables, {
+					clientSnapshot: samplingSnapshot({ type: McpServerType.REMOTE, url: 'https://mcp.example.com/server' }),
+					rootValues: { [AgentHostMcpSamplingAllowedServersConfigKey]: ['test-server'] },
+				});
+				session.resetTurnState('turn-sampling');
+				mockSession.fire('sampling.requested', samplingData);
+				assert.deepStrictEqual({
+					title: getSamplingReady(signals).confirmationTitle,
+					executions: mockSession.samplingExecutions.length,
+				}, { title: 'Allow Sampling from test-server?', executions: 0 });
+			});
+
 			for (const mcpRequestId of ['mcp-1', 42]) {
 				test(`confirms before SDK inference and returns its result for MCP id ${mcpRequestId}`, async () => {
 					const { mockSession, session, signals } = await createAgentSession(disposables, {

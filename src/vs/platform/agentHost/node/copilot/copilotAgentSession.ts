@@ -117,7 +117,7 @@ import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, type McpAuthRequirement, type McpServerCustomization, type McpServerState } from '../../common/state/protocol/channels-session/state.js';
 import type { ErrorInfo, ProtectedResourceMetadata } from '../../common/state/protocol/common/state.js';
 import { CopilotSlashCommandProvider } from './copilotSlashCommandProvider.js';
-import { CopilotMcpToolRoutingCache, getMcpRoutingProxyName, type ICopilotMcpRoutingServer, type ICopilotMcpRoutingTool } from './copilotMcpToolRoutingCache.js';
+import { CopilotMcpToolRoutingCache, getMcpRoutingCacheKey, getMcpRoutingProxyName, type ICopilotMcpRoutingServer, type ICopilotMcpRoutingTool } from './copilotMcpToolRoutingCache.js';
 import { getCopilotCustomizationCommandHandler } from './copilotCustomizationCommandDisplay.js';
 import { renderCopilotSlashCommandOutput, type RuntimeSlashCommandInfo } from './copilotSlashCommand.js';
 import { CopilotSandboxPolicyDisplay } from './copilotSandboxPolicyDisplay.js';
@@ -1098,7 +1098,7 @@ export class CopilotAgentSession extends Disposable {
 		readonly managedApprovalRequired: boolean;
 		readonly sdkSandboxBypass?: boolean;
 		readonly sdkSandboxPermissive?: boolean;
-		readonly samplingServerName?: string;
+		readonly samplingServerIdentity?: string;
 	}>();
 	private readonly _sandboxBypassRequests = new Map<string, string>();
 	private _sandboxDisabledForSession = false;
@@ -5447,6 +5447,25 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
+	private _getSamplingServerIdentity(serverName: string): string {
+		const identities: string[] = [];
+		const configuration = this._appliedSnapshot.mcpServers[serverName];
+		if (configuration) {
+			identities.push(getMcpRoutingCacheKey({ serverName, configuration }, 'root'));
+		}
+		for (const plugin of this._appliedSnapshot.plugins) {
+			for (const server of plugin.mcpServers) {
+				if (server.name === serverName && !plugin.disabledMcpServers?.includes(serverName)) {
+					identities.push(getMcpRoutingCacheKey({ serverName, configuration: server.configuration }, (plugin.sourceUri ?? server.uri).toString()));
+				}
+			}
+		}
+		const provenance = this._mcpInventoryProvenance.get(serverName);
+		return identities.length || provenance?.source || provenance?.sourcePlugin
+			? JSON.stringify([serverName, provenance?.source, provenance?.sourcePlugin, ...identities.sort()])
+			: serverName;
+	}
+
 	private async _handleSamplingRequest(data: SessionEventPayload<'sampling.requested'>['data'] & { request?: Record<string, unknown> }): Promise<void> {
 		const abortToken = this._abortToken;
 		const turn = this._currentTurn.value;
@@ -5461,11 +5480,12 @@ export class CopilotAgentSession extends Disposable {
 			if (!isObject(data.request) || !data.serverName || (typeof data.mcpRequestId !== 'string' && typeof data.mcpRequestId !== 'number')) {
 				throw new Error('Invalid MCP sampling request');
 			}
-			const preapproved = this._configurationService.getRootValue(platformRootSchema, AgentHostMcpSamplingAllowedServersConfigKey)?.includes(data.serverName) === true;
+			const serverIdentity = this._getSamplingServerIdentity(data.serverName);
+			const preapproved = this._configurationService.getRootValue(platformRootSchema, AgentHostMcpSamplingAllowedServersConfigKey)?.includes(serverIdentity) === true;
 			if (turn && !this.isDisposed && !abortToken.isCancellationRequested && (preapproved || !this._isAutopilotMode())) {
 				const approval = preapproved ? undefined : this._pendingPermissions.register(pending.toolCallId, {
 					managedApprovalRequired: false,
-					samplingServerName: data.serverName,
+					samplingServerIdentity: serverIdentity,
 				});
 				surfaced = true;
 				this._emitAction({
@@ -6385,10 +6405,10 @@ export class CopilotAgentSession extends Disposable {
 			? { kind: 'disable-sandbox', context } as const
 			: { kind: 'decision', result: approved ? { kind: 'approve-once' } as const : USER_DENIED_PERMISSION_RESULT, source: context?.decisionSource } as const;
 		if (this._pendingPermissions.respond(requestId, result)) {
-			if (approved && metadata?.samplingServerName && context?.selectedOptionId === ALLOW_SAMPLING_ALWAYS_OPTION_ID) {
+			if (approved && metadata?.samplingServerIdentity && context?.selectedOptionId === ALLOW_SAMPLING_ALWAYS_OPTION_ID) {
 				const servers = this._configurationService.getRootValue(platformRootSchema, AgentHostMcpSamplingAllowedServersConfigKey) ?? [];
-				if (!servers.includes(metadata.samplingServerName)) {
-					this._configurationService.updateRootConfig({ [AgentHostMcpSamplingAllowedServersConfigKey]: [...servers, metadata.samplingServerName] });
+				if (!servers.includes(metadata.samplingServerIdentity)) {
+					this._configurationService.updateRootConfig({ [AgentHostMcpSamplingAllowedServersConfigKey]: [...servers, metadata.samplingServerIdentity] });
 				}
 			}
 			this._deletePendingEditContent(requestId);
