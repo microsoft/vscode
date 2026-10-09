@@ -45,7 +45,7 @@ export class ImagePasteController extends Disposable implements IClipboardStrate
 				throw new Error('The clipboard formats are not available to this editor. Try copying the image itself instead of its file.');
 			}
 			return { text, images };
-		}));
+		}, plainText));
 		this.#status.className = 'md-language-status';
 		this.#status.setAttribute('role', 'status');
 		this.#status.hidden = true;
@@ -78,7 +78,7 @@ export class ImagePasteController extends Disposable implements IClipboardStrate
 		};
 	}
 
-	async #paste(context: IClipboardContext, read: () => Promise<{ readonly images: readonly File[]; readonly text: string }>): Promise<void> {
+	async #paste(context: IClipboardContext, read: () => Promise<{ readonly images: readonly File[]; readonly text: string }>, plainText = false): Promise<void> {
 		const request = ++this.#request;
 		const source = this.editor.sourceText.get();
 		const selection = this.editor.selection.get();
@@ -108,7 +108,7 @@ export class ImagePasteController extends Disposable implements IClipboardStrate
 			}
 			this.#status.hidden = true;
 			if (!payload.length) {
-				if (text) { context.insertText(text); }
+				if (text) { context.insertText(text, plainText); }
 				return;
 			}
 			this.#status.textContent = 'Pasting image...';

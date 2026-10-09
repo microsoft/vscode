@@ -94,6 +94,8 @@ suite('TabbedModelPicker', () => {
 		cacheWarm?: boolean;
 		contextViewLayer?: number;
 		inDialog?: boolean;
+		/** Vertical placement of the anchor, which otherwise sits at the bottom of the window like the chat input. */
+		anchorTop?: string;
 		policyDefault?: string;
 		userDefault?: string;
 		selectedModelId?: string;
@@ -111,7 +113,7 @@ suite('TabbedModelPicker', () => {
 		disposables.add(toDisposable(() => container.remove()));
 		const anchorContainer = options.inDialog ? dom.append(container, dom.$('.monaco-dialog-box')) : container;
 		const anchor = dom.append(anchorContainer, dom.$('button'));
-		anchor.style.cssText = 'position: fixed; bottom: 20px; left: 20px; width: 120px; height: 22px;';
+		anchor.style.cssText = `position: fixed; ${options.anchorTop !== undefined ? `top: ${options.anchorTop}` : 'bottom: 20px'}; left: 20px; width: 120px; height: 22px;`;
 		const popup = dom.append(container, dom.$('div'));
 		const render = disposables.add(new MutableDisposable());
 		let activeDelegate: IContextViewDelegate | undefined;
@@ -251,6 +253,48 @@ suite('TabbedModelPicker', () => {
 			visible: true,
 			selections: [],
 		});
+	});
+
+	for (const { placement, anchorTop, position } of [
+		// Inline chat's input sits near the top of an editor, with little room above it.
+		{ placement: 'near the top of the window', anchorTop: '40px', position: AnchorPosition.BELOW },
+		{ placement: 'with too little room on either side', anchorTop: 'calc(50% - 11px)', position: AnchorPosition.ABOVE },
+	]) {
+		test(`the popup and its tabs fit beside an anchor ${placement} without covering it, on every tab`, () => {
+			const local = model('Local');
+			const result = createPicker({
+				models: [...Array.from({ length: 40 }, (_, index) => model(`Model ${index}`)), {
+					...local, identifier: 'ollama/local', metadata: { ...local.metadata, vendor: 'ollama' },
+				}],
+				anchorTop,
+				cacheWarm: true,
+			});
+			const anchorBounds = result.anchor.getBoundingClientRect();
+			const placed = () => {
+				const space = result.anchorPosition === AnchorPosition.ABOVE ? anchorBounds.top : result.anchor.ownerDocument.defaultView!.innerHeight - anchorBounds.bottom;
+				const height = element(result.popup, '.chat-model-picker-widget').getBoundingClientRect().height;
+				return { position: result.anchorPosition, fits: height <= space, height };
+			};
+			const initial = placed();
+			element(result.popup, '.chat-model-picker-tabbar [aria-label="Ollama"]').click();
+			assert.deepStrictEqual({ initial, otherProvider: placed() }, {
+				initial: { position, fits: true, height: initial.height },
+				otherProvider: { position, fits: true, height: initial.height },
+			});
+		});
+	}
+
+	test('opens below at full height when only the tabs keep the popup from fitting above', () => {
+		const natural = createPicker({ cacheWarm: true });
+		const height = element(natural.popup, '.chat-model-picker-widget').getBoundingClientRect().height;
+		const tabBarHeight = element(natural.popup, '.chat-model-picker-tabbar').getBoundingClientRect().height;
+		natural.dismiss();
+		// Above, there is room for the list and its banner but not for all of the tabs.
+		const result = createPicker({ cacheWarm: true, anchorTop: `${height - tabBarHeight / 2}px` });
+		assert.deepStrictEqual({
+			position: result.anchorPosition,
+			height: element(result.popup, '.chat-model-picker-widget').getBoundingClientRect().height,
+		}, { position: AnchorPosition.BELOW, height });
 	});
 
 	function defaultBadgeModels(popup: HTMLElement): string[] {

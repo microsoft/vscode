@@ -164,6 +164,10 @@
 	text-align: center;
 }
 
+.ai-customization-management-editor .sidebar-migration-button.selected .sidebar-migration-count {
+	color: inherit;
+}
+
 /* Section list items */
 .ai-customization-management-editor .section-list-item {
 	display: flex;
@@ -1612,12 +1616,6 @@ per-word capitalization does not survive translation. */
 
 .ai-customization-management-editor .mcp-detail-diagnostic-section {
 	min-width: 0;
-}
-
-.ai-customization-management-editor .mcp-detail-diagnostics-empty {
-	margin: 0;
-	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-fontSize-body2);
 }
 
 .ai-customization-management-editor .mcp-detail-diagnostic-card {

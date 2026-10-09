@@ -19,7 +19,7 @@ import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDispos
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../../nls.js';
 import { ActionListItemKind, IActionListHeaderLink, IActionListItem } from '../../../../../../../platform/actionWidget/browser/actionList.js';
-import { IActionWidgetDropdownAction } from '../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
+import { IActionWidgetDropdownAction, withActionWidgetDropdownMotion } from '../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { ITabBarAction, ITabDescriptor, TabbedActionListWidget } from '../../../../../../../platform/actionWidget/browser/tabbedActionListWidget.js';
 import { COPILOT_HYDRA_FUSION_MODEL_ID } from '../../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
@@ -34,7 +34,6 @@ import { ChatEntitlement, IChatEntitlementService } from '../../../../../../serv
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry, isUserProvidedModel } from '../../../../common/languageModels.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
 import { resolveConfiguredModel } from '../../../../common/modelSelection.js';
-import { withChatInputPickerMotion } from '../chatInputPickerActionItem.js';
 import { getModelConfigChoices, getModelConfigDescription, getModelConfigProperty, getModelConfigSummary, IModelConfigProperty, IModelConfigurationAccess, MODEL_CONFIG_GROUP_EFFORT, ModelConfigChangeListener, setModelConfigValues } from './modelPickerModelConfig.js';
 import { IModelCardOptions, IPricingDisclosure, ModelCard } from './modelPickerCard.js';
 import { getPreferredSpeedVariant, IModelSpeedVariants } from './modelPickerVariants.js';
@@ -357,7 +356,7 @@ export class TabbedModelPicker extends Disposable {
 						? this._buildAutoModeItems(destination, sections, current)
 						: this._buildItems(destination, sections, current);
 				const hint = step ? { text: `${step.title}\n${step.description}`, link: undefined, dismiss: undefined } : current.cacheBreakHint ?? current.configurationCacheBreakHint;
-				const baseListOptions = withChatInputPickerMotion({
+				const baseListOptions = withActionWidgetDropdownMotion({
 					className: 'chat-model-picker-dropdown chat-model-picker-tabbed',
 					stopToolbarPointerPropagation: true,
 					tabThroughItemActions: true,
@@ -393,9 +392,11 @@ export class TabbedModelPicker extends Disposable {
 					hideDefaultKeybindingTooltip: true,
 					reserveSubmenuSpace: false,
 				});
+				// Above the input like the other input pickers, unless the input sits too close to
+				// the top for it, e.g. inline chat at the top of an editor.
 				const listOptions = anchor.closest('.monaco-dialog-box')
 					? { ...baseListOptions, anchorPosition: AnchorPosition.BELOW }
-					: baseListOptions;
+					: { ...baseListOptions, preferredAnchorPosition: AnchorPosition.ABOVE };
 				return {
 					items: step ? items.filter(item => !item.item || !current.models.some(model => model.identifier === item.item?.id && (isAutoModel(model) || isHydraFusionModel(model)))) : items,
 					listOptions,

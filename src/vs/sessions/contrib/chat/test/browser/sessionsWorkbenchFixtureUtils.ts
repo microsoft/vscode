@@ -33,13 +33,14 @@ import { ComponentFixtureContext, createEditorServices, registerWorkbenchService
 import { TestProductService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { OpenInVSCodeAction, OpenInVSCodeWidgetContribution } from '../../../../browser/actions/vscodeActions.js';
 import { Menus } from '../../../../browser/menus.js';
-import { AGENTS_PART_CARD_CLASS } from '../../../../browser/parts/agentsPartCard.js';
+import { AGENTS_PART_CARD_CLASS, AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS } from '../../../../browser/parts/agentsPartCard.js';
 import { SessionsPart } from '../../../../browser/parts/sessionsPart.js';
 import { TitlebarPart } from '../../../../browser/parts/titlebarPart.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { AGENTS_FLOATING_PANEL_GAP } from '../../../../common/layoutConstants.js';
 import { CanGoBackContext, MultipleSessionsVisibleContext, SessionWorkspaceIsVirtualContext } from '../../../../common/contextkeys.js';
-import { ISessionsChatBackgroundService } from '../../../../services/chatBackground/browser/chatBackgroundService.js';
+import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../../common/sessionConfig.js';
+import { ISessionsChatBackground, ISessionsChatBackgroundService } from '../../../../services/chatBackground/browser/chatBackgroundService.js';
 import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -80,9 +81,25 @@ function acquireWorkbenchActions() {
 }
 
 /** Renders the visible desktop workbench parts without bootstrapping global workbench contributions. */
-export function createSessionsWorkbenchFixture(context: ComponentFixtureContext, width: number, height: number, sessionsService: ISessionsService) {
+export function createSessionsWorkbenchFixture(context: ComponentFixtureContext, width: number, height: number, sessionsService: ISessionsService, options: {
+	readonly sidePane?: ISerializableView;
+	readonly sidePaneWidth?: number;
+	readonly bottomPanel?: ISerializableView;
+	readonly bottomPanelHeight?: number;
+	readonly chatBackground?: ISessionsChatBackground;
+	readonly chatTabsMode?: SessionsChatTabsMode;
+	readonly connectedEditorTabs?: boolean;
+	readonly sidePaneShowTabs?: 'multiple' | 'single';
+} = {}) {
 	const { container, disposableStore, theme } = context;
-	container.classList.add('monaco-workbench', 'agent-sessions-workbench', 'modern-ui-tabs', 'nosidebar', 'noauxiliarybar', 'nopanel', 'noeditorpane');
+	const sidePaneVisible = !!options.sidePane;
+	const bottomPanelVisible = !!options.bottomPanel;
+	container.classList.add('monaco-workbench', 'agent-sessions-workbench', 'modern-ui-tabs', 'nosidebar', 'noauxiliarybar', 'panel-alignment-justify');
+	container.classList.toggle('modern-ui-connected-editor-tabs', options.connectedEditorTabs !== false);
+	container.classList.toggle('noeditorpane', !sidePaneVisible);
+	container.classList.toggle('nopanel', !bottomPanelVisible);
+	container.classList.toggle('dock-detail-panel', sidePaneVisible);
+	container.classList.toggle(AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS, sidePaneVisible && options.sidePaneShowTabs !== 'single');
 	container.style.width = `${width}px`;
 	container.style.height = `${height}px`;
 
@@ -91,9 +108,16 @@ export function createSessionsWorkbenchFixture(context: ComponentFixtureContext,
 		override readonly mainContainer = container;
 		override readonly mainContainerDimension = { width, height };
 		override readonly onDidChangePartVisibility = Event.None;
-		override isVisible(part: Parts) { return part === Parts.SESSIONS_PART || part === Parts.TITLEBAR_PART; }
-		override isEditorPaneVisible() { return false; }
+		override readonly onDidChangePanelAlignment = Event.None;
+		override isVisible(part: Parts) {
+			return part === Parts.SESSIONS_PART
+				|| part === Parts.TITLEBAR_PART
+				|| (sidePaneVisible && part === Parts.EDITOR_PART)
+				|| (bottomPanelVisible && part === Parts.PANEL_PART);
+		}
+		override isEditorPaneVisible() { return sidePaneVisible; }
 		override isModernUICompact() { return false; }
+		override getPanelAlignment() { return 'justify' as const; }
 		override getContainer() { return container; }
 	}();
 	const instantiationService = createEditorServices(disposableStore, {
@@ -105,6 +129,7 @@ export function createSessionsWorkbenchFixture(context: ComponentFixtureContext,
 	services.configurationService.setUserConfiguration('window', { titleBarStyle: 'custom', controlsStyle: 'hidden' });
 	services.configurationService.setUserConfiguration('accounts.showAvatar', false);
 	services.configurationService.setUserConfiguration(NEW_SESSION_BUTTON_STYLE_SETTING, 'default');
+	services.configurationService.setUserConfiguration(SESSIONS_CHAT_TABS_SETTING, options.chatTabsMode ?? SessionsChatTabsMode.Multiple);
 	ChatContextKeys.enabled.bindTo(services.contextKeyService).set(true);
 	IsSessionsWindowContext.bindTo(services.contextKeyService).set(true);
 	CanGoBackContext.bindTo(services.contextKeyService).set(true);
@@ -125,7 +150,7 @@ export function createSessionsWorkbenchFixture(context: ComponentFixtureContext,
 	instantiationService.stub(ISessionsService, sessionsService);
 	instantiationService.stub(ISessionsChatBackgroundService, new class extends mock<ISessionsChatBackgroundService>() {
 		override readonly onDidChangeBackground = Event.None;
-		override getBackground() { return undefined; }
+		override getBackground() { return options.chatBackground; }
 	}());
 	instantiationService.stub(IHostService, new class extends mock<IHostService>() {
 		override readonly onDidChangeFocus = Event.None;
@@ -191,6 +216,12 @@ export function createSessionsWorkbenchFixture(context: ComponentFixtureContext,
 	titlebar.create($('.part.titlebar'));
 	const grid = disposableStore.add(new SerializableGrid<ISerializableView>(part, { proportionalLayout: false }));
 	grid.addView(titlebar, titlebar.minimumHeight, part, Direction.Up);
+	if (options.bottomPanel) {
+		grid.addView(options.bottomPanel, options.bottomPanelHeight ?? 240, part, Direction.Down);
+	}
+	if (options.sidePane) {
+		grid.addView(options.sidePane, options.sidePaneWidth ?? 360, part, Direction.Right);
+	}
 	append(container, grid.element);
 	return { ...services, part, grid, layout: () => grid.layout(width - AGENTS_FLOATING_PANEL_GAP, height - AGENTS_FLOATING_PANEL_GAP) };
 }

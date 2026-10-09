@@ -23,6 +23,8 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { TestThemeService } from '../../../../platform/theme/test/common/testThemeService.js';
 import { IUndoRedoService } from '../../../../platform/undoRedo/common/undoRedo.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { createTextModel } from '../../../../editor/test/common/testTextModel.js';
+import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { CustomEditorDiffInput } from '../../../contrib/customEditor/browser/customEditorDiffInput.js';
 import { CustomEditorInput } from '../../../contrib/customEditor/browser/customEditorInput.js';
 import { ICustomEditorService } from '../../../contrib/customEditor/common/customEditor.js';
@@ -38,6 +40,8 @@ import { IExtensionService } from '../../../services/extensions/common/extension
 import { IFilesConfigurationService } from '../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
+import { IOutlineService } from '../../../services/outline/browser/outline.js';
+import { ITextFileEditorModelManager, ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { IUntitledTextEditorService } from '../../../services/untitled/common/untitledTextEditorService.js';
 import { IWorkingCopyFileService } from '../../../services/workingCopy/common/workingCopyFileService.js';
 import { IWorkingCopyService } from '../../../services/workingCopy/common/workingCopyService.js';
@@ -76,6 +80,8 @@ suite('MainThreadCustomEditors', () => {
 		createCustomDocument: (request: { readonly path: string; readonly attempt: number; readonly token: CancellationToken }) => Promise<{ editable: boolean }>;
 		resolveCustomEditor?: () => Promise<void>;
 		capabilities?: CustomEditorProviderCapabilities;
+		textEditor?: boolean;
+		resolveNavigation?: (handle: string, token: CancellationToken) => Promise<{ selection: undefined } | undefined>;
 	}) {
 		const calls: string[] = [];
 		const handles: string[] = [];
@@ -102,6 +108,15 @@ suite('MainThreadCustomEditors', () => {
 
 			override async $resolveCustomEditorInlineDiff(originalResource: UriComponents, modifiedResource: UriComponents, handle: string) {
 				calls.push(`$resolveCustomEditorInlineDiff(${URI.revive(originalResource).path}, ${URI.revive(modifiedResource).path}, ${handleName(handle)})`);
+			}
+
+			override async $resolveCustomTextEditorNavigation(handle: string, _viewType: string, _resource: UriComponents, token: CancellationToken) {
+				calls.push(`resolveNavigation(${handleName(handle)})`);
+				return extHost.resolveNavigation ? extHost.resolveNavigation(handle, token) : { selection: undefined };
+			}
+
+			override $disposeCustomTextEditorNavigation(handle: string): void {
+				calls.push(`disposeNavigation(${handleName(handle)})`);
 			}
 		};
 
@@ -162,9 +177,31 @@ suite('MainThreadCustomEditors', () => {
 		instantiationService.stub(IWorkbenchEnvironmentService, {});
 		instantiationService.stub(IPathService, {});
 		instantiationService.stub(IWorkbenchLayoutService, {});
+		let outlineChanges = 0;
+		instantiationService.stub(IOutlineService, { notifyOutlineChanged: () => { outlineChanges++; } });
+		if (extHost.textEditor) {
+			const textModel = store.add(createTextModel('text', undefined, undefined, resource));
+			const resolved = new class extends mock<IResolvedTextEditorModel>() {
+				override textEditorModel = textModel;
+				override isReadonly() { return false; }
+			};
+			instantiationService.stub(ITextModelService, { createModelReference: async () => ({ object: resolved, dispose: () => { } }) });
+			instantiationService.stub(ITextFileService, {
+				files: new class extends mock<ITextFileEditorModelManager>() {
+					override get() { return undefined; }
+					override onDidChangeDirty = Event.None;
+				},
+				isDirty: () => false
+			});
+		}
 
 		const customEditors = store.add(instantiationService.createInstance(MainThreadCustomEditors, SingleProxyRPCProtocol(proxy), mainThreadWebviews, mainThreadWebviewPanels));
-		customEditors.$registerCustomEditorProvider({ id: new ExtensionIdentifier('test.extension'), location: URI.file('/extensions/test') }, viewType, {}, extHost.capabilities ?? {}, false, false);
+		const extension = { id: new ExtensionIdentifier('test.extension'), location: URI.file('/extensions/test') };
+		if (extHost.textEditor) {
+			customEditors.$registerTextEditorProvider(extension, viewType, {}, extHost.capabilities ?? {}, false);
+		} else {
+			customEditors.$registerCustomEditorProvider(extension, viewType, {}, extHost.capabilities ?? {}, false, false);
+		}
 
 		function createWebview() {
 			const onDidDispose = new Emitter<void>();
@@ -198,8 +235,118 @@ suite('MainThreadCustomEditors', () => {
 			return { input };
 		}
 
-		return { calls, models, resolvers, createInput, createDiffInput };
+		return { calls, models, resolvers, createInput, createDiffInput, customEditors, outlineChanges: () => outlineChanges };
 	}
+
+	test('custom text navigation resolves only after its editor and invalidates Outline capability on disposal', async () => {
+		const fixture = createCustomEditors({ createCustomDocument: async () => ({ editable: false }), textEditor: true, capabilities: { supportsNavigation: true } });
+		const { input } = fixture.createInput();
+		assert.strictEqual(input.navigation, undefined);
+		await input.resolve();
+		assert.ok(input.navigation);
+		assert.strictEqual(fixture.outlineChanges(), 1);
+		assert.deepStrictEqual(fixture.calls, [
+			'addWebviewInput(webview#1)',
+			'$resolveCustomEditor(/workspace/file.custom, webview#1)',
+			'resolveNavigation(webview#1)'
+		]);
+		await input.applyOptions({ selection: { startLineNumber: 1, startColumn: 1 } }, CancellationToken.Cancelled);
+		input.dispose();
+		assert.strictEqual(input.navigation, undefined);
+		assert.strictEqual(fixture.outlineChanges(), 2);
+		assert.strictEqual(fixture.calls.at(-1), 'disposeNavigation(webview#1)');
+		assert.deepStrictEqual(unexpectedErrors, []);
+	});
+
+	test('unregistering a text provider removes navigation from still-open panels', async () => {
+		const fixture = createCustomEditors({ createCustomDocument: async () => ({ editable: false }), textEditor: true, capabilities: { supportsNavigation: true } });
+		const first = fixture.createInput().input;
+		const second = fixture.createInput().input;
+		await first.resolve();
+		await second.resolve();
+		assert.notStrictEqual(first.navigation, second.navigation);
+		fixture.customEditors.$unregisterEditorProvider(viewType);
+		assert.strictEqual(first.navigation, undefined);
+		assert.strictEqual(second.navigation, undefined);
+		assert.strictEqual(fixture.outlineChanges(), 4);
+		assert.deepStrictEqual(unexpectedErrors, []);
+	});
+
+	test('navigation resolution is canceled when its panel closes before completion', async () => {
+		let pendingToken: CancellationToken | undefined;
+		let complete: (() => void) | undefined;
+		const fixture = createCustomEditors({
+			createCustomDocument: async () => ({ editable: false }), textEditor: true, capabilities: { supportsNavigation: true },
+			resolveNavigation: (_handle, token) => {
+				pendingToken = token;
+				return new Promise(resolve => { complete = () => resolve({ selection: undefined }); });
+			}
+		});
+		const { input } = fixture.createInput();
+		const resolution = input.resolve();
+		while (!complete) {
+			await timeout(0);
+		}
+		input.dispose();
+		assert.strictEqual(pendingToken?.isCancellationRequested, true);
+		await resolution;
+		complete();
+		assert.strictEqual(input.navigation, undefined);
+		assert.strictEqual(fixture.outlineChanges(), 0);
+		assert.deepStrictEqual(unexpectedErrors, []);
+	});
+
+	test('binary custom editors and custom text diff panels do not resolve navigation', async () => {
+		const binary = createCustomEditors({ createCustomDocument: async () => ({ editable: false }), capabilities: { supportsNavigation: true } });
+		const binaryInput = binary.createInput().input;
+		await binaryInput.resolve();
+		const text = createCustomEditors({ createCustomDocument: async () => ({ editable: false }), textEditor: true, capabilities: { supportsNavigation: true, supportsInlineDiff: true } });
+		const diffInput = text.createDiffInput(URI.file('/workspace/original.custom')).input;
+		await diffInput.resolve();
+		assert.strictEqual(binary.calls.some(call => call.startsWith('resolveNavigation')), false);
+		assert.strictEqual(text.calls.some(call => call.startsWith('resolveNavigation')), false);
+		binaryInput.dispose();
+		diffInput.dispose();
+		await timeout(0);
+	});
+
+	test('navigation errors leave the custom panel intact without a text-editor fallback', async () => {
+		const fixture = createCustomEditors({
+			createCustomDocument: async () => ({ editable: false }), textEditor: true, capabilities: { supportsNavigation: true },
+			resolveNavigation: async () => { throw new Error('navigation failed'); }
+		});
+		const { input, webview } = fixture.createInput();
+		await input.resolve();
+		assert.strictEqual(input.navigation, undefined);
+		assert.strictEqual(webview.html, undefined);
+		assert.deepStrictEqual(unexpectedErrors, ['navigation failed']);
+		input.dispose();
+		await timeout(0);
+	});
+
+	test('selection notifications during navigation resolution supersede its initial snapshot', async () => {
+		let publish: (() => void) | undefined;
+		let panelHandle: string | undefined;
+		const fixture = createCustomEditors({
+			createCustomDocument: async () => ({ editable: false }), textEditor: true, capabilities: { supportsNavigation: true },
+			resolveNavigation: (handle) => {
+				panelHandle = handle;
+				return new Promise(resolve => { publish = () => resolve({ selection: undefined }); });
+			}
+		});
+		const { input } = fixture.createInput();
+		const resolution = input.resolve();
+		while (!publish) {
+			await timeout(0);
+		}
+		const selection = { selectionStartLineNumber: 1, selectionStartColumn: 1, positionLineNumber: 1, positionColumn: 3 };
+		fixture.customEditors.$onDidChangeCustomTextEditorSelection(panelHandle!, selection);
+		publish();
+		await resolution;
+		assert.strictEqual(input.navigation?.selection, selection);
+		input.dispose();
+		await timeout(0);
+	});
 
 	test('creates the document before resolving the editor and disposes it with the editor', async () => {
 		const customEditors = createCustomEditors({ createCustomDocument: async () => ({ editable: false }) });

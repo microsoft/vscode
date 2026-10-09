@@ -34,6 +34,7 @@ suite('Markdown editor RPC', () => {
 			openLink: () => { },
 			setReadonly: () => { },
 			editorFocusChanged: () => { },
+			selectionChanged: () => { },
 			richLinkSubscriptions: () => { },
 			resolveCodeBlockEditor: () => ({}),
 			createCodeBlockEditorHostTransport: () => { },
@@ -55,6 +56,7 @@ suite('Markdown editor RPC', () => {
 		});
 		host.get(markdownEditorRenderer);
 		renderer.register(markdownEditorRenderer, {
+			configurationChanged: () => { },
 			diagnosticsChanged: () => { },
 			update: () => { },
 			codeBlockEditorProviders: () => { },
@@ -63,6 +65,9 @@ suite('Markdown editor RPC', () => {
 			comments: () => { },
 			revealComment: () => { },
 			revealLinkTarget: () => { },
+			captureNavigationState: () => ({ editEpoch: 0, revision: 0, scrollTop: 0 }),
+			revealRange: () => { },
+			restoreNavigationState: () => { },
 			command: () => { },
 			highlightThemeChanged: () => { },
 			richLinkPresentations: () => { },
@@ -113,6 +118,21 @@ suite('Markdown editor RPC', () => {
 		assert.strictEqual(targets, 1);
 		assert.deepStrictEqual(errors, [{ operation: 'Handle notification markdown.editor.host::codeBlockEditorDiagnostic', error: failure }]);
 		assert.deepStrictEqual(rendererInbox.messages, [], 'even failed notifications have no response');
+	});
+
+	test('updates highlight configuration without reloading or acknowledging the renderer', async () => {
+		const seen: boolean[] = [];
+		const { host, rendererInbox, hostInbox, errors } = pair({}, {
+			configurationChanged: ({ highlightActiveBlock }) => { seen.push(highlightActiveBlock); },
+		});
+		const renderer = host.get(markdownEditorRenderer);
+		renderer.configurationChanged({ highlightActiveBlock: false });
+		renderer.configurationChanged({ highlightActiveBlock: true });
+		await host.channel.sendNotification('markdown.editor.renderer::configurationChanged', { highlightActiveBlock: 'false' });
+		assert.deepStrictEqual(seen, [false, true]);
+		assert.strictEqual(rendererInbox.messages.length, 3);
+		assert.deepStrictEqual(hostInbox.messages, []);
+		assert.deepStrictEqual(errors, []);
 	});
 
 	test('reports notification delivery failures and sends after close without unhandled rejections', async () => {

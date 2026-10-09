@@ -14,6 +14,7 @@ import { localize } from '../../../../../../nls.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionListItemInlineToggle } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetDropdownAction, IActionWidgetDropdownActionProvider } from '../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
+import { equalsAgentHostSandboxTogglePresentation } from '../../../../../../platform/agentHost/browser/agentHostSandboxToggle.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
@@ -41,6 +42,7 @@ export interface IExtensionPermissionState {
 }
 
 export interface IPermissionPickerDelegate {
+	readonly isPolicyRestricted?: () => boolean;
 	readonly currentPermissionLevel: IObservable<ChatPermissionLevel>;
 	readonly setPermissionLevel: (level: ChatPermissionLevel) => void;
 	/**
@@ -75,6 +77,7 @@ export interface IPermissionPickerDelegate {
 	readonly managedSandboxEnforced?: IObservable<boolean>;
 	readonly managedSandboxAllowsBypass?: IObservable<boolean>;
 	readonly sandboxEnabled?: IObservable<boolean | undefined>;
+	readonly sandboxDevContainerSupported?: IObservable<boolean | undefined>;
 	readonly isApplicable?: IObservable<boolean>;
 	readonly isResolving?: IObservable<boolean>;
 	readonly getSandboxToggle?: () => IActionListItemInlineToggle | undefined;
@@ -157,6 +160,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 	private _currentTooltip: string = '';
 	private _hoverElement: HTMLElement | undefined;
 	private readonly _hover = this._register(new MutableDisposable<IDisposable>());
+	private _sandboxTogglePresentation: IActionListItemInlineToggle | undefined;
 
 	constructor(
 		action: MenuItemAction,
@@ -172,7 +176,7 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 		@IStorageService storageService: IStorageService,
 		@IHoverService private readonly hoverService: IHoverService,
 	) {
-		const isAutoApprovePolicyRestricted = () => configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
+		const isAutoApprovePolicyRestricted = () => delegate.isPolicyRestricted?.() ?? configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
 		const actionProvider: IActionWidgetDropdownActionProvider = {
 			getActions: () => {
 				// If the active session contributes its own permission items, surface those instead
@@ -317,8 +321,11 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 			const settingId = this.getSandboxToggleSettingId();
 			const affectsSandboxToggle = (settingId !== undefined && e.affectsConfiguration(settingId))
 				|| this.delegate.sandboxToggleConfigurationKeys?.some(key => e.affectsConfiguration(key)) === true;
-			if (affectsSandboxToggle && this.element) {
-				this.renderLabel(this.element);
+			if (affectsSandboxToggle) {
+				this.refreshSandboxToggle();
+				if (this.element) {
+					this.renderLabel(this.element);
+				}
 			}
 		}));
 		let sandboxSettingId: string | undefined;
@@ -331,15 +338,29 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 			delegate.isApplicable?.read(reader);
 			delegate.isResolving?.read(reader);
 			delegate.sandboxEnabled?.read(reader);
+			delegate.sandboxDevContainerSupported?.read(reader);
 			delegate.managedSandboxEnforced?.read(reader);
 			delegate.managedSandboxAllowsBypass?.read(reader);
+			this.refreshSandboxToggle();
 			if (this.element) {
 				this.renderLabel(this.element);
 			}
 		}));
 	}
 
+	private refreshSandboxToggle(): void {
+		const toggle = this.delegate.getSandboxToggle?.();
+		if (!equalsAgentHostSandboxTogglePresentation(this._sandboxTogglePresentation, toggle)) {
+			// Snapshot getters before an optimistic toggle mutates its displayed state.
+			this._sandboxTogglePresentation = toggle ? { ...toggle } : undefined;
+			this.hide();
+		}
+	}
+
 	private isSandboxingEnabled(): boolean {
+		if (this.delegate.sandboxDevContainerSupported?.get() === false) {
+			return false;
+		}
 		if (this.delegate.getSandboxToggle) {
 			return this.delegate.getSandboxToggle()?.checked ?? false;
 		}

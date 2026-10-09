@@ -330,4 +330,32 @@ suite('CustomizationMigrationDashboard', () => {
 			telemetryActions,
 		}, { retries: 1, busy: 'false', focus: 'Retry', telemetryActions: ['retryClicked'] });
 	});
+
+	test('focuses refresh errors and restores the prior overview target after retry', () => {
+		let retries = 0;
+		const { parent, dashboard } = createDashboard();
+		dashboard.showOverview(overview());
+		dashboard.focusDestination(PromptsStorage.user);
+		const overviewFocus = document.activeElement?.getAttribute('aria-label');
+		dashboard.showLoading('Migrations', 'Loading migrations');
+		dashboard.showLoading('Migrations unavailable', 'Try again.', () => {
+			retries++;
+			dashboard.showLoading('Migrations', 'Loading migrations');
+		});
+		const errorFocus = document.activeElement?.getAttribute('aria-label');
+		button(parent, 'Retry loading migrations').click();
+		dashboard.showOverview(overview());
+
+		assert.deepStrictEqual({
+			overviewFocus,
+			errorFocus,
+			retries,
+			restoredFocus: document.activeElement?.getAttribute('aria-label'),
+		}, {
+			overviewFocus: 'Change destination for user prompt migrations',
+			errorFocus: 'Retry loading migrations',
+			retries: 1,
+			restoredFocus: 'Change destination for user prompt migrations',
+		});
+	});
 });

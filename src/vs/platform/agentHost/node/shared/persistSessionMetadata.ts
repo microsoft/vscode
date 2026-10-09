@@ -43,19 +43,20 @@ export function customChatTitleSourceMetadataKey(chat: string): string {
 /**
  * Fire-and-forget persistence of a single session-metadata key/value pair to a
  * session's database. Opens the database, writes the value, and disposes the
- * handle; failures are logged, not thrown.
+ * handle; failures are logged, not thrown. Updaters run atomically against the stored value.
  *
  * Used for host-owned fields that must survive restart (custom titles, isRead /
  * isArchived flags, merged config values, …). Shared so callers do not each
  * re-implement the open/write/dispose dance.
  */
-export function persistSessionMetadata(sessionDataService: ISessionDataService, logService: ILogService, session: string, key: string, value: string): void {
+export function persistSessionMetadata(sessionDataService: ISessionDataService, logService: ILogService, session: string, key: string, value: string | ((previous: string | undefined) => string)): void {
 	const onError = (err: unknown) => {
 		logService.warn(`[AgentHost] Failed to persist session metadata '${key}'`, err);
 	};
 	try {
 		const ref = sessionDataService.openDatabase(URI.parse(session));
-		ref.object.setMetadata(key, value).catch(onError).finally(() => {
+		const write = typeof value === 'string' ? ref.object.setMetadata(key, value) : ref.object.updateMetadata(key, value);
+		write.catch(onError).finally(() => {
 			ref.dispose();
 		});
 	} catch (err) {

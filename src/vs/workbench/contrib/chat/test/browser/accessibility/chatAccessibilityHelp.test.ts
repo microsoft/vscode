@@ -44,6 +44,15 @@ suite('Chat Accessibility Help', () => {
 		assert.ok(help.includes('use /sandbox policy to view the effective sandbox policy. In the response, use Tab to focus Open Sandbox Policy and Enter to open the formatted report.'));
 	});
 
+	test('documents silent history retrieval and keyboard recovery without restarting or waking compute', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
+		assert.deepStrictEqual({
+			silent: help.includes('while refreshing silently'),
+			keyboard: help.includes('use Tab to reach Refresh in the banner and press Enter or Space'),
+			apiOnly: help.includes('Refresh retries recorded history without restarting the session, waking its environment, or sending your draft.'),
+		}, { silent: true, keyboard: true, apiOnly: true });
+	});
+
 	for (const isSessionsWindow of [false, true]) {
 		test(`documents the remote BYOK warning only in the editor (isSessionsWindow: ${isSessionsWindow})`, () => {
 			const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), false, isSessionsWindow);
@@ -79,6 +88,16 @@ suite('Chat Accessibility Help', () => {
 			keyboard: help.includes('Tab or Shift+Tab to focus an image and Enter to open it'),
 			save: help.includes('Use the Save action to the right of the image to save generated images'),
 		}, { standalone: true, harnesses: true, position: true, placeholder: true, overlapping: true, reducedMotion: true, reveal: true, dropdown: true, expand: true, progress: true, imageModel: true, imageAndDropdown: true, failure: true, restoredState: true, cancelledState: true, previews: true, loading: true, loadFailure: true, keyboard: true, save: true });
+	});
+
+	test('documents generated image artifacts and conversation carousel navigation', () => {
+		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
+		assert.deepStrictEqual({
+			artifacts: help.includes('Generated images also appear in artifacts'),
+			conversation: help.includes('generated images and user-attached images from the same conversation'),
+			keyboard: help.includes('Use the Left and Right Arrow keys to move between images'),
+			immediateResize: help.includes('the preview begins resizing immediately, followed by the glyph-to-image reveal'),
+		}, { artifacts: true, conversation: true, keyboard: true, immediateResize: true });
 	});
 
 	for (const type of ['panelChat', 'editsView', 'agentView'] as const) {

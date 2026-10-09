@@ -52,6 +52,7 @@ export const enum AccessibilityVerbositySettingId {
 	MergeEditor = 'accessibility.verbosity.mergeEditor',
 	Chat = 'accessibility.verbosity.panelChat',
 	CustomizationMigrations = 'accessibility.verbosity.customizationMigrations',
+	McpServerConfiguration = 'accessibility.verbosity.mcpServerConfiguration',
 	CustomizationDiscovery = 'accessibility.verbosity.customizationDiscovery',
 	InlineChat = 'accessibility.verbosity.inlineChat',
 	TerminalInlineChat = 'accessibility.verbosity.terminalChat',
@@ -157,6 +158,10 @@ const configuration: IConfigurationNode = {
 		},
 		[AccessibilityVerbositySettingId.CustomizationMigrations]: {
 			description: localize('verbosity.customizationMigrations.description', "Provide information about how to access accessibility help for the customization migration checklist."),
+			...baseVerbosityProperty
+		},
+		[AccessibilityVerbositySettingId.McpServerConfiguration]: {
+			description: localize('verbosity.mcpServerConfiguration.description', "Provide information about how to access accessibility help when an MCP server configuration form is focused."),
 			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.CustomizationDiscovery]: {

@@ -15,9 +15,11 @@ import { getHighestPriorityPullRequestIcon } from '../../../../workbench/common/
 import { IChatSessionFileChange, IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ISessionChatCustomization } from '../../../../workbench/contrib/chat/common/sessionChatCustomizations.js';
 import type { IChatBackgroundShell } from '../../../../workbench/contrib/chat/common/sessionChatPills.js';
+import { ICanvas as ISessionCanvas } from '../../../../workbench/contrib/canvases/common/canvas.js';
 
 export { getHighestPriorityPullRequestIcon };
 export { type ISessionChatCustomization, SessionCustomizationKind } from '../../../../workbench/contrib/chat/common/sessionChatCustomizations.js';
+export { type ICanvas as ISessionCanvas } from '../../../../workbench/contrib/canvases/common/canvas.js';
 
 export interface ISessionType {
 	/** Unique identifier (e.g., 'copilot-cli', 'copilot-cloud', 'agent-host-claude'). */
@@ -636,18 +638,17 @@ export interface IChatCapabilities {
 /** Capabilities assumed for a chat that does not advertise its own. */
 export const DEFAULT_CHAT_CAPABILITIES: IChatCapabilities = { canRename: true, canArchive: false, canDelete: true };
 
-/** A model-opened canvas owned by one chat. */
-export interface ISessionCanvas {
-	/** Stable canvas identity within its owning chat. */
-	readonly resource: URI;
-	/** Stable provider-supplied instance identifier; absent before canvas state hydrates. */
-	readonly instanceId: string | undefined;
-	/** Display title. */
-	readonly title: string;
-	/** Optional provider status text. */
-	readonly status?: string;
-	/** Current live HTTP(S) source; absent while the provider is unavailable. */
-	readonly source: URI | undefined;
+export type SessionCanvasExtensionSource = 'user' | 'project' | 'session' | 'plugin' | 'unknown';
+
+/** A canvas type registered by an extension in one live chat. */
+export interface ISessionCanvasDefinition {
+	readonly canvasId: string;
+	readonly extensionId: string;
+	readonly extensionSource: SessionCanvasExtensionSource;
+	readonly extensionName?: string;
+	readonly displayName: string;
+	readonly description: string;
+	readonly requiresInput: boolean;
 }
 
 /**

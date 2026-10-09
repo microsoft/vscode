@@ -197,7 +197,7 @@ configurationRegistry.registerConfiguration({
 		...artifactToolsConfigurationProperties,
 		[CanvasesEnabledSettingId]: {
 			type: 'boolean',
-			description: nls.localize('chat.canvases.enabled', "Controls whether agents can open Canvases with interactive content in the Agents Window. Newly created sessions pick up changes to this setting."),
+			description: nls.localize('chat.canvases.enabled', "Controls whether local Agent Host Copilot sessions can open Canvases with interactive content in the Agents Window and the Editor Window. Newly created sessions pick up changes to this setting."),
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],
@@ -274,6 +274,7 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.agentHost.experimental.mcpToolRouting', "When enabled, agent-host sessions use cached MCP tool metadata to route requests and only prompt for MCP authentication when a server is relevant. Newly created sessions pick up changes to this setting."),
 			default: false,
 			tags: ['experimental', 'advanced'],
+			experiment: { mode: 'auto' },
 			agentHost: { key: AgentHostMcpToolRoutingEnabledConfigKey },
 		},
 		[AgentHostCopilotMultiRootEnabledSettingId]: {

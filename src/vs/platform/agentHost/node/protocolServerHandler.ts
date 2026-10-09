@@ -9,7 +9,7 @@ import { lstat, realpath, stat } from 'fs/promises';
 import { parseSessionDbUri } from '../common/sessionDbUri.js';
 import { parsePendingEditContentUri } from '../common/pendingEditContentUri.js';
 import { parseGitBlobUri } from './gitDiffContent.js';
-import { dirname, relative, isAbsolute, resolve, sep } from '../../../base/common/path.js';
+import { basename, dirname, relative, isAbsolute, resolve, sep } from '../../../base/common/path.js';
 import { Schemas } from '../../../base/common/network.js';
 import { encodeBase64 } from '../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../base/common/event.js';
@@ -92,6 +92,8 @@ import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import type { AuthRequiredErrorData } from '../common/state/protocol/common/errors.js';
 import type { MissionControlProjects } from './missionControl/missionControlProjects.js';
 import { fromMissionControlConfigValues, toMissionControlConfigValues, toMissionControlSessionConfig } from './missionControl/missionControlSessionConfig.js';
+import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
+import { isChatInputRequestWithPlanReview } from '../common/agentHostPlanReview.js';
 
 /** Default capacity of the server-side action replay buffer. */
 const REPLAY_BUFFER_CAPACITY = 1000;
@@ -2317,13 +2319,14 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		if (client.transport.relayClientId === undefined || !this._config.relayResourceRoots) {
 			return;
 		}
+		// MCP resources/* methods use provider-owned app authorization, not filesystem grants.
 		const fields = method === 'resourceCopy' || method === 'resourceMove' ? ['source', 'destination']
-			: method.startsWith('resource') || method === 'createResourceWatch' ? ['uri']
+			: ['resourceList', 'resourceRead', 'resourceWrite', 'resourceDelete', 'resourceResolve', 'resourceMkdir', 'resourceRequest', 'createResourceWatch'].includes(method) ? ['uri']
 				: method === 'createTerminal' ? ['cwd'] : [];
 		for (const field of fields) {
 			const value = isParamsObject(params) ? params[field] ?? (field === 'cwd' ? this._config.defaultDirectory : undefined) : undefined;
 			const readOnly = ['resourceRead', 'resourceList', 'resourceResolve', 'createResourceWatch'].includes(method) || (method === 'resourceCopy' && field === 'source') || (method === 'resourceRequest' && isParamsObject(params) && params.write !== true);
-			if (typeof value !== 'string' || !await this._isGrantedRelayResource(value, readOnly)) {
+			if (typeof value !== 'string' || (!await this._isGrantedRelayResource(value, readOnly) && !await this._isPublishedPlanResource(value, method, readOnly))) {
 				throw new ProtocolError(AhpErrorCodes.PermissionDenied, 'Resource is outside the host workspace grants');
 			}
 			if (field === 'cwd') {
@@ -2340,6 +2343,51 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				}
 			}
 		}
+	}
+
+	private async _isPublishedPlanResource(resource: string, method: string, readOnly: boolean): Promise<boolean> {
+		if (!['resourceRead', 'resourceResolve', 'createResourceWatch', 'resourceWrite', 'resourceRequest'].includes(method)) {
+			return false;
+		}
+		const uri = URI.parse(resource, true);
+		if (uri.scheme !== Schemas.file || uri.authority || uri.query || uri.fragment) {
+			return false;
+		}
+		for (const session of this._stateManager.getExposedSessionKeys()) {
+			for (const chat of this._stateManager.getSessionState(session)?.chats ?? []) {
+				const state = this._stateManager.getChatState(chat.resource);
+				const turns = state ? [...state.turns, ...(state.activeTurn ? [state.activeTurn] : [])] : [];
+				const published = turns.some(turn => turn.responseParts.some(part =>
+					part.kind === ResponsePartKind.InputRequest
+					&& isChatInputRequestWithPlanReview(part.request)
+					&& part.request.planReview?.planUri !== undefined
+					&& (readOnly || (turn === state?.activeTurn && part.response === undefined && part.request.planReview.canProvideFeedback))
+					&& extUriBiasedIgnorePathCase.isEqual(uri, URI.parse(part.request.planReview.planUri))
+				));
+				if (!published) {
+					continue;
+				}
+				const owned = this._agentService.getSessionPlanFile?.(URI.parse(session), URI.parse(chat.resource));
+				if (!owned || !extUriBiasedIgnorePathCase.isEqual(uri, owned)) {
+					continue;
+				}
+				// Neither the session directory nor its plan may redirect to a different artifact.
+				try {
+					const directory = dirname(owned.fsPath);
+					const expectedDirectory = resolve(await realpath(dirname(directory)), basename(directory));
+					return relative(expectedDirectory, await realpath(directory)) === ''
+						&& relative(resolve(expectedDirectory, basename(owned.fsPath)), await realpath(owned.fsPath)) === ''
+						&& relative(resolve(expectedDirectory, basename(owned.fsPath)), await realpath(uri.fsPath)) === ''
+						&& (await stat(uri.fsPath)).isFile();
+				} catch (error) {
+					if (isParamsObject(error) && (error.code === 'ENOENT' || error.code === 'ENOTDIR')) {
+						return false;
+					}
+					throw error;
+				}
+			}
+		}
+		return false;
 	}
 
 	private async _isGrantedRelayResource(resource: string, readOnly: boolean): Promise<boolean> {
@@ -2374,6 +2422,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				) === true;
 			}
 			return true;
+		}
+		if (uri.authority && !this._config.relayResourceRoots?.(readOnly).some(root => URI.file(root).authority.toLowerCase() === uri.authority.toLowerCase())) {
+			return false;
 		}
 		let ancestor = uri.fsPath;
 		let canonical: string;
