@@ -78,6 +78,8 @@ export const enum AgentHostIpcChannels {
 /** VS Code IPC-only launch options, never forwarded over the Agent Host Protocol. */
 export interface IAgentHostIpcConnectionOptions {
 	readonly env?: Readonly<Record<string, string | null>>;
+	/** Kept separate so the server can apply resolver precedence using its own environment casing. */
+	readonly debugEnv?: Readonly<Record<string, string | null>>;
 }
 
 /** Configuration key that controls whether AHP JSONL logs are written for agent host transports. */

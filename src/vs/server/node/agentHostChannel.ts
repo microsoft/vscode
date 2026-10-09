@@ -39,9 +39,13 @@ export interface IAgentHostUpstreamEndpoint {
 export type AgentHostUpstreamEndpointResolver = (options?: IAgentHostIpcConnectionOptions) => Promise<IAgentHostUpstreamEndpoint>;
 
 function isConnectionOptions(value: unknown): value is IAgentHostIpcConnectionOptions {
-	return isObject(value) && (!('env' in value) || value.env === undefined || (
-		isObject(value.env) && Object.values(value.env).every(entry => typeof entry === 'string' || entry === null)
-	));
+	return isObject(value)
+		&& (!('env' in value) || isEnvironment(value.env))
+		&& (!('debugEnv' in value) || isEnvironment(value.debugEnv));
+}
+
+function isEnvironment(value: unknown): value is IAgentHostIpcConnectionOptions['env'] {
+	return value === undefined || (isObject(value) && Object.values(value).every(entry => typeof entry === 'string' || entry === null));
 }
 
 /**

@@ -377,8 +377,8 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 			const agentHostBridge = disposables.add(new AgentHostChannel<RemoteAgentConnectionContext>(
 				socketServer,
 				async options => {
-					if (options?.env) {
-						agentHostStarter.setEnvironment(options.env);
+					if (options?.env || options?.debugEnv) {
+						agentHostStarter.setEnvironment(options.env ?? {}, options.debugEnv);
 					}
 					await agentHostManager.ensureStarted();
 					return { socketPath, connectionToken };

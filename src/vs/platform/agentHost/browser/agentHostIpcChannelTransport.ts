@@ -32,7 +32,7 @@ const REDACTED_TOKEN = '<redacted>';
  * Wire shape:
  * - `listen('frame')` → emits each upstream JSON frame as a string.
  * - `listen('close')` → fires when the upstream connection closes.
- * - `call('connect', { env }?)` → supplies server-owned launch overrides and opens the upstream connection.
+ * - `call('connect', { env, debugEnv }?)` → supplies server-owned launch overrides and opens the upstream connection.
  * - `call('send', frame)` → forwards a JSON frame upstream.
  */
 export class AgentHostIpcChannelTransport extends Disposable implements IClientTransport {
@@ -51,7 +51,7 @@ export class AgentHostIpcChannelTransport extends Disposable implements IClientT
 		private readonly _channel: IChannel,
 		private readonly _ahpLogger?: AhpJsonlLogger,
 		readonly clientConnectionKind = AgentHostClientConnectionKind.Unknown,
-		private readonly _resolveConnectionOptions?: () => Promise<IAgentHostIpcConnectionOptions>,
+		private readonly _resolveConnectionOptions?: () => Promise<IAgentHostIpcConnectionOptions | undefined>,
 	) {
 		super();
 	}

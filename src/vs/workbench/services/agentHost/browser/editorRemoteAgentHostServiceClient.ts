@@ -17,7 +17,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IRemoteAuthorityResolverService } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
+import { IRemoteAuthorityResolverService, type ResolverResult } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
 import type { IChatUserInteractionTiming } from '../../../../platform/otel/common/chatUserInteraction.js';
 import { AgentHostIpcChannels, IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, IAgentHostInspectInfo, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostService, IAgentHostSocketInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult, IMcpNotification, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk } from '../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostEnablementService } from '../../../../platform/agentHost/common/agentHostEnablementService.js';
@@ -115,8 +115,17 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 				undefined,
 				AgentHostClientConnectionKind.RemoteExtensionHost,
 				async () => {
-					const resolverResult = await remoteAuthorityResolverService.resolveAuthority(connection.remoteAuthority);
-					return { env: { ...environmentService.debugExtensionHost.env, ...resolverResult.options?.extensionHostEnv } };
+					let resolverResult: ResolverResult;
+					try {
+						resolverResult = await remoteAuthorityResolverService.resolveAuthority(connection.remoteAuthority);
+					} catch {
+						this._logService.warn(`${LOG_PREFIX} Unable to resolve the remote environment; connecting without environment overrides.`);
+						return undefined;
+					}
+					return {
+						env: resolverResult.options?.extensionHostEnv ?? {},
+						debugEnv: environmentService.debugExtensionHost.env,
+					};
 				},
 			),
 			connection.remoteAuthority,

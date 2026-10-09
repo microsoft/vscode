@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import type { IProcessEnvironment } from '../../../../base/common/platform.js';
+import { spawnSync } from 'child_process';
+import { isWindows, type IProcessEnvironment } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -112,4 +113,57 @@ suite('NodeAgentHostStarter', () => {
 			ghToken: 'shell-gh-token',
 		});
 	});
+
+	test('merges debug and resolver environments using the server platform casing', async () => {
+		const starter = createStarter();
+		starter.setEnvironment({ github_token: 'resolver-token', gh_token: null }, { GITHUB_TOKEN: 'debug-token', GH_TOKEN: 'debug-gh-token' });
+		disposables.add((await starter.start()).store);
+		const env = starter.environments[0];
+
+		assert.deepStrictEqual({
+			GITHUB_TOKEN: env.GITHUB_TOKEN,
+			github_token: env.github_token,
+			GH_TOKEN: env.GH_TOKEN,
+			gh_token: env.gh_token,
+		}, isWindows ? {
+			GITHUB_TOKEN: 'resolver-token',
+			github_token: undefined,
+			GH_TOKEN: undefined,
+			gh_token: undefined,
+		} : {
+			GITHUB_TOKEN: 'debug-token',
+			github_token: 'resolver-token',
+			GH_TOKEN: 'debug-gh-token',
+			gh_token: undefined,
+		});
+	});
+
+	for (const { key, resolverKey, value } of [
+		{ key: 'PATH', resolverKey: 'pAtH', value: 'resolver-path' },
+		{ key: 'PATH', resolverKey: 'pAtH', value: '' },
+		{ key: 'GH_TOKEN', resolverKey: 'gh_token', value: null },
+	]) {
+		(isWindows ? test : test.skip)(`preserves a mixed-case Windows ${key} override at the child-process boundary (${JSON.stringify(value)})`, async () => {
+			const starter = createStarter();
+			starter.setEnvironment({ [resolverKey]: value }, { [key]: 'debug-value' });
+			disposables.add((await starter.start()).store);
+			const child = spawnSync(process.execPath, ['-e', `process.stdout.write(JSON.stringify({ matches: process.env[${JSON.stringify(key)}] === ${value === null ? 'undefined' : JSON.stringify(value)}, keys: Object.keys(process.env).filter(key => key.toUpperCase() === ${JSON.stringify(key)}).length }))`], {
+				env: { ...process.env, ...starter.environments[0], ELECTRON_RUN_AS_NODE: '1' },
+				encoding: 'utf8',
+				timeout: 10000,
+			});
+
+			assert.deepStrictEqual({
+				status: child.status,
+				error: child.error?.message,
+				stderr: child.stderr,
+				stdout: child.stdout,
+			}, {
+				status: 0,
+				error: undefined,
+				stderr: '',
+				stdout: JSON.stringify({ matches: true, keys: value === null ? 0 : 1 }),
+			});
+		});
+	}
 });

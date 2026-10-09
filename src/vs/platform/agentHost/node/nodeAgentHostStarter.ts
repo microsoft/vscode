@@ -6,7 +6,7 @@
 import * as fs from 'fs';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { FileAccess, Schemas } from '../../../base/common/network.js';
-import { IProcessEnvironment } from '../../../base/common/platform.js';
+import { IProcessEnvironment, isWindows } from '../../../base/common/platform.js';
 import { ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { Client, IIPCOptions } from '../../../base/parts/ipc/node/ipc.cp.js';
 import { AiAgentEnvValue, AiAgentEnvVar } from '../../chat/common/aiAgentEnv.js';
@@ -33,6 +33,21 @@ export interface IAgentHostWebSocketConfig {
 	readonly host?: string;
 	/** Connection token value. When set, WebSocket clients must present this token. */
 	readonly connectionToken?: string;
+}
+
+/** Retains deletion markers so the IPC client's inherited environment cannot restore removed variables. */
+function mergeAgentHostEnvironments(...environments: (Readonly<Record<string, string | null | undefined>> | undefined)[]): IProcessEnvironment {
+	const result: IProcessEnvironment = {};
+	const keys = new Map<string, string>();
+	for (const environment of environments) {
+		for (const [key, value] of Object.entries(environment ?? {})) {
+			const normalizedKey = isWindows ? key.toUpperCase() : key;
+			const actualKey = keys.get(normalizedKey) ?? key;
+			keys.set(normalizedKey, actualKey);
+			result[actualKey] = value ?? undefined;
+		}
+	}
+	return result;
 }
 
 /**
@@ -62,8 +77,8 @@ export class NodeAgentHostStarter extends Disposable implements IAgentHostStarte
 	}
 
 	/** Applies resolver overrides to subsequent launches without changing the server's environment. */
-	setEnvironment(environment: Readonly<Record<string, string | null>>): void {
-		this._environment = Object.fromEntries(Object.entries(environment).map(([key, value]) => [key, value ?? undefined]));
+	setEnvironment(environment: Readonly<Record<string, string | null>>, debugEnvironment?: Readonly<Record<string, string | null>>): void {
+		this._environment = mergeAgentHostEnvironments(debugEnvironment, environment);
 	}
 
 	async start(): Promise<IAgentHostConnection> {
@@ -72,8 +87,6 @@ export class NodeAgentHostStarter extends Disposable implements IAgentHostStarte
 		const shellEnv = await this._resolveShellEnv();
 
 		const env: IProcessEnvironment = {
-			...shellEnv,
-			...this._environment,
 			// Announce that everything spawned below this process is driven by
 			// VS Code's agent, so `gh` inherits it. Set after the inherited
 			// env so it wins.
@@ -137,7 +150,7 @@ export class NodeAgentHostStarter extends Disposable implements IAgentHostStarte
 		const opts: IIPCOptions = {
 			serverName: 'Agent Host',
 			args,
-			env,
+			env: mergeAgentHostEnvironments(process.env, shellEnv, this._environment, env),
 		};
 
 		const agentHostDebug = parseAgentHostDebugPort(this._environmentService.args, this._environmentService.isBuilt);

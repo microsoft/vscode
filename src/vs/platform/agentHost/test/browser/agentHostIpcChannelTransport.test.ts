@@ -121,7 +121,19 @@ suite('AgentHostIpcChannelTransport', () => {
 		assert.deepStrictEqual(channel.calls, []);
 	});
 
-	test('surfaces environment resolution errors without starting the host', async () => {
+	test('connects without overrides when the connection options are unavailable', async () => {
+		const channel = ds.add(new FakeChannel());
+		const transport = ds.add(new AgentHostIpcChannelTransport(channel, undefined, AgentHostClientConnectionKind.RemoteExtensionHost, async () => undefined));
+
+		await transport.connect();
+
+		assert.deepStrictEqual({ calls: channel.calls, isOpen: transport.isOpen }, {
+			calls: [{ command: 'connect', arg: undefined }],
+			isOpen: true,
+		});
+	});
+
+	test('surfaces unexpected connection option errors without starting the host', async () => {
 		const channel = ds.add(new FakeChannel());
 		const transport = ds.add(new AgentHostIpcChannelTransport(channel, undefined, AgentHostClientConnectionKind.RemoteExtensionHost, async () => {
 			throw new Error('Remote authority resolution failed');
