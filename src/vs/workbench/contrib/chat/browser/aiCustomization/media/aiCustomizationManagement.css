@@ -3972,6 +3972,12 @@ per-word capitalization does not survive translation. */
 	flex-shrink: 0;
 }
 
+.ai-customization-management-editor .migration-detail-warning {
+	flex: 0 0 auto;
+	min-height: 0;
+	margin: var(--vscode-spacing-size80) var(--vscode-spacing-size160) 0;
+}
+
 .ai-customization-management-editor .editor-mode-button:hover {
 	background: var(--vscode-button-secondaryHoverBackground);
 }

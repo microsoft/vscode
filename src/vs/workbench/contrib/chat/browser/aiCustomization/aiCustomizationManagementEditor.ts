@@ -377,6 +377,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private editorActionButtonIcon!: HTMLElement;
 	private editorModeButton: HTMLButtonElement | undefined;
 	private editorMigrationDetailActions: IMigrationDetailActions | undefined;
+	private editorMigrationDetailWarning: HTMLElement | undefined;
 	private editorActionButtonInProgress = false;
 	private editorDisplayMode: 'preview' | 'raw' = 'preview';
 	private currentCustomizationDetail = false;
@@ -2289,8 +2290,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private getHomepageMigrationCategory(id: CustomizationMigrationCategoryId, candidates: readonly CustomizationMigrationCandidate[], storage: PromptsStorage): ICustomizationMigrationDashboardCategory {
 		const count = candidates.length;
 		const scopeLabel = storage === PromptsStorage.local ? localize('migrationWorkspaceScope', "Workspace") : localize('migrationUserScope', "User");
+		const category = getCustomizationMigrationCategory(id);
 		const items = candidates.map((candidate, index) => {
-			const category = getCustomizationMigrationCategory(id);
 			const sourceUri = isMcpServerCustomizationMigrationCandidate(candidate) ? candidate.sourceUri : candidate.uri;
 			return {
 				id: `${id}:${storage}:candidate:${index}:${sourceUri.toString()}`,
@@ -2312,7 +2313,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 				return {
 					id, count,
 					label: this.getMigrationDashboardCategoryLabel(id),
-					description: localize('migrationChecklistPromptsDescription', "Convert reusable prompt files into skills so agents can discover and run them as supported customizations."),
+					description: category.preMigrationConsequences ?? '',
 					countLabel: count === 1 ? localize('migrationChecklistOnePrompt', "1 prompt") : localize('migrationChecklistPromptsCount', "{0} prompts", count),
 					highRisk: true,
 					migrateDisabled: this.customizationMigrationInProgress || selectedCount === 0,
@@ -3705,6 +3706,16 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 		this.editorSaveIndicator = DOM.append(editorHeader, $('.editor-save-indicator'));
 
+		this.editorMigrationDetailWarning = DOM.append(this.editorContentContainer, $('section.mcp-detail-diagnostic-card.migration.warning.migration-detail-warning'));
+		const migrationWarningHeader = DOM.append(this.editorMigrationDetailWarning, $('.mcp-detail-diagnostic-header'));
+		const migrationWarningIcon = DOM.append(migrationWarningHeader, $('.mcp-detail-diagnostic-icon'));
+		migrationWarningIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.warning));
+		migrationWarningIcon.setAttribute('aria-hidden', 'true');
+		DOM.append(migrationWarningHeader, $('.mcp-detail-diagnostic-summary', {}, localize('promptMigrationWarningSummary', "Prompt-to-skill conversion changes")));
+		const migrationWarningDetails = DOM.append(this.editorMigrationDetailWarning, $('.mcp-detail-diagnostic-details'));
+		DOM.append(migrationWarningDetails, $('p.mcp-detail-diagnostic-message', {},
+			getCustomizationMigrationCategory(CustomizationMigrationCategoryId.PromptFiles).preMigrationConsequences ?? ''));
+
 		this.editorPreviewContainer = DOM.append(this.editorContentContainer, $('.editor-preview-container'));
 		this.editorPreviewScrollContainer = DOM.append(this.editorPreviewContainer, $('.editor-preview-scroll-container'));
 		this.editorPreviewScrollContainer.setAttribute('role', 'region');
@@ -3882,6 +3893,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.currentCustomizationDetail = customizationDetail;
 		this.viewMode = 'editor';
 		this.editorContentContainer?.classList.toggle('customization-detail-mode', customizationDetail);
+		this.updateMigrationDetailWarning();
 
 		this.editorItemMarketplaceIcon = marketplace?.resource.icon;
 		this.renderEditorItemIcon();
@@ -3921,6 +3933,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.editorReturnViewMode = 'list';
 		this.customizationDetailOrigin = undefined;
 		this.currentMigrationDetail = undefined;
+		this.updateMigrationDetailWarning();
 		const fileUri = this.currentEditingUri;
 		const backgroundSaveRequest = this.createExistingCustomizationSaveRequest();
 		if (backgroundSaveRequest) {
@@ -4912,6 +4925,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 	private updateMigrationDetailActions(): void {
 		this.updateMigrationDetailActionButtons(this.editorMigrationDetailActions, this.viewMode === 'editor' ? this.currentMigrationDetail : undefined);
 		this.updateMigrationDetailActionButtons(this.mcpMigrationDetailActions, this.viewMode === 'mcpDetail' ? this.currentMigrationDetail : undefined);
+	}
+
+	private updateMigrationDetailWarning(): void {
+		if (this.editorMigrationDetailWarning) {
+			this.editorMigrationDetailWarning.style.display = this.currentMigrationDetail?.item.promptType === PromptsType.prompt ? '' : 'none';
+		}
 	}
 
 	private updateMigrationDetailActionButtons(actions: IMigrationDetailActions | undefined, detail: IMigrationDetailContext | undefined): void {
