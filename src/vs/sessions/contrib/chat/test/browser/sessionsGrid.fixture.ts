@@ -159,7 +159,11 @@ function createBottomPanelFixture(): { readonly view: ISerializableView; readonl
 	};
 }
 
-async function renderSessionsGrid(context: ComponentFixtureContext, options: { bottomPanel?: boolean; chatTabsMode?: SessionsChatTabsMode; connectedEditorTabs?: boolean; customBackground?: boolean; maximized?: boolean; multipleChats?: MultipleChatsLayout; relatedChats?: boolean; sideBySide?: boolean; sidePaneShowTabs?: 'multiple' | 'single'; sidePanel?: boolean } = {}): Promise<void> {
+async function renderSessionsGrid(context: ComponentFixtureContext, options: { bottomPanel?: boolean; chatTabsMode?: SessionsChatTabsMode; connectedEditorTabs?: boolean; customBackground?: boolean; direction?: 'rtl'; maximized?: boolean; multipleChats?: MultipleChatsLayout; relatedChats?: boolean; sideBySide?: boolean; sidePaneShowTabs?: 'multiple' | 'single'; sidePanel?: boolean } = {}): Promise<void> {
+	if (options.direction === 'rtl') {
+		context.container.dir = 'rtl';
+	}
+
 	const workspace = constObservable<ISessionWorkspace>({
 		uri: URI.parse('https://github.com/microsoft/vscode'),
 		label: 'microsoft/vscode',
@@ -292,6 +296,63 @@ async function renderSessionsGrid(context: ComponentFixtureContext, options: { b
 		await Promise.resolve();
 	}
 	await Promise.all(chats.map(chat => chat.render()));
+	if (options.multipleChats === 'sideBySide' && options.connectedEditorTabs !== false) {
+		const activeTabs = [...context.container.querySelectorAll<HTMLElement>('.session-chat-tabs-bar .chat-composite-bar-tab.active:first-child:not(.connected-tab-hidden)')]
+			.filter(tab => tab.getBoundingClientRect().width > 0);
+		for (const tab of activeTabs) {
+			const fill = tab.querySelector<HTMLElement>('.chat-composite-bar-tab-fill');
+			const label = tab.querySelector<HTMLElement>('.chat-composite-bar-tab-label');
+			const tabList = tab.parentElement;
+			assert(fill !== null && label !== null && tabList !== null, 'Expected an active connected chat tab');
+			const rtl = mainWindow.getComputedStyle(tab).direction === 'rtl';
+			const shoulder = mainWindow.getComputedStyle(fill, rtl ? '::before' : '::after');
+			const oppositeShoulder = mainWindow.getComputedStyle(fill, rtl ? '::after' : '::before');
+			const fillBounds = fill.getBoundingClientRect();
+			const tabListBounds = tabList.getBoundingClientRect();
+			const availableSpace = rtl ? fillBounds.left - tabListBounds.left : tabListBounds.right - fillBounds.right;
+			const labelRange = mainWindow.document.createRange();
+			labelRange.selectNodeContents(label);
+			const labelTextWidth = labelRange.getBoundingClientRect().width;
+			const labelStyle = mainWindow.getComputedStyle(label);
+			const labelBounds = label.getBoundingClientRect();
+			const endPadding = Number.parseFloat(labelStyle.paddingInlineEnd);
+			const startPadding = Number.parseFloat(labelStyle.paddingInlineStart);
+			const labelTextBounds = labelRange.getBoundingClientRect();
+			const tabsRow = tab.closest('.chat-composite-bar-tabs-row');
+			assert(tabsRow !== null, 'Expected a connected chat tabs row');
+			const connectedEdge = tab.querySelector<HTMLElement>('.tab-connected-edge');
+			assert(connectedEdge !== null, 'Expected a connected chat tab edge');
+			const connectedEdgeStyle = mainWindow.getComputedStyle(connectedEdge);
+			const overflowEdge = tabsRow.querySelector<HTMLElement>('.tab-connected-overflow-edge.connected-tab-right-clipped');
+			const overflowRight = overflowEdge?.querySelector<HTMLElement>('.tab-connected-overflow-right');
+			const expectedLabelPadding = 0;
+			const textStartBuffer = rtl ? labelBounds.right - labelTextBounds.right : labelTextBounds.left - labelBounds.left;
+			const textEndBuffer = rtl ? labelTextBounds.left - labelBounds.left : labelBounds.right - labelTextBounds.right;
+			assert(
+				shoulder.content === '""'
+				&& oppositeShoulder.content === 'none'
+				&& availableSpace >= Number.parseFloat(shoulder.width) - 1 / 64
+				&& startPadding === expectedLabelPadding
+				&& endPadding === expectedLabelPadding
+				&& label.getBoundingClientRect().width >= labelTextWidth + startPadding + endPadding - 1 / 64
+				&& textStartBuffer >= startPadding - 1 / 64
+				&& textEndBuffer >= endPadding - 1 / 64
+				&& (!rtl || (
+					mainWindow.getComputedStyle(fill).borderStartStartRadius !== '0px'
+					&& connectedEdgeStyle.clipPath.startsWith('polygon(')
+					&& connectedEdgeStyle.borderInlineStartWidth !== '0px'
+					&& connectedEdgeStyle.borderInlineEndWidth !== '0px'
+					&& overflowEdge !== null
+					&& mainWindow.getComputedStyle(overflowEdge, '::after').display === 'none'
+					&& overflowRight !== undefined && overflowRight !== null
+					&& mainWindow.getComputedStyle(overflowRight).display === 'none'
+					&& Math.abs(fillBounds.right - tabListBounds.right) < 1 / 64
+					&& Math.abs(fill.getBoundingClientRect().bottom - tabsRow.getBoundingClientRect().bottom) < 1 / 64
+				)),
+				'Expected the active connected chat tab to fit its label, retain its shoulder border, and meet its inline-end edge without a terminal shoulder'
+			);
+		}
+	}
 	context.disposableStore.add(part.onDidFocusSession(id => sessionsService.setActive(sessions.find(session => session.sessionId === id))));
 	if (options.maximized) {
 		part.toggleMaximizeSession(left.sessionId);
@@ -430,6 +491,19 @@ export default defineThemedFixtureGroup({ path: 'sessions/grid/' }, {
 		expectedVisualDescriptions: ['The connected Changes side pane and all three fully bordered session panels use the same floating-panel gap. Every gap has a centered three-dot gripper, with no extra line or inset beside the side pane and no frame surrounding the Sessions group.'],
 		render: context => renderSessionsGrid(context, { sidePanel: true }),
 	}),
+	SidePanelGapRtl: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The Agents window renders right-to-left. The docked Changes tab keeps its leading icon inset and unobstructed tab actions, while the session cards, side pane, and panel frames remain intact.'],
+		render: context => renderSessionsGrid(context, { direction: 'rtl', sidePanel: true }),
+	}),
+	SidePanelGapRtlNoFileIcons: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		fileIconTheme: 'none',
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The Agents window renders right-to-left without file icons. The docked Changes tab retains its leading inset and unobstructed tab actions, while the session cards, side pane, and panel frames remain intact.'],
+		render: context => renderSessionsGrid(context, { direction: 'rtl', sidePanel: true }),
+	}),
 	PillSidePanelGap: defineComponentFixture({
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		labels: { kind: 'screenshot' },
@@ -467,8 +541,14 @@ export default defineThemedFixtureGroup({ path: 'sessions/grid/' }, {
 	RelatedChats: defineComponentFixture({
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The Agents workbench shows three fully bordered session panels separated by floating-panel gaps. The wide left session contains a parent chat and related child chat side by side as one continuous session surface, separated by a single themed divider without an internal gap or gripper. The outer session gaps retain their centered grippers.'],
+		expectedVisualDescriptions: ['The Agents workbench shows three fully bordered session panels separated by floating-panel gaps. The wide left session contains a parent chat and related child chat side by side as one continuous session surface, separated by a single themed divider without an internal gap or gripper. The related child chat tab places its close action near the trailing edge with a compact inset, and its active shoulder connects to the body divider. The outer session gaps retain their centered grippers.'],
 		render: context => renderSessionsGrid(context, { multipleChats: 'sideBySide', relatedChats: true }),
+	}),
+	RelatedChatsRtl: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['The Agents workbench renders right-to-left. Each connected chat tab retains its curved left shoulder and rounded terminal cap while its right edge flows into the shared body border without an outward shoulder; the tab label remains fully visible. The related child chat close action and label follow RTL order, and the connected session surface and outer panel gaps remain intact.'],
+		render: context => renderSessionsGrid(context, { direction: 'rtl', multipleChats: 'sideBySide', relatedChats: true }),
 	}),
 	MixedRelatedChats: defineComponentFixture({
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],

@@ -1162,6 +1162,7 @@
 		"--modern-ui-editor-tab-inactive-background",
 		"--modern-ui-editor-tab-inactive-foreground",
 		"--modern-ui-editor-tab-last-pinned-border",
+		"--modern-ui-editor-tab-left-inset",
 		"--modern-ui-editor-tab-unfocused-active-background",
 		"--modern-ui-editor-tab-unfocused-active-border",
 		"--modern-ui-editor-tab-unfocused-active-border-top",

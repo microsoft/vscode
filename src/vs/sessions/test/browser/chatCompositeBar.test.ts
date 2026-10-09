@@ -313,7 +313,7 @@ suite('Sessions - ChatCompositeBar', () => {
 						height: row.getBoundingClientRect().height,
 						width: harness.bar.element.getBoundingClientRect().width,
 						stripBottomBorderWidth: mainWindow.getComputedStyle(row).borderBottomWidth,
-						stripSeparator: mainWindow.getComputedStyle(row, '::after').backgroundColor,
+						stripSeparator: mainWindow.getComputedStyle(row, '::after').borderBottomColor,
 						background: fillStyle.backgroundColor,
 						radius: fillStyle.borderTopRightRadius,
 						border: edgeStyle.borderTopColor,
@@ -352,6 +352,33 @@ suite('Sessions - ChatCompositeBar', () => {
 			shoulder: mainWindow.getComputedStyle(fill, '::after').content,
 			closeOpacity: mainWindow.getComputedStyle(actions.querySelector<HTMLElement>('.action-label')!).opacity,
 		}, { height: 32, radius: '4px', shoulder: 'none', closeOpacity: '0' });
+	});
+
+	test('keeps connected chat tab actions at the trailing edge in LTR and RTL', () => {
+		const harness = createHarness(disposables);
+		const root = attachConnectedBar(harness);
+		const tab = harness.tabs[1];
+		const actions = tab.querySelector<HTMLElement>('.chat-composite-bar-tab-actions')!;
+		const getSpacing = () => {
+			const tabStyle = mainWindow.getComputedStyle(tab);
+			const actionsStyle = mainWindow.getComputedStyle(actions);
+			return {
+				paddingLeft: tabStyle.paddingLeft,
+				paddingRight: tabStyle.paddingRight,
+				marginLeft: actionsStyle.marginLeft,
+				marginRight: actionsStyle.marginRight,
+			};
+		};
+
+		root.dir = 'ltr';
+		const ltr = getSpacing();
+		root.dir = 'rtl';
+		const rtl = getSpacing();
+
+		assert.deepStrictEqual({ ltr, rtl }, {
+			ltr: { paddingLeft: '8px', paddingRight: '4px', marginLeft: '2px', marginRight: '0px' },
+			rtl: { paddingLeft: '4px', paddingRight: '8px', marginLeft: '0px', marginRight: '2px' },
+		});
 	});
 
 	for (const connected of [false, true]) {
@@ -404,7 +431,7 @@ suite('Sessions - ChatCompositeBar', () => {
 		const readStroke = () => ({
 			cap: mainWindow.getComputedStyle(harness.tabs[1].querySelector<HTMLElement>('.tab-connected-edge')!).borderTopColor,
 			shoulder: mainWindow.getComputedStyle(fill, '::after').borderBottomColor,
-			separator: mainWindow.getComputedStyle(row, '::after').backgroundColor,
+			separator: mainWindow.getComputedStyle(row, '::after').borderBottomColor,
 		});
 		const headerBorder = readStroke();
 		root.style.removeProperty('--vscode-editorGroupHeader-tabsBorder');
@@ -625,13 +652,107 @@ suite('Sessions - ChatCompositeBar', () => {
 		});
 	});
 
-	test('closing the terminal Connected chat while scrolled right clamps and reveals the new terminal shoulder', async () => {
+	test('RTL connected chat tabs preserve both clipped edges while scrolling', () => {
 		const results = [];
 		const expected = [];
 		for (const theme of ['vs-dark', 'hc-black', 'hc-light']) {
+			const harness = createHarness(disposables);
+			const root = attachConnectedBar(harness);
+			root.dir = 'rtl';
+			root.classList.add(theme);
+			const chats = [harness.session.mainChat.get(), ...Array.from({ length: 6 }, (_, index) => createChat(`rtl-${index}`, `Overflow chat ${index}`))];
+			harness.chats.set(chats, undefined);
+			harness.activeChatResource.set(chats[3].resource.toString(), undefined);
+			const tabs = harness.bar.element.querySelector<HTMLElement>('.chat-composite-bar-tabs')!;
+			const overflow = harness.bar.element.querySelector<HTMLElement>('.tab-connected-overflow-edge')!;
+			const readClipping = (tab: HTMLElement, side: 'left' | 'right') => {
+				const fill = tab.querySelector<HTMLElement>('.chat-composite-bar-tab-fill')!;
+				const fillBounds = fill.getBoundingClientRect();
+				const viewport = tabs.getBoundingClientRect();
+				tabs.scrollLeft += side === 'left'
+					? fillBounds.left - viewport.left + fillBounds.width / 2
+					: fillBounds.right - viewport.right - fillBounds.width / 2;
+				tabs.dispatchEvent(new mainWindow.Event(EventType.SCROLL));
+				const label = tab.querySelector<HTMLElement>('.chat-composite-bar-tab-label')!;
+				const labelBounds = label.getBoundingClientRect();
+				const rightMask = mainWindow.getComputedStyle(overflow, '::after');
+				const rightCap = overflow.querySelector<HTMLElement>('.tab-connected-overflow-right')!;
+				return {
+					clipped: tab.classList.contains(`connected-tab-${side}-clipped`),
+					visible: !tab.classList.contains('connected-tab-hidden'),
+					labelVisible: labelBounds.right > viewport.left && labelBounds.left < viewport.right,
+					leftCap: side !== 'left' || mainWindow.getComputedStyle(overflow, '::before').content === '""',
+					rightMaskAbsent: rightMask.display === 'none' || rightMask.content === 'none' || (Number.parseFloat(rightMask.width) <= 1 && rightMask.backgroundColor === 'rgba(0, 0, 0, 0)'),
+					viewportBoundary: side !== 'right' || (rightMask.borderRightWidth === '1px' && Math.abs(overflow.getBoundingClientRect().right - viewport.right) <= 1 / 64),
+					rightCapHidden: mainWindow.getComputedStyle(rightCap).display === 'none' || mainWindow.getComputedStyle(rightCap, '::after').content === 'none',
+					outline: mainWindow.getComputedStyle(tab.querySelector<HTMLElement>('.tab-connected-edge')!).borderTopWidth,
+				};
+			};
+			const active = tabs.children[3] as HTMLElement;
+			const left = readClipping(active, 'left');
+			const right = readClipping(active, 'right');
+			harness.activeChatResource.set(chats.at(-1)!.resource.toString(), undefined);
+			const terminal = tabs.lastElementChild as HTMLElement;
+			const terminalLeft = readClipping(terminal, 'left');
+			harness.activeChatResource.set(chats[0].resource.toString(), undefined);
+			results.push({
+				theme, left, right, terminalLeft,
+				cleared: !terminal.classList.contains('connected-tab-left-clipped') && !terminal.classList.contains('connected-tab-right-clipped'),
+				truncationCleared: !overflow.classList.contains('chat-tab-right-truncated'),
+				mainActions: tabs.firstElementChild?.classList.contains('has-chat-tab-actions'),
+				terminalActions: terminal.classList.contains('has-chat-tab-actions'),
+			});
+			const clipping = { clipped: true, visible: true, labelVisible: true, leftCap: true, rightMaskAbsent: true, viewportBoundary: true, rightCapHidden: true, outline: '1px' };
+			expected.push({ theme, left: clipping, right: clipping, terminalLeft: clipping, cleared: true, truncationCleared: true, mainActions: false, terminalActions: true });
+			harness.activeChatResource.set(chats[3].resource.toString(), undefined);
+			readClipping(active, 'right');
+			harness.store.dispose();
+			assert.strictEqual(overflow.classList.contains('chat-tab-right-truncated'), false);
+			root.remove();
+		}
+		assert.deepStrictEqual(results, expected);
+	});
+
+	test('distinguishes aligned fractional RTL tabs from actual right truncation', () => {
+		const harness = createHarness(disposables);
+		const root = attachConnectedBar(harness);
+		root.dir = 'rtl';
+		root.style.width = '360.4375px';
+		harness.chats.set([harness.session.mainChat.get(), ...Array.from({ length: 6 }, (_, index) => createChat(`fractional-${index}`, `Overflow chat ${index}`))], undefined);
+		const tabs = harness.bar.element.querySelector<HTMLElement>('.chat-composite-bar-tabs')!;
+		const active = tabs.firstElementChild as HTMLElement;
+		const fill = active.querySelector<HTMLElement>('.chat-composite-bar-tab-fill')!;
+		const overflow = harness.bar.element.querySelector<HTMLElement>('.tab-connected-overflow-edge')!;
+		const readTruncation = () => ({
+			roundedViewport: tabs.clientWidth < tabs.getBoundingClientRect().width,
+			sharedClippingFlag: active.classList.contains('connected-tab-right-clipped'),
+			physicalOvershoot: fill.getBoundingClientRect().right > tabs.getBoundingClientRect().right,
+			truncated: overflow.classList.contains('chat-tab-right-truncated'),
+			maskDisplay: mainWindow.getComputedStyle(overflow, '::after').display,
+		});
+		tabs.scrollLeft = 0;
+		tabs.dispatchEvent(new mainWindow.Event(EventType.SCROLL));
+		const aligned = readTruncation();
+		tabs.scrollLeft -= fill.getBoundingClientRect().width / 3;
+		tabs.dispatchEvent(new mainWindow.Event(EventType.SCROLL));
+		const clipped = readTruncation();
+		tabs.scrollLeft = 0;
+		tabs.dispatchEvent(new mainWindow.Event(EventType.SCROLL));
+		assert.deepStrictEqual({ aligned, clipped, realigned: readTruncation() }, {
+			aligned: { roundedViewport: true, sharedClippingFlag: true, physicalOvershoot: false, truncated: false, maskDisplay: 'none' },
+			clipped: { roundedViewport: true, sharedClippingFlag: true, physicalOvershoot: true, truncated: true, maskDisplay: 'block' },
+			realigned: aligned,
+		});
+	});
+
+	test('closing the terminal Connected chat while scrolled to the end clamps and reveals the new terminal shoulder', async () => {
+		const results = [];
+		const expected = [];
+		for (const { theme, direction } of ['vs-dark', 'hc-black', 'hc-light'].flatMap(theme => ['ltr', 'rtl'].map(direction => ({ theme, direction })))) {
 			for (const tabHeight of ['default', 'compact'] as const) {
 				const harness = createHarness(disposables, { terminalControls: true });
 				const root = attachConnectedBar(harness);
+				root.dir = direction;
 				root.classList.add(theme);
 				harness.editorGroupsService.setTabHeight(tabHeight);
 				const chats = [harness.session.mainChat.get(), ...Array.from({ length: 7 }, (_, index) => createChat(`terminal-${index}`, `Overflow chat ${index}`))];
@@ -644,7 +765,7 @@ suite('Sessions - ChatCompositeBar', () => {
 				const controls = harness.bar.element.querySelector<HTMLElement>('.session-chat-tabs-actions')!;
 				const lastTab = tabs.lastElementChild as HTMLElement;
 				const action = lastTab.querySelector<HTMLElement>('.action-label')!;
-				tabs.scrollLeft = tabs.scrollWidth;
+				tabs.scrollLeft = direction === 'rtl' ? -tabs.scrollWidth : tabs.scrollWidth;
 				tabs.dispatchEvent(new mainWindow.Event(EventType.SCROLL));
 				const oldMaxScroll = tabs.scrollWidth - tabs.clientWidth;
 				const bounds = action.getBoundingClientRect();
@@ -652,10 +773,10 @@ suite('Sessions - ChatCompositeBar', () => {
 				const hitTarget = mainWindow.document.elementFromPoint(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
 				const before = {
 					overflowing: oldMaxScroll > 0,
-					scrolledFullyRight: Math.abs(tabs.scrollLeft - oldMaxScroll) <= 1,
+					scrolledFullyRight: Math.abs(Math.abs(tabs.scrollLeft) - oldMaxScroll) <= 1,
 					actionVisible: Number(mainWindow.getComputedStyle(action).opacity) > 0 && bounds.width > 0 && bounds.left >= viewport.left && bounds.right <= viewport.right,
 					actionClickable: !!hitTarget && (hitTarget === action || action.contains(hitTarget)),
-					beforeControls: bounds.right <= controls.getBoundingClientRect().left,
+					beforeControls: direction === 'rtl' ? bounds.left >= controls.getBoundingClientRect().right : bounds.right <= controls.getBoundingClientRect().left,
 					controls: controls.querySelectorAll('.action-label').length,
 					nowrap: mainWindow.getComputedStyle(tabs).flexWrap,
 				};
@@ -675,17 +796,18 @@ suite('Sessions - ChatCompositeBar', () => {
 				const shoulder = Number.parseFloat(mainWindow.getComputedStyle(terminalFill, '::after').width);
 				const newMaxScroll = tabs.scrollWidth - tabs.clientWidth;
 				results.push({
-					theme, tabHeight, before,
+					theme, direction, tabHeight, before,
 					commandTargetsLastChat: harness.commandService.calls.length === 1 && harness.commandService.calls[0].args[1] === removed,
 					removedLastTab: !lastTab.isConnected && !Array.from(tabs.children).some(tab => tab.getAttribute('data-chat-resource') === removed.resource.toString()),
 					activeTerminal: terminal.classList.contains('active') && terminal.getAttribute('aria-selected') === 'true',
-					scrollClamped: newMaxScroll < oldMaxScroll && Math.abs(tabs.scrollLeft - newMaxScroll) <= 1,
-					shoulderVisible: tabs.getBoundingClientRect().right - terminalFill.getBoundingClientRect().right >= shoulder - 1 / 64,
+					scrollClamped: newMaxScroll < oldMaxScroll && Math.abs(Math.abs(tabs.scrollLeft) - newMaxScroll) <= 1,
+					shoulderVisible: (direction === 'rtl' ? terminalFill.getBoundingClientRect().left - tabs.getBoundingClientRect().left : tabs.getBoundingClientRect().right - terminalFill.getBoundingClientRect().right) >= shoulder - 1 / 64,
 					noRightClipping: !terminal.classList.contains('connected-tab-right-edge') && !terminal.classList.contains('connected-tab-right-clipped') && !overflow.classList.contains('connected-tab-right-clipped'),
+					truncationCleared: !overflow.classList.contains('chat-tab-right-truncated'),
 					noOverflowPaint: mainWindow.getComputedStyle(overflow).display === 'none',
 					noWrongActivation: harness.sessionsService.openedChats.length === 0,
 				});
-				expected.push({ theme, tabHeight, before: { overflowing: true, scrolledFullyRight: true, actionVisible: true, actionClickable: true, beforeControls: true, controls: 2, nowrap: 'nowrap' }, commandTargetsLastChat: true, removedLastTab: true, activeTerminal: true, scrollClamped: true, shoulderVisible: true, noRightClipping: true, noOverflowPaint: true, noWrongActivation: true });
+				expected.push({ theme, direction, tabHeight, before: { overflowing: true, scrolledFullyRight: true, actionVisible: true, actionClickable: true, beforeControls: true, controls: 2, nowrap: 'nowrap' }, commandTargetsLastChat: true, removedLastTab: true, activeTerminal: true, scrollClamped: true, shoulderVisible: true, noRightClipping: true, truncationCleared: true, noOverflowPaint: true, noWrongActivation: true });
 				harness.store.dispose();
 				root.remove();
 			}
@@ -702,6 +824,7 @@ suite('Sessions - ChatCompositeBar', () => {
 				hasFill: tab.querySelector(':scope > .chat-composite-bar-tab-fill.modern-ui-editor-tab-fill') !== null,
 				hasLabel: tab.querySelector(':scope > .chat-composite-bar-tab-label.modern-ui-editor-tab-label') !== null,
 				hasActions: tab.querySelector(':scope > .chat-composite-bar-tab-actions') !== null,
+				hasActionSpacingMarker: tab.classList.contains('has-chat-tab-actions'),
 				ariaLabel: tab.getAttribute('aria-label'),
 				tabIndex: tab.tabIndex,
 				actionTabIndex: tab.querySelector<HTMLElement>('.chat-composite-bar-tab-actions .action-label')?.tabIndex,
@@ -709,8 +832,8 @@ suite('Sessions - ChatCompositeBar', () => {
 			hasMetadataRow: tabs[0].closest('.session-chat-tabs-bar')?.querySelector('.chat-composite-bar-meta-row') !== null,
 		}, {
 			tabs: [
-				{ hasSharedPresentation: true, hasFill: true, hasLabel: true, hasActions: false, ariaLabel: 'Main Chat, State: Completed', tabIndex: 0, actionTabIndex: undefined },
-				{ hasSharedPresentation: true, hasFill: true, hasLabel: true, hasActions: true, ariaLabel: 'Secondary Chat, State: Completed', tabIndex: -1, actionTabIndex: -1 },
+				{ hasSharedPresentation: true, hasFill: true, hasLabel: true, hasActions: false, hasActionSpacingMarker: false, ariaLabel: 'Main Chat, State: Completed', tabIndex: 0, actionTabIndex: undefined },
+				{ hasSharedPresentation: true, hasFill: true, hasLabel: true, hasActions: true, hasActionSpacingMarker: true, ariaLabel: 'Secondary Chat, State: Completed', tabIndex: -1, actionTabIndex: -1 },
 			],
 			hasMetadataRow: false,
 		});
@@ -974,6 +1097,7 @@ suite('Sessions - ChatCompositeBar', () => {
 			chatResources: tabs.map(tab => tab.dataset.chatResource),
 			activeTab: bar.element.querySelector<HTMLElement>('.chat-composite-bar-tab.active')?.dataset.chatResource,
 			ariaSelected: tabs.map(tab => tab.getAttribute('aria-selected')),
+			actionSpacingMarkers: tabs.map(tab => tab.classList.contains('has-chat-tab-actions')),
 		}, {
 			chatResources: [
 				'test-chat://main',
@@ -982,6 +1106,7 @@ suite('Sessions - ChatCompositeBar', () => {
 			],
 			activeTab: activeChatResource.get(),
 			ariaSelected: ['true', 'false', 'false'],
+			actionSpacingMarkers: [false, true, true],
 		});
 	});
 
