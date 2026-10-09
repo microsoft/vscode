@@ -278,6 +278,10 @@ class TreeViewDragAndDropController implements ITreeViewDragAndDropController {
 	public resolveDropFileData(requestId: number, dataItemId: string): Promise<VSBuffer> {
 		return this.dataTransfersCache.resolveFileData(requestId, dataItemId);
 	}
+
+	handleDragEnd(operationUuid: string): void {
+		this._proxy.$releaseDragOperation(operationUuid);
+	}
 }
 
 class TreeViewDataProvider implements ITreeViewDataProvider {

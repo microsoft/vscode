@@ -36,6 +36,11 @@ suite('MainThreadHostTreeView', function () {
 	}
 
 	class MockExtHostTreeViewsShape extends mock<ExtHostTreeViewsShape>() {
+		readonly releasedDragOperations: string[] = [];
+
+		override $releaseDragOperation(operationUuid: string): void {
+			this.releasedDragOperations.push(operationUuid);
+		}
 		override async $getChildren(treeViewId: string, treeItemHandle?: string[]): Promise<(number | ITreeItem)[][]> {
 			return [[0, <CustomTreeItem>{ handle: 'testItem1', collapsibleState: TreeItemCollapsibleState.Expanded, customProp: customValue }]];
 		}
@@ -86,7 +91,7 @@ suite('MainThreadHostTreeView', function () {
 				}
 				drain(): any { return null; }
 			}, new TestViewsService(), new TestNotificationService(), testExtensionService, new NullLogService(), NullTelemetryService));
-		mainThreadTreeViews.$registerTreeViewDataProvider(testTreeViewId, { showCollapseAll: false, canSelectMany: false, dropMimeTypes: [], dragMimeTypes: [], hasHandleDrag: false, hasHandleDrop: false, manuallyManageCheckboxes: false });
+		mainThreadTreeViews.$registerTreeViewDataProvider(testTreeViewId, { showCollapseAll: false, canSelectMany: false, dropMimeTypes: [], dragMimeTypes: [], hasHandleDrag: true, hasHandleDrop: false, manuallyManageCheckboxes: false });
 		await testExtensionService.whenInstalledExtensionsRegistered();
 	});
 
@@ -95,6 +100,12 @@ suite('MainThreadHostTreeView', function () {
 		const children = await treeView.dataProvider?.getChildren({ handle: 'root', collapsibleState: TreeItemCollapsibleState.Expanded });
 		assert(children!.length === 1, 'Exactly one child should be returned');
 		assert((<CustomTreeItem>children![0]).customProp === customValue, 'Tree Items should keep custom properties');
+	});
+
+	test('forwards canceled drag release to the extension host', () => {
+		const treeView: ITreeView = (<ITreeViewDescriptor>ViewsRegistry.getView(testTreeViewId)).treeView;
+		treeView.dragAndDropController?.handleDragEnd?.('canceled-drag');
+		assert.deepStrictEqual(extHostTreeViewsShape.releasedDragOperations, ['canceled-drag']);
 	});
 
 	test('handleDrag reconstructs URI list from uriListData', async () => {
