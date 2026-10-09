@@ -2422,6 +2422,9 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			}
 			return true;
 		}
+		if (uri.authority && !this._config.relayResourceRoots?.(readOnly).some(root => URI.file(root).authority.toLowerCase() === uri.authority.toLowerCase())) {
+			return false;
+		}
 		let ancestor = uri.fsPath;
 		let canonical: string;
 		while (true) {

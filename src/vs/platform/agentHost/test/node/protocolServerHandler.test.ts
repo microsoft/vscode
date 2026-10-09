@@ -3332,8 +3332,8 @@ suite('ProtocolServerHandler', () => {
 			await scopedHandler.whenIdle();
 			assert.deepStrictEqual(cases.map((item, index) => {
 				const result = findResponse(transport.sent, index + 10);
-				return result && hasKey(result, { error: true }) ? result.error.code : 0;
-			}), cases.map(item => item.allowed ? 0 : AhpErrorCodes.PermissionDenied));
+				return { method: item.method, uri: item.uri, code: result && hasKey(result, { error: true }) ? result.error.code : 0 };
+			}), cases.map(item => ({ method: item.method, uri: item.uri, code: item.allowed ? 0 : AhpErrorCodes.PermissionDenied })));
 			assert.strictEqual(await readFile(plan.fsPath, 'utf8'), '# Edited full plan');
 			stateManager.dispatchServerAction(chat, { type: ActionType.ChatInputCompleted, requestId: 'review', response: ChatInputResponseKind.Accept });
 			transport.simulateMessage(request(40, 'resourceRead', { uri: plan.toString() }));
