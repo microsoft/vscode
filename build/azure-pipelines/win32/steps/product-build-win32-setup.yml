@@ -54,10 +54,12 @@ steps:
       node build/azure-pipelines/common/computeNodeModulesCacheKey.ts --restore-scope win32 $(VSCODE_ARCH) $(node -p process.arch) > .build/packagelockrestorescope
     displayName: Prepare node_modules cache key
 
-  # CI builds fall back to the most recent cache with the same Node.js, Electron
-  # and npm configuration when the lockfiles changed, and then only reinstall
-  # the directories whose dependencies changed (NODE_MODULES_RESTORED=inexact).
-  # Product builds keep doing clean installs.
+  # CI builds fall back to the most recent cache with the same Node.js, Electron,
+  # npm configuration and install directories when the lockfiles changed, and
+  # then only reinstall the directories whose dependencies changed
+  # (NODE_MODULES_RESTORED=inexact). The restore scope also changes weekly, which
+  # forces a clean install at least once a week. Product builds keep doing clean
+  # installs.
   - task: Cache@2
     inputs:
       ${{ if eq(parameters.VSCODE_CIBUILD, true) }}:

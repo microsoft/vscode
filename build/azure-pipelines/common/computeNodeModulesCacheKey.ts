@@ -13,8 +13,10 @@ const args = process.argv.slice(2);
 
 // `--restore-scope` hashes only the inputs that make a cached `node_modules`
 // unusable as the base of an incremental install (e.g. a Node.js or Electron
-// version change requires rebuilding native modules), so it can be used as a
-// cache restore key prefix that survives `package.json` and lockfile changes.
+// version change requires rebuilding native modules, or a change to the set of
+// install directories), so it can be used as a cache restore key prefix that
+// survives `package.json` and lockfile changes. It also changes every week, so
+// incremental installs restart from a clean install at least once a week.
 const restoreScope = args[0] === '--restore-scope';
 if (restoreScope) {
 	args.shift();
@@ -28,7 +30,10 @@ shasum.update(fs.readFileSync(path.join(ROOT, 'build', '.npmrc')));
 shasum.update(fs.readFileSync(path.join(ROOT, 'remote', '.npmrc')));
 
 if (restoreScope) {
+	const week = Math.floor(Date.now() / (7 * 24 * 60 * 60 * 1000));
+	shasum.update(String(week));
 	shasum.update(fs.readFileSync(path.join(ROOT, '.nvmrc')));
+	shasum.update(JSON.stringify(dirs));
 
 	for (const dir of dirs) {
 		const npmrcPath = path.join(ROOT, dir, '.npmrc');
