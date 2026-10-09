@@ -895,6 +895,14 @@ export interface IActionListOptions {
 	readonly preferredAnchorPosition?: AnchorPosition;
 	/** Uses the available height instead of the usual fractional viewport cap. */
 	readonly useFullHeight?: boolean;
+	/**
+	 * Measures everything the containing popup shows besides the list's rows, including the
+	 * list's own filter, header and footer and anything the popup adds around them, such as
+	 * tabs. Placement then fits the whole popup beside the anchor, while the viewport cap
+	 * still applies to the list and its own chrome. Defaults to the list's own chrome plus
+	 * the action widget's padding and border.
+	 */
+	readonly getPopupChromeHeight?: (listElement: HTMLElement) => number;
 }
 
 /**
@@ -3387,6 +3395,7 @@ export class ActionList<T> extends Disposable {
 	private readonly _anchorPosition: AnchorPosition | undefined;
 	private readonly _preferredAnchorPosition: AnchorPosition | undefined;
 	private readonly _useFullHeight: boolean;
+	private readonly _getPopupChromeHeight: ((listElement: HTMLElement) => number) | undefined;
 	private readonly _widgetClassName: string | undefined;
 
 	get domNode(): HTMLElement {
@@ -3448,6 +3457,7 @@ export class ActionList<T> extends Disposable {
 		this._anchorPosition = options?.anchorPosition;
 		this._preferredAnchorPosition = options?.preferredAnchorPosition;
 		this._useFullHeight = options?.useFullHeight ?? false;
+		this._getPopupChromeHeight = options?.getPopupChromeHeight;
 		this._widgetClassName = options?.widgetClassName;
 
 		this._widget = this._register(instantiationService.createInstance(
@@ -3563,6 +3573,10 @@ export class ActionList<T> extends Disposable {
 		const footerHeight = this._widget.footerContainer ? 32 : 0;
 		const headerHeight = this._widget.headerContainer && !this._widget.headerContainer.hidden ? this._widget.headerContainer.offsetHeight || 36 : 0;
 		const chromeHeight = filterHeight + footerHeight + headerHeight;
+		// Space the popup takes up around the list and its own chrome, e.g. its padding, border
+		// or tabs. It counts toward fitting beside the anchor but not toward the viewport cap.
+		const popupChromeHeight = this._getPopupChromeHeight?.(this.domNode);
+		const outerChromeHeight = popupChromeHeight === undefined ? this.computeActionWidgetVerticalChromeHeight() : Math.max(0, popupChromeHeight - chromeHeight);
 		const targetWindow = dom.getWindow(this.domNode);
 		let availableHeight;
 
@@ -3583,7 +3597,7 @@ export class ActionList<T> extends Disposable {
 				} else if (this._preferredAnchorPosition !== undefined) {
 					const preferAbove = this._preferredAnchorPosition === AnchorPosition.ABOVE;
 					const viewportMaxHeight = this._useFullHeight ? viewportHeight : Math.floor(viewportHeight * 0.6);
-					const desiredHeight = Math.min(chromeHeight + fullHeight, viewportMaxHeight) + this.computeActionWidgetVerticalChromeHeight();
+					const desiredHeight = Math.min(chromeHeight + fullHeight, viewportMaxHeight) + outerChromeHeight;
 					// Reflect above preferences so both directions use the same flip policy.
 					const placement = layoutAlongAxis(viewportHeight - bottomGap, desiredHeight, {
 						offset: preferAbove ? viewportHeight - bottomGap - anchorTopInViewport - anchorRect.height : anchorTopInViewport,
@@ -3597,7 +3611,7 @@ export class ActionList<T> extends Disposable {
 					this._showAbove = chromeHeight + fullHeight > spaceBelow && spaceAbove > spaceBelow;
 				}
 			}
-			availableHeight = Math.max(0, (this._showAbove ? spaceAbove : spaceBelow) - this.computeActionWidgetVerticalChromeHeight());
+			availableHeight = Math.max(0, (this._showAbove ? spaceAbove : spaceBelow) - outerChromeHeight);
 		} else {
 			const padding = 10;
 			const windowHeight = this._layoutService.getContainer(targetWindow).clientHeight;

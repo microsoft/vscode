@@ -526,6 +526,25 @@ suite('TabbedActionListWidget', () => {
 		});
 	});
 
+	test('keeps its rows when the page leaves no room beside the anchor', () => {
+		const { widget, contextView } = createWidget(disposables);
+		// A long page, like the one a full test run leaves behind, pushes the anchor's free space out of view.
+		const filler = document.createElement('div');
+		filler.style.height = '5000px';
+		document.body.prepend(filler);
+		disposables.add({ dispose: () => filler.remove() });
+		widget.show<ITestItem>({
+			user: 'test',
+			anchor: document.body,
+			tabs: [{ id: 'Models' }],
+			initialTab: 'Models',
+			createActionList: () => ({ items: [action('first'), action('second')], listOptions: { showFilter: true } }),
+			delegate: { onSelect: () => { }, onHide: () => { } },
+		});
+		const rows = contextView.getContextViewElement().querySelectorAll('.monaco-list-row .title');
+		assert.deepStrictEqual(Array.from(rows, row => row.textContent), ['first', 'second']);
+	});
+
 	test('details scroll independently and retain a fixed Back button', async () => {
 		const { widget, contextView } = createWidget(disposables);
 		const anchor = document.createElement('button');
