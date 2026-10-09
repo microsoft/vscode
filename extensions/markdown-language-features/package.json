@@ -1471,6 +1471,12 @@
               "onExP"
             ]
           },
+          "markdown.editor.highlightActiveBlock": {
+            "type": "boolean",
+            "default": true,
+            "description": "%configuration.markdown.editor.highlightActiveBlock%",
+            "scope": "resource"
+          },
           "markdown.editor.quickSuggestions": {
             "type": "boolean",
             "default": false,
