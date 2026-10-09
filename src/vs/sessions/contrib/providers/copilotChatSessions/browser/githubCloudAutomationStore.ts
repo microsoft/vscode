@@ -374,7 +374,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 					if (!lifetime.aborted) {
 						this.uncertain.set(true, undefined);
 					}
-					throw new AutomationMutationUncertainError(error.message, { cause: error });
+					throw new AutomationMutationUncertainError(localize('cloudAutomations.mutationUncertain', "The automation request may have been accepted. Refresh automations before submitting again."), { cause: error });
 				}
 				throw error;
 			} finally {
