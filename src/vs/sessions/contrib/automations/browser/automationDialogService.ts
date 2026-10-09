@@ -357,12 +357,12 @@ export class AutomationDialogService implements IAutomationDialogService {
 				},
 				renderBody: container => {
 					container.classList.add('automation-dialog-body');
-					dialogElement = container.closest<HTMLElement>('.monaco-dialog-box') ?? undefined;
+					dialogElement = container.closest<HTMLElement>('.monaco-dialog-box')!;
 					const progressHost = DOM.append(container, $('.automation-dialog-progress'));
 					progressBar = disposables.add(new ProgressBar(progressHost, defaultProgressBarStyles));
 					progressBar.hide();
 
-					const titlebar = DOM.append(container, $('.automation-titlebar'));
+					const titlebar = DOM.append(dialogElement, $('.automation-titlebar'));
 					titlebar.setAttribute('aria-hidden', 'true');
 					titlebar.textContent = title;
 

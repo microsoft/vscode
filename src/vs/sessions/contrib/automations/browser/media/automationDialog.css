@@ -18,6 +18,7 @@
  * Same treatment for the unused dialog icon slot.
  */
 .monaco-dialog-box.automation-dialog .dialog-message-container > .dialog-message {
+	position: absolute;
 	margin: 0;
 	padding: 0;
 }
@@ -71,7 +72,7 @@
  * Float the close-X over the titlebar so the title text sits flush
  * with the top edge of the modal (QuickInput-style). Without this,
  * `.dialog-toolbar-row` reserves ~24px of dead space above the title.
- * `z-index` keeps the X above the sticky titlebar.
+ * `z-index` keeps the X above the titlebar.
  */
 .monaco-dialog-box.automation-dialog .dialog-toolbar-row {
 	position: absolute;
@@ -119,15 +120,15 @@
  * our titlebar can full-bleed. The form pane below re-adds horizontal
  * padding so the form fields don't crash into the dialog edge.
  *
- * Container still owns the scrolling (per base/.../dialog.css), so
- * the titlebar uses `position: sticky; top: 0` to stay visible as the
- * form scrolls underneath it.
+ * The message container scrolls below the titlebar, which is a sibling
+ * of the message row so the form cannot scroll behind it.
  */
 .monaco-dialog-box.automation-dialog .dialog-message-row {
 	padding: 0;
 }
 
-.monaco-dialog-box.automation-dialog .dialog-message-row .dialog-message-container {
+.monaco-dialog-box.automation-dialog .dialog-message-row .dialog-message-container,
+.monaco-workbench .monaco-dialog-box.automation-dialog:not(.align-vertical) .dialog-message-row .dialog-message-container {
 	padding: 0;
 	/*
 	 * The base dialog leaves the message container at content size
@@ -146,18 +147,14 @@
 	min-width: 0;
 }
 
-/* Keep the sticky titlebar solid so scrolled form content cannot show through. */
 .automation-titlebar {
-	position: sticky;
-	top: 0;
-	z-index: 1;
+	flex-shrink: 0;
 	/* Right padding reserves room for the floating close-X chip. */
 	padding: 8px 36px 8px 14px;
 	text-align: left;
 	font-weight: var(--vscode-fontWeight-semiBold);
 	font-size: var(--vscode-fontSize-heading2);
 	color: var(--vscode-editorWidget-foreground);
-	background-color: var(--modern-ui-solid-dialog-background, var(--vscode-editorWidget-background));
 }
 
 .automation-description {

@@ -230,6 +230,65 @@ suite('Automation dialog creation', () => {
 		};
 	}
 
+	test('keeps the title outside the scrolling form and uses Settings colors for Name', async () => {
+		const { container, nameInput, cancelButton, result } = openDialog();
+		const dialog = container.querySelector<HTMLElement>('.automation-dialog')!;
+		const titlebar = dialog.querySelector<HTMLElement>('.automation-titlebar')!;
+		const scroller = dialog.querySelector<HTMLElement>('.dialog-message-container')!;
+		const inputBox = nameInput.closest<HTMLElement>('.monaco-inputbox')!;
+		dialog.style.setProperty('--vscode-settings-textInputBackground', '#123456');
+		dialog.style.setProperty('--vscode-settings-textInputForeground', '#abcdef');
+		dialog.style.setProperty('--vscode-settings-textInputBorder', '#654321');
+		const inputStyle = DOM.getWindow(inputBox).getComputedStyle(inputBox);
+		assert.deepStrictEqual({
+			titleOutsideScroller: !scroller.contains(titlebar),
+			titleParent: titlebar.parentElement === dialog,
+			accessibleTitle: dialog.getAttribute('aria-labelledby')?.split(' ').map(id => dialog.querySelector(`#${id}`)?.textContent).join(' ').trim(),
+			background: inputStyle.backgroundColor,
+			foreground: inputStyle.color,
+			border: inputStyle.borderTopColor,
+			borderStyle: inputStyle.borderTopStyle,
+		}, {
+			titleOutsideScroller: true,
+			titleParent: true,
+			accessibleTitle: 'New automation',
+			background: 'rgb(18, 52, 86)',
+			foreground: 'rgb(171, 205, 239)',
+			border: 'rgb(101, 67, 33)',
+			borderStyle: 'solid',
+		});
+		cancelButton.click();
+		await result;
+	});
+
+	test('clips the scrolling form below the title in a short dialog', async () => {
+		const { container, cancelButton, result } = openDialog();
+		const dialog = container.querySelector<HTMLElement>('.automation-dialog')!;
+		const titlebar = dialog.querySelector<HTMLElement>('.automation-titlebar')!;
+		const scroller = dialog.querySelector<HTMLElement>('.dialog-message-container')!;
+		const form = dialog.querySelector<HTMLElement>('.automation-form')!;
+		dialog.style.maxHeight = '240px';
+		form.style.minHeight = '600px';
+		const titleBefore = titlebar.getBoundingClientRect();
+		scroller.scrollTop = scroller.scrollHeight;
+		const titleAfter = titlebar.getBoundingClientRect();
+		assert.deepStrictEqual({
+			scrolled: scroller.scrollTop > 0,
+			titleStationary: titleAfter.top === titleBefore.top,
+			clippedBelowTitle: scroller.getBoundingClientRect().top >= titleAfter.bottom,
+			scrollOverflow: DOM.getWindow(scroller).getComputedStyle(scroller).overflowY,
+			hiddenTitleOutOfFlow: DOM.getWindow(dialog).getComputedStyle(dialog.querySelector('.dialog-message')!).position,
+		}, {
+			scrolled: true,
+			titleStationary: true,
+			clippedBelowTitle: true,
+			scrollOverflow: 'auto',
+			hiddenTitleOutOfFlow: 'absolute',
+		});
+		cancelButton.click();
+		await result;
+	});
+
 	function toolCatalog(tools: readonly IAutomationTool[] = [{ id: 'read', label: 'Read Files' }, { id: 'edit', label: 'Edit Files' }]): AutomationToolCatalog {
 		return { kind: 'ready', groups: [{ id: 'files', label: 'Files', tools }] };
 	}
