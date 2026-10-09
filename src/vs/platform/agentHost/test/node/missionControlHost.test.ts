@@ -73,7 +73,7 @@ suite('Mission Control host integration', () => {
 		assert.strictEqual(getMissionControlEnvironmentName(product), `${hostname().replace(/\.local$/i, '')} (VS Code Insiders)`);
 	});
 
-	function createHost(instantiation = store.add(new TestInstantiationService()), stateManager?: AgentHostStateManager, providers?: IAgentHostProviderService) {
+	function createHost(instantiation = store.add(new TestInstantiationService()), stateManager?: AgentHostStateManager, providers?: IAgentHostProviderService, agentService?: IAgentService) {
 		const counts = { requests: 0, handlers: 0 };
 		const events: { eventName: string; data: ITelemetryData | undefined }[] = [];
 		instantiation.stub(INativeEnvironmentService, new class extends mock<INativeEnvironmentService>() {
@@ -95,7 +95,7 @@ suite('Mission Control host integration', () => {
 			override readonly onDidChange = Event.None;
 			override getApiBaseUri(): string { return 'https://api.github.com'; }
 		}());
-		instantiation.stub(IAgentService, new class extends mock<IAgentService>() { }());
+		instantiation.stub(IAgentService, agentService ?? new class extends mock<IAgentService>() { }());
 		instantiation.stub(IAgentHostStateManager, stateManager ?? new class extends mock<AgentHostStateManager>() { }());
 		instantiation.stub(ISessionDataService, new class extends mock<ISessionDataService>() { }());
 		instantiation.stub(IAgentHostProviderService, providers ?? new class extends mock<IAgentHostProviderService>() { }());
@@ -120,6 +120,27 @@ suite('Mission Control host integration', () => {
 		}));
 		return { host, counts, events };
 	}
+
+	test('registration counts registry identities without requesting session metadata', async () => {
+		const instantiation = store.add(new TestInstantiationService());
+		const creations = sinon.spy(instantiation, 'createInstance');
+		store.add(toDisposable(() => creations.restore()));
+		let countReads = 0;
+		const agentService = new class extends mock<IAgentService>() {
+			override async getSessionCount(): Promise<number> {
+				countReads++;
+				return 42;
+			}
+			override async listSessions(): Promise<never> {
+				throw new Error('Mission Control must not load provider metadata to count sessions');
+			}
+		}();
+		createHost(instantiation, undefined, undefined, agentService);
+		const creation = creations.getCalls().find(call => call.args[0] === MissionControlEnvironment);
+		assert.ok(creation);
+		const options = creation.args[1] as IMissionControlEnvironmentHost;
+		assert.deepStrictEqual({ count: await options.getSessionCount?.(), countReads }, { count: 42, countReads: 1 });
+	});
 
 	function createMirror() {
 		const instantiation = store.add(new TestInstantiationService());
