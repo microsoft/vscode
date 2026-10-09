@@ -15,7 +15,7 @@ import { buildTaskProgressHtml } from './buildTaskProgressHtml.mts';
 
 it('renders isolated progress widgets with live checkbox/source updates, localized accessible zero state, theme tokens and no guest requests', async () => {
 	const extensionDir = fileURLToPath(new URL('..', import.meta.url));
-	const html = await buildTaskProgressHtml(path.join(extensionDir, 'markdown-editor-src'));
+	const html = await buildTaskProgressHtml(path.join(extensionDir, 'markdown-editor-src', 'taskProgress'));
 	const source = '- [ ] Todo\n- [x] Done\n\n```widget:task-progress\n```\n\n```widget:task-progress\n```\n\n```text\nOrdinary code\n```\n';
 	const themes: Record<string, string> = {};
 	for (const name of ['dark', 'light']) {
@@ -32,12 +32,12 @@ it('renders isolated progress widgets with live checkbox/source updates, localiz
 			contents: `
 				import { EditorModel, EditorView, StringValue } from '@vscode/markdown-editor';
 				import { VirtualizedIframeEmbeddedEditorFactory } from '@vscode/markdown-editor/web-editors';
-				import { createTaskProgressProvider } from './markdown-editor-src/taskProgress';
+				import { createTaskProgressProvider } from './markdown-editor-src/taskProgress/taskProgressProvider';
 				import { codeBlockEditorTheme } from './markdown-editor-src/codeBlockEditorTheme';
 				const model = new EditorModel();
 				model.sourceText.set(new StringValue(${JSON.stringify(source)}), undefined);
 				model.presentation.set('reading', undefined);
-				const provider = createTaskProgressProvider(model, ${JSON.stringify(html)}, {
+				const provider = createTaskProgressProvider(model, {
 					title: 'Tâches', summary: '{0} tâches terminées sur {1}', language: 'fr',
 				});
 				let view: EditorView | undefined;
@@ -75,6 +75,12 @@ it('renders isolated progress widgets with live checkbox/source updates, localiz
 		format: 'iife',
 		platform: 'browser',
 		external: ['node:fs/promises'],
+		plugins: [{
+			name: 'task-progress-html',
+			setup(build) {
+				build.onLoad({ filter: /taskProgress\.html$/ }, () => ({ contents: html, loader: 'text' }));
+			},
+		}],
 	});
 	const editorCss = await readFile(fileURLToPath(import.meta.resolve('@vscode/markdown-editor/editor.css')), 'utf8');
 	const themeCss = await readFile(fileURLToPath(import.meta.resolve('@vscode/markdown-editor/themes/vscode-default.css')), 'utf8');

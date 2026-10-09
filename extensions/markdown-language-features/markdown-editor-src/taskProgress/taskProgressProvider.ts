@@ -7,26 +7,37 @@ import { ListItemAstNode, type AstNode, type EditorModel } from '@vscode/markdow
 import type { IframeEmbeddedEditorHostTransport, IframeEmbeddedEditorProvider } from '@vscode/markdown-editor/web-editors';
 import { autorun, derived, type IObservable } from '@vscode/observables';
 import type { TaskProgressMessage } from './taskProgressProtocol';
-import type { TaskProgressLabels } from '../src/preview/webviewInitialState';
+import type { TaskProgressLabels } from '../../src/preview/webviewInitialState';
+import taskProgressHtml from './taskProgress.html';
 
 interface TaskProgressCounts {
 	readonly checked: number;
 	readonly total: number;
 }
 
-export function createTaskProgressProvider(model: EditorModel, html: string, labels: TaskProgressLabels): IframeEmbeddedEditorProvider {
+export function createTaskProgressProvider(model: EditorModel, labels: TaskProgressLabels): IframeEmbeddedEditorProvider {
 	const counts = derived(reader => countTasks(model.document.read(reader)));
 	return {
 		id: 'vscode.markdown.taskProgress',
 		selector: { language: 'widget:task-progress' },
 		resolve: async () => ({
-			html,
+			html: taskProgressHtml,
 			runtimeKey: 'vscode.markdown.taskProgress',
 			hostTransport: true,
 			initialHeight: 88,
 		}),
 		createHostTransport: () => new TaskProgressHostTransport(counts, labels),
 	};
+}
+
+export function isTaskProgressLabels(value: unknown): value is TaskProgressLabels {
+	if (typeof value !== 'object' || value === null) {
+		return false;
+	}
+	const labels = value as Partial<TaskProgressLabels>;
+	return typeof labels.title === 'string'
+		&& typeof labels.summary === 'string'
+		&& typeof labels.language === 'string';
 }
 
 export function countTasks(document: AstNode): TaskProgressCounts {

@@ -4,15 +4,34 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'node:assert/strict';
+import { registerHooks } from 'node:module';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { EditorModel, ListItemAstNode, StringValue, type AstNode } from '@vscode/markdown-editor';
-import { countTasks, createTaskProgressProvider } from '../markdown-editor-src/taskProgress.ts';
-import { isTaskProgressMessage } from '../markdown-editor-src/taskProgressProtocol.ts';
+import { isTaskProgressMessage } from '../markdown-editor-src/taskProgress/taskProgressProtocol.ts';
 import { buildTaskProgressHtml } from './buildTaskProgressHtml.mts';
 
 const labels = { title: 'Task Progress', summary: '{0} of {1} tasks completed', language: 'en' };
 const fence = '```widget:task-progress\n```\n';
+const taskProgressDir = new URL('../markdown-editor-src/taskProgress/', import.meta.url);
+const html = await buildTaskProgressHtml(fileURLToPath(taskProgressDir));
+const { countTasks, createTaskProgressProvider, isTaskProgressLabels } = await loadTaskProgressProvider();
+
+async function loadTaskProgressProvider() {
+	const htmlUrl = new URL('taskProgress.html', taskProgressDir).href;
+	const hooks = registerHooks({
+		load(url, context, nextLoad) {
+			return url === htmlUrl
+				? { format: 'module', source: `export default ${JSON.stringify(html)};`, shortCircuit: true }
+				: nextLoad(url, context);
+		},
+	});
+	try {
+		return await import('../markdown-editor-src/taskProgress/taskProgressProvider.ts');
+	} finally {
+		hooks.deregister();
+	}
+}
 
 function setSource(model: EditorModel, source: string): void {
 	model.replaceSourceText(new StringValue(source));
@@ -59,7 +78,7 @@ describe('built-in task progress', () => {
 	});
 
 	it('uses an exact built-in selector and self-contained iframe descriptor', async () => {
-		const provider = createTaskProgressProvider(new EditorModel(), '<html></html>', labels);
+		const provider = createTaskProgressProvider(new EditorModel(), labels);
 		assert.deepEqual({
 			id: provider.id,
 			selector: provider.selector,
@@ -67,14 +86,14 @@ describe('built-in task progress', () => {
 		}, {
 			id: 'vscode.markdown.taskProgress',
 			selector: { language: 'widget:task-progress' },
-			descriptor: { html: '<html></html>', runtimeKey: 'vscode.markdown.taskProgress', hostTransport: true, initialHeight: 88 },
+			descriptor: { html, runtimeKey: 'vscode.markdown.taskProgress', hostTransport: true, initialHeight: 88 },
 		});
 	});
 
 	it('publishes the latest state after ready, reacts to checkbox and source edits, and never edits the fence', () => {
 		const model = new EditorModel();
 		setSource(model, `${fence}\n- [ ] Todo`);
-		const provider = createTaskProgressProvider(model, '', labels);
+		const provider = createTaskProgressProvider(model, labels);
 		const transport = provider.createHostTransport!('runtime');
 		const messages: unknown[] = [];
 		const subscription = transport.onMessage(message => messages.push(message));
@@ -103,7 +122,7 @@ describe('built-in task progress', () => {
 
 	it('isolates runtime listeners, supports zero tasks and localized labels, and releases subscriptions on disposal', () => {
 		const model = new EditorModel();
-		const provider = createTaskProgressProvider(model, '', { title: 'Tâches', summary: '{0} tâches terminées sur {1}', language: 'fr' });
+		const provider = createTaskProgressProvider(model, { title: 'Tâches', summary: '{0} tâches terminées sur {1}', language: 'fr' });
 		const first = provider.createHostTransport!('first');
 		const second = provider.createHostTransport!('second');
 		const firstMessages: unknown[] = [];
@@ -137,8 +156,14 @@ describe('built-in task progress', () => {
 		].map(isTaskProgressMessage), [true, false, false, false, false, false, false, false, false, false]);
 	});
 
-	it('bundles the guest as one HTML document without external scripts, styles or module imports', async () => {
-		const html = await buildTaskProgressHtml(fileURLToPath(new URL('../markdown-editor-src', import.meta.url)));
+	it('validates localized labels at the provider boundary', () => {
+		assert.deepEqual([
+			labels, null, undefined, {}, { ...labels, title: 1 },
+			{ ...labels, summary: null }, { ...labels, language: false },
+		].map(isTaskProgressLabels), [true, false, false, false, false, false, false]);
+	});
+
+	it('bundles the guest as one HTML document without external scripts, styles or module imports', () => {
 		assert.ok(html.includes('role="progressbar"'));
 		assert.ok(html.includes('default-src \'none\''));
 		assert.doesNotMatch(html, /<script[^>]*\bsrc=|<link\b|\bimport\s*\(/);

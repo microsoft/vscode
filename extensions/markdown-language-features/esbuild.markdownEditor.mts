@@ -38,10 +38,10 @@ run({
 		plugins: [{
 			name: 'task-progress-html',
 			setup(build) {
-				build.onLoad({ filter: /taskProgress\.html$/ }, async () => {
+				build.onLoad({ filter: /taskProgress\.html$/ }, async ({ path: htmlPath }) => {
 					const version = (await stat(taskProgressBuildModulePath)).mtimeMs;
 					const module = await import(`${taskProgressBuildModuleUrl.href}?version=${version}`) as typeof import('./scripts/buildTaskProgressHtml.mts');
-					const html = await module.buildTaskProgressHtml(srcDir);
+					const html = await module.buildTaskProgressHtml(path.dirname(htmlPath));
 					return { contents: `export default ${JSON.stringify(html)};`, loader: 'js' };
 				});
 			},

@@ -22,10 +22,9 @@ import { RenameController } from './renameController';
 import { CompletionController } from './completionController';
 import { DiagnosticsController } from './diagnosticsController';
 import { ImagePasteController } from './imagePasteController';
-import { createTaskProgressProvider } from './taskProgress';
+import { createTaskProgressProvider, isTaskProgressLabels } from './taskProgress/taskProgressProvider';
 import { codeBlockEditorTheme } from './codeBlockEditorTheme';
-import type { MarkdownEditorInitialState, TaskProgressLabels } from '../src/preview/webviewInitialState';
-import taskProgressHtml from './taskProgress.html';
+import type { MarkdownEditorInitialState } from '../src/preview/webviewInitialState';
 
 interface VsCodeApi {
 	postMessage(message: unknown): void;
@@ -149,7 +148,7 @@ class Editor extends Disposable {
 	constructor(host: HTMLElement, initialState: InitialState) {
 		super();
 		this.#scrollHost = host;
-		this.#taskProgressProvider = createTaskProgressProvider(this.model, taskProgressHtml, initialState.taskProgressLabels);
+		this.#taskProgressProvider = createTaskProgressProvider(this.model, initialState.taskProgressLabels);
 
 		const messageSecret = document.querySelector<HTMLMetaElement>('meta[name="vscode-markdown-editor-message-secret"]')?.content;
 		if (!messageSecret) {
@@ -697,13 +696,8 @@ function isInitialState(value: unknown): value is InitialState {
 		return false;
 	}
 	const candidate = value as Record<string, unknown>;
-	const labels = candidate.taskProgressLabels as Partial<TaskProgressLabels> | undefined;
 	return typeof candidate.content === 'string'
-		&& typeof labels === 'object'
-		&& labels !== null
-		&& typeof labels.title === 'string'
-		&& typeof labels.summary === 'string'
-		&& typeof labels.language === 'string'
+		&& isTaskProgressLabels(candidate.taskProgressLabels)
 		&& typeof candidate.documentVersion === 'number'
 		&& typeof candidate.editEpoch === 'number'
 		&& Number.isInteger(candidate.editEpoch)

@@ -7,9 +7,9 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import esbuild from 'esbuild';
 
-export async function buildTaskProgressHtml(srcDir: string): Promise<string> {
+export async function buildTaskProgressHtml(taskProgressDir: string): Promise<string> {
 	const guest = await esbuild.build({
-		entryPoints: [path.join(srcDir, 'taskProgressGuest.ts')],
+		entryPoints: [path.join(taskProgressDir, 'taskProgressGuest.ts')],
 		bundle: true,
 		write: false,
 		format: 'iife',
@@ -17,7 +17,7 @@ export async function buildTaskProgressHtml(srcDir: string): Promise<string> {
 		target: ['es2024'],
 		minify: true,
 	});
-	const template = await readFile(path.join(srcDir, 'taskProgress.html'), 'utf8');
+	const template = await readFile(path.join(taskProgressDir, 'taskProgress.html'), 'utf8');
 	return template.replace('<script src="./taskProgressGuest.ts"></script>',
 		() => `<script>${guest.outputFiles[0].text.replace(/<\/script/gi, '<\\/script')}</script>`);
 }
