@@ -640,7 +640,7 @@ export const DEFAULT_CHAT_CAPABILITIES: IChatCapabilities = { canRename: true, c
 
 export type SessionCanvasExtensionSource = 'user' | 'project' | 'session' | 'plugin' | 'unknown';
 
-/** A canvas type registered by an extension in one live session. */
+/** A canvas type registered by an extension in one live chat. */
 export interface ISessionCanvasDefinition {
 	readonly canvasId: string;
 	readonly extensionId: string;
@@ -648,6 +648,7 @@ export interface ISessionCanvasDefinition {
 	readonly extensionName?: string;
 	readonly displayName: string;
 	readonly description: string;
+	readonly requiresInput: boolean;
 }
 
 /**

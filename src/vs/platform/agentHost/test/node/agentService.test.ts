@@ -2793,7 +2793,7 @@ suite('AgentService (node dispatcher)', () => {
 			const calls: unknown[] = [];
 			const provider: IAgent = copilotAgent;
 			provider.listSessionCanvases = async (session, chat) => {
-				calls.push(['list', session.toString(), chat?.toString()]);
+				calls.push(['list', session.toString(), chat.toString()]);
 				return [{
 					canvasId: 'preview',
 					extensionId: 'project:preview',
@@ -2805,7 +2805,7 @@ suite('AgentService (node dispatcher)', () => {
 				}];
 			};
 			provider.openSessionCanvas = async (session, request, chat) => {
-				calls.push(['open', session.toString(), chat?.toString(), request]);
+				calls.push(['open', session.toString(), chat.toString(), request]);
 			};
 			registerTestAgentProvider(service, provider);
 			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService());

@@ -861,8 +861,8 @@ export interface IAgentHostManagementService {
 	refreshCopilotConnectorSessions(): Promise<void>;
 	/** Local-only bridge for provider-owned plugin uninstall transactions. */
 	uninstallPlugin(provider: AgentProvider, request: IAgentPluginUninstallRequest): Promise<void>;
-	listSessionCanvases(session: URI, chat?: URI): Promise<readonly IAgentCanvasInfo[]>;
-	openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest, chat?: URI): Promise<void>;
+	listSessionCanvases(session: URI, chat: URI): Promise<readonly IAgentCanvasInfo[]>;
+	openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest, chat: URI): Promise<void>;
 	/** Local-only bridge for provider-owned plugin install transactions. */
 	installPlugin(provider: AgentProvider, request: IAgentPluginInstallRequest): Promise<void>;
 	searchCustomizationMarketplace(provider: AgentProvider, session: URI, request: IAgentCustomizationMarketplaceSearchRequest): Promise<IAgentCustomizationMarketplaceSearchResult>;
@@ -924,8 +924,8 @@ export interface IAgentService {
 	reconcileDetachedWorktrees?(scope: string, activeHandles: readonly string[]): Promise<void>;
 	refreshCopilotConnectorSessions?(): Promise<void>;
 	uninstallPlugin?(provider: AgentProvider, request: IAgentPluginUninstallRequest): Promise<void>;
-	listSessionCanvases?(session: URI, chat?: URI): Promise<readonly IAgentCanvasInfo[]>;
-	openSessionCanvas?(session: URI, request: IAgentCanvasOpenRequest, chat?: URI): Promise<void>;
+	listSessionCanvases?(session: URI, chat: URI): Promise<readonly IAgentCanvasInfo[]>;
+	openSessionCanvas?(session: URI, request: IAgentCanvasOpenRequest, chat: URI): Promise<void>;
 	installPlugin?(provider: AgentProvider, request: IAgentPluginInstallRequest): Promise<void>;
 	searchCustomizationMarketplace?(provider: AgentProvider, session: URI, request: IAgentCustomizationMarketplaceSearchRequest): Promise<IAgentCustomizationMarketplaceSearchResult>;
 	listCustomizationInstallations?(provider: AgentProvider, session: URI): Promise<readonly IAgentCustomizationInstallation[]>;
@@ -1265,8 +1265,8 @@ export interface IAgentConnection {
 	setDetachedWorktreeArchived?(handle: string, archived: boolean): Promise<void>;
 	deleteDetachedWorktree?(handle: string): Promise<void>;
 	reconcileDetachedWorktrees?(scope: string, activeHandles: readonly string[]): Promise<void>;
-	listSessionCanvases?(session: URI, chat?: URI): Promise<readonly IAgentCanvasInfo[]>;
-	openSessionCanvas?(session: URI, request: IAgentCanvasOpenRequest, chat?: URI): Promise<void>;
+	listSessionCanvases?(session: URI, chat: URI): Promise<readonly IAgentCanvasInfo[]>;
+	openSessionCanvas?(session: URI, request: IAgentCanvasOpenRequest, chat: URI): Promise<void>;
 	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult>;
 	sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult>;
 	completions(params: CompletionsParams): Promise<CompletionsResult>;

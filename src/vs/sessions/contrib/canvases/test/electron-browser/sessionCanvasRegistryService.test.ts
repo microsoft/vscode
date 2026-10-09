@@ -88,6 +88,7 @@ suite('SessionCanvasRegistryService', () => {
 			extensionSource: 'user',
 			displayName: 'First',
 			description: 'First canvas.',
+			requiresInput: false,
 		};
 		const second: ISessionCanvasDefinition = {
 			canvasId: 'second',
@@ -95,6 +96,7 @@ suite('SessionCanvasRegistryService', () => {
 			extensionSource: 'project',
 			displayName: 'Second',
 			description: 'Second canvas.',
+			requiresInput: false,
 		};
 		const harness = createHarness([first]);
 		await harness.registryService.refreshAvailableCanvases();
@@ -143,6 +145,7 @@ suite('SessionCanvasRegistryService', () => {
 				extensionName: 'User Counter',
 				displayName: 'Counter',
 				description: 'A user counter.',
+				requiresInput: false,
 			},
 			{
 				canvasId: 'main',
@@ -151,6 +154,15 @@ suite('SessionCanvasRegistryService', () => {
 				extensionName: 'Project Counter',
 				displayName: 'Counter',
 				description: 'A project counter.',
+				requiresInput: false,
+			},
+			{
+				canvasId: 'form',
+				extensionId: 'project:form',
+				extensionSource: 'project',
+				displayName: 'Form',
+				description: 'Requires opening input.',
+				requiresInput: true,
 			},
 			{
 				canvasId: 'browser',
@@ -158,6 +170,7 @@ suite('SessionCanvasRegistryService', () => {
 				extensionSource: 'unknown',
 				displayName: 'Browser',
 				description: 'Built-in browser.',
+				requiresInput: false,
 			},
 		];
 		const harness = createHarness(definitions);
