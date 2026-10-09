@@ -95,7 +95,7 @@ import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { AGENT_MERGE_GITHUB_TOOL_RESTRICTION, getAgentMergeGitHubToolRestriction, isAgentMergeRestrictedMcpServer, isCopilotMcpToolName } from '../shared/agentMergeToolRestrictions.js';
 import { GITHUB_MCP_SERVER_NAME } from '../shared/githubMcpServer.js';
 import { AgentHostGitHubMcpServerEnabledSettingId } from '../../common/agentService.js';
-import { CopilotToolName, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getSdkImageGenerationMetadata, getToolIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, getToolSummaryInputContract, isAgentCoordinationTool, isCopilotSdkToolOutputFile, isEditTool, isHiddenTool, isShellHelperTool, isShellTool, isTaskCompleteTool, parseCopilotStreamingToolInput, synthesizeSkillToolCall, tryStringify } from './copilotToolDisplay.js';
+import { CopilotToolName, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getSdkImageGenerationMetadata, getToolIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, getToolSummaryInputContract, isAgentCoordinationTool, isEditTool, isHiddenTool, isShellHelperTool, isShellTool, isTaskCompleteTool, parseCopilotStreamingToolInput, synthesizeSkillToolCall, tryStringify } from './copilotToolDisplay.js';
 import { imageGenerationToolMetaKey } from '../../common/meta/agentImageGenerationMeta.js';
 import { FileEditTracker } from '../shared/fileEditTracker.js';
 import { ICopilotApiService, type IRestrictedTelemetryContext } from '../shared/copilotApiService.js';
@@ -516,16 +516,6 @@ function askUserAnswerToFieldValue(field: ElicitationSchemaField, answer: ChatIn
 
 function getCopilotCLISessionStateDir(userHome: string): string {
 	return join(getCopilotHomePath(userHome, process.env), SESSION_STATE_DIRECTORY);
-}
-
-function isCopilotSdkToolOutputTempFile(filePath: string, tmpDir: string): boolean {
-	const fileUri = normalizePath(URI.file(filePath));
-	const tmpDirUri = normalizePath(URI.file(tmpDir));
-	const parentUri = normalizePath(URI.joinPath(fileUri, '..'));
-	if (!extUriBiasedIgnorePathCase.isEqual(parentUri, tmpDirUri)) {
-		return false;
-	}
-	return isCopilotSdkToolOutputFile(filePath);
 }
 
 function getCopilotSdkToolOutputPath(data: SessionEventPayload<'tool.execution_complete'>['data']): string | undefined {

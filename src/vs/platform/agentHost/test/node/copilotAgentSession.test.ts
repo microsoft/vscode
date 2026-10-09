@@ -8965,41 +8965,49 @@ suite('CopilotAgentSession', () => {
 			}
 		});
 
-		test('auto-approves read of Copilot SDK large-tool-output temp files', async () => {
-			const { runtime, signals } = await createAgentSession(disposables);
+		test('auto-approves only SDK-reported spill files in their producing session', async () => {
+			const spillPath = join('/mock-tmp', 'sdk-output.txt');
+			const producer = await createAgentSession(disposables);
+			producer.mockSession.fire('tool.execution_complete', {
+				toolCallId: 'tc-tool-output',
+				success: true,
+				result: { content: `Output too large to read at once (64 KB). Saved to: ${spillPath}` },
+				largeOutputWrittenToFile: true,
+			} as SessionEventPayload<'tool.execution_complete'>['data']);
 
-			// Layout 1: <timestamp>-copilot-tool-output-<id>.txt
-			const result1 = await runtime.handlePermissionRequest({
+			const producedPathRead = await producer.runtime.handlePermissionRequest({
 				kind: 'read',
-				path: join('/mock-tmp', '1730000000000-copilot-tool-output-abc123.txt'),
-				toolCallId: 'tc-tool-output-1',
+				path: join('/mock-tmp', 'nested', '..', 'sdk-output.txt'),
+				toolCallId: 'tc-tool-output-read',
 			});
-			assert.strictEqual(result1.kind, 'approve-once');
 
-			// Layout 2: copilot-tool-output-<timestamp>-<id>.txt
-			const result2 = await runtime.handlePermissionRequest({
+			const otherSession = await createAgentSession(disposables);
+			const otherSessionRead = otherSession.runtime.handlePermissionRequest({
 				kind: 'read',
-				path: join('/mock-tmp', 'copilot-tool-output-1730000000000-abc123.txt'),
-				toolCallId: 'tc-tool-output-2',
+				path: spillPath,
+				toolCallId: 'tc-other-session-read',
 			});
-			assert.strictEqual(result2.kind, 'approve-once');
+			await otherSession.waitForSignal(s => s.kind === 'pending_confirmation');
+			assert.ok(otherSession.session.respondToPermissionRequest('tc-other-session-read', true));
 
-			// Layout 3: <timestamp>-copilot-tool-output-<process-id>-<uuid>.txt
-			const result3 = await runtime.handlePermissionRequest({
-				kind: 'read',
-				path: join('/mock-tmp', '1786499016779-copilot-tool-output-44600-1a0a63b8-4548-4fb8-a507-da72473e0556.txt'),
-				toolCallId: 'tc-tool-output-3',
+			assert.deepStrictEqual({
+				producedPathRead: producedPathRead.kind,
+				producerSignals: producer.signals.length,
+				otherSessionRead: (await otherSessionRead).kind,
+				otherSessionSignals: otherSession.signals.length,
+			}, {
+				producedPathRead: 'approve-once',
+				producerSignals: 0,
+				otherSessionRead: 'approve-once',
+				otherSessionSignals: 1,
 			});
-			assert.strictEqual(result3.kind, 'approve-once');
-
-			assert.strictEqual(signals.length, 0);
 		});
 
-		test('does not auto-approve tool-output-named files outside tmpdir', async () => {
+		test('does not auto-approve unregistered Copilot SDK tool-output temp files', async () => {
 			const { session, runtime, signals, waitForSignal } = await createAgentSession(disposables);
 			const resultPromise = runtime.handlePermissionRequest({
 				kind: 'read',
-				path: join('/some/other/dir', 'copilot-tool-output-1730000000000-abc123.txt'),
+				path: join('/mock-tmp', '1730000000000-copilot-tool-output-abc123.txt'),
 				toolCallId: 'tc-tool-output-outside',
 			});
 
