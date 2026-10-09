@@ -4,16 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RunOnceScheduler, Throttler } from '../../../../../base/common/async.js';
+import { equals } from '../../../../../base/common/arrays.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { observableValue } from '../../../../../base/common/observable.js';
+import { extUriBiasedIgnorePathCase, joinPath } from '../../../../../base/common/resources.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { AgentHostRemoteConnectionsBackend, AgentHostRemoteConnectionsSettingId, IMissionControlSharingService, isGitHubEnvironmentBackend } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { IPathService } from '../../../../../platform/path/common/pathService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
@@ -30,6 +36,7 @@ export class MissionControlSharingService extends Disposable implements IMission
 	private _generation = 0;
 	private _accountId: string | undefined;
 	private _accountSessionIds = new Set<string>();
+	private _projectFolders: readonly URI[] | undefined;
 	private readonly _updates = this._register(new Throttler());
 	private readonly _update = this._register(new RunOnceScheduler(() => {
 		void this._updates.queue(() => this._configure()).catch(error => {
@@ -48,6 +55,8 @@ export class MissionControlSharingService extends Disposable implements IMission
 		@ILogService private readonly _logService: ILogService,
 		@IStorageService private readonly _storage: IStorageService,
 		@INotificationService private readonly _notificationService: INotificationService,
+		@IPathService private readonly _pathService: IPathService,
+		@IFileService private readonly _fileService: IFileService,
 	) {
 		super();
 		if (!this._agentHost.configureMissionControl) {
@@ -117,6 +126,16 @@ export class MissionControlSharingService extends Disposable implements IMission
 		this._update.schedule();
 	}
 
+	setProjectFolders(folders: readonly URI[]): void {
+		const localFolders = [...new ResourceSet(folders.filter(folder => folder.scheme === Schemas.file), folder => extUriBiasedIgnorePathCase.getComparisonKey(folder))];
+		if (this._projectFolders && equals(this._projectFolders, localFolders, (a, b) => extUriBiasedIgnorePathCase.isEqual(a, b))) {
+			return;
+		}
+		this._projectFolders = localFolders;
+		this._generation++;
+		this._update.schedule();
+	}
+
 	async setEnabled(enabled: boolean): Promise<void> {
 		if (enabled && (!this._agentHost.configureMissionControl || !this._usesMissionControl() || this._entitlement.sentiment.hidden)) {
 			throw new Error(localize('missionControlSharing.unavailable', "GitHub environment sharing is unavailable."));
@@ -165,7 +184,6 @@ export class MissionControlSharingService extends Disposable implements IMission
 			this.state.set('connecting', undefined);
 		}
 		try {
-			const roots = this._workspace.getWorkspace().folders.filter(folder => folder.uri.scheme === Schemas.file).map(folder => folder.uri.fsPath);
 			const providerId = this._product.defaultChatAgent?.provider?.default?.id ?? 'github';
 			const scopes = this._getScopes();
 			let sessions = await this._authentication.getSessions(providerId, [...scopes], undefined, true);
@@ -177,6 +195,27 @@ export class MissionControlSharingService extends Disposable implements IMission
 			}
 			if (new Set(sessions.map(session => session.account.id)).size !== 1) {
 				throw new Error(localize('missionControlSharing.accountRequired', "Mission Control requires exactly one local GitHub account with Copilot scopes."));
+			}
+			const home = this._pathService.userHome({ preferLocal: true });
+			const defaultDirectory = joinPath(home, '.copilot');
+			await this._fileService.createFolder(defaultDirectory);
+			const folders = this._projectFolders ?? this._workspace.getWorkspace().folders.map(folder => folder.uri);
+			const projects = (await Promise.all(folders.filter(folder => folder.scheme === Schemas.file).map(async folder => {
+				try {
+					if ((await this._fileService.stat(folder)).isDirectory) {
+						return folder.fsPath;
+					}
+					this._logService.warn('[Mission Control] Ignoring a recent project path that is not a directory', folder.toString());
+				} catch (error) {
+					if (!(error instanceof Error) || toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
+						throw error;
+					}
+					this._logService.warn('[Mission Control] Ignoring a missing recent project directory', folder.toString());
+				}
+				return undefined;
+			}))).filter(project => project !== undefined);
+			if (generation !== this._generation || this._store.isDisposed) {
+				return;
 			}
 			this._agentHost.startAgentHost();
 			if (generation !== this._generation) {
@@ -193,7 +232,9 @@ export class MissionControlSharingService extends Disposable implements IMission
 				baseUrl: 'https://api.github.com',
 				accountId: sessions[0].account.id,
 				credential: sessions[0].accessToken,
-				roots,
+				roots: [...new Set([home.fsPath, ...projects])],
+				projects,
+				defaultDirectory: defaultDirectory.fsPath,
 				live: true,
 				...(useLocalCredentials ? { useLocalCredentials: true } : {}),
 			});

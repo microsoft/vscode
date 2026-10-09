@@ -8,7 +8,8 @@ import { restore, stub } from 'sinon';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { mock } from '../../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
+import { joinPath } from '../../../../../../base/common/resources.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentHostService, IMissionControlOptions } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -17,6 +18,8 @@ import { IConfigurationChangeEvent, IConfigurationService, IConfigurationValue }
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../../platform/configuration/common/configurationRegistry.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { FileOperationError, FileOperationResult, IFileService, IFileStatWithMetadata, IFileStatWithPartialMetadata } from '../../../../../../platform/files/common/files.js';
+import { IPathService } from '../../../../../../platform/path/common/pathService.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
@@ -44,11 +47,15 @@ const removedSettings = {
 };
 const session: AuthenticationSession = { id: 'session', account: { id: 'account', label: 'Account' }, scopes: ['read:user', 'user:email', 'repo', 'workflow'], accessToken: 'test-token' };
 const workspaceRoot = URI.file('/mission-control-workspace');
+const home = URI.file('/mission-control-home');
+const defaultDirectory = joinPath(home, '.copilot');
 const expectedOptions: IMissionControlOptions = {
 	baseUrl: 'https://api.github.com',
 	accountId: 'account',
 	credential: 'test-token',
-	roots: [workspaceRoot.fsPath],
+	roots: [home.fsPath, workspaceRoot.fsPath],
+	projects: [workspaceRoot.fsPath],
+	defaultDirectory: defaultDirectory.fsPath,
 	live: true,
 };
 
@@ -63,6 +70,8 @@ suite('Mission Control sharing service', () => {
 		getSessions?: () => Promise<readonly AuthenticationSession[]>;
 		configure?: (options: IMissionControlOptions | undefined) => Promise<void>;
 		localCredentialConfig?: IConfigurationValue<boolean>;
+		stat?: IFileService['stat'];
+		createFolder?: IFileService['createFolder'];
 	} = {}) {
 		const instantiation = store.add(new TestInstantiationService());
 		const configuration = new TestConfigurationService({ [AgentHostRemoteConnectionsSettingId]: options.backend ?? 'githubEnvironment', ...removedSettings });
@@ -105,9 +114,26 @@ suite('Mission Control sharing service', () => {
 		instantiation.stub(ILogService, store.add(new NullLogService()));
 		instantiation.stub(IStorageService, storage);
 		instantiation.stub(INotificationService, new TestNotificationService());
+		instantiation.stub(IPathService, new class extends mock<IPathService>() {
+			override userHome(options: { preferLocal: true }): URI;
+			override userHome(options?: { preferLocal: boolean }): Promise<URI>;
+			override userHome(options?: { preferLocal: boolean }): URI | Promise<URI> {
+				return options?.preferLocal ? home : Promise.resolve(home);
+			}
+		}());
+		const createdFolders: URI[] = [];
+		instantiation.stub(IFileService, new class extends mock<IFileService>() {
+			override async stat(resource: URI): Promise<IFileStatWithPartialMetadata> {
+				return options.stat ? options.stat(resource) : upcastPartial<IFileStatWithPartialMetadata>({ resource, isDirectory: true });
+			}
+			override async createFolder(resource: URI): Promise<IFileStatWithMetadata> {
+				createdFolders.push(resource);
+				return options.createFolder ? options.createFolder(resource) : upcastPartial<IFileStatWithMetadata>({ resource, isDirectory: true });
+			}
+		}());
 		const sharing = store.add(instantiation.createInstance(MissionControlSharingService));
 		return {
-			calls, configuration, storage, sharing, hostStarted, sessionsChanged, starts: () => starts,
+			calls, configuration, storage, sharing, hostStarted, sessionsChanged, createdFolders, starts: () => starts,
 			disableAI: () => { hidden = true; sentimentChanged.fire(); },
 		};
 	}
@@ -197,7 +223,52 @@ suite('Mission Control sharing service', () => {
 		const { calls, sharing } = fixture({ emptyWindow: true });
 		await sharing.setEnabled(true);
 		await timeout(0);
-		assert.deepStrictEqual(calls, [{ options: { ...expectedOptions, roots: [] }, withdrawingAccountId: undefined }]);
+		assert.deepStrictEqual(calls, [{ options: { ...expectedOptions, roots: [home.fsPath], projects: [] }, withdrawingAccountId: undefined }]);
+	}));
+
+	test('shares home independently of a changing local recent-folder catalogue', () => runWithFakedTimers({}, async () => {
+		const { sharing, calls, createdFolders } = fixture();
+		const outsideHome = URI.file('/another-drive/repository');
+		sharing.setProjectFolders([outsideHome, URI.parse('vscode-remote://ssh-remote+host/project'), outsideHome]);
+		await sharing.setEnabled(true);
+		await timeout(0);
+		sharing.setProjectFolders([joinPath(home, 'code', 'repository')]);
+		await timeout(0);
+		sharing.setProjectFolders([]);
+		await timeout(0);
+		sharing.setProjectFolders([]);
+		await timeout(0);
+		assert.deepStrictEqual({
+			options: calls.map(call => call.options),
+			createdFolders: createdFolders.map(folder => folder.path),
+		}, {
+			options: [
+				{ ...expectedOptions, roots: [home.fsPath, outsideHome.fsPath], projects: [outsideHome.fsPath] },
+				{ ...expectedOptions, roots: [home.fsPath, joinPath(home, 'code', 'repository').fsPath], projects: [joinPath(home, 'code', 'repository').fsPath] },
+				{ ...expectedOptions, roots: [home.fsPath], projects: [] },
+			],
+			createdFolders: [defaultDirectory.path, defaultDirectory.path, defaultDirectory.path],
+		});
+	}));
+
+	test('omits missing recent folders and non-directories from grants and the catalogue', () => runWithFakedTimers({}, async () => {
+		const { sharing, calls } = fixture({
+			stat: async resource => {
+				if (resource.path === '/missing') {
+					throw new FileOperationError('Missing directory', FileOperationResult.FILE_NOT_FOUND);
+				}
+				return upcastPartial<IFileStatWithPartialMetadata>({ resource, isDirectory: resource.path !== '/file' });
+			},
+		});
+		sharing.setProjectFolders([URI.file('/missing'), URI.file('/file'), workspaceRoot]);
+		await sharing.setEnabled(true);
+		assert.deepStrictEqual(calls, [{ options: expectedOptions, withdrawingAccountId: undefined }]);
+	}));
+
+	test('fails explicitly when the default directory cannot be created', () => runWithFakedTimers({}, async () => {
+		const { sharing, calls } = fixture({ createFolder: async () => { throw new Error('Cannot create default directory'); } });
+		await assert.rejects(sharing.setEnabled(true), /Cannot create default directory/);
+		assert.deepStrictEqual({ state: sharing.state.get(), calls }, { state: 'disabled', calls: [] });
 	}));
 
 	test('does not reconfigure when removed settings change', () => runWithFakedTimers({}, async () => {

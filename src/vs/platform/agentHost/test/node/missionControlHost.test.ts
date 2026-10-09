@@ -219,7 +219,7 @@ suite('Mission Control host integration', () => {
 		assert.ok(environmentCreation);
 		const options = environmentCreation.args[1] as IMissionControlEnvironmentHost;
 		const relay = new class extends mock<MissionControlProtocolServer>() { }();
-		store.add(options.attach(relay, [], () => []));
+		store.add(options.attach(relay, [], () => [], () => []));
 		const handlerCreation = creations.getCalls().find(call => call.args[0] === ProtocolServerHandler);
 		assert.ok(handlerCreation);
 		const config = handlerCreation.args[4] as IProtocolServerConfig;
@@ -229,6 +229,37 @@ suite('Mission Control host integration', () => {
 			modelProviders: config.advertisedModelProviders,
 			sessionConfig: config.copilotSessionConfig,
 		}, { hostManagement: false, diagnosticLogs: undefined, modelProviders: ['copilotcli'], sessionConfig: true });
+	});
+
+	test('keeps the browsing default and recent project catalogue separate from filesystem grants', () => {
+		const instantiation = store.add(new TestInstantiationService());
+		const creations = sinon.spy(instantiation, 'createInstance');
+		store.add(toDisposable(() => creations.restore()));
+		instantiation.stubInstance(ProtocolServerHandler, new class extends mock<ProtocolServerHandler>() { override dispose(): void { } }());
+		const state = new class extends mock<AgentHostStateManager>() {
+			override getOverlaySessionSummaries() { return []; }
+		}();
+		createHost(instantiation, state);
+		const environment = creations.getCalls().find(call => call.args[0] === MissionControlEnvironment)!.args[1] as IMissionControlEnvironmentHost;
+		const projectOptions = creations.getCalls().find(call => call.args[0] === MissionControlProjects)!.args[1] as ConstructorParameters<typeof MissionControlProjects>[0];
+		const home = '/home/test';
+		let projects = ['/home/test/code/project'];
+		const relay = new class extends mock<MissionControlProtocolServer>() { override readonly rootMeta = {}; }();
+		store.add(environment.attach(relay, [home], () => [home], () => projects, `${home}/.copilot`));
+		const config = creations.getCalls().find(call => call.args[0] === ProtocolServerHandler)!.args[4] as IProtocolServerConfig;
+		const initialProjects = projectOptions.getProjectRoots!();
+		projects = ['/another-drive/project'];
+		assert.deepStrictEqual({
+			defaultDirectory: config.defaultDirectory,
+			grants: config.relayResourceRoots!(false),
+			initialProjects,
+			updatedProjects: projectOptions.getProjectRoots!(),
+			catalogueGrants: projectOptions.getRoots(),
+		}, {
+			defaultDirectory: URI.file(`${home}/.copilot`).toString(),
+			grants: [home], initialProjects: ['/home/test/code/project'],
+			updatedProjects: ['/another-drive/project'], catalogueGrants: [home],
+		});
 	});
 
 	test('creates lane-owned Mission Control JSONL loggers in the host log directory', () => {
@@ -335,7 +366,7 @@ suite('Mission Control host integration', () => {
 		const enabled = sinon.stub(host.environment, 'isEnabled').get(() => true);
 		store.add(toDisposable(() => enabled.restore()));
 		const environment = creations.getCalls().find(call => call.args[0] === MissionControlEnvironment)!.args[1] as IMissionControlEnvironmentHost;
-		store.add(environment.attach(new class extends mock<MissionControlProtocolServer>() { override readonly rootMeta = {}; }(), [], () => []));
+		store.add(environment.attach(new class extends mock<MissionControlProtocolServer>() { override readonly rootMeta = {}; }(), [], () => [], () => []));
 		const config = creations.getCalls().find(call => call.args[0] === ProtocolServerHandler)!.args[4] as IProtocolServerConfig;
 		const result = await config.copilotSessionRequest!('extensions/getPlan', { channel: session.toString() });
 		await config.copilotSessionRequest!('extensions/setSessionApproveAll', { channel: session.toString(), enabled: true });
