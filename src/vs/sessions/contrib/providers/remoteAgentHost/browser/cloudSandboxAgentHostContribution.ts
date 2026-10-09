@@ -191,7 +191,7 @@ export class CloudSandboxAgentHostContribution extends CloudSandboxSessionContri
 		let connectionAttempt: Promise<string> | undefined;
 		try {
 			const now = Date.now();
-			this._ensureProvider({ ...created, name, repoName: request.repoNwo, updatedAt: new Date(now).toISOString() });
+			this._ensureProvider({ ...created, name, repoName: request.repoNwo, hasRepository: request.repoNwo !== undefined, updatedAt: new Date(now).toISOString() });
 			const provider = this._providerInstances.get(address);
 			if (!provider) {
 				throw new Error(`No sessions provider was registered for sandbox environment ${created.environmentId}`);

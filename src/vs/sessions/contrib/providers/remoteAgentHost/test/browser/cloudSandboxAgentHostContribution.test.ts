@@ -64,6 +64,7 @@ import { CloudSandboxSessionsProvider } from '../../browser/cloudSandboxSessions
 
 class StubProvider extends mock<CloudSandboxSessionsProvider>() {
 	readonly seeded: IAgentSessionMetadata[] = [];
+	readonly workspaceless = new Map<string, boolean>();
 	/** Raw ids seeded as provisional, mirroring the real provider's listing gate. */
 	readonly withheld = new Set<string>();
 	/** Every connection status pushed onto this provider, in order. */
@@ -108,8 +109,11 @@ class StubProvider extends mock<CloudSandboxSessionsProvider>() {
 	}
 
 	/** Records opt-in metadata updates; host-state merging is covered by the real provider's tests. */
-	override seedSessions(metas: readonly IAgentSessionMetadata[], options?: { readonly updateExisting?: boolean }): void {
+	override seedSessions(metas: readonly IAgentSessionMetadata[], options?: { readonly updateExisting?: boolean; readonly workspaceless?: boolean }): void {
 		for (const meta of metas) {
+			if (options?.workspaceless !== undefined) {
+				this.workspaceless.set(meta.session.toString(), options.workspaceless);
+			}
 			const index = this.seeded.findIndex(seen => seen.session.toString() === meta.session.toString());
 			if (index === -1) {
 				this.seeded.push(meta);
@@ -494,6 +498,28 @@ function discoveredSession(overrides?: Partial<ICloudSandboxDiscoveredSession>):
 suite('CloudSandboxAgentHostContribution', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const hasRepository of [true, false, undefined]) {
+		test(`preserves repository classification through offline inventory restoration: ${hasRepository}`, async () => {
+			const storageService = store.add(new InMemoryStorageService());
+			const session = discoveredSession({ hasRepository, repoName: undefined });
+			const resource = AgentSession.uri('ahp-session', session.sessionId).toString();
+			const address = cloudSandboxAddress(session.environmentId);
+			const first = await createContribution(store, [session], { storageService });
+			const beforeReload = first.contribution.stubProviders.get(address)?.workspaceless.get(resource);
+			first.contribution.dispose();
+			const restored = await createContribution(store, [], {
+				storageService, listSessions: async () => ({ kind: 'failed', reason: 'offline' }),
+			});
+
+			const expected = hasRepository === undefined ? undefined : !hasRepository;
+			assert.deepStrictEqual({
+				beforeReload,
+				afterReload: restored.contribution.stubProviders.get(address)?.workspaceless.get(resource),
+				connected: [...first.connectedTo, ...restored.connectedTo],
+			}, { beforeReload: expected, afterReload: expected, connected: [] });
+		});
+	}
 
 	test('archives the owning task without connecting and persists the flag for offline restoration', async () => {
 		const storage = store.add(new InMemoryStorageService());
