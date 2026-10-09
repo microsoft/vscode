@@ -20,6 +20,8 @@ Registration is opt-in and default-off. The activation path is available to buil
 
 Registration uses `https://api.github.com`. An empty window can register the host without advertising a home-directory default. Disable **Allow Remote Connections** to withdraw remote access. The sharing choice is remembered locally across restarts, not synchronized to other machines. Changing the backend turns sharing off until explicitly enabled again. Withdrawal disconnects relay ingress immediately; it does not delete native sessions, conversations or checkouts.
 
+Registration and heartbeat `capabilities.current_sessions` count durable session-registry identities, independently of sidebar filters and provider availability. Counting does not load provider metadata or session transcripts. Metadata reads have a 60-second budget; a failed or timed-out device remote-control policy read prevents registration.
+
 ### Local integration testing
 
 Backend tests supply `IMissionControlOptions` directly to `MissionControlEnvironment.configure`, with a loopback HTTP `baseUrl` and `live` omitted or false. Test credentials and injected HTTP/relay implementations keep registration and authentication tests independent of the real service.

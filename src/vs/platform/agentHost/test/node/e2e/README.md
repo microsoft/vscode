@@ -294,7 +294,7 @@ with the marker when the upstream fix is adopted.
 
 The native inherited-identity redaction scenario runs this way by default.
 Its expected-failure marker remains accountable in `KNOWN_ISSUES.md`; the
-managed-telemetry no-restart scenario passes normally with runtime `1.0.94-3`.
+managed-telemetry no-restart scenario passes normally with runtime `1.0.94-5`.
 Do not replace an expected-failure marker with a permanent negative assertion.
 
 If a recognized failure prevents later model turns, pass
@@ -435,6 +435,8 @@ The update scope is the tests selected by the command. Running a whole provider 
 The body is pretty-printed rather than reproduced byte-for-byte — the CLI minifies it onto one line — and no field is dropped, so a parameter the CLI starts sending appears in the next baseline diff on its own. Indenting only reaches the structure: JSON escapes the newlines inside string values, so the system prompt and the longer tool descriptions each stay on one line. A reworded sentence inside one of them therefore shows up as that entire line rewritten, not as a line-level diff.
 
 It keeps as much real prompt text as possible. What is elided is the session id, the clock, the environment probe (OS name, tools found on `PATH`), the platform-specific package-manager hint in the Bash tool, the injected repository instructions, and the model catalog — each keeping its surrounding label or wrapper, so a change to the *shape* of those lines still fails. Request metadata outside the body is deliberately out of scope.
+
+The suite pins `gh` discovery with a temporary executable probe on its test-owned `PATH`, so the runtime's GitHub CLI guidance remains asserted independently of worker-installed tools. The probe fails explicitly if invoked: these snapshots test model guidance, not GitHub CLI execution. It is removed after the suite, and no production environment or prompt normalization changes.
 
 Pinning a new model is opt-in. Nothing here is derived from the live `/models` catalog, so a newly released model does not appear until a maintainer adds it to `capiStubs.ts` — and adding it there alone does not fail the suite, because the CLI's inlined model listing is elided. A model is only pinned once someone also adds it to `SNAPSHOT_MODELS` and commits its fixture and baseline.
 
@@ -657,6 +659,10 @@ Same as above — it's platform-specific real execution, not the proxy. See the 
 Codex's native plugin marketplace starts a background Git fetch of `openai/plugins` outside the replay proxy. If shutdown interrupts that work, Windows can keep a `.codex/.tmp/plugins-clone-*` directory locked: synchronous removal reports `EPERM`, while asynchronous removal identifies the clone directory with `EBUSY`. This caused the intermittent suite-cleanup failure tracked in [#339760](https://github.com/microsoft/vscode/issues/339760).
 
 Codex record/replay servers disable `features.plugins` to keep this unrelated marketplace bootstrap out of the tests. Client-provided plugin skills, agents, and MCP servers are configured by the host independently and remain covered by the same tests. Keep cleanup strict and retain its underlying filesystem errors so other teardown failures remain diagnosable.
+
+### Linux suites pass but tmpfs cannot be unmounted
+
+An `umount: target is busy` failure means a process or kernel reference still holds the mount; passing test bodies do not prove that cleanup finished. The wrapper runs a read-only `fuser -vm` probe for at most ten seconds to report holder PIDs, command names, and access types in the task log. Probe errors are reported separately, and the original cleanup failure remains fatal. Correlate the holders with server/provider cleanup logs before changing ownership; do not use lazy unmounts, process-name kills, or retries to conceal a leak.
 
 ### Fixture leaks a username / absolute path / token
 
