@@ -243,7 +243,7 @@ function contributeEligibleForAutoApprovalRestriction(value: Record<string, bool
 
 /** Compatibility mappings for legacy settings only; new controls belong directly in the SDK. */
 const managedPermissionsSettings: readonly IManagedPermissionsSettingMapping[] = [
-	managedPermissionsPolicy<boolean>(GLOBAL_AUTO_APPROVE_SETTING_ID, value => value === false ? { disableBypassPermissionsMode: 'disable' } : undefined),
+	// The Copilot host applies the legacy global restriction only without an explicit new mode restriction.
 	// No SDK tool-name family exists, so a policy that marks any tool ineligible
 	// falls back to the bypass lock (see the transform).
 	managedPermissionsPolicy<Record<string, boolean>>(ELIGIBLE_FOR_AUTO_APPROVAL_SETTING_ID, contributeEligibleForAutoApprovalRestriction),
@@ -259,6 +259,7 @@ const managedPermissionsSettings: readonly IManagedPermissionsSettingMapping[] =
 ];
 
 export const managedPermissionsConfigurationIds = [
+	GLOBAL_AUTO_APPROVE_SETTING_ID,
 	...managedPermissionsSettings.flatMap(mapping => [mapping.settingId, ...mapping.additionalSettingIds ?? []]),
 ];
 

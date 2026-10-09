@@ -30,6 +30,8 @@ import { MockChatWidgetService } from '../../../widget/mockChatWidget.js';
 import { IChatWidget } from '../../../../../browser/chat.js';
 import { TestConfigurationService } from '../../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { upcastPartial } from '../../../../../../../../base/test/common/mock.js';
+import { IAgentHostConnectionsService } from '../../../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { IAgentHostUntitledProvisionalSessionService } from '../../../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 
 class TestChatSessionsService extends MockChatSessionsService {
 	constructor(private readonly insertText = '#roadmap.md') {
@@ -217,6 +219,8 @@ suite('AgentHostInputCompletions #chat references', () => {
 			new MockChatWidgetService(),
 			new TestChatSessionsService(),
 			new TestConfigurationService(),
+			upcastPartial<IAgentHostConnectionsService>({ resolveSessionResource: () => undefined }),
+			upcastPartial<IAgentHostUntitledProvisionalSessionService>({ get: () => undefined }),
 		));
 		const widget = upcastPartial<IChatWidget>({});
 		// The completion carries the opaque backend chat URI, stored verbatim on
@@ -260,6 +264,8 @@ suite('AgentHostInputCompletions plain text', () => {
 			new MockChatWidgetService(),
 			new TestChatSessionsService(),
 			new TestConfigurationService(),
+			upcastPartial<IAgentHostConnectionsService>({ resolveSessionResource: () => undefined }),
+			upcastPartial<IAgentHostUntitledProvisionalSessionService>({ get: () => undefined }),
 		));
 
 		const built = completions.buildItem(new Position(1, 13), {
@@ -287,6 +293,8 @@ suite('AgentHostInputCompletions plain text', () => {
 			new MockChatWidgetService(),
 			new TestChatSessionsService(),
 			new TestConfigurationService(),
+			upcastPartial<IAgentHostConnectionsService>({ resolveSessionResource: () => undefined }),
+			upcastPartial<IAgentHostUntitledProvisionalSessionService>({ get: () => undefined }),
 		));
 		const results = ['/review', '/review '].map(label => {
 			const built = completions.buildItem(new Position(1, 2), {
@@ -313,6 +321,8 @@ suite('AgentHostInputCompletions plain text', () => {
 			new MockChatWidgetService(),
 			new TestChatSessionsService(),
 			new TestConfigurationService(),
+			upcastPartial<IAgentHostConnectionsService>({ resolveSessionResource: () => undefined }),
+			upcastPartial<IAgentHostUntitledProvisionalSessionService>({ get: () => undefined }),
 		));
 		const results = ['/', '/rev'].map(text => {
 			const position = new Position(1, text.length + 1);
@@ -364,6 +374,8 @@ suite('AgentHostInputCompletions skills', () => {
 			new MockChatWidgetService(),
 			new TestChatSessionsService(),
 			new TestConfigurationService(),
+			upcastPartial<IAgentHostConnectionsService>({ resolveSessionResource: () => undefined }),
+			upcastPartial<IAgentHostUntitledProvisionalSessionService>({ get: () => undefined }),
 		));
 		const built = completions.buildItem(new Position(1, 8), {
 			insertText: '/daily-hiring-summary ',
@@ -399,6 +411,8 @@ suite('AgentHostInputCompletions follow-up suggestions', () => {
 			new MockChatWidgetService(),
 			new TestChatSessionsService(),
 			new TestConfigurationService(),
+			upcastPartial<IAgentHostConnectionsService>({ resolveSessionResource: () => undefined }),
+			upcastPartial<IAgentHostUntitledProvisionalSessionService>({ get: () => undefined }),
 		));
 
 		const built = completions.buildItem(new Position(1, 12), {
@@ -429,6 +443,8 @@ suite('AgentHostInputCompletions follow-up suggestions', () => {
 			new MockChatWidgetService(),
 			new TestChatSessionsService(),
 			new TestConfigurationService(),
+			upcastPartial<IAgentHostConnectionsService>({ resolveSessionResource: () => undefined }),
+			upcastPartial<IAgentHostUntitledProvisionalSessionService>({ get: () => undefined }),
 		));
 
 		const built = completions.buildItem(new Position(1, 14), {

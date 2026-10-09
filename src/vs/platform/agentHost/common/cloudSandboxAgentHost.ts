@@ -336,6 +336,14 @@ export class CloudSandboxAuthenticationRequiredError extends Error {
 	}
 }
 
+/** A connection request failed without receiving an HTTP response. */
+export class CloudSandboxNetworkError extends Error {
+	constructor(message: string, options?: ErrorOptions) {
+		super(message, options);
+		this.name = 'CloudSandboxNetworkError';
+	}
+}
+
 /**
  * A Mission Control request that came back with a non-success status. Carries the {@link statusCode}
  * so callers can tell a failure that may clear on its own from one that never will.
@@ -356,8 +364,9 @@ export class CloudSandboxRequestError extends Error {
  *
  * This gates credential refresh for *live* connections, where a transient fault must not tear down
  * a working session — hence 5xx staying retryable. Opening a new connection deliberately does not
- * use it: there, any answer is final. {@link CloudSandboxAuthenticationRequiredError} is retryable
- * because it is raised before any request goes out, so callers need their own ceiling.
+ * use it: only {@link CloudSandboxNetworkError} is retried there, and HTTP answers remain final.
+ * {@link CloudSandboxAuthenticationRequiredError} is retryable here because it is raised before
+ * any request goes out, so callers need their own ceiling.
  */
 export function isRetryableCloudSandboxError(error: unknown): boolean {
 	if (!(error instanceof CloudSandboxRequestError) || error.statusCode === undefined) {

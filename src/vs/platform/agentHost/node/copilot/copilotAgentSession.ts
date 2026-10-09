@@ -59,6 +59,7 @@ import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { getToolCallDurationMs, toToolCallMeta, type IToolCallMeta, type IToolCallUiMeta, type IToolSearchCandidate } from '../../common/meta/agentToolCallMeta.js';
 import { OtelData, type OtelAttributeValue } from '../../common/otlp/otlpLogEmitter.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
+import { CopilotSessionApprovalPolicy, fromCopilotPermissionMode } from './copilotApprovalPolicy.js';
 import { isShellInitScriptList, type IShellInitScript } from '../../common/shellInitScript.js';
 import { getVSCodeSandboxReadRoots } from '../../common/vscodeSandboxPaths.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
@@ -71,7 +72,7 @@ import { ISessionDatabase, ISessionDataService, MAX_TERMINAL_OUTPUT_BYTES } from
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { BackgroundWorkKind, MessageAttachmentKind, ToolCallContributorKind, type BackgroundWork, type FileEdit, type MessageAttachment, type ToolCallContributor } from '../../common/state/protocol/state.js';
 import { ActionType, isChatAction, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
-import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolResultContentType, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, isSubagentSession, parseRequiredSessionUriFromChatUri, type CanvasState, type Customization, type Message, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type ToolResultTerminalContent, type Turn, type ITurnTokenTotal, type UsageInfo, type IContextAttributionData, type ISessionPromptCacheState } from '../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolResultContentType, buildSubagentChatUri, buildSubagentSessionUri, createErrorResponsePart, isDefaultChatUri, isSubagentSession, parseRequiredSessionUriFromChatUri, type CanvasState, type Customization, type Message, type PendingMessage, type ChatInputAnswer, type ChatInputOption, type ChatInputQuestion, type ChatInputRequest, type ToolCallResult, type ToolResultContent, type ToolResultTerminalContent, type Turn, type ITurnTokenTotal, type UsageInfo, type IContextAttributionData, type ISessionPromptCacheState } from '../../common/state/sessionState.js';
 import { buildCanvasUri } from '../../common/canvasUri.js';
 import { IAgentConfigurationService, type IAgentSessionConfigurationChangeEvent } from '../agentConfigurationService.js';
 import { CopilotSessionWrapper, type ICopilotByokSessionConfig, type ICopilotModelCallFinishedEvent } from './copilotSessionWrapper.js';
@@ -1142,6 +1143,12 @@ export class CopilotAgentSession extends Disposable {
 	private _developmentRecoverableError: { readonly turnId: string; remainingFailures: number; readonly totalFailures: number } | undefined;
 	private readonly _developmentErrorInjectionEnabled: boolean;
 	private _dropLateRootTurnEvents = false;
+	/**
+	 * Set when a root `session.error` ends the protocol turn. The SDK still emits
+	 * that failed execution's terminal `session.idle` afterwards, which can arrive
+	 * after the client has already started the next turn.
+	 */
+	private _failedExecutionIdlePending = false;
 	private _agentMergeTurn = false;
 	/** MCP servers whose tools Agent Merge turns deny because they expose GitHub. */
 	private readonly _agentMergeRestrictedMcpServerNames: ReadonlySet<string>;
@@ -1324,6 +1331,7 @@ export class CopilotAgentSession extends Disposable {
 	/** Last agent mode pushed to the SDK via {@link applyMode}, to elide redundant `rpc.mode.set` calls. */
 	private _lastAppliedMode: CopilotSdkMode | undefined;
 	private _lastAppliedPermissionMode: PermissionMode | undefined;
+	private readonly _approvalPolicy = new CopilotSessionApprovalPolicy();
 	private _experimentalModeEnabled = false;
 	private readonly _permissionModeSequencer = new Sequencer();
 	/** Settles when this session observes the runtime's top-level `session.managed_settings_resolved` event. */
@@ -3452,8 +3460,21 @@ export class CopilotAgentSession extends Disposable {
 
 	private _createRuntimeAdapter(): ICopilotSessionRuntime {
 		return {
+			setApprovalPolicy: (resolved, bridged) => {
+				this._approvalPolicy.setLaunchPolicy(resolved, bridged);
+			},
 			onSessionEvent: event => {
 				if (!this._store.isDisposed) {
+					if (event.type === 'session.managed_settings_resolved' && !event.agentId) {
+						this._approvalPolicy.observeRuntimePolicy(event.data);
+						const availableApprovalModes = this._approvalPolicy.getAvailableModes(this._getApprovalInputs());
+						const owner = this._ownerSessionUri.toString();
+						const current = this._configurationService.getSessionConfigValues(owner);
+						if (current && isDefaultChatUri(this._chatChannelUri.toString()) && !equals(current.availableApprovalModes, availableApprovalModes)) {
+							this._configurationService.updateSessionConfig(owner, { availableApprovalModes });
+						}
+						void this._managedSettingsResolved.complete();
+					}
 					this._recordSdkTiming(event);
 					this._onSessionEvent?.(event);
 				}
@@ -3754,12 +3775,18 @@ export class CopilotAgentSession extends Disposable {
 				throw new Error('Cannot set approval mode without an initialized session');
 			}
 			const mode = enabled ? 'allow-all' : 'manual';
-			if (!await this._trySetSdkPermissionMode(mode)) {
+			const selection = this._approvalPolicy.resolveSelection({
+				...this._getApprovalInputs(), requested: enabled ? 'autoApprove' : 'default', globalAutoApprove: false,
+			});
+			if (selection.mode !== mode) {
+				throw new Error('Auto approval is restricted by policy');
+			}
+			const applied = await this._trySetSdkPermissionMode(mode);
+			if (!applied) {
 				throw new Error(`Copilot SDK rejected permission mode '${mode}'`);
 			}
-			this._lastAppliedPermissionMode = mode;
 			this._configurationService.updateSessionConfig(this._ownerSessionUri.toString(), {
-				[SessionConfigKey.AutoApprove]: enabled ? 'autoApprove' : 'default',
+				[SessionConfigKey.AutoApprove]: fromCopilotPermissionMode(applied),
 			});
 		});
 	}
@@ -5827,35 +5854,12 @@ export class CopilotAgentSession extends Disposable {
 		return URI.joinPath(this._shellInitScriptDirectory(), this._shellInitScriptInstanceId);
 	}
 
-	/**
-	 * `true` when the session runs with bypass approvals — either the global
-	 * auto-approve setting or the session's `autoApprove` ("Allow All")
-	 * level. Agent mode is an orthogonal axis and does not affect approvals.
-	 */
-	private _isBypassApprovals(): boolean {
-		if (this._configurationService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) === true) {
-			return false;
-		}
-		if (this._configurationService.getRootValue(platformRootSchema, AgentHostGlobalAutoApproveEnabledConfigKey) === true) {
-			return true;
-		}
-		return this._configurationService.getEffectiveValue(this._ownerSessionUri.toString(), platformSessionSchema, SessionConfigKey.AutoApprove) === 'autoApprove';
-	}
-
-	private _getSdkPermissionMode(): PermissionMode {
-		if (this._isBypassApprovals()) {
-			return 'allow-all';
-		}
-		return this._getConfiguredApprovalLevel() === 'assisted'
-			? 'assisted'
-			: 'manual';
-	}
-
-	private _getConfiguredApprovalLevel(): string {
-		if (this._configurationService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) === true) {
-			return 'default';
-		}
-		return this._configurationService.getEffectiveValue(this._ownerSessionUri.toString(), platformSessionSchema, SessionConfigKey.AutoApprove) ?? 'default';
+	private _getApprovalInputs() {
+		return {
+			requested: this._configurationService.getEffectiveValue(this._ownerSessionUri.toString(), platformSessionSchema, SessionConfigKey.AutoApprove),
+			legacyRestricted: this._configurationService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) === true,
+			globalAutoApprove: this._configurationService.getRootValue(platformRootSchema, AgentHostGlobalAutoApproveEnabledConfigKey) === true,
+		};
 	}
 
 	private _getConfiguredAgentMode(): string {
@@ -5960,8 +5964,7 @@ export class CopilotAgentSession extends Disposable {
 
 	syncPermissionMode(source: 'config-change' | 'turn-start', recorder?: IAgentProviderSendStageRecorder): Promise<void> {
 		return measureAgentProviderOperation(recorder, 'permission', async () => {
-			const mode = this._getSdkPermissionMode();
-			const configuredLevel = this._getConfiguredApprovalLevel();
+			const { mode, configuredLevel } = this._approvalPolicy.resolveSelection(this._getApprovalInputs());
 			this._logService.info(`[Copilot:${this.sessionId}] Syncing permission mode: source=${source}, agentMode=${this._getConfiguredAgentMode()}, configuredLevel=${configuredLevel}, sdkMode=${mode}, previousSdkMode=${this._lastAppliedPermissionMode ?? 'unknown'}, globalAutoApprove=${this._configurationService.getRootValue(platformRootSchema, AgentHostGlobalAutoApproveEnabledConfigKey) === true}`);
 			const experimentalModeEnabled = mode === 'assisted' || this._isHydraFusionEnabled();
 			if (this._experimentalModeEnabled !== experimentalModeEnabled) {
@@ -5973,6 +5976,7 @@ export class CopilotAgentSession extends Disposable {
 				this._logService.info(`[Copilot:${this.sessionId}] ${experimentalModeEnabled ? 'Enabled' : 'Disabled'} SDK experimental mode`);
 			}
 			if (this._lastAppliedPermissionMode === mode) {
+				this._acceptPermissionMode(mode);
 				return;
 			}
 			const managedSettingsResolvedBeforeSet = this._managedSettingsResolved.isSettled;
@@ -5988,13 +5992,26 @@ export class CopilotAgentSession extends Disposable {
 			if (!applied) {
 				throw new Error(`Copilot SDK rejected permission mode '${mode}'`);
 			}
-			this._lastAppliedPermissionMode = mode;
 		}, this._permissionModeSequencer);
 	}
 
-	private async _trySetSdkPermissionMode(mode: PermissionMode): Promise<boolean> {
+	private async _trySetSdkPermissionMode(mode: PermissionMode): Promise<PermissionMode | undefined> {
 		const result = await this._wrapper.session.rpc.permissions.setMode({ mode });
-		return result.success && (result.mode === undefined || result.mode === mode);
+		if (!this._approvalPolicy.canAcceptRuntimeResult(mode, result)) {
+			return undefined;
+		}
+		this._acceptPermissionMode(result.mode);
+		return result.mode;
+	}
+
+	private _acceptPermissionMode(mode: PermissionMode): void {
+		this._lastAppliedPermissionMode = mode;
+		const current = this._configurationService.getSessionConfigValues(this._ownerSessionUri.toString());
+		const applied = this._approvalPolicy.getAppliedConfig(mode);
+		if (current && isDefaultChatUri(this._chatChannelUri.toString()) && (current.effectiveApprovalMode !== applied.effectiveApprovalMode
+			|| !equals(current.availableApprovalModes, applied.availableApprovalModes))) {
+			this._configurationService.updateSessionConfig(this._ownerSessionUri.toString(), applied);
+		}
 	}
 
 	/**
@@ -6545,7 +6562,7 @@ export class CopilotAgentSession extends Disposable {
 		return {
 			approved: true,
 			selectedAction,
-			...(isAutopilot && this._isBypassApprovals() ? { autoApproveEdits: true } : {}),
+			...(isAutopilot && this._approvalPolicy.isBypassApprovals(this._getApprovalInputs()) ? { autoApproveEdits: true } : {}),
 		};
 	}
 
@@ -6724,6 +6741,7 @@ export class CopilotAgentSession extends Disposable {
 			// A turn-starting notification is an authoritative new root boundary,
 			// even though it completes without an assistant.turn_start event.
 			this._dropLateRootTurnEvents = false;
+			this._failedExecutionIdlePending = false;
 			const turnId = generateUuid();
 			this.resetTurnState(turnId);
 			this._emitAction({
@@ -6766,6 +6784,7 @@ export class CopilotAgentSession extends Disposable {
 			// normal send. Zero-message continuation has no such echo and remains
 			// quarantined until assistant.turn_start instead.
 			this._dropLateRootTurnEvents = false;
+			this._failedExecutionIdlePending = false;
 			// Show a failure held from between turns only now, so that a newer
 			// failure from this message's own preparation replaces it.
 			this._showUnshownManagedPluginFailure();
@@ -7487,6 +7506,10 @@ export class CopilotAgentSession extends Disposable {
 
 		this._register(wrapper.onIdle(async e => {
 			this._logService.info(`[Copilot:${sessionId}] Session idle`);
+			const idleFromFailedExecution = !e.agentId && !e.data.aborted && this._failedExecutionIdlePending;
+			if (!e.agentId) {
+				this._failedExecutionIdlePending = false;
+			}
 			const abortingTurn = this._abortingTurn;
 			this._abortingTurn = undefined;
 			if (e.data.aborted) {
@@ -7543,6 +7566,10 @@ export class CopilotAgentSession extends Disposable {
 			}
 			if (turn === this._resumingTurnAwaitingProviderStart && !turn.providerTurnStarted) {
 				this._logService.trace(`[Copilot:${sessionId}] Ignoring idle from the failed execution while resumed turn ${turn.id} awaits provider start`);
+				return;
+			}
+			if (idleFromFailedExecution) {
+				this._logService.trace(`[Copilot:${sessionId}] Ignoring idle from the preceding failed execution for turn ${turn.id}`);
 				return;
 			}
 			// Only a `running` turn is completed by a normal idle. A `pending`
@@ -7702,6 +7729,7 @@ export class CopilotAgentSession extends Disposable {
 			if (!parentToolCallId) {
 				if (!e.agentId) {
 					this._completeFusionPhaseChats();
+					this._failedExecutionIdlePending = true;
 				}
 				this._clearActiveTurn();
 			}
@@ -9422,6 +9450,9 @@ export class CopilotAgentSession extends Disposable {
 			turn?.markRunning();
 			if (!e.agentId) {
 				this._dropLateRootTurnEvents = false;
+				// The SDK starts the next turn only after it has emitted the failed
+				// execution's idle, so any idle from here on belongs to this turn.
+				this._failedExecutionIdlePending = false;
 				if (this._resumingTurnAwaitingProviderStart === turn) {
 					this._resumingTurnAwaitingProviderStart = undefined;
 				}

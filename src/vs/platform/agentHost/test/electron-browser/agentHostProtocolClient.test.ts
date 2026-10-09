@@ -19,6 +19,7 @@ import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentHostClientState, AgentHostProtocolClient, type IAgentHostProtocolClientOptions } from '../../browser/agentHostProtocolClient.js';
+import { WebPubSubRelayTransport, type IWebSocketLike } from '../../browser/webPubSubRelayTransport.js';
 import { DevContainerConnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayMessageNotification, DevContainerRelaySendExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, getAgentHostExtensionInitializeResultMeta, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, type IAgentHostMcpAuthenticationRequest } from '../../common/agentHostExtensionProtocol.js';
 import { McpAuthRequiredReason } from '../../common/state/protocol/channels-session/state.js';
 import { AuthenticateParams } from '../../common/agent.js';
@@ -430,6 +431,100 @@ suite('AgentHostProtocolClient', () => {
 		});
 		await connectPromise;
 	}
+
+	suite('Web PubSub receiver capabilities', () => {
+		const prefix = 'user.owner.env.remote.client.client';
+
+		class RelaySocket implements IWebSocketLike {
+			onopen: (() => void) | null = null;
+			onmessage: ((event: { data: unknown }) => void) | null = null;
+			onclose: ((event: { code: number; reason: string }) => void) | null = null;
+			onerror: ((event: unknown) => void) | null = null;
+			readonly sent: { type: string; group?: string; ackId?: number; data?: { kind: string; accepts?: string[]; data?: JsonRpcRequest } }[] = [];
+
+			constructor(readonly rejectAdvertisement: boolean) {
+				queueMicrotask(() => this.receive({ type: 'system', event: 'connected' }));
+			}
+
+			receive(frame: object): void {
+				this.onmessage?.({ data: JSON.stringify(frame) });
+			}
+
+			send(data: string): void {
+				const frame = JSON.parse(data) as typeof this.sent[number];
+				this.sent.push(frame);
+				if (frame.ackId !== undefined) {
+					queueMicrotask(() => this.receive({ type: 'ack', ackId: frame.ackId, success: !(this.rejectAdvertisement && frame.data?.kind === 'capabilities') }));
+				}
+				const request = frame.data?.data;
+				if (request?.id !== undefined) {
+					const result = request.method === 'initialize'
+						? { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [] }
+						: request.method === 'reconnect' ? { type: ReconnectResultType.Replay, actions: [], missing: [] } : {};
+					queueMicrotask(() => this.receive({
+						type: 'message', from: 'group', group: `${prefix}.to-client`, dataType: 'json',
+						data: { kind: 'message', generation: 7, data: { jsonrpc: '2.0', id: request.id, result } },
+					}));
+				}
+			}
+
+			close(): void { }
+		}
+
+		function createRelayClient(rejectAdvertisement = false) {
+			const sockets: RelaySocket[] = [];
+			const logService = new NullLogService();
+			const factory = () => new WebPubSubRelayTransport({
+				clientId: 'client',
+				url: 'wss://relay.example',
+				toHostGroup: `${prefix}.to-host`,
+				joinGroups: [`${prefix}.broadcast`, `${prefix}.to-client`],
+				webSocketFactory: () => {
+					const socket = new RelaySocket(rejectAdvertisement);
+					sockets.push(socket);
+					return socket;
+				},
+			}, logService);
+			const client = disposables.add(new AgentHostProtocolClient('relay.example', factory, {
+				clientId: 'client',
+				reconnectPolicy: { autoRestore: true, initialDelayMs: 1, maxDelayMs: 1, maxAttempts: 1 },
+			}, logService, createPermissionService(), new TestConfigurationService(), NullTelemetryService, workspaceTrustEnablementService,
+				new TestWorkspaceTrustManagementService(), new class extends mock<IWorkspaceTrustRequestService>() { }()));
+			return { client, sockets };
+		}
+
+		test('advertises before initialization and re-establishes negotiation on a replacement transport', async () => {
+			const { client, sockets } = createRelayClient();
+			await client.connect();
+			const recovered = Event.toPromise(client.onDidReconnect);
+			sockets[0].onclose?.({ code: 1006, reason: '' });
+			await recovered;
+			const expectedControl = { kind: 'capabilities', accepts: ['batch'] };
+			assert.deepStrictEqual({
+				state: client.connectionState,
+				publications: sockets.map(socket => socket.sent.filter(frame => frame.type === 'sendToGroup').map(frame => ({
+					group: frame.group,
+					control: frame.data?.kind === 'capabilities' ? frame.data : undefined,
+					method: frame.data?.data?.method,
+				}))),
+			}, {
+				state: AgentHostClientState.Connected,
+				publications: ['initialize', 'reconnect'].map(method => [
+					{ group: `${prefix}.to-host`, control: expectedControl, method: undefined },
+					{ group: `${prefix}.to-host`, control: undefined, method },
+					{ group: `${prefix}.to-host`, control: expectedControl, method: undefined },
+				]),
+			});
+		});
+
+		test('fails the client connection before AHP initialization when capability publication is rejected', async () => {
+			const { client, sockets } = createRelayClient(true);
+			await assert.rejects(client.connect(), /WPS publish failed/);
+			assert.deepStrictEqual(sockets[0].sent.filter(frame => frame.type === 'sendToGroup').map(frame => frame.data), [
+				{ kind: 'capabilities', accepts: ['batch'] },
+			]);
+		});
+	});
 
 	suite('confirmed dispatch', () => {
 		const channel = 'session-store://tenant/sessions/draft?generation%3D2';
@@ -2124,7 +2219,7 @@ suite('AgentHostProtocolClient', () => {
 		assert.deepStrictEqual(getRootConfig(enabled), { [AgentHostDisableRepoInfoTelemetryConfigKey]: false });
 	});
 
-	test('forwards and clears legacy managed permissions for the local host', async () => {
+	test('forwards global approval through root policy instead of flattening it into a bypass ban', async () => {
 		const configurationService = new ManagedPermissionsConfigurationService({
 			[TERMINAL_AUTO_APPROVE_ENABLED_SETTING_ID]: false,
 		});
@@ -2139,14 +2234,12 @@ suite('AgentHostProtocolClient', () => {
 
 		await connectClient(client, transport);
 
-		assert.deepStrictEqual(findLastManagedSettingsNotification(transport.sentMessages), {
-			jsonrpc: '2.0',
-			method: 'setClientManagedSettingsPermissions',
-			params: {
-				permissions: {
-					disableBypassPermissionsMode: 'disable',
-				},
-			},
+		assert.deepStrictEqual({
+			restricted: findRootConfigValue(transport.sentMessages, 'autoApprovePolicyRestricted'),
+			notification: findLastManagedSettingsNotification(transport.sentMessages),
+		}, {
+			restricted: true,
+			notification: { jsonrpc: '2.0', method: 'setClientManagedSettingsPermissions', params: { permissions: {} } },
 		});
 
 		transport.sentMessages.length = 0;

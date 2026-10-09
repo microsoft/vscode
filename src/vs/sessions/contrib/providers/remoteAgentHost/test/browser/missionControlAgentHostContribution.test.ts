@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Event } from '../../../../../../base/common/event.js';
+import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
@@ -12,8 +13,8 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
 import { IMissionControlEnvironmentService, IMissionControlHost } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
-import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { Context } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IsDevelopmentContext } from '../../../../../../platform/contextkey/common/contextkeys.js';
@@ -28,6 +29,7 @@ import { MissionControlAgentHostContribution } from '../../browser/missionContro
 import { RemoteAgentHostSessionsProvider } from '../../browser/remoteAgentHostSessionsProvider.js';
 import { IUserDataProfileService } from '../../../../../../workbench/services/userDataProfile/common/userDataProfile.js';
 import { IUserDataProfile } from '../../../../../../platform/userDataProfile/common/userDataProfile.js';
+import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { ChatContextKeys } from '../../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ConnectMissionControlEnvironmentCommand } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/missionControlEnvironmentActions.js';
 import { Menus } from '../../../../../browser/menus.js';
@@ -35,11 +37,13 @@ import { Menus } from '../../../../../browser/menus.js';
 class TestProvider extends mock<RemoteAgentHostSessionsProvider>() {
 	override readonly connectionStatus = observableValue<RemoteAgentHostConnectionStatus>(this, RemoteAgentHostConnectionStatus.disconnected);
 	disposed = false;
-	constructor(override readonly remoteAddress: string, private name: string) { super(); }
+	constructor(override readonly remoteAddress: string, private name: string, private readonly options: IEntryDrivenProviderOptions) { super(); }
 	override get defaultLabel(): string { return this.name; }
 	override get label(): string { return this.name; }
 	override setLabel(name: string): void { this.name = name; }
 	override setConnectionStatus(status: RemoteAgentHostConnectionStatus): void { this.connectionStatus.set(status, undefined); }
+	override async connect(): Promise<void> { await this.options.connectOnDemand?.(); }
+	override async disconnect(): Promise<void> { await this.options.disconnectOnDemand?.(); }
 	override dispose(): void { this.disposed = true; }
 }
 
@@ -77,40 +81,82 @@ suite('Mission Control native provider inventory', () => {
 		});
 	}
 
-	function fixture(profileId = 'profile') {
+	function fixture(profileId = 'profile', options: {
+		web?: boolean;
+		autoConnect?: boolean;
+		storage?: InMemoryStorageService;
+		connect?: () => Promise<void>;
+		refresh?: () => Promise<void>;
+		sharedStartupFirst?: boolean;
+	} = {}) {
 		const instantiation = store.add(new TestInstantiationService());
 		const hosts = observableValue<readonly IMissionControlHost[]>('hosts', []);
 		let account = 'first';
 		const created: { provider: TestProvider; options: IEntryDrivenProviderOptions }[] = [];
 		const actions: string[] = [];
+		const connections = new Map<string, IRemoteAgentHostConnectionInfo>();
+		const connectionsChanged = store.add(new Emitter<void>());
+		let sharedDiscoveries = 0;
+		let tunnelDiscoveries = 0;
+		const discoveryHandlers = new Set<() => Promise<void>>([async () => { tunnelDiscoveries++; }]);
+		const rediscover = async () => {
+			sharedDiscoveries++;
+			const results = await Promise.allSettled([...discoveryHandlers].map(handler => handler()));
+			return results.every(result => result.status === 'fulfilled');
+		};
+		const sharedStartup = options.sharedStartupFirst ? rediscover() : undefined;
+		instantiation.stub(IStorageService, options.storage ?? store.add(new InMemoryStorageService()));
 		instantiation.stub(IUserDataProfileService, new class extends mock<IUserDataProfileService>() {
 			override readonly currentProfile = new class extends mock<IUserDataProfile>() {
 				override readonly id = profileId;
 			}();
 		}());
-		instantiation.stub(IRemoteAgentHostService, {
-			onDidChangeConfiguredEntries: Event.None, onDidChangeConnections: Event.None, connections: [],
+		instantiation.stub(IRemoteAgentHostService, new class extends mock<IRemoteAgentHostService>() {
+			override readonly onDidChangeConfiguredEntries = Event.None;
+			override readonly onDidChangeConnections = connectionsChanged.event;
+			override get connections() { return [...connections.values()]; }
+			override getConnection() { return undefined; }
+		}());
+		const configuration = new TestConfigurationService({
+			[RemoteAgentHostsEnabledSettingId]: true,
+			[RemoteAgentHostAutoConnectSettingId]: options.autoConnect ?? true,
 		});
-		const configuration = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true });
 		store.add(configuration.onDidChangeConfigurationEmitter);
 		instantiation.stub(IConfigurationService, configuration);
 		instantiation.stub(ISessionsProvidersService, {});
 		instantiation.stub(INotificationService, new TestNotificationService());
 		instantiation.stub(ILogService, store.add(new NullLogService()));
 		instantiation.stub(IAgentHostFilterService, new class extends mock<IAgentHostFilterService>() {
-			override registerDiscoveryHandler() { return toDisposable(() => { }); }
+			override registerDiscoveryHandler(handler: () => Promise<void>) {
+				discoveryHandlers.add(handler);
+				return toDisposable(() => discoveryHandlers.delete(handler));
+			}
+			override rediscover() { return rediscover(); }
 		}());
 		instantiation.stub(IMissionControlEnvironmentService, new class extends mock<IMissionControlEnvironmentService>() {
 			override readonly hosts = hosts;
 			override readonly enabled = true;
 			override get accountKey() { return account; }
-			override async refresh() { actions.push('discover'); }
-			override async connect(id: string) { actions.push(`connect:${id}`); }
-			override async disconnect(id: string) { actions.push(`disconnect:${id}`); }
+			override async refresh() { actions.push('discover'); await options.refresh?.(); }
+			override async connect(id: string) {
+				actions.push(`connect:${id}`);
+				if (options.connect) {
+					await options.connect();
+				}
+				const address = `cloudsandbox:${id}`;
+				connections.set(address, { address, name: id, status: RemoteAgentHostConnectionStatus.connected });
+				connectionsChanged.fire();
+			}
+			override async disconnect(id: string) {
+				actions.push(`disconnect:${id}`);
+				connections.delete(`cloudsandbox:${id}`);
+				connectionsChanged.fire();
+			}
 		}());
 		const contribution = store.add(instantiation.createInstance(class extends MissionControlAgentHostContribution {
+			protected override get isWebPlatform(): boolean { return options.web ?? false; }
 			protected override _createProvider(address: string, name: string, options: IEntryDrivenProviderOptions) {
-				const provider = new TestProvider(address, name);
+				const provider = new TestProvider(address, name, options);
 				const resources = new DisposableStore();
 				resources.add(provider);
 				this._providerInstances.set(address, provider);
@@ -120,8 +166,142 @@ suite('Mission Control native provider inventory', () => {
 				return provider;
 			}
 		}));
-		return { hosts, created, actions, contribution, changeAccount: () => { hosts.set([], undefined); account = 'second'; } };
+		return {
+			hosts, created, actions, contribution, rediscover, configuration, sharedStartup,
+			getDiscoveryCounts: () => ({ sharedDiscoveries, tunnelDiscoveries, missionControlDiscoveries: actions.filter(action => action === 'discover').length }),
+			changeAccount: () => { hosts.set([], undefined); connections.clear(); account = 'second'; },
+		};
 	}
+
+	for (const { name, web, autoConnect, connects } of [
+		{ name: 'web', web: true, autoConnect: true, connects: true },
+		{ name: 'web with auto-connect disabled', web: true, autoConnect: false, connects: false },
+		{ name: 'desktop', web: false, autoConnect: true, connects: false },
+	]) {
+		test(`discovers online and offline native hosts on ${name}`, async () => {
+			const { hosts, created, actions, rediscover } = fixture('profile', { web, autoConnect });
+			hosts.set([
+				{ id: 'online', name: 'Online Machine', kind: 'user-local', status: 'online' },
+				{ id: 'offline', name: 'Offline Machine', kind: 'user-local', status: 'offline' },
+			], undefined);
+			await rediscover();
+			assert.deepStrictEqual({
+				addresses: created.map(entry => entry.provider.remoteAddress),
+				statuses: created.map(entry => entry.provider.connectionStatus.get().kind),
+				connects: actions.filter(action => action.startsWith('connect:')),
+				discoveries: actions.filter(action => action === 'discover').length,
+			}, {
+				addresses: ['cloudsandbox:online', 'cloudsandbox:offline'],
+				statuses: [connects ? 'connected' : 'disconnected', 'disconnected'],
+				connects: connects ? ['connect:online'] : [],
+				discoveries: 1,
+			});
+		});
+	}
+
+	for (const sharedStartupFirst of [true, false]) {
+		test(`startup discovery does not repeat tunnel discovery (${sharedStartupFirst ? 'tunnel' : 'Mission Control'} first)`, async () => {
+			const gate = new DeferredPromise<void>();
+			const context = fixture('profile', { sharedStartupFirst, refresh: () => gate.p });
+			const sharedStartup = context.sharedStartup ?? context.rediscover();
+			const pending = context.getDiscoveryCounts();
+			await gate.complete();
+			await sharedStartup;
+			await context.rediscover();
+			assert.deepStrictEqual({ pending, refreshed: context.getDiscoveryCounts() }, {
+				pending: { sharedDiscoveries: 1, tunnelDiscoveries: 1, missionControlDiscoveries: 1 },
+				refreshed: { sharedDiscoveries: 2, tunnelDiscoveries: 2, missionControlDiscoveries: 2 },
+			});
+		});
+	}
+
+	test('joins pending web connections across rediscovery and explicit connect', async () => {
+		const gate = new DeferredPromise<void>();
+		const { hosts, created, actions, rediscover } = fixture('profile', { web: true, connect: () => gate.p });
+		const host: IMissionControlHost = { id: 'environment', name: 'Machine', kind: 'user-local', status: 'online' };
+		hosts.set([host], undefined);
+		const status = created[0].provider.connectionStatus.get().kind;
+		hosts.set([{ ...host }], undefined);
+		await rediscover();
+		const explicit = created[0].provider.connect();
+		await gate.complete();
+		await explicit;
+		assert.deepStrictEqual({
+			status, finalStatus: created[0].provider.connectionStatus.get().kind,
+			connects: actions.filter(action => action.startsWith('connect:')),
+		}, { status: 'connecting', finalStatus: 'connected', connects: ['connect:environment'] });
+	});
+
+	test('web disconnect suppression survives refresh and reload and is isolated by account and profile', async () => {
+		const storage = store.add(new InMemoryStorageService());
+		const first = fixture('profile', { web: true, storage });
+		const host: IMissionControlHost = { id: 'environment', name: 'Machine', kind: 'user-local', status: 'online' };
+		first.hosts.set([host], undefined);
+		await first.created[0].provider.connect();
+		await first.created[0].provider.disconnect();
+		first.hosts.set([{ ...host }], undefined);
+		await first.rediscover();
+		const reopened = fixture('profile', { web: true, storage });
+		reopened.hosts.set([host], undefined);
+		const suppressed = reopened.created[0].provider.connectionStatus.get().kind;
+		await reopened.created[0].provider.connect();
+		await reopened.created[0].provider.disconnect();
+		reopened.changeAccount();
+		reopened.hosts.set([host], undefined);
+		const otherProfile = fixture('other', { web: true, storage });
+		otherProfile.hosts.set([host], undefined);
+		assert.deepStrictEqual({
+			firstConnects: first.actions.filter(action => action.startsWith('connect:')),
+			suppressed,
+			reopenedConnects: reopened.actions.filter(action => action.startsWith('connect:')),
+			otherProfileConnects: otherProfile.actions.filter(action => action.startsWith('connect:')),
+		}, {
+			firstConnects: ['connect:environment'], suppressed: 'disconnected',
+			reopenedConnects: ['connect:environment', 'connect:environment'],
+			otherProfileConnects: ['connect:environment'],
+		});
+	});
+
+	test('enabling web auto-connect connects already discovered online hosts', async () => {
+		const { hosts, actions, configuration } = fixture('profile', { web: true, autoConnect: false });
+		hosts.set([{ id: 'environment', name: 'Machine', kind: 'user-local', status: 'online' }], undefined);
+		const before = [...actions];
+		await configuration.setUserConfiguration(RemoteAgentHostAutoConnectSettingId, true);
+		configuration.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+			override affectsConfiguration(key: string) { return key === RemoteAgentHostAutoConnectSettingId; }
+		}());
+		assert.deepStrictEqual({ before, after: actions }, {
+			before: ['discover'], after: ['discover', 'connect:environment'],
+		});
+	});
+
+	test('discovery failures report failure to the shared rediscovery surface', async () => {
+		const { rediscover } = fixture('profile', { refresh: async () => { throw new Error('Discovery unavailable'); } });
+		assert.strictEqual(await rediscover(), false);
+	});
+
+	test('failed automatic connections retain a disconnected host for explicit retry', async () => {
+		const { hosts, created } = fixture('profile', { web: true, connect: async () => { throw new Error('Connection unavailable'); } });
+		hosts.set([{ id: 'environment', name: 'Machine', kind: 'user-local', status: 'online' }], undefined);
+		await assert.rejects(created[0].provider.connect(), /Connection unavailable/);
+		assert.deepStrictEqual({
+			providers: created.length, disposed: created[0].provider.disposed,
+			status: created[0].provider.connectionStatus.get().kind,
+		}, { providers: 1, disposed: false, status: 'disconnected' });
+	});
+
+	test('connection completion after disposal does not recreate environment providers', async () => {
+		const gate = new DeferredPromise<void>();
+		const { hosts, created, contribution } = fixture('profile', { connect: () => gate.p });
+		hosts.set([{ id: 'environment', name: 'Machine', kind: 'user-local', status: 'online' }], undefined);
+		const connection = created[0].provider.connect();
+		contribution.dispose();
+		await gate.complete();
+		await connection;
+		assert.deepStrictEqual({
+			providers: created.length, disposed: created[0].provider.disposed,
+		}, { providers: 1, disposed: true });
+	});
 
 	test('connection UI uses environment terminology without relay jargon', () => {
 		const { hosts, created } = fixture();

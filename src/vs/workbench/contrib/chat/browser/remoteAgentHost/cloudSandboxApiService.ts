@@ -18,6 +18,7 @@ import {
 	CLOUD_SANDBOX_ON_DEMAND_ENVIRONMENT_ID,
 	CloudSandboxAuthenticationRequiredError,
 	CloudSandboxConnectResult,
+	CloudSandboxNetworkError,
 	CloudSandboxRequestError,
 	ICloudSandboxClientToken,
 	ICloudSandboxConnectionRequest,
@@ -133,8 +134,11 @@ function taskSessionStatus(state: string | undefined, logService: ILogService): 
  */
 const GITHUB_DOT_COM_API_BASE_URI = deriveGitHubEndpoints(undefined).apiBaseUri;
 
-/** Per-request timeout (ms) for credential and environment calls. */
+/** Default per-request timeout (ms) for environment reads and task updates. */
 const REQUEST_TIMEOUT_MS = 10_000;
+
+/** Connection requests can wait for an environment to wake before returning. */
+const CONNECTION_REQUEST_TIMEOUT_MS = 30_000;
 
 /** Per-request timeout (ms) for discovery, whose task list is far larger than a credential mint. */
 const DISCOVERY_TIMEOUT_MS = 30_000;
@@ -784,7 +788,7 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 		const url = `${GITHUB_DOT_COM_COPILOT_API_BASE_URI}/agents/environments/${encodeURIComponent(environmentId)}${path}${toQuery(searchParams)}`;
 		return this._request(url, `mc.environmentClient.${action}`, action === 'get' ? 'getEnvironment' : action, {
 			'Copilot-Integration-Id': COPILOT_INTEGRATION_ID,
-		}, token, REQUEST_TIMEOUT_MS, undefined, undefined, onRequest);
+		}, token, action === 'get' ? REQUEST_TIMEOUT_MS : CONNECTION_REQUEST_TIMEOUT_MS, undefined, undefined, onRequest);
 	}
 
 	/** Issue a task API request, throwing on a non-success status. */
@@ -855,7 +859,12 @@ export class CloudSandboxApiService extends Disposable implements ICloudSandboxA
 				...(body === undefined ? undefined : { data: JSON.stringify(typeof body === 'function' ? body(session) : body) }),
 				timeout: timeoutMs,
 				callSite,
-			}, token);
+			}, token).catch((error: unknown) => {
+				if ((action === 'connect' || action === 'reconnect') && !isCancellationError(error) && !token.isCancellationRequested) {
+					throw new CloudSandboxNetworkError(toErrorMessage(error), { cause: error });
+				}
+				throw error;
+			});
 			this._telemetry.reportRequest(action, requestOutcomeForStatus(context.res.statusCode));
 			// Latency against its budget: `/connect` blocks on a compute resume, so how close a reply
 			// came to being cut off separates "Mission Control is silent" from "we stopped listening".

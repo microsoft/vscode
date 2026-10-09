@@ -48,7 +48,7 @@ import { readAgentRuntimeModelConfiguration } from '../../common/meta/agentModel
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, readAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { readAgentSandboxDiagnostics } from '../../common/meta/agentSandboxDiagnostics.js';
 import { toSlashCommandResourceMeta } from '../../common/meta/agentSlashCommandOutputMeta.js';
-import { toSessionEvents } from './copilotTestEvents.js';
+import { createUnmanagedCopilotSettings, toSessionEvents } from './copilotTestEvents.js';
 import { fusionTestData } from './copilotFusionTestEvents.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDataService, type ISessionDatabase } from '../../common/sessionDataService.js';
@@ -481,6 +481,7 @@ class MockCopilotSession {
 			},
 		},
 		permissions: {
+			getMode: async () => ({ mode: this.permissionModeSetCalls.at(-1) ?? 'manual' as const }),
 			setMode: async (params: { mode?: PermissionMode }) => {
 				const mode = params.mode ?? 'manual';
 				this.operationLog.push('permissions.setMode');
@@ -1194,7 +1195,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 
 	const launchPlanBase = {
 		client: {
-			rpc: { account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { proxyCa: new class extends mock<CopilotClient['rpc']['sandbox']['proxyCa']>() { }, getHostSupport: options?.getSandboxHostSupport ?? (async () => ({ supported: true, capabilities: [] })) } },
+			rpc: { managedSettings: createUnmanagedCopilotSettings(), account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { proxyCa: new class extends mock<CopilotClient['rpc']['sandbox']['proxyCa']>() { }, getHostSupport: options?.getSandboxHostSupport ?? (async () => ({ supported: true, capabilities: [] })) } },
 			createSession: async () => mockSession as unknown as CopilotSession,
 			resumeSession: async () => mockSession as unknown as CopilotSession,
 		},
@@ -10388,6 +10389,150 @@ suite('CopilotAgentSession', () => {
 			assert.deepStrictEqual(mockSession.permissionModeSetCalls, ['manual', 'allow-all']);
 		});
 
+		test('mode synchronization records the actual runtime mode, not the requested mode', async () => {
+			const { session, mockSession } = await createAgentSession(disposables, { configValues: { autoApprove: 'autoApprove' } });
+			mockSession.rpc.permissions.setMode = async params => {
+				mockSession.permissionModeSetCalls.push(params.mode ?? 'manual');
+				return { success: true, mode: 'manual', enabled: false };
+			};
+			mockSession.fire('session.managed_settings_resolved', { source: 'none', serverManaged: false, deviceManaged: false, failClosed: false, bypassPermissionsDisabled: false, managedKeys: [] });
+			await session.syncPermissionMode('turn-start');
+			await session.syncPermissionMode('turn-start');
+			assert.deepStrictEqual({ calls: mockSession.permissionModeSetCalls, mode: session['_lastAppliedPermissionMode'] }, {
+				calls: ['allow-all', 'allow-all'], mode: 'manual',
+			});
+		});
+
+		test('publishes changed runtime approval availability while the existing session is idle', async () => {
+			const { session, runtime, mockSession, sessionConfigUpdates } = await createAgentSession(disposables, {
+				configValues: { autoApprove: 'assisted' },
+			});
+			await session.syncPermissionMode('turn-start');
+			const initialUpdateCount = sessionConfigUpdates.length;
+			runtime.onSessionEvent?.({
+				type: 'session.managed_settings_resolved', id: 'updated-policy', timestamp: new Date().toISOString(), parentId: null, ephemeral: true,
+				data: {
+					source: 'server', serverManaged: true, deviceManaged: false, failClosed: false, bypassPermissionsDisabled: true,
+					managedKeys: ['permissions'], settings: { permissions: { disableBypassPermissionsMode: 'disable', disableAssistedPermissionsMode: true } },
+				},
+			});
+			assert.deepStrictEqual({
+				reports: sessionConfigUpdates.slice(initialUpdateCount).map(update => update.patch),
+				modeCalls: mockSession.permissionModeSetCalls,
+			}, {
+				reports: [{ availableApprovalModes: ['default'] }],
+				modeCalls: ['assisted'],
+			});
+		});
+
+		for (const legacy of [false, true]) {
+			test(`idle runtime reports preserve composed host restrictions (legacy=${legacy})`, async () => {
+				const { session, runtime, sessionConfigUpdates } = await createAgentSession(disposables, {
+					configValues: { autoApprove: 'default' },
+					rootValues: { [AgentHostAutoApprovePolicyRestrictedConfigKey]: legacy },
+				});
+				const resolved = { source: 'none' as const, serverManaged: false, deviceManaged: false, failClosed: false, bypassPermissionsDisabled: false, managedKeys: [] };
+				runtime.setApprovalPolicy?.(resolved, legacy ? {} : { disableAssistedPermissionsMode: true });
+				await session.syncPermissionMode('turn-start');
+				const initialUpdateCount = sessionConfigUpdates.length;
+				runtime.onSessionEvent?.({
+					type: 'session.managed_settings_resolved', id: 'updated-policy', timestamp: new Date().toISOString(), parentId: null, ephemeral: true,
+					data: resolved,
+				});
+				assert.deepStrictEqual(sessionConfigUpdates.slice(initialUpdateCount).map(update => update.patch), [
+					{ availableApprovalModes: legacy ? ['default'] : ['default', 'autoApprove'] },
+				]);
+			});
+		}
+
+		for (const success of [false, true]) {
+			test(`direct approval toggle records the actual runtime mode (success=${success})`, async () => {
+				const { session, runtime, mockSession, sessionConfigUpdates } = await createAgentSession(disposables, {
+					configValues: { autoApprove: 'default' },
+				});
+				runtime.setApprovalPolicy?.({
+					source: 'none', serverManaged: false, deviceManaged: false, failClosed: false, bypassPermissionsDisabled: false, managedKeys: [],
+				}, {});
+				await session.syncPermissionMode('turn-start');
+				mockSession.rpc.permissions.setMode = async () => {
+					runtime.onSessionEvent?.({
+						type: 'session.managed_settings_resolved', id: 'runtime-policy', timestamp: new Date().toISOString(), parentId: null, ephemeral: true,
+						data: {
+							source: 'server', serverManaged: true, deviceManaged: false, failClosed: false, bypassPermissionsDisabled: true,
+							managedKeys: ['permissions'], settings: { permissions: { disableBypassPermissionsMode: 'disable' } },
+						},
+					});
+					return { success, mode: 'manual', enabled: false };
+				};
+
+				await session.setSessionApproveAll(true);
+
+				assert.deepStrictEqual({
+					applied: session['_lastAppliedPermissionMode'],
+					selections: sessionConfigUpdates.filter(update => Object.hasOwn(update.patch, 'autoApprove')).map(update => update.patch.autoApprove),
+				}, { applied: 'manual', selections: ['default'] });
+			});
+		}
+
+		test('direct approval toggle uses new mode precedence instead of the legacy blanket', async () => {
+			const { session, runtime, mockSession, sessionConfigUpdates } = await createAgentSession(disposables, {
+				configValues: { autoApprove: 'default' }, rootValues: { [AgentHostAutoApprovePolicyRestrictedConfigKey]: true },
+			});
+			runtime.setApprovalPolicy?.({
+				source: 'server', serverManaged: true, deviceManaged: false, failClosed: false, bypassPermissionsDisabled: false,
+				managedKeys: ['permissions'], settings: { permissions: { disableAssistedPermissionsMode: true } },
+			}, {});
+			await session.setSessionApproveAll(true);
+			assert.deepStrictEqual({
+				calls: mockSession.permissionModeSetCalls, selected: sessionConfigUpdates.at(-1)?.patch.autoApprove,
+			}, { calls: ['allow-all'], selected: 'autoApprove' });
+		});
+
+		test('direct approval toggle rejects a managed bypass restriction before the SDK call', async () => {
+			const { session, runtime, mockSession, sessionConfigUpdates } = await createAgentSession(disposables, { configValues: { autoApprove: 'default' } });
+			runtime.setApprovalPolicy?.({
+				source: 'server', serverManaged: true, deviceManaged: false, failClosed: false, bypassPermissionsDisabled: true,
+				managedKeys: ['permissions'], settings: { permissions: { disableBypassPermissionsMode: 'disable' } },
+			}, {});
+			await assert.rejects(session.setSessionApproveAll(true), /restricted by policy/);
+			assert.deepStrictEqual({ calls: mockSession.permissionModeSetCalls, updates: sessionConfigUpdates }, { calls: [], updates: [] });
+		});
+
+		test('native mode policy preserves global toggle behavior and legacy fallback', async () => {
+			const { session, runtime, mockSession, setRootValue, fireRootConfigChange, sessionConfigUpdates } = await createAgentSession(disposables, {
+				configValues: { autoApprove: 'assisted' },
+			});
+			runtime.setApprovalPolicy?.({ source: 'none', serverManaged: false, deviceManaged: false, failClosed: false, bypassPermissionsDisabled: false, managedKeys: [] }, {});
+			await session.syncPermissionMode('turn-start');
+			for (const [key, value] of [
+				[AgentHostGlobalAutoApproveEnabledConfigKey, true],
+				[AgentHostGlobalAutoApproveEnabledConfigKey, false],
+				[AgentHostAutoApprovePolicyRestrictedConfigKey, true],
+				[AgentHostAutoApprovePolicyRestrictedConfigKey, false],
+			] as const) {
+				setRootValue(key, value);
+				fireRootConfigChange();
+				await session.syncPermissionMode('config-change');
+			}
+			assert.deepStrictEqual({
+				modes: mockSession.permissionModeSetCalls,
+				writesSelection: sessionConfigUpdates.some(update => Object.hasOwn(update.patch, 'autoApprove')),
+			}, { modes: ['assisted', 'allow-all', 'assisted', 'manual', 'assisted'], writesSelection: false });
+		});
+
+		test('native mode restrictions replace the legacy blanket on every Copilot host', async () => {
+			const { session, runtime, mockSession } = await createAgentSession(disposables, {
+				configValues: { autoApprove: 'autoApprove' },
+				rootValues: { [AgentHostAutoApprovePolicyRestrictedConfigKey]: true },
+			});
+			runtime.setApprovalPolicy?.({
+				source: 'server', serverManaged: true, deviceManaged: false, failClosed: false, bypassPermissionsDisabled: false, managedKeys: ['permissions'],
+				settings: { permissions: { disableAssistedPermissionsMode: true } }
+			}, {});
+			await session.syncPermissionMode('turn-start');
+			assert.deepStrictEqual(mockSession.permissionModeSetCalls, ['allow-all']);
+		});
+
 		test('revokes and restores elevated permission modes when policy changes', async () => {
 			const results: PermissionMode[][] = [];
 			for (const autoApprove of ['assisted', 'autoApprove']) {
@@ -11857,6 +12002,141 @@ Use the attached image as context.
 					},
 					resumable: true,
 				}],
+			});
+		});
+
+		for (const timing of ['while the next turn prepares', 'after the next turn is dispatched'] as const) {
+			for (const childStarted of [false, true]) {
+				test(`ignores the failed execution's idle that arrives ${timing}${childStarted ? ' after a child turn starts' : ''}`, async () => {
+					const { session, mockSession, signals } = await createAgentSession(disposables);
+					await session.send('Fail', undefined, 'turn-failed');
+					mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn-1' } as SessionEventPayload<'assistant.turn_start'>['data']);
+					mockSession.fire('session.error', {
+						errorType: 'query',
+						message: 'Execution failed: 400',
+					} as SessionEventPayload<'session.error'>['data']);
+
+					// The SDK emits the failed execution's terminal idle after the error,
+					// which can land after the client has already started the next turn.
+					const fireFailedExecutionIdle = () => {
+						if (childStarted) {
+							mockSession.fire('assistant.turn_start', { turnId: 'sdk-child-turn' }, { agentId: 'background-child' });
+						}
+						mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+					};
+					if (timing === 'while the next turn prepares') {
+						mockSession.onModeSet = fireFailedExecutionIdle;
+					}
+					await session.send('Reply exactly "RECOVERED".', undefined, 'turn-recovered', 'plan');
+					mockSession.onModeSet = undefined;
+					if (timing === 'after the next turn is dispatched') {
+						fireFailedExecutionIdle();
+					}
+					const beforeProviderStart = { active: session.hasActiveTurn, sends: mockSession.sendRequests.length };
+
+					mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn-2' } as SessionEventPayload<'assistant.turn_start'>['data']);
+					mockSession.fire('assistant.message', {
+						messageId: 'm2',
+						content: 'RECOVERED',
+						toolRequests: [],
+					} as SessionEventPayload<'assistant.message'>['data']);
+					mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+
+					assert.deepStrictEqual({
+						beforeProviderStart,
+						active: session.hasActiveTurn,
+						terminalActions: getActions(signals).flatMap(action => action.type === ActionType.ChatTurnComplete || action.type === ActionType.ChatError ? [{ type: action.type, turnId: action.turnId }] : []),
+					}, {
+						beforeProviderStart: { active: true, sends: 2 },
+						active: false,
+						terminalActions: [
+							{ type: ActionType.ChatError, turnId: 'turn-failed' },
+							{ type: ActionType.ChatTurnComplete, turnId: 'turn-recovered' },
+						],
+					});
+				});
+			}
+		}
+
+		for (const previousIdle of ['before the next send', 'during preparation', 'after admission'] as const) {
+			test(`a replacement turn can finish without output after the failed execution's idle ${previousIdle}`, async () => {
+				const { session, mockSession, signals } = await createAgentSession(disposables);
+				await session.send('Fail', undefined, 'turn-failed');
+				mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn-1' });
+				mockSession.fire('session.error', { errorType: 'query', message: 'Execution failed: 400' });
+				const idle = () => mockSession.fire('session.idle', {});
+				if (previousIdle === 'before the next send') {
+					idle();
+				} else if (previousIdle === 'during preparation') {
+					mockSession.onModeSet = idle;
+				}
+				await session.send('Blocked by a prompt hook', undefined, 'turn-no-output', 'plan');
+				mockSession.onModeSet = undefined;
+				if (previousIdle === 'after admission') {
+					idle();
+				}
+				const activeBeforeOwnIdle = session.hasActiveTurn;
+				idle();
+
+				assert.deepStrictEqual({
+					activeBeforeOwnIdle,
+					activeAfterOwnIdle: session.hasActiveTurn,
+					terminalActions: getActions(signals).flatMap(action => action.type === ActionType.ChatTurnComplete || action.type === ActionType.ChatError ? [{ type: action.type, turnId: action.turnId }] : []),
+				}, {
+					activeBeforeOwnIdle: true,
+					activeAfterOwnIdle: false,
+					terminalActions: [
+						{ type: ActionType.ChatError, turnId: 'turn-failed' },
+						{ type: ActionType.ChatTurnComplete, turnId: 'turn-no-output' },
+					],
+				});
+			});
+		}
+
+		test('a replacement turn can fail before a user or assistant boundary is emitted', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			await session.send('Fail', undefined, 'turn-failed');
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn-1' });
+			mockSession.fire('session.error', { errorType: 'query', message: 'first failure' });
+			await session.send('Fail before consumption', undefined, 'turn-retry');
+			mockSession.fire('session.idle', {});
+			mockSession.fire('session.error', { errorType: 'query', message: 'retry failure' });
+			mockSession.fire('session.idle', {});
+
+			assert.deepStrictEqual({
+				active: session.hasActiveTurn,
+				errors: getActions(signals).flatMap(action => action.type === ActionType.ChatError ? [{ turnId: action.turnId, message: action.part.error.message }] : []),
+			}, {
+				active: false,
+				errors: [
+					{ turnId: 'turn-failed', message: 'first failure' },
+					{ turnId: 'turn-retry', message: 'retry failure' },
+				],
+			});
+		});
+
+		test('a root error without a terminal idle does not swallow the next turn\'s idle', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			await session.send('Fail', undefined, 'turn-failed');
+			mockSession.fire('assistant.turn_start', { turnId: 'sdk-turn-1' } as SessionEventPayload<'assistant.turn_start'>['data']);
+			mockSession.fire('session.error', {
+				errorType: 'query',
+				message: 'Execution failed: 400',
+			} as SessionEventPayload<'session.error'>['data']);
+
+			await session.send('No-op', undefined, 'turn-no-op');
+			mockSession.fire('user.message', { content: 'No-op', source: 'user' } as SessionEventPayload<'user.message'>['data']);
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+
+			assert.deepStrictEqual({
+				active: session.hasActiveTurn,
+				terminalActions: getActions(signals).flatMap(action => action.type === ActionType.ChatTurnComplete || action.type === ActionType.ChatError ? [{ type: action.type, turnId: action.turnId }] : []),
+			}, {
+				active: false,
+				terminalActions: [
+					{ type: ActionType.ChatError, turnId: 'turn-failed' },
+					{ type: ActionType.ChatTurnComplete, turnId: 'turn-no-op' },
+				],
 			});
 		});
 

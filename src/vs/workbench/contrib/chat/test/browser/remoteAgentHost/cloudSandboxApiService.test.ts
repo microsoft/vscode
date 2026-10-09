@@ -261,6 +261,27 @@ suite('CloudSandboxApiService connection credentials', () => {
 		};
 	}
 
+	test('allows thirty seconds for connection requests while keeping environment reads at ten seconds', async () => {
+		const requests: { path: string; timeout: number | undefined }[] = [];
+		const { service } = createService(store, {
+			tasks: [], repositories: new Map(),
+			onRequest: (url, _token, options) => {
+				requests.push({ path: url.pathname, timeout: options.timeout });
+				return jsonResponse(url.pathname === '/agents/environments/env-1' ? { status: 'online' } : clientToken('client-1'));
+			},
+		});
+
+		await service.connect(request, CancellationToken.None);
+		await service.reconnect(request, 'client-1', CancellationToken.None);
+		await service.getEnvironment(request.environmentId, CancellationToken.None);
+
+		assert.deepStrictEqual(requests, [
+			{ path: '/agents/environments/env-1/connect', timeout: 30_000 },
+			{ path: '/agents/environments/env-1/reconnect', timeout: 30_000 },
+			{ path: '/agents/environments/env-1', timeout: 10_000 },
+		]);
+	});
+
 	test('loads cloud models and reasoning metadata without creating a task or environment', async () => {
 		const requests: { path: string; method: string | undefined; integration: string | string[] | undefined }[] = [];
 		const { service } = createService(store, {
@@ -306,6 +327,44 @@ suite('CloudSandboxApiService connection credentials', () => {
 	});
 
 	for (const action of ['connect', 'reconnect'] as const) {
+		for (const failure of [new TypeError('Failed to fetch'), new Error('Fetch timeout: 30000ms')]) {
+			test(`${action} classifies an unanswered request: ${failure.message}`, async () => {
+				const { service } = createService(store, {
+					tasks: [], repositories: new Map(),
+					onRequest: () => { throw failure; },
+				});
+				await assert.rejects(action === 'connect'
+					? service.connect(request, CancellationToken.None)
+					: service.reconnect(request, 'client-1', CancellationToken.None), {
+					name: 'CloudSandboxNetworkError', message: failure.message, cause: failure,
+				});
+			});
+		}
+
+		test(`${action} keeps cancellation out of network retries`, async () => {
+			const source = store.add(new CancellationTokenSource());
+			const { service } = createService(store, {
+				tasks: [], repositories: new Map(),
+				onRequest: () => {
+					source.cancel();
+					throw new TypeError('Failed to fetch');
+				},
+			});
+			await assert.rejects(action === 'connect'
+				? service.connect(request, source.token)
+				: service.reconnect(request, 'client-1', source.token), isCancellationError);
+		});
+
+		test(`${action} does not classify observer failures as network failures`, async () => {
+			const failure = new Error('observer failed');
+			const { service, requestedUrls } = createService(store, { tasks: [], repositories: new Map() });
+			const observedRequest = { ...request, onRequest: () => { throw failure; } };
+			await assert.rejects(action === 'connect'
+				? service.connect(observedRequest, CancellationToken.None)
+				: service.reconnect(observedRequest, 'client-1', CancellationToken.None), error => error === failure);
+			assert.deepStrictEqual(requestedUrls, []);
+		});
+
 		test(`${action} logs safe upstream correlation for an HTTP failure`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const logService = new TestLogService();
 			const requestId = 'ABCD:1234:5678:90AB:CDEF';
@@ -379,6 +438,15 @@ suite('CloudSandboxApiService connection credentials', () => {
 			assert.deepStrictEqual({ result, progress }, { result: { kind: 'waking', waking: { retryAfterSeconds: 5 } }, progress: ['issued', 'waking'] });
 		});
 	}
+
+	test('preserves transport errors from environment reads without classifying them for connection retries', async () => {
+		const failure = new Error('network unavailable');
+		const { service } = createService(store, {
+			tasks: [], repositories: new Map(),
+			onRequest: () => { throw failure; },
+		});
+		await assert.rejects(service.getEnvironment(request.environmentId, CancellationToken.None), error => error === failure);
+	});
 
 	for (const header of [undefined, 'ABCD:1234:5678', 'ABCD:1234:5678:90AB:CDEF\ninjected', 'ghp_secret', 'A'.repeat(129), ['ABCD:1234:5678:90AB:CDEF', 'ABCD:1234:5678:90AB:CDEF']]) {
 		test(`omits unavailable or invalid request IDs: ${JSON.stringify(header)}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {

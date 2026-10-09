@@ -88,7 +88,7 @@ suite('ChatEditorInput', () => {
 		});
 	}
 
-	for (const policyKey of ['permissions.allow', 'sandbox.enabled']) {
+	for (const policyKey of ['permissions.allow', 'permissions.disableBypassPermissionsMode', 'permissions.defaultMode', 'sandbox.enabled']) {
 		for (const unavailable of [false, true]) {
 			test(`${policyKey} settles before routing explicit Local and never fall back (unavailable=${unavailable})`, async () => {
 				const ready = new DeferredPromise<void>();
@@ -109,12 +109,15 @@ suite('ChatEditorInput', () => {
 					upcastPartial<IInstantiationService>({}), disposables.add(new TestStorageService()), new NullLogService(), new TestContextService(),
 					{ _serviceBrand: undefined, enabled: constObservable(!unavailable), managedSandboxEnforced: constObservable(false), managedSandboxAllowsBypass: constObservable(false) },
 					upcastPartial<IAgentHostConnectionsService>({}), NullTelemetryService, upcastPartial<IProgressService>({}),
-					new class extends NullManagedSettingsService { override getManagedSettingValue(key: string) { return key === policyKey ? rules : undefined; } }(),
+					new class extends NullManagedSettingsService {
+						override getManagedSettingValue(key: string) { return key === policyKey ? rules : undefined; }
+						override getManagedSettings() { return rules === undefined ? {} : { [policyKey]: rules }; }
+					}(),
 					{ ...settledPolicyGate, whenInitialized: () => ready.p },
 				));
 				const pending = input.resolve();
 				const before = [...selected];
-				rules = policyKey === 'sandbox.enabled' ? true : '["Read"]';
+				rules = policyKey === 'sandbox.enabled' ? true : policyKey === 'permissions.defaultMode' ? 'manual' : policyKey === 'permissions.disableBypassPermissionsMode' ? 'disable' : '[]';
 				ready.complete();
 				await assert.rejects(pending, /organization requires the new Copilot experience/);
 				assert.deepStrictEqual({ before, selected, localStarts }, { before: [], selected: [SessionType.AgentHostCopilot], localStarts: 0 });
