@@ -508,6 +508,10 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		if (existingConnection) {
 			return existingConnection;
 		}
+		const entry = this._entries.get(normalizedAddress);
+		if (entry && RemoteAgentHostConnectionStatus.isIncompatible(entry.status)) {
+			throw new Error(entry.status.message);
+		}
 		const reconnectFailure = this._failedReconnects.get(normalizedAddress);
 		if (reconnectFailure) {
 			throw reconnectFailure;
@@ -529,6 +533,9 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			}
 			// The dial finished without producing a usable connection: surface
 			// the reason it recorded rather than waiting out the timeout.
+			return wait.p;
+		}
+		if (entry?.client && RemoteAgentHostConnectionStatus.isReconnecting(entry.status)) {
 			return wait.p;
 		}
 
@@ -905,6 +912,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 					entry.connected = false;
 					entry.status = RemoteAgentHostConnectionStatus.incompatible('Authentication failed during connection initialization.', getAgentHostSupportedProtocolVersions());
 					this._reconnectAttempts.delete(address);
+					this._rejectPendingConnectionWait(address, new Error('Authentication failed during connection initialization.'));
 					this._onDidChangeConnections.fire();
 					break;
 			}

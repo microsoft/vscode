@@ -1134,6 +1134,36 @@ suite('RemoteAgentHostService', () => {
 			]);
 		}));
 
+		test('connection waits follow client-owned recovery beyond the idle wait timeout', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const factory = createFactory();
+			factory.reconnectManagedByClient = true;
+			const entry = cloudSandboxEntry('Environment', 'cloudsandbox:slow-recovery');
+			const address = getEntryAddress(entry);
+			const client = disposables.add(new MockProtocolClient(address));
+			await reconnectStagedConnection(factory, entry, client);
+			client.fireConnectionState('reconnecting');
+			const recovered = service.waitForConnection(address);
+			let settled = false;
+			void recovered.then(() => { settled = true; }, () => { settled = true; });
+			await timeout(15_000);
+			assert.strictEqual(settled, false);
+			client.fireConnectionState('connected');
+			assert.strictEqual((await recovered).address, address);
+		}));
+
+		test('authentication restoration failure rejects callers waiting for recovery', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const factory = createFactory();
+			const entry = cloudSandboxEntry('Environment', 'cloudsandbox:failed-auth-wait');
+			const address = getEntryAddress(entry);
+			const client = disposables.add(new MockProtocolClient(address));
+			await reconnectStagedConnection(factory, entry, client);
+			client.fireConnectionState('reconnecting');
+			const recovered = assert.rejects(service.waitForConnection(address), /Authentication failed/);
+			client.fireConnectionState('incompatible');
+			await recovered;
+			await assert.rejects(service.waitForConnection(address), /Authentication failed/);
+		}));
+
 		test('authentication restoration failure is terminal rather than an outer retry', () => runWithFakedTimers({}, async () => {
 			const factory = createFactory();
 			const entry = cloudSandboxEntry('Sandbox', 'cloudsandbox:auth');
