@@ -1276,7 +1276,7 @@ function getCreatedClientOptions(agent: CopilotAgent): readonly CopilotClientOpt
 
 const sessionDataServicesByAgent = new WeakMap<CopilotAgent, ISessionDataService>();
 
-function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ITestCopilotClient; useRealResumePath?: boolean; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none'; pluginManager?: IAgentPluginManager; fileService?: FileService; copilotApiService?: ICopilotApiService; gitHubEndpointService?: IAgentHostGitHubEndpointService; telemetryService?: ITelemetryService; userHome?: URI; logService?: ILogService; proxyResolver?: IAgentHostProxyResolver; byokBridgeRegistry?: IByokLmBridgeRegistry; byokProxyService?: IByokLmProxyService; otelService?: IAgentHostOTelService; customizationEnablementService?: ICustomizationEnablementService; useRealCustomizationEnablementService?: boolean; worktreeIsolation?: IAgentHostWorktreeIsolation; rootConfig?: Record<string, unknown>; now?: () => number; startupPerformance?: IAgentHostStartupPerformance }): { agent: CopilotAgent; instantiationService: IInstantiationService; authenticationService: AgentHostAuthenticationService; configurationService: IAgentConfigurationService; worktreeIsolation: IAgentHostWorktreeIsolation; managedSettingsService: IAgentHostManagedSettingsService; fileService: FileService; stateManager: AgentHostStateManager } {
+function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ITestCopilotClient; useRealResumePath?: boolean; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none'; pluginManager?: IAgentPluginManager; fileService?: FileService; copilotApiService?: ICopilotApiService; gitHubEndpointService?: IAgentHostGitHubEndpointService; telemetryService?: ITelemetryService; userHome?: URI; logService?: ILogService; proxyResolver?: IAgentHostProxyResolver; byokBridgeRegistry?: IByokLmBridgeRegistry; byokProxyService?: IByokLmProxyService; otelService?: IAgentHostOTelService; customizationEnablementService?: ICustomizationEnablementService; useRealCustomizationEnablementService?: boolean; worktreeIsolation?: IAgentHostWorktreeIsolation; rootConfig?: Record<string, unknown>; now?: () => number; startupPerformance?: IAgentHostStartupPerformance; productService?: IProductService }): { agent: CopilotAgent; instantiationService: IInstantiationService; authenticationService: AgentHostAuthenticationService; configurationService: IAgentConfigurationService; worktreeIsolation: IAgentHostWorktreeIsolation; managedSettingsService: IAgentHostManagedSettingsService; fileService: FileService; stateManager: AgentHostStateManager } {
 	const services = new ServiceCollection();
 	const logService = options?.logService ?? new NullLogService();
 	const authenticationService = disposables.add(new AgentHostAuthenticationService(logService));
@@ -1326,7 +1326,7 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 	services.set(ICopilotApiService, copilotApiService);
 	services.set(ITelemetryService, telemetryService);
 	services.set(IAgentHostStartupPerformance, options?.startupPerformance ?? NullAgentHostStartupPerformance);
-	services.set(IProductService, TEST_PRODUCT_SERVICE);
+	services.set(IProductService, options?.productService ?? TEST_PRODUCT_SERVICE);
 	services.set(IAgentHostSessionOpenTelemetry, {
 		_serviceBrand: undefined,
 		withSubscription: async (_resource, operation) => operation({
@@ -8906,6 +8906,45 @@ suite('CopilotAgent', () => {
 				await disposeAgent(agent);
 			}
 		});
+
+		for (const quality of ['stable', 'insider', undefined] as const) {
+			for (const inherited of [undefined, 'false', 'true']) {
+				test(`sets the image generation rollout on startup and restart (${quality ?? 'development'}, inherited=${inherited ?? 'unset'})`, async () => {
+					const { agent, configurationService } = createTestAgentContext(disposables, {
+						copilotClient: new TestCopilotClient([]),
+						productService: { ...TEST_PRODUCT_SERVICE, quality },
+						rootConfig: { [CopilotCliConfigKey.RubberDuck]: false },
+					});
+					const previous = process.env['IMAGE_GENERATION_TOOL'];
+					try {
+						if (inherited === undefined) {
+							delete process.env['IMAGE_GENERATION_TOOL'];
+						} else {
+							process.env['IMAGE_GENERATION_TOOL'] = inherited;
+						}
+						await agent.listChatsToMigrate();
+						configurationService.updateRootConfig({ [CopilotCliConfigKey.RubberDuck]: true });
+						await agent.listChatsToMigrate();
+
+						const expected = quality === 'stable' ? inherited : 'true';
+						assert.deepStrictEqual({
+							runtimeFlags: getCreatedClientOptions(agent).map(options => options.env?.['IMAGE_GENERATION_TOOL']),
+							parentFlag: process.env['IMAGE_GENERATION_TOOL'],
+						}, {
+							runtimeFlags: [expected, expected],
+							parentFlag: inherited,
+						});
+					} finally {
+						if (previous === undefined) {
+							delete process.env['IMAGE_GENERATION_TOOL'];
+						} else {
+							process.env['IMAGE_GENERATION_TOOL'] = previous;
+						}
+						await disposeAgent(agent);
+					}
+				});
+			}
+		}
 
 		test('enables the built-in GitHub MCP server by default and removes its environment variable when disabled', async () => {
 			const enabledClient = new TestCopilotClient([]);
