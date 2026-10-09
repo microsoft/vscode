@@ -32,7 +32,7 @@ import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/
 import { IAutomationRunner } from '../../../../../workbench/contrib/chat/common/automations/automationRunner.js';
 import { AutomationCatalogueState, IAutomationProviderDescriptor, IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { IChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { IChatModel, IChatRequestModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ContributionEnablementState } from '../../../../../workbench/contrib/chat/common/enablement.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
@@ -377,6 +377,7 @@ function renderAutomations(ctx: ComponentFixtureContext, options: IAutomationsFi
 				override readonly chatModels = constObservable(options.followUp ? [upcastPartial<IChatModel>({
 					sessionResource: data.runs[2].sessionResource!,
 					requestInProgress: constObservable(true),
+					lastRequestObs: constObservable(upcastPartial<IChatRequestModel>({ timestamp: Date.now() })),
 					requestNeedsInput: constObservable(undefined),
 					onDidChange: Event.None,
 					getRequests: () => [],

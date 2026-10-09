@@ -762,7 +762,9 @@ suite('AutomationsCardsWidget', () => {
 		assert.ok(accessibleProvider);
 		disposables.add(accessibleProvider);
 		const running = observableValue('running', false);
-		const lastRequest = observableValue<IChatRequestModel | undefined>('lastRequest', undefined);
+		const requestedAt = Date.now() - 3_600_000;
+		const completedAt = Date.now() - 60_000;
+		const lastRequest = observableValue<IChatRequestModel | undefined>('lastRequest', upcastPartial<IChatRequestModel>({ timestamp: requestedAt }));
 		chatModels.set([upcastPartial<IChatModel>({
 			sessionResource: SESSION_RESOURCE, requestInProgress: running, requestNeedsInput: constObservable(undefined), lastRequestObs: lastRequest,
 			onDidChange: Event.None, getRequests: () => [],
@@ -774,16 +776,22 @@ suite('AutomationsCardsWidget', () => {
 		const inProgress = !!widget.element.querySelector('.session-item.in-progress');
 		const unreadDuringFollowUp = isMarkAllReadVisible(widget);
 		const accessibleWhileRunning = accessibleProvider.provideContent().includes('Daily review, Running, started');
+		const activeRow = widget.element.querySelector('.automations-run-session-list .monaco-list-row')!;
+		const runningTime = activeRow.querySelector('.session-time')?.textContent;
+		const runningTimeMatchesAria = activeRow.getAttribute('aria-label')?.includes(`updated ${runningTime}`);
 		automationService.setRuns([{ ...external, status: 'running' }]);
-		lastRequest.set(upcastPartial<IChatRequestModel>({ response: upcastPartial<IChatResponseModel>({ isComplete: true, isCanceled: false, completionTimestamp: Date.parse('2026-01-02T00:00:00Z') }) }), undefined);
+		lastRequest.set(upcastPartial<IChatRequestModel>({ timestamp: requestedAt, response: upcastPartial<IChatResponseModel>({ isComplete: true, isCanceled: false, completionTimestamp: completedAt }) }), undefined);
 		running.set(false, undefined);
 		assert.deepStrictEqual({
 			inProgress, unreadDuringFollowUp,
 			accessibleWhileRunning,
+			runningTime, runningTimeMatchesAria,
+			completedTime: activeRow.querySelector('.session-time')?.textContent,
+			completedTimeMatchesAria: activeRow.getAttribute('aria-label')?.includes(`updated ${activeRow.querySelector('.session-time')?.textContent}`),
 			accessibleAfterCompletion: accessibleProvider.provideContent().includes('Daily review, Completed, started'),
 			completed: !widget.element.querySelector('.session-item.in-progress'),
 			unreadAfter: isMarkAllReadVisible(widget), read: sessionsManagementService.isRead.get(),
-		}, { inProgress: true, unreadDuringFollowUp: false, accessibleWhileRunning: true, accessibleAfterCompletion: true, completed: true, unreadAfter: true, read: false });
+		}, { inProgress: true, unreadDuringFollowUp: false, accessibleWhileRunning: true, runningTime: '1 hr ago', runningTimeMatchesAria: true, completedTime: '1 min ago', completedTimeMatchesAria: true, accessibleAfterCompletion: true, completed: true, unreadAfter: true, read: false });
 	});
 
 	test('unresolved cloud history opens only its exact task and reports unavailable native sessions', async () => {
@@ -3432,6 +3440,7 @@ suite('AutomationsCardsWidget', () => {
 		needsInput.set({ title: 'Permission needed' }, undefined);
 		const waiting = content();
 		lastRequest.set(upcastPartial<IChatRequestModel>({
+			timestamp: Date.parse('2026-01-01T12:00:00Z'),
 			response: upcastPartial<IChatResponseModel>({
 				isComplete: true, isCanceled: false, completionTimestamp: Date.parse('2026-01-02T00:00:00Z'),
 				result: { errorDetails: { message: 'New local failure' } },

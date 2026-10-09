@@ -18,7 +18,11 @@ export function automationRunWithLocalProgress(run: IAutomationRun, models: Iter
 			continue;
 		}
 		if (model.requestInProgress.read(reader)) {
-			return { ...run, status: 'running', needsInput: !!model.requestNeedsInput.read(reader), statusDescription: undefined, errorMessage: undefined };
+			const request = model.lastRequestObs.read(reader);
+			return {
+				...run, status: 'running', needsInput: !!model.requestNeedsInput.read(reader), statusDescription: undefined, errorMessage: undefined,
+				...(request ? { updatedAt: new Date(request.timestamp).toISOString() } : {}),
+			};
 		}
 		const response = model.lastRequestObs.read(reader)?.response;
 		if (response?.isComplete && !response.isCanceled && response.completionTimestamp !== undefined
@@ -26,6 +30,8 @@ export function automationRunWithLocalProgress(run: IAutomationRun, models: Iter
 			return {
 				...run,
 				status: response.result?.errorDetails ? 'failed' : 'completed',
+				updatedAt: new Date(response.completionTimestamp).toISOString(),
+				completedAt: new Date(response.completionTimestamp).toISOString(),
 				needsInput: false,
 				statusDescription: undefined,
 				errorMessage: response.result?.errorDetails?.message,

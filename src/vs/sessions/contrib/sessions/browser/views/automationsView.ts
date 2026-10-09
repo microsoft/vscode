@@ -1205,7 +1205,7 @@ class AutomationRunSession implements ISession {
 			: localize('automationRunCloudRunning', "Running on GitHub")));
 	});
 	readonly updatedAt = derived(this, reader => {
-		const run = this.run.read(reader);
+		const run = this.progress.read(reader);
 		return new Date(run.updatedAt ?? run.completedAt ?? this.session.updatedAt.read(reader).getTime());
 	});
 
