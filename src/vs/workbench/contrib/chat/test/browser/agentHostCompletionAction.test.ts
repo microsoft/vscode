@@ -95,14 +95,43 @@ suite('applyAgentHostCompletionAction', () => {
 			{ type: 'object', properties: { availableApprovalModes: { type: 'array', title: 'Available', readOnly: true } } },
 			...[false, true].map(readOnly => ({
 				type: 'object' as const,
-				properties: { autoApprove: { type: 'string' as const, title: 'Approvals' }, availableApprovalModes: { type: 'array' as const, title: 'Available', readOnly } },
+				properties: { autoApprove: { type: 'string' as const, title: 'Approvals', enum: ['default', 'assisted', 'autoApprove'] }, availableApprovalModes: { type: 'array' as const, title: 'Available', readOnly } },
 			})),
 			...[false, true].map(readOnly => ({
 				type: 'object' as const,
-				properties: { approvalMode: { type: 'string' as const, title: 'Approvals' }, availableApprovalModes: { type: 'array' as const, title: 'Available', readOnly } },
+				properties: { approvalMode: { type: 'string' as const, title: 'Approvals', enum: ['manual', 'assisted', 'allow-all'] }, availableApprovalModes: { type: 'array' as const, title: 'Available', readOnly } },
 			})),
 		];
 		assert.deepStrictEqual(schemas.map(schema => isAutoApprovePolicyRestricted(config, schema)), [true, true, true, true, true, false, true, false]);
+	});
+
+	test('malformed approval bindings cannot replace the legacy guard', () => {
+		const config = new PolicyTestConfigurationService(false);
+		const malformed: SessionConfigSchema['properties'][string][] = [
+			{ type: 'boolean', title: 'Approvals' },
+			{ type: 'string', title: 'Approvals' },
+			{ type: 'string', title: 'Approvals', enum: ['assisted'] },
+			{ type: 'string', title: 'Approvals', enum: ['manual', 'custom'] },
+		];
+		assert.deepStrictEqual(['autoApprove', 'approvalMode'].flatMap(key => malformed.map(property =>
+			isAutoApprovePolicyRestricted(config, {
+				type: 'object', properties: {
+					[key]: property,
+					availableApprovalModes: { type: 'array', title: 'Available', readOnly: true },
+				},
+			}))), Array(8).fill(true));
+	});
+
+	test('explicit approval defaults honor policy then memory before user configuration', () => {
+		const results = [undefined, { approvals: 'manual' }].map(policyValue => {
+			const config = new class extends TestConfigurationService {
+				override inspect<T>(key: string): IConfigurationValue<T> {
+					return { ...super.inspect<T>(key), policyValue: policyValue as T, memoryValue: { approvals: 'assisted' } as T, userValue: { approvals: 'allowAll' } as T };
+				}
+			}();
+			return getAgentHostApprovalDefault(config);
+		});
+		assert.deepStrictEqual(results, ['assisted', 'default']);
 	});
 
 	test('schema Manual is not an explicit preference, but configured Manual is', async () => {
@@ -142,6 +171,33 @@ suite('applyAgentHostCompletionAction', () => {
 					input: { autoApprove: 'autoApprove', isolation: 'folder' },
 				});
 			});
+
+			test(`legacy policy discovers approval defaults without a seed (native=${native}, hostPolicy=${hostPolicy})`, async () => {
+				const property = native ? 'approvalMode' : 'autoApprove';
+				const manual = native ? 'manual' : 'default';
+				const resolved: ResolveSessionConfigResult = {
+					schema: {
+						type: 'object', properties: {
+							[property]: { type: 'string', title: 'Approvals', enum: [manual, 'assisted'], default: 'assisted' },
+							...(hostPolicy ? { availableApprovalModes: { type: 'array', title: 'Available', readOnly: true } } : {}),
+						},
+					},
+					values: { [property]: 'assisted', availableApprovalModes: [manual, 'assisted'] },
+				};
+				let discoveries = 0;
+				const configuration = new PolicyTestConfigurationService(false);
+				const result = await resolveInitialAgentHostApprovalConfig(configuration, {
+					resolveSessionConfig: async () => { discoveries++; return resolved; },
+				}, 'conforming-host', undefined, {});
+				const explicitManual = await resolveInitialAgentHostApprovalConfig(configuration, {
+					resolveSessionConfig: async () => { discoveries++; return resolved; },
+				}, 'conforming-host', undefined, { autoApprove: 'default' });
+				assert.deepStrictEqual({ result, explicitManual, discoveries }, {
+					result: hostPolicy ? {} : { [property]: manual },
+					explicitManual: { [property]: manual },
+					discoveries: 2,
+				});
+			});
 		}
 	}
 
@@ -150,7 +206,7 @@ suite('applyAgentHostCompletionAction', () => {
 		const connection = { resolveSessionConfig: async () => { throw new Error('No discovery expected'); } };
 		assert.deepStrictEqual([
 			await resolveInitialAgentHostApprovalConfig(new PolicyTestConfigurationService(undefined), connection, 'copilotcli', undefined, input),
-			await resolveInitialAgentHostApprovalConfig(new PolicyTestConfigurationService(false), connection, 'copilotcli', undefined, { autoApprove: 'default' }),
+			await resolveInitialAgentHostApprovalConfig(new PolicyTestConfigurationService(undefined), connection, 'copilotcli', undefined, { autoApprove: 'default' }),
 		], [input, { autoApprove: 'default' }]);
 	});
 
@@ -175,12 +231,14 @@ suite('applyAgentHostCompletionAction', () => {
 		assert.deepStrictEqual(normalizeAgentHostApprovalConfig(new PolicyTestConfigurationService(false), resolved, { autoApprove: 'autoApprove', approvalMode: 'manual' }), { approvalMode: 'manual' });
 	});
 
-	test('initial approval discovery failure cannot silently use the elevated seed', async () => {
-		const failure = new Error('Discovery unavailable');
-		await assert.rejects(resolveInitialAgentHostApprovalConfig(new PolicyTestConfigurationService(false), {
-			resolveSessionConfig: async () => { throw failure; },
-		}, 'copilotcli', undefined, { autoApprove: 'autoApprove' }), error => error === failure);
-	});
+	for (const autoApprove of [undefined, 'autoApprove']) {
+		test(`initial approval discovery failure cannot silently use a host default or elevated seed (${autoApprove})`, async () => {
+			const failure = new Error('Discovery unavailable');
+			await assert.rejects(resolveInitialAgentHostApprovalConfig(new PolicyTestConfigurationService(false), {
+				resolveSessionConfig: async () => { throw failure; },
+			}, 'copilotcli', undefined, autoApprove === undefined ? {} : { autoApprove }), error => error === failure);
+		});
+	}
 
 	test('a host-disallowed preference does not overwrite its managed default', () => {
 		const resolved = {

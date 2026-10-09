@@ -79,6 +79,10 @@ make full Local chat unavailable instead of implementing runtime modes in Local;
 legacy policy alone retains the existing Local controls.
 Clients retain the legacy guard until a host advertises its approval-policy report.
 Both standard `approvalMode` and VS Code `autoApprove` reports follow this contract.
+The report requires a valid approval binding. Under the legacy restriction,
+discover that binding before creation even without an explicit preference, and
+seed Manual when the host does not publish its own policy report.
+Host-owned approval reports are never forwarded as client configuration inputs.
 Explicit and remembered approval preferences are normalized after schema discovery,
 before prewarming a backend; they must not be irreversibly clamped before discovery.
 Defaults are only startup preferences; no additional durable pre-override

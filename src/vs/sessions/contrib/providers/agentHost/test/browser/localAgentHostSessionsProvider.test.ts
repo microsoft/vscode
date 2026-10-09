@@ -864,7 +864,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('Copilot schema discovery prevents VS defaults entering creation without filtering readOnly values', async () => {
+	test('Copilot schema discovery prevents VS defaults and approval reports entering creation', async () => {
 		const configurationService = new TestConfigurationService();
 		await configurationService.setUserConfiguration('chat.defaultConfiguration', { approvals: 'allowAll' });
 		await configurationService.setUserConfiguration('git.branchPrefix', 'user/');
@@ -889,8 +889,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 			eager: agentHost.createSessionConfigs.at(-1)?.config,
 		}, {
 			discovery: [undefined],
-			creation: { approvalMode: 'assisted', effectiveApprovalMode: 'manual', availableApprovalModes: ['manual', 'assisted'], target: 'workspace' },
-			eager: { approvalMode: 'assisted', effectiveApprovalMode: 'manual', availableApprovalModes: ['manual', 'assisted'], target: 'workspace' },
+			creation: { approvalMode: 'assisted', target: 'workspace' },
+			eager: { approvalMode: 'assisted', target: 'workspace' },
 		});
 	});
 
@@ -5540,6 +5540,15 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
+	test('legacy policy prevents unseeded backend creation when discovery fails', async () => {
+		agentHost.onResolveSessionConfig = async () => { throw new Error('Discovery unavailable'); };
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService: createPolicyRestrictedConfigurationService() });
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		await assert.rejects(provider.whenSessionConfigResolved(session.sessionId, CancellationToken.None), /Could not resolve/);
+		await timeout(0);
+		assert.deepStrictEqual(agentHost.createSessionConfigs, []);
+	});
+
 	for (const approvals of ['assisted', 'allowAll']) {
 		test(`createNewSession clamps seeded ${approvals} to default when policy disables global auto-approve`, async () => {
 			const config = createPolicyRestrictedConfigurationService();
@@ -5560,6 +5569,33 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	for (const native of [false, true]) {
 		for (const hostPolicy of [false, true]) {
+			test(`legacy policy waits for discovery before prewarming an unseeded session (native=${native}, hostPolicy=${hostPolicy})`, async () => {
+				const property = native ? 'approvalMode' : 'autoApprove';
+				const manual = native ? 'manual' : 'default';
+				const discovered = new DeferredPromise<ResolveSessionConfigResult>();
+				const schema: SessionConfigSchema = {
+					type: 'object', properties: {
+						[property]: { type: 'string', title: 'Approvals', enum: [manual, 'assisted'], default: 'assisted' },
+						...(hostPolicy ? { availableApprovalModes: { type: 'array', title: 'Available', readOnly: true } } : {}),
+					},
+				};
+				agentHost.onResolveSessionConfig = async request => {
+					const result = await discovered.p;
+					return { schema, values: { ...result.values, ...request.config } };
+				};
+				const provider = createProvider(disposables, agentHost, undefined, { configurationService: createPolicyRestrictedConfigurationService() });
+				const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+				await timeout(0);
+				const beforeDiscovery = agentHost.createSessionConfigs.length;
+				await discovered.complete({ schema, values: { [property]: 'assisted', ...(hostPolicy ? { availableApprovalModes: [manual, 'assisted'] } : {}) } });
+				await provider.whenSessionConfigResolved(session.sessionId, CancellationToken.None);
+				await timeout(0);
+				assert.deepStrictEqual({
+					beforeDiscovery,
+					created: agentHost.createSessionConfigs.at(-1)?.config,
+				}, { beforeDiscovery: 0, created: { [property]: hostPolicy ? 'assisted' : manual } });
+			});
+
 			for (const source of ['setting', 'remembered'] as const) {
 				test(`preserves ${source} approval until discovery (native=${native}, hostPolicy=${hostPolicy})`, async () => {
 					const configurationService = createPolicyRestrictedConfigurationService();

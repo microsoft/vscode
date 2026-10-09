@@ -3383,7 +3383,8 @@ class NewSession extends Disposable {
 	private get _requiresResolvedInitialConfig(): boolean {
 		const values = this._config?.values ?? this._unresolvedConfigValues;
 		return !!this._resolveInitialPermissionConfig || !!this._initialModeId || !!this._initialPullRequestUrl
-			|| values?.[SessionConfigKey.AutoApprove] !== undefined || values?.approvalMode !== undefined;
+			|| values?.[SessionConfigKey.AutoApprove] !== undefined || values?.approvalMode !== undefined
+			|| isAutoApprovePolicyRestricted(this._configurationService, this._config?.schema);
 	}
 
 	async waitForConfigurationReady(): Promise<void> {

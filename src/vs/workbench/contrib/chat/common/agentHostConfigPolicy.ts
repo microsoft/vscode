@@ -14,15 +14,15 @@ import { COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY } from '../../../../platfor
 import { ChatConfiguration, ChatPermissionLevel, getChatPermissionLevelFromDefaultConfiguration, IChatDefaultConfiguration } from './constants.js';
 
 export function usesHostApprovalPolicy(schema: SessionConfigSchema | undefined): boolean {
-	return !!(schema?.properties[SessionConfigKey.AutoApprove] ?? schema?.properties.approvalMode)
-		&& schema.properties.availableApprovalModes?.type === 'array'
+	return !!getSessionApprovalProperty(schema)
+		&& schema?.properties.availableApprovalModes?.type === 'array'
 		&& schema.properties.availableApprovalModes.readOnly === true;
 }
 
 /** A schema default is not an explicit preference that overrides the host's managed default. */
 export function getAgentHostApprovalDefault(configurationService: IConfigurationService): ChatPermissionLevel | undefined {
 	const inspected = configurationService.inspect<IChatDefaultConfiguration>(ChatConfiguration.DefaultConfiguration);
-	const configured = [inspected.policyValue, inspected.workspaceFolderValue, inspected.workspaceValue, inspected.userRemoteValue,
+	const configured = [inspected.policyValue, inspected.memoryValue, inspected.workspaceFolderValue, inspected.workspaceValue, inspected.userRemoteValue,
 	inspected.userLocalValue, inspected.userValue, inspected.applicationValue].find(value => value?.approvals !== undefined);
 	return getChatPermissionLevelFromDefaultConfiguration(configured?.approvals);
 }
@@ -61,6 +61,9 @@ export function normalizeAgentHostApprovalConfig(configurationService: IConfigur
 		delete result[SessionConfigKey.AutoApprove];
 	}
 	const restricted = isAutoApprovePolicyRestricted(configurationService, schema);
+	if (restricted && approval && !approval.schema.readOnly) {
+		result[approval.key] = writeSessionApprovalLevel(approval, ChatPermissionLevel.Default);
+	}
 	for (const key of [SessionConfigKey.AutoApprove, 'approvalMode']) {
 		if (Object.hasOwn(result, key)) {
 			result[key] = normalizeSessionConfigValue(key, result[key], restricted);
@@ -73,7 +76,7 @@ export function normalizeAgentHostApprovalConfig(configurationService: IConfigur
 	return result;
 }
 
-/** Only conflicting legacy/elevated seeds need capability discovery before creation. */
+/** Discover the approval binding before applying a legacy Manual fallback, even without a preference. */
 export async function resolveInitialAgentHostApprovalConfig(
 	configurationService: IConfigurationService,
 	connection: Pick<IAgentConnection, 'resolveSessionConfig'>,
@@ -81,8 +84,7 @@ export async function resolveInitialAgentHostApprovalConfig(
 	workingDirectory: URI | undefined,
 	config: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
-	if (!isAutoApprovePolicyRestricted(configurationService)
-		|| !((config.autoApprove !== undefined && config.autoApprove !== 'default') || (config.approvalMode !== undefined && config.approvalMode !== 'manual'))) {
+	if (!isAutoApprovePolicyRestricted(configurationService)) {
 		return config;
 	}
 	const resolved = await connection.resolveSessionConfig({ provider, workingDirectory });
