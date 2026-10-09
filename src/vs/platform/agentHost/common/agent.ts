@@ -279,6 +279,105 @@ export interface IAgentPluginUninstallRequest {
 	readonly marketplace: string;
 	readonly directSourceId?: string;
 }
+
+export interface IAgentCustomizationInstallationCatalogue {
+	readonly resourceId?: string;
+	readonly itemUrl?: string;
+	readonly displayName: string;
+	readonly description?: string;
+	readonly publisher?: string;
+	readonly version?: string;
+	readonly source: string;
+}
+
+export type IAgentCustomizationInstallation = {
+	readonly installationId: string;
+	readonly mediaType: string;
+	readonly catalogue?: IAgentCustomizationInstallationCatalogue;
+	readonly state: 'installed' | 'missing' | 'error';
+	readonly errorMessage?: string;
+} & ({
+	readonly kind: 'skill';
+	readonly name: string;
+	readonly targetUri?: URI;
+} | {
+	readonly kind: 'mcp';
+	readonly serverName: string;
+});
+
+export interface IAgentCustomizationInstallationRequest {
+	readonly mediaType: string;
+	readonly identifier: string;
+	readonly displayName: string;
+	readonly description: string;
+	readonly version?: string;
+	readonly itemUrl?: string;
+	readonly selectionId?: string;
+	readonly installation:
+	| { readonly kind: 'skill' | 'mcp' }
+	| { readonly kind: 'plugin'; readonly repository: string; readonly ref: string; readonly path: string }
+	| { readonly kind: 'configuredPlugin'; readonly name: string; readonly marketplace: string };
+}
+
+export interface IAgentCustomizationMarketplaceSearchRequest {
+	readonly query: string;
+	readonly mediaType?: string;
+	readonly limit: number;
+	readonly cursor?: string;
+}
+
+export interface IAgentCustomizationMarketplaceSearchItem {
+	readonly selectionId: string;
+	readonly kind: 'skill' | 'mcp' | 'plugin';
+	readonly displayName: string;
+	readonly description?: string;
+	readonly publisher?: string;
+	readonly pluginName?: string;
+	readonly marketplace?: string;
+	readonly marketplaceSource?: string;
+	readonly itemUrl?: string;
+	readonly version?: string;
+	readonly repository?: string;
+	readonly path?: string;
+	readonly installable: boolean;
+	readonly unavailableMessage?: string;
+}
+
+export type IAgentCustomizationMarketplaceSearchResult =
+	| {
+		readonly kind: 'page';
+		readonly items: readonly IAgentCustomizationMarketplaceSearchItem[];
+		readonly nextCursor?: string;
+	}
+	| { readonly kind: 'unavailable'; readonly reason: 'session' | 'unsupported' | 'authentication' };
+
+export type IAgentCustomizationInstallationReview = {
+	readonly operationId: string;
+	readonly action: 'install' | 'uninstall';
+	readonly kind: 'skill';
+	readonly displayName: string;
+	readonly description?: string;
+	readonly source: string;
+	readonly target: string;
+	readonly fileCount: number;
+	readonly totalBytes: number;
+	readonly filesModified?: boolean;
+} | {
+	readonly operationId: string;
+	readonly action: 'install' | 'uninstall';
+	readonly kind: 'mcp';
+	readonly displayName: string;
+	readonly serverName: string;
+	readonly target: string;
+	readonly endpoint?: string;
+	readonly configurationFields: readonly string[];
+	readonly restoresPreviousConfiguration?: boolean;
+	readonly preservesSharedAuthentication?: boolean;
+};
+
+export interface IAgentPluginInstallRequest {
+	readonly source: string;
+}
 export type AgentTurnProviderCallState = 'notStarted' | 'pending' | 'resolved' | 'rejected';
 export type AgentTurnProviderSessionState = 'active' | 'disconnecting' | 'disconnected' | 'shutdown';
 
@@ -1037,6 +1136,8 @@ export interface IAgentToolPendingConfirmationSignal {
 	readonly permissionKind?: 'shell' | 'write' | 'mcp' | 'read' | 'url' | 'skill' | 'custom-tool' | 'hook' | 'memory' | 'workflow' | 'extension-management' | 'extension-permission-access' | 'extension-env-access';
 	/** Host-only auto-approval path target (not part of the dispatched action). */
 	readonly permissionPath?: string;
+	/** Host-only command for shell approval when the displayed tool input contains structured arguments. */
+	readonly shellCommand?: string;
 	/**
 	 * Host-only flag requiring the client to show a confirmation instead of applying host auto-approval.
 	 * The runtime currently sets it for managed Shell, Read, Edit, and Domain selector asks.
@@ -1277,6 +1378,15 @@ export interface IAgentChatAdoptionResult {
 		readonly markerStatus: 'valid' | 'missing' | 'invalid' | 'readError';
 		readonly provenance: 'legacy' | 'external' | 'unknown';
 		readonly markerFromCache: boolean;
+		readonly markerOrigin?: 'vscode' | 'other' | 'missing' | 'unrecognized' | 'invalidType' | 'unavailable';
+		readonly sessionIdStatus?: 'opaque' | 'empty' | 'controlCharacters' | 'pathSeparators' | 'dotSegment';
+		readonly copilotHomeSource?: 'environment' | 'userHome';
+		readonly sessionStateRootStatus?: 'directory' | 'file' | 'other' | 'missing' | 'readError' | 'notChecked';
+		readonly sessionDirectoryStatus?: 'directory' | 'file' | 'other' | 'missing' | 'readError' | 'notChecked';
+		readonly eventsFileStatus?: 'directory' | 'file' | 'other' | 'missing' | 'readError' | 'notChecked';
+		readonly workspaceMetadataStatus?: 'valid' | 'missing' | 'invalid' | 'readError' | 'tooLarge' | 'notFile' | 'notChecked';
+		/** Persisted runtime client, which can change on resume; not immutable creator provenance. */
+		readonly lastKnownClient?: 'vscode' | 'vscode-agent-host' | 'github/cli' | 'github/autopilot' | 'missing' | 'unrecognized' | 'invalidType' | 'unavailable';
 		readonly errorCode?: string;
 		readonly errorMessage?: string;
 	};
@@ -1328,6 +1438,24 @@ export interface IAgent {
 	/** Uninstall a plugin through the provider that owns its installation state. */
 	uninstallPlugin?(request: IAgentPluginUninstallRequest): Promise<void>;
 
+	/** Install a plugin through the provider that owns its installation state. */
+	installPlugin?(request: IAgentPluginInstallRequest): Promise<void>;
+
+	/** Search the provider-native customization catalog for an exact session. */
+	searchCustomizationMarketplace?(session: URI, request: IAgentCustomizationMarketplaceSearchRequest): Promise<IAgentCustomizationMarketplaceSearchResult>;
+
+	/** List receipt-owned Skill and MCP installations through the provider SDK. */
+	listCustomizationInstallations?(session: URI): Promise<readonly IAgentCustomizationInstallation[]>;
+
+	/** Prepare an exact receipt-owned install or uninstall for explicit review. */
+	prepareCustomizationInstallation?(session: URI, request: IAgentCustomizationInstallationRequest | { readonly installationId: string }): Promise<IAgentCustomizationInstallationReview>;
+
+	/** Apply an exact operation previously returned for explicit review. */
+	applyCustomizationInstallation?(operationId: string): Promise<void>;
+
+	/** Reconcile receipt-owned installations and return the refreshed inventory. */
+	recoverCustomizationInstallations?(session: URI): Promise<readonly IAgentCustomizationInstallation[]>;
+
 	/** Capture the current account without allowing a later account to relabel an in-flight turn. */
 	getTelemetryContext?(): IAgentTelemetryContext;
 
@@ -1369,8 +1497,17 @@ export interface IAgent {
 	/** Optional steering hook. Return false to defer handoff until the provider's turn is ready. */
 	setPendingMessages?(chat: URI, steeringMessage: PendingMessage | undefined, queuedMessages: readonly PendingMessage[], steeringSender?: IAgentPendingMessageSender): boolean | void;
 
+	/** Hands off one independent submission without replacing the legacy slot; false defers until ready. */
+	sendSteeringMessage?(chat: URI, message: PendingMessage, sender?: IAgentPendingMessageSender): boolean | void;
+
 	/** Optional history mutation for providers with a native truncation operation. */
 	truncateChat?(chat: URI, turnId: string | undefined, context?: URI | IAgentChatContext): Promise<void>;
+
+	/**
+	 * Stops an entry of the chat's background work that this provider marked
+	 * stoppable. Resolves false when the entry is unknown or had already finished.
+	 */
+	stopBackgroundWork?(chat: URI, id: string): Promise<boolean>;
 
 	/**
 	 * Changes the working directory of an exact chat's existing provider-native

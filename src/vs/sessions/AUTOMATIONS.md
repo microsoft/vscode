@@ -55,6 +55,8 @@ Manual invocation also has two result boundaries: `IAutomationRunRequestResult` 
 
 ## Definitions and session configuration
 
+Sessions management marks Automation configuration drafts with `isAutomationDraft` independently of their initial configuration. Providers use that purpose to preserve the Automation backend's configuration contract: scheduled Cloud drafts use the scheduled-Cloud model catalogue even when ordinary Cloud sessions use the sandbox experiment.
+
 `IAutomationDescriptor` contains immutable identity, editable name and prompt, schedule, execution target, optional session template, enabled state, and host-projected runtime timestamps.
 
 An `AutomationTarget` separates concrete provider identity (`providerId`) from its agent (`sessionTypeId`). Workspace targets also carry the workspace URI and isolation choice. Session type or display name alone cannot determine ownership. Creation requires an explicit, available Automation-capable provider.

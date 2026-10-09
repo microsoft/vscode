@@ -6255,6 +6255,10 @@ export class CodexAgent extends Disposable implements IAgent {
 		}
 	}
 
+	sendSteeringMessage(chat: URI, message: PendingMessage): boolean {
+		return this.setPendingMessages(chat, message, []);
+	}
+
 	setPendingMessages(chat: URI, steeringMessage: PendingMessage | undefined, _queuedMessages: readonly PendingMessage[]): boolean {
 		// Queued messages are consumed server-side (AgentSideEffects drives a
 		// fresh turn per `idle`); only the single steering message reaches the

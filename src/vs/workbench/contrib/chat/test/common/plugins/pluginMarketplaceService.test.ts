@@ -769,6 +769,7 @@ suite('PluginMarketplaceService - Agent Plugin direct install probes', () => {
 		const fileService = new ProbeFileService();
 		const repoDir = URI.file('/repos/catalog');
 		fileService.files.set(joinPath(repoDir, 'marketplace.json').toString(), JSON.stringify({
+			name: 'catalog-sdk-name',
 			plugins: [
 				{ name: 'invalid-github', source: { source: 'github', repo: 'owner/..' } },
 				{ name: 'invalid-url', source: { source: 'url', url: 'https://example.com/a/../b.git' } },
@@ -777,7 +778,9 @@ suite('PluginMarketplaceService - Agent Plugin direct install probes', () => {
 		}));
 		const service = createService(fileService);
 		const plugins = await service.readPluginsFromDirectory(repoDir, parseMarketplaceReference('owner/catalog')!);
-		assert.deepStrictEqual(plugins.map(plugin => plugin.name), ['valid']);
+		assert.deepStrictEqual(plugins.map(plugin => ({ name: plugin.name, marketplaceName: plugin.marketplaceName })), [
+			{ name: 'valid', marketplaceName: 'catalog-sdk-name' },
+		]);
 	});
 
 	test('reads a Git direct-source manifest with a compatible schema revision', async () => {

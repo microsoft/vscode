@@ -99,6 +99,10 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 		return this._managedSettings[key];
 	}
 
+	getManagedSettings(): ManagedSettingsData {
+		return this._managedSettings;
+	}
+
 	// Read-only — the MultiplexPolicyService owns calling updatePolicyDefinitions.
 	private readonly managedPolicyReader?: IPolicyService;
 	private readonly nativeManagedSettingsService?: INativeManagedSettingsService;

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { basename, dirname, joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -11,7 +12,7 @@ import { FileService } from '../../../files/common/fileService.js';
 import { IFileWriteOptions } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { AhpJsonlLogger, getAhpLogByteLength, isAhpLogFileFor, stringifyAhpLogEntry } from '../../common/ahpJsonlLogger.js';
+import { AhpJsonlLogger, AhpJsonlLogRetention, getAhpLogByteLength, isAhpLogFileFor, stringifyAhpLogEntry } from '../../common/ahpJsonlLogger.js';
 
 suite('AhpJsonlLogger', () => {
 
@@ -150,6 +151,110 @@ suite('AhpJsonlLogger', () => {
 			segmentsMatchLogicalHost: true,
 			rootsAreJsonRpc: true,
 		});
+	});
+
+	test('redacts authentication tokens without mutating live requests, including oversized entries', async () => {
+		const fileService = store.add(new FileService(new NullLogService()));
+		store.add(fileService.registerProvider('file', store.add(new InMemoryFileSystemProvider())));
+		const logger = store.add(new AhpJsonlLogger(
+			{ logsHome: URI.file('/logs'), logId: 'authentication', connectionId: 'client', transport: 'mission-control' },
+			fileService, new NullLogService(),
+		));
+		const request = { jsonrpc: '2.0', id: 1, method: 'authenticate', params: { resource: 'https://api.github.com', token: 'private-token', scopes: ['copilot'] } };
+		logger.log(request, 'c2s');
+		logger.log({ ...request, id: 2, params: { ...request.params, extra: 'x'.repeat(2 * 1024 * 1024) } }, 'c2s');
+		await logger.flush();
+		const content = (await fileService.readFile(logger.resource)).value.toString();
+		const entries = content.trim().split('\n').map(line => JSON.parse(line));
+		assert.deepStrictEqual({
+			tokens: entries.map(entry => entry.params.token),
+			resources: entries.map(entry => entry.params.resource),
+			containsCredential: content.includes(request.params.token),
+			liveToken: request.params.token,
+			truncated: entries[1]._ahpLog.truncated,
+		}, {
+			tokens: ['<redacted>', '<redacted>'],
+			resources: ['https://api.github.com', 'https://api.github.com'],
+			containsCredential: false, liveToken: 'private-token', truncated: true,
+		});
+	});
+
+	test('bounds shared history across reconnects and concurrent writers while preserving unrelated files', async () => {
+		const log = new NullLogService();
+		const files = store.add(new FileService(log));
+		store.add(files.registerProvider('file', store.add(new InMemoryFileSystemProvider())));
+		const logsHome = URI.file('/logs');
+		const unrelated = joinPath(logsHome, 'ahp', 'unrelated.jsonl');
+		await files.writeFile(unrelated, VSBuffer.fromString('unrelated'));
+		const retention = new AhpJsonlLogRetention({ logsHome, logId: 'relay', maxFiles: 3, maxSizeBytes: 1024 * 1024 }, files, log);
+		const loggers: AhpJsonlLogger[] = [];
+		for (let generation = 0; generation < 12; generation++) {
+			const logger = store.add(new AhpJsonlLogger({
+				logsHome, logId: 'relay', connectionId: `mobile-${generation}`, transport: 'mission-control', retention,
+			}, files, log));
+			logger.log({ id: generation, method: 'initialize' }, 'c2s');
+			await logger.flush();
+			logger.dispose();
+			loggers.push(logger);
+		}
+		const afterReconnects = (await files.resolve(joinPath(logsHome, 'ahp'))).children!.length;
+		loggers.length = 0;
+		for (let generation = 0; generation < 12; generation++) {
+			const logger = store.add(new AhpJsonlLogger({
+				logsHome, logId: 'relay', connectionId: `concurrent-${generation}`, transport: 'mission-control', retention, maxFileSizeBytes: 500,
+			}, files, log));
+			logger.log({ id: 99, result: 'new activity' }, 's2c');
+			loggers.push(logger);
+		}
+		await Promise.all(loggers.map(logger => logger.flush()));
+		const retained = (await files.resolve(joinPath(logsHome, 'ahp'))).children!;
+		const records = await Promise.all(retained.filter(file => isAhpLogFileFor('relay', file.name)).map(async file =>
+			JSON.parse((await files.readFile(file.resource)).value.toString().trim())));
+		const resumed = loggers[0];
+		const resumedResource = resumed.resource;
+		const wasPruned = !await files.exists(resumedResource);
+		resumed.log({ id: 100, result: 'x'.repeat(200) }, 's2c');
+		await resumed.flush();
+		assert.deepStrictEqual({
+			afterReconnects,
+			afterConcurrentWrites: retained.length,
+			ids: records.map(entry => entry.id),
+			unrelated: (await files.readFile(unrelated)).value.toString(),
+			resumed: { wasPruned, sameSegment: resumed.resource.toString() === resumedResource.toString(), id: JSON.parse((await files.readFile(resumed.resource)).value.toString().trim()).id },
+		}, {
+			afterReconnects: 4, afterConcurrentWrites: 4, ids: [99, 99, 99], unrelated: 'unrelated',
+			resumed: { wasPruned: true, sameSegment: true, id: 100 },
+		});
+	});
+
+	test('bounds aggregate bytes across loggers and rotated segments', async () => {
+		const log = new NullLogService();
+		const files = store.add(new FileService(log));
+		store.add(files.registerProvider('file', store.add(new InMemoryFileSystemProvider())));
+		const logsHome = URI.file('/logs');
+		const retention = new AhpJsonlLogRetention({ logsHome, logId: 'relay', maxFiles: 10, maxSizeBytes: 500 }, files, log);
+		for (let generation = 0; generation < 4; generation++) {
+			const logger = store.add(new AhpJsonlLogger({
+				logsHome, logId: 'relay', connectionId: `mobile-${generation}`, transport: 'mission-control',
+				retention, maxFileSizeBytes: 1,
+			}, files, log));
+			for (let id = 0; id < 3; id++) {
+				logger.log({ id, result: 'x'.repeat(200) }, 's2c');
+			}
+			await logger.flush();
+		}
+		const retained = (await files.resolve(joinPath(logsHome, 'ahp'), { resolveMetadata: true })).children!;
+		assert.deepStrictEqual({
+			bytesWithinBudget: retained.reduce((size, file) => size + (file.size ?? 0), 0) <= 500,
+			fileCount: retained.length,
+			latest: JSON.parse((await files.readFile(retained[0].resource)).value.toString().trim()).id,
+		}, { bytesWithinBudget: true, fileCount: 1, latest: 2 });
+	});
+
+	test('preserves existing authentication redaction markers', () => {
+		assert.deepStrictEqual(['<redacted>', '[REDACTED]'].map(token => JSON.parse(stringifyAhpLogEntry({
+			method: 'authenticate', params: { token },
+		})).params.token), ['<redacted>', '[REDACTED]']);
 	});
 
 	test('coalesces synchronously queued log calls into a single write', async () => {

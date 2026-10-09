@@ -2435,6 +2435,10 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		sess.abort();
 	}
 
+	sendSteeringMessage(chat: URI, message: PendingMessage): boolean {
+		return this.setPendingMessages(chat, message, []);
+	}
+
 	setPendingMessages(chat: URI, steeringMessage: PendingMessage | undefined, _queuedMessages: readonly PendingMessage[]): boolean {
 		// Queued messages are intentionally a no-op. CONTEXT.md M10 +
 		// AgentSideEffects confirm queued messages are consumed server-side;

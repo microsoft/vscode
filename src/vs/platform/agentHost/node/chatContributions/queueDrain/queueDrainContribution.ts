@@ -48,6 +48,14 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 	}
 
 	onTurnEnd(turn: ITurnEnd): void {
+		if (turn.reason.kind === 'cancelled') {
+			const submitted = this._context.memento(SubmittedSteering, turn.channel).get();
+			for (const message of this._stateManager.getChatState(turn.channel)?.steeringMessages ?? []) {
+				if (!submitted.has(message.id)) {
+					this._stateManager.dispatchServerAction(turn.channel, { type: ActionType.ChatSteeringMessageRemoved, id: message.id });
+				}
+			}
+		}
 		if (turn.reason.kind === 'success' || turn.reason.kind === 'localCommand') {
 			this._tryConsumeNextQueuedMessage(turn.channel);
 		}
@@ -187,7 +195,7 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 		const submitted = this._context.memento(SubmittedSteering, channel);
 		const pendingIds = new Set(pending.map(message => message.id));
 		submitted.set(new Set([...submitted.get()].filter(id => pendingIds.has(id))), undefined);
-		if (!provider?.setPendingMessages || !state.activeTurn) {
+		if (!provider?.sendSteeringMessage || !state.activeTurn) {
 			return;
 		}
 		for (const message of pending) {
@@ -197,7 +205,7 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 			}
 			submitted.set(new Set([...submitted.get(), message.id]), undefined);
 			const sender = this._context.memento(ListedSteeringSender, channel, message.id).get();
-			if (provider.setPendingMessages(URI.parse(channel), message, [], sender) === false) {
+			if (provider.sendSteeringMessage(URI.parse(channel), message, sender) === false) {
 				submitted.set(new Set([...submitted.get()].filter(id => id !== message.id)), undefined);
 			}
 		}

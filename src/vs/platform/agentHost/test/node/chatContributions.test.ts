@@ -1685,6 +1685,28 @@ suite('AgentHostChatContributions', () => {
 		assert.deepStrictEqual({ before, after: queue.pendingMessages.map(message => message?.id) }, { before: [], after: ['a'] });
 	});
 
+	test('queue drain clears deferred independent steering when its turn is cancelled', () => {
+		const queue = createQueueDrainContributions(disposables);
+		queue.setSteeringReady(false);
+		queue.stateManager.dispatchServerAction(queue.chat, {
+			type: ActionType.ChatTurnStarted, turnId: 'active-turn',
+			startedAt: '2026-10-08T00:00:00.000Z',
+			message: { text: 'Working', origin: { kind: MessageKind.User } },
+		});
+		const steer: IDispatchedAction['action'] = {
+			type: ActionType.ChatSteeringMessageSet,
+			steeringMessage: { id: 'a', message: { text: 'A', origin: { kind: MessageKind.User } } },
+		};
+		queue.stateManager.dispatchServerAction(queue.chat, steer);
+		queue.service.didDispatchAction(dispatchedAction(queue.chat, queue.session, steer));
+		queue.stateManager.dispatchServerAction(queue.chat, { type: ActionType.ChatTurnCancelled, turnId: 'active-turn', duration: 0 });
+		queue.service.turnEnd({ session: queue.session, channel: queue.chat, turnId: 'active-turn', reason: { kind: 'cancelled' } });
+		assert.deepStrictEqual({
+			delivered: queue.pendingMessages,
+			pending: queue.stateManager.getChatState(queue.chat)?.steeringMessages,
+		}, { delivered: [], pending: undefined });
+	});
+
 	test('queue drain forwards server-dispatched steering to the provider', () => {
 		const queue = createQueueDrainContributions(disposables);
 		queue.stateManager.dispatchServerAction(queue.chat, {

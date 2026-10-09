@@ -411,6 +411,11 @@
 	font-size: var(--vscode-fontSize-body2);
 }
 
+.automation-target-progress {
+	color: var(--vscode-foreground);
+	font-size: var(--vscode-fontSize-body2);
+}
+
 .automation-form-save-status {
 	display: flex;
 	align-items: center;

@@ -23,6 +23,8 @@ export interface IArtifactGroupConfig {
 export interface IChatArtifact {
 	readonly label: string;
 	readonly uri: string;
+	/** Suggested filename when saving, independent of the source URI. */
+	readonly fileName?: string;
 	readonly toolCallId?: string;
 	readonly dataPartIndex?: number;
 	readonly type: 'devServer' | 'screenshot' | 'plan' | undefined;
@@ -66,6 +68,7 @@ export interface IChatArtifacts {
 interface IResponseCache {
 	readonly partsLength: number;
 	readonly completedToolCount: number;
+	readonly toolResultCount: number;
 	readonly byMimeType: Record<string, IArtifactGroupConfig>;
 	readonly byFilePath: Record<string, IArtifactGroupConfig>;
 	readonly byMemoryFilePath: Record<string, IArtifactGroupConfig>;
@@ -188,25 +191,32 @@ class UnifiedChatArtifacts extends Disposable implements IChatArtifacts {
 				if (!response) {
 					continue;
 				}
+				observableSignalFromEvent(this, response.onDidChange).read(reader);
 
 				activeResponseIds.add(response.id);
 				const responseValue = response.response;
 				const partsLength = responseValue.value.length;
 
 				let completedToolCount = 0;
+				let toolResultCount = 0;
 				for (const part of responseValue.value) {
-					if ((part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && IChatToolInvocation.resultDetails(part) !== undefined) {
-						completedToolCount++;
+					if (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') {
+						if (IChatToolInvocation.resultDetails(part, reader) !== undefined) {
+							toolResultCount++;
+						}
+						if (IChatToolInvocation.isComplete(part, reader)) {
+							completedToolCount++;
+						}
 					}
 				}
 
 				const cached = this._responseCache.get(response.id);
 				let extracted: IChatArtifact[];
-				if (cached && cached.partsLength === partsLength && cached.completedToolCount === completedToolCount && cached.byMimeType === byMimeType && cached.byFilePath === byFilePath && cached.byMemoryFilePath === byMemoryFilePath) {
+				if (cached && cached.partsLength === partsLength && cached.completedToolCount === completedToolCount && cached.toolResultCount === toolResultCount && cached.byMimeType === byMimeType && cached.byFilePath === byFilePath && cached.byMemoryFilePath === byMemoryFilePath) {
 					extracted = cached.artifacts;
 				} else {
 					extracted = extractArtifactsFromResponse(responseValue, sessionResource, byMimeType, byFilePath, byMemoryFilePath);
-					this._responseCache.set(response.id, { partsLength, completedToolCount, byMimeType, byFilePath, byMemoryFilePath, artifacts: extracted });
+					this._responseCache.set(response.id, { partsLength, completedToolCount, toolResultCount, byMimeType, byFilePath, byMemoryFilePath, artifacts: extracted });
 				}
 
 				for (const artifact of extracted) {
