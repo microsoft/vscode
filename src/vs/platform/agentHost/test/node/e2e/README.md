@@ -476,6 +476,24 @@ After recording, **review the diff** (paths normalized? no usernames, tokens, or
 
 ---
 
+### Managed-settings schema snapshot
+
+[`../copilotSdkManagedSettings.integrationTest.ts`](../copilotSdkManagedSettings.integrationTest.ts)
+snapshots the complete `managedSettings.schema()` response from the bundled SDK/runtime.
+This is a sessionless SDK integration test, not an AHP scenario: it creates no chat,
+calls no model, and starts no MCP servers. It uses an isolated home without login credentials.
+The snapshot preserves the schema's descriptions, defaults, validation rules, and composition metadata.
+
+```bash
+# Compare with the committed baseline.
+./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/copilotSdkManagedSettings.integrationTest.ts
+
+# Regenerate after an intentional SDK/schema change, then review and rerun without the flag.
+AGENT_HOST_UPDATE_AHP_SNAPSHOTS=1 ./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/copilotSdkManagedSettings.integrationTest.ts
+```
+
+A missing baseline fails unless the explicit update flag is set, matching the prompt snapshots.
+
 ## Writing a new test
 
 Most tests are cross-provider and live in a focused module under `suites/`. A shared test receives `IAgentHostE2ETestContext` and registers its cases:
