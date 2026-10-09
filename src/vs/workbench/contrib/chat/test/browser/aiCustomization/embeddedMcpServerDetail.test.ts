@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $ } from '../../../../../../base/browser/dom.js';
-import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { $, getWindow } from '../../../../../../base/browser/dom.js';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
 import { hasKey } from '../../../../../../base/common/types.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -17,10 +18,13 @@ import { CodeEditorWidget } from '../../../../../../editor/browser/widget/codeEd
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { IResourceEditorInput } from '../../../../../../platform/editor/common/editor.js';
+import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { IFileContent, IFileService } from '../../../../../../platform/files/common/files.js';
-import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
+import { IMcpServerConfiguration, McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { IMcpWorkbenchService, McpServerInstallState } from '../../../../mcp/common/mcpTypes.js';
+import { IEditableMcpServerConfiguration, IMcpWorkbenchService, McpServerInstallState } from '../../../../mcp/common/mcpTypes.js';
+import { McpResourceFormat } from '../../../../../../platform/mcp/common/mcpWorkspaceConfiguration.js';
 import { EmbeddedMcpServerDetail, IMcpServerDetailInput } from '../../../browser/aiCustomization/embeddedMcpServerDetail.js';
 import { createVSCodeHarnessDescriptor, ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
 
@@ -30,14 +34,21 @@ suite('EmbeddedMcpServerDetail', () => {
 	const definition = '{ "command": "memory-server", "args": [] }';
 	const content = `{\n\t"mcpServers": {\n\t\t"local-memory": ${definition},\n\t\t"other": { "command": "other-server" }\n\t}\n}`;
 
-	function createDetail() {
+	function createDetail(editable?: (source: URI, name: string) => IEditableMcpServerConfiguration | undefined) {
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		const reads: { uri: URI; result: DeferredPromise<IFileContent> }[] = [];
 		const executedCommands: unknown[][] = [];
+		const openedEditors: IResourceEditorInput[] = [];
 		let model: ITextModel | null = null;
 		instantiationService.stub(ICommandService, {
 			executeCommand: async (...args: unknown[]) => { executedCommands.push(args); return undefined; },
 		});
+		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
+			override async openEditor(...args: unknown[]): Promise<undefined> {
+				openedEditors.push(args[0] as IResourceEditorInput);
+				return undefined;
+			}
+		}());
 		instantiationService.stub(IFileService, {
 			readFile: resource => {
 				const result = new DeferredPromise<IFileContent>();
@@ -45,7 +56,10 @@ suite('EmbeddedMcpServerDetail', () => {
 				return result.p;
 			},
 		});
-		instantiationService.stub(IMcpWorkbenchService, { onChange: Event.None });
+		instantiationService.stub(IMcpWorkbenchService, {
+			onChange: Event.None,
+			resolveEditableMcpServerConfiguration: async (source, name) => editable?.(source, name),
+		});
 		instantiationService.stub(ICustomizationHarnessService, {
 			activeSessionResource: constObservable(URI.parse('copilot:/session')),
 			availableHarnesses: constObservable([createVSCodeHarnessDescriptor()]),
@@ -75,7 +89,7 @@ suite('EmbeddedMcpServerDetail', () => {
 		const complete = (index: number, text = content) => reads[index].result.complete(new class extends mock<IFileContent>() {
 			override readonly value = VSBuffer.fromString(text);
 		}());
-		return { detail, input, reads, snapshot, complete, executedCommands };
+		return { detail, input, reads, snapshot, complete, executedCommands, openedEditors };
 	}
 
 	test('loads only the selected definition after migration metadata changes during the read', async () => {
@@ -289,4 +303,74 @@ suite('EmbeddedMcpServerDetail', () => {
 			},
 		});
 	});
+
+	test('keeps servers from VS Code mcp.json files read-only', async () => {
+		const { detail, input, snapshot } = createDetail();
+		detail.setInput({ ...input, source: { uri: URI.file('/home/test/.vscode/mcp.json') }, config: { type: McpServerType.LOCAL, command: 'memory-server' } });
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			editorVisible: snapshot().editorVisible,
+			formVisible: detail.element.querySelector<HTMLElement>('.mcp-detail-configuration-form')!.style.display !== 'none',
+			heading: detail.element.querySelector<HTMLElement>('.mcp-detail-section-title')!.style.display !== 'none',
+			diagnosticsText: detail.element.querySelector('.mcp-detail-diagnostics')!.textContent,
+		}, {
+			editorVisible: true,
+			formVisible: false,
+			heading: true,
+			diagnosticsText: '',
+		});
+	});
+
+	for (const { format, types, envFile, workingDirectory } of [
+		{ format: McpResourceFormat.CopilotGlobal, types: ['stdio', 'http', 'sse'], envFile: false, workingDirectory: true },
+		{ format: McpResourceFormat.WorkspaceRoot, types: ['stdio', 'http'], envFile: false, workingDirectory: false },
+	]) {
+		test(`edits a server from a shared ${format} configuration through the configuration form`, async () => {
+			const saves: { previous: IMcpServerConfiguration; config: IMcpServerConfiguration }[] = [];
+			// `envFile` is hidden for both shared formats; keeping its existing value must not block saving.
+			const config: IMcpServerConfiguration = { type: McpServerType.LOCAL, command: 'memory-server', envFile: '.env', env: { TOKEN: 'old' } };
+			const { detail, input, snapshot, openedEditors } = createDetail((source, name) => isEqual(source, uri) && name === 'local-memory' ? {
+				config,
+				format,
+				save: async (previous, next) => { saves.push({ previous, config: next }); },
+			} : undefined);
+			const range = new Range(3, 3, 3, 40);
+			detail.setInput({ ...input, source: { uri, range } });
+			await timeout(0);
+
+			const form = detail.element.querySelector<HTMLElement>('.mcp-detail-configuration-form')!;
+			form.querySelector<HTMLElement>('.mcp-config-form-other-properties')!.click();
+			await timeout(0);
+			const field = (label: string) => [...form.querySelectorAll<HTMLElement>('.mcp-config-form-field')].find(field => field.querySelector('.mcp-config-form-label')?.firstChild?.textContent === label)!;
+			const valueInput = form.querySelector<HTMLInputElement>('.mcp-config-form-kv-value input')!;
+			valueInput.value = 'new';
+			valueInput.dispatchEvent(new (getWindow(valueInput).Event)('input'));
+			const [, , saveButton] = form.querySelectorAll<HTMLElement>('.mcp-config-form-footer .monaco-button');
+			saveButton.click();
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				openedEditors,
+				formVisible: form.style.display !== 'none',
+				editorVisible: snapshot().editorVisible,
+				heading: detail.element.querySelector<HTMLElement>('.mcp-detail-section-title')!.style.display !== 'none',
+				types: [...form.querySelectorAll('.monaco-custom-radio .monaco-button')].map(button => button.textContent),
+				addVariable: form.querySelector('.mcp-config-form-kv-add .monaco-button')!.textContent,
+				envFile: field('Environment File').style.display !== 'none',
+				workingDirectory: field('Working Directory').style.display !== 'none',
+				saves,
+			}, {
+				openedEditors: [{ resource: uri, options: { selection: range, pinned: true } }],
+				formVisible: true,
+				editorVisible: false,
+				heading: false,
+				types,
+				addVariable: 'Add Variable',
+				envFile,
+				workingDirectory,
+				saves: [{ previous: config, config: { type: McpServerType.LOCAL, command: 'memory-server', envFile: '.env', env: { TOKEN: 'new' } } }],
+			});
+		});
+	}
 });

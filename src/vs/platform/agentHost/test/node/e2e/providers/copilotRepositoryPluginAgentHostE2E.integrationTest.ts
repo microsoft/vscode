@@ -18,6 +18,7 @@ import { ActionType } from '../../../../common/state/sessionActions.js';
 import { buildDefaultChatUri, ROOT_STATE_URI } from '../../../../common/state/sessionState.js';
 import { getActionEnvelope, isActionNotification, type TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
 import { AgentHostE2EServerLease, createRealSession, driveTurnToCompletion, removeTempDirs } from '../harness/agentHostE2ETestHarness.js';
+import { assertExpectedFailure } from '../harness/expectedFailure.js';
 import { createTestDirectory } from '../harness/testDirectories.js';
 import { createManagedPluginMarketplace } from './copilotManagedPluginMarketplace.js';
 import { COPILOT_CONFIG } from './copilotTestConfiguration.js';
@@ -159,10 +160,17 @@ suite('Agent Host E2E — Copilot repository plugin preparation', function () {
 		} catch (error) {
 			cleanupErrors.push(error instanceof Error ? error : new Error(String(error)));
 		}
-		if (testError || cleanupErrors.length > 0) {
-			throw testError && cleanupErrors.length === 0
-				? testError
-				: new AggregateError(testError ? [testError, ...cleanupErrors] : cleanupErrors, 'Repository plugin E2E scenario failed');
-		}
+		const scenarioError = testError && cleanupErrors.length === 0
+			? testError
+			: cleanupErrors.length > 0
+				? new AggregateError(testError ? [testError, ...cleanupErrors] : cleanupErrors, 'Repository plugin E2E scenario failed')
+				: undefined;
+		await assertExpectedFailure('github/copilot-agent-runtime#25331',
+			/^Repository plugin preparation did not install the configured plugin$/,
+			() => {
+				if (scenarioError) {
+					throw scenarioError;
+				}
+			});
 	});
 });

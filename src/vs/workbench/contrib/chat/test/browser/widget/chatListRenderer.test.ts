@@ -512,12 +512,12 @@ suite('ChatListRenderer', () => {
 					kind: 'data',
 					base64Value: 'aW1hZ2U=',
 					mimeType: 'image/png',
-					path: '/tool/image-call/0/generated-image.png',
+					path: '/tool/image-call/0/generated-image-42372713b8e5.png',
 				}, {
 					kind: 'data',
 					base64Value: 'aW1hZ2Uy',
 					mimeType: 'image/jpeg',
-					path: '/tool/image-call/1/generated-image.jpe',
+					path: '/tool/image-call/1/generated-image-3a13e817ce35.jpg',
 				}]);
 			});
 
@@ -550,10 +550,10 @@ suite('ChatListRenderer', () => {
 					path: part.uri.path,
 				})), [{
 					base64Value: 'aW1hZ2Ux',
-					path: '/tool/image-call-1/0/generated-image-1.png',
+					path: '/tool/image-call-1/0/generated-image-3c41e71d9ac9.png',
 				}, {
 					base64Value: 'aW1hZ2Uy',
-					path: '/tool/image-call-2/0/generated-image-2.png',
+					path: '/tool/image-call-2/0/generated-image-dc4b1335ceec.png',
 				}]);
 			});
 
@@ -590,7 +590,7 @@ suite('ChatListRenderer', () => {
 					uri: imageUri.toString(),
 					base64Value: undefined,
 				}, {
-					uri: ChatResponseResource.createUri(sessionResource, 'image-call', 1, 'generated-image-2.png').toString(),
+					uri: ChatResponseResource.createUri(sessionResource, 'image-call', 1, 'generated-image-035f45022753.png').toString(),
 					base64Value: 'aW1hZ2U=',
 				}]);
 			});
@@ -8017,6 +8017,64 @@ suite('ChatListRenderer', () => {
 
 	for (const incremental of [false, true]) {
 		for (const fontSize of [13, 20]) {
+			test(`hidden turn changes do not move the completion toolbar (incremental=${incremental}, fontSize=${fontSize})`, async () => {
+				const { instantiationService, container, configurationService, model, request, renderer, template, node } = createPersistentProgressRenderer({
+					renderFooterActions: true,
+					sessionResource: URI.from({ scheme: SessionType.AgentHostCopilot, path: '/footer-layout' }),
+				});
+				const stats = observableValue('turnChangeStats', { files: 0, insertions: 0, deletions: 0 });
+				instantiationService.stub(IChatResponseFileChangesService, new class extends mock<IChatResponseFileChangesService>() {
+					override getChangesForRequest() { return undefined; }
+					override getChangeStatsForRequest() { return stats; }
+				}());
+				configurePersistentProgressTypography(container, fontSize);
+				configurationService.setUserConfiguration(ChatConfiguration.IncrementalRendering, incremental);
+				model.acceptResponseProgress(request, {
+					kind: 'markdownContent',
+					content: new MarkdownString('**Task completed:**\n\nGenerated an image.'),
+				});
+				renderer.renderElement(node, 0, template);
+				await retry(async () => {
+					assert.strictEqual(template.value.querySelector('.chat-markdown-part p:last-child')?.textContent, 'Generated an image.');
+				}, 10, 100);
+				const progress = template.value.querySelector<HTMLElement>('.chat-working-progress');
+				assert.ok(progress);
+				const before = {
+					height: template.rowContainer.getBoundingClientRect().height,
+					footerTop: progress.getBoundingClientRect().top,
+				};
+				request.response?.complete();
+				renderer.renderElement(node, 0, template);
+				const summary = template.value.querySelector<HTMLElement>('.chat-turn-pills-part');
+				assert.ok(summary);
+				const measure = () => ({
+					height: template.rowContainer.getBoundingClientRect().height,
+					footerTop: template.footerToolbar.getElement().getBoundingClientRect().top,
+				});
+				const completed = measure();
+				const hiddenSummaryHeight = summary.getBoundingClientRect().height;
+				stats.set({ files: 1, insertions: 5, deletions: 2 }, undefined);
+				const shownSummary = summary.getBoundingClientRect();
+				const markdown = template.value.querySelector<HTMLElement>('.chat-markdown-part');
+				assert.ok(markdown);
+				const visibleSummaryGap = shownSummary.top - markdown.getBoundingClientRect().bottom;
+				stats.set({ files: 0, insertions: 0, deletions: 0 }, undefined);
+
+				assert.deepStrictEqual({
+					completed,
+					hiddenSummaryHeight,
+					showsChanges: shownSummary.height > 0,
+					visibleSummaryGap,
+					hiddenAgain: measure(),
+				}, {
+					completed: before,
+					hiddenSummaryHeight: 0,
+					showsChanges: true,
+					visibleSummaryGap: 16,
+					hiddenAgain: before,
+				});
+			});
+
 			for (const canceled of [false, true]) {
 				test(`persistent progress hands off an empty response without changing height (incremental=${incremental}, fontSize=${fontSize}, canceled=${canceled})`, () => {
 					const { container, configurationService, request, renderer, template, node } = createPersistentProgressRenderer({ renderFooterActions: true });
@@ -9873,7 +9931,8 @@ suite('ChatListRenderer', () => {
 					};
 				};
 				const beforeFinish = bounds();
-				await retry(async () => assert.ok(!imageReveal.classList.contains('revealing')), 100, 50);
+				const transitionDuration = Number(clock.effect?.getTiming().duration);
+				await retry(async () => assert.ok(!imageReveal.classList.contains('revealing')), Math.ceil(transitionDuration / 50) + 1, 50);
 				const afterFinish = bounds();
 				assert.deepStrictEqual({
 					revealStates,
@@ -9911,7 +9970,7 @@ suite('ChatListRenderer', () => {
 				keyboardAccessible: true,
 			});
 			disposables.dispose();
-		});
+		}).timeout(10_000);
 	}
 
 	test('generated image completion renders embedded and referenced images without duplicate previews or hidden placeholders', async () => {

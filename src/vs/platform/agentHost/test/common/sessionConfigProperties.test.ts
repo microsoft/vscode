@@ -170,11 +170,30 @@ suite('Session config properties', () => {
 			runtime: filterSessionConfigValues(copilot, values, false),
 			noDefaultInvented: filterSessionConfigValues(copilot, {}),
 		}, {
-			creation: { approvalMode: 'assisted', effectiveApprovalMode: 'manual', availableApprovalModes: ['manual', 'assisted'], target: 'worktree', baseBranch: 'main', branch: 'new-session', mode: 'plan' },
+			creation: { approvalMode: 'assisted', target: 'worktree', baseBranch: 'main', branch: 'new-session', mode: 'plan' },
 			runtime: { approvalMode: 'assisted', mode: 'plan' },
 			noDefaultInvented: {},
 		});
 	});
+
+	for (const key of ['autoApprove', 'approvalMode']) {
+		test(`filters host-owned approval reports for ${key} without dropping other readOnly values`, () => {
+			const schema: SessionConfigSchema = {
+				type: 'object', properties: {
+					[key]: key === 'autoApprove' ? vscode.properties.autoApprove : copilot.properties.approvalMode,
+					effectiveApprovalMode: { type: 'string', title: 'Effective', readOnly: true, sessionMutable: true },
+					availableApprovalModes: { type: 'array', title: 'Available', readOnly: true, sessionMutable: true },
+					worktreeBranchPrefix: { type: 'string', title: 'Prefix', readOnly: true, sessionMutable: true },
+				},
+			};
+			const manual = key === 'autoApprove' ? 'default' : 'manual';
+			const values = { [key]: manual, effectiveApprovalMode: manual, availableApprovalModes: [manual], worktreeBranchPrefix: 'user/' };
+			assert.deepStrictEqual([true, false].map(isNew => filterSessionConfigValues(schema, values, isNew)), [
+				{ [key]: manual, worktreeBranchPrefix: 'user/' },
+				{ [key]: manual, worktreeBranchPrefix: 'user/' },
+			]);
+		});
+	}
 
 	test('rejects unavailable, unadvertised and immutable writes before dispatch', () => {
 		assert.throws(() => validateSessionConfigWrite(copilot, { availableApprovalModes: ['manual'] }, 'approvalMode', 'allow-all', false), /does not offer/);

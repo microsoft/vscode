@@ -229,6 +229,9 @@ export class AutomationDialogService implements IAutomationDialogService {
 				return;
 			}
 			revalidate();
+			if (state.targetPending) {
+				return;
+			}
 			if (validation.nameError || validation.promptError || validation.folderError || validation.sessionTypeError || validation.branchError || validation.scheduleError) {
 				dialogTelemetry.validationFailed();
 				return;
@@ -262,7 +265,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 					return;
 				}
 				revalidate();
-				if (validation.sessionTypeError || validation.scheduleError) {
+				if (state.targetPending || validation.sessionTypeError || validation.scheduleError) {
 					return;
 				}
 				const result = buildResult(sessionConfigurationCapture);

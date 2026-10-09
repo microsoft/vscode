@@ -38,6 +38,7 @@ import { ChatConfiguration } from '../../common/constants.js';
 import { getCopilotCliSessionRawId } from '../copilotCliEventsUri.js';
 import { getRemoteConnectionForSession, isAgentHostSession } from '../chatDebug/agentHostLogSources.js';
 import { buildAgentHostCustomizationsUri, buildAgentHostUsageUri } from '../chatDebug/agentHostUsageSidecar.js';
+import { MISSION_CONTROL_AHP_LOG_ID } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 
 const SHARED_PROCESS_LOG_FILE_NAME = 'sharedprocess.log';
 const OUTPUT_LOG_FOLDER_PREFIX = 'output_';
@@ -352,10 +353,14 @@ export async function collectAgentHostDebugLogs(
 
 	// 3. Keep transport history after process logs and sidecars so reconnect loops cannot crowd them out.
 	try {
+		const missionControlLogsIncluded = hostArtifact?.kind === 'archive' && hostArtifact.entries.some(entry => entry.path.startsWith('ahp/mission-control/'));
 		const ahpDir = joinPath(environmentService.logsHome, 'ahp');
 		const stat = await fileService.resolve(ahpDir, { resolveMetadata: true });
 		const candidates = (stat.children ?? [])
-			.filter(child => child.isFile && !child.isSymbolicLink && child.name.endsWith('.jsonl') && (!activeSession || ahpLogId && isAhpLogFileFor(ahpLogId, child.name)))
+			.filter(child => child.isFile && !child.isSymbolicLink && child.name.endsWith('.jsonl') && (!activeSession
+				|| ahpLogId && isAhpLogFileFor(ahpLogId, child.name)
+				|| activeSession.isLocal && isAhpLogFileFor(MISSION_CONTROL_AHP_LOG_ID, child.name)))
+			.filter(child => !missionControlLogsIncluded || !isAhpLogFileFor(MISSION_CONTROL_AHP_LOG_ID, child.name))
 			.sort((a, b) => (b.mtime ?? 0) - (a.mtime ?? 0) || b.name.localeCompare(a.name));
 		const filesPerHost = new Map<string, number>();
 		for (const child of candidates) {
@@ -553,17 +558,24 @@ async function exportFilesToLocalFolder(
 	logService: ILogService,
 ): Promise<void> {
 	await fileService.createFolder(exportFolder);
+	const copiedHostPaths = new Set<string>();
 	if (hostArtifact) {
 		try {
 			if (hostArtifact.artifact.kind !== 'directory') {
 				throw new Error(`Expected an Agent Host debug-log directory, got ${hostArtifact.artifact.kind}`);
 			}
 			await copyHostArtifactDirectory(exportFolder, hostArtifact, fileService);
+			for (const entry of hostArtifact.artifact.entries) {
+				copiedHostPaths.add(entry.path);
+			}
 		} catch (error) {
 			logService.warn(`[ExportAgentHostDebugLogs] Failed to save Agent Host logs: ${error instanceof Error ? error.message : String(error)}; saving client-owned logs only`);
 		}
 	}
 	for (const file of files) {
+		if (file.path.startsWith('ahp/') && copiedHostPaths.has(`ahp/mission-control/${file.path.slice('ahp/'.length)}`)) {
+			continue;
+		}
 		const segments = toSafeRelativePathSegments(file.path);
 		if (segments.length === 0) {
 			continue;

@@ -21,16 +21,32 @@ Capability skips are tracked separately from suspected bugs. A provider that doe
 An administrator can disable identity capture while the runtime inherits an explicit `user.name` resource attribute. The native runtime removes `process.user.name` and `host.name`, but the inherited `user.name` still reaches the managed collector. This scenario concerns native Copilot export, not the separate Agent Host metadata pipeline.
 
 - Test: `managed identity denial removes inherited identity from native spans`.
-- Scope: Copilot runtime `1.0.94-3`; reproduced in local strict replay on macOS. The expected-failure marker remains enabled on all platforms.
+- Scope: Copilot runtime `1.0.95-0`; reproduced in local strict replay on macOS. The expected-failure marker remains enabled on all platforms.
 - Expected: managed `telemetry.capture.identity=false` removes all three identity attributes from native spans and events despite local opt-in and inherited resource attributes.
-- Observed: native spans still retain `user.name=synthetic-account` with SDK `1.0.18-preview.3` / runtime `1.0.94-3`. The runtime's identity-resource predicate still includes only `process.user.name` and `host.name`.
-- Tracking: the [bundled runtime's identity-resource predicate](https://github.com/github/copilot-agent-runtime/blob/d8cd60bc89ed3ae60cc37d7877021ac49bd52492/src/runtime/src/otel/sdk.rs#L2003) includes only `process.user.name` and `host.name`. Stephen Toub introduced this predicate on September 14, 2026, in [github/copilot-agent-runtime#19723](https://github.com/github/copilot-agent-runtime/pull/19723). No upstream issue was filed by this task.
+- Observed: native spans still retain `user.name=synthetic-account` with SDK `1.0.19-preview.0` / runtime `1.0.95-0`. The runtime's identity-resource predicate still includes only `process.user.name` and `host.name`.
+- Tracking: the [bundled runtime's identity-resource predicate](https://github.com/github/copilot-agent-runtime/blob/94f375f0098b266c43f7772797bc5f7b4ea12626/src/runtime/src/otel/sdk.rs#L2003) includes only `process.user.name` and `host.name`. Stephen Toub introduced this predicate on September 14, 2026, in [github/copilot-agent-runtime#19723](https://github.com/github/copilot-agent-runtime/pull/19723). No upstream issue was filed by this task.
 - Gate: a strict expected-failure marker accepts only the identity-redaction assertion. An unexpected pass fails and requires removing the marker. Recording skips the case to preserve its complete existing fixture.
 - Reproduce:
 
   ```bash
   ./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/e2e/providers/copilotOtelAgentHostE2E.integrationTest.ts \
     --grep "managed identity denial"
+  ```
+
+### Copilot Agent Host sessions do not install trusted repository plugins
+
+A trusted repository can configure plugins that should install automatically without an additional confirmation. The first Agent Host message continues while the installation runs, but the bundled Copilot runtime never installs the configured plugin, so later messages cannot use its skills.
+
+- Test: `trusted repository plugin installs best-effort without managed-policy activity`.
+- Scope: Copilot SDK `1.0.19-preview.0` / runtime `1.0.95-0`; reproduced in local strict replay on macOS. The expected-failure marker remains enabled on all platforms.
+- Expected: the trusted `.github/copilot/settings.json` configuration installs the plugin best-effort, the first message continues, a later message sees the skill, no organization-managed activity appears, and no model request is made.
+- Observed: the runtime makes no request to the repository-configured marketplace, and the plugin remains unavailable on later messages.
+- Tracking: [github/copilot-agent-runtime#25331](https://github.com/github/copilot-agent-runtime/pull/25331).
+- Gate: a strict expected-failure marker accepts only the missing-installation sentinel. Trust propagation, first-message continuity, managed-activity isolation, model traffic, setup/teardown failures, and an unexpected pass remain failures.
+- Reproduce:
+
+  ```bash
+  ./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/e2e/providers/copilotRepositoryPluginAgentHostE2E.integrationTest.ts
   ```
 
 ### Historical binary Git changeset content loses non-UTF-8 bytes
