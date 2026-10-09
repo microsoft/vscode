@@ -121,7 +121,7 @@ import { ICustomizationHarnessService, type ICustomizationSourceFolder } from '.
 import { ChatConfiguration } from '../../common/constants.js';
 import { AICustomizationWelcomePage, type ICustomizationMarketplaceOrigin, type ICustomizationMigrationCategorySummary, type IInstalledCustomizationTarget } from './aiCustomizationWelcomePage.js';
 import { ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
-import { createCustomizationMigrationAgentPrompt, getCustomizationMigrationConflictTarget, type CustomizationMigrationTargetFolders, type ICustomizationMigrationNameConflict, type IMigratedCustomizationsWithFailureReasonsResult, migrateCustomizations, resolveWorkspaceMigrationTargetFolder } from './customizationMigration.js';
+import { createCustomizationMigrationAgentPrompt, getCustomizationMigrationConflictTarget, type CustomizationMigrationTargetFolders, type ICustomizationMigrationFailure, type ICustomizationMigrationNameConflict, type IMigratedCustomizationsWithFailureReasonsResult, migrateCustomizations, resolveWorkspaceMigrationTargetFolder } from './customizationMigration.js';
 import { CUSTOMIZATION_MIGRATION_CATEGORIES, CustomizationMigrationCategoryId, getCustomizationMigrationCategory, homepageMigrationCategories, type ICustomizationMigrationCategory } from './customizationMigrationCategories.js';
 import {
 	CustomizationMigrationDashboard,
@@ -1762,8 +1762,9 @@ export class AICustomizationManagementEditor extends EditorPane {
 				if (result.nameConflicts.length > 0) {
 					this.notificationService.error(this.getCustomizationMigrationNameConflictMessage(result.nameConflicts));
 				}
-				const conflictFileNames = new Set(result.nameConflicts.map(conflict => conflict.sourceFileName));
-				const otherFailedFileNames = result.failedCustomizationFileNames.filter(fileName => !conflictFileNames.has(fileName));
+				const otherFailedFileNames = result.failures
+					.filter(failure => failure.reasons.some(reason => reason !== FileCustomizationMigrationFailureReason.TargetAlreadyExists))
+					.map(failure => failure.sourceFileName);
 				if (otherFailedFileNames.length > 0) {
 					const displayedFileNames = otherFailedFileNames.slice(0, 3);
 					this.notificationService.error(category.getFailedMessage(displayedFileNames, otherFailedFileNames.length - displayedFileNames.length));
@@ -1964,12 +1965,18 @@ export class AICustomizationManagementEditor extends EditorPane {
 		try {
 			const failureReasons: FileCustomizationMigrationFailureReason[] = [];
 			const nameConflicts: ICustomizationMigrationNameConflict[] = [];
+			const failures: ICustomizationMigrationFailure[] = [];
 			const result = await migrateCustomizations(
 				customizations,
 				targetFolders,
 				this.fileService,
 				(error, reasons, sourceCustomization) => {
 					failureReasons.push(...reasons);
+					failures.push({
+						sourceUri: sourceCustomization.uri,
+						sourceFileName: basename(sourceCustomization.uri),
+						reasons,
+					});
 					const targetUri = getCustomizationMigrationConflictTarget(error);
 					if (targetUri) {
 						nameConflicts.push({
@@ -1984,7 +1991,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 					resolveTargetFolder: customization => this.getEffectiveCustomizationMigrationTargetFolder(customization, targetFolders),
 				},
 			);
-			return { ...result, failureReasons, nameConflicts };
+			return { ...result, failureReasons, nameConflicts, failures };
 		} finally {
 			await timeout(0);
 			this.customizationMigrationWritesInProgress = false;

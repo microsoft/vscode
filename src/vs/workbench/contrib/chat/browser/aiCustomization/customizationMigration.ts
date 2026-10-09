@@ -44,11 +44,18 @@ export interface IMigratedCustomizationsResult {
 export interface IMigratedCustomizationsWithFailureReasonsResult extends IMigratedCustomizationsResult {
 	readonly failureReasons: readonly FileCustomizationMigrationFailureReason[];
 	readonly nameConflicts: readonly ICustomizationMigrationNameConflict[];
+	readonly failures: readonly ICustomizationMigrationFailure[];
 }
 
 export interface ICustomizationMigrationNameConflict {
 	readonly sourceFileName: string;
 	readonly targetUri: URI;
+}
+
+export interface ICustomizationMigrationFailure {
+	readonly sourceUri: URI;
+	readonly sourceFileName: string;
+	readonly reasons: readonly FileCustomizationMigrationFailureReason[];
 }
 
 export type CustomizationMigrationTargetFolders = ReadonlyMap<PromptsType, ReadonlyMap<PromptsStorage, ICustomizationSourceFolder>>;
@@ -346,7 +353,6 @@ export function createSkillFileUri(skillSourceFolder: URI, skillName: string): U
 
 function sanitizeSkillName(name: string): string {
 	const strippedName = name
-		.replace(/<[^>]+>/g, '')
 		.toLowerCase()
 		.replace(/[^a-z0-9]+/g, '-')
 		.replace(/^-+|-+$/g, '')

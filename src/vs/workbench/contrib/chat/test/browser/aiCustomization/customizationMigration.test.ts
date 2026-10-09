@@ -375,6 +375,20 @@ suite('customizationMigration', () => {
 		assert.ok(migrated.content.includes('## Steps'));
 	});
 
+	test('normalizes HTML-like prompt names with the skill name allowlist', () => {
+		const promptFile: IPromptPath = {
+			uri: URI.file('/workspace/.github/prompts/review.prompt.md'),
+			name: '<script>alert(1)</script>',
+			storage: PromptsStorage.local,
+			type: PromptsType.prompt,
+			source: PromptFileSource.GitHubWorkspace,
+		};
+
+		const migrated = migratePromptFileToSkill(promptFile, 'Review body');
+
+		assert.strictEqual(migrated.skillName, 'script-alert-1-script');
+	});
+
 	test('preserves argument-hint formatting from source prompt', () => {
 		const promptFile: IPromptPath = {
 			uri: URI.file('/workspace/.github/prompts/review.prompt.md'),
