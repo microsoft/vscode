@@ -13,7 +13,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IAutomationDescriptor, IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
-import { AutomationCatalogueState, IAutomationService, IAutomationRunRequestResult } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { AutomationCatalogueState, AutomationMutationUncertainError, IAutomationService, IAutomationRunRequestResult } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsProvider, ISessionsProviderAutomations } from '../../../../services/sessions/common/sessionsProvider.js';
 import { AutomationRunner } from '../../browser/automationRunner.js';
@@ -53,6 +53,7 @@ suite('AutomationRunner', () => {
 
 	function setup(request: () => Promise<IAutomationRunRequestResult>, available = true, exists = true, providers: readonly ISessionsProvider[] = [provider(available ? 'ready' : 'unavailable')]) {
 		const errors: string[] = [];
+		const warnings: string[] = [];
 		const calls: string[] = [];
 		const service = upcastPartial<IAutomationService>({
 			getAutomation: () => exists ? automation : undefined,
@@ -65,8 +66,8 @@ suite('AutomationRunner', () => {
 				return providers.find(provider => provider.id === id) as T | undefined;
 			}
 		}();
-		const runner = new AutomationRunner(service, providersService, new NullLogService(), upcastPartial<INotificationService>({ error: message => errors.push(String(message)) }));
-		return { runner, errors, calls };
+		const runner = new AutomationRunner(service, providersService, new NullLogService(), upcastPartial<INotificationService>({ error: message => errors.push(String(message)), warn: message => warnings.push(String(message)) }));
+		return { runner, errors, warnings, calls };
 	}
 
 	test('dispatches through the host and observes completion without local lifecycle writes', async () => {
@@ -96,6 +97,16 @@ suite('AutomationRunner', () => {
 		const dispatch = await operation.whenDispatched;
 		await operation.whenCompleted;
 		assert.deepStrictEqual({ dispatch, calls, errors }, { dispatch: { kind: 'accepted' }, calls: ['automation'], errors: [] });
+	});
+
+	test('provider-neutral uncertainty after dispatch is preserved even when cancellation arrives', async () => {
+		const error = new AutomationMutationUncertainError('Provider outcome unknown');
+		const token = disposables.add(new CancellationTokenSource());
+		const { runner, warnings, errors } = setup(async () => { token.cancel(); throw error; });
+		const operation = runner.runOnce(automation, token.token);
+		const dispatch = await operation.whenDispatched;
+		await operation.whenCompleted;
+		assert.deepStrictEqual({ dispatch, warnings, errors }, { dispatch: { kind: 'uncertain', message: error.message }, warnings: [error.message], errors: [] });
 	});
 
 	test('unavailable or disconnected hosts cannot dispatch locally', async () => {

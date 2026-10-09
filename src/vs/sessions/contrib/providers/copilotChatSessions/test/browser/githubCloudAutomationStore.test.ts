@@ -28,6 +28,7 @@ import { IGitHubEndpointProvider } from '../../../../../../platform/github/commo
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { AutomationMutationUncertainError } from '../../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { IRecentWorkspace, ISessionsRecentWorkspacesService } from '../../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
 import { GITHUB_REMOTE_FILE_SCHEME } from '../../../../../services/sessions/common/session.js';
 import { IWorkbenchGitHubService } from '../../../../../../workbench/services/github/common/githubService.js';
@@ -43,6 +44,7 @@ const definition: AutomationDetail = {
 	created_at: '2026-09-22T00:00:00Z', updated_at: '2026-09-22T00:00:00Z',
 };
 const createValue = { name: definition.name, prompt: definition.prompt, description: '' };
+const reconciliationMessage = 'The automation request may have been accepted. Refresh automations before submitting again.';
 
 class TestApi extends mock<IAutomationsClient>() {
 	readonly calls: { method: string; account: string; repository: typeof repository; token: AbortSignal }[] = [];
@@ -312,9 +314,9 @@ suite('GitHubCloudAutomationStore', () => {
 
 	test('uncertain mutations block retries until an explicit successful refresh', async () => {
 		const { store, api } = setup();
-		api.mutationResult = new MutationUncertainError('unknown');
-		await assert.rejects(store.create(workspace, createValue), MutationUncertainError);
-		await assert.rejects(store.create(workspace, createValue), MutationUncertainError);
+		const cause = api.mutationResult = new MutationUncertainError('unknown');
+		await assert.rejects(store.create(workspace, createValue), error => error instanceof AutomationMutationUncertainError && error.cause === cause && error.message === reconciliationMessage);
+		await assert.rejects(store.create(workspace, createValue), AutomationMutationUncertainError);
 		await store.refresh();
 		api.mutationResult = definition;
 		await store.create(workspace, createValue);
@@ -337,17 +339,24 @@ suite('GitHubCloudAutomationStore', () => {
 		assert.deepStrictEqual({ mutations: api.mutations, entries: store.entries.get() }, { mutations: [], entries: [] });
 	});
 
-	test('indeterminate HTTP failures block mutations until catalogue reconciliation', async () => {
+	test('indeterminate HTTP failures replace unknown transport text with reconciliation guidance and retain the cause', async () => {
 		const { store, api } = setup();
-		api.mutationResult = new ApiRequestError(503, 'unknown', undefined, undefined, undefined, 'indeterminate');
-		await assert.rejects(store.create(workspace, createValue), ApiRequestError);
-		await assert.rejects(store.create(workspace, createValue), MutationUncertainError);
+		const cause = api.mutationResult = new ApiRequestError(503, 'unknown', { message: 'unknown', documentation_url: 'https://docs.github.com' }, undefined, undefined, 'indeterminate');
+		await assert.rejects(store.create(workspace, createValue), error => error instanceof AutomationMutationUncertainError && error.cause === cause && error.message === reconciliationMessage);
+		await assert.rejects(store.create(workspace, createValue), AutomationMutationUncertainError);
 		await store.refresh();
 		api.mutationResult = definition;
 		await store.create(workspace, createValue);
 		assert.deepStrictEqual({ mutations: api.mutations, uncertain: store.mutationUncertain.get() }, {
 			mutations: ['create', 'create'], uncertain: false,
 		});
+	});
+
+	test('definite API failures retain their original error and do not block future mutations', async () => {
+		const { store, api } = setup();
+		const cause = api.mutationResult = new ApiRequestError(403, 'unknown');
+		await assert.rejects(store.create(workspace, createValue), error => error === cause);
+		assert.strictEqual(store.mutationUncertain.get(), false);
 	});
 
 	test('discards late mutation responses after account rotation', async () => {
