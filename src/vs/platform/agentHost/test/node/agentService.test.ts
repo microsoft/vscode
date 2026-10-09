@@ -2789,6 +2789,60 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual(calls, [{ name: 'spark', marketplace: 'copilot-plugins' }]);
 		});
 
+		test('lists and opens canvases through the owning provider', async () => {
+			const calls: unknown[] = [];
+			const provider: IAgent = copilotAgent;
+			provider.listSessionCanvases = async (session, chat) => {
+				calls.push(['list', session.toString(), chat.toString()]);
+				return [{
+					canvasId: 'preview',
+					extensionId: 'project:preview',
+					extensionSource: 'project',
+					displayName: 'Preview',
+					description: 'Preview generated content.',
+					requiresInput: false,
+					actionCount: 0,
+				}];
+			};
+			provider.openSessionCanvas = async (session, request, chat) => {
+				calls.push(['open', session.toString(), chat.toString(), request]);
+			};
+			registerTestAgentProvider(service, provider);
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService());
+			const session = AgentSession.uri('copilot', 'canvas-session');
+			const chat = URI.parse(buildDefaultChatUri(session.toString()));
+
+			const canvases = await managementService.listSessionCanvases(session, chat);
+			await managementService.openSessionCanvas(session, {
+				canvasId: 'preview',
+				extensionId: 'project:preview',
+				instanceId: 'project-preview-preview',
+			}, chat);
+
+			assert.deepStrictEqual({
+				canvases,
+				calls,
+			}, {
+				canvases: [{
+					canvasId: 'preview',
+					extensionId: 'project:preview',
+					extensionSource: 'project',
+					displayName: 'Preview',
+					description: 'Preview generated content.',
+					requiresInput: false,
+					actionCount: 0,
+				}],
+				calls: [
+					['list', 'copilot:/canvas-session', chat.toString()],
+					['open', 'copilot:/canvas-session', chat.toString(), {
+						canvasId: 'preview',
+						extensionId: 'project:preview',
+						instanceId: 'project-preview-preview',
+					}],
+				],
+			});
+		});
+
 		test('maps progress events to protocol actions via onDidAction', async () => {
 			registerTestAgentProvider(service, copilotAgent);
 			const session = await service.createSession({ provider: 'copilot' });

@@ -27,7 +27,7 @@ import { getSessionReferenceResource } from './sessionReference.js';
 import { IChatDeletedEvent, ICreateNewChatInSessionOptions, ICreateNewSessionOptions, IDeferredNewSessionRequestOptions, IMarkSessionReadOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService, NewSessionRequestOptions, WorkspaceNotTrustedError } from '../common/sessionsManagement.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from './sessionsProvidersService.js';
 import { IDeleteChatOptions, IPreparedNewSession, ISessionChangeEvent, ISessionsProvider, type ISessionsProviderCreateSessionOptions, type SessionResourceResolveReason } from '../common/sessionsProvider.js';
-import { ChatModelSource, IChat, ISession, ISessionWorkspace, ISideChatSelection, isActiveSessionStatus, SessionStatus, ISessionType } from '../common/session.js';
+import { ChatModelSource, IChat, ISession, ISessionCanvasDefinition, ISessionWorkspace, ISideChatSelection, isActiveSessionStatus, SessionStatus, ISessionType } from '../common/session.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
@@ -1434,6 +1434,22 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	async renameSession(session: ISession, title: string): Promise<void> {
 		await this._getProvider(session)?.renameSession(session.sessionId, title);
 		this._onDidRenameSession.fire(session);
+	}
+
+	async listCanvases(session: ISession, chat: IChat): Promise<readonly ISessionCanvasDefinition[]> {
+		const provider = this._getProvider(session);
+		if (!session.capabilities.get().supportsCanvases || !provider?.listCanvases) {
+			return [];
+		}
+		return provider.listCanvases(session.sessionId, chat.resource);
+	}
+
+	async openCanvas(session: ISession, chat: IChat, canvas: ISessionCanvasDefinition, instanceId: string): Promise<void> {
+		const provider = this._getProvider(session);
+		if (!session.capabilities.get().supportsCanvases || !provider?.openCanvas) {
+			throw new Error(localize('sessions.openCanvas.unsupported', "Opening canvases is not supported for this session."));
+		}
+		await provider.openCanvas(session.sessionId, chat.resource, canvas, instanceId);
 	}
 
 	async removeSessionArtifact(session: ISession, artifactId: string): Promise<void> {
