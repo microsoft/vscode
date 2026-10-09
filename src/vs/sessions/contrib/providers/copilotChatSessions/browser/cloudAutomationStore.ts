@@ -238,7 +238,7 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 	}
 
 	canRunAutomation(id: string): boolean {
-		return this.canUpdateAutomation(id) && this.getAutomation(id)?.enabled === true;
+		return this.canCreateAutomation.get() && this.getAutomation(id)?.enabled === true;
 	}
 
 	canUpdateAutomation(id: string): boolean {
@@ -301,7 +301,7 @@ export class CloudAutomationStore extends Disposable implements ISessionsProvide
 		}
 		const guard = () => {
 			if (!this.canRunAutomation(id)) {
-				throw new AutomationUnavailableError(localize('cloudAutomations.runUnavailable', "Only enabled cloud automations with supported schedules can run. Refresh automations before trying again."));
+				throw new AutomationUnavailableError(localize('cloudAutomations.runUnavailable', "Only enabled cloud automations can run. Refresh automations before trying again."));
 			}
 		};
 		guard();
