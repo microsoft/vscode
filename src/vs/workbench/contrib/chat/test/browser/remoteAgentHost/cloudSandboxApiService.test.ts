@@ -165,7 +165,7 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 				if (!!task.archived_at !== (query.get('is_archived') === 'true')) {
 					return false;
 				}
-				if (query.has('with_repo') && (task.repository?.id !== undefined) !== (query.get('with_repo') === 'true')) {
+				if (query.has('with_repo') && ((task.repository?.id ?? 0) > 0) !== (query.get('with_repo') === 'true')) {
 					return false;
 				}
 				if (query.has('include_environment_kinds') && task.current_environment?.kind !== query.get('include_environment_kinds')) {
@@ -898,6 +898,78 @@ suite('Mission Control environment discovery', () => {
 suite('CloudSandboxApiService repository resolution', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const repository of [{ id: 0 }, {}]) {
+		test(`ignores an empty repository reference ${JSON.stringify(repository)}`, async () => {
+			const current = {
+				...task('repo-less', 'General chat', 0, 'session-1', 'environment-1'),
+				updated_at: '2026-10-01T00:01:00.000Z',
+			};
+			const { service, requestedUrls } = createService(store, {
+				tasks: [current],
+				repositories: new Map(),
+				onRequest: url => url.pathname.endsWith('/tasks/repo-less') ? jsonResponse({ ...current, repository }) : undefined,
+				discoveryDate: () => '2026-10-01T00:03:00.000Z',
+			});
+
+			const initial = await service.listSessions(CancellationToken.None);
+			const incremental = await service.listSessions(CancellationToken.None, { incremental: true });
+
+			assert.deepStrictEqual({
+				sessions: initial.kind === 'failed' ? initial : initial.sessions.map(session => ({
+					id: session.sessionId, hasRepository: session.hasRepository, repoName: session.repoName,
+				})),
+				incremental,
+				repositoryLookups: requestedUrls.filter(url => url.includes('/repositories/')),
+				detailReads: requestedUrls.filter(url => url.endsWith('/tasks/repo-less')).length,
+			}, {
+				sessions: [{ id: 'session-1', hasRepository: false, repoName: undefined }],
+				incremental: { kind: 'incremental', sessions: [], removedTaskIds: [] },
+				repositoryLookups: [],
+				detailReads: 1,
+			});
+		});
+	}
+
+	test('accepts a positive repository reference discovered after a repo-less list response', async () => {
+		const current = task('new-repository', 'Repository chat', 0, 'session-1', 'environment-1');
+		const { service, requestedUrls } = createService(store, {
+			tasks: [current],
+			repositories: new Map([[42, { full_name: 'owner/repository' }]]),
+			onRequest: url => url.pathname.endsWith('/tasks/new-repository') ? jsonResponse({ ...current, repository: { id: 42 } }) : undefined,
+		});
+		const result = await service.listSessions(CancellationToken.None);
+
+		assert.deepStrictEqual({
+			sessions: result.kind === 'failed' ? result : result.sessions.map(session => ({
+				hasRepository: session.hasRepository, repoName: session.repoName,
+			})),
+			repositoryLookups: requestedUrls.filter(url => url.includes('/repositories/')).map(url => new URL(url).pathname),
+		}, {
+			sessions: [{ hasRepository: true, repoName: 'owner/repository' }],
+			repositoryLookups: ['/repositories/42'],
+		});
+	});
+
+	test('retains the listed repository when task details contain an empty reference', async () => {
+		const current = task('with-repository', 'Repository chat', 42, 'session-1', 'environment-1');
+		const { service, requestedUrls } = createService(store, {
+			tasks: [current],
+			repositories: new Map([[42, { full_name: 'owner/repository' }]]),
+			onRequest: url => url.pathname.endsWith('/tasks/with-repository') ? jsonResponse({ ...current, repository: { id: 0 } }) : undefined,
+		});
+		const result = await service.listSessions(CancellationToken.None);
+
+		assert.deepStrictEqual({
+			sessions: result.kind === 'failed' ? result : result.sessions.map(session => ({
+				hasRepository: session.hasRepository, repoName: session.repoName,
+			})),
+			repositoryLookups: requestedUrls.filter(url => url.includes('/repositories/')).map(url => new URL(url).pathname),
+		}, {
+			sessions: [{ hasRepository: true, repoName: 'owner/repository' }],
+			repositoryLookups: ['/repositories/42'],
+		});
+	});
 
 	test('distinguishes repo-less tasks from unresolved repository names', async () => {
 		const { service } = createService(store, {

@@ -95,7 +95,7 @@ export function startTurn(accessor: ServicesAccessor, request: ITurnStartRequest
 	if (!state) {
 		logService.info(`[AgentHostTurnStarter] Turn started for session not in state manager: ${request.chat}, turnId=${request.turnId} - status/summary updates may be dropped unless the session is restored`);
 	}
-	titleController.seedTitleFromFirstMessage(request.session, request.message.text, request.chat);
+	titleController.seedTitleFromFirstMessage(request.session, request.message.text, request.chat, request.message.model);
 
 	const agent = providerService.getProviderForSession(request.session);
 	if (!agent) {
