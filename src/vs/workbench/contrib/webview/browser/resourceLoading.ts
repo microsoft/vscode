@@ -118,8 +118,10 @@ export function getResourceToLoad(
 		roots = roots.map(root => root.scheme === Schemas.vscodeRemote ? normalizeRemoteResource(root, remoteOS) : root);
 	}
 	const requestUriNoQueryString = requestUri.with({ query: '' });
+	const forcePosixSemantics = requestUri.scheme === Schemas.vscodeRemote
+		&& (remoteOS === OperatingSystem.Linux || remoteOS === OperatingSystem.Macintosh);
 	for (const root of roots) {
-		if (containsResource(root, requestUriNoQueryString, uriIdentityService)) {
+		if (containsResource(root, requestUriNoQueryString, uriIdentityService, forcePosixSemantics)) {
 			return normalizeResourcePath(requestUri);
 		}
 	}
@@ -127,7 +129,7 @@ export function getResourceToLoad(
 	return undefined;
 }
 
-function containsResource(root: URI, resource: URI, uriIdentityService: IUriIdentityService): boolean {
+function containsResource(root: URI, resource: URI, uriIdentityService: IUriIdentityService, forcePosixSemantics: boolean): boolean {
 	if (uriIdentityService.extUri.isEqual(root, resource, /* ignoreFragment */ true)) {
 		return false;
 	}
@@ -150,7 +152,7 @@ function containsResource(root: URI, resource: URI, uriIdentityService: IUriIden
 		return false;
 	}
 
-	return uriIdentityService.extUri.isEqualOrParent(resource, root, /* ignoreFragment */ true);
+	return uriIdentityService.extUri.isEqualOrParent(resource, root, /* ignoreFragment */ true, forcePosixSemantics);
 }
 
 function normalizeRemoteResource(resource: URI, remoteOS: OperatingSystem): URI {

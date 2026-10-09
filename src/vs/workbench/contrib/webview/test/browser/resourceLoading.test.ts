@@ -194,11 +194,14 @@ suite('Webview Resource Loading - getResourceToLoad', () => {
 				{ os: OperatingSystem.Windows, root: '/c:/allowed\\sub/..', path: '/c:/allowed/file.txt', expected: '/c:/allowed/file.txt' },
 				{ os: OperatingSystem.Windows, root: '/c:/', path: '/c:/../file.txt', expected: '/c:/file.txt' },
 				{ os: OperatingSystem.Linux, root: '/home/user/allowed', path: '/home/user/allowed/x\\..\\..\\file.txt', expected: '/home/user/allowed/x\\..\\..\\file.txt' },
+				{ os: OperatingSystem.Linux, root: '/home/user/parent\\..\\allowed', path: '/home/user/parent\\..\\allowed/..\\file.txt', expected: '/home/user/parent\\..\\allowed/..\\file.txt' },
+				{ os: OperatingSystem.Macintosh, root: '/home/user/allowed', path: '/home/user/allowed/x\\..\\..\\file.txt', expected: '/home/user/allowed/x\\..\\..\\file.txt' },
+				{ os: OperatingSystem.Macintosh, root: '/home/user/parent\\..\\allowed', path: '/home/user/parent\\..\\allowed/..\\file.txt', expected: '/home/user/parent\\..\\allowed/..\\file.txt' },
 				{ os: OperatingSystem.Macintosh, root: '/home/user/allowed', path: '/home/user/allowed/a\\b/../file.txt', expected: '/home/user/allowed/file.txt' },
 			];
 			assert.deepStrictEqual(cases.map(({ os, root, path }) => {
 				const result = getResourceToLoad(remote(path), [remote(root)], uriIdentityService, os);
-				assert.ok(result);
+				assert.ok(result, `OS: ${os}, root: ${root}, path: ${path}`);
 				return JSON.parse(result.query).requestResourcePath;
 			}), cases.map(({ expected }) => expected));
 		});
@@ -211,6 +214,30 @@ suite('Webview Resource Loading - getResourceToLoad', () => {
 				getResourceToLoad(remote('/c:/allowedOther/file.txt'), [root], uriIdentityService, OperatingSystem.Windows),
 				getResourceToLoad(remote('/c:/allowed/file.txt', 'other'), [root], uriIdentityService, OperatingSystem.Windows),
 			], [undefined, undefined, undefined, undefined]);
+		});
+
+		for (const os of [OperatingSystem.Linux, OperatingSystem.Macintosh]) {
+			test(`Preserves containment boundaries for POSIX remotes (OS: ${os})`, () => {
+				const root = remote('/home/user/allowed');
+				assert.deepStrictEqual([
+					getResourceToLoad(remote('/home/user/allowed/..\\file.txt'), [root], uriIdentityService),
+					getResourceToLoad(remote('/home/user/allowed/child/..'), [root], uriIdentityService, os),
+					getResourceToLoad(remote('/home/user/allowedOther/..\\file.txt'), [root], uriIdentityService, os),
+					getResourceToLoad(remote('/home/user/allowed/..\\file.txt', 'other'), [root], uriIdentityService, os),
+					getResourceToLoad(remote('/home/user/allowed/file.txt'), [root.with({ path: '/home/user/allowed/child\\..' })], uriIdentityService, os),
+					getResourceToLoad(remote('/home/user/allowed/..\\file.txt'), [root.with({ scheme: Schemas.vscodeUserData })], uriIdentityService, os),
+					getResourceToLoad(remote('/home/user/allowed/..\\file.txt'), [root.with({ query: 'version=1' })], uriIdentityService, os),
+				], [undefined, undefined, undefined, undefined, undefined, undefined, undefined]);
+			});
+		}
+
+		test('Keeps conservative containment for non-remote schemes on POSIX remote connections', () => {
+			const root = URI.from({ scheme: 'custom', path: '/allowed' });
+			const resource = root.with({ path: '/allowed/..\\outside.txt' });
+			assert.deepStrictEqual(
+				[OperatingSystem.Linux, OperatingSystem.Macintosh].map(os => getResourceToLoad(resource, [root], uriIdentityService, os)),
+				[undefined, undefined]
+			);
 		});
 
 		test('Preserves literal backslashes for custom filesystem schemes', () => {
