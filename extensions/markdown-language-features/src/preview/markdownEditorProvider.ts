@@ -21,7 +21,7 @@ import type {
 } from '../markdownExtensions';
 import { generateUuid } from '../util/uuid';
 import { MarkdownEditorRichLinkController } from './markdownEditorRichLinks';
-import { markdownEditorHost, markdownEditorRenderer, type CodeBlockEditorProviderDefinition, type ResolvedCodeBlockEditor } from './markdownEditorProtocol';
+import { markdownEditorHost, markdownEditorRenderer, type CodeBlockEditorProviderDefinition, type MarkdownEditorConfiguration, type ResolvedCodeBlockEditor } from './markdownEditorProtocol';
 import { createMarkdownEditorRpcConnection, MarkdownEditorRpcTransport } from './markdownEditorRpc';
 import { MarkdownEditorRename } from './markdownEditorRename';
 import { MarkdownEditorLanguageFeatures } from './markdownEditorLanguageFeatures';
@@ -445,6 +445,9 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			this.#logger,
 			params => editorWebview.renderer.richLinkPresentations(params),
 		);
+		const postConfiguration = (): void => {
+			editorWebview.report('Update configuration', editorWebview.renderer.configurationChanged(this.#getEditorConfiguration(document.uri)));
+		};
 		const postCodeBlockEditorProviders = (): void => {
 			if (webviewReady && codeBlockEditorProviders) {
 				editorWebview.renderer.codeBlockEditorProviders({ codeBlockEditorProviders });
@@ -505,6 +508,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 				}
 				signal.throwIfAborted();
 				editorWebview.publishReady();
+				postConfiguration();
 				postCodeBlockEditorProviders();
 				diagnosticsChanged();
 			},
@@ -705,9 +709,12 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		const onDidRenameFiles = vscode.workspace.onDidRenameFiles(event => invalidateResourceCache(
 			event.files.flatMap(file => [file.oldUri, file.newUri])));
 		const onDidChangeViewState = webviewPanel.onDidChangeViewState(() => this.#updateEditorFocusContext());
-		const onDidChangeRichLinksConfiguration = vscode.workspace.onDidChangeConfiguration(event => {
+		const onDidChangeConfiguration = vscode.workspace.onDidChangeConfiguration(event => {
 			if (event.affectsConfiguration('markdown.experimental.richLinks.enabled', document.uri)) {
 				reloadWebview();
+			}
+			if (event.affectsConfiguration('markdown.editor.highlightActiveBlock', document.uri) && editorWebview.ready) {
+				postConfiguration();
 			}
 		});
 		const onDidChangeLinkPresentationRules = vscode.window.onDidChangeLinkPresentationRules(() => {
@@ -743,7 +750,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			onDidDeleteFiles.dispose();
 			onDidRenameFiles.dispose();
 			onDidChangeViewState.dispose();
-			onDidChangeRichLinksConfiguration.dispose();
+			onDidChangeConfiguration.dispose();
 			onDidChangeLinkPresentationRules.dispose();
 			richLinks.dispose();
 		});
@@ -1120,6 +1127,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		const baseUri = webview.asWebviewUri(document.uri);
 		const nonce = getNonce();
 		const initialState = encodeWebviewInitialState({
+			...this.#getEditorConfiguration(document.uri),
 			content: document.getText(),
 			documentVersion: document.version,
 			editEpoch,
@@ -1154,6 +1162,12 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 	<script nonce="${nonce}" type="module" src="${scriptUri}"></script>
 </body>
 </html>`;
+	}
+
+	#getEditorConfiguration(resource: vscode.Uri): MarkdownEditorConfiguration {
+		return {
+			highlightActiveBlock: vscode.workspace.getConfiguration('markdown.editor', resource).get<boolean>('highlightActiveBlock', true),
+		};
 	}
 }
 
