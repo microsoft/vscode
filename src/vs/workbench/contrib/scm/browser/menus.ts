@@ -408,6 +408,11 @@ export class SCMMenus implements ISCMMenus, IDisposable {
 	}
 
 	dispose(): void {
+		this.titleMenu.dispose();
+		for (const [, item] of this.menus) {
+			item.dispose();
+		}
+		this.menus.clear();
 		this.disposables.dispose();
 	}
 }
