@@ -44,6 +44,9 @@
         ],
         "embeddedLanguages": {
           "meta.embedded.math.markdown": "latex"
+        },
+        "tokenTypes": {
+          "meta.embedded.math.markdown": "string"
         }
       },
       {
@@ -55,6 +58,9 @@
         "embeddedLanguages": {
           "meta.embedded.math.markdown": "latex",
           "punctuation.definition.math.end.markdown": "latex"
+        },
+        "tokenTypes": {
+          "meta.embedded.math.markdown": "string"
         }
       },
       {
@@ -65,6 +71,9 @@
         ],
         "embeddedLanguages": {
           "meta.embedded.math.markdown": "latex"
+        },
+        "tokenTypes": {
+          "meta.embedded.math.markdown": "string"
         }
       }
     ],
