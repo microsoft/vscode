@@ -44,6 +44,8 @@ export const Status = Object.freeze({
 	BOTH_ADDED: 16,
 	BOTH_DELETED: 17,
 	BOTH_MODIFIED: 18,
+
+	INDEX_TYPE_CHANGED: 19,
 }) satisfies typeof git.Status;
 
 export const GitErrorCodes = Object.freeze({
