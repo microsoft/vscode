@@ -53,6 +53,7 @@ import { chatPersistentContentVisibleClass, type ChatWidget } from '../../widget
 import { openChatTurnFile, previewKind } from '../../widget/chatTurnPills.js';
 import { openChatFileChanges } from '../../editorChatResponseFileChangesService.js';
 import { ChatInputPills, StandardChatInputPillSources } from '../../chatInputPills.js';
+import { ChatArtifactPillSource, mergeChatArtifactSections } from '../../chatArtifactPillSource.js';
 import { SessionBackgroundShellsControl } from '../../sessionBackgroundShellsControl.js';
 import { createSessionPullRequestPillData, type IChatPullRequestPillEntry } from '../../sessionPullRequestPill.js';
 import { SessionCustomizations } from '../../sessionCustomizations.js';
@@ -529,6 +530,7 @@ export class AgentHostSessionInputPills extends Disposable {
 		const gitHubCommitResolver = this._register(instantiationService.createInstance(GitHubCommitResolver));
 
 		const sessionResource = observableFromEvent(this, this._widget.onDidChangeViewModel, () => this._widget.viewModel?.sessionResource);
+		const transcriptArtifacts = this._register(instantiationService.createInstance(ChatArtifactPillSource, sessionResource));
 		const sessionResolutionChanged = observableSignalFromEvent(this, connectionsService.onDidChangeSessionResolution);
 		const provisionalSessionChanged = observableSignalFromEvent(this, provisionalSessions.onDidChange);
 		const resolution = derivedOpts<IAgentHostSessionResolution | undefined>({ owner: this, equalsFn: resolutionEquals }, reader => {
@@ -574,7 +576,6 @@ export class AgentHostSessionInputPills extends Disposable {
 			return !!resource && (isSubagentChatUri(resource) || sessionState.read(reader)?.chats.some(chat =>
 				isEqual(URI.parse(chat.resource), resource) && chat.origin?.kind === ChatOriginKind.Tool));
 		});
-		const pillsVisible = derived(this, reader => !subagentChat.read(reader));
 		const changesetTarget = derivedOpts({ owner: this, equalsFn: changesetTargetEquals }, reader => {
 			const currentResolution = resolution.read(reader);
 			const chat = chatResource.read(reader);
@@ -721,9 +722,10 @@ export class AgentHostSessionInputPills extends Disposable {
 		})));
 		const artifactSections = derived(this, reader => {
 			const currentResolution = resolution.read(reader);
-			return currentResolution
+			const recorded = !subagentChat.read(reader) && currentResolution
 				? this._buildArtifactSections(metadata.read(reader).artifacts, browserUrls.read(reader), currentResolution, gitHubCommitResolver, reader, this._getRemoveArtifactAction(currentResolution, reader))
 				: [];
+			return mergeChatArtifactSections(recorded, transcriptArtifacts.sections.read(reader));
 		});
 		const referenceSections = derived(this, reader => {
 			const currentResolution = resolution.read(reader);
@@ -809,8 +811,10 @@ export class AgentHostSessionInputPills extends Disposable {
 			debugName: 'AgentHostSessionInputPills.content',
 			compact,
 			targetWindow: getWindow(this._widget.inputPart.persistentContentContainerElement),
-			enabled: pillsVisible,
-			sources: constObservable(sources.sources),
+			enabled: constObservable(true),
+			sources: derived(this, reader => subagentChat.read(reader)
+				? sources.sources.filter(source => source.kind === SessionChatPillKind.Artifacts)
+				: sources.sources),
 			offeredKinds: SESSION_CHAT_PILL_KINDS,
 			focusFallback: () => this._widget.focusInput(),
 		}));
