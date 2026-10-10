@@ -1,0 +1,25 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply with exactly turn-fails-once.
+    response:
+      content: turn-fails-once
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply with exactly turn-fails-once.
+        - role: assistant
+          content: turn-fails-once
+        - role: user
+          content: Reply with exactly turn-retries.
+    response:
+      content: turn-retries
+      stopReason: end_turn

@@ -1,0 +1,25 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply with exactly turn-before-policy.
+    response:
+      content: turn-before-policy
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply with exactly turn-before-policy.
+        - role: assistant
+          content: turn-before-policy
+        - role: user
+          content: Reply with exactly turn-waits-for-install.
+    response:
+      content: turn-waits-for-install
+      stopReason: end_turn
