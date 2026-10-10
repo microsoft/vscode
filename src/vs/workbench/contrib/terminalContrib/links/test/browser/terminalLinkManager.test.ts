@@ -19,7 +19,7 @@ import { IViewDescriptorService } from '../../../../../common/views.js';
 import { IDetectedLinks, TerminalLinkManager } from '../../browser/terminalLinkManager.js';
 import { ITerminalCapabilityImplMap, ITerminalCapabilityStore, TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalConfiguration, ITerminalProcessManager } from '../../../../terminal/common/terminal.js';
-import { TestViewDescriptorService } from '../../../../terminal/test/browser/xterm/xtermTerminal.test.js';
+import { TestViewDescriptorService } from '../../../../terminal/test/browser/xterm/xtermTestUtils.js';
 import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import type { ILink, Terminal } from '@xterm/xterm';
 import { IXtermCore } from '../../../../terminal/browser/xterm-private.js';
