@@ -194,7 +194,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 
 	public triggerAnimation(): Promise<Animation> {
 		if (this._accessibilityService.isMotionReduced()) {
-			return new Animation(null, null).finished;
+			return Promise.resolve(new Animation(null, null));
 		}
 
 		// PULSE ANIMATION:
