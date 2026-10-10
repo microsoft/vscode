@@ -2288,7 +2288,8 @@ export class SearchView extends ViewPane {
 
 						if (isIMatchInNotebook(match)) {
 							elemParent.showMatch(match);
-							if (!this.tree.getFocus().includes(match) || !this.tree.getSelection().includes(match)) {
+							// Rebuilt notebook matches only queue an async tree refresh, so guard on `hasNode` to avoid `TreeError: Tree element not found`.
+							if (this.tree.hasNode(match) && (!this.tree.getFocus().includes(match) || !this.tree.getSelection().includes(match))) {
 								this.tree.setSelection([match], getSelectionKeyboardEvent());
 								this.tree.setFocus([match]);
 							}
