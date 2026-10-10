@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { VSBuffer } from '../../../../base/common/buffer.js';
+import { IDimension } from '../../../../base/browser/dom.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { FocusMode } from '../../../../platform/native/common/native.js';
+import { FocusMode, IWindowResizeAnchor, IWindowResizeDelta } from '../../../../platform/native/common/native.js';
 import { IWindowOpenable, IOpenWindowOptions, IOpenEmptyWindowOptions, IPoint, IRectangle, IOpenedMainWindow, IOpenedAuxiliaryWindow } from '../../../../platform/window/common/window.js';
 
 export const IHostService = createDecorator<IHostService>('hostService');
@@ -120,6 +121,12 @@ export interface IHostService {
 	 * a modal dialog or modal editor part).
 	 */
 	setWindowDimmed(targetWindow: Window, dimmed: boolean): Promise<void>;
+
+	/**
+	 * Resize the window in CSS pixels, keeping the anchor fixed where the work area permits.
+	 * Returns the new content dimensions, or `undefined` if unchanged, maximized or in full screen.
+	 */
+	resizeMainWindow(delta: IWindowResizeDelta, anchor: IWindowResizeAnchor): Promise<IDimension | undefined>;
 
 	/**
 	 * Get the location of the mouse cursor and its display bounds or `undefined` if unavailable.
