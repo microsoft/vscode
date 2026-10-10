@@ -4,11 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'mocha';
-import { GitStatusParser, parseGitCommits, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors } from '../git';
+import { GitStatusParser, getWorktreePathFromGitDir, parseGitCommits, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors } from '../git';
 import * as assert from 'assert';
 import { splitInChunks } from '../util';
+import * as path from 'path';
 
 suite('git', () => {
+	suite('getWorktreePathFromGitDir', () => {
+		const WORKTREE_METADATA_PATH = path.join('/repo.git', 'worktrees', 'story', 'gitdir');
+		const WORKTREE_PATH = path.join('/repo', 'story');
+
+		test('resolves absolute gitdir content', () => {
+			assert.strictEqual(getWorktreePathFromGitDir(WORKTREE_METADATA_PATH, path.join(WORKTREE_PATH, '.git')), WORKTREE_PATH);
+		});
+
+		test('resolves relative gitdir content #257396', () => {
+			assert.strictEqual(getWorktreePathFromGitDir(WORKTREE_METADATA_PATH, path.join('..', '..', '..', 'repo', 'story', '.git')), WORKTREE_PATH);
+		});
+
+		test('keeps path components that start with .git', () => {
+			const nestedWorktreePath = path.join('/repo', '.github');
+
+			assert.strictEqual(getWorktreePathFromGitDir(WORKTREE_METADATA_PATH, path.join(nestedWorktreePath, '.git')), nestedWorktreePath);
+		});
+	});
+
 	suite('GitStatusParser', () => {
 		test('empty parser', () => {
 			const parser = new GitStatusParser();
