@@ -52,6 +52,46 @@ suite('PagedModel', () => {
 		assert(!model.isResolved(99));
 	});
 
+	test('rejects an empty first page with a nonzero total', () => {
+		const pager: IPager<number> = {
+			firstPage: [],
+			pageSize: 50,
+			total: 3,
+			getPage
+		};
+
+		assert.throws(() => new PagedModel(pager), /Page 0 contains 0 elements, expected 3/);
+	});
+
+	test('rejects an incomplete loaded page and allows retry', async () => {
+		let calls = 0;
+		const pager: IPager<number> = {
+			firstPage: [0, 1, 2, 3, 4],
+			pageSize: 5,
+			total: 10,
+			getPage: async () => ++calls === 1 ? [] : [5, 6, 7, 8, 9]
+		};
+		const model = new PagedModel(pager);
+
+		await assert.rejects(model.resolve(5, CancellationToken.None), /Page 1 contains 0 elements, expected 5/);
+		assert(!model.isResolved(5));
+		assert.strictEqual(await model.resolve(5, CancellationToken.None), 5);
+		assert(model.isResolved(9));
+	});
+
+	test('accepts a shorter final page', async () => {
+		const pager: IPager<number> = {
+			firstPage: [0, 1, 2, 3, 4],
+			pageSize: 5,
+			total: 7,
+			getPage: async () => [5, 6]
+		};
+		const model = new PagedModel(pager);
+
+		assert.strictEqual(await model.resolve(6, CancellationToken.None), 6);
+		assert(model.isResolved(6));
+	});
+
 	test('resolve single', async () => {
 		const pager = new TestPager();
 		const model = new PagedModel(pager);
