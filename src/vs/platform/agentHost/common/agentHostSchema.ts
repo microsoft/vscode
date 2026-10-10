@@ -478,6 +478,25 @@ export type AgentHostByokUtilityModelDefault = typeof AgentHostByokUtilityModelD
  */
 export const AgentHostCodexEnabledConfigKey = 'codexAgentEnabled';
 
+/**
+ * Root config key forwarded from the renderer carrying
+ * `chat.agentHost.acpAgents`: the Agent Client Protocol agents the host
+ * registers a provider for. Additions take effect immediately; removals on the
+ * next agent host restart.
+ */
+export const AgentHostAcpAgentsConfigKey = 'acpAgents';
+
+/** One user-configured Agent Client Protocol agent. */
+export interface IAgentHostAcpAgentConfig {
+	/** Stable identifier; the provider id becomes `acp-<id>`. */
+	readonly id: string;
+	readonly displayName?: string;
+	/** Executable spawned without a shell. */
+	readonly command: string;
+	readonly args?: readonly string[];
+	readonly env?: Readonly<Record<string, string>>;
+}
+
 /** Root config key carrying the effective edit auto-approve patterns. */
 export const AgentHostEditAutoApprovePatternsConfigKey = 'editAutoApprovePatterns';
 
@@ -902,6 +921,24 @@ export const platformRootSchema = createSchema({
 		title: localize('agentHost.config.codexAgentEnabled.title', "Codex Agent"),
 		description: localize('agentHost.config.codexAgentEnabled.description', "Whether the Codex provider is enabled."),
 		default: false,
+	}),
+	[AgentHostAcpAgentsConfigKey]: schemaProperty<readonly IAgentHostAcpAgentConfig[]>({
+		type: 'array',
+		title: localize('agentHost.config.acpAgents.title', "ACP Agents"),
+		description: localize('agentHost.config.acpAgents.description', "Agent Client Protocol agents to register as providers."),
+		items: {
+			type: 'object',
+			title: localize('agentHost.config.acpAgents.item', "ACP Agent"),
+			properties: {
+				id: { type: 'string', title: localize('agentHost.config.acpAgents.id', "Identifier") },
+				displayName: { type: 'string', title: localize('agentHost.config.acpAgents.displayName', "Display Name") },
+				command: { type: 'string', title: localize('agentHost.config.acpAgents.command', "Command") },
+				args: { type: 'array', title: localize('agentHost.config.acpAgents.args', "Arguments"), items: { type: 'string', title: localize('agentHost.config.acpAgents.arg', "Argument") } },
+				env: { type: 'object', title: localize('agentHost.config.acpAgents.env', "Environment") },
+			},
+			required: ['id', 'command'],
+		},
+		default: [],
 	}),
 	[AgentHostTerminalAutoApproveEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',

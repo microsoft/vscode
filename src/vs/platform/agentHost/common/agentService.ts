@@ -227,6 +227,13 @@ export const AgentHostClaudeAgentEnabledSettingId = 'chat.agentHost.claudeAgent.
 export const AgentHostCodexAgentEnabledSettingId = 'chat.agentHost.codexAgent.enabled';
 
 /**
+ * Configuration key listing user-configured Agent Client Protocol (ACP)
+ * agents. The agent host registers one provider per entry; removing an
+ * entry takes effect on the next agent host restart.
+ */
+export const AgentHostAcpAgentsSettingId = 'chat.agentHost.acpAgents';
+
+/**
  * Configuration key controlling whether extension-provided BYOK ("bring your
  * own key") models are published and included in new agent-host sessions.
  * Changes are synchronized to the running agent host.
