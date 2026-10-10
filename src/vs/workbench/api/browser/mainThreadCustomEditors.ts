@@ -4,12 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { multibyteAwareBtoa } from '../../../base/common/strings.js';
-import { CancelablePromise, createCancelablePromise, DeferredPromise } from '../../../base/common/async.js';
+import { CancelablePromise, createCancelablePromise, DeferredPromise, raceCancellation } from '../../../base/common/async.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { isCancellationError, onUnexpectedError } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable, DisposableMap, DisposableStore, IReference } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IReference, toDisposable } from '../../../base/common/lifecycle.js';
+import { ISelection } from '../../../editor/common/core/selection.js';
+import { IOutlineService } from '../../services/outline/browser/outline.js';
+import { MainThreadCustomTextEditorNavigation } from './mainThreadCustomTextEditorNavigation.js';
 import { Schemas } from '../../../base/common/network.js';
 import { basename } from '../../../base/common/path.js';
 import { isEqual, isEqualOrParent, toLocalResource } from '../../../base/common/resources.js';
@@ -81,9 +84,16 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 	private readonly _proxyCustomEditors: extHostProtocol.ExtHostCustomEditorsShape;
 
 	private readonly _editorProviders = this._register(new DisposableMap<string>());
+	private readonly _navigation = this._register(new DisposableMap<extHostProtocol.WebviewHandle, MainThreadCustomTextEditorNavigation>());
+	private readonly _pendingNavigation = new Map<extHostProtocol.WebviewHandle, { selection: ISelection | undefined; changed: boolean }>();
 
 	private readonly _editorRenameBackups = new Map<string, CustomDocumentBackupData>();
 	private readonly _pendingSideBySideDiffResolutions = new Map<string, PendingCustomEditorSideBySideDiffResolution>();
+
+	/**
+	 * Webview handle of each resolved input. An input is resolved again if creating its document failed.
+	 */
+	private readonly _webviewHandles = new WeakMap<CustomEditorWebviewInput, extHostProtocol.WebviewHandle>();
 
 	private readonly _webviewOriginStore: ExtensionKeyedWebviewOriginStore;
 
@@ -102,6 +112,7 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 		@IWebviewWorkbenchService private readonly _webviewWorkbenchService: IWebviewWorkbenchService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 		@IUntitledTextEditorService private readonly _untitledTextEditorService: IUntitledTextEditorService,
+		@IOutlineService private readonly _outlineService: IOutlineService,
 	) {
 		super();
 
@@ -192,11 +203,9 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 					return;
 				}
 
-				const handle = generateUuid();
-
 				webviewInput.webview.origin = this._webviewOriginStore.getOrigin(viewType, extension.id);
 
-				this.mainThreadWebviewPanels.addWebviewInput(handle, webviewInput, { serializeBuffersForPostMessage });
+				const handle = this.getOrAddWebviewInput(webviewInput, serializeBuffersForPostMessage);
 				webviewInput.webview.options = options;
 				webviewInput.webview.extension = extension;
 
@@ -227,11 +236,10 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 						}
 					}
 				} catch (error) {
-					onUnexpectedError(error);
-					webviewInput.webview.setHtml(this.mainThreadWebview.getWebviewResolvedFailedContent(viewType));
 					additionalModelRefs.dispose();
 					modelRef?.dispose();
-					return;
+					// Let the editor show the error. Resolving again, for example with Try Again, creates the document again
+					throw error;
 				}
 
 				if (!modelRef) {
@@ -312,6 +320,9 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 					} else {
 						const actualResource = modelType === CustomEditorModelType.Text ? this._uriIdentityService.asCanonicalUri(resource) : resource;
 						await this._proxyCustomEditors.$resolveCustomEditor(actualResource, handle, viewType, initData, position, cancellation);
+						if (modelType === CustomEditorModelType.Text && capabilities.supportsNavigation && !cancellation.isCancellationRequested && !webviewInput.isDisposed()) {
+							await this.resolveCustomTextEditorNavigation(webviewInput, handle, viewType, actualResource, resolvedModelRef.object, cancellation, disposables);
+						}
 					}
 				} catch (error) {
 					onUnexpectedError(error);
@@ -324,6 +335,75 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 		}));
 
 		this._editorProviders.set(viewType, disposables);
+	}
+
+	private getOrAddWebviewInput(webviewInput: CustomEditorWebviewInput, serializeBuffersForPostMessage: boolean): extHostProtocol.WebviewHandle {
+		let handle = this._webviewHandles.get(webviewInput);
+		if (!handle) {
+			handle = generateUuid();
+			this._webviewHandles.set(webviewInput, handle);
+			this.mainThreadWebviewPanels.addWebviewInput(handle, webviewInput, { serializeBuffersForPostMessage });
+		}
+		return handle;
+	}
+
+	private async resolveCustomTextEditorNavigation(input: CustomEditorInput, handle: extHostProtocol.WebviewHandle, viewType: string, resource: URI, model: ICustomEditorModel, token: CancellationToken, providerDisposables: DisposableStore): Promise<void> {
+		if (!(model instanceof CustomTextEditorModel)) {
+			return;
+		}
+		const lifetime = new CancellationTokenSource(token);
+		const pending = { selection: undefined as ISelection | undefined, changed: false };
+		this._pendingNavigation.set(handle, pending);
+		const cleanup = new DisposableStore();
+		const clear = () => {
+			cleanup.dispose();
+		};
+		cleanup.add(toDisposable(() => {
+			providerDisposables.delete(cleanup);
+			lifetime.dispose(true);
+			this._pendingNavigation.delete(handle);
+			this._navigation.deleteAndDispose(handle);
+			if (input.navigation) {
+				input.navigation = undefined;
+				this._outlineService.notifyOutlineChanged();
+			}
+		}));
+		cleanup.add(input.onWillDispose(clear));
+		cleanup.add(input.webview.onDidDispose(clear));
+		providerDisposables.add(cleanup);
+		try {
+			const result = await raceCancellation(this._proxyCustomEditors.$resolveCustomTextEditorNavigation(handle, viewType, resource, lifetime.token), lifetime.token);
+			if (!result || lifetime.token.isCancellationRequested || input.isDisposed()) {
+				this._proxyCustomEditors.$disposeCustomTextEditorNavigation(handle);
+				clear();
+				return;
+			}
+			const navigation = new MainThreadCustomTextEditorNavigation(model.textEditorModel, pending.changed ? pending.selection : result.selection, handle, this._proxyCustomEditors, () => {
+				const group = input.group === undefined ? undefined : this._editorGroupService.getGroup(input.group);
+				if (group?.activeEditor === input) {
+					group.focus();
+				}
+			});
+			this._navigation.set(handle, navigation);
+			input.navigation = navigation;
+			this._outlineService.notifyOutlineChanged();
+		} catch (error) {
+			clear();
+			if (!isCancellationError(error)) {
+				onUnexpectedError(error);
+			}
+		} finally {
+			this._pendingNavigation.delete(handle);
+		}
+	}
+
+	$onDidChangeCustomTextEditorSelection(handle: extHostProtocol.WebviewHandle, selection: ISelection | undefined): void {
+		this._navigation.get(handle)?.updateSelection(selection);
+		const pending = this._pendingNavigation.get(handle);
+		if (pending) {
+			pending.changed = true;
+			pending.selection = selection;
+		}
 	}
 
 	private resolveCustomEditorSideBySideDiff(

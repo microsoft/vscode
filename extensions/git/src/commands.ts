@@ -20,6 +20,7 @@ import { ApiRepository } from './api/api1';
 import { getRemoteSourceActions, pickRemoteSource } from './remoteSource';
 import { RemoteSourceAction } from './typings/git-base';
 import { CloneManager } from './cloneManager';
+import { getSafeNotificationMessage } from './notification';
 
 abstract class CheckoutCommandItem implements QuickPickItem {
 	abstract get label(): string;
@@ -1158,7 +1159,11 @@ export class CommandCenter {
 
 			if (homeUri.toString().startsWith(uri.toString())) {
 				const yes = l10n.t('Initialize Repository');
-				const answer = await window.showWarningMessage(l10n.t('This will create a Git repository in "{0}". Are you sure you want to continue?', uri.fsPath), yes);
+				const message = getSafeNotificationMessage(
+					l10n.t('This will create a Git repository in "{0}". Are you sure you want to continue?', uri.fsPath),
+					l10n.t('This will create a Git repository in the selected folder. Are you sure you want to continue?'),
+				);
+				const answer = await window.showWarningMessage(message, yes);
 
 				if (answer !== yes) {
 					return;
@@ -1397,7 +1402,10 @@ export class CommandCenter {
 		const title = `${basename} (HEAD)`;
 
 		if (!HEAD) {
-			window.showWarningMessage(l10n.t('HEAD version of "{0}" is not available.', path.basename(resource.resourceUri.fsPath)));
+			window.showWarningMessage(getSafeNotificationMessage(
+				l10n.t('HEAD version of "{0}" is not available.', basename),
+				l10n.t('HEAD version of this file is not available.'),
+			));
 			return;
 		}
 

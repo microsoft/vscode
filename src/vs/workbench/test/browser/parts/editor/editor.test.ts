@@ -427,6 +427,28 @@ suite('Workbench editor utils', () => {
 		assert.strictEqual(part.partOptions.tabActionReserveSpace, false);
 	});
 
+	test('editor tab mode class follows configured and enforced part options', async () => {
+		const configuredInstantiationService = workbenchInstantiationService({
+			configurationService: () => {
+				const configurationService = new TestConfigurationService({
+					workbench: { editor: { showTabs: 'single' } }
+				});
+				disposables.add(configurationService.onDidChangeConfigurationEmitter);
+				return configurationService;
+			}
+		}, disposables);
+		const part = await createEditorPart(configuredInstantiationService, disposables);
+		const hasMultipleTabs = () => part.getContainer()!.classList.contains('editor-tabs-multiple');
+		const states = [hasMultipleTabs()];
+		for (const showTabs of ['multiple', 'none', 'single'] as const) {
+			const override = disposables.add(part.enforcePartOptions({ showTabs }));
+			states.push(hasMultipleTabs());
+			override.dispose();
+			states.push(hasMultipleTabs());
+		}
+		assert.deepStrictEqual(states, [false, true, false, false, false, false, false]);
+	});
+
 	test('whenEditorClosed (single editor)', async function () {
 		return testWhenEditorClosed(false, false, toResource.call(this, '/path/index.txt'));
 	});

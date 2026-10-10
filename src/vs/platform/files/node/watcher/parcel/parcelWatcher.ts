@@ -682,11 +682,21 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 			}
 
 			const path = this.pathToWatcherKey(request.path);
-			if (requestsForCorrelation.has(path)) {
-				this.trace(`ignoring a request for watching who's path is already watched: ${this.requestToString(request)}`);
-			}
+			const previous = requestsForCorrelation.get(path);
+			if (previous && request.correlationId === undefined) {
+				const includes = !previous.includes?.length || !request.includes?.length ? undefined : [...previous.includes, ...request.includes];
+				const excludes = previous.excludes.filter(exclude => request.excludes.includes(exclude));
+				const broad = !request.includes?.length ? request : previous;
+				requestsForCorrelation.set(path, !includes
+					? { ...broad, excludes }
+					: { ...previous, includes, excludes });
+			} else {
+				if (previous) {
+					this.trace(`ignoring a request for watching who's path is already watched: ${this.requestToString(request)}`);
+				}
 
-			requestsForCorrelation.set(path, request);
+				requestsForCorrelation.set(path, request);
+			}
 		}
 
 		const normalizedRequests: IRecursiveWatchRequest[] = [];

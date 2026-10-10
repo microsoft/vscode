@@ -56,6 +56,14 @@ explicit error rather than falling back to the update service, so runs must be s
 to the artifacts that were actually downloaded. The SHA-256 check is skipped in this mode because
 there is no update service metadata to compare against.
 
+### Timeouts
+
+Extension installation makes at most three attempts, each allowing 30 seconds to click Install,
+30 seconds for installation to start, and one minute to wait for completion, with a five-second delay
+between attempts. These waits total at most 6 minutes 10 seconds, leaving room for setup and cleanup
+within the default ten-minute test timeout. Mocha does not cancel timed-out async tests, so
+increasing these waits can cause a retry to start before the previous attempt has cleaned up.
+
 ## Scripts
 
 Platform-specific scripts are provided in the `scripts/` directory to set up the environment and run tests:
@@ -157,6 +165,19 @@ For the following platforms only downloads are validated (and not install/runtim
 
 - [product-sanity-tests.yml](../../build/azure-pipelines/product-sanity-tests.yml) - Main pipeline definition
 - [sanity-tests.yml](../../build/azure-pipelines/common/sanity-tests.yml) - Reusable job template
+
+### macOS Diagnostics
+
+macOS jobs log the exact OS version/build, hardware configuration, memory pressure, swap usage,
+VM page counters, and process memory rankings before dependency setup, before and after the tests,
+and every minute while tests run. These snapshots help distinguish application regressions from
+unhealthy build VMs even when the pool image name and Darwin kernel version have not changed.
+
+Process rankings include memory footprint, compressed memory, RSS, and summed RSS by executable.
+RSS sums can double-count shared pages and exclude compressed/nonresident memory; they are not
+total physical usage. Only executable names are collected, not process arguments or environment
+variables. Diagnostic commands have bounded execution times and report failures as warnings;
+the monitored test command retains its exit status and the existing test timeouts.
 
 ## References
 

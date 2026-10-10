@@ -15,7 +15,7 @@ import { IView } from '../../../base/browser/ui/grid/grid.js';
 import { IWorkbenchLayoutService, Parts, SINGLE_WINDOW_PARTS, getFloatingOuterGutterEdges, getFloatingPaneCompositeHorizontalMargins, getFloatingPaneCompositeVerticalMargins, getFloatingPaneCompositeVerticalOuterEdges } from '../../services/layout/browser/layoutService.js';
 import { CompositePart, ICompositePartOptions, ICompositeTitleLabel } from './compositePart.js';
 import { IPaneCompositeBarOptions, PaneCompositeBar } from './paneCompositeBar.js';
-import { Dimension, EventHelper, trackFocus, $, addDisposableListener, EventType, prepend, getWindow, scheduleAtNextAnimationFrame } from '../../../base/browser/dom.js';
+import { Dimension, EventHelper, trackFocus, $, addDisposableListener, EventType, prepend, getWindow, scheduleAtNextAnimationFrame, computeScreenAwareSize } from '../../../base/browser/dom.js';
 import { Registry } from '../../../platform/registry/common/platform.js';
 import { INotificationService } from '../../../platform/notification/common/notification.js';
 import { IStorageService } from '../../../platform/storage/common/storage.js';
@@ -609,6 +609,9 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		// When the floating panels experiment is enabled, shrink the content to
 		// leave room for the card margin and border applied via CSS on the part.
 		const floatingInset = this.getFloatingInset();
+		this.element.style.height = this.layoutService.isFloatingPanelsEnabled()
+			? `calc(100% - ${floatingInset.verticalMargin}px)`
+			: '';
 		if (floatingInset.width > 0 || floatingInset.height > 0) {
 			width = Math.max(0, width - floatingInset.width);
 			height = Math.max(0, height - floatingInset.height);
@@ -662,6 +665,10 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		return this.floatingLayoutDimension ?? super.getRelayoutDimension();
 	}
 
+	protected getFloatingBorderWidth(): number {
+		return computeScreenAwareSize(getWindow(this.element), 1);
+	}
+
 	/**
 	 * Amount (in pixels) to subtract from each axis when the floating panels
 	 * experiment is enabled: a margin on each side plus a 1px border on each side
@@ -670,17 +677,18 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	 * floating card on (see {@link getFloatingOuterGutterEdges}) it gets the outer
 	 * margin, so its width inset is larger on that side.
 	 */
-	private getFloatingInset(): { width: number; height: number } {
+	private getFloatingInset(): { width: number; height: number; verticalMargin: number } {
 		if (!this.layoutService.isFloatingPanelsEnabled()) {
-			return { width: 0, height: 0 };
+			return { width: 0, height: 0, verticalMargin: 0 };
 		}
 
-		const borderTotal = 2; // 1px border on each side
+		const borderTotal = this.getFloatingBorderWidth() * 2;
 		const { top, bottom } = getFloatingPaneCompositeVerticalMargins(this.layoutService, this.partId, getWindow(this.element));
 		const { left, right } = getFloatingPaneCompositeHorizontalMargins(this.layoutService, this.partId);
 		return {
 			width: left + right + borderTotal,
-			height: top + bottom + borderTotal
+			height: top + bottom + borderTotal,
+			verticalMargin: top + bottom
 		};
 	}
 

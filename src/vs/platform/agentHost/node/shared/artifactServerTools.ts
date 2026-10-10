@@ -5,13 +5,15 @@
 
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
+import type { IRecordedPullRequestAssociationResult } from '../../common/agentHostGitStateService.js';
+import type { IAgentServerToolDefinition } from '../../common/agentServerTools.js';
 import { AGENT_HOST_SESSION_LINK_SCHEME } from '../../common/openSessionLink.js';
 import { ArtifactServerToolName, LEGACY_ARTIFACT_SERVER_TOOL_NAMES } from '../../common/serverToolNames.js';
 import { parseSessionArtifactInputs, SessionArtifactCollection } from '../../common/sessionArtifactCollection.js';
-import { readSessionArtifacts, SESSION_ARTIFACT_TYPES, withSessionArtifacts, type ISessionArtifact } from '../../common/sessionArtifacts.js';
+import { SESSION_ARTIFACT_TYPES, SessionArtifactType, type ISessionArtifact } from '../../common/sessionArtifacts.js';
 import { parseRequiredSessionUriFromChatUri, type ToolDefinition } from '../../common/state/sessionState.js';
-import type { AgentHostStateManager } from '../agentHostStateManager.js';
-import type { IServerToolDisplay, IServerToolExecutionContext, IServerToolGroup } from './agentServerToolHost.js';
+import type { IServerToolDisplay, IServerToolGroup } from './agentServerToolHost.js';
+import { SessionArtifacts } from './sessionArtifacts.js';
 
 const artifactClassification = 'An issue or pull request you create or attempt to fix, change, or unblock is an artifact; inspection or review alone makes it a reference.';
 
@@ -26,7 +28,7 @@ const artifactInputSchema: NonNullable<ToolDefinition['inputSchema']> = {
 		label: { type: 'string', description: 'Short label shown to the user.' },
 		isArtifact: {
 			type: 'boolean',
-			description: `Required. \`true\` for an artifact, \`false\` for a reference. ${artifactClassification} Other artifacts are notable results you produced beyond ordinary workspace edits, such as a report written outside the workspace. References are existing resources the user should look at because of this task.`,
+			description: `Required. \`true\` for an artifact, \`false\` for a reference. ${artifactClassification} Other artifacts are deliverables the user requested or standalone results they are clearly likely to reopen, download, or reuse, such as a report the user asked for. References are existing resources the user should look at because of this task.`,
 		},
 		link: { type: 'string', description: 'URL of the pull request, issue, commit or website. Required for those kinds.' },
 		uri: { type: 'string', description: 'Absolute URI including its scheme. For a local file, pass a file URI such as `file:///C:/path/to/file`, not a plain file system path such as `C:\\path\\to\\file`. Required for the `file` and `resource` kinds.' },
@@ -35,18 +37,20 @@ const artifactInputSchema: NonNullable<ToolDefinition['inputSchema']> = {
 	required: ['type', 'label', 'isArtifact'],
 };
 
-const addArtifactInputSchema: NonNullable<ToolDefinition['inputSchema']> = {
-	type: 'object',
-	properties: {
-		items: {
-			type: 'array',
-			minItems: 1,
-			description: 'Artifacts and references to record in this call. Batch related entries when practical.',
-			items: artifactInputSchema,
+function createAddArtifactInputSchema(inputSchema: NonNullable<ToolDefinition['inputSchema']>): NonNullable<ToolDefinition['inputSchema']> {
+	return {
+		type: 'object',
+		properties: {
+			items: {
+				type: 'array',
+				minItems: 1,
+				description: 'Artifacts and references to record in this call. Batch related entries when practical.',
+				items: inputSchema,
+			},
 		},
-	},
-	required: ['items'],
-};
+		required: ['items'],
+	};
+}
 
 const removeArtifactInputSchema: ToolDefinition['inputSchema'] = {
 	type: 'object',
@@ -61,27 +65,30 @@ const listArtifactsInputSchema: ToolDefinition['inputSchema'] = {
 	properties: {},
 };
 
-export const artifactServerToolDefinitions: ToolDefinition[] = [
+export const artifactServerToolDefinitions: IAgentServerToolDefinition[] = [
 	{
 		name: ArtifactServerToolName.AddArtifactOrReference,
 		title: 'Add Artifact or Reference',
-		description: `Record one or more artifacts or references so they are surfaced next to the chat input. Use \`items\` and batch related entries in one call when practical. ${artifactClassification} Other artifacts are notable results you produced beyond ordinary workspace edits, such as a plan or report written outside the workspace. References are noteworthy existing resources the user will likely want to view. Do not record routine files, incidental resources, or sessions and chats created with session-management tools.`,
-		inputSchema: addArtifactInputSchema,
+		description: `Record one or more artifacts or references so they are surfaced next to the chat input. Use \`items\` and batch related entries in one call when practical. Registration is optional, not an inventory of everything saved; default to no registration. ${artifactClassification} Other artifacts are deliverables the user requested or standalone results they are clearly likely to reopen, download, or reuse, such as a report or plan the user asked for. References are noteworthy existing resources the user will likely want to view. Do not record routine files, scratch files, caches, logs, intermediate results, or configuration snapshots unless the user asked for them as deliverables; persistence or location outside the workspace is not an eligibility signal. Do not record incidental resources, commits you create unless the user asks, or sessions and chats created with session-management tools. Never create, copy, or relocate a file solely to have an artifact to register. Adding an artifact promotes a matching reference, preserving its id; duplicates never downgrade artifacts.`,
+		inputSchema: createAddArtifactInputSchema(artifactInputSchema),
 		annotations: { readOnlyHint: false },
+		deferLoading: false,
 	},
 	{
 		name: ArtifactServerToolName.RemoveArtifactOrReference,
 		title: 'Remove Artifact or Reference',
-		description: 'Remove an artifact or reference from this session by id.',
+		description: 'Remove an artifact or reference recorded in this chat by id.',
 		inputSchema: removeArtifactInputSchema,
 		annotations: { readOnlyHint: false, destructiveHint: true },
+		deferLoading: true,
 	},
 	{
 		name: ArtifactServerToolName.ListArtifactsAndReferences,
 		title: 'List Artifacts and References',
-		description: 'List the artifacts and references recorded on this session, with their ids.',
+		description: 'List the artifacts and references recorded in this chat, with their ids.',
 		inputSchema: listArtifactsInputSchema,
 		annotations: { readOnlyHint: true },
+		deferLoading: true,
 	},
 ];
 
@@ -89,8 +96,14 @@ export const artifactServerToolDefinitions: ToolDefinition[] = [
 export interface IArtifactServerToolAccessor {
 	/** Whether the artifact tools are advertised and executable. */
 	readonly isEnabled: () => boolean;
-	/** Persists a session's artifacts and references so they survive a host restart. */
-	readonly persist: (session: string, artifacts: readonly ISessionArtifact[]) => void;
+	/** Persists the session-wide artifact and reference collection, including entries from every chat. */
+	readonly persist: (session: string, artifacts: readonly ISessionArtifact[]) => void | Promise<void>;
+	/** Verifies a PR against the invoking chat's folder and associates it when its head branch matches. */
+	readonly associatePullRequest?: (chat: string, pullRequestUrl: string) => Promise<boolean>;
+	/** Verifies a batch in one GitHub request and persists candidates that need retrying. */
+	readonly associatePullRequests?: (chat: string, urls: readonly string[]) => Promise<IRecordedPullRequestAssociationResult>;
+	readonly removePendingPullRequest?: (session: string, chat: string, url: string) => Promise<void>;
+	readonly reportAssociationError?: (error: unknown) => void;
 }
 
 /** The noun an entry is described by, so every message names what it acted on. */
@@ -123,43 +136,13 @@ function describeArtifact(artifact: ISessionArtifact): string {
 	return `${artifact.id} (${artifact.type}, ${entryNoun(artifact.isArtifact)}) ${artifact.label}${value ? ` — ${value}` : ''}`;
 }
 
-/**
- * Reads, mutates and republishes the artifacts and references of the session
- * that owns the executing chat. They live on the session's `_meta` bag, so a
- * change reaches subscribed clients through the regular action envelope.
- */
-class SessionArtifacts {
-
-	private readonly _session: string;
-
-	constructor(
-		private readonly _stateManager: AgentHostStateManager,
-		context: IServerToolExecutionContext,
-	) {
-		this._session = parseRequiredSessionUriFromChatUri(context.chatUri);
-	}
-
-	read(): SessionArtifactCollection {
-		return new SessionArtifactCollection(readSessionArtifacts(this._stateManager.getSessionState(this._session)?._meta));
-	}
-
-	write(artifacts: readonly ISessionArtifact[], accessor: IArtifactServerToolAccessor): void {
-		const meta = this._stateManager.getSessionState(this._session)?._meta;
-		this._stateManager.setSessionMeta(this._session, withSessionArtifacts(meta, artifacts));
-		accessor.persist(this._session, artifacts);
-	}
-}
-
 export function createArtifactServerToolGroup(accessor?: IArtifactServerToolAccessor): IServerToolGroup {
+	const isEnabled = () => accessor?.isEnabled() === true;
 	return {
 		definitions: artifactServerToolDefinitions,
 		legacyToolNames: LEGACY_ARTIFACT_SERVER_TOOL_NAMES,
-		isEnabled(): boolean {
-			return accessor?.isEnabled() === true;
-		},
-		isEnabledForSession(): boolean {
-			return true;
-		},
+		isEnabled,
+		isEnabledForSession: isEnabled,
 		getDisplay(toolName, args, result): IServerToolDisplay | undefined {
 			switch (toolName) {
 				case ArtifactServerToolName.AddArtifactOrReference: {
@@ -200,12 +183,12 @@ export function createArtifactServerToolGroup(accessor?: IArtifactServerToolAcce
 					return undefined;
 			}
 		},
-		execute(stateManager, context, toolName, rawArgs): string {
+		async execute(stateManager, context, toolName, rawArgs): Promise<string> {
 			if (!accessor) {
 				throw new Error(`${toolName} is unavailable in this host.`);
 			}
 
-			const artifacts = new SessionArtifacts(stateManager, context);
+			const artifacts = new SessionArtifacts(stateManager, parseRequiredSessionUriFromChatUri(context.chatUri), context.chatUri, accessor.persist);
 			switch (toolName) {
 				case ArtifactServerToolName.AddArtifactOrReference: {
 					const inputs = parseSessionArtifactInputs(rawArgs, ArtifactServerToolName.AddArtifactOrReference);
@@ -214,39 +197,73 @@ export function createArtifactServerToolGroup(accessor?: IArtifactServerToolAcce
 							throw new Error(`Invalid ${ArtifactServerToolName.AddArtifactOrReference} input: sessions and chats created with session-management tools must not be recorded as artifacts or references.`);
 						}
 					}
-					let collection = artifacts.read();
-					let changed = false;
-					const messages: string[] = [];
-					for (const input of inputs) {
-						const result = collection.add(input, generateUuid);
-						collection = new SessionArtifactCollection(result.artifacts);
-						changed ||= result.added;
-						messages.push(result.added
-							? `Added ${entryNoun(result.artifact.isArtifact)}: ${describeArtifact(result.artifact)}`
-							: `Already recorded: ${describeArtifact(result.artifact)}`);
+					const result = await artifacts.mutate(collection => {
+						const messages: string[] = [];
+						const pullRequestUrls = new Set<string>();
+						for (const input of inputs) {
+							const result = collection.addOrPromoteArtifact(input, generateUuid);
+							const status = result.added
+								? `Added ${entryNoun(result.artifact.isArtifact)}`
+								: result.artifacts !== collection.artifacts ? 'Promoted artifact' : 'Already recorded';
+							messages.push(`${status}: ${result.artifact.id}`);
+							if (input.isArtifact && result.artifact.type === SessionArtifactType.PullRequest && result.artifact.isGitHub && result.artifact.link) {
+								pullRequestUrls.add(result.artifact.link);
+							}
+							collection = new SessionArtifactCollection(result.artifacts);
+						}
+						return { artifacts: collection.artifacts, messages, pullRequestUrls };
+					});
+					if (accessor.associatePullRequests && result.pullRequestUrls.size) {
+						try {
+							const associated = await accessor.associatePullRequests(context.chatUri, [...result.pullRequestUrls]);
+							for (const url of associated.pending) {
+								result.messages.push(`Pull request ${url} was recorded; folder association is pending verification.`);
+							}
+							for (const url of associated.unmatched) {
+								result.messages.push(`Pull request ${url} was recorded but not associated with this chat's working folder.`);
+							}
+						} catch (error) {
+							accessor.reportAssociationError?.(error);
+							result.messages.push('Pull request artifacts were recorded, but folder association could not be queued.');
+						}
+					} else if (accessor.associatePullRequest) {
+						for (const url of result.pullRequestUrls) {
+							try {
+								if (!await accessor.associatePullRequest(context.chatUri, url)) {
+									result.messages.push(`Pull request ${url} was recorded but not associated with this chat's working folder.`);
+								}
+							} catch (error) {
+								accessor.reportAssociationError?.(error);
+								result.messages.push(`Pull request ${url} was recorded, but folder association could not be verified.`);
+							}
+						}
 					}
-					if (changed) {
-						artifacts.write(collection.artifacts, accessor);
-					}
-					return messages.join('\n');
+					return result.messages.join('\n');
 				}
 				case ArtifactServerToolName.RemoveArtifactOrReference: {
 					const id = (rawArgs as { id?: unknown } | undefined)?.id;
 					if (typeof id !== 'string' || id.length === 0) {
 						throw new Error(`Invalid ${ArtifactServerToolName.RemoveArtifactOrReference} input: id must be a non-empty string.`);
 					}
-					const result = artifacts.read().remove(id);
+					const result = await artifacts.mutate(collection => collection.remove(id), async result => {
+						if (result.removed?.type === SessionArtifactType.PullRequest && result.removed.link && accessor.removePendingPullRequest) {
+							try {
+								await accessor.removePendingPullRequest(context.sessionUri, result.removed.chat ?? context.chatUri, result.removed.link);
+							} catch (error) {
+								accessor.reportAssociationError?.(error);
+							}
+						}
+					});
 					if (!result.removed) {
 						return `No artifact or reference with id ${id}.`;
 					}
-					artifacts.write(result.artifacts, accessor);
 					const message = result.removed.isArtifact ? REMOVED_ARTIFACT_MESSAGE : REMOVED_REFERENCE_MESSAGE;
-					return `${message}: ${describeArtifact(result.removed)}`;
+					return `${message}: ${result.removed.id}`;
 				}
 				case ArtifactServerToolName.ListArtifactsAndReferences: {
 					const current = artifacts.read().artifacts;
 					return current.length === 0
-						? 'No artifacts or references recorded for this session.'
+						? 'No artifacts or references recorded for this chat.'
 						: current.map(describeArtifact).join('\n');
 				}
 				default:
@@ -255,8 +272,3 @@ export function createArtifactServerToolGroup(accessor?: IArtifactServerToolAcce
 		},
 	};
 }
-
-/**
- * The instruction added to the first outgoing turn while artifact tools are enabled.
- */
-export const ARTIFACT_TOOLS_INSTRUCTION = `Record notable artifacts and references with \`${ArtifactServerToolName.AddArtifactOrReference}\` so they are surfaced next to the chat input. ${artifactClassification} Other artifacts are durable results you produce beyond ordinary workspace edits; references are existing resources the user will likely want to view. Batch related entries in one call when practical. Do not record routine files, incidental resources, commits you create unless the user asks, or sessions and chats created with session-management tools.`;
