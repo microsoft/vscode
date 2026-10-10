@@ -7985,6 +7985,9 @@ declare module 'vscode' {
 		 * {@link TerminalShellIntegration.executeCommand} or
 		 * {@link window.onDidStartTerminalShellExecution} to not miss any data.
 		 *
+		 * Each call returns an independent stream that can be consumed once. Exiting the iteration
+		 * early stops collecting data for that stream without affecting the command or other readers.
+		 *
 		 * @example
 		 * // Log all data written to the terminal for a command
 		 * const command = term.shellIntegration.executeCommand({ commandLine: 'echo "Hello world"' });
