@@ -225,6 +225,7 @@ interface ISandboxChatEntry extends IDisposable {
 	session?: PromotableCloudSandboxChatSession;
 	liveRequested: boolean;
 	historyRequested: boolean;
+	historyLoaded: boolean;
 	hasHistory: boolean;
 	historyFailed: boolean;
 	historyRetryAfter: number;
@@ -285,7 +286,7 @@ export class CloudSandboxSessionHandler extends Disposable implements IChatSessi
 				liveStore: store.add(new MutableDisposable<DisposableStore>()),
 				liveProviderTimeout: store.add(new MutableDisposable<IDisposable>()),
 				liveRequested: false, historyRequested: false, live: false, waiters: 0, references: 0,
-				hasHistory: false, historyFailed: false, historyRetryAfter: 0, liveFailed: false, liveProviderWaitExpired: false,
+				historyLoaded: false, hasHistory: false, historyFailed: false, historyRetryAfter: 0, liveFailed: false, liveProviderWaitExpired: false,
 				dispose: () => store.dispose(),
 			};
 			this._sessions.set(resource, entry);
@@ -375,6 +376,7 @@ export class CloudSandboxSessionHandler extends Disposable implements IChatSessi
 			void entry.ready.complete(session);
 		}
 		entry.live = live;
+		entry.historyLoaded = kind === 'cache' || kind === 'history';
 		entry.hasHistory = kind !== 'historyError' && source.history.length > 0;
 		entry.historyFailed = false;
 		if (live) {
@@ -485,6 +487,7 @@ export class CloudSandboxSessionHandler extends Disposable implements IChatSessi
 		entry.liveStore.value = store;
 		const source = store.add(new CancellationTokenSource(entry.token));
 		const token = source.token;
+		const pendingSession = store.add(new MutableDisposable<IChatSession>());
 		let timedOut = false;
 		store.add(disposableTimeout(() => {
 			timedOut = true;
@@ -503,7 +506,21 @@ export class CloudSandboxSessionHandler extends Disposable implements IChatSessi
 				session.dispose();
 				throw new CancellationError();
 			}
+			pendingSession.value = session;
+			if (session.historyLoadError) {
+				const { message, canInitializeSession } = session.historyLoadError;
+				if (canInitializeSession && !entry.session) {
+					await raceCancellationError(entry.ready.p, token);
+				}
+				if (!canInitializeSession || !entry.historyLoaded || entry.hasHistory) {
+					throw new Error(message);
+				}
+			}
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
 			entry.trace.record('liveReady', { durationMs: watch.elapsed(), historyItems: session.history.length });
+			pendingSession.clearAndLeak();
 			this._accept(entry, session, 'live');
 		} catch (error) {
 			const cancelled = entry.token.isCancellationRequested || (!timedOut && isCancellationError(error));

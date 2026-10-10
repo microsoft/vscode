@@ -468,6 +468,12 @@ export interface IChatSession extends IDisposable {
 	readonly title?: string;
 
 	readonly history: readonly IChatSessionHistoryItem[];
+	/** Initial history loading failed; any rendered error or partial history is not an authoritative snapshot. */
+	readonly historyLoadError?: {
+		readonly message: string;
+		/** A missing root session may be initialized only after recorded history confirms it has no conversation. */
+		readonly canInitializeSession?: boolean;
+	};
 	/**
 	 * Updated persisted transcript; applying it must preserve the draft and locally running requests.
 	 * Unchanged turns must not resurrect locally removed requests.

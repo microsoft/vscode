@@ -790,6 +790,7 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 	constructor(
 		readonly sessionResource: URI,
 		private _history: readonly IChatSessionHistoryItem[],
+		readonly historyLoadError: IChatSession['historyLoadError'],
 		readonly title: string | undefined,
 		backendSession: URI,
 		sessionSubscription: IAgentSubscription<SessionState> | undefined,
@@ -1579,6 +1580,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 		this._logService.trace(`[AgentHost] provideChatSessionContent start: ${resolvedSession.toString()} (isNewSession=${isNewSession})`);
 		const history: IChatSessionHistoryItem[] = [];
+		let historyLoadError: IChatSession['historyLoadError'];
 		let initialProgress: IChatProgress[] | undefined;
 		let initialResponsePartCount = 0;
 		let activeTurnId: string | undefined;
@@ -1724,6 +1726,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					}
 				} catch (err) {
 					this._logService.warn(`[AgentHost] Failed to subscribe to existing session: ${resolvedSession.toString()}`, err);
+					historyLoadError = {
+						message: unwrapSessionLoadErrorMessage(err) ?? localize('agentHost.sessionLoadFailed', "This session couldn't be loaded."),
+						canInitializeSession: !chatURI && !sessionResource.fragment && !new URLSearchParams(sessionResource.query).has(CHAT_SUBAGENT_RESOURCE_QUERY_PARAM) && isNotFoundError(err),
+					};
 					// Surface a hard load failure as a visible chat error instead of
 					// a silently empty session. Only when nothing else rendered, so a
 					// partially-hydrated history isn't clobbered. A bare response is
@@ -1746,7 +1752,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 							type: 'response',
 							parts: [],
 							participant: this._config.agentId,
-							errorDetails: { message: unwrapSessionLoadErrorMessage(err) ?? localize('agentHost.sessionLoadFailed', "This session couldn't be loaded.") },
+							errorDetails: { message: historyLoadError.message },
 						});
 					}
 				}
@@ -1765,6 +1771,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				AgentHostChatSession,
 				sessionResource,
 				history,
+				historyLoadError,
 				chatTitle,
 				resolvedSession,
 				sessionSubscription,
@@ -1810,9 +1817,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					this._surfacedMcpAuthServers.delete(sessionResource);
 					const chatURI = this._chatURIsBySessionResource.get(sessionResource);
 					this._chatURIsBySessionResource.delete(sessionResource);
-					if (chatURI) {
-						this._releaseChatSessionSubscriptions(resolvedSession.toString(), chatURI);
-					}
+					this._releaseChatSessionSubscriptions(resolvedSession.toString(), chatURI);
 				},
 				() => {
 					const sessionKey = resolvedSession.toString();
@@ -7376,11 +7381,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * session, so it is only torn down once no sibling chat session is still
 	 * active or mid-hydration for the same backend session.
 	 */
-	private _releaseChatSessionSubscriptions(sessionUri: string, chatUri: string): void {
+	private _releaseChatSessionSubscriptions(sessionUri: string, chatUri: string | undefined): void {
 		// Release this chat's own conversation subscription. The default chat's
 		// subscription is keyed by session URI and torn down together with the
 		// shared session subscription below; peer chats own a dedicated entry.
-		if (chatUri !== this._getRawSessionState(sessionUri)?.defaultChat?.toString()) {
+		if (chatUri !== undefined && chatUri !== this._getRawSessionState(sessionUri)?.defaultChat?.toString()) {
 			const chatRef = this._additionalChatSubscriptions.get(chatUri);
 			if (chatRef) {
 				this._additionalChatSubscriptions.delete(chatUri);
