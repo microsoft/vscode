@@ -2154,6 +2154,7 @@ export interface SCMHistoryItemDto {
 	readonly subject: string;
 	readonly message: string;
 	readonly displayId?: string;
+	readonly identifier?: readonly { readonly text: string; readonly color?: ThemeColor }[];
 	readonly author?: string;
 	readonly authorIcon?: IconPathDto;
 	readonly authorEmail?: string;
