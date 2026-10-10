@@ -14,6 +14,7 @@ import { IContextMenuService } from '../../../../platform/contextview/browser/co
 import { isRemoteDiagnosticError } from '../../../../platform/diagnostics/common/diagnostics.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProcessService } from '../../../../platform/process/common/process.js';
@@ -57,9 +58,10 @@ export class IssueReporter extends BaseIssueReporterService {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IAuthenticationService authenticationService: IAuthenticationService,
-		@IOpenerService openerService: IOpenerService
+		@IOpenerService openerService: IOpenerService,
+		@ILogService logService: ILogService,
 	) {
-		super(disableExtensions, data, os, product, window, false, issueFormService, themeService, fileService, fileDialogService, contextMenuService, authenticationService, openerService);
+		super(disableExtensions, data, os, product, window, false, undefined, issueFormService, themeService, fileService, fileDialogService, contextMenuService, authenticationService, openerService, logService);
 		this.processService = processService;
 		this.processService.getSystemInfo().then(info => {
 			this.issueReporterModel.update({ systemInfo: info });

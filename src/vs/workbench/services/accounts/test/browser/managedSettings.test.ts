@@ -17,6 +17,17 @@ suite('adaptManagedSettings', () => {
 		});
 	});
 
+	test('preserves an empty telemetry block and explicit identity leaves', () => {
+		assert.deepStrictEqual({
+			empty: adaptManagedSettings({ telemetry: {} }),
+			denied: adaptManagedSettings({ telemetry: { capture: { identity: false } } }),
+			allowed: adaptManagedSettings({ telemetry: { capture: { identity: true } } }),
+		}, {
+			empty: { managedSettings: { telemetry: '{}' } },
+			denied: { managedSettings: { 'telemetry.capture.identity': false } },
+			allowed: { managedSettings: { 'telemetry.capture.identity': true } },
+		});
+	});
 	test('appends client identity to the request url', () => {
 		assert.deepStrictEqual({
 			withRuntime: appendManagedSettingsClientIdentity('https://api.github.com/copilot_internal/managed_settings', {
@@ -46,12 +57,11 @@ suite('adaptManagedSettings', () => {
 		});
 	});
 
-	test('marks permission rules as active when they are retained only in the raw response', () => {
+	test('retains permission rules for effective harness eligibility', () => {
 		assert.deepStrictEqual(adaptManagedSettings({
 			permissions: { deny: ['Shell'] },
 		}), {
-			managedSettings: {},
-			managedSettingsActive: true,
+			managedSettings: { 'permissions.deny': '["Shell"]' },
 		});
 	});
 

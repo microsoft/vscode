@@ -7,6 +7,7 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { FileAccess } from '../../../../../base/common/network.js';
 import { allChatPetAccessories, chatPetAccessories, ChatPetAccessoryIds, getChatPetAccessory, type ChatPetAccessoryId, type IChatPetAccessory } from '../../../../contrib/chat/browser/chatPetAchievements.js';
+import { ChatPetColor, chatPetColorPresets, getChatPetColorVariant } from '../../../../contrib/chat/browser/chatPetColors.js';
 import { drawChatPetComposite, drawChatPetEyeAccessory, getChatPetAccessoryImageSource, hasChatPetAccessoryImageDimensions, hasChatPetBodyImageDimensions } from '../../../../contrib/chat/browser/widget/chatPetAccessoryRenderer.js';
 import { getChatPetFrameDurations, getChatPetSpriteName, doesChatPetStateTrackCursor, CHAT_PET_SING_FIXED_ORIENTATION_DECORATIONS, drawChatPetAchievementStar, type ChatPetState } from '../../../../contrib/chat/browser/widget/chatPetWidget.js';
 import { getChatPetReducedMotionRigFrame } from '../../../../contrib/chat/browser/widget/chatPetAccessoryRig.js';
@@ -160,6 +161,14 @@ const allChatPetStates: readonly ChatPetState[] = [
 ];
 
 export default defineThemedFixtureGroup({ path: 'chat/chatPetAccessoryRig/' }, {
+	ColorPresets: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: renderColorPresets,
+	}),
+	CustomColorCriticalPoses: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderCriticalPoses(ctx, '#cc44aa'),
+	}),
 	CriticalPoses: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: true },
 		render: renderCriticalPoses,
@@ -186,7 +195,39 @@ export default defineThemedFixtureGroup({ path: 'chat/chatPetAccessoryRig/' }, {
 	}),
 });
 
-async function renderCriticalPoses(ctx: ComponentFixtureContext): Promise<void> {
+async function renderColorPresets(ctx: ComponentFixtureContext): Promise<void> {
+	configureChatPetFixtureFileRoot(ctx.disposableStore);
+	ctx.container.style.width = '760px';
+	ctx.container.style.padding = 'var(--vscode-spacing-size240)';
+	ctx.container.style.background = 'var(--vscode-editor-background)';
+	ctx.container.style.color = 'var(--vscode-foreground)';
+	const grid = DOM.append(ctx.container, DOM.$('div'));
+	grid.style.display = 'grid';
+	grid.style.gridTemplateColumns = 'repeat(5, 1fr)';
+	grid.style.gap = 'var(--vscode-spacing-size160)';
+	const bodies = new Map(await Promise.all((['stable', 'insiders'] as const).map(async variant => [
+		variant,
+		await loadImage(FileAccess.asBrowserUri(`vs/workbench/contrib/chat/browser/widget/media/chatPet/buddy-idle-${variant}-96.png`).toString(true)),
+	] as const)));
+	for (const preset of chatPetColorPresets) {
+		const card = DOM.append(grid, DOM.$('div'));
+		DOM.append(card, DOM.$('div')).textContent = preset.label;
+		const canvas = DOM.append(card, DOM.$<HTMLCanvasElement>('canvas'));
+		canvas.width = 96;
+		canvas.height = 96;
+		canvas.style.imageRendering = 'pixelated';
+		canvas.setAttribute('aria-hidden', 'true');
+		const image = bodies.get(getChatPetColorVariant(preset.color));
+		const context = canvas.getContext('2d');
+		if (!image || !context) {
+			throw new Error('Unable to render the pet color fixture.');
+		}
+		context.imageSmoothingEnabled = false;
+		drawChatPetComposite(context, image, undefined, 0, 0, 96, 96, 'right', 'idle', undefined, true, true, false, preset.color);
+	}
+}
+
+async function renderCriticalPoses(ctx: ComponentFixtureContext, color?: ChatPetColor): Promise<void> {
 	configureChatPetFixtureFileRoot(ctx.disposableStore);
 
 	ctx.container.style.width = '1100px';
@@ -279,6 +320,7 @@ async function renderCriticalPoses(ctx: ComponentFixtureContext): Promise<void> 
 			true,
 			accessory.eyeAccessoryMirrorsWithFacing !== false,
 			accessory.coversAntennae === true,
+			color,
 		);
 	}
 }

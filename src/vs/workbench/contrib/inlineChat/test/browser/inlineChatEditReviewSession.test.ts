@@ -30,6 +30,9 @@ import { ChatResponseModelChangeReason, IChatResponseModel } from '../../../chat
 import { ChatEditingModifiedDocumentEntry } from '../../../chat/browser/chatEditing/chatEditingModifiedDocumentEntry.js';
 import { InlineChatEditReviewSession } from '../../browser/inlineChatEditReviewSession.js';
 import { TestWorkerService } from './testWorkerService.js';
+import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IAiEditTelemetryService, IEditTelemetryCodeAcceptedData, IEditTelemetryCodeRejectedData } from '../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 
 suite('InlineChatEditReviewSession', () => {
 
@@ -44,6 +47,8 @@ suite('InlineChatEditReviewSession', () => {
 	let models: ResourceMap<ITextModel>;
 	let dirtyResources: ResourceSet;
 	let cancelSave: boolean;
+	let instantiation: IInstantiationService;
+	let editActions: { kind: 'accepted' | 'rejected'; data: IEditTelemetryCodeAcceptedData | IEditTelemetryCodeRejectedData }[];
 
 	interface ITestChatResponse extends IChatResponseModel {
 		addExternalEdit(edit: IChatExternalEdit): void;
@@ -58,7 +63,7 @@ suite('InlineChatEditReviewSession', () => {
 		return model;
 	}
 
-	function createResponse(parts: readonly IChatExternalEdit[] = [], requestId = 'request-1'): ITestChatResponse {
+	function createResponse(parts: readonly IChatExternalEdit[] = [], requestId = 'request-1', sessionResource = chatSessionResource): ITestChatResponse {
 		const responseParts = [...parts];
 		const onDidChange = store.add(new Emitter<ChatResponseModelChangeReason>());
 		return new class extends mock<ITestChatResponse>() {
@@ -72,7 +77,7 @@ suite('InlineChatEditReviewSession', () => {
 			override readonly agent = { id: 'agent' } as IChatResponseModel['agent'];
 			override readonly slashCommand = { name: 'inline' } as IChatResponseModel['slashCommand'];
 			override readonly request = { modelId: 'model', modeInfo: { telemetryModeId: 'edit' } } as IChatResponseModel['request'];
-			override readonly session = { sessionResource: chatSessionResource } as IChatResponseModel['session'];
+			override readonly session = { sessionResource } as IChatResponseModel['session'];
 			override readonly result = undefined;
 			override readonly onDidChange = onDidChange.event;
 			override addExternalEdit(edit: IChatExternalEdit): void {
@@ -95,6 +100,7 @@ suite('InlineChatEditReviewSession', () => {
 		models = new ResourceMap<ITextModel>();
 		dirtyResources = new ResourceSet();
 		cancelSave = false;
+		editActions = [];
 
 		const textModelService = new class extends mock<ITextModelService>() {
 			override async createModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
@@ -141,6 +147,15 @@ suite('InlineChatEditReviewSession', () => {
 		}();
 
 		const collection = new ServiceCollection();
+		collection.set(IAgentHostConnectionsService, new class extends mock<IAgentHostConnectionsService>() {
+			override resolveSessionResourceIdentity() {
+				return { connectionAuthority: 'local', backendSession: URI.parse('copilotcli:/owner-session') };
+			}
+		}());
+		collection.set(IAiEditTelemetryService, new class extends mock<IAiEditTelemetryService>() {
+			override handleCodeAccepted(data: IEditTelemetryCodeAcceptedData): void { editActions.push({ kind: 'accepted', data }); }
+			override handleCodeRejected(data: IEditTelemetryCodeRejectedData): void { editActions.push({ kind: 'rejected', data }); }
+		}());
 		collection.set(ITextModelService, textModelService);
 		collection.set(ITextFileService, textFileService);
 		collection.set(IFilesConfigurationService, filesConfigurationService);
@@ -156,6 +171,7 @@ suite('InlineChatEditReviewSession', () => {
 		}());
 
 		const insta = store.add(store.add(workbenchInstantiationService(undefined, store)).createChild(collection));
+		instantiation = insta;
 		modelService = insta.get(IModelService);
 		store.add(insta.get(IEditorWorkerService) as TestWorkerService);
 		session = store.add(insta.createInstance(InlineChatEditReviewSession, chatSessionResource, targetUri));
@@ -366,6 +382,31 @@ suite('InlineChatEditReviewSession', () => {
 
 		assert.deepStrictEqual(session.entries.get().map(entry => entry.state.get()), [ModifiedFileEntryState.Rejected]);
 	});
+
+	for (const outcome of ['accepted', 'rejected'] as const) {
+		test(`attributes AH inline review ${outcome} edits to their originating session and request`, async () => {
+			const resource = URI.parse('agent-host-copilotcli:/owner-session#peer');
+			session.dispose();
+			session = store.add(instantiation.createInstance(InlineChatEditReviewSession, resource, targetUri));
+			seededContents.set(targetUri, 'before\n');
+			await beginAndEnd('after\n', createResponse([], 'source-turn', resource));
+			const entry = session.getEntry(targetUri);
+			assert.ok(entry instanceof ChatEditingModifiedDocumentEntry);
+			await waitForState(entry.diffInfo, value => value.changes.length > 0);
+			if (outcome === 'accepted') {
+				await session.accept();
+			} else {
+				await session.reject();
+			}
+			assert.deepStrictEqual(editActions.map(({ kind, data }) => ({
+				kind, agentSessionId: data.agentSessionId, chatSessionId: data.chatSessionId,
+				sourceRequestId: data.sourceRequestId, isAgentHostSession: data.isAgentHostSession, feature: data.feature,
+			})), [{
+				kind: outcome, agentSessionId: 'owner-session', chatSessionId: resource.toString(),
+				sourceRequestId: 'source-turn', isAgentHostSession: true, feature: 'inlineChat',
+			}]);
+		});
+	}
 
 	test('does not create duplicate entries for the target across turns', async () => {
 		seededContents.set(targetUri, 'before');

@@ -37,6 +37,12 @@ declare module 'vscode' {
 	export interface LanguageModelChatInformation {
 
 		/**
+		 * The maximum number of tokens in the model's context window, including input and output.
+		 * This is independent of {@link maxInputTokens} and {@link maxOutputTokens}, whose maxima need not add up to the context window.
+		 */
+		readonly maxContextWindowTokens?: number;
+
+		/**
 		 * When present, this gates the use of `requestLanguageModelAccess` behind an authorization flow where
 		 * the user must approve of another extension accessing the models contributed by this extension.
 		 * Additionally, the extension can provide a label that will be shown in the UI.

@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import type { IConfigurationValue } from '../../../configuration/common/configuration.js';
-import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, createSchema, migrateLegacyAutopilotConfig, normalizeAgentHostTerminalAutoApproveRulesConfig, platformRootSchema, platformSessionSchema, schemaProperty, type AgentHostTerminalAutoApproveRules, type AutoApproveLevel, type IPermissionsValue, type SessionMode } from '../../common/agentHostSchema.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey, AgentHostAgentOrchestrationLimitsConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostDeferredTitleGenerationConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostMarkdownPlanRichLinksEnabledConfigKey, AgentHostMcpSamplingAllowedServersConfigKey, AgentHostTitleGenerationConfigKey, createSchema, migrateLegacyAutopilotConfig, normalizeAgentHostTerminalAutoApproveRulesConfig, platformRootSchema, platformSessionSchema, schemaProperty, type AgentHostTerminalAutoApproveRules, type AutoApproveLevel, type IPermissionsValue, type SessionMode } from '../../common/agentHostSchema.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { IShellInitScript } from '../../common/shellInitScript.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
@@ -31,10 +31,28 @@ suite('agentHostSchema', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('active-agent title generation is an additive boolean root setting', () => {
-		const property = platformRootSchema.toProtocol().properties[AgentHostActiveAgentTitleGenerationConfigKey];
-		assert.strictEqual(property.type, 'boolean');
-		assert.strictEqual(property.default, false);
+	test('automatic title generation root settings default to utility naming', () => {
+		const properties = platformRootSchema.toProtocol().properties;
+		assert.deepStrictEqual({
+			strategy: {
+				type: properties[AgentHostTitleGenerationConfigKey].type,
+				enum: properties[AgentHostTitleGenerationConfigKey].enum,
+				default: properties[AgentHostTitleGenerationConfigKey].default,
+				rejectsUnselectableStrategy: !platformRootSchema.validate(AgentHostTitleGenerationConfigKey, 'deferred'),
+			},
+			legacyActiveAgent: {
+				type: properties[AgentHostActiveAgentTitleGenerationConfigKey].type,
+				default: properties[AgentHostActiveAgentTitleGenerationConfigKey].default,
+			},
+			legacyDeferred: {
+				type: properties[AgentHostDeferredTitleGenerationConfigKey].type,
+				default: properties[AgentHostDeferredTitleGenerationConfigKey].default,
+			},
+		}, {
+			strategy: { type: 'string', enum: ['utility', 'activeAgent', 'agentReview'], default: 'utility', rejectsUnselectableStrategy: true },
+			legacyActiveAgent: { type: 'boolean', default: false },
+			legacyDeferred: { type: 'boolean', default: false },
+		});
 	});
 
 	test('Markdown plan rich links are an additive boolean root setting', () => {
@@ -43,16 +61,42 @@ suite('agentHostSchema', () => {
 		assert.strictEqual(property.default, false);
 	});
 
+	test('agent orchestration limits are on by default and can be turned off', () => {
+		const property = platformRootSchema.toProtocol().properties[AgentHostAgentOrchestrationLimitsConfigKey];
+		assert.deepStrictEqual({ type: property.type, enum: property.enum, default: property.default }, { type: 'string', enum: ['on', 'off'], default: 'on' });
+	});
+
 	test('GitHub MCP is an additive enabled-by-default root setting', () => {
 		const property = platformRootSchema.toProtocol().properties[AgentHostGitHubMcpServerEnabledConfigKey];
 		assert.strictEqual(property.type, 'boolean');
 		assert.strictEqual(property.default, true);
 	});
 
+	test('MCP sampling approval is a host-owned list of server identities, disabled by default', () => {
+		const property = platformRootSchema.toProtocol().properties[AgentHostMcpSamplingAllowedServersConfigKey];
+		assert.deepStrictEqual({
+			type: property.type,
+			default: property.default,
+			acceptsNames: platformRootSchema.validate(AgentHostMcpSamplingAllowedServersConfigKey, ['test-server', 'other-server']),
+			acceptsEmpty: platformRootSchema.validate(AgentHostMcpSamplingAllowedServersConfigKey, []),
+			rejectsInvalid: ['test-server', { server: true }, [true], [1]].map(value => !platformRootSchema.validate(AgentHostMcpSamplingAllowedServersConfigKey, value)),
+		}, { type: 'array', default: [], acceptsNames: true, acceptsEmpty: true, rejectsInvalid: [true, true, true, true] });
+	});
+
 	test('automatic pull request attachment is an additive enabled-by-default root setting', () => {
 		const property = platformRootSchema.toProtocol().properties[AgentHostAutoAttachPullRequestsConfigKey];
 		assert.strictEqual(property.type, 'boolean');
 		assert.strictEqual(property.default, true);
+	});
+
+	test('BYOK models are enabled by default', () => {
+		const property = platformRootSchema.toProtocol().properties[AgentHostByokModelsEnabledConfigKey];
+		assert.deepStrictEqual({ type: property.type, default: property.default }, { type: 'boolean', default: true });
+	});
+
+	test('Canvases are an additive disabled-by-default root setting', () => {
+		const property = platformRootSchema.toProtocol().properties[AgentHostCanvasesEnabledConfigKey];
+		assert.deepStrictEqual({ type: property.type, default: property.default }, { type: 'boolean', default: false });
 	});
 
 	// ---- schemaProperty / individual validators ---------------------------

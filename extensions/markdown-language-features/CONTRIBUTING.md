@@ -80,9 +80,36 @@ Build outputs are written to `out/` (desktop), `dist/` (web), and `notebook-out/
 
    Markdown editor commands and their default keybindings are defined in `vscode-packages/vscode-team-tools/packages/markdown-editor/src/editorCommands.ts`. Do not manually edit entries marked with `"$generated": true` in this extension's `package.json` or their titles in `package.nls.json`: `npm run build-markdown-editor` and `npm run watch-markdown-editor` regenerate them while preserving manual entries. Run `npm run check-markdown-editor-package-json` to verify that the checked-in manifests are current without modifying them.
 
+### Active block highlighting
+
+`markdown.editor.highlightActiveBlock` controls the rich editor's active-block
+background and glow, and defaults to enabled. Resource-specific changes are sent
+to the renderer without reloading the document or changing source-marker visibility.
+The webview reserves symmetric scrollbar gutters so the document remains centered.
+
+### Outline and breadcrumbs
+
+The rich editor opts into `customTextEditorNavigation`. The workbench reuses the document's symbol providers for Outline and breadcrumbs; the extension reports each panel's source selection and routes reveal and view-state requests through the Markdown editor RPC bridge. Offset mapping uses the renderer's synchronized text, including when its line endings differ from the document.
+
+Keep navigation independent of editing mode. Breadcrumb previews must preserve focus and selection, canceled previews must not override newer navigation, and opening a symbol to the side must retain the custom editor type. Navigation regression coverage lives in `src/test/markdownEditorNavigation.test.ts` and `src/test/markdownEditorBridge.test.ts`, with workbench coverage in the custom-editor navigation and document-symbol Outline suites.
+
+Chat also consumes this per-panel navigation selection as implicit context, including in the Agents window. It attaches a range in the underlying Markdown document, not rendered HTML, and respects the existing implicit-context settings and ignored-file checks. A collapsed or cleared selection falls back to the document URI. No separate Markdown chat bridge is needed. Workbench regression coverage lives in `src/vs/workbench/contrib/chat/test/browser/attachments/chatImplicitContext.test.ts`.
+
+Selection, document, and webview changes share a 500 ms debounce before refreshing chat context, matching code-editor behavior. Navigation availability changes refresh immediately, and registering a chat widget refreshes existing widgets as well so a superseded asynchronous refresh cannot leave them stale.
+
 ### Running tests
 
 You can run the VS Code extension tests by running the `Markdown Extension Tests` target in VS Code. This will run the tests under `./src/test`
+
+### Rich-link presentation lifetimes
+
+The Markdown editor webview shares one presentation observable per URL within a document. Unreferenced presentations remain cached for five minutes, with at most 256 inactive URLs retained in least-recently-used order. Active entries are never evicted.
+
+Reference-count transitions are coalesced in a microtask and sent as incremental subscriptions, not complete URL lists. A synchronous release/reacquire during rendering keeps both the observable and its subscription. Once an entry becomes inactive, its host watcher is released while its cached presentation remains available.
+
+Every new subscription receives the current presentation followed by changes through the existing extension API watcher. Updates carry a subscription ID so messages from a previous subscription or webview cannot overwrite current state. Reusing a cached entry displays its previous presentation while the new subscription resolves.
+
+Run the webview cache and subscription tests with `node --test ./scripts/linkPresentationProvider.test.mts` from this extension directory.
 
 ### Updating the Markdown language service
 

@@ -28,6 +28,8 @@ Read `src/vs/platform/agentHost/node/serviceBootstrapping.md` before adding or m
 
 Put new readers for namespaced protocol `_meta` slots under `common/meta`. Readers must validate every value they return and expose typed data; callers should pass the parent protocol object rather than inspecting `_meta` fields directly. Existing unnamespaced and legacy readers live elsewhere and should be migrated separately when touched. Use type guards for dynamic properties; do not bypass type narrowing or lint rules with `Reflect.get`.
 
+Host-specific parsers and writers live under `common/meta/vscode` and `common/meta/copilotd`. Feature code imports only top-level `common/meta` helpers, which own source selection and domain conversion; ESLint enforces this boundary for value and type imports.
+
 ## End to End Testing
 
 You can run `node ./scripts/code-agent-host.js` to start an agent host. If you pass `--enable-mock-agent`, then the `ScriptedMockAgent` will be used.

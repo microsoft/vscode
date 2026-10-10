@@ -78,6 +78,7 @@ export function toLineRangeMappings(changes: readonly diffWorker.ILineChange[]):
 
 function firstExistingPath(paths: string[]): string | undefined {
 	for (const p of paths) {
+		// eslint-disable-next-line local/code-no-sync-fs -- TODO: move worker-path discovery into awaited initialization; the Lazy factory immediately constructs a worker and cannot return before locating its script.
 		if (existsSync(p)) {
 			return p;
 		}
