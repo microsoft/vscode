@@ -132,7 +132,10 @@ export class MarkupCell extends Disposable {
 
 		this._register(this.viewCell.onDidChangeState((e) => {
 			if (e.editStateChanged || e.contentChanged) {
-				this.viewUpdate();
+				// When the cell leaves edit mode (e.g. it was rendered/executed via Enter, the
+				// toolbar, or Escape) force the preview to re-render even if the markdown source is
+				// unchanged, so that resources such as <img> tags are re-fetched. See #151151.
+				this.viewUpdate(e.editStateChanged);
 			}
 
 			if (e.focusModeChanged) {
@@ -240,13 +243,13 @@ export class MarkupCell extends Disposable {
 		this.templateData.foldingIndicator.classList.add(showFoldingIcon);
 	}
 
-	private viewUpdate(): void {
+	private viewUpdate(forceRerender = false): void {
 		if (this.viewCell.isInputCollapsed) {
 			this.viewUpdateCollapsed();
 		} else if (this.viewCell.getEditState() === CellEditState.Editing) {
 			this.viewUpdateEditing();
 		} else {
-			this.viewUpdatePreview();
+			this.viewUpdatePreview(forceRerender);
 		}
 	}
 
@@ -393,7 +396,7 @@ export class MarkupCell extends Disposable {
 		this.renderedEditors.set(this.viewCell, this.editor);
 	}
 
-	private viewUpdatePreview(): void {
+	private viewUpdatePreview(forceRerender = false): void {
 		this.viewCell.detachTextEditor();
 		DOM.hide(this.editorPart);
 		DOM.hide(this.templateData.cellInputCollapsedContainer);
@@ -412,7 +415,7 @@ export class MarkupCell extends Disposable {
 			}
 		}
 
-		this.notebookEditor.createMarkupPreview(this.viewCell);
+		this.notebookEditor.createMarkupPreview(this.viewCell, forceRerender);
 	}
 
 	private focusEditorIfNeeded() {
