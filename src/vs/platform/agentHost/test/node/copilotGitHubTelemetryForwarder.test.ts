@@ -92,6 +92,24 @@ suite('CopilotGitHubTelemetryForwarder', () => {
 		}]);
 	});
 
+	test('enriches SDK events with discovery identity without replacing the optional runtime identity', () => {
+		const telemetryService = new TestTelemetryService();
+		const forwarder = new CopilotGitHubTelemetryForwarder(() => false, telemetryService);
+		for (const kind of ['response.success', 'response.error', 'tool_call_executed']) {
+			for (const runtimeId of [undefined, 'runtime-id']) {
+				forwarder.forward({
+					sessionId: 'sdk-session', restricted: false,
+					event: { kind, properties: {}, metrics: {}, copilot_tracking_id: runtimeId },
+				}, 'turn-1', undefined, { copilotSku: 'sku-a', copilotTrackingId: 'analytics-a' });
+			}
+		}
+		assert.deepStrictEqual(telemetryService.events.map(({ eventName, data }) => ({
+			eventName, copilotSku: data?.copilotSku, trackingId: data?.['common.copilotTrackingId'], runtimeId: data?.copilot_tracking_id,
+		})), ['response.success', 'response.error', 'tool_call_executed'].flatMap(kind => [undefined, 'runtime-id'].map(runtimeId => ({
+			eventName: `copilotSdk/${kind}`, copilotSku: 'sku-a', trackingId: 'analytics-a', runtimeId,
+		}))));
+	});
+
 	test('reuses standard runtime canvas tool and authoring events without requiring restricted telemetry', () => {
 		const telemetryService = new TestTelemetryService();
 		const forwarder = new CopilotGitHubTelemetryForwarder(() => false, telemetryService);
