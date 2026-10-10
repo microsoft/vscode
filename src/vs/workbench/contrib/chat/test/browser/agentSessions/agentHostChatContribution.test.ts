@@ -43,7 +43,7 @@ import { IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, Ag
 import { CanvasState } from '../../../../../../platform/agentHost/common/state/protocol/channels-canvas/state.js';
 import { ICanvas } from '../../../../canvases/common/canvas.js';
 import type { ChatInputRequestWithPlanReview } from '../../../../../../platform/agentHost/common/agentHostPlanReview.js';
-import { agentHostAuthority, createAgentHostResourceUriMapper, fromAgentHostUri, identityAgentHostResourceUriMapper, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { agentHostAuthority, createAgentHostResourceUriMapper, fromAgentHostUri, identityAgentHostResourceUriMapper, LOCAL_AGENT_HOST_AUTHORITY, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { withChatInputState } from '../../../../../../platform/agentHost/common/meta/agentHostChatInputState.js';
 import { toSlashCommandResourceMeta } from '../../../../../../platform/agentHost/common/meta/agentSlashCommandOutputMeta.js';
 import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
@@ -1302,7 +1302,7 @@ function createByokLanguageModelTestData(groupName?: string): { languageModels: 
 	};
 }
 
-function makeRequest(overrides: Partial<{ message: string; sessionResource: URI; variables: IChatAgentRequest['variables']; userSelectedModelId: string; modelConfiguration: Record<string, unknown>; agentHostSessionConfig: Record<string, string>; agentId: string; requestId: string; acceptedConfirmationData: unknown[]; metadata: Record<string, unknown>; isSystemInitiated: boolean; agentHostMessageOrigin: IChatAgentRequest['agentHostMessageOrigin'] }> = {}): IChatAgentRequest {
+function makeRequest(overrides: Partial<{ message: string; sessionResource: URI; variables: IChatAgentRequest['variables']; userSelectedModelId: string; modelConfiguration: Record<string, unknown>; agentHostSessionConfig: Record<string, string>; agentId: string; requestId: string; acceptedConfirmationData: unknown[]; metadata: Record<string, unknown>; isSystemInitiated: boolean; agentHostMessageOrigin: IChatAgentRequest['agentHostMessageOrigin']; modeInstructions: IChatAgentRequest['modeInstructions'] }> = {}): IChatAgentRequest {
 	return upcastPartial<IChatAgentRequest>({
 		sessionResource: overrides.sessionResource ?? URI.from({ scheme: 'untitled', path: '/chat-1' }),
 		requestId: overrides.requestId ?? 'req-1',
@@ -1317,6 +1317,7 @@ function makeRequest(overrides: Partial<{ message: string; sessionResource: URI;
 		metadata: overrides.metadata,
 		isSystemInitiated: overrides.isSystemInitiated,
 		agentHostMessageOrigin: overrides.agentHostMessageOrigin,
+		modeInstructions: overrides.modeInstructions,
 	});
 }
 
@@ -1359,6 +1360,7 @@ async function startTurn(
 		metadata: Record<string, unknown>;
 		isSystemInitiated: boolean;
 		agentHostMessageOrigin: IChatAgentRequest['agentHostMessageOrigin'];
+		modeInstructions: IChatAgentRequest['modeInstructions'];
 		agentId: string;
 		beforeInvoke: () => void;
 	}>,
@@ -1394,6 +1396,7 @@ async function startTurn(
 			metadata: overrides?.metadata,
 			isSystemInitiated: overrides?.isSystemInitiated,
 			agentHostMessageOrigin: overrides?.agentHostMessageOrigin,
+			modeInstructions: overrides?.modeInstructions,
 		}),
 		(parts) => collected.push(parts),
 		[],
@@ -16057,6 +16060,21 @@ suite('AgentHostChatContribution', () => {
 	// ---- Customizations dispatch ------------------------------------------
 
 	suite('customizations', () => {
+
+		test('maps built-in custom agent URIs for turns', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const agentUri = toAgentHostUri(URI.parse('copilot-builtin:/agents/ask.agent.md'), LOCAL_AGENT_HOST_AUTHORITY);
+
+			const { turnPromise, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+				modeInstructions: { uri: agentUri, name: 'Ask', content: '', toolReferences: [] },
+			});
+			fire({ type: ActionType.ChatTurnComplete, turnId: turnId!, duration: 1000 });
+			await turnPromise;
+
+			assert.deepStrictEqual((agentHostService.turnActions[0].action as ITurnStartedAction).message.agent, {
+				uri: 'copilot-builtin:/agents/ask.agent.md',
+			});
+		}));
 
 		test('dispatches activeClientSet when a new session is created', async () => {
 			const { instantiationService, agentHostService, chatAgentService, seedActiveClient } = createTestServices(disposables);

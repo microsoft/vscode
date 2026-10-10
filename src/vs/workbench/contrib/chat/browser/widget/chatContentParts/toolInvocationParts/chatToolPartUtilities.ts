@@ -12,10 +12,7 @@ import { ConfirmedReason, IChatToolInvocation, IChatToolInvocationSerialized, is
 import { isToolResultInputOutputDetails, ToolDataSource } from '../../../../common/tools/languageModelToolsService.js';
 
 export function isImageGenerationToolInvocation(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): boolean {
-	return toolInvocation.toolSpecificData?.kind === 'generatedImage'
-		|| (toolInvocation.toolSpecificData?.kind === 'input' && !!toolInvocation.toolSpecificData.imageGeneration)
-		|| toolInvocation.toolId === 'image_gen.imagegen'
-		|| toolInvocation.toolId === 'image_generation';
+	return IChatToolInvocation.isImageGeneration(toolInvocation);
 }
 
 export function isImageGenerationToolInProgress(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized, state?: IChatToolInvocation.State): boolean {
@@ -23,7 +20,7 @@ export function isImageGenerationToolInProgress(toolInvocation: IChatToolInvocat
 		return false;
 	}
 	const current = state ?? toolInvocation.state.get();
-	return current.type === IChatToolInvocation.StateKind.Streaming || current.type === IChatToolInvocation.StateKind.Executing;
+	return current.type === IChatToolInvocation.StateKind.Executing;
 }
 
 export function getImageGenerationInvocationMessage(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized, reader?: IReader): string {
@@ -34,7 +31,7 @@ export function getImageGenerationInvocationMessage(toolInvocation: IChatToolInv
 		? toolInvocation.toolSpecificData.imageGeneration?.requestedModel
 		: undefined;
 	return model
-		? localize('imageGeneration.usingModel', "Using {0} to generate an image", model.name ?? model.id)
+		? localize('imageGeneration.generatingWithModel', "Generating image with {0}", model.name ?? model.id)
 		: localize('imageGeneration.progress', "Generating image");
 }
 

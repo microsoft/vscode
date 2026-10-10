@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import type { ToolExecutionCompleteResult } from '@github/copilot-sdk';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { readAgentRuntimeModelConfiguration } from '../../common/meta/agentModelConfigurationMeta.js';
 import { AgentSession, subagentChatTitle } from '../../common/agent.js';
 import { getErrorResponsePart, getTurnError, MessageAttachmentKind, MessageKind, ResponsePartKind, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildChatUri, buildSubagentSessionUri, type ResponsePart, type StringOrMarkdown, type ToolCallResponsePart, type ToolResultContent } from '../../common/state/sessionState.js';
-import { appendSdkToolResultContent, getSdkToolResultText, mapSessionEvents as mapSessionEventsWithRouting, type IMapSessionEventsOptions } from '../../node/copilot/mapSessionEvents.js';
+import { appendSdkToolResultContent, getSdkToolResultContent, getSdkToolResultText, mapSessionEvents as mapSessionEventsWithRouting, type IMapSessionEventsOptions } from '../../node/copilot/mapSessionEvents.js';
 import { toSessionEvents, type ISessionEvent } from './copilotTestEvents.js';
 import { fusionTestData as fusion, fusionTestEvent as event } from './copilotFusionTestEvents.js';
 import { readAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
@@ -1371,6 +1372,40 @@ suite('mapSessionEvents — history replay', () => {
 		});
 	});
 
+	test('restores original generated images without model-facing copies', async () => {
+		const modelCopy = { type: 'image' as const, assetId: 'model-copy', data: 'bW9kZWwtY29weQ==', mimeType: 'image/png', byteLength: 10 };
+		const { turns } = await mapSessionEvents(session, undefined, toSessionEvents([
+			{ type: 'session.binary_asset', data: modelCopy },
+			{ type: 'user.message', data: { content: 'Generate two images.' } },
+			{ type: 'tool.execution_start', data: { toolCallId: 'images', toolName: 'image_generation' } },
+			{
+				type: 'tool.execution_complete', data: {
+					toolCallId: 'images', success: true, result: {
+						content: 'Generated images.',
+						structuredContent: { imageGeneration: { images: [{ contentIndex: 0, mimeType: 'image/png' }, { contentIndex: 1, mimeType: 'image/png' }] } },
+						contents: [
+							{ type: 'image', data: 'original-one', mimeType: 'image/png' },
+							{ type: 'image', data: 'original-two', mimeType: 'image/png' },
+							{ type: 'image', data: 'model-copy-one', mimeType: 'image/png' },
+							{ type: 'image', data: 'model-copy-two', mimeType: 'image/png' },
+						],
+						binaryResultsForLlm: [
+							{ type: 'image', data: 'inline-model-copy', mimeType: 'image/png' },
+							{ type: 'image', assetId: modelCopy.assetId, mimeType: modelCopy.mimeType, byteLength: modelCopy.byteLength },
+						],
+					},
+				}
+			},
+		]));
+		const part = turns[0].responseParts[0];
+		assert.ok(part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Completed);
+		assert.deepStrictEqual(part.toolCall.content, [
+			{ type: ToolResultContentType.Text, text: 'Generated images.' },
+			{ type: ToolResultContentType.EmbeddedResource, data: 'original-one', contentType: 'image/png' },
+			{ type: ToolResultContentType.EmbeddedResource, data: 'original-two', contentType: 'image/png' },
+		]);
+	});
+
 	test('maps SDK shell_exit full output to terminal completion on replay', async () => {
 		const events: ISessionEvent[] = [
 			{ type: 'user.message', data: { interactionId: 'm1', content: 'hi' } },
@@ -2210,6 +2245,60 @@ suite('mapSessionEvents — subagent routing', () => {
 				{ kind: ResponsePartKind.Error },
 			],
 		});
+	});
+});
+
+suite('getSdkToolResultContent', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+	const contents: NonNullable<ToolExecutionCompleteResult['contents']> = [
+		{ type: 'text', text: 'Image generated successfully.' },
+		{ type: 'image', data: 'original-one', mimeType: 'image/png' },
+		{ type: 'image', data: 'original-two', mimeType: 'image/png' },
+		{ type: 'image', data: 'resized-model-copy', mimeType: 'image/png' },
+	];
+	const originals = [{ contentIndex: 1, mimeType: 'image/png' }, { contentIndex: 2, mimeType: 'image/png' }];
+	const binaries: NonNullable<ToolExecutionCompleteResult['binaryResultsForLlm']> = [
+		{ type: 'image', data: 'resized-model-copy', mimeType: 'image/png' },
+		{ type: 'image', assetId: 'model-copy', byteLength: 100, mimeType: 'image/png' },
+		{ type: 'image', byteLength: 100, mimeType: 'image/png', omittedReason: 'too_large' },
+	];
+
+	test('keeps indexed originals in content order and preserves non-image content', () => {
+		const result: ToolExecutionCompleteResult = {
+			content: '', contents, binaryResultsForLlm: binaries,
+			structuredContent: { imageGeneration: { images: [...originals].reverse() } },
+		};
+		assert.deepStrictEqual({
+			selected: getSdkToolResultContent('image_generation', result),
+			unmodified: result.contents,
+			unmodifiedBinaries: result.binaryResultsForLlm,
+			otherTool: getSdkToolResultContent('view_image', result),
+		}, { selected: { contents: contents.slice(0, 3), binaryResultsForLlm: [] }, unmodified: contents, unmodifiedBinaries: binaries, otherTool: result });
+	});
+
+	for (const images of [
+		undefined, null, [], [null], [{ contentIndex: -1, mimeType: 'image/png' }],
+		[{ contentIndex: 1.5, mimeType: 'image/png' }], [{ contentIndex: 6, mimeType: 'image/png' }],
+		[{ contentIndex: 0, mimeType: 'image/png' }], [{ contentIndex: 1, mimeType: 'image/jpeg' }],
+		[originals[0], originals[0]], [originals[0], { contentIndex: '2', mimeType: 'image/png' }],
+	]) {
+		test(`preserves all image content for absent or invalid optional indexes (${JSON.stringify(images)})`, () => {
+			const result: ToolExecutionCompleteResult = {
+				content: '', contents, binaryResultsForLlm: binaries, structuredContent: { imageGeneration: images === undefined ? {} : { images } },
+			};
+			assert.strictEqual(getSdkToolResultContent('image_generation', result), result);
+		});
+	}
+
+	test('preserves binary-only image results without indexed originals', () => {
+		const result: ToolExecutionCompleteResult = { content: '', binaryResultsForLlm: binaries };
+		assert.strictEqual(getSdkToolResultContent('image_generation', result), result);
+	});
+
+	test('preserves a valid multi-image result without additional copies', () => {
+		assert.deepStrictEqual(getSdkToolResultContent('image_generation', {
+			content: '', contents: contents.slice(0, 3), structuredContent: { imageGeneration: { images: originals } },
+		})?.contents, contents.slice(0, 3));
 	});
 });
 

@@ -55,7 +55,7 @@ import { RecordingAgentSdkDownloader } from './testAgentSdkDownloader.js';
 import { IAgentHostSessionOpenTelemetry } from '../../node/agentHostSessionOpenTelemetry.js';
 import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, COPILOT_HYDRA_FUSION_MODEL_ID } from '../../common/copilotCliConfig.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, AgentHostSystemProxyEnabledConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, AgentHostSystemProxyEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { toClientPluginMcpDefaultCwdsMeta, toClientPluginStandaloneMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
@@ -86,6 +86,7 @@ import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.j
 import { IAgentHostOTelService, NullAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { AgentHostCompletions, IAgentHostCompletions } from '../../node/agentHostCompletions.js';
 import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE, CopilotAgent, getCopilotManagedSettingsDiagnostics, rebaseUnder, REFRESH_DEBOUNCE_MS, resolveCopilotOtlpMetricsEndpoint } from '../../node/copilot/copilotAgent.js';
+import { buildCopilotBuiltinAgents, buildCopilotBuiltinAgentsContainer, COPILOT_BUILTIN_AGENTS, COPILOT_BUILTIN_AGENT_NAMES, getCopilotBuiltinAgentUri } from '../../node/copilot/copilotBuiltinAgents.js';
 import { ICopilotChatDiscoveryScan } from '../../node/copilot/copilotChatDiscovery.js';
 import { COPILOT_DEFERRED_SDK_EXECUTION_METADATA_KEY, deferCopilotSdkExecution } from '../../node/copilot/copilotSessionExecutionMarker.js';
 import { CopilotGitHubSessionCredentials } from '../../node/copilot/copilotGitHubCredentials.js';
@@ -897,6 +898,9 @@ interface ICredentialUpdateSession {
 class MockCopilotSession {
 	readonly historyEvents: SessionEvent[] = [];
 	readonly openCanvases: CopilotSession['openCanvases'] = [];
+	readonly extensions: Awaited<ReturnType<CopilotSession['rpc']['extensions']['list']>>['extensions'] = [];
+	readonly canvases: Awaited<ReturnType<CopilotSession['rpc']['canvas']['list']>>['canvases'] = [];
+	readonly canvasOpenCalls: Parameters<CopilotSession['rpc']['canvas']['open']>[0][] = [];
 	readonly mcpStartCalls: string[] = [];
 	readonly mcpStopCalls: string[] = [];
 	mcpStartGate: Promise<void> | undefined;
@@ -936,10 +940,18 @@ class MockCopilotSession {
 			releaseInterest: async () => ({ success: true }),
 		},
 		extensions: {
-			list: async () => ({ extensions: [] }),
+			list: async () => ({ extensions: this.extensions }),
 		},
 		canvas: {
-			list: async () => ({ canvases: [] }),
+			list: async () => ({ canvases: this.canvases }),
+			open: async (params: Parameters<CopilotSession['rpc']['canvas']['open']>[0]) => {
+				this.canvasOpenCalls.push(params);
+				return {
+					instanceId: params.instanceId,
+					extensionId: params.extensionId ?? 'project:preview',
+					canvasId: params.canvasId,
+				};
+			},
 		},
 		options: {
 			update: async () => ({ success: true }),
@@ -5963,14 +5975,17 @@ suite('CopilotAgent', () => {
 		});
 
 		suite('exact-chat working-directory conversion', () => {
-			async function createFixture(multiRoot = false) {
+			async function createFixture(multiRoot = false, canvasesEnabled = false) {
 				const root = await fs.mkdtemp('./.agent-session-cwd-');
 				const previous = URI.file(join(process.cwd(), root, 'previous'));
 				const next = URI.file(join(process.cwd(), root, 'next'));
 				const secondary = URI.file(join(process.cwd(), root, 'secondary'));
 				await Promise.all([fs.mkdir(previous.fsPath), fs.mkdir(next.fsPath), fs.mkdir(secondary.fsPath)]);
 				const sessionDirectories = multiRoot ? [previous, secondary] : [previous];
-				const rootConfig = { [AgentHostCopilotMultiRootEnabledConfigKey]: multiRoot };
+				const rootConfig = {
+					[AgentHostCopilotMultiRootEnabledConfigKey]: multiRoot,
+					[AgentHostCanvasesEnabledConfigKey]: canvasesEnabled,
+				};
 				const session = AgentSession.uri('copilotcli', 'session-wide');
 				const chats = [defaultChatUri(session), URI.parse(buildChatUri(session, 'live-peer')), URI.parse(buildChatUri(session, 'cold-peer'))];
 				const resources = [session, ...chats.slice(1)];
@@ -6052,6 +6067,72 @@ suite('CopilotAgent', () => {
 					},
 				};
 			}
+
+			test('canvas operations resume a cold exact chat without sending a message', async () => {
+				const fixture = await createFixture(false, true);
+				let restored: CopilotAgent | undefined;
+				try {
+					const { session, chats, resources, sdkSessions, previous } = fixture;
+					sdkSessions[2].extensions.push({
+						id: 'project:preview',
+						name: 'Preview extension',
+						source: 'project',
+						status: 'running',
+					});
+					sdkSessions[2].canvases.push({
+						canvasId: 'preview',
+						extensionId: 'project:preview',
+						extensionName: 'Preview extension',
+						displayName: 'Preview',
+						description: 'Preview generated content.',
+					});
+					restored = await fixture.restore();
+					const context = exactChatContext(session, chats[2], resources[2]);
+					const foreignSession = AgentSession.uri('copilotcli', 'foreign-canvas-session');
+
+					await assert.rejects(
+						restored.listSessionCanvases(foreignSession, chats[2], exactChatContext(foreignSession, chats[2], resources[2])),
+						/outside session/,
+					);
+
+					const canvases = await restored.listSessionCanvases(session, chats[2], context);
+					await restored.openSessionCanvas(session, {
+						canvasId: 'preview',
+						extensionId: 'project:preview',
+						instanceId: 'project-preview',
+					}, chats[2], context);
+
+					assert.deepStrictEqual({
+						canvases,
+						resumed: fixture.resumed.filter(resume => resume.id === 'cold-sdk'),
+						openCalls: sdkSessions[2].canvasOpenCalls,
+						sends: fixture.sends(),
+					}, {
+						canvases: [{
+							canvasId: 'preview',
+							extensionId: 'project:preview',
+							extensionSource: 'project',
+							extensionName: 'Preview extension',
+							displayName: 'Preview',
+							description: 'Preview generated content.',
+							requiresInput: false,
+							actionCount: 0,
+						}],
+						resumed: [{ id: 'cold-sdk', directory: previous.fsPath }],
+						openCalls: [{
+							canvasId: 'preview',
+							extensionId: 'project:preview',
+							instanceId: 'project-preview',
+						}],
+						sends: 0,
+					});
+				} finally {
+					if (restored) {
+						await disposeAgent(restored);
+					}
+					await fixture.dispose();
+				}
+			});
 
 			for (const exclusive of [false, true]) {
 				test(`restores host aggregate roots from real Copilot metadata after a main move (exclusive: ${exclusive})`, async () => {
@@ -12618,7 +12699,7 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('createChat without activeClient does not sync customizations', async () => {
+		test('createChat without activeClient publishes built-in agents without syncing customizations', async () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const client = new TestCopilotClient([]);
 			const pluginManager = new SpyingPluginManager();
@@ -12633,8 +12714,16 @@ suite('CopilotAgent', () => {
 					workingDirectories: [URI.file('/workspace')],
 				});
 
-				assert.strictEqual(result.provisional, true);
-				assert.deepStrictEqual(pluginManager.calls, []);
+				const builtin = buildCopilotBuiltinAgentsContainer();
+				assert.deepStrictEqual({
+					provisional: result.provisional,
+					syncCalls: pluginManager.calls,
+					builtin: (await getDefaultChatCustomizations(agent, result.session)).filter(customization => customization.uri === builtin.uri),
+				}, {
+					provisional: true,
+					syncCalls: [],
+					builtin: [builtin],
+				});
 			} finally {
 				await disposeAgent(agent);
 			}
@@ -13829,6 +13918,7 @@ suite('CopilotAgent', () => {
 					URI.joinPath(workspace, '.github', 'instructions').toString(),
 					URI.joinPath(workspace, '.github', 'hooks').toString(),
 					URI.joinPath(userHome, '.copilot', 'hooks').toString(),
+					buildCopilotBuiltinAgentsContainer().uri,
 				];
 				assert.deepStrictEqual(discoveredDirectories.map(customization => customization.uri).sort(), expectedUris.sort());
 
@@ -14039,6 +14129,7 @@ suite('CopilotAgent', () => {
 					URI.joinPath(workspace, '.github', 'agents').toString(),
 					URI.joinPath(workspace, '.github', 'hooks').toString(),
 					URI.joinPath(userHome, '.copilot', 'hooks').toString(),
+					buildCopilotBuiltinAgentsContainer().uri,
 				];
 				assert.deepStrictEqual(afterDirs.map(customization => customization.uri).sort(), expectedUris.sort());
 			} finally {
@@ -14567,6 +14658,99 @@ suite('CopilotAgent', () => {
 				assert.strictEqual(clientCreateCalls, 0, 'client.createSession should not be called for provisional sessions');
 				assert.strictEqual(worktreeCalls, 0, 'no worktree should be created for provisional sessions');
 			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('canvas inventory does not materialize a provisional session', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([]);
+			let clientCreateCalls = 0;
+			client.createSession = async () => { clientCreateCalls++; throw new Error('SDK not expected'); };
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				const result = await provisionSession(agent, {
+					session: AgentSession.uri('copilotcli', 'prov-canvas-list'),
+					workingDirectories: [URI.file('/workspace')],
+				});
+				const chat = defaultChatUri(result.session);
+
+				await assert.rejects(
+					agent.listSessionCanvases(result.session, chat, exactChatContext(result.session, chat, result.session)),
+					/requires an initialized Copilot chat/,
+				);
+
+				assert.strictEqual(clientCreateCalls, 0);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('canvas inventory resumes an addressed peer while the parent session remains provisional', async () => {
+			const root = await fs.mkdtemp(`${os.tmpdir()}/agent-provisional-peer-canvas-`);
+			const workingDirectory = URI.file(root);
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const sdk = new MockCopilotSession('peer-sdk-id');
+			sdk.extensions.push({
+				id: 'project:preview',
+				name: 'Preview extension',
+				source: 'project',
+				status: 'running',
+			});
+			sdk.canvases.push({
+				canvasId: 'preview',
+				extensionId: 'project:preview',
+				extensionName: 'Preview extension',
+				displayName: 'Preview',
+				description: 'Preview generated content.',
+			});
+			const client = new TestCopilotClient([sdkSession(sdk.sessionId, workingDirectory.fsPath)]);
+			const resumed: string[] = [];
+			let clientCreateCalls = 0;
+			client.createSession = async () => {
+				clientCreateCalls++;
+				throw new Error('SDK create not expected');
+			};
+			client.resumeSession = async id => {
+				resumed.push(id);
+				return sdk as unknown as CopilotSession;
+			};
+			const { agent } = createTestAgentContext(disposables, {
+				sessionDataService,
+				copilotClient: client,
+				useRealResumePath: true,
+				rootConfig: { [AgentHostCanvasesEnabledConfigKey]: true },
+			});
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				const session = AgentSession.uri('copilotcli', 'provisional-parent-canvas-peer');
+				const peer = URI.parse(buildChatUri(session, 'peer-a'));
+				await provisionSession(agent, { session, workingDirectories: [workingDirectory] });
+				await agent.materializeChat(peer, exactChatContext(session, peer), JSON.stringify({ sdkSessionId: sdk.sessionId }));
+
+				const canvases = await agent.listSessionCanvases(session, peer, exactChatContext(session, peer));
+
+				assert.deepStrictEqual({
+					canvases,
+					resumed,
+					clientCreateCalls,
+				}, {
+					canvases: [{
+						canvasId: 'preview',
+						extensionId: 'project:preview',
+						extensionSource: 'project',
+						extensionName: 'Preview extension',
+						displayName: 'Preview',
+						description: 'Preview generated content.',
+						requiresInput: false,
+						actionCount: 0,
+					}],
+					resumed: ['peer-sdk-id'],
+					clientCreateCalls: 0,
+				});
+			} finally {
+				await fs.rm(root, { recursive: true, force: true });
 				await disposeAgent(agent);
 			}
 		});
@@ -15980,7 +16164,7 @@ suite('CopilotAgent', () => {
 				}, {
 					mcpCalls: ['start:mcp-1', 'stop:mcp-1'],
 					mcpRequest: 'srv/tools/list',
-					customizations: [],
+					customizations: [buildCopilotBuiltinAgentsContainer()],
 					sessions: 0,
 				});
 			} finally {
@@ -20379,7 +20563,7 @@ suite('CopilotAgent', () => {
 
 	suite('standalone client customizations', () => {
 
-		test('passes a standalone client bundle through non-plugin SDK options', async () => {
+		test('passes a standalone client bundle through non-plugin SDK options and reserves built-in agent names', async () => {
 			const fileService = disposables.add(new FileService(new NullLogService()));
 			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
 			const pluginDir = URI.file('/plugins/plugin-a');
@@ -20389,6 +20573,9 @@ suite('CopilotAgent', () => {
 			await fileService.writeFile(URI.joinPath(standaloneDir, '.plugin', 'plugin.json'), VSBuffer.fromString(JSON.stringify({ name: 'VS Code Standalone Customizations' })));
 			await fileService.writeFile(URI.joinPath(standaloneDir, 'skills', 'my-skill', 'SKILL.md'), VSBuffer.fromString('---\nname: my-skill\ndescription: A user skill\n---\nDo things.'));
 			await fileService.writeFile(URI.joinPath(standaloneDir, 'agents', 'my-agent.agent.md'), VSBuffer.fromString('---\nname: my-agent\ndescription: A user agent\n---\nBe helpful.'));
+			for (const builtin of COPILOT_BUILTIN_AGENTS) {
+				await fileService.writeFile(URI.joinPath(standaloneDir, 'agents', builtin.fileName), VSBuffer.fromString(`---\nname: ${builtin.name}\ntools: [create]\n---\nMake changes.`));
+			}
 			await fileService.writeFile(URI.joinPath(standaloneDir, '.mcp.json'), VSBuffer.fromString(JSON.stringify({ mcpServers: { 'my-server': { command: 'my-server' } } })));
 
 			class PluginManager extends TestAgentPluginManager {
@@ -20439,11 +20626,13 @@ suite('CopilotAgent', () => {
 				pluginDirectories: config?.pluginDirectories,
 				skillDirectories: config?.skillDirectories,
 				customAgents: config?.customAgents?.map(customAgent => customAgent.name),
+				builtinAgents: config?.customAgents?.filter(customAgent => COPILOT_BUILTIN_AGENT_NAMES.has(customAgent.name)),
 				mcpServers: Object.keys(config?.mcpServers ?? {}),
 			}, {
 				pluginDirectories: [pluginDir.fsPath],
 				skillDirectories: [URI.joinPath(standaloneDir, 'skills', 'my-skill').fsPath],
-				customAgents: ['my-agent'],
+				customAgents: ['my-agent', ...COPILOT_BUILTIN_AGENT_NAMES],
+				builtinAgents: buildCopilotBuiltinAgents([]),
 				mcpServers: ['my-server'],
 			});
 		});
@@ -20471,6 +20660,34 @@ suite('CopilotAgent', () => {
 			const sessionUri = AgentSession.uri('copilotcli', 'prov-agent');
 			return { sessionId: AgentSession.id(sessionUri), sessionUri, workingDirectory, model: undefined, agent, project: undefined };
 		}
+
+		test('_resolveAgentName resolves all built-ins without a plugin or worktree translation', async () => {
+			const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]) });
+			try {
+				const internals = agent as unknown as AgentInternals;
+				const resolved = [];
+				for (const builtin of COPILOT_BUILTIN_AGENTS) {
+					const selection: AgentSelection = { uri: getCopilotBuiltinAgentUri(builtin).toString() };
+					resolved.push({
+						name: internals._resolveAgentName(emptySnapshot, selection),
+						materialized: await internals._resolveAgentWhenMaterializing(provisional(repo, selection), emptySnapshot, worktree),
+					});
+				}
+				const missingUri = URI.joinPath(URI.parse(buildCopilotBuiltinAgentsContainer().uri), 'missing.agent.md').toString();
+				assert.deepStrictEqual({
+					resolved,
+					missingBuiltin: internals._resolveAgentName(emptySnapshot, { uri: missingUri }),
+				}, {
+					resolved: COPILOT_BUILTIN_AGENTS.map(builtin => ({
+						name: builtin.name,
+						materialized: { agent: { uri: getCopilotBuiltinAgentUri(builtin).toString() }, name: builtin.name },
+					})),
+					missingBuiltin: undefined,
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
 
 		test('_getAlternativeAgentForWorktree rewrites a repo agent path onto the worktree', async () => {
 			const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]) });

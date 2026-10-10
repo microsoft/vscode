@@ -449,6 +449,9 @@ export function getChatResponsePlaintextParts(item: IChatResponseViewModel, incl
 			}
 			case 'toolInvocation': {
 				const state = part.state.get();
+				if (state.type === IChatToolInvocation.StateKind.Streaming && IChatToolInvocation.isImageGeneration(part)) {
+					break;
+				}
 				const invocationMessage = renderChatMessageAsPlaintext(part.invocationMessage);
 				const originMessage = part.originMessage ? renderChatMessageAsPlaintext(part.originMessage) : undefined;
 				if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation && state.confirmationMessages?.title) {

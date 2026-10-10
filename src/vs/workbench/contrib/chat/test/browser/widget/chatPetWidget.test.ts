@@ -24,7 +24,7 @@ import { TestStorageService } from '../../../../../test/common/workbenchTestServ
 import { IHostService } from '../../../../../services/host/browser/host.js';
 import { ChatResponseModelChangeReason, IChatModel, IChatProgressResponseContent, IChatRequestModel, IChatResponseModel, IResponse } from '../../../common/model/chatModel.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
-import { ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { CHAT_PET_OPEN_ACHIEVEMENTS_COMMAND_ID, chatPetAchievements, ChatPetAccessoryIds, ChatPetAchievementIds, didExplicitlyEnableChatPetAutopilot, disabledChatPetAchievements, getChatPetAchievement, getChatPetAchievementPresentation, getChatPetCustomizationAchievementIds, getUnlockedChatPetAccessories, isUserAuthoredChatPetCustomization, shouldUnlockChatPetIntegratedBrowserShare } from '../../../browser/chatPetAchievements.js';
 import { ChatPetService, getChatPetVariant } from '../../../browser/chatPetService.js';
@@ -1244,6 +1244,13 @@ suite('ChatPetWidget', () => {
 				await recordState('rendering');
 				const nativeTool = createTool('image_generation', true);
 				addTool(nativeTool);
+				await recordState('rendering');
+				const preparingLabel = button.getAttribute('aria-label');
+				nativeTool.requestConfirmation({ confirmationMessages: { title: 'Generate Image?' } });
+				await recordState('rendering');
+				const confirmation = nativeTool.state.get();
+				assert.ok(confirmation.type === IChatToolInvocation.StateKind.WaitingForConfirmation);
+				confirmation.confirm({ type: ToolConfirmKind.UserAction });
 				await recordState('painting');
 				const image = button.querySelector<HTMLImageElement>('.chat-pet-sprite:not(.hidden) img')!;
 				const canvas = button.querySelector<HTMLCanvasElement>('.chat-pet-sprite:not(.hidden) canvas')!;
@@ -1291,7 +1298,7 @@ suite('ChatPetWidget', () => {
 				modelValue.set(undefined, undefined);
 				await recordState('idle');
 
-				assert.deepStrictEqual({ painting, states, observingOldResponse: responseChanged.hasListeners() }, {
+				assert.deepStrictEqual({ painting, preparingLabelDescribesPainting: preparingLabel?.startsWith('Painting an image.'), states, observingOldResponse: responseChanged.hasListeners() }, {
 					painting: {
 						source: true,
 						imageSize: [192 * (reducedMotion ? 1 : 8), 96],
@@ -1300,7 +1307,8 @@ suite('ChatPetWidget', () => {
 						tracking: false,
 						accessible: true,
 					},
-					states: ['rendering', 'painting', 'painting', 'rendering', 'rendering', 'painting', 'rendering', 'painting', 'rendering', 'painting', 'idle', 'painting', 'idle'],
+					preparingLabelDescribesPainting: false,
+					states: ['rendering', 'rendering', 'rendering', 'painting', 'painting', 'rendering', 'rendering', 'painting', 'rendering', 'painting', 'rendering', 'painting', 'idle', 'painting', 'idle'],
 					observingOldResponse: false,
 				});
 			});
