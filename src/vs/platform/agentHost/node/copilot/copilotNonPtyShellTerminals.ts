@@ -38,8 +38,6 @@ interface INonPtyShellStream {
 	};
 	/** The attached shell that keeps running after the tool call returned, if any. */
 	backgroundShellId?: string;
-	/** The last task-list read started before the call went to the background; only later reads can settle the shell. */
-	backgroundSinceRead?: number;
 }
 
 /**
@@ -201,7 +199,6 @@ export class NonPtyShellTerminalStreams extends Disposable {
 	private readonly _streams = new Map<string, INonPtyShellStream>();
 	/** Tool call that started each shell still running in the background, keyed by shell ID. */
 	private readonly _backgroundShells = new Map<string, string>();
-	private _shellTaskReads = 0;
 
 	constructor(
 		private readonly _sessionUri: URI,
@@ -440,22 +437,18 @@ export class NonPtyShellTerminalStreams extends Disposable {
 		}
 	}
 
-	/** Starts a read of the runtime's task list. Pass the returned read to {@link reconcileBackgroundShells}. */
-	beginShellTaskRead(): number {
-		return ++this._shellTaskReads;
+	/** Captures each background shell's tool call before requesting the task list. */
+	captureBackgroundShells(): ReadonlyMap<string, string> {
+		return new Map(this._backgroundShells);
 	}
 
 	/**
-	 * Settles background shells the runtime no longer lists as running, for
-	 * exits that arrive without a `shell_completed` notification or a helper
-	 * result. Only a read started after the call went to the background
-	 * counts, because the shell is listed from the moment it starts. A read
-	 * that a newer one superseded still counts.
+	 * Settles captured executions absent from the running shells when no completion notification or helper result arrives.
+	 * Shells started or replaced after capture are left alone.
 	 */
-	reconcileBackgroundShells(runningShellIds: ReadonlySet<string>, read: number): void {
-		for (const [shellId, toolCallId] of [...this._backgroundShells]) {
-			const since = this._streams.get(toolCallId)?.backgroundSinceRead;
-			if (!runningShellIds.has(shellId) && since !== undefined && read > since) {
+	reconcileBackgroundShells(runningShellIds: ReadonlySet<string>, snapshot: ReadonlyMap<string, string>): void {
+		for (const [shellId, toolCallId] of snapshot) {
+			if (this._backgroundShells.get(shellId) === toolCallId && !runningShellIds.has(shellId)) {
 				this.completeBackgroundShell(shellId, undefined);
 			}
 		}
@@ -526,7 +519,6 @@ export class NonPtyShellTerminalStreams extends Disposable {
 			this.completeBackgroundShell(shellId, undefined);
 		}
 		stream.backgroundShellId = shellId;
-		stream.backgroundSinceRead = this._shellTaskReads;
 		this._backgroundShells.set(shellId, toolCallId);
 		return { uri: stream.uri, shouldRetire: false, backgroundShellId: shellId };
 	}
