@@ -17,6 +17,7 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { localize } from '../../../../../nls.js';
 import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
+import { getActionBarActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
@@ -300,6 +301,7 @@ export interface IEditorTabsFixtureOptions {
 	readonly reserveHeaderSpace?: boolean;
 	readonly headerWidth?: number;
 	readonly headerMenuIds?: IEditorGroupMenuIds;
+	readonly layoutActionsMenu?: MenuId;
 	readonly editorContents?: string;
 	readonly activeTabClipping?: 'left' | 'right' | 'left-shoulder' | 'right-shoulder';
 	readonly colorCustomizations?: Readonly<Record<string, string>>;
@@ -418,6 +420,11 @@ export function renderEditorTabsFixture(ctx: ComponentFixtureContext, options: I
 	populateModel(model, options.editors ?? defaultEditorSpecs(), disposableStore);
 
 	const createEditorActions = (disposables: DisposableStore, menuId: MenuId) => {
+		const fixtureMenuId = menuId === MenuId.EditorTitleLayout ? options.layoutActionsMenu : menuId !== MenuId.EditorTitle ? menuId : undefined;
+		if (fixtureMenuId) {
+			const menu = disposables.add(instantiationService.get(IMenuService).createMenu(fixtureMenuId, contextKeyService));
+			return { actions: getActionBarActions(menu.getActions({ shouldForwardArgs: true }), 'navigation'), onDidChange: menu.onDidChange };
+		}
 		return { actions: createFixtureEditorTitleActions(disposables, menuId), onDidChange: Event.None };
 	};
 

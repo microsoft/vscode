@@ -148,7 +148,11 @@
 	align-items: flex-start;
 }
 
-.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container:not(.wrapping) > :is(.editor-actions, .editor-layout-actions) {
+.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container:not(.wrapping) > .editor-toolbars {
+	align-self: stretch;
+}
+
+.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container:not(.wrapping) > .editor-toolbars > :is(.editor-actions, .editor-layout-actions) {
 	align-self: stretch;
 	height: auto;
 	margin-bottom: var(--vscode-strokeThickness);
@@ -163,7 +167,7 @@
 	padding-bottom: 0;
 }
 
-.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container.connected-tab-upper-bar > :is(.editor-actions, .editor-layout-actions) {
+.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container.connected-tab-upper-bar > .editor-toolbars > :is(.editor-actions, .editor-layout-actions) {
 	margin-bottom: 0;
 }
 
@@ -556,11 +560,11 @@
 }
 
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container.wrapping .tabs-container > .tab.connected-tab-last {
-	margin-right: calc(var(--last-tab-margin-right) + var(--modern-ui-connected-tab-shoulder-radius));
+	margin-inline-end: calc(var(--last-tab-margin-right) + var(--modern-ui-connected-tab-shoulder-radius));
 }
 
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container.connected-tab-upper-bar.wrapping .tabs-container > .tab.connected-tab-last {
-	margin-right: calc(var(--last-tab-margin-right) + var(--vscode-spacing-size40));
+	margin-inline-end: calc(var(--last-tab-margin-right) + var(--vscode-spacing-size40));
 }
 
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container > .monaco-scrollable-element > .tab-connected-overflow-edge.connected-tab-right-clipped::after,

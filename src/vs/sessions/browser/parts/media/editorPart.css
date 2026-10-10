@@ -209,7 +209,7 @@
 	min-width: 0;
 }
 
-.agent-sessions-workbench .part.editor > .content .editor-group-container > .title .editor-actions-separator {
+.agent-sessions-workbench.monaco-workbench .part.editor > .content .editor-group-container > .title .editor-actions-separator {
 	display: block;
 	align-self: center;
 	width: 1px;
@@ -219,7 +219,7 @@
 	opacity: 0.3;
 }
 
-.agent-sessions-workbench .part.editor > .content .editor-group-container > .title .editor-layout-actions {
+.agent-sessions-workbench.monaco-workbench .part.editor > .content .editor-group-container > .title .editor-layout-actions {
 	display: block;
 	cursor: default;
 	flex: initial;
@@ -233,18 +233,6 @@
 
 .agent-sessions-workbench .part.editor > .content .editor-group-container > .title .editor-layout-actions .action-item {
 	margin-right: 4px;
-}
-
-.agent-sessions-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .editor-layout-actions {
-	/* When tabs are wrapped, position the trailing editor actions at the end of the very last row */
-	position: absolute;
-	bottom: 0;
-	right: 0;
-}
-
-.agent-sessions-workbench .part.editor > .content .editor-group-container > .title.two-tab-bars > .tabs-and-actions-container:first-child .editor-layout-actions {
-	/* When multiple tab bars are visible, only show editor actions for the last tab bar */
-	display: none;
 }
 
 /* Modal Editor Part */
