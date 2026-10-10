@@ -13,7 +13,7 @@ import type { ViewScrollChangedEvent } from '../../common/viewEvents.js';
 import type { ViewportData } from '../../common/viewLayout/viewLinesViewportData.js';
 import type { ViewContext } from '../../common/viewModel/viewContext.js';
 import { GPULifecycle } from './gpuDisposable.js';
-import { observeDevicePixelDimensions, quadVertices } from './gpuUtils.js';
+import { observeDevicePixelDimensions, premultipliedAlphaBlend, quadVertices } from './gpuUtils.js';
 import { createObjectCollectionBuffer, type IObjectCollectionBuffer, type IObjectCollectionBufferEntry } from './objectCollectionBuffer.js';
 import { RectangleRendererBindingId, rectangleRendererWgsl } from './rectangleRenderer.wgsl.js';
 
@@ -202,16 +202,7 @@ export class RectangleRenderer extends ViewEventHandler {
 				targets: [
 					{
 						format: presentationFormat,
-						blend: {
-							color: {
-								srcFactor: 'src-alpha',
-								dstFactor: 'one-minus-src-alpha'
-							},
-							alpha: {
-								srcFactor: 'src-alpha',
-								dstFactor: 'one-minus-src-alpha'
-							},
-						},
+						blend: premultipliedAlphaBlend,
 					}
 				],
 			},

@@ -15,6 +15,12 @@ export const quadVertices = new Float32Array([
 	1, 0,
 ]);
 
+/** Blends straight-alpha shader output into a premultiplied-alpha canvas. */
+export const premultipliedAlphaBlend: GPUBlendState = {
+	color: { srcFactor: 'src-alpha', dstFactor: 'one-minus-src-alpha' },
+	alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha' },
+};
+
 export function ensureNonNullable<T>(value: T | null): T {
 	if (!value) {
 		throw new Error(`Value "${value}" cannot be null`);

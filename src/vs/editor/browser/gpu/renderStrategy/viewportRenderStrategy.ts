@@ -7,6 +7,7 @@ import { getActiveWindow } from '../../../../base/browser/dom.js';
 import { Color } from '../../../../base/common/color.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
+import { MutableDisposable, type IReference } from '../../../../base/common/lifecycle.js';
 import { CursorColumns } from '../../../common/core/cursorColumns.js';
 import type { IViewLineTokens } from '../../../common/tokens/lineTokens.js';
 import { type ViewConfigurationChangedEvent, type ViewDecorationsChangedEvent, type ViewLineMappingChangedEvent, type ViewLinesChangedEvent, type ViewLinesDeletedEvent, type ViewLinesInsertedEvent, type ViewScrollChangedEvent, type ViewThemeChangedEvent, type ViewTokensChangedEvent, type ViewZonesChangedEvent } from '../../../common/viewEvents.js';
@@ -56,6 +57,7 @@ export class ViewportRenderStrategy extends BaseRenderStrategy {
 
 	private _cellBindBufferLineCapacity = Constants.CellBindBufferInitialCapacity;
 	private _cellBindBuffer!: GPUBuffer;
+	private readonly _cellBuffer = this._register(new MutableDisposable<IReference<GPUBuffer>>());
 
 	/**
 	 * The cell value buffers, these hold the cells and their glyphs. It's double buffers such that
@@ -69,7 +71,7 @@ export class ViewportRenderStrategy extends BaseRenderStrategy {
 
 	private _scrollOffsetBindBuffer: GPUBuffer;
 	private _scrollOffsetValueBuffer: Float32Array;
-	private _scrollInitialized: boolean = false;
+	private _bigNumbersDelta = 0;
 
 	get bindGroupEntries(): GPUBindGroupEntry[] {
 		return [
@@ -101,17 +103,16 @@ export class ViewportRenderStrategy extends BaseRenderStrategy {
 	}
 
 	private _rebuildCellBuffer(lineCount: number) {
-		this._cellBindBuffer?.destroy();
-
 		// Increase in chunks so resizing a window by hand doesn't keep allocating and throwing away
 		const lineCountWithIncrement = (Math.floor(lineCount / Constants.CellBindBufferCapacityIncrement) + 1) * Constants.CellBindBufferCapacityIncrement;
 
 		const bufferSize = lineCountWithIncrement * ViewportRenderStrategy.maxSupportedColumns * Constants.IndicesPerCell * Float32Array.BYTES_PER_ELEMENT;
-		this._cellBindBuffer = this._register(GPULifecycle.createBuffer(this._device, {
+		this._cellBuffer.value = GPULifecycle.createBuffer(this._device, {
 			label: 'Monaco full file cell buffer',
 			size: bufferSize,
 			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
-		})).object;
+		});
+		this._cellBindBuffer = this._cellBuffer.value.object;
 		this._cellValueBuffers = [
 			new ArrayBuffer(bufferSize),
 			new ArrayBuffer(bufferSize),
@@ -162,7 +163,7 @@ export class ViewportRenderStrategy extends BaseRenderStrategy {
 		}
 		const dpr = getActiveWindow().devicePixelRatio;
 		this._scrollOffsetValueBuffer[0] = (e?.scrollLeft ?? this._context.viewLayout.getCurrentScrollLeft()) * dpr;
-		this._scrollOffsetValueBuffer[1] = (e?.scrollTop ?? this._context.viewLayout.getCurrentScrollTop()) * dpr;
+		this._scrollOffsetValueBuffer[1] = ((e?.scrollTop ?? this._context.viewLayout.getCurrentScrollTop()) - this._bigNumbersDelta) * dpr;
 		this._device.queue.writeBuffer(this._scrollOffsetBindBuffer, 0, this._scrollOffsetValueBuffer as Float32Array<ArrayBuffer>);
 		return true;
 	}
@@ -229,10 +230,9 @@ export class ViewportRenderStrategy extends BaseRenderStrategy {
 		const dpr = getActiveWindow().devicePixelRatio;
 		let contentSegmenter: IContentSegmenter;
 
-		if (!this._scrollInitialized) {
-			this.onScrollChanged();
-			this._scrollInitialized = true;
-		}
+		// Line offsets and scrollTop must use the same origin in very large files.
+		this._bigNumbersDelta = viewportData.bigNumbersDelta;
+		this.onScrollChanged();
 
 		// Zero out cell buffer or rebuild if needed
 		if (this._cellBindBufferLineCapacity < viewportData.endLineNumber - viewportData.startLineNumber + 1) {
@@ -271,7 +271,7 @@ export class ViewportRenderStrategy extends BaseRenderStrategy {
 
 				for (x = tokenStartIndex; x < tokenEndIndex; x++) {
 					// Only render lines that do not exceed maximum columns
-					if (x > ViewportRenderStrategy.maxSupportedColumns) {
+					if (x >= ViewportRenderStrategy.maxSupportedColumns) {
 						break;
 					}
 					segment = contentSegmenter.getSegmentAtIndex(x);
@@ -371,9 +371,7 @@ export class ViewportRenderStrategy extends BaseRenderStrategy {
 					}
 
 					if (chars === ' ' || chars === '\t') {
-						// Zero out glyph to ensure it doesn't get rendered
-						cellIndex = ((y - 1) * ViewportRenderStrategy.maxSupportedColumns + x) * Constants.IndicesPerCell;
-						cellBuffer.fill(0, cellIndex, cellIndex + CellBufferInfo.FloatsPerEntry);
+						// The viewport buffer is already zeroed, so whitespace needs no glyph.
 						// Adjust xOffset for tab stops
 						if (chars === '\t') {
 							// Find the pixel offset between the current position and the next tab stop
@@ -419,12 +417,13 @@ export class ViewportRenderStrategy extends BaseRenderStrategy {
 
 			// Clear to end of line
 			fillStartIndex = ((y - viewportData.startLineNumber) * ViewportRenderStrategy.maxSupportedColumns + tokenEndIndex) * Constants.IndicesPerCell;
-			fillEndIndex = ((y - viewportData.startLineNumber) * ViewportRenderStrategy.maxSupportedColumns) * Constants.IndicesPerCell;
+			fillEndIndex = ((y - viewportData.startLineNumber + 1) * ViewportRenderStrategy.maxSupportedColumns) * Constants.IndicesPerCell;
 			cellBuffer.fill(0, fillStartIndex, fillEndIndex);
 		}
 
-		const visibleObjectCount = (viewportData.endLineNumber - viewportData.startLineNumber + 1) * lineIndexCount;
 		const viewportLineCount = viewportData.endLineNumber - viewportData.startLineNumber + 1;
+		const visibleObjectCount = viewportLineCount * ViewportRenderStrategy.maxSupportedColumns;
+		const uploadByteCount = viewportLineCount * lineIndexCount * Float32Array.BYTES_PER_ELEMENT;
 
 		// This render strategy always uploads the whole viewport
 		this._device.queue.writeBuffer(
@@ -432,20 +431,20 @@ export class ViewportRenderStrategy extends BaseRenderStrategy {
 			0,
 			cellBuffer.buffer,
 			0,
-			visibleObjectCount * Float32Array.BYTES_PER_ELEMENT
+			uploadByteCount
 		);
 
 		// Clear stale lines in GPU buffer if viewport shrunk
 		if (viewportLineCount < this._lastViewportLineCount) {
 			const staleLineCount = this._lastViewportLineCount - viewportLineCount;
-			const staleStartOffset = visibleObjectCount * Float32Array.BYTES_PER_ELEMENT;
+			const staleStartOffset = uploadByteCount;
 			const staleByteCount = staleLineCount * lineIndexCount * Float32Array.BYTES_PER_ELEMENT;
 			// Write zeros from the zeroed cellBuffer for the stale region
 			this._device.queue.writeBuffer(
 				this._cellBindBuffer,
 				staleStartOffset,
 				cellBuffer.buffer,
-				visibleObjectCount * Float32Array.BYTES_PER_ELEMENT,
+				uploadByteCount,
 				staleByteCount
 			);
 		}
