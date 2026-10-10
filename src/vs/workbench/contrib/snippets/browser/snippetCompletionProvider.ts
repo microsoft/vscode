@@ -205,8 +205,10 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 
 	private _computeSnippetPositions(model: ITextModel, line: number, word: IWordAtPosition, lineContentWithWordLow: string): ISnippetPosition[] {
 		const result: ISnippetPosition[] = [];
+		const { startColumn } = word;
 
-		for (let column = 1; column < word.startColumn; column++) {
+		// https://github.com/microsoft/vscode/issues/227892
+		for (let column = Math.max(1, startColumn - 500); column < startColumn; column++) {
 			const wordInfo = model.getWordAtPosition(new Position(line, column));
 			result.push({
 				startColumn: column,
@@ -227,8 +229,8 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 
 		if (word.word.length > 0 || result.length === 0) {
 			result.push({
-				startColumn: word.startColumn,
-				prefixLow: lineContentWithWordLow.substring(word.startColumn - 1),
+				startColumn: startColumn,
+				prefixLow: lineContentWithWordLow.substring(startColumn - 1),
 				isWord: true
 			});
 		}
