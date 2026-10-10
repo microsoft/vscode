@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { RunOnceScheduler, timeout } from '../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { hasKey } from '../../../../../base/common/types.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
@@ -14,7 +15,7 @@ import { NullTelemetryService } from '../../../../../platform/telemetry/common/t
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { TestId } from '../../common/testId.js';
 import { TestProfileService } from '../../common/testProfileService.js';
-import { HydratedTestResult, LiveTestResult, TaskRawOutput, TestResultItemChange, TestResultItemChangeReason, resultItemParents } from '../../common/testResult.js';
+import { HydratedTestResult, ITestResult, LiveTestResult, TaskRawOutput, TestResultItemChange, TestResultItemChangeReason, resultItemParents } from '../../common/testResult.js';
 import { TestResultService } from '../../common/testResultService.js';
 import { ITestResultStorage, InMemoryResultStorage } from '../../common/testResultStorage.js';
 import { ITestTaskState, ResolvedTestRunRequest, TestResultItem, TestResultState, TestRunProfileBitset } from '../../common/testTypes.js';
@@ -340,7 +341,71 @@ suite('Workbench - Test Results Service', () => {
 			assert.deepStrictEqual(results.results, [r, hydrated1, hydrated2]);
 		});
 
+		test('notifies removal after disposing an evicted completed result', () => {
+			results.push(r);
+			r.markComplete();
+			const removed: ITestResult[] = [];
+			ds.add(results.onResultsChanged(evt => {
+				if (hasKey(evt, { removed: true })) {
+					assert.strictEqual(r.disposed, true);
+					assert.strictEqual(results.results.includes(r), false);
+					removed.push(...evt.removed);
+				}
+			}));
+			for (let i = 0; i < 128; i++) {
+				const next = results.push(new TestLiveTestResult(`next-${i}`, false, defaultOpts([])));
+				next.markComplete();
+			}
+			assert.deepStrictEqual(removed, [r]);
+			assert.strictEqual(results.results.length, 128);
+		});
+
+		test('retains a newly completed result until a later history eviction', () => {
+			results.push(r);
+			const removed: ITestResult[] = [];
+			ds.add(results.onResultsChanged(evt => {
+				if (hasKey(evt, { removed: true })) {
+					removed.push(...evt.removed);
+				}
+			}));
+			for (let i = 0; i < 128; i++) {
+				const next = new TestLiveTestResult(`completed-${i}`, false, defaultOpts([]));
+				next.markComplete();
+				results.push(next);
+			}
+			assert.deepStrictEqual({ removed, retained: results.results.includes(r), disposed: r.disposed, count: results.results.length }, {
+				removed: [],
+				retained: true,
+				disposed: false,
+				count: 129,
+			});
+
+			const oldestCompleted = results.results.at(-1)!;
+			r.markComplete();
+			assert.deepStrictEqual({ removed, retained: results.results.includes(r), disposed: r.disposed, count: results.results.length }, {
+				removed: [oldestCompleted],
+				retained: true,
+				disposed: false,
+				count: 128,
+			});
+
+			const later = results.push(new TestLiveTestResult('later', false, defaultOpts([])));
+			later.markComplete();
+			assert.deepStrictEqual({ removed, retained: results.results.includes(r), disposed: r.disposed, count: results.results.length }, {
+				removed: [removed[0], r],
+				retained: false,
+				disposed: true,
+				count: 128,
+			});
+		});
+
 		test('disposes a completed result that is immediately evicted', async () => {
+			const removed: ITestResult[] = [];
+			ds.add(results.onResultsChanged(evt => {
+				if (hasKey(evt, { removed: true })) {
+					removed.push(...evt.removed);
+				}
+			}));
 			const newerCompletedAt = Date.now() + 1000;
 			for (let i = 0; i < 128; i++) {
 				results.push(await makeHydrated(newerCompletedAt + i));
@@ -351,6 +416,7 @@ suite('Workbench - Test Results Service', () => {
 			results.push(older);
 
 			assert.deepStrictEqual({ retained: results.results.includes(older), disposed: older.disposed }, { retained: false, disposed: true });
+			assert.deepStrictEqual(removed, [older]);
 		});
 	});
 
