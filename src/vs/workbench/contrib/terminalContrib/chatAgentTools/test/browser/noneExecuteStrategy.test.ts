@@ -27,8 +27,9 @@ suite('NoneExecuteStrategy', () => {
 	 * @param contentsAsText The text that `xterm.getContentsAsText()` will return (simulates
 	 * the terminal buffer content between the start and end markers)
 	 * @param cursorLineText The text at the cursor line, used by prompt detection heuristics
+	 * @param markerLine The line of the markers, -1 when they were trimmed from the scrollback
 	 */
-	function createMockTerminalAndXterm(contentsAsText: string, cursorLineText: string): {
+	function createMockTerminalAndXterm(contentsAsText: string, cursorLineText: string, markerLine = 0): {
 		instance: ITerminalInstance;
 		onDataEmitter: Emitter<string>;
 	} {
@@ -39,8 +40,8 @@ suite('NoneExecuteStrategy', () => {
 		const mockXterm = {
 			raw: {
 				registerMarker: () => ({
-					line: 0,
-					isDisposed: false,
+					line: markerLine,
+					isDisposed: markerLine === -1,
 					onDispose: Event.None,
 					dispose: () => { },
 				}),
@@ -121,5 +122,27 @@ suite('NoneExecuteStrategy', () => {
 
 		// Should report that the command produced no output
 		assert.strictEqual(result.additionalInformation, 'Command produced no output');
+	}));
+
+	test('should strip a multi-line command echo', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const prompt = 'user@host:~/src $ ';
+		const { instance } = createMockTerminalAndXterm(`${prompt}python3 - <<'EOF'\nprint('first')\nEOF\nfirst\n${prompt}`, prompt);
+		const strategy = store.add(new NoneExecuteStrategy(instance, () => false, new TestConfigurationService(), createLogService()));
+		const cts = store.add(new CancellationTokenSource());
+
+		const result = await strategy.execute('python3 - <<\'EOF\'\nprint(\'first\')\nEOF', cts.token);
+
+		assert.strictEqual(result.output, 'first');
+	}));
+
+	test('should not match the echo by layout when the start marker was trimmed', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		// The buffer is read from line 0, so its first lines are output rather than the echo
+		const { instance } = createMockTerminalAndXterm('cat\nfile\nlast', 'last', -1);
+		const strategy = store.add(new NoneExecuteStrategy(instance, () => false, new TestConfigurationService(), createLogService()));
+		const cts = store.add(new CancellationTokenSource());
+
+		const result = await strategy.execute('cat file', cts.token);
+
+		assert.strictEqual(result.output, 'cat\nfile\nlast');
 	}));
 });
