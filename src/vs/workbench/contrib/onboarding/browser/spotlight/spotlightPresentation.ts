@@ -392,6 +392,7 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 			focusTarget: target.focusTarget,
 			hideNext: step.primaryAction ? false : step.advanceWhen ? true : step.hideNext,
 			targetOverlayVisible: openTarget,
+			additionalElements: target.additionalElements,
 			padding: step.padding,
 		});
 		context.onDidShow?.();
@@ -414,7 +415,7 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 
 		if (openTarget && !ended) {
 			try {
-				await target.open?.();
+				await target.open?.(cancellation.token);
 			} catch (error) {
 				onUnexpectedError(error);
 			}

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
 import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import '../media/onboardingTarget.css';
@@ -42,11 +43,14 @@ export interface IOnboardingTargetOptions {
 
 export interface IOnboardingTarget {
 	readonly element: HTMLElement;
-	readonly open?: () => Promise<void> | void;
+	/** Opens the target for its step. `token` is cancelled when the step ends. */
+	readonly open?: (token?: CancellationToken) => Promise<void> | void;
 	readonly focusTarget?: IOnboardingFocusTarget;
 	/** Accepted selections supplied by a scoped adapter, without replacing the owner's DOM marker. */
 	readonly onDidSelect?: Event<Promise<boolean>>;
 	readonly onDidActivate?: Event<void>;
+	/** Other elements to highlight with {@link element}, such as a menu it opened. See the onboarding README. */
+	readonly additionalElements?: () => readonly HTMLElement[];
 }
 
 interface IOnboardingTargetRegistration {
@@ -83,15 +87,16 @@ export function resolveOnboardingTarget(targetWindow: Window, id: string, scope?
 			focusTarget: target.focusTarget,
 			onDidSelect: target.onDidSelect,
 			onDidActivate: target.onDidActivate,
-			open: () => {
+			open: token => {
 				if (onboardingTargetProviders.get(id) === provider) {
 					const current = provider.resolve(scope);
 					if (current?.element === target.element && isVisibleOnboardingTarget(targetWindow, current.element)) {
-						return current.open?.();
+						return current.open?.(token);
 					}
 				}
 				return undefined;
 			},
+			additionalElements: target.additionalElements,
 		};
 	}
 	const element = findOnboardingTarget(targetWindow, id, scope);

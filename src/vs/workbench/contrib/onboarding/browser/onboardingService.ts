@@ -20,7 +20,7 @@ import { Memento } from '../../../common/memento.js';
 import { IOnboardingPresentation, onboardingPresentationRegistry } from '../common/onboardingPresentation.js';
 import { runWithOnboardingPresentation } from './onboardingPresentationQueue.js';
 import { onboardingScenarioRegistry } from '../common/onboardingRegistry.js';
-import { IOnboardingRunResult, IOnboardingScenario, ONBOARDING_ASSIGNMENT_CONTEXT_PREFIX, OnboardingOutcome } from '../common/onboardingScenario.js';
+import { IOnboardingExperiment, IOnboardingRunResult, IOnboardingScenario, ONBOARDING_ASSIGNMENT_CONTEXT_PREFIX, OnboardingOutcome } from '../common/onboardingScenario.js';
 import { isOnboardingDeveloperModeEnabled, IOnboardingScenarioService, ONBOARDING_DEVELOPER_MODE_CONFIG, ONBOARDING_ENABLED_CONFIG } from '../common/onboardingScenarioService.js';
 
 /** Persisted "shown" state for a single scenario. */
@@ -63,7 +63,7 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 
 	/** Scenario ids currently queued or running (prevents double-scheduling). */
 	private readonly _pending = new Set<string>();
-	private readonly _queue: { scenario: IOnboardingScenario; deferred: DeferredPromise<OnboardingOutcome> }[] = [];
+	private readonly _queue: { scenario: IOnboardingScenario; deferred: DeferredPromise<OnboardingOutcome>; automatic: boolean }[] = [];
 	/** Deferreds for scenarios that have been dequeued and are currently running, keyed by id. */
 	private readonly _inflight = new Map<string, DeferredPromise<OnboardingOutcome>>();
 	private _pumping = false;
@@ -74,6 +74,8 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 	/** Resolved experiment treatment state, keyed by scenario id. */
 	private readonly _experimentStates = new Map<string, IExperimentState>();
 	private readonly _experimentStatesChanged = observableSignal(this);
+	/** Scenarios whose treatment flags are being read, mapped to whether to read them again afterwards. */
+	private readonly _experimentReads = new Map<string, boolean>();
 
 	/**
 	 * Assignment-context ids whose telemetry gate is open. While an onboarding id is *not* in
@@ -144,6 +146,8 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 		}));
 
 		this._register(this.contextKeyService.onDidChangeContext(() => this._evaluate()));
+
+		this._register(this.assignmentService.onDidRefetchAssignments(() => this._resolveExperiments()));
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(ONBOARDING_ENABLED_CONFIG) || e.affectsConfiguration(ONBOARDING_DEVELOPER_MODE_CONFIG)) {
@@ -292,7 +296,7 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 				continue;
 			}
 
-			this._enqueue(scenario);
+			this._enqueue(scenario, true);
 			if (!scenario.repeatable) {
 				claimedSeenKeys.add(seenKey);
 			}
@@ -346,7 +350,13 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 		return true;
 	}
 
-	private _enqueue(scenario: IOnboardingScenario): Promise<OnboardingOutcome> {
+	private _isStillEligible(scenario: IOnboardingScenario): boolean {
+		return this._enabled
+			&& (!scenario.when || this.contextKeyService.contextMatchesRules(scenario.when))
+			&& (scenario.trigger.kind !== 'observable' || scenario.trigger.signal.get() === true);
+	}
+
+	private _enqueue(scenario: IOnboardingScenario, automatic = false): Promise<OnboardingOutcome> {
 		if (this._stopped) {
 			return Promise.resolve(OnboardingOutcome.Aborted);
 		}
@@ -356,6 +366,7 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 		// joins the existing run instead of scheduling a second one.
 		const queued = this._queue.find(entry => entry.scenario.id === scenario.id);
 		if (queued) {
+			queued.automatic &&= automatic;
 			return queued.deferred.p;
 		}
 		const inflight = this._inflight.get(scenario.id);
@@ -365,7 +376,7 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 
 		const deferred = new DeferredPromise<OnboardingOutcome>();
 		this._pending.add(scenario.id);
-		this._queue.push({ scenario, deferred });
+		this._queue.push({ scenario, deferred, automatic });
 		// Highest priority first; stable for equal priorities.
 		this._queue.sort((a, b) => (b.scenario.priority ?? 0) - (a.scenario.priority ?? 0));
 
@@ -386,15 +397,15 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 	private async _doPump(): Promise<void> {
 		await Promise.resolve(); // let the current synchronous batch of enqueues settle
 		try {
-			let entry: { scenario: IOnboardingScenario; deferred: DeferredPromise<OnboardingOutcome> } | undefined;
+			let entry: { scenario: IOnboardingScenario; deferred: DeferredPromise<OnboardingOutcome>; automatic: boolean } | undefined;
 			while (!this._stopped && (entry = this._queue.shift())) {
-				const { scenario, deferred } = entry;
+				const { scenario, deferred, automatic } = entry;
 				// Track the running scenario so a concurrent `_enqueue` for the same
 				// id joins this run instead of scheduling another.
 				this._inflight.set(scenario.id, deferred);
 				let outcome: OnboardingOutcome;
 				try {
-					outcome = await this._runPresentation(scenario);
+					outcome = await this._runPresentation(scenario, automatic);
 				} catch (error) {
 					onUnexpectedError(error);
 					outcome = OnboardingOutcome.Aborted;
@@ -409,7 +420,7 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 		}
 	}
 
-	private async _runPresentation(scenario: IOnboardingScenario): Promise<OnboardingOutcome> {
+	private async _runPresentation(scenario: IOnboardingScenario, automatic: boolean): Promise<OnboardingOutcome> {
 		const presentation = onboardingPresentationRegistry.get(scenario.presentation.kind);
 		if (scenario.tryout || !presentation) {
 			return OnboardingOutcome.Aborted;
@@ -428,7 +439,8 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 		this._activeAbort = abort;
 		try {
 			return await runWithOnboardingPresentation(mainWindow, cancellation.token, async () => {
-				if (this._stopped) {
+				// An automatic run can wait behind other presentations, so it only starts if it is still eligible.
+				if (this._stopped || automatic && !this._isStillEligible(scenario)) {
 					throw new CancellationError();
 				}
 				running = true;
@@ -548,46 +560,66 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 	/**
 	 * Resolve the two experiment treatment flags for each scenario that declares an experiment.
 	 * The experiment is only active when both resolve: the boolean to a boolean and the id to a
-	 * non-empty string that starts with {@link ONBOARDING_ASSIGNMENT_CONTEXT_PREFIX}. Resolved
-	 * once per scenario; re-evaluation is triggered when an experiment becomes active.
+	 * non-empty string that starts with {@link ONBOARDING_ASSIGNMENT_CONTEXT_PREFIX}. Once active,
+	 * the experiment is fixed for the window. Until then its flags are read again whenever the
+	 * assignments are refetched: experiments served by the signed-in account's experiment
+	 * endpoint only resolve once that endpoint's assignments arrive, after startup.
 	 */
 	private _resolveExperiments(): void {
 		for (const scenario of onboardingScenarioRegistry.getScenarios()) {
-			const experiment = scenario.experiment;
-			if (!experiment || this._experimentStates.has(scenario.id)) {
-				continue;
+			if (scenario.experiment) {
+				this._resolveExperiment(scenario, scenario.experiment);
 			}
+		}
+	}
+
+	private _resolveExperiment(scenario: IOnboardingScenario, experiment: IOnboardingExperiment): void {
+		if (this._experimentStates.get(scenario.id)?.active) {
+			return;
+		}
+		if (this._experimentReads.has(scenario.id)) {
+			// The read in flight may predate the refetch, so read again once it settles.
+			this._experimentReads.set(scenario.id, true);
+			return;
+		}
+		if (!this._experimentStates.has(scenario.id)) {
 			// Seed an inactive state so the scenario is not eligible until both flags resolve.
 			this._experimentStates.set(scenario.id, { active: false, behavior: false, assignmentContextId: '' });
-			Promise.all([
-				this.assignmentService.getTreatment<boolean>(experiment.behaviorFlag),
-				this.assignmentService.getTreatment<string>(experiment.assignmentContextIdFlag)
-			]).then(([behavior, assignmentContextId]) => {
-				const hasBehavior = typeof behavior === 'boolean';
-				const hasId = typeof assignmentContextId === 'string' && assignmentContextId.length > 0;
+		}
+		this._experimentReads.set(scenario.id, false);
+		Promise.all([
+			this.assignmentService.getTreatment<boolean>(experiment.behaviorFlag),
+			this.assignmentService.getTreatment<string>(experiment.assignmentContextIdFlag)
+		]).then(([behavior, assignmentContextId]) => {
+			const hasBehavior = typeof behavior === 'boolean';
+			const hasId = typeof assignmentContextId === 'string' && assignmentContextId.length > 0;
 
-				// Defensively require the reserved prefix. The eager telemetry gate only blocks
-				// ids that start with it, so an id missing the prefix would never be gated and
-				// would leak into telemetry from the very first event — silently corrupting the
-				// scorecard baseline. Catch the misconfiguration loudly and treat the experiment
-				// as inactive rather than running it with an ungated id.
-				const hasValidId = hasId && assignmentContextId!.startsWith(ONBOARDING_ASSIGNMENT_CONTEXT_PREFIX);
-				if (hasId && !hasValidId) {
-					onUnexpectedError(new Error(`Onboarding experiment for scenario '${scenario.id}' resolved an assignment-context id '${assignmentContextId}' that does not start with the required '${ONBOARDING_ASSIGNMENT_CONTEXT_PREFIX}' prefix; treating the experiment as inactive.`));
-				}
+			// Defensively require the reserved prefix. The eager telemetry gate only blocks
+			// ids that start with it, so an id missing the prefix would never be gated and
+			// would leak into telemetry from the very first event — silently corrupting the
+			// scorecard baseline. Catch the misconfiguration loudly and treat the experiment
+			// as inactive rather than running it with an ungated id.
+			const hasValidId = hasId && assignmentContextId!.startsWith(ONBOARDING_ASSIGNMENT_CONTEXT_PREFIX);
+			if (hasId && !hasValidId) {
+				onUnexpectedError(new Error(`Onboarding experiment for scenario '${scenario.id}' resolved an assignment-context id '${assignmentContextId}' that does not start with the required '${ONBOARDING_ASSIGNMENT_CONTEXT_PREFIX}' prefix; treating the experiment as inactive.`));
+			}
 
-				const active = hasBehavior && hasValidId;
+			if (hasBehavior && hasValidId) {
 				this._experimentStates.set(scenario.id, {
-					active,
+					active: true,
 					behavior: behavior === true,
-					assignmentContextId: active ? assignmentContextId! : ''
+					assignmentContextId: assignmentContextId!
 				});
 				this._experimentStatesChanged.trigger(undefined);
-				if (active) {
-					this._evaluate();
-				}
-			}, error => onUnexpectedError(error));
-		}
+				this._evaluate();
+			}
+		}, error => onUnexpectedError(error)).finally(() => {
+			const readAgain = this._experimentReads.get(scenario.id);
+			this._experimentReads.delete(scenario.id);
+			if (readAgain) {
+				this._resolveExperiment(scenario, experiment);
+			}
+		});
 	}
 
 	//#endregion

@@ -8,7 +8,8 @@ import * as dom from '../../../../../../base/browser/dom.js';
 import { Gesture, EventType as TouchEventType } from '../../../../../../base/browser/touch.js';
 import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { BaseActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { Delayer } from '../../../../../../base/common/async.js';
+import { Delayer, timeout } from '../../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { CancellationError, isCancellationError, onUnexpectedError } from '../../../../../../base/common/errors.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -40,6 +41,8 @@ import type { SessionState } from '../../../../../../platform/agentHost/common/s
 import { StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { IContextViewService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
@@ -64,11 +67,15 @@ import { BRANCH_PICKER_MAX_VISIBLE_ITEMS, ensureSelectedBranchPickerItem, filter
 import { AgentHostInitialSessionConfig, retrySessionConfigSubscriptionOnCreation } from './agentHostSessionConfigSubscription.js';
 import { getCompactCodicon } from '../../chatIcons.js';
 import { IChatPhoneInputPresenter } from '../../widget/input/chatPhoneInputPresenter.js';
-import { AGENT_HOST_PERMISSIONS_SETTINGS_QUERY, createModePickerModeItems, createModePickerPermissionsItems, getModePermissionsPickerAccessibilityProvider, getModePermissionsPickerOptions, getModePickerAriaLabel, getPermissionLevelBadge, IModePickerPermissions, IModePickerTrigger, isWellKnownAutoApproveSchema, MODE_PERMISSIONS_PICKER_OPEN_ATTRIBUTE, renderModePickerTrigger, shouldCombineModeAndPermissions } from './agentHostModePickerPresentation.js';
+import { AGENT_HOST_PERMISSIONS_SETTINGS_QUERY, createModePickerModeItems, createModePickerPermissionsItems, getModePermissionsPickerAccessibilityProvider, getModePermissionsPickerOptions, getModePickerAriaLabel, getPermissionLevelBadge, IModePickerPermissions, IModePickerTrigger, isWellKnownAutoApproveSchema, MODE_PERMISSIONS_PICKER_OPEN_ATTRIBUTE, MODE_SECTION_ID, PERMISSIONS_SECTION_ID, renderModePickerTrigger, shouldCombineModeAndPermissions } from './agentHostModePickerPresentation.js';
 import { IPreferencesService } from '../../../../../services/preferences/common/preferences.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 
 const FILTER_THRESHOLD = 10;
+const SECTION_SWITCH_DELAY_MS = 400;
+
+/** A section of the combined mode and permissions menu. */
+export type AgentHostPickerSection = 'mode' | 'permissions';
 
 const LEARN_MORE_VALUE = '__agentHostChatInputPicker.learnMore__';
 const PERMISSIONS_LEARN_MORE_URL = 'https://aka.ms/vscode/docs/permissions';
@@ -437,6 +444,8 @@ export class AgentHostChatInputPicker extends Disposable {
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostConnectionsService private readonly _connectionsService: IAgentHostConnectionsService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
+		@IContextViewService private readonly _contextViewService: IContextViewService,
+		@ICommandService private readonly _commandService: ICommandService,
 	) {
 		super();
 
@@ -526,6 +535,58 @@ export class AgentHostChatInputPicker extends Disposable {
 
 	show(anchor: HTMLElement): void {
 		void this._showPicker(anchor).catch(onUnexpectedError);
+	}
+
+	/** The rendered control that opens this picker, if it is currently shown. */
+	get triggerElement(): HTMLElement | undefined {
+		return this._trigger;
+	}
+
+	/** The open menu, or `undefined` while it is closed. */
+	get menuElement(): HTMLElement | undefined {
+		return this._pickerVisible ? this._contextViewService.getContextViewElement() : undefined;
+	}
+
+	/** Whether this mode picker also offers the permission levels, in a separate section. */
+	get combinesPermissions(): boolean {
+		return !!this._getModePickerPermissions();
+	}
+
+	/**
+	 * Shows the menu with `section` expanded and its header focused. If the combined menu is
+	 * already open, collapses the other section and expands `section` after a short pause, so
+	 * the menu visibly moves between sections.
+	 */
+	async showSection(section: AgentHostPickerSection, token: CancellationToken): Promise<void> {
+		const headerId = section === 'mode' ? MODE_SECTION_ID : PERMISSIONS_SECTION_ID;
+		const trigger = this._trigger;
+		if (token.isCancellationRequested || !trigger) {
+			return;
+		}
+		if (this._pickerVisible && this.combinesPermissions) {
+			await this._setSectionExpanded(section === 'mode' ? PERMISSIONS_SECTION_ID : MODE_SECTION_ID, false);
+			await timeout(SECTION_SWITCH_DELAY_MS, token).catch(() => { });
+			if (!token.isCancellationRequested && this._pickerVisible) {
+				await this._setSectionExpanded(headerId, true);
+			}
+			return;
+		}
+		// Another picker's menu, such as the separate mode picker's, stays visible until it finishes closing.
+		this._actionWidgetService.hide();
+		for (let attempt = 0; attempt < 20 && this._actionWidgetService.isVisible && !token.isCancellationRequested; attempt++) {
+			await timeout(50);
+		}
+		await this._showPicker(trigger, section === 'permissions');
+		if (token.isCancellationRequested) {
+			this._hidePicker();
+		} else if (this._pickerVisible && this.combinesPermissions) {
+			this._actionWidgetService.focusItemById(headerId);
+		}
+	}
+
+	private async _setSectionExpanded(headerId: string, expanded: boolean): Promise<void> {
+		this._actionWidgetService.focusItemById(headerId);
+		await this._commandService.executeCommand(expanded ? 'expandSectionCodeAction' : 'collapseSectionCodeAction');
 	}
 
 	private _reattach(): void {
@@ -1227,9 +1288,12 @@ export class AgentHostChatInputPicker extends Disposable {
 }
 
 export class AgentHostChatInputPickerActionViewItem extends BaseActionViewItem {
-	constructor(action: IAction, private readonly _picker: AgentHostChatInputPicker) {
+	constructor(action: IAction, private readonly _picker: AgentHostChatInputPicker, onDidDispose?: () => void) {
 		super(undefined, action);
 		this._register(this._picker);
+		if (onDidDispose) {
+			this._register(toDisposable(onDidDispose));
+		}
 	}
 	override render(container: HTMLElement): void {
 		this._picker.render(container);
