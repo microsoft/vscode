@@ -1123,7 +1123,7 @@ suite('SessionChatInputToolbar', () => {
 		toolbar.setSession(session, forkedChat);
 
 		assert.deepStrictEqual({ main, subagent, fork: read() }, {
-			main: { pills: ['1 File', 'Subagent'], visible: true },
+			main: { pills: ['1 File', '1 Subagent'], visible: true },
 			subagent: { pills: [], visible: false },
 			fork: { pills: ['1 File'], visible: true },
 		});
@@ -1195,6 +1195,10 @@ suite('SessionChatInputToolbar', () => {
 		};
 		const singleLabels = labels();
 		clickPill();
+		const singleEntry = entries.find(item => item.label === subagents[0].title.get());
+		assert.ok(singleEntry);
+		singleEntry.select();
+		instantiationService.get(IActionWidgetService).hide();
 		chats.set([chat, ...subagents], undefined);
 		const multipleLabels = labels();
 		for (const subagent of subagents) {
@@ -1205,7 +1209,7 @@ suite('SessionChatInputToolbar', () => {
 		}
 
 		assert.deepStrictEqual({ singleLabels, multipleLabels, opened }, {
-			singleLabels: ['Running'],
+			singleLabels: ['1 Subagent'],
 			multipleLabels: ['3 Subagents'],
 			opened: [subagents[0], ...subagents].map(subagent => [
 				session, subagent.resource, { referenceChatResource: chat.resource },
