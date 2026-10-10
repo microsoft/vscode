@@ -9,22 +9,28 @@ import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
-import { AgentSignal } from '../../common/agentService.js';
+import { AgentSignal } from '../../common/agent.js';
+import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { ISessionDatabase } from '../../common/sessionDataService.js';
-import { resolveChatUri } from '../../common/state/sessionState.js';
+import { buildSubagentChatUri, parseRequiredSessionUriFromChatUri } from '../../common/state/sessionState.js';
 import { ClaudeFileEditObserver } from './claudeFileEditObserver.js';
 import { ClaudeMapperState, mapSDKMessageToAgentSignals } from './claudeMapSessionEvents.js';
 import type { SubagentRegistry } from './claudeSubagentRegistry.js';
+import { ClaudeTerminalOutputs } from './claudeTerminalOutput.js';
 
 interface IClaudeSdkMessageContext {
 	readonly turnDuration?: number;
 	readonly mode?: PermissionMode;
+	readonly clientContext?: IAgentHostClientTelemetryContext;
+	/** Aborts when the turn is cancelled, before its results can be published. */
+	readonly signal?: AbortSignal;
 }
 
 /**
- * Per-message router. Awaits file-edit observation for `type: 'user'`
- * messages so the cached edit lands before {@link mapSDKMessageToAgentSignals}
- * reads it via `state.takeFileEdit`, then fires mapped signals on
+ * Per-message router. Awaits file-edit observation and shell output
+ * retention for `type: 'user'` messages so staged content lands before
+ * {@link mapSDKMessageToAgentSignals} reads it via `state.takeFileEdit` and
+ * `state.takeTerminalOutput`, then fires mapped signals on
  * {@link onDidProduceSignal}. Mapper failures are logged but never thrown.
  *
  * Owns the per-session {@link ClaudeFileEditObserver} (Phase 8) and
@@ -40,13 +46,14 @@ export class ClaudeSdkMessageRouter extends Disposable {
 	readonly onDidProduceSignal: Event<AgentSignal> = this._onDidProduceSignal.event;
 
 	private readonly _editObserver: ClaudeFileEditObserver;
+	private readonly _terminalOutputs: ClaudeTerminalOutputs;
 	private readonly _mapperState = new ClaudeMapperState();
 
 	private _clientToolOwner: ((toolName: string) => string | undefined) | undefined;
 
 	constructor(
-		sessionUri: URI,
 		private readonly _chatChannelUri: URI,
+		private readonly _resource: URI,
 		dbRef: IReference<ISessionDatabase>,
 		private readonly _subagents: SubagentRegistry,
 		clientToolOwner: ((toolName: string) => string | undefined) | undefined = undefined,
@@ -56,8 +63,9 @@ export class ClaudeSdkMessageRouter extends Disposable {
 		super();
 		this._clientToolOwner = clientToolOwner;
 		this._editObserver = this._register(
-			instantiationService.createInstance(ClaudeFileEditObserver, resolveChatUri(sessionUri, this._chatChannelUri).toString(), dbRef),
+			instantiationService.createInstance(ClaudeFileEditObserver, _resource.toString(), dbRef),
 		);
+		this._terminalOutputs = instantiationService.createInstance(ClaudeTerminalOutputs);
 	}
 
 	setClientToolOwner(clientToolOwner: ((toolName: string) => string | undefined) | undefined): void {
@@ -66,9 +74,14 @@ export class ClaudeSdkMessageRouter extends Disposable {
 
 	async handle(message: SDKMessage, turnId: string | undefined, context?: IClaudeSdkMessageContext): Promise<void> {
 		if (message.type === 'assistant') {
-			this._editObserver.observeAssistant(message, context?.mode);
+			this._editObserver.observeAssistant(message, context?.mode, context?.clientContext, this._getEditChatUri(message.parent_tool_use_id));
 		} else if (message.type === 'user' && turnId !== undefined) {
-			await this._editObserver.observeUser(message, turnId, this._mapperState);
+			await this._editObserver.observeUser(message, turnId, this._mapperState, this._getEditChatUri(message.parent_tool_use_id));
+			const retainedToolCallId = await this._terminalOutputs.capture(this._resource, this._chatChannelUri, turnId, message, this._mapperState, context?.signal);
+			if (retainedToolCallId && context?.signal?.aborted) {
+				await this._terminalOutputs.discard(this._resource, retainedToolCallId, this._mapperState);
+				return;
+			}
 		}
 		if (turnId === undefined) {
 			return;
@@ -90,5 +103,11 @@ export class ClaudeSdkMessageRouter extends Disposable {
 		} catch (mapperErr) {
 			this._logService.warn(`[ClaudeSdkMessageRouter] mapper threw, skipping message: ${mapperErr}`);
 		}
+	}
+
+	private _getEditChatUri(parentToolUseId: string | null): string {
+		return parentToolUseId
+			? buildSubagentChatUri(parseRequiredSessionUriFromChatUri(this._chatChannelUri), parentToolUseId)
+			: this._chatChannelUri.toString();
 	}
 }

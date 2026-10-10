@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Raw } from '@vscode/prompt-tsx';
 import { describe, expect, test } from 'vitest';
 import type * as vscode from 'vscode';
 import { IChatHookService, type IPreToolUseHookResult } from '../../../../../platform/chat/common/chatHookService';
@@ -24,7 +25,10 @@ import { createExtensionUnitTestingServices } from '../../../../test/node/servic
 import { ToolName } from '../../../../tools/common/toolNames';
 import { IToolsService, type IToolValidationResult } from '../../../../tools/common/toolsService';
 import { renderPromptElement } from '../../base/promptRenderer';
-import { ChatToolCalls } from '../toolCalling';
+import { ChatToolCalls, getInvalidImagePlaceholder } from '../toolCalling';
+import { ChatImageMimeType } from '../../../../conversation/common/languageModelChatMessageHelpers';
+import { nonImages, realImages } from '../../../../../util/common/test/imageFixtures';
+import { URI } from 'vscode-uri';
 
 class CapturingChatHookService implements IChatHookService {
 	declare readonly _serviceBrand: undefined;
@@ -326,12 +330,13 @@ describe('ChatToolCalls (toolCalling.tsx)', () => {
 		};
 
 		const conversation = { sessionId: 'session-123' } as unknown as Conversation;
+		const sessionResource = URI.parse('vscode-chat://session/session-123');
 		const promptContext: IBuildPromptContext = {
 			query: 'test',
 			history: [],
 			chatVariables: new ChatVariablesCollection(),
 			conversation,
-			request: { hooks } as unknown as vscode.ChatRequest,
+			request: { hooks, sessionResource } as unknown as vscode.ChatRequest,
 			tools: {
 				toolReferences: [],
 				toolInvocationToken: {} as vscode.ChatParticipantToolToken,
@@ -359,6 +364,7 @@ describe('ChatToolCalls (toolCalling.tsx)', () => {
 		// Tool invoked with updatedInput from hook
 		expect(toolsService.lastInvocation?.name).toBe(toolName);
 		expect(toolsService.lastInvocation?.options.input).toEqual(updatedInput);
+		expect(toolsService.lastInvocation?.options.chatSessionResource?.toString()).toBe(sessionResource.toString());
 		expect(toolsService.lastInvocation?.options.subAgentInvocationId).toBe('execution-parent-call');
 		expect(toolsService.lastInvocation?.options.preToolUseResult).toEqual({
 			permissionDecision: 'ask',
@@ -455,6 +461,104 @@ describe('ChatToolCalls (toolCalling.tsx)', () => {
 		expect(contentText).toContain('<PreToolUse-context>');
 		expect(contentText).toContain(denyContext);
 		expect(contentText).not.toContain('<PostToolUse-context>');
+	});
+
+	test('synthesizes missing historical tool results for stateful Responses rounds', async () => {
+		const toolName = 'testTool';
+		const completedCallId = 'call-completed';
+		const missingCallIds = ['call-missing-1', 'call-missing-2'];
+		const toolInfo: vscode.LanguageModelToolInformation = {
+			name: toolName,
+			description: 'test tool',
+			source: undefined,
+			inputSchema: undefined,
+			tags: [],
+		};
+
+		const testingServiceCollection = createExtensionUnitTestingServices();
+		testingServiceCollection.define(IToolsService, new CapturingToolsService(toolInfo));
+
+		const accessor = testingServiceCollection.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const endpointProvider = accessor.get(IEndpointProvider);
+		const endpoint = await endpointProvider.getChatEndpoint('copilot-utility');
+		const responsesEndpoint = Object.create(endpoint) as IChatEndpoint;
+		Object.defineProperty(responsesEndpoint, 'apiType', { value: 'responses' });
+
+		const round: IToolCallRound = {
+			id: 'round-stateful',
+			response: 'calling tools',
+			toolInputRetry: 0,
+			statefulMarker: 'resp-stateful',
+			toolCalls: [completedCallId, ...missingCallIds].map(id => ({ name: toolName, arguments: '{}', id })),
+		};
+		const toolCallResults: Record<string, vscode.LanguageModelToolResult> = {
+			[completedCallId]: new LanguageModelToolResult([new LanguageModelTextPart('completed output')]),
+		};
+		const promptContext: IBuildPromptContext = {
+			query: 'continue',
+			history: [],
+			chatVariables: new ChatVariablesCollection(),
+			conversation: { sessionId: 'session-stateful' } as unknown as Conversation,
+			request: {} as vscode.ChatRequest,
+			tools: {
+				toolReferences: [],
+				toolInvocationToken: {} as vscode.ChatParticipantToolToken,
+				availableTools: [toolInfo],
+			},
+		};
+
+		const { messages } = await renderPromptElement(instantiationService, responsesEndpoint, ChatToolCalls, {
+			promptContext,
+			toolCallRounds: [round],
+			toolCallResults,
+			isHistorical: true,
+		});
+		const assistantMessage = messages.find((message): message is Raw.AssistantChatMessage => message.role === Raw.ChatRole.Assistant);
+		const toolMessages = messages.filter((message): message is Raw.ToolChatMessage => message.role === Raw.ChatRole.Tool);
+		const toolOutputs = toolMessages.map(message => ({
+			id: message.toolCallId,
+			text: message.content
+				.filter((part): part is Raw.ChatCompletionContentPartText => part.type === Raw.ChatCompletionContentPartKind.Text)
+				.map(part => part.text)
+				.join(''),
+		}));
+
+		const { messages: nonResponsesMessages } = await renderPromptElement(instantiationService, endpoint, ChatToolCalls, {
+			promptContext,
+			toolCallRounds: [round],
+			toolCallResults,
+			isHistorical: true,
+		});
+		const nonResponsesAssistantMessage = nonResponsesMessages.find((message): message is Raw.AssistantChatMessage => message.role === Raw.ChatRole.Assistant);
+		const { messages: markerlessResponsesMessages } = await renderPromptElement(instantiationService, responsesEndpoint, ChatToolCalls, {
+			promptContext,
+			toolCallRounds: [{ ...round, statefulMarker: undefined }],
+			toolCallResults,
+			isHistorical: true,
+		});
+		const markerlessResponsesAssistantMessage = markerlessResponsesMessages.find((message): message is Raw.AssistantChatMessage => message.role === Raw.ChatRole.Assistant);
+
+		expect({
+			assistantToolCallIds: assistantMessage?.toolCalls?.map(call => call.id),
+			toolOutputs,
+			nonResponsesToolCallIds: nonResponsesAssistantMessage?.toolCalls?.map(call => call.id),
+			markerlessResponsesToolCallIds: markerlessResponsesAssistantMessage?.toolCalls?.map(call => call.id),
+		}).toEqual({
+			assistantToolCallIds: [completedCallId, ...missingCallIds],
+			toolOutputs: [
+				{ id: completedCallId, text: 'completed output' },
+				...missingCallIds.map(id => ({
+					id,
+					text: JSON.stringify({
+						status: 'outcome_unknown',
+						message: 'No tool output was recorded. Verify the current state before retrying this tool if its result is still needed.',
+					}),
+				})),
+			],
+			nonResponsesToolCallIds: [completedCallId],
+			markerlessResponsesToolCallIds: [completedCallId],
+		});
 	});
 
 	test('replaces images with placeholders for historical turns', async () => {
@@ -590,6 +694,78 @@ describe('ChatToolCalls (toolCalling.tsx)', () => {
 		// Both images exceed the 2.5MB shared budget and should be replaced with placeholders
 		expect(serialized).toContain('context image budget exceeded');
 		expect(serialized).not.toContain('image_url');
+	});
+
+	test('labels tool result images by their bytes and omits data that is not an image', async () => {
+		const toolName = 'viewImage';
+		const toolInfo: vscode.LanguageModelToolInformation = {
+			name: toolName,
+			description: 'view image tool',
+			source: undefined,
+			inputSchema: undefined,
+			tags: [],
+		};
+
+		const testingServiceCollection = createExtensionUnitTestingServices();
+		testingServiceCollection.define(IToolsService, new CapturingToolsService(toolInfo));
+
+		const accessor = testingServiceCollection.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const endpoint = await accessor.get(IEndpointProvider).getChatEndpoint('copilot-utility');
+		await accessor.get(IConfigurationService).setConfig(ConfigKey.EnableChatImageUpload, false);
+
+		// Every real image declared as every image type (correctly or not), plus every
+		// non-image file declared as each image type.
+		const declaredMimeTypes = Object.values(ChatImageMimeType);
+		const cases = [
+			...Object.entries(realImages).flatMap(([actualMimeType, data]) => declaredMimeTypes.map(declaredMimeType => ({ name: actualMimeType, data, declaredMimeType, actualMimeType }))),
+			...Object.entries(nonImages).flatMap(([name, data]) => declaredMimeTypes.map(declaredMimeType => ({ name, data, declaredMimeType, actualMimeType: undefined }))),
+		].map((c, index) => ({ ...c, callId: `call-${index}` }));
+
+		const toolCallResults: Record<string, vscode.LanguageModelToolResult> = Object.fromEntries(
+			cases.map(c => [c.callId, new LanguageModelToolResult([LanguageModelDataPart.image(c.data, c.declaredMimeType)])])
+		);
+		const round: IToolCallRound = {
+			id: 'round-1',
+			response: 'viewing images',
+			toolInputRetry: 0,
+			toolCalls: cases.map(c => ({ name: toolName, arguments: '{}', id: c.callId })),
+		};
+		const promptContext: IBuildPromptContext = {
+			query: 'test',
+			history: [],
+			chatVariables: new ChatVariablesCollection(),
+			conversation: { sessionId: 'session-sniff' } as unknown as Conversation,
+			request: {} as vscode.ChatRequest,
+			tools: {
+				toolReferences: [],
+				toolInvocationToken: {} as vscode.ChatParticipantToolToken,
+				availableTools: [toolInfo],
+			},
+		};
+
+		const { messages } = await renderPromptElement(instantiationService, endpoint, ChatToolCalls, {
+			promptContext,
+			toolCallRounds: [round],
+			toolCallResults,
+		});
+
+		const describeToolResult = (callId: string) => {
+			const message = messages.find(m => m.role === Raw.ChatRole.Tool && m.toolCallId === callId);
+			return message?.content.map(part => part.type === Raw.ChatCompletionContentPartKind.Image
+				? { image: part.imageUrl.url, mediaType: part.imageUrl.mediaType }
+				: part.type === Raw.ChatCompletionContentPartKind.Text ? { text: part.text } : { other: part.type });
+		};
+
+		const actual = cases.map(c => ({ name: c.name, declaredMimeType: c.declaredMimeType, content: describeToolResult(c.callId) }));
+		const expected = cases.map(c => ({
+			name: c.name,
+			declaredMimeType: c.declaredMimeType,
+			content: c.actualMimeType
+				? [{ image: `data:${c.actualMimeType};base64,${Buffer.from(c.data).toString('base64')}`, mediaType: c.actualMimeType }]
+				: [{ text: getInvalidImagePlaceholder(c.declaredMimeType) }],
+		}));
+		expect(actual).toEqual(expected);
 	});
 
 	test('sendInvokedToolTelemetry handles tool results with images without crashing', async () => {

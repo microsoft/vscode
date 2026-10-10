@@ -179,6 +179,9 @@ export type EditOutcome = 'accepted' | 'rejected' | 'saved' | 'unknown';
  * Standard OTel attributes used alongside GenAI attributes.
  */
 export const StdAttr = {
+	USER_NAME: 'user.name',
+	PROCESS_USER_NAME: 'process.user.name',
+	HOST_NAME: 'host.name',
 	ERROR_TYPE: 'error.type',
 	SERVER_ADDRESS: 'server.address',
 	SERVER_PORT: 'server.port',
@@ -202,9 +205,6 @@ export const CopilotCliSdkAttr = {
 export const GitHubCopilotAttr = {
 	/** Agent type classifier: `builtin` | `plugin` | `custom`. */
 	AGENT_TYPE: 'github.copilot.agent.type',
-
-	/** Cloud agent backend version classifier: `v1` (Jobs API) | `v2` (Task API). Used to compare the rollout backend versions. */
-	CLOUD_BACKEND_VERSION: 'github.copilot.cloud.backend_version',
 
 	/** Git remote URL (normalized). Dual of `copilot_chat.repo.remote_url`. */
 	GIT_REPOSITORY: 'github.copilot.git.repository',

@@ -90,9 +90,13 @@ suite('getDynamicVariablesForWidget', () => {
 		assert.deepStrictEqual(getDynamicVariablesForWidget(widget), []);
 	});
 
-	test('returns empty when file references not supported', () => {
-		const widget = createMockWidget({ supportsFileReferences: false });
-		assert.deepStrictEqual(getDynamicVariablesForWidget(widget), []);
+	test('returns only attachment references when file references are not supported', () => {
+		const attachmentReference = createMockVariable({ id: 'attachment', isAttachmentReference: true });
+		const widget = createMockWidget({
+			supportsFileReferences: false,
+			contribVariables: [createMockVariable(), attachmentReference],
+		});
+		assert.deepStrictEqual(getDynamicVariablesForWidget(widget), [attachmentReference]);
 	});
 
 	test('returns contrib model variables when not editing', () => {
@@ -429,6 +433,86 @@ suite('ChatDynamicVariableModel', () => {
 		}, {
 			folderHover: 'workspace/assets',
 			hasImageDecorationHover: false,
+		});
+	});
+
+	test('recovers a reference range after a delete strictly before it', () => {
+		const { editor, model } = createDynamicVariableModel('explain #sym:example ');
+		model.addReference(createMockVariable({
+			range: new Range(1, 9, 1, 21),
+		}));
+
+		editor.executeEdits('test', [{
+			range: new Range(1, 8, 1, 9),
+			text: '',
+		}]);
+
+		assert.deepStrictEqual({
+			text: editor.getValue(),
+			variables: model.variables.map(variable => variable.range),
+		}, {
+			text: 'explain#sym:example ',
+			variables: [new Range(1, 8, 1, 20)],
+		});
+	});
+
+	test('recovers a reference range after a replace strictly before it', () => {
+		const { editor, model } = createDynamicVariableModel('explain #sym:example ');
+		model.addReference(createMockVariable({
+			range: new Range(1, 9, 1, 21),
+		}));
+
+		editor.executeEdits('test', [{
+			range: new Range(1, 1, 1, 8),
+			text: 'describe',
+		}]);
+
+		assert.deepStrictEqual({
+			text: editor.getValue(),
+			variables: model.variables.map(variable => variable.range),
+		}, {
+			text: 'describe #sym:example ',
+			variables: [new Range(1, 10, 1, 22)],
+		});
+	});
+
+	test('removes the reference when a delete touches its first character', () => {
+		const { editor, model } = createDynamicVariableModel('explain #sym:example ');
+		model.addReference(createMockVariable({
+			range: new Range(1, 9, 1, 21),
+		}));
+
+		editor.executeEdits('test', [{
+			range: new Range(1, 9, 1, 10),
+			text: '',
+		}]);
+
+		assert.deepStrictEqual({
+			text: editor.getValue(),
+			variables: model.variables,
+		}, {
+			text: 'explain  ',
+			variables: [],
+		});
+	});
+
+	test('recovers a reference range across edits before and after it', () => {
+		const { editor, model } = createDynamicVariableModel('explain #sym:example please');
+		model.addReference(createMockVariable({
+			range: new Range(1, 9, 1, 21),
+		}));
+
+		editor.executeEdits('test', [
+			{ range: new Range(1, 1, 1, 8), text: 'describe' },
+			{ range: new Range(1, 22, 1, 28), text: 'now' },
+		]);
+
+		assert.deepStrictEqual({
+			text: editor.getValue(),
+			variables: model.variables.map(variable => variable.range),
+		}, {
+			text: 'describe #sym:example now',
+			variables: [new Range(1, 10, 1, 22)],
 		});
 	});
 });

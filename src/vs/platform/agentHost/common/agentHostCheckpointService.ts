@@ -21,6 +21,9 @@ export function buildCheckpointRefName(sanitizedSessionId: string, turnNumber: n
  * Captures per-turn git **checkpoint refs** for Agent Host sessions so
  * end-of-turn diffs reflect the entire working-tree delta (including
  * terminal-tool edits that are invisible to the FileEditTracker pipeline).
+ * Each capture processes a checkout root once after success. Additional folders
+ * in that checkout can retry failed work; later captures take fresh snapshots.
+ * Linked worktrees and roots with different path casing remain separate on all platforms.
  *
  * Each checkpoint is a parentless or parent-chained commit (commit-tree)
  * pointing at a tree captured via the temp-index trick, anchored under
@@ -55,8 +58,18 @@ export interface IAgentHostCheckpointService {
 	captureBaselineCheckpoint(sessionUri: URI, workingDirectories: readonly URI[] | undefined): Promise<void>;
 
 	/**
+	 * Captures the working trees immediately before a turn is sent to the agent.
+	 * The corresponding end checkpoint uses these trees as its parents so
+	 * changes made between turns are not attributed to the new turn. Overlapping
+	 * turns in one session are excluded from Git attribution because their
+	 * shared working-tree edits cannot be separated; those turns use tracked
+	 * file edits instead.
+	 */
+	captureTurnStartCheckpoint(sessionUri: URI, chatUri: URI, turnId: string, workingDirectories: readonly URI[] | undefined): Promise<void>;
+
+	/**
 	 * Captures an end-of-turn checkpoint in each of `workingDirectories`,
-	 * chained to the previous turn's checkpoint (or the baseline for turn 1).
+	 * chained to the matching turn-start checkpoint when available.
 	 * Persists the ref against the turn via `ISessionDatabase.setTurnCheckpointRef`
 	 * once at least one repository captured successfully. A directory that is
 	 * not git-backed, or has no baseline, is skipped.
@@ -73,7 +86,13 @@ export interface IAgentHostCheckpointService {
 	 * so that every checkpoint operation is explicit about the repositories
 	 * it acts on rather than depending on live session state.
 	 */
-	captureTurnCheckpoint(sessionUri: URI, turnId: string, workingDirectories: readonly URI[] | undefined): Promise<void>;
+	captureTurnCheckpoint(sessionUri: URI, chatUri: URI, turnId: string, workingDirectories: readonly URI[] | undefined): Promise<void>;
+
+	/** Discards a pending turn-start checkpoint when a turn does not complete. */
+	discardTurnStartCheckpoint(sessionUri: URI, chatUri: URI, turnId: string): Promise<void>;
+
+	/** Discards all pending turn-start checkpoints for a chat after truncation. */
+	discardChatTurnStartCheckpoints(sessionUri: URI, chatUri: URI): Promise<void>;
 
 	/**
 	 * Returns the `{ parent, current }` checkpoint refs for a turn, or
@@ -127,7 +146,10 @@ export interface IAgentHostCheckpointService {
 export const NULL_CHECKPOINT_SERVICE: IAgentHostCheckpointService = {
 	_serviceBrand: undefined,
 	captureBaselineCheckpoint: async () => { },
+	captureTurnStartCheckpoint: async () => { },
 	captureTurnCheckpoint: async () => { },
+	discardTurnStartCheckpoint: async () => { },
+	discardChatTurnStartCheckpoints: async () => { },
 	getTurnCheckpointPair: async () => undefined,
 	getBaselineCheckpoint: async () => undefined,
 	deleteCheckpoints: async () => { },

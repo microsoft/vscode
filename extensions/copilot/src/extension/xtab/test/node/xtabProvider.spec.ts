@@ -10,6 +10,8 @@ import { ChatFetchResponseType, RESPONSE_CONTAINED_NO_CHOICES } from '../../../.
 import { StreamingMockChatMLFetcher } from '../../../../platform/chat/test/common/streamingMockChatMLFetcher';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
 import { InMemoryConfigurationService } from '../../../../platform/configuration/test/common/inMemoryConfigurationService';
+import { IEndpointProvider } from '../../../../platform/endpoint/common/endpointProvider';
+import { MockEndpoint } from '../../../../platform/endpoint/test/node/mockEndpoint';
 import { DocumentId } from '../../../../platform/inlineEdits/common/dataTypes/documentId';
 import { Edits } from '../../../../platform/inlineEdits/common/dataTypes/edit';
 import { ImportChanges } from '../../../../platform/inlineEdits/common/dataTypes/importFilteringOptions';
@@ -29,7 +31,10 @@ import { createTextDocumentData } from '../../../../util/common/test/shims/textD
 import { DeferredPromise } from '../../../../util/vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from '../../../../util/vs/base/common/cancellation';
 import { Emitter, Event } from '../../../../util/vs/base/common/event';
+import { constObservable } from '../../../../util/vs/base/common/observable';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
+import { Schemas } from '../../../../util/vs/base/common/network';
+import { isWindows } from '../../../../util/vs/base/common/platform';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { LineEdit, LineReplacement } from '../../../../util/vs/editor/common/core/edits/lineEdit';
 import { StringEdit, StringReplacement } from '../../../../util/vs/editor/common/core/edits/stringEdit';
@@ -38,6 +43,7 @@ import { LineRange } from '../../../../util/vs/editor/common/core/ranges/lineRan
 import { OffsetRange } from '../../../../util/vs/editor/common/core/ranges/offsetRange';
 import { StringText } from '../../../../util/vs/editor/common/core/text/abstractText';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
+import { SyncDescriptor } from '../../../../util/vs/platform/instantiation/common/descriptors';
 import { DelaySession } from '../../../inlineEdits/common/delay';
 import { createExtensionUnitTestingServices } from '../../../test/node/services';
 import { N_LINES_AS_CONTEXT } from '../../common/promptCrafting';
@@ -103,6 +109,7 @@ class MockInlineEditsModelService implements IInlineEditsModelService {
 	declare readonly _serviceBrand: undefined;
 	readonly modelInfo = undefined;
 	readonly onModelListUpdated: Event<void> = new Emitter<void>().event;
+	readonly supportsUnifiedCompletions = constObservable<boolean | undefined>(undefined);
 
 	private _selectedConfig: ModelConfiguration = {
 		modelName: 'test-model',
@@ -137,6 +144,32 @@ class MockInlineEditsModelService implements IInlineEditsModelService {
 	}
 }
 
+class MockXtabEndpointProvider implements IEndpointProvider {
+	declare readonly _serviceBrand: undefined;
+	readonly onDidModelsRefresh = Event.None;
+	private readonly endpoint: MockEndpoint;
+
+	constructor(@IInstantiationService instaService: IInstantiationService) {
+		this.endpoint = instaService.createInstance(MockEndpoint, 'test-model');
+	}
+
+	async getAllCompletionModels() {
+		return [];
+	}
+
+	async getAllChatEndpoints() {
+		return [this.endpoint];
+	}
+
+	async getChatEndpoint() {
+		return this.endpoint;
+	}
+
+	async getEmbeddingsEndpoint(): Promise<never> {
+		throw new Error('Embeddings are not used by XtabProvider tests');
+	}
+}
+
 // ============================================================================
 // pickSystemPrompt
 // ============================================================================
@@ -167,6 +200,8 @@ describe('pickSystemPrompt', () => {
 		PromptingStrategy.PatchBased01,
 		PromptingStrategy.PatchBased02,
 		PromptingStrategy.PatchBased02WithRecentLineNumbers,
+		PromptingStrategy.PatchBased02Unified,
+		PromptingStrategy.PatchBased02UnifiedEagerness,
 		PromptingStrategy.PatchBased02WithoutRecentLineNumbers,
 		PromptingStrategy.Xtab275,
 		PromptingStrategy.XtabAggressiveness,
@@ -270,6 +305,18 @@ describe('overrideModelConfig', () => {
 		expect(result.pagedClipping).toEqual(base.pagedClipping);
 		expect(result.recentlyViewedDocuments).toEqual(base.recentlyViewedDocuments);
 		expect(result.diffHistory).toEqual(base.diffHistory);
+	});
+
+	it('propagates the eagerness prompt from model configuration', () => {
+		const result = overrideModelConfig(makeBaseModelConfig(), {
+			modelName: 'four-in-one-model',
+			promptingStrategy: PromptingStrategy.PatchBased02UnifiedEagerness,
+			eagernessPrompt: 'aggressionHighLow',
+			includeTagsInCurrentFile: false,
+			lintOptions: undefined,
+		});
+
+		expect(result.eagernessPrompt).toBe('aggressionHighLow');
 	});
 
 	it('merges lintOptions when overridingConfig has lintOptions', () => {
@@ -520,6 +567,59 @@ describe('getPredictionContents', () => {
 		);
 		const result = call(['line0'], ResponseFormat.CustomDiffPatch, { doc: docWithRoot });
 		expect(result.endsWith(':')).toBe(true);
+	});
+
+	it.skipIf(!isWindows)('preserves spaces in a workspace-relative Windows path', () => {
+		const lines = ['def my_function'];
+		const text = new StringText(lines.join('\n'));
+		const workspaceRoot = URI.file('C:\\workspace');
+		const doc = new StatelessNextEditDocument(
+			DocumentId.create(URI.file('C:\\workspace\\space folder\\test.py').toString()),
+			workspaceRoot,
+			LanguageId.create('python'),
+			lines,
+			LineEdit.empty,
+			text,
+			new Edits(StringEdit, []),
+		);
+
+		expect(call(lines, ResponseFormat.CustomDiffPatch, { doc })).toBe('space folder/test.py:');
+	});
+
+	it.skipIf(!isWindows)('normalizes the drive letter for a file-backed notebook cell', () => {
+		const lines = ['print("hello")'];
+		const text = new StringText(lines.join('\n'));
+		const workspaceRoot = URI.file('C:\\workspace');
+		const cellUri = URI.file('C:\\workspace\\notebook.ipynb').with({ scheme: Schemas.vscodeNotebookCell, fragment: 'ch000001' });
+		const doc = new StatelessNextEditDocument(
+			DocumentId.create(cellUri.toString()),
+			workspaceRoot,
+			LanguageId.create('python'),
+			lines,
+			LineEdit.empty,
+			text,
+			new Edits(StringEdit, []),
+		);
+
+		expect(call(lines, ResponseFormat.CustomDiffPatch, { doc })).toBe('notebook.ipynb#ch000001:');
+	});
+
+	it.skipIf(!isWindows)('preserves path casing for a virtual notebook cell', () => {
+		const lines = ['print("hello")'];
+		const text = new StringText(lines.join('\n'));
+		const workspaceRoot = URI.from({ scheme: 'test-notebook', path: '/repo' });
+		const cellUri = URI.from({ scheme: Schemas.vscodeNotebookCell, path: '/Repo/notebook.ipynb', fragment: 'ch000001' });
+		const doc = new StatelessNextEditDocument(
+			DocumentId.create(cellUri.toString()),
+			workspaceRoot,
+			LanguageId.create('python'),
+			lines,
+			LineEdit.empty,
+			text,
+			new Edits(StringEdit, []),
+		);
+
+		expect(call(lines, ResponseFormat.CustomDiffPatch, { doc })).toBe('/Repo/notebook.ipynb#ch000001:');
 	});
 
 	it('returns correct content for CustomDiffPatch without workspace root', () => {
@@ -2237,6 +2337,34 @@ describe('XtabProvider integration', () => {
 	// ========================================================================
 
 	describe('prompt construction', () => {
+		it.each([
+			{ useMaxTokens: undefined, usePrediction: false, expected: {} },
+			{ useMaxTokens: true, usePrediction: false, expected: {} },
+			{ useMaxTokens: false, usePrediction: false, expected: { max_tokens: undefined } },
+			{ useMaxTokens: true, usePrediction: true, expected: {} },
+			{ useMaxTokens: false, usePrediction: true, expected: {} },
+		])('applies useMaxTokens=$useMaxTokens only with prediction disabled ($usePrediction)', async ({ useMaxTokens, usePrediction, expected }) => {
+			const services = createExtensionUnitTestingServices(disposables);
+			services.set(IInlineEditsModelService, mockModelService);
+			services.set(IChatMLFetcher, streamingFetcher);
+			services.define(IEndpointProvider, new SyncDescriptor(MockXtabEndpointProvider));
+			const accessor = disposables.add(services.createTestingAccessor());
+			const configuration = accessor.get(IConfigurationService);
+			await configuration.setConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderUsePrediction, usePrediction);
+			if (useMaxTokens !== undefined) {
+				await configuration.setConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderUseMaxTokens, useMaxTokens);
+			}
+			const provider = accessor.get(IInstantiationService).createInstance(XtabProvider);
+			const lines = ['const x = 1;'];
+			streamingFetcher.setStreamingLines(lines);
+			const request = createRequestWithEdit(lines, { insertionOffset: 3, insertedText: 'a' });
+			await AsyncIterUtils.drainUntilReturn(provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None));
+			const options = streamingFetcher.capturedOptions[0].requestOptions!;
+			expect({
+				...('max_tokens' in options ? { max_tokens: options.max_tokens } : {}),
+			}).toEqual(expected);
+		});
+
 		it('system prompt matches the configured prompting strategy', async () => {
 			const strategies: [PromptingStrategy, string][] = [
 				[PromptingStrategy.UnifiedModel, unifiedModelSystemPrompt],

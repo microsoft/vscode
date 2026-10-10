@@ -334,7 +334,7 @@ export function isEmptyPattern(pattern: ParsedPattern | ParsedExpression): patte
 	return false;
 }
 
-function parsePattern(arg1: string | IRelativePattern, options: IGlobOptions): ParsedStringPattern {
+function parsePattern(arg1: string | IRelativePattern, options: IGlobOptions, cacheKey?: string): ParsedStringPattern {
 	if (!arg1) {
 		return NULL;
 	}
@@ -359,7 +359,7 @@ function parsePattern(arg1: string | IRelativePattern, options: IGlobOptions): P
 	};
 
 	// Check cache
-	const patternKey = `${ignoreCase ? pattern.toLowerCase() : pattern}_${!!options.trimForExclusions}_${ignoreCase}`;
+	const patternKey = `${cacheKey === undefined ? `default:${ignoreCase ? pattern.toLowerCase() : pattern}` : `custom:${cacheKey}`}_${!!options.trimForExclusions}_${ignoreCase}`;
 	let parsedPattern = CACHE.get(patternKey);
 	if (parsedPattern) {
 		return wrapRelativePattern(parsedPattern, arg1, internalOptions);
@@ -462,7 +462,7 @@ function trivia3(pattern: string, options: IGlobOptionsInternal): ParsedStringPa
 	const parsedPatterns = aggregateBasenameMatches(pattern.slice(1, -1)
 		.split(',')
 		.map(pattern => parsePattern(pattern, options))
-		.filter(pattern => pattern !== NULL), pattern);
+		.filter(pattern => pattern !== NULL), pattern, options.ignoreCase);
 
 	const patternsLength = parsedPatterns.length;
 	if (!patternsLength) {
@@ -617,7 +617,7 @@ export function getPathTerms(patternOrExpression: ParsedPattern | ParsedExpressi
 function parsedExpression(expression: IExpression, options: IGlobOptions): ParsedExpression {
 	const parsedPatterns = aggregateBasenameMatches(Object.getOwnPropertyNames(expression)
 		.map(pattern => parseExpressionPattern(pattern, expression[pattern], options))
-		.filter(pattern => pattern !== NULL));
+		.filter(pattern => pattern !== NULL), undefined, options.ignoreCase);
 
 	const patternsLength = parsedPatterns.length;
 	if (!patternsLength) {
@@ -750,7 +750,7 @@ function parseExpressionPattern(pattern: string, value: boolean | SiblingClause,
 		return NULL; // pattern is disabled
 	}
 
-	const parsedPattern = parsePattern(pattern, options);
+	const parsedPattern = parsePattern(pattern, options, pattern);
 	if (parsedPattern === NULL) {
 		return NULL;
 	}
@@ -786,7 +786,7 @@ function parseExpressionPattern(pattern: string, value: boolean | SiblingClause,
 	return parsedPattern;
 }
 
-function aggregateBasenameMatches(parsedPatterns: Array<ParsedStringPattern | ParsedExpressionPattern>, result?: string): Array<ParsedStringPattern | ParsedExpressionPattern> {
+function aggregateBasenameMatches(parsedPatterns: Array<ParsedStringPattern | ParsedExpressionPattern>, result?: string, ignoreCase?: boolean): Array<ParsedStringPattern | ParsedExpressionPattern> {
 	const basenamePatterns = parsedPatterns.filter(parsedPattern => !!(<ParsedStringPattern>parsedPattern).basenames);
 	if (basenamePatterns.length < 2) {
 		return parsedPatterns;
@@ -830,7 +830,7 @@ function aggregateBasenameMatches(parsedPatterns: Array<ParsedStringPattern | Pa
 			basename = path.substring(i);
 		}
 
-		const index = basenames.indexOf(basename);
+		const index = ignoreCase ? basenames.findIndex(candidate => equalsIgnoreCase(candidate, basename)) : basenames.indexOf(basename);
 		return index !== -1 ? patterns[index] : null;
 	};
 

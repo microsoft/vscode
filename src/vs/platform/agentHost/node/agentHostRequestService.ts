@@ -9,11 +9,11 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../base/common/errors.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { IHeaders, IRequestContext, IRequestOptions } from '../../../base/parts/request/common/request.js';
-import { IConfigurationService } from '../../configuration/common/configuration.js';
-import { INativeEnvironmentService } from '../../environment/common/environment.js';
 import { ILogService } from '../../log/common/log.js';
-import { RequestService } from '../../request/node/requestService.js';
-import { IAgentHostProxyResolver } from './agentHostProxyResolver.js';
+import { AbstractRequestService, AuthInfo, Credentials } from '../../request/common/request.js';
+import { lookupKerberosAuthorization } from '../../request/node/requestService.js';
+import { AgentHostProxyConfigKey } from '../common/agentHostSchema.js';
+import { IAgentHostProxyResolver, loadAgentHostCertificates } from './agentHostProxyResolver.js';
 
 const TRANSIENT_ERROR_CODES = new Set([
 	'EAI_AGAIN',
@@ -41,15 +41,15 @@ function isTransientError(error: unknown): boolean {
  * certificate settings. The base {@link RequestService} remains unchanged for
  * all other Node consumers.
  */
-export class AgentHostRequestService extends RequestService {
+export class AgentHostRequestService extends AbstractRequestService {
+
+	declare readonly _serviceBrand: undefined;
 
 	constructor(
-		@IConfigurationService configurationService: IConfigurationService,
-		@INativeEnvironmentService environmentService: INativeEnvironmentService,
 		@ILogService logService: ILogService,
 		@IAgentHostProxyResolver private readonly _proxyResolver: IAgentHostProxyResolver,
 	) {
-		super('local', configurationService, environmentService, logService);
+		super(logService);
 	}
 
 	override request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
@@ -58,6 +58,24 @@ export class AgentHostRequestService extends RequestService {
 
 	override resolveProxy(url: string): Promise<string | undefined> {
 		return this._proxyResolver.resolveProxy(url);
+	}
+
+	override async lookupAuthorization(_authInfo: AuthInfo): Promise<Credentials | undefined> {
+		return undefined;
+	}
+
+	override async lookupKerberosAuthorization(url: string): Promise<string | undefined> {
+		try {
+			const spn = this._proxyResolver.getConfigurationValue<string>(AgentHostProxyConfigKey.ProxyKerberosServicePrincipal);
+			return `Negotiate ${await lookupKerberosAuthorization(url, spn, this.logService, 'AgentHostRequestService#lookupKerberosAuthorization')}`;
+		} catch (error) {
+			this.logService.debug('AgentHostRequestService#lookupKerberosAuthorization Kerberos authentication failed', error);
+			return undefined;
+		}
+	}
+
+	override loadCertificates(): Promise<string[]> {
+		return loadAgentHostCertificates(this.logService);
 	}
 
 	private async _request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {

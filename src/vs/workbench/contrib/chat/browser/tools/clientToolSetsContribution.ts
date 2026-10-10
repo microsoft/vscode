@@ -54,9 +54,23 @@ export class ClientToolSetsContribution extends Disposable implements IWorkbench
 
 		if (workspaceService.isSessionsWindow) {
 			this._register(this._registerDynamicToolSet(toolsService, {
+				id: 'vscode-remote-sessions',
+				referenceName: 'vscodeRemoteSessions',
+				icon: Codicon.remote,
+				description: localize('clientToolSet.remoteSessions.description', "Remote Sessions"),
+				detail: localize('clientToolSet.remoteSessions.detail', "Find remote agent hosts, delegate and inspect work, and send messages between hosts."),
+				members: [
+					'list_agent_hosts',
+					'create_remote_session',
+					'get_remote_session',
+					'send_remote_message',
+				],
+			}));
+
+			this._register(this._registerDynamicToolSet(toolsService, {
 				id: 'vscode-automations',
 				referenceName: 'vscodeAutomations',
-				icon: Codicon.watch,
+				icon: Codicon.calendar,
 				description: localize('clientToolSet.automations.description', "Automations"),
 				detail: localize('clientToolSet.automations.detail', "List, configure, run, and delete scheduled agent automations."),
 				members: [

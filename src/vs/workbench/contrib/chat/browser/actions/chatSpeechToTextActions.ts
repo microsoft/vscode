@@ -36,7 +36,7 @@ import { cancelDictation, isDictating, startDictation, stopDictation } from '../
 export const ChatSpeechToTextConfigured = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.has(ChatContextKeys.speechToTextConfigured.key));
 /** True while the selected dictation backend is preparing. */
 export const ChatSpeechToTextPreparing = ContextKeyExpr.has(ChatContextKeys.speechToTextPreparing.key);
-const ChatSpeechToTextMaiBackend = ContextKeyExpr.equals('config.dictation.model', 'mai');
+const ChatSpeechToTextMaiBackend = ContextKeyExpr.has(ChatContextKeys.speechToTextUsesMai.key);
 /**
  * True unless the user has hidden the chat-input dictation microphone button via
  * {@link DictationSettingId.ShowButton}. Gates only the toolbar button; the
@@ -140,8 +140,9 @@ export class ToggleChatSpeechToTextAction extends Action2 {
 		super({
 			id: ToggleChatSpeechToTextAction.ID,
 			title: localize2('chat.speechToText.start', "Dictate (Speech to Text)"),
+			precondition: ChatContextKeys.transcriptProgressActive.negate(),
 			category: CHAT_CATEGORY,
-			icon: Codicon.mic,
+			icon: Codicon.micCompact,
 			f1: false,
 			toggled: {
 				condition: ChatContextKeys.speechToTextRecording,
@@ -177,7 +178,7 @@ export class ToggleChatSpeechToTextAction extends Action2 {
 		const widgetService = accessor.get(IChatWidgetService);
 
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
-		if (!widget) {
+		if (!widget || widget.isTranscriptProgressActive) {
 			return;
 		}
 
@@ -255,6 +256,7 @@ class HoldToSpeechToTextAction extends Action2 {
 		super({
 			id: HoldToSpeechToTextAction.ID,
 			title: localize2('chat.speechToText.hold', "Hold to Dictate (Speech to Text)"),
+			precondition: ChatContextKeys.transcriptProgressActive.negate(),
 			category: CHAT_CATEGORY,
 			f1: false,
 		});
@@ -267,7 +269,7 @@ class HoldToSpeechToTextAction extends Action2 {
 		const keybindingService = accessor.get(IKeybindingService);
 
 		const widget = context?.widget ?? widgetService.lastFocusedWidget;
-		if (!widget || speechService.state !== ChatSpeechToTextState.Idle) {
+		if (!widget || widget.isTranscriptProgressActive || speechService.state !== ChatSpeechToTextState.Idle) {
 			return;
 		}
 

@@ -5,22 +5,25 @@
 
 import { URI } from '../../../../base/common/uri.js';
 import type { ITelemetryService } from '../../../telemetry/common/telemetry.js';
-import { AgentSession } from '../../common/agentService.js';
+import { AgentSession, COPILOT_CLI_AGENT_PROVIDER_ID, type AgentSubagentKind } from '../../common/agent.js';
+import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { isSubagentSession } from '../../common/state/sessionState.js';
+import { toInitiatorTelemetry, toSubagentKindTelemetry, type IAgentHostEventClassification, type IAgentHostEventTelemetry, type IAgentHostSubagentKindClassification } from '../agentHostTelemetryReporter.js';
 
 type TodoStoreOperation = 'read' | 'write' | 'mixed';
 type TodoStoreTarget = 'todos' | 'todo_deps' | 'both';
 
-type TodoStoreOperationEvent = {
+type TodoStoreOperationEvent = IAgentHostEventTelemetry & {
 	operation: TodoStoreOperation;
 	target: TodoStoreTarget;
 	toolCallId: string;
 	provider: string;
 	agentSessionId: string;
 	isSubagentSession: boolean;
+	subagentKind?: AgentSubagentKind;
 };
 
-type TodoStoreOperationClassification = {
+type TodoStoreOperationClassification = IAgentHostEventClassification & IAgentHostSubagentKindClassification & {
 	operation: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the SQL operation read from, wrote to, or both read from and wrote to todo storage.' };
 	target: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the SQL operation referenced todo items, todo dependencies, or both.' };
 	toolCallId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier of the SQL tool call, used to correlate with generic tool telemetry.' };
@@ -41,18 +44,21 @@ interface ISqlToken {
 	readonly kind: 'identifier' | 'punctuation';
 }
 
-export function reportCopilotTodoStoreOperation(telemetryService: ITelemetryService, session: URI, toolCallId: string, toolName: string, toolInput: Readonly<Record<string, unknown>> | undefined): void {
+export function reportCopilotTodoStoreOperation(telemetryService: ITelemetryService, session: URI, toolCallId: string, toolName: string, toolInput: Readonly<Record<string, unknown>> | undefined, clientContext?: IAgentHostClientTelemetryContext, subagentKind?: AgentSubagentKind): void {
 	const operation = getCopilotTodoStoreOperationData(toolName, toolInput);
 	if (!operation) {
 		return;
 	}
 
+	const isSubagent = isSubagentSession(session);
 	telemetryService.publicLog2<TodoStoreOperationEvent, TodoStoreOperationClassification>('todoStoreOperation', {
+		...toInitiatorTelemetry(clientContext),
 		...operation,
 		toolCallId,
-		provider: session.scheme,
+		provider: COPILOT_CLI_AGENT_PROVIDER_ID,
 		agentSessionId: AgentSession.id(session),
-		isSubagentSession: isSubagentSession(session),
+		isSubagentSession: isSubagent,
+		...toSubagentKindTelemetry(isSubagent, subagentKind),
 	});
 }
 

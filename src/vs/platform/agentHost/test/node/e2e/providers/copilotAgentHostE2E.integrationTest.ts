@@ -25,26 +25,30 @@
  */
 
 import assert from 'assert';
-import { mkdtemp, writeFile } from 'fs/promises';
+import { writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { CollectAgentHostDebugLogsExtensionMethod, type IAgentHostExtensionCommandMap } from '../../../../common/agentHostExtensionProtocol.js';
 import { readToolCallMeta } from '../../../../common/meta/agentToolCallMeta.js';
-import { MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildDefaultChatUri, getInlineToolInput, type MessageAttachment } from '../../../../common/state/sessionState.js';
-import { ActionType, type ChatErrorAction, type ChatToolCallCompleteAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatUsageAction } from '../../../../common/state/sessionActions.js';
+import { ChatInputQuestionKind, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, buildDefaultChatUri, getErrorResponsePart, getInlineToolInput, type MessageAttachment } from '../../../../common/state/sessionState.js';
+import { ActionType, type ChatErrorAction, type ChatInputRequestedAction, type ChatToolCallCompleteAction, type ChatToolCallDeltaAction, type ChatToolCallReadyAction, type ChatToolCallStartAction, type ChatUsageAction } from '../../../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import {
 	AgentHostE2EServerLease, assertToolCallCompleteText, createRealSession, dispatchTurn,
 	driveTurnToCompletion, driveTurnWithAttachmentsToCompletion, removeTempDirs, resolveGitHubToken, runAhpSnapshotTest,
 } from '../harness/agentHostE2ETestHarness.js';
-import { assertRecordedAhpSnapshot } from '../harness/ahpSnapshot.js';
+import { assertRecordedAhpSnapshot, waitForChatTurnComplete } from '../harness/ahpSnapshot.js';
+import { summarizeAnthropicRequest, summarizeResponsesRequest } from '../harness/capiWireCodec.js';
 import { defineAgentHostE2ETests } from '../suites/agentHostE2ESuites.js';
 import { fetchSessionWithChat, getActionEnvelope, isActionNotification, TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
 import { COPILOT_CONFIG } from './copilotTestConfiguration.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
 
 const RECORD_ONLY = process.env['AGENT_HOST_REPLAY_RECORD'] === '1';
 const RECORD = RECORD_ONLY || process.env['AGENT_HOST_UPDATE_SNAPSHOTS'] === '1';
 const isWindows = process.platform === 'win32';
+type DebugLogsArtifactResult = IAgentHostExtensionCommandMap[typeof CollectAgentHostDebugLogsExtensionMethod]['result'];
 
 defineAgentHostE2ETests(COPILOT_CONFIG);
 
@@ -97,10 +101,65 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 		}
 	});
 
+	test('materialized Copilot debug collection includes session event log', async function () {
+		this.timeout(180_000);
+		const workingDirectory = createTestDirectory(join(tmpdir(), 'ahp-copilot-debug-logs-'));
+		tempDirs.push(workingDirectory);
+		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'copilot-debug-logs', createdSessions, URI.file(workingDirectory));
+		await driveTurnToCompletion(client, sessionUri, 'turn-copilot-debug-logs', 'Reply exactly "ready".', 1);
+
+		const debugLogs = await client.call<DebugLogsArtifactResult>(CollectAgentHostDebugLogsExtensionMethod, {
+			kind: 'archive',
+			session: sessionUri,
+		});
+
+		assert.deepStrictEqual({
+			providerLogsIncluded: debugLogs.providerLogsIncluded,
+			hasEventsLog: debugLogs.entries.some(entry => entry.path === 'events.jsonl'),
+		}, {
+			providerLogsIncluded: true,
+			hasEventsLog: true,
+		});
+	});
+
+	test('structured ask_user collects multiple answers in one request', async function () {
+		this.timeout(180_000);
+		const workingDirectory = createTestDirectory(join(tmpdir(), 'ahp-copilot-bulk-input-'));
+		tempDirs.push(workingDirectory);
+		const session = await createRealSession(client, COPILOT_CONFIG, 'copilot-bulk-input', createdSessions, URI.file(workingDirectory));
+		const turnId = 'turn-bulk-input';
+		const result = await driveTurnToCompletion(client, session, turnId,
+			'Call ask_user exactly once with message "Choose preferences" and two string fields in requestedSchema.properties: fruit with enum ["Apple", "Banana"], then color with enum ["Blue", "Green"]. After both answers, reply exactly "preferences collected". Do not call any other tool.',
+			1);
+		const requests = client.receivedNotifications(notification => isActionNotification(notification, ActionType.ChatInputRequested))
+			.map(notification => (getActionEnvelope(notification).action as ChatInputRequestedAction).request);
+
+		assertToolCallCompleteText(client, {
+			channel: buildDefaultChatUri(session),
+			turnId,
+			toolNames: ['ask_user'],
+			expected: [/\bfruit:\s*Apple\b/, /\bcolor:\s*Blue\b/],
+			success: true,
+		});
+		assert.deepStrictEqual({
+			requestCount: requests.length,
+			questions: requests[0]?.questions?.map(question => ({ id: question.id, kind: question.kind })),
+			response: result.responseText.trim(),
+		}, {
+			requestCount: 1,
+			questions: [
+				{ id: 'fruit', kind: ChatInputQuestionKind.SingleSelect },
+				{ id: 'color', kind: ChatInputQuestionKind.SingleSelect },
+			],
+			response: 'preferences collected',
+		});
+	});
+
 	test('client tool reaches ready after start and completes', async function () {
 		this.timeout(180_000);
 		await runAhpSnapshotTest(client, COPILOT_CONFIG, this.test!, createdSessions, tempDirs, {
-			ignoredActionTypes: [ActionType.ChatUsage],
+			// Sandbox metadata can arrive on either side of tool registration.
+			ignoredActionTypes: [ActionType.ChatUsage, ActionType.SessionMetaChanged],
 		});
 
 		const start = client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallStart'))
@@ -125,9 +184,10 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 		});
 	});
 
-	test('request error survives a host restart', async function () {
+	// Windows restores the failed turn as cancelled and drops its persisted request error.
+	(isWindows ? test.skip : test)('request error survives a host restart', async function () {
 		this.timeout(180_000);
-		const workingDirectory = await mkdtemp(join(tmpdir(), 'copilot-error-restart-'));
+		const workingDirectory = createTestDirectory(join(tmpdir(), 'copilot-error-restart-'));
 		tempDirs.push(workingDirectory);
 		const clientId = 'copilot-error-restart';
 		const prompt = 'Reply exactly "unreachable".';
@@ -155,7 +215,8 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 			&& getActionEnvelope(notification).channel === chatUri,
 			90_000,
 		);
-		const liveError = (getActionEnvelope(liveNotification).action as ChatErrorAction).error;
+		const liveErrorPart = (getActionEnvelope(liveNotification).action as ChatErrorAction).part;
+		assert.strictEqual(liveErrorPart.resumable, true);
 
 		client = await lease.restart();
 		client.setWorkingDirectory(workingDirectory);
@@ -170,16 +231,318 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 		const restoredTurn = reopened.turns.find(turn => turn.message.text === prompt);
 		assert.deepStrictEqual({
 			state: restoredTurn?.state,
-			error: restoredTurn?.error,
+			error: getErrorResponsePart(restoredTurn)?.error,
+			resumable: getErrorResponsePart(restoredTurn)?.resumable,
 		}, {
 			state: TurnState.Error,
-			error: liveError,
+			error: liveErrorPart.error,
+			resumable: true,
+		});
+	});
+
+	test('resumes a failed turn in place', async function () {
+		this.timeout(180_000);
+		const workingDirectory = createTestDirectory(join(tmpdir(), 'copilot-failed-turn-resume-'));
+		tempDirs.push(workingDirectory);
+		const prompt = '$error';
+		if (!lease) {
+			throw new Error('Agent Host E2E server lease was not initialized.');
+		}
+		await lease.release([], true);
+		await lease.dispose();
+		lease = new AgentHostE2EServerLease(COPILOT_CONFIG);
+		({ client } = await lease.acquire(this.test!.title));
+		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'copilot-failed-turn-resume', createdSessions, URI.file(workingDirectory));
+		const chatUri = buildDefaultChatUri(sessionUri);
+		const turnId = 'turn-failed-resume';
+		client.dispatch({
+			channel: sessionUri,
+			clientSeq: 1,
+			action: { type: ActionType.SessionTitleChanged, title: 'Recovery test' },
+		});
+		await client.waitForNotification(notification =>
+			isActionNotification(notification, ActionType.SessionTitleChanged)
+			&& getActionEnvelope(notification).channel === sessionUri,
+			30_000,
+		);
+
+		client.beginAhpSnapshotRound();
+		dispatchTurn(client, sessionUri, turnId, prompt, 2);
+		const errorNotification = await client.waitForNotification(notification =>
+			isActionNotification(notification, ActionType.ChatError)
+			&& getActionEnvelope(notification).channel === chatUri,
+			90_000,
+		);
+		const errorEnvelope = getActionEnvelope(errorNotification);
+		const errorAction = errorEnvelope.action as ChatErrorAction;
+		assert.strictEqual(errorAction.part.resumable, true);
+
+		const peerClientId = 'copilot-failed-turn-resume-peer';
+		const peer = await lease.connectClient();
+		await peer.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: peerClientId }, 30_000);
+		await peer.call('subscribe', { channel: chatUri }, 30_000);
+		const modelRequestCountBeforeResume = lease.observedModelRequestBodies.length;
+
+		try {
+			client.beginAhpSnapshotRound();
+			const primaryResumeObserved = client.waitForNotification(notification =>
+				isActionNotification(notification, ActionType.ChatTurnResume)
+				&& getActionEnvelope(notification).channel === chatUri
+				&& getActionEnvelope(notification).origin?.clientId === 'copilot-failed-turn-resume'
+				&& getActionEnvelope(notification).origin?.clientSeq === 3,
+				30_000,
+			);
+			const peerResumeObserved = client.waitForNotification(notification =>
+				isActionNotification(notification, ActionType.ChatTurnResume)
+				&& getActionEnvelope(notification).channel === chatUri
+				&& getActionEnvelope(notification).origin?.clientId === peerClientId
+				&& getActionEnvelope(notification).origin?.clientSeq === 1,
+				30_000,
+			);
+			client.dispatch({
+				channel: chatUri,
+				clientSeq: 3,
+				action: { type: ActionType.ChatTurnResume, turnId },
+			});
+			peer.dispatch({
+				channel: chatUri,
+				clientSeq: 1,
+				action: { type: ActionType.ChatTurnResume, turnId },
+			});
+			await Promise.all([
+				primaryResumeObserved,
+				peerResumeObserved,
+				...[client, peer].map(resumeClient => waitForChatTurnComplete(resumeClient, chatUri, turnId, errorEnvelope.serverSeq)),
+			]);
+			await assertRecordedAhpSnapshot(this.test!, client, { profile: 'behavior' });
+
+			const [finalState, peerFinalState] = await Promise.all([
+				fetchSessionWithChat(client, sessionUri),
+				fetchSessionWithChat(peer, sessionUri),
+			]);
+			const resumeEnvelopes = client.receivedNotifications(notification =>
+				isActionNotification(notification, ActionType.ChatTurnResume)
+				&& getActionEnvelope(notification).channel === chatUri
+				&& (getActionEnvelope(notification).action as { readonly turnId: string }).turnId === turnId,
+			).map(getActionEnvelope);
+			const acceptedResumes = resumeEnvelopes.filter(envelope => envelope.rejectionReason === undefined);
+			const rejectedResumes = resumeEnvelopes.filter(envelope => envelope.rejectionReason !== undefined);
+			const resumedRequest = lease.observedModelRequestBodies.at(-1);
+			assert.ok(resumedRequest);
+			const summarizedRequest = summarizeAnthropicRequest(resumedRequest) ?? summarizeResponsesRequest(resumedRequest);
+			assert.ok(summarizedRequest);
+			const promptOccurrences = summarizedRequest.messages
+				.filter(message => message.role === 'user')
+				.reduce((count, message) => count + (JSON.stringify(message.content).split(prompt).length - 1), 0);
+			const summarizeTurns = (turns: typeof finalState.turns) => turns.map(turn => ({
+				id: turn.id,
+				message: turn.message.text,
+				state: turn.state,
+				errorCount: turn.responseParts.filter(part => part.kind === ResponsePartKind.Error).length,
+			}));
+
+			assert.deepStrictEqual({
+				acceptedResumeCount: acceptedResumes.length,
+				rejectedResumeCount: rejectedResumes.length,
+				resumeOriginClientIds: resumeEnvelopes.map(envelope => envelope.origin?.clientId).sort(),
+				continuationModelRequestCount: lease.observedModelRequestBodies.length - modelRequestCountBeforeResume,
+				promptOccurrences,
+				activeTurns: [finalState.activeTurn, peerFinalState.activeTurn],
+				clientTurns: summarizeTurns(finalState.turns),
+				peerTurns: summarizeTurns(peerFinalState.turns),
+			}, {
+				acceptedResumeCount: 1,
+				rejectedResumeCount: 1,
+				resumeOriginClientIds: ['copilot-failed-turn-resume', peerClientId],
+				continuationModelRequestCount: 1,
+				promptOccurrences: 1,
+				activeTurns: [undefined, undefined],
+				clientTurns: [{
+					id: turnId,
+					message: prompt,
+					state: TurnState.Complete,
+					errorCount: 1,
+				}],
+				peerTurns: [{
+					id: turnId,
+					message: prompt,
+					state: TurnState.Complete,
+					errorCount: 1,
+				}],
+			});
+		} finally {
+			peer.close();
+		}
+	});
+
+	test('resumes the same turn after repeated failures', async function () {
+		this.timeout(180_000);
+		const workingDirectory = createTestDirectory(join(tmpdir(), 'copilot-repeated-failed-turn-resume-'));
+		tempDirs.push(workingDirectory);
+		const prompt = '$error';
+		if (!lease) {
+			throw new Error('Agent Host E2E server lease was not initialized.');
+		}
+		await lease.release([], true);
+		await lease.dispose();
+		lease = new AgentHostE2EServerLease(COPILOT_CONFIG);
+		({ client } = await lease.acquire(this.test!.title));
+		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'copilot-repeated-failed-turn-resume', createdSessions, URI.file(workingDirectory));
+		const chatUri = buildDefaultChatUri(sessionUri);
+		const turnId = 'turn-repeated-failed-resume';
+
+		dispatchTurn(client, sessionUri, turnId, prompt, 1);
+		const firstErrorNotification = await client.waitForNotification(notification =>
+			isActionNotification(notification, ActionType.ChatError)
+			&& getActionEnvelope(notification).channel === chatUri,
+			90_000,
+		);
+		const firstErrorEnvelope = getActionEnvelope(firstErrorNotification);
+		assert.strictEqual((firstErrorEnvelope.action as ChatErrorAction).part.resumable, true);
+
+		if (RECORD) {
+			lease.setRecordingModelResponse({
+				status: 400,
+				headers: {
+					'content-type': 'application/json',
+				},
+				body: '{"error":{"message":"Injected second recoverable E2E failure.","type":"invalid_request_error","code":"invalid_request_error"}}',
+			});
+		}
+		client.dispatch({
+			channel: chatUri,
+			clientSeq: 2,
+			action: { type: ActionType.ChatTurnResume, turnId },
+		});
+		const secondErrorNotification = await client.waitForNotification(notification =>
+			isActionNotification(notification, ActionType.ChatError)
+			&& getActionEnvelope(notification).channel === chatUri
+			&& getActionEnvelope(notification).serverSeq > firstErrorEnvelope.serverSeq,
+			90_000,
+		);
+		const secondErrorEnvelope = getActionEnvelope(secondErrorNotification);
+		assert.strictEqual((secondErrorEnvelope.action as ChatErrorAction).part.resumable, true);
+
+		client.dispatch({
+			channel: chatUri,
+			clientSeq: 3,
+			action: { type: ActionType.ChatTurnResume, turnId },
+		});
+		await waitForChatTurnComplete(client, chatUri, turnId, secondErrorEnvelope.serverSeq);
+
+		const finalState = await fetchSessionWithChat(client, sessionUri);
+		assert.deepStrictEqual({
+			modelRequestCount: lease.observedModelRequestBodies.length,
+			activeTurn: finalState.activeTurn,
+			turns: finalState.turns.map(turn => ({
+				id: turn.id,
+				message: turn.message.text,
+				state: turn.state,
+				errorCount: turn.responseParts.filter(part => part.kind === ResponsePartKind.Error).length,
+			})),
+		}, {
+			modelRequestCount: 3,
+			activeTurn: undefined,
+			turns: [{
+				id: turnId,
+				message: prompt,
+				state: TurnState.Complete,
+				errorCount: 2,
+			}],
+		});
+	});
+
+	// Replay serves the full recorded response immediately, so it has no active streaming window to terminate.
+	(RECORD_ONLY ? test : test.skip)('restores and resumes a turn interrupted by host shutdown', async function () {
+		this.timeout(240_000);
+		const workingDirectory = createTestDirectory(join(tmpdir(), 'copilot-host-shutdown-resume-'));
+		tempDirs.push(workingDirectory);
+		const clientId = 'copilot-host-shutdown-resume';
+		const prompt = 'Reply with exactly the numbers 1 through 40, separated by spaces.';
+		if (!lease) {
+			throw new Error('Agent Host E2E server lease was not initialized.');
+		}
+		const sessionUri = await createRealSession(client, COPILOT_CONFIG, clientId, createdSessions, URI.file(workingDirectory));
+		const chatUri = buildDefaultChatUri(sessionUri);
+		const turnId = 'turn-host-shutdown-resume';
+
+		dispatchTurn(client, sessionUri, turnId, prompt, 1);
+		await client.waitForNotification(notification =>
+			isActionNotification(notification, ActionType.ChatResponsePart)
+			&& getActionEnvelope(notification).channel === chatUri
+			&& (getActionEnvelope(notification).action as { readonly turnId: string }).turnId === turnId,
+			90_000,
+		);
+		const interruptedClient = client;
+		client = await lease.crashAndRestart();
+		const terminalActionsBeforeHostDeath = interruptedClient.receivedNotifications(notification =>
+			(isActionNotification(notification, ActionType.ChatError)
+				|| isActionNotification(notification, ActionType.ChatTurnComplete)
+				|| isActionNotification(notification, ActionType.ChatTurnCancelled))
+			&& getActionEnvelope(notification).channel === chatUri
+			&& (getActionEnvelope(notification).action as { readonly turnId: string }).turnId === turnId,
+		);
+		assert.deepStrictEqual(terminalActionsBeforeHostDeath, []);
+
+		client.setWorkingDirectory(workingDirectory);
+		await client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: `${clientId}-reopened` }, 30_000);
+		await client.call('authenticate', {
+			channel: ROOT_STATE_URI,
+			resource: 'https://api.github.com',
+			token: COPILOT_CONFIG.githubToken ?? resolveGitHubToken(),
+		}, 30_000);
+
+		const restoredState = await fetchSessionWithChat(client, sessionUri);
+		const restoredTurn = restoredState.turns.find(turn => turn.message.text === prompt);
+		assert.ok(restoredTurn);
+		const restoredError = getErrorResponsePart(restoredTurn);
+		assert.deepStrictEqual({
+			activeTurn: restoredState.activeTurn,
+			turnCount: restoredState.turns.length,
+			turnState: restoredTurn.state,
+			errorType: restoredError?.error.errorType,
+			resumable: restoredError?.resumable,
+		}, {
+			activeTurn: undefined,
+			turnCount: 1,
+			turnState: TurnState.Error,
+			errorType: 'executionInterrupted',
+			resumable: true,
+		});
+
+		const modelRequestCountBeforeResume = lease.observedModelRequestBodies.length;
+		client.dispatch({
+			channel: chatUri,
+			clientSeq: 2,
+			action: { type: ActionType.ChatTurnResume, turnId: restoredTurn.id },
+		});
+		await waitForChatTurnComplete(client, chatUri, restoredTurn.id);
+		const finalState = await fetchSessionWithChat(client, sessionUri);
+
+		assert.deepStrictEqual({
+			continuationModelRequestCount: lease.observedModelRequestBodies.length - modelRequestCountBeforeResume,
+			activeTurn: finalState.activeTurn,
+			turns: finalState.turns.map(turn => ({
+				id: turn.id,
+				message: turn.message.text,
+				state: turn.state,
+				errorCount: turn.responseParts.filter(part => part.kind === ResponsePartKind.Error).length,
+			})),
+		}, {
+			continuationModelRequestCount: 1,
+			activeTurn: undefined,
+			turns: [{
+				id: restoredTurn.id,
+				message: prompt,
+				state: TurnState.Complete,
+				errorCount: 1,
+			}],
 		});
 	});
 
 	test('client tool disconnect before permission still completes the turn', async function () {
 		this.timeout(180_000);
-		const workingDirectory = await mkdtemp(join(tmpdir(), 'copilot-client-tool-disconnect-'));
+		const workingDirectory = createTestDirectory(join(tmpdir(), 'copilot-client-tool-disconnect-'));
 		tempDirs.push(workingDirectory);
 		const clientId = 'copilot-client-tool-disconnect';
 		const sessionUri = await createRealSession(client, COPILOT_CONFIG, clientId, createdSessions, URI.file(workingDirectory));
@@ -245,7 +608,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 
 	test('client tool result confirmation is required before the provider continues', async function () {
 		this.timeout(180_000);
-		const workingDirectory = await mkdtemp(join(tmpdir(), 'copilot-client-tool-result-confirmation-'));
+		const workingDirectory = createTestDirectory(join(tmpdir(), 'copilot-client-tool-result-confirmation-'));
 		tempDirs.push(workingDirectory);
 		const clientId = 'copilot-client-tool-result-confirmation';
 		const sessionUri = await createRealSession(client, COPILOT_CONFIG, clientId, createdSessions, URI.file(workingDirectory));
@@ -357,7 +720,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 
 	(RECORD_ONLY ? test : test.skip)('accepted steering followed by abort does not block the replacement turn', async function () {
 		this.timeout(180_000);
-		const workingDirectory = await mkdtemp(join(tmpdir(), 'copilot-steering-abort-'));
+		const workingDirectory = createTestDirectory(join(tmpdir(), 'copilot-steering-abort-'));
 		tempDirs.push(workingDirectory);
 		const clientId = 'copilot-steering-abort';
 		const sessionUri = await createRealSession(client, COPILOT_CONFIG, clientId, createdSessions, URI.file(workingDirectory));
@@ -444,7 +807,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 
 	test('usage reports include Copilot cost metadata', async function () {
 		this.timeout(120_000);
-		const workingDirectory = await mkdtemp(join(tmpdir(), 'copilot-cost-report-'));
+		const workingDirectory = createTestDirectory(join(tmpdir(), 'copilot-cost-report-'));
 		tempDirs.push(workingDirectory);
 
 		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'real-sdk-usage', createdSessions, URI.file(workingDirectory));
@@ -486,7 +849,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 	test('attaches a Python file and reads its function names', async function () {
 		this.timeout(120_000);
 
-		const workingDirectory = await mkdtemp(`${tmpdir()}/ahp-attachment-test-`);
+		const workingDirectory = createTestDirectory(`${tmpdir()}/ahp-attachment-test-`);
 		tempDirs.push(workingDirectory);
 		const filePath = join(workingDirectory, 'calculator.py');
 		await writeFile(filePath, [
@@ -519,7 +882,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 	test('attaches a text blob and reads its function names', async function () {
 		this.timeout(120_000);
 
-		const workingDirectory = await mkdtemp(join(tmpdir(), 'copilot-text-blob-'));
+		const workingDirectory = createTestDirectory(join(tmpdir(), 'copilot-text-blob-'));
 		tempDirs.push(workingDirectory);
 
 		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'real-sdk-blob-attachment', createdSessions, URI.file(workingDirectory));
@@ -542,7 +905,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 	(isWindows ? test.skip : test)('shell read helper remains a non-terminal tool', async function () {
 		this.timeout(180_000);
 
-		const workingDirectory = await mkdtemp(join(tmpdir(), 'copilot-read-shell-'));
+		const workingDirectory = createTestDirectory(join(tmpdir(), 'copilot-read-shell-'));
 		tempDirs.push(workingDirectory);
 		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'real-sdk-read-shell', createdSessions, URI.file(workingDirectory));
 		const chatUri = buildDefaultChatUri(sessionUri);
@@ -598,6 +961,10 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 			ignoredActionTypes: [
 				ActionType.ChatUsage,
 				ActionType.ChatToolCallDelta,
+				// The async shell is published as background work from a separate task-list read,
+				// so its timing against the tool calls isn't part of this scenario.
+				ActionType.ChatBackgroundWorkSet,
+				ActionType.ChatBackgroundWorkRemoved,
 				ActionType.SessionChatUpdated,
 				ActionType.SessionTitleChanged,
 				ActionType.SessionServerToolsChanged,
@@ -613,7 +980,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 	(isWindows ? test.skip : test)('strips redundant `cd <workingDirectory> &&` prefix from shell tool calls', async function () {
 		this.timeout(180_000);
 
-		const workspaceDir = await mkdtemp(`${tmpdir()}/ahp-cd-strip-test-`);
+		const workspaceDir = createTestDirectory(`${tmpdir()}/ahp-cd-strip-test-`);
 		tempDirs.push(workspaceDir);
 		const expectedWorkingDirPath = workspaceDir;
 		const sessionUri = await createRealSession(client, COPILOT_CONFIG, 'real-sdk-cd-strip', createdSessions, URI.file(workspaceDir));
@@ -698,7 +1065,7 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 			);
 			if (isActionNotification(next, 'chat/error')) {
 				const action = getActionEnvelope(next).action as ChatErrorAction;
-				throw new Error(`cd-strip turn failed: ${JSON.stringify(action.error)}`);
+				throw new Error(`cd-strip turn failed: ${JSON.stringify(action.part.error)}`);
 			}
 			if (isActionNotification(next, 'chat/turnComplete')) {
 				break;

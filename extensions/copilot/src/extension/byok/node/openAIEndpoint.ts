@@ -25,7 +25,9 @@ function hydrateBYOKErrorMessages(response: ChatResponse): ChatResponse {
 			type: response.type,
 			requestId: response.requestId,
 			serverRequestId: response.serverRequestId,
-			reason: JSON.stringify(response.streamError),
+			// A stream error carrying no message has no diagnostic value, so keep the
+			// original reason rather than replacing it with a hollow serialized struct.
+			reason: response.streamError.message ? JSON.stringify(response.streamError) : response.reason,
 		};
 	} else if (response.type === ChatFetchResponseType.RateLimited) {
 		return {
@@ -146,13 +148,21 @@ export class OpenAIEndpoint extends ChatEndpoint {
 	 */
 	public readonly ownsAuthorization = true;
 
+	/**
+	 * BYOK gateways (e.g. LiteLLM) may not forward `prompt_cache_breakpoint` markers, so explicit
+	 * Responses API prompt caching stays off unless the user opts in.
+	 */
+	public readonly promptCacheBreakpointsRequireOptIn = true;
+
 	protected override getCompletionsCallback(): RawMessageConversionCallback {
 		const supportsThinking = !!this.modelMetadata.capabilities.supports.thinking;
 		return (out, data) => {
-			if (data?.id) {
-				out.cot_id = data.id;
+			if (data) {
 				const text = Array.isArray(data.text) ? data.text.join('') : data.text;
-				out.cot_summary = text;
+				if (data.id) {
+					out.cot_id = data.id;
+					out.cot_summary = text;
+				}
 				if (supportsThinking) {
 					out.reasoning_content = text;
 					out.reasoning = text;
@@ -261,24 +271,42 @@ export class OpenAIEndpoint extends ChatEndpoint {
 		return trimmed;
 	}
 
+	/**
+	 * Whether the Responses API server retains prior responses so requests can
+	 * chain via `previous_response_id` and send only post-marker history.
+	 */
+	protected get supportsStatefulResponses(): boolean {
+		return true;
+	}
+
+	/**
+	 * Whether this endpoint can resume a Responses API response ID.
+	 */
+	protected override canResumeResponses(responseId: string): boolean {
+		return !this.modelMetadata.zeroDataRetentionEnabled
+			&& this.supportsStatefulResponses
+			&& responseId.startsWith('resp_');
+	}
+
 	override createRequestBody(options: ICreateEndpointBodyOptions): IEndpointBody {
 		if (this.useResponsesApi) {
 			// Handle Responses API: customize the body directly
 			const zdr = !!this.modelMetadata.zeroDataRetentionEnabled;
 			// When ZDR is on the server refuses to retain responses, so we must
 			// not chain via `previous_response_id` and must not ask it to `store`.
-			options.ignoreStatefulMarker = options.ignoreStatefulMarker || zdr;
-			const body = super.createRequestBody(options);
+			options.ignoreStatefulMarker = options.ignoreStatefulMarker || zdr || !this.supportsStatefulResponses;
+			let body = super.createRequestBody(options);
+			if (body.previous_response_id && !body.previous_response_id.startsWith('resp_')) {
+				// The marker (e.g. a CAPI response ID) can't be chained here, but history was
+				// already sliced at it. Rebuild so the server receives the full history.
+				body = super.createRequestBody({ ...options, ignoreStatefulMarker: true });
+			}
 			body.store = !zdr;
 			body.n = undefined;
 			body.stream_options = undefined;
 			if (!this.modelMetadata.capabilities.supports.thinking) {
 				body.reasoning = undefined;
 				body.include = undefined;
-			}
-			if (body.previous_response_id && (!body.previous_response_id.startsWith('resp_') || zdr)) {
-				// Don't use a response ID from CAPI or when zero data retention is enabled
-				body.previous_response_id = undefined;
 			}
 			this._applyReasoningEffort(body, options);
 			return this._applyConfiguredModelOptions(body, options);

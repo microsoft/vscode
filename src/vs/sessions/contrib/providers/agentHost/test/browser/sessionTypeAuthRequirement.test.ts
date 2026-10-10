@@ -9,6 +9,7 @@ import { GITHUB_COPILOT_PROTECTED_RESOURCE } from '../../../../../../platform/ag
 import type { AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import type { ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { resolveAgentAuthRequirement } from '../../browser/baseAgentHostSessionsProvider.js';
+import { areLocalModelsLoaded, getSignedOutModelsNotificationState, SignedOutModelsNotificationState } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSignedOutModelsNotification.js';
 import { SessionTypeAuthRequirement } from '../../../../../services/sessions/common/session.js';
 
 function agent(protectedResources: ProtectedResourceMetadata[] | undefined, modelCount: number): AgentInfo {
@@ -66,4 +67,61 @@ suite('Agent Host - session type auth requirement', () => {
 
 		assert.deepStrictEqual(usable, [true, false, false]);
 	});
+
+	test('no-model notification follows sign-in and model availability', () => {
+		const ready = {
+			allowSignedOutWhenUsable: true,
+			accountResolved: true,
+			entitlementResolved: true,
+			signedIn: false,
+			hasCopilotHarness: true,
+			hasModels: false,
+			localModelsLoaded: true,
+			gracePeriodElapsed: false,
+			setupDialogVisible: false,
+		};
+		assert.deepStrictEqual({
+			featureDisabled: getSignedOutModelsNotificationState({ ...ready, allowSignedOutWhenUsable: false }),
+			loading: getSignedOutModelsNotificationState({ ...ready, localModelsLoaded: false }),
+			loadingPastGracePeriod: getSignedOutModelsNotificationState({ ...ready, localModelsLoaded: false, gracePeriodElapsed: true }),
+			accountUnresolved: getSignedOutModelsNotificationState({ ...ready, accountResolved: false }),
+			entitlementUnresolved: getSignedOutModelsNotificationState({ ...ready, entitlementResolved: false }),
+			harnessUnavailable: getSignedOutModelsNotificationState({ ...ready, hasCopilotHarness: false }),
+			visible: getSignedOutModelsNotificationState(ready),
+			modelsAvailable: getSignedOutModelsNotificationState({ ...ready, hasModels: true }),
+			signedIn: getSignedOutModelsNotificationState({ ...ready, signedIn: true }),
+			setupDialogVisible: getSignedOutModelsNotificationState({ ...ready, setupDialogVisible: true }),
+		}, {
+			featureDisabled: SignedOutModelsNotificationState.Hidden,
+			loading: SignedOutModelsNotificationState.Waiting,
+			loadingPastGracePeriod: SignedOutModelsNotificationState.Visible,
+			accountUnresolved: SignedOutModelsNotificationState.Hidden,
+			entitlementUnresolved: SignedOutModelsNotificationState.Hidden,
+			harnessUnavailable: SignedOutModelsNotificationState.Hidden,
+			visible: SignedOutModelsNotificationState.Visible,
+			modelsAvailable: SignedOutModelsNotificationState.Hidden,
+			signedIn: SignedOutModelsNotificationState.Hidden,
+			setupDialogVisible: SignedOutModelsNotificationState.Hidden,
+		});
+	});
+
+	test('No-model notification waits for extension, configuration, and provider discovery', () => {
+		const resolvedVendors = new Set(['anthropic']);
+		const hasResolvedVendor = (vendor: string) => resolvedVendors.has(vendor);
+
+		assert.deepStrictEqual({
+			extensionsLoading: areLocalModelsLoaded(false, true, [], hasResolvedVendor),
+			configurationLoading: areLocalModelsLoaded(true, false, [], hasResolvedVendor),
+			providerLoading: areLocalModelsLoaded(true, true, ['anthropic', 'openai'], hasResolvedVendor),
+			settledEmpty: areLocalModelsLoaded(true, true, [], hasResolvedVendor),
+			settledConfigured: areLocalModelsLoaded(true, true, ['anthropic'], hasResolvedVendor),
+		}, {
+			extensionsLoading: false,
+			configurationLoading: false,
+			providerLoading: false,
+			settledEmpty: true,
+			settledConfigured: true,
+		});
+	});
+
 });

@@ -20,6 +20,7 @@ mod agent_host_registry_acl_windows;
 mod challenge;
 mod control_server;
 pub mod idle_timeout;
+pub(crate) mod machine_status;
 mod nosleep;
 #[cfg(target_os = "linux")]
 mod nosleep_linux;
@@ -42,8 +43,7 @@ pub mod user_data_path;
 mod wsl_detect;
 
 pub use control_server::{
-	ready_active_agent_host, serve, serve_stream, AuthRequired, Next, ServeStreamParams,
-	SharedActiveAgentHost,
+	serve, serve_stream, AuthRequired, Next, ServeStreamParams, SharedActiveAgentHost,
 };
 pub use nosleep::SleepInhibitor;
 pub use service::{

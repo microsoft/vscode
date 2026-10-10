@@ -41,7 +41,7 @@ use crate::{
 		code_server::CodeServerArgs,
 		create_service_manager,
 		dev_tunnels::{self, DevTunnels},
-		legal, local_forwarding,
+		legal, local_forwarding, machine_status,
 		paths::get_all_servers,
 		protocol, serve_stream,
 		shutdown_signal::ShutdownRequest,
@@ -78,7 +78,7 @@ impl From<AuthProvider> for crate::auth::AuthProvider {
 	}
 }
 
-pub(super) fn fulfill_existing_tunnel_args(
+fn fulfill_existing_tunnel_args(
 	d: ExistingTunnelArgs,
 	name_arg: &Option<String>,
 ) -> Option<dev_tunnels::ExistingTunnel> {
@@ -595,6 +595,8 @@ async fn serve_with_csa(
 	mut csa: CodeServerArgs,
 	app_mutex_name: Option<&'static str>,
 ) -> Result<i32, AnyError> {
+	machine_status::set_stdout_enabled(gateway_args.machine_status);
+
 	let log_broadcast = BroadcastLogSink::new();
 	log = log.tee(log_broadcast.clone());
 	log::install_global_logger(log.clone()); // re-install so that library logs are captured
@@ -645,6 +647,7 @@ async fn serve_with_csa(
 					log: log.clone(),
 					shutdown: shutdown.clone(),
 					stream,
+					machine_status_enabled: gateway_args.machine_status,
 				})
 				.await;
 				if should_exit {
@@ -688,6 +691,8 @@ async fn serve_with_csa(
 			paths: &paths,
 			code_server_args: &csa,
 			platform,
+			user_data_dir: gateway_args.user_data_dir.clone(),
+			delegate_to_editor: gateway_args.delegate_to_editor,
 			log_broadcast: &log_broadcast,
 			shutdown: shutdown.clone(),
 			server: &mut server,

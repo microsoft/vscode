@@ -11,9 +11,8 @@ import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { readSessionGitHubState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { ISession, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
-import { createPullRequestBootstrapPrompt, createPullRequestContextAttachment, createPullRequestQuickPickItems, createPullRequestSessionMetadata, getExistingPullRequests, getGitHubRepositoryFromRemotes, getPullRequestNumberFromCheckoutRef, IPullRequestQuickPickItem, mergePullRequestSummaries, pullRequestMatchesQuery, resolvePullRequestSessionRepository } from '../../browser/pullRequestPicker.js';
+import { createPullRequestBootstrapPrompt, createPullRequestContextAttachment, createPullRequestQuickPickItems, createPullRequestUrl, getExistingPullRequests, getPullRequestNumberFromCheckoutRef, IPullRequestQuickPickItem, isPullRequestAvailable, mergePullRequestSummaries, pullRequestMatchesQuery, resolvePullRequestSessionRepository } from '../../browser/pullRequestPicker.js';
 import { IGitHubPullRequestSummary } from '../../common/types.js';
 import { createAndOpenPullRequestSession } from '../../browser/pullRequestSessionCreation.js';
 
@@ -59,6 +58,18 @@ suite('Create Session from Pull Request', () => {
 		});
 	});
 
+	test('uses semantic open and draft pull request icon classes', () => {
+		const items = createPullRequestQuickPickItems([
+			pullRequest(17),
+			pullRequest(18, { isDraft: true }),
+		], { numbers: new Set(), headRefs: new Set() }).filter((item): item is IPullRequestQuickPickItem => item.type !== 'separator');
+
+		assert.deepStrictEqual(items.map(item => item.iconClass), [
+			'codicon codicon-git-pull-request sessions-pull-request-open',
+			'codicon codicon-git-pull-request-draft sessions-pull-request-draft',
+		]);
+	});
+
 	test('matches pull requests by number, title, and author', () => {
 		const item = pullRequest(42, { title: 'Improve pull request picker' });
 		assert.deepStrictEqual({
@@ -72,6 +83,22 @@ suite('Create Session from Pull Request', () => {
 			author: true,
 			missing: false,
 		});
+	});
+
+	test('only makes same-repository pull requests without existing sessions available', () => {
+		const existingPullRequests = { numbers: new Set([1]), headRefs: new Set(['feature-2']) };
+
+		assert.deepStrictEqual([
+			pullRequest(1),
+			pullRequest(2),
+			pullRequest(3, { isCrossRepository: true }),
+			pullRequest(4),
+		].map(item => isPullRequestAvailable(item, existingPullRequests)), [
+			false,
+			false,
+			false,
+			true,
+		]);
 	});
 
 	test('merges viewer-group results into the loaded catalog without dropping either set', () => {
@@ -101,16 +128,14 @@ suite('Create Session from Pull Request', () => {
 		);
 	});
 
-	test('creates session metadata with the selected pull request identity', () => {
-		assert.deepStrictEqual(
-			readSessionGitHubState(createPullRequestSessionMetadata('microsoft', 'vscode', pullRequest(42, { headRef: 'feature' }))),
-			{
-				owner: 'microsoft',
-				repo: 'vscode',
-				pullRequestUrls: ['https://github.com/microsoft/vscode/pull/42'],
-				pullRequestBranchName: 'feature',
-			},
-		);
+	test('creates the pull request URL the agent host checks out', () => {
+		assert.deepStrictEqual({
+			dotCom: createPullRequestUrl('microsoft', 'vscode', 42),
+			enterprise: createPullRequestUrl('microsoft', 'vscode', 42, 'tenant.ghe.com'),
+		}, {
+			dotCom: 'https://github.com/microsoft/vscode/pull/42',
+			enterprise: 'https://tenant.ghe.com/microsoft/vscode/pull/42',
+		});
 	});
 
 	test('creates a transcript context attachment containing the PR snapshot as JSON', () => {
@@ -137,6 +162,7 @@ suite('Create Session from Pull Request', () => {
 			fullName: attachment.fullName,
 			icon: attachment.icon?.id,
 			uri: attachment.uri.toString(),
+			readyMessage: attachment.readyMessage,
 			value: JSON.parse(attachment.value ?? ''),
 		}, {
 			kind: 'transcriptContext',
@@ -144,6 +170,7 @@ suite('Create Session from Pull Request', () => {
 			fullName: '#42 Improve sessions',
 			icon: 'git-pull-request',
 			uri: 'https://github.com/owner/repo/pull/42',
+			readyMessage: 'Session ready. Pull request #42 is checked out and attached.',
 			value: {
 				usageInstructions: 'Use this snapshot as the primary source for questions about the pull request. Do not fetch pull request data or run tools unless the user explicitly asks for refreshed information or the requested information is absent from this snapshot.',
 				owner: 'owner',
@@ -206,12 +233,14 @@ suite('Create Session from Pull Request', () => {
 
 	test('collects existing pull requests from matching metadata and repository-scoped branches', () => {
 		const repositoryRoot = URI.file('/repos/microsoft/vscode');
+		const cloudRoot = URI.parse('github-remote-file://github/microsoft/vscode/feature-seven');
 		const repositorySessionAwaitingMetadata = sessionWithRepository(repositoryRoot, 'microsoft', 'vscode', false, 'origin/feature-three');
 		const pullRefSessionAwaitingMetadata = sessionWithRepository(repositoryRoot, 'microsoft', 'vscode', false, 'origin/pull/5/head');
 		const sessions = [
 			sessionWithPullRequest('microsoft', 'vscode', 1),
 			sessionWithPullRequest('microsoft', 'vscode', 2, 'origin/feature-two'),
 			sessionWithPullRequest('Microsoft', 'VSCode', 4),
+			sessionWithPullRequest('microsoft', 'vscode', 7, undefined, cloudRoot),
 			repositorySessionAwaitingMetadata,
 			pullRefSessionAwaitingMetadata,
 			sessionWithPullRequest('other', 'vscode', 3),
@@ -219,6 +248,7 @@ suite('Create Session from Pull Request', () => {
 		const existing = getExistingPullRequests(sessions, 'microsoft', 'vscode', [repositorySessionAwaitingMetadata, pullRefSessionAwaitingMetadata]);
 		const availableItems = createPullRequestQuickPickItems([
 			pullRequest(5, { headRef: 'feature-three' }),
+			pullRequest(7),
 			pullRequest(6),
 		], existing);
 		assert.deepStrictEqual({
@@ -228,7 +258,7 @@ suite('Create Session from Pull Request', () => {
 		}, {
 			numbers: [1, 2, 4, 5],
 			headRefs: ['feature-two', 'feature-three', 'pull/5/head'],
-			availableNumbers: [6],
+			availableNumbers: [7, 6],
 		});
 	});
 
@@ -244,27 +274,31 @@ suite('Create Session from Pull Request', () => {
 		});
 	});
 
-	test('resolves non-cloud repositories from session metadata or Git remotes', async () => {
+	test('resolves non-cloud repositories from session metadata', async () => {
 		const cloudRoot = URI.parse('github-remote-file://github/alexr00/playground/copilot%252Finspect-pull-request-748');
 		const localRoot = URI.file('/repos/alexr00/playground');
 		const remoteRoot = URI.parse('vscode-remote://ssh-remote+host/repos/alexr00/playground');
 		const cloudSession = sessionWithRepository(cloudRoot, 'alexr00', 'playground');
 		const localSession = sessionWithRepository(localRoot, 'alexr00', 'playground', false);
+		const localSessionWithMetadata = sessionWithRepository(localRoot, 'alexr00', 'playground');
+		const otherCloudSession = sessionWithRepository(cloudRoot, 'microsoft', 'vscode');
 		const remoteSession = sessionWithRepository(remoteRoot, 'alexr00', 'playground');
 
 		assert.deepStrictEqual({
-			cloud: await resolvePullRequestSessionRepository([cloudSession], async () => undefined),
-			local: await resolvePullRequestSessionRepository([localSession], async () => ({ owner: 'alexr00', repo: 'playground' })),
-			mixed: await resolvePullRequestSessionRepository([cloudSession, localSession], async () => undefined),
-			remote: await resolvePullRequestSessionRepository([remoteSession], async () => undefined),
+			cloud: await resolvePullRequestSessionRepository([cloudSession]),
+			local: await resolvePullRequestSessionRepository([localSession]),
+			mixed: await resolvePullRequestSessionRepository([cloudSession, localSession]),
+			mixedRepositories: await resolvePullRequestSessionRepository([otherCloudSession, localSessionWithMetadata]),
+			remote: await resolvePullRequestSessionRepository([remoteSession]),
 		}, {
 			cloud: undefined,
-			local: {
+			local: undefined,
+			mixed: {
 				folderUri: localRoot,
 				owner: 'alexr00',
 				repo: 'playground',
 			},
-			mixed: {
+			mixedRepositories: {
 				folderUri: localRoot,
 				owner: 'alexr00',
 				repo: 'playground',
@@ -276,25 +310,6 @@ suite('Create Session from Pull Request', () => {
 			},
 		});
 	});
-
-	test('parses GitHub repository identity from origin before other remotes', () => {
-		assert.deepStrictEqual({
-			https: getGitHubRepositoryFromRemotes([
-				{ name: 'upstream', fetchUrl: 'git@github.com:microsoft/vscode.git' },
-				{ name: 'origin', fetchUrl: 'https://github.com/alexr00/vscode.git' },
-			]),
-			ssh: getGitHubRepositoryFromRemotes([
-				{ name: 'origin', fetchUrl: 'ssh://git@github.com/alexr00/playground' },
-			]),
-			nonGitHub: getGitHubRepositoryFromRemotes([
-				{ name: 'origin', fetchUrl: 'https://example.com/alexr00/playground.git' },
-			]),
-		}, {
-			https: { owner: 'alexr00', repo: 'vscode' },
-			ssh: { owner: 'alexr00', repo: 'playground' },
-			nonGitHub: undefined,
-		});
-	});
 });
 
 function pullRequest(number: number, overrides: Partial<IGitHubPullRequestSummary> = {}): IGitHubPullRequestSummary {
@@ -303,6 +318,7 @@ function pullRequest(number: number, overrides: Partial<IGitHubPullRequestSummar
 		title: `Pull request ${number}`,
 		author: { login: 'author', avatarUrl: '' },
 		headRef: `feature-${number}`,
+		isCrossRepository: false,
 		isDraft: false,
 		updatedAt: new Date().toISOString(),
 		additions: 1,
@@ -314,19 +330,19 @@ function pullRequest(number: number, overrides: Partial<IGitHubPullRequestSummar
 	};
 }
 
-function sessionWithPullRequest(owner: string, repo: string, number: number, upstreamBranchName?: string): ISession {
+function sessionWithPullRequest(owner: string, repo: string, number: number, upstreamBranchName?: string, root = URI.file('/repo')): ISession {
 	const workspace: ISessionWorkspace = {
-		uri: URI.file('/repo'),
+		uri: root,
 		label: repo,
 		icon: Codicon.folder,
 		folders: [{
-			root: URI.file('/repo'),
-			workingDirectory: URI.file('/repo'),
+			root,
+			workingDirectory: root,
 			name: repo,
 			description: undefined,
 			gitRepository: {
-				uri: URI.file('/repo'),
-				workTreeUri: URI.file('/repo'),
+				uri: root,
+				workTreeUri: root,
 				baseBranchName: 'main',
 				upstreamBranchName,
 				gitHubInfo: constObservable({
@@ -340,7 +356,7 @@ function sessionWithPullRequest(owner: string, repo: string, number: number, ups
 			},
 		}],
 		requiresWorkspaceTrust: false,
-		isVirtualWorkspace: false,
+		isVirtualWorkspace: root.scheme !== Schemas.file,
 	};
 	return sessionWithWorkspace(workspace);
 }

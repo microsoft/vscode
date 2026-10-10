@@ -29,11 +29,10 @@ import { ICommandDetectionCapability, TerminalCapability } from '../../../../../
 import { ITerminalLogService, ITerminalProfile, TerminalExitReason } from '../../../../../../platform/terminal/common/terminal.js';
 import { IRemoteAgentService } from '../../../../../services/remote/common/remoteAgentService.js';
 import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/widget/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
-import { IChatService, ChatRequestQueueKind, ElicitationState, type IChatExternalToolInvocationUpdate, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService/chatService.js';
-import { autorun, constObservable, type IObservable } from '../../../../../../base/common/observable.js';
-import { ChatModel, type IChatRequestModeInfo } from '../../../../chat/common/model/chatModel.js';
-import { ChatConfiguration, ChatPermissionLevel, isAutoApproveLevel } from '../../../../chat/common/constants.js';
-import type { UserSelectedTools } from '../../../../chat/common/participants/chatAgents.js';
+import { IChatService, ChatRequestQueueKind, ElicitationState, type IChatExternalToolInvocationUpdate, type IChatSendRequestOptions, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService/chatService.js';
+import { autorun, constObservable } from '../../../../../../base/common/observable.js';
+import { ChatModel } from '../../../../chat/common/model/chatModel.js';
+import { ChatConfiguration, ChatModeKind, ChatPermissionLevel, isAutoApproveLevel } from '../../../../chat/common/constants.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolConfirmationMessages, IStreamedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolInvocationStreamContext, IToolResult, ToolDataSource, ToolInvocationPresentation, ToolProgress } from '../../../../chat/common/tools/languageModelToolsService.js';
 import { ITerminalChatService, ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { ITerminalProfileResolverService } from '../../../../terminal/common/terminal.js';
@@ -88,6 +87,7 @@ import type { IJSONSchemaMap } from '../../../../../../base/common/jsonSchema.js
 import { ChatElicitationRequestPart } from '../../../../chat/common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { getSandboxPrecheckInputsForToolInvocation } from '../../../../chat/browser/tools/toolHelpers.js';
 import { compact } from './consoleCompactor/consoleCompactor.js';
+import { IChatSessionsService } from '../../../../chat/common/chatSessionsService.js';
 
 // #region Tool data
 
@@ -791,10 +791,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		return this._configurationService.getValue<boolean>(AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests) === true;
 	}
 
-	private get _allowSandboxAutoApprove(): boolean {
-		return this._configurationService.getValue<boolean>(AgentSandboxSettingId.AgentSandboxAllowAutoApprove) === true;
-	}
-
 	private _getAllowToRunUnsandboxedCommands(args: IRunInTerminalInputParams): boolean {
 		return (args.allowToRunUnsandboxedCommands ?? this._allowUnsandboxedCommands) === true && this._allowUnsandboxedCommands;
 	}
@@ -866,6 +862,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IAgentSessionsService private readonly _agentSessionsService: IAgentSessionsService,
+		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 	) {
 		super();
@@ -1194,7 +1191,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			// Would be auto-approved based on rules
 			wouldBeAutoApproved
 		);
-		const isSandboxAutoApproved = isSandboxEnabled && toolSpecificData.commandLine.isSandboxWrapped === true && !requiresAllowNetworkConfirmation && this._allowSandboxAutoApprove;
+		const isSandboxAutoApproved = isSandboxEnabled && toolSpecificData.commandLine.isSandboxWrapped === true && !requiresAllowNetworkConfirmation;
 		const isFinalAutoApproved = isSandboxAutoApproved || isAutoApprovedByRules || commandLineAnalyzerResults.some(e => e.forceAutoApproval);
 
 		// Pass auto approve info if the command:
@@ -1330,15 +1327,15 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	private _getBlockedDomainReason(blockedDomains: string[], deniedDomains: string[] = []): string {
 		if (deniedDomains.length === blockedDomains.length && deniedDomains.length > 0) {
 			if (blockedDomains.length === 1) {
-				return localize('runInTerminal.unsandboxed.domain.reason.denied.single', "This command accesses {0}, which is blocked by chat.agent.deniedNetworkDomains.", blockedDomains[0]);
+				return localize('runInTerminal.unsandboxed.domain.reason.denied.single', "This command accesses {0}, which is blocked by chat.agent.sandbox.network.deniedDomains.", blockedDomains[0]);
 			}
-			return localize('runInTerminal.unsandboxed.domain.reason.denied.multi', "This command accesses {0} and {1} more domains that are blocked by chat.agent.deniedNetworkDomains.", blockedDomains[0], blockedDomains.length - 1);
+			return localize('runInTerminal.unsandboxed.domain.reason.denied.multi', "This command accesses {0} and {1} more domains that are blocked by chat.agent.sandbox.network.deniedDomains.", blockedDomains[0], blockedDomains.length - 1);
 		}
 		if (deniedDomains.length > 0) {
 			if (blockedDomains.length === 1) {
-				return localize('runInTerminal.unsandboxed.domain.reason.mixed.single', "This command accesses {0}, which is blocked by chat.agent.deniedNetworkDomains or not added to chat.agent.allowedNetworkDomains.", blockedDomains[0]);
+				return localize('runInTerminal.unsandboxed.domain.reason.mixed.single', "This command accesses {0}, which is blocked by chat.agent.sandbox.network.deniedDomains or not added to chat.agent.sandbox.network.allowedDomains.", blockedDomains[0]);
 			}
-			return localize('runInTerminal.unsandboxed.domain.reason.mixed.multi', "This command accesses {0} and {1} more domains that are blocked by chat.agent.deniedNetworkDomains or not added to chat.agent.allowedNetworkDomains.", blockedDomains[0], blockedDomains.length - 1);
+			return localize('runInTerminal.unsandboxed.domain.reason.mixed.multi', "This command accesses {0} and {1} more domains that are blocked by chat.agent.sandbox.network.deniedDomains or not added to chat.agent.sandbox.network.allowedDomains.", blockedDomains[0], blockedDomains.length - 1);
 		}
 		if (blockedDomains.length === 1) {
 			return localize('runInTerminal.unsandboxed.domain.reason.single', "This command accesses {0}, which is not permitted by the current chat.agent.sandbox configuration.", blockedDomains[0]);
@@ -3032,11 +3029,20 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		// assess the command output or continue the agentic tool loop, which
 		// left the agent silent after a backgrounded command finished.
 		const lastRequest = sessionRef.object.lastRequest;
-		const sendOptions: { userSelectedModelId?: string; modeInfo?: IChatRequestModeInfo; userSelectedTools?: IObservable<UserSelectedTools>; agentIdSilent?: string } = {};
+		const sendOptions: Pick<IChatSendRequestOptions, 'userSelectedModelId' | 'modeInfo' | 'userSelectedTools' | 'agentIdSilent' | 'instructionContext'> = {};
 		if (lastRequest) {
 			sendOptions.userSelectedModelId = lastRequest.modelId;
 			sendOptions.modeInfo = lastRequest.modeInfo;
-			sendOptions.agentIdSilent = lastRequest.response?.agent?.id;
+			const previousAgentId = lastRequest.response?.agent?.id;
+			sendOptions.agentIdSilent = previousAgentId;
+			const contribution = previousAgentId ? this._chatSessionsService.getChatSessionContribution(previousAgentId) : undefined;
+			const autoAttachEnabled = contribution ? contribution.autoAttachReferences === true : true;
+			if (autoAttachEnabled) {
+				sendOptions.instructionContext = {
+					modeKind: lastRequest.modeInfo?.kind ?? ChatModeKind.Agent,
+					enabledTools: lastRequest.userSelectedTools,
+				};
+			}
 			if (lastRequest.userSelectedTools) {
 				sendOptions.userSelectedTools = constObservable(lastRequest.userSelectedTools);
 			}
@@ -3161,7 +3167,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					...sendOptions,
 					queue: ChatRequestQueueKind.Steering,
 					isSystemInitiated: true,
-					systemInitiatedLabel: localize('terminalAssessingOutput', "{0} may need input", commandDisplay),
+					systemInitiatedLabel: localize('terminalAssessingOutput', "{0} may need attention", commandDisplay),
 					terminalExecutionId: termId,
 				}).catch(e => {
 					this._logService.warn(`RunInTerminalTool: Failed to send input-needed notification for terminal ${termId}`, e);

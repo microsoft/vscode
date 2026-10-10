@@ -619,7 +619,8 @@ export class BreadcrumbsControl {
 		}
 
 		const { element } = event.item as FileItem | OutlineItem;
-		this._editorGroup.focus();
+		// Activate the owning group without letting delayed webview focus steal focus from the picker.
+		this._editorGroup.groupsView.activateGroup(this._editorGroup);
 
 		const group = this._getEditorGroup(event.payload);
 		if (group !== undefined) {
@@ -730,6 +731,7 @@ export class BreadcrumbsControl {
 
 		if (element instanceof FileElement) {
 			if (element.kind === FileKind.FILE) {
+				this._editorGroup.focus();
 				await this._editorService.openEditor({ resource: element.uri, options: { pinned } }, group);
 			} else {
 				// show next picker
@@ -739,6 +741,7 @@ export class BreadcrumbsControl {
 				this._widget.setSelection(items[idx + 1], BreadcrumbsControl.Payload_Pick);
 			}
 		} else {
+			this._editorGroup.focus();
 			element.outline.reveal(element, { pinned }, group === SIDE_GROUP, false);
 		}
 	}
@@ -774,23 +777,31 @@ export class BreadcrumbsControlFactory {
 		private readonly _options: IBreadcrumbsControlOptions,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IFileService fileService: IFileService
+		@IFileService fileService: IFileService,
 	) {
 		const config = this._disposables.add(BreadcrumbsConfig.IsEnabled.bindTo(configurationService));
-		this._disposables.add(config.onDidChange(() => {
-			const value = config.getValue();
-			if (!value && this._control) {
+		const isEnabled = () => config.getValue() && this._editorGroup.groupsView.partOptions.showBreadcrumbs !== false;
+		const updateControl = () => {
+			const enabled = isEnabled();
+			if (!enabled && this._control) {
 				this._controlDisposables.clear();
 				this._control = undefined;
 				this._onDidEnablementChange.fire();
-			} else if (value && !this._control) {
+			} else if (enabled && !this._control) {
 				this._control = this.createControl();
 				this._control.update();
 				this._onDidEnablementChange.fire();
 			}
+		};
+
+		this._disposables.add(config.onDidChange(updateControl));
+		this._disposables.add(this._editorGroup.groupsView.onDidChangeEditorPartOptions(e => {
+			if (e.oldPartOptions.showBreadcrumbs !== e.newPartOptions.showBreadcrumbs) {
+				updateControl();
+			}
 		}));
 
-		if (config.getValue()) {
+		if (isEnabled()) {
 			this._control = this.createControl();
 		}
 

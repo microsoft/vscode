@@ -10,13 +10,16 @@ import { ChatDynamicVariableModel } from './chatDynamicVariables.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { URI } from '../../../../../base/common/uri.js';
 export function getDynamicVariablesForWidget(widget: IChatWidget): ReadonlyArray<IDynamicVariable> {
-	if (!widget.viewModel || !widget.supportsFileReferences) {
+	if (!widget.viewModel) {
 		return [];
 	}
 
 	const model = widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID);
 	if (!model) {
 		return [];
+	}
+	if (!widget.supportsFileReferences) {
+		return model.variables.filter(variable => variable.isAttachmentReference);
 	}
 
 	// track for editing state

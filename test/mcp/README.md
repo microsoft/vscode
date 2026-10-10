@@ -17,6 +17,8 @@ The [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) is an open 
 
 Firstly, make sure you install all dependencies (`npm i`) at the root of the repo.
 
+Dependencies are installed during repository setup, not when a server starts. To reinstall this server's dependencies separately, run `npm ci --prefix test/mcp` before starting it. Do not run installation while MCP servers are using the checkout.
+
 Then, open the Command Palette and run:
 ```
 MCP: List Servers → vscode-automation-mcp → Start Server
@@ -60,6 +62,7 @@ The MCP server exposes a comprehensive set of VS Code automation tools through t
 ### Application Management
 - Start, stop, and restart VS Code instances
 - Open workspaces and folders
+- Record scenario evidence with step overlays, screenshots, video, traces, and an HTML report
 
 ### Editor Tools
 - Open, close, and navigate files
@@ -94,6 +97,19 @@ The MCP server exposes a comprehensive set of VS Code automation tools through t
 - Notebook support
 - Chat features
 
+### Scenario evidence
+
+Start evidence capture before starting VS Code so Playwright enables video recording:
+
+1. Call `vscode_automation_evidence_start`, including any required pre-launch `userSettings`.
+2. Call `vscode_automation_evidence_step` with `started` before each action.
+3. Perform and validate the action with the relevant automation tools.
+4. Call `vscode_automation_evidence_step` with `passed`, `failed`, or `skipped`.
+5. Call `vscode_automation_evidence_finish`.
+
+Artifacts are written to `.build/vscode-playwright-mcp/evidence/<run-id>/`.
+Each evidence run uses an isolated user profile with in-memory secret storage and records every visited Playwright page as a separate video.
+
 ## Development
 
 ### Manual Setup (Advanced)
@@ -111,7 +127,7 @@ npm install
 npm run compile # or watch
 
 # Start the server
-npm start
+npm run start-stdio
 ```
 
 ### Project Structure

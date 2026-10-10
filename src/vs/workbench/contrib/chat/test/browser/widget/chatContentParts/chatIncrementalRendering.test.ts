@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
+import { Event } from '../../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -354,13 +355,13 @@ suite('IncrementalDOMMorpher', () => {
 			morpher.setRenderCallback(() => { });
 			let drainCount = 0;
 			disposables.add(morpher.onDidDrain(() => drainCount++));
+			const didDrain = Event.toPromise(morpher.onDidDrain);
 
 			morpher.seed('one two three');
 			morpher.updateStreamRate(2000, true);
 			assert.strictEqual(morpher.isDrained, false);
 
-			await new Promise(r => mainWindow.requestAnimationFrame(r));
-			await new Promise(r => mainWindow.requestAnimationFrame(r));
+			await didDrain;
 
 			assert.deepStrictEqual({
 				isDrained: morpher.isDrained,

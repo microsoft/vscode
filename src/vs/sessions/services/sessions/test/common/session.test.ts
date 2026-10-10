@@ -6,11 +6,34 @@
 import assert from 'assert';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { constObservable, IObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IChatSessionFileChange, IChatSessionFileChange2 } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { getSessionStatusMessage, getSessionWorkspaceKind, getUntitledSessionTitle, IGitHubInfo, isActiveSessionStatus, ISessionTurnFileChange, ISessionWorkspace, sessionFileChangesEqual, sessionTurnFileChangesEqual, SessionStatus, SessionWorkspaceKind, sessionWorkspaceEqual } from '../../common/session.js';
+import { getSessionOwnedGitHubPullRequestRefs, getSessionStatusMessage, getSessionWorkspaceKind, getUntitledSessionTitle, IGitHubInfo, isActiveSessionStatus, ISessionTurnFileChange, ISessionWorkspace, sessionFileChangesEqual, sessionTurnFileChangesEqual, SessionStatus, SessionWorkspaceKind, sessionWorkspaceEqual } from '../../common/session.js';
+
+suite('getSessionOwnedGitHubPullRequestRefs', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('filters multi-PR provenance without falling back to an inherited primary PR', () => {
+		const primary = { owner: 'owner', repo: 'repo', number: 1, uri: URI.parse('https://github.com/owner/repo/pull/1') };
+		const owned = { ...primary, number: 2, createdByThisSession: true };
+		const info: IGitHubInfo = { owner: 'owner', repo: 'repo', pullRequest: primary };
+		assert.deepStrictEqual([
+			getSessionOwnedGitHubPullRequestRefs(undefined),
+			getSessionOwnedGitHubPullRequestRefs({ ...info, pullRequests: [primary, owned, { ...primary, createdByThisSession: false }] }),
+			getSessionOwnedGitHubPullRequestRefs({ ...info, pullRequests: [] }),
+		], [[], [owned], []]);
+	});
+
+	test('accepts legacy primary PRs and preserves presentation and state', () => {
+		const primary = { number: 1, uri: URI.parse('https://github.com/owner/repo/pull/1'), title: 'PR', icon: Codicon.gitPullRequest, state: 'open' as const, liveState: 'merged' as const };
+		assert.deepStrictEqual(getSessionOwnedGitHubPullRequestRefs({ owner: 'owner', repo: 'repo', pullRequest: primary }), [
+			{ owner: 'owner', repo: 'repo', ...primary },
+		]);
+	});
+});
 
 suite('isActiveSessionStatus', () => {
 
@@ -49,7 +72,7 @@ suite('getSessionStatusMessage', () => {
 		}, {
 			activity,
 			working: 'Working...',
-			needsInput: 'Input needed',
+			needsInput: 'Attention needed',
 			failed: 'Failed',
 			completed: undefined,
 		});
@@ -144,15 +167,17 @@ suite('sessionTurnFileChangesEqual', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('includes workspace classification in equality', () => {
+	test('includes workspace classification and rename origin in equality', () => {
 		const uri = URI.file('/a.txt');
 		const inside: ISessionTurnFileChange = { uri, modifiedUri: uri, insertions: 1, deletions: 0, isOutsideWorkspace: false };
 		const outside: ISessionTurnFileChange = { ...inside, isOutsideWorkspace: true };
+		const renamed: ISessionTurnFileChange = { ...inside, renamedFromUri: URI.file('/old-a.txt') };
 
 		assert.deepStrictEqual([
 			sessionTurnFileChangesEqual([inside], [{ ...inside }]),
 			sessionTurnFileChangesEqual([inside], [outside]),
-		], [true, false]);
+			sessionTurnFileChangesEqual([inside], [renamed]),
+		], [true, false, false]);
 	});
 });
 
@@ -160,7 +185,7 @@ suite('sessionWorkspaceEqual', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function workspace(branchName = 'main', gitHubInfo: IObservable<IGitHubInfo | undefined> = constObservable(undefined)): ISessionWorkspace {
+	function workspace(branchName = 'main', gitHubInfo: IObservable<IGitHubInfo | undefined> = constObservable(undefined), typeIcon?: ThemeIcon): ISessionWorkspace {
 		const root = URI.file('/repo');
 		return {
 			uri: root,
@@ -182,6 +207,7 @@ suite('sessionWorkspaceEqual', () => {
 			}],
 			requiresWorkspaceTrust: true,
 			isVirtualWorkspace: false,
+			typeIcon,
 		};
 	}
 
@@ -196,8 +222,42 @@ suite('sessionWorkspaceEqual', () => {
 		assert.strictEqual(sessionWorkspaceEqual(workspace('main', constObservable(gitHubInfoA)), workspace('main', constObservable(gitHubInfoB))), true);
 	});
 
+	test('compares recorded issue titles in GitHub info', () => {
+		const uri = URI.parse('https://github.com/owner/repo/issues/42');
+		const base: IGitHubInfo = {
+			owner: 'owner',
+			repo: 'repo',
+			issues: [{ owner: 'owner', repo: 'repo', number: 42, uri, title: 'Recorded title' }],
+		};
+
+		assert.deepStrictEqual({
+			equivalent: sessionWorkspaceEqual(workspace('main', constObservable(base)), workspace('main', constObservable({ ...base, issues: [{ ...base.issues![0] }] }))),
+			changedTitle: sessionWorkspaceEqual(workspace('main', constObservable(base)), workspace('main', constObservable({ ...base, issues: [{ ...base.issues![0], title: 'Updated title' }] }))),
+		}, {
+			equivalent: true,
+			changedTitle: false,
+		});
+	});
+
 	test('returns false when folder repository metadata changes', () => {
 		assert.strictEqual(sessionWorkspaceEqual(workspace('main'), workspace('feature')), false);
+	});
+
+	test('compares typeIcon', () => {
+		const info = constObservable<IGitHubInfo | undefined>(undefined);
+		assert.deepStrictEqual({
+			added: sessionWorkspaceEqual(workspace('main', info), workspace('main', info, Codicon.package)),
+			removed: sessionWorkspaceEqual(workspace('main', info, Codicon.package), workspace('main', info)),
+			changed: sessionWorkspaceEqual(workspace('main', info, Codicon.package), workspace('main', info, Codicon.folder)),
+			same: sessionWorkspaceEqual(workspace('main', info, Codicon.package), workspace('main', info, Codicon.package)),
+			bothUnset: sessionWorkspaceEqual(workspace('main', info), workspace('main', info)),
+		}, {
+			added: false,
+			removed: false,
+			changed: false,
+			same: true,
+			bothUnset: true,
+		});
 	});
 });
 

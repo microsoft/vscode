@@ -58,14 +58,8 @@ export class MainThreadDiagnostics implements MainThreadDiagnosticsShape {
 		const data: [UriComponents, IMarkerData[]][] = [];
 		for (const resource of resources) {
 			const allMarkerData = this._markerService.read({ resource, ignoreResourceFilters: true });
-			if (allMarkerData.length === 0) {
-				data.push([resource, []]);
-			} else {
-				const foreignMarkerData = allMarkerData.filter(marker => marker?.origin !== this.extHostId);
-				if (foreignMarkerData.length > 0) {
-					data.push([resource, foreignMarkerData]);
-				}
-			}
+			const markerData = allMarkerData.filter(marker => marker.origin !== this.extHostId);
+			data.push([resource, markerData]);
 		}
 		if (data.length > 0) {
 			this._proxy.$acceptMarkersChange(data);

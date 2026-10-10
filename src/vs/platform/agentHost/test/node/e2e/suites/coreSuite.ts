@@ -4,16 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { mkdtempSync, writeFileSync } from 'fs';
+import { writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
+import type { ChatErrorAction } from '../../../../common/state/protocol/actions.js';
 import { CompletionItemKind, type CompletionsResult, type ResolveSessionConfigResult, type SessionConfigCompletionsResult, SubscribeResult } from '../../../../common/state/protocol/commands.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import type { RootState } from '../../../../common/state/protocol/state.js';
-import { ActionType, type RootAgentsChangedAction } from '../../../../common/state/sessionActions.js';
-import { buildDefaultChatUri, MessageAttachmentKind, MessageKind, ROOT_STATE_URI, type MessageAttachment, type SessionState } from '../../../../common/state/sessionState.js';
+import { ActionType, type ChatInputRequestedAction, type ChatToolCallReadyAction, type RootAgentsChangedAction } from '../../../../common/state/sessionActions.js';
+import { buildDefaultChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, MessageAttachmentKind, MessageKind, ResponsePartKind, ROOT_STATE_URI, ToolCallConfirmationReason, TurnState, type ChatInputAnswer, type ChatState, type MessageAttachment, type SessionState } from '../../../../common/state/sessionState.js';
 import {
 	createRealSession,
 	dispatchTurn,
@@ -24,15 +25,18 @@ import {
 	resolveGitHubToken,
 } from '../harness/agentHostE2ETestHarness.js';
 import { assertRecordedAhpSnapshot } from '../harness/ahpSnapshot.js';
-import { summarizeAnthropicRequest, type IReadableAnthropicRequest } from '../harness/capiWireCodec.js';
-import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
+import { summarizeAnthropicRequest, summarizeResponsesRequest, type IReadableAnthropicRequest } from '../harness/capiWireCodec.js';
+import { fetchSessionWithChat, getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import { providerHostOnlyTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
 
 export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 	const { config, createdSessions, tempDirs } = context;
 	const behaviorSnapshot = { profile: 'behavior' } as const;
 	const modelSwitchTarget = config.modelSwitchTarget;
+	const modelSwitchWireTarget = config.modelSwitchWireTarget ?? modelSwitchTarget;
 	const modelSwitchReturnTarget = config.modelSwitchReturnTarget;
+	const modelSwitchWireReturnTarget = config.modelSwitchWireReturnTarget ?? modelSwitchReturnTarget;
 	const interactiveInputPrompt = config.interactiveInputPrompt;
 	const cancelledInputPrompt = config.cancelledInputPrompt;
 	const textInputPrompt = config.textInputPrompt;
@@ -40,8 +44,8 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 
 	function observedModelRequest(body: string | undefined): IReadableAnthropicRequest {
 		assert.ok(body, 'Expected an observed model request');
-		const request = summarizeAnthropicRequest(body);
-		assert.ok(request, `Expected an Anthropic model request: ${body}`);
+		const request = summarizeAnthropicRequest(body) ?? summarizeResponsesRequest(body);
+		assert.ok(request, `Expected an Anthropic or Responses model request: ${body}`);
 		return request;
 	}
 
@@ -81,7 +85,7 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 	}
 
 	async function createSessionWithWorkingDirectories(prefix: string, workingDirectories: readonly URI[]): Promise<string> {
-		const clientWorkspace = workingDirectories[0]?.fsPath ?? mkdtempSync(join(tmpdir(), 'ahp-client-workspace-'));
+		const clientWorkspace = workingDirectories[0]?.fsPath ?? createTestDirectory(join(tmpdir(), 'ahp-client-workspace-'));
 		if (workingDirectories.length === 0) {
 			tempDirs.push(clientWorkspace);
 		}
@@ -124,10 +128,28 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 		context.client.clearReceived();
 		return sessionUri;
 	}
+
+	async function prepareInputSession(sessionUri: string): Promise<number> {
+		if (!config.inputRequestMode) {
+			return 1;
+		}
+		context.client.dispatch({
+			channel: sessionUri,
+			clientSeq: 1,
+			action: { type: ActionType.SessionConfigChanged, config: { mode: config.inputRequestMode } },
+		});
+		await context.client.waitForNotification(n =>
+			isActionNotification(n, 'session/configChanged')
+			&& getActionEnvelope(n).channel === sessionUri,
+			30_000,
+		);
+		return 2;
+	}
+
 	test('sends a simple message and receives a response', async function () {
 		this.timeout(120_000);
 
-		const workspaceDir = mkdtempSync(`${tmpdir()}/read-sdk-simple`);
+		const workspaceDir = createTestDirectory(`${tmpdir()}/read-sdk-simple`);
 		tempDirs.push(workspaceDir);
 
 		const sessionUri = await createRealSession(context.client, config, `real-sdk-simple-${config.provider}`, createdSessions, URI.file(workspaceDir));
@@ -139,6 +161,30 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 
 		const responseParts = context.client.receivedNotifications(n => isActionNotification(n, 'chat/responsePart'));
 		assert.ok(responseParts.length > 0, 'should have received at least one response part');
+	});
+
+	test('preserves a fenced multiline markdown response', async function () {
+		this.timeout(120_000);
+		const workspaceDir = createTestDirectory(join(tmpdir(), 'ahp-markdown-response-'));
+		tempDirs.push(workspaceDir);
+		const sessionUri = await createRealSession(
+			context.client,
+			config,
+			`markdown-response-${config.provider}`,
+			createdSessions,
+			URI.file(workspaceDir),
+		);
+		const expected = '```text\nALPHA\nBETA\n```';
+
+		const result = await driveTurnToCompletion(
+			context.client,
+			sessionUri,
+			'turn-markdown-response',
+			`Reply with exactly this Markdown code block and nothing else:\n${expected}`,
+			1,
+		);
+
+		assert.strictEqual(result.responseText, expected);
 	});
 
 	test('listModels returns well-shaped model entries after authenticate', async function () {
@@ -200,9 +246,10 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 		}
 	});
 
-	test('retains context across consecutive turns', async function () {
+	// Quarantined on Codex Linux/macOS: https://github.com/microsoft/vscode/issues/338152
+	(config.provider !== 'codex' || context.isWindows ? test : test.skip)('retains context across consecutive turns', async function () {
 		this.timeout(180_000);
-		const workspace = mkdtempSync(join(tmpdir(), 'ahp-coverage-memory-'));
+		const workspace = createTestDirectory(join(tmpdir(), 'ahp-coverage-memory-'));
 		tempDirs.push(workspace);
 		const sessionUri = await createRealSession(context.client, config, `coverage-memory-${config.provider}`, createdSessions, URI.file(workspace));
 
@@ -219,24 +266,31 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 	(modelSwitchTarget ? test : test.skip)('client-selected model is used for the turn', async function () {
 		this.timeout(180_000);
 		assert.ok(modelSwitchTarget);
-		const workspace = mkdtempSync(join(tmpdir(), 'ahp-model-switch-'));
+		const workspace = createTestDirectory(join(tmpdir(), 'ahp-model-switch-'));
 		tempDirs.push(workspace);
 		const sessionUri = await createRealSession(context.client, config, `model-switch-${config.provider}`, createdSessions, URI.file(workspace));
+		const prompt = 'Reply exactly "model selected".';
+		const observedRequestCount = context.observedModelRequestBodies.length;
 
 		const result = await driveTurnWithModelToCompletion(
 			context.client,
 			sessionUri,
 			'turn-model-switch',
-			'Reply exactly "model selected".',
+			prompt,
 			modelSwitchTarget,
 			1,
 		);
+		const selectedModelRequest = context.observedModelRequestBodies
+			.slice(observedRequestCount)
+			.map(observedModelRequest)
+			.find(request => request.messages.some(message => modelContentText(message.content).includes(prompt)));
+		assert.ok(selectedModelRequest, 'Expected the selected-model turn to reach the provider');
 
 		assert.deepStrictEqual({
-			model: observedModelRequest(context.observedModelRequestBodies.at(-1)).model,
+			model: selectedModelRequest.model,
 			response: result.responseText.trim(),
 		}, {
-			model: modelSwitchTarget,
+			model: modelSwitchWireTarget,
 			response: 'model selected',
 		});
 	});
@@ -244,16 +298,17 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 	(interactiveInputPrompt ? test : test.skip)('provider input request is answered through AHP', async function () {
 		this.timeout(180_000);
 		assert.ok(interactiveInputPrompt);
-		const workspace = mkdtempSync(join(tmpdir(), 'ahp-input-request-'));
+		const workspace = createTestDirectory(join(tmpdir(), 'ahp-input-request-'));
 		tempDirs.push(workspace);
 		const sessionUri = await createRealSession(context.client, config, `input-request-${config.provider}`, createdSessions, URI.file(workspace));
+		const clientSeq = await prepareInputSession(sessionUri);
 
 		const result = await driveTurnToCompletion(
 			context.client,
 			sessionUri,
 			'turn-input-request',
 			interactiveInputPrompt,
-			1,
+			clientSeq,
 		);
 
 		assert.deepStrictEqual({
@@ -265,11 +320,114 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 		});
 	});
 
+	for (const { title, response, synchronizedOnly } of [
+		{ title: 'input drafts: submitting uses the synchronized answer after clearing an earlier draft', response: ChatInputResponseKind.Accept, synchronizedOnly: true },
+		{ title: 'input drafts: final submission overrides a synchronized draft', response: ChatInputResponseKind.Accept, synchronizedOnly: false },
+		{ title: 'input drafts: cancelling a drafted answer leaves the provider ready for another turn', response: ChatInputResponseKind.Cancel, synchronizedOnly: false },
+	]) {
+		// Omitting the final answers currently loses the synchronized draft at the provider boundary.
+		(interactiveInputPrompt && (!synchronizedOnly || context.runKnownIssueTests) ? test : test.skip)(title, async function () {
+			this.timeout(180_000);
+			assert.ok(interactiveInputPrompt);
+			const workspace = createTestDirectory(join(tmpdir(), 'ahp-input-drafts-'));
+			tempDirs.push(workspace);
+			const session = await createRealSession(context.client, config, `input-drafts-${response}-${synchronizedOnly}-${config.provider}`, createdSessions, URI.file(workspace));
+			const chat = buildDefaultChatUri(session);
+			let clientSeq = await prepareInputSession(session);
+			const turnId = 'input-draft-turn';
+			dispatchTurn(context.client, session, turnId, `${interactiveInputPrompt} If the question is cancelled, reply exactly "cancelled" and do not ask again.`, clientSeq++);
+			const seen = new Set<number>();
+			let request: ChatInputRequestedAction['request'];
+			while (true) {
+				const notification = await context.client.waitForNotification(notification =>
+					(isActionNotification(notification, ActionType.ChatInputRequested)
+						|| isActionNotification(notification, ActionType.ChatToolCallReady)
+						|| isActionNotification(notification, ActionType.ChatError)
+						|| isActionNotification(notification, ActionType.ChatTurnComplete))
+					&& getActionEnvelope(notification).channel === chat
+					&& !seen.has(getActionEnvelope(notification).serverSeq),
+					90_000,
+				);
+				const envelope = getActionEnvelope(notification);
+				seen.add(envelope.serverSeq);
+				if (envelope.action.type === ActionType.ChatInputRequested) {
+					request = envelope.action.request;
+					break;
+				}
+				assert.strictEqual(envelope.action.type, ActionType.ChatToolCallReady, 'the provider must request input before completing');
+				const ready = envelope.action as ChatToolCallReadyAction;
+				if (!ready.confirmed) {
+					context.client.dispatch({
+						channel: chat, clientSeq: clientSeq++,
+						action: {
+							type: ActionType.ChatToolCallConfirmed, turnId, toolCallId: ready.toolCallId,
+							approved: true, confirmed: ToolCallConfirmationReason.UserAction,
+						},
+					});
+				}
+			}
+			const question = request.questions?.[0];
+			assert.ok(question?.kind === ChatInputQuestionKind.SingleSelect);
+			const questionId = question.id;
+			const apple = question.options.find(option => /Apple/i.test(option.label));
+			const banana = question.options.find(option => /Banana/i.test(option.label));
+			assert.ok(apple && banana);
+
+			async function setAnswer(answer: ChatInputAnswer | undefined): Promise<void> {
+				const sequence = clientSeq++;
+				context.client.dispatch({
+					channel: chat, clientSeq: sequence,
+					action: { type: ActionType.ChatInputAnswerChanged, requestId: request.id, questionId, answer },
+				});
+				const accepted = await context.client.waitForNotification(notification =>
+					isActionNotification(notification, ActionType.ChatInputAnswerChanged)
+					&& getActionEnvelope(notification).channel === chat
+					&& getActionEnvelope(notification).origin?.clientSeq === sequence,
+				);
+				assert.strictEqual(getActionEnvelope(accepted).rejectionReason, undefined);
+				const subscribed = await context.client.call<SubscribeResult>('subscribe', { channel: chat });
+				const input = (subscribed.snapshot!.state as ChatState).activeTurn?.responseParts.find(part =>
+					part.kind === ResponsePartKind.InputRequest && part.request.id === request.id);
+				assert.ok(input?.kind === ResponsePartKind.InputRequest);
+				assert.deepStrictEqual(input.request.answers?.[questionId], answer);
+			}
+
+			await setAnswer({ state: ChatInputAnswerState.Draft, value: { kind: ChatInputAnswerValueKind.Selected, value: apple.id } });
+			await setAnswer(undefined);
+			const answer: ChatInputAnswer = { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Selected, value: banana.id } };
+			await setAnswer(synchronizedOnly ? answer : { ...answer, value: { kind: ChatInputAnswerValueKind.Selected, value: apple.id } });
+			context.client.dispatch({
+				channel: chat, clientSeq: clientSeq++,
+				action: {
+					type: ActionType.ChatInputCompleted, requestId: request.id, response,
+					...(!synchronizedOnly ? { answers: { [question.id]: answer } } : {}),
+				},
+			});
+			const completed = await context.client.waitForNotification(notification =>
+				(isActionNotification(notification, ActionType.ChatTurnComplete) || isActionNotification(notification, ActionType.ChatError))
+				&& getActionEnvelope(notification).channel === chat
+				&& (getActionEnvelope(notification).action as { turnId: string }).turnId === turnId,
+				90_000,
+			);
+			assert.strictEqual(getActionEnvelope(completed).action.type, ActionType.ChatTurnComplete);
+			const history = await fetchSessionWithChat(context.client, session);
+			const input = history.turns.find(turn => turn.id === turnId)?.responseParts.find(part => part.kind === ResponsePartKind.InputRequest);
+			assert.ok(input?.kind === ResponsePartKind.InputRequest);
+			assert.deepStrictEqual({ response: input.response, answer: input.request.answers?.[question.id] }, { response, answer });
+			if (response === ChatInputResponseKind.Accept) {
+				assert.ok(observedToolResultTexts().some(text => text.includes('Banana')), 'the synchronized final answer must reach the provider');
+			} else {
+				const followup = await driveTurnToCompletion(context.client, session, 'after-input-cancel', 'Reply exactly "STILL_READY".', clientSeq + 100);
+				assert.strictEqual(followup.responseText.trim(), 'STILL_READY');
+			}
+		});
+	}
+
 	(modelSwitchTarget && modelSwitchReturnTarget ? test : test.skip)('model changes between turns retain provider context', async function () {
 		this.timeout(180_000);
 		assert.ok(modelSwitchTarget);
 		assert.ok(modelSwitchReturnTarget);
-		const workspace = mkdtempSync(join(tmpdir(), 'ahp-model-change-context-'));
+		const workspace = createTestDirectory(join(tmpdir(), 'ahp-model-change-context-'));
 		tempDirs.push(workspace);
 		const sessionUri = await createRealSession(context.client, config, `model-change-context-${config.provider}`, createdSessions, URI.file(workspace));
 
@@ -290,12 +448,17 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 			10,
 		);
 
+		// Model-validation probes and retries can repeat requests for the same model.
+		const models = context.observedModelRequestBodies
+			.map(body => observedModelRequest(body).model)
+			.filter((model, index, allModels) => index === 0 || model !== allModels[index - 1])
+			.slice(-2);
 		assert.deepStrictEqual({
-			models: context.observedModelRequestBodies.slice(-2).map(body => observedModelRequest(body).model),
+			models,
 			first: first.responseText.trim(),
 			secondRemembersCodeWord: /MARIGOLD/i.test(second.responseText),
 		}, {
-			models: [modelSwitchTarget, modelSwitchReturnTarget],
+			models: [modelSwitchWireTarget, modelSwitchWireReturnTarget],
 			first: 'ready',
 			secondRemembersCodeWord: true,
 		});
@@ -304,16 +467,17 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 	(cancelledInputPrompt ? test : test.skip)('provider input request cancellation returns to the turn', async function () {
 		this.timeout(180_000);
 		assert.ok(cancelledInputPrompt);
-		const workspace = mkdtempSync(join(tmpdir(), 'ahp-input-cancel-'));
+		const workspace = createTestDirectory(join(tmpdir(), 'ahp-input-cancel-'));
 		tempDirs.push(workspace);
 		const sessionUri = await createRealSession(context.client, config, `input-cancel-${config.provider}`, createdSessions, URI.file(workspace));
+		const clientSeq = await prepareInputSession(sessionUri);
 
 		const result = await driveTurnWithCancelledInputToCompletion(
 			context.client,
 			sessionUri,
 			'turn-input-cancel',
 			cancelledInputPrompt,
-			1,
+			clientSeq,
 		);
 
 		assert.deepStrictEqual({
@@ -328,12 +492,13 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 	(interactiveInputPrompt && config.supportsPausedTurnCancellationE2E ? test : test.skip)('cancelling a turn paused for input allows a replacement turn', async function () {
 		this.timeout(180_000);
 		assert.ok(interactiveInputPrompt);
-		const workspace = mkdtempSync(join(tmpdir(), 'ahp-cancel-input-turn-'));
+		const workspace = createTestDirectory(join(tmpdir(), 'ahp-cancel-input-turn-'));
 		tempDirs.push(workspace);
 		const sessionUri = await createRealSession(context.client, config, `cancel-input-turn-${config.provider}`, createdSessions, URI.file(workspace));
+		const clientSeq = await prepareInputSession(sessionUri);
 		const chatUri = buildDefaultChatUri(sessionUri);
 		const turnId = 'turn-cancel-input';
-		dispatchTurn(context.client, sessionUri, turnId, interactiveInputPrompt, 1);
+		dispatchTurn(context.client, sessionUri, turnId, interactiveInputPrompt, clientSeq);
 		await context.client.waitForNotification(n =>
 			isActionNotification(n, 'chat/inputRequested')
 			&& getActionEnvelope(n).channel === chatUri,
@@ -341,33 +506,52 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 		);
 		context.client.dispatch({
 			channel: chatUri,
-			clientSeq: 2,
+			clientSeq: clientSeq + 1,
 			action: { type: ActionType.ChatTurnCancelled, turnId, duration: 0 },
 		});
-		await context.client.waitForNotification(n =>
-			isActionNotification(n, 'chat/turnCancelled')
-			&& getActionEnvelope(n).channel === chatUri,
-			30_000,
-		);
+		await context.client.waitForNotification(n => {
+			if (!isActionNotification(n, 'chat/turnCancelled')) {
+				return false;
+			}
+			const envelope = getActionEnvelope(n);
+			return envelope.channel === chatUri
+				&& envelope.action.type === ActionType.ChatTurnCancelled
+				&& envelope.action.turnId === turnId;
+		}, 30_000);
 		const replacement = await driveTurnToCompletion(
 			context.client,
 			sessionUri,
 			'turn-after-input-cancel',
 			'Reply exactly "replacement".',
-			3,
+			clientSeq + 2,
 		);
 
-		assert.strictEqual(replacement.responseText.trim(), 'replacement');
+		const state = await fetchSessionWithChat(context.client, sessionUri);
+		assert.deepStrictEqual({
+			response: replacement.responseText.trim(),
+			replacementTurns: state.turns.filter(turn => turn.id === 'turn-after-input-cancel').map(turn => ({
+				message: turn.message.text,
+				state: turn.state,
+			})),
+			activeTurn: state.activeTurn,
+			inputNeeded: state.inputNeeded,
+		}, {
+			response: 'replacement',
+			replacementTurns: [{ message: 'Reply exactly "replacement".', state: TurnState.Complete }],
+			activeTurn: undefined,
+			inputNeeded: undefined,
+		});
 	});
 
 	(textInputPrompt ? test : test.skip)('provider freeform input is answered through AHP', async function () {
 		this.timeout(180_000);
 		assert.ok(textInputPrompt);
-		const workspace = mkdtempSync(join(tmpdir(), 'ahp-input-text-'));
+		const workspace = createTestDirectory(join(tmpdir(), 'ahp-input-text-'));
 		tempDirs.push(workspace);
 		const sessionUri = await createRealSession(context.client, config, `input-text-${config.provider}`, createdSessions, URI.file(workspace));
+		const clientSeq = await prepareInputSession(sessionUri);
 
-		const result = await driveTurnToCompletion(context.client, sessionUri, 'turn-input-text', textInputPrompt, 1);
+		const result = await driveTurnToCompletion(context.client, sessionUri, 'turn-input-text', textInputPrompt, clientSeq);
 
 		assert.deepStrictEqual({
 			sawInputRequest: result.sawInputRequest,
@@ -381,7 +565,7 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 	(multiSelectInputPrompt ? test : test.skip)('provider multi-select input is answered through AHP', async function () {
 		this.timeout(180_000);
 		assert.ok(multiSelectInputPrompt);
-		const workspace = mkdtempSync(join(tmpdir(), 'ahp-input-multi-select-'));
+		const workspace = createTestDirectory(join(tmpdir(), 'ahp-input-multi-select-'));
 		tempDirs.push(workspace);
 		const sessionUri = await createRealSession(context.client, config, `input-multi-select-${config.provider}`, createdSessions, URI.file(workspace));
 
@@ -415,7 +599,7 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 
 	(config.supportsRuntimeSlashCommandsE2E ? test : test.skip)('materialized provider exposes runtime slash command completions', async function () {
 		this.timeout(180_000);
-		const workspace = mkdtempSync(join(tmpdir(), 'ahp-runtime-slash-'));
+		const workspace = createTestDirectory(join(tmpdir(), 'ahp-runtime-slash-'));
 		tempDirs.push(workspace);
 		const sessionUri = await createRealSession(context.client, config, `runtime-slash-${config.provider}`, createdSessions, URI.file(workspace));
 		await driveTurnToCompletion(context.client, sessionUri, 'turn-runtime-slash', 'Reply exactly "ready".', 1);
@@ -433,7 +617,7 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 	if (config.supportsAttachmentsE2E) {
 		test('default chat simple attachment reaches the provider request', async function () {
 			this.timeout(180_000);
-			const workspace = mkdtempSync(join(tmpdir(), 'ahp-simple-attachment-'));
+			const workspace = createTestDirectory(join(tmpdir(), 'ahp-simple-attachment-'));
 			tempDirs.push(workspace);
 			const sessionUri = await createRealSession(context.client, config, `simple-attachment-${config.provider}`, createdSessions, URI.file(workspace));
 			const attachments: MessageAttachment[] = [{
@@ -446,7 +630,7 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 				context.client,
 				sessionUri,
 				'turn-simple-attachment',
-				'Reply with only the value from the attachment.',
+				'Reply with only the value provided directly in the attachment. Do not inspect the workspace or use tools.',
 				attachments,
 				1,
 			);
@@ -456,7 +640,7 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 
 		test('default chat resource attachment reaches the provider request', async function () {
 			this.timeout(180_000);
-			const workspace = mkdtempSync(join(tmpdir(), 'ahp-resource-attachment-'));
+			const workspace = createTestDirectory(join(tmpdir(), 'ahp-resource-attachment-'));
 			tempDirs.push(workspace);
 			const file = join(workspace, 'resource.txt');
 			writeFileSync(file, 'ATTACHMENT_RESOURCE_VALUE');
@@ -481,7 +665,7 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 
 		test('default chat embedded text attachment reaches the provider request', async function () {
 			this.timeout(180_000);
-			const workspace = mkdtempSync(join(tmpdir(), 'ahp-embedded-attachment-'));
+			const workspace = createTestDirectory(join(tmpdir(), 'ahp-embedded-attachment-'));
 			tempDirs.push(workspace);
 			const sessionUri = await createRealSession(context.client, config, `embedded-attachment-${config.provider}`, createdSessions, URI.file(workspace));
 			const attachments: MessageAttachment[] = [{
@@ -505,7 +689,7 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 
 		test('chat attachment pins the latest completed source turn', async function () {
 			this.timeout(240_000);
-			const workspace = mkdtempSync(join(tmpdir(), 'ahp-chat-attachment-latest-'));
+			const workspace = createTestDirectory(join(tmpdir(), 'ahp-chat-attachment-latest-'));
 			tempDirs.push(workspace);
 			const source = await createRealSession(context.client, config, `chat-attachment-source-${config.provider}`, createdSessions, URI.file(workspace));
 			await driveTurnToCompletion(
@@ -536,7 +720,7 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 
 		test('chat attachment end turn excludes later source turns', async function () {
 			this.timeout(240_000);
-			const workspace = mkdtempSync(join(tmpdir(), 'ahp-chat-attachment-bounded-'));
+			const workspace = createTestDirectory(join(tmpdir(), 'ahp-chat-attachment-bounded-'));
 			tempDirs.push(workspace);
 			const source = await createRealSession(context.client, config, `chat-attachment-bounded-source-${config.provider}`, createdSessions, URI.file(workspace));
 			await driveTurnToCompletion(
@@ -577,7 +761,7 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 	if (config.supportsTruncateE2E) {
 		test('truncating a materialized chat removes later context and allows continuation', async function () {
 			this.timeout(240_000);
-			const workspace = mkdtempSync(join(tmpdir(), 'ahp-truncate-'));
+			const workspace = createTestDirectory(join(tmpdir(), 'ahp-truncate-'));
 			tempDirs.push(workspace);
 			const sessionUri = await createRealSession(context.client, config, `truncate-${config.provider}`, createdSessions, URI.file(workspace));
 			await driveTurnToCompletion(context.client, sessionUri, 'turn-truncate-first', 'Remember ALPHA. Reply exactly "ready".', 1);
@@ -657,7 +841,7 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 	});
 
 	providerHostOnlyTest(context, 'stale model selection fails the turn without contacting a model', async function () {
-		const workspace = mkdtempSync(join(tmpdir(), 'ahp-stale-model-'));
+		const workspace = createTestDirectory(join(tmpdir(), 'ahp-stale-model-'));
 		tempDirs.push(workspace);
 		const sessionUri = await createRealSession(context.client, config, `stale-model-${config.provider}`, createdSessions, URI.file(workspace));
 		const chatUri = buildDefaultChatUri(sessionUri);
@@ -668,7 +852,7 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 			action: {
 				type: ActionType.ChatTurnStarted,
 				turnId,
-				startedAt: '2025-01-01T00:00:00.000Z',
+				startedAt: new Date().toISOString(),
 				message: {
 					text: 'This turn must fail before contacting a model.',
 					origin: { kind: MessageKind.User },
@@ -683,13 +867,13 @@ export function defineCoreTests(context: IAgentHostE2ETestContext): void {
 			&& (getActionEnvelope(n).action as { readonly turnId: string }).turnId === turnId,
 			30_000,
 		);
-		const action = getActionEnvelope(failed).action as { readonly error: { readonly errorType: string; readonly message: string } };
+		const action = getActionEnvelope(failed).action as ChatErrorAction;
 
 		assert.deepStrictEqual({
-			errorType: action.error.errorType,
-			mentionsModel: /model/i.test(action.error.message),
+			errorType: action.part.error.errorType,
+			mentionsModel: /model/i.test(action.part.error.message),
 		}, {
-			errorType: config.provider === 'copilotcli' ? 'sendFailed' : config.provider === 'claude' ? 'success' : 'modelSelectionFailed',
+			errorType: config.provider === 'claude' ? 'success' : 'modelSelectionFailed',
 			mentionsModel: true,
 		});
 	});

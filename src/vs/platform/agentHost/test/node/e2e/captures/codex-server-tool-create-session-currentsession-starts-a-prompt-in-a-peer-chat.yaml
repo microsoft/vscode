@@ -1,0 +1,45 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Call create_session exactly once with relationship "currentSession", prompt "/rename Created Peer", and title "Created Peer", then reply exactly "created".
+    response:
+      content:
+        - type: text
+          text: Got it — creating that session now.
+        - type: tool_use
+          id: toolcall_0
+          name: create_session
+          input:
+            relationship: currentSession
+            prompt: /rename Created Peer
+            title: Created Peer
+      stopReason: tool_use
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Call create_session exactly once with relationship "currentSession", prompt "/rename Created Peer", and title "Created Peer", then reply exactly "created".
+        - role: assistant
+          content: Got it — creating that session now.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: create_session
+              input:
+                relationship: currentSession
+                prompt: /rename Created Peer
+                title: Created Peer
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: Chat created in the current session (agent-host-session://codex/${uuid_0}?chat=${uuid_1}). Reply with one short sentence confirming the chat was created; do not print the URL or mention a link.
+    response:
+      content: created
+      stopReason: end_turn

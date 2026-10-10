@@ -26,6 +26,7 @@ import { IProductService } from '../../../../../../platform/product/common/produ
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatMode, IChatMode, IChatModes } from '../../../common/chatModes.js';
+import { getCompactCodicon } from '../../chatIcons.js';
 import { isOrganizationPromptFile } from '../../../common/promptSyntax/utils/promptsServiceUtils.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
 import { PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
@@ -293,8 +294,6 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 	}
 
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
-		this.setAriaLabelAttributes(element);
-
 		const currentMode = this.delegate.currentMode.get();
 		const state = currentMode.label.get();
 		let icon = currentMode.icon.get();
@@ -306,14 +305,17 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 
 		const labelElements = [];
 		const collapsed = this.pickerOptions.compact.get();
+		element.classList.toggle('icon-only', collapsed && !!icon);
 		if (icon) {
-			labelElements.push(...renderLabelWithIcons(`$(${icon.id})`));
+			labelElements.push(...renderLabelWithIcons(`$(${getCompactCodicon(icon).id})`));
 		}
 		if (!collapsed || !icon) {
 			labelElements.push(dom.$('span.chat-input-picker-label', undefined, state));
 		}
 
 		dom.reset(element, ...labelElements);
+		this.setAriaLabelAttributes(element);
+		element.ariaLabel = state;
 		return null;
 	}
 }

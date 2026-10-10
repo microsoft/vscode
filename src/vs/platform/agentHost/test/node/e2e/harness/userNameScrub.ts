@@ -18,6 +18,7 @@ export const USER_NAME_PLACEHOLDER = '${user}';
  */
 const LISTING_OWNER_RE = /^([dlcbps-][rwxStTs-]{9}[+@.]?\s+\d+\s+)(\S+)(\s+)(\S+)/gm;
 const PATH_SEGMENT_END = '(?=$|[/\\\\\\s"\'`,:;!?#)\\]}>])';
+const CLAUDE_PROJECT_DIR_RE = /((?:\/|\\{1,2})\.claude(?:\/|\\{1,2})projects(?:\/|\\{1,2}))([^/\\\s"'`,:;!?)}\]>]+)/g;
 
 /**
  * Replaces the recording machine's account name where it identifies a *user*,
@@ -36,21 +37,25 @@ const PATH_SEGMENT_END = '(?=$|[/\\\\\\s"\'`,:;!?#)\\]}>])';
  * happens to be an ordinary word — exactly the cross-platform mismatch the
  * normalization exists to prevent.
  *
- * Only the two positions where the name genuinely identifies a user are
+ * Only the three positions where the name genuinely identifies a user are
  * rewritten:
  *
  * - after a path separator (`/home/runner/x`, `C:\Users\runner\x`), including
  *   the escaped `\\` form that appears inside embedded JSON;
  * - the owner and group columns of an `ls -l` listing, which is where the name
  *   shows up outside a path.
+ * - inside Claude's flattened source path under `.claude/projects`.
  */
 export function scrubUserName(text: string, userName: string): string {
 	if (!userName) {
 		return text;
 	}
 	const escaped = escapeRegExpCharacters(userName);
+	const flattenedHomeUserRe = new RegExp(`((?:^|-)(?:Users|home)-)${escaped}(?=-|$)`, 'g');
 	return text
 		.replace(new RegExp(`(?<=[/\\\\])${escaped}${PATH_SEGMENT_END}`, 'g'), USER_NAME_PLACEHOLDER)
+		.replace(CLAUDE_PROJECT_DIR_RE, (_match, prefix: string, projectDir: string) =>
+			`${prefix}${projectDir.replace(flattenedHomeUserRe, (_segment, homePrefix: string) => `${homePrefix}${USER_NAME_PLACEHOLDER}`)}`)
 		.replace(LISTING_OWNER_RE, (match, prefix: string, owner: string, gap: string, group: string) => {
 			if (owner !== userName && group !== userName) {
 				return match;

@@ -572,6 +572,50 @@ suite('observables', () => {
 				'get value: 0',
 			]);
 		});
+
+		test('last observer removed while handling event', () => {
+			const { log, setValue, observable } = init();
+			let firstValue: number | undefined;
+			const firstObserver = autorun(reader => {
+				firstValue = observable.read(reader);
+				if (firstValue === 1) {
+					firstObserver.dispose();
+				}
+			});
+
+			assert.deepStrictEqual({ firstValue, log: log.getAndClearEntries() }, {
+				firstValue: 0,
+				log: [
+					'subscribed handler 0',
+					'compute value 0',
+				],
+			});
+
+			setValue(1);
+			assert.deepStrictEqual({ firstValue, log: log.getAndClearEntries() }, {
+				firstValue: 1,
+				log: [
+					'compute value 1',
+					'unsubscribed handler 0',
+				],
+			});
+
+			let secondValue: number | undefined;
+			const secondObserver = autorun(reader => {
+				secondValue = observable.read(reader);
+			});
+
+			assert.deepStrictEqual({ secondValue, log: log.getAndClearEntries() }, {
+				secondValue: 1,
+				log: [
+					'subscribed handler 1',
+					'compute value 1',
+				],
+			});
+
+			secondObserver.dispose();
+			assert.deepStrictEqual(log.getAndClearEntries(), ['unsubscribed handler 1']);
+		});
 	});
 
 	test('reading derived in transaction unsubscribes unnecessary observables', () => {

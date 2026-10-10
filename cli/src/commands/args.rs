@@ -295,28 +295,72 @@ pub struct AgentHostArgs {
 	#[clap(long)]
 	pub foreground: bool,
 
-	/// Expose the agent host over a dev tunnel.
-	#[clap(long)]
+	/// Alias for `code tunnel`: expose remote editor and agent host access.
+	#[clap(
+		long,
+		group = "remote_host",
+		conflicts_with_all = [
+			"host", "port", "connection_token", "connection_token_file",
+			"without_connection_token", "replace", "new_instance", "foreground", "idle_timeout"
+		]
+	)]
 	pub tunnel: bool,
-	/// Sets the machine name for the tunnel.
-	#[clap(long)]
+	/// Register this agent host as a GitHub environment. Runs in the foreground.
+	#[clap(
+		long,
+		group = "remote_host",
+		conflicts_with_all = [
+			"host", "port", "connection_token", "connection_token_file",
+			"without_connection_token", "replace", "new_instance", "foreground", "idle_timeout",
+			"random_name", "tunnel_id", "host_token", "cluster", "tunnel_name"
+		]
+	)]
+	pub github_environment: bool,
+	/// Grant access to a project directory. Repeat for multiple projects. Defaults to the current directory.
+	#[clap(long, requires = "github_environment", conflicts_with = "tunnel")]
+	pub github_environment_root: Vec<PathBuf>,
+	/// Sets the machine name for the tunnel or GitHub environment.
+	#[clap(long, requires = "remote_host")]
 	pub name: Option<String>,
 	/// Randomly name the machine for the tunnel.
-	#[clap(long)]
+	#[clap(long, requires = "tunnel")]
 	pub random_name: bool,
+	/// Accept the server license terms when starting a tunnel or GitHub environment.
+	#[clap(long, requires = "remote_host")]
+	pub accept_server_license_terms: bool,
 
 	/// Automatically terminate this supervisor once no client has been
 	/// connected for this many seconds. The idle timer starts once the
 	/// supervisor is ready, is cancelled/paused for as long as at least
-	/// one client is connected, and restarts from the full duration each
-	/// time the last client disconnects. Unset (the default) means
-	/// unlimited: a manually started local host never self-terminates.
+	/// one client is connected or the agent host server is running, and
+	/// restarts from the full duration each time the last of those goes
+	/// away. The server only stops itself after it has had no running
+	/// agent sessions and no clients for a while, so in-progress sessions
+	/// are never cut short. Unset (the default) means unlimited: a
+	/// manually started local host never self-terminates.
 	#[clap(long)]
 	pub idle_timeout: Option<u64>,
 
 	/// Optional details to connect to an existing tunnel.
 	#[clap(flatten, next_help_heading = Some("ADVANCED TUNNEL OPTIONS"))]
 	pub existing_tunnel: ExistingTunnelArgs,
+}
+
+impl From<AgentHostArgs> for TunnelServeArgs {
+	fn from(args: AgentHostArgs) -> Self {
+		Self {
+			server_args: BaseServerArgs {
+				server_data_dir: args.server_data_dir,
+				..Default::default()
+			},
+			tunnel: args.existing_tunnel,
+			name: args.name,
+			random_name: args.random_name,
+			user_data_dir: args.user_data_dir,
+			accept_server_license_terms: args.accept_server_license_terms,
+			..Default::default()
+		}
+	}
 }
 
 #[derive(Args, Debug, Clone)]
@@ -331,7 +375,7 @@ pub struct AgentArgs {
 
 #[derive(Subcommand, Debug, Clone)]
 pub enum AgentSubcommand {
-	/// Start a local agent host server.
+	/// Start an agent host server, with optional remote access.
 	Host(AgentHostArgs),
 
 	/// List active sessions on a running agent host.
@@ -906,6 +950,37 @@ pub struct TunnelServeArgs {
 	/// If set, the user accepts the server license terms and the server will be started without a user prompt.
 	#[clap(long)]
 	pub accept_server_license_terms: bool,
+
+	/// Overrides the resolved user data directory used to home the local
+	/// agent-host endpoint registry
+	/// (`<user-data-dir>/agent-host/local-endpoint/entries/`, the directory of
+	/// per-instance entry files editor windows also publish to). Defaults to
+	/// the platform user data directory (honoring `VSCODE_PORTABLE` /
+	/// `VSCODE_APPDATA` when set), matching the editor's own resolution rules.
+	#[clap(long, hide = true)]
+	pub user_data_dir: Option<String>,
+
+	/// Emit machine-readable status lines on stdout for a parent process
+	/// (the editor) to consume, in addition to the human-readable banner.
+	#[clap(
+		long,
+		hide = true,
+		env = "VSCODE_CLI_MACHINE_STATUS",
+		action = clap::ArgAction::Set,
+		num_args = 0..=1,
+		default_value = "false",
+		default_missing_value = "true",
+		value_parser = clap::builder::BoolishValueParser::new()
+	)]
+	pub machine_status: bool,
+
+	/// Serve only the editor's own agent host through this tunnel: the
+	/// selection gateway pins every client to the live `editor` endpoint in
+	/// the registry and refuses to start a dedicated agent host. Intended for
+	/// tunnels whose lifetime is bound to the editor that started them, where
+	/// a dedicated agent host would outlive the tunnel and be unreachable.
+	#[clap(long, hide = true)]
+	pub delegate_to_editor: bool,
 }
 
 #[derive(Args, Debug, Clone, Default)]
@@ -1061,4 +1136,297 @@ pub struct LoginArgs {
 pub enum AuthProvider {
 	Microsoft,
 	Github,
+}
+
+#[cfg(test)]
+mod tests {
+	use super::{AgentHostArgs, AgentSubcommand, Commands, IntegratedCli, TunnelServeArgs};
+	use clap::Parser;
+
+	const MACHINE_STATUS_ENV: &str = "VSCODE_CLI_MACHINE_STATUS";
+
+	fn parse_machine_status(args: &[&str]) -> bool {
+		let cli = IntegratedCli::try_parse_from(args).unwrap();
+		let Some(Commands::Tunnel(tunnel_args)) = cli.core.subcommand else {
+			panic!("expected tunnel arguments");
+		};
+
+		tunnel_args.serve_args.machine_status
+	}
+
+	fn parse_agent_host_args(args: &[&str]) -> AgentHostArgs {
+		let cli = IntegratedCli::try_parse_from(args).unwrap();
+		let Some(Commands::Agent(args)) = cli.core.subcommand else {
+			panic!("expected agent arguments");
+		};
+		match args.subcommand {
+			Some(AgentSubcommand::Host(args)) => args,
+			None => args.host_args,
+			_ => panic!("expected agent host arguments"),
+		}
+	}
+
+	#[test]
+	fn agent_github_environment_accepts_remote_options() {
+		for command in [vec!["code", "agent"], vec!["code", "agent", "host"]] {
+			let mut argv = command;
+			argv.extend([
+				"--github-environment",
+				"--name",
+				"build-machine",
+				"--github-environment-root",
+				"project-a",
+				"--github-environment-root",
+				"project-b",
+				"--user-data-dir",
+				"profile",
+				"--server-data-dir",
+				"server-data",
+				"--accept-server-license-terms",
+			]);
+			let args = parse_agent_host_args(&argv);
+			assert_eq!(
+				(
+					args.github_environment,
+					args.name.as_deref(),
+					args.github_environment_root,
+					args.accept_server_license_terms
+				),
+				(
+					true,
+					Some("build-machine"),
+					vec!["project-a".into(), "project-b".into()],
+					true
+				)
+			);
+		}
+	}
+
+	#[test]
+	fn agent_github_environment_rejects_incompatible_options() {
+		for command in [vec!["code", "agent"], vec!["code", "agent", "host"]] {
+			for options in [
+				vec!["--tunnel"],
+				vec!["--host", "0.0.0.0"],
+				vec!["--port", "0"],
+				vec!["--connection-token", "token"],
+				vec!["--connection-token-file", "token"],
+				vec!["--without-connection-token"],
+				vec!["--replace"],
+				vec!["--new-instance"],
+				vec!["--foreground"],
+				vec!["--idle-timeout", "300"],
+				vec!["--random-name"],
+				vec!["--tunnel-id", "id"],
+				vec!["--host-token", "token"],
+				vec!["--cluster", "cluster"],
+				vec!["--tunnel-name", "name"],
+			] {
+				let mut argv = command.clone();
+				argv.push("--github-environment");
+				argv.extend(options);
+				assert_eq!(
+					IntegratedCli::try_parse_from(&argv).unwrap_err().kind(),
+					clap::error::ErrorKind::ArgumentConflict,
+					"{argv:?}"
+				);
+			}
+		}
+	}
+
+	#[test]
+	fn github_environment_options_require_hosting() {
+		for command in [vec!["code", "agent"], vec!["code", "agent", "host"]] {
+			let mut argv = command.clone();
+			argv.extend(["--github-environment-root", "project"]);
+			assert!(IntegratedCli::try_parse_from(&argv).is_err());
+			let mut argv = command;
+			argv.extend(["--tunnel", "--github-environment-root", "project"]);
+			assert!(IntegratedCli::try_parse_from(&argv).is_err());
+		}
+	}
+
+	#[test]
+	fn github_environment_rejects_token_file_option() {
+		for command in [vec!["code", "agent"], vec!["code", "agent", "host"]] {
+			let mut argv = command;
+			argv.extend([
+				"--github-environment",
+				"--github-environment-token-file",
+				"token",
+			]);
+			assert_eq!(
+				IntegratedCli::try_parse_from(&argv).unwrap_err().kind(),
+				clap::error::ErrorKind::UnknownArgument,
+				"{argv:?}"
+			);
+		}
+	}
+
+	#[test]
+	fn agent_tunnel_alias_forwards_tunnel_options() {
+		for command in [vec!["code", "agent"], vec!["code", "agent", "host"]] {
+			let mut argv = command;
+			argv.extend([
+				"--tunnel",
+				"--name",
+				"my-machine",
+				"--random-name",
+				"--server-data-dir",
+				"server-data",
+				"--user-data-dir",
+				"user-data",
+				"--tunnel-id",
+				"existing-id",
+				"--host-token",
+				"host-token",
+				"--cluster",
+				"cluster",
+				"--tunnel-name",
+				"existing-name",
+				"--accept-server-license-terms",
+			]);
+			let args = parse_agent_host_args(&argv);
+			assert!(args.tunnel);
+			let args = TunnelServeArgs::from(args);
+			assert_eq!(
+				(
+					args.name.as_deref(),
+					args.random_name,
+					args.server_args.server_data_dir.as_deref(),
+					args.user_data_dir.as_deref(),
+					args.tunnel.tunnel_id.as_deref(),
+					args.tunnel.host_token.as_deref(),
+					args.tunnel.cluster.as_deref(),
+					args.tunnel.tunnel_name.as_deref(),
+					args.accept_server_license_terms,
+					args.delegate_to_editor,
+				),
+				(
+					Some("my-machine"),
+					true,
+					Some("server-data"),
+					Some("user-data"),
+					Some("existing-id"),
+					Some("host-token"),
+					Some("cluster"),
+					Some("existing-name"),
+					true,
+					false,
+				)
+			);
+		}
+	}
+
+	#[test]
+	fn agent_tunnel_alias_rejects_local_host_options() {
+		for command in [vec!["code", "agent"], vec!["code", "agent", "host"]] {
+			for options in [
+				vec!["--host", "0.0.0.0"],
+				vec!["--port", "0"],
+				vec!["--connection-token", "token"],
+				vec!["--connection-token-file", "token-file"],
+				vec!["--without-connection-token"],
+				vec!["--replace"],
+				vec!["--new-instance"],
+				vec!["--foreground"],
+				vec!["--idle-timeout", "300"],
+			] {
+				let mut argv = command.clone();
+				argv.push("--tunnel");
+				argv.extend(options);
+				assert_eq!(
+					IntegratedCli::try_parse_from(&argv).unwrap_err().kind(),
+					clap::error::ErrorKind::ArgumentConflict,
+					"{argv:?}"
+				);
+			}
+		}
+	}
+
+	#[test]
+	fn agent_host_without_tunnel_still_accepts_local_options() {
+		for command in [vec!["code", "agent"], vec!["code", "agent", "host"]] {
+			let mut argv = command;
+			argv.extend([
+				"--host",
+				"0.0.0.0",
+				"--port",
+				"1234",
+				"--connection-token",
+				"token",
+				"--replace",
+				"--new-instance",
+				"--foreground",
+				"--idle-timeout",
+				"300",
+			]);
+			let args = parse_agent_host_args(&argv);
+			assert_eq!(
+				(
+					args.tunnel,
+					args.host.as_deref(),
+					args.port,
+					args.connection_token.as_deref(),
+					args.replace,
+					args.new_instance,
+					args.foreground,
+					args.idle_timeout,
+				),
+				(
+					false,
+					Some("0.0.0.0"),
+					1234,
+					Some("token"),
+					true,
+					true,
+					true,
+					Some(300)
+				)
+			);
+		}
+	}
+
+	#[test]
+	fn tunnel_rejects_agent_host_only_mode() {
+		assert_eq!(
+			IntegratedCli::try_parse_from(["code", "tunnel", "--agent-host-only"])
+				.unwrap_err()
+				.kind(),
+			clap::error::ErrorKind::UnknownArgument
+		);
+	}
+
+	/// Mutates process-global environment, which `cargo test` runs in parallel
+	/// with every other test. This is only safe because no other test reads
+	/// `VSCODE_CLI_MACHINE_STATUS`; if a second env-dependent test is added
+	/// here, serialize them (a shared mutex) rather than letting them race.
+	#[test]
+	fn parses_machine_status_from_flag_and_environment() {
+		let previous_value = std::env::var_os(MACHINE_STATUS_ENV);
+		std::env::remove_var(MACHINE_STATUS_ENV);
+
+		assert!(!parse_machine_status(&["code", "tunnel"]));
+
+		std::env::set_var(MACHINE_STATUS_ENV, "1");
+		assert!(parse_machine_status(&["code", "tunnel"]));
+
+		std::env::set_var(MACHINE_STATUS_ENV, "0");
+		assert!(!parse_machine_status(&["code", "tunnel"]));
+
+		std::env::set_var(MACHINE_STATUS_ENV, "false");
+		assert!(!parse_machine_status(&["code", "tunnel"]));
+
+		std::env::remove_var(MACHINE_STATUS_ENV);
+		assert!(parse_machine_status(&[
+			"code",
+			"tunnel",
+			"--machine-status"
+		]));
+
+		match previous_value {
+			Some(value) => std::env::set_var(MACHINE_STATUS_ENV, value),
+			None => std::env::remove_var(MACHINE_STATUS_ENV),
+		}
+	}
 }

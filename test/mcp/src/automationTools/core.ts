@@ -5,7 +5,7 @@
 
 import { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { ApplicationService } from '../application';
+import { ApplicationService, assertNoProfileOverrides } from '../../../scenario';
 
 /**
  * Core Application Management Tools
@@ -21,6 +21,7 @@ export function applyCoreTools(server: McpServer, appService: ApplicationService
 			extraArgs: z.array(z.string()).optional().describe('Extra CLI arguments to pass on restart')
 		},
 		async ({ workspaceOrFolder, extraArgs }) => {
+			assertNoProfileOverrides(extraArgs);
 			const app = await appService.getOrCreateApplication();
 			await app.restart({ workspaceOrFolder, extraArgs });
 			const workspaceText = workspaceOrFolder ? ` with workspace: ${workspaceOrFolder}` : '';

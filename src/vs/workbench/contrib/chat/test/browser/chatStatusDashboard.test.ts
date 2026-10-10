@@ -15,7 +15,10 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IInlineCompletionsService } from '../../../../../editor/browser/services/inlineCompletionsService.js';
 import { ConfigurationTarget, type IConfigurationOverrides, type IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import product from '../../../../../platform/product/common/product.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
@@ -41,6 +44,8 @@ function createEntitlementService(opts: {
 	additionalUsageEnabled?: boolean;
 	additionalUsageCount?: number;
 	entitlement?: ChatEntitlement;
+	resetDate?: string;
+	resetDateHasTime?: boolean;
 }): IChatEntitlementService {
 	return {
 		_serviceBrand: undefined,
@@ -58,6 +63,8 @@ function createEntitlementService(opts: {
 			usageBasedBilling: opts.usageBasedBilling ?? opts.premiumChat?.usageBasedBilling,
 			additionalUsageEnabled: opts.additionalUsageEnabled,
 			additionalUsageCount: opts.additionalUsageCount,
+			resetDate: opts.resetDate,
+			resetDateHasTime: opts.resetDateHasTime,
 		},
 		update: (_token: CancellationToken) => Promise.resolve(),
 		onDidChangeSentiment: Event.None,
@@ -91,6 +98,15 @@ function getCalloutText(element: HTMLElement): string | null {
 function getQuotaLabels(element: HTMLElement): string[] {
 	const indicators = element.querySelectorAll('.quota-indicator:not(.included) .quota-title');
 	return Array.from(indicators).map(el => el.textContent ?? '');
+}
+
+function getQuotaResets(element: HTMLElement): [string, string][] {
+	const indicators = element.querySelectorAll('.quota-indicator:not(.included)');
+	return Array.from(indicators).map(el => [
+		el.querySelector('.quota-title > span:not(.quota-reset)')?.textContent ?? '',
+		// The time of day is locale and timezone dependent, so only its presence is asserted.
+		(el.querySelector('.quota-reset')?.textContent ?? '').replace(/ at .+$/, ' at <time>')
+	]);
 }
 
 function getIncludedLabels(element: HTMLElement): string[] {
@@ -232,6 +248,9 @@ suite('ChatStatusDashboard', () => {
 		dashboardOptions?: IChatStatusDashboardOptions;
 		configurationService?: TestConfigurationService;
 		activeTextEditorLanguageId?: string;
+		defaultAccountService?: IDefaultAccountService;
+		openerService?: IOpenerService;
+		notificationService?: INotificationService;
 	} = {}): ChatStatusDashboard {
 		const configurationService = options.configurationService;
 		const instantiationService = workbenchInstantiationService(configurationService ? { configurationService: () => configurationService } : undefined, store);
@@ -254,6 +273,15 @@ suite('ChatStatusDashboard', () => {
 		instantiationService.stub(IMarkdownRendererService, {
 			_serviceBrand: undefined,
 		});
+		if (options.defaultAccountService) {
+			instantiationService.stub(IDefaultAccountService, options.defaultAccountService);
+		}
+		if (options.openerService) {
+			instantiationService.stub(IOpenerService, options.openerService);
+		}
+		if (options.notificationService) {
+			instantiationService.stub(INotificationService, options.notificationService);
+		}
 		if (options.activeTextEditorLanguageId) {
 			const activeTextEditorLanguageId = options.activeTextEditorLanguageId;
 			instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
@@ -267,6 +295,45 @@ suite('ChatStatusDashboard', () => {
 		store.add({ dispose: () => dashboard.element.remove() });
 
 		return dashboard;
+	}
+
+	for (const available of [true, false]) {
+		test(`GitHub actions ${available ? 'open the session URL' : 'report an unavailable enterprise URL'}`, () => {
+			const opened: string[] = [];
+			const errors: string[] = [];
+			const dashboard = createDashboard(createEntitlementService({
+				entitlement: ChatEntitlement.Pro,
+				premiumChat: { percentRemaining: 50, unlimited: false },
+			}), {
+				defaultAccountService: new class extends mock<IDefaultAccountService>() {
+					override resolveGitHubUrl(path: string): string | undefined {
+						return available ? `https://tenant.ghe.com/${path}` : undefined;
+					}
+				}(),
+				openerService: new class extends mock<IOpenerService>() {
+					override async open(resource: Parameters<IOpenerService['open']>[0]): Promise<boolean> {
+						opened.push(typeof resource === 'string' ? resource : resource.toString(true));
+						return true;
+					}
+				}(),
+				notificationService: new class extends mock<INotificationService>() {
+					override error(message: Parameters<INotificationService['error']>[0]): void {
+						errors.push(String(message));
+					}
+				}(),
+			});
+
+			dashboard.element.querySelector<HTMLElement>('[aria-label="Manage Copilot Settings"]')?.click();
+			dashboard.element.querySelector<HTMLElement>('.header-cta-button')?.click();
+
+			assert.deepStrictEqual({ opened, errors }, available ? {
+				opened: ['https://tenant.ghe.com/settings/copilot/features', 'https://tenant.ghe.com/settings/copilot/features?utm_source=vscode'],
+				errors: [],
+			} : {
+				opened: [],
+				errors: Array(2).fill('The GitHub Enterprise URL is unavailable. Sign in and try again.'),
+			});
+		});
 	}
 
 	test('preserves inline suggestion language setting state across writes', async () => {
@@ -688,6 +755,25 @@ suite('ChatStatusDashboard', () => {
 		assert.ok(credits?.reset.startsWith('Resets May 31 at '));
 	});
 
+	test('quota indicators prefer their own snapshot reset over the account reset', () => {
+		const premiumResetAt = Math.floor(Date.UTC(2026, 6, 5, 14, 0, 0) / 1000);
+		const completionsResetAt = Math.floor(Date.UTC(2026, 6, 9, 14, 0, 0) / 1000);
+		const dashboard = createDashboard(createEntitlementService({
+			chat: { percentRemaining: 80, unlimited: false },
+			premiumChat: { percentRemaining: 60, unlimited: false, resetAt: premiumResetAt },
+			completions: { percentRemaining: 90, unlimited: false, resetAt: completionsResetAt },
+			entitlement: ChatEntitlement.Pro,
+			resetDate: '2026-09-01T12:00:00Z',
+			resetDateHasTime: false,
+		}));
+
+		assert.deepStrictEqual(getQuotaResets(dashboard.element), [
+			['Chat messages', 'Resets Sep 1'],
+			['Premium requests', 'Resets Jul 5 at <time>'],
+			['Inline Suggestions', 'Resets Jul 9 at <time>'],
+		]);
+	});
+
 	test('Business — pooled exhausted (no overages): shows exhausted indicator and callout', () => {
 		const dashboard = createDashboard(createEntitlementService({
 			premiumChat: { percentRemaining: 0, unlimited: true, hasQuota: false },
@@ -768,7 +854,7 @@ suite('ChatStatusDashboard', () => {
 		// Hover: shows credit fractions
 		quotaPercentages[0].dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
 		const chatValue = quotaPercentages[0].querySelector('.quota-value');
-		assert.ok(chatValue?.textContent?.includes('/'));
+		assert.strictEqual(chatValue?.textContent, '400 / 2,000');
 
 		// Mouse leave: reverts to percentage
 		quotaPercentages[0].dispatchEvent(new MouseEvent('mouseleave', { bubbles: true }));
@@ -809,7 +895,7 @@ suite('ChatStatusDashboard', () => {
 		// Focus: shows credit fractions
 		quotaPercentages[0].dispatchEvent(new FocusEvent('focus', { bubbles: true }));
 		const chatValue = quotaPercentages[0].querySelector('.quota-value');
-		assert.ok(chatValue?.textContent?.includes('/'));
+		assert.strictEqual(chatValue?.textContent, '400 / 2,000');
 
 		// Blur: reverts to percentage
 		quotaPercentages[0].dispatchEvent(new FocusEvent('blur', { bubbles: true }));

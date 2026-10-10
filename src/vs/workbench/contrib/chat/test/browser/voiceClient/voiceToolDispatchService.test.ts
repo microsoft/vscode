@@ -8,10 +8,10 @@ import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { IAgentSessionsModel } from '../../../browser/agentSessions/agentSessionsModel.js';
+import { AgentSessionStatus, IAgentSessionsModel } from '../../../browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../../browser/agentSessions/agentSessionsService.js';
 import { IVoiceModelSelectionResult, IVoiceToolDispatchDelegate, resolveVoiceModel, VoiceToolDispatchService } from '../../../browser/voiceClient/voiceToolDispatchService.js';
-import { IChatQuestionAnswers, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { ConfirmedReason, IChatQuestionAnswers, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IChatModel } from '../../../common/model/chatModel.js';
 import { ChatPlanReviewData } from '../../../common/model/chatProgressTypes/chatPlanReviewData.js';
 import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
@@ -76,12 +76,15 @@ suite('VoiceToolDispatchService - session actions', () => {
 		const agentSessionsService = new class extends mock<IAgentSessionsService>() {
 			override get model(): IAgentSessionsModel {
 				return {
-					sessions: (options.agentSessionResources ?? []).map(resource => ({ isArchived: () => false, resource })),
+					sessions: (options.agentSessionResources ?? []).map(resource => ({ isArchived: () => false, resource, status: AgentSessionStatus.InProgress, timing: {} })),
 				} as IAgentSessionsModel;
 			}
 		};
 		const chatService = new class extends mock<IChatService>() {
 			override readonly chatModels = observableValue<readonly IChatModel[]>('chatModels', options.chatModels ?? []);
+			override getSession(resource: URI): IChatModel | undefined {
+				return options.chatModels?.find(model => model.sessionResource.toString() === resource.toString());
+			}
 		};
 		const service = new VoiceToolDispatchService(
 			agentSessionsService,
@@ -127,6 +130,40 @@ suite('VoiceToolDispatchService - session actions', () => {
 		assert.deepStrictEqual(result, { ok: true, session_id: resource.toString() });
 		assert.strictEqual(calls.switchedTo[0]?.toString(), resource.toString());
 		assert.strictEqual(calls.targeted[0]?.toString(), resource.toString());
+	});
+
+	test('focuses a session by its human-readable label', async () => {
+		const resource = URI.parse('agent-session://test/alpha');
+		const agentSessionsService = new class extends mock<IAgentSessionsService>() {
+			override get model(): IAgentSessionsModel {
+				return {
+					sessions: [{ isArchived: () => false, label: 'Alpha', resource, timing: {} }],
+				} as IAgentSessionsModel;
+			}
+		};
+		const chatService = new class extends mock<IChatService>() {
+			override readonly chatModels = observableValue<readonly IChatModel[]>('chatModels', []);
+		};
+		const service = new VoiceToolDispatchService(
+			agentSessionsService,
+			chatService,
+			new class extends mock<ILanguageModelToolsService>() { },
+		);
+		const calls: URI[] = [];
+		service.setDelegate(new class extends mock<IVoiceToolDispatchDelegate>() {
+			override async switchToSession(target: URI): Promise<boolean> {
+				calls.push(target);
+				return true;
+			}
+			override setTargetSession(_resource: URI): void { }
+			override async getCurrentSessionResource(): Promise<URI | undefined> { return undefined; }
+		}());
+
+		assert.deepStrictEqual(
+			await dispatch(service, 'focus_session', { coding_session_id: 'alpha' }),
+			{ ok: true, session_id: resource.toString() },
+		);
+		assert.deepStrictEqual(calls, [resource]);
 	});
 
 	test('sets a model on the current session without changing the voice target', async () => {
@@ -205,6 +242,25 @@ suite('VoiceToolDispatchService - session actions', () => {
 			insertions: 0,
 			deletions: 0,
 		});
+	});
+
+	test('reports the loaded model state instead of a stale session status', async () => {
+		const resource = URI.parse('agent-session://test/completed');
+		const model = {
+			sessionResource: resource,
+			requestNeedsInput: observableValue('requestNeedsInput', undefined),
+			hasActiveRequest: observableValue('hasActiveRequest', false),
+			getRequests: () => [],
+		} as unknown as IChatModel;
+		const { service } = createActionHarness({
+			agentSessionResources: [resource],
+			chatModels: [model],
+		});
+
+		const result = await dispatch(service, 'get_session_info');
+
+		assert.deepStrictEqual(result.counts, { working: 0, waiting_for_input: 0, idle: 1 });
+		assert.strictEqual(result.sessions[0].state, 'idle');
 	});
 });
 
@@ -334,6 +390,36 @@ suite('VoiceToolDispatchService - respondToSession', () => {
 		assert.deepStrictEqual({ result, confirmations }, {
 			result: { ok: false, reason: 'unsupported' },
 			confirmations: [],
+		});
+	});
+
+	test('a spoken rejection preserves explicit human provenance', async () => {
+		const confirmations: ConfirmedReason[] = [];
+		const tool = new class extends mock<IChatToolInvocation>() {
+			override readonly kind = 'toolInvocation' as const;
+			override readonly toolId = 'testTool';
+			override readonly toolCallId = 'voice-manual-rejection';
+			override readonly state = observableValue<IChatToolInvocation.State>('state', {
+				type: IChatToolInvocation.StateKind.WaitingForConfirmation,
+				parameters: {},
+				confirmationMessages: { title: 'Run the build?', message: 'Runs the visible build task.' },
+				confirm: reason => confirmations.push(reason),
+			});
+		}();
+		const service = serviceFor(tool);
+		const response = approvalCall(tool, 'reject');
+		const result = await service.respondToSession(response);
+		const repeated = await service.respondToSession(response);
+		tool.state.set({
+			type: IChatToolInvocation.StateKind.Cancelled,
+			reason: ToolConfirmKind.Denied,
+			source: 'user',
+			parameters: {},
+		}, undefined);
+		assert.deepStrictEqual({ result, repeated, confirmations }, {
+			result: { ok: true },
+			repeated: { ok: false, reason: 'stale_pending' },
+			confirmations: [{ type: ToolConfirmKind.Denied, source: 'user' }],
 		});
 	});
 

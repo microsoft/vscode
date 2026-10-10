@@ -4,11 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { disposableTimeout } from '../../../base/common/async.js';
+import { getErrorMessage } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable, DisposableMap, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, type IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
+import { AgentHostProviderTiming } from '../common/agentHostProviderTiming.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { URI } from '../../../base/common/uri.js';
+import type { AgentModelCallFinishedOutcome, AgentSubagentKind, AgentSubagentTaskModelSource, IAgent, IAgentTelemetryContext, IAgentTokenUsageSummary, IAgentTurnDiagnosticSnapshot, IAgentTurnTokenUsage } from '../common/agent.js';
+import type { SessionMode } from '../common/agentHostSchema.js';
+import { type CodexModelProvider, createUnknownAgentHostClientTelemetryContext, type AgentHostProviderSendStage, type IAgentHostClientTelemetryContext, type IAgentProviderSendStageRecorder, type IAgentProviderTurnTelemetryContext } from '../common/agentHostTelemetry.js';
+import { AgentHostClientType } from '../common/agentHostClientInfo.js';
+import { IAgentHostClientConnectionService } from './agentHostClientConnectionService.js';
+import { ILogService, LogLevel } from '../../log/common/log.js';
+import type { AutomaticTitleGenerationStrategy } from './agentHostSessionTitleController.js';
+import { captureProviderTurnTelemetryContext, getModelTelemetryContext } from './agentHostTurnTelemetryContext.js';
+import { canRefineContributor, toolSourceKindFromContributor } from './shared/toolCallContributor.js';
 import { SessionInputRequestKind } from '../common/state/protocol/state.js';
-import type { AgentHostModelTelemetryKind, AgentHostTelemetryReporter, AgentHostTurnHangReason, AgentHostTurnResult, IAgentHostTurnFailure } from './agentHostTelemetryReporter.js';
+import { isSubagentChatUri, isSubagentSession, parseChatUri, type ITurnTokenTotal, type ToolCallContributor } from '../common/state/sessionState.js';
+import { IAgentHostTelemetryReporter, type AgentHostInitiatorClientConnectionState, type AgentHostMessageOriginTelemetryKind, type AgentHostModelSelectionKind, type AgentHostModelTelemetryKind, type AgentHostProviderDiagnosticState, type AgentHostTelemetryReporter, type AgentHostTurnFailureStage, type AgentHostTurnHangReason, type AgentHostTurnResult, type AgentHostTurnSendStage, type IAgentHostTurnFailure } from './agentHostTelemetryReporter.js';
 
 /**
  * How long a turn must go without any observed activity before the watchdog
@@ -30,27 +44,85 @@ const MAX_HANG_CHECK_WINDOWS = 6;
 /** Sentinel `lastActivityKind` for a turn that never produced any activity. */
 export const TURN_ACTIVITY_NONE = 'none';
 
+/** Identity of a tool call that has started but not yet completed. */
+interface IInFlightToolCall {
+	readonly toolId: string;
+	contributor: ToolCallContributor | undefined;
+	toolSourceKind: string;
+}
+
+/** An outstanding session input request, and the tool call it gates if any. */
+interface ITurnBlocker {
+	readonly kind: SessionInputRequestKind;
+	readonly toolCallId: string | undefined;
+}
+
+interface IRootTurnTiming {
+	readonly hostRootTurnOrdinal: number;
+	readonly hostProcessAgeMs: number;
+	titleGenerationStrategy: AutomaticTitleGenerationStrategy | undefined;
+}
+
 /** Per-turn timing state, keyed by `session:turnId`. */
 interface ITurnTiming {
 	readonly stopWatch: StopWatch;
-	readonly provider: string;
+	readonly providerTiming: AgentHostProviderTiming;
+	readonly agent: IAgent;
 	readonly session: string;
+	readonly providerChat: URI;
 	readonly turnId: string;
+	readonly parentTurnId: string | undefined;
+	readonly parentToolCallId: string | undefined;
+	readonly rootTiming: IRootTurnTiming | undefined;
 	model: string | undefined;
 	modelTelemetryKind: AgentHostModelTelemetryKind | undefined;
-	readonly modelSelectionKind: 'default' | 'auto' | 'explicit';
+	readonly selectedModel: string | undefined;
+	readonly selectedModelTelemetryKind: AgentHostModelTelemetryKind | undefined;
+	readonly modelSelectionKind: AgentHostModelSelectionKind;
 	readonly permissionLevel: string | undefined;
+	readonly interactionMode: SessionMode | undefined;
+	/** Who produced the message that started the turn, when known. */
+	readonly messageOriginKind: AgentHostMessageOriginTelemetryKind | undefined;
+	readonly subagentTaskModelSource: AgentSubagentTaskModelSource | undefined;
+	readonly subagentKind: AgentSubagentKind | undefined;
+	readonly clientContext: IAgentHostClientTelemetryContext;
+	telemetryContext: IAgentTelemetryContext | undefined;
+	readonly providerTelemetryContext: IAgentProviderTurnTelemetryContext | undefined;
+	codexModelProvider?: CodexModelProvider;
+	readonly initiatorClientId: string | undefined;
+	readonly completedModelCallIds: Set<string>;
+	readonly finishedModelCallIds: Set<string>;
+	modelCallDispatchDurationMs: number;
+	timeToFirstEditMs: number | undefined;
+	startedWithSteering: boolean;
+	receivedSteering: boolean;
 	firstProgressMs: number | undefined;
+	firstSubstantiveProgressMs: number | undefined;
+	currentStage: AgentHostTurnFailureStage;
+	/** Elapsed time of each completed pre-send stage, in milliseconds. */
+	readonly sendStageDurationsMs: Map<AgentHostTurnSendStage, number>;
+	/** The pre-send stage currently being timed, and when it opened. */
+	openSendStage: { readonly stage: AgentHostTurnSendStage; readonly startedMs: number } | undefined;
+	/** Elapsed time from turn start to provider dispatch, in milliseconds. */
+	sendDispatchedMs: number | undefined;
+	/** Elapsed time of each provider stage between dispatch and first progress, in milliseconds. */
+	readonly providerStageDurationsMs: Map<AgentHostProviderSendStage, number>;
+	/** The provider stage currently being timed, and when it opened. */
+	openProviderStage: { readonly stage: AgentHostProviderSendStage; readonly startedMs: number } | undefined;
 
 	// Hang watchdog state
 	/** Reset on every observed activity; measures the current quiet period. */
 	quietStopWatch: StopWatch;
 	/** Protocol action type of the last observed activity, or `none`. */
 	lastActivityKind: string;
-	/** Tool calls that have started but not completed, by tool call id. */
-	readonly inFlightToolCalls: Set<string>;
+	/**
+	 * Tool calls that have started but not completed, by tool call id. Insertion
+	 * ordered, so the first entry is the longest-running call.
+	 */
+	readonly inFlightToolCalls: Map<string, IInFlightToolCall>;
 	/** Outstanding session input requests for this turn, by request id. */
-	readonly blockers: Map<string, SessionInputRequestKind>;	/** Hang reasons already reported, so each is emitted at most once per turn. */
+	readonly blockers: Map<string, ITurnBlocker>;
+	/** Hang reasons already reported, so each is emitted at most once per turn. */
 	readonly reportedHangReasons: Set<AgentHostTurnHangReason>;
 	/** Number of hang reports emitted for this turn. */
 	hangReportCount: number;
@@ -60,6 +132,14 @@ interface ITurnTiming {
 	lastHangStopWatch: StopWatch | undefined;
 	/** Consecutive quiet windows the watchdog has observed. */
 	quietWindows: number;
+}
+
+interface ITurnUsage {
+	billedNanoAiu?: number;
+	directPromptTokenCount?: number;
+	directPromptCacheTokenCount?: number;
+	directCompletionTokenCount?: number;
+	directBilledNanoAiu?: number;
 }
 
 /**
@@ -83,9 +163,54 @@ interface ITurnTiming {
  * later completes, it also reports `agentHost.hungTurnCompleted` so permanent
  * hangs can be separated from merely slow ones.
  */
-export class AgentHostTurnTracker extends Disposable {
+export const IAgentHostTurnTracker = createDecorator<IAgentHostTurnTracker>('agentHostTurnTracker');
+
+export interface IAgentHostTurnTracker extends IDisposable {
+	readonly _serviceBrand: undefined;
+	readonly onDidStartTurn: Event<string>;
+	readonly onDidDispatchTurn: Event<{ readonly chat: string; readonly turnId: string }>;
+	turnStarted(agent: IAgent, session: string, turnId: string, model: string | undefined, modelTelemetryKind: AgentHostModelTelemetryKind | undefined, modelSelectionKind: AgentHostModelSelectionKind, permissionLevel: string | undefined, interactionMode: SessionMode | undefined, clientContext?: IAgentHostClientTelemetryContext, initiatorClientId?: string, parentTurnId?: string, parentToolCallId?: string, messageOriginKind?: AgentHostMessageOriginTelemetryKind, subagentTaskModelSource?: AgentSubagentTaskModelSource, providerChat?: URI, subagentKind?: AgentSubagentKind): void;
+	setTitleGenerationStrategy(session: string, turnId: string, strategy: AutomaticTitleGenerationStrategy): void;
+	markFirstProgress(session: string, turnId: string): void;
+	markFirstSubstantiveProgress(session: string, turnId: string): void;
+	markSendStage(session: string, turnId: string, stage: AgentHostTurnSendStage): void;
+	markSendDispatched(session: string, turnId: string): void;
+	markProviderStage(session: string, turnId: string, stage: AgentHostProviderSendStage): void;
+	createProviderStageRecorder(session: string, turnId: string): IAgentProviderSendStageRecorder;
+	markActivity(session: string, turnId: string, activityKind: string): void;
+	setCurrentStage(session: string, turnId: string, stage: AgentHostTurnFailureStage): void;
+	toolCallStarted(session: string, turnId: string, toolCallId: string, toolName: string, contributor: ToolCallContributor | undefined): void;
+	toolCallMetadataUpdated(session: string, turnId: string, toolCallId: string, contributor: ToolCallContributor | undefined): void;
+	toolCallEnded(session: string, turnId: string, toolCallId: string): void;
+	turnBlocked(session: string, turnId: string, requestId: string, kind: SessionInputRequestKind, toolCallId: string | undefined): void;
+	turnUnblocked(session: string, requestId: string): void;
+	updateModel(session: string, turnId: string, model: string, modelTelemetryKind: AgentHostModelTelemetryKind): void;
+	updateBilledNanoAiu(session: string, turnId: string, billedNanoAiu: number | undefined): void;
+	updateDirectUsage(session: string, turnId: string, tokenTotals: readonly ITurnTokenTotal[] | undefined, billedNanoAiu: number | undefined): void;
+	modelCallCompleted(session: string, turnId: string, modelCallId: string): void;
+	markSteering(session: string, turnId: string, kind: 'started' | 'received'): void;
+	modelCallFinished(session: string, turnId: string, modelCallId: string, dispatchDurationMs: number, outcome: AgentModelCallFinishedOutcome, containsBuiltInFileEditRequest: boolean | undefined): void;
+	getModelTelemetryContext(session: string, turnId: string): { model: string | undefined; modelTelemetryKind: AgentHostModelTelemetryKind | undefined } | undefined;
+	getClientTelemetryContext(session: string, turnId: string): IAgentHostClientTelemetryContext | undefined;
+	getTelemetryContext(session: string, turnId: string): IAgentTelemetryContext | undefined;
+	setCodexModelProvider(session: string, turnId: string, provider: CodexModelProvider): void;
+	getProviderTelemetryContext(session: string, turnId: string): IAgentProviderTurnTelemetryContext | undefined;
+	getSubagentKind(session: string, turnId: string): AgentSubagentKind | undefined;
+	getMessageOriginKind(session: string, turnId: string): AgentHostMessageOriginTelemetryKind | undefined;
+	getInitiatorClientId(session: string, turnId: string): string | undefined;
+	turnCompleted(session: string, turnId: string, result: AgentHostTurnResult, failure?: IAgentHostTurnFailure, workspace?: { readonly isMultiRoot: boolean; readonly folderCount: number }): boolean;
+	clearSession(session: string): void;
+	clearTurnsExcept(session: string, keepTurnIds: ReadonlySet<string>): void;
+}
+
+export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTracker {
+	private _hostRootTurnOrdinal = 0;
+
+	declare readonly _serviceBrand: undefined;
 
 	private readonly _turnTimings = new Map<string, ITurnTiming>();
+	private readonly _rootTurnTimings = new Map<string, IRootTurnTiming>();
+	private readonly _turnUsages = new Map<string, ITurnUsage>();
 	private readonly _hangWatchdogs = this._register(new DisposableMap<string>());
 	/** Maps `session:requestId` to the turn key blocked on that request. */
 	private readonly _blockerTurnKeys = new Map<string, string>();
@@ -103,45 +228,290 @@ export class AgentHostTurnTracker extends Disposable {
 	private readonly _onDidStartTurn = this._register(new Emitter<string>());
 	readonly onDidStartTurn: Event<string> = this._onDidStartTurn.event;
 
-	constructor(private readonly _reporter: AgentHostTelemetryReporter) {
+	private readonly _onDidDispatchTurn = this._register(new Emitter<{ readonly chat: string; readonly turnId: string }>());
+	/**
+	 * Fires once per turn when the send path hands it to the provider, after
+	 * the final pre-dispatch cancellation checks. A turn cancelled or failed
+	 * before this point never reached the provider.
+	 */
+	readonly onDidDispatchTurn: Event<{ readonly chat: string; readonly turnId: string }> = this._onDidDispatchTurn.event;
+
+	constructor(
+		@IAgentHostTelemetryReporter private readonly _reporter: AgentHostTelemetryReporter,
+		@IAgentHostClientConnectionService private readonly _clientConnections: IAgentHostClientConnectionService,
+		@ILogService private readonly _logService: ILogService,
+	) {
 		super();
 		this._register(toDisposable(() => {
+			for (const timing of this._turnTimings.values()) {
+				timing.providerTiming.finish(timing.stopWatch.elapsed());
+			}
 			this._turnTimings.clear();
+			this._rootTurnTimings.clear();
+			this._turnUsages.clear();
 			this._blockerTurnKeys.clear();
 		}));
 	}
 
-	turnStarted(provider: string, session: string, turnId: string, model: string | undefined, modelTelemetryKind: AgentHostModelTelemetryKind | undefined, permissionLevel: string | undefined): void {
+	turnStarted(agent: IAgent, session: string, turnId: string, model: string | undefined, modelTelemetryKind: AgentHostModelTelemetryKind | undefined, modelSelectionKind: AgentHostModelSelectionKind, permissionLevel: string | undefined, interactionMode: SessionMode | undefined, clientContext = createUnknownAgentHostClientTelemetryContext(AgentHostClientType.Unknown), initiatorClientId?: string, parentTurnId?: string, parentToolCallId?: string, messageOriginKind?: AgentHostMessageOriginTelemetryKind, subagentTaskModelSource?: AgentSubagentTaskModelSource, providerChat = URI.parse(session), subagentKind?: AgentSubagentKind): void {
 		const key = this._key(session, turnId);
-		this._turnTimings.set(key, {
-			stopWatch: StopWatch.create(false),
-			provider,
+		let rootTiming = this._rootTurnTimings.get(key);
+		const isNewRootTurn = !parentTurnId && !isSubagentChatUri(session) && !isSubagentSession(parseChatUri(session)?.session ?? session) && !rootTiming;
+		if (isNewRootTurn) {
+			rootTiming = {
+				hostRootTurnOrdinal: ++this._hostRootTurnOrdinal,
+				hostProcessAgeMs: Math.round(process.uptime() * 1000),
+				titleGenerationStrategy: undefined,
+			};
+			this._rootTurnTimings.set(key, rootTiming);
+		}
+		const stopWatch = StopWatch.create(false);
+		const timing: ITurnTiming = {
+			stopWatch,
+			providerTiming: new AgentHostProviderTiming(() => stopWatch.elapsed()),
+			agent,
 			session,
+			providerChat,
 			turnId,
+			parentTurnId,
+			parentToolCallId,
+			rootTiming,
 			model,
 			modelTelemetryKind,
-			modelSelectionKind: model === undefined ? 'default' : model === 'auto' ? 'auto' : 'explicit',
+			selectedModel: model,
+			selectedModelTelemetryKind: modelTelemetryKind,
+			modelSelectionKind,
 			permissionLevel,
+			interactionMode,
+			messageOriginKind,
+			subagentTaskModelSource,
+			subagentKind,
+			clientContext,
+			telemetryContext: agent.getTelemetryContext?.(),
+			providerTelemetryContext: captureProviderTurnTelemetryContext(agent),
+			initiatorClientId,
+			completedModelCallIds: new Set(),
+			finishedModelCallIds: new Set(),
+			modelCallDispatchDurationMs: 0,
+			timeToFirstEditMs: undefined,
+			startedWithSteering: false,
+			receivedSteering: false,
 			firstProgressMs: undefined,
+			firstSubstantiveProgressMs: undefined,
+			currentStage: 'validation',
+			sendStageDurationsMs: new Map(),
+			openSendStage: undefined,
+			sendDispatchedMs: undefined,
+			providerStageDurationsMs: new Map(),
+			openProviderStage: undefined,
 			quietStopWatch: StopWatch.create(false),
 			lastActivityKind: TURN_ACTIVITY_NONE,
-			inFlightToolCalls: new Set(),
+			inFlightToolCalls: new Map(),
 			blockers: new Map(),
 			reportedHangReasons: new Set(),
 			hangReportCount: 0,
 			lastHangReason: undefined,
 			lastHangStopWatch: undefined,
 			quietWindows: 0,
-		});
+		};
+		this._turnTimings.set(key, timing);
+		if (isNewRootTurn) {
+			this._logTurnTiming(timing);
+		}
+		this._turnUsages.set(key, {});
 		this._armHangWatchdog(key);
-		this._onDidStartTurn.fire(provider);
+		this._onDidStartTurn.fire(agent.id);
+	}
+
+	/** Captures the effective title strategy once, before sending a root turn to its provider. */
+	setTitleGenerationStrategy(session: string, turnId: string, strategy: AutomaticTitleGenerationStrategy): void {
+		const timing = this._turnTimings.get(this._key(session, turnId));
+		if (timing?.rootTiming && timing.rootTiming.titleGenerationStrategy === undefined) {
+			timing.rootTiming.titleGenerationStrategy = strategy;
+			// Enrich the start marker without resampling its cohort fields.
+			this._logTurnTiming(timing);
+		}
+	}
+
+	private _logTurnTiming(timing: ITurnTiming): void {
+		this._logService.info(`[AgentHostTurnTiming] ${JSON.stringify({
+			schemaVersion: 1, sessionId: parseChatUri(timing.session)?.session ?? timing.session,
+			chatId: timing.session, turnId: timing.turnId, provider: timing.agent.id,
+			...timing.rootTiming,
+		})}`);
 	}
 
 	markFirstProgress(session: string, turnId: string): void {
 		const timing = this._turnTimings.get(this._key(session, turnId));
-		if (timing && timing.firstProgressMs === undefined) {
-			timing.firstProgressMs = timing.stopWatch.elapsed();
+		if (timing) {
+			this._markProgress(timing, false);
 		}
+	}
+
+	/**
+	 * Records progress that advances the user's request, as opposed to host
+	 * bookkeeping the agent was told to do first (naming the chat). Substantive
+	 * progress is also progress, so this marks both — keeping the invariant that
+	 * `firstSubstantiveProgressMs >= firstProgressMs` whenever both are set.
+	 *
+	 * The two are reported separately because a turn whose first visible act is
+	 * bookkeeping looks fast by the plain measure while the user is still
+	 * waiting. Comparing a run against another harness needs the substantive
+	 * value; comparing against "something appeared on screen" needs the plain one.
+	 */
+	markFirstSubstantiveProgress(session: string, turnId: string): void {
+		const timing = this._turnTimings.get(this._key(session, turnId));
+		if (timing) {
+			this._markProgress(timing, true);
+		}
+	}
+
+	/**
+	 * Stamps the first-progress metrics from a single clock reading. The turn
+	 * stopwatch has millisecond resolution, so sampling once per event keeps the
+	 * two metrics exactly equal when the same event sets both — rather than
+	 * letting a millisecond boundary between two reads imply a delay that never
+	 * happened.
+	 */
+	private _markProgress(timing: ITurnTiming, substantive: boolean): void {
+		if (timing.firstProgressMs !== undefined && (!substantive || timing.firstSubstantiveProgressMs !== undefined)) {
+			return;
+		}
+		const elapsed = timing.stopWatch.elapsed();
+		if (timing.firstProgressMs === undefined) {
+			timing.firstProgressMs = elapsed;
+			timing.providerTiming.markFirstProgress(elapsed);
+			if (timing.providerTiming.hasTimings) {
+				timing.providerTiming.markMilestone('hostProgress');
+			}
+			this._closeProviderStage(timing, elapsed);
+			this._logProviderStages(timing);
+		}
+		if (substantive && timing.firstSubstantiveProgressMs === undefined) {
+			timing.firstSubstantiveProgressMs = elapsed;
+			if (timing.providerTiming.hasTimings) {
+				timing.providerTiming.markMilestone('hostSubstantiveProgress');
+			}
+		}
+	}
+
+	/**
+	 * Opens `stage` for timing and closes whichever pre-send stage was open.
+	 * Stages are timed off the turn's own stopwatch, so their durations share a
+	 * clock with {@link markFirstProgress} and can be subtracted from it.
+	 *
+	 * Only the host's pre-send work is accounted for here; call
+	 * {@link markSendDispatched} once the message reaches the provider. A turn
+	 * that never runs this sequence — a subagent turn, or one resumed straight
+	 * into the provider — simply reports no stage durations, which is why a
+	 * stage that did run but took no measurable time still reports `0` rather
+	 * than being omitted.
+	 */
+	markSendStage(session: string, turnId: string, stage: AgentHostTurnSendStage): void {
+		const timing = this._turnTimings.get(this._key(session, turnId));
+		if (!timing || timing.sendDispatchedMs !== undefined) {
+			return;
+		}
+		this._closeSendStage(timing);
+		timing.openSendStage = { stage, startedMs: timing.stopWatch.elapsed() };
+		// Seed the stage so a step that completes within the clock's resolution
+		// is still distinguishable from one that never ran.
+		if (!timing.sendStageDurationsMs.has(stage)) {
+			timing.sendStageDurationsMs.set(stage, 0);
+		}
+	}
+
+	/**
+	 * Marks the boundary where host pre-send work ends and the provider takes
+	 * over. Closes any open stage and stops further stage accounting, so work
+	 * the host does later in the turn cannot be mistaken for pre-send cost.
+	 */
+	markSendDispatched(session: string, turnId: string): void {
+		const timing = this._turnTimings.get(this._key(session, turnId));
+		if (timing?.sendDispatchedMs !== undefined) {
+			return;
+		}
+		if (timing) {
+			this._closeSendStage(timing);
+			timing.sendDispatchedMs = timing.stopWatch.elapsed();
+			timing.telemetryContext = timing.agent.getTelemetryContext?.();
+		}
+		this._onDidDispatchTurn.fire({ chat: session, turnId });
+	}
+
+	private _closeSendStage(timing: ITurnTiming): void {
+		const open = timing.openSendStage;
+		if (!open) {
+			return;
+		}
+		const elapsed = Math.max(0, timing.stopWatch.elapsed() - open.startedMs);
+		timing.sendStageDurationsMs.set(open.stage, (timing.sendStageDurationsMs.get(open.stage) ?? 0) + elapsed);
+		timing.openSendStage = undefined;
+	}
+
+	/**
+	 * Opens a provider-owned `stage` and closes the previously open one. Only
+	 * accepted between {@link markSendDispatched} and first progress, so the
+	 * stages partition the provider's share of time-to-first-progress.
+	 */
+	markProviderStage(session: string, turnId: string, stage: AgentHostProviderSendStage): void {
+		const timing = this._turnTimings.get(this._key(session, turnId));
+		if (!timing || timing.sendDispatchedMs === undefined || timing.firstProgressMs !== undefined) {
+			return;
+		}
+		const now = timing.stopWatch.elapsed();
+		this._closeProviderStage(timing, now);
+		timing.openProviderStage = { stage, startedMs: now };
+		if (!timing.providerStageDurationsMs.has(stage)) {
+			timing.providerStageDurationsMs.set(stage, 0);
+		}
+	}
+
+	/** Creates a recorder that forwards a provider's stage marks for one turn. */
+	createProviderStageRecorder(session: string, turnId: string): IAgentProviderSendStageRecorder {
+		const key = this._key(session, turnId);
+		const timing = this._turnTimings.get(key);
+		const active = () => timing && this._turnTimings.get(key) === timing;
+		return {
+			mark: stage => {
+				if (active()) {
+					this.markProviderStage(session, turnId, stage);
+				}
+			},
+			startOperation: operation => active() ? timing?.providerTiming.startOperation(operation) : undefined,
+			markMilestone: milestone => {
+				if (active()) {
+					timing?.providerTiming.markMilestone(milestone);
+				}
+			},
+		};
+	}
+
+	private _closeProviderStage(timing: ITurnTiming, now: number): void {
+		const open = timing.openProviderStage;
+		if (!open) {
+			return;
+		}
+		const elapsed = Math.max(0, now - open.startedMs);
+		timing.providerStageDurationsMs.set(open.stage, (timing.providerStageDurationsMs.get(open.stage) ?? 0) + elapsed);
+		timing.openProviderStage = undefined;
+	}
+
+	/** Logs the first-progress breakdown so local runs can attribute latency without telemetry. */
+	private _logProviderStages(timing: ITurnTiming): void {
+		if (timing.sendDispatchedMs === undefined) {
+			return;
+		}
+		const round = (value: number | undefined) => value === undefined ? undefined : Math.round(value);
+		this._logService.info(`[AgentHostFirstProgress] ${JSON.stringify({
+			provider: timing.agent.id,
+			turnId: timing.turnId,
+			hostRootTurnOrdinal: timing.rootTiming?.hostRootTurnOrdinal,
+			timeToFirstProgress: round(timing.firstProgressMs),
+			timeToProviderDispatch: round(timing.sendDispatchedMs),
+			sendStages: Object.fromEntries([...timing.sendStageDurationsMs].map(([stage, ms]) => [stage, round(ms)])),
+			providerStages: Object.fromEntries([...timing.providerStageDurationsMs].map(([stage, ms]) => [stage, round(ms)])),
+		})}`);
 	}
 
 	/**
@@ -164,6 +534,13 @@ export class AgentHostTurnTracker extends Disposable {
 		this._touch(key, timing);
 	}
 
+	setCurrentStage(session: string, turnId: string, stage: AgentHostTurnFailureStage): void {
+		const timing = this._turnTimings.get(this._key(session, turnId));
+		if (timing) {
+			timing.currentStage = stage;
+		}
+	}
+
 	/** Resets the quiet period and re-arms the watchdog for a live turn. */
 	private _touch(key: string, timing: ITurnTiming): void {
 		timing.quietStopWatch = StopWatch.create(true);
@@ -176,9 +553,32 @@ export class AgentHostTurnTracker extends Disposable {
 	 * call explains an otherwise quiet turn (a long build, or a subagent whose
 	 * progress is reported on its own chat channel), so the hang is reported
 	 * with the `runningTool` reason rather than as an unexplained stall.
+	 *
+	 * The tool's identity is retained so a hang report can name what the turn
+	 * is stuck on. This matters most for agent-host-provided tools: those never
+	 * enter the session input queue, so `agentHost.toolCallStalled` — which
+	 * only fires for blocked tool calls — cannot see them at all.
 	 */
-	toolCallStarted(session: string, turnId: string, toolCallId: string): void {
-		this._turnTimings.get(this._key(session, turnId))?.inFlightToolCalls.add(toolCallId);
+	toolCallStarted(session: string, turnId: string, toolCallId: string, toolName: string, contributor: ToolCallContributor | undefined): void {
+		this._turnTimings.get(this._key(session, turnId))?.inFlightToolCalls.set(toolCallId, {
+			toolId: toolName,
+			contributor,
+			toolSourceKind: toolSourceKindFromContributor(contributor),
+		});
+	}
+
+	/**
+	 * Refines an in-flight tool call's contributor once complete metadata is
+	 * available. Mirrors {@link AgentHostToolCallTracker.toolCallMetadataUpdated}
+	 * so `toolSourceKind` agrees between the two telemetry events for the same
+	 * tool call.
+	 */
+	toolCallMetadataUpdated(session: string, turnId: string, toolCallId: string, contributor: ToolCallContributor | undefined): void {
+		const inFlight = this._turnTimings.get(this._key(session, turnId))?.inFlightToolCalls.get(toolCallId);
+		if (inFlight && contributor && canRefineContributor(inFlight.contributor, contributor)) {
+			inFlight.contributor = contributor;
+			inFlight.toolSourceKind = toolSourceKindFromContributor(contributor);
+		}
 	}
 
 	toolCallEnded(session: string, turnId: string, toolCallId: string): void {
@@ -201,13 +601,13 @@ export class AgentHostTurnTracker extends Disposable {
 	 * Every outstanding request is recorded regardless, so unblocking can find
 	 * its turn and teardown can clean up its bookkeeping.
 	 */
-	turnBlocked(session: string, turnId: string, requestId: string, kind: SessionInputRequestKind): void {
+	turnBlocked(session: string, turnId: string, requestId: string, kind: SessionInputRequestKind, toolCallId: string | undefined): void {
 		const turnKey = this._key(session, turnId);
 		const timing = this._turnTimings.get(turnKey);
 		if (!timing) {
 			return;
 		}
-		timing.blockers.set(requestId, kind);
+		timing.blockers.set(requestId, { kind, toolCallId });
 		this._blockerTurnKeys.set(this._key(session, requestId), turnKey);
 		// A request appearing or being answered is itself a state change, so it
 		// restarts the quiet period. Without this, a user who answers just
@@ -241,58 +641,226 @@ export class AgentHostTurnTracker extends Disposable {
 		}
 	}
 
+	updateBilledNanoAiu(session: string, turnId: string, billedNanoAiu: number | undefined): void {
+		const usage = this._turnUsages.get(this._key(session, turnId));
+		if (usage && typeof billedNanoAiu === 'number' && Number.isFinite(billedNanoAiu) && billedNanoAiu >= 0) {
+			usage.billedNanoAiu = billedNanoAiu;
+		}
+	}
+
+	updateDirectUsage(session: string, turnId: string, tokenTotals: readonly ITurnTokenTotal[] | undefined, billedNanoAiu: number | undefined): void {
+		const usage = this._turnUsages.get(this._key(session, turnId));
+		if (!usage) {
+			return;
+		}
+		if (tokenTotals) {
+			usage.directPromptTokenCount = sumTokenCounts(tokenTotals, total => total.inputTokens);
+			usage.directPromptCacheTokenCount = sumTokenCounts(tokenTotals, total => total.cachedTokens);
+			usage.directCompletionTokenCount = sumTokenCounts(tokenTotals, total => total.outputTokens);
+		}
+		if (typeof billedNanoAiu === 'number' && Number.isFinite(billedNanoAiu) && billedNanoAiu >= 0) {
+			usage.directBilledNanoAiu = billedNanoAiu;
+		}
+	}
+
+	modelCallCompleted(session: string, turnId: string, modelCallId: string): void {
+		this._turnTimings.get(this._key(session, turnId))?.completedModelCallIds.add(modelCallId);
+	}
+
+	markSteering(session: string, turnId: string, kind: 'started' | 'received'): void {
+		const timing = this._turnTimings.get(this._key(session, turnId));
+		if (timing) {
+			if (kind === 'started') {
+				timing.startedWithSteering = true;
+			} else {
+				timing.receivedSteering = true;
+			}
+		}
+	}
+
+	modelCallFinished(session: string, turnId: string, modelCallId: string, dispatchDurationMs: number, outcome: AgentModelCallFinishedOutcome, containsBuiltInFileEditRequest: boolean | undefined): void {
+		const timing = this._turnTimings.get(this._key(session, turnId));
+		if (!timing || timing.finishedModelCallIds.has(modelCallId)) {
+			return;
+		}
+		timing.finishedModelCallIds.add(modelCallId);
+		if (timing.timeToFirstEditMs !== undefined) {
+			return;
+		}
+		timing.modelCallDispatchDurationMs += dispatchDurationMs;
+		if (outcome === 'success' && containsBuiltInFileEditRequest === true) {
+			timing.timeToFirstEditMs = timing.modelCallDispatchDurationMs;
+		}
+	}
+
 	getModelTelemetryContext(session: string, turnId: string): { model: string | undefined; modelTelemetryKind: AgentHostModelTelemetryKind | undefined } | undefined {
 		const timing = this._turnTimings.get(this._key(session, turnId));
 		return timing ? { model: timing.model, modelTelemetryKind: timing.modelTelemetryKind } : undefined;
 	}
 
-	turnCompleted(session: string, turnId: string, result: AgentHostTurnResult, failure?: IAgentHostTurnFailure, workspace?: { readonly isMultiRoot: boolean; readonly folderCount: number }): void {
+	getClientTelemetryContext(session: string, turnId: string): IAgentHostClientTelemetryContext | undefined {
+		return this._turnTimings.get(this._key(session, turnId))?.clientContext;
+	}
+
+	getTelemetryContext(session: string, turnId: string): IAgentTelemetryContext | undefined {
+		return this._turnTimings.get(this._key(session, turnId))?.telemetryContext;
+	}
+
+	setCodexModelProvider(session: string, turnId: string, provider: CodexModelProvider): void {
+		const timing = this._turnTimings.get(this._key(session, turnId));
+		if (timing?.agent.id === 'codex') {
+			timing.codexModelProvider = provider;
+		}
+	}
+
+	getProviderTelemetryContext(session: string, turnId: string): IAgentProviderTurnTelemetryContext | undefined {
+		return this._turnTimings.get(this._key(session, turnId))?.providerTelemetryContext;
+	}
+
+	getSubagentKind(session: string, turnId: string): AgentSubagentKind | undefined {
+		return this._turnTimings.get(this._key(session, turnId))?.subagentKind;
+	}
+
+	getMessageOriginKind(session: string, turnId: string): AgentHostMessageOriginTelemetryKind | undefined {
+		return this._turnTimings.get(this._key(session, turnId))?.messageOriginKind;
+	}
+
+	getInitiatorClientId(session: string, turnId: string): string | undefined {
+		return this._turnTimings.get(this._key(session, turnId))?.initiatorClientId;
+	}
+
+	/**
+	 * Records a turn's completion. Returns whether a tracked turn actually ended:
+	 * `false` means no turn was in flight for `turnId`, which happens for a stale or
+	 * duplicate terminal action that the reducer also no-ops. Callers that run
+	 * end-of-turn side effects should skip them when this returns `false`.
+	 */
+	turnCompleted(session: string, turnId: string, result: AgentHostTurnResult, failure?: IAgentHostTurnFailure, workspace?: { readonly isMultiRoot: boolean; readonly folderCount: number }): boolean {
 		const key = this._key(session, turnId);
 		const timing = this._turnTimings.get(key);
 		if (!timing) {
-			return;
+			return false;
+		}
+		// Close the open stage first so its duration is sampled no later than
+		// `totalTime`. A turn can end mid-stage (a failed checkpoint, a cancel
+		// during model selection), and sampling the other way round lets a clock
+		// tick attribute stage time past the reported turn duration.
+		this._closeSendStage(timing);
+		// Capture terminal timing before collecting or reporting additional telemetry.
+		const totalTime = timing.stopWatch.elapsed();
+		const providerTimings = timing.providerTiming.finish(totalTime);
+		if (providerTimings.length > 0 && this._logService.getLevel() <= LogLevel.Debug) {
+			this._logService.debug(`[AgentHostProviderTiming] ${JSON.stringify({ schemaVersion: 1, provider: timing.agent.id, turnId, result, timings: providerTimings })}`);
+		}
+		// A turn that ends before first progress retains its partial provider stage.
+		this._closeProviderStage(timing, totalTime);
+		const timeAfterHangMs = timing.lastHangStopWatch?.elapsed() ?? 0;
+		const usage = this._turnUsages.get(key);
+		let summaries: readonly IAgentTokenUsageSummary[] | undefined;
+		if (timing.agent.getTurnTokenUsage) {
+			let snapshot: IAgentTurnTokenUsage | undefined;
+			try {
+				snapshot = timing.agent.getTurnTokenUsage(timing.providerChat, turnId, timing.parentToolCallId);
+			} catch (error) {
+				this._logService.error(`[AgentHostTurnTracker] Failed to collect provider token usage for provider=${timing.agent.id}: ${getErrorMessage(error)}`, error);
+			}
+			summaries = snapshot?.summaries.length ? snapshot.summaries : [{
+				usageScope: 'direct-model', usageStatus: 'notReported',
+				usageRecordCount: 0, inputKnownRecordCount: 0, outputKnownRecordCount: 0, cacheKnownRecordCount: 0,
+			}];
 		}
 		this._disposeTurn(key, timing);
 
 		this._reporter.turnCompleted({
-			provider: timing.provider,
+			clientContext: timing.clientContext,
+			telemetryContext: timing.telemetryContext,
+			providerTelemetryContext: timing.providerTelemetryContext,
+			codexModelProvider: timing.codexModelProvider,
+			provider: timing.agent.id,
 			session: timing.session,
 			turnId,
+			parentTurnId: timing.parentTurnId,
+			parentToolCallId: timing.parentToolCallId,
+			hostRootTurnOrdinal: timing.rootTiming?.hostRootTurnOrdinal,
+			hostProcessAgeMs: timing.rootTiming?.hostProcessAgeMs,
+			titleGenerationStrategy: timing.rootTiming?.titleGenerationStrategy,
 			timeToFirstProgress: timing.firstProgressMs,
-			totalTime: timing.stopWatch.elapsed(),
+			timeToFirstSubstantiveProgress: timing.firstSubstantiveProgressMs,
+			timeToFirstEditMs: timing.timeToFirstEditMs,
+			startedWithSteering: timing.startedWithSteering,
+			receivedSteering: timing.receivedSteering,
+			sendStageDurationsMs: timing.sendStageDurationsMs,
+			sendDispatchedMs: timing.sendDispatchedMs,
+			providerStageDurationsMs: timing.providerStageDurationsMs,
+			providerTimings,
+			totalTime,
 			result,
 			model: timing.model,
 			modelTelemetryKind: timing.modelTelemetryKind,
 			modelSelectionKind: timing.modelSelectionKind,
 			permissionLevel: timing.permissionLevel,
+			interactionMode: timing.interactionMode,
+			messageOriginKind: timing.messageOriginKind,
+			subagentTaskModelSource: timing.subagentTaskModelSource,
+			subagentKind: timing.subagentKind,
 			failure,
 			isMultiRoot: workspace?.isMultiRoot ?? false,
 			folderCount: workspace?.folderCount ?? 0,
+			billedNanoAiu: usage?.billedNanoAiu,
+			directPromptTokenCount: usage?.directPromptTokenCount,
+			directPromptCacheTokenCount: usage?.directPromptCacheTokenCount,
+			directCompletionTokenCount: usage?.directCompletionTokenCount,
+			directBilledNanoAiu: usage?.directBilledNanoAiu,
+			modelCallCount: timing.completedModelCallIds.size,
 		});
 
 		// Paired recovery event: the turn was reported as hung but did finish,
 		// which distinguishes a permanent hang from a merely slow turn.
 		if (timing.lastHangReason !== undefined) {
 			this._reporter.hungTurnCompleted({
-				provider: timing.provider,
+				clientContext: timing.clientContext,
+				telemetryContext: timing.telemetryContext,
+				provider: timing.agent.id,
 				session: timing.session,
 				turnId,
+				subagentKind: timing.subagentKind,
+				messageOriginKind: timing.messageOriginKind,
 				hangReason: timing.lastHangReason,
 				result,
 				hangReportCount: timing.hangReportCount,
-				totalTimeMs: timing.stopWatch.elapsed(),
-				timeAfterHangMs: timing.lastHangStopWatch?.elapsed() ?? 0,
+				totalTimeMs: totalTime,
+				timeAfterHangMs,
 			});
 		}
+		for (const summary of summaries ?? []) {
+			try {
+				this._reporter.requestTokenUsage({
+					clientContext: timing.clientContext, provider: timing.agent.id,
+					telemetryContext: timing.telemetryContext,
+					session, requestId: turnId, parentTurnId: timing.parentTurnId, parentToolCallId: timing.parentToolCallId, subagentKind: timing.subagentKind,
+					selectedModel: timing.selectedModel, selectedModelTelemetryKind: timing.selectedModelTelemetryKind,
+					modelTelemetryKind: summary.model ? getModelTelemetryContext(timing.agent, summary.model).modelTelemetryKind : undefined,
+					result, summary,
+				});
+			} catch (error) {
+				this._logService.error(`[AgentHostTurnTracker] Failed to report provider token usage for provider=${timing.agent.id}: ${getErrorMessage(error)}`, error);
+			}
+		}
+		return true;
 	}
 
 	/**
 	 * Drops any in-flight (never-completed) turns for a session without
-	 * reporting them. Called on session teardown so neither the timing map nor
-	 * the watchdog timers can outlive the session they describe.
+	 * reporting them. Called on session teardown so neither tracked turn state
+	 * nor watchdog timers can outlive the session they describe.
 	 */
 	clearSession(session: string): void {
 		const prefix = `${session}\0`;
+		for (const key of this._rootTurnTimings.keys()) {
+			if (key.startsWith(prefix)) {
+				this._rootTurnTimings.delete(key);
+			}
+		}
 		for (const [key, timing] of this._turnTimings) {
 			if (key.startsWith(prefix)) {
 				this._disposeTurn(key, timing);
@@ -313,6 +881,11 @@ export class AgentHostTurnTracker extends Disposable {
 	 */
 	clearTurnsExcept(session: string, keepTurnIds: ReadonlySet<string>): void {
 		const prefix = `${session}\0`;
+		for (const key of this._rootTurnTimings.keys()) {
+			if (key.startsWith(prefix) && !keepTurnIds.has(key.slice(prefix.length))) {
+				this._rootTurnTimings.delete(key);
+			}
+		}
 		for (const [key, timing] of this._turnTimings) {
 			if (key.startsWith(prefix) && !keepTurnIds.has(timing.turnId)) {
 				this._disposeTurn(key, timing);
@@ -321,7 +894,9 @@ export class AgentHostTurnTracker extends Disposable {
 	}
 
 	private _disposeTurn(key: string, timing: ITurnTiming): void {
+		timing.providerTiming.finish(timing.stopWatch.elapsed());
 		this._turnTimings.delete(key);
+		this._turnUsages.delete(key);
 		this._hangWatchdogs.deleteAndDispose(key);
 		for (const requestId of timing.blockers.keys()) {
 			this._blockerTurnKeys.delete(this._key(timing.session, requestId));
@@ -349,14 +924,26 @@ export class AgentHostTurnTracker extends Disposable {
 			timing.lastHangReason = hangReason;
 			timing.lastHangStopWatch = StopWatch.create(true);
 			const userBlocker = this._firstUserBlocker(timing);
+			const stuckTool = this._resolveStuckTool(timing, hangReason);
+			const providerDiagnostics = this._getProviderDiagnostics(timing);
 			this._reporter.turnHung({
-				provider: timing.provider,
+				clientContext: timing.clientContext,
+				telemetryContext: timing.telemetryContext,
+				providerTelemetryContext: timing.providerTelemetryContext,
+				provider: timing.agent.id,
 				session: timing.session,
 				turnId: timing.turnId,
+				subagentKind: timing.subagentKind,
+				messageOriginKind: timing.messageOriginKind,
 				hangReason,
 				hadAnyProgress: timing.lastActivityKind !== TURN_ACTIVITY_NONE,
 				lastActivityKind: timing.lastActivityKind,
-				blockedOn: userBlocker,
+				currentStage: timing.currentStage,
+				...providerDiagnostics,
+				initiatorClientConnectionState: this._getInitiatorClientConnectionState(timing.initiatorClientId),
+				blockedOn: userBlocker?.kind,
+				toolId: stuckTool?.toolId,
+				toolSourceKind: stuckTool?.toolSourceKind,
 				inFlightToolCallCount: timing.inFlightToolCalls.size,
 				quietTimeMs: timing.quietStopWatch.elapsed(),
 				turnElapsedMs: timing.stopWatch.elapsed(),
@@ -372,16 +959,65 @@ export class AgentHostTurnTracker extends Disposable {
 		}
 	}
 
+	private _getProviderDiagnostics(timing: ITurnTiming): { providerDiagnosticState: AgentHostProviderDiagnosticState; providerDiagnosticSnapshot: IAgentTurnDiagnosticSnapshot | undefined } {
+		const getSnapshot = timing.agent.getTurnDiagnosticSnapshot;
+		if (!getSnapshot) {
+			return { providerDiagnosticState: 'unsupported', providerDiagnosticSnapshot: undefined };
+		}
+		try {
+			const snapshot = getSnapshot.call(timing.agent, URI.parse(timing.session), timing.turnId);
+			return snapshot
+				? { providerDiagnosticState: snapshot.state, providerDiagnosticSnapshot: snapshot }
+				: { providerDiagnosticState: 'unavailable', providerDiagnosticSnapshot: undefined };
+		} catch (error) {
+			this._logService.error(`[AgentHostTurnTracker] Failed to collect provider diagnostics for provider=${timing.agent.id}: ${getErrorMessage(error)}`, error);
+			return { providerDiagnosticState: 'error', providerDiagnosticSnapshot: undefined };
+		}
+	}
+
+	private _getInitiatorClientConnectionState(clientId: string | undefined): AgentHostInitiatorClientConnectionState {
+		if (!clientId) {
+			return 'unknown';
+		}
+		return this._clientConnections.isClientConnected(clientId) ? 'connected' : 'disconnected';
+	}
+
 	/**
-	 * The kind of the first outstanding request that blocks on the user, or
-	 * `undefined` when none does. See {@link turnBlocked} for why client tool
-	 * execution is not a user blocker.
+	 * The first outstanding request that blocks on the user, or `undefined`
+	 * when none does. See {@link turnBlocked} for why client tool execution is
+	 * not a user blocker.
 	 */
-	private _firstUserBlocker(timing: ITurnTiming): SessionInputRequestKind | undefined {
-		for (const kind of timing.blockers.values()) {
-			if (kind !== SessionInputRequestKind.ToolClientExecution) {
-				return kind;
+	private _firstUserBlocker(timing: ITurnTiming): ITurnBlocker | undefined {
+		for (const blocker of timing.blockers.values()) {
+			if (blocker.kind !== SessionInputRequestKind.ToolClientExecution) {
+				return blocker;
 			}
+		}
+		return undefined;
+	}
+
+	/**
+	 * Identifies the tool the turn appears to be stuck on, so a hang report can
+	 * name it rather than only counting it.
+	 *
+	 * For `waitingOnUser` this is the tool call gated by the blocking request.
+	 * A result-confirmation prompt resolves to `undefined`, because the tool
+	 * already completed and left the in-flight set — the turn is waiting on the
+	 * user reviewing a result, not on a tool. An elicitation has no tool at all.
+	 *
+	 * For `runningTool` this is the longest-running in-flight call. With
+	 * several tools running in parallel there is no way to tell which one is
+	 * wedged, so this is a heuristic; `inFlightToolCallCount` travels alongside
+	 * it, and filtering to `inFlightToolCallCount == 1` gives unambiguous
+	 * attribution.
+	 */
+	private _resolveStuckTool(timing: ITurnTiming, hangReason: AgentHostTurnHangReason): IInFlightToolCall | undefined {
+		if (hangReason === 'waitingOnUser') {
+			const toolCallId = this._firstUserBlocker(timing)?.toolCallId;
+			return toolCallId === undefined ? undefined : timing.inFlightToolCalls.get(toolCallId);
+		}
+		if (hangReason === 'runningTool') {
+			return timing.inFlightToolCalls.values().next().value;
 		}
 		return undefined;
 	}
@@ -408,3 +1044,9 @@ export class AgentHostTurnTracker extends Disposable {
 	}
 }
 
+function sumTokenCounts(totals: readonly ITurnTokenTotal[], getCount: (total: ITurnTokenTotal) => number): number {
+	return totals.reduce((sum, total) => {
+		const count = getCount(total);
+		return sum + (Number.isFinite(count) && count >= 0 ? count : 0);
+	}, 0);
+}

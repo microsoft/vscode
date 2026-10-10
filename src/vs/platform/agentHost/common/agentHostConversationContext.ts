@@ -96,3 +96,14 @@ export function truncateMiddle(text: string, maxChars: number): string {
 	const tail = keep - head;
 	return `${text.slice(0, head)}${marker}${text.slice(text.length - tail)}`;
 }
+
+/** Returns the last turn that is not host-injected local context. */
+export function resolveLastNonLocalTurnId(turns: readonly Turn[], isLocal: (turnId: string) => boolean): string | undefined {
+	for (let i = turns.length - 1; i >= 0; i--) {
+		const turn = turns[i];
+		if (!isLocal(turn.id)) {
+			return turn.id;
+		}
+	}
+	return undefined;
+}

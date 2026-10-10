@@ -5,7 +5,7 @@
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { localize } from '../../../nls.js';
-import { AgentSession, CODEX_AGENT_PROVIDER_ID } from '../common/agentService.js';
+import { AgentSession, CODEX_AGENT_PROVIDER_ID } from '../common/agent.js';
 import { toCommandCompletionAttachmentMeta } from '../common/meta/agentCompletionAttachmentMeta.js';
 import { CompletionItem, CompletionItemKind, CompletionsParams } from '../common/state/protocol/commands.js';
 import type { URI } from '../common/state/protocol/common/state.js';
@@ -19,10 +19,13 @@ export class CodexCompactCompletionProvider implements IAgentHostCompletionItemP
 	readonly kinds: ReadonlySet<CompletionItemKind> = new Set([CompletionItemKind.UserMessage]);
 	readonly triggerCharacters = [CompletionTriggerCharacter.Slash] as const;
 
-	constructor(private readonly _hasHistory: (session: URI) => boolean) { }
+	constructor(
+		private readonly _hasHistory: (session: URI) => boolean,
+		private readonly _providerForSession: (session: URI) => string | undefined = AgentSession.provider,
+	) { }
 
 	async provideCompletionItems(params: CompletionsParams, _token: CancellationToken): Promise<readonly CompletionItem[]> {
-		if (AgentSession.provider(params.channel) !== CODEX_AGENT_PROVIDER_ID || !this._hasHistory(params.channel)) {
+		if (this._providerForSession(params.channel) !== CODEX_AGENT_PROVIDER_ID || !this._hasHistory(params.channel)) {
 			return [];
 		}
 		const leading = extractLeadingSlashToken(params.text, params.offset);

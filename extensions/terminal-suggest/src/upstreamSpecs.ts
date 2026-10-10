@@ -104,3 +104,4 @@ export { default as python3 } from './completions/upstream/python3';
 export { default as ruff } from './completions/upstream/ruff';
 export { default as bundle } from './completions/upstream/bundle';
 export { default as ruby } from './completions/upstream/ruby';
+export { default as cargo } from './completions/upstream/cargo';

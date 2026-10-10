@@ -1,0 +1,50 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "DELETE_TARGET_READY".
+    response:
+      content: DELETE_TARGET_READY
+      stopReason: end_turn
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Call delete_session exactly once with session "codex:/${uuid_0}", then reply exactly "deleted".
+    response:
+      content:
+        - type: text
+          text: Deleting that session now.
+        - type: tool_use
+          id: toolcall_0
+          name: delete_session
+          input:
+            session: codex:/${uuid_0}
+      stopReason: tool_use
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Call delete_session exactly once with session "codex:/${uuid_0}", then reply exactly "deleted".
+        - role: assistant
+          content: Deleting that session now.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: delete_session
+              input:
+                session: codex:/${uuid_0}
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: Deleted session codex:/${uuid_0}. Reply with one short sentence confirming the session was deleted.
+    response:
+      content: deleted
+      stopReason: end_turn

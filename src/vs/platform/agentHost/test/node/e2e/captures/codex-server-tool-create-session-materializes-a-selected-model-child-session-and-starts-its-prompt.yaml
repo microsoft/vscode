@@ -1,0 +1,71 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "PARENT_READY".
+    response:
+      content: PARENT_READY
+      stopReason: end_turn
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "PARENT_READY".
+        - role: assistant
+          content: PARENT_READY
+        - role: user
+          content: Call create_session exactly once with relationship "independent", workspace "${workdir}", prompt "Reply exactly CHILD_READY.", title "Created Child", and model "@provider=vscode-proxy:gpt-5.6-terra", then reply exactly "created".
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: create_session
+          input:
+            relationship: independent
+            workspace: ${workdir}
+            prompt: Reply exactly CHILD_READY.
+            title: Created Child
+            model: '@provider=vscode-proxy:gpt-5.6-terra'
+      stopReason: tool_use
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "PARENT_READY".
+        - role: assistant
+          content: PARENT_READY
+        - role: user
+          content: Call create_session exactly once with relationship "independent", workspace "${workdir}", prompt "Reply exactly CHILD_READY.", title "Created Child", and model "@provider=vscode-proxy:gpt-5.6-terra", then reply exactly "created".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: create_session
+              input:
+                relationship: independent
+                workspace: ${workdir}
+                prompt: Reply exactly CHILD_READY.
+                title: Created Child
+                model: '@provider=vscode-proxy:gpt-5.6-terra'
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: New session created (agent-host-session://codex/${uuid_0}). Reply with one short sentence confirming the new session was created; do not print the URL or mention a link.
+    response:
+      content: created
+      stopReason: end_turn
+  - request:
+      model: gpt-5.6-terra
+      system: ''
+      messages:
+        - role: user
+          content: Reply exactly CHILD_READY.
+    response:
+      content: CHILD_READY
+      stopReason: end_turn

@@ -92,15 +92,15 @@ suite('SettingsChangeRelauncher', () => {
 		assert.strictEqual(restartCount, 0, 'should not restart');
 	});
 
-	test('prompts to restart when chat.agentHost.byokModels.enabled changes', async () => {
+	test('does not prompt to restart when chat.agentHost.byokModels.enabled changes', async () => {
 		confirmResult = true;
 		await changeSetting(
 			'chat.agentHost.byokModels.enabled',
 			() => ({ chat: { agentHost: { byokModels: { enabled: true } } } }),
 			c => c.chat.agentHost.byokModels.enabled = false);
 
-		assert.strictEqual(confirmCount, 1, 'should prompt to restart');
-		assert.strictEqual(restartCount, 1, 'should restart when confirmed');
+		assert.strictEqual(confirmCount, 0, 'should not prompt to restart');
+		assert.strictEqual(restartCount, 0, 'should not restart');
 	});
 
 	test('prompts to restart when chat.editor.codex.preferAgentHost changes', async () => {

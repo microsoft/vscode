@@ -91,6 +91,49 @@ suite('Menu', () => {
 		});
 	});
 
+	for (const { name, classes } of [
+		{ name: 'standard menus', classes: [] },
+		{ name: 'frosted glass motion', classes: ['modern-ui-frosted-glass', 'monaco-enable-motion'] },
+		{ name: 'reduced motion', classes: ['modern-ui-frosted-glass', 'monaco-reduce-motion'] },
+		{ name: 'high contrast', classes: ['modern-ui-frosted-glass', 'monaco-enable-motion', 'hc-black'] },
+	]) {
+		for (const shadowDom of [false, true]) {
+			test(`submenus open without animation with ${name} in ${shadowDom ? 'shadow' : 'regular'} DOM`, () => {
+				const host = append(document.body, $('.monaco-workbench'));
+				host.classList.add(...classes);
+				disposables.add(toDisposable(() => host.remove()));
+				const root = (shadowDom ? host.attachShadow({ mode: 'open' }) : host).appendChild($('.context-view'));
+				const child = disposables.add(new Action('child', 'Child'));
+				const nested = new SubmenuAction('nested', 'Nested', [child]);
+				const submenu = new SubmenuAction('submenu', 'Submenu', [nested]);
+				disposables.add(new Menu(root, [submenu], {}, unthemedMenuStyles));
+				const window = getWindow(host);
+				const motion = (container: HTMLElement) => ({
+					container: window.getComputedStyle(container).animationName,
+					content: window.getComputedStyle(container.querySelector<HTMLElement>(':scope > .monaco-scrollable-element')!).animationName,
+					backdrop: window.getComputedStyle(container, '::before').animationName,
+				});
+				const rootMotion = motion(root);
+
+				root.querySelector<HTMLElement>('.monaco-submenu-item')!.dispatchEvent(new KeyboardEvent(EventType.KEY_UP, { key: 'ArrowRight', keyCode: 39, bubbles: true }));
+				const first = root.querySelector<HTMLElement>('.monaco-submenu')!;
+				first.querySelector<HTMLElement>('.monaco-submenu-item')!.dispatchEvent(new KeyboardEvent(EventType.KEY_UP, { key: 'ArrowRight', keyCode: 39, bubbles: true }));
+				const second = first.querySelector<HTMLElement>('.monaco-submenu')!;
+				const noMotion = { container: 'none', content: 'none', backdrop: 'none' };
+
+				assert.deepStrictEqual({
+					rootMotion: motion(root),
+					submenus: [motion(first), motion(second)],
+					activeAnimations: first.getAnimations({ subtree: true }).length,
+				}, {
+					rootMotion,
+					submenus: [noMotion, noMotion],
+					activeAnimations: 0,
+				});
+			});
+		}
+	}
+
 	test('high contrast selection outline does not apply to nested submenu items (#327543)', () => {
 		const host = append(document.body, $('div'));
 		disposables.add(toDisposable(() => host.remove()));

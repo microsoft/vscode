@@ -6,6 +6,11 @@
 //! Opt-in idle-timeout lifecycle for a standalone `code agent host`
 //! supervisor (`--idle-timeout <seconds>`).
 //!
+//! Activity is reported for every connected client and, by the
+//! `AgentHostManager`, for as long as the agent host server process runs.
+//! The server only exits on its own once no agent session is running, so
+//! the supervisor never times out from under in-progress work.
+//!
 //! The state machine here (`wait_for_idle_timeout`) is intentionally
 //! decoupled from real elapsed time: it's driven entirely by an
 //! [`ActivityEvent`] stream and an injectable [`IdleSleeper`] seam, so
@@ -18,8 +23,10 @@
 
 use std::future::Future;
 use std::pin::Pin;
+use std::task::{Context, Poll};
 use std::time::Duration;
 
+use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio::sync::mpsc;
 
 /// One client-connection lifecycle event, as reported by an
@@ -75,6 +82,75 @@ impl Drop for ClientGuard {
 pub fn new_activity_channel() -> (ActivityTracker, mpsc::UnboundedReceiver<ActivityEvent>) {
 	let (tx, rx) = mpsc::unbounded_channel();
 	(ActivityTracker { tx }, rx)
+}
+
+/// Wraps an accepted connection's transport so its [`ClientGuard`] lives
+/// exactly as long as that transport does.
+///
+/// The guard is deliberately attached to the *stream* rather than held by
+/// the task awaiting `serve_connection_with_upgrades`. That future
+/// resolves as soon as an HTTP connection is upgraded — it hands the
+/// transport off to `hyper::upgrade::on` and returns — so a guard held by
+/// that task reports a disconnect the instant a WebSocket *starts*,
+/// making a long-lived, actively-used connection invisible to the idle
+/// timer. Since the resulting `hyper::upgrade::Upgraded` still owns this
+/// wrapper, keeping the guard here means it survives the whole WebSocket
+/// session and drops only when the transport is finally dropped.
+///
+/// `guard` is an `Option` so callers can wrap unconditionally, keeping a
+/// single concrete stream type whether or not idle-timeout is enabled.
+pub struct GuardedStream<S> {
+	inner: S,
+	_guard: Option<ClientGuard>,
+}
+
+impl<S> GuardedStream<S> {
+	pub fn new(inner: S, guard: Option<ClientGuard>) -> Self {
+		Self {
+			inner,
+			_guard: guard,
+		}
+	}
+}
+
+impl<S: AsyncRead + Unpin> AsyncRead for GuardedStream<S> {
+	fn poll_read(
+		mut self: Pin<&mut Self>,
+		cx: &mut Context<'_>,
+		buf: &mut ReadBuf<'_>,
+	) -> Poll<std::io::Result<()>> {
+		Pin::new(&mut self.inner).poll_read(cx, buf)
+	}
+}
+
+impl<S: AsyncWrite + Unpin> AsyncWrite for GuardedStream<S> {
+	fn poll_write(
+		mut self: Pin<&mut Self>,
+		cx: &mut Context<'_>,
+		buf: &[u8],
+	) -> Poll<std::io::Result<usize>> {
+		Pin::new(&mut self.inner).poll_write(cx, buf)
+	}
+
+	fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+		Pin::new(&mut self.inner).poll_flush(cx)
+	}
+
+	fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+		Pin::new(&mut self.inner).poll_shutdown(cx)
+	}
+
+	fn poll_write_vectored(
+		mut self: Pin<&mut Self>,
+		cx: &mut Context<'_>,
+		bufs: &[std::io::IoSlice<'_>],
+	) -> Poll<std::io::Result<usize>> {
+		Pin::new(&mut self.inner).poll_write_vectored(cx, bufs)
+	}
+
+	fn is_write_vectored(&self) -> bool {
+		self.inner.is_write_vectored()
+	}
 }
 
 /// Injectable timer seam so [`wait_for_idle_timeout`] can be driven

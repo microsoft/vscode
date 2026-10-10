@@ -87,14 +87,11 @@ const targetArtifacts: Readonly<Record<string, string>> = {
  */
 export class TestContext {
 	private static readonly authenticodeInclude = /^.+\.(exe|dll|sys|cab|cat|msi|jar|ocx|ps1|psm1|psd1|ps1xml|pssc1)$/i;
-	// MXC SDK ships per-arch SPDX catalog manifests that Get-AuthenticodeSignature reports as UnknownError.
-	private static readonly authenticodeExclude = /[\\/]node_modules[\\/]@microsoft[\\/]mxc-sdk[\\/]bin[\\/][^\\/]+[\\/]_manifest[\\/][^\\/]+[\\/]manifest\.cat$/i;
+	private static readonly authenticodeTestCertificate = /Code Sign Test \(DO NOT TRUST\)/i;
 	private static readonly versionInfoInclude = /^.+\.(exe|dll|node|msi)$/i;
 	// Electron helpers (dxil/ffmpeg) and Copilot-vendored MSAL runtime DLLs ship VersionInfo that
 	// FileVersionInfo cannot resolve to a ProductName (x64: msalruntime.dll, arm64: msalruntime_arm64.dll).
 	private static readonly versionInfoFileExclude = /^(dxil\.dll|ffmpeg\.dll|msalruntime(_arm64)?\.dll)$/i;
-	// MXC SDK binaries under bin are signed, but they do not carry a ProductName VersionInfo resource.
-	private static readonly versionInfoPathExclude = /(?:^|[\\/])node_modules(?:\.asar\.unpacked)?[\\/]@microsoft[\\/]mxc-sdk[\\/]bin[\\/]/i;
 	private static readonly dpkgLockError = /dpkg frontend lock was locked by another process|unable to acquire the dpkg frontend lock|could not get lock \/var\/lib\/dpkg\/lock-frontend/i;
 
 	private readonly tempDirs = new Set<string>();
@@ -103,6 +100,7 @@ export class TestContext {
 	private currentTestName: string | undefined;
 	private screenshotCounter = 0;
 	private wslVersion: number | undefined;
+	private signToolPath: string | undefined;
 
 	public constructor(public readonly options: Readonly<{
 		quality: 'stable' | 'insider' | 'exploration';
@@ -448,7 +446,7 @@ export class TestContext {
 		}
 
 		const files: string[] = [];
-		this.collectFiles(artifactDir, files);
+		this.collectFiles(artifactDir, files, true);
 		if (files.length !== 1) {
 			this.error(`Expected exactly one file in artifact ${artifact}, found ${files.length}: ${files.join(', ')}`);
 		}
@@ -458,15 +456,14 @@ export class TestContext {
 	}
 
 	/**
-	 * Collects all files from the specified directory recursively, skipping the SBOM manifest
-	 * that 1ES injects into every published artifact.
+	 * Collects all files from the specified directory recursively.
 	 */
-	private collectFiles(dir: string, files: string[]): void {
+	private collectFiles(dir: string, files: string[], skipInjectedManifest = false): void {
 		for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
 			const filePath = path.join(dir, entry.name);
 			if (entry.isDirectory()) {
-				if (entry.name !== '_manifest') {
-					this.collectFiles(filePath, files);
+				if (!skipInjectedManifest || entry.name !== '_manifest') {
+					this.collectFiles(filePath, files, skipInjectedManifest);
 				}
 			} else {
 				files.push(filePath);
@@ -491,7 +488,7 @@ export class TestContext {
 	}
 
 	/**
-	 * Validates the Authenticode signature of a Windows executable.
+	 * Validates every Authenticode signature of a Windows executable.
 	 * @param filePath The path to the file to validate.
 	 */
 	public validateAuthenticodeSignature(filePath: string) {
@@ -501,7 +498,44 @@ export class TestContext {
 		}
 
 		this.log(`Validating Authenticode signature for ${filePath}`);
-		this.validateAuthenticodeSignaturesForFiles([filePath]);
+		let signToolPath = this.signToolPath;
+		if (!signToolPath) {
+			const architectures = process.arch === 'arm64' ? ['arm64', 'x64'] : ['x64'];
+			const command = `
+				$signTool = (Get-Command signtool.exe -ErrorAction SilentlyContinue).Source
+				if (-not $signTool) {
+					$sdkRoot = Join-Path ([Environment]::GetFolderPath('ProgramFilesX86')) 'Windows Kits\\10\\bin'
+					foreach ($architecture in @(${architectures.map(architecture => `'${architecture}'`).join(', ')})) {
+						$signTool = Get-ChildItem (Join-Path $sdkRoot "*\\$architecture\\signtool.exe") -ErrorAction SilentlyContinue |
+							Sort-Object FullName -Descending |
+							Select-Object -First 1 -ExpandProperty FullName
+						if ($signTool) {
+							break
+						}
+					}
+				}
+				if (-not $signTool) {
+					throw 'Unable to locate signtool.exe'
+				}
+				$signTool
+			`;
+			signToolPath = this.runNoErrors('powershell', '-NoProfile', '-Command', command).stdout.trim();
+			this.signToolPath = signToolPath;
+		}
+
+		const result = this.run(signToolPath, 'verify', '/pa', '/all', '/v', filePath);
+		if (result.error !== undefined) {
+			this.error(`Failed to validate Authenticode signatures for ${filePath}: ${result.error.message}`);
+		}
+		const details = `${result.stdout}\n${result.stderr}`.trim();
+		if (TestContext.authenticodeTestCertificate.test(details)) {
+			this.error(`Authenticode signature uses a test certificate for ${filePath}`);
+		}
+		if (result.status !== 0) {
+			this.error(`Not all Authenticode signatures are valid for ${filePath}${details ? `:\n${details}` : ''}`);
+		}
+
+		this.log(`All Authenticode signatures are valid for ${filePath}`);
 	}
 
 	/**
@@ -514,41 +548,8 @@ export class TestContext {
 			if (entry.isDirectory()) {
 				this.collectAuthenticodeFiles(filePath, files);
 			} else if (TestContext.authenticodeInclude.test(entry.name)) {
-				if (TestContext.authenticodeExclude.test(filePath)) {
-					this.log(`Skipping excluded file from Authenticode validation: ${filePath}`);
-				} else {
-					files.push(filePath);
-				}
+				files.push(filePath);
 			}
-		}
-	}
-
-	/**
-	 * Validates Authenticode signatures for the specified list of files in a single PowerShell call.
-	 */
-	private validateAuthenticodeSignaturesForFiles(files: string[]): void {
-		if (files.length === 0) {
-			return;
-		}
-
-		const fileList = files.map(file => `"${file}"`).join(',');
-		const command = `@(${fileList}) | ForEach-Object { $sig = Get-AuthenticodeSignature $_; "$($sig.Path)|$($sig.Status)" }`;
-		const result = this.runNoErrors('powershell', '-NoProfile', '-Command', command);
-
-		const invalid: string[] = [];
-		for (const line of result.stdout.trim().split('\n')) {
-			const [, filePath, status] = /^(.+)\|(\w+)$/.exec(line.trim()) ?? [];
-			if (filePath) {
-				if (status === 'Valid') {
-					this.log(`Authenticode signature is valid for ${filePath}`);
-				} else {
-					invalid.push(`${filePath}: ${status}`);
-				}
-			}
-		}
-
-		if (invalid.length > 0) {
-			this.error(`Authenticode signatures are not valid for:\n${invalid.join('\n')}`);
 		}
 	}
 
@@ -565,7 +566,9 @@ export class TestContext {
 		const files: string[] = [];
 		this.collectAuthenticodeFiles(dir, files);
 		this.log(`Found ${files.length} file(s) to validate Authenticode signatures`);
-		this.validateAuthenticodeSignaturesForFiles(files);
+		for (const file of files) {
+			this.validateAuthenticodeSignature(file);
+		}
 	}
 
 	/**
@@ -578,7 +581,7 @@ export class TestContext {
 			if (entry.isDirectory()) {
 				this.collectVersionInfoFiles(filePath, files);
 			} else if (TestContext.versionInfoInclude.test(entry.name)) {
-				if (TestContext.versionInfoFileExclude.test(entry.name) || TestContext.versionInfoPathExclude.test(filePath)) {
+				if (TestContext.versionInfoFileExclude.test(entry.name)) {
 					this.log(`Skipping excluded file from VersionInfo validation: ${filePath}`);
 				} else {
 					files.push(filePath);
@@ -885,9 +888,9 @@ export class TestContext {
 	private getWindowsInstallDir(type: 'user' | 'system'): string {
 		let parentDir: string;
 		if (type === 'system') {
-			parentDir = process.env['ProgramW6432'] || process.env['PROGRAMFILES'] || '';
+			parentDir = process.env.ProgramW6432 || process.env.PROGRAMFILES || '';
 		} else {
-			parentDir = path.join(process.env['LOCALAPPDATA'] || '', 'Programs');
+			parentDir = path.join(process.env.LOCALAPPDATA || '', 'Programs');
 		}
 
 		switch (this.options.quality) {
@@ -949,7 +952,10 @@ export class TestContext {
 
 		await this.timeout(2000);
 		if (fs.existsSync(appDir)) {
-			this.error(`Installation directory still exists after uninstall: ${appDir}`);
+			const remainingFiles: string[] = [];
+			this.collectFiles(appDir, remainingFiles);
+			const remainingFileList = remainingFiles.map(file => path.relative(appDir, file)).sort().join('\n') || '(no files)';
+			this.error(`Installation directory still exists after uninstall: ${appDir}\nRemaining files:\n${remainingFileList}`);
 		}
 	}
 
@@ -1270,13 +1276,13 @@ export class TestContext {
 				return await webkit.launch({ headless });
 			}
 			case 'win32': {
-				const executablePath = process.env['PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH'] ?? 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
+				const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ?? 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
 				this.log(`Using Chromium executable at: ${executablePath}`);
 				return await chromium.launch({ headless, executablePath });
 			}
 			case 'linux':
 			default: {
-				const executablePath = process.env['PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH'] ?? '/usr/bin/chromium-browser';
+				const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ?? '/usr/bin/chromium-browser';
 				this.log(`Using Chromium executable at: ${executablePath}`);
 				return await chromium.launch({
 					headless,
@@ -1505,7 +1511,10 @@ export class TestContext {
 	}
 
 	private isNonFatalCliStderr(text: string): boolean {
-		return /ECONNRESET|ECONNABORTED|ECANCELED|EPIPE|SIGPIPE/.test(text)
+		// Extension download retry warnings are expected; if all retries fail, the UI test still fails.
+		text = text.replace(/^.*Failed downloading (?:vsix|sigzip)\. .*Retry again\.\.\..*$/gm, '').trim();
+		return !text
+			|| /ECONNRESET|ECONNABORTED|ECANCELED|EPIPE|SIGPIPE/.test(text)
 			|| /(^|\n)(?:\[[^\]]+\]\s*)?(?:\(node:\d+\)\s*)?(?:\[[A-Z0-9]+\]\s*)?(?:[A-Za-z]+Warning|Warning):/.test(text);
 	}
 }
