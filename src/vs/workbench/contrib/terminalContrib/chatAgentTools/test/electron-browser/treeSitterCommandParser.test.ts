@@ -340,6 +340,28 @@ suite('TreeSitterCommandParser', () => {
 			]
 		));
 
+		test('does not share sensitive policies across different compound commands', async () => {
+			for (const commandLine of [
+				'git status && cat file',
+				'git status || cat file',
+				'git status; cat file',
+				'git status | cat',
+			]) {
+				const commands = await parser.extractCommands(TreeSitterCommandParserLanguage.Bash, commandLine);
+				deepStrictEqual(commands, [
+					{ keyword: 'git', args: ['status'] },
+					{ keyword: 'cat', args: commandLine.endsWith('file') ? ['file'] : [] },
+				], commandLine);
+				for (const os of [OperatingSystem.Linux, OperatingSystem.Macintosh]) {
+					const allowRead = getTerminalSandboxReadAllowListForCommands(os, commands.map(command => command.keyword), commands);
+					ok(allowRead.includes('~/.gitconfig'), `${commandLine} should retain generic Git read paths on ${os}`);
+					ok(!allowRead.includes('~/.gnupg'), `${commandLine} should not share GnuPG read access on ${os}`);
+					ok(!allowRead.includes('~/.ssh'), `${commandLine} should not share SSH read access on ${os}`);
+					deepStrictEqual(getTerminalSandboxRuntimeConfigurationForCommands(os, commands), {}, `${commandLine} on ${os}`);
+				}
+			}
+		});
+
 		test('applies the Git runtime policy for common command formats', async () => {
 			for (const commandLine of [
 				'git status',
