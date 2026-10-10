@@ -3035,6 +3035,18 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		const label = element.systemInitiatedLabel ?? element.messageText;
+		// Temporary routing diagnostics; remove before merging.
+		this.logService.info('[NotificationWrapperDebug] render-system-request', JSON.stringify({
+			session: element.sessionResource.toString(),
+			requestId: element.id,
+			hasExplicitLabel: element.systemInitiatedLabel !== undefined,
+			messageLength: element.messageText.length,
+			messageHasOpeningTag: element.messageText.includes('<system_notification>'),
+			messageHasClosingTag: element.messageText.includes('</system_notification>'),
+			labelLength: label.length,
+			labelHasOpeningTag: label.includes('<system_notification>'),
+			labelHasClosingTag: label.includes('</system_notification>'),
+		}));
 		const notificationPart = this.instantiationService.createInstance(
 			ChatSystemNotificationContentPart,
 			{ kind: 'systemNotification', content: new MarkdownString(label) },
@@ -4482,6 +4494,18 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 			const isResponseElement = isResponseVM(context.element);
 			const shouldPin = this.shouldPinPart(content, isResponseElement ? context.element : undefined);
+
+			if (content.kind === 'systemNotification' || content.kind === 'markdownContent' && (content.content.value.includes('<system_notification>') || content.content.value.includes('</system_notification>'))) {
+				this.logService.info('[NotificationWrapperDebug] render-response-part', JSON.stringify({
+					session: context.element.sessionResource.toString(),
+					requestId: isResponseElement ? context.element.requestId : context.element.id,
+					partIndex: context.contentIndex,
+					kind: content.kind,
+					contentLength: content.content.value.length,
+					hasOpeningTag: content.content.value.includes('<system_notification>'),
+					hasClosingTag: content.content.value.includes('</system_notification>'),
+				}));
+			}
 
 			// Finalize the active thinking part for this element when the response is complete.
 			// Scoped to the current element's templateData to avoid finalizing thinking parts

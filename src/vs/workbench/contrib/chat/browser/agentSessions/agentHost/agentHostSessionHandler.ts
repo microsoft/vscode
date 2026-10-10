@@ -3751,6 +3751,23 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 								break;
 							}
 							const progress = systemNotificationToChatPart(initial.content, this._config.connectionAuthority, initial._meta);
+							// Temporary routing diagnostics; remove before merging.
+							const inputText = typeof initial.content === 'string' ? initial.content : initial.content?.markdown;
+							const outputText = progress?.kind === 'systemNotification' || progress?.kind === 'markdownContent' || progress?.kind === 'warning' ? progress.content.value : undefined;
+							this._logService.info('[NotificationWrapperDebug] live-adapter', JSON.stringify({
+								session: opts.sessionResource.toString(),
+								chat: opts.chatURI,
+								turnId: opts.turnId,
+								partIndex: responseParts$.get().indexOf(initial),
+								inputKind: initial.kind,
+								inputLength: inputText?.length,
+								inputHasOpeningTag: inputText?.includes('<system_notification>'),
+								inputHasClosingTag: inputText?.includes('</system_notification>'),
+								outputKind: progress?.kind ?? 'omitted',
+								outputLength: outputText?.length,
+								outputHasOpeningTag: outputText?.includes('<system_notification>'),
+								outputHasClosingTag: outputText?.includes('</system_notification>'),
+							}));
 							if (progress) {
 								if (progress.kind === 'systemNotification' && progress.presentation === 'workspaceTransition' && progress.accessibilityLabel) {
 									status(progress.accessibilityLabel);

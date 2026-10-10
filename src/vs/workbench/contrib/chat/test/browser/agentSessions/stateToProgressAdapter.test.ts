@@ -505,6 +505,68 @@ suite('stateToProgressAdapter', () => {
 		});
 	});
 
+	suite('systemNotificationToChatPart', () => {
+
+		for (const { name, content, expected } of [
+			{
+				name: 'unwraps a single-line runtime notification',
+				content: '<system_notification> Shell command "Install dependencies with required Node" (shellId: 16) has exited with exit code 1. </system_notification>',
+				expected: 'Shell command "Install dependencies with required Node" (shellId: 16) has exited with exit code 1.',
+			},
+			{
+				name: 'unwraps a multiline runtime notification with surrounding whitespace',
+				content: ' \r\n<system_notification>\r\nBackground command completed.\r\n\r\n**Exit code:** 1\r\n</system_notification>\r\n ',
+				expected: 'Background command completed.\r\n\r\n**Exit code:** 1',
+			},
+			{
+				name: 'preserves an already-unwrapped notification',
+				content: '  Background command completed.\n',
+				expected: '  Background command completed.\n',
+			},
+			{
+				name: 'preserves embedded notification tags',
+				content: 'Received <system_notification>Command completed</system_notification> from the host.',
+				expected: 'Received <system_notification>Command completed</system_notification> from the host.',
+			},
+			{
+				name: 'preserves an incomplete notification envelope',
+				content: '<system_notification>Command completed',
+				expected: '<system_notification>Command completed',
+			},
+			{
+				name: 'preserves a notification envelope inside a code block',
+				content: '```xml\n<system_notification>Command completed</system_notification>\n```',
+				expected: '```xml\n<system_notification>Command completed</system_notification>\n```',
+			},
+		]) {
+			test(name, () => {
+				const notification = { kind: 'systemNotification', content: new MarkdownString(expected) };
+				assert.deepStrictEqual([
+					systemNotificationToChatPart(content, 'sandbox.example'),
+					systemNotificationToChatPart({ markdown: content }, 'sandbox.example'),
+				], [notification, notification]);
+			});
+		}
+
+		test('drops an empty notification envelope', () => {
+			const content = '<system_notification>\n \n</system_notification>';
+			assert.deepStrictEqual([
+				systemNotificationToChatPart(content, 'sandbox.example'),
+				systemNotificationToChatPart({ markdown: content }, 'sandbox.example'),
+			], [undefined, undefined]);
+		});
+
+		test('rewrites remote links after unwrapping markdown notifications', () => {
+			const target = 'file:///workspace/build.log';
+			assert.deepStrictEqual(systemNotificationToChatPart({
+				markdown: `<system_notification>\nSee [build log](${target}).\n</system_notification>`,
+			}, 'sandbox.example'), {
+				kind: 'systemNotification',
+				content: new MarkdownString(`See [](${rewriteAgentHostLinkTarget(target, 'sandbox.example')}).`),
+			});
+		});
+	});
+
 	suite('turnsToHistory', () => {
 
 		test('empty turns produces empty history', () => {
@@ -787,6 +849,28 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(progress.kind, 'systemNotification');
 			if (progress.kind !== 'systemNotification') { return; }
 			assert.strictEqual(progress.content.value, 'Shell command completed');
+		});
+
+		test('unwraps notification envelopes in remote history without changing user or assistant text', () => {
+			const content = '<system_notification>\nShell command completed\n</system_notification>';
+			const turn = createTurn({
+				message: message(content),
+				responseParts: [
+					{ kind: ResponsePartKind.SystemNotification, content },
+					{ kind: ResponsePartKind.Markdown, id: 'markdown', content },
+					{ kind: ResponsePartKind.Reasoning, id: 'reasoning', content },
+				],
+			});
+
+			const history = rawTurnsToHistory(URI.parse('provider:/opaque-session'), [turn], 'participant-1', 'sandbox.example');
+			assert.deepStrictEqual(history.map(item => item.type === 'request' ? item.prompt : item.parts), [
+				content,
+				[
+					{ kind: 'systemNotification', content: new MarkdownString('Shell command completed') },
+					{ kind: 'markdownContent', content: new MarkdownString(content) },
+					{ kind: 'thinking', id: 'reasoning', value: content },
+				],
+			]);
 		});
 
 		test('workspace continuation restores with a hidden request and visible transition before provider output', () => {
@@ -4004,6 +4088,21 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(result[0].kind, 'systemNotification');
 			if (result[0].kind !== 'systemNotification') { return; }
 			assert.strictEqual(result[0].content.value, 'Shell command completed');
+		});
+
+		test('unwraps notification envelopes in active remote turns without changing assistant text', () => {
+			const content = '<system_notification>\nShell command completed\n</system_notification>';
+			const result = activeTurnToProgress(URI.parse('provider:/opaque-session'), createActiveTurnState([
+				{ kind: ResponsePartKind.SystemNotification, content },
+				{ kind: ResponsePartKind.Markdown, id: 'markdown', content },
+				{ kind: ResponsePartKind.Reasoning, id: 'reasoning', content },
+			]), 'sandbox.example');
+
+			assert.deepStrictEqual(result, [
+				{ kind: 'systemNotification', content: new MarkdownString('Shell command completed') },
+				{ kind: 'markdownContent', content: new MarkdownString(content) },
+				{ kind: 'thinking', id: 'reasoning', value: content },
+			]);
 		});
 
 		test('produces warning for active worktree failure notification', () => {
