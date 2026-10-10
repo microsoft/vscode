@@ -1444,7 +1444,7 @@ export class Repository {
 		args.push('-l');
 
 		const result = await this.exec(args);
-		const lines = result.stdout.trim().split(/\r|\r\n|\n/);
+		const lines = result.stdout.trim().split(/\r?\n/);
 
 		return lines.map(entry => {
 			const equalsIndex = entry.indexOf('=');
