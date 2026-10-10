@@ -20,11 +20,25 @@ export const OpenEditorCommandId = 'search.action.openEditor';
 export const ToggleSearchEditorContextLinesCommandId = 'toggleSearchEditorContextLines';
 
 export const SearchEditorInputTypeId = 'workbench.editorinputs.searchEditorInput';
+
+export const enum SearchContextLinesMode {
+	Surrounding = 'surrounding',
+	Before = 'before',
+	After = 'after',
+}
+
+export const searchContextLinesModes = [
+	SearchContextLinesMode.Surrounding,
+	SearchContextLinesMode.Before,
+	SearchContextLinesMode.After,
+] as const;
+
 export type SearchConfiguration = {
 	query: string;
 	filesToInclude: string;
 	filesToExclude: string;
 	contextLines: number;
+	contextLinesMode: SearchContextLinesMode;
 	matchWholeWord: boolean;
 	isCaseSensitive: boolean;
 	isRegexp: boolean;
