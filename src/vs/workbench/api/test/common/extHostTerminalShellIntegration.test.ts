@@ -8,7 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { InternalTerminalShellIntegration } from '../../common/extHostTerminalShellIntegration.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { TerminalShellExecutionCommandLineConfidence } from '../../common/extHostTypes.js';
-import { deepStrictEqual, notStrictEqual, strictEqual } from 'assert';
+import { deepStrictEqual, notStrictEqual, strictEqual, throws } from 'assert';
 import type { URI } from '../../../../base/common/uri.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 
@@ -111,6 +111,13 @@ suite('InternalTerminalShellIntegration', () => {
 			type: 'end',
 			commandLine: e.execution.commandLine.value,
 		})));
+	});
+
+	test('executeCommand throws when terminal does not support executeCommand API', () => {
+		const nonSupportingSi = store.add(new InternalTerminalShellIntegration(terminal, false, onDidStartTerminalShellExecution));
+		throws(() => {
+			nonSupportingSi.value.executeCommand(testCommandLine);
+		}, /This terminal does not support the executeCommand API\./);
 	});
 
 	test('simple execution', async () => {
