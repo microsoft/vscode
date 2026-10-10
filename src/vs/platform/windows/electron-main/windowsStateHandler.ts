@@ -369,12 +369,20 @@ export class WindowsStateHandler extends Disposable {
 			}
 		}
 
-		// Compute x/y based on display bounds
+		// Compute x/y based on the display's workArea (excluding taskbar/dock) and clamp
+		// the size and position so the window chrome stays inside the visible region.
+		// Without this, default sizes larger than the workArea push the title bar above
+		// the screen and the status bar behind the taskbar.
 		// Note: important to use Math.round() because Electron does not seem to be too happy about
 		// display coordinates that are not absolute numbers.
 		let state = defaultWindowState(undefined, isWorkspaceIdentifier(configuration.workspace) || isSingleFolderWorkspaceIdentifier(configuration.workspace));
-		state.x = Math.round(displayToUse.bounds.x + (displayToUse.bounds.width / 2) - (state.width! / 2));
-		state.y = Math.round(displayToUse.bounds.y + (displayToUse.bounds.height / 2) - (state.height! / 2));
+		const workArea = displayToUse.workArea.width > 0 && displayToUse.workArea.height > 0 ? displayToUse.workArea : displayToUse.bounds;
+		const width = Math.min(state.width!, workArea.width);
+		const height = Math.min(state.height!, workArea.height);
+		state.width = width;
+		state.height = height;
+		state.x = Math.max(workArea.x, Math.round(workArea.x + (workArea.width / 2) - (width / 2)));
+		state.y = Math.max(workArea.y, Math.round(workArea.y + (workArea.height / 2) - (height / 2)));
 
 		// Check for newWindowDimensions setting and adjust accordingly
 		const windowConfig = this.configurationService.getValue<IWindowSettings | undefined>('window');
@@ -402,7 +410,7 @@ export class WindowsStateHandler extends Disposable {
 		}
 
 		if (ensureNoOverlap) {
-			state = this.ensureNoOverlap(state);
+			state = this.ensureNoOverlap(state, workArea);
 		}
 
 		(state as INewWindowState).hasDefaultState = true; // flag as default state
@@ -410,19 +418,35 @@ export class WindowsStateHandler extends Disposable {
 		return state;
 	}
 
-	private ensureNoOverlap(state: IWindowUIState): IWindowUIState {
+	private ensureNoOverlap(state: IWindowUIState, workArea: electron.Rectangle): IWindowUIState {
 		if (this.windowsMainService.getWindows().length === 0) {
 			return state;
 		}
 
-		state.x = typeof state.x === 'number' ? state.x : 0;
-		state.y = typeof state.y === 'number' ? state.y : 0;
+		let x = typeof state.x === 'number' ? state.x : 0;
+		let y = typeof state.y === 'number' ? state.y : 0;
+		const width = state.width ?? 0;
+		const height = state.height ?? 0;
 
 		const existingWindowBounds = this.windowsMainService.getWindows().map(window => window.getBounds());
-		while (existingWindowBounds.some(bounds => bounds.x === state.x || bounds.y === state.y)) {
-			state.x += 30;
-			state.y += 30;
+		while (existingWindowBounds.some(bounds => bounds.x === x || bounds.y === y)) {
+			const nextX = x + 30;
+			const nextY = y + 30;
+
+			// Stop offsetting as soon as the window would no longer fit inside the work area.
+			// Displays arranged side by side share the same vertical origin, so windows on a
+			// second display collide on `y` repeatedly and the accumulated offset would
+			// otherwise push the title bar and status bar out of the visible region.
+			if (nextX + width > workArea.x + workArea.width || nextY + height > workArea.y + workArea.height) {
+				break;
+			}
+
+			x = nextX;
+			y = nextY;
 		}
+
+		state.x = x;
+		state.y = y;
 
 		return state;
 	}
