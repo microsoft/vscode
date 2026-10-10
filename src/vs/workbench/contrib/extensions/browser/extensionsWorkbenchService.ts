@@ -26,7 +26,8 @@ import {
 	ExtensionManagementErrorCode,
 	MaliciousExtensionInfo,
 	shouldRequireRepositorySignatureFor,
-	IGalleryExtensionVersion
+	IGalleryExtensionVersion,
+	InstallExtensionProgressEvent
 } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService, IResourceExtension } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, groupByExtension, getGalleryExtensionId, findMatchingMaliciousEntry } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
@@ -96,6 +97,7 @@ type ExtensionsLoadClassification = {
 export class Extension implements IExtension {
 
 	public enablementState: EnablementState = EnablementState.EnabledGlobally;
+	public installProgress: InstallExtensionProgressEvent | undefined;
 
 	private galleryResourcesCache = new Map<string, any>();
 
@@ -617,6 +619,7 @@ class Extensions extends Disposable {
 	) {
 		super();
 		this._register(server.extensionManagementService.onInstallExtension(e => this.onInstallExtension(e)));
+		this._register(server.extensionManagementService.onInstallExtensionProgress(e => this.onInstallExtensionProgress(e)));
 		this._register(server.extensionManagementService.onDidInstallExtensions(e => this.onDidInstallExtensions(e)));
 		this._register(server.extensionManagementService.onUninstallExtension(e => this.onUninstallExtension(e.identifier)));
 		this._register(server.extensionManagementService.onDidUninstallExtension(e => this.onDidUninstallExtension(e)));
@@ -646,6 +649,14 @@ class Extensions extends Disposable {
 					this.onDidUninstallExtension(e);
 				}
 			}));
+		}
+	}
+
+	private onInstallExtensionProgress(event: InstallExtensionProgressEvent): void {
+		const extension = this.installing.find(extension => areSameExtensions(extension.identifier, event.identifier));
+		if (extension) {
+			extension.installProgress = event;
+			this._onChange.fire({ extension });
 		}
 	}
 
