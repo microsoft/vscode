@@ -10,7 +10,7 @@ import { IContextKey, IContextKeyService } from '../../../../platform/contextkey
 import { EditorActivation } from '../../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IShellLaunchConfig, TerminalLocation } from '../../../../platform/terminal/common/terminal.js';
-import { IEditorPane } from '../../../common/editor.js';
+import { EditorCloseContext, IEditorPane } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { IDeserializedTerminalEditorInput, ITerminalEditorService, ITerminalInstance, ITerminalInstanceService, TerminalEditorLocation } from './terminal.js';
 import { TerminalEditorInput } from './terminalEditorInput.js';
@@ -91,9 +91,13 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 			}
 		}));
 
-		// Remove the terminal from the managed instances when the editor closes. This fires when
-		// dragging and dropping to another editor or closing the editor via cmd/ctrl+w.
+		// Remove the terminal from the managed instances when the editor closes (e.g. cmd/ctrl+w).
+		// Moving the editor to another group also closes it in the source group, but the terminal
+		// stays open in the target group, so ignore that.
 		this._register(this._editorService.onDidCloseEditor(e => {
+			if (e.context === EditorCloseContext.MOVE) {
+				return;
+			}
 			const instance = e.editor instanceof TerminalEditorInput ? e.editor.terminalInstance : undefined;
 			if (instance) {
 				const instanceIndex = this.instances.findIndex(e => e === instance);
