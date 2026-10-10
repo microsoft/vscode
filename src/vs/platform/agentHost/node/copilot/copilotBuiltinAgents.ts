@@ -134,14 +134,23 @@ export function buildCopilotBuiltinAgentsContainer(): DirectoryCustomization {
 	};
 }
 
+/**
+ * The runtime hides agents with `disableModelInvocation` from the default agent's `task` tool, but
+ * the SDK's {@link CustomAgentConfig} does not declare it and does not map `infer: false` to it.
+ */
+export interface ICopilotBuiltinAgentConfig extends CustomAgentConfig {
+	readonly disableModelInvocation: true;
+}
+
 /** Builds all reserved SDK configurations, including explicitly read-only client tools where requested. */
-export function buildCopilotBuiltinAgents(clientTools: IActiveClientSnapshot['tools']): CustomAgentConfig[] {
+export function buildCopilotBuiltinAgents(clientTools: IActiveClientSnapshot['tools']): ICopilotBuiltinAgentConfig[] {
 	const readOnlyClientTools = clientTools.filter(tool => tool.annotations?.readOnlyHint === true).map(tool => toSdkClientToolName(tool.name));
 	return COPILOT_BUILTIN_AGENTS.map(agent => ({
 		name: agent.name,
 		displayName: agent.displayName(),
 		description: agent.description(),
 		infer: false,
+		disableModelInvocation: true,
 		prompt: agent.prompt,
 		tools: [...new Set([
 			...agent.tools,

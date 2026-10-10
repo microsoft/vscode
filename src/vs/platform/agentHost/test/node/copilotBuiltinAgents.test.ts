@@ -39,6 +39,7 @@ suite('Copilot built-in agents', () => {
 			displayName: agent.displayName(),
 			description: agent.description(),
 			infer: false,
+			disableModelInvocation: true,
 			prompt: agent.prompt,
 			tools: [...agent.tools],
 		})));
@@ -51,6 +52,7 @@ suite('Copilot built-in agents', () => {
 			displayName: config.displayName,
 			description: config.description,
 			infer: config.infer,
+			disableModelInvocation: config.disableModelInvocation,
 			tools: config.tools,
 			readOnlyPrompt: config.prompt.includes('strictly read-only') && config.prompt.includes('Write tools are unavailable by design'),
 			explainsChanges: config.prompt.includes('explain what changes would be needed but do NOT make them'),
@@ -59,6 +61,7 @@ suite('Copilot built-in agents', () => {
 			displayName: 'Ask',
 			description: 'Answers questions about your code without making changes',
 			infer: false,
+			disableModelInvocation: true,
 			tools: ['view', 'grep', 'glob', 'rg', 'lsp', 'web_fetch', 'web_search', 'ask_user', 'report_intent', 'think', 'show_file', 'fetch_copilot_cli_documentation'],
 			readOnlyPrompt: true,
 			explainsChanges: true,
