@@ -788,6 +788,10 @@ export interface IEditorOptions {
 	 */
 	lineHeight?: number;
 	/**
+	 * Controls whether empty lines use a reduced line height.
+	 */
+	shrinkEmptyLines?: 'off' | 'compact' | 'veryCompact';
+	/**
 	 * The letter spacing
 	 */
 	letterSpacing?: number;
@@ -2124,6 +2128,21 @@ class EffectiveFullwidthCharacterWidth extends ComputedEditorOption<EditorOption
 			return 'twoCells';
 		}
 		return 'font';
+	}
+}
+
+//#endregion
+
+//#region effectiveShrinkEmptyLines
+
+class EffectiveShrinkEmptyLines extends ComputedEditorOption<EditorOption.effectiveShrinkEmptyLines, 'off' | 'compact' | 'veryCompact'> {
+
+	constructor() {
+		super(EditorOption.effectiveShrinkEmptyLines, 'off');
+	}
+
+	public compute(_env: IEnvironmentalOptions, options: IComputedEditorOptions): 'off' | 'compact' | 'veryCompact' {
+		return options.get(EditorOption.allowVariableLineHeights) ? options.get(EditorOption.shrinkEmptyLines) : 'off';
 	}
 }
 
@@ -5974,6 +5993,7 @@ export const enum EditorOption {
 	selectOnLineNumbers,
 	showFoldingControls,
 	showUnused,
+	shrinkEmptyLines,
 	snippetSuggestions,
 	smartSelect,
 	smoothScrolling,
@@ -6024,7 +6044,8 @@ export const enum EditorOption {
 	doubleClickSelectsBlock,
 	fullwidthCharacterWidth,
 	// Must come after `fullwidthCharacterWidth`, which it is computed from.
-	effectiveFullwidthCharacterWidth
+	effectiveFullwidthCharacterWidth,
+	effectiveShrinkEmptyLines
 }
 
 export const EditorOptions = {
@@ -6756,6 +6777,19 @@ export const EditorOptions = {
 		EditorOption.showUnused, 'showUnused', true,
 		{ description: nls.localize('showUnused', "Controls fading out of unused code.") }
 	)),
+	shrinkEmptyLines: register(new EditorStringEnumOption(
+		EditorOption.shrinkEmptyLines, 'shrinkEmptyLines',
+		'off' as 'off' | 'compact' | 'veryCompact',
+		['off', 'compact', 'veryCompact'] as const,
+		{
+			enumDescriptions: [
+				nls.localize('shrinkEmptyLines.off', "Use the regular editor line height."),
+				nls.localize('shrinkEmptyLines.compact', "Render matching lines at half of the regular editor line height."),
+				nls.localize('shrinkEmptyLines.veryCompact', "Render matching lines at one quarter of the regular editor line height."),
+			],
+			markdownDescription: nls.localize('shrinkEmptyLines', "Controls whether lines that contain only whitespace use a reduced line height. Requires `#editor.allowVariableLineHeights#` to be enabled.")
+		}
+	)),
 	showDeprecated: register(new EditorBooleanOption(
 		EditorOption.showDeprecated, 'showDeprecated', true,
 		{ description: nls.localize('showDeprecated', "Controls strikethrough deprecated variables.") }
@@ -6977,7 +7011,8 @@ export const EditorOptions = {
 	wrappingStrategy: register(new WrappingStrategy()),
 	effectiveEditContextEnabled: register(new EffectiveEditContextEnabled()),
 	effectiveAllowVariableFonts: register(new EffectiveAllowVariableFonts()),
-	effectiveFullwidthCharacterWidth: register(new EffectiveFullwidthCharacterWidth())
+	effectiveFullwidthCharacterWidth: register(new EffectiveFullwidthCharacterWidth()),
+	effectiveShrinkEmptyLines: register(new EffectiveShrinkEmptyLines())
 };
 
 type EditorOptionsType = typeof EditorOptions;
