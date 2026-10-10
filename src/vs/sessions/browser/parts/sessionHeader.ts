@@ -36,7 +36,7 @@ export class SessionHeader extends Disposable {
 		super();
 		this._headerTargetsChatKey = SessionHeaderTargetsChatContext.bindTo(contextKeyService);
 		this._toolbarShowsSessionKey = SessionToolbarShowsSessionContext.bindTo(contextKeyService);
-		this._bar = this._register(instantiationService.createInstance(SessionHeaderBar));
+		this._bar = this._register(instantiationService.createInstance(SessionHeaderBar, undefined));
 	}
 
 	setSession(session: IActiveSession | undefined): void {

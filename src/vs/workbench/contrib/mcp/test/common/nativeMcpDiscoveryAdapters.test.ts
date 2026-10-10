@@ -6,19 +6,22 @@
 import * as assert from 'assert';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Event } from '../../../../../base/common/event.js';
+import { equals } from '../../../../../base/common/objects.js';
 import { Platform } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ConfigurationModel } from '../../../../../platform/configuration/common/configurationModels.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IFileService, IFileSystemWatcher } from '../../../../../platform/files/common/files.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { INativeMcpDiscoveryData } from '../../../../../platform/mcp/common/nativeMcpDiscoveryHelper.js';
 import { IMcpRegistry } from '../../common/mcpRegistryTypes.js';
 import { NativeFilesystemMcpDiscovery } from '../../common/discovery/nativeMcpDiscoveryAbstract.js';
-import { claudeConfigToServerDefinition } from '../../common/discovery/nativeMcpDiscoveryAdapters.js';
-import { ExternalDiscoverySource, mcpDiscoverySection } from '../../common/mcpConfiguration.js';
+import { claudeConfigToServerDefinition, ClaudeDesktopMpcDiscoveryAdapter, CopilotMpcDiscoveryAdapter, CursorDesktopMpcDiscoveryAdapter, WindsurfDesktopMpcDiscoveryAdapter } from '../../common/discovery/nativeMcpDiscoveryAdapters.js';
+import { allDiscoverySources, defaultDiscoverySourceEnablement, ExternalDiscoverySource, isDiscoverySourceEnabled, mcpDiscoverySection } from '../../common/mcpConfiguration.js';
 import { McpServerTransportType } from '../../common/mcpTypes.js';
 
 class TestNativeFilesystemMcpDiscovery extends NativeFilesystemMcpDiscovery {
@@ -32,8 +35,20 @@ class TestNativeFilesystemMcpDiscovery extends NativeFilesystemMcpDiscovery {
 suite('MCP Discovery - nativeMcpDiscoveryAdapters', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	/** Merges a user value over the registered default, as the configuration service does. */
+	function getEffectiveDiscoveryValue(userValue: boolean | Partial<Record<ExternalDiscoverySource, boolean>> | undefined): unknown {
+		const logService = new NullLogService();
+		const defaults = ConfigurationModel.createEmptyModel(logService);
+		defaults.setValue(mcpDiscoverySection, { ...defaultDiscoverySourceEnablement });
+		const user = ConfigurationModel.createEmptyModel(logService);
+		if (userValue !== undefined) {
+			user.setValue(mcpDiscoverySection, userValue);
+		}
+		return defaults.merge(user).getValue(mcpDiscoverySection);
+	}
+
 	function readNativeDiscoveryPaths(
-		discoverySources: boolean | Partial<Record<ExternalDiscoverySource, boolean>>,
+		discoverySources: boolean | Partial<Record<ExternalDiscoverySource, boolean>> | undefined,
 		details: Partial<INativeMcpDiscoveryData> = {},
 	): string[] {
 		const paths: string[] = [];
@@ -54,7 +69,7 @@ suite('MCP Discovery - nativeMcpDiscoveryAdapters', () => {
 			fileService,
 			instantiationService,
 			upcastPartial<IMcpRegistry>({}),
-			new TestConfigurationService({ [mcpDiscoverySection]: discoverySources }),
+			new TestConfigurationService({ [mcpDiscoverySection]: getEffectiveDiscoveryValue(discoverySources) }),
 		));
 		discovery.setDetailsForTest({
 			platform: Platform.Linux,
@@ -71,6 +86,7 @@ suite('MCP Discovery - nativeMcpDiscoveryAdapters', () => {
 			[ExternalDiscoverySource.Windsurf]: true,
 		}), [
 			'/home/test/.config/Claude/claude_desktop_config.json',
+			'/home/test/.copilot/mcp-config.json',
 			'/home/test/.cursor/mcp.json',
 			'/home/test/.codeium/windsurf/mcp_config.json',
 		]);
@@ -82,8 +98,40 @@ suite('MCP Discovery - nativeMcpDiscoveryAdapters', () => {
 		}), ['/home/test/.copilot/mcp-config.json']);
 	});
 
-	test('does not watch the Copilot user MCP configuration by default', () => {
-		assert.deepStrictEqual(readNativeDiscoveryPaths({}), []);
+	test('watches only the Copilot user MCP configuration by default and respects explicit values', () => {
+		const copilot = '/home/test/.copilot/mcp-config.json';
+		const claude = '/home/test/.config/Claude/claude_desktop_config.json';
+		const userValues: [string, boolean | Partial<Record<ExternalDiscoverySource, boolean>> | undefined][] = [
+			['unset', undefined],
+			['empty object', {}],
+			['other source enabled', { [ExternalDiscoverySource.ClaudeDesktop]: true }],
+			['copilot disabled', { [ExternalDiscoverySource.Copilot]: false }],
+			['copilot disabled, other enabled', { [ExternalDiscoverySource.Copilot]: false, [ExternalDiscoverySource.ClaudeDesktop]: true }],
+			['legacy false', false],
+			['legacy true', true],
+		];
+		assert.deepStrictEqual(userValues.map(([label, value]) => [label, readNativeDiscoveryPaths(value)]), [
+			['unset', [copilot]],
+			['empty object', [copilot]],
+			['other source enabled', [claude, copilot]],
+			['copilot disabled', []],
+			['copilot disabled, other enabled', [claude]],
+			['legacy false', []],
+			['legacy true', [claude, copilot, '/home/test/.cursor/mcp.json', '/home/test/.codeium/windsurf/mcp_config.json']],
+		]);
+	});
+
+	test('falls back to source defaults when the setting has no registered default', () => {
+		const values: unknown[] = [undefined, null, {}, { [ExternalDiscoverySource.Copilot]: 'yes' }, { [ExternalDiscoverySource.Copilot]: false }, false, true];
+		assert.deepStrictEqual(values.map(value => allDiscoverySources.filter(source => isDiscoverySourceEnabled(value, source))), [
+			[ExternalDiscoverySource.Copilot],
+			[ExternalDiscoverySource.Copilot],
+			[ExternalDiscoverySource.Copilot],
+			[ExternalDiscoverySource.Copilot],
+			[],
+			[],
+			allDiscoverySources,
+		]);
 	});
 
 	test('watches the configured Copilot home instead of the default', () => {
@@ -214,6 +262,31 @@ suite('MCP Discovery - nativeMcpDiscoveryAdapters', () => {
 		}, {
 			cwd: cwd.fsPath,
 			defaultCwd: undefined,
+		});
+	});
+
+	test('expands environment variables only from the Copilot user configuration', async () => {
+		const contents = VSBuffer.fromString(JSON.stringify({
+			mcpServers: {
+				local: { command: '${TOOLS}/server', env: { API_KEY: '${API_KEY}' } },
+				remote: { url: 'https://${HOST}/mcp', headers: { Authorization: 'Bearer ${TOKEN}' } },
+			},
+		}));
+		const details: INativeMcpDiscoveryData = { platform: Platform.Linux, homedir: URI.file('/home/test') };
+		const adapters = [
+			new ClaudeDesktopMpcDiscoveryAdapter(null),
+			new CopilotMpcDiscoveryAdapter(null),
+			new CursorDesktopMpcDiscoveryAdapter(null),
+			new WindsurfDesktopMpcDiscoveryAdapter(null),
+		];
+		const definitions = await Promise.all(adapters.map(adapter => adapter.adaptFile(contents, details)));
+		assert.deepStrictEqual({
+			expansions: definitions.map(defs => defs?.map(definition => definition.environmentVariableExpansion)),
+			// Trust decisions stay keyed to the unexpanded launch.
+			copilotNoncesMatchClaude: equals(definitions[1]?.map(definition => definition.cacheNonce), definitions[0]?.map(definition => definition.cacheNonce)),
+		}, {
+			expansions: adapters.map(adapter => adapter instanceof CopilotMpcDiscoveryAdapter ? [{}, { url: 'https://${HOST}/mcp' }] : [undefined, undefined]),
+			copilotNoncesMatchClaude: true,
 		});
 	});
 });

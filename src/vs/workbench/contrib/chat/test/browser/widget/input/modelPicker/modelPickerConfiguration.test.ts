@@ -6,14 +6,9 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../../base/test/common/utils.js';
 import { ExtensionIdentifier } from '../../../../../../../../platform/extensions/common/extensions.js';
-import { ActionListItemKind, IActionListItem, IActionListOptions } from '../../../../../../../../platform/actionWidget/browser/actionList.js';
-import { IActionWidgetService } from '../../../../../../../../platform/actionWidget/browser/actionWidget.js';
-import { IActionWidgetDropdownAction } from '../../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
-import { ITelemetryService } from '../../../../../../../../platform/telemetry/common/telemetry.js';
-import { ModelPickerConfiguration } from '../../../../../browser/widget/input/modelPicker/modelPickerConfiguration.js';
+import { renderModelConfigurationButton } from '../../../../../browser/widget/input/modelPicker/modelPickerConfiguration.js';
 import { getModelConfigChoices, getModelConfigProperty, IModelConfigurationAccess, setModelConfigValues } from '../../../../../browser/widget/input/modelPicker/modelPickerModelConfig.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelConfigurationSchema } from '../../../../../common/languageModels.js';
-import { NullLanguageModelsService } from '../../../../common/languageModels.js';
 
 /**
  * Builds a model whose schema advertises a Thinking Effort and a Context Size
@@ -91,65 +86,26 @@ function createTierModel(): ILanguageModelChatMetadataAndIdentifier {
 	};
 }
 
-/**
- * Renders the configuration button and opens the dropdown for `model`, then
- * returns a snapshot of everything the user can see: the button label, its
- * accessible name, the list options and the option rows.
- */
-function render(model: ILanguageModelChatMetadataAndIdentifier, configuration: Record<string, unknown> = {}, schema?: ILanguageModelConfigurationSchema, showModelDetails = false) {
-	const access: IModelConfigurationAccess = {
+function createAccess(configuration: Record<string, unknown> = {}, schema?: ILanguageModelConfigurationSchema): IModelConfigurationAccess {
+	return {
 		getModelConfiguration: () => configuration,
 		getModelConfigurationSchema: () => schema,
 		setModelConfiguration: async (_modelId, values) => { Object.assign(configuration, values); },
 		getModelConfigurationActions: () => [],
 	};
-	let shownItems: IActionListItem<IActionWidgetDropdownAction>[] = [];
-	let shownOptions: IActionListOptions | undefined;
-	const actionWidgetService = {
-		show: (
-			_id: string,
-			_supportsPreview: boolean,
-			items: IActionListItem<IActionWidgetDropdownAction>[],
-			_delegate: unknown,
-			_anchor: unknown,
-			_container: unknown,
-			_actions: unknown,
-			_accessibilityProvider: unknown,
-			options: IActionListOptions,
-		) => {
-			shownItems = items;
-			shownOptions = options;
-		},
-		focusItemById: () => { },
-		updateItems: () => { },
-	} as unknown as IActionWidgetService;
-	const controller = new ModelPickerConfiguration({
-		getSelectedModel: () => model,
-		getConfigurationAccess: () => access,
-		getChatSessionId: () => undefined,
-		isDisabled: () => false,
-		shouldShowCacheBreakHint: () => false,
-		getCacheBreakLearnMoreLink: () => undefined,
-		dismissCacheBreakHint: () => { },
-	}, actionWidgetService, { publicLog2: () => { } } as unknown as ITelemetryService, new NullLanguageModelsService());
+}
+
+/**
+ * Renders the configuration readout for `model` and returns what the user can
+ * see: whether it is shown, its label and its accessible name.
+ */
+function render(model: ILanguageModelChatMetadataAndIdentifier | undefined, configuration: Record<string, unknown> = {}, schema?: ILanguageModelConfigurationSchema, hidden = false) {
 	const button = document.createElement('a');
-
-	controller.renderButton(button, false, false, showModelDetails);
-	controller.show(button, undefined, { entryPoint: 'configuration', inputMethod: 'mouse' });
-
+	renderModelConfigurationButton(button, model, createAccess(configuration, schema), hidden);
 	return {
+		visible: button.style.display !== 'none',
 		label: button.textContent,
 		ariaLabel: button.ariaLabel,
-		listOptions: {
-			reserveSubmenuSpace: shownOptions?.reserveSubmenuSpace,
-		},
-		sections: shownItems.map(item => item.kind === ActionListItemKind.Action ? {
-			className: item.className,
-			label: item.label,
-			checked: item.item!.checked,
-			ariaDescription: item.ariaDescription,
-			...(item.disabled ? { disabled: item.disabled, enabled: item.item!.enabled } : {}),
-		} : { kind: item.kind, label: item.label }),
 	};
 }
 
@@ -214,173 +170,85 @@ suite('ModelPickerConfiguration', () => {
 		]);
 	});
 
-	test('legacy context choices retain numeric-string formatting', () => {
-		const result = render(createModel(), {}, {
-			properties: { context: { group: 'tokens', type: 'string', enum: ['32000', '64000'], default: '32000' } },
-		});
-		assert.deepStrictEqual({ label: result.label, choices: result.sections.map(section => section.label) }, {
-			label: '32K', choices: ['Context Size', '32K', '64K'],
-		});
-	});
-
-	test('read-only choices remain visible but cannot be changed in the legacy picker', () => {
-		const model = createTierModel();
-		const schema = model.metadata.configurationSchema!;
-		const result = render(model, {}, { properties: { tier: { ...schema.properties!.tier, readOnly: true } } });
-		assert.deepStrictEqual(result.sections.flatMap(choice => choice.kind === undefined ? [{ label: choice.label, disabled: choice.disabled, enabled: choice.enabled }] : []), [
-			{ label: 'Efficiency', disabled: true, enabled: false },
-			{ label: 'Balance', disabled: true, enabled: false },
-			{ label: 'Intelligence', disabled: true, enabled: false },
-		]);
-	});
-
-	test('renders the combined label and builds accessible option sections', () => {
+	test('renders the effective configuration and names its details destination', () => {
 		assert.deepStrictEqual(render(createModel(), { effort: 'medium', context: 65536 }), {
-			label: 'Medium 64K',
-			ariaLabel: 'Thinking Effort: Medium, Context Size: 64K',
-			listOptions: {
-				reserveSubmenuSpace: false,
-			},
-			sections: [
-				{ kind: ActionListItemKind.Header, label: 'Thinking Effort' },
-				{ className: 'chat-model-picker-config-option', label: 'Low', checked: false, ariaDescription: 'Default, Faster' },
-				{ className: 'chat-model-picker-config-option', label: 'Medium', checked: true, ariaDescription: 'Balanced' },
-				{ kind: ActionListItemKind.Separator, label: undefined },
-				{ kind: ActionListItemKind.Header, label: 'Context Size' },
-				{ className: 'chat-model-picker-config-option', label: '32K', checked: false, ariaDescription: 'Default' },
-				{ className: 'chat-model-picker-config-option', label: '64K', checked: true, ariaDescription: undefined },
-			],
+			visible: true,
+			label: 'Medium · 64K',
+			ariaLabel: 'Test Model details, Thinking Effort: Medium, Context: 64K',
 		});
 	});
 
-	test('the tabbed readout includes defaults and names its details destination', () => {
-		const result = render(createModel(), {}, undefined, true);
-		assert.deepStrictEqual({ label: result.label, ariaLabel: result.ariaLabel }, {
+	test('the readout includes defaults', () => {
+		assert.deepStrictEqual(render(createModel()), {
+			visible: true,
 			label: 'Low · 32K',
 			ariaLabel: 'Test Model details, Thinking Effort: Low, Context: 32K',
 		});
 	});
 
-	test('the tabbed Auto readout describes routing options rather than Details', () => {
-		const result = render(createTierModel(), {}, undefined, true);
-		assert.deepStrictEqual({ label: result.label, ariaLabel: result.ariaLabel }, {
-			label: 'Balance', ariaLabel: 'Auto options, Optimize for: Balance',
-		});
-	});
-
-	test('the tabbed readout keeps unresolved settings reachable without guessing', () => {
-		const result = render(createModel({ omitEffortDefault: true, omitContextDefault: true }), {}, undefined, true);
-		assert.deepStrictEqual({ label: result.label, ariaLabel: result.ariaLabel }, {
-			label: 'Configure',
-			ariaLabel: 'Test Model details, Configure',
-		});
-	});
-
-	test('the tabbed readout links fixed context to information without adding configuration', () => {
-		const model = createModel();
-		const result = render({ ...model, metadata: { ...model.metadata, configurationSchema: undefined, maxContextWindowTokens: 200000 } }, {}, undefined, true);
-		assert.deepStrictEqual({ label: result.label, ariaLabel: result.ariaLabel, sections: result.sections }, {
-			label: '200K',
-			ariaLabel: 'Test Model details, Max context: 200K',
-			sections: [],
-		});
-	});
-
-	// A producer that cannot resolve a default leaves it `undefined`, which used
-	// to be stringified straight into the label as "undefined 272K". The group is
-	// dropped from the label instead, while its options stay selectable.
-	test('omits an unresolved group from the label rather than rendering "undefined"', () => {
-		assert.deepStrictEqual(render(createModel({ omitEffortDefault: true })), {
-			label: '32K',
-			ariaLabel: 'Context Size: 32K',
-			listOptions: {
-				reserveSubmenuSpace: false,
-			},
-			sections: [
-				{ kind: ActionListItemKind.Header, label: 'Thinking Effort' },
-				{ className: 'chat-model-picker-config-option', label: 'Low', checked: false, ariaDescription: 'Faster' },
-				{ className: 'chat-model-picker-config-option', label: 'Medium', checked: false, ariaDescription: 'Balanced' },
-				{ kind: ActionListItemKind.Separator, label: undefined },
-				{ kind: ActionListItemKind.Header, label: 'Context Size' },
-				{ className: 'chat-model-picker-config-option', label: '32K', checked: true, ariaDescription: 'Default' },
-				{ className: 'chat-model-picker-config-option', label: '64K', checked: false, ariaDescription: undefined },
-			],
-		});
-	});
-
-	// With nothing to summarize the button falls back to a generic label so the
-	// configuration stays reachable — it must not read "undefined undefined".
-	test('falls back to a generic label when no group resolves a value', () => {
-		const rendered = render(createModel({ omitEffortDefault: true, omitContextDefault: true }));
-		assert.deepStrictEqual({ label: rendered.label, ariaLabel: rendered.ariaLabel }, {
-			label: 'Configure',
-			ariaLabel: 'Configure',
-		});
-	});
-
-	// The navigation group is generic: Copilot's Auto model uses it for the
-	// routing tier rather than thinking effort, and names it through `title`.
-	test('keeps public tier choices reachable without exposing an internal preset name', () => {
-		const model = createTierModel();
-		const rendered = render({
-			...model,
-			metadata: {
-				...model.metadata,
-				configurationSchema: {
-					properties: {
-						tier: {
-							type: 'string', title: 'Optimize for', group: 'navigation',
-							enum: ['efficiency', 'balance', 'intelligence'],
-							enumItemLabels: ['Efficiency', 'Balance', 'Intelligence'], default: 'balance',
-						}
-					}
-				},
-			},
-		}, { tier: 'fast' });
-		assert.deepStrictEqual({
-			label: rendered.label,
-			ariaLabel: rendered.ariaLabel,
-			choices: rendered.sections.map(section => section.label),
-		}, { label: 'Automatic', ariaLabel: 'Optimize for: Automatic', choices: ['Optimize for', 'Efficiency', 'Balance', 'Intelligence'] });
-	});
-
-	test('uses the scoped managed default in the menu without rewriting provider metadata', () => {
-		const model = createTierModel();
-		const original = model.metadata.configurationSchema!;
-		const schema = { ...original, properties: { ...original.properties, tier: { ...original.properties!.tier, default: 'max' } } };
-		const result = render(model, { tier: 'balanced' }, schema);
-		assert.deepStrictEqual({
-			selectedLabel: result.label,
-			options: result.sections.map(section => {
-				const choice = section.kind === undefined ? section : undefined;
-				return { label: section.label, checked: choice?.checked, description: choice?.ariaDescription };
-			}),
-			providerDefault: original.properties?.tier.default,
-		}, {
-			selectedLabel: 'Balance',
-			options: [
-				{ label: 'Optimize for', checked: undefined, description: undefined },
-				{ label: 'Efficiency', checked: false, description: 'Cheaper models' },
-				{ label: 'Balance', checked: true, description: 'Balances capability and cost' },
-				{ label: 'Intelligence', checked: false, description: 'Default, Most capable models' },
-			],
-			providerDefault: 'balanced',
+	test('the Auto readout opens its Details like any model', () => {
+		assert.deepStrictEqual(render(createTierModel()), {
+			visible: true,
+			label: 'Balance',
+			ariaLabel: 'Auto details, Optimize for: Balance',
 		});
 	});
 
 	test('names the navigation group after the schema title when one is given', () => {
 		assert.deepStrictEqual(render(createTierModel(), { tier: 'max' }), {
+			visible: true,
 			label: 'Intelligence',
-			ariaLabel: 'Optimize for: Intelligence',
-			listOptions: {
-				reserveSubmenuSpace: false,
-			},
-			sections: [
-				{ kind: ActionListItemKind.Header, label: 'Optimize for' },
-				{ className: 'chat-model-picker-config-option', label: 'Efficiency', checked: false, ariaDescription: 'Cheaper models' },
-				{ className: 'chat-model-picker-config-option', label: 'Balance', checked: false, ariaDescription: 'Default, Balances capability and cost' },
-				{ className: 'chat-model-picker-config-option', label: 'Intelligence', checked: true, ariaDescription: 'Most capable models' },
+			ariaLabel: 'Auto details, Optimize for: Intelligence',
+		});
+	});
+
+	// A producer that cannot resolve a default leaves it `undefined`, which must
+	// not be stringified into the label. The group is dropped from the readout.
+	test('omits an unresolved group from the label rather than rendering "undefined"', () => {
+		assert.deepStrictEqual(render(createModel({ omitEffortDefault: true })), {
+			visible: true,
+			label: '32K',
+			ariaLabel: 'Test Model details, Context: 32K',
+		});
+	});
+
+	test('keeps unresolved settings reachable without guessing', () => {
+		assert.deepStrictEqual(render(createModel({ omitEffortDefault: true, omitContextDefault: true })), {
+			visible: true,
+			label: 'Configure',
+			ariaLabel: 'Test Model details, Configure',
+		});
+	});
+
+	test('links fixed context to information without adding configuration', () => {
+		const model = createModel();
+		assert.deepStrictEqual(render({ ...model, metadata: { ...model.metadata, configurationSchema: undefined, maxContextWindowTokens: 200000 } }), {
+			visible: true,
+			label: '200K',
+			ariaLabel: 'Test Model details, Max context: 200K',
+		});
+	});
+
+	test('is hidden when asked to or without a model', () => {
+		assert.deepStrictEqual([render(createModel(), {}, undefined, true).visible, render(undefined).visible], [false, false]);
+	});
+
+	test('uses the scoped managed default without rewriting provider metadata', () => {
+		const model = createTierModel();
+		const original = model.metadata.configurationSchema!;
+		const schema = { ...original, properties: { ...original.properties, tier: { ...original.properties!.tier, default: 'max' } } };
+		const property = getModelConfigProperty(model, createAccess({ tier: 'balanced' }, schema), 'navigation');
+		assert.ok(property);
+		assert.deepStrictEqual({
+			choices: getModelConfigChoices(property).map(({ label, checked, isDefault }) => ({ label, checked, isDefault })),
+			providerDefault: original.properties?.tier.default,
+		}, {
+			choices: [
+				{ label: 'Efficiency', checked: false, isDefault: false },
+				{ label: 'Balance', checked: true, isDefault: false },
+				{ label: 'Intelligence', checked: false, isDefault: true },
 			],
+			providerDefault: 'balanced',
 		});
 	});
 });

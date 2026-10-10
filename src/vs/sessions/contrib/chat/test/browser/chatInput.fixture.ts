@@ -118,14 +118,25 @@ const responsiveModel: ILanguageModelChatMetadataAndIdentifier = {
 		maxInputTokens: 128000,
 		maxOutputTokens: 4096,
 		isDefaultForLocation: { [ChatAgentLocation.Chat]: true },
+		// The widest readout a model can show, a thinking effort and a context size, so
+		// the resize cycles squeeze both halves of the picker.
 		configurationSchema: {
 			properties: {
-				effort: {
+				reasoningEffort: {
 					type: 'string',
+					title: 'Thinking Effort',
 					group: 'navigation',
-					enum: ['low', 'medium', 'high'],
-					enumItemLabels: ['Low', 'Medium', 'Max 1M'],
-					default: 'high',
+					enum: ['low', 'medium', 'high', 'max'],
+					enumItemLabels: ['Low', 'Medium', 'High', 'Max'],
+					default: 'max',
+				},
+				contextSize: {
+					type: 'number',
+					title: 'Context Size',
+					group: 'tokens',
+					enum: [128000, 1000000],
+					enumItemLabels: ['128K', '1M'],
+					default: 1000000,
 				},
 			},
 		},
@@ -152,7 +163,6 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/input/' }, {
 			sessionsContext.container.appendChild(chatView);
 			await renderChatInput({ ...sessionsContext, container: chatView }, {
 				models: shortNameModels,
-				tabbedModelPicker: true,
 				isSessionsWindow: true,
 				voiceInputMode: true,
 				width: 800,
@@ -169,7 +179,6 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/input/' }, {
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		render: context => renderChatInput(sessionsWindowContext(context), {
 			models: shortNameModels,
-			tabbedModelPicker: true,
 			isSessionsWindow: true,
 			width: 800,
 		}),
@@ -178,7 +187,6 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/input/' }, {
 		virtualTime: { enabled: false },
 		render: context => renderChatInput(sessionsWindowContext(context), {
 			models: shortNameModels,
-			tabbedModelPicker: true,
 			isSessionsWindow: true,
 			width: 800,
 			resizeWidths: [240],
@@ -243,7 +251,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/input/' }, {
 	}),
 	ResponsiveModelResizeCycleCompact: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The Agents active-session chat input shows its compact model codicon centered with equal padding inside a 22-pixel square control while the model configuration remains visible.'],
+		expectedVisualDescriptions: ['The Agents active-session chat input shows its compact model codicon centered with equal padding inside a 22-pixel square control, with the model configuration readout hidden.'],
 		virtualTime: { enabled: false },
 		render: context => renderChatInput(sessionsWindowContext(context), {
 			isSessionsWindow: true,

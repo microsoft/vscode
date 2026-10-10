@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { isWindows } from '../../../../base/common/platform.js';
+import { removeAnsiEscapeCodes } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
 import { TerminalClaimKind, type TerminalCommandResult, type TerminalSessionClaim } from '../../common/state/protocol/state.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
@@ -22,14 +24,33 @@ interface INonPtyShellStream {
 	readonly uri: string;
 	readonly title: string;
 	created: boolean;
+	/** The last cumulative snapshot, or the streamed transcript once the call streams chunks. */
 	lastSnapshot: string;
 	sourceTruncated: boolean;
 	finalized: boolean;
+	/** Set once the call streams `tool.shell_output` chunks, which replace its lossy snapshots. */
+	chunks?: {
+		lastSequence: number;
+		/** The stream whose output ended without a line feed, if any. */
+		openLineStream?: string;
+		/** Per stream, an escape sequence that a chunk boundary cut short. */
+		readonly pendingEscapes: Map<string, string>;
+	};
 	/** The attached shell that keeps running after the tool call returned, if any. */
 	backgroundShellId?: string;
 	/** The last task-list read started before the call went to the background; only later reads can settle the shell. */
 	backgroundSinceRead?: number;
 }
+
+/**
+ * An escape sequence at the end of a chunk that the stream's next chunk can still
+ * complete: the unterminated forms of the CSI, OSC, and ESC sequences that
+ * {@link removeAnsiEscapeCodes} strips.
+ */
+const incompleteEscapeSequencePattern = /(?:\x1b(?:\[[=?>!]?[\d;:]*["$#'* ]?|\][^\x07\x9c\x1b\r\n\u2028\u2029]*\x1b?|[ #%()*+\-./])?|\x9b[=?>!]?[\d;:]*["$#'* ]?|\x9d[^\x07\x9c\x1b\r\n\u2028\u2029]*\x1b?)$/;
+
+/** Bounds a held-back escape sequence, so one that never completes cannot hold back output. */
+const maxIncompleteEscapeSequenceLength = 1024;
 
 /** The runtime's text when a command exits, ending a shell tool or read result. */
 const completedShellPattern = /<shellId: (?<shellId>[^>\r\n]+) completed with exit code (?<exitCode>-?\d+)>\s*$/;
@@ -54,6 +75,41 @@ function parseCompletedShell(text: string | undefined): TerminalCommandResult | 
 		exitCode: Number(match.groups.exitCode),
 		preview: text.slice(0, match.index),
 	};
+}
+
+/** The runtime's text when output was spilled to a file; the preview length is in UTF-16 code units. */
+const spilledOutputPattern = /^[^\n]* too large to read at once \([^\n]*\)\. Saved to: [^\n]*\n(?:[^\n]*\n)*?Preview \(first (?<length>\d+) chars\):\n/;
+
+/** The exit marker directly after a spilled preview; sandbox notices may follow it. */
+const spilledShellExitPattern = /^\r?\n<shellId: [^>\r\n]+ completed with exit code (?<exitCode>-?\d+)>/;
+
+/**
+ * Extracts the command result from the runtime's text for a command whose
+ * output was spilled to a file, since session history omits the `shell_exit`
+ * block that carries the structured preview.
+ */
+export function parseSpilledShellCompletion(text: string | undefined): TerminalCommandResult | undefined {
+	if (!text) {
+		return undefined;
+	}
+	const header = spilledOutputPattern.exec(text);
+	if (!header?.groups) {
+		return undefined;
+	}
+	const length = Number(header.groups.length);
+	const preview = text.slice(header[0].length, header[0].length + length);
+	const trailer = text.slice(header[0].length + length);
+	if (preview.length < length) {
+		return undefined;
+	}
+	if (!trailer.trim()) {
+		return { preview, truncated: true };
+	}
+	const exit = spilledShellExitPattern.exec(trailer);
+	if (!exit?.groups) {
+		return undefined;
+	}
+	return { exitCode: Number(exit.groups.exitCode), preview, truncated: true };
 }
 
 /**
@@ -130,6 +186,8 @@ export interface INonPtyShellToolCompletion {
  * may be rewritten once output is truncated (a trailing truncation marker
  * under the emit cap, a rolling tail past the large-output threshold); this
  * class preserves the streamed transcript across those lossy rewrites.
+ * Runtimes that publish `tool.shell_output` send every chunk instead, so a
+ * call that streams chunks appends them and ignores its snapshots.
  *
  * An attached command that keeps running after its tool call returns keeps
  * receiving the call's partial output, so its channel stays live until the
@@ -191,7 +249,7 @@ export class NonPtyShellTerminalStreams extends Disposable {
 		if (created) {
 			this._createTerminal(toolCallId, stream);
 		}
-		if (stream.finalized || cumulativeOutput === stream.lastSnapshot) {
+		if (stream.finalized || stream.chunks || cumulativeOutput === stream.lastSnapshot) {
 			return { uri: stream.uri, created };
 		}
 		const truncatedPrefix = getTruncatedOutputPrefix(cumulativeOutput);
@@ -224,6 +282,56 @@ export class NonPtyShellTerminalStreams extends Disposable {
 			}
 		}
 		stream.lastSnapshot = cumulativeOutput;
+		return { uri: stream.uri, created };
+	}
+
+	/**
+	 * Appends a `tool.shell_output` chunk, which carries new output rather than
+	 * a snapshot. A call switches to chunks only at its first one, so its
+	 * transcript never misses output.
+	 */
+	appendChunk(toolCallId: string, chunk: { readonly text: string; readonly sequence: number; readonly stream?: string }): { uri: string; created: boolean } | undefined {
+		const stream = this._streams.get(toolCallId);
+		if (!stream || (!stream.chunks && chunk.sequence !== 0)) {
+			return undefined;
+		}
+		const created = !stream.created;
+		if (created) {
+			this._createTerminal(toolCallId, stream);
+		}
+		if (!stream.chunks) {
+			stream.chunks = { lastSequence: -1, pendingEscapes: new Map() };
+		}
+		const chunks = stream.chunks;
+		if (stream.finalized || chunk.sequence <= chunks.lastSequence) {
+			return { uri: stream.uri, created };
+		}
+		chunks.lastSequence = chunk.sequence;
+		const source = chunk.stream ?? 'stdout';
+		// An escape sequence can span chunks, so hold back one this chunk cuts short until the stream's next chunk completes it.
+		let output = (chunks.pendingEscapes.get(source) ?? '') + chunk.text;
+		const incomplete = incompleteEscapeSequencePattern.exec(output);
+		if (incomplete && incomplete[0].length <= maxIncompleteEscapeSequenceLength) {
+			chunks.pendingEscapes.set(source, incomplete[0]);
+			output = output.slice(0, incomplete.index);
+		} else {
+			chunks.pendingEscapes.delete(source);
+		}
+		// Match the runtime's plain-text snapshots, which drop ANSI escapes and Windows line endings.
+		let text = removeAnsiEscapeCodes(output);
+		if (isWindows) {
+			text = text.replace(/\r\n/g, '\n');
+		}
+		if (!text) {
+			return { uri: stream.uri, created };
+		}
+		if (chunks.openLineStream !== undefined && chunks.openLineStream !== source) {
+			text = `\n${text}`;
+		}
+		// Only a line feed ends the line: after a bare carriage return, another stream's output would overwrite it.
+		chunks.openLineStream = text.endsWith('\n') ? undefined : source;
+		this._terminalManager.appendOutputTerminalData(stream.uri, text);
+		stream.lastSnapshot += text;
 		return { uri: stream.uri, created };
 	}
 
@@ -262,7 +370,11 @@ export class NonPtyShellTerminalStreams extends Disposable {
 			if (created) {
 				this.append(toolCallId, result.preview);
 			} else if (!result.truncated) {
-				if (stream.sourceTruncated || !result.preview.startsWith(stream.lastSnapshot)) {
+				if (stream.chunks) {
+					if (result.preview !== stream.lastSnapshot) {
+						this._replaceOutput(stream, result.preview);
+					}
+				} else if (stream.sourceTruncated || !result.preview.startsWith(stream.lastSnapshot)) {
 					this._replaceOutput(stream, result.preview);
 				} else {
 					this.append(toolCallId, result.preview);

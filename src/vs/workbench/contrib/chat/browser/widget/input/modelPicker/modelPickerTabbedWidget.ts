@@ -14,12 +14,11 @@ import { IStringDictionary } from '../../../../../../../base/common/collections.
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
 import { AnchorPosition } from '../../../../../../../base/common/layout.js';
-import { onUnexpectedError } from '../../../../../../../base/common/errors.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../../nls.js';
 import { ActionListItemKind, IActionListHeaderLink, IActionListItem } from '../../../../../../../platform/actionWidget/browser/actionList.js';
-import { IActionWidgetDropdownAction } from '../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
+import { IActionWidgetDropdownAction, withActionWidgetDropdownMotion } from '../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { ITabBarAction, ITabDescriptor, TabbedActionListWidget } from '../../../../../../../platform/actionWidget/browser/tabbedActionListWidget.js';
 import { COPILOT_HYDRA_FUSION_MODEL_ID } from '../../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
@@ -34,12 +33,11 @@ import { ChatEntitlement, IChatEntitlementService } from '../../../../../../serv
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry, isUserProvidedModel } from '../../../../common/languageModels.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
 import { resolveConfiguredModel } from '../../../../common/modelSelection.js';
-import { withChatInputPickerMotion } from '../chatInputPickerActionItem.js';
-import { getModelConfigChoices, getModelConfigDescription, getModelConfigProperty, getModelConfigSummary, IModelConfigProperty, IModelConfigurationAccess, MODEL_CONFIG_GROUP_EFFORT, ModelConfigChangeListener, setModelConfigValues } from './modelPickerModelConfig.js';
+import { getModelConfigDescription, getModelConfigProperty, getModelConfigSummary, IModelConfigurationAccess, MODEL_CONFIG_GROUP_EFFORT, ModelConfigChangeListener } from './modelPickerModelConfig.js';
 import { IModelCardOptions, IPricingDisclosure, ModelCard } from './modelPickerCard.js';
 import { getPreferredSpeedVariant, IModelSpeedVariants } from './modelPickerVariants.js';
 import { getModelBadge, getOrganizationDefaultDescription, organizationDefaultLabel } from './modelPickerBadges.js';
-import { createModelAction, createModelItem, createUnavailableModelItem, getUnavailableReason, requiresNewerVSCode } from './modelPickerItemPrimitives.js';
+import { createModelAction, createUnavailableModelItem, getUnavailableReason, requiresNewerVSCode } from './modelPickerItemPrimitives.js';
 import { getModelPickerAccessibilityProvider, getModelPickerControlModels } from './modelPickerItems.js';
 import { filterModelPickerControlModelsForEntitlement, filterModelPickerModelsForEntitlement, isAutoModel, isHydraFusionModel, isHydraFusionUpgradeOnly } from './modelPickerPresentation.js';
 import { buildModelPickerDestinations, buildModelPickerSections, getModelProviderLabel, hasPromotedModels, IModelPickerDestination, IModelPickerProviderPlaceholder, IModelPickerSections, IModelPickerUnavailableEntry, MODEL_PICKER_BUILT_IN_DESTINATION } from './modelPickerTabs.js';
@@ -52,7 +50,6 @@ const OTHER_MODELS_SECTION = 'other';
 const PICKER_WIDTH = 320;
 const PRICING_EXPANDED_STORAGE_KEY = 'chat.modelPicker.pricingExpanded';
 const MODEL_DETAILS_ACTION_ID = 'chat.modelPicker.details';
-const AUTO_TIER_ACTION_PREFIX = 'autoTier:';
 
 /** Everything the picker needs for one showing, gathered by the owning widget. */
 export interface ITabbedModelPickerContext {
@@ -93,7 +90,7 @@ export interface ITabbedModelPickerContext {
 	readonly configurationCacheBreakHint?: ITabbedModelPickerContext['cacheBreakHint'];
 }
 
-/** A provider-tabbed picker with Copilot routing modes and a drill-in configuration page. */
+/** A provider-tabbed picker with Auto leading the Copilot tab and a drill-in configuration page. */
 export class TabbedModelPicker extends Disposable {
 
 	private readonly _onDidHide = this._register(new Emitter<void>());
@@ -125,11 +122,6 @@ export class TabbedModelPicker extends Disposable {
 	private readonly _preferredSpeedVariants = new Map<string, string>();
 	private _selectionVersion = 0;
 	private _models: readonly ILanguageModelChatMetadataAndIdentifier[] = [];
-	/** The manual Copilot model to restore when Auto is switched off. */
-	private _lastExplicitModelId: string | undefined;
-	private _lastRoutingModelId: string | undefined;
-	/** Copilot's view mode is retained while another provider is being browsed. */
-	private _autoMode = false;
 
 	get isVisible(): boolean {
 		return this._widget.isVisible;
@@ -210,13 +202,13 @@ export class TabbedModelPicker extends Disposable {
 		this._context = pickerContext;
 		this._configurationListener.value = context.configurationAccess.onDidChange?.(() => this.refresh());
 		this._contextViewLayer = contextViewLayer;
-		this._rememberSelection(pickerContext.selectedModelId);
 		if (options?.initialFilterValue !== undefined) {
 			this._searchVisible = true;
 		}
 		this._showCurrent(options?.initialFilterValue, options?.initialFocusItemId);
-		const detailsModel = pickerContext.models.find(model => model.identifier === detailsModelId);
-		if (detailsModel && !isAutoModel(detailsModel) && !isHydraFusionModel(detailsModel)) {
+		const requestedModel = pickerContext.models.find(model => model.identifier === detailsModelId);
+		const detailsModel = requestedModel && this._getDetailsModel(requestedModel, pickerContext);
+		if (detailsModel) {
 			this._showModelDetails(detailsModel, focusConfiguration);
 		}
 	}
@@ -225,7 +217,6 @@ export class TabbedModelPicker extends Disposable {
 		if (this._context && this._context.selectedModelId !== modelId) {
 			this._selectionVersion++;
 			this._context = { ...this._context, selectedModelId: modelId };
-			this._rememberSelection(modelId);
 			this.refresh();
 		}
 	}
@@ -302,24 +293,12 @@ export class TabbedModelPicker extends Disposable {
 		this._widget.show<IActionWidgetDropdownAction>({
 			user: 'ChatTabbedModelPicker',
 			anchor,
-			tabs: destinations.map((destination): ITabDescriptor => {
-				// Auto can't be turned off when it's the only choice, so the tab is named after it.
-				const label = destination.id === MODEL_PICKER_BUILT_IN_DESTINATION && this._isAutoOnly(context)
-					? localize('chat.modelPicker.auto', "Auto")
-					: destination.label;
-				return {
-					id: destination.id,
-					label,
-					icon: destination.icon,
-					tooltip: label,
-					toggle: !step && destination.id === MODEL_PICKER_BUILT_IN_DESTINATION ? {
-						label: localize('chat.modelPicker.auto', "Auto"),
-						ariaLabel: localize('chat.modelPicker.autoModeToggle', "Use Auto mode in {0}", destination.label),
-						getState: () => this._getAutoModeToggleState(this._context ?? context),
-						onChange: enabled => this._toggleAutoMode(enabled),
-					} : undefined,
-				};
-			}),
+			tabs: destinations.map((destination): ITabDescriptor => ({
+				id: destination.id,
+				label: destination.label,
+				icon: destination.icon,
+				tooltip: destination.label,
+			})),
 			initialTab: this._activeDestination,
 			// The built-in provider fixes the popup's height, unless all it lists is what an
 			// upgrade would unlock, which is too short to hold another provider's models.
@@ -340,24 +319,13 @@ export class TabbedModelPicker extends Disposable {
 				const currentDestinations = this._buildDestinations(current);
 				const destination = currentDestinations.find(candidate => candidate.id === activeTab) ?? currentDestinations[0];
 				const sections = this._buildSections(destination, current);
-				const isBuiltIn = destination.id === MODEL_PICKER_BUILT_IN_DESTINATION;
-				// Size to the Copilot tab, whichever Copilot mode is selected: the taller of
-				// its model list and its Auto view, unless Auto is all there is.
-				const showAuto = !step && isBuiltIn && (forSizing
-					? this._isAutoOnly(current)
-					: this._isAutoMode(current));
-				const alternateSizingItems = forSizing && isBuiltIn && !showAuto && (this._autoModel(current) || this._hydraFusionModel(current))
-					? [this._buildAutoModeItems(destination, sections, current)]
-					: undefined;
 				// Search spans every destination at once, so each model names its provider.
 				const searching = this._searchVisible && !forSizing;
 				const items = searching
 					? currentDestinations.flatMap(candidate => this._buildSearchItems(candidate, candidate === destination ? sections : this._buildSections(candidate, current), current))
-					: showAuto
-						? this._buildAutoModeItems(destination, sections, current)
-						: this._buildItems(destination, sections, current);
+					: this._buildItems(destination, sections, current);
 				const hint = step ? { text: `${step.title}\n${step.description}`, link: undefined, dismiss: undefined } : current.cacheBreakHint ?? current.configurationCacheBreakHint;
-				const baseListOptions = withChatInputPickerMotion({
+				const baseListOptions = withActionWidgetDropdownMotion({
 					className: 'chat-model-picker-dropdown chat-model-picker-tabbed',
 					stopToolbarPointerPropagation: true,
 					tabThroughItemActions: true,
@@ -393,13 +361,14 @@ export class TabbedModelPicker extends Disposable {
 					hideDefaultKeybindingTooltip: true,
 					reserveSubmenuSpace: false,
 				});
+				// Above the input like the other input pickers, unless the input sits too close to
+				// the top for it, e.g. inline chat at the top of an editor.
 				const listOptions = anchor.closest('.monaco-dialog-box')
 					? { ...baseListOptions, anchorPosition: AnchorPosition.BELOW }
-					: baseListOptions;
+					: { ...baseListOptions, preferredAnchorPosition: AnchorPosition.ABOVE };
 				return {
 					items: step ? items.filter(item => !item.item || !current.models.some(model => model.identifier === item.item?.id && (isAutoModel(model) || isHydraFusionModel(model)))) : items,
 					listOptions,
-					alternateSizingItems,
 				};
 			},
 			renderFooter: workflow && step ? container => this._renderWorkflowFooter(container, workflow) : undefined,
@@ -412,6 +381,7 @@ export class TabbedModelPicker extends Disposable {
 				container.appendChild(welcome.element);
 				return welcome;
 			},
+			openItemDetails: item => this._openItemDetails(item),
 			delegate: {
 				onSelect: action => {
 					void action.run();
@@ -471,26 +441,25 @@ export class TabbedModelPicker extends Disposable {
 		return context.pinnedModelIds.filter(id => id === modelIdentifier || id === pair?.standard.identifier || id === pair?.fast.identifier);
 	}
 
-	private _isAutoMode(context: ITabbedModelPickerContext): boolean {
-		return (this._autoMode || this._isAutoOnly(context)) && !!(this._autoModel(context) || this._hydraFusionModel(context));
+	/**
+	 * Whether HydraFusion is offered as Auto's last tier, which needs an Auto with tiers
+	 * to join. Otherwise HydraFusion keeps a row of its own beside Auto.
+	 */
+	private _hostsHydraFusion(context: ITabbedModelPickerContext): boolean {
+		return !!this._hydraFusionModel(context) && !!getModelConfigProperty(this._autoModel(context), context.configurationAccess, MODEL_CONFIG_GROUP_EFFORT);
 	}
 
-	/** Whether the plan offers Copilot only through routing, with no individual Copilot model to switch to. */
-	private _isAutoOnly(context: ITabbedModelPickerContext): boolean {
-		return !!(this._autoModel(context) || this._hydraFusionModel(context)) && !this._fallbackModel(context);
+	/** Whether the selection is HydraFusion as Auto's tier, which Auto then represents. */
+	private _isHydraFusionTierSelected(context: ITabbedModelPickerContext): boolean {
+		return !!context.selectedModelId && context.selectedModelId === this._hydraFusionModel(context)?.identifier && this._hostsHydraFusion(context);
 	}
 
-	private _rememberSelection(modelId: string | undefined): void {
-		const model = this._context?.models.find(model => model.identifier === modelId);
-		if (!model || isUserProvidedModel(model, this._languageModelsService)) {
-			return;
+	/** The model whose details stand for the given one: Auto's for its HydraFusion tier, none for HydraFusion's own row. */
+	private _getDetailsModel(model: ILanguageModelChatMetadataAndIdentifier, context: ITabbedModelPickerContext): ILanguageModelChatMetadataAndIdentifier | undefined {
+		if (!isHydraFusionModel(model)) {
+			return model;
 		}
-		this._autoMode = isAutoModel(model) || isHydraFusionModel(model);
-		if (this._autoMode) {
-			this._lastRoutingModelId = model.identifier;
-		} else {
-			this._lastExplicitModelId = model.identifier;
-		}
+		return model === this._hydraFusionModel(context) && this._hostsHydraFusion(context) ? this._autoModel(context) : undefined;
 	}
 
 	private _destinationForSelectedModel(destinations: readonly IModelPickerDestination[], context: ITabbedModelPickerContext): string | undefined {
@@ -570,20 +539,23 @@ export class TabbedModelPicker extends Disposable {
 				},
 			});
 		}
-		actions.push({
-			id: 'search',
-			icon: Codicon.search,
-			tooltip: localize('chat.modelPicker.searchToggle', "Search Models"),
-			alignEnd: true,
-			checked: this._searchVisible,
-			run: () => {
-				this._searchVisible = !this._searchVisible;
-				if (this._searchVisible) {
-					context.onDidSearch();
-				}
-				this._showCurrent();
-			},
-		});
+		// With no models there is nothing to search, only the reason shown in their place.
+		if (context.models.length) {
+			actions.push({
+				id: 'search',
+				icon: Codicon.search,
+				tooltip: localize('chat.modelPicker.searchToggle', "Search Models"),
+				alignEnd: true,
+				checked: this._searchVisible,
+				run: () => {
+					this._searchVisible = !this._searchVisible;
+					if (this._searchVisible) {
+						context.onDidSearch();
+					}
+					this._showCurrent();
+				},
+			});
+		}
 		return actions;
 	}
 
@@ -635,12 +607,15 @@ export class TabbedModelPicker extends Disposable {
 	}
 
 	private _buildItems(destination: IModelPickerDestination, sections: IModelPickerSections, context: ITabbedModelPickerContext): IActionListItem<IActionWidgetDropdownAction>[] {
+		const isBuiltIn = destination.id === MODEL_PICKER_BUILT_IN_DESTINATION;
+		// Auto leads the built-in provider's list, ahead of any section. Guided selection
+		// compares individual models, so it leaves routing out.
+		const items: IActionListItem<IActionWidgetDropdownAction>[] = isBuiltIn && !context.workflow?.state.get() ? this._buildRoutingItems(context) : [];
 		// A plan that grants only Auto still lists the models it could unlock, so the
 		// welcome body is reserved for having genuinely nothing to say.
-		if (!destination.models.length && !sections.unavailable.length) {
+		if (!items.length && !destination.models.length && !sections.unavailable.length) {
 			return [];
 		}
-		const items: IActionListItem<IActionWidgetDropdownAction>[] = [];
 		const appendSection = (
 			label: string | undefined,
 			models: readonly ILanguageModelChatMetadataAndIdentifier[],
@@ -674,7 +649,7 @@ export class TabbedModelPicker extends Disposable {
 		// The shortlist is the default state, so it goes unlabelled. When Copilot offers no
 		// model to pick by hand, though, the plan is Auto alone, and the models it lacks
 		// are headed as what an upgrade would add.
-		const upsellLabel = destination.id === MODEL_PICKER_BUILT_IN_DESTINATION && !this._fallbackModel(context)
+		const upsellLabel = isBuiltIn && !this._fallbackModel(context)
 			? this._getUpsellSectionLabel(sections.unavailable, context)
 			: undefined;
 		if (upsellLabel) {
@@ -722,62 +697,28 @@ export class TabbedModelPicker extends Disposable {
 			.map(model => this._createModelItem(model, context, undefined, getModelProviderLabel(model, this._languageModelsService)));
 	}
 
-	private _buildAutoModeItems(destination: IModelPickerDestination, sections: IModelPickerSections, context: ITabbedModelPickerContext): IActionListItem<IActionWidgetDropdownAction>[] {
+	/**
+	 * Auto, listed like any other model, with its tiers in its details. HydraFusion is
+	 * Auto's last tier, and gets a row of its own only without an Auto with tiers to join.
+	 */
+	private _buildRoutingItems(context: ITabbedModelPickerContext): IActionListItem<IActionWidgetDropdownAction>[] {
 		const items: IActionListItem<IActionWidgetDropdownAction>[] = [];
 		const auto = this._autoModel(context);
 		if (auto) {
-			const property = getModelConfigProperty(auto, context.configurationAccess, MODEL_CONFIG_GROUP_EFFORT);
-			if (property) {
-				const title = property.schema.title ?? localize('chat.modelPicker.optimizeFor', "Optimize for");
-				items.push({
-					kind: ActionListItemKind.Separator,
-					label: auto.metadata.detail ? localize('chat.modelPicker.autoHeading', "{0} · {1}", title, auto.metadata.detail) : title,
-					additionalBadges: this._getOrganizationDefaultBadges(auto, context),
-				});
-				for (const { index, value, label, description: detail, checked: tierChecked, readOnly } of getModelConfigChoices(property)) {
-					const id = `${AUTO_TIER_ACTION_PREFIX}${auto.identifier}/${index}`;
-					const checked = context.selectedModelId === auto.identifier && tierChecked;
-					const disabled = readOnly && !tierChecked;
-					items.push({
-						...createModelItem(toAction({
-							id, label, checked, enabled: !disabled,
-							tooltip: [label, detail].filter(Boolean).join(' \u00b7 '),
-							run: () => this._selectAutoTier(auto, property, value).catch(onUnexpectedError),
-						})),
-						detail,
-						disabled,
-						ariaDescription: detail,
-						className: ['chat-model-picker-model', 'chat-model-picker-routing-model', ...(checked ? ['chat-model-picker-current'] : [])].join(' '),
-					});
-				}
-			} else {
-				items.push(this._createModelItem(auto, context));
-			}
+			items.push(this._createModelItem(auto, context));
 		}
-
 		const hydra = this._hydraFusionModel(context);
-		const unavailableHydra = sections.unavailable.filter(entry => entry.id === COPILOT_HYDRA_FUSION_MODEL_ID);
-		if (hydra || unavailableHydra.length) {
-			items.push({ kind: ActionListItemKind.Separator, label: localize('chat.modelPicker.alternativeRouting', "Alternative routing") });
-			if (hydra) {
-				const item = this._createModelItem(hydra, context);
-				const description = localize('chat.modelPicker.hydraFusionDescription', "Picks a workflow per task, using one or more models to draft, review, or escalate.");
-				items.push({
-					...item,
-					detail: description,
-					detailLink: { label: localize('chat.modelPicker.learnMore', "Learn more"), uri: HYDRA_FUSION_LEARN_MORE_URL },
-					badge: item.badge ?? hydra.metadata.detail,
-					ariaDescription: [item.ariaDescription, description].filter(Boolean).join(', '),
-					tooltip: [item.tooltip, description].filter(Boolean).join(' \u00b7 '),
-					className: `${item.className} chat-model-picker-routing-model${!item.badge && hydra.metadata.detail ? ' chat-model-picker-badge-preview' : ''}`,
-				});
-			}
-			for (const unavailableEntry of unavailableHydra) {
-				items.push(createUnavailableModelItem(unavailableEntry.id, unavailableEntry.entry, this._getUnavailableReason(unavailableEntry, context), context.unavailableContext.manageSettingsUrl, context.unavailableContext.updateStateType, this._entitlementService));
-			}
-		}
-		if (!this._fallbackModel(context)) {
-			items.push(...this._buildItems(destination, { ...sections, unavailable: sections.unavailable.filter(entry => entry.id !== COPILOT_HYDRA_FUSION_MODEL_ID) }, context));
+		if (hydra && !this._hostsHydraFusion(context)) {
+			const item = this._createModelItem(hydra, context);
+			const description = localize('chat.modelPicker.hydraFusionDescription', "Picks a workflow per task, using one or more models to draft, review, or escalate.");
+			items.push({
+				...item,
+				detail: description,
+				detailLink: { label: localize('chat.modelPicker.learnMore', "Learn more"), uri: HYDRA_FUSION_LEARN_MORE_URL },
+				ariaDescription: [item.ariaDescription, description].filter(Boolean).join(', '),
+				tooltip: [item.tooltip, description].filter(Boolean).join(' \u00b7 '),
+				className: `${item.className} chat-model-picker-routing-model`,
+			});
 		}
 		return items;
 	}
@@ -791,24 +732,6 @@ export class TabbedModelPicker extends Disposable {
 		return unavailable.length && unavailable.every(entry => this._getUnavailableReason(entry, context) === 'upgrade')
 			? localize('chat.modelPicker.upgradeForMoreModels', "Upgrade for More Models")
 			: undefined;
-	}
-
-	private async _selectAutoTier(model: ILanguageModelChatMetadataAndIdentifier, property: IModelConfigProperty, value: IModelConfigProperty['value']): Promise<void> {
-		const context = this._context;
-		if (!context) {
-			return;
-		}
-		this._selectionVersion++;
-		if (!property.schema.readOnly) {
-			await setModelConfigValues(model, context.configurationAccess, { [property.key]: value },
-				(...change) => context.onConfigurationChanged(model, ...change));
-		}
-		// Choosing a tier closes the picker, so this can run after it hid. Switch to
-		// Auto only once the tier is saved, and not over a model chosen since.
-		const current = this._context;
-		if (current?.configurationAccess === context.configurationAccess && current.selectedModelId === context.selectedModelId && current.selectedModelId !== model.identifier) {
-			this._applyModelSelection(model, current);
-		}
 	}
 
 	private _getOrganizationDefaultBadges(model: ILanguageModelChatMetadataAndIdentifier, context: ITabbedModelPickerContext): IActionListItem<IActionWidgetDropdownAction>['additionalBadges'] {
@@ -847,35 +770,51 @@ export class TabbedModelPicker extends Disposable {
 				className: 'chat-model-picker-model',
 			};
 		}
-		const { action, ariaDescription } = createModelAction(model, context.selectedModelId, next => {
+		const hydraFusionTier = isAutoModel(model) && this._isHydraFusionTierSelected(context) ? this._hydraFusionModel(context) : undefined;
+		// HydraFusion as Auto's tier is shown as Auto, with HydraFusion in place of its tier.
+		const { action, ariaDescription } = createModelAction(model, hydraFusionTier ? model.identifier : context.selectedModelId, next => {
 			this._selectionVersion++;
+			// Auto with its HydraFusion tier is already in use, so picking Auto keeps it.
+			if (isAutoModel(next) && this._isHydraFusionTierSelected(this._context ?? context)) {
+				return;
+			}
 			const pair = this._speedVariants.get(next.identifier);
 			const selected = pair
 				? getPreferredSpeedVariant(pair, this._context?.selectedModelId, this._preferredSpeedVariants.get(pair.standard.identifier))
 				: next;
 			this._applyModelSelection(selected, this._context ?? context);
-			if (isAutoModel(selected) || isHydraFusionModel(selected)) {
-				this.refresh();
-			}
 		}, section, true);
-		const badge = getModelBadge(model, { providerLabel });
-		const summary = getModelConfigSummary(model, context.configurationAccess);
+		const routingModel = isAutoModel(model) || isHydraFusionModel(model);
+		const modelBadge = getModelBadge(model, { providerLabel });
+		// A routing model's detail, e.g. Auto's discount, is its badge when nothing outranks it.
+		// Auto with its HydraFusion tier shows HydraFusion's instead.
+		const routingBadge = !modelBadge && routingModel ? (hydraFusionTier ?? model).metadata.detail : undefined;
+		const badgeClassName = modelBadge ? `chat-model-picker-badge-${modelBadge.tone}` : routingBadge ? 'chat-model-picker-badge-preview' : undefined;
+		const summary = hydraFusionTier?.metadata.name ?? getModelConfigSummary(model, context.configurationAccess);
+		const configDescription = hydraFusionTier
+			? localize('chat.modelPicker.autoTierValue', "{0}: {1}", getModelConfigProperty(model, context.configurationAccess, MODEL_CONFIG_GROUP_EFFORT)?.schema.title ?? localize('chat.modelPicker.optimizeFor', "Optimize for"), hydraFusionTier.metadata.name)
+			: getModelConfigDescription(model, context.configurationAccess);
 		const defaultModel = this._getOrganizationDefaultForModel(model, context);
 		const defaultDescription = defaultModel && getOrganizationDefaultDescription(defaultModel.metadata.name);
+		// Auto opens its tiers like any model's details; HydraFusion has none of its own.
+		const hasDetails = !isHydraFusionModel(model);
 		return {
 			item: action,
 			kind: ActionListItemKind.Action,
 			label: action.label,
-			description: badge ? undefined : action.description,
-			badge: badge?.text,
+			description: modelBadge || routingBadge ? undefined : action.description,
+			badge: modelBadge?.text ?? routingBadge,
 			additionalBadges: this._getOrganizationDefaultBadges(model, context),
-			ariaDescription: [ariaDescription, getModelConfigDescription(model, context.configurationAccess)].filter(Boolean).join(', '),
+			ariaDescription: [ariaDescription, configDescription].filter(Boolean).join(', '),
+			// Right Arrow on the row opens the same details as its button.
+			opensDialog: hasDetails,
 			group: { title: '', icon: action.icon ?? ThemeIcon.fromId(action.checked ? Codicon.check.id : Codicon.blank.id) },
 			hideIcon: false,
 			section,
-			className: ['chat-model-picker-model', ...(action.checked ? ['chat-model-picker-current'] : []), ...(badge ? [`chat-model-picker-badge-${badge.tone}`] : [])].join(' '),
+			className: ['chat-model-picker-model', ...(action.checked ? ['chat-model-picker-current'] : []), ...(badgeClassName ? [badgeClassName] : [])].join(' '),
 			toolbarLabels: true,
-			toolbarActions: isAutoModel(model) || isHydraFusionModel(model) ? undefined : [this._createDetailsAction(model, summary)],
+			toolbarActions: hasDetails ? [this._createDetailsAction(model, summary)] : undefined,
+			toolbarDialogActionIds: [MODEL_DETAILS_ACTION_ID],
 			tooltip: [model.metadata.name, summary, defaultDescription].filter(Boolean).join(' \u00b7 '),
 		};
 	}
@@ -891,9 +830,22 @@ export class TabbedModelPicker extends Disposable {
 		});
 	}
 
+	/** Opens a row's details from the keyboard, as its details button does, and returns to the row on Back. */
+	private _openItemDetails(item: IActionListItem<IActionWidgetDropdownAction>): boolean {
+		const model = item.toolbarActions?.some(action => action.id === MODEL_DETAILS_ACTION_ID)
+			? this._context?.models.find(candidate => candidate.identifier === item.item?.id)
+			: undefined;
+		if (!model) {
+			return false;
+		}
+		this._showModelDetails(model, true, true);
+		return true;
+	}
+
 	private _getModelCard(model: ILanguageModelChatMetadataAndIdentifier, context: ITabbedModelPickerContext): ModelCard {
 		let selectionVersion = this._selectionVersion;
 		const routingModel = isAutoModel(model) || isHydraFusionModel(model);
+		const hydraFusion = isAutoModel(model) && this._hostsHydraFusion(context) ? this._hydraFusionModel(context) : undefined;
 		const cardOptions: IModelCardOptions = {
 			model,
 			configurationAccess: context.configurationAccess,
@@ -904,11 +856,21 @@ export class TabbedModelPicker extends Disposable {
 			externalHeader: true,
 			pricingDisclosure: this._pricingDisclosure,
 			speedVariants: this._speedVariants.get(model.identifier),
+			routingAlternative: hydraFusion ? {
+				model: hydraFusion,
+				description: localize('chat.modelPicker.hydraFusionTierDescription', "{0} is a research preview.", hydraFusion.metadata.name),
+				tooltip: localize('chat.modelPicker.hydraFusionTierTooltip', "It picks a workflow per task, using one or more models to draft, review, or escalate."),
+				learnMoreUrl: HYDRA_FUSION_LEARN_MORE_URL,
+				selected: context.selectedModelId === hydraFusion.identifier,
+			} : undefined,
 			onWillSelect: () => { selectionVersion = ++this._selectionVersion; },
 			onSelect: next => {
 				if (selectionVersion === this._selectionVersion && this._widget.isVisible && next.identifier !== (this._context ?? context).selectedModelId) {
 					this._rememberSpeedVariant(next.identifier);
-					this._detailsModelId = next.identifier;
+					// HydraFusion is chosen from Auto's tiers, so Auto's details stay open.
+					if (next !== hydraFusion) {
+						this._detailsModelId = next.identifier;
+					}
 					this._applyModelSelection(next, this._context ?? context);
 				}
 			},
@@ -934,7 +896,7 @@ export class TabbedModelPicker extends Disposable {
 		return card;
 	}
 
-	private _showModelDetails(model: ILanguageModelChatMetadataAndIdentifier, focusConfiguration = false): void {
+	private _showModelDetails(model: ILanguageModelChatMetadataAndIdentifier, focusConfiguration = false, returnFocusToRow = false): void {
 		const context = this._context;
 		if (!context) {
 			return;
@@ -986,7 +948,9 @@ export class TabbedModelPicker extends Disposable {
 					container.focus();
 				}
 			},
-			restoreFocus: () => this._widget.focusItemAction(this._detailsModelId ?? model.identifier, MODEL_DETAILS_ACTION_ID),
+			restoreFocus: () => returnFocusToRow
+				? this._widget.focusItem(this._detailsModelId ?? model.identifier)
+				: this._widget.focusItemAction(this._detailsModelId ?? model.identifier, MODEL_DETAILS_ACTION_ID),
 			onBack: () => {
 				this._selectionVersion++;
 				this._detailsModelId = undefined;
@@ -1017,46 +981,11 @@ export class TabbedModelPicker extends Disposable {
 		this.refresh();
 	}
 
-	private _getAutoModeToggleState(context: ITabbedModelPickerContext): ReturnType<NonNullable<ITabDescriptor['toggle']>['getState']> {
-		if (!this._autoModel(context) && !this._hydraFusionModel(context)) {
-			return undefined;
-		}
-		if (this._isAutoOnly(context)) {
-			return undefined;
-		}
-		const defaultModel = this._getOrganizationDefaultModel(context);
-		return {
-			checked: this._isAutoMode(context),
-			enabled: true,
-			description: defaultModel && isAutoModel(defaultModel)
-				? getOrganizationDefaultDescription(defaultModel.metadata.name)
-				: undefined,
-		};
-	}
-
-	private _toggleAutoMode(enabled: boolean): void {
-		const context = this._context;
-		if (!context) {
-			return;
-		}
-		const routingModels = [this._autoModel(context), this._hydraFusionModel(context)];
-		const next = enabled
-			? routingModels.find(model => model?.identifier === this._lastRoutingModelId) ?? routingModels.find(model => !!model)
-			: this._fallbackModel(context);
-		if (!next) {
-			return;
-		}
-		this._selectionVersion++;
-		this._applyModelSelection(next, context);
-		this.refresh();
-	}
-
 	private _applyModelSelection(model: ILanguageModelChatMetadataAndIdentifier, context: ITabbedModelPickerContext, resetWorkflow = true): void {
 		if (resetWorkflow) {
 			context.workflow?.reset();
 		}
 		this._context = { ...context, selectedModelId: model.identifier };
-		this._rememberSelection(model.identifier);
 		context.onSelect(model);
 	}
 
@@ -1065,7 +994,7 @@ export class TabbedModelPicker extends Disposable {
 		const isCandidate = (model: ILanguageModelChatMetadataAndIdentifier) => !isAutoModel(model) && !isHydraFusionModel(model)
 			&& !isUserProvidedModel(model, this._languageModelsService)
 			&& !requiresNewerVSCode(model, context.controlModels, context.unavailableContext.currentVSCodeVersion);
-		const candidates = [this._lastExplicitModelId, ...context.recentModelIds, ...context.pinnedModelIds];
+		const candidates = [...context.recentModelIds, ...context.pinnedModelIds];
 		for (const id of candidates) {
 			const model = context.models.find(candidate => candidate.identifier === id);
 			if (model && isCandidate(model)) {

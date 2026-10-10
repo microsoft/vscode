@@ -6,7 +6,7 @@
 import { deepStrictEqual, ok, strictEqual } from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { NonPtyShellTerminalStreams } from '../../node/copilot/copilotNonPtyShellTerminals.js';
+import { NonPtyShellTerminalStreams, parseSpilledShellCompletion } from '../../node/copilot/copilotNonPtyShellTerminals.js';
 import { buildDefaultChatUri } from '../../common/state/sessionState.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
@@ -278,6 +278,79 @@ suite('NonPtyShellTerminalStreams', () => {
 		});
 	});
 
+	suite('shell output chunks', () => {
+		function contentOf(uri: string): string | undefined {
+			return manager.getTerminalState(uri)?.content.map(part => part.type === 'command' ? part.output : part.value).join('');
+		}
+
+		test('appends every chunk without ANSI escapes and ignores snapshots, so a disjoint rolling tail cannot reset it', () => {
+			const logLine = `[main] request served from vscode-file://vscode-app/out/vs/platform/log/common/log.js ${'x'.repeat(80)}\n`;
+			streams.track('chunk-1', 'shell');
+			streams.appendChunk('chunk-1', { text: 'listening\n', sequence: 0 });
+			streams.append('chunk-1', 'listening\n');
+			streams.appendChunk('chunk-1', { text: `\x1b[2m${logLine}\x1b[0m`, sequence: 1, stream: 'stderr' });
+			streams.append('chunk-1', logLine.slice(-128));
+
+			deepStrictEqual({ resets: manager.outputTerminalResets, content: channelContent() }, { resets: [], content: `listening\n${logLine}` });
+		});
+
+		test('breaks a line that another stream interrupts and skips repeated chunks', () => {
+			streams.track('chunk-2', 'shell');
+			streams.appendChunk('chunk-2', { text: 'Compiling', sequence: 0 });
+			streams.appendChunk('chunk-2', { text: 'warning\n', sequence: 1, stream: 'stderr' });
+			streams.appendChunk('chunk-2', { text: 'warning\n', sequence: 1, stream: 'stderr' });
+			streams.appendChunk('chunk-2', { text: ' done\n', sequence: 2 });
+
+			strictEqual(channelContent(), 'Compiling\nwarning\n done\n');
+		});
+
+		test('strips an escape sequence that spans chunks of the same stream', () => {
+			streams.track('chunk-7', 'shell');
+			streams.appendChunk('chunk-7', { text: 'status: \x1b[3', sequence: 0 });
+			streams.appendChunk('chunk-7', { text: 'note\n', sequence: 1, stream: 'stderr' });
+			streams.appendChunk('chunk-7', { text: '2mok\x1b[0', sequence: 2 });
+			streams.appendChunk('chunk-7', { text: 'm\n', sequence: 3 });
+
+			strictEqual(channelContent(), 'status: \nnote\nok\n');
+		});
+
+		test('keeps a line open after a bare carriage return, so another stream starts a new line', () => {
+			streams.track('chunk-8', 'shell');
+			streams.appendChunk('chunk-8', { text: 'progress 50%\r', sequence: 0 });
+			streams.appendChunk('chunk-8', { text: 'warning\n', sequence: 1, stream: 'stderr' });
+
+			strictEqual(channelContent(), 'progress 50%\r\nwarning\n');
+		});
+
+		test('keeps using snapshots when it never saw the call\'s first chunk', () => {
+			streams.track('chunk-3', 'shell');
+			const late = streams.appendChunk('chunk-3', { text: 'late\n', sequence: 3 });
+			streams.append('chunk-3', 'early\nlate\n');
+
+			deepStrictEqual({ late, content: channelContent() }, { late: undefined, content: 'early\nlate\n' });
+		});
+
+		test('keeps a matching or spilled transcript at completion and replaces a mismatched one', () => {
+			const complete = (id: string, preview: string, truncated: boolean) => {
+				streams.track(id, 'shell');
+				const uri = streams.appendChunk(id, { text: 'a\n', sequence: 0 })?.uri ?? '';
+				streams.appendChunk(id, { text: 'b\n', sequence: 1 });
+				streams.completeToolCall(id, undefined, { shellId: id, result: { exitCode: 0, preview, truncated } });
+				return { reset: manager.outputTerminalResets.includes(uri), content: contentOf(uri) };
+			};
+
+			deepStrictEqual({
+				matching: complete('chunk-4', 'a\nb\n', false),
+				mismatched: complete('chunk-5', 'b\na\n', false),
+				spilled: complete('chunk-6', 'a\n', true),
+			}, {
+				matching: { reset: false, content: 'a\nb\n' },
+				mismatched: { reset: true, content: 'b\na\n' },
+				spilled: { reset: false, content: 'a\nb\n' },
+			});
+		});
+	});
+
 	suite('completion and lifecycle', () => {
 		test('parses fallback completion, finalizes once, and ignores later output', () => {
 			streams.track('call-12', 'shell');
@@ -466,6 +539,39 @@ suite('NonPtyShellTerminalStreams', () => {
 			deepStrictEqual({ finalized: manager.outputTerminalsFinalized, terminal: streams.getBackgroundShellTerminal('11') }, {
 				finalized: [{ uri: first, exitCode: undefined }],
 				terminal: second,
+			});
+		});
+	});
+
+	suite('spilled output', () => {
+		test('recovers the preview by its declared length and the exit code after it', () => {
+			const spilled = (preview: string, grepTool = 'grep') => `Output too large to read at once (256.1 KB). Saved to: /tmp/output.txt\nConsider using tools like ${grepTool} (for searching), head/tail (for viewing start/end), view with view_range (for specific sections), or jq (for JSON) to examine portions of the output.\n\nPreview (first ${preview.length} chars):\n${preview}`;
+			const bypassFooter = '\n<This command was retried outside the Copilot sandbox with user approval and still failed. Sandbox bypass does not grant administrator/root privileges or override host permissions. Diagnose the command or host error rather than attributing this result to Copilot sandbox policy.>';
+			const denialFooter = '\n<sandbox is active and blocked this command. Do not attempt workarounds (alternative paths, retries, fallback tools).>';
+			const markerLikeOutput = 'echo <shellId: 1 completed with exit code 0>\n🎉 done\n';
+
+			deepStrictEqual({
+				completed: parseSpilledShellCompletion(`${spilled('FULL_OUTPUT_BEGIN\nxxxx')}\n<shellId: 0 completed with exit code 0>`),
+				crlfSeparator: parseSpilledShellCompletion(`${spilled('line 1\nline 2\n', 'rg')}\r\n<shellId: 44 completed with exit code 1>`),
+				bypassFooter: parseSpilledShellCompletion(`${spilled('partial\n')}\n<shellId: 7 completed with exit code 1>${bypassFooter}`),
+				denialFooter: parseSpilledShellCompletion(`${spilled('partial\n')}\n<shellId: 8 completed with exit code 126>${denialFooter}${bypassFooter}`),
+				markerLikeOutput: parseSpilledShellCompletion(`${spilled(markerLikeOutput)}\n<shellId: 9 completed with exit code 2>`),
+				noMarker: parseSpilledShellCompletion(spilled('partial')),
+				shortEnvelope: parseSpilledShellCompletion(spilled('partial').replace('first 7 chars', 'first 500 chars')),
+				unknownTrailer: parseSpilledShellCompletion(`${spilled('partial')}\n<command is still running>`),
+				plain: parseSpilledShellCompletion('fallback output\n<shellId: 1 completed with exit code 0>'),
+				empty: parseSpilledShellCompletion(undefined),
+			}, {
+				completed: { exitCode: 0, preview: 'FULL_OUTPUT_BEGIN\nxxxx', truncated: true },
+				crlfSeparator: { exitCode: 1, preview: 'line 1\nline 2\n', truncated: true },
+				bypassFooter: { exitCode: 1, preview: 'partial\n', truncated: true },
+				denialFooter: { exitCode: 126, preview: 'partial\n', truncated: true },
+				markerLikeOutput: { exitCode: 2, preview: markerLikeOutput, truncated: true },
+				noMarker: { preview: 'partial', truncated: true },
+				shortEnvelope: undefined,
+				unknownTrailer: undefined,
+				plain: undefined,
+				empty: undefined,
 			});
 		});
 	});

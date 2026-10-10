@@ -49,7 +49,7 @@ function getAgentSessionLinkPresentationStatus(status: AgentSessionLinkStatus): 
 	switch (status) {
 		case 'untitled': return { kind: 'neutral', label: localize('agentSessionLink.notStarted', "Not started") };
 		case 'inProgress': return { kind: 'pending', label: localize('agentSessionLink.working', "Working") };
-		case 'needsInput': return { kind: 'warning', label: localize('agentSessionLink.needsInput', "Needs input") };
+		case 'needsInput': return { kind: 'warning', label: localize('agentSessionLink.needsInput', "Needs attention") };
 		case 'completed': return { kind: 'success', label: localize('agentSessionLink.completed', "Completed") };
 		case 'error': return { kind: 'error', label: localize('agentSessionLink.error', "Error") };
 	}

@@ -4,131 +4,167 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { ICloudSandboxAgentHostService, ICloudSandboxApiService, type IMissionControlEnvironment } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
-import { RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { cloudSandboxAddress } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { IMissionControlEnvironmentService, IMissionControlHost } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
-import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
+import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
+import { IQuickInputButton, IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
-import { type ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
-import { INotificationService } from '../../../../../platform/notification/common/notification.js';
-import { IQuickInputService, type IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
 
 export const ConnectMissionControlEnvironmentCommand = 'workbench.action.chat.connectMissionControlEnvironment';
 
 interface IEnvironmentPick extends IQuickPickItem {
-	readonly environment: IMissionControlEnvironment;
+	readonly environment: IMissionControlHost;
 }
 
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: ConnectMissionControlEnvironmentCommand,
-			title: localize2('connectMissionControlEnvironment', "Connect to Mission Control Environment..."),
+			title: localize2('connectMissionControlEnvironment', "Connect to Environment..."),
 			f1: true,
-			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals(`config.${RemoteAgentHostsEnabledSettingId}`, true)),
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.not('config.chat.disableAIFeatures'), ContextKeyExpr.equals(`config.${RemoteAgentHostsEnabledSettingId}`, true)),
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		if (accessor.get(IChatEntitlementService).sentiment.hidden) {
-			throw new Error('Mission Control connections are unavailable when AI features are disabled.');
+	override async run(accessor: ServicesAccessor, onBack?: () => void): Promise<string | undefined> {
+		const inventory = accessor.get(IMissionControlEnvironmentService);
+		if (!inventory.enabled) {
+			throw new Error(localize('missionControl.connectionsDisabled', "Environment connections require remote agent hosts and AI features to be enabled."));
 		}
-		const api = accessor.get(ICloudSandboxApiService);
-		const connections = accessor.get(ICloudSandboxAgentHostService);
 		const picker = accessor.get(IQuickInputService);
 		const notifications = accessor.get(INotificationService);
-		const local = accessor.get(IAgentHostService);
+		const remote = accessor.get(IRemoteAgentHostService);
+		const resources = new DisposableStore();
+		const cancellation = new CancellationTokenSource();
+		resources.add(toDisposable(() => cancellation.dispose(true)));
 		try {
-			const ownEnvironment = await local.getMissionControlEnvironmentId?.();
-			const toItems = (environments: readonly IMissionControlEnvironment[]): IEnvironmentPick[] => environments
-				.filter(environment => environment.kind === 'user-local' && environment.id !== ownEnvironment)
-				.sort((a, b) => Number(b.status === 'online') - Number(a.status === 'online') || a.name.localeCompare(b.name))
-				.map(environment => ({ label: environment.name, description: environment.status, detail: environment.id, environment }));
-			const resources = new DisposableStore();
-			let selection: IEnvironmentPick | undefined;
-			try {
-				const cancellation = new CancellationTokenSource();
-				resources.add(toDisposable(() => cancellation.dispose(true)));
-				const quickPick = resources.add(picker.createQuickPick<IEnvironmentPick>());
-				const cached = api.getCachedEnvironments();
-				quickPick.title = localize('missionControlEnvironments', "Mission Control Environments");
-				quickPick.placeholder = localize('selectMissionControlEnvironment', "Select an existing user-local host; no replacement compute is provisioned");
-				quickPick.matchOnDescription = true;
-				quickPick.matchOnDetail = true;
-				quickPick.keepScrollPosition = true;
-				quickPick.items = toItems(cached ?? []);
-				quickPick.busy = cached === undefined;
-				selection = await new Promise<IEnvironmentPick | undefined>((resolve, reject) => {
-					resources.add(quickPick.onDidAccept(() => {
-						const selected = quickPick.selectedItems[0] ?? quickPick.activeItems[0];
-						if (selected) {
-							resolve(selected);
-							quickPick.hide();
-						}
-					}));
-					resources.add(quickPick.onDidHide(() => {
-						cancellation.cancel();
-						resolve(undefined);
-					}));
-					const refresh = async () => {
-						try {
-							const environments = await api.listEnvironments(cancellation.token, { refresh: true });
-							if (cancellation.token.isCancellationRequested) {
-								return;
-							}
-							const active = new Set(quickPick.activeItems.map(item => item.environment.id));
-							const items = toItems(environments);
-							quickPick.items = items;
-							if (active.size) {
-								quickPick.activeItems = items.filter(item => active.has(item.environment.id));
-							}
-							quickPick.busy = false;
-						} catch (error) {
-							if (cancellation.token.isCancellationRequested) {
-								return;
-							}
-							if (isCancellationError(error)) {
-								quickPick.hide();
-								return;
-							}
-							quickPick.busy = false;
-							if (!quickPick.items.length) {
-								reject(error);
-								quickPick.hide();
-							} else {
-								notifications.error(error);
-							}
-						}
-					};
-					quickPick.show();
-					void refresh();
-				});
-			} finally {
-				resources.dispose();
-			}
+			await inventory.initialize();
+			const account = inventory.accountKey;
+			const quickPick = resources.add(picker.createQuickPick<IEnvironmentPick>({ useSeparators: true }));
+			const refreshButton: IQuickInputButton = { iconClass: ThemeIcon.asClassName(Codicon.refresh), tooltip: localize('missionControl.refresh', "Refresh Environments") };
+			quickPick.title = localize('missionControlEnvironments', "Environments");
+			quickPick.placeholder = localize('selectMissionControlEnvironment', "Select an environment to connect");
+			quickPick.matchOnDescription = true;
+			quickPick.matchOnDetail = true;
+			quickPick.keepScrollPosition = true;
+			quickPick.ignoreFocusOut = true;
+			quickPick.buttons = onBack ? [picker.backButton, refreshButton] : [refreshButton];
+			let refreshError: string | undefined;
+			const update = () => {
+				if (inventory.accountKey !== account || !inventory.enabled) {
+					quickPick.hide();
+					return;
+				}
+				const active = new Set(quickPick.activeItems.map(item => item.environment.id));
+				const selected = new Set(quickPick.selectedItems.map(item => item.environment.id));
+				const hosts = inventory.hosts.get();
+				const items: IEnvironmentPick[] = [...hosts]
+					.sort((a, b) => Number(b.status === 'online') - Number(a.status === 'online') || (a.displayName ?? a.name).localeCompare(b.displayName ?? b.name) || a.id.localeCompare(b.id))
+					.map(host => {
+						const status = remote.connections.find(connection => connection.address === cloudSandboxAddress(host.id))?.status.kind;
+						const connection = status === 'connected' ? localize('missionControl.connected', "Connected")
+							: status === 'connecting' ? localize('missionControl.connecting', "Connecting")
+								: status === 'reconnecting' ? localize('missionControl.reconnecting', "Reconnecting") : undefined;
+						const availability = host.status === 'online' ? localize('missionControl.online', "Online")
+							: localize('missionControl.offline', "Offline");
+						return {
+							label: host.displayName ?? host.name, environment: host, iconClass: ThemeIcon.asClassName(Codicon.remote),
+							description: connection ? localize('missionControl.hostStatus', "{0} · {1}", availability, connection) : availability,
+						};
+					});
+				quickPick.items = items;
+				const hostItems = items;
+				const activeItems = hostItems.filter(item => active.has(item.environment.id));
+				if (activeItems.length) {
+					quickPick.activeItems = activeItems;
+				}
+				if (selected.size) {
+					quickPick.selectedItems = hostItems.filter(item => selected.has(item.environment.id));
+				}
+				quickPick.severity = refreshError ? Severity.Warning : Severity.Info;
+				quickPick.validationMessage = refreshError ?? (!inventory.accountKey
+					? localize('missionControl.signIn', "Sign in with your GitHub account to discover environments.")
+					: !hosts.length ? localize('missionControl.empty', "No environments found.") : undefined);
+			};
+			resources.add(autorun(reader => {
+				inventory.hosts.read(reader);
+				update();
+			}));
+			resources.add(remote.onDidChangeConnections(update));
+			const refresh = async () => {
+				if (quickPick.busy) {
+					return;
+				}
+				quickPick.busy = true;
+				try {
+					await inventory.refresh(cancellation.token);
+					refreshError = undefined;
+				} catch (error) {
+					if (!cancellation.token.isCancellationRequested && !isCancellationError(error)) {
+						refreshError = localize('missionControl.refreshFailed', "Could not refresh environments. Showing the last known environments. {0}", toErrorMessage(error));
+					}
+				} finally {
+					if (!cancellation.token.isCancellationRequested) {
+						quickPick.busy = false;
+						update();
+					}
+				}
+			};
+			const selection = await new Promise<IEnvironmentPick | undefined>(resolve => {
+				resources.add(quickPick.onDidAccept(() => {
+					const selected = quickPick.selectedItems[0] ?? quickPick.activeItems[0];
+					if (selected) {
+						resolve(selected);
+						quickPick.hide();
+					}
+				}));
+				resources.add(quickPick.onDidTriggerButton(button => {
+					if (button === refreshButton) {
+						void refresh();
+					} else if (button === picker.backButton) {
+						quickPick.hide();
+						onBack?.();
+					}
+				}));
+				resources.add(quickPick.onDidHide(() => {
+					cancellation.cancel();
+					resolve(undefined);
+				}));
+				quickPick.show();
+				void refresh();
+			});
 			if (!selection) {
-				return;
+				return undefined;
 			}
-			const current = await api.getEnvironment(selection.environment.id, CancellationToken.None);
-			if (current.id !== selection.environment.id) {
-				throw new Error('Mission Control returned a different environment.');
+			const progress = notifications.notify({
+				severity: Severity.Info,
+				message: localize('missionControl.connectProgress', "Connecting to {0}...", selection.label),
+				progress: { infinite: true },
+			});
+			try {
+				await inventory.connect(selection.environment.id, CancellationToken.None);
+				return selection.environment.id;
+			} finally {
+				progress.close();
 			}
-			if (current.status !== 'online') {
-				notifications.warn(localize('missionControlEnvironmentOffline', "{0} is not online. Start its owning application before connecting.", selection.environment.name));
-				return;
-			}
-			await connections.connect({
-				environmentId: selection.environment.id, name: selection.environment.name, environmentKind: 'user-local',
-			}, CancellationToken.None);
 		} catch (error) {
 			if (!isCancellationError(error)) {
 				notifications.error(error);
 			}
+			return undefined;
+		} finally {
+			resources.dispose();
 		}
 	}
 });

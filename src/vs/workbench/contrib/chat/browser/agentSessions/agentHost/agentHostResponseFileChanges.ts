@@ -113,10 +113,10 @@ function changesetEditToEntryDiff(edit: ISessionFileDiff, connectionAuthority: s
 
 	const modifiedURI = toAgentHostUri(normalized.resource, connectionAuthority);
 	const originalURI = normalized.beforeContentUri
-		? toAgentHostContentUri(normalized.beforeContentUri, connectionAuthority)
+		? toAgentHostContentUri(normalized.beforeContentUri, connectionAuthority, normalized.beforeUri)
 		: modifiedURI;
 	const modifiedSnapshotURI = normalized.afterContentUri
-		? toAgentHostContentUri(normalized.afterContentUri, connectionAuthority)
+		? toAgentHostContentUri(normalized.afterContentUri, connectionAuthority, normalized.afterUri)
 		: undefined;
 
 	return {
@@ -496,9 +496,9 @@ export class AgentHostResponseFileChangesProvider extends Disposable implements 
 		const modifiedURI = toAgentHostUri(resource, this._connectionAuthority);
 		const originalURI = normalized.kind === FileEditKind.Create || !normalized.beforeContentUri
 			? modifiedURI
-			: toAgentHostContentUri(normalized.beforeContentUri, this._connectionAuthority);
+			: toAgentHostContentUri(normalized.beforeContentUri, this._connectionAuthority, normalized.beforeUri);
 		const modifiedSnapshotURI = normalized.afterContentUri
-			? toAgentHostContentUri(normalized.afterContentUri, this._connectionAuthority)
+			? toAgentHostContentUri(normalized.afterContentUri, this._connectionAuthority, normalized.afterUri)
 			: undefined;
 
 		return {

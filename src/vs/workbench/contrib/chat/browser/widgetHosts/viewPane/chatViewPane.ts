@@ -60,7 +60,7 @@ import { IChatModelReference, IChatService } from '../../../common/chatService/c
 import { IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
 import { AICustomizationManagementCommands, IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
 import { LocalChatSessionUri, getChatSessionType, getNewChatSessionResource, isUntitledChatSession } from '../../../common/model/chatUri.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind, getDefaultNewChatSessionType, getDefaultNewChatSessionTypeAndReasonFromServices, getLocalFallbackSessionTypeSelectionReason, SessionTypeSelectionReason } from '../../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, getDefaultNewChatSessionType, getDefaultNewChatSessionTypeAndReasonFromServices, getLocalFallbackSessionTypeSelectionReason, managedPolicyRequiresAgentHostMessage, SessionTypeSelectionReason } from '../../../common/constants.js';
 import { AgentSessionsControl } from '../../agentSessions/agentSessionsControl.js';
 import { ACTION_ID_NEW_CHAT } from '../../actions/chatActions.js';
 import { ChatWidget, layoutChatWidgetForInputHeight } from '../../widget/chatWidget.js';
@@ -75,6 +75,8 @@ import { disposableTimeout } from '../../../../../../base/common/async.js';
 import { AgentSessionsFilter, AgentSessionsGrouping } from '../../agentSessions/agentSessionsFilter.js';
 import { IAgentSessionsService } from '../../agentSessions/agentSessionsService.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
+import { requiresCopilotAgentHost, IManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
+import { IAccountPolicyGateService, whenAccountPolicySettled } from '../../../../../services/policies/common/accountPolicyService.js';
 import { AgentHostSessionInputPills } from '../../agentSessions/agentHost/agentHostSessionInputPills.js';
 import { HoverPosition } from '../../../../../../base/browser/ui/hover/hoverWidget.js';
 import { IAgentSession } from '../../agentSessions/agentSessionsModel.js';
@@ -184,6 +186,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		@IAgentHostEnablementService private readonly agentHostEnablementService: IAgentHostEnablementService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IAICustomizationWorkspaceService private readonly aiCustomizationWorkspaceService: IAICustomizationWorkspaceService,
+		@IManagedSettingsService private readonly managedSettingsService: IManagedSettingsService,
+		@IAccountPolicyGateService private readonly accountPolicyGateService: IAccountPolicyGateService,
 	) {
 		super(options, keybindingService2, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 		this.element.classList.add('chat-viewpane-container');
@@ -1074,7 +1078,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			{ viewId: this.id },
 			{
 				autoScroll: mode => mode !== ChatModeKind.Ask,
+				readOnlyBannerAtTop: true,
 				renderFollowups: true,
+				renderArtifactsWidget: false,
 				customizationMigrationNotice: {
 					workspace: this.aiCustomizationWorkspaceService.activeProjectRoot,
 					onDidChangeAvailability: available => this.customizationMigrationsAvailable.set(available, undefined),
@@ -1293,6 +1299,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	 * picker when the user explicitly selects "Local", and by New Local Chat.
 	 */
 	async startNewLocalSession(sessionTypeSelectionReason: SessionTypeSelectionReason = 'explicitOverride'): Promise<IChatModel | undefined> {
+		await whenAccountPolicySettled(this.accountPolicyGateService);
+		if (requiresCopilotAgentHost(this.managedSettingsService)) {
+			return this.showModel(CancellationToken.None, undefined, true, true);
+		}
 		// Preempt any in-flight initial session resolution (e.g. the computed
 		// default provider). Without this, opening the view kicks off a default
 		// resolution that, when the default is a non-local harness, blocks on
@@ -1309,14 +1319,18 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	 * reference for it instead of the built-in local provider.
 	 */
 	private async acquireDefaultNewSession(token: CancellationToken, localFallbackSelectionReason?: SessionTypeSelectionReason): Promise<IChatSessionAcquisitionResult> {
+		await whenAccountPolicySettled(this.accountPolicyGateService);
 		const workspace = this.workspaceContextService.getWorkspace();
-		const defaultTypeAndReason = getDefaultNewChatSessionTypeAndReasonFromServices(this.configurationService, this.chatSessionsService, this.storageService, workspace, this.agentHostEnablementService.enabled.get(), undefined, this.agentHostEnablementService.managedSandboxEnforced.get());
+		const defaultTypeAndReason = getDefaultNewChatSessionTypeAndReasonFromServices(this.configurationService, this.chatSessionsService, this.storageService, workspace, this.agentHostEnablementService.enabled.get(), undefined, this.agentHostEnablementService.managedSandboxEnforced.get(), requiresCopilotAgentHost(this.managedSettingsService));
 		if (defaultTypeAndReason.sessionType === localChatSessionType) {
 			return { modelRef: this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { debugOwner: 'ChatViewPane#acquireDefaultNewSession', sessionTypeSelectionReason: localFallbackSelectionReason ?? defaultTypeAndReason.selectionReason }) };
 		}
 		const resource = getNewChatSessionResource(defaultTypeAndReason.sessionType);
 		try {
 			const modelRef = await this.chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, token, 'ChatViewPane#acquireDefaultNewSession', defaultTypeAndReason.selectionReason);
+			if (!modelRef && requiresCopilotAgentHost(this.managedSettingsService)) {
+				throw new Error(managedPolicyRequiresAgentHostMessage());
+			}
 			return {
 				modelRef,
 				localFallbackSelectionReason: getLocalFallbackSessionTypeSelectionReason(defaultTypeAndReason.sessionType, !!modelRef, localFallbackSelectionReason),
@@ -1326,6 +1340,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			// deliberately preempted this resolution; propagate it so the
 			// initial `applyModel` bails instead of creating a fallback session.
 			if (isCancellationError(error)) {
+				throw error;
+			}
+			if (requiresCopilotAgentHost(this.managedSettingsService)) {
+				this.notificationService.error(managedPolicyRequiresAgentHostMessage());
 				throw error;
 			}
 			this.logService.warn(`[ChatViewPane] Failed to acquire default agent-host session, falling back to local`, error);
@@ -1360,7 +1378,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	private shouldSkipRestoredLocalSession(sessionResource: URI, model: IChatModel): boolean {
 		const workspace = this.workspaceContextService.getWorkspace();
-		const defaultType = getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService, this.storageService, workspace, this.agentHostEnablementService.enabled.get(), undefined, this.agentHostEnablementService.managedSandboxEnforced.get());
+		const defaultType = getDefaultNewChatSessionType(this.configurationService, this.chatSessionsService, this.storageService, workspace, this.agentHostEnablementService.enabled.get(), undefined, this.agentHostEnablementService.managedSandboxEnforced.get(), requiresCopilotAgentHost(this.managedSettingsService));
 		return defaultType !== localChatSessionType
 			&& getChatSessionType(sessionResource) === localChatSessionType
 			&& !model.hasRequests;

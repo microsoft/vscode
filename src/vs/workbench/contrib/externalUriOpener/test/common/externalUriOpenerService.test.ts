@@ -11,6 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { ExternalUriOpenerPriority } from '../../../../../editor/common/languages.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ViewColumn } from '../../../../../platform/editor/common/editor.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IPickOptions, IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../../platform/quickinput/common/quickInput.js';
@@ -76,6 +77,7 @@ suite('ExternalUriOpenerService', () => {
 		const externalUriOpenerService = disposables.add(instantiationService.createInstance(ExternalUriOpenerService));
 
 		let openedWithEnabled = false;
+		let viewColumn: ViewColumn | undefined;
 		externalUriOpenerService.registerExternalOpenerProvider(new class implements IExternalOpenerProvider {
 			async *getOpeners(_targetUri: URI): AsyncGenerator<IExternalUriOpener> {
 				yield {
@@ -88,8 +90,9 @@ suite('ExternalUriOpenerService', () => {
 					id: 'enabled-id',
 					label: 'enabled',
 					canOpen: async () => ExternalUriOpenerPriority.Default,
-					openExternalUri: async () => {
+					openExternalUri: async (_uri, context) => {
 						openedWithEnabled = true;
+						viewColumn = context.viewColumn;
 						return true;
 					}
 				};
@@ -97,9 +100,8 @@ suite('ExternalUriOpenerService', () => {
 		});
 
 		const uri = URI.parse('http://contoso.com');
-		const didOpen = await externalUriOpenerService.openExternal(uri.toString(), { sourceUri: uri }, CancellationToken.None);
-		assert.strictEqual(didOpen, true);
-		assert.strictEqual(openedWithEnabled, true);
+		const didOpen = await externalUriOpenerService.openExternal(uri.toString(), { sourceUri: uri, viewColumn: ViewColumn.Beside }, CancellationToken.None);
+		assert.deepStrictEqual({ didOpen, openedWithEnabled, viewColumn }, { didOpen: true, openedWithEnabled: true, viewColumn: ViewColumn.Beside });
 	});
 
 	test('Should automatically pick single preferred opener without prompt', async () => {

@@ -38,6 +38,7 @@ import { reportNewChatPickerClosed } from '../../../chat/browser/newChatPickerTe
  * `AgentHostPermissionPickerDelegate` in the agent-host folder).
  */
 export interface IPermissionPickerDelegate {
+	readonly isPolicyRestricted?: () => boolean;
 	/**
 	 * If provided, the picker's trigger label reactively tracks this. If
 	 * omitted, the picker manages its own internal state and starts at
@@ -87,6 +88,8 @@ export interface IPermissionPickerDelegate {
 	readonly getSandboxToggleProvider?: () => string | undefined;
 	readonly sandboxEnabled?: IObservable<boolean | undefined>;
 	readonly sandboxConfirmedEnabled?: IObservable<boolean | undefined>;
+	readonly sandboxDevContainer?: IObservable<boolean>;
+	readonly sandboxDevContainerSupported?: IObservable<boolean | undefined>;
 	setSandboxEnabled?(enabled: boolean): void;
 	readonly managedSandboxEnforced?: IObservable<boolean>;
 	readonly managedSandboxAllowsBypass?: IObservable<boolean>;
@@ -176,7 +179,7 @@ export class PermissionPicker extends Disposable {
 		// (`chat.permissions.default`) whenever it is (re-)rendered. If enterprise
 		// policy disables global auto-approval, clamp to Default regardless of the
 		// configured default so we never show an elevated level the user can't pick.
-		const policyRestricted = this.configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
+		const policyRestricted = this._isPolicyRestricted();
 		const configuredDefault = this.configurationService.getValue<string>(ChatConfiguration.DefaultPermissionLevel);
 		const initialLevel = isChatPermissionLevel(configuredDefault) ? configuredDefault : ChatPermissionLevel.Default;
 		this._currentLevel = policyRestricted ? ChatPermissionLevel.Default : initialLevel;
@@ -253,6 +256,8 @@ export class PermissionPicker extends Disposable {
 			this._delegate.managedSandboxEnforced?.read(reader);
 			this._delegate.sandboxEnabled?.read(reader);
 			this._delegate.sandboxConfirmedEnabled?.read(reader);
+			this._delegate.sandboxDevContainer?.read(reader);
+			this._delegate.sandboxDevContainerSupported?.read(reader);
 			this._delegate.sandboxToggleSettingId?.read(reader);
 			(this._delegate.managedSandboxAllowsBypass ?? this.agentHostEnablementService.managedSandboxAllowsBypass).read(reader);
 			this._updateTriggerLabel(trigger);
@@ -282,10 +287,12 @@ export class PermissionPicker extends Disposable {
 
 	get presentation(): IModePickerPermissions {
 		const level = this._delegate.currentPermissionLevel?.get() ?? this._currentLevel;
+		const sandboxed = this._delegate.isSandboxToggleApplicable?.() === true && this._isSandboxingEnabled();
+		const label = this._getPermissionLevelMeta(level).label;
 		return {
-			label: this._getPermissionLevelMeta(level).label,
+			label,
 			level,
-			sandboxed: this._delegate.isSandboxToggleApplicable?.() === true && this._isSandboxingEnabled(),
+			sandboxed,
 		};
 	}
 
@@ -308,7 +315,7 @@ export class PermissionPicker extends Disposable {
 	}
 
 	private _getActionItems(): IActionListItem<IPermissionItem>[] {
-		const policyRestricted = this.configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
+		const policyRestricted = this._isPolicyRestricted();
 
 		const levels = this._delegate.availableLevels ?? DEFAULT_PERMISSION_LEVELS;
 		const items: IActionListItem<IPermissionItem>[] = levels.map(level => {
@@ -355,7 +362,7 @@ export class PermissionPicker extends Disposable {
 				},
 				label: sandboxToggle.label,
 				standaloneToggle: sandboxToggle,
-				...(disabled ? { hover: { content: localize('permissions.policyDescription', "Disabled by enterprise policy") } } : {}),
+				...(disabled || this._delegate.sandboxDevContainer?.get() ? { hover: { content: sandboxToggle.title } } : {}),
 				disabled,
 			});
 		}
@@ -384,7 +391,7 @@ export class PermissionPicker extends Disposable {
 	private async _selectItem(item: IPermissionItem, isCurrentContext?: () => boolean): Promise<void> {
 		this.actionWidgetService.hide();
 		if (item.level) {
-			const policyRestricted = this.configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
+			const policyRestricted = this._isPolicyRestricted();
 			if (!this._isResolving() && !(policyRestricted && item.level !== ChatPermissionLevel.Default)) {
 				await this._selectLevel(item.level, isCurrentContext);
 			}
@@ -447,6 +454,8 @@ export class PermissionPicker extends Disposable {
 			this._delegate.managedSandboxEnforced?.read(reader);
 			this._delegate.sandboxEnabled?.read(reader);
 			this._delegate.sandboxConfirmedEnabled?.read(reader);
+			this._delegate.sandboxDevContainer?.read(reader);
+			this._delegate.sandboxDevContainerSupported?.read(reader);
 			this._sandboxDefaultChanged.read(reader);
 			(this._delegate.managedSandboxAllowsBypass ?? this.agentHostEnablementService.managedSandboxAllowsBypass).read(reader);
 			const standaloneToggle = this._getSandboxStandaloneToggle();
@@ -457,9 +466,11 @@ export class PermissionPicker extends Disposable {
 			const disabled = standaloneToggle?.disabled === true;
 			this.actionWidgetService.updateItems(items.map(item => item.standaloneToggle ? {
 				...item,
+				label: standaloneToggle?.label ?? item.label,
+				item: item.item && standaloneToggle ? { ...item.item, label: standaloneToggle.label } : item.item,
 				standaloneToggle,
 				disabled,
-				hover: disabled ? { content: localize('permissions.policyDescription', "Disabled by enterprise policy") } : undefined,
+				hover: standaloneToggle && (disabled || this._delegate.sandboxDevContainer?.read(reader)) ? { content: standaloneToggle.title } : undefined,
 			} : item));
 		}));
 		return disposables;
@@ -469,12 +480,16 @@ export class PermissionPicker extends Disposable {
 		return this._delegate.isResolving?.get() ?? false;
 	}
 
+	protected _isPolicyRestricted(): boolean {
+		return this._delegate.isPolicyRestricted?.() ?? this.configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
+	}
+
 	protected async _selectLevel(level: ChatPermissionLevel, isCurrentContext?: () => boolean): Promise<void> {
 		const confirmed = await maybeConfirmElevatedPermissionLevel(level, this.dialogService, this.storageService, {
 			defaultSettingKey: this._delegate.defaultSettingKey,
 			levelLabel: this._getPermissionLevelMeta(level).label,
 		});
-		const policyRestricted = this.configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
+		const policyRestricted = this._isPolicyRestricted();
 		if (!confirmed || isCurrentContext?.() === false || (policyRestricted && level !== ChatPermissionLevel.Default)) {
 			reportNewChatPickerClosed(this.telemetryService, {
 				id: 'NewChatPermissionPicker',
@@ -547,7 +562,8 @@ export class PermissionPicker extends Disposable {
 	}
 
 	private _isSandboxingEnabled(): boolean {
-		return getAgentHostSandboxToggleState(this._readSandboxToggleState())?.checked ?? false;
+		return this._delegate.sandboxDevContainerSupported?.get() !== false
+			&& (getAgentHostSandboxToggleState(this._readSandboxToggleState())?.checked ?? false);
 	}
 
 	private _readSandboxToggleState() {
@@ -559,6 +575,8 @@ export class PermissionPicker extends Disposable {
 			globalEnabled: settingId !== undefined && isAgentSandboxEnabledValue(this.configurationService.getValue<AgentSandboxEnabledSettingValue>(settingId)),
 			managedEnabled: this._delegate.managedSandboxEnforced?.get() === true,
 			allowsBypass: (this._delegate.managedSandboxAllowsBypass ?? this.agentHostEnablementService.managedSandboxAllowsBypass).get(),
+			devContainer: this._delegate.sandboxDevContainer?.get(),
+			devContainerSandboxSupported: this._delegate.sandboxDevContainerSupported?.get(),
 		};
 	}
 

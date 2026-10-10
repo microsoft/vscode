@@ -732,8 +732,6 @@ pub struct LiveStandaloneEndpoint {
 	/// Empty when the standalone host was started with
 	/// `--without-connection-token`.
 	pub connection_token: String,
-	pub quality: Option<String>,
-	pub tunnel_name: Option<String>,
 }
 
 /// Reads the registry and returns a live `standalone` `tcp` entry to reuse, if
@@ -756,8 +754,6 @@ pub async fn select_live_standalone_endpoint(
 				host,
 				port,
 				connection_token: e.connection_token,
-				quality: e.quality,
-				tunnel_name: e.tunnel_name,
 			}),
 			AgentHostEndpointAddress::Socket { .. } => None,
 		})

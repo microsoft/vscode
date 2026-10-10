@@ -66,7 +66,7 @@ interface ConfigCase {
 	readonly expectedEffort: string;
 	readonly contextLabel: string;
 	readonly expectedCompactThreshold: number;
-	/** The combined label the model-config button should show after selection (e.g. "High 1M"). */
+	/** The combined label the model-config readout should show after selection (e.g. "High · 1M"). */
 	readonly expectedConfigLabel: string;
 	/** The context-window denominator the context-usage gauge details popup should show. */
 	readonly expectedContextWindowLabel: string;
@@ -78,9 +78,9 @@ const CONFIG_CASES: readonly ConfigCase[] = [
 	// Listed first so the Thinking Effort picker is still at its schema default
 	// (`medium`): this case leaves the effort untouched and only selects the
 	// context size, verifying that an unmodified picker forwards its default.
-	{ name: 'Default effort (untouched), full context', expectedEffort: 'medium', contextLabel: '1M', expectedCompactThreshold: 829_800, expectedConfigLabel: 'Medium 1M', expectedContextWindowLabel: '1M', scenarioId: 'smoke-model-config-default-long', reply: 'MOCKED_MODEL_CONFIG_DEFAULT_LONG' },
-	{ name: 'High effort, full context', effortLabel: 'High', expectedEffort: 'high', contextLabel: '1M', expectedCompactThreshold: 829_800, expectedConfigLabel: 'High 1M', expectedContextWindowLabel: '1M', scenarioId: 'smoke-model-config-high-long', reply: 'MOCKED_MODEL_CONFIG_HIGH_LONG' },
-	{ name: 'Medium effort, default context', effortLabel: 'Medium', expectedEffort: 'medium', contextLabel: '272K', expectedCompactThreshold: 244_800, expectedConfigLabel: 'Medium 272K', expectedContextWindowLabel: '400K', scenarioId: 'smoke-model-config-medium-default', reply: 'MOCKED_MODEL_CONFIG_MEDIUM_DEFAULT' },
+	{ name: 'Default effort (untouched), full context', expectedEffort: 'medium', contextLabel: '1M', expectedCompactThreshold: 829_800, expectedConfigLabel: 'Medium \u00b7 1M', expectedContextWindowLabel: '1M', scenarioId: 'smoke-model-config-default-long', reply: 'MOCKED_MODEL_CONFIG_DEFAULT_LONG' },
+	{ name: 'High effort, full context', effortLabel: 'High', expectedEffort: 'high', contextLabel: '1M', expectedCompactThreshold: 829_800, expectedConfigLabel: 'High \u00b7 1M', expectedContextWindowLabel: '1M', scenarioId: 'smoke-model-config-high-long', reply: 'MOCKED_MODEL_CONFIG_HIGH_LONG' },
+	{ name: 'Medium effort, default context', effortLabel: 'Medium', expectedEffort: 'medium', contextLabel: '272K', expectedCompactThreshold: 244_800, expectedConfigLabel: 'Medium \u00b7 272K', expectedContextWindowLabel: '400K', scenarioId: 'smoke-model-config-medium-default', reply: 'MOCKED_MODEL_CONFIG_MEDIUM_DEFAULT' },
 ];
 
 /**
@@ -245,12 +245,12 @@ export function setup(logger: Logger) {
 		// Must run before any test selects an option: the per-editor model
 		// configuration is sticky, so the pristine defaults are only observable on
 		// the first test of the suite.
-		it('shows the schema defaults and every configured option in the model configuration picker', async function () {
+		it('shows the schema defaults and every configured option in the model details page', async function () {
 			const app = this.app as Application;
 			const chat = app.workbench.chat;
 
 			try {
-				// The button summarizes the *effective* configuration, which before any
+				// The readout summarizes the *effective* configuration, which before any
 				// selection is the schema default of each group.
 				const defaultLabel = await chat.getModelConfigLabel();
 				assert.strictEqual(
@@ -266,7 +266,7 @@ export function setup(logger: Logger) {
 				assert.deepStrictEqual(
 					sections,
 					MOCK_CONFIG_MODEL_DEFAULT_SECTIONS,
-					`Model configuration dropdown did not list every option declared by '${MODEL_NAME}' with its pristine defaults.`
+					`Model details page did not list every option declared by '${MODEL_NAME}' with its pristine defaults.`
 				);
 
 				logger.log(`[Chat Model Config] defaults verified: label='${defaultLabel}', sections=${JSON.stringify(sections)}`);
@@ -286,9 +286,9 @@ export function setup(logger: Logger) {
 					logger.log(`[Chat Model Config] case '${testCase.name}': selecting effort='${testCase.effortLabel ?? '(default)'}', context='${testCase.contextLabel}'`);
 
 					// Select the Thinking Effort (when the case specifies one) and the
-					// Context Size in the combined model-configuration dropdown. Cases
-					// without an `effortLabel` leave the effort picker untouched to verify
-					// its default is forwarded.
+					// Context Size on the model's details page. Cases without an
+					// `effortLabel` leave the effort untouched to verify its default is
+					// forwarded.
 					await chat.openModelConfig();
 					if (testCase.effortLabel) {
 						await chat.selectModelConfigOption(testCase.effortLabel);
@@ -296,8 +296,8 @@ export function setup(logger: Logger) {
 					await chat.selectModelConfigOption(testCase.contextLabel);
 					await chat.closeModelConfig();
 
-					// Consistency check #1: the model-config button reflects the
-					// selection (e.g. "High 200K").
+					// Consistency check #1: the model-config readout reflects the
+					// selection (e.g. "High · 1M").
 					const configLabel = await chat.getModelConfigLabel();
 					assert.strictEqual(
 						configLabel.replace(/\s+/g, ' ').trim(),

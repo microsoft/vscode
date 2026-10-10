@@ -9,7 +9,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IAutomationSessionTemplate } from '../../../../workbench/contrib/chat/common/automations/automation.js';
-import { IChat, ISession, ISessionCreationReference, ISessionType, ISessionWorkspace, ISideChatSelection } from './session.js';
+import { IChat, ISession, ISessionCanvasDefinition, ISessionCreationReference, ISessionType, ISessionWorkspace, ISideChatSelection } from './session.js';
 import { IAutomationSessionConfiguration, IDeleteChatOptions, ISessionConfigurationSnapshot, ISendRequestOptions as ISessionsProviderSendRequestOptions, type SessionResourceResolveReason } from './sessionsProvider.js';
 
 /** Raised when unattended session creation targets a workspace that requires trust. */
@@ -119,15 +119,12 @@ export interface ICreateNewSessionOptions {
 	 */
 	readonly branch?: string;
 	/**
-	 * Optional branch tracking preference to apply via
-	 * {@link ISessionsProvider.setWorktreeBranchTrack}. This is intended for
-	 * programmatic session creation and is not surfaced in the new-session UI.
+	 * Optional URL of a pull request in the workspace's repository. The session
+	 * is created from it, so it is associated with the pull request from the
+	 * start; the agent host checks the pull request out into an isolated
+	 * worktree, so it supersedes {@link isolationMode} and {@link branch}.
 	 */
-	readonly worktreeBranchTrack?: boolean;
-	/**
-	 * Whether to create a generated worktree branch from {@link branch}.
-	 */
-	readonly worktreeCreateNewBranch?: boolean;
+	readonly pullRequestUrl?: string;
 	/**
 	 * Invoked after the provider creates the provisional session, before its
 	 * configuration and first request are applied. Asynchronous preparation is awaited.
@@ -180,6 +177,12 @@ export interface IToggleSessionStickinessEvent {
 	readonly session: ISession;
 	/** The session's stickiness state after the toggle. */
 	readonly sticky: boolean;
+}
+
+export interface IChatDeletedEvent {
+	readonly session: ISession;
+	readonly sessionResource: URI;
+	readonly chatResource: URI;
 }
 
 /**
@@ -365,7 +368,7 @@ export interface ISessionsManagementService {
 	/** Fires after a session was successfully deleted via {@link deleteSession}. */
 	readonly onDidDeleteSession: Event<ISession>;
 	/** Fires after a chat was successfully deleted via {@link deleteChat}. */
-	readonly onDidDeleteChat: Event<ISession>;
+	readonly onDidDeleteChat: Event<IChatDeletedEvent>;
 	/** Fires after a chat was successfully renamed via {@link renameChat}. */
 	readonly onDidRenameChat: Event<ISession>;
 	/** Fires after a session was successfully renamed via {@link renameSession}. */
@@ -608,6 +611,12 @@ export interface ISessionsManagementService {
 
 	/** Remove a recorded artifact through its owning provider. */
 	removeSessionArtifact(session: ISession, artifactId: string): Promise<void>;
+
+	/** List canvas types registered in one live chat. */
+	listCanvases(session: ISession, chat: IChat): Promise<readonly ISessionCanvasDefinition[]>;
+
+	/** Open or focus one stable instance of a registered canvas type. */
+	openCanvas(session: ISession, chat: IChat, canvas: ISessionCanvasDefinition, instanceId: string): Promise<void>;
 }
 
 export const ISessionsManagementService = createDecorator<ISessionsManagementService>('sessionsManagementService');

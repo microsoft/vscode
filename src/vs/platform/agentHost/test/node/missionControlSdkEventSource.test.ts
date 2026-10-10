@@ -15,7 +15,8 @@ import { ILogService, NullLogService } from '../../../log/common/log.js';
 import type { IAgent, IAgentChatSessionEvent } from '../../common/agent.js';
 import type { CancellationToken } from '../../../../base/common/cancellation.js';
 import { ISessionDataService, type ISessionDatabase } from '../../common/sessionDataService.js';
-import { SessionStatus, buildDefaultChatUri } from '../../common/state/sessionState.js';
+import { ActionType } from '../../common/state/sessionActions.js';
+import { MessageKind, SessionStatus, buildDefaultChatUri } from '../../common/state/sessionState.js';
 import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { MissionControlSdkEventSource } from '../../node/missionControl/missionControlSdkEventSource.js';
@@ -35,13 +36,18 @@ suite('MissionControlSdkEventSource', () => {
 	setup(() => { clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] }); });
 	teardown(() => sinon.restore());
 
-	function fixture(history: readonly IAgentChatSessionEvent[] = [], metadata = new Map<string, string>(), initiallyEnabled = true) {
+	function fixture(history: readonly IAgentChatSessionEvent[] = [], metadata = new Map<string, string>(), initiallyEnabled = true, provisional = false) {
 		const instantiation = store.add(new TestInstantiationService());
 		const log = store.add(new NullLogService());
 		const errors = sinon.spy(log, 'error');
 		instantiation.stub(ILogService, log);
 		const state = store.add(new AgentHostStateManager(log));
-		state.restoreSession({ resource: session, provider: 'copilotcli', title: 'Native title', status: SessionStatus.Idle, createdAt: at, modifiedAt: at }, []);
+		const summary = { resource: session, provider: 'copilotcli', title: 'Native title', status: SessionStatus.Idle, createdAt: at, modifiedAt: at };
+		if (provisional) {
+			state.createSession(summary, { emitNotification: false });
+		} else {
+			state.restoreSession(summary, []);
+		}
 		instantiation.stub(IAgentHostStateManager, state);
 		const emitter = store.add(new Emitter<IAgentChatSessionEvent>());
 		let historyRead = 0;
@@ -79,8 +85,44 @@ suite('MissionControlSdkEventSource', () => {
 		store.add(mirror.attach(value => { events.push(value); }));
 		let enabled = initiallyEnabled;
 		const source = store.add(instantiation.createInstance(MissionControlSdkEventSource, 'env', mirror, () => enabled));
-		return { source, mirror, emitter, provider, events, errors, writes, metadata, setEnabled: (value: boolean) => { enabled = value; }, historyRead: () => historyRead };
+		return { state, source, mirror, emitter, provider, events, errors, writes, metadata, setEnabled: (value: boolean) => { enabled = value; }, historyRead: () => historyRead };
 	}
+
+	test('does not register, read or synchronize an unused draft at startup or on native events', async () => {
+		const f = fixture([event('idle')], new Map(), true, true);
+		const title = sinon.spy(f.provider, 'synchronizeChatSessionTitle');
+		f.source.observeSession(session);
+		f.emitter.fire(event('ignored', 'session.start', { sessionId: 'native' }));
+		await f.source.whenIdle();
+		clock.runAll();
+		assert.deepStrictEqual({
+			events: f.events, sessions: f.mirror.statistics.sessions, reads: f.historyRead(), writes: f.writes, titles: title.callCount,
+		}, { events: [], sessions: 0, reads: 0, writes: [], titles: 0 });
+	});
+
+	test('reconciles history and synchronizes the title when the first message makes a draft eligible', async () => {
+		const f = fixture([event('persisted-start', 'session.start', { sessionId: 'native' })], new Map(), true, true);
+		f.emitter.fire(event('ignored'));
+		f.state.dispatchServerAction(chat.toString(), {
+			type: ActionType.ChatTurnStarted, turnId: 'first-turn', startedAt: at,
+			message: { text: 'First user message', origin: { kind: MessageKind.User } },
+		});
+		f.source.observeSession(session);
+		f.emitter.fire(event('first-turn', 'assistant.turn_start', { turnId: 'first-turn' }));
+		await f.source.whenIdle();
+		clock.runAll();
+		assert.deepStrictEqual({
+			events: f.events.flatMap(value => value.event === 'sessionEvents' && value.data.ns === 'sdk' ? [value.data.payload] : []),
+			writes: f.writes, reads: f.historyRead(),
+		}, {
+			events: [
+				{ type: 'session.start', data: { sessionId: 'native' } },
+				{ type: 'assistant.turn_start', data: { turnId: 'first-turn' } },
+				{ type: 'session.title_changed', data: { title: 'Native title' } },
+			],
+			writes: ['1024'], reads: 1,
+		});
+	});
 
 	test('reconciles genuine metadata history, deduplicates live overlap and synchronizes the native title', async () => {
 		const idle = event('idle');

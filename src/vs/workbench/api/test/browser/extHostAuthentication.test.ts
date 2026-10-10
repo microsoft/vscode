@@ -4,15 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import type { ProgressOptions } from 'vscode';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../base/common/event.js';
+import { IAuthorizationServerMetadata } from '../../../../base/common/oauth.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ILogger, ILoggerService, NullLogger } from '../../../../platform/log/common/log.js';
+import { INotificationSource } from '../../../../platform/notification/common/notification.js';
+import { Progress } from '../../../../platform/progress/common/progress.js';
 import { IAuthenticationProviderSessionOptions } from '../../../services/authentication/common/authentication.js';
 import { DynamicAuthProvider, IAuthorizationToken, reviveAccountIcon, TokenStore } from '../../common/extHostAuthentication.js';
-import { MainThreadAuthenticationShape } from '../../common/extHost.protocol.js';
+import { IProgressStepDto, MainThreadAuthenticationShape } from '../../common/extHost.protocol.js';
 import { IExtHostInitDataService } from '../../common/extHostInitDataService.js';
 import { IExtHostProgress } from '../../common/extHostProgress.js';
 import { IExtHostUrlsService } from '../../common/extHostUrls.js';
@@ -67,6 +72,100 @@ suite('DynamicAuthProvider', () => {
 		}
 	}
 
+	interface ITestServer {
+		readonly authorizationServer: string;
+		readonly serverMetadata: IAuthorizationServerMetadata;
+	}
+
+	const resource = 'https://workiq.example.com/mcp';
+
+	const servers: Record<string, ITestServer> = {
+		entra: {
+			authorizationServer: 'https://login.microsoftonline.com/organizations/v2.0',
+			serverMetadata: {
+				issuer: 'https://login.microsoftonline.com/organizations/v2.0',
+				authorization_endpoint: 'https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize',
+				token_endpoint: 'https://login.microsoftonline.com/organizations/oauth2/v2.0/token',
+				response_types_supported: ['code'],
+				scopes_supported: ['openid', 'profile', 'offline_access'],
+			},
+		},
+		nonMicrosoft: {
+			authorizationServer: 'https://auth.example.com',
+			serverMetadata: {
+				issuer: 'https://auth.example.com',
+				authorization_endpoint: 'https://auth.example.com/authorize',
+				token_endpoint: 'https://auth.example.com/token',
+				response_types_supported: ['code'],
+				scopes_supported: ['openid', 'profile', 'offline_access'],
+			},
+		},
+		// A Microsoft authorization endpoint must not opt a non-Microsoft token endpoint into Microsoft behavior.
+		entraWithForeignTokenEndpoint: {
+			authorizationServer: 'https://login.microsoftonline.com/organizations/v2.0',
+			serverMetadata: {
+				issuer: 'https://login.microsoftonline.com/organizations/v2.0',
+				authorization_endpoint: 'https://login.microsoftonline.com/organizations/oauth2/v2.0/authorize',
+				token_endpoint: 'https://auth.example.com/token',
+				response_types_supported: ['code'],
+				scopes_supported: ['openid', 'profile', 'offline_access'],
+			},
+		},
+	};
+
+	function createProvider(options: ITestServer & {
+		readonly resource: string;
+		readonly initialTokens?: IAuthorizationToken[];
+		readonly fetcher?: typeof fetch;
+		readonly onDidOpenUri?: (uri: string) => void;
+	}): TestDynamicAuthProvider {
+		const loggerService = new class extends mock<ILoggerService>() {
+			override createLogger(): ILogger {
+				return new NullLogger();
+			}
+		}();
+		const proxy = new class extends mock<Proxied<MainThreadAuthenticationShape>>() {
+			override $setSessionsForDynamicAuthProvider = (): Promise<void> => Promise.resolve();
+			// Never settles, so an abandoned authorization flow leaves no rejected promise behind.
+			override $waitForUriHandler = (): Promise<UriComponents> => new Promise<UriComponents>(() => { });
+		}();
+		const extHostWindow = new class extends mock<IExtHostWindow>() {
+			override async openUri(uri: string | URI): Promise<boolean> {
+				options.onDidOpenUri?.(uri.toString());
+				return false;
+			}
+		}();
+		const extHostUrls = new class extends mock<IExtHostUrlsService>() {
+			override async createAppUri(uri: URI): Promise<URI> {
+				return uri;
+			}
+		}();
+		const initData = new class extends mock<IExtHostInitDataService>() {
+			override environment = { appUriScheme: 'vscode', appName: 'Test' } as IExtHostInitDataService['environment'];
+		}();
+		const extHostProgress = new class extends mock<IExtHostProgress>() {
+			override async withProgressFromSource<R>(_source: string | INotificationSource, _options: ProgressOptions, task: (progress: Progress<IProgressStepDto>, token: CancellationToken) => Thenable<R>): Promise<R> {
+				return task(new Progress<IProgressStepDto>(() => { }), CancellationToken.None);
+			}
+		}();
+		return disposables.add(new TestDynamicAuthProvider(
+			extHostWindow,
+			extHostUrls,
+			initData,
+			extHostProgress,
+			loggerService,
+			proxy,
+			URI.parse(options.authorizationServer),
+			options.serverMetadata,
+			{ resource: options.resource },
+			'client-id',
+			undefined,
+			disposables.add(new Emitter()),
+			options.initialTokens ?? [],
+			options.fetcher,
+		));
+	}
+
 	test('does not rotate the client while silently refreshing a token', async () => {
 		let fetchCalls = 0;
 		const fetcher: typeof fetch = async () => {
@@ -76,32 +175,15 @@ suite('DynamicAuthProvider', () => {
 				headers: { 'Content-Type': 'application/json' },
 			});
 		};
-		const loggerService = new class extends mock<ILoggerService>() {
-			override createLogger(): ILogger {
-				return new NullLogger();
-			}
-		}();
-		const proxy = new class extends mock<Proxied<MainThreadAuthenticationShape>>() {
-			override $setSessionsForDynamicAuthProvider = (): Promise<void> => Promise.resolve();
-		}();
-		const provider = disposables.add(new TestDynamicAuthProvider(
-			new class extends mock<IExtHostWindow>() { }(),
-			new class extends mock<IExtHostUrlsService>() { }(),
-			new class extends mock<IExtHostInitDataService>() { }(),
-			new class extends mock<IExtHostProgress>() { }(),
-			loggerService,
-			proxy,
-			URI.parse('https://mcp.example.com'),
-			{
+		const provider = createProvider({
+			authorizationServer: 'https://mcp.example.com',
+			serverMetadata: {
 				issuer: 'https://mcp.example.com',
 				response_types_supported: ['code'],
 				token_endpoint: 'https://mcp.example.com/token',
 			},
-			{ resource: 'https://mcp.example.com/resource' },
-			'client-id',
-			undefined,
-			disposables.add(new Emitter()),
-			[{
+			resource: 'https://mcp.example.com/resource',
+			initialTokens: [{
 				access_token: jwt({ sub: 'account' }),
 				token_type: 'Bearer',
 				scope: '',
@@ -110,7 +192,7 @@ suite('DynamicAuthProvider', () => {
 				created_at: 0,
 			}],
 			fetcher,
-		));
+		});
 
 		const sessions = await provider.getSessions([], { silent: true } satisfies IAuthenticationProviderSessionOptions);
 
@@ -124,6 +206,84 @@ suite('DynamicAuthProvider', () => {
 			fetchCalls: 1,
 			generateNewClientIdCalls: 0,
 			clientId: 'client-id',
+		});
+	});
+
+	test('refresh sends scope without resource for Microsoft auth, and resource without scope otherwise', async () => {
+		const results: Record<string, { body: Record<string, string>; scopes: (readonly string[])[] }> = {};
+		for (const [name, server] of Object.entries(servers)) {
+			const bodies: Record<string, string>[] = [];
+			const fetcher: typeof fetch = async (_input, init) => {
+				bodies.push(Object.fromEntries(new URLSearchParams(String(init?.body))));
+				return new Response(JSON.stringify({
+					access_token: jwt({ sub: 'account' }),
+					token_type: 'Bearer',
+					expires_in: 3600,
+					refresh_token: 'new-refresh',
+				}), {
+					status: 200,
+					headers: { 'Content-Type': 'application/json' },
+				});
+			};
+			const provider = createProvider({
+				...server,
+				resource,
+				initialTokens: [{
+					access_token: jwt({ sub: 'account', jti: 'expired' }),
+					token_type: 'Bearer',
+					scope: 'api://res/Read',
+					expires_in: 1,
+					refresh_token: 'refresh-token',
+					created_at: 0,
+				}],
+				fetcher,
+			});
+
+			const sessions = await provider.getSessions(['api://res/Read'], { silent: true } satisfies IAuthenticationProviderSessionOptions);
+			results[name] = { body: bodies[0], scopes: sessions.map(session => session.scopes) };
+		}
+
+		const refreshBase = { client_id: 'client-id', grant_type: 'refresh_token', refresh_token: 'refresh-token' };
+		assert.deepStrictEqual(results, {
+			entra: {
+				body: { ...refreshBase, scope: 'api://res/Read offline_access' },
+				scopes: [['api://res/Read']],
+			},
+			nonMicrosoft: {
+				body: { ...refreshBase, resource },
+				scopes: [['api://res/Read']],
+			},
+			entraWithForeignTokenEndpoint: {
+				body: { ...refreshBase, resource },
+				scopes: [['api://res/Read']],
+			},
+		});
+	});
+
+	test('authorization URL requests offline_access when advertised and omits resource for Microsoft auth', async () => {
+		const results: Record<string, { scope: string | null; resource: string | null; prompt: string | null }> = {};
+		for (const [name, server] of Object.entries(servers)) {
+			const openedUris: string[] = [];
+			const provider = createProvider({
+				...server,
+				resource,
+				onDidOpenUri: uri => openedUris.push(uri),
+			});
+
+			await assert.rejects(provider.createSession(['api://res/Read'], {}));
+
+			const params = new URL(openedUris[0]).searchParams;
+			results[name] = {
+				scope: params.get('scope'),
+				resource: params.get('resource'),
+				prompt: params.get('prompt'),
+			};
+		}
+
+		assert.deepStrictEqual(results, {
+			entra: { scope: 'api://res/Read offline_access', resource: null, prompt: null },
+			nonMicrosoft: { scope: 'api://res/Read offline_access', resource, prompt: null },
+			entraWithForeignTokenEndpoint: { scope: 'api://res/Read offline_access', resource, prompt: null },
 		});
 	});
 });
