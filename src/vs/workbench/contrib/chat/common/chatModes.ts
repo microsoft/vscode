@@ -195,7 +195,7 @@ class ChatModes extends Disposable implements IChatModes {
 						enabled: true
 					};
 					const instance = new CustomChatMode(customChatMode);
-					this._customModeInstances.set(uri.toString(), instance);
+					this._customModeInstances.set(instance.id, instance);
 				} catch (error) {
 					this.logService.error(error, 'Failed to revive cached custom agent');
 				}
@@ -249,16 +249,15 @@ class ChatModes extends Disposable implements IChatModes {
 			}
 
 			// Create a new set of mode instances, reusing existing ones where possible
-			const seenUris = new Set<string>();
+			const seenIds = new Set<string>();
 			for (const customMode of customModes) {
 				if (!customMode.visibility.userInvocable || !customMode.enabled) {
 					continue;
 				}
 
-				const uriString = customMode.uri.toString();
-				seenUris.add(uriString);
+				seenIds.add(customMode.id);
 
-				let modeInstance = this._customModeInstances.get(uriString);
+				let modeInstance = this._customModeInstances.get(customMode.id);
 				if (modeInstance) {
 					// Update existing instance with new data
 					if (modeInstance.updateData(customMode)) {
@@ -267,15 +266,15 @@ class ChatModes extends Disposable implements IChatModes {
 				} else {
 					// Create new instance
 					modeInstance = new CustomChatMode(customMode);
-					this._customModeInstances.set(uriString, modeInstance);
+					this._customModeInstances.set(customMode.id, modeInstance);
 					hasChanges = true;
 				}
 			}
 
 			// Clean up instances for modes that no longer exist
-			for (const [uriString] of this._customModeInstances.entries()) {
-				if (!seenUris.has(uriString)) {
-					this._customModeInstances.delete(uriString);
+			for (const [id] of this._customModeInstances.entries()) {
+				if (!seenIds.has(id)) {
+					this._customModeInstances.delete(id);
 					hasChanges = true;
 				}
 			}
@@ -550,7 +549,7 @@ export class CustomChatMode implements IChatMode {
 	constructor(
 		customChatMode: ICustomAgent
 	) {
-		this.id = customChatMode.uri.toString();
+		this.id = customChatMode.id;
 		this._nameObservable = observableValue('name', customChatMode.name);
 		this._descriptionObservable = observableValue('description', customChatMode.description);
 		this._customToolsObservable = observableValue('customTools', customChatMode.tools);

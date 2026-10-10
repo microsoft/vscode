@@ -86,6 +86,7 @@ import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.j
 import { IAgentHostOTelService, NullAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
 import { AgentHostCompletions, IAgentHostCompletions } from '../../node/agentHostCompletions.js';
 import { COPILOT_AGENT_HOST_SYSTEM_MESSAGE, CopilotAgent, getCopilotManagedSettingsDiagnostics, rebaseUnder, REFRESH_DEBOUNCE_MS, resolveCopilotOtlpMetricsEndpoint } from '../../node/copilot/copilotAgent.js';
+import { buildCopilotBuiltinAgents, buildCopilotBuiltinAgentsContainer, COPILOT_BUILTIN_AGENTS, COPILOT_BUILTIN_AGENT_NAMES, getCopilotBuiltinAgentUri } from '../../node/copilot/copilotBuiltinAgents.js';
 import { ICopilotChatDiscoveryScan } from '../../node/copilot/copilotChatDiscovery.js';
 import { COPILOT_DEFERRED_SDK_EXECUTION_METADATA_KEY, deferCopilotSdkExecution } from '../../node/copilot/copilotSessionExecutionMarker.js';
 import { CopilotGitHubSessionCredentials } from '../../node/copilot/copilotGitHubCredentials.js';
@@ -12698,7 +12699,7 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('createChat without activeClient does not sync customizations', async () => {
+		test('createChat without activeClient publishes built-in agents without syncing customizations', async () => {
 			const sessionDataService = disposables.add(new TestSessionDataService());
 			const client = new TestCopilotClient([]);
 			const pluginManager = new SpyingPluginManager();
@@ -12713,8 +12714,16 @@ suite('CopilotAgent', () => {
 					workingDirectories: [URI.file('/workspace')],
 				});
 
-				assert.strictEqual(result.provisional, true);
-				assert.deepStrictEqual(pluginManager.calls, []);
+				const builtin = buildCopilotBuiltinAgentsContainer();
+				assert.deepStrictEqual({
+					provisional: result.provisional,
+					syncCalls: pluginManager.calls,
+					builtin: (await getDefaultChatCustomizations(agent, result.session)).filter(customization => customization.uri === builtin.uri),
+				}, {
+					provisional: true,
+					syncCalls: [],
+					builtin: [builtin],
+				});
 			} finally {
 				await disposeAgent(agent);
 			}
@@ -13909,6 +13918,7 @@ suite('CopilotAgent', () => {
 					URI.joinPath(workspace, '.github', 'instructions').toString(),
 					URI.joinPath(workspace, '.github', 'hooks').toString(),
 					URI.joinPath(userHome, '.copilot', 'hooks').toString(),
+					buildCopilotBuiltinAgentsContainer().uri,
 				];
 				assert.deepStrictEqual(discoveredDirectories.map(customization => customization.uri).sort(), expectedUris.sort());
 
@@ -14119,6 +14129,7 @@ suite('CopilotAgent', () => {
 					URI.joinPath(workspace, '.github', 'agents').toString(),
 					URI.joinPath(workspace, '.github', 'hooks').toString(),
 					URI.joinPath(userHome, '.copilot', 'hooks').toString(),
+					buildCopilotBuiltinAgentsContainer().uri,
 				];
 				assert.deepStrictEqual(afterDirs.map(customization => customization.uri).sort(), expectedUris.sort());
 			} finally {
@@ -16153,7 +16164,7 @@ suite('CopilotAgent', () => {
 				}, {
 					mcpCalls: ['start:mcp-1', 'stop:mcp-1'],
 					mcpRequest: 'srv/tools/list',
-					customizations: [],
+					customizations: [buildCopilotBuiltinAgentsContainer()],
 					sessions: 0,
 				});
 			} finally {
@@ -20552,7 +20563,7 @@ suite('CopilotAgent', () => {
 
 	suite('standalone client customizations', () => {
 
-		test('passes a standalone client bundle through non-plugin SDK options', async () => {
+		test('passes a standalone client bundle through non-plugin SDK options and reserves built-in agent names', async () => {
 			const fileService = disposables.add(new FileService(new NullLogService()));
 			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
 			const pluginDir = URI.file('/plugins/plugin-a');
@@ -20562,6 +20573,9 @@ suite('CopilotAgent', () => {
 			await fileService.writeFile(URI.joinPath(standaloneDir, '.plugin', 'plugin.json'), VSBuffer.fromString(JSON.stringify({ name: 'VS Code Standalone Customizations' })));
 			await fileService.writeFile(URI.joinPath(standaloneDir, 'skills', 'my-skill', 'SKILL.md'), VSBuffer.fromString('---\nname: my-skill\ndescription: A user skill\n---\nDo things.'));
 			await fileService.writeFile(URI.joinPath(standaloneDir, 'agents', 'my-agent.agent.md'), VSBuffer.fromString('---\nname: my-agent\ndescription: A user agent\n---\nBe helpful.'));
+			for (const builtin of COPILOT_BUILTIN_AGENTS) {
+				await fileService.writeFile(URI.joinPath(standaloneDir, 'agents', builtin.fileName), VSBuffer.fromString(`---\nname: ${builtin.name}\ntools: [create]\n---\nMake changes.`));
+			}
 			await fileService.writeFile(URI.joinPath(standaloneDir, '.mcp.json'), VSBuffer.fromString(JSON.stringify({ mcpServers: { 'my-server': { command: 'my-server' } } })));
 
 			class PluginManager extends TestAgentPluginManager {
@@ -20612,11 +20626,13 @@ suite('CopilotAgent', () => {
 				pluginDirectories: config?.pluginDirectories,
 				skillDirectories: config?.skillDirectories,
 				customAgents: config?.customAgents?.map(customAgent => customAgent.name),
+				builtinAgents: config?.customAgents?.filter(customAgent => COPILOT_BUILTIN_AGENT_NAMES.has(customAgent.name)),
 				mcpServers: Object.keys(config?.mcpServers ?? {}),
 			}, {
 				pluginDirectories: [pluginDir.fsPath],
 				skillDirectories: [URI.joinPath(standaloneDir, 'skills', 'my-skill').fsPath],
-				customAgents: ['my-agent'],
+				customAgents: ['my-agent', ...COPILOT_BUILTIN_AGENT_NAMES],
+				builtinAgents: buildCopilotBuiltinAgents([]),
 				mcpServers: ['my-server'],
 			});
 		});
@@ -20644,6 +20660,34 @@ suite('CopilotAgent', () => {
 			const sessionUri = AgentSession.uri('copilotcli', 'prov-agent');
 			return { sessionId: AgentSession.id(sessionUri), sessionUri, workingDirectory, model: undefined, agent, project: undefined };
 		}
+
+		test('_resolveAgentName resolves all built-ins without a plugin or worktree translation', async () => {
+			const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]) });
+			try {
+				const internals = agent as unknown as AgentInternals;
+				const resolved = [];
+				for (const builtin of COPILOT_BUILTIN_AGENTS) {
+					const selection: AgentSelection = { uri: getCopilotBuiltinAgentUri(builtin).toString() };
+					resolved.push({
+						name: internals._resolveAgentName(emptySnapshot, selection),
+						materialized: await internals._resolveAgentWhenMaterializing(provisional(repo, selection), emptySnapshot, worktree),
+					});
+				}
+				const missingUri = URI.joinPath(URI.parse(buildCopilotBuiltinAgentsContainer().uri), 'missing.agent.md').toString();
+				assert.deepStrictEqual({
+					resolved,
+					missingBuiltin: internals._resolveAgentName(emptySnapshot, { uri: missingUri }),
+				}, {
+					resolved: COPILOT_BUILTIN_AGENTS.map(builtin => ({
+						name: builtin.name,
+						materialized: { agent: { uri: getCopilotBuiltinAgentUri(builtin).toString() }, name: builtin.name },
+					})),
+					missingBuiltin: undefined,
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
 
 		test('_getAlternativeAgentForWorktree rewrites a repo agent path onto the worktree', async () => {
 			const agent = createTestAgent(disposables, { copilotClient: new TestCopilotClient([]) });
