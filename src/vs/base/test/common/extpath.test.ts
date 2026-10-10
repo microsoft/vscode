@@ -204,6 +204,19 @@ suite('Paths', () => {
 		assert.strictEqual(res.column, undefined);
 	});
 
+	test('parseLineAndColumnAware with numeric file names', () => {
+		for (const path of ['0', '123']) {
+			assert.deepStrictEqual(
+				[path, `${path}:5`, `${path}:5:2`].map(extpath.parseLineAndColumnAware),
+				[
+					{ path, line: undefined, column: undefined },
+					{ path, line: 5, column: 1 },
+					{ path, line: 5, column: 2 }
+				]
+			);
+		}
+	});
+
 	test('randomPath', () => {
 		let res = extpath.randomPath('/foo/bar');
 		assert.ok(res);
