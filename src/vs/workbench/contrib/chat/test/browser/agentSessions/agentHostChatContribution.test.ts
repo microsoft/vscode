@@ -13444,6 +13444,24 @@ suite('AgentHostChatContribution', () => {
 
 			assert.strictEqual(services.chatSessionContributions[0].displayName, 'Test Agent');
 		});
+
+		test('local agent contribution provides its own welcome instead of the delegation fallback', () => {
+			const services = createTestServices(disposables);
+			disposables.add(services.instantiationService.createInstance(AgentHostContribution));
+
+			services.agentHostService.setRootState({
+				agents: [
+					{ provider: 'htmlagent', displayName: '<b>Test_Agent</b>', description: 'test', models: [] },
+					{ provider: 'quoteagent', displayName: '> Test Agent', description: 'test', models: [] },
+				],
+				activeSessions: 0,
+			});
+
+			assert.deepStrictEqual(services.chatSessionContributions.map(c => ({ welcomeTitle: c.welcomeTitle, welcomeMessage: c.welcomeMessage })), [
+				{ welcomeTitle: '<b>Test_Agent</b>', welcomeMessage: '\\<b\\>Test\\_Agent\\<\\/b\\> runs on this machine.' },
+				{ welcomeTitle: '> Test Agent', welcomeMessage: '\\> Test Agent runs on this machine.' },
+			]);
+		});
 	});
 
 	// ---- IAgentConnection unification -------------------------------------
