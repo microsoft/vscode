@@ -547,8 +547,8 @@ const schema: IJSONSchema = {
 					}]
 				},
 				lineComment: {
-					type: 'object',
-					description: nls.localize('schema.lineComment.object', 'Configuration for line comments.'),
+					type: ['string', 'object'],
+					description: nls.localize('schema.lineComment.object', 'Defines how line comments are marked. Use a string for the comment token, or an object with comment and optional noIndent properties.'),
 					properties: {
 						comment: {
 							type: 'string',
