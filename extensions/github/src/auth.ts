@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AuthenticationSession, EventEmitter, authentication, window } from 'vscode';
+import { AuthenticationSession, EventEmitter, authentication, version, window } from 'vscode';
 import { Agent, globalAgent } from 'https';
 import { graphql } from '@octokit/graphql/types';
 import { Octokit } from '@octokit/rest';
@@ -66,7 +66,7 @@ export class OctokitService {
 
 	private readonly _disposables = new DisposableStore();
 
-	constructor() {
+	constructor(private readonly getSession = () => authentication.getSession('github', scopes, { silent: true })) {
 		this._disposables.add(this._onDidChangeSessions);
 		this._disposables.add(authentication.onDidChangeSessions(e => {
 			if (e.provider.id === 'github') {
@@ -80,7 +80,7 @@ export class OctokitService {
 	public async getOctokitGraphql(): Promise<graphql> {
 		if (!this._octokitGraphql) {
 			try {
-				const session = await authentication.getSession('github', scopes, { silent: true });
+				const session = await this.getSession();
 
 				if (!session) {
 					throw new AuthenticationError('No GitHub authentication session available.');
@@ -91,7 +91,8 @@ export class OctokitService {
 
 				this._octokitGraphql = graphql.defaults({
 					headers: {
-						authorization: `token ${token}`
+						authorization: `token ${token}`,
+						'user-agent': `vscode.github/${version}`
 					},
 					request: {
 						agent: getAgent()
