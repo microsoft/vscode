@@ -67,6 +67,7 @@ export class TerminalTabsChatEntry extends Disposable {
 		this._register(dom.addDisposableListener(this._entry, dom.EventType.KEY_DOWN, e => {
 			if (e.key === 'Enter' || e.key === ' ') {
 				e.preventDefault();
+				e.stopPropagation();
 				runChatTerminalsCommand();
 			}
 		}));

@@ -1,0 +1,131 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench .pane-body.integrated-terminal .tabs-container.horizontal-tabs {
+	border-left: none;
+	border-right: none;
+	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-terminal-border);
+	box-sizing: border-box;
+}
+
+.monaco-workbench .pane-body.integrated-terminal .tabs-container.horizontal-tabs.tabs-bottom {
+	border-bottom: none;
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-terminal-border);
+}
+
+.monaco-workbench .pane-body.integrated-terminal .horizontal-tabs .tabs-list-container {
+	flex-direction: row;
+	align-items: center;
+	min-width: 0;
+}
+
+.monaco-workbench .pane-body.integrated-terminal .horizontal-tabs .tabs-list {
+	min-width: 0;
+}
+
+.monaco-workbench .terminal-tabs-bar {
+	display: flex;
+	position: relative;
+	align-items: stretch;
+	overflow: hidden;
+	white-space: nowrap;
+}
+
+.monaco-workbench .terminal-tabs-bar .terminal-tabs-bar-tab {
+	position: relative;
+	flex: 0 0 auto;
+	min-width: 120px;
+	max-width: 240px;
+	box-sizing: border-box;
+	cursor: pointer;
+	outline-offset: -1px;
+}
+
+.monaco-workbench .terminal-tabs-bar .terminal-tabs-bar-tab.group-start {
+	margin-left: var(--vscode-spacing-size40);
+	border-left: var(--vscode-strokeThickness) solid var(--vscode-terminal-border);
+}
+
+.monaco-workbench .pane-body.integrated-terminal .horizontal-tabs .terminal-tabs-entry {
+	display: flex;
+	align-items: center;
+	height: 100%;
+	box-sizing: border-box;
+}
+
+.monaco-workbench .terminal-tabs-bar .monaco-icon-label {
+	display: flex;
+	align-items: center;
+	min-width: 0;
+	flex: 1;
+}
+
+.monaco-workbench .terminal-tabs-bar .monaco-icon-label-container {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.monaco-workbench .pane-body.integrated-terminal .horizontal-tabs .terminal-tabs-bar-tab .actions {
+	display: block;
+	visibility: hidden;
+	flex-shrink: 0;
+}
+
+.monaco-workbench .pane-body.integrated-terminal .horizontal-tabs .terminal-tabs-bar-tab:hover .actions,
+.monaco-workbench .pane-body.integrated-terminal .horizontal-tabs .terminal-tabs-bar-tab:focus-within .actions {
+	visibility: visible;
+}
+
+.monaco-workbench .terminal-tabs-bar .terminal-tabs-bar-tab:hover {
+	background-color: var(--vscode-list-hoverBackground);
+	color: var(--vscode-list-hoverForeground);
+}
+
+.monaco-workbench .terminal-tabs-bar .terminal-tabs-bar-tab.selected {
+	background-color: var(--vscode-list-inactiveSelectionBackground);
+	color: var(--vscode-list-inactiveSelectionForeground);
+	outline: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, transparent);
+}
+
+.monaco-workbench .terminal-tabs-bar:focus-within .terminal-tabs-bar-tab.selected {
+	background-color: var(--vscode-list-activeSelectionBackground);
+	color: var(--vscode-list-activeSelectionForeground);
+}
+
+.monaco-workbench .terminal-tabs-bar .terminal-tabs-bar-tab:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+}
+
+.monaco-workbench .pane-body.integrated-terminal .horizontal-tabs .terminal-tabs-entry.is-active::before {
+	top: auto;
+	right: 0;
+	bottom: 0;
+	width: auto;
+	height: var(--vscode-strokeThickness);
+}
+
+.monaco-workbench .pane-body.integrated-terminal .horizontal-tabs.tabs-bottom .terminal-tabs-entry.is-active::before {
+	top: 0;
+	bottom: auto;
+}
+
+.monaco-workbench .terminal-tabs-bar.drop-target,
+.monaco-workbench .terminal-tabs-bar .terminal-tabs-bar-tab.drop-target {
+	background-color: var(--vscode-list-dropBackground);
+	outline: var(--vscode-strokeThickness) solid var(--vscode-list-dropBetweenBackground);
+	outline-offset: -1px;
+}
+
+.monaco-workbench .pane-body.integrated-terminal .horizontal-tabs .terminal-tabs-chat-entry {
+	max-width: 40%;
+	min-width: 0;
+	height: 100%;
+}
+
+.monaco-workbench .pane-body.integrated-terminal .horizontal-tabs .terminal-tabs-chat-entry-icon,
+.monaco-workbench .pane-body.integrated-terminal .horizontal-tabs .terminal-tabs-chat-entry-delete {
+	flex-shrink: 0;
+}
