@@ -82,7 +82,7 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 
 	private _scrollOffsetBindBuffer: GPUBuffer;
 	private _scrollOffsetValueBuffer: Float32Array;
-	private _scrollInitialized = false;
+	private _scrollDevicePixelRatio: number | undefined;
 	private _bigNumbersDelta = 0;
 
 	private readonly _queuedBufferUpdates: [QueuedBufferEvent[], QueuedBufferEvent[]] = [[], []];
@@ -180,7 +180,7 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 		this._scrollOffsetValueBuffer[0] = (e?.scrollLeft ?? this._context.viewLayout.getCurrentScrollLeft()) * dpr;
 		this._scrollOffsetValueBuffer[1] = ((e?.scrollTop ?? this._context.viewLayout.getCurrentScrollTop()) - this._bigNumbersDelta) * dpr;
 		this._device.queue.writeBuffer(this._scrollOffsetBindBuffer, 0, this._scrollOffsetValueBuffer as Float32Array<ArrayBuffer>);
-		this._scrollInitialized = true;
+		this._scrollDevicePixelRatio = dpr;
 		return true;
 	}
 
@@ -284,7 +284,7 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 			this._invalidateAllLines();
 			this._queueBufferUpdate(new ViewLineMappingChangedEvent());
 		}
-		if (!this._scrollInitialized || scrollOriginChanged) {
+		if (this._scrollDevicePixelRatio !== dpr || scrollOriginChanged) {
 			this.onScrollChanged();
 		}
 

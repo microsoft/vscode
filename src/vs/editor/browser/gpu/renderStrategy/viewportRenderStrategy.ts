@@ -71,7 +71,7 @@ export class ViewportRenderStrategy extends BaseRenderStrategy {
 
 	private _scrollOffsetBindBuffer: GPUBuffer;
 	private _scrollOffsetValueBuffer: Float32Array;
-	private _scrollInitialized = false;
+	private _scrollDevicePixelRatio: number | undefined;
 	private _bigNumbersDelta = 0;
 
 	get bindGroupEntries(): GPUBindGroupEntry[] {
@@ -166,7 +166,7 @@ export class ViewportRenderStrategy extends BaseRenderStrategy {
 		this._scrollOffsetValueBuffer[0] = (e?.scrollLeft ?? this._context.viewLayout.getCurrentScrollLeft()) * dpr;
 		this._scrollOffsetValueBuffer[1] = ((e?.scrollTop ?? this._context.viewLayout.getCurrentScrollTop()) - this._bigNumbersDelta) * dpr;
 		this._device.queue.writeBuffer(this._scrollOffsetBindBuffer, 0, this._scrollOffsetValueBuffer as Float32Array<ArrayBuffer>);
-		this._scrollInitialized = true;
+		this._scrollDevicePixelRatio = dpr;
 		return true;
 	}
 
@@ -233,7 +233,7 @@ export class ViewportRenderStrategy extends BaseRenderStrategy {
 		let contentSegmenter: IContentSegmenter;
 
 		// Line offsets and scrollTop must use the same origin in very large files.
-		if (!this._scrollInitialized || this._bigNumbersDelta !== viewportData.bigNumbersDelta) {
+		if (this._scrollDevicePixelRatio !== dpr || this._bigNumbersDelta !== viewportData.bigNumbersDelta) {
 			this._bigNumbersDelta = viewportData.bigNumbersDelta;
 			this.onScrollChanged();
 		}
