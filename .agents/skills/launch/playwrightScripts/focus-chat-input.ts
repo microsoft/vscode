@@ -16,7 +16,8 @@ async page => {
 		let firstVisible;
 		for (const selector of selectors) {
 			const candidates = page.locator(selector);
-			for (let index = 0; index < await candidates.count(); index++) {
+			const count = await candidates.count();
+			for (let index = 0; index < count; index++) {
 				const candidate = candidates.nth(index);
 				const isExcluded = await candidate.evaluate(element => Boolean(element.closest('.inline-chat-widget, .automation-form-prompt-host')));
 				if (await candidate.isVisible() && !isExcluded) {
@@ -42,13 +43,14 @@ async page => {
 		}
 		return true;
 	};
-	const waitForVisibleChatInput = async attempts => {
+
+	const waitForVisibleChatInput = async (attempts, interval = 100) => {
 		for (let attempt = 0; attempt < attempts; attempt++) {
 			const match = await findVisibleChatInput();
 			if (match) {
 				return match;
 			}
-			await page.waitForTimeout(100);
+			await page.waitForTimeout(interval);
 		}
 		return undefined;
 	};
@@ -62,7 +64,7 @@ async page => {
 	const platform = await page.evaluate(() => navigator.userAgentData?.platform ?? navigator.platform);
 	const shortcut = /^mac/i.test(platform) ? 'Control+Meta+i' : 'Control+Alt+i';
 	await page.keyboard.press(shortcut);
-	match = await waitForVisibleChatInput(10);
+	match = await waitForVisibleChatInput(10, 100);
 
 	let commandPaletteFallbackInvoked = false;
 	if (!match) {
@@ -78,7 +80,7 @@ async page => {
 		}
 		await commandPaletteInput.fill(`>${commandId}`);
 		await page.keyboard.press('Enter');
-		match = await waitForVisibleChatInput(50);
+		match = await waitForVisibleChatInput(50, 100);
 	}
 
 	if (!match) {
