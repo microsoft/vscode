@@ -18,7 +18,7 @@ import { IWorkbenchEnvironmentService } from '../../../../../services/environmen
 import { Schemas } from '../../../../../../base/common/network.js';
 import { getExcludes, IFileQuery, ISearchConfiguration, ISearchService, QueryType } from '../../../../../services/search/common/search.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
-import { isCancellationError } from '../../../../../../base/common/errors.js';
+import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { AgentInstructionFileType, IPromptPath, IAgentInstructionFile, Logger, PromptsStorage } from '../service/promptsService.js';
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
@@ -127,7 +127,8 @@ export class PromptFilesLocator {
 
 	/**
 	 * Walks up from {@link folderUri} collecting parent folders until a
-	 * repository root (a folder containing `.git`) is found.  Returns the
+	 * repository root (a folder containing a `.git` directory or pointer) is
+	 * found. Returns the
 	 * intermediate parent folders only when a repo root is found; returns
 	 * an empty array when the walk reaches the filesystem root, the user
 	 * home directory, or a folder already present in {@link seen}.
@@ -137,7 +138,8 @@ export class PromptFilesLocator {
 		let current = folderUri;
 		while (true) {
 			try {
-				const isRepoRoot = await this.fileService.exists(joinPath(current, '.git'));
+				const gitStat = await this.fileService.stat(joinPath(current, '.git')).then(stat => stat, () => undefined);
+				const isRepoRoot = gitStat?.isDirectory === true || gitStat?.isFile === true;
 				if (isRepoRoot) {
 					if ((await this.workspaceTrustManagementService.getUriTrustInfo(current)).trusted) {
 						candidates.push(current);
@@ -172,34 +174,66 @@ export class PromptFilesLocator {
 	 * @returns List of prompt files found in the workspace.
 	 */
 	public async listFiles(type: PromptsType, storage: PromptsStorage, token: CancellationToken, root?: URI): Promise<readonly URI[]> {
+		const files = await this.listFilesWithSource(type, storage, token, root);
+		return files.map(file => file.uri);
+	}
+
+	public async listFilesWithSource(type: PromptsType, storage: PromptsStorage, token: CancellationToken, root?: URI): Promise<readonly { uri: URI; source: PromptFileSource }[]> {
 		if (storage !== PromptsStorage.user && storage !== PromptsStorage.local) {
 			throw new Error(`Unsupported prompt file storage: ${storage}`);
 		}
 
 		const configuredLocations = this.getPromptSourceFolders(type);
 		const localRoot = storage === PromptsStorage.local ? root : undefined;
-		const absoluteLocations = await this.toAbsoluteLocations(type, configuredLocations.filter(loc => loc.storage === storage), undefined, localRoot);
+		const absoluteLocations = await this.toAbsoluteLocations(type, configuredLocations.filter(location => location.storage === storage), undefined, localRoot);
 
-		if (storage === PromptsStorage.user && (type === PromptsType.agent || type === PromptsType.instructions || type === PromptsType.prompt)) {
+		if (storage === PromptsStorage.user && this.isUserDataPromptType(type)) {
+			const localLocations = await this.toAbsoluteLocations(type, configuredLocations.filter(location => location.storage === PromptsStorage.local));
+			absoluteLocations.push(...localLocations.filter(location => this.sourceFolderOverlapsUserData(type, location.searchRoot)));
 			absoluteLocations.push(this.userDataFolder);
 		}
 
 		const paths = new ResourceSet();
+		const result: { uri: URI; source: PromptFileSource }[] = [];
 
-		for (const { searchRoot, filePattern } of absoluteLocations) {
+		for (const { searchRoot, filePattern, source, storage: sourceStorage } of absoluteLocations) {
 			const files = (filePattern === undefined)
 				? await this.resolveFilesAtLocation(searchRoot, type, token, 0, localRoot) // if the location does not contain a glob pattern, resolve the location directly
 				: await this.searchFilesInLocation(searchRoot, filePattern, token);
 			for (const file of files) {
-				if (getPromptFileType(file) === type) {
-					paths.add(file);
+				if (getPromptFileType(file) !== type || paths.has(file)) {
+					continue;
 				}
+
+				const isUserDataFile = this.isUserDataPromptFile(type, file);
+				if ((isUserDataFile && storage !== PromptsStorage.user)
+					|| (!isUserDataFile && sourceStorage !== storage)) {
+					continue;
+				}
+
+				paths.add(file);
+				result.push({ uri: file, source: isUserDataFile ? PromptFileSource.UserData : source });
 			}
+			// Report cancellation as an error so callers cannot mistake a partial
+			// scan for a complete "no prompt files" answer and cache it.
 			if (token.isCancellationRequested) {
-				return [];
+				throw new CancellationError();
 			}
 		}
-		return [...paths];
+		return result;
+	}
+
+	private isUserDataPromptType(type: PromptsType): boolean {
+		return type === PromptsType.agent || type === PromptsType.instructions || type === PromptsType.prompt;
+	}
+
+	private isUserDataPromptFile(type: PromptsType, resource: URI): boolean {
+		return this.isUserDataPromptType(type) && isEqualOrParent(resource, this.userDataFolder.uri);
+	}
+
+	private sourceFolderOverlapsUserData(type: PromptsType, searchRoot: URI): boolean {
+		return this.isUserDataPromptType(type)
+			&& (isEqualOrParent(searchRoot, this.userDataFolder.uri) || isEqualOrParent(this.userDataFolder.uri, searchRoot));
 	}
 
 	public createFilesUpdatedEvent(type: PromptsType): { readonly event: Event<void>; dispose: () => void } {

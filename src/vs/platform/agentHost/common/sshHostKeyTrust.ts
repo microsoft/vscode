@@ -21,7 +21,7 @@ export interface ISSHTrustedHostKey {
 	readonly alias?: string;
 }
 
-/** All trusted keys for a single host, keyed by `hostname:port`. */
+/** All trusted keys for a single host, keyed by its effective host-key identity and port. */
 export interface ISSHTrustedHost {
 	readonly host: string;
 	readonly port: number;
@@ -29,9 +29,8 @@ export interface ISSHTrustedHost {
 }
 
 /**
- * Build the stable trust-store key for a host. Uses the resolved hostname and
- * port rather than an SSH config alias, since several aliases can point at one
- * machine and the host key belongs to the machine.
+ * Build the stable trust-store key for a host. The caller supplies the
+ * effective host-key identity (`HostKeyAlias` when configured).
  */
 export function computeHostKeyStoreKey(host: string, port: number): string {
 	return `${host.toLowerCase()}:${port}`;
@@ -50,7 +49,7 @@ export const ISSHHostKeyTrustService = createDecorator<ISSHHostKeyTrustService>(
 export interface ISSHHostKeyTrustService {
 	readonly _serviceBrand: undefined;
 
-	/** Fires with the `hostname:port` key whose trusted set changed. */
+	/** Fires with the effective `hostname:port` key whose trusted set changed. */
 	readonly onDidChangeTrustedHosts: Event<string>;
 
 	/** Trusted keys for a host, or an empty array when none are stored. */

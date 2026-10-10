@@ -3,13 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { raceTimeout } from '../../base/common/async.js';
 import { Event } from '../../base/common/event.js';
-import { Disposable, MutableDisposable, toDisposable } from '../../base/common/lifecycle.js';
+import { isObject, isStringArray } from '../../base/common/types.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../base/common/lifecycle.js';
 import { ProxyChannel } from '../../base/parts/ipc/common/ipc.js';
 import { IAgentHostConnection, IAgentHostStarter } from '../../platform/agentHost/common/agent.js';
 import { reportAgentHostProcessError } from '../../platform/agentHost/common/agentHostProcessTelemetry.js';
 import { AgentHostLaunchKind } from '../../platform/agentHost/common/agentHostTelemetry.js';
-import { AgentHostIpcChannels, IAgentService } from '../../platform/agentHost/common/agentService.js';
+import { AgentHostIpcChannels, IAgentService, IAgentHostManagementService, IMissionControlOptions } from '../../platform/agentHost/common/agentService.js';
 import { createDecorator } from '../../platform/instantiation/common/instantiation.js';
 import { ILogService, ILoggerService } from '../../platform/log/common/log.js';
 import { RemoteLoggerChannelClient } from '../../platform/log/common/logIpc.js';
@@ -32,10 +34,55 @@ export interface IServerAgentHostManager {
 
 	/** Starts the agent host if necessary and resolves after its IPC connection is established. */
 	ensureStarted(): Promise<void>;
+	shutdown(): Promise<void>;
 }
 
 export interface IServerAgentHostManagerOptions {
 	readonly startMode?: 'eager' | 'lazy';
+	readonly githubEnvironment?: IMissionControlOptions;
+	readonly onGithubEnvironmentReady?: (environmentId: string) => void;
+	readonly onRestartLimitReached?: () => void;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return isObject(value);
+}
+
+/** Consumes the CLI's trusted bootstrap credential before spawning child processes. */
+export function readGithubEnvironmentOptions(env: NodeJS.ProcessEnv): IMissionControlOptions | undefined {
+	const value = env.VSCODE_CLI_GITHUB_ENVIRONMENT_OPTIONS;
+	delete env.VSCODE_CLI_GITHUB_ENVIRONMENT_OPTIONS;
+	if (value === undefined) {
+		return undefined;
+	}
+	let options: unknown;
+	try {
+		options = JSON.parse(value);
+	} catch (error) {
+		if (error instanceof SyntaxError) {
+			throw new Error('Invalid GitHub environment bootstrap options');
+		}
+		throw error;
+	}
+	if (!isRecord(options)) {
+		throw new Error('Invalid GitHub environment bootstrap options');
+	}
+	const name = options.name;
+	if (options.baseUrl !== 'https://api.github.com' || options.live !== true
+		|| typeof options.accountId !== 'string' || !/^\d+$/.test(options.accountId)
+		|| typeof options.credential !== 'string' || !options.credential.trim()
+		|| !isStringArray(options.roots) || options.roots.length === 0 || options.roots.some(root => !root)
+		|| (name !== undefined && (typeof name !== 'string' || !name.trim()))) {
+		throw new Error('Invalid GitHub environment bootstrap options');
+	}
+	return {
+		baseUrl: options.baseUrl,
+		accountId: options.accountId,
+		credential: options.credential,
+		roots: options.roots,
+		name,
+		live: true,
+	};
 }
 
 /**
@@ -50,6 +97,7 @@ interface IConnectionTrackerService {
 
 enum Constants {
 	MaxRestarts = 5,
+	ShutdownTimeoutMs = 6000,
 }
 
 export class ServerAgentHostManager extends Disposable implements IServerAgentHostManager {
@@ -57,6 +105,10 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 
 	private _restartCount = 0;
 	private _startPromise: Promise<void> | undefined;
+	private _shuttingDown = false;
+	private _connection: IAgentHostConnection | undefined;
+	private readonly _connectionStore = this._register(new MutableDisposable<DisposableStore>());
+	private readonly _startMode: 'eager' | 'lazy';
 
 	/** Lifetime token held while sessions are active or standalone WebSocket clients are connected. */
 	private readonly _lifetimeToken = this._register(new MutableDisposable());
@@ -66,20 +118,33 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 
 	constructor(
 		private readonly _starter: IAgentHostStarter,
-		options: IServerAgentHostManagerOptions = {},
+		private readonly _options: IServerAgentHostManagerOptions = {},
 		@ILogService private readonly _logService: ILogService,
 		@ILoggerService private readonly _loggerService: ILoggerService,
 		@IServerLifetimeService private readonly _serverLifetimeService: IServerLifetimeService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
+		this._startMode = _options.startMode ?? 'eager';
 		this._register(this._starter);
-		if (options.startMode !== 'lazy') {
+		this._register(this._serverLifetimeService.onWillShutdown(event => {
+			this._shuttingDown = true;
+			event.join(this.shutdown());
+		}));
+		this._register(this._serverLifetimeService.onDidAbortShutdown(() => {
+			if (this._startMode === 'eager') {
+				void this.ensureStarted().catch(error => this._logService.error('ServerAgentHostManager: failed to restart after aborted server shutdown', error));
+			}
+		}));
+		if (this._startMode === 'eager') {
 			void this.ensureStarted().catch(() => undefined);
 		}
 	}
 
 	ensureStarted(): Promise<void> {
+		if (this._shuttingDown || this._store.isDisposed) {
+			return Promise.reject(new Error('Server Agent Host manager is shutting down.'));
+		}
 		if (!this._startPromise) {
 			const startPromise = this._start();
 			this._startPromise = startPromise;
@@ -109,7 +174,7 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 					return;
 				}
 
-				const willRestart = this._restartCount <= Constants.MaxRestarts;
+				const willRestart = this._restartCount < Constants.MaxRestarts;
 				reportAgentHostProcessError(this._telemetryService, {
 					hostLaunchKind: AgentHostLaunchKind.VSCodeCLI,
 					kind: 'startFailed',
@@ -120,6 +185,7 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 					this._logService.error(`ServerAgentHostManager: agent host failed to start, giving up after ${Constants.MaxRestarts} restarts`, error);
 					// A future explicit request gets a fresh crash-retry budget.
 					this._restartCount = 0;
+					this._options.onRestartLimitReached?.();
 					throw error;
 				}
 
@@ -132,7 +198,7 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 	private async _startOnce(): Promise<void> {
 		const connection = await this._starter.start();
 
-		if (this._store.isDisposed) {
+		if (this._store.isDisposed || this._shuttingDown) {
 			connection.store.dispose();
 			return;
 		}
@@ -140,6 +206,15 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 		this._trackActiveSessions(connection);
 		try {
 			await this._trackClientConnections(connection);
+			if (this._options.githubEnvironment) {
+				const management = ProxyChannel.toService<IAgentHostManagementService>(connection.client.getChannel(AgentHostIpcChannels.Management));
+				await management.configureMissionControl(this._options.githubEnvironment);
+				const environmentId = await management.getMissionControlEnvironmentId();
+				if (!environmentId) {
+					throw new Error('GitHub environment registration did not return an environment ID');
+				}
+				this._options.onGithubEnvironmentReady?.(environmentId);
+			}
 		} catch (error) {
 			connection.store.dispose();
 			throw error;
@@ -160,11 +235,12 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 		// both restart the same failure.
 		connection.store.add(connection.onDidProcessExit(e => this._handleUnexpectedExit(connection, e)));
 
-		this._register(toDisposable(() => connection.store.dispose()));
+		this._connection = connection;
+		this._connectionStore.value = connection.store;
 	}
 
 	private _handleUnexpectedExit(connection: IAgentHostConnection, e: { code: number; signal: string }): void {
-		if (this._store.isDisposed) {
+		if (this._store.isDisposed || this._connection !== connection) {
 			return;
 		}
 
@@ -172,7 +248,7 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 		this._connectionCount = 0;
 		this._lifetimeToken.clear();
 
-		const willRestart = this._restartCount <= Constants.MaxRestarts;
+		const willRestart = this._restartCount < Constants.MaxRestarts;
 		reportAgentHostProcessError(this._telemetryService, {
 			hostLaunchKind: AgentHostLaunchKind.VSCodeCLI,
 			kind: 'unexpectedExit',
@@ -180,7 +256,8 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 			restartCount: this._restartCount,
 			willRestart,
 		});
-		connection.store.dispose();
+		this._connection = undefined;
+		this._connectionStore.clear();
 		this._startPromise = undefined;
 		if (willRestart) {
 			this._logService.error(`ServerAgentHostManager: agent host terminated unexpectedly with code ${e.code}`);
@@ -190,7 +267,41 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 			this._logService.error(`ServerAgentHostManager: agent host terminated with code ${e.code}, giving up after ${Constants.MaxRestarts} restarts`);
 			// A future explicit request gets a fresh crash-retry budget.
 			this._restartCount = 0;
+			this._options.onRestartLimitReached?.();
 		}
+	}
+
+	async shutdown(): Promise<void> {
+		this._shuttingDown = true;
+		try {
+			const shutdownTimeout = this._options.githubEnvironment ? 20_000 : Constants.ShutdownTimeoutMs;
+			await raceTimeout(this._shutdownGracefully(), shutdownTimeout, () => {
+				this._logService.warn(`ServerAgentHostManager: agent host did not shut down within ${shutdownTimeout}ms; terminating it`);
+			});
+		} catch (error) {
+			this._logService.error('ServerAgentHostManager: failed to shut down agent host gracefully', error);
+		} finally {
+			const connection = this._connection;
+			this._startPromise = undefined;
+			this._shuttingDown = false;
+			if (connection) {
+				if (this._connection === connection) {
+					this._connection = undefined;
+					this._connectionStore.clear();
+				} else {
+					connection.store.dispose();
+				}
+			}
+		}
+	}
+
+	private async _shutdownGracefully(): Promise<void> {
+		try {
+			await this._startPromise;
+		} catch {
+			return;
+		}
+		await this._connection?.shutdown();
 	}
 
 	private _trackActiveSessions(connection: IAgentHostConnection): void {

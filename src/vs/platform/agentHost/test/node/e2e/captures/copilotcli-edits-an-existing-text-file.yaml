@@ -25,7 +25,7 @@ exchanges:
         - role: assistant
           content:
             - type: tool_use
-              name: bash
+              name: powershell
               input:
                 command: node -e "require('fs').writeFileSync('edit.txt','AFTER_VALUE')"
                 description: Write AFTER_VALUE to edit.txt

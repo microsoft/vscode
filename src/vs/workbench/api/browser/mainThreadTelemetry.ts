@@ -8,6 +8,7 @@ import { IConfigurationService } from '../../../platform/configuration/common/co
 import { CommandsRegistry } from '../../../platform/commands/common/commands.js';
 import { IEnvironmentService } from '../../../platform/environment/common/environment.js';
 import { IProductService } from '../../../platform/product/common/productService.js';
+import { isValidAssignmentContext } from '../../../platform/telemetry/common/assignmentContext.js';
 import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from '../../../platform/telemetry/common/gdprTypings.js';
 import { ITelemetryService, TelemetryLevel, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID, ITelemetryData } from '../../../platform/telemetry/common/telemetry.js';
 import { supportsTelemetry } from '../../../platform/telemetry/common/telemetryUtils.js';
@@ -72,9 +73,6 @@ export const CAPI_ASSIGNMENT_CONTEXT_PROPERTY = 'capi.assignmentcontext';
  */
 export const SET_CAPI_ASSIGNMENT_CONTEXT_COMMAND = '_telemetry.setCapiAssignmentContext';
 
-const MAX_CAPI_ASSIGNMENT_CONTEXT_LENGTH = 8 * 1024;
-const CAPI_ASSIGNMENT_CONTEXT_ENTRY_PATTERN = /^[^:;\s\x00-\x1F\x7F]+:[^;\x00-\x1F\x7F]+$/;
-
 /**
  * Validates a CAPI assignment-context string before it is trusted onto every
  * core telemetry event. Because {@link ITelemetryService.setExperimentProperty}
@@ -84,13 +82,7 @@ const CAPI_ASSIGNMENT_CONTEXT_ENTRY_PATTERN = /^[^:;\s\x00-\x1F\x7F]+:[^;\x00-\x
  * malformed input is rejected outright.
  */
 export function isValidCapiAssignmentContext(value: string): boolean {
-	if (value.length === 0 || value.length > MAX_CAPI_ASSIGNMENT_CONTEXT_LENGTH) {
-		return false;
-	}
-
-	// Tolerate a single trailing separator (`a:b;`) but nothing else empty.
-	const entries = value.endsWith(';') ? value.slice(0, -1).split(';') : value.split(';');
-	return entries.length > 0 && entries.every(entry => CAPI_ASSIGNMENT_CONTEXT_ENTRY_PATTERN.test(entry));
+	return isValidAssignmentContext(value);
 }
 
 CommandsRegistry.registerCommand(SET_CAPI_ASSIGNMENT_CONTEXT_COMMAND, function (accessor, value: string) {

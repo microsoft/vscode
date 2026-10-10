@@ -18,7 +18,7 @@ import { IThemeService } from '../../../../../platform/theme/common/themeService
 import { isDark } from '../../../../../platform/theme/common/theme.js';
 import { IMicCaptureService } from './micCaptureService.js';
 import { ITtsPlaybackService } from './ttsPlaybackService.js';
-import { readVoiceGlowIntensity, resolveVoiceGlowColors, shouldRenderVoiceInputGlow } from './voiceGlow.js';
+import { readVoiceGlowIntensity, resolveVoiceGlowColors, shouldRenderVoiceInputGlow, VoiceGlowState } from './voiceGlow.js';
 import { createVoiceGlowController, IVoiceGlowController } from './voiceGlowController.js';
 import { IVoiceSessionController } from './voiceSessionController.js';
 
@@ -43,7 +43,7 @@ export interface IVoiceInputDecorationsOptions {
 	readonly isActive: IObservable<boolean>;
 	/** Current text in the input. Voice placeholders are hidden while it is non-empty. */
 	readonly inputValue?: IObservable<string>;
-	/** Explicit ownership for surfaces such as omni that do not yet have a resource. */
+	/** Explicit ownership for surfaces that do not yet have a resource. */
 	readonly isOwner?: IObservable<boolean>;
 	/** Surface resource, compared with the voice target to avoid misrouting. */
 	readonly getCurrentResource?: () => URI | undefined;
@@ -76,10 +76,6 @@ export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServi
 	};
 
 	const store = new DisposableStore();
-	const getPushToTalkKeybindingLabel = () => (
-		keybindingService.lookupKeybinding('workbench.action.chat.voiceInputMode.holdToTalk')
-		?? keybindingService.lookupKeybinding('agentsVoice.pushToTalk')
-	)?.getLabel();
 
 	inputContainerEl.style.position = 'relative';
 
@@ -139,7 +135,12 @@ export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServi
 		const voiceState = voiceSessionController.voiceState.read(reader);
 		const active = isActive.read(reader);
 		const ownsVoice = isSurfaceOwner(reader);
-		if (shouldRenderVoiceInputGlow(connected, active, ownsVoice, voiceState)) {
+		// A muted mic isn't heard, so the listening rim would misleadingly react to
+		// the user's voice; treat muted-listening as idle (no glow) until unmuted.
+		// Only read the mute observable while listening, so idle/disconnected surfaces
+		// don't depend on it.
+		const glowState: VoiceGlowState = voiceState === 'listening' && voiceSessionController.isMuted.read(reader) ? 'idle' : voiceState;
+		if (shouldRenderVoiceInputGlow(connected, active, ownsVoice, glowState)) {
 			startGlowAnimation();
 		} else {
 			stopGlowAnimation();
@@ -177,7 +178,9 @@ export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServi
 				transcriptOverlayNode.classList.remove('has-transcript');
 				transcriptOverlay.replaceChildren();
 				const listening = dom.$('span.listening');
-				listening.textContent = localize('voiceMode.listening', "Listening...");
+				listening.textContent = voiceSessionController.isMuted.read(reader)
+					? localize('voiceMode.mutedUnmuteToSpeak', "Unmute to speak...")
+					: localize('voiceMode.listening', "Listening...");
 				transcriptOverlay.append(listening);
 				transcriptScrollable.scanDomNode();
 			} else if (!showTranscript && voiceState === 'speaking') {
@@ -186,7 +189,8 @@ export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServi
 				transcriptOverlayNode.classList.remove('has-transcript');
 				transcriptOverlay.replaceChildren();
 				const hint = dom.$('span.partial');
-				const kbLabel = getPushToTalkKeybindingLabel();
+				const kb = keybindingService.lookupKeybinding('agentsVoice.pushToTalk');
+				const kbLabel = kb?.getLabel();
 				hint.textContent = kbLabel
 					? localize('voiceMode.bargeInHint', "Speak or use {0}", kbLabel)
 					: localize('voiceMode.bargeInHintNoKb', "Speak to barge in");
@@ -197,7 +201,8 @@ export function setupVoiceInputDecorations(services: IVoiceInputDecorationsServi
 				transcriptOverlayNode.classList.remove('has-transcript');
 				transcriptOverlay.replaceChildren();
 				const hint = dom.$('span.partial');
-				const kbLabel = getPushToTalkKeybindingLabel();
+				const kb = keybindingService.lookupKeybinding('agentsVoice.pushToTalk');
+				const kbLabel = kb?.getLabel();
 				hint.textContent = kbLabel
 					? localize('voiceMode.pttOrBargeInHint', "Press {0} to talk or barge in", kbLabel)
 					: localize('voiceMode.clickMicOrBargeInHint', "Click voice mode to talk or barge in");

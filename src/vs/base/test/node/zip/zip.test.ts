@@ -10,7 +10,7 @@ import { createCancelablePromise } from '../../../common/async.js';
 import { FileAccess } from '../../../common/network.js';
 import * as path from '../../../common/path.js';
 import { Promises } from '../../../node/pfs.js';
-import { buffer, extract, zip } from '../../../node/zip.js';
+import { buffer, extract, validateZip, zip } from '../../../node/zip.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../common/utils.js';
 import { getRandomTestPath } from '../testUtils.js';
 
@@ -72,7 +72,7 @@ suite('Zip', () => {
 		await Promises.rm(testDir);
 	});
 
-	test('zip should skip a vanished streamed source without failing the archive', async () => {
+	test('zip should skip an unavailable best-effort bounded source without failing the archive', async () => {
 		const testDir = getRandomTestPath(tmpdir(), 'vsctests', 'zip');
 		const presentPath = path.join(testDir, 'present.txt');
 		const missingPath = path.join(testDir, 'missing.txt');
@@ -80,13 +80,46 @@ suite('Zip', () => {
 		await fs.promises.mkdir(testDir, { recursive: true });
 		await fs.promises.writeFile(presentPath, 'present-contents');
 		await zip(zipPath, [
-			{ path: 'missing.txt', localPath: missingPath, localPathSize: 8 },
+			{ path: 'missing.txt', localPath: missingPath, localPathSize: 8, skipSourceErrors: true },
 			{ path: 'present.txt', localPath: presentPath, localPathSize: 7 },
 		]);
 
 		assert.strictEqual((await buffer(zipPath, 'present.txt')).toString(), 'present');
 		await assert.rejects(buffer(zipPath, 'missing.txt'));
 
+		await Promises.rm(testDir);
+	});
+
+	test('zip should skip an unavailable best-effort source without a size limit', async () => {
+		const testDir = getRandomTestPath(tmpdir(), 'vsctests', 'zip');
+		const presentPath = path.join(testDir, 'present.txt');
+		const missingPath = path.join(testDir, 'missing.txt');
+		const zipPath = path.join(testDir, 'logs.zip');
+		await fs.promises.mkdir(testDir, { recursive: true });
+		await fs.promises.writeFile(presentPath, 'present-contents');
+		await zip(zipPath, [
+			{ path: 'missing.txt', localPath: missingPath, skipSourceErrors: true },
+			{ path: 'present.txt', localPath: presentPath },
+		]);
+
+		assert.strictEqual((await buffer(zipPath, 'present.txt')).toString(), 'present-contents');
+		await assert.rejects(buffer(zipPath, 'missing.txt'));
+
+		await Promises.rm(testDir);
+	});
+
+	test('validateZip enforces entry and expanded-size limits', async () => {
+		const testDir = getRandomTestPath(tmpdir(), 'vsctests', 'zip-validation');
+		const zipPath = path.join(testDir, 'logs.zip');
+		await fs.promises.mkdir(testDir, { recursive: true });
+		await zip(zipPath, [
+			{ path: 'one.txt', contents: '1234' },
+			{ path: 'two.txt', contents: '5678' },
+		]);
+
+		await validateZip(zipPath, { maxEntries: 10 });
+		await assert.rejects(validateZip(zipPath, { maxEntries: 1, maxUncompressedSize: 100 }), /too many entries/);
+		await assert.rejects(validateZip(zipPath, { maxEntries: 10, maxUncompressedSize: 7 }), /expands beyond the allowed size/);
 		await Promises.rm(testDir);
 	});
 });

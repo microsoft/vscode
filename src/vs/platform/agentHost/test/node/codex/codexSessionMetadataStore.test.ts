@@ -8,7 +8,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { CodexSessionMetadataStore } from '../../../node/codex/codexSessionMetadataStore.js';
-import { createSessionDataService, TestSessionDatabase } from '../../common/sessionTestHelpers.js';
+import { createNullSessionDataService, createSessionDataService, TestSessionDatabase } from '../../common/sessionTestHelpers.js';
 
 suite('CodexSessionMetadataStore', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -60,6 +60,36 @@ suite('CodexSessionMetadataStore', () => {
 		assert.strictEqual((await store.read(session)).agent, undefined);
 	});
 
+	test('strict metadata writes propagate failures instead of silently succeeding', async () => {
+		const database = new TestSessionDatabase();
+		database.setMetadata = async () => { throw new Error('write failed'); };
+		const store = new CodexSessionMetadataStore(createSessionDataService(database), new NullLogService());
+		const session = URI.parse('codex:/session');
+		await store.write(session, { cwd: URI.file('/source') });
+		await assert.rejects(store.write(session, { cwd: URI.file('/worktree') }, true), /write failed/);
+	});
+
+	test('metadata read failures remain best-effort', async () => {
+		const database = new TestSessionDatabase();
+		database.getMetadata = async () => { throw new Error('read failed'); };
+		const warnings: string[] = [];
+		const logService = new NullLogService();
+		logService.warn = message => warnings.push(message);
+		const service = createSessionDataService(database);
+		const store = new CodexSessionMetadataStore(service, logService);
+		const session = URI.parse('codex:/session');
+		const failedRead = await store.read(session);
+		service.tryOpenDatabase = async () => { throw new Error('open failed'); };
+		const failedOpen = await store.read(session);
+		assert.deepStrictEqual({ failedRead, failedOpen, warnings }, {
+			failedRead: {}, failedOpen: {},
+			warnings: [
+				'[Codex] metadata read failed for codex:/session: read failed',
+				'[Codex] metadata read failed for codex:/session: open failed',
+			],
+		});
+	});
+
 	test('ignores malformed working directory metadata', async () => {
 		const database = new TestSessionDatabase();
 		await database.setMetadata('codex.cwd', '{"cwd":');
@@ -71,6 +101,19 @@ suite('CodexSessionMetadataStore', () => {
 			cwd: undefined,
 			workingDirectories: undefined,
 		});
+	});
+
+	test('known-session detection ignores absent and empty sidecars', async () => {
+		const session = URI.parse('codex:/known-session');
+		const emptyDatabase = new TestSessionDatabase();
+		const absent = new CodexSessionMetadataStore(createNullSessionDataService(), new NullLogService());
+		const present = new CodexSessionMetadataStore(createSessionDataService(emptyDatabase), new NullLogService());
+
+		const absentResult = await absent.hasKnownSession(session);
+		const emptyResult = await present.hasKnownSession(session);
+		await emptyDatabase.setMetadata('codex.threadId', 'thread');
+
+		assert.deepStrictEqual([absentResult, emptyResult, await present.hasKnownSession(session)], [false, false, true]);
 	});
 
 	test('round trips and clears an explicit managed working directory, independent of cwd', async () => {

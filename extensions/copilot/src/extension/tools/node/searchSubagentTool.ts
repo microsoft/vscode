@@ -28,7 +28,7 @@ import { SearchSubagentToolCallingLoop, isContextOverflowBadRequest } from '../.
 import { ToolName } from '../common/toolNames';
 import { CopilotToolMode, ICopilotTool, ICopilotToolCtor, ToolRegistry } from '../common/toolsRegistry';
 import { stripFinalAnswerTags, updateSubagentInvocation } from './subagentToolUtils';
-import { assertFileOkForTool, isFileExternalAndNeedsConfirmation } from './toolUtils';
+import { assertFileNotContentExcluded, isFileExternalAndNeedsConfirmation } from './toolUtils';
 
 export interface ISearchSubagentParams {
 
@@ -255,42 +255,30 @@ class SearchSubagentTool implements ICopilotTool<ISearchSubagentParams> {
 
 			try {
 				// Enforce read-only file access via shared toolUtils guards before hydrating.
-				await this.instantiationService.invokeFunction(accessor =>
-					assertFileOkForTool(accessor, uri, this._inputContext, { readOnly: true, workingDirectory })
-				);
-				const document = await this.workspaceService.openTextDocument(uri);
-
-				const snapshot = TextDocumentSnapshot.create(document);
-
-				const clampedStartLine = Math.max(1, Math.min(startLine, snapshot.lineCount));
-				const clampedEndLine = Math.max(1, Math.min(endLine, snapshot.lineCount));
-
-				const range = new Range(
-					clampedStartLine - 1, 0,
-					clampedEndLine - 1, Number.MAX_SAFE_INTEGER
+				const { needsConfirmation, realPath } = await this.instantiationService.invokeFunction(
+					accessor => isFileExternalAndNeedsConfirmation(accessor, uri, this._inputContext, { readOnly: true, workingDirectory })
 				);
 
-				const code = snapshot.getText(range);
-				processedLines.push(`File: \`${uri.fsPath}\`, lines ${clampedStartLine}-${clampedEndLine}:\n\`\`\`\n${code}\n\`\`\``);
-			} catch {
-				// Drop the line entirely for files outside the workspace so we don't
-				// disclose the path back to the model. For inside-workspace failures
-				// (e.g. file missing), keep the original line with the error.
-				let isExternal = false;
-				try {
-					isExternal = await this.instantiationService.invokeFunction(accessor =>
-						isFileExternalAndNeedsConfirmation(accessor, uri, this._inputContext, { readOnly: true, workingDirectory })
+				if (!needsConfirmation) {
+					await this.instantiationService.invokeFunction(
+						accessor => assertFileNotContentExcluded(accessor, uri, realPath)
 					);
-				} catch {
-					// isFileExternalAndNeedsConfirmation throws for nonexistent files;
-					// treat that as "not external" so the original line is preserved.
-				}
+					const document = await this.workspaceService.openTextDocument(uri);
+					const snapshot = TextDocumentSnapshot.create(document);
+					const clampedStartLine = Math.max(1, Math.min(startLine, snapshot.lineCount));
+					const clampedEndLine = Math.max(1, Math.min(endLine, snapshot.lineCount));
+					const range = new Range(
+						clampedStartLine - 1, 0,
+						clampedEndLine - 1, Number.MAX_SAFE_INTEGER
+					);
 
-				if (!isExternal) {
-					// If hydration fails (e.g. the captured path didn't resolve because the model's formatting drifted),
-					// keep the original line so the main agent still gets the model's answer instead of a noisy error suffix.
-					processedLines.push(line);
+					const code = snapshot.getText(range);
+					processedLines.push(`File: \`${uri.fsPath}\`, lines ${clampedStartLine}-${clampedEndLine}:\n\`\`\`\n${code}\n\`\`\``);
 				}
+			} catch {
+				// If hydration fails (for example, because the captured path does not exist),
+				// keep the original line so the main agent still gets the model's answer.
+				processedLines.push(line);
 			}
 
 			if (token.isCancellationRequested) {

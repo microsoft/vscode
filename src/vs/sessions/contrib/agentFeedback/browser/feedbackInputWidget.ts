@@ -4,30 +4,47 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/agentFeedbackEditorInput.css';
+import { IContextMenuProvider } from '../../../../base/browser/contextmenu.js';
 import { addStandardDisposableListener, ModifierKeyEmitter } from '../../../../base/browser/dom.js';
 import { status as announceStatus } from '../../../../base/browser/ui/aria/aria.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { ActionWithDropdownActionViewItem } from '../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
 import { Action } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { ResolvedKeybinding } from '../../../../base/common/keybindings.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 
 export interface IFeedbackInputWidgetAction {
 	readonly label: string;
 	readonly icon: ThemeIcon;
 	readonly keybindingLabel: string;
+	readonly menuKeybinding?: ResolvedKeybinding;
 }
 
-export interface IFeedbackInputWidgetOptions {
+export interface IFeedbackInputWidgetAdditionalAction {
+	readonly id: string;
+	readonly label: string;
+	readonly run: () => void | Promise<void>;
+}
+
+interface IFeedbackInputWidgetBaseOptions {
 	readonly placeholder: string;
 	readonly ariaLabel?: string;
 	/** Returns the available content width (e.g. editor content width, or a host container's width) to clamp against. */
 	readonly getMaxContentWidth: () => number;
 	readonly primaryAction: IFeedbackInputWidgetAction;
-	/** When provided, holding Alt swaps the visible action to this one. */
-	readonly secondaryAction?: IFeedbackInputWidgetAction;
 }
+
+export type IFeedbackInputWidgetOptions = IFeedbackInputWidgetBaseOptions & ({
+	readonly secondaryAction?: undefined;
+	readonly contextMenuProvider?: undefined;
+} | {
+	/** When provided, holding Alt swaps the visible action to this one. */
+	readonly secondaryAction: IFeedbackInputWidgetAction;
+	readonly contextMenuProvider: IContextMenuProvider;
+});
 
 /**
  * Reusable auto-sizing textarea + action bar shared by the editor "Add
@@ -53,6 +70,8 @@ export class FeedbackInputWidget extends Disposable {
 	private readonly _actionBar: ActionBar;
 	private readonly _primaryAction: Action;
 	private readonly _secondaryAction: Action | undefined;
+	private readonly _additionalActionsStore = this._register(new DisposableStore());
+	private _additionalActions: readonly Action[] = [];
 	private _isShowingSecondary = false;
 	private _busy = false;
 	private readonly _hasExplicitAriaLabel: boolean;
@@ -116,7 +135,30 @@ export class FeedbackInputWidget extends Disposable {
 			() => { this._onDidTriggerSecondary.fire(); return Promise.resolve(); }
 		)) : undefined;
 
-		this._actionBar = this._register(new ActionBar(actionsContainer));
+		const secondaryAction = this._secondaryAction;
+		const contextMenuProvider = _options.contextMenuProvider;
+		this._actionBar = this._register(new ActionBar(actionsContainer, {
+			actionViewItemProvider: secondaryAction && contextMenuProvider ? (action, options) => new ActionWithDropdownActionViewItem(
+				null,
+				action,
+				{
+					...options,
+					menuActionsOrProvider: {
+						getActions: () => [this._primaryAction, secondaryAction, ...this._additionalActions],
+					},
+					keybindingProvider: menuAction => {
+						if (menuAction === this._primaryAction) {
+							return _options.primaryAction.menuKeybinding;
+						}
+						if (menuAction === secondaryAction) {
+							return _options.secondaryAction?.menuKeybinding;
+						}
+						return undefined;
+					},
+				},
+				contextMenuProvider
+			) : undefined,
+		}));
 		this._actionBar.push(this._primaryAction, { icon: true, label: false, keybinding: _options.primaryAction.keybindingLabel });
 
 		if (this._secondaryAction) {
@@ -137,13 +179,15 @@ export class FeedbackInputWidget extends Disposable {
 	}
 
 	private _updateActionForAlt(altKey: boolean): void {
-		if (!this._secondaryAction) {
+		const secondaryAction = this._secondaryAction;
+		const secondaryActionOptions = this._options.secondaryAction;
+		if (!secondaryAction || !secondaryActionOptions) {
 			return;
 		}
 		if (altKey && !this._isShowingSecondary) {
 			this._isShowingSecondary = true;
 			this._actionBar.clear();
-			this._actionBar.push(this._secondaryAction, { icon: true, label: false, keybinding: this._options.secondaryAction!.keybindingLabel });
+			this._actionBar.push(secondaryAction, { icon: true, label: false, keybinding: secondaryActionOptions.keybindingLabel });
 		} else if (!altKey && this._isShowingSecondary) {
 			this._isShowingSecondary = false;
 			this._actionBar.clear();
@@ -181,6 +225,28 @@ export class FeedbackInputWidget extends Disposable {
 		this._primaryAction.enabled = hasText;
 		if (this._secondaryAction) {
 			this._secondaryAction.enabled = hasText;
+		}
+		for (const action of this._additionalActions) {
+			action.enabled = hasText;
+		}
+	}
+
+	setAdditionalActions(actions: readonly IFeedbackInputWidgetAdditionalAction[]): void {
+		this._additionalActionsStore.clear();
+		this._additionalActions = actions.map(action => this._additionalActionsStore.add(new Action(
+			action.id,
+			action.label,
+			undefined,
+			false,
+			action.run,
+		)));
+		this.updateActionEnabled();
+	}
+
+	setActionLabels(primaryLabel: string, secondaryLabel?: string): void {
+		this._primaryAction.label = primaryLabel;
+		if (this._secondaryAction && secondaryLabel) {
+			this._secondaryAction.label = secondaryLabel;
 		}
 	}
 

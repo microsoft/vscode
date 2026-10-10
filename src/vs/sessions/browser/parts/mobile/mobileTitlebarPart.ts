@@ -18,8 +18,9 @@ import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/a
 import { IMenuService } from '../../../../platform/actions/common/actions.js';
 import { fillInActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
-import { IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
+import { ACCOUNTS_AVATAR_SETTING, IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
 import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
 import { ISessionFileChange } from '../../../services/sessions/common/session.js';
 import { IsNewChatSessionContext } from '../../../common/contextkeys.js';
@@ -29,6 +30,7 @@ import { ChatEntitlement, ChatEntitlementService, IChatEntitlementService } from
 import { getAccountTitleBarState, getAccountProfileImageUrl, getAccountTitleBarBadgeKey, resolveAccountInfo } from '../../accountTitleBarState.js';
 import { IChatDashboardService } from '../../chatDashboardService.js';
 import { MOBILE_OPEN_CHANGES_VIEW_COMMAND_ID } from './contributions/mobileChangesView.js';
+import { URI } from '../../../../base/common/uri.js';
 
 /**
  * Mobile titlebar — prepended above the workbench grid on phone viewports
@@ -64,6 +66,7 @@ export class MobileTitlebarPart extends Disposable {
 
 	private readonly sessionTitleElement: HTMLElement;
 	private readonly actionsContainer: HTMLElement;
+	private readonly centerToolbar: MenuWorkbenchToolBar;
 
 	private readonly _onDidClickHamburger = this._register(new Emitter<void>());
 	readonly onDidClickHamburger: Event<void> = this._onDidClickHamburger.event;
@@ -82,6 +85,7 @@ export class MobileTitlebarPart extends Disposable {
 	private accountName: string | undefined;
 	private accountProviderId: string | undefined;
 	private accountProviderLabel: string | undefined;
+	private accountIcon: URI | undefined;
 	private isAccountLoading = true;
 	private accountRequestCounter = 0;
 	private avatarRequestCounter = 0;
@@ -109,6 +113,7 @@ export class MobileTitlebarPart extends Disposable {
 		@IMenuService private readonly menuService: IMenuService,
 		@IChatDashboardService private readonly chatDashboardService: IChatDashboardService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -195,6 +200,11 @@ export class MobileTitlebarPart extends Disposable {
 		this._register(this.chatEntitlementService.onDidChangeSentiment(() => this.renderAccountState()));
 		this._register(this.chatEntitlementService.onDidChangeQuotaExceeded(() => this.renderAccountState()));
 		this._register(this.chatEntitlementService.onDidChangeQuotaRemaining(() => this.renderAccountState()));
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ACCOUNTS_AVATAR_SETTING)) {
+				this.refreshAvatar();
+			}
+		}));
 		this.refreshAccount();
 
 		// Keep the title in sync with the active session
@@ -204,7 +214,7 @@ export class MobileTitlebarPart extends Disposable {
 			this.sessionTitleElement.textContent = title || localize('mobileTopBar.newSession', "New Session");
 		}));
 
-		// Keep the changes pill in sync with the active session's changes.
+		// Keep the changes pill in sync with the active chat's changes.
 		// Hidden when there are no changes (counts are zero and list is empty).
 		const isNewChatRef = { value: !!IsNewChatSessionContext.getValue(contextKeyService) };
 		const renderChangesPill = () => {
@@ -237,7 +247,7 @@ export class MobileTitlebarPart extends Disposable {
 		};
 		this._register(autorun(reader => {
 			const session = this.sessionsService.activeSession.read(reader);
-			this.latestChanges = session?.changes.read(reader) ?? [];
+			this.latestChanges = session?.activeChat.read(reader).changes.read(reader) ?? [];
 			renderChangesPill();
 		}));
 
@@ -247,6 +257,7 @@ export class MobileTitlebarPart extends Disposable {
 			telemetrySource: 'mobileTitlebar.center',
 			toolbarOptions: { primaryGroup: () => true },
 		}));
+		this.centerToolbar = toolbar;
 
 		// Switch between title and toolbar based on whether a new (empty)
 		// chat session is active AND whether the toolbar has anything to
@@ -277,6 +288,14 @@ export class MobileTitlebarPart extends Disposable {
 			}
 		}));
 		this._register(toolbar.onDidChangeMenuItems(() => updateCenterMode()));
+	}
+
+	focus(): void {
+		if (this.element.classList.contains('show-actions')) {
+			this.centerToolbar.focus();
+		} else {
+			this.sessionTitleElement.focus();
+		}
 	}
 
 	/**
@@ -322,6 +341,7 @@ export class MobileTitlebarPart extends Disposable {
 		this.accountName = info?.accountName;
 		this.accountProviderId = info?.accountProviderId;
 		this.accountProviderLabel = info?.accountProviderLabel;
+		this.accountIcon = info?.accountIcon;
 		this.isAccountLoading = false;
 		this.refreshAvatar();
 		this.renderAccountState();
@@ -378,7 +398,9 @@ export class MobileTitlebarPart extends Disposable {
 	}
 
 	private refreshAvatar(): void {
-		const avatarUrl = getAccountProfileImageUrl(this.accountProviderId, this.accountName);
+		const avatarUrl = this.configurationService.getValue<boolean>(ACCOUNTS_AVATAR_SETTING)
+			? getAccountProfileImageUrl(this.accountProviderId, this.accountName, this.accountIcon)
+			: undefined;
 		if (avatarUrl === this.currentAvatarUrl) {
 			return;
 		}

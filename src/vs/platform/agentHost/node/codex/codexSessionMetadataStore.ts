@@ -7,6 +7,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../log/common/log.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import type { AgentSelection } from '../../common/state/protocol/state.js';
+import { AH_META_WORKSPACELESS_DB_KEY } from '../../common/state/sessionState.js';
 
 /**
  * Per-session bookkeeping codex needs to persist across agent host
@@ -87,13 +88,36 @@ export class CodexSessionMetadataStore {
 		@ILogService private readonly _logService: ILogService,
 	) { }
 
+	async hasKnownSession(session: URI): Promise<boolean> {
+		const ref = await this._sessionDataService.tryOpenDatabase(session);
+		if (!ref) {
+			return false;
+		}
+		try {
+			const metadata = await ref.object.getMetadataObject({
+				[AH_META_WORKSPACELESS_DB_KEY]: true,
+				'codex.external': true,
+				[CodexSessionMetadataStore.KEY_THREAD_ID]: true,
+				[CodexSessionMetadataStore.KEY_CWD]: true,
+				[CodexSessionMetadataStore.KEY_MODEL]: true,
+				[CodexSessionMetadataStore.KEY_AGENT]: true,
+				[CodexSessionMetadataStore.KEY_OWNS_MANAGED_WORKING_DIRECTORY]: true,
+				[CodexSessionMetadataStore.KEY_MANAGED_WORKING_DIRECTORY]: true,
+			});
+			return Object.values(metadata).some(value => value !== undefined);
+		} finally {
+			ref.dispose();
+		}
+	}
+
 	/**
 	 * Persist the supplied overlay fields. Only-write-on-defined.
 	 * Best-effort: failures are logged and swallowed because the caller
 	 * has already committed in-memory state and a corrupt DB shouldn't
-	 * abort the current turn.
+	 * abort the current turn. With `strict`, failures propagate instead
+	 * because a workspace transition depends on the durable state.
 	 */
-	async write(session: URI, fields: ICodexSessionOverlayUpdate): Promise<void> {
+	async write(session: URI, fields: ICodexSessionOverlayUpdate, strict = false): Promise<void> {
 		try {
 			const ref = this._sessionDataService.openDatabase(session);
 			const db = ref.object;
@@ -134,6 +158,9 @@ export class CodexSessionMetadataStore {
 				ref.dispose();
 			}
 		} catch (err) {
+			if (strict) {
+				throw err;
+			}
 			this._logService.warn(`[Codex] metadata write failed for ${session.toString()}: ${err instanceof Error ? err.message : String(err)}`);
 		}
 	}
@@ -175,6 +202,7 @@ export class CodexSessionMetadataStore {
 			} finally {
 				ref.dispose();
 			}
+
 		} catch (err) {
 			this._logService.warn(`[Codex] metadata read failed for ${session.toString()}: ${err instanceof Error ? err.message : String(err)}`);
 			return {};

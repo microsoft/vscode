@@ -1,0 +1,60 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "SUMMARY_READY".
+    response:
+      content: SUMMARY_READY
+      stopReason: end_turn
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "SUMMARY_READY".
+        - role: assistant
+          content: SUMMARY_READY
+        - role: user
+          content: Call get_session_context exactly once with session "codex:/${uuid_0}" and detail "summary", then reply exactly "read".
+    response:
+      content:
+        - type: text
+          text: Got it — I’ll fetch that session summary once now.
+        - type: tool_use
+          id: toolcall_0
+          name: get_session_context
+          input:
+            session: codex:/${uuid_0}
+            detail: summary
+      stopReason: tool_use
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "SUMMARY_READY".
+        - role: assistant
+          content: SUMMARY_READY
+        - role: user
+          content: Call get_session_context exactly once with session "codex:/${uuid_0}" and detail "summary", then reply exactly "read".
+        - role: assistant
+          content: Got it — I’ll fetch that session summary once now.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: get_session_context
+              input:
+                session: codex:/${uuid_0}
+                detail: summary
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: '{"session":"codex:/${uuid_0}","openLink":"agent-host-session://codex/${uuid_0}","detail":"summary","transcript":[{"turn":1,"state":"complete","user":"Reply exactly \"SUMMARY_READY\".","assistant":"SUMMARY_READY"},{"turn":2,"state":"inProgress","user":"Call get_session_context exactly once with session \"codex:/${uuid_0}\" and detail \"summary\", then reply exactly \"read\".","assistant":"Got it — I’ll fetch that session summary once now."}],"hasMoreHistory":false,"truncated":false}'
+    response:
+      content: read
+      stopReason: end_turn

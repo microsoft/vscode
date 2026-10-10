@@ -1,6 +1,6 @@
 ---
 name: troubleshoot
-description: Investigate unexpected behavior in the current Copilot CLI agent session by analyzing its event log. Use when the user asks why something happened, why a request was slow, why a tool was or was not used, or why instructions/skills/agents did not load.
+description: Investigate unexpected behavior in the current Copilot agent session by analyzing its event log. Use when the user asks why something happened, why a request was slow, why a tool was or was not used, or why instructions/skills/agents did not load.
 ---
 <!-- Customize this skill and select save to override its behavior. Delete that copy to restore the built-in behavior. -->
 
@@ -8,7 +8,7 @@ description: Investigate unexpected behavior in the current Copilot CLI agent se
 
 ## Purpose
 
-This skill investigates and explains unexpected agent behavior in the **current Copilot CLI agent session** using its on-disk event log.
+This skill investigates and explains unexpected agent behavior in the **current Copilot agent session** using its on-disk event log.
 
 Use this skill for questions like:
 - Why did this request take so long?
@@ -26,7 +26,7 @@ The skill runs **inside** the session's agent, so the log is on the same machine
 1. **If a `Session log:` path is provided with this message, use it.** It may point to a session **other than** the current one (via `#session`) and may be **comma-separated paths** — investigate all of them and compare.
 2. **Sticky reference:** if no path is on the *current* message but an earlier turn in **this conversation** already established a target (a `Session log:` path, or a `#session:` reference), keep analyzing **that same session** for the follow-up. Do **not** fall back to self-discovery here — the newest log is the *current* session, which is the wrong one. Switch only if the user references a new session.
 3. **Otherwise, self-discover it:** pick the **most recently modified** `events.jsonl` under `${XDG_STATE_HOME:-$HOME}/.copilot/session-state/<sessionId>/` — this skill is appending to the current session's log, so it's reliably newest. Honor `XDG_STATE_HOME`, else `$HOME`.
-4. **If none exists** there, this isn't a Copilot CLI session — tell the user the skill supports Copilot CLI sessions only, and stop.
+4. **If none exists** there, this isn't a Copilot session — tell the user the skill supports Copilot sessions only, and stop.
 
 ## Data Source — `events.jsonl`
 
@@ -175,4 +175,4 @@ Cover **what happened and why** (root cause), **key evidence** (paraphrased — 
 
 - Base every claim on log evidence — never assume causality.
 - Search via `run_in_terminal`; never `grep_search`, and never `read_file` a whole (possibly huge) log — narrow first, then read small ranges.
-- If no Copilot CLI session log exists, say so and stop.
+- If no Copilot session log exists, say so and stop.

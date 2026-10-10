@@ -19,6 +19,7 @@
  */
 
 const http: typeof import('http') = require('http');
+const https: typeof import('https') = require('https');
 const path: typeof import('path') = require('path');
 const { EventEmitter }: typeof import('events') = require('events');
 
@@ -57,13 +58,20 @@ interface StreamChunk {
 	delayMs: number;
 }
 
+type ScenarioToolCallArguments = Record<string, any> | ((request: readonly any[]) => Record<string, any>);
+
+interface ScenarioToolCall {
+	toolNamePattern: RegExp;
+	arguments: ScenarioToolCallArguments;
+}
+
 /**
  * A single turn in a multi-turn scenario.
  */
 type ScenarioTurn =
 	| {
 		kind: 'tool-calls';
-		toolCalls: Array<{ toolNamePattern: RegExp; arguments: Record<string, any> }>;
+		toolCalls: ScenarioToolCall[];
 	}
 	| {
 		kind: 'content';
@@ -91,7 +99,7 @@ type ScenarioTurn =
 type ModelScenarioTurn =
 	| {
 		kind: 'tool-calls';
-		toolCalls: Array<{ toolNamePattern: RegExp; arguments: Record<string, any> }>;
+		toolCalls: ScenarioToolCall[];
 	}
 	| {
 		kind: 'content';
@@ -639,7 +647,7 @@ function makeThinkingIdChunk(cotId: string) {
 
 // -- Request handler ---------------------------------------------------------
 
-function handleRequest(req: import('http').IncomingMessage, res: import('http').ServerResponse): void {
+function handleRequest(req: import('http').IncomingMessage, res: import('http').ServerResponse, protocol: 'http' | 'https'): void {
 	const contentLength = req.headers['content-length'] || '0';
 	const ts = new Date().toISOString().slice(11, -1); // HH:MM:SS.mmm
 	_log(`[mock-llm] ${ts} ${req.method} ${req.url} (${contentLength} bytes)`);
@@ -650,7 +658,7 @@ function handleRequest(req: import('http').IncomingMessage, res: import('http').
 	res.setHeader('Access-Control-Allow-Headers', '*');
 	if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
 
-	const reqUrl = new URL(req.url || '/', `http://${req.headers.host}`);
+	const reqUrl = new URL(req.url || '/', `${protocol}://${req.headers.host}`);
 	const path = reqUrl.pathname;
 	const json = (status: number, data: any) => {
 		res.writeHead(status, { 'Content-Type': 'application/json' });
@@ -677,8 +685,8 @@ function handleRequest(req: import('http').IncomingMessage, res: import('http').
 				individual: true,
 				copilot_plan: 'free',
 				endpoints: {
-					api: `http://${req.headers.host}`,
-					proxy: `http://${req.headers.host}`,
+					api: reqUrl.origin,
+					proxy: reqUrl.origin,
 				},
 			});
 		} else {
@@ -997,7 +1005,7 @@ async function handleChatCompletions(body: string, res: import('http').ServerRes
 		_log(`[mock-llm]   ${ts} → multi-turn scenario ${scenarioId}, model turn ${turnIndex + 1}/${modelTurnCount} (${turn.kind}), ${countCompletedModelTurns(messages)} completed turns in history`);
 
 		if (turn.kind === 'tool-calls') {
-			await streamToolCalls(res, turn.toolCalls, requestToolNames, scenarioId);
+			await streamToolCalls(res, turn.toolCalls, requestToolNames, scenarioId, messages);
 			return;
 		}
 
@@ -1096,8 +1104,11 @@ async function handleResponsesApi(body: string, res: import('http').ServerRespon
 	let isScenarioRequest = false;
 	let requestToolNames: string[] = [];
 	let input: any[] = [];
+	let streaming = true;
 	try {
 		const parsed = JSON.parse(body);
+		// Resumed turns omit `stream` and expect the Responses API's default non-streaming JSON payload.
+		streaming = parsed.stream === true;
 		// Responses API uses `input` array and `tools` array
 		input = parsed.input || [];
 		const tools = parsed.tools || [];
@@ -1112,7 +1123,9 @@ async function handleResponsesApi(body: string, res: import('http').ServerRespon
 				: Array.isArray(item.content)
 					? item.content.map((c: any) => c.text || '').join('')
 					: '';
-			const match = content.match(/\[scenario:([^\]]+)\]/);
+			// Codex reviews can include the earlier conversation and the planned
+			// action in one message. The final tag selects the current review.
+			const match = [...content.matchAll(/\[scenario:([^\]]+)\]/g)].at(-1);
 			if (match && SCENARIOS[match[1]]) {
 				scenarioId = match[1];
 				isScenarioRequest = true;
@@ -1125,6 +1138,11 @@ async function handleResponsesApi(body: string, res: import('http').ServerRespon
 	} catch { }
 
 	const scenario = SCENARIOS[scenarioId] || SCENARIOS[DEFAULT_SCENARIO];
+
+	if (!streaming) {
+		await sendResponsesNonStreaming(res, scenario, input, requestToolNames, scenarioId, isScenarioRequest);
+		return;
+	}
 
 	res.writeHead(200, {
 		'Content-Type': 'text/event-stream',
@@ -1143,7 +1161,7 @@ async function handleResponsesApi(body: string, res: import('http').ServerRespon
 		_log(`[mock-llm]   ${ts} → responses-api multi-turn ${scenarioId}, model turn ${turnIndex + 1}/${modelTurnCount} (${turn.kind})`);
 
 		if (turn.kind === 'tool-calls') {
-			await streamResponsesApiToolCalls(res, turn.toolCalls, requestToolNames, scenarioId, isScenarioRequest);
+			await streamResponsesApiToolCalls(res, turn.toolCalls, requestToolNames, scenarioId, isScenarioRequest, input);
 			return;
 		}
 
@@ -1171,6 +1189,100 @@ async function handleResponsesApi(body: string, res: import('http').ServerRespon
 		: scenario as StreamChunk[];
 
 	await streamResponsesContent(res, chunks, isScenarioRequest);
+}
+
+/** Emits a non-streaming Responses API payload for resumed turns. */
+async function sendResponsesNonStreaming(
+	res: import('http').ServerResponse,
+	scenario: StreamChunk[] | MultiTurnScenario,
+	input: any[],
+	requestToolNames: string[],
+	scenarioId: string,
+	isScenarioRequest: boolean
+): Promise<void> {
+	const responseId = `resp_mock_${Date.now()}`;
+	const model = 'gpt-5.3-codex';
+	let output: any[];
+	let outputTokens: number;
+
+	if (isMultiTurnScenario(scenario) && requestToolNames.length > 0) {
+		const { turn } = resolveCurrentResponsesApiTurn(scenario.turns, input);
+
+		if (turn.kind === 'tool-calls') {
+			output = turn.toolCalls.map((call, i) => {
+				let toolName = requestToolNames.find(name => call.toolNamePattern.test(name));
+				if (!toolName) {
+					toolName = call.toolNamePattern.source.replace(/[\\.|?*+^${}()\[\]]/g, '');
+				}
+				const callId = `call_${scenarioId}_${i}_${Date.now()}`;
+				const argsJson = JSON.stringify(resolveScenarioToolCallArguments(call.arguments, input));
+				return {
+					id: `fc_${callId}`,
+					type: 'function_call',
+					status: 'completed',
+					call_id: callId,
+					name: toolName,
+					arguments: argsJson,
+				};
+			});
+			outputTokens = 1;
+		} else {
+			let text: string;
+			if (turn.kind === 'echo-last-message') {
+				const lastItem = input[input.length - 1];
+				text = '```json\n' + JSON.stringify(lastItem ?? null, null, 2) + '\n```';
+			} else if (turn.kind === 'echo-last-tool-result') {
+				text = '```json\n' + JSON.stringify(findLastToolResult(input) ?? null, null, 2) + '\n```';
+			} else {
+				text = turn.chunks.map(chunk => chunk.content).join('');
+			}
+			output = [{
+				id: `msg_mock_${Date.now()}`,
+				type: 'message',
+				role: 'assistant',
+				status: 'completed',
+				content: [{ type: 'output_text', text }],
+			}];
+			outputTokens = Math.max(1, Math.ceil(text.length / 4));
+		}
+	} else {
+		const chunks = isMultiTurnScenario(scenario)
+			? getFirstContentTurn(scenario)
+			: scenario as StreamChunk[];
+		const text = chunks.map(chunk => chunk.content).join('');
+		output = [{
+			id: `msg_mock_${Date.now()}`,
+			type: 'message',
+			role: 'assistant',
+			status: 'completed',
+			content: [{ type: 'output_text', text }],
+		}];
+		outputTokens = Math.max(1, Math.ceil(text.length / 4));
+	}
+
+	res.writeHead(200, {
+		'Content-Type': 'application/json',
+		'X-Request-Id': 'perf-benchmark-' + Date.now(),
+	});
+	res.end(JSON.stringify({
+		id: responseId,
+		object: 'response',
+		created_at: Math.floor(Date.now() / 1000),
+		model,
+		status: 'completed',
+		output,
+		usage: {
+			input_tokens: 100,
+			output_tokens: outputTokens,
+			total_tokens: 100 + outputTokens,
+			input_tokens_details: { cached_tokens: 0 },
+			output_tokens_details: { reasoning_tokens: 0 },
+		},
+	}));
+
+	if (isScenarioRequest) {
+		serverEvents.emit('scenarioCompletion');
+	}
 }
 
 /**
@@ -1229,10 +1341,11 @@ function resolveCurrentResponsesApiTurn(turns: ScenarioTurn[], input: any[]): { 
  */
 async function streamResponsesApiToolCalls(
 	res: import('http').ServerResponse,
-	toolCalls: Array<{ toolNamePattern: RegExp; arguments: Record<string, any> }>,
+	toolCalls: ScenarioToolCall[],
 	requestToolNames: string[],
 	scenarioId: string,
-	isScenarioRequest: boolean
+	isScenarioRequest: boolean,
+	request: readonly any[]
 ): Promise<void> {
 	const responseId = `resp_mock_${Date.now()}`;
 	const model = 'gpt-5.3-codex';
@@ -1273,7 +1386,7 @@ async function streamResponsesApiToolCalls(
 
 		const callId = `call_${scenarioId}_${i}_${Date.now()}`;
 		const itemId = `fc_${callId}`;
-		const argsJson = JSON.stringify(call.arguments);
+		const argsJson = JSON.stringify(resolveScenarioToolCallArguments(call.arguments, request));
 
 		const item = {
 			id: itemId,
@@ -1636,7 +1749,7 @@ async function handleMessagesApi(body: string, res: import('http').ServerRespons
 		_log(`[mock-llm]   ${ts} → messages-api multi-turn ${scenarioId}, model turn ${turnIndex + 1}/${modelTurnCount} (${turn.kind})`);
 
 		if (turn.kind === 'tool-calls') {
-			await streamAnthropicToolCalls(res, turn.toolCalls, requestToolNames, scenarioId, isScenarioRequest);
+			await streamAnthropicToolCalls(res, turn.toolCalls, requestToolNames, scenarioId, isScenarioRequest, messages);
 			return;
 		}
 
@@ -1673,10 +1786,11 @@ async function handleMessagesApi(body: string, res: import('http').ServerRespons
  */
 async function streamAnthropicToolCalls(
 	res: import('http').ServerResponse,
-	toolCalls: Array<{ toolNamePattern: RegExp; arguments: Record<string, any> }>,
+	toolCalls: ScenarioToolCall[],
 	requestToolNames: string[],
 	scenarioId: string,
-	isScenarioRequest: boolean
+	isScenarioRequest: boolean,
+	request: readonly any[]
 ): Promise<void> {
 	const messageId = `msg_mock_${Date.now()}`;
 	const model = 'claude-sonnet-4.5';
@@ -1708,7 +1822,7 @@ async function streamAnthropicToolCalls(
 			content_block: { type: 'tool_use', id: callId, name: toolName, input: {} },
 		});
 
-		const argsJson = JSON.stringify(call.arguments);
+		const argsJson = JSON.stringify(resolveScenarioToolCallArguments(call.arguments, request));
 		const fragmentSize = Math.max(20, Math.ceil(argsJson.length / 4));
 		for (let pos = 0; pos < argsJson.length; pos += fragmentSize) {
 			const fragment = argsJson.slice(pos, pos + fragmentSize);
@@ -1778,9 +1892,10 @@ async function streamThinkingThenContent(
  */
 async function streamToolCalls(
 	res: import('http').ServerResponse,
-	toolCalls: Array<{ toolNamePattern: RegExp; arguments: Record<string, any> }>,
+	toolCalls: ScenarioToolCall[],
 	requestToolNames: string[],
-	scenarioId: string
+	scenarioId: string,
+	request: readonly any[]
 ): Promise<void> {
 	res.write(`data: ${JSON.stringify(makeToolCallInitialChunk())}\n\n`);
 
@@ -1799,7 +1914,7 @@ async function streamToolCalls(
 		res.write(`data: ${JSON.stringify(makeToolCallStartChunk(i, callId, toolName))}\n\n`);
 		await sleep(10);
 
-		const argsJson = JSON.stringify(call.arguments);
+		const argsJson = JSON.stringify(resolveScenarioToolCallArguments(call.arguments, request));
 		const fragmentSize = Math.max(20, Math.ceil(argsJson.length / 4));
 		for (let pos = 0; pos < argsJson.length; pos += fragmentSize) {
 			const fragment = argsJson.slice(pos, pos + fragmentSize);
@@ -1811,6 +1926,10 @@ async function streamToolCalls(
 	res.write(`data: ${JSON.stringify(makeToolCallFinishChunk())}\n\n`);
 	res.write('data: [DONE]\n\n');
 	res.end();
+}
+
+function resolveScenarioToolCallArguments(argumentsOrResolver: ScenarioToolCallArguments, request: readonly any[]): Record<string, any> {
+	return typeof argumentsOrResolver === 'function' ? argumentsOrResolver(request) : argumentsOrResolver;
 }
 
 interface MockLlmServerHandle {
@@ -1851,6 +1970,9 @@ interface CapturedRequest {
 interface StartServerOptions {
 	logger?: (msg: string) => void;
 	verbose?: boolean;
+	/** Address to listen on. Defaults to loopback. */
+	host?: string;
+	tls?: { cert: string; key: string };
 	/** Reject requests that do not carry this exact header. */
 	requiredRequestHeader?: {
 		name: string;
@@ -1888,7 +2010,6 @@ function _startServer(port = 0, options?: StartServerOptions): Promise<MockLlmSe
 			completions++;
 			completionWaiters = completionWaiters.filter(fn => !fn());
 		};
-		serverEvents.on('scenarioCompletion', onCompletion);
 
 		// Accumulate the parsed bodies of chat requests so tests can assert what
 		// the client forwarded (see MockLlmServerHandle.getRequests). Off by default
@@ -1905,11 +2026,7 @@ function _startServer(port = 0, options?: StartServerOptions): Promise<MockLlmSe
 			}
 			capturedRequests.push({ path: info.path, method: info.method, body: parsed });
 		};
-		if (captureRequests) {
-			serverEvents.on('capturedRequest', onCapturedRequest);
-		}
-
-		const server = http.createServer((req, res) => {
+		const listener: import('http').RequestListener = (req, res) => {
 			const requiredRequestHeader = options?.requiredRequestHeader;
 			const requestHost = req.headers.host?.replace(/:\d+$/, '').toLowerCase();
 			const isTrustedProxy = options?.trustedRequestHost && requestHost === options.trustedRequestHost;
@@ -1920,12 +2037,17 @@ function _startServer(port = 0, options?: StartServerOptions): Promise<MockLlmSe
 			}
 			reqCount++;
 			requestWaiters = requestWaiters.filter(fn => !fn());
-			handleRequest(req, res);
-		});
-		server.listen(port, '127.0.0.1', () => {
+			handleRequest(req, res, options?.tls ? 'https' : 'http');
+		};
+		const server = options?.tls ? https.createServer(options.tls, listener) : http.createServer(listener);
+		serverEvents.on('scenarioCompletion', onCompletion);
+		if (captureRequests) {
+			serverEvents.on('capturedRequest', onCapturedRequest);
+		}
+		server.listen(port, options?.host ?? '127.0.0.1', () => {
 			const addr = server.address();
 			const actualPort = typeof addr === 'object' && addr ? addr.port : port;
-			const url = `http://127.0.0.1:${actualPort}`;
+			const url = `${options?.tls ? 'https' : 'http'}://127.0.0.1:${actualPort}`;
 			resolve({
 				port: actualPort,
 				url,

@@ -203,6 +203,11 @@ declare module 'vscode' {
 		readonly label: string;
 		/** Source of the customization folder. */
 		readonly source: ChatSessionCustomizationSource;
+		/**
+		 * Opaque identity shared by source folders that belong to the same
+		 * customization destination.
+		 */
+		readonly destinationGroupId?: string;
 	}
 
 	// #endregion

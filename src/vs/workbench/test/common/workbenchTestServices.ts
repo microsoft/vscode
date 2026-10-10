@@ -7,6 +7,7 @@ import { DeferredPromise, timeout } from '../../../base/common/async.js';
 import { bufferToStream, readableToBuffer, VSBuffer, VSBufferReadable } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../base/common/event.js';
+import { IMarkdownString } from '../../../base/common/htmlContent.js';
 import { Iterable } from '../../../base/common/iterator.js';
 import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../base/common/map.js';
@@ -14,7 +15,7 @@ import { Schemas } from '../../../base/common/network.js';
 import { observableValue } from '../../../base/common/observable.js';
 import { join } from '../../../base/common/path.js';
 import { isLinux, isMacintosh } from '../../../base/common/platform.js';
-import { basename, isEqual, isEqualOrParent } from '../../../base/common/resources.js';
+import { basename, isEqual, isEqualAuthority, isEqualOrParent } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { ITextResourcePropertiesService } from '../../../editor/common/services/textResourceConfiguration.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
@@ -353,7 +354,7 @@ export const NullFilesConfigurationService = new class implements IFilesConfigur
 	enableAutoSaveAfterShortDelay(resourceOrEditor: URI | EditorInput): IDisposable { throw new Error('Method not implemented.'); }
 	disableAutoSave(resourceOrEditor: URI | EditorInput): IDisposable { throw new Error('Method not implemented.'); }
 	isReadonly(resource: URI, stat?: IBaseFileStat | undefined): boolean { return false; }
-	async updateReadonly(_resource: URI | URI[], _readonly: boolean | 'toggle' | 'reset'): Promise<void> { }
+	async updateReadonly(_resource: URI | URI[], _readonly: boolean | IMarkdownString | 'toggle' | 'reset'): Promise<void> { }
 	preventSaveConflicts(resource: URI, language?: string | undefined): boolean { throw new Error('Method not implemented.'); }
 };
 
@@ -369,6 +370,7 @@ export class TestWorkspaceTrustEnablementService implements IWorkspaceTrustEnabl
 
 export class TestWorkspaceTrustManagementService extends Disposable implements IWorkspaceTrustManagementService {
 	_serviceBrand: undefined;
+	private readonly trustedAuthorities = new Set<{ readonly scheme: string; readonly authority: string }>();
 
 	private _onDidChangeTrust = this._register(new Emitter<boolean>());
 	onDidChangeTrust = this._onDidChangeTrust.event;
@@ -408,7 +410,14 @@ export class TestWorkspaceTrustManagementService extends Disposable implements I
 	}
 
 	getUriTrustInfo(uri: URI): Promise<IWorkspaceTrustUriInfo> {
-		return Promise.resolve({ trusted: this.trustedUris.has(uri), uri });
+		const authorityTrusted = Array.from(this.trustedAuthorities).some(entry => entry.scheme === uri.scheme && isEqualAuthority(entry.authority, uri.authority));
+		return Promise.resolve({ trusted: authorityTrusted || this.trustedUris.has(uri), uri });
+	}
+
+	registerTrustedAuthority(scheme: string, authority: string): IDisposable {
+		const entry = { scheme, authority };
+		this.trustedAuthorities.add(entry);
+		return toDisposable(() => this.trustedAuthorities.delete(entry));
 	}
 
 	async setTrustedUris(folders: URI[]): Promise<void> {

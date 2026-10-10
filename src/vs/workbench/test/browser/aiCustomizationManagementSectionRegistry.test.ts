@@ -37,4 +37,8 @@ suite('AI Customization Management Section Registry', () => {
 
 		registrations.dispose();
 	});
+
+	test('keeps pet achievements outside AI Customizations', () => {
+		assert.strictEqual(new Set<string>(Object.values(AICustomizationManagementSection)).has('achievements'), false);
+	});
 });

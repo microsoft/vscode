@@ -132,3 +132,10 @@ export function isAutoModel(endpoint: IChatEndpoint | undefined): number {
 	}
 	return (endpoint.model === AutoChatEndpoint.pseudoModelId || endpoint instanceof AutoChatEndpoint) ? 1 : -1;
 }
+
+/** Kept in sync with the workbench copy in `chatAutoModeExplainability.ts`. */
+const HIDE_AUTO_EXPLAINABILITY_TREATMENT = 'copilotchat.hideAutoExplainability';
+
+export function isAutoExplainabilityHidden(expService: IExperimentationService): boolean {
+	return expService.getTreatmentVariable<boolean>(HIDE_AUTO_EXPLAINABILITY_TREATMENT) === true;
+}

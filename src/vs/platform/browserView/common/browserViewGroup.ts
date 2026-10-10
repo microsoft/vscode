@@ -5,18 +5,11 @@
 
 import { Event } from '../../../base/common/event.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
-import { IBrowserViewOwner } from './browserView.js';
+import { IBrowserViewAudience, IBrowserViewCreationContext, IBrowserViewOwner, matchesBrowserViewAudience } from './browserView.js';
 import { CDPEvent, CDPRequest, CDPResponse } from './cdp/types.js';
+import { ISandboxNetworkRestrictions } from '../../sandbox/common/sandboxSettingsResolutionHelper.js';
 
 export const ipcBrowserViewGroupChannelName = 'browserViewGroup';
-
-/**
- * Fired when a browser view is added to or removed from a group.
- */
-export interface IBrowserViewGroupViewEvent {
-	/** The ID of the browser view that was added or removed. */
-	readonly viewId: string;
-}
 
 /**
  * A browser view group - an isolated collection of browser views.
@@ -26,14 +19,31 @@ export interface IBrowserViewGroupViewEvent {
 export interface IBrowserViewGroup extends IDisposable {
 	readonly id: string;
 
-	readonly onDidAddView: Event<IBrowserViewGroupViewEvent>;
-	readonly onDidRemoveView: Event<IBrowserViewGroupViewEvent>;
 	readonly onDidDestroy: Event<void>;
 	readonly onCDPMessage: Event<CDPResponse | CDPEvent>;
 
-	addView(viewId: string): Promise<void>;
-	removeView(viewId: string): Promise<void>;
 	sendCDPMessage(msg: CDPRequest): Promise<void>;
+}
+
+export interface IBrowserViewGroupFilter {
+	/** Require agent ownership and isolated storage for this session, even for explicitly added views. */
+	readonly sandboxSessionId?: string;
+	/** Include views granted to this audience. */
+	readonly audience?: IBrowserViewAudience;
+	/** Include these views regardless of their audiences. */
+	readonly browserIds?: readonly string[];
+}
+
+export function matchesBrowserViewGroupFilter(browserId: string, audiences: readonly IBrowserViewAudience[], filter: IBrowserViewGroupFilter): boolean {
+	const audienceFilter = filter.audience;
+	return filter.browserIds?.includes(browserId) === true
+		|| (audienceFilter !== undefined && audiences.some(audience => matchesBrowserViewAudience(audienceFilter, audience)));
+}
+
+/** Shared visibility gate for sandboxed automation and its workbench page list. */
+export function matchesBrowserViewSandboxSession(owner: IBrowserViewOwner | undefined, sandboxSessionId: string | undefined, expectedSessionId: string | undefined): boolean {
+	return expectedSessionId === undefined || (owner?.type === 'agent'
+		&& owner.sessionId === expectedSessionId && sandboxSessionId === expectedSessionId);
 }
 
 /**
@@ -46,19 +56,19 @@ export interface IBrowserViewGroup extends IDisposable {
  * The main-process implementation is {@link BrowserViewGroupMainService}.
  */
 export interface IBrowserViewGroupService {
+	setSessionNetworkRestrictions(sessionId: string, restrictions: ISandboxNetworkRestrictions): Promise<void>;
 
 	// Dynamic events - one per group instance, keyed by group ID.
-	onDynamicDidAddView(groupId: string): Event<IBrowserViewGroupViewEvent>;
-	onDynamicDidRemoveView(groupId: string): Event<IBrowserViewGroupViewEvent>;
 	onDynamicDidDestroy(groupId: string): Event<void>;
 	onDynamicCDPMessage(groupId: string): Event<CDPResponse | CDPEvent>;
 
 	/**
 	 * Create a new browser view group.
-	 * @param owner The owner of the group's lifecycle.
+	 * @param filter The browser views to include in the group.
+	 * @param targetContext Context inherited by targets created through the group's CDP endpoint.
 	 * @returns The id of the newly created group.
 	 */
-	createGroup(owner: IBrowserViewOwner): Promise<string>;
+	createGroup(filter: IBrowserViewGroupFilter, targetContext: IBrowserViewCreationContext): Promise<string>;
 
 	/**
 	 * Destroy a browser view group.
@@ -66,21 +76,6 @@ export interface IBrowserViewGroupService {
 	 * @param groupId The group identifier.
 	 */
 	destroyGroup(groupId: string): Promise<void>;
-
-	/**
-	 * Add a browser view to a group.
-	 * A view can belong to multiple groups simultaneously.
-	 * @param groupId The group identifier.
-	 * @param viewId The browser view identifier.
-	 */
-	addViewToGroup(groupId: string, viewId: string): Promise<void>;
-
-	/**
-	 * Remove a browser view from a group.
-	 * @param groupId The group identifier.
-	 * @param viewId The browser view identifier.
-	 */
-	removeViewFromGroup(groupId: string, viewId: string): Promise<void>;
 
 	/**
 	 * Send a CDP message to a group's browser proxy.

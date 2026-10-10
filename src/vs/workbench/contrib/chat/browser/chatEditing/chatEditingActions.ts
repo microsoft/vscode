@@ -22,6 +22,7 @@ import { Action2, IAction2Options, MenuId, registerAction2 } from '../../../../.
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { InputFocusedContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { EditorActivation } from '../../../../../platform/editor/common/editor.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -351,6 +352,21 @@ function filterToUserAttachedContext(attachedContext: readonly IChatRequestVaria
 	);
 }
 
+function restoreRequestToMainInputIfEmpty(widget: IChatWidget | undefined, item: ChatTreeItem): IChatRequestVariableEntry[] | undefined {
+	if (!widget || !isRequestVM(item)) {
+		return undefined;
+	}
+
+	const input = widget.inputPart;
+	if (input.inputEditor.getValue() || filterToUserAttachedContext(input.attachmentModel.attachments).length) {
+		return undefined;
+	}
+
+	input.focus();
+	input.setValue(item.messageText, false);
+	return filterToUserAttachedContext(item.attachedContext);
+}
+
 async function restoreSnapshotWithConfirmationByRequestId(accessor: ServicesAccessor, sessionResource: URI, requestId: string): Promise<boolean> {
 	const configurationService = accessor.get(IConfigurationService);
 	const dialogService = accessor.get(IDialogService);
@@ -448,7 +464,7 @@ registerAction2(class RemoveAction extends Action2 {
 				mac: {
 					primary: KeyMod.CtrlCmd | KeyCode.Backspace,
 				},
-				when: ContextKeyExpr.and(ChatContextKeys.inChatSession, EditorContextKeys.textInputFocus.negate(), ChatContextKeys.inChatQuestionCarousel.negate(), ChatContextKeys.readOnly.negate()),
+				when: ContextKeyExpr.and(ChatContextKeys.inChatSession, EditorContextKeys.textInputFocus.negate(), InputFocusedContext.toNegated(), ChatContextKeys.inChatQuestionCarousel.negate(), ChatContextKeys.readOnly.negate()),
 				weight: KeybindingWeight.WorkbenchContrib,
 			},
 			menu: [
@@ -503,7 +519,7 @@ registerAction2(class RestoreCheckpointAction extends Action2 {
 				mac: {
 					primary: KeyMod.CtrlCmd | KeyCode.Backspace,
 				},
-				when: ContextKeyExpr.and(ChatContextKeys.inChatSession, EditorContextKeys.textInputFocus.negate(), ChatContextKeys.inChatQuestionCarousel.negate(), ChatContextKeys.readOnly.negate()),
+				when: ContextKeyExpr.and(ChatContextKeys.inChatSession, EditorContextKeys.textInputFocus.negate(), InputFocusedContext.toNegated(), ChatContextKeys.inChatQuestionCarousel.negate(), ChatContextKeys.readOnly.negate()),
 				weight: KeybindingWeight.WorkbenchContrib,
 			},
 			menu: [
@@ -529,26 +545,25 @@ registerAction2(class RestoreCheckpointAction extends Action2 {
 			return;
 		}
 
-		const userAttachments = isRequestVM(item) ? filterToUserAttachedContext(item.attachedContext) : [];
-
-		if (isRequestVM(item)) {
-			widget?.focusInput();
-			widget?.input.setValue(item.messageText, false);
-		}
-
 		widget?.viewModel?.model.setCheckpoint(item.id);
 		const confirmed = await restoreSnapshotWithConfirmation(accessor, item);
+		if (!confirmed) {
+			return;
+		}
 
-		if (confirmed && userAttachments.length) {
-			await widget?.input.restoreAttachments(userAttachments);
+		const userAttachments = restoreRequestToMainInputIfEmpty(widget, item);
+		if (userAttachments?.length) {
+			await widget?.inputPart.restoreAttachments(userAttachments);
 		}
 	}
 });
 
+export const StartOverActionId = 'workbench.action.chat.startOver';
+
 registerAction2(class StartOverAction extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.chat.startOver',
+			id: StartOverActionId,
 			title: localize2('chat.startOver.label', "Start Over"),
 			tooltip: localize2('chat.startOver.tooltip', "Clears the chat and undoes all changes"),
 			f1: false,
@@ -577,7 +592,15 @@ registerAction2(class StartOverAction extends Action2 {
 		}
 
 		widget?.viewModel?.model.setCheckpoint(item.id);
-		await restoreSnapshotWithConfirmation(accessor, item);
+		const confirmed = await restoreSnapshotWithConfirmation(accessor, item);
+		if (!confirmed) {
+			return;
+		}
+
+		const userAttachments = restoreRequestToMainInputIfEmpty(widget, item);
+		if (userAttachments?.length) {
+			await widget?.inputPart.restoreAttachments(userAttachments);
+		}
 	}
 });
 

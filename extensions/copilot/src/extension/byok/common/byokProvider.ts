@@ -64,12 +64,16 @@ export interface BYOKModelCapabilities {
 	vision: boolean;
 	thinking?: boolean;
 	adaptiveThinking?: boolean;
+	minThinkingBudget?: number;
+	maxThinkingBudget?: number;
 	streaming?: boolean;
 	editTools?: EndpointEditToolName[];
 	requestHeaders?: Record<string, string>;
 	modelOptions?: IChatModelRequestOptions;
 	supportedEndpoints?: ModelSupportedEndpoint[];
 	zeroDataRetentionEnabled?: boolean;
+	/** Whether the Responses API server retains prior responses for `previous_response_id` chaining. */
+	statefulResponses?: boolean;
 	supportsReasoningEffort?: string[];
 	defaultReasoningEffort?: string;
 	/**
@@ -157,6 +161,8 @@ export function resolveModelInfo(modelId: string, providerName: string, knownMod
 				vision: !!knownModelInfo?.vision,
 				thinking: !!knownModelInfo?.thinking,
 				adaptive_thinking: !!knownModelInfo?.adaptiveThinking,
+				min_thinking_budget: knownModelInfo?.minThinkingBudget,
+				max_thinking_budget: knownModelInfo?.maxThinkingBudget,
 				reasoning_effort: knownModelInfo?.supportsReasoningEffort
 			},
 			tokenizer: TokenizerType.O200K,
@@ -171,6 +177,7 @@ export function resolveModelInfo(modelId: string, providerName: string, knownMod
 		model_picker_enabled: true,
 		supported_endpoints: knownModelInfo?.supportedEndpoints,
 		zeroDataRetentionEnabled: knownModelInfo?.zeroDataRetentionEnabled,
+		statefulResponses: knownModelInfo?.statefulResponses,
 		modelOptions: knownModelInfo?.modelOptions,
 		reasoningEffortFormat: knownModelInfo?.reasoningEffortFormat
 	};
@@ -195,6 +202,7 @@ export function byokKnownModelToAPIInfo(providerName: string, id: string, capabi
 		version: '1.0.0',
 		maxOutputTokens: limits.maxOutputTokens,
 		maxInputTokens: limits.maxInputTokens,
+		maxContextWindowTokens: limits.contextWindow,
 		// `detail` is intentionally omitted: when this model is resolved
 		// via a configured provider group, `LanguageModelsService` will
 		// fall back to the group name so multiple instances of the same

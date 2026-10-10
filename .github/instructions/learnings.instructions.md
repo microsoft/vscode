@@ -2,8 +2,7 @@
 description: This document describes how to deal with learnings that you make. (meta instruction)
 ---
 
-This document describes how to deal with learnings that you make.
-It is a meta-instruction file.
+This document describes how to deal with learnings that you make. It is a meta-instruction file.
 
 Structure of learnings:
 * Each instruction file has a "Learnings" section.

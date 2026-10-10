@@ -14,6 +14,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { OpenSubagentChatActionViewItem, shouldShowSubagentModel, subagentChatOpenerRegistry } from '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatSubagentOpenChat.js';
+import { fillSessionChatDragData } from '../../../../browser/dnd.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IChat } from '../../../../services/sessions/common/session.js';
@@ -60,7 +61,7 @@ function findSubagentChat(sessionsService: ISessionsService, resource: string, r
 	return undefined;
 }
 
-class OpenSubagentChatActionViewItemContribution extends Disposable implements IWorkbenchContribution {
+export class OpenSubagentChatActionViewItemContribution extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.openSubagentChatActionViewItem';
 
 	constructor(
@@ -74,7 +75,9 @@ class OpenSubagentChatActionViewItemContribution extends Disposable implements I
 				const resource = context.chatResource;
 				const match = findSubagentChat(sessionsService, resource);
 				if (match) {
-					await sessionsService.openChat(match.session, match.chat.resource);
+					await sessionsService.openChatToSide(match.session, match.chat.resource, context.parentSessionResource
+						? { referenceChatResource: URI.parse(context.parentSessionResource) }
+						: undefined);
 					return true;
 				}
 				const active = sessionsService.activeSession.get();
@@ -89,8 +92,17 @@ class OpenSubagentChatActionViewItemContribution extends Disposable implements I
 			if (!(action instanceof MenuItemAction)) {
 				return undefined;
 			}
-			const viewItem = instantiationService.createInstance(OpenSubagentChatActionViewItem, undefined, action, options, false);
+			const viewItem = instantiationService.createInstance(OpenSubagentChatActionViewItem, undefined, action, { ...options, draggable: true }, false);
 			viewItem.trackEnabled((context, update) => autorun(reader => update(!!findSubagentChat(sessionsService, context.chatResource, reader))));
+			viewItem.setDragDataProvider((context, event) => {
+				const match = findSubagentChat(sessionsService, context.chatResource);
+				if (!match || !event.dataTransfer) {
+					return false;
+				}
+				fillSessionChatDragData(event, match.session.sessionId, match.chat.resource);
+				event.dataTransfer.effectAllowed = 'move';
+				return true;
+			});
 			return viewItem;
 		}, onDidRegister.event));
 		onDidRegister.fire();

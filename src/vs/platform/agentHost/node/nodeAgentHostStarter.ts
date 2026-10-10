@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { FileAccess, Schemas } from '../../../base/common/network.js';
+import { IProcessEnvironment, isWindows } from '../../../base/common/platform.js';
+import { ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { Client, IIPCOptions } from '../../../base/parts/ipc/node/ipc.cp.js';
 import { AiAgentEnvValue, AiAgentEnvVar } from '../../chat/common/aiAgentEnv.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
@@ -14,10 +15,10 @@ import { IEnvironmentService, INativeEnvironmentService } from '../../environmen
 import { parseAgentHostDebugPort } from '../../environment/node/environmentService.js';
 import { ILogService } from '../../log/common/log.js';
 import { getResolvedShellEnv } from '../../shell/node/shellEnv.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { IAgentHostConnection, IAgentHostStarter } from '../common/agent.js';
-import { AgentHostLaunchKind, AgentHostLaunchKindEnvVar } from '../common/agentHostTelemetry.js';
-import { AgentHostByokModelsEnabledSettingId, AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentBinaryArgsSettingId, AgentHostCodexAgentEnabledSettingId, AgentHostCodexAgentSdkRootSettingId, AgentHostCodexAgentCodexHomeSettingId, AgentHostOTelCaptureContentSettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOtlpProtocolSettingId, AgentHostOTelOutfileSettingId, AgentHostOTelResourceAttributesSettingId, AgentHostOTelServiceNameSettingId, buildAgentHostOTelEnv, buildAgentSdkEnv } from '../common/agentService.js';
-import '../common/agentHostStarter.config.contribution.js';
+import { AgentHostLaunchKind, AgentHostLaunchKindEnvVar, telemetryLevelToAgentHostValue } from '../common/agentHostTelemetry.js';
+import { AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentBinaryArgsSettingId, AgentHostCodexAgentEnabledSettingId, AgentHostCodexAgentSdkRootSettingId, AgentHostCodexAgentCodexHomeSettingId, AgentHostIpcChannels, AgentHostOTelCaptureContentSettingId, AgentHostOTelCaptureIdentitySettingId, AgentHostOTelDbSpanExporterEnabledSettingId, AgentHostOTelEnabledSettingId, AgentHostOTelExporterTypeSettingId, AgentHostOTelOtlpEndpointSettingId, AgentHostOTelOutfileSettingId, buildAgentHostOTelEnv, buildAgentSdkEnv, IAgentHostManagementService, readAgentHostOTelPolicySettings } from '../common/agentService.js';
 
 /**
  * Options for configuring the agent host WebSocket server in the child process.
@@ -34,6 +35,21 @@ export interface IAgentHostWebSocketConfig {
 	readonly connectionToken?: string;
 }
 
+/** Retains deletion markers so the IPC client's inherited environment cannot restore removed variables. */
+function mergeAgentHostEnvironments(...environments: (Readonly<Record<string, string | null | undefined>> | undefined)[]): IProcessEnvironment {
+	const result: IProcessEnvironment = {};
+	const keys = new Map<string, string>();
+	for (const environment of environments) {
+		for (const [key, value] of Object.entries(environment ?? {})) {
+			const normalizedKey = isWindows ? key.toUpperCase() : key;
+			const actualKey = keys.get(normalizedKey) ?? key;
+			keys.set(normalizedKey, actualKey);
+			result[actualKey] = value ?? undefined;
+		}
+	}
+	return result;
+}
+
 /**
  * Spawns the agent host as a Node child process (fallback when
  * Electron utility process is unavailable, e.g. dev/test).
@@ -41,28 +57,28 @@ export interface IAgentHostWebSocketConfig {
 export class NodeAgentHostStarter extends Disposable implements IAgentHostStarter {
 
 	private _wsConfig: IAgentHostWebSocketConfig | undefined;
-
-	private readonly _onRequestConnection = this._register(new Emitter<void>());
-	readonly onRequestConnection = this._onRequestConnection.event;
+	private _environment: IProcessEnvironment | undefined;
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 		@ILogService private readonly _logService: ILogService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
 	}
 
 	/**
 	 * Configures the child process to also start a WebSocket server.
-	 * Must be called before {@link start}. Triggers eager process start
-	 * via {@link onRequestConnection}.
+	 * Must be called before {@link start}.
 	 */
 	setWebSocketConfig(config: IAgentHostWebSocketConfig): void {
 		this._wsConfig = config;
-		// Signal the process manager to start immediately rather than
-		// waiting for a renderer window to connect.
-		this._onRequestConnection.fire();
+	}
+
+	/** Applies resolver overrides to subsequent launches without changing the server's environment. */
+	setEnvironment(environment: Readonly<Record<string, string | null>>, debugEnvironment?: Readonly<Record<string, string | null>>): void {
+		this._environment = mergeAgentHostEnvironments(debugEnvironment, environment);
 	}
 
 	async start(): Promise<IAgentHostConnection> {
@@ -70,8 +86,7 @@ export class NodeAgentHostStarter extends Disposable implements IAgentHostStarte
 		// PATH and other vars from the user's login shell (macOS/Linux).
 		const shellEnv = await this._resolveShellEnv();
 
-		const env: Record<string, string> = {
-			...shellEnv as Record<string, string>,
+		const env: IProcessEnvironment = {
 			// Announce that everything spawned below this process is driven by
 			// VS Code's agent, so `gh` inherits it. Set after the inherited
 			// env so it wins.
@@ -91,7 +106,6 @@ export class NodeAgentHostStarter extends Disposable implements IAgentHostStarte
 			codexBinaryArgs: this._configurationService.getValue<readonly string[]>(AgentHostCodexAgentBinaryArgsSettingId),
 			claudeAgentEnabled: this._configurationService.getValue<boolean>(AgentHostClaudeAgentEnabledSettingId),
 			codexAgentEnabled: this._configurationService.getValue<boolean>(AgentHostCodexAgentEnabledSettingId),
-			byokModelsEnabled: this._configurationService.getValue<boolean>(AgentHostByokModelsEnabledSettingId),
 		}, process.env);
 		Object.assign(env, sdkEnv);
 
@@ -99,24 +113,15 @@ export class NodeAgentHostStarter extends Disposable implements IAgentHostStarte
 		// the agent host process. Any value already present on `process.env` wins
 		// for user settings, while enterprise policy values win over inherited env —
 		// see `buildAgentHostOTelEnv`.
-		const policyValue = <T>(key: string): T | undefined => this._configurationService.inspect<T>(key).policyValue;
 		const otelEnv = buildAgentHostOTelEnv({
 			enabled: this._configurationService.getValue<boolean>(AgentHostOTelEnabledSettingId),
 			exporterType: this._configurationService.getValue<string>(AgentHostOTelExporterTypeSettingId),
 			otlpEndpoint: this._configurationService.getValue<string>(AgentHostOTelOtlpEndpointSettingId),
 			captureContent: this._configurationService.getValue<boolean>(AgentHostOTelCaptureContentSettingId),
+			captureIdentity: this._configurationService.getValue<boolean>(AgentHostOTelCaptureIdentitySettingId),
 			outfile: this._configurationService.getValue<string>(AgentHostOTelOutfileSettingId),
 			dbSpanExporterEnabled: this._configurationService.getValue<boolean>(AgentHostOTelDbSpanExporterEnabledSettingId),
-		}, process.env, {
-			enabled: policyValue<boolean>(AgentHostOTelEnabledSettingId),
-			exporterType: policyValue<string>(AgentHostOTelExporterTypeSettingId),
-			otlpProtocol: policyValue<string>(AgentHostOTelOtlpProtocolSettingId),
-			otlpEndpoint: policyValue<string>(AgentHostOTelOtlpEndpointSettingId),
-			captureContent: policyValue<boolean>(AgentHostOTelCaptureContentSettingId),
-			outfile: policyValue<string>(AgentHostOTelOutfileSettingId),
-			serviceName: policyValue<string>(AgentHostOTelServiceNameSettingId),
-			resourceAttributes: policyValue<Record<string, string>>(AgentHostOTelResourceAttributesSettingId),
-		});
+		}, process.env, readAgentHostOTelPolicySettings(this._configurationService), shellEnv);
 		Object.assign(env, otelEnv);
 
 		// Forward WebSocket server configuration to the child process via env vars
@@ -139,15 +144,13 @@ export class NodeAgentHostStarter extends Disposable implements IAgentHostStarte
 			'--type=agentHost',
 			'--logsPath', this._environmentService.logsHome.with({ scheme: Schemas.file }).fsPath,
 			'--user-data-dir', this._environmentService.userDataPath,
+			'--telemetry-level', telemetryLevelToAgentHostValue(this._telemetryService.telemetryLevel),
 		];
-		if (this._environmentService.disableTelemetry) {
-			args.push('--disable-telemetry');
-		}
 
 		const opts: IIPCOptions = {
 			serverName: 'Agent Host',
 			args,
-			env,
+			env: mergeAgentHostEnvironments(process.env, shellEnv, this._environment, env),
 		};
 
 		const agentHostDebug = parseAgentHostDebugPort(this._environmentService.args, this._environmentService.isBuilt);
@@ -161,15 +164,19 @@ export class NodeAgentHostStarter extends Disposable implements IAgentHostStarte
 
 		await this._removeStaleSocket();
 
-		const client = new Client(FileAccess.asFileUri('bootstrap-fork').fsPath, opts);
 		const store = new DisposableStore();
-		store.add(client);
+		const client = store.add(this._createClient(opts));
 
 		return {
 			client,
 			store,
-			onDidProcessExit: client.onDidProcessExit
+			onDidProcessExit: client.onDidProcessExit,
+			shutdown: () => ProxyChannel.toService<IAgentHostManagementService>(client.getChannel(AgentHostIpcChannels.Management)).shutdown(),
 		};
+	}
+
+	protected _createClient(options: IIPCOptions): Client {
+		return new Client(FileAccess.asFileUri('bootstrap-fork').fsPath, options);
 	}
 
 	/**
@@ -196,7 +203,7 @@ export class NodeAgentHostStarter extends Disposable implements IAgentHostStarte
 		}
 	}
 
-	private async _resolveShellEnv(): Promise<typeof process.env> {
+	protected async _resolveShellEnv(): Promise<typeof process.env> {
 		try {
 			return await getResolvedShellEnv(this._configurationService, this._logService, this._environmentService.args, process.env);
 		} catch (error) {

@@ -6,13 +6,14 @@
 import { lookup } from 'dns';
 import { streamToBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
-import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IRequestService, NO_FETCH_TELEMETRY } from '../../request/common/request.js';
 import { IAgentHostNetworkEndpoint } from '../common/agent.js';
 import { IAgentHostDnsResult, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult } from '../common/agentService.js';
+import { AgentHostProxyConfigKey, agentHostProxyConfigSchema } from '../common/agentHostSchema.js';
+import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostProxyResolver } from './agentHostProxyResolver.js';
 
 export const INetworkDiagnosticsService = createDecorator<INetworkDiagnosticsService>('networkDiagnosticsService');
@@ -44,10 +45,10 @@ const MAX_BODY_CHARS = 64 * 1024;
  * Proxy-related environment variables surfaced in the diagnostics report so a
  * mismatch between the OS/config proxy and an explicit env override is visible.
  */
-const PROXY_ENV_KEYS = ['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy', 'ALL_PROXY', 'all_proxy', 'NO_PROXY', 'no_proxy'] as const;
+const PROXY_ENV_KEYS = ['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy', 'ALL_PROXY', 'all_proxy', 'NO_PROXY', 'no_proxy', 'COPILOT_PROXY_KERBEROS_SPN'] as const;
 
-/** VS Code `http.*` proxy settings surfaced alongside the env vars. */
-const PROXY_CONFIG_KEYS = ['http.proxy', 'http.proxyStrictSSL', 'http.proxySupport', 'http.noProxy'] as const;
+/** Agent Host `http.*` proxy settings surfaced alongside the env vars. */
+const PROXY_CONFIG_KEYS = [AgentHostProxyConfigKey.Proxy, AgentHostProxyConfigKey.NoProxy, AgentHostProxyConfigKey.ProxyKerberosServicePrincipal] as const;
 
 export class NetworkDiagnosticsService implements INetworkDiagnosticsService {
 
@@ -56,7 +57,7 @@ export class NetworkDiagnosticsService implements INetworkDiagnosticsService {
 	constructor(
 		@IRequestService private readonly _requestService: IRequestService,
 		@IAgentHostProxyResolver private readonly _proxyResolver: IAgentHostProxyResolver,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@IProductService private readonly _productService: IProductService,
 		@ILogService private readonly _logService: ILogService,
 	) { }
@@ -72,7 +73,7 @@ export class NetworkDiagnosticsService implements INetworkDiagnosticsService {
 
 		const proxySettings: Record<string, string> = {};
 		for (const key of PROXY_CONFIG_KEYS) {
-			const value = this._configurationService.getValue(key);
+			const value = this._configurationService.getRootValue(agentHostProxyConfigSchema, key);
 			if (value === undefined || value === '' || (Array.isArray(value) && value.length === 0)) {
 				continue;
 			}

@@ -60,7 +60,7 @@ export class SessionBrowserViewController extends Disposable implements IWorkben
 		this._register(this._browserViewService.registerContextualFilter({
 			include: (input, context) => {
 				const tracked = this._trackedInputs.get(input.id);
-				const ownerId = input.model?.owner.sessionId ?? tracked?.session.resource.toString();
+				const ownerId = input.model?.owner.type === 'agent' ? input.model.owner.sessionId : tracked?.session.resource.toString();
 				if (!ownerId) {
 					return true; // no owning session known
 				}
@@ -77,7 +77,7 @@ export class SessionBrowserViewController extends Disposable implements IWorkben
 		// Only open a browser tab automatically when its owning session is the active session.
 		this._register(this._browserViewService.registerOpenHandler({
 			shouldOpenEditor: (_input, owner) => {
-				if (!owner.sessionId) {
+				if (owner.type !== 'agent') {
 					return true; // no owning session known; open in the active session
 				}
 				const owningSession = this._resolveOwningSession(owner.sessionId);

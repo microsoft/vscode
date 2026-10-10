@@ -7,6 +7,7 @@ import { encodeBase64, VSBuffer, decodeBase64 } from '../../../../../base/common
 import { Schemas } from '../../../../../base/common/network.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localChatSessionType } from '../chatSessionsService.js';
 
 type ChatSessionIdentifier = {
@@ -106,4 +107,15 @@ export function getChatSessionType(resource: URI): string {
 
 export function isUntitledChatSession(resource: URI): boolean {
 	return resource.path.startsWith('/untitled-');
+}
+
+/**
+ * Builds a fresh untitled session resource for the given session type. Local
+ * sessions get a new local-session URI; other types get an untitled URI under
+ * their own scheme.
+ */
+export function getNewChatSessionResource(sessionType: string): URI {
+	return sessionType === localChatSessionType
+		? LocalChatSessionUri.getNewSessionUri()
+		: URI.from({ scheme: sessionType, path: `/untitled-${generateUuid()}` });
 }

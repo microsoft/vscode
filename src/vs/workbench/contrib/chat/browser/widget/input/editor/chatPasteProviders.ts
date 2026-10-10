@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { alert } from '../../../../../../../base/browser/ui/aria/aria.js';
+import { alert, status } from '../../../../../../../base/browser/ui/aria/aria.js';
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { createStringDataTransferItem, IDataTransferItem, IReadonlyVSDataTransfer, VSDataTransfer } from '../../../../../../../base/common/dataTransfer.js';
@@ -26,19 +26,20 @@ import { localize } from '../../../../../../../nls.js';
 import { IEnvironmentService } from '../../../../../../../platform/environment/common/environment.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
+import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../../../../platform/log/common/log.js';
 import { IExtensionService, isProposedApiEnabled } from '../../../../../../services/extensions/common/extensions.js';
 import { IChatRequestPasteVariableEntry, IChatRequestVariableEntry, isImageVariableEntry, toPasteVariableEntry, ChatPasteAttachmentMetadata } from '../../../../common/attachments/chatVariableEntries.js';
 import { chatVariableLeader } from '../../../../common/requestParser/chatParserTypes.js';
 import { IDynamicVariable } from '../../../../common/attachments/chatVariables.js';
 import { IChatPasteTarget, IChatPasteTargetService } from '../../../chat.js';
-import { chatInputSchemes, isChatInputModel } from '../../../../common/constants.js';
+import { chatInputSchemes, isChatInputModel, ChatConfiguration } from '../../../../common/constants.js';
 import { cleanupOldImages, createFileForMedia, resizeImage } from '../../../chatImageUtils.js';
 
 const COPY_MIME_TYPES = 'application/vnd.code.additional-editor-data';
-const pastedTextArtifactMinLength = 1000;
+export const pastedTextArtifactDefaultMinLength = 10000;
 export const CHAT_ATTACHMENT_MIME_TYPE = 'application/vnd.chat.attachment+json';
-
+const GITHUB_ISSUE_OR_PULL_REQUEST_URL_PATTERN = /\bhttps?:\/\/(?:www\.)?github\.com\/(?<owner>[\w.-]+)\/(?<repo>[\w.-]+)\/(?<kind>issues|pull)\/(?<number>\d+)(?![\w-])/gi;
 interface SerializedCopyData {
 	readonly uri: UriComponents;
 	readonly range: IRange;
@@ -333,6 +334,36 @@ class CopyAttachmentsProvider implements DocumentPasteEditProvider {
 	}
 }
 
+export function getGitHubIssueOrPullRequestAttachments(input: string, metadata?: Record<string, unknown>): readonly IChatRequestVariableEntry[] {
+	const attachments: IChatRequestVariableEntry[] = [];
+	const ids = new Set<string>();
+	for (const match of input.matchAll(GITHUB_ISSUE_OR_PULL_REQUEST_URL_PATTERN)) {
+		const groups = match.groups;
+		const number = Number(groups?.['number']);
+		if (!groups || !Number.isSafeInteger(number) || number <= 0) {
+			continue;
+		}
+		const owner = groups['owner'];
+		const repo = groups['repo'];
+		const kind = groups['kind'].toLowerCase();
+		const uri = `https://github.com/${owner}/${repo}/${kind}/${number}`;
+		const id = `github-context:${uri}`;
+		if (ids.has(id)) {
+			continue;
+		}
+		ids.add(id);
+		attachments.push({
+			kind: 'generic',
+			id,
+			icon: kind === 'issues' ? Codicon.issues : Codicon.gitPullRequest,
+			name: `${owner}/${repo}#${number}`,
+			value: `GitHub context: ${uri}`,
+			_meta: metadata,
+		});
+	}
+	return attachments;
+}
+
 export class PasteTextProvider implements DocumentPasteEditProvider {
 
 	public readonly kind = new HierarchicalKind('chat.attach.text');
@@ -345,6 +376,7 @@ export class PasteTextProvider implements DocumentPasteEditProvider {
 		private readonly pasteTargetService: IChatPasteTargetService,
 		private readonly modelService: IModelService,
 		private readonly logService: ILogService,
+		private readonly configurationService: IConfigurationService,
 	) { }
 
 	async provideDocumentPasteEdits(model: ITextModel, ranges: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, _context: DocumentPasteContext, token: CancellationToken): Promise<DocumentPasteEditsSession | undefined> {
@@ -363,6 +395,29 @@ export class PasteTextProvider implements DocumentPasteEditProvider {
 		const target = this.pasteTargetService.getTarget(model.uri);
 		if (!target) {
 			return;
+		}
+
+		if (model.uri.scheme !== Schemas.sessionsChatInput) {
+			const currentContextIds = new Set(target.attachments.map(attachment => attachment.id));
+			const githubAttachments = getGitHubIssueOrPullRequestAttachments(textdata).filter(attachment => !currentContextIds.has(attachment.id));
+			if (githubAttachments.length) {
+				if (ranges.length !== 1) {
+					return;
+				}
+				const announcement = githubAttachments.length === 1
+					? localize('chat.pastedGitHubContextAttached', "Attached {0} as context", githubAttachments[0].name)
+					: localize('chat.pastedGitHubContextsAttached', "Attached {0} GitHub links as context", githubAttachments.length);
+				const edit = createCustomPasteEdit(
+					model,
+					githubAttachments,
+					Mimes.text,
+					this.kind,
+					localize('chat.pasteGitHubContext', "Paste GitHub Context"),
+					this.pasteTargetService,
+					{ insertText: textdata, statusAnnouncement: announcement },
+				);
+				return createEditSession(edit);
+			}
 		}
 
 		let copiedContext: IChatRequestPasteVariableEntry | undefined;
@@ -400,7 +455,10 @@ export class PasteTextProvider implements DocumentPasteEditProvider {
 		if (token.isCancellationRequested) {
 			return;
 		}
-		const artifact = hasRicherPaste ? undefined : createPastedTextArtifact(textdata, target.attachments, markdown);
+		const artifact = hasRicherPaste ? undefined : createPastedTextArtifact(textdata, target.attachments, {
+			content: markdown,
+			minLength: this.configurationService.getValue<number>(ChatConfiguration.PasteAsAttachmentThreshold, { resource: model.uri }),
+		});
 		if (artifact) {
 			if (ranges.length !== 1 || target.isTerminalCommandPaste(textdata, ranges[0])) {
 				return;
@@ -448,10 +506,16 @@ export class PasteTextProvider implements DocumentPasteEditProvider {
 export function createPastedTextArtifact(
 	text: string,
 	existingAttachments: readonly IChatRequestVariableEntry[],
-	/** Richer representation to store instead of `text`, e.g. Markdown from pasted HTML. */
-	content?: string,
+	options?: {
+		/** Richer representation to store instead of `text`, e.g. Markdown from pasted HTML. */
+		readonly content?: string;
+		/** Character count the paste must exceed to become an attachment. */
+		readonly minLength?: number;
+	},
 ): { readonly attachment: IChatRequestPasteVariableEntry; readonly referenceText: string } | undefined {
-	if (text.trim().length < pastedTextArtifactMinLength) {
+	const trimmed = text.trim();
+	const minLength = options?.minLength ?? pastedTextArtifactDefaultMinLength;
+	if (!trimmed || trimmed.length < minLength) {
 		return undefined;
 	}
 
@@ -461,8 +525,9 @@ export function createPastedTextArtifact(
 		name = localize('pastedTextArtifact.name', "Pasted text #{0}", index++);
 	} while (existingAttachments.some(attachment => attachment.name === name));
 
+	const content = options?.content;
 	const value = content ?? text;
-	const lineCount = value.split(/\r\n|\r|\n/).length;
+	const lineCount = countLines(value);
 	const pastedLines = lineCount === 1
 		? localize('pastedTextArtifact.oneLine', "1 line")
 		: localize('pastedTextArtifact.multipleLines', "{0} lines", lineCount);
@@ -477,6 +542,10 @@ export function createPastedTextArtifact(
 		attachment,
 		referenceText: `${chatVariableLeader}attachment:${name}`,
 	};
+}
+
+function countLines(value: string): number {
+	return value.split(/\r\n|\r|\n/).length;
 }
 
 function getCopiedContext(code: string, file: URI, language: string, range: IRange): IChatRequestPasteVariableEntry {
@@ -516,6 +585,8 @@ function createCustomPasteEdit(
 	options?: {
 		readonly inlineReference?: { readonly text: string; readonly range: IRange };
 		readonly announcement?: string;
+		readonly insertText?: string;
+		readonly statusAnnouncement?: string;
 	},
 ): DocumentPasteEdit {
 
@@ -548,6 +619,8 @@ function createCustomPasteEdit(
 			}
 			if (options?.announcement) {
 				alert(options.announcement);
+			} else if (options?.statusAnnouncement) {
+				status(options.statusAnnouncement);
 			} else if (announceImageAttachment) {
 				alert(localize('chat.pastedImageAttached', 'Attached image'));
 			}
@@ -559,7 +632,7 @@ function createCustomPasteEdit(
 	};
 
 	return {
-		insertText: options?.inlineReference ? `${options.inlineReference.text} ` : '',
+		insertText: options?.inlineReference ? `${options.inlineReference.text} ` : options?.insertText ?? '',
 		title,
 		kind,
 		handledMimeType,
@@ -846,12 +919,13 @@ export class ChatPasteProvidersFeature extends Disposable {
 		@IModelService modelService: IModelService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@ILogService logService: ILogService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
 		const chatInputProviders: DocumentPasteEditProvider[] = [
 			instaService.createInstance(CopyAttachmentsProvider),
 			new PasteImageProvider(pasteTargetService, extensionService, fileService, environmentService, logService),
-			new PasteTextProvider(pasteTargetService, modelService, logService),
+			new PasteTextProvider(pasteTargetService, modelService, logService, configurationService),
 			new PasteHtmlProvider(),
 		];
 		for (const scheme of chatInputSchemes) {

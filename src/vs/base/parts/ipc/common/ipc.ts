@@ -676,7 +676,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 				uninitializedPromise.then(() => {
 					uninitializedPromise = null;
 					doRequest();
-				});
+				}, () => { });
 			}
 
 			const cancel = () => {
@@ -729,7 +729,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 					uninitializedPromise.then(() => {
 						uninitializedPromise = null;
 						doRequest();
-					});
+					}, () => { });
 				}
 			},
 			onDidRemoveLastListener: () => {
@@ -1072,7 +1072,10 @@ export function getDelayedChannel<T extends IChannel>(promise: Promise<T>): T {
 
 		listen<T>(event: string, arg?: any): Event<T> {
 			const relay = new Relay<any>();
-			promise.then(c => relay.input = c.listen(event, arg));
+			void promise.then(
+				c => relay.input = c.listen(event, arg),
+				() => relay.dispose(),
+			);
 			return relay.event;
 		}
 	} as T;
@@ -1258,6 +1261,11 @@ export namespace ProxyChannel {
 					// Check for predefined values
 					if (options?.properties?.has(propKey)) {
 						return options.properties.get(propKey);
+					}
+
+					// Answering `then` makes this proxy a thenable, so `await` would forward it and never settle.
+					if (propKey === 'then') {
+						return undefined;
 					}
 
 					// Dynamic Event

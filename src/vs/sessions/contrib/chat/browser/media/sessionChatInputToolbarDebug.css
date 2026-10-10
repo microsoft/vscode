@@ -39,7 +39,7 @@
 }
 
 .session-chat-pills-debug-label {
-	font-size: var(--vscode-agents-fontSize-label1);
+	font-size: var(--vscode-fontSize-label1);
 }
 
 .session-chat-pills-debug-input {
@@ -54,6 +54,6 @@
 
 .session-chat-pills-debug-heading {
 	margin: 0;
-	font-size: var(--vscode-agents-fontSize-heading3);
-	font-weight: var(--vscode-agents-fontWeight-semiBold);
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
 }

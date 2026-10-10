@@ -4,8 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { McpServerType, type IMcpServerConfiguration } from '../../../mcp/common/mcpPlatformTypes.js';
+import type { URI } from '../../../../base/common/uri.js';
+import { NKeyMap } from '../../../../base/common/map.js';
 import { McpServerStatus, type McpServerState } from '../../common/state/protocol/channels-session/state.js';
 import type { ISdkMcpServer } from '../shared/mcpCustomizationController.js';
+import { resolveMcpServerWorkingDirectory } from '../shared/mcpServerWorkingDirectory.js';
 import type { McpServerStartupState } from './protocol/generated/v2/McpServerStartupState.js';
 import type { McpServerStatus as CodexMcpServerStatus } from './protocol/generated/v2/McpServerStatus.js';
 import type { Resource } from './protocol/generated/Resource.js';
@@ -25,6 +28,81 @@ export interface ICodexMcpServerEntry {
 	readonly tools: readonly Tool[];
 	readonly resources: readonly Resource[];
 	readonly resourceTemplates: readonly ResourceTemplate[];
+}
+
+interface ICodexThreadMcpServerEntry {
+	readonly name: string;
+	readonly entry: ICodexMcpServerEntry;
+}
+
+export class CodexMcpInventory {
+	private readonly _global = new Map<string, ICodexMcpServerEntry>();
+	private readonly _byThread = new NKeyMap<ICodexThreadMcpServerEntry, [string, string]>();
+
+	forThread(threadId: string | undefined): Map<string, ICodexMcpServerEntry> {
+		const result = new Map(this._global);
+		if (threadId !== undefined) {
+			for (const scoped of this._byThread.getAll(threadId)) {
+				result.set(scoped.name, scoped.entry);
+			}
+		}
+		return result;
+	}
+
+	forScope(threadId: string | null): Map<string, ICodexMcpServerEntry> {
+		if (threadId === null) {
+			return new Map(this._global);
+		}
+		const result = new Map<string, ICodexMcpServerEntry>();
+		for (const scoped of this._byThread.getAll(threadId)) {
+			result.set(scoped.name, scoped.entry);
+		}
+		return result;
+	}
+
+	replace(threadId: string | null, entries: ReadonlyMap<string, ICodexMcpServerEntry>): void {
+		if (threadId === null) {
+			this._global.clear();
+			for (const [name, entry] of entries) {
+				this._global.set(name, entry);
+			}
+			return;
+		}
+		this._byThread.deleteAll(threadId);
+		for (const [name, entry] of entries) {
+			this._byThread.set({ name, entry }, threadId, name);
+		}
+	}
+
+	setState(threadId: string | null, name: string, state: McpServerState): void {
+		const previous = threadId === null
+			? this._global.get(name)
+			: this._byThread.get(threadId, name)?.entry ?? this._global.get(name);
+		const entry: ICodexMcpServerEntry = {
+			state,
+			tools: previous?.tools ?? [],
+			resources: previous?.resources ?? [],
+			resourceTemplates: previous?.resourceTemplates ?? [],
+		};
+		if (threadId === null) {
+			this._global.set(name, entry);
+		} else {
+			this._byThread.set({ name, entry }, threadId, name);
+		}
+	}
+
+	hasThreadEntry(threadId: string, name: string): boolean {
+		return this._byThread.get(threadId, name) !== undefined;
+	}
+
+	deleteThread(threadId: string): void {
+		this._byThread.deleteAll(threadId);
+	}
+
+	clear(): void {
+		this._global.clear();
+		this._byThread.clear();
+	}
 }
 
 /**
@@ -228,7 +306,7 @@ function toCodexStringArray(values: readonly unknown[] | undefined): string[] {
  * (coerced to the string shapes codex requires, dropping holes) rather than
  * trusted, so a single malformed entry can't make codex reject the config.
  */
-export function toCodexMcpServerJson(config: IMcpServerConfiguration): ICodexMcpServerConfigJson {
+export function toCodexMcpServerJson(config: IMcpServerConfiguration, defaultCwd?: URI): ICodexMcpServerConfigJson {
 	if (config.type === McpServerType.LOCAL) {
 		const out: ICodexMcpServerConfigJson = { command: config.command };
 		const args = toCodexStringArray(config.args);
@@ -239,8 +317,8 @@ export function toCodexMcpServerJson(config: IMcpServerConfiguration): ICodexMcp
 		if (Object.keys(env).length > 0) {
 			out.env = env;
 		}
-		if (typeof config.cwd === 'string') {
-			out.cwd = config.cwd;
+		if (typeof config.cwd === 'string' || defaultCwd) {
+			out.cwd = resolveMcpServerWorkingDirectory(config.cwd, defaultCwd);
 		}
 		return out;
 	}
@@ -355,4 +433,3 @@ function withoutAuthorizationHeaders(headers: Record<string, string> | undefined
 }
 
 // #endregion
-

@@ -3,16 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, EventType, isAncestorOfActiveElement, setVisibility } from '../../../../../../base/browser/dom.js';
-import { alert } from '../../../../../../base/browser/ui/aria/aria.js';
-import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
 import { onUnexpectedError } from '../../../../../../base/common/errors.js';
-import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { ThemeIcon } from '../../../../../../base/common/themables.js';
-import { localize } from '../../../../../../nls.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IChatInputNoticeClaimOptions, IChatInputNoticeFocusTarget, IChatInputSurface, pickActiveChatInput, trackChatInputRecency } from './chatInputNoticeHost.js';
+import { ChatInputStackSlot, setChatInputStackSlot } from './chatInputStack.js';
 
 /**
  * The space above one chat input, as offered to an introduction. Claiming it is
@@ -44,7 +39,6 @@ type ChatInputOnboardingFactory = (context: IChatInputOnboardingContext) => ICha
 
 export interface IChatInputOnboardingOptions {
 	readonly storageKey: string;
-	readonly hostClass: string;
 }
 
 export interface IChatInputOnboardingContext {
@@ -61,21 +55,6 @@ export interface IChatInputOnboardingBanner extends IDisposable, IChatInputNotic
 	 * rather than keep going somewhere the user cannot see.
 	 */
 	setVisible?(visible: boolean): void;
-}
-
-export interface IChatInputOnboardingCardOptions {
-	readonly container: HTMLElement;
-	readonly className: string;
-	readonly ariaLabel: string;
-	readonly ariaDescription?: string;
-	readonly onEscape: () => void;
-}
-
-export interface IChatInputOnboardingActionOptions {
-	readonly className: string;
-	readonly ariaLabel: string;
-	readonly icon: ThemeIcon;
-	readonly onActivate: () => void;
 }
 
 export class ChatInputOnboarding extends Disposable {
@@ -230,7 +209,7 @@ export class ChatInputOnboarding extends Disposable {
 		this.activeBanner?.setVisible?.(false);
 		// Focus is handed back to the input by whatever took the space, so the card
 		// only has to take itself off screen.
-		setVisibility(false, host.container);
+		setChatInputStackSlot(host.container, ChatInputStackSlot.Empty);
 	}
 
 	private build(): void {
@@ -243,14 +222,12 @@ export class ChatInputOnboarding extends Disposable {
 		// Already built and merely standing down: show it again rather than
 		// rebuilding, so in-flight state survives and it is not announced twice.
 		if (this.currentOnboarding.value) {
-			setVisibility(true, host.container);
+			setChatInputStackSlot(host.container, ChatInputStackSlot.Standalone);
 			this.activeBanner?.setVisible?.(true);
 			return;
 		}
 
 		const onboardingStore = new DisposableStore();
-		host.container.classList.add(this.options.hostClass);
-		onboardingStore.add(toDisposable(() => host.container.classList.remove(this.options.hostClass)));
 
 		let banner: IChatInputOnboardingBanner;
 		try {
@@ -278,7 +255,7 @@ export class ChatInputOnboarding extends Disposable {
 
 		this.currentOnboarding.value = onboardingStore;
 		this.activeBanner = banner;
-		setVisibility(true, host.container);
+		setChatInputStackSlot(host.container, ChatInputStackSlot.Standalone);
 		// Recorded when the card is actually put in front of the user, so being
 		// deferred or put away never counts as having been seen.
 		this.storageService.store(this.options.storageKey, true, StorageScope.APPLICATION, StorageTarget.USER);
@@ -308,83 +285,10 @@ export class ChatInputOnboarding extends Disposable {
 		this.leading = false;
 		this.currentOnboarding.clear();
 		if (host) {
-			setVisibility(true, host.container);
+			setChatInputStackSlot(host.container, ChatInputStackSlot.Empty);
 		}
 		if (wasVisible && restoreFocus) {
 			host?.focus?.();
 		}
-	}
-}
-
-export class ChatInputOnboardingCard extends Disposable {
-
-	readonly domNode: HTMLElement;
-
-	private readonly ariaLabel: string;
-
-	constructor(options: IChatInputOnboardingCardOptions) {
-		super();
-
-		this.ariaLabel = options.ariaLabel;
-
-		this.domNode = options.container.ownerDocument.createElement('div');
-		this.domNode.classList.add(options.className);
-		this.domNode.setAttribute('role', 'region');
-		this.domNode.setAttribute('aria-label', options.ariaLabel);
-		if (options.ariaDescription) {
-			this.domNode.setAttribute('aria-description', options.ariaDescription);
-		}
-
-		options.container.appendChild(this.domNode);
-		this._register(toDisposable(() => this.domNode.remove()));
-
-		this.domNode.tabIndex = 0;
-
-		this._register(addDisposableListener(this.domNode, EventType.KEY_DOWN, event => {
-			const keyboardEvent = new StandardKeyboardEvent(event);
-			if (keyboardEvent.equals(KeyCode.Escape)) {
-				keyboardEvent.preventDefault();
-				keyboardEvent.stopPropagation();
-				options.onEscape();
-			}
-		}));
-	}
-
-	announce(): void {
-		alert(localize('chatInputOnboarding.focusHint', "{0}. Use Shift+Tab to reach the introduction.", this.ariaLabel));
-	}
-
-	hasFocus(): boolean {
-		return isAncestorOfActiveElement(this.domNode);
-	}
-
-	focus(): void {
-		this.domNode.focus();
-	}
-
-	addAction(options: IChatInputOnboardingActionOptions): HTMLElement {
-		const action = this.domNode.ownerDocument.createElement('div');
-		action.classList.add(options.className);
-		action.setAttribute('role', 'button');
-		action.tabIndex = 0;
-		action.setAttribute('aria-label', options.ariaLabel);
-		const icon = this.domNode.ownerDocument.createElement('span');
-		icon.classList.add(...ThemeIcon.asClassNameArray(options.icon));
-		icon.setAttribute('aria-hidden', 'true');
-		action.appendChild(icon);
-		this.domNode.appendChild(action);
-
-		const activate = () => options.onActivate();
-		this._register(addDisposableListener(action, EventType.CLICK, activate));
-		this._register(addDisposableListener(action, EventType.KEY_DOWN, event => {
-			const keyboardEvent = new StandardKeyboardEvent(event);
-			if (keyboardEvent.equals(KeyCode.Enter) || keyboardEvent.equals(KeyCode.Space)) {
-				keyboardEvent.preventDefault();
-				keyboardEvent.stopPropagation();
-				activate();
-			}
-		}));
-
-		return action;
 	}
 }

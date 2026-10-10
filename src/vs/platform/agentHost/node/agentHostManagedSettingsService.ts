@@ -16,7 +16,7 @@ export interface IAgentHostManagedSettingsService {
 	readonly onDidChange: Event<void>;
 	readonly permissions: IAgentHostManagedSettingsPermissions;
 	setClientPermissions(clientId: string, permissions: IAgentHostManagedSettingsPermissions): void;
-	removeClientPermissions(clientId: string): void;
+	removeClient(clientId: string): void;
 }
 
 export class AgentHostManagedSettingsService extends Disposable implements IAgentHostManagedSettingsService {
@@ -41,7 +41,7 @@ export class AgentHostManagedSettingsService extends Disposable implements IAgen
 		this._updatePermissions();
 	}
 
-	removeClientPermissions(clientId: string): void {
+	removeClient(clientId: string): void {
 		if (this._permissionsByClient.delete(clientId)) {
 			this._updatePermissions();
 		}

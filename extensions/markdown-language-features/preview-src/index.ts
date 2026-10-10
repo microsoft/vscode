@@ -54,7 +54,7 @@ const state: State = {
 const hasStartingLine = typeof settings.settings.line === 'number' && !isNaN(settings.settings.line);
 if (typeof originalState.scrollProgress !== 'undefined'
 	&& (originalState?.resource !== state.resource || (hasStartingLine && originalState.line !== settings.settings.line))) {
-	state.scrollProgress = undefined;
+	state.scrollProgress = hasStartingLine ? undefined : 0;
 }
 
 // Make sure to sync VS Code state here

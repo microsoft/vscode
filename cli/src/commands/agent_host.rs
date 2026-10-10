@@ -12,19 +12,19 @@ use std::time::{Duration, Instant};
 
 use tokio::io::{AsyncBufReadExt, BufReader};
 
-use crate::auth::Auth;
-use crate::constants::{self, AGENT_HOST_PORT};
+use crate::auth::{Auth, AuthProvider};
+use crate::constants;
 use crate::log;
+use crate::options::TelemetryLevel;
 use crate::state::LauncherPaths;
 use crate::tunnels::agent_host::{
-	classify_agent_host, serve_agent_host_tunnel_connection, AgentHostConfig, AgentHostManager,
-	AgentHostReuseDecision, AgentHostSidecar, LoopbackAuth,
+	classify_agent_host, AgentHostConfig, AgentHostManager, AgentHostReuseDecision,
+	AgentHostSidecar, GithubEnvironmentConfig, LoopbackAuth,
 };
 use crate::tunnels::agent_host_registry::{self, AgentHostEndpointIdentity, AgentHostServerType};
 use crate::tunnels::code_server::CodeServerArgs;
-use crate::tunnels::dev_tunnels::DevTunnels;
 use crate::tunnels::idle_timeout::{self, TokioIdleSleeper};
-use crate::tunnels::ready_active_agent_host;
+use crate::tunnels::legal;
 use crate::tunnels::shutdown_signal::ShutdownRequest;
 use crate::tunnels::user_data_path::resolve_user_data_path;
 use crate::update_service::Platform;
@@ -35,7 +35,6 @@ use crate::util::prereqs::PreReqChecker;
 
 use super::args::AgentHostArgs;
 use super::output;
-use super::tunnels::fulfill_existing_tunnel_args;
 use super::CommandContext;
 
 /// Internal env var that flips `code agent host` into supervisor mode:
@@ -67,7 +66,11 @@ const SUPERVISOR_READY_TIMEOUT: Duration = Duration::from_secs(5 * 60);
 ///   port, runs the proxy accept loop, and manages the underlying VS Code
 ///   server as a regular child process so the supervisor can kill+respawn
 ///   it on update.
-pub async fn agent_host(ctx: CommandContext, args: AgentHostArgs) -> Result<i32, AnyError> {
+pub async fn agent_host(ctx: CommandContext, mut args: AgentHostArgs) -> Result<i32, AnyError> {
+	if args.github_environment {
+		args.foreground = true;
+		return run_supervisor(ctx, args).await;
+	}
 	if std::env::var_os(SUPERVISOR_ENV).is_some() {
 		return run_supervisor(ctx, args).await;
 	}
@@ -100,7 +103,6 @@ enum ForegroundAction {
 		host: Option<String>,
 		port: u16,
 		token: Option<String>,
-		tunnel_name: Option<String>,
 	},
 }
 
@@ -121,7 +123,6 @@ fn decide_foreground_action(
 		host,
 		port,
 		token,
-		tunnel_name,
 		instance_id,
 	} = decision
 	else {
@@ -138,16 +139,11 @@ fn decide_foreground_action(
 	// matches the running supervisor. If it differs, error out with a
 	// clear message instead of silently sharing a differently-bound
 	// supervisor.
-	if let Some(conflict) = detect_config_conflict(
-		args,
-		host.as_deref(),
-		port,
-		token.as_deref(),
-		tunnel_name.as_deref(),
-	) {
+	if let Some(conflict) = detect_config_conflict(args, host.as_deref(), port, token.as_deref()) {
 		return ForegroundAction::ConflictError(format!(
 			"Agent host already running on {host_str}:{port} (PID {pid}), but {conflict}.\n\
-			 Use `code agent kill` to stop it, or pass `--replace` to take over.",
+			 Use `{application_name} agent kill` to stop it, or pass `--replace` to take over.",
+			application_name = constants::APPLICATION_NAME,
 			host_str = host.as_deref().unwrap_or("127.0.0.1"),
 		));
 	}
@@ -157,7 +153,6 @@ fn decide_foreground_action(
 		host,
 		port,
 		token,
-		tunnel_name,
 	}
 }
 
@@ -175,7 +170,7 @@ async fn run_foreground(ctx: CommandContext, args: AgentHostArgs) -> Result<i32,
 	let decision = if args.new_instance {
 		AgentHostReuseDecision::SpawnFresh
 	} else {
-		classify_agent_host(&ctx.log, &user_data_path)
+		classify_agent_host(&ctx.log, &user_data_path).await
 	};
 
 	// Bind the action before matching so the `&args` borrow ends here and
@@ -200,7 +195,6 @@ async fn run_foreground(ctx: CommandContext, args: AgentHostArgs) -> Result<i32,
 			host,
 			port,
 			token,
-			tunnel_name,
 		} => {
 			print_reuse_banner(
 				&ctx.log,
@@ -209,7 +203,6 @@ async fn run_foreground(ctx: CommandContext, args: AgentHostArgs) -> Result<i32,
 				host.as_deref(),
 				port,
 				token.as_deref(),
-				tunnel_name.as_deref(),
 			);
 			Ok(0)
 		}
@@ -229,8 +222,7 @@ async fn start_supervisor(ctx: CommandContext, args: AgentHostArgs) -> Result<i3
 
 /// Body of the supervisor process. Starts an [`AgentHostManager`], binds
 /// an [`AgentHostSidecar`] on the user's chosen `--host`/`--port`,
-/// optionally exposes it over a dev tunnel, prints the readiness banner /
-/// sentinel, then services connections until killed.
+/// prints the readiness banner / sentinel, then services connections until killed.
 async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Result<i32, AnyError> {
 	let started = Instant::now();
 	let user_data_path = resolve_user_data_path(args.user_data_dir.as_deref());
@@ -266,6 +258,12 @@ async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Res
 	}
 
 	let platform: Platform = PreReqChecker::new().verify().await?;
+	let github_environment = if args.github_environment {
+		legal::require_consent(&ctx.paths, args.accept_server_license_terms)?;
+		Some(github_environment_config(&ctx, &args).await?)
+	} else {
+		None
+	};
 
 	if !args.without_connection_token {
 		if let Some(p) = args.connection_token_file.as_deref() {
@@ -281,6 +279,18 @@ async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Res
 		}
 	}
 
+	// `--idle-timeout` is opt-in: only build the activity-tracking channel
+	// when requested, so a manually started local host (the default) never
+	// pays for/depends on this bookkeeping and never self-terminates.
+	let idle_timeout_duration = args.idle_timeout.map(Duration::from_secs);
+	let (activity, activity_rx) = match idle_timeout_duration {
+		Some(_) => {
+			let (tracker, rx) = idle_timeout::new_activity_channel();
+			(Some(tracker), Some(rx))
+		}
+		None => (None, None),
+	};
+
 	let manager = AgentHostManager::new(
 		ctx.log.clone(),
 		platform,
@@ -288,6 +298,13 @@ async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Res
 		Arc::new(ReqwestSimpleHttp::with_client(ctx.http.clone())),
 		AgentHostConfig {
 			server_data_dir: args.server_data_dir.clone(),
+			user_data_dir: args.user_data_dir.clone(),
+			github_environment,
+			telemetry_level: if ctx.args.global_options.disable_telemetry {
+				Some(TelemetryLevel::Off)
+			} else {
+				ctx.args.global_options.telemetry_level
+			},
 			// The AH backend runs on an internal-only unix socket / named
 			// pipe between this supervisor and its child, so we
 			// deliberately disable the backend's token check; this
@@ -297,6 +314,10 @@ async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Res
 			connection_token: None,
 			connection_token_file: None,
 		},
+		// The backend counts as activity while it runs, so the idle timeout
+		// can't kill agent sessions that are still working after the last
+		// client disconnects.
+		activity.clone(),
 	);
 
 	// Eagerly resolve the latest version so the first connection is fast,
@@ -318,43 +339,10 @@ async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Res
 		});
 	}
 
-	let mut pending_tunnel = None;
-	let mut tunnel_name: Option<String> = None;
-	if args.tunnel {
-		let mut auth = Auth::new(&ctx.paths, ctx.log.clone());
-		auth.set_provider(crate::auth::AuthProvider::Github);
-		let mut dt = DevTunnels::new_remote_tunnel(&ctx.log, auth, &ctx.paths);
-
-		let mut tunnel = if let Some(existing) =
-			fulfill_existing_tunnel_args(args.existing_tunnel.clone(), &args.name)
-		{
-			dt.start_existing_tunnel(existing).await
-		} else {
-			dt.start_new_launcher_tunnel(args.name.as_deref(), args.random_name, &[])
-				.await
-		}?;
-
-		tunnel_name = Some(tunnel.name.clone());
-		let tunnel_port = tunnel.add_port_direct(AGENT_HOST_PORT).await?;
-		pending_tunnel = Some((tunnel, tunnel_port));
-	}
-
 	let listen_addr = resolve_listen_addr(&args)?;
 	let loopback_auth = match args.connection_token.as_deref() {
 		Some(t) => LoopbackAuth::Token(t.to_string()),
 		None => LoopbackAuth::Disabled,
-	};
-
-	// `--idle-timeout` is opt-in: only build the activity-tracking channel
-	// when requested, so a manually started local host (the default) never
-	// pays for/depends on this bookkeeping and never self-terminates.
-	let idle_timeout_duration = args.idle_timeout.map(Duration::from_secs);
-	let (activity, activity_rx) = match idle_timeout_duration {
-		Some(_) => {
-			let (tracker, rx) = idle_timeout::new_activity_channel();
-			(Some(tracker), Some(rx))
-		}
-		None => (None, None),
 	};
 
 	let sidecar = AgentHostSidecar::bind_tcp(
@@ -363,65 +351,17 @@ async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Res
 		listen_addr,
 		args.host.clone(),
 		loopback_auth,
-		tunnel_name.clone(),
 		user_data_path.clone(),
 		instance_id.clone(),
 		activity,
 	)
 	.await?;
 	let bound_port = sidecar.bound_addr().port();
-
-	let mut tunnel_handle: Option<crate::tunnels::dev_tunnels::ActiveTunnel> = None;
-	if let Some((tunnel, mut tunnel_port)) = pending_tunnel {
-		// Route each tunneled connection through the same protocol-v6
-		// selection-gateway request router `code tunnel`'s control_server
-		// uses (`serve_agent_host_tunnel_connection`), instead of the
-		// legacy direct proxy (`AgentHostSidecar::serve_tunnel_connection`)
-		// this used to call unconditionally. That legacy method never
-		// looked at the request path, so a renderer's `/agent-host/select`
-		// WebSocket upgrade -- sent because this tunnel is tagged
-		// `protocolv6`, see `add_port_direct` above -- fell straight
-		// through to the AH backend instead of the selection gateway, and
-		// no inventory was ever sent (the reported timeout).
-		//
-		// The root/default (legacy v5) route must still resolve to *this*
-		// running sidecar -- never `ensure_supervisor_running`, which
-		// could spawn or reuse an unrelated supervisor -- so we build an
-		// already-resolved `SharedActiveAgentHost` from the sidecar's own
-		// published identity. Because that identity points back at our
-		// own loopback listener (`AgentHostSidecar::serve`, below), a
-		// legacy client proxied this way is accepted through the very
-		// same accept loop that already holds an `--idle-timeout`
-		// activity guard for its connection's whole lifetime, so a
-		// connected legacy tunnel client keeps counting as activity and
-		// cannot make the supervisor time itself out from under it.
-		let active_agent_host = ready_active_agent_host(sidecar.active_agent_host());
-		let launcher_paths = ctx.paths.clone();
-		let gateway_user_data_path = user_data_path.clone();
-		let tunnel_log = ctx.log.clone();
-		info!(
-			ctx.log,
-			"Routing dev-tunnel-hosted agent-host port through the protocol-v6 selection gateway"
-		);
-		tokio::spawn(async move {
-			while let Some(socket) = tunnel_port.recv().await {
-				let log = tunnel_log.clone();
-				let active_agent_host = active_agent_host.clone();
-				let launcher_paths = launcher_paths.clone();
-				let user_data_path = gateway_user_data_path.clone();
-				tokio::spawn(async move {
-					serve_agent_host_tunnel_connection(
-						log,
-						socket.into_rw(),
-						active_agent_host,
-						launcher_paths,
-						user_data_path,
-					)
-					.await;
-				});
-			}
-		});
-		tunnel_handle = Some(tunnel);
+	if args.github_environment {
+		if let Err(error) = manager.ensure_server().await {
+			sidecar.shutdown().await;
+			return Err(error.into());
+		}
 	}
 
 	let product = constants::QUALITYLESS_PRODUCT_NAME;
@@ -432,9 +372,6 @@ async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Res
 		.unwrap_or_default();
 
 	output::print_banner_header(&format!("{product} Agent Host"), started.elapsed());
-	if let (Some(base), Some(name)) = (constants::EDITOR_WEB_URL, &tunnel_name) {
-		output::print_banner_line("Tunnel", &format!("{base}/agents/tunnel/{name}"));
-	}
 	// Resolve the user's `--host` choice into an `IpAddr` so the banner can
 	// either suggest exposing the agent host or enumerate the bound
 	// interfaces. Defaults to loopback when `--host` was omitted.
@@ -443,8 +380,16 @@ async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Res
 		.as_deref()
 		.and_then(|h| h.parse::<std::net::IpAddr>().ok())
 		.unwrap_or(std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST));
-	output::print_network_lines(bound_port, banner_listen_ip, &token_suffix);
-	output::print_banner_line("Manage", "code agent ps  |  code agent kill");
+	if args.github_environment {
+		output::print_banner_line("Remote", "GitHub environment");
+		output::print_banner_line(
+			"Local",
+			&format!("ws://localhost:{bound_port}{token_suffix}"),
+		);
+	} else {
+		output::print_network_lines(bound_port, banner_listen_ip, &token_suffix);
+	}
+	print_manage_banner_line();
 	output::print_banner_footer();
 	let _ = std::io::stdout().flush();
 
@@ -464,6 +409,17 @@ async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Res
 
 	let shutdown_rx = ShutdownRequest::create_rx([ShutdownRequest::CtrlC]);
 	match (idle_timeout_duration, activity_rx) {
+		_ if args.github_environment => {
+			tokio::select! {
+				result = sidecar.serve(shutdown_rx) => {
+					result?;
+				}
+				result = manager.maintain_server() => {
+					sidecar.shutdown().await;
+					result?;
+				}
+			}
+		}
 		(Some(duration), Some(rx)) => {
 			tokio::select! {
 				result = sidecar.serve(shutdown_rx) => {
@@ -484,11 +440,83 @@ async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Res
 	}
 	sidecar.shutdown().await;
 
-	if let Some(mut tunnel) = tunnel_handle.take() {
-		tunnel.close().await.ok();
-	}
-
 	Ok(0)
+}
+
+async fn github_environment_config(
+	ctx: &CommandContext,
+	args: &AgentHostArgs,
+) -> Result<GithubEnvironmentConfig, AnyError> {
+	if args
+		.name
+		.as_deref()
+		.is_some_and(|name| name.trim().is_empty())
+	{
+		return Err(wrap("", "GitHub environment name must not be empty").into());
+	}
+	let roots = if args.github_environment_root.is_empty() {
+		vec![std::env::current_dir().map_err(|e| wrap(e, "could not resolve current directory"))?]
+	} else {
+		args.github_environment_root.clone()
+	};
+	let roots = roots
+		.iter()
+		.map(|root| {
+			let path = fs::canonicalize(root)
+				.map_err(|e| wrap(e, format!("could not resolve project {}", root.display())))?;
+			if !path.is_dir() {
+				return Err(wrap(
+					"",
+					format!("project {} is not a directory", root.display()),
+				));
+			}
+			Ok(path.to_string_lossy().into_owned())
+		})
+		.collect::<Result<Vec<_>, _>>()?;
+	let mut auth = Auth::with_namespace(
+		&ctx.paths,
+		ctx.log.clone(),
+		Some("github-environments".into()),
+	);
+	auth.set_provider(AuthProvider::Github);
+	let credential = if auth.get_current_credential()?.is_some() {
+		auth.get_credential().await?
+	} else {
+		auth.login_with_scopes(
+			AuthProvider::Github,
+			Some("read:user+user:email+repo+workflow".into()),
+		)
+		.await?
+	};
+	let credential = credential.access_token().to_string();
+	if credential.is_empty() {
+		return Err(wrap("", "GitHub environment access token must not be empty").into());
+	}
+	#[derive(serde::Deserialize)]
+	struct GithubUser {
+		id: u64,
+	}
+	let response = ctx
+		.http
+		.get("https://api.github.com/user")
+		.bearer_auth(&credential)
+		.header("User-Agent", constants::get_default_user_agent())
+		.send()
+		.await?;
+	if !response.status().is_success() {
+		return Err(crate::util::errors::StatusError::from_res(response)
+			.await?
+			.into());
+	}
+	let user: GithubUser = response.json().await?;
+	Ok(GithubEnvironmentConfig {
+		base_url: "https://api.github.com".into(),
+		account_id: user.id.to_string(),
+		credential,
+		roots,
+		name: args.name.clone(),
+		live: true,
+	})
 }
 
 /// Resolve the user's `--host`/`--port` choice into a single
@@ -521,14 +549,10 @@ fn print_reuse_banner(
 	host: Option<&str>,
 	port: u16,
 	token: Option<&str>,
-	tunnel_name: Option<&str>,
 ) {
 	let product = constants::QUALITYLESS_PRODUCT_NAME;
 	let token_suffix = token.map(|t| format!("?tkn={t}")).unwrap_or_default();
 	output::print_banner_header(&format!("{product} Agent Host"), started.elapsed());
-	if let (Some(base), Some(name)) = (constants::EDITOR_WEB_URL, tunnel_name) {
-		output::print_banner_line("Tunnel", &format!("{base}/agents/tunnel/{name}"));
-	}
 	// Surface the host the supervisor was actually bound to (falling back
 	// to loopback if unknown). This lets the network hint correctly say
 	// "use --host to expose" only when the supervisor really is
@@ -537,13 +561,22 @@ fn print_reuse_banner(
 		.and_then(|h| h.parse::<std::net::IpAddr>().ok())
 		.unwrap_or(std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST));
 	output::print_network_lines(port, banner_listen_ip, &token_suffix);
-	output::print_banner_line("Manage", "code agent ps  |  code agent kill");
+	print_manage_banner_line();
 	output::print_banner_footer();
 	let _ = std::io::stdout().flush();
 	log.result(format!(
 		"Agent host supervisor already running (PID {pid}). \
-		 Use `code agent kill` to stop it, or `code agent host --replace` to start a fresh one."
+		 Use `{application_name} agent kill` to stop it, or `{application_name} agent host --replace` to start a fresh one.",
+		application_name = constants::APPLICATION_NAME,
 	));
+}
+
+fn print_manage_banner_line() {
+	let application_name = constants::APPLICATION_NAME;
+	output::print_banner_line(
+		"Manage",
+		&format!("{application_name} agent ps  |  {application_name} agent kill"),
+	);
 }
 
 /// Compare the user's requested supervisor configuration with what's
@@ -561,7 +594,6 @@ fn detect_config_conflict(
 	running_host: Option<&str>,
 	running_port: u16,
 	running_token: Option<&str>,
-	running_tunnel: Option<&str>,
 ) -> Option<String> {
 	if let (Some(requested), Some(running)) = (args.host.as_deref(), running_host) {
 		if requested != running {
@@ -598,11 +630,6 @@ fn detect_config_conflict(
 			}
 			Some(_) => {}
 		}
-	}
-	if args.tunnel && running_tunnel.is_none() {
-		return Some(
-			"--tunnel conflicts with the running supervisor (not exposed via a tunnel)".to_string(),
-		);
 	}
 	None
 }
@@ -648,6 +675,15 @@ async fn daemonize_supervisor() -> Result<i32, AnyError> {
 	// passed in foreground.
 	cmd.args(std::env::args_os().skip(1));
 	cmd.env(SUPERVISOR_ENV, "1");
+	#[cfg(windows)]
+	cmd.env(
+		output::PARENT_STDOUT_SUPPORTS_UTF8_ENV,
+		if output::stdout_supports_utf8() {
+			"1"
+		} else {
+			"0"
+		},
+	);
 	cmd.stdin(std::process::Stdio::null());
 	cmd.stdout(std::process::Stdio::piped());
 	cmd.stderr(std::process::Stdio::piped());
@@ -710,7 +746,7 @@ pub async fn ensure_supervisor_running(
 		port,
 		token,
 		..
-	} = classify_agent_host(log, &user_data_path)
+	} = classify_agent_host(log, &user_data_path).await
 	{
 		return Ok(ActiveAgentHost {
 			pid,
@@ -727,7 +763,7 @@ pub async fn ensure_supervisor_running(
 
 	spawn_supervisor_and_wait_ready(launcher_paths, log, &[]).await?;
 
-	match classify_agent_host(log, &user_data_path) {
+	match classify_agent_host(log, &user_data_path).await {
 		AgentHostReuseDecision::Reuse {
 			pid,
 			host,
@@ -782,6 +818,7 @@ pub async fn spawn_dedicated_supervisor(
 	let child_pid = spawn_supervisor_and_wait_ready(launcher_paths, log, &extra_args).await?;
 
 	agent_host_registry::list_live_standalone_endpoints(log, user_data_path)
+		.await
 		.into_iter()
 		.find(|e| e.pid == child_pid)
 		.ok_or_else(|| {
@@ -984,7 +1021,9 @@ fn mint_connection_token(path: &Path, prefer_token: Option<String>) -> std::io::
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use crate::async_pipe::{get_socket_name, listen_socket_rw_stream};
 	use std::fs;
+	use tokio::net::TcpListener;
 
 	#[test]
 	fn mint_connection_token_generates_and_persists() {
@@ -1031,7 +1070,6 @@ mod tests {
 			host: Some("127.0.0.1".to_string()),
 			port: 9000,
 			token: Some("tok".to_string()),
-			tunnel_name: None,
 			instance_id: "instance-existing".to_string(),
 		}
 	}
@@ -1054,7 +1092,6 @@ mod tests {
 				host: Some("127.0.0.1".to_string()),
 				port: 9000,
 				token: Some("tok".to_string()),
-				tunnel_name: None,
 			}
 		);
 	}
@@ -1136,11 +1173,23 @@ mod tests {
 	/// entries completely untouched, while a normal (non-`--new-instance`)
 	/// request against the same registry would have chosen to reuse the
 	/// existing standalone entry instead of starting anything new.
-	#[test]
-	fn new_instance_preserves_existing_editor_and_standalone_registry_entries() {
+	#[tokio::test]
+	async fn new_instance_preserves_existing_editor_and_standalone_registry_entries() {
 		let dir = tempfile::tempdir().unwrap();
 		let user_data_path = dir.path().join("user-data");
 		let log = log::Logger::test();
+		let editor_socket_path = get_socket_name();
+		let mut editor_socket_listener =
+			listen_socket_rw_stream(&editor_socket_path).await.unwrap();
+		let _editor_accept_task = tokio::spawn(async move {
+			loop {
+				let _connection = editor_socket_listener.accept().await.unwrap();
+			}
+		});
+		let standalone_listener = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
+		let standalone_port = standalone_listener.local_addr().unwrap().port();
+		let new_supervisor_listener = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
+		let new_supervisor_port = new_supervisor_listener.local_addr().unwrap().port();
 
 		let editor = agent_host_registry::AgentHostEndpointMetadata {
 			schema_version: agent_host_registry::AGENT_HOST_ENDPOINT_REGISTRY_SCHEMA_VERSION,
@@ -1150,7 +1199,7 @@ mod tests {
 			protocol_version: agent_host_registry::AGENT_HOST_PROTOCOL_VERSION.to_string(),
 			connection_token: "editor-tok".to_string(),
 			endpoint: agent_host_registry::AgentHostEndpointAddress::Socket {
-				path: "/tmp/editor.sock".to_string(),
+				path: editor_socket_path.to_string_lossy().to_string(),
 			},
 			quality: None,
 			tunnel_name: None,
@@ -1161,7 +1210,7 @@ mod tests {
 			std::process::id(),
 			"standalone-existing".to_string(),
 			"127.0.0.1".to_string(),
-			5555,
+			standalone_port,
 			"standalone-tok".to_string(),
 			agent_host_registry::AGENT_HOST_PROTOCOL_VERSION.to_string(),
 			None,
@@ -1173,15 +1222,14 @@ mod tests {
 		// Sanity check: without `--new-instance`, this registry state
 		// would have caused a plain `code agent host` to reuse the
 		// existing standalone entry rather than spawn anything.
-		let plain_decision = classify_agent_host(&log, &user_data_path);
+		let plain_decision = classify_agent_host(&log, &user_data_path).await;
 		assert_eq!(
 			plain_decision,
 			AgentHostReuseDecision::Reuse {
 				pid: std::process::id(),
 				host: Some("127.0.0.1".to_string()),
-				port: 5555,
+				port: standalone_port,
 				token: Some("standalone-tok".to_string()),
-				tunnel_name: None,
 				instance_id: "standalone-existing".to_string(),
 			}
 		);
@@ -1190,9 +1238,8 @@ mod tests {
 			ForegroundAction::ReuseBanner {
 				pid: std::process::id(),
 				host: Some("127.0.0.1".to_string()),
-				port: 5555,
+				port: standalone_port,
 				token: Some("standalone-tok".to_string()),
-				tunnel_name: None,
 			}
 		);
 
@@ -1221,7 +1268,7 @@ mod tests {
 			std::process::id(),
 			"standalone-new-instance".to_string(),
 			"127.0.0.1".to_string(),
-			6666,
+			new_supervisor_port,
 			"new-instance-tok".to_string(),
 			agent_host_registry::AGENT_HOST_PROTOCOL_VERSION.to_string(),
 			None,
@@ -1230,7 +1277,7 @@ mod tests {
 		agent_host_registry::publish_agent_host_endpoint(&log, &user_data_path, &new_supervisor)
 			.unwrap();
 
-		let live = agent_host_registry::list_live_endpoints(&log, &user_data_path);
+		let live = agent_host_registry::list_live_endpoints(&log, &user_data_path).await;
 		assert_eq!(live.len(), 3);
 		assert!(live.iter().any(|e| e.instance_id == "editor-instance"));
 		assert!(live.iter().any(|e| e.instance_id == "standalone-existing"));
