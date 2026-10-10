@@ -1,0 +1,246 @@
+// https://code.visualstudio.com/docs/editor/userdefinedsnippets#_snippet-syntax
+{
+	"Tabstops": {
+		"prefix": "$tabstop",
+		"body": "$${1|0,1,2,3,4,5,6,7,8,9|}",
+		"description": [
+			"Tabstops",
+			"With tabstops, you can make the editor cursor move inside a snippet.",
+			"Use `$1`, `$2` to specify cursor locations.",
+			"The number is the order in which tabstops will be visited,",
+			"whereas `$0` denotes the final cursor position.",
+			"Multiple occurrences of the same tabstop are linked and updated in sync.",
+			"https://code.visualstudio.com/docs/editor/userdefinedsnippets#_tabstops",
+			""
+		]
+	},
+	"Placeholders": {
+		"prefix": "$placeholder",
+		"body": "${${1|1,2,3,name,TM_SELECTED_TEXT,TM_CURRENT_LINE,TM_CURRENT_WORD,TM_LINE_INDEX,TM_LINE_NUMBER,TM_FILENAME,TM_FILENAME_BASE,TM_DIRECTORY,TM_FILEPATH,RELATIVE_FILEPATH,CLIPBOARD,WORKSPACE_NAME,WORKSPACE_FOLDER,CURSOR_INDEX,CURSOR_NUMBER,CURRENT_YEAR,CURRENT_YEAR_SHORT,CURRENT_MONTH,CURRENT_MONTH_NAME,CURRENT_MONTH_NAME_SHORT,CURRENT_DATE,CURRENT_DAY_NAME,CURRENT_DAY_NAME_SHORT,CURRENT_HOUR,CURRENT_MINUTE,CURRENT_SECOND,CURRENT_SECONDS_UNIX,CURRENT_TIMEZONE_OFFSET,RANDOM,RANDOM_HEX,UUID,BLOCK_COMMENT_START,BLOCK_COMMENT_END,LINE_COMMENT|}:${2:${TM_SELECTED_TEXT:placeholder}}}",
+		"description": [
+			"Placeholders are tabstops with values, like `${1:foo}`.",
+			"The placeholder text will be inserted and selected such that it can be easily changed.",
+			"Placeholders can be nested, like `${1:another ${2:placeholder}}`.",
+			"https://code.visualstudio.com/docs/editor/userdefinedsnippets#_placeholders",
+			""
+		]
+	},
+	"Choice": {
+		"prefix": "$choice",
+		"body": "${${1|1,2,3,4,5,6,7,8,9|}|${2:one},${3:${TM_SELECTED_TEXT:two}},${4:three}|}",
+		"description": [
+			"Placeholders can have choices as values.",
+			"The syntax is a comma-separated enumeration of values,",
+			" enclosed with the pipe-character, for example `${1|one,two,three|}`.",
+			"When the snippet is inserted and the placeholder selected,",
+			" choices will prompt the user to pick one of the values.",
+			"https://code.visualstudio.com/docs/editor/userdefinedsnippets#_choice",
+			""
+		]
+	},
+	"Variables": {
+		"prefix": "$variable",
+		"body": "${${1|name,TM_SELECTED_TEXT,TM_CURRENT_LINE,TM_CURRENT_WORD,TM_LINE_INDEX,TM_LINE_NUMBER,TM_FILENAME,TM_FILENAME_BASE,TM_DIRECTORY,TM_FILEPATH,RELATIVE_FILEPATH,CLIPBOARD,WORKSPACE_NAME,WORKSPACE_FOLDER,CURSOR_INDEX,CURSOR_NUMBER,CURRENT_YEAR,CURRENT_YEAR_SHORT,CURRENT_MONTH,CURRENT_MONTH_NAME,CURRENT_MONTH_NAME_SHORT,CURRENT_DATE,CURRENT_DAY_NAME,CURRENT_DAY_NAME_SHORT,CURRENT_HOUR,CURRENT_MINUTE,CURRENT_SECOND,CURRENT_SECONDS_UNIX,CURRENT_TIMEZONE_OFFSET,RANDOM,RANDOM_HEX,UUID,BLOCK_COMMENT_START,BLOCK_COMMENT_END,LINE_COMMENT|}}",
+		"description": [
+			"With `$name` or `${name:default}`, you can insert the value of a variable.",
+			"When a variable isn't set, its default or the empty string is inserted.",
+			"When a variable is unknown (that is, its name isn't defined)",
+			" the name of the variable is inserted and it is transformed into a placeholder.",
+			"https://code.visualstudio.com/docs/editor/userdefinedsnippets#_variables",
+			""
+		]
+	},
+	"Variable Transforms": {
+		"prefix": "$transform",
+		"body": "${${1|1,2,3,name,TM_SELECTED_TEXT,TM_CURRENT_LINE,TM_CURRENT_WORD,TM_LINE_INDEX,TM_LINE_NUMBER,TM_FILENAME,TM_FILENAME_BASE,TM_DIRECTORY,TM_FILEPATH,RELATIVE_FILEPATH,CLIPBOARD,WORKSPACE_NAME,WORKSPACE_FOLDER,CURSOR_INDEX,CURSOR_NUMBER,CURRENT_YEAR,CURRENT_YEAR_SHORT,CURRENT_MONTH,CURRENT_MONTH_NAME,CURRENT_MONTH_NAME_SHORT,CURRENT_DATE,CURRENT_DAY_NAME,CURRENT_DAY_NAME_SHORT,CURRENT_HOUR,CURRENT_MINUTE,CURRENT_SECOND,CURRENT_SECONDS_UNIX,CURRENT_TIMEZONE_OFFSET,RANDOM,RANDOM_HEX,UUID,BLOCK_COMMENT_START,BLOCK_COMMENT_END,LINE_COMMENT|}/${2:${TM_SELECTED_TEXT:regex|([a-z]+)}}/${3:\\${1:/upcase\\}}/${4|g,i,m,s,v,y,d|}}",
+		"description": [
+			"Transformations allow you to modify the value of a variable before it is inserted.",
+			"The definition of a transformation consists of three parts:",
+			"1. A regular expression that is matched against the value of a variable,",
+			"    or the empty string when the variable cannot be resolved.",
+			"2. A \"format string\" that allows to reference matching groups from the regular expression.",
+			"    The format string allows for conditional inserts and simple modifications.",
+			"3. Options that are passed to the regular expression.",
+			"https://code.visualstudio.com/docs/editor/userdefinedsnippets#_variable-transforms",
+			""
+		]
+	},
+	"Format Case": {
+		"prefix": "$format-case",
+		"body": "${${1|0,1,2,3,4,5,6,7,8,9|}:/${2|upcase,downcase,camelcase,pascalcase,capitalize|}}"
+	},
+	"Format Conditional": {
+		"prefix": "$format-if",
+		"body": "${${1|0,1,2,3,4,5,6,7,8,9|}:${2|+if,?if:else,else|}$3}"
+	},
+	"TM_SELECTED_TEXT": {
+		"prefix": "TM_SELECTED_TEXT",
+		"body": "TM_SELECTED_TEXT",
+		"description": "The currently selected text or the empty string"
+	},
+	"TM_CURRENT_LINE": {
+		"prefix": "TM_CURRENT_LINE",
+		"body": "TM_CURRENT_LINE",
+		"description": "The contents of the current line"
+	},
+	"TM_CURRENT_WORD": {
+		"prefix": "TM_CURRENT_WORD",
+		"body": "TM_CURRENT_WORD",
+		"description": "The contents of the word under cursor or the empty string"
+	},
+	"TM_LINE_INDEX": {
+		"prefix": "TM_LINE_INDEX",
+		"body": "TM_LINE_INDEX",
+		"description": "The zero-index based line number"
+	},
+	"TM_LINE_NUMBER": {
+		"prefix": "TM_LINE_NUMBER",
+		"body": "TM_LINE_NUMBER",
+		"description": "The one-index based line number"
+	},
+	"TM_FILENAME": {
+		"prefix": "TM_FILENAME",
+		"body": "TM_FILENAME",
+		"description": "The filename of the current document"
+	},
+	"TM_FILENAME_BASE": {
+		"prefix": "TM_FILENAME_BASE",
+		"body": "TM_FILENAME_BASE",
+		"description": "The filename of the current document without its extensions"
+	},
+	"TM_DIRECTORY": {
+		"prefix": "TM_DIRECTORY",
+		"body": "TM_DIRECTORY",
+		"description": "The directory of the current document"
+	},
+	"TM_FILEPATH": {
+		"prefix": "TM_FILEPATH",
+		"body": "TM_FILEPATH",
+		"description": "The full file path of the current document"
+	},
+	"RELATIVE_FILEPATH": {
+		"prefix": "RELATIVE_FILEPATH",
+		"body": "RELATIVE_FILEPATH",
+		"description": "The relative (to the opened workspace or folder) file path of the current document"
+	},
+	"CLIPBOARD": {
+		"prefix": "CLIPBOARD",
+		"body": "CLIPBOARD",
+		"description": "The contents of your clipboard"
+	},
+	"WORKSPACE_NAME": {
+		"prefix": "WORKSPACE_NAME",
+		"body": "WORKSPACE_NAME",
+		"description": "The name of the opened workspace or folder"
+	},
+	"WORKSPACE_FOLDER": {
+		"prefix": "WORKSPACE_FOLDER",
+		"body": "WORKSPACE_FOLDER",
+		"description": "The path of the opened workspace or folder"
+	},
+	"CURSOR_INDEX": {
+		"prefix": "CURSOR_INDEX",
+		"body": "CURSOR_INDEX",
+		"description": "The zero-index based cursor number"
+	},
+	"CURSOR_NUMBER": {
+		"prefix": "CURSOR_NUMBER",
+		"body": "CURSOR_NUMBER",
+		"description": "The one-index based cursor number"
+	},
+	"CURRENT_YEAR": {
+		"prefix": "CURRENT_YEAR",
+		"body": "CURRENT_YEAR",
+		"description": "The current year"
+	},
+	"CURRENT_YEAR_SHORT": {
+		"prefix": "CURRENT_YEAR_SHORT",
+		"body": "CURRENT_YEAR_SHORT",
+		"description": "The current year's last two digits"
+	},
+	"CURRENT_MONTH": {
+		"prefix": "CURRENT_MONTH",
+		"body": "CURRENT_MONTH",
+		"description": "The month as two digits (example '02')"
+	},
+	"CURRENT_MONTH_NAME": {
+		"prefix": "CURRENT_MONTH_NAME",
+		"body": "CURRENT_MONTH_NAME",
+		"description": "The full name of the month (example 'July')"
+	},
+	"CURRENT_MONTH_NAME_SHORT": {
+		"prefix": "CURRENT_MONTH_NAME_SHORT",
+		"body": "CURRENT_MONTH_NAME_SHORT",
+		"description": "The short name of the month (example 'Jul')"
+	},
+	"CURRENT_DATE": {
+		"prefix": "CURRENT_DATE",
+		"body": "CURRENT_DATE",
+		"description": "The day of the month as two digits (example '08')"
+	},
+	"CURRENT_DAY_NAME": {
+		"prefix": "CURRENT_DAY_NAME",
+		"body": "CURRENT_DAY_NAME",
+		"description": "The name of day (example 'Monday')"
+	},
+	"CURRENT_DAY_NAME_SHORT": {
+		"prefix": "CURRENT_DAY_NAME_SHORT",
+		"body": "CURRENT_DAY_NAME_SHORT",
+		"description": "The short name of the day (example 'Mon')"
+	},
+	"CURRENT_HOUR": {
+		"prefix": "CURRENT_HOUR",
+		"body": "CURRENT_HOUR",
+		"description": "The current hour in 24-hour clock format"
+	},
+	"CURRENT_MINUTE": {
+		"prefix": "CURRENT_MINUTE",
+		"body": "CURRENT_MINUTE",
+		"description": "The current minute as two digits"
+	},
+	"CURRENT_SECOND": {
+		"prefix": "CURRENT_SECOND",
+		"body": "CURRENT_SECOND",
+		"description": "The current second as two digits"
+	},
+	"CURRENT_SECONDS_UNIX": {
+		"prefix": "CURRENT_SECONDS_UNIX",
+		"body": "CURRENT_SECONDS_UNIX",
+		"description": "The number of seconds since the Unix epoch"
+	},
+	"CURRENT_TIMEZONE_OFFSET": {
+		"prefix": "CURRENT_TIMEZONE_OFFSET",
+		"body": "CURRENT_TIMEZONE_OFFSET",
+		"description": "The current UTC time zone offset as `+HH:MM` or `-HH:MM` (example `-07:00`)."
+	},
+	"RANDOM": {
+		"prefix": "RANDOM",
+		"body": "RANDOM",
+		"description": "6 random Base-10 digits"
+	},
+	"RANDOM_HEX": {
+		"prefix": "RANDOM_HEX",
+		"body": "RANDOM_HEX",
+		"description": "6 random Base-16 digits"
+	},
+	"UUID": {
+		"prefix": "UUID",
+		"body": "UUID",
+		"description": "A Version 4 UUID"
+	},
+	"BLOCK_COMMENT_START": {
+		"prefix": "BLOCK_COMMENT_START",
+		"body": "BLOCK_COMMENT_START",
+		"description": "Example output: in PHP `/*` or in HTML `<!--`"
+	},
+	"BLOCK_COMMENT_END": {
+		"prefix": "BLOCK_COMMENT_END",
+		"body": "BLOCK_COMMENT_END",
+		"description": "Example output: in PHP `*/` or in HTML `-->`"
+	},
+	"LINE_COMMENT": {
+		"prefix": "LINE_COMMENT",
+		"body": "LINE_COMMENT",
+		"description": "Example output: in PHP `//`"
+	}
+}
