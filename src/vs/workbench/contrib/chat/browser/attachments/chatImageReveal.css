@@ -53,7 +53,7 @@
 	opacity: var(--chat-image-reveal-image, 0);
 }
 
-.chat-image-generation-single .chat-generated-image-result {
+:is(.chat-image-generation-single, .chat-image-generation-batch) .chat-generated-image-result {
 	width: 100%;
 
 	.chat-collapsible-io-resource-group {

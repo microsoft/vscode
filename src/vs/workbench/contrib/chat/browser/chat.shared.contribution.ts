@@ -1629,6 +1629,7 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize('chat.agentHost.customTerminalTool.enabled', "When enabled, Copilot SDK sessions use the Agent Host terminal tool override instead of the SDK's default terminal behavior. Not supported on Windows, where sessions use the SDK's terminal and sandbox runtime."),
 			default: false,
+			restricted: true,
 			tags: ['experimental', 'advanced'],
 			policy: {
 				name: 'ChatAgentHostCustomTerminalTool',

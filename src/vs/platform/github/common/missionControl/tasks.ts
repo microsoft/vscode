@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { JsonObject, JsonValue } from '../client/schema.js';
-import type { EnvironmentKind, PaginatedResponse, PaginationOptions, RepositoryRef, User } from './missionControl.js';
+import { JsonObject, JsonValue, PageOptions, RepositoryRef } from '../client/types.js';
+import type { EnvironmentKind, PaginatedResponse, User } from './missionControl.js';
 
 /** The current task state, derived from its most recent session. */
 export type TaskState = 'queued' | 'in_progress' | 'completed' | 'failed' | 'idle' | 'waiting_for_user' | 'timed_out' | 'cancelled';
@@ -385,7 +385,7 @@ export type SteerTaskRequest =
 	};
 
 /** Task filters shared by the general task list and automation run history. */
-export interface TaskListOptions extends PaginationOptions {
+export interface TaskListOptions extends PageOptions {
 	/** The field to sort by, defaulting to updated_at. */
 	readonly sort?: 'updated_at' | 'created_at';
 	/** The sort direction, defaulting to descending. */
@@ -570,7 +570,7 @@ export interface ITasksClient {
 	abort(taskId: string, signal: AbortSignal): Promise<void>;
 
 	/** GET /agents/tasks/{task_id}/events as application/json: read one page without internal retries. */
-	getEvents(taskId: string, signal: AbortSignal, options?: PaginationOptions): Promise<PaginatedResponse<ListTaskEventsResponse>>;
+	getEvents(taskId: string, signal: AbortSignal, options?: PageOptions): Promise<PaginatedResponse<ListTaskEventsResponse>>;
 
 	/** GET /agents/tasks/{task_id}/events as application/vnd.github.ahp+json: read all raw frames without internal retries. */
 	getAhpEvents(taskId: string, signal: AbortSignal): Promise<TaskAHPEventsResponse>;

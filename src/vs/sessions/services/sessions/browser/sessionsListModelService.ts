@@ -89,7 +89,7 @@ export interface ISessionsListModelService {
 	 *
 	 * Note: when motion is allowed, surfaces that host a {@link SessionStatusIcon}
 	 * (sessions list, session header) render a pixel spinner for `InProgress`.
-	 * Other states, including the pulsing report icon for `NeedsInput`, use the
+	 * Other states, including the pulsing report-question icon for `NeedsInput`, use the
 	 * icon returned here. Surfaces that don't host the widget, such as the
 	 * sessions picker, also use these icons.
 	 */
@@ -338,7 +338,7 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 			case SessionStatus.InProgress:
 				return { ...Codicon.sessionInProgress, color: themeColorFromId('textLink.foreground') };
 			case SessionStatus.NeedsInput:
-				return { ...Codicon.report, color: themeColorFromId('list.warningForeground') };
+				return { ...Codicon.reportQuestion, color: themeColorFromId('list.warningForeground') };
 			case SessionStatus.Error:
 				return { ...Codicon.error, color: themeColorFromId('errorForeground') };
 			default:

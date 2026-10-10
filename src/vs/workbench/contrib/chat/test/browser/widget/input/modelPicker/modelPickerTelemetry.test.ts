@@ -120,7 +120,6 @@ suite('ModelPickerTelemetry', () => {
 		let showCard: (label: string) => HTMLElement = () => assert.fail('Picker has not opened');
 		let refreshList = () => { };
 		let searchModels: () => void = () => assert.fail('Tabbed picker has not opened');
-		let toggleAuto: () => void = () => assert.fail('Tabbed picker has not opened');
 		const hideTabbedPicker = () => {
 			visible = false;
 			detailsOptions = undefined;
@@ -187,12 +186,6 @@ suite('ModelPickerTelemetry', () => {
 					const body = dom.$('div');
 					const rendered = options.renderEmpty?.(body, activeTab);
 					return rendered ? (store.add(rendered), body) : undefined;
-				};
-				toggleAuto = () => {
-					const toggle = options.tabs.find(tab => tab.id === activeTab)?.toggle;
-					const state = toggle?.getState();
-					assert.ok(toggle && state?.enabled);
-					toggle.onChange(!state.checked);
 				};
 				searchModels = () => {
 					const search = options.tabBarActions?.find(action => action.id === 'search');
@@ -338,7 +331,6 @@ suite('ModelPickerTelemetry', () => {
 			},
 			selectItem: (label: string) => selectItem(label),
 			selectTab: (label: string) => selectTab(label),
-			toggleAuto: () => toggleAuto(),
 			hide: () => hideTabbedPicker(),
 			showCard: (label: string) => showCard(label),
 			backToModels: () => hideDetails(),
@@ -478,8 +470,8 @@ suite('ModelPickerTelemetry', () => {
 		}, { layer: 1, model: model.metadata.name, expanded: 'true', events: [] });
 	});
 
-	for (const target of ['name', 'config']) {
-		test(`the Auto ${target} pill opens routing choices, not Details`, async () => {
+	for (const target of ['name', 'config'] as const) {
+		test(`the Auto ${target} pill opens ${target === 'name' ? 'the model list' : 'Auto\'s Details'} and restores focus`, async () => {
 			const result = createPicker(autoModel);
 			result.picker.render(result.container);
 			result.picker.show(result.container);
@@ -487,15 +479,15 @@ suite('ModelPickerTelemetry', () => {
 			trigger.focus();
 			trigger.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0 }));
 			const opened = {
-				details: !!result.container.querySelector('.chat-model-card'),
+				details: result.container.querySelector('.chat-model-card-name')?.textContent,
 				expanded: Array.from(result.container.querySelectorAll('.model-picker-section'), pill => pill.getAttribute('aria-expanded')),
 				readoutPopup: result.container.querySelector('.model-picker-config')?.getAttribute('aria-haspopup'),
 			};
-			result.selectItem('Efficiency');
+			option(result.showCard(autoModel.metadata.name), 'Efficiency').click();
 			await timeout(0);
 			result.picker.show(result.container);
 			assert.deepStrictEqual({ opened, focused: document.activeElement === trigger, saved: result.configurations.get(autoModel.identifier) }, {
-				opened: { details: false, expanded: ['true', 'true'], readoutPopup: 'menu' },
+				opened: { details: target === 'config' ? autoModel.metadata.name : undefined, expanded: target === 'config' ? ['false', 'true'] : ['true', 'false'], readoutPopup: 'dialog' },
 				focused: true, saved: { tier: 'efficiency' },
 			});
 		});
@@ -532,7 +524,7 @@ suite('ModelPickerTelemetry', () => {
 		}, { hasConfig: true, targets: ['button', 'button'], summary: 'Medium · 264K' });
 	});
 
-	test('opening from the model name keeps the whole chip active in Auto until dismissal', () => {
+	test('opening from the model name keeps the whole chip active in Auto until dismissal', async () => {
 		const result = createPicker();
 		result.picker.render(result.container);
 		result.picker.show(result.container);
@@ -540,8 +532,9 @@ suite('ModelPickerTelemetry', () => {
 		const name = result.container.querySelector<HTMLElement>('.model-picker-name')!;
 		name.dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true, cancelable: true }));
 		const afterOpen = chip.classList.contains('model-picker-active');
-		result.toggleAuto();
-		const inAuto = chip.classList.contains('model-picker-active');
+		option(result.showCard(autoModel.metadata.name), 'Efficiency').click();
+		await timeout(0);
+		const inAuto = chip.classList.contains('model-picker-active') && result.picker.selectedModel?.identifier === autoModel.identifier;
 		result.picker.show(result.container);
 		assert.deepStrictEqual({
 			afterOpen,
@@ -749,11 +742,7 @@ suite('ModelPickerTelemetry', () => {
 		]) {
 			test(`reports ${change.model.metadata.vendor} ${change.property ?? 'context size'} changes`, async () => {
 				const result = createPicker(change.model);
-				if (change.model === autoModel) {
-					result.selectItem(change.label);
-				} else {
-					option(result.showCard(change.model.metadata.name), change.label).click();
-				}
+				option(result.showCard(change.model.metadata.name), change.label).click();
 				await timeout(0);
 				assert.deepStrictEqual(result.events, [{
 					name: change.event,
@@ -926,7 +915,7 @@ suite('ModelPickerTelemetry', () => {
 		const relayedAuto = relayed(autoModel);
 		const relayedModel = relayed(model);
 		const result = createPicker(relayedAuto, undefined, [relayedAuto, relayedModel]);
-		result.toggleAuto();
+		result.selectItem(relayedModel.metadata.name);
 		assert.deepStrictEqual(result.events, [{
 			name: 'chat.modelChange',
 			data: {
@@ -937,38 +926,38 @@ suite('ModelPickerTelemetry', () => {
 		}]);
 	});
 
-	test('tabbed Auto toggles report the current previous model while the popup stays open', () => {
+	test('choosing Auto from the list reports the current previous model each time', () => {
 		const result = createPicker();
-		result.toggleAuto();
-		result.toggleAuto();
-		result.toggleAuto();
-		assert.deepStrictEqual(result.events, [modelChange(model, autoModel), modelChange(autoModel, model), modelChange(model, autoModel)]);
+		result.selectItem(autoModel.metadata.name);
+		result.picker.show(result.container);
+		result.selectItem(model.metadata.name);
+		result.picker.show(result.container);
+		result.selectItem(autoModel.metadata.name);
+		assert.deepStrictEqual(result.events, [modelChange(model, autoModel, 0), modelChange(autoModel, model, 1), modelChange(model, autoModel, 2)]);
 	});
 
-	test('activating the remembered Auto tier only reports switching to Auto', async () => {
+	test('activating Auto\'s current tier from its Details only reports switching to Auto', async () => {
 		const result = createPicker();
-		result.toggleAuto();
-		result.selectItem('Balance');
+		option(result.showCard(autoModel.metadata.name), 'Balance').click();
 		await timeout(0);
 		assert.deepStrictEqual(result.events, [modelChange(model, autoModel)]);
 	});
 
-	test('activating the current Auto tier while already enabled does not report a change', async () => {
+	test('activating the current Auto tier while Auto is selected does not report a change', async () => {
 		const result = createPicker(autoModel);
-		result.selectItem('Balance');
+		option(result.showCard(autoModel.metadata.name), 'Balance').click();
 		await timeout(0);
 		assert.deepStrictEqual(result.events, []);
 	});
 
-	test('enabling Auto and then changing the tier reports each change once', async () => {
+	test('choosing another Auto tier reports the tier and the switch to Auto once each', async () => {
 		const result = createPicker();
-		result.toggleAuto();
-		result.selectItem('Intelligence');
+		option(result.showCard(autoModel.metadata.name), 'Intelligence').click();
 		await timeout(0);
-		assert.deepStrictEqual(result.events, [modelChange(model, autoModel), {
+		assert.deepStrictEqual(result.events, [{
 			name: 'chat.thinkingEffortChange',
 			data: { model: new TelemetryTrustedValue(autoModel.identifier), property: 'tier', fromValue: 'balance', toValue: 'intelligence', pickerSessionId: 0 },
-		}]);
+		}, modelChange(model, autoModel)]);
 	});
 
 	test('configuring another model reports both the configuration and model change', async () => {
@@ -1030,8 +1019,7 @@ suite('ModelPickerTelemetry', () => {
 			});
 			option(result.showCard(otherModel.metadata.name), 'High').click();
 			if (latest === 'Auto') {
-				result.backToModels();
-				result.toggleAuto();
+				option(result.showCard(autoModel.metadata.name), 'Balance').click();
 			} else {
 				option(result.showCard(model.metadata.name), 'High').click();
 			}

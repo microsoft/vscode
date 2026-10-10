@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ListTasksResponse, TaskListOptions } from './tasks.js';
-import type { JsonValue } from '../client/schema.js';
-import type { PaginatedResponse, PaginationOptions, RepositoryRef, User } from './missionControl.js';
+import type { PaginatedResponse, User } from './missionControl.js';
+import { JsonValue, PageOptions, RepositoryRef } from '../client/types.js';
 
 /** Whether an automation belongs to its creator or to the repository. */
 export type AutomationOwnership = 'user' | 'repository';
@@ -286,7 +286,7 @@ export interface EditAutomationRequest extends AutomationConfiguration {
 }
 
 /** Query parameters for one page of repository automation summaries. */
-export interface ListAutomationsOptions extends PaginationOptions {
+export interface ListAutomationsOptions extends PageOptions {
 	/** Filter by disabled state, or omit to include both states. */
 	readonly disabled?: boolean;
 	/** Filter by trigger event type. */

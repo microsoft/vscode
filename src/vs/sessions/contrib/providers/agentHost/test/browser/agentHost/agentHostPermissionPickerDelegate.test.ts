@@ -40,7 +40,7 @@ import { AgentHostCustomTerminalToolEnabledSettingId } from '../../../../../../.
 import { SessionConfigKey } from '../../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import type { ISessionSandboxPolicy } from '../../../../../../../platform/agentHost/common/meta/agentSandboxPolicyMeta.js';
 import type { RootConfigState } from '../../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { ChatPermissionLevel } from '../../../../../../../workbench/contrib/chat/common/constants.js';
+import { ChatConfiguration, ChatPermissionLevel } from '../../../../../../../workbench/contrib/chat/common/constants.js';
 import { AgentHostPermissionPickerDelegate, isWellKnownAutoApproveSchema, isWellKnownClaudePermissionModeSchema, isWellKnownModeSchema, isWellKnownModeValue } from '../../../browser/agentHostPermissionPickerDelegate.js';
 import { getPermissionLevelMeta } from '../../../../copilotChatSessions/browser/permissionPicker.js';
 import { IAgentHostSessionsProvider } from '../../../../../../common/agentHostSessionsProvider.js';
@@ -280,6 +280,25 @@ suite('AgentHostPermissionPickerDelegate', () => {
 				hover: 'Effective permissions: manual. Requested permissions: allow-all.',
 			},
 			writes: [[SESSION_ID, 'approvalMode', 'assisted']],
+		});
+	});
+
+	test('turns off global auto approve before selecting lower permissions', async () => {
+		const configuration = new class extends TestConfigurationService {
+			override updateValue(key: string, value: unknown): Promise<void> {
+				return this.setUserConfiguration(key, value);
+			}
+		}({ [ChatConfiguration.GlobalAutoApprove]: true });
+		const { delegate, provider } = setup(store, makeActiveSession('copilot'), 'autoApprove', undefined, undefined, configuration);
+
+		await delegate.setPermissionLevel(ChatPermissionLevel.Default);
+
+		assert.deepStrictEqual({
+			globalAutoApprove: configuration.getValue(ChatConfiguration.GlobalAutoApprove),
+			writes: provider.setCalls,
+		}, {
+			globalAutoApprove: false,
+			writes: [[SESSION_ID, SessionConfigKey.AutoApprove, 'default']],
 		});
 	});
 
