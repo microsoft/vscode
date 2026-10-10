@@ -17,6 +17,7 @@ import { Menus } from '../../../../../browser/menus.js';
 import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../common/agentHostSessionsProvider.js';
 import { IsPhoneLayoutContext, SessionAgentPickerInAttachContext, SessionProviderIdContext, SessionUsesCombinedConfigPickerContext } from '../../../../../common/contextkeys.js';
 import { ISession } from '../../../../../services/sessions/common/session.js';
+import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../../../chat/common/constants.js';
 import { AgentPickerSelectionState } from '../../browser/agentHostAgentPicker.js';
 import '../../browser/agentHostSessionConfigPicker.js';
 import '../../browser/mobile/mobileChatInputConfigPicker.js';
@@ -29,21 +30,24 @@ suite('agentHostAgentPicker', () => {
 	const beta: AgentCustomization = { type: CustomizationType.Agent, id: 'agent://b', uri: 'agent://b', name: 'beta', description: 'b desc' };
 	const agents: readonly AgentCustomization[] = [alpha, beta];
 
-	test('places the new-session agent before mode without duplicating it in automations', () => {
+	function controls(context: ContextKeyService, menu: MenuId): string[] {
+		const ids = ['sessions.agentHost.agentPicker', 'sessions.agentHost.newSessionModePicker', 'sessions.modelPicker'];
+		return MenuRegistry.getMenuItems(menu).filter(isIMenuItem)
+			.filter(item => ids.includes(item.command.id) && context.contextMatchesRules(item.when))
+			.sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+			.map(item => item.command.id);
+	}
+
+	test('keeps the new-session agent in the primary toolbar and supports the attachment menu', () => {
 		const context = disposables.add(new ContextKeyService(new TestConfigurationService()));
 		SessionProviderIdContext.bindTo(context).set(LOCAL_AGENT_HOST_PROVIDER_ID);
 		const phone = IsPhoneLayoutContext.bindTo(context);
 		phone.set(false);
 		const agentPickerInAttachContext = SessionAgentPickerInAttachContext.bindTo(context);
 		const inDialog = ChatContextKeys.inAutomationsDialog.bindTo(context);
-		const ids = ['sessions.agentHost.agentPicker', 'sessions.agentHost.newSessionModePicker', 'sessions.modelPicker'];
-		const controls = (menu: MenuId) => MenuRegistry.getMenuItems(menu).filter(isIMenuItem)
-			.filter(item => ids.includes(item.command.id) && context.contextMatchesRules(item.when))
-			.sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
-			.map(item => item.command.id);
 		inDialog.set(false);
-		const newSessionPrimary = controls(Menus.NewSessionConfig);
-		const newSessionSecondary = controls(Menus.NewSessionControl);
+		const newSessionPrimary = controls(context, Menus.NewSessionConfig);
+		const newSessionSecondary = controls(context, Menus.NewSessionControl);
 		const attachContext = () => MenuRegistry.getMenuItems(Menus.NewSessionAttachContext)
 			.filter(isIMenuItem)
 			.filter(item => context.contextMatchesRules(item.when))
@@ -56,13 +60,37 @@ suite('agentHostAgentPicker', () => {
 		phone.set(false);
 		inDialog.set(true);
 		assert.deepStrictEqual({ newSessionPrimary, newSessionSecondary, attachContextBefore, attachContextAfter, attachContextOnPhone }, {
-			newSessionPrimary: ['sessions.modelPicker'],
-			newSessionSecondary: ['sessions.agentHost.agentPicker', 'sessions.agentHost.newSessionModePicker'],
+			newSessionPrimary: ['sessions.agentHost.agentPicker', 'sessions.modelPicker'],
+			newSessionSecondary: ['sessions.agentHost.newSessionModePicker'],
 			attachContextBefore: [],
 			attachContextAfter: ['sessions.agentHost.agentPicker'],
 			attachContextOnPhone: [],
 		});
 	});
+
+	for (const unifiedPicker of [false, true]) {
+		for (const experimentalLayout of [false, true]) {
+			test(`routes the agent toolbar with unified picker ${unifiedPicker} and experimental layout ${experimentalLayout}`, () => {
+				const configuration = new TestConfigurationService({
+					[UNIFIED_WORKSPACE_PICKER_SETTING]: unifiedPicker,
+					[EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING]: experimentalLayout,
+				});
+				disposables.add(configuration.onDidChangeConfigurationEmitter);
+				const context = disposables.add(new ContextKeyService(configuration));
+				SessionProviderIdContext.bindTo(context).set(LOCAL_AGENT_HOST_PROVIDER_ID);
+				IsPhoneLayoutContext.bindTo(context).set(false);
+				ChatContextKeys.inAutomationsDialog.bindTo(context).set(false);
+				const experimental = unifiedPicker && experimentalLayout;
+				assert.deepStrictEqual({
+					config: controls(context, Menus.NewSessionConfig),
+					control: controls(context, Menus.NewSessionControl),
+				}, {
+					config: experimental ? ['sessions.modelPicker'] : ['sessions.agentHost.agentPicker', 'sessions.modelPicker'],
+					control: experimental ? ['sessions.agentHost.agentPicker', 'sessions.agentHost.newSessionModePicker'] : ['sessions.agentHost.newSessionModePicker'],
+				});
+			});
+		}
+	}
 
 	test('uses the same desktop and phone agent controls in the automation prompt', () => {
 		const context = disposables.add(new ContextKeyService(new TestConfigurationService()));

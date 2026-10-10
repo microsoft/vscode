@@ -165,11 +165,13 @@ Each `PluginSourceKind` has a strategy that knows how to compute cache paths, pr
 
 | Kind | Provisioning | Cache path |
 |------|-------------|------------|
-| `RelativePath` | No-op (lives inside marketplace repo) | `<cacheRoot>/github.com/<owner>/<repo>/<path>` |
+| `RelativePath` | No-op (lives inside marketplace repo) | `<marketplaceRepository>/<path>` |
 | `GitHub` | `git clone` / `git pull` | `<cacheRoot>/github.com/<owner>/<repo>[/ref_<ref>]` |
 | `GitUrl` | `git clone` / `git pull` | `<cacheRoot>/<host>/<path>[/ref_<ref>]` |
 | `Npm` | `npm install` in terminal | `<cacheRoot>/npm/<sanitized-package>/` |
 | `Pip` | `pip install` in terminal | `<cacheRoot>/pip/<package>/` |
+
+Unpinned marketplace repositories use `<cacheRoot>/<host>/<path>`. Ref-specific marketplace repositories use the isolated `<cacheRoot>/.marketplace-repositories/<host>/<path>/ref_<ref>` namespace so one cache variant cannot delete another. Storage-indexed legacy locations remain usable while valid.
 
 ## Configuration & Storage Keys
 
@@ -190,6 +192,8 @@ The managed customization controls are complementary:
 - `allowManagedHooksOnly` permits plugin hooks only when managed `enabledPlugins` force-enables the plugin. User/workspace hooks and hooks from otherwise user-enabled plugins do not load.
 
 `strictPluginOnlyCustomization` does not replace strict marketplace enforcement. Hardened deployments apply both controls when plugin source and standalone customization provenance must both be constrained.
+
+In Copilot Agent Host sessions, the runtime reads `strictPluginOnlyCustomization` from Copilot managed settings, including its array form, and applies it to the customizations it discovers. The user and workspace skills and agents that VS Code forwards (for example, from configured skill locations), and every MCP server it forwards (for example, from VS Code's `mcp.json` or an extension), are bundled separately from other synced content. The host passes them through the SDK's `skillDirectories`, `customAgents`, and session `mcpServers` instead of `pluginDirectories`, so the runtime treats them as standalone customizations rather than plugin content. Extension and built-in skills and agents stay in the synced plugin, matching the workbench lockdown, which blocks only standalone prompt files.
 
 ### Storage (ApplicationScope, MachineTarget)
 | Key | Description |

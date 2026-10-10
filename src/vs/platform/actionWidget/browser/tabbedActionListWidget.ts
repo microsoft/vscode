@@ -4,23 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../base/browser/dom.js';
+import { StandardKeyboardEvent } from '../../../base/browser/keyboardEvent.js';
 import { ActionBar } from '../../../base/browser/ui/actionbar/actionbar.js';
 import { Button } from '../../../base/browser/ui/button/button.js';
 import { IListAccessibilityProvider } from '../../../base/browser/ui/list/listWidget.js';
 import { Radio } from '../../../base/browser/ui/radio/radio.js';
-import { Switch } from '../../../base/browser/ui/toggle/switch.js';
 import { DomScrollableElement } from '../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { toAction } from '../../../base/common/actions.js';
 import { Codicon } from '../../../base/common/codicons.js';
-import { KeyCode } from '../../../base/common/keyCodes.js';
+import { KeyCode, KeyMod } from '../../../base/common/keyCodes.js';
+import { decodeKeybinding } from '../../../base/common/keybindings.js';
 import { Emitter } from '../../../base/common/event.js';
 import { AnchorPosition } from '../../../base/common/layout.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { isMacintosh, isWindows, OS } from '../../../base/common/platform.js';
 import { ScrollbarVisibility } from '../../../base/common/scrollable.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
+import { localize } from '../../../nls.js';
 import { IAccessibilityService } from '../../accessibility/common/accessibility.js';
 import { IContextViewService } from '../../contextview/browser/contextView.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../keybinding/common/keybinding.js';
 import { defaultButtonStyles } from '../../theme/browser/defaultStyles.js';
 import { ActionList, IActionListDelegate, IActionListItem, IActionListOptions, IActionListUpdateOptions } from './actionList.js';
 import { ACTION_WIDGET_ANIMATED_CLASS, ACTION_WIDGET_DROPDOWN_MOTION_CLASS, finishActionWidgetOpeningAnimation } from './actionWidgetMotion.js';
@@ -29,6 +33,26 @@ import './tabbedActionListWidget.css';
 /** Timing for the tab resize animation. Both tabs share it, or the strip bulges mid-way. */
 const TAB_RESIZE_ANIMATION: KeyframeAnimationOptions = { duration: 300, easing: 'cubic-bezier(0.4, 0, 0.2, 1)' };
 const BODY_COLLAPSE_ANIMATION: KeyframeAnimationOptions = { duration: 200, easing: 'cubic-bezier(0.4, 0, 0.2, 1)' };
+
+/** Switches tabs from anywhere in the popup, with the same keys as switching editor tabs. */
+const NEXT_TAB_KEYBINDING = isMacintosh ? KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.RightArrow : KeyMod.CtrlCmd | KeyCode.PageDown;
+const PREVIOUS_TAB_KEYBINDING = isMacintosh ? KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.LeftArrow : KeyMod.CtrlCmd | KeyCode.PageUp;
+/** Leaves a details page, with the same keys as Go Back and the Quick Pick Back button. */
+const DETAILS_BACK_KEYBINDING = isWindows ? KeyMod.Alt | KeyCode.LeftArrow : isMacintosh ? KeyMod.WinCtrl | KeyCode.Minus : KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Minus;
+
+function getKeybindingLabel(keybindingService: IKeybindingService, keybinding: number): string | undefined {
+	const decoded = decodeKeybinding(keybinding, OS);
+	return (decoded && keybindingService.resolveKeybinding(decoded)[0]?.getLabel()) ?? undefined;
+}
+
+/** Labels for the keys a {@link TabbedActionListWidget} handles itself, for help text. */
+export function getTabbedActionListKeybindingLabels(keybindingService: IKeybindingService): { readonly nextTab: string; readonly previousTab: string; readonly back: string } {
+	return {
+		nextTab: getKeybindingLabel(keybindingService, NEXT_TAB_KEYBINDING) ?? '',
+		previousTab: getKeybindingLabel(keybindingService, PREVIOUS_TAB_KEYBINDING) ?? '',
+		back: getKeybindingLabel(keybindingService, DETAILS_BACK_KEYBINDING) ?? '',
+	};
+}
 
 /** The box a tab occupied, including the spacing that travels with its width. */
 interface ITabBox {
@@ -57,11 +81,6 @@ function readTabBox(element: HTMLElement): ITabBox {
 export interface ITabbedActionListBuildResult<T> {
 	readonly items: readonly IActionListItem<T>[];
 	readonly listOptions?: IActionListOptions;
-	/**
-	 * For a sizing build, other layouts the sizing tab can show at rest, such as a
-	 * mode it can be switched into. The popup is sized to the tallest of them.
-	 */
-	readonly alternateSizingItems?: readonly (readonly IActionListItem<T>[])[];
 }
 
 /**
@@ -79,13 +98,6 @@ export interface ITabDescriptor {
 	readonly tooltip?: string;
 	/** Optional leading icon rendered before the label. */
 	readonly icon?: ThemeIcon;
-	/** A separate mode switch beside the active tab's button. */
-	readonly toggle?: {
-		readonly label: string;
-		readonly ariaLabel: string;
-		readonly getState: () => { readonly checked: boolean; readonly enabled: boolean; readonly description?: string } | undefined;
-		readonly onChange: (checked: boolean) => void;
-	};
 }
 
 /**
@@ -164,6 +176,11 @@ export interface ITabbedActionListShowOptions<T> {
 	 * When it returns `undefined` the empty list is shown instead.
 	 */
 	renderEmpty?(container: HTMLElement, activeTab: string): IDisposable | undefined;
+	/**
+	 * Opens the focused item's details when Right Arrow is pressed in the list.
+	 * Returns false when the item has no details.
+	 */
+	openItemDetails?(item: IActionListItem<T>): boolean;
 }
 
 export interface ITabbedActionListRefreshOptions extends IActionListUpdateOptions {
@@ -198,6 +215,7 @@ export class TabbedActionListWidget extends Disposable {
 	private _showDetails: ((options: ITabbedActionListDetailsOptions) => void) | undefined;
 	private _hideDetails: (() => void) | undefined;
 	private _focusItemAction: ((itemId: string, actionId: string) => boolean) | undefined;
+	private _focusItem: ((itemId: string) => boolean) | undefined;
 	private _detailsVisible = false;
 	/** Boxes and labels from the last render, so the next one can animate from them. */
 	private _previousTabBoxes: Map<string, ITabBox> | undefined;
@@ -206,6 +224,8 @@ export class TabbedActionListWidget extends Disposable {
 	private _fixedListHeight: number | undefined;
 	private _fixedPopupHeight: number | undefined;
 	private _hasMeasuredSizingTab = false;
+	/** Side of the anchor the popup opened on, kept across tab swaps so it cannot jump sides. */
+	private _anchorPosition: AnchorPosition | undefined;
 
 	get isVisible(): boolean {
 		return !!this._activePopup.value;
@@ -219,6 +239,7 @@ export class TabbedActionListWidget extends Disposable {
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
 		super();
 	}
@@ -239,6 +260,7 @@ export class TabbedActionListWidget extends Disposable {
 			this._fixedListHeight = undefined;
 			this._fixedPopupHeight = undefined;
 			this._hasMeasuredSizingTab = false;
+			this._anchorPosition = undefined;
 		}
 
 		let activeTab = options.initialTab;
@@ -340,38 +362,6 @@ export class TabbedActionListWidget extends Disposable {
 					}
 				}));
 
-				const activeIndex = options.tabs.findIndex(tab => tab.id === activeTab);
-				const toggleOptions = options.tabs[activeIndex]?.toggle;
-				let updateTabToggle: (() => void) | undefined;
-				if (toggleOptions) {
-					const button = radio.optionElements[activeIndex];
-					const group = dom.$('.tabbed-action-list-tab');
-					button.before(group);
-					group.appendChild(button);
-					const toggleContainer = dom.append(group, dom.$('.tabbed-action-list-tab-toggle'));
-					dom.append(toggleContainer, dom.$('span', undefined, toggleOptions.label));
-					const toggle = renderDisposables.add(new Switch({ ariaLabel: toggleOptions.ariaLabel }));
-					toggleContainer.appendChild(toggle.domNode);
-					updateTabToggle = () => {
-						const state = toggleOptions.getState();
-						toggleContainer.hidden = !state;
-						group.classList.toggle('has-toggle', !!state);
-						toggle.checked = !!state?.checked;
-						toggle.disabled = !state?.enabled;
-						toggle.setAriaLabel(toggleOptions.ariaLabel, state?.description ?? toggleOptions.ariaLabel);
-						if (state?.description) {
-							toggle.domNode.setAttribute('aria-description', state.description);
-						} else {
-							toggle.domNode.removeAttribute('aria-description');
-						}
-					};
-					updateTabToggle();
-					renderDisposables.add(toggle.onChange(checked => {
-						toggleOptions.onChange(checked);
-						updateTabToggle?.();
-					}));
-				}
-
 				for (const tabAction of options.tabBarActions ?? []) {
 					const container = tabAction.alignEnd ? tabBar : tabStrip;
 					const button = dom.append(container, dom.$('button.tabbed-action-list-tabbar-action'));
@@ -402,6 +392,9 @@ export class TabbedActionListWidget extends Disposable {
 
 				const { items, listOptions } = options.createActionList(activeTab);
 				const emptyBody = items.length === 0 ? this._renderEmptyBody(bodyContent, options, activeTab, renderDisposables) : undefined;
+				const getExpandedPopupHeight = () => widget.offsetHeight - body.offsetHeight + bodyContent.offsetHeight;
+				// Padding belongs to the popup's chrome, not the list's content height.
+				const getChromeHeight = (listElement: HTMLElement) => getExpandedPopupHeight() - (emptyBody ? emptyBody.offsetHeight : dom.getContentHeight(listElement));
 				const list = renderDisposables.add(this._instantiationService.createInstance(
 					ActionList<T>,
 					options.user,
@@ -409,13 +402,24 @@ export class TabbedActionListWidget extends Disposable {
 					items,
 					options.delegate,
 					options.accessibilityProvider,
-					listOptions,
+					{
+						...listOptions,
+						anchorPosition: this._anchorPosition ?? listOptions?.anchorPosition,
+						// The tabs are part of the popup, so they have to fit beside the anchor too.
+						getPopupChromeHeight: getChromeHeight,
+					},
 					options.anchor,
 				));
 				listRef = list;
-				const measureSizing = (sizing: ITabbedActionListBuildResult<T>) => Math.max(...[sizing.items, ...sizing.alternateSizingItems ?? []]
-					.map(sizingItems => list.computeHeightForItems(sizingItems, sizing.listOptions?.collapsedByDefault, sizing.listOptions))) || undefined;
+				const measureSizing = (sizing: ITabbedActionListBuildResult<T>) => list.computeHeightForItems(sizing.items, sizing.listOptions?.collapsedByDefault, sizing.listOptions) || undefined;
 				this._focusItemAction = (itemId, actionId) => !body.inert && list.focusItemAction(itemId, actionId);
+				this._focusItem = itemId => {
+					if (body.inert) {
+						return false;
+					}
+					list.focusItemById(itemId);
+					return dom.isAncestorOfActiveElement(list.domNode);
+				};
 				// Rebuilding has to ask the consumer again, since what the popup shows can
 				// depend on state that changed while it stayed open.
 				this._refreshActiveList = refreshOptions => {
@@ -434,7 +438,6 @@ export class TabbedActionListWidget extends Disposable {
 						list.setHoverEnabled(false);
 					}
 					applyWidgetClassNames();
-					updateTabToggle?.();
 					const sizing = sizingTab !== undefined
 						? options.createActionList(sizingTab, true)
 						: undefined;
@@ -473,6 +476,7 @@ export class TabbedActionListWidget extends Disposable {
 					this._showDetails = undefined;
 					this._hideDetails = undefined;
 					this._focusItemAction = undefined;
+					this._focusItem = undefined;
 					this._detailsVisible = false;
 				}));
 
@@ -505,18 +509,13 @@ export class TabbedActionListWidget extends Disposable {
 					this._hasMeasuredSizingTab = true;
 				}
 
-				const getExpandedPopupHeight = () => widget.offsetHeight - body.offsetHeight + bodyContent.offsetHeight;
 				const layout = () => {
 					if (this._detailsVisible) {
 						return;
 					}
-					const listBody = emptyBody ?? list.domNode;
-					// Padding belongs to the popup's chrome, not the fixed list content height.
-					const listHeight = emptyBody ? listBody.offsetHeight : dom.getContentHeight(listBody);
-					const chromeHeight = getExpandedPopupHeight() - listHeight;
 					const contentHeight = this._fixedPopupHeight === undefined
 						? this._fixedListHeight
-						: Math.max(0, this._fixedPopupHeight - chromeHeight);
+						: Math.max(0, this._fixedPopupHeight - getChromeHeight(list.domNode));
 					const width = list.layout(0, contentHeight);
 					widget.style.width = `${options.width ?? width}px`;
 					if (emptyBody && this._fixedListHeight !== undefined) {
@@ -527,6 +526,7 @@ export class TabbedActionListWidget extends Disposable {
 					}
 				};
 				layout();
+				this._anchorPosition ??= list.anchorPosition;
 
 				const bodyAnimation = renderDisposables.add(new MutableDisposable<DisposableStore>());
 				const finishBodyAnimation = () => {
@@ -600,12 +600,17 @@ export class TabbedActionListWidget extends Disposable {
 					const page = dom.append(widget, dom.$('.tabbed-action-list-details', { role: 'dialog', 'aria-label': details.label, tabindex: '-1' }));
 					store.add(toDisposable(() => page.remove()));
 					const header = dom.append(page, dom.$('.tabbed-action-list-details-header'));
+					const backKeybinding = getKeybindingLabel(this._keybindingService, DETAILS_BACK_KEYBINDING);
+					const backTitle = backKeybinding
+						? localize('tabbedActionList.backWithKeybinding', "{0} ({1})", details.backLabel, backKeybinding)
+						: details.backLabel;
 					let back: ActionBar | Button;
 					if (details.renderHeader) {
 						back = store.add(new ActionBar(header, { ariaLabel: details.backLabel }));
 						back.push(toAction({
 							id: 'details.back',
 							label: details.backLabel,
+							tooltip: backTitle,
 							class: ThemeIcon.asClassName(Codicon.arrowLeft),
 							run: () => goBack(),
 						}), { icon: true, label: false });
@@ -614,8 +619,8 @@ export class TabbedActionListWidget extends Disposable {
 						back = store.add(new Button(header, {
 							...defaultButtonStyles,
 							supportIcons: true,
-							ariaLabel: details.backLabel,
-							title: details.backLabel,
+							ariaLabel: backTitle,
+							title: backTitle,
 							buttonBackground: undefined,
 							buttonBorder: undefined,
 							buttonForeground: 'var(--vscode-foreground)',
@@ -665,9 +670,15 @@ export class TabbedActionListWidget extends Disposable {
 					};
 					this._hideDetails = goBack;
 					store.add(dom.addDisposableListener(page, dom.EventType.KEY_DOWN, (event: KeyboardEvent) => {
-						if (event.key === 'Escape' && !event.isComposing) {
+						if (event.isComposing) {
+							return;
+						}
+						if (event.key === 'Escape') {
 							dom.EventHelper.stop(event, true);
 							hide();
+						} else if (new StandardKeyboardEvent(event).equals(DETAILS_BACK_KEYBINDING)) {
+							dom.EventHelper.stop(event, true);
+							goBack();
 						} else if (event.key === 'PageDown' || event.key === 'PageUp') {
 							dom.EventHelper.stop(event, true);
 							scrollbar.setScrollPosition({ scrollTop: viewport.scrollTop + (event.key === 'PageDown' ? 1 : -1) * viewport.clientHeight });
@@ -723,7 +734,7 @@ export class TabbedActionListWidget extends Disposable {
 					// The empty body and the hover panel carry controls of their own, e.g. a
 					// sign-in button or the detail card's pin. Keys pressed there belong to
 					// those controls rather than to the list sitting behind them.
-					const onOwnControls = !!target?.closest('.tabbed-action-list-empty, .action-list-submenu-panel, .tabbed-action-list-details, .action-list-item-toolbar, .tabbed-action-list-tab-toggle');
+					const onOwnControls = !!target?.closest('.tabbed-action-list-empty, .action-list-submenu-panel, .tabbed-action-list-details, .action-list-item-toolbar');
 					const listNavigation = !onTabBar && !onFooter && !onOwnControls;
 
 					if (e.keyCode === KeyCode.Escape) {
@@ -746,21 +757,38 @@ export class TabbedActionListWidget extends Disposable {
 						list.focusNext();
 						return;
 					}
+					const switchTab = (delta: number) => {
+						const currentIndex = options.tabs.findIndex(t => t.id === activeTab);
+						if (currentIndex >= 0) {
+							activateTab(options.tabs[(currentIndex + delta + options.tabs.length) % options.tabs.length].id);
+						}
+					};
+					const tabDelta = e.equals(NEXT_TAB_KEYBINDING) ? 1 : e.equals(PREVIOUS_TAB_KEYBINDING) ? -1 : 0;
+					if (tabDelta) {
+						// Text fields keep their own keys, and the tabs are covered by details or a collapsed body.
+						if (!onEditable && !this._detailsVisible && !body.inert) {
+							dom.EventHelper.stop(e, true);
+							switchTab(tabDelta);
+						}
+						return;
+					}
 					if (e.keyCode !== KeyCode.LeftArrow && e.keyCode !== KeyCode.RightArrow) {
 						return;
 					}
-					if (onFooter || onOwnControls || (onEditable && !onTabBar)) {
+					if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || onFooter || onOwnControls || onEditable) {
 						return;
 					}
-					const currentIndex = options.tabs.findIndex(t => t.id === activeTab);
-					if (currentIndex < 0) {
+					// Left and Right move between tabs only on the tab bar. In the list they
+					// belong to the rows, where Right opens the focused item's details.
+					if (onTabBar) {
+						dom.EventHelper.stop(e, true);
+						switchTab(e.keyCode === KeyCode.RightArrow ? 1 : -1);
 						return;
 					}
-					const delta = e.keyCode === KeyCode.RightArrow ? 1 : -1;
-					const nextIndex = (currentIndex + delta + options.tabs.length) % options.tabs.length;
-					e.preventDefault();
-					e.stopPropagation();
-					activateTab(options.tabs[nextIndex].id);
+					const focused = e.keyCode === KeyCode.RightArrow && target && list.domNode.contains(target) ? list.getFocusedElement() : undefined;
+					if (focused && options.openItemDetails?.(focused)) {
+						dom.EventHelper.stop(e, true);
+					}
 				}));
 
 				// Dismiss when focus leaves the popup. Suppressed during a
@@ -899,6 +927,11 @@ export class TabbedActionListWidget extends Disposable {
 
 	focusItemAction(itemId: string, actionId: string): boolean {
 		return this._focusItemAction?.(itemId, actionId) ?? false;
+	}
+
+	/** Focuses a list row by its item's `id`. Returns whether the list took focus. */
+	focusItem(itemId: string): boolean {
+		return this._focusItem?.(itemId) ?? false;
 	}
 
 	/** Renders the caller's empty body, or nothing when it declines to handle the empty tab. */

@@ -6,16 +6,19 @@
 import { URI } from '../../../base/common/uri.js';
 import { AH_META_DEV_CONTAINER_WORKTREE_DB_KEY, readAgentDevContainerWorktreeMetadata } from '../common/meta/agentDevContainerWorktreeMeta.js';
 import { readChatInputState } from '../common/meta/agentHostChatInputState.js';
+import { CODEX_SESSION_MODEL_META_KEY, readCodexSessionModel } from '../common/meta/codexSessionModel.js';
 import { parseRemoteSessionOrigin, readRemoteSessionOrigin, REMOTE_SESSION_ORIGIN_METADATA_KEY } from '../common/meta/agentRemoteSessionMeta.js';
+import { parseSessionInitiator, readSessionInitiator, SESSION_INITIATOR_METADATA_KEY } from '../common/meta/agentSessionInitiatorMeta.js';
 import { parseSessionArtifacts, readSessionArtifacts, SESSION_META_ARTIFACTS_KEY, stringifySessionArtifacts, type ISessionArtifact } from '../common/sessionArtifacts.js';
-import { META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
+import { getChatChangesSummaryMetadataKey, META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
 import { META_GIT_DATA_STATE, META_GIT_STATE, META_GITHUB_DATA_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
 import { ChangesSummary, ChatInteractivity, ChatOrigin, ChatOriginKind } from '../common/state/protocol/state.js';
-import { AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ISessionGitHubState, ISessionGitState, ISessionSourceControlState, parseSessionCreationReference, parseSessionFolderPickerDecision, parseSessionMultiRootMetadata, readSessionCreationReference, readSessionEhcliAdoptable, readSessionEhcliAdopted, readSessionExternal, readSessionFolderPickerDecision, parseSessionGitHubData, parseSessionGitHubState, readSessionGitData, readSessionGitHubData, readSessionGitState, withMigratedSessionGitHubState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_DATA_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_DATA_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY, SessionStatus, SessionSummary } from '../common/state/sessionState.js';
-import { AGENT_HOST_CATALOG_JSON_STRING_LENGTH_LIMIT, AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT, AgentHostCatalogData, AgentHostCatalogJsonValue, AgentHostCatalogMetadata, agentHostCatalogChangesValidator, agentHostCatalogGitDataValidator, agentHostCatalogGitValidator } from './agentHostCatalogProjection.js';
+import { AH_META_CREATED_BY_SESSION_DB_KEY, AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_DONE_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, ISessionGitHubState, ISessionGitState, ISessionSourceControlState, isChatInSessionReadAggregate, parseSessionCreationReference, parseSessionFolderPickerDecision, parseSessionMultiRootMetadata, readSessionCreationReference, readSessionEhcliAdoptable, readSessionEhcliAdopted, readSessionExternal, readSessionFolderPickerDecision, parseSessionGitHubData, parseSessionGitHubState, readSessionGitData, readSessionGitHubData, readSessionGitState, withMigratedSessionGitHubState, readSessionMultiRootMetadata, readSessionSourceControlState, readSessionWorkspaceless, SESSION_META_CREATED_BY_SESSION_KEY, SESSION_META_EHCLI_ADOPTABLE_KEY, SESSION_META_EHCLI_ADOPTED_KEY, SESSION_META_FOLDER_PICKER_KEY, SESSION_META_GIT_DATA_KEY, SESSION_META_GIT_KEY, SESSION_META_GITHUB_DATA_KEY, SESSION_META_MULTI_ROOT_KEY, SESSION_META_SOURCE_CONTROL_KEY, SESSION_META_WORKSPACELESS_KEY, SessionStatus, SessionSummary } from '../common/state/sessionState.js';
+import { AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT, AgentHostCatalogData, AgentHostCatalogJsonValue, AgentHostCatalogMetadata, agentHostCatalogChangesValidator, agentHostCatalogGitDataValidator, agentHostCatalogGitValidator, projectAgentHostCatalogChatOrigin } from './agentHostCatalogProjection.js';
 import { IAgentHostCatalogSyncRequest } from './agentHostCatalogSyncService.js';
-import { AGENT_HOST_TITLE_SOURCE_AUTO, AgentHostTitleSource, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from './shared/persistSessionMetadata.js';
+import { AGENT_HOST_TITLE_SOURCE_AUTO, AgentHostTitleSource, customChatTitleMetadataKey, customChatTitleSourceMetadataKey, parseSessionWorkingDirectories, SESSION_ARTIFACTS_KEY, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY, SESSION_WORKING_DIRECTORIES_KEY } from './shared/persistSessionMetadata.js';
 import { WORKTREE_META_REPOSITORY_ROOT } from './shared/worktreeIsolation.js';
+import type { IAgentHostDatabaseCatalogSnapshotEntry } from './agentHostDatabase.js';
 
 export const CHAT_BACKING_METADATA_KEY = 'peerChatBacking';
 
@@ -34,8 +37,10 @@ export interface ICatalogSourceState {
 		readonly origin?: ChatOrigin;
 		readonly interactivity?: ChatInteractivity;
 		readonly archived?: boolean;
+		readonly isRead?: boolean;
 		readonly inheritedTurnId?: string;
 		readonly workingDirectories?: readonly string[];
+		readonly changes?: ChangesSummary;
 	}[];
 }
 
@@ -83,9 +88,11 @@ const sessionMetadata = {
 	title: stringSessionMetadataKey(SESSION_CUSTOM_TITLE_KEY),
 	titleSource: stringSessionMetadataKey(SESSION_CUSTOM_TITLE_SOURCE_KEY),
 	isRead: parsedSessionMetadataKey(AH_META_IS_READ_DB_KEY, value => value === 'true'),
+	defaultChatIsRead: parsedSessionMetadataKey(AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, value => value === 'true'),
 	isArchived: parsedSessionMetadataKey(AH_META_IS_ARCHIVED_DB_KEY, value => value === 'true'),
 	isDone: parsedSessionMetadataKey(AH_META_IS_DONE_DB_KEY, value => value === 'true'),
 	creationReference: parsedSessionMetadataKey(AH_META_CREATED_BY_SESSION_DB_KEY, parseSessionCreationReference),
+	initiator: parsedSessionMetadataKey(SESSION_INITIATOR_METADATA_KEY, parseSessionInitiator),
 	remoteOrigin: parsedSessionMetadataKey(REMOTE_SESSION_ORIGIN_METADATA_KEY, parseRemoteSessionOrigin),
 	workspaceless: parsedSessionMetadataKey(AH_META_WORKSPACELESS_DB_KEY, value => value === 'true'),
 	ehcliAdopted: parsedSessionMetadataKey(AH_META_EHCLI_ADOPTED_DB_KEY, value => value === 'true'),
@@ -102,6 +109,7 @@ const sessionMetadata = {
 	gitData: parsedSessionMetadataKey(META_GIT_DATA_STATE, readPersistedGitData),
 	sourceControl: parsedSessionMetadataKey(META_SOURCE_CONTROL_STATE, readPersistedSourceControlState),
 	devContainerWorktree: parsedSessionMetadataKey(AH_META_DEV_CONTAINER_WORKTREE_DB_KEY, readPersistedDevContainerWorktree),
+	workingDirectories: parsedSessionMetadataKey(SESSION_WORKING_DIRECTORIES_KEY, parseSessionWorkingDirectories),
 } as const;
 
 const sessionMetadataKeys: readonly ISessionMetadataKey[] = Object.values(sessionMetadata);
@@ -124,11 +132,18 @@ export class AgentHostCatalogSourceResolver {
 		preferPersistedMetadata: boolean,
 		database: IAgentHostCatalogMetadataReference | undefined = undefined,
 		metadataFallbacks: Readonly<Record<string, string>> = {},
+		authoritativeChats?: AgentHostCatalogData['chats'],
+		chatCatalogRevision?: number,
 	): Promise<IAgentHostCatalogSyncRequest> {
 		const metadataKeys = createMetadataKeySet(sessionMetadataKeys);
-		for (const chat of state.chats) {
-			metadataKeys[customChatTitleMetadataKey(chat.uri)] = true;
-			metadataKeys[customChatTitleSourceMetadataKey(chat.uri)] = true;
+		if (authoritativeChats === undefined) {
+			for (const chat of state.chats) {
+				metadataKeys[customChatTitleMetadataKey(chat.uri)] = true;
+				metadataKeys[customChatTitleSourceMetadataKey(chat.uri)] = true;
+				metadataKeys[getChatChangesSummaryMetadataKey(chat.uri)] = true;
+			}
+		} else {
+			delete metadataKeys[AH_META_DEFAULT_CHAT_IS_READ_DB_KEY];
 		}
 
 		const persisted: { readonly [key: string]: string | undefined } = database
@@ -166,6 +181,7 @@ export class AgentHostCatalogSourceResolver {
 			? (sessionMetadata.creationReference.has(metadata) ? persistedCreationReference : readSessionCreationReference(state.meta))
 			: readSessionCreationReference(state.meta) ?? persistedCreationReference;
 		const persistedRemoteOrigin = sessionMetadata.remoteOrigin.read(metadata);
+		const initiator = sessionMetadata.initiator.read(metadata) ?? readSessionInitiator({ _meta: state.meta });
 		const remoteOrigin = preferPersistedMetadata
 			? (sessionMetadata.remoteOrigin.has(metadata) ? persistedRemoteOrigin : readRemoteSessionOrigin({ _meta: state.meta }))
 			: readRemoteSessionOrigin({ _meta: state.meta }) ?? persistedRemoteOrigin;
@@ -195,9 +211,22 @@ export class AgentHostCatalogSourceResolver {
 			? persistedWorkspaceless
 			: readSessionWorkspaceless(state.meta) || persistedWorkspaceless;
 		const stateIsRead = (state.status & SessionStatus.IsRead) !== 0;
-		const isRead = preferPersistedMetadata && metadata[AH_META_IS_READ_DB_KEY] !== undefined
+		const persistedSessionIsRead = preferPersistedMetadata && metadata[AH_META_IS_READ_DB_KEY] !== undefined
 			? sessionMetadata.isRead.read(metadata) ?? false
 			: stateIsRead;
+		const chatIsRead = (chat: ICatalogSourceState['chats'][number]): boolean | undefined => preferPersistedMetadata
+			&& authoritativeChats === undefined
+			&& chat.kind === 'default'
+			&& sessionMetadata.defaultChatIsRead.has(metadata)
+			? sessionMetadata.defaultChatIsRead.read(metadata)
+			: chat.isRead;
+		const aggregateChats = (authoritativeChats?.map(chat => ({
+			...chat,
+			origin: fromCatalogChatOrigin(chat.origin),
+		})) ?? state.chats).filter(chat => isChatInSessionReadAggregate(chat.uri, chat.origin, chat.interactivity));
+		const isRead = aggregateChats.length === 1 && aggregateChats[0].isRead !== undefined
+			? chatIsRead(aggregateChats[0]) ?? persistedSessionIsRead
+			: persistedSessionIsRead && !aggregateChats.some(chat => chatIsRead(chat) === false);
 		const persistedArchived = sessionMetadata.isArchived.read(metadata) ?? sessionMetadata.isDone.read(metadata);
 		const isArchived = preferPersistedMetadata && persistedArchived !== undefined
 			? persistedArchived
@@ -211,6 +240,7 @@ export class AgentHostCatalogSourceResolver {
 		const devContainerWorktree = preferPersistedMetadata && sessionMetadata.devContainerWorktree.has(metadata)
 			? persistedDevContainerWorktree
 			: readAgentDevContainerWorktreeMetadata(state.meta) ?? persistedDevContainerWorktree;
+		const codexModel = readCodexSessionModel({ _meta: state.meta });
 		const meta: AgentHostCatalogMetadata = {
 			...(multiRoot ? { [SESSION_META_MULTI_ROOT_KEY]: multiRoot } : undefined),
 			...(folderPicker ? { [SESSION_META_FOLDER_PICKER_KEY]: folderPicker } : undefined),
@@ -220,11 +250,13 @@ export class AgentHostCatalogSourceResolver {
 			...(sourceControl ? { [SESSION_META_SOURCE_CONTROL_KEY]: sourceControl } : undefined),
 			...(artifacts.length > 0 ? { [SESSION_META_ARTIFACTS_KEY]: [...artifacts] } : undefined),
 			...(creationReference ? { [SESSION_META_CREATED_BY_SESSION_KEY]: creationReference } : undefined),
+			...(initiator ? { [SESSION_INITIATOR_METADATA_KEY]: initiator } : undefined),
 			...(remoteOrigin ? { [REMOTE_SESSION_ORIGIN_METADATA_KEY]: remoteOrigin } : undefined),
 			...(workspaceless ? { [SESSION_META_WORKSPACELESS_KEY]: true } : undefined),
 			...(ehcliAdoptable ? { [SESSION_META_EHCLI_ADOPTABLE_KEY]: true } : undefined),
 			...(ehcliAdopted ? { [SESSION_META_EHCLI_ADOPTED_KEY]: true } : undefined),
 			...(devContainerWorktree ? { [AH_META_DEV_CONTAINER_WORKTREE_DB_KEY]: devContainerWorktree } : undefined),
+			...(codexModel ? { [CODEX_SESSION_MODEL_META_KEY]: { id: codexModel.id } } : undefined),
 		};
 		const data: AgentHostCatalogData = {
 			modifiedTime: state.modifiedTime,
@@ -236,10 +268,10 @@ export class AgentHostCatalogSourceResolver {
 				? { uri: worktreeProject.uri.toString(), displayName: worktreeProject.displayName }
 				: state.project,
 			isChatBacking: !!sessionMetadata.chatBacking.read(metadata) || this._dependencies.isUnpersistedChatBacking(session),
-			workingDirectories: state.workingDirectories,
+			workingDirectories: (preferPersistedMetadata ? sessionMetadata.workingDirectories.read(metadata) : undefined) ?? state.workingDirectories,
 			changes,
 			_meta: Object.keys(meta).length > 0 ? meta : undefined,
-			chats: state.chats.map((chat, order) => {
+			chats: authoritativeChats ?? state.chats.map((chat, order) => {
 				const summary = preferPersistedMetadata
 					? metadata[customChatTitleMetadataKey(chat.uri)]
 					|| chat.title
@@ -255,6 +287,11 @@ export class AgentHostCatalogSourceResolver {
 				// temporary restriction must not become permanent after a restart.
 				const interactivity = chat.interactivity === ChatInteractivity.ReadOnly && readChatInputState({ _meta: state.meta }, chat.uri)
 					? ChatInteractivity.Full : chat.interactivity;
+				const isRead = chatIsRead(chat);
+				const persistedChatChanges = readPersistedChanges(metadata[getChatChangesSummaryMetadataKey(chat.uri)]);
+				const chatChanges = preferPersistedMetadata
+					? persistedChatChanges ?? chat.changes
+					: chat.changes ?? persistedChatChanges;
 				return {
 					uri: chat.uri,
 					order,
@@ -264,8 +301,10 @@ export class AgentHostCatalogSourceResolver {
 					origin: toCatalogChatOrigin(chat.origin),
 					...(interactivity !== undefined ? { interactivity } : {}),
 					...(chat.archived === true ? { archived: true } : {}),
+					...(isRead !== undefined ? { isRead } : {}),
 					...(chat.inheritedTurnId !== undefined ? { inheritedTurnId: chat.inheritedTurnId } : {}),
 					...(chat.workingDirectories !== undefined ? { workingDirectories: chat.workingDirectories } : {}),
+					...(chatChanges !== undefined ? { changes: chatChanges } : {}),
 				};
 			}),
 		};
@@ -277,11 +316,24 @@ export class AgentHostCatalogSourceResolver {
 			[SESSION_META_FOLDER_PICKER_KEY]: folderPicker ? JSON.stringify(folderPicker) : '',
 			[SESSION_ARTIFACTS_KEY]: stringifySessionArtifacts(artifacts),
 		};
+		if (authoritativeChats !== undefined) {
+			for (const key of Object.keys(legacyMetadata)) {
+				if (key === AH_META_DEFAULT_CHAT_IS_READ_DB_KEY || key.startsWith('customChatTitle:') || key.startsWith('customChatTitleSource:') || key.startsWith(`${META_CHANGES_SUMMARY}:`)) {
+					delete legacyMetadata[key];
+				}
+			}
+		}
+		if (sessionMetadata.workingDirectories.has(metadata)) {
+			legacyMetadata[SESSION_WORKING_DIRECTORIES_KEY] = JSON.stringify(data.workingDirectories);
+		}
 		if (creationReference || metadata[AH_META_CREATED_BY_SESSION_DB_KEY] !== undefined) {
 			legacyMetadata[AH_META_CREATED_BY_SESSION_DB_KEY] = creationReference ? JSON.stringify(creationReference) : '';
 		}
 		if (remoteOrigin) {
 			legacyMetadata[REMOTE_SESSION_ORIGIN_METADATA_KEY] = JSON.stringify(remoteOrigin);
+		}
+		if (initiator) {
+			legacyMetadata[SESSION_INITIATOR_METADATA_KEY] = JSON.stringify(initiator);
 		}
 		// The persisted marker also identifies host-created sessions, so it is never backfilled for an external one.
 		if ((workspaceless && !readSessionExternal(state.meta)) || metadata[AH_META_WORKSPACELESS_DB_KEY] !== undefined) {
@@ -325,11 +377,38 @@ export class AgentHostCatalogSourceResolver {
 		if (metadata[META_CHANGES_SUMMARY] !== undefined) {
 			legacyMetadata[META_CHANGES_SUMMARY] = changes ? JSON.stringify(changes) : '';
 		}
-		return { data, legacyMetadata };
+		if (authoritativeChats !== undefined) {
+			delete legacyMetadata[AH_META_DEFAULT_CHAT_IS_READ_DB_KEY];
+			for (const key of Object.keys(legacyMetadata)) {
+				if (key.startsWith(customChatTitleMetadataKey(''))
+					|| key.startsWith(customChatTitleSourceMetadataKey(''))
+					|| key.startsWith(getChatChangesSummaryMetadataKey(''))) {
+					delete legacyMetadata[key];
+				}
+			}
+		}
+		return { data, legacyMetadata, ...(chatCatalogRevision !== undefined ? { chatCatalogRevision } : {}) };
 	}
 }
 
-function toCatalogSummary(value: string | undefined): string | undefined {
+export function chatCatalogV2ToCatalogChats(snapshot: IAgentHostDatabaseCatalogSnapshotEntry): AgentHostCatalogData['chats'] {
+	return snapshot.chats.flatMap(chat => chat.order === undefined ? [] : [{
+		uri: chat.chat,
+		order: chat.order,
+		kind: snapshot.header?.defaultChatUri === chat.chat ? 'default' as const : 'peer' as const,
+		summary: chat.metadata?.summary,
+		titleSource: chat.metadata?.titleSource,
+		interactivity: chat.metadata?.interactivity,
+		changes: chat.metadata?.changes,
+		origin: chat.origin === undefined ? undefined : projectAgentHostCatalogChatOrigin(JSON.parse(chat.origin)),
+		isRead: chat.isRead,
+		archived: chat.archived,
+		inheritedTurnId: chat.inheritedTurnId,
+		workingDirectories: chat.workingDirectories === undefined ? undefined : [...chat.workingDirectories],
+	}]);
+}
+
+export function toCatalogSummary(value: string | undefined): string | undefined {
 	if (!value || value.length <= AGENT_HOST_CATALOG_TITLE_LENGTH_LIMIT) {
 		return value || undefined;
 	}
@@ -376,28 +455,7 @@ export function toSerializableJsonValue(value: unknown): AgentHostCatalogJsonVal
 
 /** Projects bounded navigation provenance while authoritative selection snapshots remain in peer-chat metadata. */
 function toCatalogChatOrigin(origin: ChatOrigin | undefined): AgentHostCatalogJsonValue | undefined {
-	if (!origin) {
-		return undefined;
-	}
-	const projected = origin.kind === ChatOriginKind.SideChat
-		? { kind: origin.kind, chat: origin.chat, turnId: origin.turnId }
-		: origin;
-	const value = toSerializableJsonValue(projected);
-	return value !== undefined && hasOnlyBoundedStrings(value) ? value : undefined;
-}
-
-function hasOnlyBoundedStrings(value: AgentHostCatalogJsonValue): boolean {
-	if (typeof value === 'string') {
-		return value.length <= AGENT_HOST_CATALOG_JSON_STRING_LENGTH_LIMIT;
-	}
-	if (Array.isArray(value)) {
-		return value.every(hasOnlyBoundedStrings);
-	}
-	if (value && typeof value === 'object') {
-		return Object.entries(value).every(([key, entry]) =>
-			key.length <= AGENT_HOST_CATALOG_JSON_STRING_LENGTH_LIMIT && hasOnlyBoundedStrings(entry));
-	}
-	return true;
+	return projectAgentHostCatalogChatOrigin(toSerializableJsonValue(origin));
 }
 
 export function fromCatalogChatOrigin(value: AgentHostCatalogJsonValue | undefined): ChatOrigin | undefined {

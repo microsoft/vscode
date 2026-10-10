@@ -159,6 +159,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/opener",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/output",
 			"project": "vscode-workbench"
 		},
@@ -612,6 +616,10 @@
 		},
 		{
 			"name": "vs/workbench/contrib/browserView",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/canvases",
 			"project": "vscode-workbench"
 		},
 		{

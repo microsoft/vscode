@@ -11,6 +11,7 @@ import { AuthenticationGetSessionOptions, AuthenticationInteractiveOptions, ExtH
 import { IDialogService, IPromptButton } from '../../../platform/dialogs/common/dialogs.js';
 import Severity from '../../../base/common/severity.js';
 import { INotificationService } from '../../../platform/notification/common/notification.js';
+import { NotificationTelemetryId, NotificationActionTelemetryId } from '../../../platform/notification/common/notificationTelemetry.js';
 import { ActivationKind, IExtensionService } from '../../services/extensions/common/extensions.js';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.js';
 import { Emitter, Event } from '../../../base/common/event.js';
@@ -332,12 +333,14 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 			Severity.Warning,
 			message,
 			[{
+				telemetryId: NotificationActionTelemetryId.Continue,
 				label: yes,
 				run: () => result = true
 			}, {
+				telemetryId: NotificationActionTelemetryId.Decline,
 				label: no,
 				run: () => result = false
-			}]);
+			}], { telemetry: NotificationTelemetryId.AuthenticationContinue });
 		const disposable = handle.onDidClose(() => {
 			deferredPromise.complete(result);
 			disposable.dispose();

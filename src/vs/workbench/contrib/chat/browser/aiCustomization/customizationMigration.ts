@@ -6,13 +6,13 @@
 import { splitLinesIncludeSeparators } from '../../../../../base/common/strings.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
-import { basename, dirname, getComparisonKey } from '../../../../../base/common/resources.js';
+import { basename, dirname } from '../../../../../base/common/resources.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
+import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../../platform/files/common/files.js';
 import { getCleanPromptName, getPromptFileExtension, SKILL_FILENAME, VALID_SKILL_NAME_REGEX } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { IHeaderAttribute, ParsedPromptFile, PromptFileParser, PromptHeaderAttributes } from '../../common/promptSyntax/promptFileParser.js';
-import { FileCustomizationMigrationFailureReason, getCustomizationMigrationTargetType, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigrationCandidate, CustomizationMigrationType, FileCustomizationMigrationFailureReason, getCustomizationMigrationTargetType, isMcpServerCustomizationMigrationCandidate, MigratableConfiguration } from '../../common/promptSyntax/service/customizationMigrationService.js';
 import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
@@ -43,6 +43,19 @@ export interface IMigratedCustomizationsResult {
 
 export interface IMigratedCustomizationsWithFailureReasonsResult extends IMigratedCustomizationsResult {
 	readonly failureReasons: readonly FileCustomizationMigrationFailureReason[];
+	readonly nameConflicts: readonly ICustomizationMigrationNameConflict[];
+	readonly failures: readonly ICustomizationMigrationFailure[];
+}
+
+export interface ICustomizationMigrationNameConflict {
+	readonly sourceFileName: string;
+	readonly targetUri: URI;
+}
+
+export interface ICustomizationMigrationFailure {
+	readonly sourceUri: URI;
+	readonly sourceFileName: string;
+	readonly reasons: readonly FileCustomizationMigrationFailureReason[];
 }
 
 export type CustomizationMigrationTargetFolders = ReadonlyMap<PromptsType, ReadonlyMap<PromptsStorage, ICustomizationSourceFolder>>;
@@ -55,6 +68,43 @@ export interface ICustomizationMigrationOptions {
 	 * Falls back to the target folder of the customization type and storage.
 	 */
 	readonly resolveTargetFolder?: (customization: MigratableConfiguration, targetType: PromptsType) => ICustomizationSourceFolder | undefined;
+}
+
+export interface ICategorizedCustomizationMigrationCandidate {
+	readonly category: CustomizationMigrationType;
+	readonly customization: CustomizationMigrationCandidate;
+}
+
+export function createCustomizationMigrationAgentPrompt(
+	harness: { readonly id: string; readonly label: string },
+	migrationFlowId: string,
+	recoveryBundleFolder: URI,
+	customizations: readonly ICategorizedCustomizationMigrationCandidate[],
+	targetFoldersByType: ReadonlyMap<PromptsType, readonly ICustomizationSourceFolder[]>,
+): string {
+	const customizationLocations = customizations.map(({ category, customization }) => {
+		if (isMcpServerCustomizationMigrationCandidate(customization)) {
+			return `- ${category}: MCP server "${customization.name}" (${customization.storage}): ${customization.sourceUri.toString(true)} -> ${customization.targetUri.toString(true)}`;
+		}
+		return `- ${category}: ${customization.type} (${customization.storage}): ${customization.uri.toString(true)}`;
+	});
+	const targetLocations = [...targetFoldersByType]
+		.flatMap(([type, folders]) => folders.map(folder => `- ${type} (${folder.source}, ${folder.label}): ${folder.uri.toString(true)}`));
+
+	return [
+		'/migrate-customizations',
+		'',
+		`Selected harness: ${harness.label} (${harness.id})`,
+		`Migration telemetry flow: ${migrationFlowId}`,
+		`Recovery bundle folder: ${recoveryBundleFolder.toString(true)}`,
+		`Recovery bundle filesystem path: ${recoveryBundleFolder.fsPath}`,
+		'',
+		'Customizations that need migration:',
+		...customizationLocations,
+		'',
+		'Valid target folders reported by the selected harness:',
+		...(targetLocations.length ? targetLocations : ['- None reported for these customization types.']),
+	].join('\n');
 }
 
 /**
@@ -93,6 +143,7 @@ export function migratePromptFileToSkill(promptFile: MigratableConfiguration, co
 	const friendlyName = promptFile.name?.trim() || parsed.header?.name?.trim() || getCleanPromptName(promptFile.uri);
 	const skillName = skillNameOverride ?? sanitizeSkillName(friendlyName);
 	const description = promptFile.description?.trim() || parsed.header?.description?.trim() || friendlyName;
+	const descriptionAttribute = parsed.header?.getAttribute(PromptHeaderAttributes.description);
 	const argumentHint = parsed.header?.argumentHint?.trim();
 	const argumentHintAttribute = parsed.header?.getAttribute(PromptHeaderAttributes.argumentHint);
 	const body = getPromptBody(parsed, content);
@@ -103,7 +154,7 @@ export function migratePromptFileToSkill(promptFile: MigratableConfiguration, co
 	const headerLines = [
 		'---',
 		`name: ${skillName}`,
-		`description: ${description}`,
+		`description: ${formatMigratedDescription(description, descriptionAttribute)}`,
 		'disable-model-invocation: true',
 	];
 
@@ -118,6 +169,36 @@ export function migratePromptFileToSkill(promptFile: MigratableConfiguration, co
 		content: `${headerLines.join('\n')}${body}`,
 		unsupportedHeaderKeys,
 	};
+}
+
+function formatMigratedDescription(value: string, sourceAttribute: IHeaderAttribute | undefined): string {
+	if (/[\u0000-\u001F\u007F-\u009F]/.test(value)) {
+		return quoteYamlString(value);
+	}
+
+	if (sourceAttribute?.value.type === 'scalar') {
+		switch (sourceAttribute.value.format) {
+			case 'single':
+				return `'${value.replace(/'/g, `''`)}'`;
+			case 'double':
+				return quoteYamlString(value);
+			case 'none':
+				if (isSafePlainYamlScalar(value)) {
+					return value;
+				}
+		}
+	}
+
+	return isSafePlainYamlScalar(value) ? value : quoteYamlString(value);
+}
+
+function quoteYamlString(value: string): string {
+	return JSON.stringify(value).replace(/[\u007F-\u009F]/g, character => `\\u${character.charCodeAt(0).toString(16).padStart(4, '0')}`);
+}
+
+function isSafePlainYamlScalar(value: string): boolean {
+	return /^[A-Za-z][A-Za-z0-9 ._/()'!?+=-]*$/.test(value)
+		&& !/^(?:true|false|null)$/i.test(value);
 }
 
 function formatMigratedHeaderValue(value: string, sourceAttribute: IHeaderAttribute | undefined): string {
@@ -139,11 +220,9 @@ export async function migrateCustomizations(
 	customizations: readonly MigratableConfiguration[],
 	targetFolders: CustomizationMigrationTargetFolders,
 	fileService: IFileService,
-	onMigrationError?: (error: Error, reasons: readonly FileCustomizationMigrationFailureReason[]) => void,
+	onMigrationError?: (error: Error, reasons: readonly FileCustomizationMigrationFailureReason[], sourceCustomization: MigratableConfiguration) => void,
 	options?: ICustomizationMigrationOptions,
 ): Promise<IMigratedCustomizationsResult> {
-	const reservedSkillNames = new Map<string, Set<string>>();
-	const reservedFileNames = new Map<string, Set<string>>();
 	const unsupportedHeaderKeys = new Set<string>();
 	const failedCustomizationFileNames: string[] = [];
 	const migratedCustomizations: IMigratedCustomization[] = [];
@@ -164,6 +243,7 @@ export async function migrateCustomizations(
 		const migratedSourceCustomizations: IMigratedCustomization[] = [];
 		const sourceUnsupportedHeaderKeys = new Set<string>();
 		let failureReason = FileCustomizationMigrationFailureReason.SourceReadFailed;
+		let targetUriForConflict: URI | undefined;
 
 		try {
 			const content = (await fileService.readFile(sourceCustomization.uri)).value.toString();
@@ -181,24 +261,23 @@ export async function migrateCustomizations(
 					failureReason = FileCustomizationMigrationFailureReason.ConversionFailed;
 					const migratedPrompt = migratePromptFileToSkill(customization, content);
 					failureReason = FileCustomizationMigrationFailureReason.TargetResolutionFailed;
-					const reservedNamesForFolder = getOrCreateReservedNames(targetFolder.uri, reservedSkillNames);
-					const skillName = await getAvailableMigratedSkillName(targetFolder.uri, migratedPrompt.skillName, reservedNamesForFolder, fileService);
-					const migratedSkill = skillName === migratedPrompt.skillName ? migratedPrompt : migratePromptFileToSkill(customization, content, skillName);
+					await ensureMigratedSkillTargetAvailable(targetFolder.uri, migratedPrompt.skillName, fileService);
+					const migratedSkill = migratedPrompt;
 					for (const key of migratedSkill.unsupportedHeaderKeys) {
 						sourceUnsupportedHeaderKeys.add(key);
 					}
-					targetUri = createSkillFileUri(targetFolder.uri, skillName);
+					targetUri = createSkillFileUri(targetFolder.uri, migratedPrompt.skillName);
 					migratedContent = migratedSkill.content;
 				} else if (customization.type === PromptsType.skill) {
-					const reservedNamesForFolder = getOrCreateReservedNames(targetFolder.uri, reservedSkillNames);
-					const skillName = await getAvailableMigratedSkillName(targetFolder.uri, basename(dirname(customization.uri)), reservedNamesForFolder, fileService);
+					const skillName = basename(dirname(customization.uri));
+					await ensureMigratedSkillTargetAvailable(targetFolder.uri, skillName, fileService);
 					targetUri = createSkillFileUri(targetFolder.uri, skillName);
 				} else {
-					const reservedNamesForFolder = getOrCreateReservedNames(targetFolder.uri, reservedFileNames);
-					targetUri = await getAvailableMigratedFileUri(targetFolder.uri, customization, reservedNamesForFolder, fileService);
+					targetUri = await resolveMigratedFileUri(targetFolder.uri, customization, fileService);
 				}
 
 				failureReason = FileCustomizationMigrationFailureReason.TargetWriteFailed;
+				targetUriForConflict = customization.type === PromptsType.prompt || customization.type === PromptsType.skill ? dirname(targetUri) : targetUri;
 				await fileService.createFolder(targetFolder.uri);
 				if (customization.type === PromptsType.skill) {
 					const sourceFolder = dirname(customization.uri);
@@ -206,6 +285,14 @@ export async function migrateCustomizations(
 					const stagingFolder = URI.joinPath(targetFolder.uri, `.migration-${generateUuid()}`);
 					writtenTargetUris.push(stagingFolder);
 					await fileService.copy(sourceFolder, stagingFolder, false);
+					await fileService.move(stagingFolder, targetSkillFolder, false);
+					writtenTargetUris.push(targetSkillFolder);
+				} else if (customization.type === PromptsType.prompt) {
+					const targetSkillFolder = dirname(targetUri);
+					const stagingFolder = URI.joinPath(targetFolder.uri, `.migration-${generateUuid()}`);
+					writtenTargetUris.push(stagingFolder);
+					await fileService.createFolder(stagingFolder);
+					await fileService.createFile(URI.joinPath(stagingFolder, SKILL_FILENAME), VSBuffer.fromString(migratedContent), { overwrite: false });
 					await fileService.move(stagingFolder, targetSkillFolder, false);
 					writtenTargetUris.push(targetSkillFolder);
 				} else {
@@ -231,17 +318,24 @@ export async function migrateCustomizations(
 			})));
 			migratedCount += migratedSourceCustomizations.length;
 		} catch (error) {
-			const migrationError = error instanceof Error ? error : new Error(String(error));
+			let migrationError = error instanceof Error ? error : new Error(String(error));
+			if (failureReason === FileCustomizationMigrationFailureReason.TargetWriteFailed && targetUriForConflict && isTargetExistsFileOperationError(migrationError)) {
+				migrationError = new CustomizationMigrationTargetExistsError(targetUriForConflict);
+			}
 			const rollbackErrors = await rollbackMigrationTargets(writtenTargetUris, fileService);
 			failedCustomizationFileNames.push(basename(sourceCustomization.uri));
+			const reportedFailureReason = migrationError instanceof CustomizationMigrationTargetExistsError
+				? FileCustomizationMigrationFailureReason.TargetAlreadyExists
+				: failureReason;
 			const failureReasons = rollbackErrors.length > 0
-				? [failureReason, FileCustomizationMigrationFailureReason.RollbackFailed]
-				: [failureReason];
+				? [reportedFailureReason, FileCustomizationMigrationFailureReason.RollbackFailed]
+				: [reportedFailureReason];
 			onMigrationError?.(
 				rollbackErrors.length > 0
 					? new AggregateError([migrationError, ...rollbackErrors], `Failed to migrate and roll back ${basename(sourceCustomization.uri)}`)
 					: migrationError,
 				failureReasons,
+				sourceCustomization,
 			);
 		}
 	}
@@ -253,6 +347,36 @@ export async function migrateCustomizations(
 		migratedCustomizations,
 		migratedSources,
 	};
+}
+
+export function getCustomizationMigrationConflictTarget(error: Error): URI | undefined {
+	return findCustomizationMigrationConflictTarget(error, new Set());
+}
+
+function findCustomizationMigrationConflictTarget(error: Error, seen: Set<Error>): URI | undefined {
+	if (seen.has(error)) {
+		return undefined;
+	}
+	seen.add(error);
+	if (error instanceof CustomizationMigrationTargetExistsError) {
+		return error.targetUri;
+	}
+	if (error instanceof AggregateError) {
+		for (const nestedError of error.errors) {
+			if (nestedError instanceof Error) {
+				const targetUri = findCustomizationMigrationConflictTarget(nestedError, seen);
+				if (targetUri) {
+					return targetUri;
+				}
+			}
+		}
+	}
+	return undefined;
+}
+
+function isTargetExistsFileOperationError(error: Error): boolean {
+	const result = toFileOperationResult(error);
+	return result === FileOperationResult.FILE_MODIFIED_SINCE || result === FileOperationResult.FILE_MOVE_CONFLICT;
 }
 
 async function rollbackMigrationTargets(targetUris: readonly URI[], fileService: IFileService): Promise<Error[]> {
@@ -270,28 +394,18 @@ async function rollbackMigrationTargets(targetUris: readonly URI[], fileService:
 	return errors;
 }
 
-function getOrCreateReservedNames(folder: URI, reservedNames: Map<string, Set<string>>): Set<string> {
-	const key = getComparisonKey(folder);
-	const names = reservedNames.get(key) ?? new Set<string>();
-	reservedNames.set(key, names);
-	return names;
-}
-
-async function getAvailableMigratedFileUri(
+async function resolveMigratedFileUri(
 	targetFolder: URI,
 	customization: MigratableConfiguration,
-	reservedNames: Set<string>,
 	fileService: IFileService,
 ): Promise<URI> {
 	const extension = getPromptFileExtension(customization.type);
 	const baseName = getCleanPromptName(customization.uri);
-	let fileName = `${baseName}${extension}`;
-	let counter = 2;
-	while (reservedNames.has(fileName) || await fileService.exists(URI.joinPath(targetFolder, fileName))) {
-		fileName = `${baseName}-${counter++}${extension}`;
+	const targetUri = URI.joinPath(targetFolder, `${baseName}${extension}`);
+	if (await fileService.exists(targetUri)) {
+		throw new CustomizationMigrationTargetExistsError(targetUri);
 	}
-	reservedNames.add(fileName);
-	return URI.joinPath(targetFolder, fileName);
+	return targetUri;
 }
 
 function getPromptBody(parsed: ParsedPromptFile, content: string): string {
@@ -309,7 +423,6 @@ export function createSkillFileUri(skillSourceFolder: URI, skillName: string): U
 
 function sanitizeSkillName(name: string): string {
 	const strippedName = name
-		.replace(/<[^>]+>/g, '')
 		.toLowerCase()
 		.replace(/[^a-z0-9]+/g, '-')
 		.replace(/^-+|-+$/g, '')
@@ -328,20 +441,19 @@ export function trimSkillName(skillName: string, suffixLength: number): string {
 	return skillName.slice(0, maxBaseLength).replace(/-+$/g, '');
 }
 
-async function getAvailableMigratedSkillName(
+async function ensureMigratedSkillTargetAvailable(
 	skillSourceFolder: URI,
-	baseSkillName: string,
-	reservedNames: Set<string>,
+	skillName: string,
 	fileService: IFileService,
-): Promise<string> {
-	let candidate = baseSkillName;
-	let counter = 2;
-	while (reservedNames.has(candidate) || await fileService.exists(URI.joinPath(skillSourceFolder, candidate))) {
-		const suffix = `-${counter++}`;
-		const trimmedBaseName = trimSkillName(baseSkillName, suffix.length);
-		candidate = `${trimmedBaseName}${suffix}`;
+): Promise<void> {
+	const targetFolder = URI.joinPath(skillSourceFolder, skillName);
+	if (await fileService.exists(targetFolder)) {
+		throw new CustomizationMigrationTargetExistsError(targetFolder);
 	}
+}
 
-	reservedNames.add(candidate);
-	return candidate;
+class CustomizationMigrationTargetExistsError extends Error {
+	constructor(readonly targetUri: URI) {
+		super(`A customization already exists at ${targetUri.toString()}.`);
+	}
 }

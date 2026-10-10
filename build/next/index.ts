@@ -38,7 +38,7 @@ const commit = getVersion(REPO_ROOT);
 const quality = (product as { quality?: string }).quality;
 const version = (quality && quality !== 'stable') ? `${packageJson.version}-${quality}` : packageJson.version;
 
-// CLI: build-fast [--force] | transpile [--watch] | bundle [--minify] [--nls] [--out <dir>]
+// CLI: build-fast [--force] [--client-only] | transpile [--watch] | bundle [--minify] [--nls] [--out <dir>]
 const command = process.argv[2];
 
 function getArgValue(name: string): string | undefined {
@@ -56,6 +56,7 @@ const options = {
 	manglePrivates: process.argv.includes('--mangle-privates'),
 	excludeTests: process.argv.includes('--exclude-tests'),
 	force: process.argv.includes('--force'),
+	clientOnly: process.argv.includes('--client-only'),
 	out: getArgValue('--out'),
 	target: getArgValue('--target') ?? 'desktop', // 'desktop' | 'server' | 'server-web' | 'web'
 	sourceMapBaseUrl: getArgValue('--source-map-base-url'),
@@ -824,7 +825,8 @@ Commands:
 	bundle             Bundle entry points into optimized bundles
 
 Options for 'build-fast':
-	--force            Ignore incremental state and rebuild all lanes
+	--force            Ignore incremental state and rebuild selected lanes
+	--client-only      Only refresh client output; skip extensions and Copilot
 
 Options for 'transpile':
 	--watch            Watch for changes and rebuild incrementally
@@ -841,6 +843,7 @@ Options for 'bundle':
 
 Examples:
 	npx tsx build/next/index.ts build-fast
+	npx tsx build/next/index.ts build-fast --client-only
 	npx tsx build/next/index.ts build-fast --force
 	npx tsx build/next/index.ts transpile
 	npx tsx build/next/index.ts transpile --watch
@@ -860,7 +863,7 @@ async function main(): Promise<void> {
 	try {
 		switch (command) {
 			case 'build-fast':
-				await runBuildFast(REPO_ROOT, options.force);
+				await runBuildFast(REPO_ROOT, options.force, options.clientOnly);
 				break;
 			case 'transpile':
 				if (options.watch) {

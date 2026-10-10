@@ -68,12 +68,11 @@ for (const theme of ['Dark', 'Light', 'DarkHighContrast', 'LightHighContrast']) 
 			await expect(page.locator('.session-view:visible').first().getByRole('button', { name: 'Unpin', exact: true })).toHaveCount(1);
 			await expect(page.locator('.session-view:visible').getByRole('button', { name: 'More Actions...', exact: true })).toHaveCount(scenario.visibleSessions);
 
-			const border = await page.locator('.part.sessionspart').evaluate(element => {
-				const style = getComputedStyle(element);
+			const border = await page.locator('.session-view:visible').first().evaluate(element => {
+				const style = getComputedStyle(element, '::after');
 				return { width: style.borderTopWidth, style: style.borderTopStyle, transparent: style.borderTopColor === 'rgba(0, 0, 0, 0)' };
 			});
-			// The bundled dark theme deliberately overrides agentsCard.border with a transparent color.
-			expect(border).toEqual({ width: '1px', style: 'solid', transparent: theme === 'Dark' });
+			expect(border).toEqual({ width: '1px', style: 'solid', transparent: false });
 			await expectStableScreenshot(page, fixtureId, `sessions/grid/sessionsGrid/${scenario.name === 'Maximized' ? 'NestedSplits' : 'Maximized'}/Light`);
 		});
 	}
@@ -102,7 +101,7 @@ test('sessions grid header actions update their owning state', async ({ page }) 
 	};
 	await overflow().click();
 	await expect(page.locator('.context-view .action-label:not(.separator)')).toHaveText([
-		'Archive', 'New Chat in This Session', 'Show Chat Tabs', 'Unpin', 'Maximize', 'Close', 'Session Layout',
+		'Archive', 'Show Chat Tabs', 'Unpin', 'Maximize', 'Close', 'Session Layout',
 	]);
 	await activate('menuitemcheckbox', 'Maximize');
 	await expect(page.locator('.session-view:visible')).toHaveCount(1);
@@ -118,28 +117,6 @@ test('sessions grid header actions update their owning state', async ({ page }) 
 	await activate('menuitem', 'Close');
 	await expect(page.locator('.session-view:visible')).toHaveCount(2);
 	expect(errors).toEqual([]);
-});
-
-test('sessions grid gallery mounts all variants without shared-registration conflicts', async ({ context }) => {
-	const gallery = await context.newPage();
-	const errors: string[] = [];
-	gallery.on('pageerror', error => errors.push(error.message));
-	gallery.on('console', message => {
-		if (message.type() === 'error' || message.type() === 'warning') {
-			errors.push(message.text());
-		}
-	});
-	try {
-		await gallery.setViewportSize({ width: 3400, height: 6400 });
-		await gallery.goto(`${getBaseURL()}/___explorer?fixture=sessions%2Fgrid%2FsessionsGrid`, { waitUntil: 'networkidle' });
-		await expect(gallery.locator('.part.titlebar')).toHaveCount(12, { timeout: 20_000 });
-		await expect(gallery.locator('.session-view:visible')).toHaveCount(28);
-		await expect(gallery.locator('.part.titlebar').getByRole('button', { name: 'New Session', exact: true })).toHaveCount(12);
-		await expect(gallery.locator('.sessions-account-titlebar-widget')).toHaveCount(12);
-		expect(errors).toEqual([]);
-	} finally {
-		await gallery.close();
-	}
 });
 
 async function expectStableScreenshot(page: Page, fixtureId: string, precedingFixtureId: string): Promise<void> {

@@ -5,12 +5,13 @@
 
 import assert from 'assert';
 import * as dom from '../../../../../../base/browser/dom.js';
+import { IAction } from '../../../../../../base/common/actions.js';
 import { timeout } from '../../../../../../base/common/async.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { IActionListDelegate, IActionListItem } from '../../../../../../platform/actionWidget/browser/actionList.js';
+import { ActionListWidget, IActionListDelegate, IActionListItem } from '../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -18,8 +19,13 @@ import { IConfigurationValue } from '../../../../../../platform/configuration/co
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { TestDialogService } from '../../../../../../platform/dialogs/test/common/testDialogService.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../../platform/hover/test/browser/nullHoverService.js';
+import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
+import { MockKeybindingService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
-import { COPILOT_SANDBOX_ALLOW_BYPASS_KEY, IManagedSettingsService } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
+import { NullOpenerService } from '../../../../../../platform/opener/test/common/nullOpenerService.js';
+import { COPILOT_SANDBOX_ALLOW_BYPASS_KEY, IManagedSettingsService, ManagedSettingsData } from '../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { constObservable, observableFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import { AgentSandboxEnabledValue } from '../../../../../../platform/sandbox/common/settings.js';
@@ -30,6 +36,7 @@ import { TestStorageService } from '../../../../../../workbench/test/common/work
 import { IWorkbenchLayoutService } from '../../../../../../workbench/services/layout/browser/layoutService.js';
 import { DEFAULT_PERMISSION_LEVELS, getPermissionLevelMeta, IPermissionPickerDelegate, PermissionPicker } from '../../browser/permissionPicker.js';
 import { MobilePermissionPicker } from '../../browser/mobilePermissionPicker.js';
+import { PickerActionViewItem } from '../../../agentHost/browser/agentHostSessionConfigPicker.js';
 
 suite('Copilot PermissionPicker', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -40,6 +47,34 @@ suite('Copilot PermissionPicker', () => {
 		managedSandboxEnforced: constObservable(false),
 		managedSandboxAllowsBypass: constObservable(false),
 	};
+
+	test('toolbar focus and focusability target the permission trigger rather than its slot', () => {
+		const container = dom.append(document.body, dom.$('div'));
+		store.add(toDisposable(() => container.remove()));
+		const configuration = new TestConfigurationService();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		const picker = new PermissionPicker(
+			{ getPermissionLevelMeta: (_level, meta) => meta, setPermissionLevel: () => { } },
+			new class extends mock<IActionWidgetService>() { }(),
+			configuration,
+			new TestDialogService(),
+			new class extends mock<IOpenerService>() { }(),
+			store.add(new TestStorageService()),
+			NullTelemetryService,
+			new class extends mock<IHoverService>() { }(),
+			unmanagedEnablementService,
+		);
+		const item = store.add(new PickerActionViewItem(picker, undefined, true));
+		item.render(container);
+		const trigger = container.querySelector<HTMLElement>('.action-label')!;
+		item.setFocusable(false);
+		const disabledTabIndex = trigger.tabIndex;
+		item.setFocusable(true);
+		item.focus();
+		assert.deepStrictEqual({ disabledTabIndex, enabledTabIndex: trigger.tabIndex, focused: document.activeElement === trigger, itemFocused: item.isFocused() }, {
+			disabledTabIndex: -1, enabledTabIndex: 0, focused: true, itemFocused: true,
+		});
+	});
 
 	for (const policyRestricted of [false, true]) {
 		test(`labels Assisted permissions as experimental on phones${policyRestricted ? ' while honoring enterprise policy' : ''}`, async () => {
@@ -201,7 +236,6 @@ suite('Copilot PermissionPicker', () => {
 			}
 		}();
 		store.add(configurationService.onDidChangeConfigurationEmitter);
-		await configurationService.setUserConfiguration(ChatConfiguration.PermissionsSandboxToggleEnabled, true);
 		const managedSandboxEnforced = observableValue('managedSandboxEnforced', false);
 		const sandboxEnabled = observableValue<boolean | undefined>('sandboxEnabled', undefined);
 		let allowBypass: boolean | undefined;
@@ -210,6 +244,7 @@ suite('Copilot PermissionPicker', () => {
 			_serviceBrand: undefined,
 			onDidChangeManagedSettings: managedSettingsChanged.event,
 			getManagedSettingValue: key => key === COPILOT_SANDBOX_ALLOW_BYPASS_KEY ? allowBypass : undefined,
+			getManagedSettings: (): ManagedSettingsData => allowBypass === undefined ? {} : { [COPILOT_SANDBOX_ALLOW_BYPASS_KEY]: allowBypass },
 		};
 		const enablementService: IAgentHostEnablementService = {
 			_serviceBrand: undefined,
@@ -272,7 +307,7 @@ suite('Copilot PermissionPicker', () => {
 						disabled,
 						title: managed
 							? 'Sandboxing is required by your organization'
-							: 'Run this session\'s terminal commands inside a sandbox that restricts file system and network access. This choice is saved for this session only.',
+							: 'Run this session\'s terminal commands inside a sandbox that restricts file system and network access. The applied setting is saved for this session and checked against current organization policy when restored.',
 						writes: disabled ? [] : (initiallyChecked ? [false, true] : [true]).map(enabled => ({ session: 'test-session', enabled })),
 					});
 				}
@@ -314,15 +349,13 @@ suite('Copilot PermissionPicker', () => {
 		managedSettingsChanged.fire();
 		assert.deepStrictEqual(visibleStates, [
 			{ disabled: true, rowDisabled: true, title: 'Sandboxing is required by your organization', hasHover: true },
-			{ disabled: false, rowDisabled: false, title: 'Run this session\'s terminal commands inside a sandbox that restricts file system and network access. This choice is saved for this session only.', hasHover: false },
+			{ disabled: false, rowDisabled: false, title: 'Run this session\'s terminal commands inside a sandbox that restricts file system and network access. The applied setting is saved for this session and checked against current organization policy when restored.', hasHover: false },
 			{ disabled: true, rowDisabled: true, title: 'Sandboxing is required by your organization', hasHover: true },
 		]);
 	});
 
 	test('sandbox re-enablement observes host confirmation and session bypass policy', () => {
-		const configurationService = new TestConfigurationService({
-			[ChatConfiguration.PermissionsSandboxToggleEnabled]: true,
-		});
+		const configurationService = new TestConfigurationService();
 		store.add(configurationService.onDidChangeConfigurationEmitter);
 		const allowsBypass = observableValue('sessionAllowsBypass', false);
 		const confirmedEnabled = observableValue<boolean | undefined>('confirmedEnabled', undefined);
@@ -400,20 +433,102 @@ suite('Copilot PermissionPicker', () => {
 		]);
 	});
 
+	for (const { requestedOn, managed } of [{ requestedOn: false, managed: false }, { requestedOn: true, managed: false }, { requestedOn: false, managed: true }]) {
+		test(`refreshes the rendered sandbox row when a preferred Dev Container falls back with sandboxing ${managed ? 'managed' : requestedOn ? 'On' : 'Off'}`, () => {
+			const configuration = new TestConfigurationService();
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			const sandboxDevContainer = observableValue('sandboxDevContainer', true);
+			const writes: boolean[] = [];
+			const instantiationService = store.add(new TestInstantiationService());
+			instantiationService.set(IKeybindingService, new MockKeybindingService());
+			instantiationService.set(IHoverService, NullHoverService);
+			instantiationService.set(IOpenerService, NullOpenerService);
+			let widget: ActionListWidget<IAction> | undefined;
+			let visibleItems: readonly IActionListItem<IAction>[] = [];
+			let onHide: (() => void) | undefined;
+			let hides = 0;
+			const actionWidget = new class extends mock<IActionWidgetService>() {
+				override readonly isVisible = false;
+				override show<T>(_user: string, _supportsPreview: boolean, items: readonly IActionListItem<T>[], delegate: IActionListDelegate<T>): void {
+					visibleItems = items as readonly IActionListItem<IAction>[];
+					onHide = delegate.onHide;
+					widget = store.add(instantiationService.createInstance(
+						ActionListWidget<IAction>, 'testPermissionPicker', false, visibleItems,
+						{ onSelect: () => { }, onHide: () => { } }, undefined, { showFilter: false },
+					));
+					document.body.appendChild(widget.domNode);
+					store.add(toDisposable(() => widget?.domNode.remove()));
+					widget.layout(400, 350);
+				}
+				override updateItems<T>(items: readonly IActionListItem<T>[]): void {
+					visibleItems = items as readonly IActionListItem<IAction>[];
+					widget!.updateItems(visibleItems);
+				}
+				override hide(): void { hides++; onHide?.(); }
+			}();
+			const picker = store.add(new PermissionPicker({
+				currentPermissionLevel: constObservable(ChatPermissionLevel.Default),
+				getPermissionLevelMeta: (_level, meta) => meta,
+				setPermissionLevel: () => { },
+				isSandboxToggleApplicable: () => true,
+				getSandboxToggleProvider: () => 'copilotcli',
+				getSandboxToggleSettingId: () => 'test.sandbox.enabled',
+				sandboxEnabled: constObservable(requestedOn),
+				sandboxDevContainer,
+				managedSandboxEnforced: constObservable(managed),
+				setSandboxEnabled: value => writes.push(value),
+			}, actionWidget, configuration, new TestDialogService(), NullOpenerService, store.add(new TestStorageService()),
+				NullTelemetryService, NullHoverService, unmanagedEnablementService));
+			const container = dom.append(document.body, dom.$('div'));
+			store.add(toDisposable(() => container.remove()));
+			picker.render(container);
+			picker.showPicker();
+			const row = () => widget!.domNode.querySelector<HTMLElement>('.has-standalone-toggle')!;
+			assert.deepStrictEqual({
+				label: row().querySelector('.title')?.firstChild?.textContent,
+				info: !!row().querySelector('.codicon-info'),
+				checked: row().querySelector('.monaco-switch')?.classList.contains('checked'),
+			}, { label: 'Sandboxing in Dev Container', info: true, checked: requestedOn || managed });
+			sandboxDevContainer.set(false, undefined);
+			const item = visibleItems.find(item => item.standaloneToggle)!;
+			assert.deepStrictEqual({
+				label: row().querySelector('.title')?.textContent,
+				itemLabel: item.item?.label,
+				toggleLabel: item.standaloneToggle?.label,
+				info: !!row().querySelector('.codicon-info'),
+				checked: row().querySelector('.monaco-switch')?.classList.contains('checked'),
+				disabled: row().querySelector<HTMLButtonElement>('.monaco-switch')?.disabled,
+				permissionHover: visibleItems[0].hover,
+				hides, writes,
+			}, {
+				label: 'Sandboxing for terminal', itemLabel: 'Sandboxing for terminal', toggleLabel: 'Sandboxing for terminal',
+				info: false, checked: requestedOn || managed, disabled: managed, permissionHover: undefined, hides: 0, writes: [],
+			});
+			if (managed) {
+				row().querySelector<HTMLButtonElement>('.monaco-switch')!.click();
+				assert.deepStrictEqual(writes, [], 'Fallback must not permit changing managed sandboxing');
+			}
+			onHide!();
+		});
+	}
+
 	test('updates the shield icon when sandbox configuration finishes resolving', () => {
 		const sandboxSettingId = 'test.sandbox.enabled';
 		const configurationService = new TestConfigurationService();
-		configurationService.setUserConfiguration(ChatConfiguration.PermissionsSandboxToggleEnabled, true);
 		configurationService.setUserConfiguration(sandboxSettingId, AgentSandboxEnabledValue.On);
 		const isResolving = observableValue('isResolving', true);
 		const sandboxEnabled = observableValue<boolean | undefined>('sandboxEnabled', undefined);
 		let sandboxApplicable = false;
+		const sandboxDevContainer = observableValue('sandboxDevContainer', false);
+		const sandboxDevContainerSupported = observableValue<boolean | undefined>('sandboxDevContainerSupported', undefined);
 		const delegate: IPermissionPickerDelegate = {
 			getPermissionLevelMeta: (_level, meta) => ({ ...meta, label: 'Manual permissions', icon: Codicon.key }),
 			setPermissionLevel: () => { },
 			setSandboxEnabled: () => { },
 			isResolving,
 			sandboxEnabled,
+			sandboxDevContainer,
+			sandboxDevContainerSupported,
 			isSandboxToggleApplicable: () => sandboxApplicable,
 			getSandboxToggleProvider: () => 'copilotcli',
 			getSandboxToggleSettingId: () => sandboxSettingId,
@@ -453,6 +568,29 @@ suite('Copilot PermissionPicker', () => {
 			sandboxIcon: 'codicon codicon-shield sessions-chat-sandbox-icon',
 			triggerAriaLabel: 'Pick Permission Level, Manual permissions (sandboxed)',
 		});
+		sandboxDevContainer.set(true, undefined);
+		assert.deepStrictEqual({
+			labels: Array.from(trigger.querySelectorAll('.sessions-chat-dropdown-label')).map(element => element.textContent),
+			presentation: picker.presentation,
+			toggleLabel: picker['_getSandboxStandaloneToggle']()?.label,
+		}, {
+			labels: ['Manual permissions'],
+			presentation: { label: 'Manual permissions', level: ChatPermissionLevel.Default, sandboxed: true },
+			toggleLabel: 'Sandboxing in Dev Container',
+		});
+		sandboxDevContainerSupported.set(false, undefined);
+		assert.deepStrictEqual({
+			labels: Array.from(trigger.querySelectorAll('.sessions-chat-dropdown-label')).map(element => element.textContent),
+			shield: trigger.querySelector('.sessions-chat-sandbox-icon'),
+			toggleDisabled: picker['_getSandboxStandaloneToggle']()?.disabled,
+			requestedOn: picker['_getSandboxStandaloneToggle']()?.checked,
+			presentation: picker.presentation,
+		}, {
+			labels: ['Manual permissions'], shield: null, toggleDisabled: false, requestedOn: true,
+			presentation: { label: 'Manual permissions', level: ChatPermissionLevel.Default, sandboxed: false },
+		});
+		sandboxDevContainer.set(false, undefined);
+		sandboxDevContainerSupported.set(undefined, undefined);
 		sandboxEnabled.set(false, undefined);
 		assert.deepStrictEqual({
 			sandboxIcon: trigger.querySelector('.sessions-chat-sandbox-icon'),

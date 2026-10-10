@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BrowserViewChangeEvent, BrowserViewEventData, BrowserViewCommandId, BrowserViewPresentation, BrowserViewStorageScope, IBrowserViewEditorOpenOptions, IBrowserViewInfo, IBrowserViewOwner, IBrowserViewService, IBrowserViewTheme, ipcBrowserViewChannelName, reviveBrowserViewInfo } from '../../../../platform/browserView/common/browserView.js';
+import { matchesBrowserViewSandboxSession } from '../../../../platform/browserView/common/browserViewGroup.js';
 import { BrowserViewEventEmitters, createBrowserViewEventEmitters, BrowserViewSharingState, IBrowserViewWorkbenchService, IBrowserViewModel, BrowserViewModel, IBrowserViewContextualFilter, IBrowserViewFilterContext, IBrowserViewOpenHandler, IBrowserViewWorkbenchCreateOptions } from '../common/browserView.js';
 import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
 import { ProxyChannel } from '../../../../base/parts/ipc/common/ipc.js';
@@ -248,12 +249,15 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 	}
 
 	getContextualBrowserViews(context?: IBrowserViewFilterContext): Map<string, BrowserEditorInput> {
-		if (this._contextualFilters.size === 0) {
+		if (this._contextualFilters.size === 0 && context?.sandboxSessionId === undefined) {
 			return this._known;
 		}
 		const filters = [...this._contextualFilters];
 		const result = new Map<string, BrowserEditorInput>();
 		for (const [id, input] of this._known) {
+			if (!matchesBrowserViewSandboxSession(input.model?.owner, input.model?.sandboxSessionId, context?.sandboxSessionId)) {
+				continue;
+			}
 			if (filters.every(filter => filter.include(input, { ...context }))) {
 				result.set(id, input);
 			}
@@ -378,7 +382,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		return input;
 	}
 
-	async createExternalBrowserView(initialUrl: string): Promise<IBrowserViewModel> {
+	async createExternalBrowserView(initialUrl: string, openSource?: IBrowserViewWorkbenchCreateOptions['openSource']): Promise<IBrowserViewModel> {
 		await this.workspaceTrustManagementService.workspaceTrustInitialized;
 		await this._updateWindowConfiguration();
 		if (this._store.isDisposed) {
@@ -390,6 +394,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			presentation: BrowserViewPresentation.Unlisted,
 			session: { scope: BrowserViewStorageScope.Ephemeral },
 			initialAudiences: [],
+			openSource,
 		});
 		if (this._store.isDisposed) {
 			await this._browserViewService.destroyBrowserView(info.id);
@@ -424,6 +429,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 						associatedResource,
 						session: createOptions?.session ?? { scope: await this._resolveStorageScope() },
 						initialAudiences: createOptions?.initialAudiences,
+						sandboxNetworkRestrictions: createOptions?.sandboxNetworkRestrictions,
 						initialUrl: createOptions ? createOptions.initialUrl : data.url,
 						openSource: createOptions?.openSource
 					}
@@ -502,7 +508,8 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		};
 		const store = new DisposableStore();
 		const emitters = createBrowserViewEventEmitters(store);
-		this._remoteEvents.set(info.id, { emitters, dispose: () => store.dispose() });
+		const eventLifetime = Object.assign(toDisposable(() => store.dispose()), { emitters });
+		this._remoteEvents.set(info.id, eventLifetime);
 		let model: BrowserViewModel;
 		try {
 			model = this.instantiationService.createInstance(BrowserViewModel, info.id, info.host, info.owner, associatedResource, state, this._browserViewService, emitters);
@@ -515,7 +522,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 				this._remoteEvents.deleteAndLeak(info.id);
 			}
 			// Let an in-flight close event reach the remaining model consumers.
-			queueMicrotask(() => store.dispose());
+			queueMicrotask(() => eventLifetime.dispose());
 		}));
 
 		if (registerInput) {

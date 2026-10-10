@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IChannelClient, IChannelServer, IServerChannel } from '../../../../base/parts/ipc/common/ipc.js';
@@ -86,6 +86,7 @@ suite('LocalAgentHostServiceClient events', () => {
 			onMcpNotification: onMcpNotification.event,
 			onDidChangeConnectionState: onDidChangeConnectionState.event,
 			onDidFatalClose: Event.None,
+			registerMcpAuthenticationHandler: () => Disposable.None,
 			dispose: () => { },
 		};
 		const instantiationService = disposables.add(new TestInstantiationService());
@@ -116,6 +117,13 @@ suite('LocalAgentHostServiceClient events', () => {
 			listening: () => [onDidAction.hasListeners(), onDidNotification.hasListeners(), onMcpNotification.hasListeners()],
 		};
 	}
+
+	test('exposes the local connection kind before the host starts', () => {
+		const { service } = createService();
+		const beforeStart = service.clientConnectionKind;
+		service.startAgentHost();
+		assert.deepStrictEqual([beforeStart, service.clientConnectionKind], [AgentHostClientConnectionKind.Local, AgentHostClientConnectionKind.Local]);
+	});
 
 	test('forwards readiness changes and keeps another window refresh from restarting the shared host', async () => {
 		class PolicyConfigurationService extends TestConfigurationService {
@@ -303,6 +311,7 @@ suite('registerAgentHostClientChannels', () => {
 			onDidAction: Event.None,
 			onDidNotification: Event.None,
 			onMcpNotification: Event.None,
+			registerMcpAuthenticationHandler: () => Disposable.None,
 			initializeResult: constObservable(undefined),
 			rootState: {
 				value: undefined,

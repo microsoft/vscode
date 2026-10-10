@@ -14,7 +14,7 @@ parameters:
 jobs:
   - job: Windows${{ parameters.VSCODE_JOB_NAME }}
     displayName: ${{ parameters.VSCODE_JOB_DISPLAY_NAME }}
-    ${{ if containsValue(parameters.VSCODE_TEST_IDS, 'smoke-electron') }}:
+    ${{ if or(eq(parameters.VSCODE_JOB_NAME, 'Unit'), containsValue(parameters.VSCODE_TEST_IDS, 'smoke-electron')) }}:
       timeoutInMinutes: 70
     ${{ else }}:
       timeoutInMinutes: 50

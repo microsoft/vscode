@@ -6,6 +6,7 @@
 import { MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
+import { localize } from '../../../../nls.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { Position } from '../../../../editor/common/core/position.js';
@@ -208,6 +209,7 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IThemeService private readonly _themeService: IThemeService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 	) {
 		super(languageFeaturesService, chatSessionsService);
 
@@ -299,20 +301,17 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 		const attachment = item.attachment;
 		switch (attachment.kind) {
 			case 'text':
-				return {
-					label: item.label ?? item.insertText,
-					insertText: item.insertText,
-					filterText: item.label ?? item.insertText,
-					range: replaceRange,
-					kind: CompletionItemKind.Text,
-				};
+				return AgentHostInputCompletionHandler.buildTextCompletionItem(position, item);
 			case 'command': {
 				const action = getCompletionAction(attachment._meta);
 				if (action) {
 					// Omit an elevated auto-approve toggle (Allow all / Assisted)
 					// when enterprise policy disables global auto-approval, rather
 					// than offering an item that would warn then clamp to Default.
-					if (isPolicyBlockedCompletionAction(action, this._configurationService)) {
+					const session = this._sessionContext.session.get();
+					const provider = session ? this._sessionsProvidersService.getProvider(session.providerId) : undefined;
+					const host = provider && isAgentHostProvider(provider) ? provider : undefined;
+					if (isPolicyBlockedCompletionAction(action, this._configurationService, session ? host?.getSessionConfig(session.sessionId) : undefined)) {
 						return undefined;
 					}
 					// Config-action completion (permission/mode toggle). Keep-text
@@ -464,12 +463,13 @@ export class AgentHostInputCompletionHandler extends AgentHostInputCompletionsBa
 		const dialogService = accessor.get(IDialogService);
 		const storageService = accessor.get(IStorageService);
 		const sessionsProvidersService = accessor.get(ISessionsProvidersService);
+		const provider = sessionsProvidersService.getProvider(session.providerId);
+		if (!provider || !isAgentHostProvider(provider)) {
+			throw new Error(localize('agentHost.completion.providerUnavailable', "Agent Host session provider is not available."));
+		}
 		const applied = await applyAgentHostCompletionAction(arg.action, dialogService, storageService, async config => {
-			const provider = sessionsProvidersService.getProvider(session.providerId);
-			if (provider && isAgentHostProvider(provider)) {
-				await Promise.all(Object.entries(config).map(([key, value]) => provider.setSessionConfigValue(session.sessionId, key, value).catch(() => { /* best-effort */ })));
-			}
-		});
+			await Promise.all(Object.entries(config).map(([key, value]) => provider.setSessionConfigValue(session.sessionId, key, value)));
+		}, provider.getSessionConfig(session.sessionId));
 		// Keep-text items add their argument-hint reference once applied. Toggle
 		// items insert nothing, so there is no text to remove.
 		if (applied && arg.entry) {

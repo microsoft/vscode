@@ -15,19 +15,26 @@
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { IntervalTimer, RunOnceScheduler, disposableTimeout } from '../../../base/common/async.js';
-import { isObject } from '../../../base/common/types.js';
+import { hasKey, isObject } from '../../../base/common/types.js';
+import { StopWatch } from '../../../base/common/stopwatch.js';
+import { ILogService } from '../../log/common/log.js';
 import { AgentHostClientConnectionKind } from '../common/agentHostTelemetry.js';
+import { formatConnectionDiagnosticError, getConnectionDiagnosticError } from '../common/connectionDiagnostics.js';
 import { AhpJsonlLogger, getAhpLogByteLength } from '../common/ahpJsonlLogger.js';
-import type { AhpServerNotification, JsonRpcNotification, JsonRpcRequest, JsonRpcResponse, ProtocolMessage } from '../common/state/sessionProtocol.js';
+import { isJsonRpcResponse, type AhpServerNotification, type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../common/state/sessionProtocol.js';
 import type { IClientTransport } from '../common/state/sessionTransport.js';
 import { Reassembler } from '../common/webPubSub/chunking.js';
-import { type InboundResult, RELIABLE_JSON_SUBPROTOCOL, buildPublish, parseInbound } from '../common/webPubSub/framing.js';
+import { type InboundResult, type SendToGroupCommand, RELIABLE_JSON_SUBPROTOCOL, buildPublish, parseInbound } from '../common/webPubSub/framing.js';
 import type { ParseGroupNameOptions } from '../common/webPubSub/groups.js';
+
+type ReceiveCapabilitiesCommand = Omit<SendToGroupCommand, 'data'> & {
+	readonly data: { readonly kind: 'capabilities'; readonly accepts: readonly string[] };
+};
 
 /** How often to sweep the reassembler for abandoned partial-chunk buffers. */
 const REASSEMBLY_SWEEP_INTERVAL_MS = 15_000;
 
-/** Upper bound on the WPS handshake and publish acknowledgement waits, not host execution. */
+/** Upper bound on relay joins, AHP handshakes and publish acknowledgement waits, not session execution. */
 const WPS_TIMEOUT_MS = 30_000;
 
 /**
@@ -72,6 +79,9 @@ function frameDataToString(data: unknown): string {
 }
 
 export interface IWebPubSubRelayTransportOptions {
+	readonly clientConnectionKind?: AgentHostClientConnectionKind.MissionControl | AgentHostClientConnectionKind.WebPubSub;
+	/** Mission Control's logical client ID, shared with the AHP initialize request. */
+	readonly clientId: string;
 	/** Full WebSocket URL (including the `access_token` and `clientId` query params). */
 	readonly url: string;
 	/** Group to publish outbound AHP messages to (the `to_host` lane). */
@@ -99,15 +109,17 @@ export interface IWebPubSubRelayTransportOptions {
  *
  * Lifecycle:
  * 1. {@link connect} opens the WebSocket, waits for the WPS `connected` system
- *    event, joins the requested groups, and resolves once every joinGroup ack
- *    has arrived (so the host can't publish before we're subscribed).
+ *    event, joins the requested groups, then advertises receive capabilities
+ *    and awaits its publish acknowledgement before resolving.
  * 2. Inbound messages are acknowledged and deduplicated before group-fanout
  *    reassembly and delivery via {@link onMessage}; outbound messages are
  *    chunked and published to the `to_host` lane by {@link send}.
  * 3. {@link dispose} (or a socket close/error) fires {@link onClose} once.
  */
 export class WebPubSubRelayTransport extends Disposable implements IClientTransport {
-	readonly clientConnectionKind = AgentHostClientConnectionKind.WebPubSub;
+	get clientConnectionKind(): AgentHostClientConnectionKind {
+		return this._options.clientConnectionKind ?? AgentHostClientConnectionKind.WebPubSub;
+	}
 
 	private readonly _onMessage = this._register(new Emitter<ProtocolMessage>());
 	readonly onMessage = this._onMessage.event;
@@ -122,6 +134,10 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 	private readonly _reassembler = new Reassembler();
 	private readonly _sweepTimer = this._register(new IntervalTimer());
 	private readonly _publishAckTimer = this._register(new RunOnceScheduler(() => this._checkPublishAckTimeout(), WPS_TIMEOUT_MS));
+	private readonly _handshakeTimer = this._register(new RunOnceScheduler(() => {
+		this._reportProtocolError('AHP handshake timed out', new Error('WPS host handshake timed out'), true);
+		this._fireClose();
+	}, WPS_TIMEOUT_MS));
 
 	private _ws: IWebSocketLike | undefined;
 	private _ackId = 0;
@@ -130,12 +146,27 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 	/** Publish acknowledgement deadlines in send order. */
 	private readonly _pendingPublishAcks = new Map<number, number>();
 	private _rejectConnect: ((err: Error) => void) | undefined;
+	private _initialCapabilitiesAckId: number | undefined;
 
 	/** Guards against firing onClose / resolving connect more than once. */
 	private _closed = false;
 	private _connectResolved = false;
+	private _generation: number | undefined;
+	private _handshakeId: JsonRpcRequest['id'] | undefined;
+	private readonly _requests = new Set<JsonRpcRequest['id']>();
+	private readonly _closedBeforeHandshake = new Set<number>();
+	private readonly _watch = StopWatch.create(false);
+	private _publishAcknowledged = false;
+	private _hostFrames = 0;
+	private _hostMessages = 0;
+	private _lastHostFrameMs: number | undefined;
+	private _protocolErrors = 0;
+	private _expiredAssemblies = 0;
 
-	constructor(private readonly _options: IWebPubSubRelayTransportOptions) {
+	constructor(
+		private readonly _options: IWebPubSubRelayTransportOptions,
+		@ILogService private readonly _logService: ILogService,
+	) {
 		super();
 		if (this._options.ahpLogger) {
 			this._register(this._options.ahpLogger);
@@ -162,10 +193,11 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 			const ws = factory(this._options.url, RELIABLE_JSON_SUBPROTOCOL);
 			this._ws = ws;
 
-			// Handshake-scoped disposables (timeout timer). Cleared once connected or failed.
+			// Capability publications own their acknowledgement deadline after the group joins.
 			const handshakeStore = new DisposableStore();
 
 			const settleReject = (err: Error) => {
+				this._logService.warn(`${this._logContext()} handshake failed: ${formatConnectionDiagnosticError(getConnectionDiagnosticError(err))}`);
 				handshakeStore.dispose();
 				this._closeSocket();
 				reject(err);
@@ -175,8 +207,15 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 				handshakeStore.dispose();
 				this._rejectConnect = undefined;
 				this._connectResolved = true;
+				this._logService.info(`${this._logContext()} relay ready; joinedGroups=${this._options.joinGroups.length}`);
 				this._startObserving();
 				resolve();
+			};
+
+			const onGroupsJoined = () => {
+				handshakeStore.dispose();
+				this._initialCapabilitiesAckId = this._ackId + 1;
+				this._advertiseReceiveCapabilities(settleReject);
 			};
 
 			this._rejectConnect = settleReject;
@@ -197,10 +236,10 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 				try {
 					frame = JSON.parse(frameDataToString(event.data)) as Record<string, unknown>;
 				} catch (err) {
-					this._options.onProtocolError?.(err);
+					this._reportProtocolError('invalid JSON', err);
 					return;
 				}
-				this._handleHandshakeFrame(frame, settleResolve, settleReject);
+				this._handleHandshakeFrame(frame, onGroupsJoined, settleResolve, settleReject);
 			};
 
 			ws.onerror = () => {
@@ -208,6 +247,7 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 			};
 
 			ws.onclose = ev => {
+				this._logService.warn(`${this._logContext()} socket closed during handshake; code=${ev.code}`);
 				settleReject(new Error(`WebSocket closed before connection was established: ${ev.code} ${ev.reason}`));
 			};
 		});
@@ -217,7 +257,7 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 	 * Handle a frame received during the connect handshake: the WPS `connected`
 	 * system event, joinGroup acks, or (defensively) early payload frames.
 	 */
-	private _handleHandshakeFrame(frame: Record<string, unknown>, onConnected: () => void, onFail: (err: Error) => void): void {
+	private _handleHandshakeFrame(frame: Record<string, unknown>, onGroupsJoined: () => void, onConnected: () => void, onFail: (err: Error) => void): void {
 		if (this._closed) {
 			return;
 		}
@@ -228,7 +268,7 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 				this._sendRaw({ type: 'joinGroup', group, ackId });
 			}
 			if (this._pendingJoinAcks.size === 0) {
-				onConnected();
+				onGroupsJoined();
 			}
 			return;
 		}
@@ -237,21 +277,42 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 			const ackId = typeof frame['ackId'] === 'number' ? frame['ackId'] : undefined;
 			if (ackId === undefined || !this._pendingJoinAcks.has(ackId)) {
 				this._handleInboundFrame(frame, onFail);
+				if (!this._closed && ackId !== undefined && ackId === this._initialCapabilitiesAckId && !this._pendingPublishAcks.has(ackId)) {
+					this._initialCapabilitiesAckId = undefined;
+					onConnected();
+				}
 				return;
 			}
 			const group = this._pendingJoinAcks.get(ackId);
 			this._pendingJoinAcks.delete(ackId);
 			if (frame['success'] === false) {
-				onFail(new Error(`WPS joinGroup failed for group '${group}'`));
+				onFail(new Error(`WPS joinGroup failed for group '${group}': ${getConnectionDiagnosticError(frame['error']).message}`));
 				return;
 			}
 			if (this._pendingJoinAcks.size === 0) {
-				onConnected();
+				onGroupsJoined();
 			}
 			return;
 		}
 
 		this._handleInboundFrame(frame, onFail);
+	}
+
+	private _advertiseReceiveCapabilities(onFail: (err: Error) => void): void {
+		try {
+			this._publishFrame({
+				type: 'sendToGroup',
+				group: this._options.toHostGroup,
+				ackId: ++this._ackId,
+				dataType: 'json',
+				noEcho: true,
+				data: { kind: 'capabilities', accepts: ['batch'] },
+			});
+		} catch (cause) {
+			const error = new Error('Failed to publish WPS receive capabilities', { cause });
+			this._reportProtocolError('capability publication failed', error, true);
+			onFail(error);
+		}
 	}
 
 	/** Switch the socket handlers over to steady-state observation. */
@@ -260,7 +321,15 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 		if (!ws) {
 			return;
 		}
-		this._sweepTimer.cancelAndSet(() => this._reassembler.sweepExpired(), REASSEMBLY_SWEEP_INTERVAL_MS);
+		this._sweepTimer.cancelAndSet(() => {
+			const expired = this._reassembler.sweepExpired().length;
+			if (expired > 0) {
+				this._expiredAssemblies += expired;
+				if (this._expiredAssemblies === expired) {
+					this._logService.warn(`${this._logContext()} reassembly expired; count=${expired}`);
+				}
+			}
+		}, REASSEMBLY_SWEEP_INTERVAL_MS);
 
 		ws.onmessage = event => {
 			if (!this._closed) {
@@ -270,13 +339,19 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 			try {
 				frame = JSON.parse(frameDataToString(event.data)) as Record<string, unknown>;
 			} catch (err) {
-				this._options.onProtocolError?.(err);
+				this._reportProtocolError('invalid JSON', err);
 				return;
 			}
 			this._handleInboundFrame(frame, () => this._fireClose());
 		};
-		ws.onclose = () => this._fireClose();
-		ws.onerror = () => this._fireClose();
+		ws.onclose = event => {
+			this._logService.info(`${this._logContext()} socket closed; code=${event.code}`);
+			this._fireClose();
+		};
+		ws.onerror = () => {
+			this._logService.warn(`${this._logContext()} socket error`);
+			this._fireClose();
+		};
 	}
 
 	/** Handle publish acknowledgements and reassemble incoming group frames. */
@@ -291,20 +366,25 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 			}
 			this._schedulePublishAckTimeout();
 			const error = frame['error'];
-			const errorName = isObject(error) ? (error as { readonly name?: unknown }).name : undefined;
+			const responseError = isObject(error) ? error as { readonly name?: unknown; readonly message?: unknown } : undefined;
+			const errorName = responseError?.name;
 			// Duplicate means the relay already accepted this publish, not that the host executed it.
 			if (frame['success'] === true || (frame['success'] === false && errorName === 'Duplicate')) {
+				if (!this._publishAcknowledged) {
+					this._publishAcknowledged = true;
+					this._logService.info(`${this._logContext()} first publish acknowledged; ackId=${ackId}`);
+				}
 				return;
 			}
-			const failure = new Error('WPS publish failed');
-			this._options.onProtocolError?.(failure);
+			const failure = new Error(`WPS publish failed${typeof responseError?.message === 'string' ? `: ${getConnectionDiagnosticError(responseError).message}` : ''}`);
+			this._reportProtocolError('publish rejected', failure, true);
 			onFail(failure);
 			return;
 		}
 		if (frame?.['type'] === 'message' && frame['sequenceId'] !== undefined) {
 			const sequenceId = frame['sequenceId'];
 			if (typeof sequenceId !== 'number' || !Number.isSafeInteger(sequenceId) || sequenceId <= 0) {
-				this._options.onProtocolError?.(new Error('Invalid WPS message sequenceId'));
+				this._reportProtocolError('invalid sequence ID', new Error('Invalid WPS message sequenceId'));
 				return;
 			}
 			const duplicate = sequenceId <= this._lastReceivedSequenceId;
@@ -314,7 +394,7 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 				this._sendRaw({ type: 'sequenceAck', sequenceId: this._lastReceivedSequenceId });
 			} catch (err) {
 				const error = new Error('Failed to send WPS sequence acknowledgement', { cause: err });
-				this._options.onProtocolError?.(error);
+				this._reportProtocolError('sequence acknowledgement failed', error, true);
 				onFail(error);
 				return;
 			}
@@ -326,17 +406,83 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 		try {
 			result = parseInbound(frame, { reassembler: this._reassembler, groupValidation: this._options.groupValidation });
 		} catch (err) {
-			this._options.onProtocolError?.(err);
+			this._reportProtocolError('invalid group message', err);
 			return;
 		}
-		if (result.kind === 'payload') {
-			const payload = result.payload as ProtocolMessage;
-			this._options.ahpLogger?.log(payload, 's2c', getAhpLogByteLength(JSON.stringify(payload)));
-			this._onMessage.fire(payload);
+		if (result.kind === 'payload' || result.kind === 'batch' || result.kind === 'pending') {
+			this._lastHostFrameMs = this._watch.elapsed();
+			if (++this._hostFrames === 1) {
+				this._logService.info(`${this._logContext()} first host frame received`);
+			}
+		}
+		if (result.kind === 'closed') {
+			if (result.group.scope === 'client' && result.group.lane === 'to-client') {
+				if (this._handshakeId !== undefined) {
+					if (result.generation !== undefined) {
+						this._closedBeforeHandshake.add(result.generation);
+						if (this._closedBeforeHandshake.size > 128) {
+							this._options.onProtocolError?.(new Error('Relay handshake closure window exceeded'));
+							this._fireClose();
+						}
+					}
+				} else if (result.generation === undefined || result.generation === this._generation) {
+					this._fireClose();
+				}
+			}
+		} else if (result.kind === 'payload' || result.kind === 'batch') {
+			for (const value of result.kind === 'batch' ? result.payloads : [result.payload]) {
+				if (this._closed) {
+					break;
+				}
+				this._deliver(value as ProtocolMessage, result.generation);
+			}
 		} else if (result.kind === 'pending') {
+			if (this._handshakeId !== undefined && result.group.scope === 'client' && result.group.lane === 'to-client') {
+				this._handshakeTimer.schedule();
+			}
 			// Only host chunks count: relay acks and system frames arrive even when the host is dead.
 			this._onDidReceiveData.fire();
 		}
+	}
+
+	private _deliver(payload: ProtocolMessage, generation: number | undefined): void {
+		if (!isObject(payload) || payload.jsonrpc !== '2.0') {
+			this._options.onProtocolError?.(new Error('Invalid AHP relay message'));
+			return;
+		}
+		const response = isJsonRpcResponse(payload);
+		if (this._handshakeId !== undefined && !(response && payload.id === this._handshakeId)) {
+			return;
+		}
+		if (response && payload.id !== null && payload.id === this._handshakeId) {
+			if (generation !== undefined && this._closedBeforeHandshake.has(generation)) {
+				this._fireClose();
+				return;
+			}
+			this._generation = generation;
+			this._handshakeId = undefined;
+			this._handshakeTimer.cancel();
+			this._closedBeforeHandshake.clear();
+			this._requests.clear();
+			if (hasKey(payload, { result: true })) {
+				// A successful handshake may have replaced the host's client lane.
+				this._advertiseReceiveCapabilities(() => this._fireClose());
+				if (this._closed) {
+					return;
+				}
+			}
+		} else if (generation !== undefined && this._generation !== undefined && generation !== this._generation) {
+			if (response && payload.id !== null && this._requests.has(payload.id)) {
+				this._fireClose();
+			}
+			return;
+		}
+		if (response && payload.id !== null) {
+			this._requests.delete(payload.id);
+		}
+		this._hostMessages++;
+		this._logProtocolMessage(payload, 's2c');
+		this._onMessage.fire(payload);
 	}
 
 	/** Publish each chunk once; rejection or a missing acknowledgement after 30 seconds fails the transport. */
@@ -344,25 +490,55 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 		if (this._closed || !this._ws) {
 			throw new Error('WebPubSubRelayTransport is closed');
 		}
+		if (hasKey(message, { method: true, params: true }) && message.method === 'authenticate'
+			&& (!isObject(message.params) || typeof message.params['token'] !== 'string' || !message.params['token'].startsWith('copilot-sealed.v1.'))) {
+			throw new Error('Refusing to send plaintext authentication over Web PubSub');
+		}
+		if (hasKey(message, { id: true, method: true }) && (typeof message.id === 'number' || typeof message.id === 'string')) {
+			if (this._requests.size >= 1024) {
+				this._fireClose();
+				throw new Error('Web PubSub outstanding request limit exceeded');
+			}
+			this._requests.add(message.id);
+			if (message.method === 'initialize' || message.method === 'reconnect') {
+				this._handshakeId = message.id;
+				this._closedBeforeHandshake.clear();
+				this._handshakeTimer.schedule();
+			}
+		}
 		// Logged before chunking, so the transcript carries whole AHP messages rather than the
 		// relay frames they were split into.
-		this._options.ahpLogger?.log(message, 'c2s', getAhpLogByteLength(JSON.stringify(message)));
+		this._logProtocolMessage(message, 'c2s');
 		const frames = buildPublish({
 			group: this._options.toHostGroup,
 			nextAckId: () => ++this._ackId,
 			payload: message,
 		});
 		for (const frame of frames) {
-			this._pendingPublishAcks.set(frame.ackId, Date.now() + WPS_TIMEOUT_MS);
-			try {
-				this._sendRaw(frame);
-			} catch (err) {
-				this._pendingPublishAcks.delete(frame.ackId);
-				throw err;
-			} finally {
-				this._schedulePublishAckTimeout();
-			}
+			this._publishFrame(frame);
 		}
+	}
+
+	private _publishFrame(frame: SendToGroupCommand | ReceiveCapabilitiesCommand): void {
+		this._pendingPublishAcks.set(frame.ackId, Date.now() + WPS_TIMEOUT_MS);
+		try {
+			this._sendRaw(frame);
+		} catch (err) {
+			this._pendingPublishAcks.delete(frame.ackId);
+			throw err;
+		} finally {
+			this._schedulePublishAckTimeout();
+		}
+	}
+
+	private _logProtocolMessage(message: ProtocolMessage | AhpServerNotification | JsonRpcNotification | JsonRpcResponse | JsonRpcRequest, direction: 'c2s' | 's2c'): void {
+		if (!this._options.ahpLogger) {
+			return;
+		}
+		const logged = hasKey(message, { method: true, params: true }) && message.method === 'authenticate' && isObject(message.params)
+			? { ...message, params: { ...message.params, token: '[REDACTED]' } }
+			: message;
+		this._options.ahpLogger.log(logged, direction, getAhpLogByteLength(JSON.stringify(message)));
 	}
 
 	private _schedulePublishAckTimeout(): void {
@@ -384,7 +560,7 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 			return;
 		}
 		const error = new Error('WPS publish acknowledgement timed out');
-		this._options.onProtocolError?.(error);
+		this._reportProtocolError('publish acknowledgement timed out', error, true);
 		if (this._rejectConnect) {
 			this._rejectConnect(error);
 		} else {
@@ -394,6 +570,17 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 
 	private _sendRaw(obj: unknown): void {
 		this._ws?.send(JSON.stringify(obj));
+	}
+
+	private _logContext(): string {
+		return `[WebPubSubRelayTransport] clientId=${this._options.clientId} durationMs=${this._watch.elapsed()}`;
+	}
+
+	private _reportProtocolError(kind: string, error: unknown, fatal = false): void {
+		if (++this._protocolErrors === 1 || fatal) {
+			this._logService.warn(`${this._logContext()} protocol error; kind=${kind}${kind === 'invalid JSON' ? '' : `: ${formatConnectionDiagnosticError(getConnectionDiagnosticError(error))}`}`);
+		}
+		this._options.onProtocolError?.(error);
 	}
 
 	/** Fire onClose exactly once and stop background work. */
@@ -407,11 +594,18 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 
 	/** Stop background work and close the socket without firing onClose. */
 	private _closeSocket(): void {
+		if (!this._closed) {
+			this._logService.info(`${this._logContext()} closing; relayReady=${this._connectResolved} publishAcknowledged=${this._publishAcknowledged} pendingJoins=${this._pendingJoinAcks.size} pendingPublishes=${this._pendingPublishAcks.size} hostFrames=${this._hostFrames} hostMessages=${this._hostMessages} hostSilenceMs=${this._lastHostFrameMs === undefined ? 'none' : this._watch.elapsed() - this._lastHostFrameMs} protocolErrors=${this._protocolErrors} expiredAssemblies=${this._expiredAssemblies}`);
+		}
 		this._closed = true;
 		this._sweepTimer.cancel();
 		this._publishAckTimer.cancel();
+		this._handshakeTimer.cancel();
 		this._pendingJoinAcks.clear();
 		this._pendingPublishAcks.clear();
+		this._initialCapabilitiesAckId = undefined;
+		this._requests.clear();
+		this._closedBeforeHandshake.clear();
 		this._rejectConnect = undefined;
 		try {
 			this._ws?.close();

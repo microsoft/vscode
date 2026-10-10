@@ -68,7 +68,7 @@
     "pretypecheck": "npm run copy-policy-dto",
     "typecheck": "cd .. && npx tsc --project build/tsconfig.json",
     "watch": "npm run typecheck -- --watch",
-    "test": "node --test '{lib,next,agent-sdk,codex}/**/*.test.ts'"
+    "test": "node --test '{lib,next,agent-sdk,codex}/**/*.test.ts' '../.eslint-plugin-local/tests/*.test.ts'"
   },
   "optionalDependencies": {
     "tree-sitter-typescript": "^0.23.2",

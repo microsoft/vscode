@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { scheduleAtNextAnimationFrame } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { DisposableMap, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
@@ -21,6 +22,7 @@ import { DockedEditorInput } from '../../common/dockedEditorInput.js';
 import { DockedAuxiliaryBarController } from '../dockedAuxiliaryBarController.js';
 import { Menus } from '../menus.js';
 import { IAgentWorkbenchLayoutService } from '../workbench.js';
+import { AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS } from './agentsPartCard.js';
 import { MainEditorPart } from './editorPart.js';
 import { DesktopAuxiliaryBarPart } from './desktopAuxiliaryBarPart.js';
 
@@ -41,6 +43,7 @@ export class DesktopMainEditorPart extends MainEditorPart {
 	private _dockedAuxBar: DockedAuxiliaryBarController | undefined;
 	private readonly _groupRelayoutListeners = this._register(new DisposableMap<EditorGroupView>());
 	private readonly _tabsOverride = this._register(new MutableDisposable());
+	private readonly _tabsPresentationRelayout = this._register(new MutableDisposable());
 	private _enforcedShowTabs: 'multiple' | 'single' | undefined;
 
 	protected override getGroupViewOptions(): IEditorGroupViewOptions {
@@ -131,6 +134,19 @@ export class DesktopMainEditorPart extends MainEditorPart {
 		return this._auxiliaryBar;
 	}
 
+	private _updateSidePaneTabsClass(scheduleRelayout: boolean): void {
+		const root = this.agentWorkbenchLayoutService.mainContainer;
+		const multiple = this.partOptions.showTabs === 'multiple';
+		if (root.classList.contains(AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS) === multiple) {
+			return;
+		}
+
+		root.classList.toggle(AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS, multiple);
+		if (scheduleRelayout) {
+			this._tabsPresentationRelayout.value = scheduleAtNextAnimationFrame(mainWindow, () => this.agentWorkbenchLayoutService.layout());
+		}
+	}
+
 	/**
 	 * Creates the editor part's DOM. Besides the base content (the editor grid), the
 	 * desktop part docks the auxiliary bar here — in the same place the base part
@@ -139,6 +155,12 @@ export class DesktopMainEditorPart extends MainEditorPart {
 	protected override createContentArea(parent: HTMLElement, options?: IEditorPartCreationOptions): HTMLElement {
 		this._updateTabsOverride();
 		const container = super.createContentArea(parent, options);
+		this._updateSidePaneTabsClass(false);
+		this._register(this.onDidChangeEditorPartOptions(event => {
+			if (event.oldPartOptions.showTabs !== event.newPartOptions.showTabs) {
+				this._updateSidePaneTabsClass(true);
+			}
+		}));
 
 		this._registerGroupRelayoutListeners();
 

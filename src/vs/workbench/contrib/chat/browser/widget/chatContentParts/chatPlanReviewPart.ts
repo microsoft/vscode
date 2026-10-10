@@ -11,6 +11,7 @@ import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollba
 import { Action, Separator } from '../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { toErrorMessage } from '../../../../../../base/common/errorMessage.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -27,6 +28,7 @@ import { IContextMenuService } from '../../../../../../platform/contextview/brow
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { FileChangeType, IFileService } from '../../../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { CHAT_CARD_LARGE_CLASS, chatCardButtonStyles } from '../chatCard.js';
 import { IMarkdownRendererService } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { defaultButtonStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
@@ -98,6 +100,7 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		@ITextFileService private readonly _textFileService: ITextFileService,
 		@IModelService private readonly _modelService: IModelService,
 		@IFileService private readonly _fileService: IFileService,
+		@INotificationService private readonly _notificationService: INotificationService,
 	) {
 		super();
 
@@ -757,7 +760,6 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 			if (this.review.planUri && !await this.savePlanFile()) {
 				return;
 			}
-			this._isSubmitted = true;
 			// Only the textarea-only flow (no planUri) attaches a draft to the action click.
 			const ridesAlong = !this.review.planUri;
 			const textareaFeedback = ridesAlong ? this._feedbackTextarea?.value.trim() : undefined;
@@ -767,7 +769,10 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 				rejected: false,
 				...(textareaFeedback ? { feedback: textareaFeedback, feedbackOverall: textareaFeedback } : {}),
 			});
+			this._isSubmitted = true;
 			void this.markUsed();
+		} catch (error) {
+			this._notificationService.error(localize('chat.planReview.approvalFailed', "Unable to approve the plan: {0}", toErrorMessage(error)));
 		} finally {
 			if (!this._isSubmitted) {
 				this._isSubmitting = false;
@@ -784,14 +789,16 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 			if (this.review.planUri && !await this.savePlanFile()) {
 				return;
 			}
-			this._isSubmitted = true;
 			const ridesAlong = !this.review.planUri;
 			const textareaFeedback = ridesAlong ? this._feedbackTextarea?.value.trim() : undefined;
 			this._options.onSubmit({
 				rejected: true,
 				...(textareaFeedback ? { feedback: textareaFeedback, feedbackOverall: textareaFeedback } : {}),
 			});
+			this._isSubmitted = true;
 			void this.markUsed();
+		} catch (error) {
+			this._notificationService.error(localize('chat.planReview.rejectionFailed', "Unable to reject the plan: {0}", toErrorMessage(error)));
 		} finally {
 			if (!this._isSubmitted) {
 				this._isSubmitting = false;
@@ -805,7 +812,7 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 		}
 		const planUri = URI.revive(this.review.planUri);
 		if (this._textFileService.isDirty(planUri) && !await this._textFileService.save(planUri)) {
-			return false;
+			throw new Error(localize('chat.planReview.saveFailed', "The plan file could not be saved."));
 		}
 		if (this.review instanceof ChatPlanReviewData) {
 			if (!this.updatePlanContentFromModel()) {
@@ -930,6 +937,12 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 			}
 
 			const feedback = sections.join('\n\n');
+			this._options.onSubmit({
+				rejected: false,
+				feedback,
+				feedbackOverall: textareaFeedback || undefined,
+				feedbackInlineMarkdown,
+			});
 			this._isSubmitted = true;
 			const planUri = this.review.planUri ? URI.revive(this.review.planUri) : undefined;
 			if (planUri) {
@@ -937,14 +950,11 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 					this._planReviewFeedbackService.removeFeedback(planUri, item.id);
 				}
 			}
-			this._options.onSubmit({
-				rejected: false,
-				feedback,
-				feedbackOverall: textareaFeedback || undefined,
-				feedbackInlineMarkdown,
-			});
 			await this.markUsed();
 			return true;
+		} catch (error) {
+			this._notificationService.error(localize('chat.planReview.feedbackFailed', "Unable to submit plan feedback: {0}", toErrorMessage(error)));
+			return false;
 		} finally {
 			if (!this._isSubmitted) {
 				this._isSubmitting = false;

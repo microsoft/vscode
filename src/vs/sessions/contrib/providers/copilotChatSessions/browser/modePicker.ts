@@ -17,7 +17,7 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { ChatMode, IChatMode, IChatModes, IChatModeService } from '../../../../../workbench/contrib/chat/common/chatModes.js';
 import { reportChatModeChange } from '../../../../../workbench/contrib/chat/common/chatModeTelemetry.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { getAgentHostProviderForTelemetry, IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { getChatSessionType } from '../../../../../workbench/contrib/chat/common/model/chatUri.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import type { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -234,6 +234,7 @@ export class ModePicker extends Disposable {
 		@ICommandService private readonly commandService: ICommandService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IChatService private readonly chatService: IChatService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 	) {
 		super();
 
@@ -313,7 +314,7 @@ export class ModePicker extends Disposable {
 						isPII: true,
 					});
 					const requestCount = activeChat ? this.chatService.getSession(activeChat.resource)?.getRequests().length ?? 0 : 0;
-					reportChatModeChange(this.telemetryService, previousMode, item.mode, requestCount);
+					reportChatModeChange(this.telemetryService, previousMode, item.mode, requestCount, getAgentHostProviderForTelemetry(this.session.get()?.sessionType, this.chatSessionsService));
 					this._selectMode(item.mode);
 				} else {
 					this.commandService.executeCommand(AICustomizationManagementCommands.OpenEditor, AICustomizationManagementSection.Agents);

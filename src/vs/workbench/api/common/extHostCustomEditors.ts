@@ -4,9 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { VSBuffer } from '../../../base/common/buffer.js';
-import { CancellationToken } from '../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
+import { isCancellationError, onUnexpectedError } from '../../../base/common/errors.js';
 import { hash } from '../../../base/common/hash.js';
-import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
+import { IRange } from '../../../editor/common/core/range.js';
+import { ISelection } from '../../../editor/common/core/selection.js';
 import { Schemas } from '../../../base/common/network.js';
 import { joinPath } from '../../../base/common/resources.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
@@ -21,7 +24,15 @@ import type * as vscode from 'vscode';
 import { Cache } from './cache.js';
 import * as extHostProtocol from './extHost.protocol.js';
 import * as extHostTypes from './extHostTypes.js';
-import { isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
+import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
+
+interface CustomTextEditorNavigationEntry {
+	readonly viewType: string;
+	readonly disposables: DisposableStore;
+	readonly states: Map<number, unknown>;
+	readonly pendingStates: Set<number>;
+	controller?: vscode.CustomTextEditorNavigation;
+}
 
 
 class CustomDocumentStoreEntry {
@@ -163,6 +174,7 @@ export class ExtHostCustomEditors implements extHostProtocol.ExtHostCustomEditor
 	private readonly _editorProviders = new EditorProviderStore();
 
 	private readonly _documents = new CustomDocumentStore();
+	private readonly _navigation = new Map<extHostProtocol.WebviewHandle, CustomTextEditorNavigationEntry>();
 
 	constructor(
 		mainContext: extHostProtocol.IMainContext,
@@ -180,11 +192,15 @@ export class ExtHostCustomEditors implements extHostProtocol.ExtHostCustomEditor
 		provider: vscode.CustomReadonlyEditorProvider | vscode.CustomTextEditorProvider,
 		options: { webviewOptions?: vscode.WebviewPanelOptions; supportsMultipleEditorsPerDocument?: boolean },
 	): vscode.Disposable {
+		if (isCustomTextEditorProvider(provider) && provider.resolveCustomTextEditorNavigation) {
+			checkProposedApiEnabled(extension, 'customTextEditorNavigation');
+		}
 		const disposables = new DisposableStore();
 		if (isCustomTextEditorProvider(provider)) {
 			disposables.add(this._editorProviders.addTextProvider(viewType, extension, provider));
 			this._proxy.$registerTextEditorProvider(toExtensionData(extension), viewType, options.webviewOptions || {}, {
 				supportsMove: !!provider.moveCustomTextEditor,
+				supportsNavigation: !!provider.resolveCustomTextEditorNavigation,
 				supportsInlineDiff: isProposedApiEnabled(extension, 'customEditorDiffs') && isCustomTextEditorProviderWithInlineDiffCapability(provider),
 				supportsSideBySideDiff: isProposedApiEnabled(extension, 'customEditorDiffs') && isCustomTextEditorProviderWithSideBySideDiffCapability(provider),
 			}, shouldSerializeBuffersForPostMessage(extension));
@@ -209,6 +225,14 @@ export class ExtHostCustomEditors implements extHostProtocol.ExtHostCustomEditor
 				supportsSideBySideDiff: supportsCustomEditorDiffs && isCustomEditorProviderWithSideBySideDiffCapability(provider),
 			}, !!options.supportsMultipleEditorsPerDocument, shouldSerializeBuffersForPostMessage(extension));
 		}
+
+		disposables.add(toDisposable(() => {
+			for (const [handle, entry] of this._navigation) {
+				if (entry.viewType === viewType) {
+					this.$disposeCustomTextEditorNavigation(handle);
+				}
+			}
+		}));
 
 		return extHostTypes.Disposable.from(
 			disposables,
@@ -292,6 +316,90 @@ export class ExtHostCustomEditors implements extHostProtocol.ExtHostCustomEditor
 				throw new Error('Unknown webview provider type');
 			}
 		}
+	}
+
+	async $resolveCustomTextEditorNavigation(handle: extHostProtocol.WebviewHandle, viewType: string, resource: UriComponents, token: CancellationToken): Promise<{ selection: ISelection | undefined } | undefined> {
+		const provider = this._editorProviders.get(viewType);
+		const panel = this._extHostWebviewPanels.getWebviewPanel(handle);
+		if (provider?.type !== CustomEditorType.Text || !provider.provider.resolveCustomTextEditorNavigation || !panel || token.isCancellationRequested) {
+			return undefined;
+		}
+		checkProposedApiEnabled(provider.extension, 'customTextEditorNavigation');
+		this.$disposeCustomTextEditorNavigation(handle);
+		const entry: CustomTextEditorNavigationEntry = { viewType, disposables: new DisposableStore(), states: new Map(), pendingStates: new Set() };
+		this._navigation.set(handle, entry);
+		const cancellation = new CancellationTokenSource(token);
+		entry.disposables.add(toDisposable(() => cancellation.dispose(true)));
+		entry.disposables.add(panel.onDidDispose(() => this.$disposeCustomTextEditorNavigation(handle)));
+		try {
+			const controller = await provider.provider.resolveCustomTextEditorNavigation(this._extHostDocuments.getDocument(URI.revive(resource)), panel, cancellation.token);
+			if (cancellation.token.isCancellationRequested || this._navigation.get(handle) !== entry) {
+				controller.dispose();
+				this.$disposeCustomTextEditorNavigation(handle);
+				return undefined;
+			}
+			entry.controller = controller;
+			entry.disposables.add(controller);
+			entry.disposables.add(controller.onDidChangeSelection(selection => {
+				this._proxy.$onDidChangeCustomTextEditorSelection(handle, selection && typeConverters.Selection.from(selection));
+			}));
+			return { selection: controller.selection && typeConverters.Selection.from(controller.selection) };
+		} catch (error) {
+			this.$disposeCustomTextEditorNavigation(handle);
+			if (!isCancellationError(error)) {
+				onUnexpectedError(error);
+			}
+			return undefined;
+		}
+	}
+
+	$disposeCustomTextEditorNavigation(handle: extHostProtocol.WebviewHandle): void {
+		const entry = this._navigation.get(handle);
+		if (entry) {
+			this._navigation.delete(handle);
+			entry.states.clear();
+			entry.pendingStates.clear();
+			entry.disposables.dispose();
+		}
+	}
+
+	async $revealCustomTextEditorRange(handle: extHostProtocol.WebviewHandle, range: IRange, selection: ISelection | undefined, preserveFocus: boolean, token: CancellationToken): Promise<void> {
+		const controller = this._navigation.get(handle)?.controller;
+		if (controller && !token.isCancellationRequested) {
+			await controller.revealRange(typeConverters.Range.to(range), { selection: selection && typeConverters.Selection.to(selection), preserveFocus }, token);
+		}
+	}
+
+	async $captureCustomTextEditorViewState(handle: extHostProtocol.WebviewHandle, stateId: number): Promise<void> {
+		const entry = this._navigation.get(handle);
+		if (entry?.controller) {
+			entry.pendingStates.add(stateId);
+			try {
+				const state = await entry.controller.captureViewState();
+				if (this._navigation.get(handle) === entry && entry.pendingStates.delete(stateId)) {
+					entry.states.set(stateId, state);
+				}
+			} finally {
+				entry.pendingStates.delete(stateId);
+			}
+		}
+	}
+
+	async $restoreCustomTextEditorViewState(handle: extHostProtocol.WebviewHandle, stateId: number, token: CancellationToken): Promise<void> {
+		const entry = this._navigation.get(handle);
+		if (entry?.controller && entry.states.has(stateId)) {
+			const state = entry.states.get(stateId);
+			entry.states.delete(stateId);
+			if (!token.isCancellationRequested) {
+				await entry.controller.restoreViewState(state, token);
+			}
+		}
+	}
+
+	$releaseCustomTextEditorViewState(handle: extHostProtocol.WebviewHandle, stateId: number): void {
+		const entry = this._navigation.get(handle);
+		entry?.states.delete(stateId);
+		entry?.pendingStates.delete(stateId);
 	}
 
 	async $resolveCustomEditorInlineDiff(

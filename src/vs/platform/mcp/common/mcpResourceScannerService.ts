@@ -12,7 +12,8 @@ import { getParseErrorMessage } from '../../../base/common/jsonErrorMessages.js'
 import { applyEdits, setProperty } from '../../../base/common/jsonEdit.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../base/common/map.js';
-import { Mutable } from '../../../base/common/types.js';
+import { equals } from '../../../base/common/objects.js';
+import { isObject, Mutable } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ConfigurationTarget, ConfigurationTargetToString } from '../../configuration/common/configuration.js';
@@ -53,6 +54,12 @@ export interface IMcpResourceScannerService {
 	readonly _serviceBrand: undefined;
 	scanMcpServers(mcpResource: URI, target?: McpResourceTarget, format?: McpResourceFormat): Promise<IScannedMcpServers>;
 	addMcpServers(servers: IInstallableMcpServer[], mcpResource: URI, target?: McpResourceTarget, format?: McpResourceFormat): Promise<void>;
+	/**
+	 * Updates an existing server. For `.mcp.json` and Copilot Global files only the properties
+	 * that differ between {@link previous} and {@link config} are edited, so properties VS Code
+	 * does not know about (such as the Copilot CLI's `tools`) are preserved.
+	 */
+	updateMcpServer(name: string, previous: IMcpServerConfiguration, config: IMcpServerConfiguration, mcpResource: URI, target?: McpResourceTarget, format?: McpResourceFormat): Promise<void>;
 	updateSandboxConfig(updateFn: (data: IScannedMcpServers) => IScannedMcpServers, mcpResource: URI, target?: McpResourceTarget, format?: McpResourceFormat): Promise<void>;
 	removeMcpServers(serverNames: string[], mcpResource: URI, target?: McpResourceTarget, format?: McpResourceFormat): Promise<void>;
 }
@@ -129,6 +136,52 @@ export class McpResourceScannerService extends Disposable implements IMcpResourc
 		});
 	}
 
+	async updateMcpServer(name: string, previous: IMcpServerConfiguration, config: IMcpServerConfiguration, mcpResource: URI, target?: McpResourceTarget, format = McpResourceFormat.Vscode): Promise<void> {
+		const notFound = () => new Error(localize('mcpServerToUpdateNotFound', "The MCP server '{0}' no longer exists in {1}.", name, mcpResource.toString(true)));
+		if (format === McpResourceFormat.CopilotGlobal) {
+			const error = getCopilotGlobalMcpConfigurationError({ name, config: getEditedMcpServerConfiguration(previous, config) });
+			if (error) {
+				throw new Error(error);
+			}
+			const entry = toCopilotGlobalMcpServerEntry(config);
+			const edits = withServerTypeEdits(getChangedProperties(toCopilotGlobalMcpServerEntry(previous), entry), previous, config, Reflect.get(entry, 'type'), undefined);
+			await this.withCopilotGlobalMcpServers(mcpResource, (content, servers) => {
+				if (!Object.hasOwn(servers, name)) {
+					throw notFound();
+				}
+				for (const [key, value] of edits) {
+					content = this.editJsonProperty(content, ['mcpServers', name, key], value);
+				}
+				return content;
+			});
+			return;
+		}
+		if (format === McpResourceFormat.WorkspaceRoot) {
+			const error = getWorkspaceRootMcpConfigurationError({ name, config: getEditedMcpServerConfiguration(previous, config) });
+			if (error) {
+				throw new Error(error);
+			}
+			const edits = withServerTypeEdits(getChangedProperties(previous, config), previous, config, config.type, config.type === McpServerType.REMOTE ? config.transport : undefined);
+			await this.withWorkspaceRootMcpServers(mcpResource, (content, wrapped, servers) => {
+				if (!Object.hasOwn(servers, name)) {
+					throw notFound();
+				}
+				for (const [key, value] of edits) {
+					content = this.editJsonProperty(content, wrapped ? ['mcpServers', name, key] : [name, key], value);
+				}
+				return content;
+			});
+			return;
+		}
+		await this.withProfileMcpServers(mcpResource, target, scannedMcpServers => {
+			if (!scannedMcpServers.servers?.[name]) {
+				throw notFound();
+			}
+			scannedMcpServers.servers[name] = config;
+			return scannedMcpServers;
+		});
+	}
+
 	async updateSandboxConfig(updateFn: (data: IScannedMcpServers) => IScannedMcpServers, mcpResource: URI, target?: McpResourceTarget, format = McpResourceFormat.Vscode): Promise<void> {
 		if (format === McpResourceFormat.WorkspaceRoot) {
 			throw new Error(localize('unsupportedWorkspaceRootMcpSandbox', "Sandbox configuration is not supported in .mcp.json. Use .vscode/mcp.json instead."));
@@ -168,21 +221,21 @@ export class McpResourceScannerService extends Disposable implements IMcpResourc
 		});
 	}
 
-	private withWorkspaceRootMcpServers(mcpResource: URI, update?: (content: string, wrapped: boolean) => string): Promise<IScannedMcpServers> {
+	private withWorkspaceRootMcpServers(mcpResource: URI, update?: (content: string, wrapped: boolean, servers: Record<string, IMcpServerConfiguration>) => string): Promise<IScannedMcpServers> {
 		return this.withSharedMcpServersFile(
 			mcpResource,
 			parseWorkspaceRootMcpConfiguration,
 			localize('workspaceRootMcpConfigurationChanged', "The .mcp.json file changed while updating MCP servers. Please try again."),
-			update && ((content, { wrapped }) => update(content, wrapped)),
+			update && ((content, { wrapped, servers }) => update(content, wrapped, servers)),
 		);
 	}
 
-	private withCopilotGlobalMcpServers(mcpResource: URI, update?: (content: string) => string): Promise<IScannedMcpServers> {
+	private withCopilotGlobalMcpServers(mcpResource: URI, update?: (content: string, servers: Record<string, IMcpServerConfiguration>) => string): Promise<IScannedMcpServers> {
 		return this.withSharedMcpServersFile(
 			mcpResource,
 			content => ({ servers: parseCopilotGlobalMcpConfiguration(content) }),
 			localize('copilotGlobalMcpConfigurationChanged', "The Copilot Global MCP configuration changed while updating servers. Please try again."),
-			update,
+			update && ((content, { servers }) => update(content, servers)),
 		);
 	}
 
@@ -376,3 +429,76 @@ export class McpResourceScannerService extends Disposable implements IMcpResourc
 }
 
 registerSingleton(IMcpResourceScannerService, McpResourceScannerService, InstantiationType.Delayed);
+
+/**
+ * The part of {@link config} that an update to {@link previous} has to validate: the changed
+ * properties plus `type`, `command` and `url`, which define the server. Unchanged properties, and
+ * unchanged entries of changed `env`, `headers` and `args` values, stay as they are in the file, so
+ * values that a shared format does not support, such as `cwd` in `.mcp.json`, do not block edits
+ * to other properties.
+ */
+export function getEditedMcpServerConfiguration(previous: IMcpServerConfiguration, config: IMcpServerConfiguration): IMcpServerConfiguration {
+	const changed = new Set(getChangedProperties(previous, config).map(([key]) => key));
+	const edited: Mutable<IMcpServerConfiguration> = { ...config };
+	for (const key of Object.keys(edited)) {
+		if (key === 'type' || key === 'command' || key === 'url') {
+			continue;
+		}
+		if (!changed.has(key)) {
+			Reflect.deleteProperty(edited, key);
+			continue;
+		}
+		const before: unknown = Reflect.get(previous, key);
+		const after: unknown = Reflect.get(edited, key);
+		if (Array.isArray(before) && Array.isArray(after)) {
+			// Each existing item accounts for one unchanged item, so an added duplicate is still validated.
+			const unmatched = [...before];
+			Reflect.set(edited, key, after.filter(item => {
+				const index = unmatched.findIndex(old => equals(old, item));
+				if (index === -1) {
+					return true;
+				}
+				unmatched.splice(index, 1);
+				return false;
+			}));
+		} else if (isObject(before) && isObject(after)) {
+			Reflect.set(edited, key, Object.fromEntries(Object.entries(after).filter(([name, value]) => !equals(value, Reflect.get(before, name)))));
+		}
+	}
+	return edited;
+}
+
+/**
+ * A server entry in the Copilot CLI's configuration, as {@link IMcpResourceScannerService.updateMcpServer}
+ * writes it. Unlike {@link toCopilotMcpServerConfiguration}, which targets the SDK, it uses the
+ * canonical `stdio` type (`local` is a legacy alias) and keeps `env` values as they are instead of
+ * converting them to strings.
+ */
+function toCopilotGlobalMcpServerEntry(config: IMcpServerConfiguration): object {
+	const entry = toCopilotMcpServerConfiguration(config);
+	return config.type === McpServerType.LOCAL ? { ...entry, type: McpServerType.LOCAL, env: config.env } : entry;
+}
+
+/**
+ * Adds explicit `type` and `transport` edits when an update changes the kind of server. The file
+ * may spell a transport in ways that normalize alike, such as `"type": "sse"` or `"type": "http"`
+ * with `"transport": "sse"`, so changing only the normalized properties could leave it unchanged.
+ */
+function withServerTypeEdits(edits: [string, unknown][], previous: IMcpServerConfiguration, config: IMcpServerConfiguration, type: unknown, transport: unknown): [string, unknown][] {
+	if (getServerKind(previous) === getServerKind(config)) {
+		return edits;
+	}
+	return [...edits.filter(([key]) => key !== 'type' && key !== 'transport'), ['type', type], ['transport', transport]];
+}
+
+function getServerKind(config: IMcpServerConfiguration): 'stdio' | 'http' | 'sse' {
+	return config.type === McpServerType.LOCAL ? 'stdio' : config.transport === 'sse' ? 'sse' : 'http';
+}
+
+/** Properties whose values differ between two server configurations; removed properties map to `undefined`. */
+function getChangedProperties(previous: object, next: object): [string, unknown][] {
+	const before = previous as Record<string, unknown>;
+	const after = next as Record<string, unknown>;
+	const keys = new Set([...Object.keys(before), ...Object.keys(after)]);
+	return [...keys].filter(key => !equals(before[key], after[key])).map(key => [key, after[key]]);
+}

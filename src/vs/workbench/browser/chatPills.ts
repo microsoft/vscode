@@ -9,7 +9,7 @@ import { mainWindow, type CodeWindow } from '../../base/browser/window.js';
 import { IActionViewItem } from '../../base/browser/ui/actionbar/actionbar.js';
 import { BaseActionViewItem, IActionViewItemOptions } from '../../base/browser/ui/actionbar/actionViewItems.js';
 import { Button } from '../../base/browser/ui/button/button.js';
-import type { IManagedHoverContent } from '../../base/browser/ui/hover/hover.js';
+import type { IManagedHoverContent, IManagedHoverOptions } from '../../base/browser/ui/hover/hover.js';
 import { DomScrollableElement } from '../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ToolBar } from '../../base/browser/ui/toolbar/toolbar.js';
 import { IAction, IActionRunner } from '../../base/common/actions.js';
@@ -30,6 +30,7 @@ import { IFileService } from '../../platform/files/common/files.js';
 import { asCssVariable, asCssVariableWithDefault, buttonSecondaryBackground } from '../../platform/theme/common/colorRegistry.js';
 import { defaultButtonStyles } from '../../platform/theme/browser/defaultStyles.js';
 import { createChatImageHoverContent } from './chatImagePreview.js';
+import { createChatPillHoverElement } from './chatPillHover.js';
 import './media/chatPills.css';
 
 /**
@@ -51,8 +52,12 @@ export interface IChatPillsModel {
 export interface IChatPillEntry {
 	readonly id: string;
 	readonly label: string;
-	/** Optional trailing metadata rendered after the dropdown row label. */
+	/** Optional metadata rendered after the dropdown row label by default. */
 	readonly badge?: string;
+	/** Places the badge before the label, keeping resource identity ahead of a resolving title. */
+	readonly badgeBeforeLabel?: boolean;
+	/** Keeps a resolved label stable until an open dropdown is dismissed. */
+	readonly preserveLabelOnRefresh?: boolean;
 	/** Optional CSS class added to the dropdown row. */
 	readonly className?: string;
 	/** Short label used when this entry renders as the pill itself. */
@@ -77,6 +82,8 @@ export interface IChatPillEntry {
 	readonly promotedAction?: IChatPillAction;
 	/** Accessible name used when this entry is rendered as the pill itself. */
 	readonly ariaLabel?: string;
+	/** Accessible name for the dropdown row when it differs from the compact pill. */
+	readonly dropdownAriaLabel?: string;
 	/** Plain-text description of the content shown beside the dropdown entry. */
 	readonly ariaDescription?: string;
 	/** Content shown beside the entry while it is focused or hovered. */
@@ -85,12 +92,42 @@ export interface IChatPillEntry {
 	readonly tooltip?: string;
 	/** Rich hover content for the pill when this is the only entry. */
 	readonly pillHover?: IManagedHoverContent;
+	/** Starts resolving metadata for this entry without opening it. */
+	readonly prefetch?: () => void;
 	open(): void;
 }
 
 export interface IChatPillAction extends IAction {
 	/** Concise label used in the hover footer; the full label remains the row-action tooltip. */
 	readonly hoverLabel?: string;
+}
+
+export type ChatReferenceKind = 'pullRequest' | 'issue';
+
+export function getChatReferencePillPresentation(kind: ChatReferenceKind, reference: string, title?: string, fallbackTitle?: string) {
+	const displayTitle = title || fallbackTitle;
+	const typeLabel = kind === 'pullRequest'
+		? localize('chatPills.pullRequest', "Pull Request")
+		: localize('chatPills.issue', "Issue");
+	const resourceLabel = displayTitle
+		? localize('chatPills.referenceWithTitle', "{0} {1}: {2}", typeLabel, reference, displayTitle)
+		: localize('chatPills.reference', "{0} {1}", typeLabel, reference);
+	const dropdownAriaLabel = displayTitle
+		? localize('chatPills.openReferenceWithTitle', "{0}, Open {1}: {2}", reference, typeLabel, displayTitle)
+		: localize('chatPills.openReference', "{0}, Open {1}", reference, typeLabel);
+	return {
+		resourceLabel,
+		entry: {
+			label: displayTitle || typeLabel,
+			badge: reference,
+			badgeBeforeLabel: true,
+			pillLabel: reference,
+			className: 'chat-pill-reference',
+			preserveLabelOnRefresh: title !== undefined,
+			ariaLabel: localize('chatPills.openResource', "Open {0}", resourceLabel),
+			dropdownAriaLabel,
+		} satisfies Pick<IChatPillEntry, 'label' | 'badge' | 'badgeBeforeLabel' | 'pillLabel' | 'className' | 'preserveLabelOnRefresh' | 'ariaLabel' | 'dropdownAriaLabel'>,
+	};
 }
 
 export const chatPillCopyUrlHoverLabel = localize('chatPills.copyUrl', "Copy URL");
@@ -103,9 +140,12 @@ export function withChatPillHoverLabel<T extends IAction>(action: T, hoverLabel:
 }
 
 export function getChatPillLocationHover(location: string): IActionListItemHover {
+	const element = createChatPillHoverElement('chat-pill-location-hover', 'compact');
+	element.textContent = location;
 	return {
-		content: $('.chat-pill-location-hover', undefined, location),
-		panelClassName: 'chat-pill-location-hover-panel',
+		content: element,
+		contentOwnsPadding: true,
+		panelClassName: 'chat-pill-hover-panel',
 	};
 }
 
@@ -119,7 +159,8 @@ const MAX_CHAT_PILL_IMAGE_PREVIEW_FILE_SIZE = 20 * 1024 * 1024;
 /** Creates the visual preview shared by direct image pills and image rows in a dropdown. */
 export function createChatPillImagePreview(entry: IChatPillEntry & { readonly imagePreview: NonNullable<IChatPillEntry['imagePreview']> }, fileService: IFileService, token = CancellationToken.None): IChatPillImagePreview {
 	const preview = entry.imagePreview;
-	const container = $('.chat-pill-image-preview', { 'aria-busy': 'true' });
+	const container = createChatPillHoverElement('chat-pill-image-preview');
+	container.setAttribute('aria-busy', 'true');
 	const disposables = new DisposableStore();
 	const readToken = cancelOnDispose(disposables);
 	disposables.add(token.onCancellationRequested(() => disposables.dispose()));
@@ -187,6 +228,35 @@ export function getChatPillEntryHoverActions(entry: IChatPillEntry): readonly IC
 	return actions;
 }
 
+export function getChatPillEntryHoverContents(entry: IChatPillEntry | undefined, fileService: IFileService, imageContents: WeakMap<IChatPillEntry, IManagedHoverContent>): IManagedHoverContent | undefined {
+	if (!entry?.imagePreview) {
+		return entry?.pillHover;
+	}
+	const imagePreview = entry.imagePreview;
+	let content = imageContents.get(entry);
+	if (!content) {
+		content = {
+			element: token => createChatPillImagePreview({ ...entry, imagePreview }, fileService, token).element,
+			contentOwnsPadding: true,
+		};
+		imageContents.set(entry, content);
+	}
+	return content;
+}
+
+export function getChatPillEntryHoverOptions(entry: IChatPillEntry | undefined): IManagedHoverOptions | undefined {
+	const actions = entry ? getChatPillEntryHoverActions(entry) : undefined;
+	return actions?.length ? {
+		trapFocus: true,
+		actions: actions.map(action => ({
+			commandId: action.id,
+			label: action.hoverLabel ?? action.label,
+			iconClass: action.class,
+			run: () => { void action.run(); },
+		})),
+	} : undefined;
+}
+
 /** A titled group of entries, rendered as a dropdown section. */
 export interface IChatPillSection {
 	readonly title: string;
@@ -197,7 +267,7 @@ export interface IChatPillSection {
 export function getChatPillResourceLocation(uri: URI, label: string, ariaLabel = localize('chatPills.open', "Open {0}", label)): Pick<IChatPillEntry, 'ariaDescription' | 'ariaLabel' | 'hover' | 'tooltip'> {
 	const value = uri.toString(true);
 	return {
-		ariaDescription: value,
+		ariaDescription: value === label ? undefined : value,
 		ariaLabel,
 		hover: getChatPillLocationHover(value),
 		tooltip: value,
@@ -227,7 +297,7 @@ export const CHAT_INPUT_PILLS_ROW_HEIGHT = 28;
 export type ChatPillsCompactMode = boolean | 'auto';
 
 export interface IChatPillsRowOptions {
-	/** Collapses pills to their icons and uses tighter spacing while preserving full accessible labels and tooltips. */
+	/** Collapses pills to icons; `auto` collapses only the trailing pills needed to fit, preserving accessible labels and tooltips. */
 	readonly compact?: ChatPillsCompactMode;
 	/** Window that owns the row. Required when rendering in an auxiliary window. */
 	readonly targetWindow?: CodeWindow;
@@ -242,7 +312,8 @@ export class ChatPillsRow extends Disposable {
 	private readonly _scrollable: DomScrollableElement;
 	private readonly _resizeObserver: DisposableResizeObserver;
 	private readonly _mutationObserver: MutationObserver | undefined;
-	private _expandedContentWidth: number | undefined;
+	private _getPillElements: (() => readonly HTMLElement[]) | undefined;
+	private _pillMeasurements: { readonly expandedWidth: number; readonly pills: readonly { readonly element: HTMLElement; readonly widthReduction: number }[] } | undefined;
 	private _isLayouting = false;
 	private readonly _onDidChangeLayout = this._register(new Emitter<void>());
 	readonly onDidChangeLayout: Event<void> = this._onDidChangeLayout.event;
@@ -268,14 +339,14 @@ export class ChatPillsRow extends Disposable {
 
 		this._resizeObserver = this._register(new DisposableResizeObserver(debugName, entries => {
 			if (entries.some(entry => entry.target !== this.content)) {
-				this._expandedContentWidth = undefined;
+				this._pillMeasurements = undefined;
 			}
 			this.layout();
 		}, targetWindow));
 		this._register(this._resizeObserver.observe(this.content));
 		if (compactMode === 'auto') {
 			this._mutationObserver = new targetWindow.MutationObserver(() => {
-				this._expandedContentWidth = undefined;
+				this._pillMeasurements = undefined;
 				this.layout();
 			});
 			this._observeMutations();
@@ -288,7 +359,12 @@ export class ChatPillsRow extends Disposable {
 				this._onDidChangeLayout.fire();
 			}
 		}));
-		this._register(addDisposableListener(this.content, EventType.FOCUS_IN, () => this.scanDomNode()));
+		this._register(addDisposableListener(this.content, EventType.FOCUS_IN, event => {
+			if (isHTMLElement(event.target)) {
+				event.target.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+			}
+			this.scanDomNode();
+		}));
 		this._register(addDisposableListener(this.content, EventType.KEY_DOWN, event => {
 			const keyboardEvent = new StandardKeyboardEvent(event);
 			const target = isHTMLElement(event.target) ? event.target : this.content;
@@ -302,8 +378,13 @@ export class ChatPillsRow extends Disposable {
 		}));
 	}
 
-	observe(element: HTMLElement): void {
+	/** Observes size changes; supplying the current pill buttons enables automatic compaction. */
+	observe(element: HTMLElement, getPillElements?: () => readonly HTMLElement[]): void {
 		this._register(this._resizeObserver.observe(element));
+		if (getPillElements) {
+			this._getPillElements = getPillElements;
+		}
+		this._pillMeasurements = undefined;
 		this.layout();
 	}
 
@@ -313,22 +394,42 @@ export class ChatPillsRow extends Disposable {
 		}
 
 		this._isLayouting = true;
+		if (this._mutationObserver?.takeRecords().length) {
+			this._pillMeasurements = undefined;
+		}
 		this._mutationObserver?.disconnect();
 		try {
-			if (this._mutationObserver) {
-				const availableWidth = this.element.getBoundingClientRect().width;
-				if (this._expandedContentWidth === undefined || !this.element.classList.contains('compact')) {
-					const wasCompact = this.element.classList.contains('compact');
-					this.element.classList.remove('compact');
-					const expandedContentWidth = [...this.content.children].reduce((width, child) => {
+			const availableWidth = this.element.clientWidth;
+			if (this._mutationObserver && availableWidth > 0) {
+				if (!this._pillMeasurements) {
+					const pills = this._getPillElements?.() ?? [];
+					for (const pill of pills) {
+						pill.classList.remove('compact');
+					}
+					const expandedWidth = [...this.content.children].reduce((width, child) => {
 						return isHTMLElement(child) ? Math.max(width, child.offsetLeft + child.offsetWidth) : width;
 					}, 0);
-					if (expandedContentWidth > 0 || this.content.children.length === 0) {
-						this._expandedContentWidth = expandedContentWidth;
+					const expandedWidths = pills.map(pill => pill.getBoundingClientRect().width);
+					for (const pill of pills) {
+						pill.classList.add('compact');
 					}
-					this.element.classList.toggle('compact', wasCompact);
+					this._pillMeasurements = {
+						expandedWidth,
+						pills: pills.map((element, index) => ({
+							element,
+							widthReduction: expandedWidths[index] - element.getBoundingClientRect().width,
+						})),
+					};
 				}
-				this.element.classList.toggle('compact', availableWidth > 0 && this._expandedContentWidth !== undefined && this._expandedContentWidth > availableWidth + 1);
+				const { pills } = this._pillMeasurements;
+				let requiredWidth = this._pillMeasurements.expandedWidth;
+				let compactFrom = pills.length;
+				while (compactFrom > 0 && requiredWidth > availableWidth + 1) {
+					requiredWidth -= pills[--compactFrom].widthReduction;
+				}
+				for (let index = 0; index < pills.length; index++) {
+					pills[index].element.classList.toggle('compact', index >= compactFrom);
+				}
 			}
 			this.scanDomNode();
 			this._onDidChangeLayout.fire();

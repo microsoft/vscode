@@ -183,7 +183,7 @@ if [[ -z "$SUITE_FILTER" ]]; then
 		if [[ "$VSCODE_SKIP_AGENT_HOST_E2E" == "1" ]]; then
 			echo "Skipping Agent Host E2E tests because no relevant files changed."
 		else
-			node ./scripts/test-agent-host-e2e.ts "${EXTRA_ARGS[@]}"
+			node ./test/integration/agentHost/runner.ts "${EXTRA_ARGS[@]}"
 		fi
 		VSCODE_SKIP_PRELAUNCH=1 ./scripts/test.sh --runGlob "**/*.integrationTest.js" --excludeRunGlob "$AGENT_HOST_E2E_GLOB" "${EXTRA_ARGS[@]}"
 	else

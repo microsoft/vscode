@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isThenable, SequencerByKey } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IFileService } from '../../../files/common/files.js';
@@ -13,10 +14,18 @@ import { ISessionDatabase } from '../../common/sessionDataService.js';
 import { buildSessionDbUri } from '../../common/sessionDbUri.js';
 import { FileEditKind, ToolResultContentType, type ToolResultFileEditContent } from '../../common/state/sessionState.js';
 import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
+import type { AutoModeRoutingTier } from '../../common/autoModeTiers.js';
 import { extractAiChunks } from './editChunkExtractor.js';
 import { IEditSurvivalReporterFactory } from './editSurvivalReporter.js';
 import { IEditArcReporterService } from './editArcReporter.js';
 import { createArcTextEditFromDiff, extractArcTextEdit } from './arcToolEdit.js';
+
+interface ICompletedEdit {
+	readonly beforeContent: VSBuffer;
+	readonly beforeExisted: boolean;
+	readonly afterContent: VSBuffer;
+	readonly mode: string | undefined;
+}
 
 /**
  * Tracks file edits made by tools in a session by snapshotting file content
@@ -37,11 +46,14 @@ export class FileEditTracker {
 	 * drained by {@link takeCompletedEdit}, which persists the entry to
 	 * the database.
 	 */
-	private readonly _completedEdits = new Map<string, { beforeContent: VSBuffer; beforeExisted: boolean; afterContent: VSBuffer; mode: string | undefined }>();
+	private readonly _completedEdits = new Map<string, ICompletedEdit>();
+	/** Processes each file's completed edits in claim order, so attribution never sees them reordered. */
+	private readonly _completedEditSequencer = new SequencerByKey<string>();
 
 	constructor(
 		private readonly _sessionUri: string,
 		private readonly _db: ISessionDatabase,
+		private readonly _provider: string | undefined,
 		@IFileService private readonly _fileService: IFileService,
 		@ILogService private readonly _logService: ILogService,
 		@IDiffComputeService private readonly _diffComputeService: IDiffComputeService,
@@ -109,12 +121,16 @@ export class FileEditTracker {
 	 * for region-based survival scoring; unknown shapes fall back to
 	 * whole-file scoring.
 	 */
-	async takeCompletedEdit(turnId: string, toolCallId: string, filePath: string, toolName: string, toolInput: unknown, modelId: string | undefined, clientContext?: IAgentHostClientTelemetryContext, chatUri?: string): Promise<ToolResultFileEditContent | undefined> {
+	takeCompletedEdit(turnId: string, toolCallId: string, filePath: string, toolName: string, toolInput: unknown, modelId: string | undefined, clientContext?: IAgentHostClientTelemetryContext, chatUri?: string, autoTierSnapshot?: AutoModeRoutingTier | Promise<AutoModeRoutingTier | undefined>): Promise<ToolResultFileEditContent | undefined> {
 		const edit = this._completedEdits.get(filePath);
 		if (!edit) {
-			return undefined;
+			return Promise.resolve(undefined);
 		}
 		this._completedEdits.delete(filePath);
+		return this._completedEditSequencer.queue(filePath, () => this._processCompletedEdit(edit, turnId, toolCallId, filePath, toolName, toolInput, modelId, clientContext, chatUri, autoTierSnapshot));
+	}
+
+	private async _processCompletedEdit(edit: ICompletedEdit, turnId: string, toolCallId: string, filePath: string, toolName: string, toolInput: unknown, modelId: string | undefined, clientContext: IAgentHostClientTelemetryContext | undefined, chatUri: string | undefined, autoTierSnapshot: AutoModeRoutingTier | Promise<AutoModeRoutingTier | undefined> | undefined): Promise<ToolResultFileEditContent | undefined> {
 
 		if (!modelId) {
 			this._logService.warn(`[FileEditTracker] No modelId for completed edit: ${filePath} (turn=${turnId}, toolCall=${toolCallId}, tool=${toolName || '<unknown>'}). Edit-survival telemetry will be emitted with an empty modelId.`);
@@ -155,9 +171,12 @@ export class FileEditTracker {
 			this._logService.warn(`[FileEditTracker] Failed to persist file edit to database: ${filePath}`, err);
 		}
 
+		const autoTier = isThenable<AutoModeRoutingTier | undefined>(autoTierSnapshot) ? await autoTierSnapshot : autoTierSnapshot;
+
 		this._editSurvivalReporterFactory.launch({
 			clientContext,
 			sessionUri: this._sessionUri,
+			...(this._provider ? { provider: this._provider } : {}),
 			turnId,
 			toolCallId,
 			filePath,
@@ -165,6 +184,7 @@ export class FileEditTracker {
 			afterText,
 			isCreate,
 			modelId,
+			...(autoTier !== undefined ? { autoTier } : {}),
 			toolName,
 			aiChunks: extractAiChunks(toolName, toolInput, filePath),
 		});
@@ -185,6 +205,7 @@ export class FileEditTracker {
 		try {
 			marker = await this._editAttributionService.recordEdit({
 				sessionUri: this._sessionUri,
+				...(this._provider ? { provider: this._provider } : {}),
 				chatUri,
 				turnId,
 				toolCallId,
@@ -193,6 +214,7 @@ export class FileEditTracker {
 				afterText,
 				changes,
 				modelId,
+				...(autoTier !== undefined ? { autoTier } : {}),
 				toolName,
 			});
 		} catch (error) {
@@ -204,6 +226,7 @@ export class FileEditTracker {
 		this._editArcReporterService.reportEdit({
 			clientContext,
 			sessionUri: this._sessionUri,
+			...(this._provider ? { provider: this._provider } : {}),
 			turnId,
 			toolCallId,
 			filePath,

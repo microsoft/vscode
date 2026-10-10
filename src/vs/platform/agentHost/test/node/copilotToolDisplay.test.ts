@@ -8,13 +8,13 @@ import type { PermissionRequest } from '@github/copilot-sdk';
 import * as marked from '../../../../base/common/marked/marked.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { getEditFilePath, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, getToolMarkdownContent, isEditTool, isHiddenTool, isMarkdownRenderedTool, synthesizeSkillToolCall } from '../../node/copilot/copilotToolDisplay.js';
+import { getEditFilePath, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getSdkImageGenerationMetadata, getToolIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, getToolMarkdownContent, getToolSummaryInputContract, isEditTool, isHiddenTool, isMarkdownRenderedTool, synthesizeSkillToolCall } from '../../node/copilot/copilotToolDisplay.js';
 
 type CopilotShellPermissionRequest = Extract<PermissionRequest, { kind: 'shell' }>;
 type CopilotCustomToolPermissionRequest = Extract<PermissionRequest, { kind: 'custom-tool' }>;
 type CopilotWorkflowPermissionRequest = Extract<PermissionRequest, { kind: 'workflow' }>;
 
-function shellPermissionRequest(fullCommandText: string, requestSandboxBypass?: boolean): CopilotShellPermissionRequest {
+function shellPermissionRequest(fullCommandText: string, requestSandboxBypass?: boolean, requestSandboxPermissive?: boolean): CopilotShellPermissionRequest {
 	return {
 		kind: 'shell',
 		canOfferSessionApproval: false,
@@ -25,6 +25,7 @@ function shellPermissionRequest(fullCommandText: string, requestSandboxBypass?: 
 		possiblePaths: [],
 		possibleUrls: [],
 		requestSandboxBypass,
+		requestSandboxPermissive,
 	};
 }
 
@@ -40,6 +41,13 @@ function customToolPermissionRequest(toolName: string, args: CopilotCustomToolPe
 suite('copilotToolDisplay — friendly tool names', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('limits the summary input contract to supported native schemas', () => {
+		assert.deepStrictEqual(['view', 'edit', 'grep', 'rg', 'glob', 'bash', 'tool_search', 'my_tool', 'mcp__server__view'].map(getToolSummaryInputContract), [
+			'copilot-cli-v1', 'copilot-cli-v1', 'copilot-cli-v1', 'copilot-cli-v1', 'copilot-cli-v1',
+			undefined, undefined, undefined, undefined,
+		]);
+	});
 
 	test('mirrors internal Copilot CLI friendly labels for representative tools', () => {
 		const cases: Array<[toolName: string, displayName: string]> = [
@@ -110,6 +118,30 @@ suite('copilotToolDisplay — friendly tool names', () => {
 
 	test('falls back to the raw tool name for unknown tools', () => {
 		assert.strictEqual(getToolDisplayName('some_new_tool'), 'some_new_tool');
+	});
+
+	test('uses requested image identity rather than the conversation model', () => {
+		const metadata = getSdkImageGenerationMetadata({
+			model: 'claude-sonnet-5',
+			structuredContent: { imageGeneration: { requestedModel: { id: 'image-preview', name: 'Image Preview' } } },
+		});
+		assert.deepStrictEqual({
+			metadata,
+			completed: getPastTenseMessage('image_generation', 'Generate Image', undefined, true, undefined, undefined, undefined, metadata),
+			idFallback: getPastTenseMessage('image_generation', 'Generate Image', undefined, true, undefined, undefined, undefined, { requestedModel: { id: 'image-preview' } }),
+			legacy: getPastTenseMessage('image_generation', 'Generate Image', undefined, true),
+			failed: getPastTenseMessage('image_generation', 'Generate Image', undefined, false, undefined, undefined, undefined, metadata),
+			unrelated: getSdkImageGenerationMetadata({ model: 'gpt-5.5' }),
+			malformed: getSdkImageGenerationMetadata({ structuredContent: { imageGeneration: { requestedModel: { name: 'Not an identity' } } } }),
+		}, {
+			metadata: { requestedModel: { id: 'image-preview', name: 'Image Preview' } },
+			completed: 'Generated image with Image Preview',
+			idFallback: 'Generated image with image-preview',
+			legacy: 'Generated image',
+			failed: '"Generate Image" failed',
+			unrelated: undefined,
+			malformed: undefined,
+		});
 	});
 
 	test('prefers canonical tool titles and falls back to original MCP tool names', () => {
@@ -264,8 +296,8 @@ suite('getPermissionDisplay — server tool confirmation', () => {
 				isolation: false,
 			})),
 			{
-				confirmationTitle: 'Continue in app?',
-				invocationMessage: 'Continue this session in /workspace/app and make changes directly in that folder?',
+				confirmationTitle: 'Change Workspace to app?',
+				invocationMessage: 'Change this chat\'s workspace to /workspace/app and make changes directly in that folder? Other chats keep their workspaces.',
 				toolInput: undefined,
 				permissionKind: 'custom-tool',
 				permissionPath: undefined,
@@ -333,26 +365,26 @@ suite('getPermissionDisplay — cd-prefix stripping', () => {
 	test('strips redundant cd from shell permission request fullCommandText', () => {
 		const request = shellPermissionRequest('cd /repo/project && npm test');
 		const display = getPermissionDisplay(request, wd);
-		assert.strictEqual(display.toolInput, 'npm test');
+		assert.strictEqual(display.toolInput, JSON.stringify({ command: 'npm test' }, null, 2));
 		assert.strictEqual(display.permissionKind, 'shell');
 	});
 
 	test('leaves shell command alone when cd target differs from working directory', () => {
 		const request = shellPermissionRequest('cd /tmp && ls');
 		const display = getPermissionDisplay(request, wd);
-		assert.strictEqual(display.toolInput, 'cd /tmp && ls');
+		assert.strictEqual(display.toolInput, JSON.stringify({ command: 'cd /tmp && ls' }, null, 2));
 	});
 
 	test('leaves shell command alone when no working directory provided', () => {
 		const request = shellPermissionRequest('cd /repo/project && npm test');
 		const display = getPermissionDisplay(request, undefined);
-		assert.strictEqual(display.toolInput, 'cd /repo/project && npm test');
+		assert.strictEqual(display.toolInput, JSON.stringify({ command: 'cd /repo/project && npm test' }, null, 2));
 	});
 
 	test('strips redundant cd from custom-tool shell permission request', () => {
 		const request = customToolPermissionRequest('bash', { command: 'cd /repo/project && echo hi' });
 		const display = getPermissionDisplay(request, wd);
-		assert.strictEqual(display.toolInput, 'echo hi');
+		assert.strictEqual(display.toolInput, JSON.stringify({ command: 'echo hi' }, null, 2));
 		assert.strictEqual(display.permissionKind, 'shell');
 	});
 
@@ -367,15 +399,19 @@ suite('getPermissionDisplay — cd-prefix stripping', () => {
 	test('handles powershell custom-tool with semicolon separator', () => {
 		const request = customToolPermissionRequest('powershell', { command: 'cd /repo/project; dir' });
 		const display = getPermissionDisplay(request, wd);
-		assert.strictEqual(display.toolInput, 'dir');
+		assert.strictEqual(display.toolInput, JSON.stringify({ command: 'dir' }, null, 2));
 	});
 
-	test('confirmation title reflects sandbox bypass for shell requests', () => {
-		const sandboxed = getPermissionDisplay(shellPermissionRequest('npm test'), wd);
-		const bypass = getPermissionDisplay(shellPermissionRequest('npm test', true), wd);
-
-		assert.notStrictEqual(bypass.confirmationTitle, sandboxed.confirmationTitle);
-		assert.ok(/sandbox/i.test(bypass.confirmationTitle), `expected title to mention the sandbox, got: ${bypass.confirmationTitle}`);
+	test('confirmation title reflects sandbox escalation for shell requests', () => {
+		assert.deepStrictEqual({
+			sandboxed: getPermissionDisplay(shellPermissionRequest('npm test'), wd).confirmationTitle,
+			bypass: getPermissionDisplay(shellPermissionRequest('npm test', true), wd).confirmationTitle,
+			permissive: getPermissionDisplay(shellPermissionRequest('npm test', true, true), wd).confirmationTitle,
+		}, {
+			sandboxed: 'Run in terminal?',
+			bypass: 'Run in terminal outside the sandbox?',
+			permissive: 'Retry by allowing filesystem access inside the sandbox?',
+		});
 	});
 
 });
@@ -920,6 +956,13 @@ suite('copilotToolDisplay — write_/read_ shell tools', () => {
 
 	suite('getToolInputString', () => {
 
+		for (const toolName of ['bash', 'powershell']) {
+			test(`${toolName} preserves shell arguments including description`, () => {
+				const parameters = { command: 'echo hello\npwd', description: 'Inspect the workspace', timeout: 1000 };
+				assert.strictEqual(getToolInputString(toolName, parameters, undefined), JSON.stringify(parameters, null, 2));
+			});
+		}
+
 		test('write_bash extracts command field', () => {
 			assert.strictEqual(getToolInputString('write_bash', { command: 'echo hello' }, undefined), 'echo hello');
 		});
@@ -963,6 +1006,7 @@ suite('skill events', () => {
 			withPathDisplayName: withPath.displayName,
 			withPathInvocation: withPath.invocationMessage,
 			withPathPastTense: withPath.pastTenseMessage,
+			toolInput: withPath.toolInput,
 			withoutEventIdToolCallId: withoutEventId.toolCallId,
 			withoutEventIdInvocation: withoutEventId.invocationMessage,
 			withoutEventIdPastTense: withoutEventId.pastTenseMessage,
@@ -973,6 +1017,7 @@ suite('skill events', () => {
 			withPathDisplayName: 'Read Skill',
 			withPathInvocation: { markdown: 'Read skill [plan](file:///abs/repo/skills/plan/SKILL.md)' },
 			withPathPastTense: { markdown: 'Read skill [plan](file:///abs/repo/skills/plan/SKILL.md)' },
+			toolInput: '{"skill":"plan"}',
 			withoutEventIdToolCallId: 'synth-skill--15753539',
 			withoutEventIdInvocation: { markdown: 'Read skill [plan](file:///abs/repo/skills/plan/SKILL.md)' },
 			withoutEventIdPastTense: { markdown: 'Read skill [plan](file:///abs/repo/skills/plan/SKILL.md)' },
@@ -1011,9 +1056,11 @@ suite('rg / grep search tool display', () => {
 		});
 	});
 
-	test('getToolInputString returns pattern for both grep and rg', () => {
-		assert.strictEqual(getToolInputString('grep', { pattern: 'abc' }, undefined), 'abc');
-		assert.strictEqual(getToolInputString('rg', { pattern: 'abc' }, undefined), 'abc');
+	test('getToolInputString preserves arguments for both grep and rg', () => {
+		assert.deepStrictEqual(['grep', 'rg'].map(toolName => getToolInputString(toolName, { pattern: 'abc', path: '/repo' }, undefined)), [
+			JSON.stringify({ pattern: 'abc', path: '/repo' }, null, 2),
+			JSON.stringify({ pattern: 'abc', path: '/repo' }, null, 2),
+		]);
 	});
 });
 
@@ -1034,7 +1081,7 @@ suite('web_fetch tool display', () => {
 		}, {
 			invocation: 'Fetching [https://example.com/docs](https://example.com/docs)',
 			pastTense: 'Fetched [https://example.com/docs](https://example.com/docs)',
-			input: 'https://example.com/docs',
+			input: JSON.stringify(parameters, null, 2),
 		});
 	});
 
@@ -1188,20 +1235,20 @@ suite('apply_patch tool display', () => {
 	});
 });
 
-suite('getShellIntention', () => {
+suite('getToolIntention', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('reads the description argument of shell tools, and ignores non-shell tools', () => {
 		assert.deepStrictEqual({
-			bash: getShellIntention('bash', { command: 'ls', description: 'List files' }),
-			powershell: getShellIntention('powershell', { command: 'Get-ChildItem', description: 'List files' }),
-			shellNoDescription: getShellIntention('bash', { command: 'ls' }),
-			shellEmptyDescription: getShellIntention('bash', { command: 'ls', description: '' }),
+			bash: getToolIntention('bash', { command: 'ls', description: 'List files' }),
+			powershell: getToolIntention('powershell', { command: 'Get-ChildItem', description: 'List files' }),
+			shellNoDescription: getToolIntention('bash', { command: 'ls' }),
+			shellEmptyDescription: getToolIntention('bash', { command: 'ls', description: '' }),
 			// The `task` (subagent) tool also has a `description` argument, but it is
 			// the subagent task description, not a shell intention — must be ignored.
-			taskTool: getShellIntention('task', { description: 'Explore the codebase' }),
-			viewTool: getShellIntention('view', { path: '/repo/file.ts', description: 'why' }),
-			noArgs: getShellIntention('bash', undefined),
+			taskTool: getToolIntention('task', { description: 'Explore the codebase' }),
+			viewTool: getToolIntention('view', { path: '/repo/file.ts', description: 'why' }),
+			noArgs: getToolIntention('bash', undefined),
 		}, {
 			bash: 'List files',
 			powershell: 'List files',
@@ -1211,5 +1258,21 @@ suite('getShellIntention', () => {
 			viewTool: undefined,
 			noArgs: undefined,
 		});
+	});
+
+	test('prefers nonblank SDK intention summaries for every tool', () => {
+		assert.deepStrictEqual([
+			getToolIntention('bash', { command: 'ls', description: 'Fallback' }, '  List project files \n'),
+			getToolIntention('powershell', { command: 'Get-ChildItem' }, 'List project files'),
+			getToolIntention('view', { path: '/repo/file.ts' }, 'Understand the entry point'),
+			getToolIntention('bash', { command: 'ls', description: 'Fallback' }, ' \n'),
+			getToolIntention('view', { path: '/repo/file.ts' }, ''),
+		], [
+			'List project files',
+			'List project files',
+			'Understand the entry point',
+			'Fallback',
+			undefined,
+		]);
 	});
 });

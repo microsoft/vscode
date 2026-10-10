@@ -31,12 +31,9 @@ export interface IAgentHostEnablementService {
 	/**
 	 * Whether an enterprise has mandated the Copilot SDK sandbox floor through managed settings
 	 * (`sandbox.enabled`). The runtime owns composing and enforcing that floor; VS Code reads it
-	 * only to retire the legacy local harness for governed users, since the sandbox is implemented
-	 * by the Agent Host.
-	 *
-	 * A user- or workspace-level sandbox opt-in is not an enterprise decision and does not set
-	 * this. Existing local chat sessions keep working; only the harness used for *new* chats is
-	 * affected, and virtual workspaces are exempt.
+	 * to display sandbox state. Together with any managed permission setting, this floor requires
+	 * Copilot Agent Host for new requests; existing Local history remains readable.
+	 * A user- or workspace-level sandbox opt-in does not set this.
 	 */
 	readonly managedSandboxEnforced: IObservable<boolean>;
 	readonly managedSandboxAllowsBypass: IObservable<boolean>;
