@@ -398,6 +398,26 @@ suite('linked editing', () => {
 	}, '<ooo></ooo>');
 
 	/**
+	 * Regression test for https://github.com/microsoft/vscode/issues/239351:
+	 * deleting the entire tag name and then typing a new one should keep the
+	 * linked editing session alive so the closing tag is updated as well,
+	 * even when `updateRanges` runs while the reference range is empty (which
+	 * happens once the cursor settles between the delete and the next type).
+	 */
+	testCase('Delete - left word then type - linked session survives empty tag name', state, async (editor) => {
+		const pos = new Position(1, 5);
+		await editor.setPosition(pos);
+		await editor.trigger('keyboard', 'deleteWordLeft', {});
+		// Force `updateRanges` to run while the reference range is collapsed.
+		// Without the fix, the language provider returns no ranges for an empty
+		// tag name and the linked editing session is torn down here.
+		await editor.setPosition(new Position(1, 2));
+		await editor.trigger('keyboard', Handler.Type, { text: 'b' });
+		await editor.trigger('keyboard', Handler.Type, { text: 'o' });
+		await editor.trigger('keyboard', Handler.Type, { text: 'x' });
+	}, '<box></box>');
+
+	/**
 	 * Todo: Fix test
 	 */
 	// testCase('Delete - left all', state, async (editor) => {
