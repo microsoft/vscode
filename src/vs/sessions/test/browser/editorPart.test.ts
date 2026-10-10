@@ -128,7 +128,7 @@ suite('Sessions - EditorPart', () => {
 									leadingEdge: wrapped,
 									backgroundClip: 'border-box',
 									leftBorder: 'rgba(0, 0, 0, 0)',
-									leftCorner: wrapped ? '0px' : '4px',
+									leftCorner: wrapped ? '0px' : '5px',
 								}, `${theme}, active: ${active}, compact: ${compact}, zoom: ${zoom}, wrapped: ${wrapped}`);
 							}
 						}

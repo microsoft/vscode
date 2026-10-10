@@ -118,7 +118,7 @@
 
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container {
 	--modern-ui-connected-tab-fill-block-inset: var(--vscode-spacing-size20);
-	--modern-ui-connected-tab-cap-radius: var(--vscode-cornerRadius-small);
+	--modern-ui-connected-tab-cap-radius: calc(var(--vscode-cornerRadius-small) + var(--vscode-strokeThickness));
 }
 
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container:not(.active) > .title.tabs,
