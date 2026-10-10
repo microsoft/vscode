@@ -127,7 +127,7 @@
 	{
 		"Intent": "unknown",
 		"Location": "panel",
-		"Request": "will this succesfully show the progress indicator in the webresource form for dynamics 365 implementation"
+		"Request": "will this successfully show the progress indicator in the webresource form for dynamics 365 implementation"
 	},
 	{
 		"Intent": "unknown",

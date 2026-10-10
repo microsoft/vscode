@@ -14125,7 +14125,7 @@ export function createTypeChecker(host: TypeCheckerHost): TypeChecker {
             ) {
                 // A reverse mapping of `{[K in keyof T[K_1]]: T[K_1]}` is the same as that of `{[K in keyof T]: T}`, since all we care about is
                 // inferring to the "type parameter" (or indexed access) shared by the constraint and template. So, to reduce the number of
-                // type identities produced, we simplify such indexed access occurences
+                // type identities produced, we simplify such indexed access occurrences
                 const newTypeParam = (type.constraintType.type as IndexedAccessType).objectType;
                 const newMappedType = replaceIndexedAccess(type.mappedType, type.constraintType.type as ReplaceableIndexedAccessType, newTypeParam);
                 inferredProp.links.mappedType = newMappedType as MappedType;
@@ -66408,7 +66408,7 @@ export function createTypeChecker(host: TypeCheckerHost): TypeChecker {
             ) {
                 // A reverse mapping of `{[K in keyof T[K_1]]: T[K_1]}` is the same as that of `{[K in keyof T]: T}`, since all we care about is
                 // inferring to the "type parameter" (or indexed access) shared by the constraint and template. So, to reduce the number of
-                // type identities produced, we simplify such indexed access occurences
+                // type identities produced, we simplify such indexed access occurrences
                 const newTypeParam = (type.constraintType.type as IndexedAccessType).objectType;
                 const newMappedType = replaceIndexedAccess(type.mappedType, type.constraintType.type as ReplaceableIndexedAccessType, newTypeParam);
                 inferredProp.links.mappedType = newMappedType as MappedType;
@@ -118691,7 +118691,7 @@ export function createTypeChecker(host: TypeCheckerHost): TypeChecker {
             ) {
                 // A reverse mapping of `{[K in keyof T[K_1]]: T[K_1]}` is the same as that of `{[K in keyof T]: T}`, since all we care about is
                 // inferring to the "type parameter" (or indexed access) shared by the constraint and template. So, to reduce the number of
-                // type identities produced, we simplify such indexed access occurences
+                // type identities produced, we simplify such indexed access occurrences
                 const newTypeParam = (type.constraintType.type as IndexedAccessType).objectType;
                 const newMappedType = replaceIndexedAccess(type.mappedType, type.constraintType.type as ReplaceableIndexedAccessType, newTypeParam);
                 inferredProp.links.mappedType = newMappedType as MappedType;
