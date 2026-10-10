@@ -2131,6 +2131,9 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		} else {
 			assertReturnsDefined(this.stickyTabsBackground).style.width = '0px';
 			this.clearConnectedTabClipping();
+
+			// Wrapped tabs never reveal the active tab, so clear the one-time block
+			this.blockRevealActiveTab = false;
 		}
 	}
 
