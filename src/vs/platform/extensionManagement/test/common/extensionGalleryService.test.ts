@@ -27,10 +27,11 @@ import { IProductService } from '../../../product/common/productService.js';
 import { AuthInfo, Credentials, IRequestService } from '../../../request/common/request.js';
 import { InMemoryStorageService, IStorageService } from '../../../storage/common/storage.js';
 import { TelemetryConfiguration, TELEMETRY_SETTING_ID } from '../../../telemetry/common/telemetry.js';
+import { ExtensionBlockingOrigin } from '../../common/extensionManagement.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { AllowedExtensionsService } from '../../common/allowedExtensionsService.js';
 import { ExtensionGalleryManifestStatus, ExtensionGalleryResourceType, IExtensionGalleryManifest, IExtensionGalleryManifestService } from '../../common/extensionGalleryManifest.js';
-import { ExtensionGalleryServiceWithNoStorageService, IRawGalleryExtensionVersion, filterLatestExtensionVersionsForTargetPlatform, sortExtensionVersions } from '../../common/extensionGalleryService.js';
+import { ExtensionGalleryServiceWithNoStorageService, IRawGalleryExtensionBlocking, IRawGalleryExtensionVersion, filterLatestExtensionVersionsForTargetPlatform, getBlockingInfo, sortExtensionVersions } from '../../common/extensionGalleryService.js';
 
 class EnvironmentServiceMock extends mock<IEnvironmentService>() {
 	override readonly serviceMachineIdResource: URI;
@@ -621,5 +622,56 @@ suite('Extension Gallery Service', () => {
 			assert.ok(result.includes(versions[1])); // 0.14.0 universal (release)
 		});
 
+	});
+
+	suite('getBlockingInfo', () => {
+
+		const notBlocked = { flags: 'public, validated' };
+
+		test('absent flag and object is not blocked', () => {
+			assert.strictEqual(getBlockingInfo(notBlocked, {}), undefined);
+		});
+
+		test('extension flag without object is blocked', () => {
+			assert.deepStrictEqual(getBlockingInfo({ flags: 'public, validated, blocked' }, {}), {
+				origin: ExtensionBlockingOrigin.Service
+			});
+		});
+
+		test('extension object without flag is blocked', () => {
+			assert.deepStrictEqual(getBlockingInfo({ flags: 'public', blocking: { origin: 'policy' } }, {}), {
+				origin: ExtensionBlockingOrigin.Policy
+			});
+		});
+
+		test('a blocked version blocks the extension in hand, by flag or by object', () => {
+			assert.deepStrictEqual(
+				[{ flags: 'validated, blocked' }, { blocking: { origin: 'policy' } }]
+					.map(version => getBlockingInfo(notBlocked, version)?.origin),
+				[ExtensionBlockingOrigin.Service, ExtensionBlockingOrigin.Policy]);
+		});
+
+		test('an extension block outranks a version block', () => {
+			assert.deepStrictEqual(
+				getBlockingInfo({ flags: 'blocked', blocking: { origin: 'service' } }, { flags: 'blocked', blocking: { origin: 'policy' } }),
+				{ origin: ExtensionBlockingOrigin.Service });
+		});
+
+		test('unrecognized, absent, and wrong-typed origins degrade to service without failing', () => {
+			assert.deepStrictEqual(
+				[{ origin: 'tenant' }, {}, { origin: 5 }, { origin: null }, { origin: {} }]
+					.map(blocking => getBlockingInfo({ flags: 'blocked', blocking: blocking as IRawGalleryExtensionBlocking }, {})?.origin),
+				new Array(5).fill(ExtensionBlockingOrigin.Service));
+		});
+
+		test('unknown flag tokens do not fail parsing', () => {
+			assert.deepStrictEqual(getBlockingInfo({ flags: 'public, quarantined, blocked, embargoed' }, {}), {
+				origin: ExtensionBlockingOrigin.Service
+			});
+		});
+
+		test('blocked is matched as a whole token', () => {
+			assert.strictEqual(getBlockingInfo({ flags: 'public, unblocked' }, { flags: 'unblocked' }), undefined);
+		});
 	});
 });
