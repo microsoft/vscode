@@ -2112,6 +2112,99 @@ suite('AgentHostAutomationStore', () => {
 		});
 	});
 
+	for (const backend of ['ahp-session:/new-run', 'custom-session://host/opaque/run?version=2']) {
+		for (const completeBeforeResolution of [false, true]) {
+			test(`manual dispatch waits for ${backend} identity ${completeBeforeResolution ? 'after completion' : 'while running'}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const changed = disposables.add(new Emitter<void>());
+				const resources = new ResourceMap<URI>();
+				const { store } = reconnectable(true, activeClientService, {
+					toHost: resource => resource, fromHost: resource => resource,
+					resourceSchemeForProvider: provider => `agent-host-${provider}`,
+					sessionResource: resource => resources.get(resource),
+					onDidChangeSessionResolution: changed.event,
+				});
+				const connection = disposables.add(new TestAutomationConnection());
+				connection.runPrimarySession = backend;
+				store.setConnection(connection);
+				const automation = await store.createAutomation(createOptions());
+				const dispatched = store.runAutomation(automation.id);
+				let settled = false;
+				void dispatched.then(() => settled = true);
+				await connection.runRequested.p;
+				await timeout(31_000);
+				const settledWhileRunning = settled;
+				if (completeBeforeResolution) {
+					connection.completeRun(connection.lastRunResource);
+					await timeout(0);
+				}
+				const settledBeforeResolution = settled;
+				const sessionResource = URI.parse('agent-host-copilotcli:/advertised-session');
+				resources.set(URI.parse(backend), sessionResource);
+				changed.fire();
+				const result = await dispatched;
+				assert.strictEqual(result.kind, 'dispatched');
+				const hasResolutionListener = changed.hasListeners();
+				connection.completeRun(connection.lastRunResource);
+				await result.whenCompleted;
+				assert.deepStrictEqual({
+					settledWhileRunning, settledBeforeResolution, hasResolutionListener,
+					sessionResource: result.run.sessionResource?.toString(),
+					status: result.run.status,
+				}, {
+					settledWhileRunning: false, settledBeforeResolution: false, hasResolutionListener: false,
+					sessionResource: sessionResource.toString(),
+					status: completeBeforeResolution ? 'completed' : 'running',
+				});
+			}));
+		}
+	}
+
+	for (const outcome of ['cancel', 'disconnect', 'catalogue error', 'unresolved completed session'] as const) {
+		test(`cleans up manual session resolution on ${outcome}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const changed = disposables.add(new Emitter<void>());
+			const { store } = reconnectable(true, activeClientService, {
+				toHost: resource => resource, fromHost: resource => resource,
+				resourceSchemeForProvider: provider => `agent-host-${provider}`,
+				sessionResource: () => undefined,
+				onDidChangeSessionResolution: changed.event,
+			});
+			const connection = disposables.add(new TestAutomationConnection());
+			connection.runPrimarySession = 'ahp-session:/unresolved';
+			store.setConnection(connection);
+			const automation = await store.createAutomation(createOptions());
+			const cancellation = disposables.add(new CancellationTokenSource());
+			const dispatched = store.runAutomation(automation.id, cancellation.token);
+			const observed = dispatched.then(result => result.kind, error => error.message);
+			await connection.runRequested.p;
+			await timeout(0);
+			switch (outcome) {
+				case 'cancel':
+					cancellation.cancel();
+					break;
+				case 'disconnect':
+					store.clearConnection();
+					break;
+				case 'catalogue error':
+					connection.setCatalogError(new Error('Catalogue disconnected'));
+					break;
+				case 'unresolved completed session':
+					connection.completeRun(connection.lastRunResource);
+					await timeout(30_000);
+					break;
+			}
+			assert.deepStrictEqual({
+				result: await observed,
+				hasResolutionListener: changed.hasListeners(),
+				cancellations: connection.dispatched.filter(({ action }) => action.type === ActionType.AutomationRunCancelRequested).length,
+			}, {
+				result: outcome === 'cancel' ? 'dispatched' : outcome === 'disconnect' ? 'Canceled'
+					: outcome === 'catalogue error' ? 'Catalogue disconnected' : 'Timed out waiting for authoritative Automation state after 30000ms.',
+				hasResolutionListener: false,
+				cancellations: outcome === 'cancel' ? 1 : 0,
+			});
+		}));
+	}
+
 	test('an update-only authority edits existing definitions without permitting creation', async () => {
 		const { store } = reconnectable();
 		const connection = disposables.add(new TestAutomationConnection());
