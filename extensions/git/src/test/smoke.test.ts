@@ -13,6 +13,7 @@ import type { GitExtension, API, Repository } from '../api/git';
 import { Status } from '../api/git.constants';
 import { eventToPromise } from '../util';
 import { Git, findGit } from '../git';
+import { toGitUri } from '../uri';
 
 suite('git smoke test', function () {
 	const cwd = workspace.workspaceFolders![0].uri.fsPath;
@@ -146,6 +147,20 @@ suite('git smoke test', function () {
 
 		assert.strictEqual(repository.state.workingTreeChanges.length, 0);
 		assert.strictEqual(repository.state.indexChanges.length, 0);
+	});
+
+	test('openFile without arguments opens the working tree file from a git: editor', async function () {
+		// https://github.com/microsoft/vscode/issues/234814
+		const appjs = uri('app.js');
+		const doc = await workspace.openTextDocument(toGitUri(appjs, 'HEAD'));
+		await window.showTextDocument(doc);
+		assert.strictEqual(window.activeTextEditor?.document.uri.scheme, 'git');
+
+		// A keybinding invokes the command without arguments
+		await commands.executeCommand('git.openFile');
+
+		assert.strictEqual(window.activeTextEditor?.document.uri.scheme, 'file');
+		assert.strictEqual(window.activeTextEditor?.document.uri.fsPath, appjs.fsPath);
 	});
 
 	test('reads non-UTF-8 encoded commit messages as UTF-8', async function () {

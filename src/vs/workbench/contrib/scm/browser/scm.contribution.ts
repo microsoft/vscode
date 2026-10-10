@@ -404,6 +404,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			description: localize('scm.graph.badges', "Controls which badges are shown in the Source Control Graph view. The badges are shown on the right side of the graph indicating the names of history item groups."),
 			default: 'filter'
 		},
+		'scm.graph.openFileInWorkingTree': {
+			type: 'boolean',
+			description: localize('scm.graph.openFileInWorkingTree', "Controls whether the Open File action in the Source Control Graph view and in the multi-file diff editor of a history item opens the editable version of the file from the working tree instead of the read-only version from the history item. Falls back to the version from the history item if the file no longer exists in the working tree."),
+			default: false
+		},
 		'scm.graph.showIncomingChanges': {
 			type: 'boolean',
 			description: localize('scm.graph.showIncomingChanges', "Controls whether to show incoming changes in the Source Control Graph view."),
