@@ -48,6 +48,7 @@ import { readCompletionAttachmentMeta } from '../../../../../../platform/agentHo
 import { readSlashCommandResource, type ISlashCommandResource } from '../../../../../../platform/agentHost/common/meta/agentSlashCommandOutputMeta.js';
 import { IRemoteAgentHostService } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { ChatAgentFilesLocationsSettingId, ChatHookFilesLocationsSettingId, getChatSensitiveEditLocations, mergeChatSensitiveEditLocations, type IChatSensitiveEditLocation } from '../../../../../../platform/chat/common/chatSettings.js';
 import { resolveAgentHostSessionTrustFolders } from '../../../../../../platform/agentHost/common/agentHostWorkspaceTrust.js';
 import { CLIENT_SEMANTIC_SEARCH_TOOL_ID, SEMANTIC_SEARCH_TOOL_NAME } from '../../../../../../platform/agentHost/common/semanticSearchConstants.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../../../../../platform/agentHost/common/toolSearchConstants.js';
@@ -1952,6 +1953,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			if (this._isInvocationAbandoned(cancellationToken)) {
 				return {};
 			}
+			const sensitiveEditLocationsConfig = this._getSensitiveEditLocationsConfig(request.sessionResource, existingState);
 
 			if (!existingState) {
 				// Eager-create did not produce server-side state (e.g. no
@@ -1973,6 +1975,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				const model = imported?.model ?? this._createModelSelection(request.userSelectedModelId, request.modelConfiguration);
 				const initialConfig = {
 					...this._provisionalService.getInitialSessionConfig(),
+					...sensitiveEditLocationsConfig,
 					...request.agentHostSessionConfig,
 				};
 				await this._createAndSubscribe(
@@ -2004,18 +2007,15 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				this._ensureDraftSyncSubscription(request.sessionResource, resolvedSession, chatURI);
 				this._watchForServerInitiatedTurns(resolvedSession, request.sessionResource);
 
-				// In the Agents window, the sessions provider supplies per-request
-				// config via `request.agentHostSessionConfig` (e.g. the user's
-				// permission level). Push it to the agent so its provisional record
-				// materializes with those values. Workbench defaults (`isolation`,
-				// `autoApprove`) are seeded upstream at provisional `createSession`
-				// time, so we don't need to merge them here. Picker selections
-				// already live in `existingState.config?.values` and don't need to
-				// be re-dispatched.
-				if (request.agentHostSessionConfig && Object.keys(request.agentHostSessionConfig).length > 0) {
+				// Recompute settings-derived security config before each turn; Agents-window request config layers on top.
+				const sessionConfig = {
+					...sensitiveEditLocationsConfig,
+					...request.agentHostSessionConfig,
+				};
+				if (Object.keys(sessionConfig).length > 0) {
 					this._dispatchAction(resolvedSession, {
 						type: ActionType.SessionConfigChanged,
-						config: request.agentHostSessionConfig,
+						config: sessionConfig,
 					});
 				}
 			}
@@ -6436,6 +6436,20 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			?? this._workingDirectoryResolver?.resolve(sessionResource)
 			?? this._newSessionFolderService?.getDefaultFolder()
 			?? this._workspaceContextService.getWorkspace().folders[0]?.uri;
+	}
+
+	private _getSensitiveEditLocationsConfig(sessionResource: URI, existingState: SessionState | undefined): Record<string, readonly IChatSensitiveEditLocation[]> {
+		const desired = mergeChatSensitiveEditLocations(...this._resolveCustomizationScopeRoots(sessionResource).map(resource => {
+			const overrides = { resource };
+			return getChatSensitiveEditLocations(
+				this._configurationService.getValue<unknown>(ChatHookFilesLocationsSettingId, overrides),
+				this._configurationService.getValue<unknown>(ChatAgentFilesLocationsSettingId, overrides),
+			);
+		}));
+		const current = existingState?.config?.values[SessionConfigKey.SensitiveEditLocations];
+		return (desired.length > 0 || (current !== undefined && !equals(current, desired)))
+			? { [SessionConfigKey.SensitiveEditLocations]: desired }
+			: {};
 	}
 
 	/** `undefined` is preserved for createSession to let the host choose its working directories. */
