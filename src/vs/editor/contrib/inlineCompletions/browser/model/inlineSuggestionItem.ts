@@ -115,7 +115,9 @@ abstract class InlineSuggestionItemBase {
 	public get command(): Command | undefined { return this._sourceInlineCompletion.command; }
 	public get supportsRename(): boolean { return this._data.supportsRename; }
 	public get warning(): InlineCompletionWarning | undefined { return this._sourceInlineCompletion.warning; }
-	public get showInlineEditMenu(): boolean { return !!this._sourceInlineCompletion.showInlineEditMenu; }
+	public get showInlineEditMenu(): boolean { return !!this.showInlineEditMenuPreference; }
+	/** The provider's menu preference, or undefined to use the default for the suggestion kind. */
+	public get showInlineEditMenuPreference(): boolean | undefined { return this._sourceInlineCompletion.showInlineEditMenu; }
 	public get hash(): string {
 		return hashInlineSuggestionAction(this.action);
 	}

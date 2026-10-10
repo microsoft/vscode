@@ -4,12 +4,46 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
 import { timeout } from '../../../../../base/common/async.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { AnnotatedText, InlineEditContext, IWithAsyncTestCodeEditorAndInlineCompletionsModel, MockSearchReplaceCompletionsProvider, withAsyncTestCodeEditorAndInlineCompletionsModel } from './utils.js';
+import { getColorRegistry } from '../../../../../platform/theme/common/colorRegistry.js';
+import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { TestColorTheme } from '../../../../../platform/theme/test/common/testThemeService.js';
+import { InlineEditsOnboardingExperience } from '../../browser/view/inlineEdits/inlineEditsNewUsers.js';
+import { InlineSuggestionsView } from '../../browser/view/inlineSuggestionsView.js';
+import { AnnotatedText, InlineEditContext, IWithAsyncTestCodeEditorAndInlineCompletionsModel, MockInlineCompletionsProvider, MockSearchReplaceCompletionsProvider, withAsyncTestCodeEditorAndInlineCompletionsModel } from './utils.js';
 
 suite('Inline Edits', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+	teardown(() => sinon.restore());
+
+	for (const showInlineEditMenu of [false, true, undefined]) {
+		test(`inline edit gutter menu: ${showInlineEditMenu}`, async () => {
+			const provider = new MockInlineCompletionsProvider();
+			provider.setReturnValue({ insertText: 'replacement', isInlineEdit: true, showInlineEditMenu });
+			await withAsyncTestCodeEditorAndInlineCompletionsModel('original',
+				{ fakeClock: true, provider, inlineSuggest: { enabled: true } },
+				async ({ model, editor, instantiationService, store }) => {
+					await model.trigger();
+					await timeout(10000);
+					sinon.stub(editor, 'getContainerDomNode').returns(document.createElement('div'));
+					const theme = new TestColorTheme();
+					sinon.stub(theme, 'getColor').callsFake(color => getColorRegistry().resolveDefaultColor(color, theme));
+					sinon.stub(instantiationService.get(IThemeService), 'getColorTheme').returns(theme);
+					instantiationService.stubInstance(InlineEditsOnboardingExperience, { dispose() { } });
+					const addOverlayWidget = sinon.spy(editor, 'addOverlayWidget');
+					store.add(new InlineSuggestionsView(editor, constObservable(model), observableValue('focus', false), instantiationService));
+					assert.strictEqual(model.state.get()?.kind, 'inlineEdit');
+					const indicator = addOverlayWidget.args.map(([widget]) => widget.getDomNode())
+						.find(node => node.classList.contains('inline-edits-view-gutter-indicator'));
+					assert.ok(indicator);
+					assert.strictEqual(indicator.querySelector('.icon') !== null, showInlineEditMenu !== false);
+				}
+			);
+		});
+	}
 
 	const val = new AnnotatedText(`
 class Point {
