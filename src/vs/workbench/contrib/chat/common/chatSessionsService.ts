@@ -880,6 +880,14 @@ export interface IChatSessionsService {
 	getChatSessionContribution(chatSessionType: string): ResolvedChatSessionsExtensionPoint | undefined;
 	getAllChatSessionContributions(): ResolvedChatSessionsExtensionPoint[];
 	/**
+	 * Whether a chat session contribution with the given type (or one of its
+	 * alternative ids) has been declared, regardless of whether its `when`
+	 * clause currently evaluates to true. Use this to validate that a
+	 * participant is declared in package.json without excluding contributions
+	 * that are temporarily gated off by their `when` condition.
+	 */
+	isChatSessionContributionDeclared(chatSessionType: string): boolean;
+	/**
 	 * Reads a session's history without retaining a contributed session in the
 	 * global session cache. Intended for lightweight ranking and previews.
 	 */

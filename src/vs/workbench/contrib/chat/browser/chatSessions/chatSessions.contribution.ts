@@ -897,6 +897,10 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return this.resolveChatSessionContribution(entry.extension, entry.contribution);
 	}
 
+	isChatSessionContributionDeclared(chatSessionType: string): boolean {
+		return this._contributions.has(chatSessionType) || this._alternativeIdMap.has(chatSessionType);
+	}
+
 	private resolveChatSessionContribution(ext: IRelaxedExtensionDescription | undefined, contribution: IChatSessionsExtensionPoint) {
 		return {
 			...contribution,
