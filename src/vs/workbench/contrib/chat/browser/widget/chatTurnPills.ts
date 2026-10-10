@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Action } from '../../../../../base/common/actions.js';
+import { Action, IAction, toAction } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { derived, IObservable, IReader } from '../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { isEqual } from '../../../../../base/common/resources.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -98,6 +99,29 @@ export async function openChatTurnFile(file: IPreviewFile, openerService: IOpene
 			override: configuredOverride ?? (file.kind === 'html' ? BrowserViewEditorId : undefined),
 		},
 	});
+}
+
+/**
+ * Row actions for the expanded turn-changes file list.
+ * Previewable files get an icon-only Preview action (`Codicon.openPreview`).
+ */
+export function createTurnChangesPreviewActions(
+	modifiedURI: URI,
+	originalURI: URI,
+	openerService: IOpenerService,
+	configurationService: IConfigurationService,
+): IAction[] {
+	const kind = previewKind(modifiedURI);
+	if (!kind) {
+		return [];
+	}
+	const file: IPreviewFile = { uri: modifiedURI, kind, created: isEqual(originalURI, modifiedURI) };
+	return [toAction({
+		id: 'chat.turnChanges.previewFile',
+		label: localize('chat.turnChanges.preview', "Preview"),
+		class: ThemeIcon.asClassName(Codicon.openPreview),
+		run: () => openChatTurnFile(file, openerService, configurationService),
+	})];
 }
 
 /** The data and interactions a {@link ChatTurnPillsWidget} reflects. */

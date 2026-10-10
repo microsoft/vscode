@@ -6,6 +6,7 @@
 import * as dom from '../../../../../../base/browser/dom.js';
 import { $ } from '../../../../../../base/browser/dom.js';
 import { HoverStyle } from '../../../../../../base/browser/ui/hover/hover.js';
+import { IAction } from '../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { combinedDisposable, Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, derivedObservableWithCache, IObservable } from '../../../../../../base/common/observable.js';
@@ -15,12 +16,13 @@ import { localize, localize2 } from '../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { IEditSessionEntryDiff } from '../../../common/editing/chatEditingService.js';
 import { IChatRendererContent, IChatTurnPillsPart } from '../../../common/model/chatViewModel.js';
 import { ChatTreeItem } from '../../chat.js';
 import { AUTHORITATIVE_EMPTY_CHAT_RESPONSE_FILE_CHANGES, IChatResponseFileChangesService } from '../../chatResponseFileChangesService.js';
-import { EMPTY_DIFF_STATS, IDiffStats } from '../chatTurnPills.js';
+import { createTurnChangesPreviewActions, EMPTY_DIFF_STATS, IDiffStats } from '../chatTurnPills.js';
 import { renderChangesSummaryFileList } from './chatChangesSummaryPart.js';
 import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
@@ -40,6 +42,7 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 		private readonly _content: IChatTurnPillsPart,
 		_context: IChatContentPartRenderContext,
 		@IChatResponseFileChangesService private readonly _chatResponseFileChangesService: IChatResponseFileChangesService,
+		@IOpenerService private readonly _openerService: IOpenerService,
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -91,7 +94,9 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 		this._register(dom.addDisposableListener(header, 'click', () => {
 			this.domNode.dispatchEvent(new CustomEvent(ChatCollapsibleContentPart.userToggleEvent, { bubbles: true }));
 		}));
-		this._register(renderChangesSummaryFileList(details, this._diffs, this._instantiationService, this._editorService, this._configurationService));
+		this._register(renderChangesSummaryFileList(details, this._diffs, this._instantiationService, this._editorService, this._configurationService, {
+			getRowActions: diff => this._getRowActions(diff),
+		}));
 
 		this._register(autorun(reader => {
 			this.domNode.hidden = !showChanges.read(reader);
@@ -159,6 +164,14 @@ export class ChatTurnPillsContentPart extends Disposable implements IChatContent
 			this._content.requestId,
 			{ isLastTurn: this._content.isLastTurn },
 		);
+	}
+
+	/**
+	 * Row actions for the changed-files list: previewable files get an icon-only
+	 * Preview action that opens the file.
+	 */
+	private _getRowActions(diff: IEditSessionEntryDiff): IAction[] {
+		return createTurnChangesPreviewActions(diff.modifiedURI, diff.originalURI, this._openerService, this._configurationService);
 	}
 
 	hasSameContent(other: IChatRendererContent, _followingContent: IChatRendererContent[], _element: ChatTreeItem): boolean {

@@ -125,6 +125,20 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 			}),
 		}),
 
+		// Expanded list: previewable rows (`.md`/`.html`) get the per-row Preview
+		// icon; other rows have no row action.
+		WorkspaceMarkdown_Expanded: defineComponentFixture({
+			render: (ctx) => renderTurnPills(ctx, {
+				expanded: true,
+				diffs: [
+					fileDiff('README.md', 20, 0, true),
+					fileDiff('index.html', 30, 4, true),
+					fileDiff('app.ts', 8, 3, false),
+					fileDiff('styles.css', 4, 1, false),
+				],
+			}),
+		}),
+
 		NoChanges_Hidden: defineComponentFixture({
 			render: (ctx) => renderTurnPills(ctx, { diffs: [] }),
 		}),
