@@ -3683,14 +3683,16 @@ export class AICustomizationManagementEditor extends EditorPane {
 	public async revealInstalledCustomization(target: IInstalledCustomizationTarget): Promise<void> {
 		this.selectSection(target.section);
 		await this.listWidgetSectionLoad;
-		if (target.uri && (this.isPromptsSection(target.section) || target.section === AICustomizationManagementSection.Plugins)) {
+		if (this.isPromptsSection(target.section) && target.uri) {
 			await this.revealCustomizationByUri(target.uri);
 			return;
 		}
 		for (let attempt = 0; attempt < 10; attempt++) {
-			const revealed = target.section === AICustomizationManagementSection.McpServers
-				? this.mcpListWidget?.revealAndSelectServer(target.mcpServerId, target.name, target.mcpConnectorName)
-				: true;
+			const revealed = target.section === AICustomizationManagementSection.Plugins && target.uri
+				? await this.pluginListWidget?.revealAndSelectItemByUri(target.uri)
+				: target.section === AICustomizationManagementSection.McpServers
+					? this.mcpListWidget?.revealAndSelectServer(target.mcpServerId, target.name, target.mcpConnectorName)
+					: true;
 			if (revealed !== false) {
 				return;
 			}

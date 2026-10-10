@@ -128,14 +128,19 @@ export class InstallFromSourceAction extends Action2 {
 					inputBox.show();
 				} else {
 					installed = true;
-					if (!options?.skipReveal) {
-						const revealUri = result.installedUri ?? (result.matchedPlugin ? pluginInstallService.getPluginInstallUri(result.matchedPlugin) : undefined);
-						await commandService.executeCommand(AICustomizationManagementCommands.OpenEditor, {
-							section: AICustomizationManagementSection.Plugins,
-							revealUri,
-						});
+					try {
+						if (!options?.skipReveal) {
+							const revealUri = result.installedUri ?? (result.matchedPlugin ? pluginInstallService.getPluginInstallUri(result.matchedPlugin) : undefined);
+							await commandService.executeCommand(AICustomizationManagementCommands.OpenEditor, {
+								section: AICustomizationManagementSection.Plugins,
+								revealUri,
+							});
+						}
+					} catch {
+						// Best-effort reveal; failure to open editor should not report installation error
+					} finally {
+						store.dispose();
 					}
-					store.dispose();
 				}
 			} catch (e) {
 				// An unexpected failure (e.g. cancelled trust prompt) would otherwise

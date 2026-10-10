@@ -519,5 +519,57 @@ suite('InstallFromSourceAction', () => {
 		assert.strictEqual(installed, true);
 		assert.deepStrictEqual(commands, []);
 	});
+
+	test('does not fail install or re-open input if reveal command fails', async () => {
+		const instantiationService = workbenchInstantiationService({}, store);
+		let showCount = 0;
+
+		class TestInputBox extends mock<IInputBox>() {
+			value = 'owner/repo';
+			enabled = true;
+			busy = false;
+			validationMessage: string | undefined;
+			ignoreFocusOut = false;
+			placeholder: string | undefined;
+			prompt: string | undefined;
+			buttons: readonly any[] = [];
+			private readonly _onDidAccept = store.add(new Emitter<void>());
+			readonly onDidAccept = this._onDidAccept.event;
+			private readonly _onDidChangeValue = store.add(new Emitter<string>());
+			readonly onDidChangeValue = this._onDidChangeValue.event;
+			private readonly _onDidHide = store.add(new Emitter<void>());
+			readonly onDidHide = this._onDidHide.event;
+			private readonly _onDidTriggerButton = store.add(new Emitter<any>());
+			readonly onDidTriggerButton = this._onDidTriggerButton.event;
+			override show() {
+				showCount++;
+				if (showCount === 1) {
+					queueMicrotask(() => this._onDidAccept.fire());
+				}
+			}
+			override hide() {}
+			override dispose() {}
+		}
+
+		instantiationService.stub(IQuickInputService, new class extends mock<IQuickInputService>() {
+			override createInputBox() { return new TestInputBox(); }
+		}());
+		instantiationService.stub(IPluginInstallService, new class extends mock<IPluginInstallService>() {
+			override validatePluginSource() { return undefined; }
+			override async installPluginFromSource() {
+				return { success: true, installedUri: URI.file('/test/plugin') };
+			}
+		}());
+		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
+			override async executeCommand<T>(): Promise<T | undefined> {
+				throw new Error('Failed to open editor');
+			}
+		}());
+		instantiationService.stub(IFileDialogService, new class extends mock<IFileDialogService>() { });
+
+		const installed = await instantiationService.invokeFunction(accessor => new InstallFromSourceAction().run(accessor));
+		assert.strictEqual(installed, true);
+		assert.strictEqual(showCount, 1);
+	});
 });
 
