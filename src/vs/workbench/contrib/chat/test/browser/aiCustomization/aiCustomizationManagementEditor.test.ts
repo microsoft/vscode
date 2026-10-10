@@ -31,7 +31,7 @@ import { IAICustomizationListItem } from '../../../browser/aiCustomization/aiCus
 import { AgentPluginItemKind, IAgentPluginItem } from '../../../browser/agentPluginEditor/agentPluginItems.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { PromptsConfig } from '../../../common/promptSyntax/config/config.js';
-import { CustomizationMigration, CustomizationMigrationCandidate, CustomizationMigrationType, ICustomizationMigrationService, IMcpServerCustomizationMigrationCandidate, IMcpServerCustomizationMigrationExclusion, isMcpServerCustomizationMigrationCandidate, McpServerCustomizationMigrationFailureReason, MigratableConfiguration } from '../../../common/promptSyntax/service/customizationMigrationService.js';
+import { CustomizationMigration, CustomizationMigrationCandidate, CustomizationMigrationType, FileCustomizationMigrationFailureReason, ICustomizationMigrationService, IMcpServerCustomizationMigrationCandidate, IMcpServerCustomizationMigrationExclusion, isMcpServerCustomizationMigrationCandidate, McpServerCustomizationMigrationFailureReason, MigratableConfiguration } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 import type { ICustomizationMigrationTelemetryService } from '../../../common/promptSyntax/service/customizationMigrationTelemetryService.js';
 import { PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { IHeaderAttribute, PromptFileParser } from '../../../common/promptSyntax/promptFileParser.js';
@@ -216,10 +216,12 @@ suite('aiCustomizationManagementEditor', () => {
 		migrationShortcutContainer: HTMLElement | undefined;
 		migrationShortcutButton: HTMLButtonElement | undefined;
 		migrationShortcutCount: HTMLElement | undefined;
+		migrationDashboard: { element: HTMLElement } | undefined;
 		layoutSidebar(width: number, height: number): void;
 		updateSidebarMigrationShortcut(): void;
 		startCustomizationMigration(categoryId?: CustomizationMigrationCategoryId, migrationFlowId?: string): Promise<void>;
 		showCustomizationMigrationDashboard(): void;
+		getMigrationAccessibilityContent(): string | undefined;
 		storageService: IStorageService;
 		workspaceService: {
 			activeProjectRoot: ISettableObservable<URI | undefined>;
@@ -245,6 +247,9 @@ suite('aiCustomizationManagementEditor', () => {
 		editorPreviewBodySection: HTMLElement | undefined;
 		editorPreviewBodyTitle: HTMLElement | undefined;
 		editorPreviewBodyContainer: HTMLElement | undefined;
+		editorMigrationDetailWarning: HTMLElement | undefined;
+		currentMigrationDetail: { readonly item: ICustomizationMigrationDashboardItem; readonly storage: PromptsStorage } | undefined;
+		updateMigrationDetailWarning(): void;
 		markdownRendererService: { render(markdown: { value: string }): { element: HTMLElement; dispose(): void } };
 		editorPreviewDisposables: DisposableStore;
 		editorPreviewRenderScheduler: { cancel(): void; schedule(): void };
@@ -399,6 +404,7 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.knownMcpServerMigrationItems = new Set();
 		editor.recentlyMigratedCustomizationItems = new Set();
 		editor.migrationFlowId = undefined;
+		editor.migrationDashboard = undefined;
 		editor.editorDisplayMode = 'preview';
 		editor.currentCustomizationDetail = false;
 		editor.currentEditingUri = undefined;
@@ -415,6 +421,7 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.editorPreviewBodyTitle = document.createElement('h2');
 		editor.editorPreviewBodyContainer = document.createElement('div');
 		editor.editorPreviewBodySection.append(editor.editorPreviewBodyTitle, editor.editorPreviewBodyContainer);
+		editor.editorMigrationDetailWarning = document.createElement('section');
 		editor.editorPreviewDisposables = new DisposableStore();
 		editor.editorDisposables = editor.editorPreviewDisposables.add(new DisposableStore());
 		editor.customizationMigrationRefreshSequence = 0;
@@ -2268,7 +2275,7 @@ suite('aiCustomizationManagementEditor', () => {
 			{
 				type: 'question',
 				message: 'Convert prompt files to skills?',
-				detail: 'This converts 1 workspace prompt files into skills.',
+				detail: 'This converts 1 workspace prompt files into skills.\n\nUnsupported prompt-only headers are removed. Converted skills set disable-model-invocation: true, so the agent will not load them automatically; invoke them manually with /name.',
 				primaryButton: 'Convert to Skills',
 				checkbox: {
 					label: 'Delete original prompt files after migration',
@@ -2438,13 +2445,21 @@ suite('aiCustomizationManagementEditor', () => {
 			label: '.github',
 			source: PromptsStorage.local,
 		});
-		editor.dialogService = { confirm: async () => ({ confirmed: true }) };
+		const confirmations: IConfirmation[] = [];
+		editor.dialogService = {
+			confirm: async confirmation => {
+				confirmations.push(confirmation);
+				return { confirmed: true };
+			},
+		};
 		editor.runCustomizationMigration = async () => {
 			editor.migrationFlowId = 'new-migration-flow-id';
 			return {
 				migratedCount: 1,
 				failedCustomizationFileNames: [],
 				failureReasons: [],
+				nameConflicts: [],
+				failures: [],
 				unsupportedHeaderKeys: [],
 				migratedCustomizations: [{ uri: URI.file('/workspace/.github/skills/review/SKILL.md'), type: PromptsType.skill }],
 				migratedSources: [{ uri: prompt.uri, storage: prompt.storage }],
@@ -2467,13 +2482,146 @@ suite('aiCustomizationManagementEditor', () => {
 			dashboardShown,
 			migrationCompleted,
 			notifications,
+			confirmationDetails: confirmations.map(confirmation => confirmation.detail),
 			remainingCandidates: editor.getMigrationCandidates(getCustomizationMigrationCategory(CustomizationMigrationCategoryId.PromptFiles)),
 		}, {
 			dashboardShown: 1,
 			migrationCompleted: [[CustomizationMigrationType.PromptFiles, 1, 1, 0, [], 'migration-flow-id']],
 			notifications: ['Converted 1 prompt files to skills.'],
+			confirmationDetails: [
+				'This converts 1 workspace prompt files into skills.\n\nUnsupported prompt-only headers are removed. Converted skills set disable-model-invocation: true, so the agent will not load them automatically; invoke them manually with /name.',
+			],
 			remainingCandidates: [],
 		});
+		editor.editorPreviewDisposables.dispose();
+	});
+
+	test('explains file migration name conflicts in the error notification', async () => {
+		const editor = createTestEditor(undefined, createConfigurationServiceStub({
+			[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
+		}));
+		const prompt: MigratableConfiguration = {
+			uri: URI.file('/workspace/.github/prompts/existing-target-test.prompt.md'),
+			storage: PromptsStorage.local,
+			type: PromptsType.prompt,
+			source: PromptFileSource.GitHubWorkspace,
+		};
+		const targetUri = URI.file('/workspace/.github/skills/existing-target-test');
+		editor.setCustomizationsToMigrate(new Map([[CustomizationMigrationCategoryId.PromptFiles, [prompt]]]), new Map());
+		editor.selectedCustomizationMigrationTargets.set(`${PromptsType.skill}:${PromptsStorage.local}`, {
+			uri: URI.file('/workspace/.github/skills'),
+			label: '.github',
+			source: PromptsStorage.local,
+		});
+		editor.dialogService = { confirm: async () => ({ confirmed: true }) };
+		editor.runCustomizationMigration = async () => ({
+			migratedCount: 0,
+			failedCustomizationFileNames: ['existing-target-test.prompt.md'],
+			failureReasons: [FileCustomizationMigrationFailureReason.TargetAlreadyExists],
+			nameConflicts: [{ sourceFileName: 'existing-target-test.prompt.md', targetUri }],
+			failures: [{
+				sourceUri: prompt.uri,
+				sourceFileName: 'existing-target-test.prompt.md',
+				reasons: [FileCustomizationMigrationFailureReason.TargetAlreadyExists],
+			}],
+			unsupportedHeaderKeys: [],
+			migratedCustomizations: [],
+			migratedSources: [],
+		});
+		const notifications: string[] = [];
+		editor.notificationService.error = message => notifications.push(message);
+
+		await editor.migrateSelectedCustomizations(getCustomizationMigrationCategory(CustomizationMigrationCategoryId.PromptFiles), [prompt]);
+
+		assert.deepStrictEqual(notifications, [
+			'Could not migrate existing-target-test.prompt.md because a customization already exists at /workspace/.github/skills/existing-target-test. Rename or remove the existing customization, then try again.',
+		]);
+		editor.editorPreviewDisposables.dispose();
+	});
+
+	test('reports unrelated failures with the same basename as a name conflict', async () => {
+		const editor = createTestEditor(undefined, createConfigurationServiceStub({
+			[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
+		}));
+		const conflictPrompt: MigratableConfiguration = {
+			uri: URI.file('/workspace-a/.github/prompts/review.prompt.md'),
+			storage: PromptsStorage.local,
+			type: PromptsType.prompt,
+			source: PromptFileSource.GitHubWorkspace,
+		};
+		const unreadablePrompt: MigratableConfiguration = {
+			uri: URI.file('/workspace-b/.github/prompts/review.prompt.md'),
+			storage: PromptsStorage.local,
+			type: PromptsType.prompt,
+			source: PromptFileSource.GitHubWorkspace,
+		};
+		const targetUri = URI.file('/workspace-a/.github/skills/review');
+		editor.setCustomizationsToMigrate(new Map([[CustomizationMigrationCategoryId.PromptFiles, [conflictPrompt, unreadablePrompt]]]), new Map());
+		editor.selectedCustomizationMigrationTargets.set(`${PromptsType.skill}:${PromptsStorage.local}`, {
+			uri: URI.file('/workspace-a/.github/skills'),
+			label: '.github',
+			source: PromptsStorage.local,
+		});
+		editor.dialogService = { confirm: async () => ({ confirmed: true }) };
+		editor.runCustomizationMigration = async () => ({
+			migratedCount: 0,
+			failedCustomizationFileNames: ['review.prompt.md', 'review.prompt.md'],
+			failureReasons: [
+				FileCustomizationMigrationFailureReason.TargetAlreadyExists,
+				FileCustomizationMigrationFailureReason.SourceReadFailed,
+			],
+			nameConflicts: [{ sourceFileName: 'review.prompt.md', targetUri }],
+			failures: [
+				{
+					sourceUri: conflictPrompt.uri,
+					sourceFileName: 'review.prompt.md',
+					reasons: [FileCustomizationMigrationFailureReason.TargetAlreadyExists],
+				},
+				{
+					sourceUri: unreadablePrompt.uri,
+					sourceFileName: 'review.prompt.md',
+					reasons: [FileCustomizationMigrationFailureReason.SourceReadFailed],
+				},
+			],
+			unsupportedHeaderKeys: [],
+			migratedCustomizations: [],
+			migratedSources: [],
+		});
+		const notifications: string[] = [];
+		editor.notificationService.error = message => notifications.push(message);
+
+		await editor.migrateSelectedCustomizations(getCustomizationMigrationCategory(CustomizationMigrationCategoryId.PromptFiles), [conflictPrompt, unreadablePrompt]);
+
+		assert.deepStrictEqual(notifications, [
+			'Could not migrate review.prompt.md because a customization already exists at /workspace-a/.github/skills/review. Rename or remove the existing customization, then try again.',
+			'Failed to migrate 1 prompt files: review.prompt.md.',
+		]);
+		editor.editorPreviewDisposables.dispose();
+	});
+
+	test('includes prompt-to-skill consequences in migration Accessible View content', () => {
+		const editor = createTestEditor(undefined, createConfigurationServiceStub({
+			[ChatConfiguration.ChatCustomizationsMigrationEnabled]: true,
+		}));
+		const prompt: MigratableConfiguration = {
+			uri: URI.file('/workspace/.github/prompts/review.prompt.md'),
+			name: 'Review',
+			storage: PromptsStorage.local,
+			type: PromptsType.prompt,
+			source: PromptFileSource.GitHubWorkspace,
+		};
+		editor.setCustomizationsToMigrate(new Map([[CustomizationMigrationCategoryId.PromptFiles, [prompt]]]), new Map());
+		editor.viewMode = 'migration';
+		const dashboard = document.body.appendChild(document.createElement('div'));
+		const focusedElement = dashboard.appendChild(document.createElement('button'));
+		editor.migrationDashboard = { element: dashboard };
+		focusedElement.focus();
+
+		assert.strictEqual(
+			editor.getMigrationAccessibilityContent(),
+			'Customization migrations\n\nConvert Prompt to Skills (Workspace): 1 prompt. High risk. Unsupported prompt-only headers are removed. Converted skills set disable-model-invocation: true, so the agent will not load them automatically; invoke them manually with /name.\nReview, selected, source /workspace/.github/prompts/review.prompt.md',
+		);
+		dashboard.remove();
 		editor.editorPreviewDisposables.dispose();
 	});
 
@@ -2601,6 +2749,42 @@ suite('aiCustomizationManagementEditor', () => {
 		}, {
 			file: [['/profile/review.prompt.md', 'review', PromptsType.prompt, PromptsStorage.user, false, 'file']],
 			mcp: [{ id: 'server', name: 'server', compatibilityId: 'server', source: '/workspace/.vscode/mcp.json', migrationItemId: 'mcp', storage: PromptsStorage.local }],
+		});
+		editor.editorPreviewDisposables.dispose();
+	});
+
+	test('shows prompt migration consequences in the migration detail warning', () => {
+		const editor = createTestEditor();
+		editor.currentMigrationDetail = {
+			item: {
+				id: 'prompt',
+				label: 'review',
+				scopeLabel: 'User',
+				sourceLabel: '/profile/review.prompt.md',
+				promptType: PromptsType.prompt,
+			},
+			storage: PromptsStorage.user,
+		};
+		editor.updateMigrationDetailWarning();
+		const promptDisplay = editor.editorMigrationDetailWarning?.style.display;
+		editor.currentMigrationDetail = {
+			item: {
+				id: 'agent',
+				label: 'review',
+				scopeLabel: 'User',
+				sourceLabel: '/profile/review.agent.md',
+				promptType: PromptsType.agent,
+			},
+			storage: PromptsStorage.user,
+		};
+		editor.updateMigrationDetailWarning();
+
+		assert.deepStrictEqual({
+			promptDisplay,
+			agentDisplay: editor.editorMigrationDetailWarning?.style.display,
+		}, {
+			promptDisplay: '',
+			agentDisplay: 'none',
 		});
 		editor.editorPreviewDisposables.dispose();
 	});

@@ -8,6 +8,7 @@ import { GitHubSessionEngine, UriEventHandler } from './github';
 import { GitHubEnterpriseAuthenticationProvider } from './githubEnterprise';
 import { enterpriseUrisSetting, getEnterpriseUris } from './common/enterpriseConfiguration';
 import { enterpriseUriSetting } from './common/enterpriseStorage';
+import { getSafeNotificationMessage } from './common/notification';
 
 export async function activate(context: vscode.ExtensionContext) {
 	const uriHandler = new UriEventHandler();
@@ -29,8 +30,12 @@ export async function activate(context: vscode.ExtensionContext) {
 		try {
 			uris = getEnterpriseUris(configuration, vscode.workspace.isTrusted);
 		} catch (error) {
-			await githubEnterpriseAuthProvider.update([], { error: error.message });
-			void vscode.window.showErrorMessage(error.message);
+			const safeMessage = getSafeNotificationMessage(
+				error.message,
+				vscode.l10n.t('Invalid GitHub Enterprise instance URI.'),
+			);
+			await githubEnterpriseAuthProvider.update([], { error: safeMessage });
+			void vscode.window.showErrorMessage(safeMessage);
 			return;
 		}
 		const legacy = configuration.get<string>(enterpriseUriSetting);
@@ -41,7 +46,10 @@ export async function activate(context: vscode.ExtensionContext) {
 		try {
 			await updateEnterpriseConfiguration();
 		} catch (error) {
-			void vscode.window.showErrorMessage(vscode.l10n.t('Could not update GitHub Enterprise authentication: {0}', error instanceof Error ? error.message : String(error)));
+			void vscode.window.showErrorMessage(getSafeNotificationMessage(
+				vscode.l10n.t('Could not update GitHub Enterprise authentication: {0}', error instanceof Error ? error.message : String(error)),
+				vscode.l10n.t('Could not update GitHub Enterprise authentication.'),
+			));
 		}
 	};
 	context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(e => {
@@ -53,7 +61,10 @@ export async function activate(context: vscode.ExtensionContext) {
 	try {
 		await updateEnterpriseConfiguration();
 	} catch (error) {
-		void vscode.window.showErrorMessage(vscode.l10n.t('Could not initialize GitHub Enterprise authentication: {0}', error instanceof Error ? error.message : String(error)));
+		void vscode.window.showErrorMessage(getSafeNotificationMessage(
+			vscode.l10n.t('Could not initialize GitHub Enterprise authentication: {0}', error instanceof Error ? error.message : String(error)),
+			vscode.l10n.t('Could not initialize GitHub Enterprise authentication.'),
+		));
 	}
 
 	// Listener to prompt for reload when the fetch implementation setting changes

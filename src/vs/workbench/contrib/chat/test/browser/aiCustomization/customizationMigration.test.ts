@@ -20,7 +20,7 @@ import { PromptFileSource, PromptsType } from '../../../common/promptSyntax/prom
 import { CustomizationMigrationType, FileCustomizationMigrationFailureReason, IMcpServerCustomizationMigrationCandidate, McpServerCustomizationMigrationFailureReason, type MigratableConfiguration } from '../../../common/promptSyntax/service/customizationMigrationService.js';
 import { PromptsStorage, type IPromptPath } from '../../../common/promptSyntax/service/promptsService.js';
 import { ICustomizationSourceFolder } from '../../../common/customizationHarnessService.js';
-import { createCustomizationMigrationAgentPrompt, createSkillFileUri, migrateCustomizations, migratePromptFileToSkill, resolveWorkspaceMigrationTargetFolder, type CustomizationMigrationTargetFolders } from '../../../browser/aiCustomization/customizationMigration.js';
+import { createCustomizationMigrationAgentPrompt, createSkillFileUri, getCustomizationMigrationConflictTarget, migrateCustomizations, migratePromptFileToSkill, resolveWorkspaceMigrationTargetFolder, type CustomizationMigrationTargetFolders } from '../../../browser/aiCustomization/customizationMigration.js';
 import { CUSTOMIZATION_MIGRATION_CATEGORIES, CustomizationMigrationCategoryId, getCustomizationMigrationCategory } from '../../../browser/aiCustomization/customizationMigrationCategories.js';
 
 class DeleteFailingFileSystemProvider extends InMemoryFileSystemProvider {
@@ -128,6 +128,38 @@ suite('customizationMigration', () => {
 				primaryButton: 'Migrate',
 			},
 			failure: 'Could not migrate \'Server\' because the destination already contains a different server with that name.',
+		});
+	});
+
+	test('explains prompt-to-skill metadata loss and invocation behavior before migration', () => {
+		const category = getCustomizationMigrationCategory(CustomizationMigrationCategoryId.PromptFiles);
+		const workspacePrompt: MigratableConfiguration = {
+			uri: URI.file('/workspace/.github/prompts/review.prompt.md'),
+			storage: PromptsStorage.local,
+			type: PromptsType.prompt,
+			source: PromptFileSource.GitHubWorkspace,
+		};
+		const userPrompt: MigratableConfiguration = {
+			...workspacePrompt,
+			uri: URI.file('/user-data/prompts/release.prompt.md'),
+			storage: PromptsStorage.user,
+			source: PromptFileSource.UserData,
+		};
+		const consequences = 'Unsupported prompt-only headers are removed. Converted skills set disable-model-invocation: true, so the agent will not load them automatically; invoke them manually with /name.';
+
+		assert.deepStrictEqual({
+			consequences: category.preMigrationConsequences,
+			candidateWarnings: category.getCandidateWarnings?.(workspacePrompt, 'Copilot'),
+			confirmation: category.getConfirmation([workspacePrompt, userPrompt], 'Copilot'),
+		}, {
+			consequences,
+			candidateWarnings: undefined,
+			confirmation: {
+				message: 'Convert prompt files to skills?',
+				detail: `This converts 1 workspace prompt files and 1 user prompt files into skills.\n\n${consequences}`,
+				primaryButton: 'Convert to Skills',
+				deleteOriginalsLabel: 'Delete original prompt files after migration',
+			},
 		});
 	});
 
@@ -473,6 +505,20 @@ suite('customizationMigration', () => {
 		});
 	});
 
+	test('normalizes HTML-like prompt names with the skill name allowlist', () => {
+		const promptFile: IPromptPath = {
+			uri: URI.file('/workspace/.github/prompts/review.prompt.md'),
+			name: '<script>alert(1)</script>',
+			storage: PromptsStorage.local,
+			type: PromptsType.prompt,
+			source: PromptFileSource.GitHubWorkspace,
+		};
+
+		const migrated = migratePromptFileToSkill(promptFile, 'Review body');
+
+		assert.strictEqual(migrated.skillName, 'script-alert-1-script');
+	});
+
 	test('preserves argument-hint formatting from source prompt', () => {
 		const promptFile: IPromptPath = {
 			uri: URI.file('/workspace/.github/prompts/review.prompt.md'),
@@ -550,7 +596,7 @@ suite('customizationMigration', () => {
 			failureReasons.push(...reasons);
 		});
 		const migratedSkillUri = createSkillFileUri(workspaceSkillRoot.uri, 'review-prompt');
-		const migratedAgentUri = URI.joinPath(userAgentRoot.uri, 'planner-2.agent.md');
+		const existingAgentUri = URI.joinPath(userAgentRoot.uri, 'planner.agent.md');
 		const migratedInstructionsUri = URI.joinPath(userInstructionsRoot.uri, 'style.instructions.md');
 		const migratedSkillContent = (await fileService.readFile(migratedSkillUri)).value.toString();
 
@@ -561,33 +607,86 @@ suite('customizationMigration', () => {
 				migratedSources: result.migratedSources.map(source => ({ uri: source.uri.path, storage: source.storage })),
 			},
 			migratedSkillHasManualInvocation: migratedSkillContent.includes('disable-model-invocation: true'),
-			migratedAgentContent: (await fileService.readFile(migratedAgentUri)).value.toString(),
+			existingAgentContent: (await fileService.readFile(existingAgentUri)).value.toString(),
+			suffixedAgentExists: await fileService.exists(URI.joinPath(userAgentRoot.uri, 'planner-2.agent.md')),
 			migratedInstructionsContent: (await fileService.readFile(migratedInstructionsUri)).value.toString(),
 			originalsExist: await Promise.all(customizations.slice(0, 3).map(customization => fileService.exists(customization.uri))),
 			migrationErrorCount: migrationErrors.length,
 			failureReasons,
 		}, {
 			result: {
-				migratedCount: 3,
-				failedCustomizationFileNames: ['failing.prompt.md'],
+				migratedCount: 2,
+				failedCustomizationFileNames: ['planner.agent.md', 'failing.prompt.md'],
 				unsupportedHeaderKeys: ['mode'],
 				migratedCustomizations: [
 					{ uri: migratedSkillUri.path, type: PromptsType.skill },
-					{ uri: migratedAgentUri.path, type: PromptsType.agent },
 					{ uri: migratedInstructionsUri.path, type: PromptsType.instructions },
 				],
-				migratedSources: customizations.slice(0, 3).map(customization => ({ uri: customization.uri.path, storage: customization.storage })),
+				migratedSources: [customizations[0], customizations[2]].map(customization => ({ uri: customization.uri.path, storage: customization.storage })),
 			},
 			migratedSkillHasManualInvocation: true,
-			migratedAgentContent: '---\ndescription: Plan work\n---\nPlan.',
+			existingAgentContent: 'existing',
+			suffixedAgentExists: false,
 			migratedInstructionsContent: '---\ndescription: Use tabs\n---\nUse tabs.',
-			originalsExist: [false, false, false],
-			migrationErrorCount: 1,
-			failureReasons: [FileCustomizationMigrationFailureReason.SourceReadFailed],
+			originalsExist: [false, true, false],
+			migrationErrorCount: 2,
+			failureReasons: [
+				FileCustomizationMigrationFailureReason.TargetAlreadyExists,
+				FileCustomizationMigrationFailureReason.SourceReadFailed,
+			],
 		});
 	});
 
-	test('migrates the complete skill directory without overwriting an existing directory', async () => {
+	test('fails prompt migration when the target skill name already exists', async () => {
+		const prompt: IPromptPath = {
+			uri: URI.file('/workspace/.github/prompts/existing-target-test.prompt.md'),
+			name: 'Existing Target Test',
+			storage: PromptsStorage.local,
+			type: PromptsType.prompt,
+			source: PromptFileSource.GitHubWorkspace,
+		};
+		const targetRoot: ICustomizationSourceFolder = { uri: URI.file('/workspace/.github/skills'), label: '.github/skills', source: PromptsStorage.local };
+		const targetFolders: CustomizationMigrationTargetFolders = new Map([
+			[PromptsType.skill, new Map([[PromptsStorage.local, targetRoot]])],
+		]);
+		const fileService = store.add(new FileService(new NullLogService()));
+		const fileSystemProvider = store.add(new InMemoryFileSystemProvider());
+		store.add(fileService.registerProvider(Schemas.file, fileSystemProvider));
+		await fileService.writeFile(prompt.uri, VSBuffer.fromString('---\ndescription: Migrated content\n---\nMigrate me.'));
+		const existingTargetUri = createSkillFileUri(targetRoot.uri, 'existing-target-test');
+		await fileService.writeFile(existingTargetUri, VSBuffer.fromString('Existing content'));
+
+		const migrationErrors: Error[] = [];
+		const failureReasons: FileCustomizationMigrationFailureReason[] = [];
+		const result = await migrateCustomizations([prompt], targetFolders, fileService, (error, reasons) => {
+			migrationErrors.push(error);
+			failureReasons.push(...reasons);
+		});
+
+		assert.deepStrictEqual({
+			result,
+			sourceExists: await fileService.exists(prompt.uri),
+			existingTargetContent: (await fileService.readFile(existingTargetUri)).value.toString(),
+			suffixedTargetExists: await fileService.exists(createSkillFileUri(targetRoot.uri, 'existing-target-test-2')),
+			migrationErrorCount: migrationErrors.length,
+			failureReasons,
+		}, {
+			result: {
+				migratedCount: 0,
+				failedCustomizationFileNames: ['existing-target-test.prompt.md'],
+				unsupportedHeaderKeys: [],
+				migratedCustomizations: [],
+				migratedSources: [],
+			},
+			sourceExists: true,
+			existingTargetContent: 'Existing content',
+			suffixedTargetExists: false,
+			migrationErrorCount: 1,
+			failureReasons: [FileCustomizationMigrationFailureReason.TargetAlreadyExists],
+		});
+	});
+
+	test('fails complete skill migration without overwriting an existing directory', async () => {
 		const skill: IPromptPath = {
 			uri: URI.file('/workspace/custom-skills/release/SKILL.md'),
 			name: 'Release',
@@ -609,39 +708,33 @@ suite('customizationMigration', () => {
 		const existingSkillFolder = URI.joinPath(targetRoot.uri, 'release');
 		await fileService.writeFile(URI.joinPath(existingSkillFolder, 'README.md'), VSBuffer.fromString('Existing directory'));
 
-		const result = await migrateCustomizations([skill], targetFolders, fileService);
-		const migratedSkillFolder = URI.joinPath(targetRoot.uri, 'release-2');
-		const migratedUri = URI.joinPath(migratedSkillFolder, 'SKILL.md');
+		const migrationErrors: Error[] = [];
+		const failureReasons: FileCustomizationMigrationFailureReason[] = [];
+		const result = await migrateCustomizations([skill], targetFolders, fileService, (error, reasons) => {
+			migrationErrors.push(error);
+			failureReasons.push(...reasons);
+		});
 
 		assert.deepStrictEqual({
-			result: {
-				...result,
-				migratedCustomizations: result.migratedCustomizations.map(customization => ({ uri: customization.uri.path, type: customization.type })),
-			},
-			migratedContents: await Promise.all([
-				migratedUri,
-				URI.joinPath(migratedSkillFolder, 'references', 'release.md'),
-				URI.joinPath(migratedSkillFolder, 'scripts', 'release.sh'),
-				URI.joinPath(migratedSkillFolder, 'assets', 'release.svg'),
-			].map(async uri => (await fileService.readFile(uri)).value.toString())),
+			result,
 			sourceFolderExists: await fileService.exists(dirname(skill.uri)),
 			existingDirectoryContent: (await fileService.readFile(URI.joinPath(existingSkillFolder, 'README.md'))).value.toString(),
+			suffixedTargetExists: await fileService.exists(URI.joinPath(targetRoot.uri, 'release-2')),
+			migrationErrorCount: migrationErrors.length,
+			failureReasons,
 		}, {
 			result: {
-				migratedCount: 1,
-				failedCustomizationFileNames: [],
+				migratedCount: 0,
+				failedCustomizationFileNames: ['SKILL.md'],
 				unsupportedHeaderKeys: [],
-				migratedCustomizations: [{ uri: migratedUri.path, type: PromptsType.skill }],
-				migratedSources: [{ uri: skill.uri, storage: skill.storage }],
+				migratedCustomizations: [],
+				migratedSources: [],
 			},
-			migratedContents: [
-				'---\nname: release\n---\nRelease safely.',
-				'Release reference',
-				'#!/bin/sh',
-				'<svg></svg>',
-			],
-			sourceFolderExists: false,
+			sourceFolderExists: true,
 			existingDirectoryContent: 'Existing directory',
+			suffixedTargetExists: false,
+			migrationErrorCount: 1,
+			failureReasons: [FileCustomizationMigrationFailureReason.TargetAlreadyExists],
 		});
 	});
 
@@ -749,6 +842,144 @@ suite('customizationMigration', () => {
 		});
 	});
 
+	test('retries a prompt migration after rolling back a conflicting target', async () => {
+		const sourceUri = URI.file('/home/test/shared.prompt.md');
+		const customizations: IPromptPath[] = [
+			{ uri: sourceUri, name: 'Shared', storage: PromptsStorage.local, type: PromptsType.prompt, source: PromptFileSource.ConfigWorkspace },
+			{ uri: sourceUri, name: 'Shared', storage: PromptsStorage.user, type: PromptsType.prompt, source: PromptFileSource.ConfigPersonal },
+		];
+		const workspaceSkillRoot: ICustomizationSourceFolder = { uri: URI.file('/workspace/.github/skills'), label: '.github/skills', source: PromptsStorage.local };
+		const userSkillRoot: ICustomizationSourceFolder = { uri: URI.file('/home/test/.copilot/skills'), label: '~/.copilot/skills', source: PromptsStorage.user };
+		const targetFolders: CustomizationMigrationTargetFolders = new Map([
+			[PromptsType.skill, new Map([[PromptsStorage.local, workspaceSkillRoot], [PromptsStorage.user, userSkillRoot]])],
+		]);
+
+		const fileService = store.add(new FileService(new NullLogService()));
+		const fileSystemProvider = store.add(new InMemoryFileSystemProvider());
+		store.add(fileService.registerProvider(Schemas.file, fileSystemProvider));
+		await fileService.writeFile(sourceUri, VSBuffer.fromString('---\nname: Shared\n---\nShared body'));
+		const workspaceSkillUri = createSkillFileUri(workspaceSkillRoot.uri, 'shared');
+		const userSkillUri = createSkillFileUri(userSkillRoot.uri, 'shared');
+		await fileService.writeFile(userSkillUri, VSBuffer.fromString('Existing content'));
+
+		const failedResult = await migrateCustomizations(customizations, targetFolders, fileService);
+		const afterFailure = {
+			sourceExists: await fileService.exists(sourceUri),
+			workspaceSkillFolderExists: await fileService.exists(dirname(workspaceSkillUri)),
+			userTargetContent: (await fileService.readFile(userSkillUri)).value.toString(),
+		};
+
+		await fileService.del(dirname(userSkillUri), { recursive: true });
+		const retriedResult = await migrateCustomizations(customizations, targetFolders, fileService);
+
+		assert.deepStrictEqual({
+			failedResult,
+			afterFailure,
+			retriedResult: {
+				...retriedResult,
+				migratedCustomizations: retriedResult.migratedCustomizations.map(customization => ({ uri: customization.uri.path, type: customization.type })),
+				migratedSources: retriedResult.migratedSources.map(source => ({ uri: source.uri.path, storage: source.storage })),
+			},
+			afterRetry: {
+				sourceExists: await fileService.exists(sourceUri),
+				workspaceTargetExists: await fileService.exists(workspaceSkillUri),
+				userTargetExists: await fileService.exists(userSkillUri),
+			},
+		}, {
+			failedResult: {
+				migratedCount: 0,
+				failedCustomizationFileNames: ['shared.prompt.md'],
+				unsupportedHeaderKeys: [],
+				migratedCustomizations: [],
+				migratedSources: [],
+			},
+			afterFailure: {
+				sourceExists: true,
+				workspaceSkillFolderExists: false,
+				userTargetContent: 'Existing content',
+			},
+			retriedResult: {
+				migratedCount: 2,
+				failedCustomizationFileNames: [],
+				unsupportedHeaderKeys: [],
+				migratedCustomizations: [
+					{ uri: workspaceSkillUri.path, type: PromptsType.skill },
+					{ uri: userSkillUri.path, type: PromptsType.skill },
+				],
+				migratedSources: [
+					{ uri: sourceUri.path, storage: PromptsStorage.local },
+					{ uri: sourceUri.path, storage: PromptsStorage.user },
+				],
+			},
+			afterRetry: {
+				sourceExists: false,
+				workspaceTargetExists: true,
+				userTargetExists: true,
+			},
+		});
+	});
+
+	test('preserves a name conflict target when rollback also fails', async () => {
+		const sourceUri = URI.file('/home/test/shared.prompt.md');
+		const customizations: IPromptPath[] = [
+			{ uri: sourceUri, name: 'Shared', storage: PromptsStorage.local, type: PromptsType.prompt, source: PromptFileSource.ConfigWorkspace },
+			{ uri: sourceUri, name: 'Shared', storage: PromptsStorage.user, type: PromptsType.prompt, source: PromptFileSource.ConfigPersonal },
+		];
+		const workspaceSkillRoot: ICustomizationSourceFolder = { uri: URI.file('/workspace/.github/skills'), label: '.github/skills', source: PromptsStorage.local };
+		const userSkillRoot: ICustomizationSourceFolder = { uri: URI.file('/home/test/.copilot/skills'), label: '~/.copilot/skills', source: PromptsStorage.user };
+		const targetFolders: CustomizationMigrationTargetFolders = new Map([
+			[PromptsType.skill, new Map([[PromptsStorage.local, workspaceSkillRoot], [PromptsStorage.user, userSkillRoot]])],
+		]);
+
+		const fileService = store.add(new FileService(new NullLogService()));
+		const fileSystemProvider = store.add(new DeleteFailingFileSystemProvider());
+		store.add(fileService.registerProvider(Schemas.file, fileSystemProvider));
+		await fileService.writeFile(sourceUri, VSBuffer.fromString('---\nname: Shared\n---\nShared body'));
+		const workspaceSkillUri = createSkillFileUri(workspaceSkillRoot.uri, 'shared');
+		const userSkillUri = createSkillFileUri(userSkillRoot.uri, 'shared');
+		await fileService.writeFile(userSkillUri, VSBuffer.fromString('Existing content'));
+		fileSystemProvider.deleteFailureResource = dirname(workspaceSkillUri);
+
+		const migrationErrors: Error[] = [];
+		const failureReasons: FileCustomizationMigrationFailureReason[] = [];
+		const conflictTargets: URI[] = [];
+		const result = await migrateCustomizations(customizations, targetFolders, fileService, (error, reasons) => {
+			migrationErrors.push(error);
+			failureReasons.push(...reasons);
+			const conflictTarget = getCustomizationMigrationConflictTarget(error);
+			if (conflictTarget) {
+				conflictTargets.push(conflictTarget);
+			}
+		});
+
+		assert.deepStrictEqual({
+			result,
+			sourceExists: await fileService.exists(sourceUri),
+			workspaceTargetExists: await fileService.exists(workspaceSkillUri),
+			userTargetContent: (await fileService.readFile(userSkillUri)).value.toString(),
+			migrationErrorTypes: migrationErrors.map(error => error.constructor.name),
+			failureReasons,
+			conflictTargets: conflictTargets.map(uri => uri.path),
+		}, {
+			result: {
+				migratedCount: 0,
+				failedCustomizationFileNames: ['shared.prompt.md'],
+				unsupportedHeaderKeys: [],
+				migratedCustomizations: [],
+				migratedSources: [],
+			},
+			sourceExists: true,
+			workspaceTargetExists: true,
+			userTargetContent: 'Existing content',
+			migrationErrorTypes: ['AggregateError'],
+			failureReasons: [
+				FileCustomizationMigrationFailureReason.TargetAlreadyExists,
+				FileCustomizationMigrationFailureReason.RollbackFailed,
+			],
+			conflictTargets: [dirname(userSkillUri).path],
+		});
+	});
+
 	test('rolls back the target when deleting the source fails', async () => {
 		const sourceUri = URI.file('/user-data/style.instructions.md');
 		const customization: IPromptPath = {
@@ -848,9 +1079,14 @@ suite('customizationMigration', () => {
 
 		const migrationErrors: Error[] = [];
 		const failureReasons: FileCustomizationMigrationFailureReason[] = [];
+		const conflictTargets: URI[] = [];
 		const result = await migrateCustomizations([customization], targetFolders, fileService, (error, reasons) => {
 			migrationErrors.push(error);
 			failureReasons.push(...reasons);
+			const conflictTarget = getCustomizationMigrationConflictTarget(error);
+			if (conflictTarget) {
+				conflictTargets.push(conflictTarget);
+			}
 		});
 		const targetEntries = await fileSystemProvider.readdir(instructionsRoot.uri);
 
@@ -861,6 +1097,7 @@ suite('customizationMigration', () => {
 			targetEntries,
 			migrationErrorCount: migrationErrors.length,
 			failureReasons,
+			conflictTargets: conflictTargets.map(uri => uri.path),
 		}, {
 			result: {
 				migratedCount: 0,
@@ -873,7 +1110,8 @@ suite('customizationMigration', () => {
 			targetContent: 'foreign content',
 			targetEntries: [['style.instructions.md', FileType.File]],
 			migrationErrorCount: 1,
-			failureReasons: [FileCustomizationMigrationFailureReason.TargetWriteFailed],
+			failureReasons: [FileCustomizationMigrationFailureReason.TargetAlreadyExists],
+			conflictTargets: [targetUri.path],
 		});
 	});
 

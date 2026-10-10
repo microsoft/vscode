@@ -1063,6 +1063,7 @@ interface IRenderEditorOptions {
 	readonly pluginReadmeContent?: string;
 	readonly editorDisplayMode?: 'preview' | 'raw';
 	readonly migrationDashboard?: boolean;
+	readonly openFirstMigrationItem?: boolean;
 	readonly migrationConfirmation?: 'promptFiles' | 'mcpWarning';
 	readonly migrationActivity?: boolean;
 }
@@ -2150,6 +2151,22 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		editor.showCustomizationMigrationDashboard();
 	}
 
+	if (options.openFirstMigrationItem) {
+		await waitForFixtureCondition(
+			() => ctx.container.querySelector('.migration-tree-item') !== null,
+			'Migration item did not appear',
+		);
+		const firstMigrationItem = ctx.container.querySelector<HTMLElement>('.migration-tree-item');
+		if (!firstMigrationItem) {
+			throw new Error('Migration item not found');
+		}
+		firstMigrationItem.click();
+		await waitForFixtureCondition(
+			() => ctx.container.querySelector<HTMLElement>('.migration-detail-warning')?.style.display !== 'none',
+			'Prompt migration detail warning did not appear',
+		);
+	}
+
 	if (options.migrationConfirmation === 'promptFiles') {
 		await waitForFixtureCondition(
 			() => [...ctx.container.querySelectorAll<HTMLElement>('.migration-tree-group-actions .migration-secondary-button')]
@@ -2994,8 +3011,20 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	// need to be migrated because the active harness only consumes skills.
 	AgentHostPromptMigration: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The yellow migration warning card spans the Overview and keeps Review Migrations emphasized with the warning foreground instead of the generic blue link color.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
+		}),
+	}),
+
+	AgentHostPromptMigrationNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['In a narrow Overview, the migration warning copy wraps without clipping and Review Migrations remains emphasized with the warning foreground.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			width: 550,
+			height: 650,
 		}),
 	}),
 
@@ -3358,6 +3387,17 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 			migrationDashboard: true,
+			width: 550,
+			height: 500,
+		}),
+	}),
+
+	MigrationPromptDetailNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		render: ctx => renderEditor(ctx, {
+			sessionResource: agentHostCopilotSessionResource,
+			migrationDashboard: true,
+			openFirstMigrationItem: true,
 			width: 550,
 			height: 500,
 		}),
@@ -4213,7 +4253,8 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	EmbeddedMcpDetailMigratable: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['A yellow Migrate MCP Server card appears above Configuration with a warning icon, text explaining that migration is required to keep working, and an emphasized Review Migrations link. No error or compatibility issue card is shown.'],
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['A yellow Migrate MCP Server card appears above Configuration with a warning icon, text explaining that migration is required to keep working, and an emphasized Review Migrations link using the warning foreground instead of the generic blue link color. No error or compatibility issue card is shown.'],
 		render: ctx => renderEmbeddedMcpDetail(
 			ctx,
 			makeLocalMcpServer('mcp-postgres', 'PostgreSQL', LocalMcpServerScope.Workspace, 'Database access', {
@@ -4224,6 +4265,26 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			{
 				width: 800,
 				height: 560,
+				harnessLabel: 'Copilot',
+				compatibility: { id: 'mcp-postgres', kind: 'supported' },
+				migratable: true,
+			},
+		),
+	}),
+
+	EmbeddedMcpDetailMigratableNarrow: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['In a narrow MCP detail, the migration warning copy and warning-foreground Review Migrations link remain readable without clipping or horizontal overflow.'],
+		render: ctx => renderEmbeddedMcpDetail(
+			ctx,
+			makeLocalMcpServer('mcp-postgres', 'PostgreSQL', LocalMcpServerScope.Workspace, 'Database access', {
+				type: McpServerType.LOCAL,
+				command: 'npx',
+				args: ['-y', '@modelcontextprotocol/server-postgres'],
+			}),
+			{
+				width: 550,
+				height: 500,
 				harnessLabel: 'Copilot',
 				compatibility: { id: 'mcp-postgres', kind: 'supported' },
 				migratable: true,

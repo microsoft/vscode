@@ -11,7 +11,7 @@ import { join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostAutoReplyEnabledConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostExternalSessionsMode, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostProxyConfigKey, AgentHostShowExternalSessionsConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostWorkspaceTrustConfigKey, clientOwnedApprovalRootConfigKeys, createSchema, platformRootSchema, schemaProperty } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostAutoReplyEnabledConfigKey, AgentHostEditAutoApprovePatternsConfigKey, AgentHostExternalSessionsMode, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostMcpSamplingAllowedServersConfigKey, AgentHostMcpServersConfigKey, AgentHostProxyConfigKey, AgentHostShowExternalSessionsConfigKey, AgentHostTerminalAutoApproveEnabledConfigKey, AgentHostTerminalAutoApproveRulesConfigKey, AgentHostWorkspaceTrustConfigKey, clientOwnedApprovalRootConfigKeys, createSchema, platformRootSchema, schemaProperty } from '../../common/agentHostSchema.js';
 import { AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY, AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES_CONFIG_KEY, automationRootConfigSchema } from '../../common/automationConfig.js';
 import { AGENT_CUSTOMIZATION_SETTINGS_META_KEY, getAgentCustomizationSettingsEntries } from '../../common/agentCustomizationSettings.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
@@ -308,6 +308,36 @@ suite('AgentConfigurationService', () => {
 			mcpServers: { operatorServer: { command: 'node' } },
 		});
 		fs.rmSync(directory, { recursive: true, force: true });
+	});
+
+	test('persists MCP sampling approval and revocation across host restarts', async () => {
+		const directory = fs.mkdtempSync(join(os.tmpdir(), 'agent-sampling-config-'));
+		const resource = URI.file(join(directory, 'agent-host-config.json'));
+		try {
+			const firstManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+			const firstService = disposables.add(new AgentConfigurationService(firstManager, new NullLogService(), resource));
+			firstService.updateRootConfig({ [AgentHostMcpSamplingAllowedServersConfigKey]: ['test-server'] });
+			await firstService.whenIdle();
+			const persisted = JSON.parse(fs.readFileSync(resource.fsPath, 'utf8')) as Record<string, unknown>;
+			firstService.dispose();
+
+			const restartedManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+			const restartedService = disposables.add(new AgentConfigurationService(restartedManager, new NullLogService(), resource));
+			const restored = restartedService.getRootValue(platformRootSchema, AgentHostMcpSamplingAllowedServersConfigKey);
+			restartedService.updateRootConfig({ [AgentHostMcpSamplingAllowedServersConfigKey]: [] });
+			await restartedService.whenIdle();
+			restartedService.dispose();
+
+			const revokedManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+			const revokedService = disposables.add(new AgentConfigurationService(revokedManager, new NullLogService(), resource));
+			assert.deepStrictEqual({
+				persisted: persisted[AgentHostMcpSamplingAllowedServersConfigKey],
+				restored,
+				revoked: revokedService.getRootValue(platformRootSchema, AgentHostMcpSamplingAllowedServersConfigKey),
+			}, { persisted: ['test-server'], restored: ['test-server'], revoked: [] });
+		} finally {
+			fs.rmSync(directory, { recursive: true, force: true });
+		}
 	});
 
 	for (const enabled of [true, false]) {
