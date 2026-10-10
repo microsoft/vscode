@@ -71,7 +71,7 @@ export class HideUnchangedRegionsFeature extends Disposable {
 		super();
 
 		this._register(this._editors.original.onDidChangeCursorPosition(e => {
-			if (e.reason === CursorChangeReason.ContentFlush) { return; }
+			if (e.reason === CursorChangeReason.ContentFlush || e.source === 'restoreState') { return; }
 			const m = this._diffModel.get();
 			transaction(tx => {
 				for (const s of this._editors.original.getSelections() || []) {
@@ -82,7 +82,7 @@ export class HideUnchangedRegionsFeature extends Disposable {
 		}));
 
 		this._register(this._editors.modified.onDidChangeCursorPosition(e => {
-			if (e.reason === CursorChangeReason.ContentFlush) { return; }
+			if (e.reason === CursorChangeReason.ContentFlush || e.source === 'restoreState') { return; }
 			const m = this._diffModel.get();
 			transaction(tx => {
 				for (const s of this._editors.modified.getSelections() || []) {
