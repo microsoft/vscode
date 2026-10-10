@@ -15,6 +15,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
 import { McpToolCallUI } from '../../browser/mcpToolCallUI.js';
+import { IMcpToolCallUIData } from '../../common/mcpTypes.js';
 
 suite('McpToolCallUI', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -102,6 +103,51 @@ suite('McpToolCallUI', () => {
 				{ method: 'notifications/first', params: undefined },
 				{ method: 'notifications/second', params: undefined },
 			],
+		});
+	});
+
+	test('preserves remote MCP resource provenance across denied loads, retry and restored render data', async () => {
+		const channel = 'mcp://opaque-host-defined-channel/github';
+		const resourceUri = 'ui://github-mcp-server/get-me';
+		const uiData: IMcpToolCallUIData = {
+			kind: 'agentHost',
+			resourceUri,
+			connectionAuthority: 'remote-host',
+			channel,
+			serverId: 'github',
+		};
+		const calls: { channel: string; method: string; params: Record<string, unknown> | undefined }[] = [];
+		let denied = true;
+		const onMcpNotification = store.add(new Emitter<{ channel: string; method: string; params?: Record<string, unknown> }>());
+		const connection = upcastPartial<IAgentConnection>({
+			onMcpNotification: onMcpNotification.event,
+			handleMcpRequest: async (channel, method, params) => {
+				calls.push({ channel, method, params });
+				if (denied) {
+					throw new Error('MCP app resource is not allowed');
+				}
+				return { contents: [{ uri: resourceUri, text: '<html>GitHub profile</html>', mimeType: 'text/html;profile=mcp-app' }] };
+			},
+		});
+		const onDidChangeConnections = store.add(new Emitter<void>());
+		const instantiationService = store.add(new TestInstantiationService(new ServiceCollection(
+			[IAgentHostConnectionsService, upcastPartial<IAgentHostConnectionsService>({
+				onDidChangeConnections: onDidChangeConnections.event,
+				getConnectionByAuthority: authority => authority === 'remote-host' ? connection : undefined,
+			})],
+			[IThemeService, new TestThemeService()],
+		)));
+		const ui = store.add(instantiationService.createInstance(McpToolCallUI, uiData));
+		await assert.rejects(ui.loadResource(CancellationToken.None), /MCP app resource is not allowed/);
+		denied = false;
+		const retried = await ui.loadResource(CancellationToken.None);
+		ui.dispose();
+		const restored = store.add(instantiationService.createInstance(McpToolCallUI, { ...uiData }));
+		const loaded = await restored.loadResource(CancellationToken.None);
+		assert.deepStrictEqual({ retried, loaded, calls }, {
+			retried: { html: '<html>GitHub profile</html>', mimeType: 'text/html;profile=mcp-app' },
+			loaded: { html: '<html>GitHub profile</html>', mimeType: 'text/html;profile=mcp-app' },
+			calls: Array.from({ length: 3 }, () => ({ channel, method: 'resources/read', params: { uri: resourceUri } })),
 		});
 	});
 });

@@ -50,7 +50,7 @@ class MockPRFetcher {
 	getPullRequestGate: DeferredPromise<void> | undefined;
 	getReviewThreadsGate: DeferredPromise<void> | undefined;
 	postReviewCommentCalls: { body: string; inReplyTo: number }[] = [];
-	postPullRequestReviewCommentCalls: { body: string; commitId: string; path: string; line: number; pendingReview: Pick<IGitHubPullRequestReview, 'id' | 'nodeId'> | undefined }[] = [];
+	postPullRequestReviewCommentCalls: { body: string; commitId: string; path: string; startLine: number | undefined; line: number; pendingReview: Pick<IGitHubPullRequestReview, 'id' | 'nodeId'> | undefined }[] = [];
 	postIssueCommentCalls: { body: string }[] = [];
 	resolveThreadCalls: { threadId: string }[] = [];
 
@@ -80,8 +80,8 @@ class MockPRFetcher {
 		return makeComment(999, body);
 	}
 
-	async postPullRequestReviewComment(_owner: string, _repo: string, _prNumber: number, body: string, commitId: string, path: string, line: number, pendingReview?: Pick<IGitHubPullRequestReview, 'id' | 'nodeId'>): Promise<void> {
-		this.postPullRequestReviewCommentCalls.push({ body, commitId, path, line, pendingReview });
+	async postPullRequestReviewComment(_owner: string, _repo: string, _prNumber: number, body: string, commitId: string, path: string, line: number, startLine: number | undefined, pendingReview?: Pick<IGitHubPullRequestReview, 'id' | 'nodeId'>): Promise<void> {
+		this.postPullRequestReviewCommentCalls.push({ body, commitId, path, startLine, line, pendingReview });
 	}
 
 	async postIssueComment(_owner: string, _repo: string, _prNumber: number, body: string): Promise<IGitHubPRComment> {
@@ -300,10 +300,10 @@ suite('GitHubPullRequestModel', () => {
 		mockFetcher.nextPR = makePR();
 		mockFetcher.nextReviews = [];
 
-		await model.postReviewComment('Please update this.', 'abc123', 'src/a.ts', 12);
+		await model.postReviewComment('Please update this.', 'abc123', 'src/a.ts', 12, 10);
 
 		assert.deepStrictEqual(mockFetcher.postPullRequestReviewCommentCalls, [
-			{ body: 'Please update this.', commitId: 'abc123', path: 'src/a.ts', line: 12, pendingReview: undefined }
+			{ body: 'Please update this.', commitId: 'abc123', path: 'src/a.ts', startLine: 10, line: 12, pendingReview: undefined }
 		]);
 	});
 
@@ -878,6 +878,7 @@ function makeThread(id: string, path: string): IGitHubPullRequestReviewThread {
 		id,
 		isResolved: false,
 		path,
+		startLine: undefined,
 		line: 10,
 		comments: [makeComment(100, `Comment on ${path}`, id)],
 	};

@@ -1,0 +1,1158 @@
+{
+	"schema": {
+		"$schema": "https://json-schema.org/draft/2020-12/schema",
+		"$id": "https://github.com/schemas/copilot/managed-settings/v0",
+		"title": "Managed Settings for Copilot Clients",
+		"description": "Schema for managed settings delivered via MDM (plist/registry), file-based (managed-settings.json), or server-managed (/copilot_internal/managed_settings). All keys are optional — an empty document or a document with only a subset of keys is valid.",
+		"type": "object",
+		"additionalProperties": false,
+		"properties": {
+			"allowedMcpServers": {
+				"description": "Managed allowlist of MCP servers users may load, aligned with Claude Code semantics. Each entry identifies servers by exactly one of serverUrl (URL with '*' wildcards), serverCommand (exact command+args), or serverName (literal label). Governs only non-default servers: trusted first-party servers (e.g. the built-in GitHub MCP server) are always exempt. Unset means all (non-default) servers are allowed; an empty array admits none of them; a populated list admits only matching ones. For remote (HTTP/SSE) servers the match must be a serverUrl entry (serverName counts only when no serverUrl entries exist); for stdio servers the match must be a serverCommand entry (serverName counts only when no serverCommand entries exist). Denied entries always win over allowed entries.",
+				"type": "array",
+				"items": {
+					"$ref": "#/$defs/mcpAllowMatcher"
+				},
+				"x-composition": {
+					"strategy": "allowlist-intersection"
+				}
+			},
+			"deniedMcpServers": {
+				"description": "Managed denylist of MCP servers that must never load, aligned with Claude Code semantics. Each entry identifies servers by exactly one of serverUrl (URL with '*' wildcards), serverCommand (exact command+args), or serverName (literal label). A matching non-default server is blocked regardless of the allowlist. Trusted first-party servers (e.g. the built-in GitHub MCP server) are exempt and cannot be blocked by a deny entry. Unset or an empty array blocks nothing.",
+				"type": "array",
+				"items": {
+					"$ref": "#/$defs/mcpDenyMatcher"
+				},
+				"x-composition": {
+					"strategy": "deny-wins"
+				}
+			},
+			"strictPluginOnlyCustomization": {
+				"description": "Customization lockdown baseline. When set, prevents standalone user and workspace/project customizations from the named surfaces; those customizations may then originate only from plugins or managed settings. It does NOT mean managed-plugin-only — eligible plugin-provided customizations are still permitted (use `allowManagedMcpServersOnly` / `allowManagedHooksOnly` for the stricter managed-only overlays). `true` locks all four surfaces (skills, agents, hooks, MCP servers); an array locks only the named surfaces. Unset preserves existing behavior.",
+				"oneOf": [
+					{
+						"description": "true locks all four surfaces (skills, agents, hooks, MCP servers); false preserves existing behavior.",
+						"type": "boolean"
+					},
+					{
+						"description": "Locks only the named customization surfaces.",
+						"type": "array",
+						"items": {
+							"type": "string",
+							"enum": [
+								"skills",
+								"agents",
+								"hooks",
+								"mcp"
+							]
+						},
+						"uniqueItems": true
+					}
+				],
+				"x-composition": {
+					"strategy": "most-restrictive-wins",
+					"description": "Union of locked surfaces across managed sources: a surface locked by any higher-priority managed source stays locked; the boolean true form is equivalent to locking every surface."
+				}
+			},
+			"allowManagedMcpServersOnly": {
+				"description": "Stricter overlay on top of `strictPluginOnlyCustomization`: when true, only the managed `allowedMcpServers` allowlist (plus MCP servers provided by managed/force-enabled plugins and any fixed managed-MCP deployment) governs which MCP servers are eligible. Lower-precedence user and workspace/project allowlist entries cannot broaden it; `deniedMcpServers` retains its restrictive deny-wins merge. Trusted first-party servers (e.g. the built-in GitHub MCP server) remain exempt. Unset or false preserves existing behavior.",
+				"type": "boolean",
+				"x-composition": {
+					"strategy": "most-restrictive-wins",
+					"description": "Sticky-true: a lower-priority source cannot undo allowManagedMcpServersOnly:true set by a higher-priority managed source."
+				}
+			},
+			"allowManagedHooksOnly": {
+				"description": "Stricter overlay on top of `strictPluginOnlyCustomization`: when true, only enterprise-managed hooks and hooks supplied by plugins force-enabled through managed `enabledPlugins` may load. User, workspace/project, and otherwise user-enabled plugin hooks are blocked. This does not silently grant additional tool or network access; normal managed permission and sandbox policies still apply. Unset or false preserves existing behavior.",
+				"type": "boolean",
+				"x-composition": {
+					"strategy": "most-restrictive-wins",
+					"description": "Sticky-true: a lower-priority source cannot undo allowManagedHooksOnly:true set by a higher-priority managed source."
+				}
+			},
+			"features": {
+				"description": "Open map of managed product feature availability. A false value blocks the named feature; true or absent does not force-enable it.",
+				"type": "object",
+				"additionalProperties": {
+					"type": "boolean"
+				}
+			},
+			"model": {
+				"description": "Default model identifier for new conversations, including 'auto' or a concrete model ID. Users may override this startup default. Hosts should match it against the account's available models.",
+				"type": "string",
+				"x-composition": {
+					"strategy": "highest-layer-wins"
+				}
+			},
+			"effortLevel": {
+				"description": "Reasoning effort for the managed concrete model. A bare string locks the value; use {\"overridable\":\"<effort>\"} to provide a default users and repositories may override. Invalid values are ignored without rejecting the rest of the managed document.",
+				"x-mdm-delivery": false,
+				"oneOf": [
+					{
+						"type": "string",
+						"minLength": 1
+					},
+					{
+						"type": "object",
+						"properties": {
+							"overridable": {
+								"type": "string",
+								"minLength": 1
+							}
+						},
+						"required": [
+							"overridable"
+						],
+						"additionalProperties": false
+					}
+				],
+				"x-composition": {
+					"allowOverridable": true,
+					"strategy": "enum-order-wins",
+					"collapseStrategy": "enum-order-permissive-wins",
+					"description": "Shared settings-engine annotations, not an independent-options execution contract. This runtime keeps model, effortLevel, and contextTier coupled: options come only from the channel supplying the winning concrete model. Use managedSettings.compose for the runtime's effective result."
+				}
+			},
+			"contextTier": {
+				"description": "Context tier for the managed concrete model. A bare string locks the value; use {\"overridable\":\"<tier>\"} to provide a default users and repositories may override. Invalid values are ignored without rejecting the rest of the managed document.",
+				"x-mdm-delivery": false,
+				"oneOf": [
+					{
+						"type": "string",
+						"enum": [
+							"default",
+							"long_context"
+						]
+					},
+					{
+						"type": "object",
+						"properties": {
+							"overridable": {
+								"type": "string",
+								"enum": [
+									"default",
+									"long_context"
+								]
+							}
+						},
+						"required": [
+							"overridable"
+						],
+						"additionalProperties": false
+					}
+				],
+				"x-composition": {
+					"allowOverridable": true,
+					"strategy": "enum-order-wins",
+					"collapseStrategy": "enum-order-permissive-wins",
+					"description": "Shared settings-engine annotations, not an independent-options execution contract. This runtime keeps model, effortLevel, and contextTier coupled: options come only from the channel supplying the winning concrete model. Use managedSettings.compose for the runtime's effective result."
+				}
+			},
+			"autoTier": {
+				"description": "Default Auto routing preference for new conversations when the selected model is auto. A bare string strictly locks the tier and overrides user and repository settings. Use {\"overridable\":\"<tier>\"} to provide an organization default that users and repositories may override.",
+				"oneOf": [
+					{
+						"type": "string",
+						"minLength": 1,
+						"pattern": "^[^\\s\\u0000-\\u001F\\u007F-\\u009F]+$"
+					},
+					{
+						"type": "object",
+						"properties": {
+							"overridable": {
+								"type": "string",
+								"minLength": 1,
+								"pattern": "^[^\\s\\u0000-\\u001F\\u007F-\\u009F]+$"
+							}
+						},
+						"required": [
+							"overridable"
+						],
+						"additionalProperties": false
+					}
+				],
+				"x-composition": {
+					"allowOverridable": true,
+					"strategy": "enum-order-wins",
+					"collapseStrategy": "enum-order-permissive-wins",
+					"description": "Shared settings-engine annotations are descriptive, not a complete specification of this runtime's composition rules. Use managedSettings.compose for the runtime's effective result."
+				}
+			},
+			"permissions": {
+				"description": "Controls that govern permissions mode behavior.",
+				"type": "object",
+				"additionalProperties": false,
+				"properties": {
+					"model": {
+						"description": "Legacy location of the model default in file and server policy. Accepted as a fallback when top-level model is absent, then canonicalized to the top-level key. Not supported through native plist/registry delivery.",
+						"x-mdm-delivery": false,
+						"type": "string",
+						"deprecated": true
+					},
+					"disableBypassPermissionsMode": {
+						"description": "Controls bypass-permissions ('allow-all' / 'yolo') escalation. 'disable' blocks combined bypass mode and individual tool, path, and URL allow-all flags across CLI and runtime APIs. Advisory auto-approval remains available because normal prompt paths stay active. Deliberately unconstrained: a client must not reject the document over a value it does not recognize, so a value a newer client or the server understands never fails the whole policy. Because the key is present only to restrict something, a client that cannot interpret the value must fail closed and enforce the most restrictive mode it knows.",
+						"type": "string",
+						"x-composition": {
+							"strategy": "most-restrictive-wins",
+							"restrictiveness": [
+								"disable"
+							],
+							"description": "The composed value is the most restrictive one any managed source supplies, ranked by 'restrictiveness' (most restrictive first). An absent key imposes no restriction. Any value outside that list ranks above every listed value and is enforced as the first entry, so an unrecognized string can never relax a restriction another source contributed."
+						}
+					},
+					"disableAssistedPermissionsMode": {
+						"description": "When true, prevents Assisted Permissions from being activated; an active or requested Assisted mode falls back to Manual Approval. Assisted Permissions uses probabilistic LLM review to reduce prompts and is not a security boundary. Managed permission rules, sandboxing, least-privilege credentials, and egress controls remain the hard boundaries. Unset or false imposes no restriction.",
+						"type": "boolean",
+						"x-composition": {
+							"strategy": "most-restrictive-wins",
+							"description": "Sticky-true: a lower-priority managed source cannot undo disableAssistedPermissionsMode:true set by another source."
+						}
+					},
+					"defaultMode": {
+						"description": "Starting permission mode for new sessions: 'manual' (Manual Approval), 'assisted' (Assisted Permissions), or 'allow-all'. It replaces the user's defaultPermissionMode setting and organization targeting, but an explicit choice at startup (a command-line flag or a host request) still wins, and users can change the mode during the session. Resumed sessions keep their mode. A default blocked by disableAssistedPermissionsMode or disableBypassPermissionsMode, or Assisted when it is unavailable, starts in Manual Approval. Unrecognized values are treated as 'manual'.",
+						"type": "string",
+						"x-composition": {
+							"strategy": "most-restrictive-wins",
+							"restrictiveness": [
+								"manual",
+								"assisted",
+								"allow-all"
+							],
+							"description": "The composed value is the most restrictive one any managed source supplies, ranked by 'restrictiveness' (most restrictive first)."
+						}
+					},
+					"deny": {
+						"description": "Permission rules that block matching operations. Deny takes precedence over ask and allow and is unioned across managed sources.",
+						"type": "array",
+						"items": {
+							"type": "string",
+							"minLength": 1
+						},
+						"x-composition": {
+							"strategy": "deny-wins"
+						}
+					},
+					"ask": {
+						"description": "Permission rules that require human approval. Ask takes precedence over allow and is unioned across managed sources.",
+						"type": "array",
+						"items": {
+							"type": "string",
+							"minLength": 1
+						},
+						"x-composition": {
+							"strategy": "deny-wins"
+						}
+					},
+					"allow": {
+						"description": "Permission rules that allow matching operations without prompting. Every managed source that declares an allow list must admit the operation.",
+						"type": "array",
+						"items": {
+							"type": "string",
+							"minLength": 1
+						},
+						"x-composition": {
+							"strategy": "allowlist-intersection"
+						}
+					},
+					"limitTo": {
+						"description": "Closed-world boundary for the rule families it names. Only Domain(...) rules are supported: any agent network request to a domain outside the boundary is denied without prompting, and user rules, saved approvals, and allow-all modes cannot widen it. It does not restrict shell, read, or write operations by themselves, but detected URLs in shell requests are Domain requests and must satisfy the boundary. An empty list denies every Domain request. An invalid list or any invalid entry is reported as a configuration error and enforced as an empty list, without discarding other valid permission rules; effective settings report the enforced empty list. Deny takes precedence over limitTo, and ask and allow only refine requests inside the boundary. Every managed source that declares a limitTo list must admit the request.",
+						"type": "array",
+						"items": {
+							"type": "string",
+							"minLength": 1
+						},
+						"x-composition": {
+							"strategy": "allowlist-intersection"
+						}
+					}
+				}
+			},
+			"remoteControl": {
+				"description": "Controls whether Copilot CLI sessions running on this device can be controlled from other devices. 'enabled' permits control, 'disabled' blocks control, and 'requireSSO' permits control only when the client is SSO-authorized for at least one configured GitHub.com organization or authenticated to at least one configured GitHub Enterprise Cloud domain.",
+				"type": "object",
+				"additionalProperties": false,
+				"required": [
+					"mode"
+				],
+				"properties": {
+					"mode": {
+						"description": "Policy for controlling sessions on this device from other devices.",
+						"type": "string",
+						"enum": [
+							"enabled",
+							"disabled",
+							"requireSSO"
+						],
+						"x-composition": {
+							"strategy": "enum-order-wins"
+						}
+					},
+					"githubDotComOrganizations": {
+						"description": "GitHub.com organization logins. When mode is 'requireSSO', the client must be SSO-authorized for at least one organization in this list.",
+						"type": "array",
+						"minItems": 1,
+						"items": {
+							"type": "string",
+							"minLength": 1
+						},
+						"uniqueItems": true
+					},
+					"githubEnterpriseCloudDomains": {
+						"description": "GitHub Enterprise Cloud with data residency domains. Accepted formats are the tenant's URL (for example, 'https://octocorp.ghe.com'), bare host ('octocorp.ghe.com'), or tenant slug ('octocorp'). When mode is 'requireSSO', authentication to any domain in this list satisfies the policy.",
+						"type": "array",
+						"minItems": 1,
+						"items": {
+							"type": "string",
+							"minLength": 1
+						},
+						"uniqueItems": true
+					}
+				},
+				"allOf": [
+					{
+						"if": {
+							"properties": {
+								"mode": {
+									"const": "requireSSO"
+								}
+							},
+							"required": [
+								"mode"
+							]
+						},
+						"then": {
+							"anyOf": [
+								{
+									"required": [
+										"githubDotComOrganizations"
+									]
+								},
+								{
+									"required": [
+										"githubEnterpriseCloudDomains"
+									]
+								}
+							]
+						}
+					}
+				],
+				"x-composition": {
+					"strategy": "enum-order-wins"
+				}
+			},
+			"enabledPlugins": {
+				"description": "Declarative plugin allow/deny list. Keys use the format PLUGIN-NAME@MARKETPLACE-NAME. true = must be enabled, false = must be disabled.",
+				"type": "object",
+				"additionalProperties": {
+					"type": "boolean"
+				},
+				"x-composition": {
+					"strategy": "deny-wins"
+				}
+			},
+			"extraKnownMarketplaces": {
+				"description": "Managed additional marketplace sources beyond built-ins. Each entry defines how to resolve a marketplace name to a source.",
+				"type": "object",
+				"additionalProperties": {
+					"type": "object",
+					"required": [
+						"source"
+					],
+					"properties": {
+						"autoUpdate": {
+							"description": "When true, this marketplace's installed plugins are refreshed to the latest catalog version at the start of a Copilot CLI session (interactive or `-p`); SDK/server sessions do not auto-update. Honored from the user's own settings or from managed (MDM/server) settings — a repository-level opt-in is ignored. On a same-name collision the precedence is: a built-in first-party marketplace wins, then managed (which replaces the whole same-named user entry, so a managed entry without \"autoUpdate\": true removes the user's opt-in), then user.",
+							"type": "boolean"
+						},
+						"source": {
+							"description": "Source descriptor for this marketplace.",
+							"type": "object",
+							"required": [
+								"source"
+							],
+							"properties": {
+								"source": {
+									"description": "Source type for the marketplace.",
+									"type": "string",
+									"enum": [
+										"github",
+										"git",
+										"directory"
+									]
+								}
+							},
+							"oneOf": [
+								{
+									"properties": {
+										"source": {
+											"const": "github"
+										},
+										"repo": {
+											"description": "Repository NWO (owner/repo) containing the marketplace plugins.",
+											"type": "string",
+											"pattern": "^[^/:]+/[^/:]+$"
+										},
+										"ref": {
+											"description": "Optional branch, tag, or SHA to pin the marketplace source to.",
+											"type": "string"
+										},
+										"path": {
+											"description": "Optional subdirectory within the repository containing plugins.",
+											"type": "string"
+										}
+									},
+									"required": [
+										"source",
+										"repo"
+									],
+									"additionalProperties": false
+								},
+								{
+									"properties": {
+										"source": {
+											"const": "git"
+										},
+										"url": {
+											"description": "Git URL for the marketplace repository.",
+											"type": "string",
+											"format": "uri"
+										},
+										"ref": {
+											"description": "Optional branch, tag, or SHA to pin the marketplace source to.",
+											"type": "string"
+										},
+										"path": {
+											"description": "Optional subdirectory within the repository containing plugins.",
+											"type": "string"
+										}
+									},
+									"required": [
+										"source",
+										"url"
+									],
+									"additionalProperties": false
+								},
+								{
+									"properties": {
+										"source": {
+											"const": "directory"
+										},
+										"path": {
+											"description": "Directory containing the marketplace source.",
+											"type": "string"
+										}
+									},
+									"required": [
+										"source",
+										"path"
+									],
+									"additionalProperties": false
+								}
+							]
+						}
+					},
+					"additionalProperties": false
+				},
+				"x-composition": {
+					"strategy": "allowlist-intersection"
+				}
+			},
+			"strictKnownMarketplaces": {
+				"description": "Strict marketplace allowlist. Each entry must match a supported source descriptor (github, git, url, npm, file, directory, hostPattern, or pathPattern). Empty array means complete lockdown.",
+				"type": "array",
+				"items": {
+					"oneOf": [
+						{
+							"type": "object",
+							"required": [
+								"source",
+								"repo"
+							],
+							"properties": {
+								"source": {
+									"const": "github"
+								},
+								"repo": {
+									"description": "Repository NWO (owner/repo) containing the marketplace plugins.",
+									"type": "string",
+									"pattern": "^[^/:]+/[^/:]+$"
+								},
+								"ref": {
+									"description": "Optional branch, tag, or SHA to pin the marketplace source to.",
+									"type": "string"
+								},
+								"path": {
+									"description": "Optional subdirectory within the repository containing plugins.",
+									"type": "string"
+								}
+							},
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"required": [
+								"source",
+								"url"
+							],
+							"properties": {
+								"source": {
+									"const": "git"
+								},
+								"url": {
+									"description": "Git URL for the marketplace repository.",
+									"type": "string",
+									"format": "uri"
+								},
+								"ref": {
+									"description": "Optional branch, tag, or SHA to pin the marketplace source to.",
+									"type": "string"
+								},
+								"path": {
+									"description": "Optional subdirectory within the repository containing plugins.",
+									"type": "string"
+								}
+							},
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"required": [
+								"source",
+								"url"
+							],
+							"properties": {
+								"source": {
+									"const": "url"
+								},
+								"url": {
+									"description": "HTTP(S) URL for the marketplace catalog.",
+									"type": "string",
+									"format": "uri"
+								},
+								"headers": {
+									"description": "Optional HTTP headers for fetching the catalog.",
+									"type": "object",
+									"additionalProperties": {
+										"type": "string"
+									}
+								}
+							},
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"required": [
+								"source",
+								"package"
+							],
+							"properties": {
+								"source": {
+									"const": "npm"
+								},
+								"package": {
+									"description": "NPM package name for the marketplace catalog.",
+									"type": "string"
+								}
+							},
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"required": [
+								"source",
+								"path"
+							],
+							"properties": {
+								"source": {
+									"const": "file"
+								},
+								"path": {
+									"description": "Filesystem path to the marketplace catalog.",
+									"type": "string"
+								}
+							},
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"required": [
+								"source",
+								"path"
+							],
+							"properties": {
+								"source": {
+									"const": "directory"
+								},
+								"path": {
+									"description": "Directory containing the marketplace catalog.",
+									"type": "string"
+								}
+							},
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"required": [
+								"source",
+								"hostPattern"
+							],
+							"properties": {
+								"source": {
+									"const": "hostPattern"
+								},
+								"hostPattern": {
+									"description": "Regex used to match marketplace hosts.",
+									"type": "string"
+								}
+							},
+							"additionalProperties": false
+						},
+						{
+							"type": "object",
+							"required": [
+								"source",
+								"pathPattern"
+							],
+							"properties": {
+								"source": {
+									"const": "pathPattern"
+								},
+								"pathPattern": {
+									"description": "Regex used to match marketplace paths.",
+									"type": "string"
+								}
+							},
+							"additionalProperties": false
+						}
+					]
+				},
+				"x-composition": {
+					"strategy": "allowlist-intersection"
+				}
+			},
+			"forceRemoteSettingsRefresh": {
+				"description": "When true, requires a fresh server-managed settings fetch on startup even when a fresh persistent cache entry exists: the cached policy is never served, and — unlike the default path — it is not used as a fetch-failure fallback either. A failed startup fetch therefore fails closed on the unconfirmed policy (skipping both the 1h fast path and the 24h stale fallback) rather than reverting to a possibly-stale cached policy. The directive applies even when it lives in the cache — a cached server response carrying it forces the next startup to re-fetch. The device (MDM) value takes precedence over a cached server value, so an explicit MDM false overrides a server-side true. Settable via the server-managed policy or the device (MDM) layer. The policy helper cannot set this key. Note: like every typed MDM value, when delivered natively (plist/registry) the boolean must be supplied as a JSON-encoded string (the string \"true\" or \"false\"); a native plist boolean (CFBoolean) or registry DWORD is not accepted. File-based (managed-settings.json) and server-managed documents use a real JSON boolean.",
+				"type": "boolean"
+			},
+			"policyHelper": {
+				"description": "Registers an executable that supplies the lowest-priority managed-settings layer. If device and server policy register different executables, the device registration takes priority.",
+				"type": "object",
+				"additionalProperties": false,
+				"required": [
+					"path"
+				],
+				"properties": {
+					"path": {
+						"description": "Executable registration in one of three forms: an absolute path naming a file, a home-relative path (`~/...` or `~\\...`) with a path after the separator, or a bare program name with no path separator. The registration form is the trust decision: an absolute path pins the exact binary, while a bare name defers to the binary resolved from the user's PATH. The value is used verbatim, so other relative paths, root-only paths, a trailing separator, surrounding whitespace, and any other `~` form (`~`, `~/`, `~bob`) are rejected.",
+						"type": "string",
+						"minLength": 1,
+						"allOf": [
+							{
+								"$comment": "No surrounding whitespace, no trailing separator, and no bare dot component.",
+								"not": {
+									"pattern": "^\\s|\\s$|[/\\\\]$|^\\.{1,2}$"
+								}
+							},
+							{
+								"$comment": "Absolute (POSIX, Windows drive, or Windows UNC), home-relative, or a bare name carrying no separator and not claiming the reserved `~` prefix.",
+								"anyOf": [
+									{
+										"pattern": "^/.+"
+									},
+									{
+										"pattern": "^[A-Za-z]:[/\\\\].+"
+									},
+									{
+										"pattern": "^\\\\\\\\[^/\\\\]+[/\\\\].+"
+									},
+									{
+										"pattern": "^~[/\\\\].+"
+									},
+									{
+										"pattern": "^[^~/\\\\][^/\\\\]*$"
+									}
+								]
+							}
+						]
+					},
+					"args": {
+						"description": "Arguments passed to the helper executable, in order. At the spawn boundary, the runtime passes each element to the program verbatim as a separate argument without asking a shell to parse another command. Use this to select a subcommand of a helper that serves several callers.",
+						"type": "array",
+						"items": {
+							"type": "string"
+						}
+					},
+					"timeoutMs": {
+						"description": "Milliseconds the runtime waits for one helper run before it gives up. The helper runs while the session starts, so the value is capped to keep startup bounded.",
+						"type": "integer",
+						"minimum": 1,
+						"maximum": 30000,
+						"default": 5000
+					}
+				}
+			},
+			"forceLoginOrgs": {
+				"description": "Pins sign-in to an approved set of GitHub organizations. Each entry is a GitHub organization login (the URL slug, for example 'octocorp'); matching is case-insensitive. When set, Copilot only runs for an account that belongs to at least one listed organization — a personal account, or an account belonging only to some other enterprise, is refused with an actionable error instead of silently escaping enterprise-managed policy. Because it must be able to redirect a developer's *first* sign-in, deploy it via the device channel (MDM plist/registry or managed-settings.json); the server-managed channel only reaches accounts that already authenticated into the organization. The policy helper cannot set this key. The setting also blocks bring-your-own-key (BYOK / API-key) authentication outright, since such credentials carry no GitHub identity whose organization membership could be verified. An empty array means no pin, so the control can be turned off without deleting the key. Fails closed: if the value is present but unusable, or the managed policy that carries it cannot be read from a device that is known to be managed, no account is permitted to sign in until the value is fixed. Note: like every typed MDM value, when delivered natively (plist/registry) the array must be supplied as a JSON-encoded string (for example \"[\\\"octocorp\\\"]\"). File-based (managed-settings.json) and server-managed documents use a real JSON array.",
+				"type": "array",
+				"items": {
+					"type": "string",
+					"description": "A GitHub organization login: 1-39 characters of ASCII letters and digits, optionally separated by single hyphens. Surrounding whitespace is trimmed. URLs, 'org/team' slugs, and email addresses are rejected.",
+					"pattern": "^\\s*[A-Za-z0-9](?:-?[A-Za-z0-9]){0,38}\\s*$"
+				},
+				"uniqueItems": true
+			},
+			"policyHelperFailureMode": {
+				"description": "What happens when the registered policy helper does not produce a usable layer, because it failed to start, timed out, exited non-zero, exceeded the output limit, or emitted output that failed schema validation. Use \"ignore\" (the default) to resolve policy from the remaining channels and report the fault as an error. Use \"failClosed\" to treat the fault as making policy undetermined, which engages the sandbox fail-closed protection. If device and server policy set different values, the device value takes priority.",
+				"type": "string",
+				"enum": [
+					"ignore",
+					"failClosed"
+				],
+				"default": "ignore"
+			},
+			"telemetry": {
+				"description": "Enterprise-mandated OpenTelemetry (OTel) configuration. Admin-only and non-overridable by users; consumed uniformly by Copilot clients. Controls where Copilot telemetry is exported and whether sensitive content is captured. Operates independently from GitHub's own audit streaming.",
+				"type": "object",
+				"additionalProperties": false,
+				"properties": {
+					"enabled": {
+						"description": "Enables OTel emission. When true, users cannot disable telemetry export via local settings or environment variables.",
+						"type": "boolean"
+					},
+					"endpoint": {
+						"description": "OTLP collector endpoint. Equivalent to the OTEL_EXPORTER_OTLP_ENDPOINT environment variable; the managed value takes precedence over any user-provided value.",
+						"type": "string",
+						"format": "uri"
+					},
+					"protocol": {
+						"description": "OTLP transport protocol used for all exported telemetry. Equivalent to the OTEL_EXPORTER_OTLP_PROTOCOL environment variable; the managed value takes precedence over any user-provided value. Recognized values are \"http/json\" and \"http/protobuf\" (\"grpc\" is accepted for forward compatibility but is not implemented in this version and falls back to the default protocol).",
+						"type": "string"
+					},
+					"headers": {
+						"description": "Auth and routing headers sent to the OTLP collector. Equivalent to OTEL_EXPORTER_OTLP_HEADERS. Values are literal strings (no secret interpolation in this version) and are never surfaced in logs or status output. Requires endpoint in the same telemetry block so managed headers are never sent to a destination resolved from user-controlled environment variables. The endpoint must use HTTP or HTTPS. HTTP transmits every header value in plaintext and produces a runtime warning; authentication credentials, including bearer tokens, are confidential and must use HTTPS. Use HTTP only for non-confidential routing metadata on a trusted network.",
+						"type": "object",
+						"additionalProperties": {
+							"type": "string"
+						}
+					},
+					"resourceAttributes": {
+						"description": "Extra OTel resource attributes (e.g. cost center / team routing). Equivalent to OTEL_RESOURCE_ATTRIBUTES.",
+						"type": "object",
+						"additionalProperties": {
+							"type": "string"
+						}
+					},
+					"capture": {
+						"description": "Fine-grained controls for sensitive OpenTelemetry attributes. Every field defaults to false. Explicit fields override the legacy captureContent shorthand for the same data class.",
+						"type": "object",
+						"additionalProperties": false,
+						"properties": {
+							"identity": {
+								"description": "Emits identity attributes for enterprise audit attribution: the authenticated provider account as user.name, the local operating-system account as process.user.name, and the local machine as host.name. Does not affect enduser.pseudo.id.",
+								"type": "boolean",
+								"default": false
+							},
+							"prompts": {
+								"description": "Captures user, system, and developer prompt content and associated input context, including supported attachments.",
+								"type": "boolean",
+								"default": false
+							},
+							"responses": {
+								"description": "Captures assistant response and supported reasoning content.",
+								"type": "boolean",
+								"default": false
+							},
+							"toolArguments": {
+								"description": "Captures raw tool arguments, tool descriptions and schemas, and sensitive tool or MCP identifiers.",
+								"type": "boolean",
+								"default": false
+							},
+							"toolOutput": {
+								"description": "Captures tool result content and execution error detail.",
+								"type": "boolean",
+								"default": false
+							},
+							"policyDetail": {
+								"description": "Captures raw policy details such as sandbox filesystem paths. Bounded policy posture, counts, outcomes, and classifications remain available when false.",
+								"type": "boolean",
+								"default": false
+							}
+						}
+					},
+					"captureContent": {
+						"description": "Legacy shorthand for prompts, responses, toolArguments, toolOutput, and policyDetail. Does not enable identity. Explicit capture fields override this value for their class. Defaults to false.",
+						"type": "boolean"
+					},
+					"lockCaptureContent": {
+						"description": "When true, prevents local settings from enabling a legacy content class unless that class or captureContent is explicitly set in this managed telemetry block. Does not govern identity.",
+						"type": "boolean"
+					},
+					"serviceName": {
+						"description": "Overrides the OTel service.name resource attribute. Equivalent to OTEL_SERVICE_NAME.",
+						"type": "string"
+					}
+				},
+				"x-composition": {
+					"strategy": "highest-priority-managed-block-wins",
+					"description": "The highest-priority managed channel that defines telemetry supplies the complete managed telemetry block; weaker managed telemetry blocks do not merge into it. Explicit managed fields are authoritative over local or environment configuration. Omitted fields fall back according to the client resolver, including legacy captureContent and lockCaptureContent compatibility."
+				}
+			},
+			"sandbox": {
+				"description": "Enterprise-mandated sandbox floor. Admin-set values compose with the user's own sandbox configuration in the safe (more-restrictive) direction and cannot be loosened by the user. Only non-deprecated keys are part of the managed surface. The restrictiveness merge itself is applied by the client at resolve time (see #11374); recognizing the block here is behavior-neutral.",
+				"type": "object",
+				"additionalProperties": false,
+				"properties": {
+					"enabled": {
+						"description": "Force sandboxing on by default. When a managed source sets true, ordinary user configuration, startup flags, and sandbox settings cannot disable the sandbox. If the effective policy also allows bypass, the user may explicitly disable it for the current session from an active sandbox-bypass permission prompt.",
+						"type": "boolean",
+						"x-composition": {
+							"strategy": "force-on-wins"
+						}
+					},
+					"failIfUnavailable": {
+						"description": "When true and the composed managed policy also sets sandbox.enabled to true, the managed sandbox becomes mandatory. Copilot must block model and tool execution if the policy cannot be validated, compiled, or enforced by a usable sandbox backend, and the user cannot disable it. This control does not enable sandboxing by itself; true from any managed source wins.",
+						"type": "boolean",
+						"x-composition": {
+							"strategy": "force-on-wins"
+						}
+					},
+					"allowBypass": {
+						"description": "Whether tools may offer the user a per-operation sandbox bypass and whether the user may explicitly disable the sandbox for the current session from an active bypass permission prompt. Managed false wins: if policy forbids bypass, the user cannot re-enable either escape hatch.",
+						"type": "boolean",
+						"x-composition": {
+							"strategy": "deny-wins"
+						}
+					},
+					"addCurrentWorkingDirectory": {
+						"description": "Whether the current working directory is auto-added to the sandbox readwrite paths. Managed false wins.",
+						"type": "boolean",
+						"x-composition": {
+							"strategy": "deny-wins"
+						}
+					},
+					"sandboxMcpServers": {
+						"description": "Whether MCP servers are spawned inside the sandbox. Routing flag: true (servers sandboxed) is the more-restrictive value, so a managed true wins (force-on) and a user false cannot loosen it.",
+						"type": "boolean",
+						"x-composition": {
+							"strategy": "force-on-wins"
+						}
+					},
+					"sandboxLspServers": {
+						"description": "Whether LSP servers are spawned inside the sandbox. Routing flag: true (servers sandboxed) is the more-restrictive value, so a managed true wins (force-on) and a user false cannot loosen it.",
+						"type": "boolean",
+						"x-composition": {
+							"strategy": "force-on-wins"
+						}
+					},
+					"auth": {
+						"description": "Credential-injection capabilities applied while the sandbox is enabled.",
+						"type": "object",
+						"additionalProperties": false,
+						"properties": {
+							"git": {
+								"description": "Whether a git token is injected so git works inside the sandbox. Credential-injection capability; managed false wins: policy can force it off but never force it on.",
+								"type": "boolean",
+								"x-composition": {
+									"strategy": "deny-wins"
+								}
+							},
+							"gh": {
+								"description": "Whether a gh token is injected so gh works inside the sandbox. Credential-injection capability; managed false wins: policy can force it off but never force it on.",
+								"type": "boolean",
+								"x-composition": {
+									"strategy": "deny-wins"
+								}
+							}
+						}
+					},
+					"allowDevToolAccess": {
+						"description": "Whether the sandbox automatically grants access to developer-tool files needed by builds, including the tool directories discovered on PATH and in toolchain environment variables (GOROOT, CARGO_HOME, JAVA_HOME, and similar), the user-profile tool directories, plus caches, registries, toolchains, and registry/proxy configuration in default home locations. Delivering false disables all of them, so a developer-tool path must then be granted explicitly through sandbox.userPolicy.filesystem. This governs only the developer-tool grants: the working directory (sandbox.addCurrentWorkingDirectory), temporary storage, session log paths, and the platform's system locations — which on macOS include the /usr/local and /opt/homebrew prefixes — are granted by their own rules and are unaffected. Managed false wins: policy can disable these grants but never force them on",
+						"type": "boolean",
+						"x-composition": {
+							"strategy": "deny-wins"
+						}
+					},
+					"learningMode": {
+						"description": "Windows only. The denial-capture mode sandboxed shell commands start in when the sandbox is enabled: \"deny\" records and denies blocked access (the default), and \"allow\" records and allows filesystem and process access (permissive learning mode) while the network policy still enforces. With \"allow\", a command that is still refused offers only the full sandbox bypass, and only when sandbox.allowBypass permits it. \"deny\" is the stricter value and wins when managed sources disagree. Deliver \"allow\" through native MDM (the Windows registry policy hive, for example through Intune); an \"allow\" in managed-settings.json is ignored. Ignored on hosts without denial capture",
+						"type": "string",
+						"enum": [
+							"deny",
+							"allow"
+						],
+						"x-composition": {
+							"strategy": "enum-order-wins",
+							"description": "deny wins when managed sources disagree."
+						}
+					},
+					"userPolicy": {
+						"description": "Fine-grained sandbox policy (filesystem, network, seatbelt). Deprecated sub-keys (userPolicy.experimental) are excluded from the managed surface.",
+						"type": "object",
+						"additionalProperties": false,
+						"properties": {
+							"filesystem": {
+								"description": "Filesystem access policy. Grant lists shrink under policy (intersection); the deny list grows (union).",
+								"type": "object",
+								"additionalProperties": false,
+								"properties": {
+									"readwritePaths": {
+										"description": "Paths granted read-write access. Managed policy can only shrink the effective grant (intersection).",
+										"type": "array",
+										"items": {
+											"type": "string"
+										},
+										"x-composition": {
+											"strategy": "allowlist-intersection"
+										}
+									},
+									"readonlyPaths": {
+										"description": "Paths granted read-only access. Managed policy can only shrink the effective grant (intersection).",
+										"type": "array",
+										"items": {
+											"type": "string"
+										},
+										"x-composition": {
+											"strategy": "allowlist-intersection"
+										}
+									},
+									"deniedPaths": {
+										"description": "Paths explicitly denied. Managed policy can only add denials (union).",
+										"type": "array",
+										"items": {
+											"type": "string"
+										},
+										"x-composition": {
+											"strategy": "denylist-union"
+										}
+									}
+								}
+							},
+							"network": {
+								"description": "Network access policy. Managed false wins for each toggle. Non-empty host allowlists intersect; denylists combine and take precedence. A managed proxy URL overrides the user's URL while credentials remain user-managed.",
+								"type": "object",
+								"additionalProperties": false,
+								"properties": {
+									"allowOutbound": {
+										"description": "Whether outbound network access is permitted. Managed false wins.",
+										"type": "boolean",
+										"x-composition": {
+											"strategy": "deny-wins"
+										}
+									},
+									"allowLocalNetwork": {
+										"description": "Whether local-network access is permitted. Managed false wins.",
+										"type": "boolean",
+										"x-composition": {
+											"strategy": "deny-wins"
+										}
+									},
+									"allowedHosts": {
+										"description": "Host allowlist for the built-in local proxy. Non-empty lists intersect with other configured allowlists; absent or empty lists add no restriction. Supports exact hosts, IP addresses, and *.example.com for strict subdomains.",
+										"type": "array",
+										"items": {
+											"$ref": "#/$defs/hostPattern"
+										},
+										"x-composition": {
+											"strategy": "allowlist-intersection"
+										}
+									},
+									"blockedHosts": {
+										"description": "Host denylist for the built-in local proxy. Combined with other denylists; deny takes precedence over allow. A domain also denies all its subdomains. IP addresses match exactly; *.example.com matches strict subdomains, and * denies every host.",
+										"type": "array",
+										"items": {
+											"$ref": "#/$defs/hostPattern"
+										},
+										"x-composition": {
+											"strategy": "denylist-union"
+										}
+									},
+									"proxy": {
+										"description": "Enterprise-managed sandbox proxy endpoint. Only the URL is managed; username and password remain user-managed and are not admitted by this schema.",
+										"type": "object",
+										"additionalProperties": false,
+										"required": [
+											"url"
+										],
+										"properties": {
+											"url": {
+												"description": "Credential-free HTTP(S) proxy endpoint enforced over the user's configured proxy URL. The URL must contain only printable ASCII characters (percent-encode non-ASCII path data); the host must be an ASCII DNS hostname, dotted-decimal IPv4 address, or bracketed hexadecimal IPv6 address; and an explicit port must be between 1 and 65535. Device-managed settings take precedence when managed sources specify different URLs.",
+												"type": "string",
+												"minLength": 1,
+												"anyOf": [
+													{
+														"pattern": "^[Hh][Tt][Tt][Pp][Ss]?://(?=[A-Za-z0-9.-]{1,253}(?::|[/?#]|$))(?=[A-Za-z0-9.-]*[A-Za-z-][A-Za-z0-9-]*\\.?(?::|[/?#]|$))[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*\\.?(?::(?!0{1,4}(?:[/?#]|$))(?:[0-9]{1,4}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5]))?(?:[/?#][!-~]*)?$"
+													},
+													{
+														"pattern": "^[Hh][Tt][Tt][Pp][Ss]?://(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])(?:\\.(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])){3}(?::(?!0{1,4}(?:[/?#]|$))(?:[0-9]{1,4}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5]))?(?:[/?#][!-~]*)?$"
+													},
+													{
+														"pattern": "^[Hh][Tt][Tt][Pp][Ss]?://\\[(?:(?:[0-9A-Fa-f]{1,4}:){7}[0-9A-Fa-f]{1,4}|(?:[0-9A-Fa-f]{1,4}:){1,7}:|(?:[0-9A-Fa-f]{1,4}:){1,6}:[0-9A-Fa-f]{1,4}|(?:[0-9A-Fa-f]{1,4}:){1,5}(?::[0-9A-Fa-f]{1,4}){1,2}|(?:[0-9A-Fa-f]{1,4}:){1,4}(?::[0-9A-Fa-f]{1,4}){1,3}|(?:[0-9A-Fa-f]{1,4}:){1,3}(?::[0-9A-Fa-f]{1,4}){1,4}|(?:[0-9A-Fa-f]{1,4}:){1,2}(?::[0-9A-Fa-f]{1,4}){1,5}|[0-9A-Fa-f]{1,4}:(?:(?::[0-9A-Fa-f]{1,4}){1,6})|:(?:(?::[0-9A-Fa-f]{1,4}){1,7}|:))\\](?::(?!0{1,4}(?:[/?#]|$))(?:[0-9]{1,4}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5]))?(?:[/?#][!-~]*)?$"
+													}
+												],
+												"x-composition": {
+													"strategy": "managed-precedence"
+												}
+											}
+										}
+									}
+								}
+							},
+							"seatbelt": {
+								"description": "macOS seatbelt policy.",
+								"type": "object",
+								"additionalProperties": false,
+								"properties": {
+									"keychainAccess": {
+										"description": "Whether keychain access is permitted from within the sandbox. Managed false wins.",
+										"type": "boolean",
+										"x-composition": {
+											"strategy": "deny-wins"
+										}
+									}
+								}
+							}
+						}
+					}
+				},
+				"x-composition": {
+					"strategy": "restrictiveness-merge",
+					"description": "The managed sandbox is a floor: each field composes with the user's value in the safe direction (force-on for enabled and the MCP/LSP routing flags, deny-wins for the remaining boolean toggles including allowDevToolAccess, intersection for the readwrite/readonly grant lists, union for the deny list). The proxy URL is a directional managed override: it replaces the user's URL while preserving user-managed credentials, and device-managed settings win conflicts between managed sources. Deprecated keys (sandbox.config, sandbox.userPolicy.experimental) are excluded. The runtime applies this per-field merge to compute the effective sandbox policy."
+				}
+			}
+		},
+		"$defs": {
+			"hostPattern": {
+				"description": "A host rule in standard ASCII DNS, dotted IPv4, or hexadecimal IPv6 notation. Domains may have a leading *. wildcard; * matches every host. No URL, port, userinfo, path, or IPv6 zone identifier is permitted.",
+				"type": "string",
+				"minLength": 1,
+				"not": {
+					"pattern": "[\\s/@%?#\\\\]"
+				},
+				"anyOf": [
+					{
+						"const": "*"
+					},
+					{
+						"pattern": "^(?:\\*\\.)?(?!(?:.*\\.)?(?:[0-9]+|0[xX][0-9A-Fa-f]*)\\.*$)[A-Za-z0-9_-]+(?:\\.[A-Za-z0-9_-]+)*\\.*$"
+					},
+					{
+						"pattern": "^(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])(?:\\.(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])){3}\\.*$"
+					},
+					{
+						"allOf": [
+							{
+								"pattern": "^(?:[^\\[\\]]*|\\[[^\\[\\]]*\\])$"
+							},
+							{
+								"pattern": "^\\[?(?:(?:[0-9A-Fa-f]{1,4}:){7}[0-9A-Fa-f]{1,4}|(?:[0-9A-Fa-f]{1,4}:){1,7}:|(?:[0-9A-Fa-f]{1,4}:){1,6}:[0-9A-Fa-f]{1,4}|(?:[0-9A-Fa-f]{1,4}:){1,5}(?::[0-9A-Fa-f]{1,4}){1,2}|(?:[0-9A-Fa-f]{1,4}:){1,4}(?::[0-9A-Fa-f]{1,4}){1,3}|(?:[0-9A-Fa-f]{1,4}:){1,3}(?::[0-9A-Fa-f]{1,4}){1,4}|(?:[0-9A-Fa-f]{1,4}:){1,2}(?::[0-9A-Fa-f]{1,4}){1,5}|[0-9A-Fa-f]{1,4}:(?:(?::[0-9A-Fa-f]{1,4}){1,6})|:(?:(?::[0-9A-Fa-f]{1,4}){1,7}|:))\\]?$"
+							}
+						]
+					}
+				]
+			},
+			"mcpDenyMatcher": {
+				"description": "A single MCP denylist entry. Exactly one of serverUrl, serverCommand, or serverName must be present.",
+				"type": "object",
+				"oneOf": [
+					{
+						"type": "object",
+						"required": [
+							"serverUrl"
+						],
+						"properties": {
+							"serverUrl": {
+								"description": "Matches a remote (HTTP/SSE) server by URL. Supports '*' wildcards anywhere; the scheme and host are matched case-insensitively, the path case-sensitively. A pattern with no path matches any path. ${VAR} references expand before matching.",
+								"type": "string",
+								"minLength": 1
+							}
+						},
+						"additionalProperties": false
+					},
+					{
+						"type": "object",
+						"required": [
+							"serverCommand"
+						],
+						"properties": {
+							"serverCommand": {
+								"description": "Matches a stdio server by its exact command and arguments (every element, in order). ${VAR} references expand before matching.",
+								"type": "array",
+								"minItems": 1,
+								"items": {
+									"type": "string",
+									"minLength": 1
+								}
+							}
+						},
+						"additionalProperties": false
+					},
+					{
+						"type": "object",
+						"required": [
+							"serverName"
+						],
+						"properties": {
+							"serverName": {
+								"description": "Matches a server by its assigned label (exact, no wildcards). Any non-empty string is accepted in a denylist, so connectors can be blocked by display name.",
+								"type": "string",
+								"minLength": 1
+							}
+						},
+						"additionalProperties": false
+					}
+				]
+			},
+			"mcpAllowMatcher": {
+				"description": "A single MCP allowlist entry. Exactly one of serverUrl, serverCommand, or serverName must be present. Identical to a denylist entry except serverName is restricted to a safe charset so it cannot smuggle a wildcard past the allowlist.",
+				"type": "object",
+				"oneOf": [
+					{
+						"type": "object",
+						"required": [
+							"serverUrl"
+						],
+						"properties": {
+							"serverUrl": {
+								"description": "Matches a remote (HTTP/SSE) server by URL. Supports '*' wildcards anywhere; the scheme and host are matched case-insensitively, the path case-sensitively. A pattern with no path matches any path. ${VAR} references expand before matching.",
+								"type": "string",
+								"minLength": 1
+							}
+						},
+						"additionalProperties": false
+					},
+					{
+						"type": "object",
+						"required": [
+							"serverCommand"
+						],
+						"properties": {
+							"serverCommand": {
+								"description": "Matches a stdio server by its exact command and arguments (every element, in order). ${VAR} references expand before matching.",
+								"type": "array",
+								"minItems": 1,
+								"items": {
+									"type": "string",
+									"minLength": 1
+								}
+							}
+						},
+						"additionalProperties": false
+					},
+					{
+						"type": "object",
+						"required": [
+							"serverName"
+						],
+						"properties": {
+							"serverName": {
+								"description": "Matches a server by its assigned label (exact, no wildcards). Restricted to letters, numbers, hyphens, and underscores.",
+								"type": "string",
+								"pattern": "^[A-Za-z0-9_-]+$"
+							}
+						},
+						"additionalProperties": false
+					}
+				]
+			}
+		}
+	},
+	"runtimeVersion": "1.0.95-0"
+}

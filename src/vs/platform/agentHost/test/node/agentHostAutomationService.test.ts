@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Event } from '../../../../base/common/event.js';
-import { constObservable } from '../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../base/common/observable.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -20,18 +22,27 @@ import { AgentSession, type IAgent, type IAgentModelInfo } from '../../common/ag
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
-import { AGENT_HOST_AUTOMATION_CATALOG_MIGRATED_META_KEY, AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY, AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES_CONFIG_KEY, AGENT_HOST_LEGACY_AUTOMATION_IMPORT_META_KEY, AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY } from '../../common/automationMigration.js';
+import { AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY, AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES_CONFIG_KEY } from '../../common/automationConfig.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { AutomationMisfirePolicy, AutomationOperation, AutomationTriggerKind, type AutomationDefinition } from '../../common/state/protocol/channels-automation/state.js';
 import { AutomationRunOriginKind, AutomationRunStatus, type AutomationRunState } from '../../common/state/protocol/channels-automation-run/state.js';
 import type { RunAutomationParams } from '../../common/state/protocol/channels-automation/commands.js';
-import { buildDefaultChatUri, MessageKind, ResponsePartKind, ROOT_STATE_URI, SessionStatus } from '../../common/state/sessionState.js';
+import { AUTOMATION_CATALOG_URI, buildDefaultChatUri, CustomizationType, MessageKind, ResponsePartKind, ROOT_STATE_URI, SessionStatus, type ClientPluginCustomization, type SessionActiveClient } from '../../common/state/sessionState.js';
 import { AgentHostAutomationService, type IAgentHostAutomationExecution } from '../../node/agentHostAutomationService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostStorageService, type IAgentHostStorageWriter } from '../../node/agentHostStorageService.js';
 import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import { AgentHostTelemetryReporter } from '../../node/agentHostTelemetryReporter.js';
+import { INativeEnvironmentService } from '../../../environment/common/environment.js';
+import { FileService } from '../../../files/common/fileService.js';
+import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
+import { AGENT_CLIENT_SCHEME, toAgentClientUri } from '../../common/agentClientUri.js';
+import { AgentPluginManager } from '../../node/agentPluginManager.js';
+import { AUTOMATION_ACTIVE_CLIENT_ID, toAgentHostFileUri } from '../../common/agentPluginManager.js';
+import { AgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
+import type { IAgentHostMcpAuthenticationRequest } from '../../common/agentHostExtensionProtocol.js';
+import { McpAuthRequiredReason, McpServerStatus, type Customization, type McpAuthRequirement } from '../../common/state/protocol/channels-session/state.js';
 
 class RecordingAutomationTelemetry extends NullTelemetryServiceShape {
 	readonly events: { readonly name: string; readonly data: Record<string, unknown> }[] = [];
@@ -49,9 +60,28 @@ suite('AgentHostAutomationService', () => {
 	let writeFailures: number;
 	let writeAttempts: number;
 	let telemetry: RecordingAutomationTelemetry;
+	let fileService: FileService;
+	let pluginManager: AgentPluginManager;
+	let clientConnections: AgentHostClientConnectionService;
+	let authenticationRequests: IAgentHostMcpAuthenticationRequest[];
+	let authenticationResult: Promise<boolean>;
 
 	setup(() => {
 		disposables = new DisposableStore();
+		clientConnections = disposables.add(new AgentHostClientConnectionService());
+		authenticationRequests = [];
+		authenticationResult = Promise.resolve(false);
+		disposables.add(clientConnections.registerSource({
+			hasSeenClient: () => false,
+			isClientConnected: () => false,
+			isLocalClient: () => false,
+			getConnectedClientTransportCounts: () => new Map(),
+			requestWorkspaceTrust: async () => false,
+			requestMcpAuthentication: request => {
+				authenticationRequests.push(request);
+				return authenticationResult;
+			},
+		}));
 		stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		stateManager.dispatchServerAction(ROOT_STATE_URI, {
 			type: ActionType.RootConfigChanged,
@@ -60,6 +90,10 @@ suite('AgentHostAutomationService', () => {
 		writeFailures = 0;
 		writeAttempts = 0;
 		telemetry = new RecordingAutomationTelemetry();
+		fileService = disposables.add(new FileService(new NullLogService()));
+		disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+		disposables.add(fileService.registerProvider(AGENT_CLIENT_SCHEME, disposables.add(new InMemoryFileSystemProvider())));
+		pluginManager = new AgentPluginManager(URI.file('/userData'), fileService, new NullLogService());
 		const writer: IAgentHostStorageWriter = {
 			mkdir: async () => { },
 			writeFile: async () => {
@@ -69,6 +103,8 @@ suite('AgentHostAutomationService', () => {
 					throw new Error('storage unavailable');
 				}
 			},
+			rename: async () => { },
+			rm: async () => { },
 		};
 		storageService = disposables.add(new AgentHostStorageService(
 			URI.file(`/agent-host-automation-service-${generateUuid()}.json`),
@@ -114,14 +150,196 @@ suite('AgentHostAutomationService', () => {
 			createSession: execution?.createSession ?? (async () => { throw new Error('Unexpected session creation'); }),
 			startSession: execution?.startSession ?? (async () => { throw new Error('Unexpected session start'); }),
 			cancelSession: execution?.cancelSession ?? (async () => false),
-		}, stateManager, storageService, new NullLogService(), telemetry, providers);
+		}, stateManager, storageService, new NullLogService(), telemetry, providers, pluginManager, fileService, upcastPartial<INativeEnvironmentService>({ userHome: URI.file('/home') }), clientConnections);
 		return disposables.add(service);
 	}
 
 	async function enableAndCreate(service: AgentHostAutomationService, resource = 'ahp-automation:/review-changes'): Promise<void> {
-		await service.completeMigration();
 		await service.handleCreate(createAction(resource));
 	}
+
+	test('silently authenticates run-linked MCP servers once per challenge', async () => {
+		const session = URI.parse('mock:/mcp-run');
+		const interactiveSession = URI.parse('mock:/interactive');
+		for (const resource of [session, interactiveSession]) {
+			stateManager.createSession({
+				resource: resource.toString(), provider: 'mock', title: '',
+				status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+			});
+		}
+		const started = new DeferredPromise<void>();
+		const pendingAuthentication = new DeferredPromise<boolean>();
+		authenticationResult = pendingAuthentication.p;
+		const service = createService({
+			createSession: async () => session,
+			startSession: async () => { await started.complete(); },
+		});
+		await enableAndCreate(service);
+		await service.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation: createAction().resource, requestId: 'mcp-run' });
+		await started.p;
+		const auth: McpAuthRequirement = {
+			resource: { resource: 'https://mcp.example.com', authorization_servers: ['https://auth.example.com'] },
+			reason: McpAuthRequiredReason.Required,
+			requiredScopes: ['read'],
+		};
+		const customizations = (challenge: McpAuthRequirement): Customization[] => [
+			{ type: CustomizationType.McpServer, id: 'top', uri: 'mcp:/top', name: 'top', state: { kind: McpServerStatus.AuthRequired, ...challenge } },
+			{
+				type: CustomizationType.Plugin, id: 'plugin', uri: 'file:///plugin', name: 'plugin', children: [
+					{ type: CustomizationType.McpServer, id: 'child', uri: 'mcp:/child', name: 'child', state: { kind: McpServerStatus.AuthRequired, ...challenge } },
+				]
+			},
+		];
+		const publish = (resource: URI, challenge: McpAuthRequirement) => stateManager.dispatchServerAction(resource.toString(), {
+			type: ActionType.SessionCustomizationsChanged, customizations: customizations(challenge),
+		});
+		publish(interactiveSession, auth);
+		publish(session, auth);
+		publish(session, auth);
+		const inflightRequests = [...authenticationRequests];
+		await pendingAuthentication.complete(false);
+		await Promise.resolve();
+		publish(session, auth);
+		const failedRequests = [...authenticationRequests];
+		const changedAuth = { ...auth, requiredScopes: ['read', 'write'] };
+		publish(session, changedAuth);
+		const changedChallenges: McpAuthRequirement[] = [
+			{ ...auth, resource: { ...auth.resource, resource: 'https://other.example.com' } },
+			{ ...auth, reason: McpAuthRequiredReason.Expired },
+			{ ...auth, oauthClient: { clientId: 'registered-client' } },
+		];
+		for (const challenge of changedChallenges) {
+			publish(session, challenge);
+			publish(session, challenge);
+		}
+		publish(session, auth);
+		stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionCustomizationsChanged, customizations: [] });
+		publish(session, auth);
+		stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: { [AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY]: false } });
+		publish(session, changedAuth);
+		stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootConfigChanged, config: { [AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY]: true } });
+		publish(session, auth);
+		service.dispose();
+		publish(session, changedAuth);
+		assert.deepStrictEqual({ inflightRequests, failedRequests, requests: authenticationRequests }, {
+			inflightRequests: [{ serverName: 'top', auth }, { serverName: 'child', auth }],
+			failedRequests: [{ serverName: 'top', auth }, { serverName: 'child', auth }],
+			requests: [auth, changedAuth, ...changedChallenges, auth, auth].flatMap(auth => [
+				{ serverName: 'top', auth }, { serverName: 'child', auth },
+			]),
+		});
+	});
+
+	test('captures plugins durably and seeds a disconnected run with the rewritten agent', async () => {
+		const ref: ClientPluginCustomization = { type: CustomizationType.Plugin, id: 'bundle', uri: 'virtual:/bundle', name: 'Bundle', nonce: 'one' };
+		await fileService.writeFile(URI.joinPath(toAgentClientUri(URI.parse(ref.uri), 'author'), '.plugin/plugin.json'), VSBuffer.fromString('{"name":"bundle"}'));
+		const created = new DeferredPromise<{ activeClient: SessionActiveClient | undefined; agent: string | undefined }>();
+		const service = createService({
+			createSession: async (template, _run, activeClient) => {
+				created.complete({ activeClient, agent: template.agent?.uri });
+				return AgentSession.uri('mock', 'customized');
+			},
+			startSession: async () => { },
+		});
+		const action = createAction();
+		action.definition.session = { provider: 'mock', agent: { uri: 'virtual:/bundle/agents/reviewer.md' }, customizations: [ref] };
+		await service.handleCreate(action, 'author');
+		const entry = stateManager.getAutomationCatalogState()!.entries[0];
+		const copy = entry.customizations![0];
+		await service.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation: action.resource, requestId: 'offline' });
+		const run = await created.p;
+		assert.deepStrictEqual({
+			copy,
+			stored: storageService.get<{ catalog: { automations: typeof entry[] } }>('automations')!.catalog.automations[0].customizations,
+			run,
+		}, {
+			copy: { type: CustomizationType.Plugin, id: 'bundle', uri: copy.uri, name: 'Bundle', children: [], load: { kind: 'loaded' }, icons: undefined, range: undefined, version: undefined },
+			stored: [copy],
+			run: {
+				activeClient: { clientId: AUTOMATION_ACTIVE_CLIENT_ID, displayName: 'Automation', tools: [], customizations: [{ ...ref, uri: toAgentHostFileUri(URI.parse(copy.uri)).toString(), clientId: AUTOMATION_ACTIVE_CLIENT_ID }] },
+				agent: URI.joinPath(URI.parse(copy.uri), 'agents/reviewer.md').toString(),
+			},
+		});
+	});
+
+	test('creates and updates local file customizations in place using connection service locality', async () => {
+		disposables.add(clientConnections.registerSource({
+			hasSeenClient: clientId => clientId === 'local',
+			isClientConnected: clientId => clientId === 'local',
+			isLocalClient: clientId => clientId === 'local',
+			getConnectedClientTransportCounts: () => new Map([['local', 1]]),
+			requestWorkspaceTrust: async () => true,
+			requestMcpAuthentication: async () => false,
+		}));
+		const ref: ClientPluginCustomization = { type: CustomizationType.Plugin, id: 'bundle', uri: URI.file('/local/bundle').toString(), name: 'Bundle', nonce: 'one' };
+		await fileService.writeFile(URI.joinPath(URI.parse(ref.uri), '.plugin/plugin.json'), VSBuffer.fromString('{"name":"bundle"}'));
+		const service = createService();
+		const action = createAction();
+		action.definition.session.customizations = [ref];
+		await service.handleCreate(action, 'local');
+		const created = stateManager.getAutomationCatalogState()!.entries[0].customizations;
+		const updatedRef = { ...ref, nonce: 'two' };
+		await service.handleUpdate({
+			type: ActionType.AutomationUpdateRequested, resource: action.resource,
+			changes: { session: { ...action.definition.session, customizations: [updatedRef] } },
+		}, 'local');
+		const updated = stateManager.getAutomationCatalogState()!.entries[0];
+		const [runSync] = await pluginManager.syncCustomizations(AUTOMATION_ACTIVE_CLIENT_ID, [{ ...updatedRef, uri: toAgentHostFileUri(URI.parse(updatedRef.uri)).toString(), clientId: AUTOMATION_ACTIVE_CLIENT_ID }]);
+		assert.deepStrictEqual({
+			createdUris: created?.map(copy => copy.uri),
+			updatedUris: updated.customizations?.map(copy => copy.uri),
+			refs: updated.definition.session.customizations,
+			copiesExist: await fileService.exists(URI.joinPath(pluginManager.hostPluginsPath, 'automations')),
+			runPluginDir: runSync.pluginDir?.toString(),
+		}, {
+			createdUris: [ref.uri], updatedUris: [ref.uri], refs: [updatedRef], copiesExist: false, runPluginDir: ref.uri,
+		});
+	});
+
+	test('keeps copies on unrelated updates and rejects failed captures atomically', async () => {
+		const service = createService();
+		const action = createAction();
+		const ref: ClientPluginCustomization = { type: CustomizationType.Plugin, id: 'bundle', uri: 'virtual:/bundle', name: 'Bundle', nonce: 'one' };
+		action.definition.session.customizations = [ref];
+		await fileService.writeFile(URI.joinPath(toAgentClientUri(URI.parse(ref.uri), 'author'), '.plugin/plugin.json'), VSBuffer.fromString('{"name":"bundle"}'));
+		await service.handleCreate(action, 'author');
+		const original = stateManager.getAutomationCatalogState()!.entries[0].customizations;
+		await service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource: action.resource, changes: { title: 'Updated' } });
+		await assert.rejects(service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource: action.resource, changes: { session: { provider: 'mock', customizations: [{ ...ref, uri: 'virtual:/missing' }] } } }, 'author'));
+		const updated = stateManager.getAutomationCatalogState()!.entries[0];
+		assert.deepStrictEqual({ copies: updated.customizations, session: updated.definition.session, title: updated.definition.title }, {
+			copies: original, session: action.definition.session, title: 'Updated',
+		});
+	});
+
+	test('collects unreferenced copies after mutations but retains copies used by runs', async () => {
+		const orphan = URI.joinPath(pluginManager.hostPluginsPath, 'automations', '.staging-orphan');
+		await fileService.createFolder(orphan);
+		const created = new DeferredPromise<void>();
+		const service = createService({
+			createSession: async () => {
+				created.complete();
+				return AgentSession.uri('mock', 'run');
+			},
+			startSession: async () => { },
+		});
+		const action = createAction();
+		const ref: ClientPluginCustomization = { type: CustomizationType.Plugin, id: 'bundle', uri: 'virtual:/bundle', name: 'Bundle', nonce: 'one' };
+		action.definition.session.customizations = [ref];
+		await fileService.writeFile(URI.joinPath(toAgentClientUri(URI.parse(ref.uri), 'author'), '.plugin/plugin.json'), VSBuffer.fromString('{"name":"bundle"}'));
+		await service.handleCreate(action, 'author');
+		const usedByRun = stateManager.getAutomationCatalogState()!.entries[0].customizations![0];
+		await service.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation: action.resource, requestId: 'run' });
+		await created.p;
+		await service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource: action.resource, changes: { session: { provider: 'mock', customizations: [{ ...ref, nonce: 'two' }] } } }, 'author');
+		const unused = stateManager.getAutomationCatalogState()!.entries[0].customizations![0];
+		await service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource: action.resource, changes: { session: { provider: 'mock' } } });
+		assert.deepStrictEqual({
+			orphan: await fileService.exists(orphan),
+			usedByRun: await fileService.exists(URI.parse(usedByRun.uri)),
+			unused: await fileService.exists(URI.parse(unused.uri)),
+		}, { orphan: false, usedByRun: true, unused: false });
+	});
 
 	function terminalRun(resource: string): Promise<void> {
 		const isTerminal = (status: AutomationRunStatus | undefined) => status === AutomationRunStatus.Completed || status === AutomationRunStatus.Cancelled || status === AutomationRunStatus.Failed;
@@ -133,7 +351,7 @@ suite('AgentHostAutomationService', () => {
 		)).then(() => undefined);
 	}
 
-	test('logs creation once after persistence, excluding retries, failed writes and imported definitions', async () => {
+	test('logs creation once after persistence, excluding retries and failed writes', async () => {
 		const service = createService();
 		const action = {
 			...createAction(),
@@ -154,10 +372,6 @@ suite('AgentHostAutomationService', () => {
 		assert.deepStrictEqual(telemetry.events, []);
 		await service.handleCreate(action);
 		await service.handleCreate(action);
-		await service.handleCreate({
-			...createAction('ahp-automation:/imported'),
-			definition: { ...definition(), _meta: { [AGENT_HOST_LEGACY_AUTOMATION_IMPORT_META_KEY]: true } },
-		});
 
 		assert.deepStrictEqual(telemetry.events, [{
 			name: 'automation.created',
@@ -225,7 +439,6 @@ suite('AgentHostAutomationService', () => {
 
 	test('preserves distinct complete automation resources across definition and run telemetry', async () => {
 		const service = createService();
-		await service.completeMigration();
 		const resources = [
 			'ahp-automation:/shared',
 			'ahp-automation://first/shared',
@@ -249,35 +462,6 @@ suite('AgentHostAutomationService', () => {
 				automationId: hashAutomationTelemetryId(resource),
 			}))
 		));
-	});
-
-	test('migration bookkeeping is silent but later user edits to imported definitions are recorded', async () => {
-		const service = createService();
-		const resource = 'ahp-automation:/imported';
-		await service.handleCreate({
-			...createAction(resource),
-			definition: {
-				...definition(),
-				_meta: {
-					[AGENT_HOST_LEGACY_AUTOMATION_IMPORT_META_KEY]: true,
-					[AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY]: true,
-				},
-			},
-		});
-		await service.handleUpdate({
-			type: ActionType.AutomationUpdateRequested, resource,
-			changes: { session: { provider: 'copilotcli' } },
-		});
-		await service.handleUpdate({
-			type: ActionType.AutomationUpdateRequested, resource,
-			changes: { _meta: { [AGENT_HOST_LEGACY_AUTOMATION_IMPORT_META_KEY]: true } },
-		});
-		await service.completeMigration();
-		await service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource, changes: { enabled: false } });
-
-		assert.deepStrictEqual(telemetry.events.map(event => ({ name: event.name, id: event.data.automationId, enabled: event.data.enabled })), [
-			{ name: 'automation.updated', id: hashAutomationTelemetryId('ahp-automation:/imported'), enabled: false },
-		]);
 	});
 
 	test('redacts unknown models and provider configuration while retaining safe model selections', async () => {
@@ -316,7 +500,6 @@ suite('AgentHostAutomationService', () => {
 			createSession: async () => release.p,
 			startSession: async () => { await started.complete(); },
 		});
-		await service.completeMigration();
 		await service.handleCreate({
 			...createAction(),
 			definition: { ...definition(), session: { provider: 'copilotcli', config: { mode: 'plan' } } },
@@ -362,7 +545,6 @@ suite('AgentHostAutomationService', () => {
 				await started.complete();
 			},
 		});
-		await service.completeMigration();
 		await service.handleCreate({ ...createAction(), definition: { ...definition(), session: {} } });
 		await service.runAutomation({ channel: 'ahp-automations://', automation: 'ahp-automation:/review-changes', requestId: 'business-run' });
 		await started.p;
@@ -385,6 +567,62 @@ suite('AgentHostAutomationService', () => {
 			legacyFields: [],
 		});
 	});
+
+	for (const { provider, telemetryProvider, scheme } of [
+		['copilotcli', 'copilotcli'], ['copilot', 'copilot'], ['claude', 'claude'], ['codex', 'codex'],
+		['copilot-cloud-agent', 'copilot-cloud'], ['openai-codex', 'codex'], ['custom-provider', 'other'],
+	].flatMap(([provider, telemetryProvider]) => [provider, 'ahp-session'].map(scheme => ({ provider, telemetryProvider, scheme })))) {
+		test(`run telemetry preserves ${provider} after ${scheme} primary session is removed`, async () => {
+			const session = AgentSession.uri(scheme, 'removed-session');
+			const defaultChat = buildDefaultChatUri(session);
+			const started = new DeferredPromise<void>();
+			stateManager.createSession({
+				resource: session.toString(), provider, title: '',
+				status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+			});
+			const service = createService({
+				createSession: async () => session,
+				startSession: async () => {
+					stateManager.addChat(session.toString(), defaultChat);
+					stateManager.dispatchServerAction(defaultChat, {
+						type: ActionType.ChatTurnStarted, turnId: 'turn', startedAt: new Date().toISOString(),
+						message: { text: 'Review changes', origin: { kind: MessageKind.Automation } },
+					});
+					await started.complete();
+				},
+				cancelSession: async () => {
+					stateManager.dispatchServerAction(defaultChat, { type: ActionType.ChatTurnCancelled, turnId: 'turn', duration: 0 });
+					return true;
+				},
+			});
+			await enableAndCreate(service);
+			const run = await service.runAutomation({ channel: 'ahp-automations://', automation: 'ahp-automation:/review-changes', requestId: 'removal-race' });
+			await started.p;
+
+			stateManager.removeSession(session.toString());
+			assert.strictEqual(stateManager.getSessionSummary(session.toString()), undefined, 'session summary should be gone');
+
+			const completed = terminalRun(run.resource);
+			await service.handleCancel(run.resource, { type: ActionType.AutomationRunCancelRequested });
+			await completed;
+
+			const completedEvents = telemetry.events.filter(event => event.name === 'automation.runCompleted');
+			assert.deepStrictEqual({
+				completed: completedEvents.map(event => ({
+					provider: event.data.provider,
+					agentSessionId: event.data.agentSessionId,
+				})),
+				storedProviders: storageService.get<{ runProviders?: Record<string, string> }>('automations')?.runProviders,
+				runMeta: stateManager.getAutomationRunState(run.resource)?._meta,
+				summaryMeta: stateManager.getAutomationCatalogState()?.entries[0].runs[0]._meta,
+			}, {
+				completed: [{ provider: telemetryProvider, agentSessionId: 'removed-session' }],
+				storedProviders: { [run.resource]: provider },
+				runMeta: undefined,
+				summaryMeta: undefined,
+			});
+		});
+	}
 
 	test('logs pre-session failure once without inventing a run-start or session identifier', async () => {
 		const service = createService({ createSession: async () => { throw new Error('/private/startup-error'); } });
@@ -412,26 +650,6 @@ suite('AgentHostAutomationService', () => {
 		assert.deepStrictEqual(telemetry.events.map(event => event.name), ['automation.created', 'automation.runCreated', 'automation.runCompleted']);
 	});
 
-	test('execution remains gated after migration persistence failure and retries safely', async () => {
-		const service = createService();
-		writeFailures = 1;
-
-		await assert.rejects(service.completeMigration(), /storage unavailable/);
-		assert.deepStrictEqual(service.capabilities, { create: {}, schedules: {}, runCancellation: {}, runHistoryLimit: 50 });
-
-		await service.completeMigration();
-
-		assert.deepStrictEqual({
-			writeAttempts,
-			capabilities: service.capabilities,
-			catalog: stateManager.getAutomationCatalogState(),
-		}, {
-			writeAttempts: 3,
-			capabilities: { create: {}, schedules: {}, runCancellation: {}, runHistoryLimit: 50 },
-			catalog: { entries: [], _meta: { [AGENT_HOST_AUTOMATION_CATALOG_MIGRATED_META_KEY]: true } },
-		});
-	});
-
 	test('a future host automation storage version disables the capability without rewriting data', async () => {
 		storageService.set('automations', {
 			version: 2,
@@ -440,7 +658,7 @@ suite('AgentHostAutomationService', () => {
 		await storageService.whenIdle();
 		const service = createService();
 
-		await assert.rejects(service.completeMigration(), /storage is unavailable/);
+		await assert.rejects(service.handleCreate(createAction()), /storage is unavailable/);
 		assert.deepStrictEqual({
 			isAvailable: service.isAvailable,
 			capabilities: service.capabilities,
@@ -451,6 +669,30 @@ suite('AgentHostAutomationService', () => {
 			storedVersion: 2,
 		});
 	});
+
+	for (const { name, runProviders } of [
+		{ name: 'null', runProviders: null },
+		{ name: 'array', runProviders: [] },
+		{ name: 'non-string', runProviders: { run: 1 } },
+		{ name: 'empty provider', runProviders: { run: '' } },
+	]) {
+		test(`rejects ${name} run-provider storage without rewriting it`, async () => {
+			const stored = { version: 1, catalog: { automations: [] }, runProviders };
+			storageService.set('automations', stored);
+			await storageService.whenIdle();
+			const service = createService();
+
+			assert.deepStrictEqual({
+				isAvailable: service.isAvailable,
+				capabilities: service.capabilities,
+				stored: storageService.get('automations'),
+			}, {
+				isAvailable: false,
+				capabilities: undefined,
+				stored,
+			});
+		});
+	}
 
 	test('version 1 automation storage maps automations to protocol entries', async () => {
 		const resource = 'ahp-automation:/review-changes';
@@ -471,8 +713,7 @@ suite('AgentHostAutomationService', () => {
 		const service = createService();
 
 		assert.deepStrictEqual(stateManager.getAutomationCatalogState()?.entries.map(entry => entry.resource), [resource]);
-
-		await service.completeMigration([resource]);
+		assert.deepStrictEqual(await service.listTriggerDefinitions({ channel: ROOT_STATE_URI }), { items: [] });
 		const stored = storageService.get<{ version: number; catalog: { entries?: unknown[]; automations?: unknown[] } }>('automations');
 		assert.deepStrictEqual({
 			version: stored?.version,
@@ -482,6 +723,38 @@ suite('AgentHostAutomationService', () => {
 			version: 1,
 			automationCount: 1,
 			hasEntries: false,
+		});
+	});
+
+	test('obsolete migration flags cannot keep a restored host inactive', async () => {
+		const resource = 'ahp-automation:/restored';
+		const savedDefinition = { ...definition(), _meta: { 'vscode.legacyAutomationImportPending': true } };
+		storageService.set('automations', {
+			version: 1,
+			catalog: {
+				automations: [{
+					resource,
+					definition: savedDefinition,
+					runs: [],
+					operations: [AutomationOperation.Update],
+					createdAt: '2026-01-01T00:00:00Z',
+					modifiedAt: '2026-01-01T00:00:00Z',
+				}],
+				_meta: { 'vscode.migrationCompleted': false },
+			},
+		});
+		await storageService.whenIdle();
+		const service = createService();
+		assert.deepStrictEqual({
+			capabilities: service.capabilities,
+			triggers: await service.listTriggerDefinitions({ channel: ROOT_STATE_URI }),
+			definition: stateManager.getAutomationCatalogState()?.entries[0].definition,
+			operations: stateManager.getAutomationCatalogState()?.entries[0].operations,
+		}, {
+			capabilities: { create: {}, schedules: {}, customizations: {}, runCancellation: {}, runHistoryLimit: 50 },
+			triggers: { items: [] },
+			definition: savedDefinition,
+			operations: [AutomationOperation.Update, AutomationOperation.Remove, AutomationOperation.Run],
 		});
 	});
 
@@ -538,13 +811,11 @@ suite('AgentHostAutomationService', () => {
 
 	test('failed catalogue persistence publishes nothing and a retry creates one entry', async () => {
 		const service = createService();
-		await service.completeMigration();
 		writeFailures = 1;
 
 		await assert.rejects(service.handleCreate(createAction()), /storage unavailable/);
 		assert.deepStrictEqual(stateManager.getAutomationCatalogState(), {
 			entries: [],
-			_meta: { [AGENT_HOST_AUTOMATION_CATALOG_MIGRATED_META_KEY]: true },
 		});
 
 		await service.handleCreate(createAction());
@@ -556,36 +827,6 @@ suite('AgentHostAutomationService', () => {
 			resource: 'ahp-automation:/review-changes',
 			operations: [AutomationOperation.Update, AutomationOperation.Remove, AutomationOperation.Run],
 		}]);
-	});
-
-	test('partial migration cannot unblock execution', async () => {
-		const service = createService();
-		await service.handleCreate(createAction());
-
-		await assert.rejects(
-			service.completeMigration(['ahp-automation:/review-changes', 'ahp-automation:/missing']),
-			/1 expected automation resources are missing/,
-		);
-		await assert.rejects(service.runAutomation({
-			channel: 'ahp-automations://',
-			automation: 'ahp-automation:/review-changes',
-			requestId: 'blocked-request',
-		}), /migration must complete/);
-
-		assert.deepStrictEqual({
-			capabilities: service.capabilities,
-			operations: stateManager.getAutomationCatalogState()?.entries[0].operations,
-		}, {
-			capabilities: { create: {}, schedules: {}, runCancellation: {}, runHistoryLimit: 50 },
-			operations: [AutomationOperation.Update, AutomationOperation.Remove],
-		});
-
-		await service.completeMigration(['ahp-automation:/review-changes']);
-		assert.deepStrictEqual(stateManager.getAutomationCatalogState()?.entries[0].operations, [
-			AutomationOperation.Update,
-			AutomationOperation.Remove,
-			AutomationOperation.Run,
-		]);
 	});
 
 	test('feature disablement removes run permission and blocks execution in the host', async () => {
@@ -732,12 +973,17 @@ suite('AgentHostAutomationService', () => {
 			const messageModel = hasMessageModel ? { id: 'other-model', config: { thinkingLevel: 'high' } } : undefined;
 			const completed = new DeferredPromise<void>();
 			let createdModel: AutomationDefinition['session']['model'];
+			const readinessModels: AutomationDefinition['session']['model'][] = [];
 			disposables.add(stateManager.onDidEmitEnvelope(envelope => {
 				if (envelope.action.type === ActionType.AutomationRunLifecycleChanged && envelope.action.lifecycle.status === AutomationRunStatus.Completed) {
 					void completed.complete();
 				}
 			}));
 			const service = createService({
+				isSessionTemplateAvailable: template => {
+					readinessModels.push(template.model);
+					return true;
+				},
 				createSession: async template => {
 					createdModel = template.model;
 					stateManager.createSession({
@@ -770,7 +1016,6 @@ suite('AgentHostAutomationService', () => {
 			if (messageModel) {
 				automation.message.model = messageModel;
 			}
-			await service.completeMigration();
 			await service.handleCreate({ ...createAction(), definition: automation });
 			await service.runAutomation({
 				channel: 'ahp-automations://',
@@ -781,14 +1026,55 @@ suite('AgentHostAutomationService', () => {
 
 			assert.deepStrictEqual({
 				createdModel,
+				readinessModelsMatch: readinessModels.length > 0 && readinessModels.every(checkedModel => checkedModel === (messageModel ?? model)),
 				recordedModel: stateManager.getChatState(buildDefaultChatUri(session))?.turns[0]?.message.model,
 				savedModel: stateManager.getAutomationCatalogState()?.entries[0].definition.session.model,
 			}, {
-				createdModel: model,
+				createdModel: messageModel ?? model,
+				readinessModelsMatch: true,
 				recordedModel: messageModel ?? model,
 				savedModel: model,
 			});
 		});
+	}
+
+	for (const scheduled of [false, true]) {
+		test(`uses a message-only model for ${scheduled ? 'scheduled' : 'manual'} execution readiness`, () => runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 100 }, async () => {
+			const model = { id: 'byok-model', config: { thinkingLevel: 'high' } };
+			const started = new DeferredPromise<void>();
+			let createdModel: AutomationDefinition['session']['model'];
+			let sentModel: AutomationDefinition['message']['model'];
+			const service = createService({
+				isSessionTemplateAvailable: template => template.model?.id === model.id,
+				createSession: async template => {
+					createdModel = template.model;
+					return URI.parse('mock:/byok-automation');
+				},
+				startSession: async (_session, message) => {
+					sentModel = message.model;
+					await started.complete();
+				},
+			});
+			const automation = definition();
+			automation.message.model = model;
+			if (scheduled) {
+				automation.triggers = [{ id: 'schedule', kind: AutomationTriggerKind.Schedule, schedule: { expression: '* * * * *', timeZone: 'UTC' } }];
+			}
+			await service.handleCreate({ ...createAction(), definition: automation });
+			if (!scheduled) {
+				await service.runAutomation({
+					channel: 'ahp-automations://',
+					automation: 'ahp-automation:/review-changes',
+					requestId: 'message-model-request',
+				});
+			}
+			await started.p;
+			assert.deepStrictEqual({
+				createdModel,
+				sentModel,
+				savedSessionModel: stateManager.getAutomationCatalogState()?.entries[0].definition.session.model,
+			}, { createdModel: model, sentModel: model, savedSessionModel: undefined });
+		}));
 	}
 
 	test('logs the saved run configuration despite an edit while the session is being created', async () => {
@@ -804,7 +1090,6 @@ suite('AgentHostAutomationService', () => {
 			},
 			startSession: async () => { await started.complete(); },
 		});
-		await service.completeMigration();
 		await service.handleCreate({
 			...createAction(),
 			definition: { ...definition(), session: { provider: 'copilotcli', model: { id: 'catalog-model' }, config: { mode: 'plan', autoApprove: 'assisted' } } },
@@ -842,36 +1127,63 @@ suite('AgentHostAutomationService', () => {
 		}]);
 	});
 
-	test('logs interruption once on restart with the previously linked session', async () => {
-		const started = new DeferredPromise<void>();
-		const service = createService({
-			createSession: async () => URI.parse('copilotcli:/interrupted-session'),
-			startSession: async () => { await started.complete(); },
+	for (const { scheme, hasSnapshot } of [
+		{ scheme: 'copilotcli', hasSnapshot: true },
+		{ scheme: 'ahp-session', hasSnapshot: true },
+		{ scheme: 'copilotcli', hasSnapshot: false },
+	]) {
+		test(`logs interruption once on restart with the previously linked ${scheme} session (${hasSnapshot ? 'snapshot' : 'legacy storage'})`, async () => {
+			const session = AgentSession.uri(scheme, 'interrupted-session');
+			const started = new DeferredPromise<void>();
+			const service = createService({
+				createSession: async () => {
+					stateManager.createSession({
+						resource: session.toString(), provider: 'copilotcli', title: '',
+						status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+					});
+					return session;
+				},
+				startSession: async () => { await started.complete(); },
+			});
+			await enableAndCreate(service);
+			const run = await service.runAutomation({ channel: 'ahp-automations://', automation: 'ahp-automation:/review-changes', requestId: 'restart' });
+			await started.p;
+			service.dispose();
+			if (!hasSnapshot) {
+				const { runProviders, ...stored } = storageService.get<{ runProviders?: Record<string, string> }>('automations')!;
+				assert.ok(runProviders);
+				storageService.set('automations', stored);
+				await storageService.whenIdle();
+			}
+			stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+			stateManager.dispatchServerAction(ROOT_STATE_URI, {
+				type: ActionType.RootConfigChanged,
+				config: { [AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY]: true },
+			});
+			createService();
+			await terminalRun(run.resource);
+			createService();
+			await storageService.whenIdle();
+
+			assert.deepStrictEqual(telemetry.events.map(event => ({
+				name: event.name, outcome: event.data.outcome, session: event.data.agentSessionId, provider: event.data.provider,
+			})), [
+				{ name: 'automation.created', outcome: undefined, session: undefined, provider: 'other' },
+				{ name: 'automation.runCreated', outcome: undefined, session: undefined, provider: 'other' },
+				{ name: 'automation.runStarted', outcome: undefined, session: 'interrupted-session', provider: 'copilotcli' },
+				{ name: 'automation.runCompleted', outcome: 'interrupted', session: 'interrupted-session', provider: 'copilotcli' },
+			]);
 		});
-		await enableAndCreate(service);
-		const run = await service.runAutomation({ channel: 'ahp-automations://', automation: 'ahp-automation:/review-changes', requestId: 'restart' });
-		await started.p;
-		service.dispose();
-		createService();
-		await terminalRun(run.resource);
-		createService();
-		await storageService.whenIdle();
+	}
 
-		assert.deepStrictEqual(telemetry.events.map(event => ({ name: event.name, outcome: event.data.outcome, session: event.data.agentSessionId })), [
-			{ name: 'automation.created', outcome: undefined, session: undefined },
-			{ name: 'automation.runCreated', outcome: undefined, session: undefined },
-			{ name: 'automation.runStarted', outcome: undefined, session: 'interrupted-session' },
-			{ name: 'automation.runCompleted', outcome: 'interrupted', session: 'interrupted-session' },
-		]);
-	});
-
-	for (const outcome of ['success', 'error', 'cancelled', 'timeout'] as const) {
-		test(outcome === 'success' ? 'preserves successful completion when cancellation races it' : `records linked-session ${outcome} without error content`, () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1), maxTaskCount: 100 }, async () => {
+	for (const { scheme, outcome } of ['copilotcli', 'ahp-session'].flatMap(scheme =>
+		(['success', 'error', 'cancelled', 'timeout'] as const).map(outcome => ({ scheme, outcome })))) {
+		test(`records ${scheme} linked-session ${outcome} after session removal without error content`, () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1), maxTaskCount: 100 }, async () => {
 			stateManager.dispatchServerAction(ROOT_STATE_URI, {
 				type: ActionType.RootConfigChanged,
 				config: { [AGENT_HOST_AUTOMATION_RUN_TIMEOUT_MINUTES_CONFIG_KEY]: 1 },
 			});
-			const session = URI.parse(`copilotcli:/${outcome}-session`);
+			const session = AgentSession.uri(scheme, `${outcome}-session`);
 			const started = new DeferredPromise<void>();
 			const service = createService({
 				createSession: async () => {
@@ -893,6 +1205,7 @@ suite('AgentHostAutomationService', () => {
 					} else {
 						stateManager.dispatchServerAction(buildDefaultChatUri(session), { type: ActionType.ChatTurnCancelled, turnId: 'turn', duration: 0 });
 					}
+					stateManager.removeSession(session.toString());
 					return true;
 				},
 			});
@@ -908,6 +1221,7 @@ suite('AgentHostAutomationService', () => {
 			} else if (outcome === 'cancelled' || outcome === 'success') {
 				await service.handleCancel(run.resource, { type: ActionType.AutomationRunCancelRequested });
 			}
+			stateManager.removeSession(session.toString());
 			await completed;
 
 			assert.deepStrictEqual(telemetry.events.filter(event => event.name === 'automation.runCompleted').map(event => event.data), [{
@@ -923,6 +1237,41 @@ suite('AgentHostAutomationService', () => {
 			}]);
 		}));
 	}
+
+	test('failed session-link persistence does not publish provider identity or run-start telemetry', async () => {
+		let startCalls = 0;
+		const service = createService({
+			createSession: async () => {
+				const session = 'ahp-session:/failed-link';
+				stateManager.createSession({
+					resource: session, provider: 'copilotcli', title: '', status: SessionStatus.Idle,
+					createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+				});
+				writeFailures = 1;
+				return URI.parse(session);
+			},
+			startSession: async () => { startCalls++; },
+		});
+		await enableAndCreate(service);
+		const run = await service.runAutomation({
+			channel: AUTOMATION_CATALOG_URI, automation: createAction().resource, requestId: 'failed-link',
+		});
+		await terminalRun(run.resource);
+
+		assert.deepStrictEqual({
+			startCalls,
+			providers: storageService.get<{ runProviders?: Record<string, string> }>('automations')?.runProviders,
+			started: telemetry.events.filter(event => event.name === 'automation.runStarted'),
+			completed: telemetry.events.filter(event => event.name === 'automation.runCompleted').map(event => ({
+				provider: event.data.provider, sessionCreated: event.data.sessionCreated, outcome: event.data.outcome,
+			})),
+		}, {
+			startCalls: 0,
+			providers: undefined,
+			started: [],
+			completed: [{ provider: 'default', sessionCreated: false, outcome: 'error' }],
+		});
+	});
 
 	test('run persistence failure prevents session side effects', async () => {
 		let createCalls = 0;
@@ -948,6 +1297,32 @@ suite('AgentHostAutomationService', () => {
 			createCalls: 0,
 			runs: [],
 		});
+	});
+
+	test('a cancelled pending run never executes when its provider later registers', async () => {
+		let available = false;
+		let createCalls = 0;
+		let startCalls = 0;
+		const service = createService({
+			isSessionTemplateAvailable: () => available,
+			createSession: async () => { createCalls++; return URI.parse('mock:/unexpected'); },
+			startSession: async () => { startCalls++; },
+		});
+		await enableAndCreate(service);
+		const run = await service.runAutomation({
+			channel: 'ahp-automations://',
+			automation: 'ahp-automation:/review-changes',
+			requestId: 'cancel-before-provider',
+		});
+		await service.handleCancel(run.resource, { type: ActionType.AutomationRunCancelRequested });
+		available = true;
+		service.handleAgentsChanged();
+		await timeout(0);
+		assert.deepStrictEqual({
+			createCalls,
+			startCalls,
+			status: stateManager.getAutomationRunState(run.resource)?.lifecycle.status,
+		}, { createCalls: 0, startCalls: 0, status: AutomationRunStatus.Cancelled });
 	});
 
 	test('pending execution waits for provider registration', async () => {
@@ -1181,7 +1556,6 @@ suite('AgentHostAutomationService', () => {
 			},
 			runs: [],
 			manualRunRequests: [],
-			migration: { status: 'complete', completedAt: now.toISOString() },
 		});
 		await storageService.whenIdle();
 
@@ -1236,13 +1610,92 @@ suite('AgentHostAutomationService', () => {
 		});
 	});
 
+	for (const initiallyEnabled of [true, false]) {
+		test(`preserves catch-up work until authentication is ready with enablement ${initiallyEnabled}`, async () => {
+			const timestamp = new Date().toISOString();
+			const scheduledFor = new Date(Date.now() - 120_000).toISOString();
+			const resource = 'ahp-automation:/awaiting-auth';
+			storageService.set('automations', {
+				version: 1,
+				catalog: {
+					automations: [{
+						resource,
+						definition: {
+							...definition(),
+							triggers: [{
+								id: 'schedule', kind: AutomationTriggerKind.Schedule,
+								schedule: { expression: '* * * * *', timeZone: 'UTC' },
+								misfirePolicy: AutomationMisfirePolicy.RunOnce,
+							}],
+						},
+						runs: [], nextRunAt: scheduledFor,
+						operations: [AutomationOperation.Update, AutomationOperation.Remove, AutomationOperation.Run],
+						createdAt: timestamp, modifiedAt: timestamp,
+						_meta: { 'vscode.scheduleCursors': { schedule: scheduledFor } },
+					}]
+				},
+				runs: [],
+				manualRunRequests: [],
+			});
+			await storageService.whenIdle();
+			stateManager.dispatchServerAction(ROOT_STATE_URI, {
+				type: ActionType.RootConfigChanged, config: { [AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY]: initiallyEnabled },
+			});
+			const authenticated = observableValue('authenticated', false);
+			const started = new DeferredPromise<void>();
+			let createCalls = 0;
+			const service = createService({
+				isSessionTemplateAvailable: (_template, reader) => authenticated.read(reader),
+				createSession: async () => {
+					createCalls++;
+					const session = URI.parse('mock:/authenticated');
+					stateManager.createSession({
+						resource: session.toString(), provider: 'mock', title: '',
+						status: SessionStatus.Idle, createdAt: timestamp, modifiedAt: timestamp,
+					});
+					return session;
+				},
+				startSession: async () => { await started.complete(); },
+			});
+			const writesBeforeReadiness = writeAttempts;
+			await timeout(0);
+			assert.deepStrictEqual({
+				createCalls, writes: writeAttempts - writesBeforeReadiness,
+				nextRunAt: stateManager.getAutomationCatalogState()?.entries[0].nextRunAt,
+				runs: stateManager.getAutomationCatalogState()?.entries[0].runs,
+			}, { createCalls: 0, writes: 0, nextRunAt: scheduledFor, runs: [] });
+			authenticated.set(true, undefined);
+			if (!initiallyEnabled) {
+				await timeout(0);
+				assert.strictEqual(createCalls, 0);
+				stateManager.dispatchServerAction(ROOT_STATE_URI, {
+					type: ActionType.RootConfigChanged, config: { [AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY]: true },
+				});
+				await service.handleConfigurationChanged();
+			}
+			await started.p;
+			authenticated.set(false, undefined);
+			authenticated.set(true, undefined);
+			await timeout(0);
+			const automation = stateManager.getAutomationCatalogState()?.entries[0];
+			assert.deepStrictEqual({
+				createCalls, runCount: automation?.runs.length,
+				origin: automation?.runs[0].origin,
+				nextRunIsFuture: Date.parse(automation?.nextRunAt ?? '') > Date.now(),
+			}, {
+				createCalls: 1, runCount: 1,
+				origin: { kind: AutomationRunOriginKind.Trigger, triggerId: 'schedule', scheduledFor, catchUp: true },
+				nextRunIsFuture: true,
+			});
+		});
+	}
+
 	test('records an on-time scheduled run with schedule provenance', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1), maxTaskCount: 100 }, async () => {
 		const started = new DeferredPromise<void>();
 		const service = createService({
 			createSession: async () => URI.parse('copilotcli:/scheduled-session'),
 			startSession: async () => { await started.complete(); },
 		});
-		await service.completeMigration();
 		await service.handleCreate({
 			...createAction(),
 			definition: {
@@ -1301,7 +1754,6 @@ suite('AgentHostAutomationService', () => {
 			},
 			runs: [],
 			manualRunRequests: [],
-			migration: { status: 'complete', completedAt: now.toISOString() },
 		});
 		await storageService.whenIdle();
 
@@ -1382,7 +1834,6 @@ suite('AgentHostAutomationService', () => {
 			},
 			runs: [],
 			manualRunRequests: [],
-			migration: { status: 'complete', completedAt: now.toISOString() },
 		});
 		await storageService.whenIdle();
 
@@ -1453,7 +1904,6 @@ suite('AgentHostAutomationService', () => {
 			},
 			runs,
 			manualRunRequests: [],
-			migration: { status: 'complete', completedAt: '2026-01-01T00:00:00.000Z' },
 		});
 		await storageService.whenIdle();
 		const service = createService();
@@ -1479,230 +1929,5 @@ suite('AgentHostAutomationService', () => {
 			count: 51,
 			cursor: undefined,
 		});
-	});
-
-	test('a create staged as an import-pending row is never granted Run authority', async () => {
-		const service = createService();
-		await service.completeMigration();
-		await service.handleCreate({
-			type: ActionType.AutomationCreateRequested,
-			resource: 'ahp-automation:/pending-import',
-			definition: {
-				...definition(),
-				_meta: { [AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY]: true },
-			},
-		});
-
-		await assert.rejects(service.runAutomation({
-			channel: 'ahp-automations://',
-			automation: 'ahp-automation:/pending-import',
-			requestId: 'pending-request',
-		}), /not available/i);
-		assert.deepStrictEqual(stateManager.getAutomationCatalogState()?.entries[0].operations, [
-			AutomationOperation.Update,
-		]);
-	});
-
-	test('clearing the import-pending flag restores Run and Remove authority', async () => {
-		const service = createService();
-		await service.completeMigration();
-		await service.handleCreate({
-			type: ActionType.AutomationCreateRequested,
-			resource: 'ahp-automation:/pending-import',
-			definition: {
-				...definition(),
-				_meta: { [AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY]: true },
-			},
-		});
-		await service.handleUpdate({
-			type: ActionType.AutomationUpdateRequested,
-			resource: 'ahp-automation:/pending-import',
-			changes: { _meta: {} },
-		});
-
-		assert.deepStrictEqual(stateManager.getAutomationCatalogState()?.entries[0].operations, [
-			AutomationOperation.Update,
-			AutomationOperation.Remove,
-			AutomationOperation.Run,
-		]);
-	});
-
-	test('staging an existing Automation as import-pending removes Run and Remove authority', async () => {
-		const service = createService();
-		await service.completeMigration();
-		await service.handleCreate({
-			type: ActionType.AutomationCreateRequested,
-			resource: 'ahp-automation:/existing',
-			definition: definition(),
-		});
-		await service.handleUpdate({
-			type: ActionType.AutomationUpdateRequested,
-			resource: 'ahp-automation:/existing',
-			changes: { _meta: { [AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY]: true } },
-		});
-
-		assert.deepStrictEqual(stateManager.getAutomationCatalogState()?.entries[0].operations, [
-			AutomationOperation.Update,
-		]);
-	});
-
-	test('completeMigration withholds Run and Remove from pending imports', async () => {
-		const service = createService();
-		await service.handleCreate({
-			type: ActionType.AutomationCreateRequested,
-			resource: 'ahp-automation:/pending-import',
-			definition: {
-				...definition(),
-				_meta: { [AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY]: true },
-			},
-		});
-		await service.handleCreate({
-			type: ActionType.AutomationCreateRequested,
-			resource: 'ahp-automation:/clean-import',
-			definition: definition(),
-		});
-
-		await service.completeMigration();
-
-		const automations = stateManager.getAutomationCatalogState()?.entries ?? [];
-		const byResource = new Map(automations.map(automation => [automation.resource, automation.operations]));
-		assert.deepStrictEqual({
-			pending: byResource.get('ahp-automation:/pending-import'),
-			clean: byResource.get('ahp-automation:/clean-import'),
-		}, {
-			pending: [AutomationOperation.Update],
-			clean: [AutomationOperation.Update, AutomationOperation.Remove, AutomationOperation.Run],
-		});
-	});
-
-	test('re-enabling automations still withholds Run from a pending import', async () => {
-		const service = createService();
-		await service.completeMigration();
-		await service.handleCreate({
-			type: ActionType.AutomationCreateRequested,
-			resource: 'ahp-automation:/pending-import',
-			definition: {
-				...definition(),
-				_meta: { [AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY]: true },
-			},
-		});
-		stateManager.dispatchServerAction(ROOT_STATE_URI, {
-			type: ActionType.RootConfigChanged,
-			config: { [AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY]: false },
-		});
-		await service.handleConfigurationChanged();
-		stateManager.dispatchServerAction(ROOT_STATE_URI, {
-			type: ActionType.RootConfigChanged,
-			config: { [AGENT_HOST_AUTOMATIONS_ENABLED_CONFIG_KEY]: true },
-		});
-		await service.handleConfigurationChanged();
-
-		assert.deepStrictEqual(stateManager.getAutomationCatalogState()?.entries[0].operations, [
-			AutomationOperation.Update,
-		]);
-	});
-
-	test('the scheduler skips a persisted pending row on restart', async () => {
-		const now = new Date();
-		const scheduledFor = new Date(now.getTime() - 2 * 60_000).toISOString();
-		const scheduledDefinition: AutomationDefinition = {
-			...definition(),
-			triggers: [{
-				id: 'weekday-review',
-				kind: AutomationTriggerKind.Schedule,
-				schedule: { expression: '* * * * *', timeZone: 'UTC' },
-				misfirePolicy: AutomationMisfirePolicy.RunOnce,
-			}],
-			_meta: { [AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY]: true },
-		};
-		storageService.set('automations', {
-			catalog: {
-				automations: [{
-					resource: 'ahp-automation:/pending-scheduled',
-					definition: scheduledDefinition,
-					nextRunAt: scheduledFor,
-					runs: [],
-					// Post-fix persisted state: no Run because the row is
-					// still import-pending. The scheduler must respect this.
-					operations: [AutomationOperation.Update],
-					createdAt: now.toISOString(),
-					modifiedAt: now.toISOString(),
-					_meta: {
-						'vscode.scheduleCursors': { 'weekday-review': scheduledFor },
-						[AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY]: true,
-					},
-				}],
-			},
-			runs: [],
-			manualRunRequests: [],
-			migration: { status: 'complete', completedAt: now.toISOString() },
-		});
-		await storageService.whenIdle();
-
-		let createCalls = 0;
-		const service = createService({
-			createSession: async () => {
-				createCalls++;
-				return URI.parse('mock:/should-not-start');
-			},
-		});
-		await service.completeMigration();
-
-		const automation = stateManager.getAutomationCatalogState()?.entries[0];
-		assert.deepStrictEqual({
-			createCalls,
-			operations: automation?.operations,
-			runCount: automation?.runs.length,
-		}, {
-			createCalls: 0,
-			operations: [AutomationOperation.Update],
-			runCount: 0,
-		});
-	});
-
-	test('run recovery on restart skips a pending row even if a run was persisted', async () => {
-		const now = new Date();
-		const scheduledDefinition: AutomationDefinition = {
-			...definition(),
-			_meta: { [AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY]: true },
-		};
-		const pendingRun: AutomationRunState = {
-			resource: 'ahp-automation-run:/pending-run',
-			automation: 'ahp-automation:/pending-import',
-			origin: { kind: AutomationRunOriginKind.Manual },
-			lifecycle: { status: AutomationRunStatus.Pending, createdAt: now.toISOString() },
-			sessions: [],
-		};
-		storageService.set('automations', {
-			catalog: {
-				automations: [{
-					resource: 'ahp-automation:/pending-import',
-					definition: scheduledDefinition,
-					runs: [pendingRun],
-					// Post-fix persisted state should not include Run because
-					// the item is still pending. The recovery gate must respect
-					// that even though a Pending run is on disk.
-					operations: [AutomationOperation.Update],
-					createdAt: now.toISOString(),
-					modifiedAt: now.toISOString(),
-					_meta: { [AGENT_HOST_LEGACY_AUTOMATION_IMPORT_PENDING_META_KEY]: true },
-				}],
-			},
-			runs: [pendingRun],
-			manualRunRequests: [],
-			migration: { status: 'complete', completedAt: now.toISOString() },
-		});
-		await storageService.whenIdle();
-
-		let createCalls = 0;
-		const service = createService({
-			createSession: async () => {
-				createCalls++;
-				return URI.parse('mock:/should-not-start');
-			},
-		});
-		await service.completeMigration();
-
-		assert.strictEqual(createCalls, 0);
 	});
 });

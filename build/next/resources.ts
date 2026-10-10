@@ -8,12 +8,13 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { promisify } from 'util';
 import glob from 'glob';
+import type { BuildTarget } from '../lib/esbuild.ts';
 import { rewriteSourceMappingURL } from './source-map-url.ts';
 import { copyFile } from './transpile.ts';
 
-const globAsync = promisify(glob);
+export type { BuildTarget };
 
-export type BuildTarget = 'desktop' | 'server' | 'server-web' | 'web';
+const globAsync = promisify(glob);
 
 // Common resources needed by all targets
 const commonResourcePatterns = [

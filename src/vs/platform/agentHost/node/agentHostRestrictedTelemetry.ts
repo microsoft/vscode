@@ -81,7 +81,7 @@ const COMPRESSED_CHUNK_SUFFIX = 'Chunk';
 // Fields that are always emitted as a compressed chunk family, regardless of their length. These
 // are known to frequently exceed the per-property limit, so always producing the compressed chunk
 // family gives the backend a single, uniform place to read the value from.
-const ALWAYS_COMPRESSED_CHUNK_KEYS = new Set<string>(['messagesJson', 'diffsJSON']);
+const ALWAYS_COMPRESSED_CHUNK_KEYS = new Set<string>(['messagesJson', 'messageText', 'diffsJSON', 'prompt']);
 
 const gzip = promisify(zlib.gzip);
 
@@ -166,13 +166,15 @@ export class AgentHostRestrictedTelemetrySender implements IAgentHostRestrictedT
 		private readonly _internalSink?: IAgentHostInternalTelemetrySink,
 		private readonly _fetchFn: FetchFn = globalThis.fetch,
 	) {
+		const editorVersion = asString(commonProperties['version']);
 		// Map the resolved common properties onto the GH property names the hydro schema reads.
 		this._commonProps = {
 			client_machineid: asString(commonProperties['common.machineId']),
 			client_deviceid: asString(commonProperties['common.devDeviceId']),
 			client_sessionid: asString(commonProperties['sessionID']),
 			common_os: asString(commonProperties['common.nodePlatform']) ?? process.platform,
-			editor_version: asString(commonProperties['version']),
+			// Match the application identity supplied to the Copilot SDK through clientInfo.
+			editor_version: editorVersion === undefined ? undefined : `vscode-agent-host/${editorVersion}`,
 		};
 	}
 

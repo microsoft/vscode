@@ -15,7 +15,8 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
-import { ChatConfiguration, ChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
+import { ChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
+import { getPermissionLevelBadge } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
 import { DEFAULT_PERMISSION_LEVELS, IPermissionPickerDelegate, PermissionPicker } from './permissionPicker.js';
 import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js';
 import { IMobilePickerSheetItem, showMobilePickerSheet } from '../../../../browser/parts/mobile/mobilePickerSheet.js';
@@ -61,7 +62,7 @@ export class MobilePermissionPicker extends PermissionPicker {
 			return;
 		}
 
-		const policyRestricted = this.configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
+		const policyRestricted = this._isPolicyRestricted();
 
 		const levels = this._delegate.availableLevels ?? DEFAULT_PERMISSION_LEVELS;
 		const items: IMobilePickerSheetItem[] = levels.map(level => {
@@ -69,6 +70,7 @@ export class MobilePermissionPicker extends PermissionPicker {
 			return {
 				id: level,
 				label: meta.label,
+				badge: getPermissionLevelBadge(level).badge,
 				description: meta.detail,
 				icon: meta.icon,
 				checked: this._currentLevel === level,

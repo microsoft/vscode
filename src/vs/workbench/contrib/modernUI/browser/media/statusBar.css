@@ -8,6 +8,11 @@
 	padding-bottom: var(--vscode-spacing-size40);
 }
 
+.modern-ui.monaco-workbench.floating-panels.modern-ui-compact .part.statusbar {
+	padding-top: var(--vscode-spacing-size20);
+	padding-bottom: var(--vscode-spacing-size20);
+}
+
 /*
  * Round the status bar item backgrounds to a control-sized pill. The interactive
  * hover/active background lives on the label (`a.statusbar-item-label`); custom
@@ -51,6 +56,14 @@
 	margin-right: var(--vscode-spacing-size20);
 	padding-left: var(--vscode-spacing-size40);
 	padding-right: var(--vscode-spacing-size40);
+}
+
+.modern-ui.modern-ui-compact .part.statusbar > .items-container > .statusbar-item:is(.compact-left, .has-background-color) > .statusbar-item-label {
+	margin-left: 0;
+}
+
+.modern-ui.modern-ui-compact .part.statusbar > .items-container > .statusbar-item:is(.compact-right, .has-background-color) > .statusbar-item-label {
+	margin-right: 0;
 }
 
 .modern-ui.modern-ui-compact .part.statusbar > .left-items > .statusbar-item.visible-background-color-neighbor {

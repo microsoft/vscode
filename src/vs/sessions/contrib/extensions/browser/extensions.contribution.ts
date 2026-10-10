@@ -14,11 +14,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		[EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY]: {
 			type: 'boolean',
 			scope: ConfigurationScope.APPLICATION,
-			description: localize('extensions.experimental.enableAgentsWindowCapability', "When enabled, extensions can declare whether they support running in the Agents window."),
-			default: false,
+			description: localize('extensions.experimental.enableAgentsWindowCapability', "When enabled, non-built-in extensions can declare whether they support running in the Agents window. Built-in extensions can declare support without enabling this setting."),
+			default: true,
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },
-			agentsWindow: { default: false }
+			agentsWindow: { default: true }
 		},
 	},
 });

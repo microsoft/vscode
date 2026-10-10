@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import * as sinon from 'sinon';
-import { timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -34,6 +34,7 @@ import { IOutputService } from '../../../../services/output/common/output.js';
 import { TestLoggerService, TestStorageService, TestWorkspaceTrustManagementService, TestWorkspaceTrustRequestService } from '../../../../test/common/workbenchTestServices.js';
 import { ContributionEnablementState, EnablementModel, isContributionEnabled } from '../../../chat/common/enablement.js';
 import { McpCollisionBehavior, mcpServerCollisionBehaviorSection } from '../../common/mcpConfiguration.js';
+import { expandEnvironmentVariablesInLaunch } from '../../common/mcpEnvironmentVariableExpansion.js';
 import { McpRegistry } from '../../common/mcpRegistry.js';
 import { IMcpHostDelegate, IMcpMessageTransport } from '../../common/mcpRegistryTypes.js';
 import { IMcpSandboxService } from '../../common/mcpSandboxService.js';
@@ -96,6 +97,10 @@ class TestMcpHostDelegate implements IMcpHostDelegate {
 	priority = 0;
 
 	substituteVariables(serverDefinition: McpServerDefinition, launch: McpServerLaunch): Promise<McpServerLaunch> {
+		return Promise.resolve(launch);
+	}
+
+	expandEnvironmentVariables(serverDefinition: McpServerDefinition, launch: McpServerLaunch): Promise<McpServerLaunch> {
 		return Promise.resolve(launch);
 	}
 
@@ -257,6 +262,10 @@ suite('Workbench - MCP - Registry', () => {
 		};
 	});
 
+	teardown(() => {
+		sinon.restore();
+	});
+
 	test('registerCollection adds collection to registry', () => {
 		const disposable = registry.registerCollection(testCollection);
 		store.add(disposable);
@@ -328,6 +337,94 @@ suite('Workbench - MCP - Registry', () => {
 
 		disposable.dispose();
 		assert.strictEqual(registry.delegates.get().length, 0);
+	});
+
+	for (const removed of ['collection', 'definition'] as const) {
+		for (const duringLoad of [false, true]) {
+			test(`resolveConnection skips a removed ${removed} ${duringLoad ? 'during lazy loading' : 'before resolution'}`, async () => {
+				const loaded = new DeferredPromise<void>();
+				const resolveLaunch = sinon.stub().resolves(baseDefinition.launch);
+				const resolveInputs = sinon.spy(testConfigResolverService, 'resolveWithInteraction');
+				const delegate = new TestMcpHostDelegate();
+				const substituteVariables = sinon.spy(delegate, 'substituteVariables');
+				store.add(registry.registerDelegate(delegate));
+				testCollection.serverDefinitions.set([baseDefinition], undefined);
+				const collection: McpCollectionDefinition = {
+					...testCollection,
+					resolveServerLanch: resolveLaunch,
+					lazy: duringLoad ? { isCached: true, load: () => loaded.p } : undefined,
+				};
+				const registration = store.add(registry.registerCollection(collection));
+				const resolve = () => registry.resolveConnection({ collectionRef: collection, definitionRef: baseDefinition, logger, trustNonceBearer, taskManager });
+				const pending = duringLoad ? resolve() : undefined;
+
+				if (removed === 'collection') {
+					registration.dispose();
+				} else {
+					testCollection.serverDefinitions.set([], undefined);
+				}
+				await loaded.complete();
+
+				const connection = await (pending ?? resolve());
+				if (connection) {
+					store.add(connection);
+				}
+				assert.deepStrictEqual({
+					connection,
+					launchResolutions: resolveLaunch.callCount,
+					variableSubstitutions: substituteVariables.callCount,
+					inputResolutions: resolveInputs.callCount,
+					sandboxLaunches: testMcpSandboxService.callCount,
+				}, {
+					connection: undefined,
+					launchResolutions: 0,
+					variableSubstitutions: 0,
+					inputResolutions: 0,
+					sandboxLaunches: 0,
+				});
+			});
+		}
+	}
+
+	test('resolveConnection still rejects a lazy loading error', async () => {
+		const error = new Error('Failed to load the MCP collection');
+		const collection: McpCollectionDefinition = {
+			...testCollection,
+			lazy: { isCached: true, load: async () => { throw error; } },
+		};
+		store.add(registry.registerCollection(collection));
+
+		await assert.rejects(
+			registry.resolveConnection({ collectionRef: collection, definitionRef: baseDefinition, logger, trustNonceBearer, taskManager }),
+			error,
+		);
+	});
+
+	test('resolveConnection still rejects a missing delegate', async () => {
+		testCollection.serverDefinitions.set([baseDefinition], undefined);
+		store.add(registry.registerCollection(testCollection));
+
+		await assert.rejects(
+			registry.resolveConnection({ collectionRef: testCollection, definitionRef: baseDefinition, logger, trustNonceBearer, taskManager }),
+			/No delegate found that can handle the connection/,
+		);
+	});
+
+	test('resolveConnection still rejects an enterprise customization restriction', async () => {
+		testCollection.serverDefinitions.set([baseDefinition], undefined);
+		store.add(registry.registerCollection(testCollection));
+		await configurationService.setUserConfiguration(COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG, true);
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			source: ConfigurationTarget.USER,
+			affectedKeys: new Set([COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG]),
+			change: { keys: [COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG], overrides: [] },
+			affectsConfiguration: key => key === COPILOT_STRICT_PLUGIN_ONLY_CUSTOMIZATION_CONFIG,
+		});
+
+		await assert.rejects(
+			registry.resolveConnection({ collectionRef: testCollection, definitionRef: baseDefinition, logger, trustNonceBearer, taskManager }),
+			/MCP collection test-collection is blocked by enterprise customization policy/,
+		);
 	});
 
 	test('resolveConnection creates connection with resolved variables and memorizes them until cleared', async () => {
@@ -408,6 +505,107 @@ suite('Workbench - MCP - Registry', () => {
 			url: 'https://mcp.example.com/mcp',
 		});
 		connection.dispose();
+	});
+
+	test('resolveConnection resolves variables in HTTP URIs', async () => {
+		const definition: McpServerDefinition = {
+			...baseDefinition,
+			launch: {
+				type: McpServerTransportType.HTTP,
+				uri: URI.parse('https://${input:testInteractive}.example.com/mcp'),
+				headers: [],
+			},
+			variableReplacement: {
+				section: 'mcp',
+				target: ConfigurationTarget.WORKSPACE,
+			}
+		};
+
+		const delegate = new TestMcpHostDelegate();
+		store.add(registry.registerDelegate(delegate));
+		testCollection.serverDefinitions.set([definition], undefined);
+		store.add(registry.registerCollection(testCollection));
+
+		const connection = await registry.resolveConnection({ collectionRef: testCollection, definitionRef: definition, logger, trustNonceBearer, taskManager }) as McpServerConnection;
+		const launch = connection.launchDefinition;
+
+		assert.deepStrictEqual(launch.type === McpServerTransportType.HTTP ? {
+			isUri: URI.isUri(launch.uri),
+			url: launch.uri.toString(true),
+		} : { type: launch.type }, {
+			isUri: true,
+			url: 'https://interactivevalue0.example.com/mcp',
+		});
+		connection.dispose();
+	});
+
+	suite('environment variable expansion', () => {
+		const hostEnv = { TOOLS: '/opt/tools', API_KEY: 'secret', HOST: 'mcp.example.com' };
+
+		async function resolve(definition: McpServerDefinition) {
+			const delegate = new TestMcpHostDelegate();
+			const expand = sinon.stub(delegate, 'expandEnvironmentVariables').callsFake(async (def, launch) =>
+				expandEnvironmentVariablesInLaunch(launch, def.environmentVariableExpansion!, { env: hostEnv, caseInsensitive: false }));
+			store.add(registry.registerDelegate(delegate));
+			testCollection.serverDefinitions.set([definition], undefined);
+			store.add(registry.registerCollection(testCollection));
+			const connection = await registry.resolveConnection({ collectionRef: testCollection, definitionRef: definition, logger, trustNonceBearer, taskManager }) as McpServerConnection;
+			const launch = connection.launchDefinition;
+			connection.dispose();
+			return {
+				expansions: expand.callCount,
+				launch: launch.type === McpServerTransportType.HTTP
+					? { url: launch.uri.toString(true), headers: launch.headers }
+					: { command: launch.command, args: launch.args, env: launch.env },
+			};
+		}
+
+		const stdioLaunch: McpServerTransportStdio = {
+			type: McpServerTransportType.Stdio,
+			command: '${TOOLS}/server',
+			args: ['${API_KEY}', '$API_KEY', '${workspaceFolder}'],
+			env: { API_KEY: '${API_KEY}' },
+			envFile: undefined,
+			cwd: undefined,
+			sandbox: undefined,
+		};
+
+		test('expands a flagged stdio launch with the delegate', async () => {
+			assert.deepStrictEqual(await resolve({ ...baseDefinition, launch: stdioLaunch, environmentVariableExpansion: {} }), {
+				expansions: 1,
+				launch: { command: '/opt/tools/server', args: ['secret', '$API_KEY', '${workspaceFolder}'], env: { API_KEY: 'secret' } },
+			});
+		});
+
+		test('expands a flagged HTTP launch from its raw URL', async () => {
+			const url = 'https://${HOST}/mcp';
+			assert.deepStrictEqual(await resolve({
+				...baseDefinition,
+				launch: { type: McpServerTransportType.HTTP, uri: URI.parse(url), headers: [['Authorization', 'Bearer ${API_KEY}']] },
+				environmentVariableExpansion: { url },
+			}), {
+				expansions: 1,
+				launch: { url: 'https://mcp.example.com/mcp', headers: [['Authorization', 'Bearer secret']] },
+			});
+		});
+
+		test('does not call the delegate for a flagged launch without references', async () => {
+			assert.deepStrictEqual(await resolve({ ...baseDefinition, launch: { ...stdioLaunch, command: 'node', args: ['$API_KEY'], env: {} }, environmentVariableExpansion: {} }), {
+				expansions: 0,
+				launch: { command: 'node', args: ['$API_KEY'], env: {} },
+			});
+		});
+
+		test('keeps VS Code variable resolution for other sources, such as .vscode/mcp.json', async () => {
+			assert.deepStrictEqual(await resolve({
+				...baseDefinition,
+				launch: stdioLaunch,
+				variableReplacement: { section: 'mcp', target: ConfigurationTarget.WORKSPACE },
+			}), {
+				expansions: 0,
+				launch: { command: '${TOOLS}/server', args: ['${API_KEY}', '$API_KEY', '/test/workspace'], env: { API_KEY: '${API_KEY}' } },
+			});
+		});
 	});
 
 	test('resolveConnection uses user-provided launch configuration', async () => {

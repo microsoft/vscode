@@ -114,6 +114,12 @@ export interface ISubmitFeedbackOptions {
 	readonly query?: string;
 	/** Selected feedback for Agent Host requests. Other providers submit their complete reactive attachment. */
 	readonly feedbackIds?: readonly string[];
+	/**
+	 * The chat to send the request to, when it differs from the feedback's
+	 * session resource: feedback is read and marked under the session, and the
+	 * request goes to this chat's widget.
+	 */
+	readonly targetChat?: URI;
 	readonly onRequestAccepted?: () => void;
 }
 
@@ -228,6 +234,9 @@ export interface IAgentFeedbackService {
 	 * output-channel resource) or when there is no created session to scope to.
 	 */
 	getSessionForFile(resourceUri: URI): ISession | undefined;
+
+	/** File changes for the focused chat in the given session. */
+	getChatChanges(sessionResource: URI): readonly ISessionFileChange[];
 
 	/**
 	 * Resolve the feedback scope shown for a file in the current session view, or
@@ -567,6 +576,14 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		return session;
 	}
 
+	getChatChanges(sessionResource: URI): readonly ISessionFileChange[] {
+		const activeSession = this._sessionsService.activeSession.get();
+		if (activeSession && isEqual(activeSession.resource, sessionResource)) {
+			return activeSession.activeChat.get().changes.get();
+		}
+		return this._resolveSession(sessionResource)?.mainChat.get().changes.get() ?? [];
+	}
+
 	getFeedbackSessionResource(resourceUri: URI): URI | undefined {
 		const explicitScope = this._explicitResourceScopes.get(resourceUri);
 		if (explicitScope) {
@@ -805,7 +822,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			return false;
 		}
 
-		const changes = session.changes.get();
+		const changes = this.getChatChanges(sessionResource);
 		if (changes.some(change => changeMatchesResource(change, resourceUri))) {
 			return true;
 		}
@@ -825,8 +842,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 
 	async revealSessionComment(sessionResource: URI, commentId: string, resourceUri: URI, range: IRange): Promise<void> {
 		const selection = { startLineNumber: range.startLineNumber, startColumn: range.startColumn };
-		const sessionData = this._sessionsManagementService.getSession(sessionResource);
-		const sessionChange = this._getSessionChange(resourceUri, sessionData?.changes.get());
+		const sessionChange = this._getSessionChange(resourceUri, this.getChatChanges(sessionResource));
 
 		if (sessionChange?.isDeletion && sessionChange.originalUri) {
 			await this._editorService.openEditor({
@@ -982,9 +998,9 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 			return this._sessionsService.submitNewSessionInput();
 		}
 
-		const widget = await whenChatWidgetForSession(this._chatWidgetService, sessionResource);
+		const widget = await whenChatWidgetForSession(this._chatWidgetService, options?.targetChat ?? sessionResource);
 		if (!widget) {
-			this._logService.error('[AgentFeedback] submitFeedback: no chat widget found for session', sessionResource.toString());
+			this._logService.error('[AgentFeedback] submitFeedback: no chat widget found for session', (options?.targetChat ?? sessionResource).toString());
 			return false;
 		}
 

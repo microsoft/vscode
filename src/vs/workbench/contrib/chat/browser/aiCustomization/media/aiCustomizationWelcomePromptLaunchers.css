@@ -21,8 +21,8 @@
 
 .ai-customization-management-editor .welcome-prompts-inner {
 	margin: 0 auto;
-	max-width: 840px;
-	padding: var(--vscode-spacing-size240) var(--vscode-spacing-size200) var(--vscode-spacing-size320);
+	width: min(calc(100% - var(--vscode-spacing-size400) - var(--vscode-spacing-size400)), 840px);
+	padding: 0 0 var(--vscode-spacing-size320);
 	box-sizing: border-box;
 }
 
@@ -273,7 +273,7 @@
 	margin-top: var(--vscode-spacing-size100);
 	font-size: var(--vscode-agents-fontSize-body2);
 	font-weight: var(--vscode-agents-fontWeight-semiBold);
-	color: var(--vscode-textLink-foreground);
+	color: var(--vscode-inputValidation-warningForeground, var(--vscode-foreground));
 }
 
 .ai-customization-management-editor .welcome-prompts-card-footer {

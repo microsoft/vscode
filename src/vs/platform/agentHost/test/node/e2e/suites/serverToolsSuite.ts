@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { mkdirSync, mkdtempSync } from 'fs';
+import { mkdirSync } from 'fs';
 import { tmpdir } from 'os';
 import { retry } from '../../../../../../base/common/async.js';
 import { join } from '../../../../../../base/common/path.js';
@@ -33,6 +33,7 @@ import { createRealSession, driveChatTurnToCompletion, driveTurnToCompletion, re
 import { summarizeAnthropicRequest, summarizeResponsesRequest } from '../harness/capiWireCodec.js';
 import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import type { IAgentHostE2ETestContext } from './e2eTestContext.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
 
 interface IServerToolTestSession {
 	readonly sessionUri: string;
@@ -59,19 +60,25 @@ interface ISeedFeedbackOptions {
 
 const feedbackToolNames = ['addComment', 'listComments', 'replyToComment', 'deleteComments', 'resolveComments', 'viewUnreviewedComments'] as const;
 const feedbackResourceUri = 'untitled://server-tools/reviewed.ts';
-const sessionToolNames = [
-	SessionServerToolName.ListSessions,
-	SessionServerToolName.GetCurrentSession,
-	SessionServerToolName.CreateSession,
-	SessionServerToolName.SendMessage,
-	SessionServerToolName.GetSessionContext,
-	SessionServerToolName.DeleteSession,
-] as const;
+function getSessionToolNames(supportsWorkspaceChange: boolean): readonly SessionServerToolName[] {
+	return [
+		SessionServerToolName.ListSessions,
+		SessionServerToolName.GetCurrentSession,
+		...(supportsWorkspaceChange ? [SessionServerToolName.SetWorkspace] : []),
+		SessionServerToolName.CreateSession,
+		SessionServerToolName.SendMessage,
+		SessionServerToolName.GetSessionContext,
+		SessionServerToolName.DeleteSession,
+		...(supportsWorkspaceChange ? [SessionServerToolName.IsolateSession] : []),
+	];
+}
 
 export function defineServerToolsTests(context: IAgentHostE2ETestContext): void {
 	const { config, createdSessions, tempDirs } = context;
 	// Claude omits the prior server-tool input from detailed session context.
 	const supportsFullSessionContext = config.provider !== 'claude';
+	// Claude cannot move a chat to another workspace.
+	const supportsWorkspaceChange = config.provider !== 'claude';
 	// Claude reports success but leaves the target listed.
 	const supportsCrossSessionDelete = config.provider !== 'claude';
 	// Claude starts another turn instead of rejecting a message to the current chat.
@@ -105,8 +112,15 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 	}
 
 	async function createSession(prefix: string, stableResource = false, beforeCreateSession?: () => Promise<void>): Promise<IServerToolTestSession> {
-		const workspace = mkdtempSync(join(tmpdir(), `ahp-server-tools-${prefix}-`));
+		const workspace = createTestDirectory(join(tmpdir(), `ahp-server-tools-${prefix}-`));
 		tempDirs.push(workspace);
+		if (config.provider === 'codex' && context.isLinux) {
+			// Concurrent Codex 0.153.0 starts can race cleanup of synthetic sandbox mount targets.
+			// Own the protected directories before either chat starts so cleanup preserves them.
+			for (const directory of ['.git', '.agents', '.codex']) {
+				mkdirSync(join(workspace, directory));
+			}
+		}
 		if (!stableResource) {
 			const sessionUri = await createRealSession(
 				context.client,
@@ -273,7 +287,7 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 			}
 			return state.serverTools.map(tool => tool.name);
 		}, 100, 30);
-		assert.deepStrictEqual(toolNames, [...feedbackToolNames, ...sessionToolNames]);
+		assert.deepStrictEqual(toolNames, [...feedbackToolNames, ...getSessionToolNames(supportsWorkspaceChange)]);
 	});
 
 	serverToolTest('server tool: rename_chat renames the chat it runs in', async function () {
@@ -287,11 +301,12 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 				'turn-rename-chat-seed',
 				'/rename Seeded Chat',
 				reserveClientSequenceBlock(),
+				{ expectUnread: false },
 			);
 			const { tool } = await driveServerTool(
 				session,
 				'turn-rename-chat',
-				'Call the rename_chat tool exactly once with title "Coverage audit" and automatic false, then reply with exactly "renamed".',
+				'Call the rename_chat tool exactly once with title "Coverage audit", then reply with exactly "renamed".',
 				SessionServerToolName.RenameChat,
 			);
 			const renamed = await retry(async () => {
@@ -321,26 +336,30 @@ export function defineServerToolsTests(context: IAgentHostE2ETestContext): void 
 			const session = await createSession('artifact-add', false, () => setRootConfig({
 				[AgentHostArtifactToolsConfigKey]: true,
 			}));
-			await driveServerTool(
+			const { tool } = await driveServerTool(
 				session,
 				'turn-artifact-add',
 				'Call add_artifact_or_reference exactly once with an items array containing two entries: type "website", label "Agent Host guide", isArtifact false, and link "https://example.com/agent-host"; then type "file", label "Agent Host report", isArtifact true, and uri "file:///agent-host-report.md". Then reply with exactly "recorded".',
 				ArtifactServerToolName.AddArtifactOrReference,
-				{ result: [/Added reference:/, /Agent Host guide/, /Added artifact:/, /Agent Host report/] },
+				{ result: [/Added reference:/, /Added artifact:/] },
 			);
 			const artifacts = readSessionArtifacts((await sessionState(session.sessionUri))._meta);
 
 			assert.deepStrictEqual({
+				result: tool.resultText,
 				artifacts: artifacts.map(({ id: _id, ...artifact }) => artifact),
 			}, {
+				result: `Added reference: ${artifacts[0].id}\nAdded artifact: ${artifacts[1].id}`,
 				artifacts: [
 					{
+						chat: buildDefaultChatUri(session.sessionUri),
 						type: 'website',
 						label: 'Agent Host guide',
 						isArtifact: false,
 						link: 'https://example.com/agent-host',
 					},
 					{
+						chat: buildDefaultChatUri(session.sessionUri),
 						type: 'file',
 						label: 'Agent Host report',
 						isArtifact: true,

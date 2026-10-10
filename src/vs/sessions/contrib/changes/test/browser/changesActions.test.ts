@@ -24,17 +24,47 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ActiveEditorContext } from '../../../../../workbench/common/contextkeys.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
+import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { Menus } from '../../../../browser/menus.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionChangeset, ISessionChangesetOperation, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
-import { NewSessionUncommittedChangesetOperationsActionContribution } from '../../browser/changesActions.js';
+import { IChat, ISessionChangeset, ISessionChangesetOperation, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
+import { ChangesHeaderChangesetOperationsActionContribution } from '../../browser/changesActions.js';
 import { SessionChangesEditor } from '../../browser/sessionChangesEditor.js';
+import { IChangesViewService } from '../../common/changesViewService.js';
 
 suite('Changes Actions', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	teardown(() => restore());
+
+	test('Open File targets the workspace resource for a snapshot-backed diff', async () => {
+		const workspaceResource = URI.file('/workspace/file.ts');
+		const modifiedSnapshot = URI.parse('readonly-content:/after/file.ts');
+		const opened: string[] = [];
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IChangesViewService, new class extends mock<IChangesViewService>() {
+			override readonly activeSessionChangesObs = constObservable([{
+				uri: workspaceResource,
+				originalUri: URI.parse('readonly-content:/before/file.ts'),
+				modifiedUri: modifiedSnapshot,
+				insertions: 1,
+				deletions: 1,
+			}]);
+		});
+		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
+			override async openEditor(...args: unknown[]): Promise<undefined> {
+				const input = args[0] as { readonly resource: URI };
+				opened.push(input.resource.toString());
+				return undefined;
+			}
+		});
+
+		await instantiationService.invokeFunction(accessor =>
+			CommandsRegistry.getCommand('workbench.agentSessions.changes.openFile')!.handler(accessor, modifiedSnapshot));
+
+		assert.deepStrictEqual(opened, [workspaceResource.toString()]);
+	});
 
 	test('only the draft Changes header Commit action renders its icon and label', async () => {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
@@ -43,9 +73,9 @@ suite('Changes Actions', () => {
 		const sessionsService = new class extends mock<ISessionsService>() {
 			override readonly activeSession = constObservable(undefined);
 		}();
-		disposables.add(new NewSessionUncommittedChangesetOperationsActionContribution(sessionsService, actionViewItemService));
+		disposables.add(new ChangesHeaderChangesetOperationsActionContribution(sessionsService, new class extends mock<IChangesViewService>() { }(), actionViewItemService));
 
-		const commandId = 'workbench.contrib.sessions.newSessionUncommittedChangesetOperation.commit';
+		const commandId = 'workbench.contrib.sessions.changesHeaderChangesetOperation.commit';
 		assert.deepStrictEqual(register.getCalls().map(call => [call.args[0], call.args[1]]), [
 			[Menus.SessionsEditorHeaderLayout, commandId],
 		]);
@@ -121,7 +151,7 @@ suite('Changes Actions', () => {
 		});
 	});
 
-	test('draft session contributes uncommitted changeset operations to the editor header', async () => {
+	test('changesets contribute operations to the Changes editor header for draft and existing sessions', async () => {
 		const invokedOperations: string[] = [];
 		const operations = observableValue<readonly ISessionChangesetOperation[]>('test.operations', [{
 			id: AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID,
@@ -163,18 +193,26 @@ suite('Changes Actions', () => {
 				}),
 			})],
 		}));
+		const chat = upcastPartial<IChat>({
+			changesets: constObservable([changeset]),
+		});
 		const activeSession = observableValue<IActiveSession | undefined>('test.activeSession', upcastPartial<IActiveSession>({
 			resource: URI.parse('test-session:draft'),
 			status,
 			workspace,
-			changesets: constObservable([changeset]),
+			mainChat: constObservable(chat),
+			activeChat: constObservable(chat),
 		}));
 		const sessionsService = new class extends mock<ISessionsService>() {
 			override readonly activeSession = activeSession;
 		}();
-		disposables.add(new NewSessionUncommittedChangesetOperationsActionContribution(sessionsService, new NullActionViewItemService()));
+		const changesViewService = new class extends mock<IChangesViewService>() {
+			override readonly activeSessionChangesetObs = constObservable(changeset);
+			override readonly activeSessionChangesetOperationsObs = operations;
+		}();
+		disposables.add(new ChangesHeaderChangesetOperationsActionContribution(sessionsService, changesViewService, new NullActionViewItemService()));
 
-		const actionPrefix = 'workbench.contrib.sessions.newSessionUncommittedChangesetOperation.';
+		const actionPrefix = 'workbench.contrib.sessions.changesHeaderChangesetOperation.';
 		const getActions = () => MenuRegistry.getMenuItems(Menus.SessionsEditorHeaderLayout)
 			.filter(isIMenuItem)
 			.filter(item => item.command.id.startsWith(actionPrefix));
@@ -240,7 +278,32 @@ suite('Changes Actions', () => {
 		});
 		assert.deepStrictEqual(disabledStates, ['false', 'false']);
 
+		// An existing session only contributes the Commit operation of the
+		// changeset selected in the Changes view.
+		operations.set(operations.get().map(operation => ({ ...operation, status: SessionChangesetOperationStatus.Idle })), undefined);
 		status.set(SessionStatus.Completed, undefined);
+		const existingSessionActions = getActions();
+		invokedOperations.length = 0;
+		await instantiationService.invokeFunction(CommandsRegistry.getCommand(`${actionPrefix}${AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID}`)!.handler);
+		assert.deepStrictEqual({
+			actions: existingSessionActions.map(item => ({
+				id: item.command.id,
+				group: item.group,
+				precondition: item.command.precondition?.serialize(),
+				visibleForChangesTab: item.when?.serialize(),
+			})),
+			invokedOperations,
+		}, {
+			actions: [{
+				id: `${actionPrefix}${AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID}`,
+				group: 'navigation',
+				precondition: undefined,
+				visibleForChangesTab: ContextKeyExpr.equals(ActiveEditorContext.key, SessionChangesEditor.ID).serialize(),
+			}],
+			invokedOperations: [AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID],
+		});
+
+		activeSession.set(undefined, undefined);
 		assert.deepStrictEqual({
 			menuActions: getActions().length,
 			commitCommandRegistered: CommandsRegistry.getCommand(`${actionPrefix}${AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID}`) !== undefined,

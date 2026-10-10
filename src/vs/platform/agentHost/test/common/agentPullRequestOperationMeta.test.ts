@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { createPullRequestDetailsResult, createPullRequestOperationMeta, createPullRequestValidationMeta, readPullRequestDetailsResult, readPullRequestOperationMeta, readPullRequestValidationMeta, type IPullRequestContext, type IPullRequestCreateOptions, type IPullRequestDetails } from '../../common/meta/agentPullRequestOperationMeta.js';
+import { createPullRequestChatMeta, createPullRequestDetailsResult, createPullRequestOperationMeta, createPullRequestValidationMeta, readPullRequestChatMeta, readPullRequestDetailsResult, readPullRequestOperationMeta, readPullRequestValidationMeta, type IPullRequestContext, type IPullRequestCreateOptions, type IPullRequestDetails } from '../../common/meta/agentPullRequestOperationMeta.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 import type { InvokeChangesetOperationResult } from '../../common/state/protocol/channels-changeset/commands.js';
 
@@ -86,6 +86,30 @@ suite('Agent pull request operation metadata', () => {
 			readPullRequestOperationMeta({ _meta: { 'other.extension': {} } }),
 		], [undefined, undefined, undefined]);
 	});
+
+	test('chat metadata omits form text while preserving choices and context', () => {
+		const options = { draft: false, agentMerge: false, autoMergeMethod: 'SQUASH' as const, expectedContext: context };
+		const meta = createPullRequestChatMeta({ ...createOptions, expectedContext: context });
+		assert.deepStrictEqual({
+			meta,
+			chat: readPullRequestChatMeta({ _meta: meta }),
+			legacy: readPullRequestChatMeta({ _meta: createPullRequestOperationMeta({ ...createOptions, expectedContext: context }) }),
+			missing: readPullRequestChatMeta({}),
+		}, { meta: { 'vscode.pullRequest': options }, chat: options, legacy: options, missing: undefined });
+		assert.throws(() => readPullRequestOperationMeta({ _meta: meta }), isInvalidParamsError);
+	});
+
+	for (const value of [
+		{}, null, { draft: 'true', agentMerge: false },
+		{ draft: true, agentMerge: false, autoMergeMethod: 'SQUASH' },
+		{ draft: false, agentMerge: true, autoMergeMethod: 'MERGE' },
+		{ draft: false, agentMerge: true, agentMergeOptions: {} },
+		{ draft: false, agentMerge: false, expectedContext: {} },
+	]) {
+		test(`rejects invalid chat-only options: ${JSON.stringify(value)}`, () => {
+			assert.throws(() => readPullRequestChatMeta({ _meta: { 'vscode.pullRequest': value } }), isInvalidParamsError);
+		});
+	}
 
 	for (const [name, value] of [
 		['undefined', undefined],

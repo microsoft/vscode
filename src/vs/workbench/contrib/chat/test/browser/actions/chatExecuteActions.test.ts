@@ -8,6 +8,7 @@ import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { IMenuItem, isIMenuItem, MenuId, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
 import { AgentHostAllowSignedOutWhenUsableSettingId } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -15,10 +16,12 @@ import { ContextKeyValue } from '../../../../../../platform/contextkey/common/co
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
 import { AGENT_HOST_EXISTING_SESSION_HARNESS_PICKER_ENABLED_CONTEXT_KEY } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { type IChatAcceptInputOptions, IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
-import { ChatSubmitAction, ExecuteHandoffActionId, GetHandoffsActionId, OpenDelegationPickerAction, OpenModelPickerAction, OpenSessionTargetPickerAction, registerChatExecuteActions } from '../../../browser/actions/chatExecuteActions.js';
+import { CancelAction, ChatEditingSessionSubmitAction, ChatSubmitAction, ExecuteHandoffActionId, GetHandoffsActionId, OpenDelegationPickerAction, OpenModelPickerAction, OpenSessionTargetPickerAction, registerChatExecuteActions } from '../../../browser/actions/chatExecuteActions.js';
+import { ChatQueueMessageAction, ChatSteerWithMessageAction } from '../../../browser/actions/chatQueueActions.js';
 import { AgentSessionProviders } from '../../../browser/agentSessions/agentSessions.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
@@ -27,6 +30,7 @@ import { IHandOff } from '../../../common/promptSyntax/promptFileParser.js';
 import { Target } from '../../../common/promptSyntax/promptTypes.js';
 import { MockChatWidgetService } from '../widget/mockChatWidget.js';
 import { MockChatModeService } from '../../common/mockChatModeService.js';
+import { IChatService } from '../../../common/chatService/chatService.js';
 
 interface IExecuteHandoffResult {
 	success: boolean;
@@ -564,6 +568,91 @@ suite('ChatSubmitAction', () => {
 	let chatExecuteActions: DisposableStore;
 	suiteSetup(() => {
 		chatExecuteActions = registerChatExecuteActions();
+	});
+
+	suite('Transcript preparation execute actions', () => {
+		function createServices() {
+			const services = store.add(new TestInstantiationService());
+			services.set(IChatWidgetService, new MockChatWidgetService());
+			services.set(ITelemetryService, NullTelemetryService);
+			services.set(ILogService, new NullLogService());
+			return services;
+		}
+
+		test('Stop cancels preparation without a view model or cancelling a normal request', async () => {
+			const services = createServices();
+			const calls: string[] = [];
+			services.stub(IChatService, {
+				cancelCurrentRequestForSession: async () => { calls.push('request'); },
+			});
+			const widget = upcastPartial<IChatWidget>({
+				cancelTranscriptProgress: () => { calls.push('preparation'); return true; },
+			});
+			await services.invokeFunction(accessor => new CancelAction().run(accessor, { widget }));
+			assert.deepStrictEqual(calls, ['preparation']);
+		});
+
+		test('Stop continues to cancel ordinary requests once preparation clears', async () => {
+			const services = createServices();
+			const calls: string[] = [];
+			services.stub(IChatService, {
+				cancelCurrentRequestForSession: async () => { calls.push('request'); },
+			});
+			const widget = upcastPartial<IChatWidget>({
+				viewModel: upcastPartial<NonNullable<IChatWidget['viewModel']>>({ sessionResource: URI.parse('test:session') }),
+				cancelTranscriptProgress: () => false,
+			});
+			await services.invokeFunction(accessor => new CancelAction().run(accessor, { widget }));
+			assert.deepStrictEqual(calls, ['request']);
+		});
+
+		test('preparation suppresses Send, queue and steer while showing the normal Stop action', () => {
+			const stop = new CancelAction();
+			assert.ok(Array.isArray(stop.desc.menu));
+			const stopMenu = stop.desc.menu.find(menu => menu.id === MenuId.ChatExecute)!;
+			const values: Record<string, ContextKeyValue> = {
+				[ChatContextKeys.transcriptProgressActive.key]: true,
+				[ChatContextKeys.inputHasText.key]: true,
+				[ChatContextKeys.inputHasSendableContent.key]: true,
+				[ChatContextKeys.chatSessionOptionsValid.key]: true,
+				[ChatContextKeys.chatModeKind.key]: ChatModeKind.Agent,
+			};
+			const context = { getValue: <T extends ContextKeyValue = ContextKeyValue>(key: string) => values[key] as T };
+			const send = new ChatSubmitAction();
+			const editSend = new ChatEditingSessionSubmitAction();
+			const queue = new ChatQueueMessageAction();
+			const steer = new ChatSteerWithMessageAction();
+			const state = () => ({
+				stop: stopMenu.when!.evaluate(context),
+				send: send.desc.precondition!.evaluate(context),
+				editSend: editSend.desc.precondition!.evaluate(context),
+				queue: queue.desc.precondition!.evaluate(context),
+				steer: steer.desc.precondition!.evaluate(context),
+			});
+			const preparing = state();
+			values[ChatContextKeys.transcriptProgressActive.key] = false;
+			const idle = state();
+			values[ChatContextKeys.hasActiveRequest.key] = true;
+			values[ChatContextKeys.requestInProgress.key] = true;
+			assert.deepStrictEqual({ preparing, idle, requesting: state() }, {
+				preparing: { stop: true, send: false, editSend: false, queue: false, steer: false },
+				idle: { stop: false, send: true, editSend: true, queue: true, steer: true },
+				requesting: { stop: true, send: false, editSend: false, queue: true, steer: true },
+			});
+		});
+
+		test('direct Send and Stop and Send calls do not dispatch or alter preparation', async () => {
+			const services = createServices();
+			const calls: string[] = [];
+			const widget = upcastPartial<IChatWidget>({
+				isTranscriptProgressActive: true,
+				acceptInput: async () => { calls.push('send'); return undefined; },
+				cancelTranscriptProgress: () => { calls.push('cancel'); return true; },
+			});
+			await services.invokeFunction(accessor => new ChatSubmitAction().run(accessor, { widget }));
+			await services.invokeFunction(accessor => new ChatSubmitAction().run(accessor, { widget, acceptInputOptions: { cancelCurrentRequest: true } }));
+			assert.deepStrictEqual(calls, []);
+		});
 	});
 
 	suiteTeardown(() => {

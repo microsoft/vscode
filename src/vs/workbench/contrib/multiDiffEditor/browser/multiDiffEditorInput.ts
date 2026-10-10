@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { LazyStatefulPromise, raceTimeout } from '../../../../base/common/async.js';
+import { cancelOnDispose } from '../../../../base/common/cancellation.js';
 import { BugIndicatingError, CancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { Event, ValueWithChangeEvent } from '../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
@@ -106,7 +107,7 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 					throw new CancellationError();
 				}
 
-				const vm = store.add(new MultiDiffEditorViewModel(model, this._instantiationService));
+				const vm = store.add(this._instantiationService.createInstance(MultiDiffEditorViewModel, model));
 				await raceTimeout(vm.waitForDiffOr1s(), 1000);
 				if (this._store.isDisposed) {
 					throw new CancellationError();
@@ -272,8 +273,12 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 
 		const updateDocuments = derived(async reader => {
 			/** @description Update documents */
+			const cancellationToken = cancelOnDispose(reader.store);
 			const docsPromises = documentsWithPromises.read(reader);
 			const docs = await Promise.all(docsPromises);
+			if (cancellationToken.isCancellationRequested) {
+				return;
+			}
 			const newDocuments = docs.filter(isDefined);
 			documents.set(newDocuments, undefined);
 		});
