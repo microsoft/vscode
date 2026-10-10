@@ -306,6 +306,11 @@ registerAction2(class extends Action2 {
 			} else {
 				controller.setFoldingStateDown(index, CellFoldingState.Expanded, levels);
 			}
+
+			const cell = editor.cellAt(index);
+			if (cell) {
+				editor.focusElement(cell);
+			}
 		}
 	}
 });
