@@ -192,7 +192,9 @@ suite('Chat Accessibility Help', () => {
 			primaryAction: help.includes('activates the primary button of the selected confirmation'),
 			disabled: help.includes('Disabled actions cannot be accepted'),
 			keybinding: help.includes('<keybinding:workbench.action.chat.acceptTool>'),
-		}, { primaryAction: true, disabled: true, keybinding: true });
+			fileOptions: help.includes('File-change confirmations can offer multiple approval or denial choices.'),
+			optionNavigation: help.includes('Use Tab or Shift+Tab to reach the buttons and their drop-down menus, then Enter or Space to activate them.'),
+		}, { primaryAction: true, disabled: true, keybinding: true, fileOptions: true, optionNavigation: true });
 	});
 
 	test('documents finished sections and subagent progress without duplicate shimmer', () => {

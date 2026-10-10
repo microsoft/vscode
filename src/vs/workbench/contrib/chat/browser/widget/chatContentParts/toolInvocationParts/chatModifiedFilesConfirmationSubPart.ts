@@ -32,7 +32,7 @@ import { IChatMarkdownAnchorService } from '../chatMarkdownAnchorService.js';
 import { CollapsibleListPool, IChatCollapsibleListItem } from '../chatReferencesContentPart.js';
 import { IUntypedEditorInput } from '../../../../../../common/editor.js';
 import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
-import { AbstractToolConfirmationSubPart } from './abstractToolConfirmationSubPart.js';
+import { AbstractToolConfirmationSubPart, buildCustomOptionButtons } from './abstractToolConfirmationSubPart.js';
 import { createApprovalReasonBadge } from './toolRiskBadgeHelper.js';
 
 type ModifiedFileConfirmationEntry = IChatModifiedFilesConfirmationData['modifiedFiles'][number];
@@ -145,6 +145,13 @@ export class ChatModifiedFilesConfirmationSubPart extends AbstractToolConfirmati
 	}
 
 	private createButtons(options: readonly string[]): IChatConfirmationButton<() => void>[] {
+		const customOptions = IChatToolInvocation.getConfirmationMessages(this.toolInvocation)?.customOptions;
+		if (customOptions?.length) {
+			return buildCustomOptionButtons(customOptions, option => () => {
+				this.confirmWith(this.toolInvocation, { type: ToolConfirmKind.UserAction, selectedButton: option.id, selectedButtonKind: option.kind });
+			});
+		}
+
 		const [primaryOption, ...secondaryOptions] = options;
 		return [
 			{
