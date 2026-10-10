@@ -30,11 +30,12 @@ export async function activate(context: vscode.ExtensionContext) {
 		try {
 			uris = getEnterpriseUris(configuration, vscode.workspace.isTrusted);
 		} catch (error) {
-			await githubEnterpriseAuthProvider.update([], { error: error.message });
-			void vscode.window.showErrorMessage(getSafeNotificationMessage(
+			const safeMessage = getSafeNotificationMessage(
 				error.message,
 				vscode.l10n.t('Invalid GitHub Enterprise instance URI.'),
-			));
+			);
+			await githubEnterpriseAuthProvider.update([], { error: safeMessage });
+			void vscode.window.showErrorMessage(safeMessage);
 			return;
 		}
 		const legacy = configuration.get<string>(enterpriseUriSetting);
