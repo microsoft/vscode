@@ -14,7 +14,6 @@ import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Iterable } from '../../../../base/common/iterator.js';
-import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { runOnChange } from '../../../../base/common/observable.js';
@@ -235,7 +234,6 @@ class SCMInputHistory {
 
 	constructor(
 		@IStorageService private storageService: IStorageService,
-		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
 	) {
 		this.histories = new Map();
 
@@ -252,9 +250,7 @@ class SCMInputHistory {
 			providerHistories.set(rootUri, new HistoryNavigator2(history, 100));
 		}
 
-		if (this.migrateStorage()) {
-			this.saveToStorage();
-		}
+		this.removeDeprecatedStorageKeys();
 
 		this.disposables.add(this.storageService.onDidChangeValue(StorageScope.WORKSPACE, 'scm.history', this.disposables)(e => {
 			if (e.external && e.key === 'scm.history') {
@@ -312,41 +308,15 @@ class SCMInputHistory {
 		return history;
 	}
 
-	// Migrates from Application scope storage to Workspace scope.
-	// TODO@joaomoreno: Change from January 2024 onwards such that the only code is to remove all `scm/input:` storage keys
-	private migrateStorage(): boolean {
-		let didSomethingChange = false;
+	// Removes deprecated `scm/input:` keys from Application scope storage.
+	// These keys were previously migrated from Application to Workspace scope.
+	// The migration code was removed as all users have had sufficient time to migrate (since January 2024).
+	private removeDeprecatedStorageKeys(): void {
 		const machineKeys = Iterable.filter(this.storageService.keys(StorageScope.APPLICATION, StorageTarget.MACHINE), key => key.startsWith('scm/input:'));
 
 		for (const key of machineKeys) {
-			try {
-				const legacyHistory = JSON.parse(this.storageService.get(key, StorageScope.APPLICATION, ''));
-				const match = /^scm\/input:([^:]+):(.+)$/.exec(key);
-
-				if (!match || !Array.isArray(legacyHistory?.history) || !Number.isInteger(legacyHistory?.timestamp)) {
-					this.storageService.remove(key, StorageScope.APPLICATION);
-					continue;
-				}
-
-				const [, providerLabel, rootPath] = match;
-				const rootUri = URI.file(rootPath);
-
-				if (this.workspaceContextService.getWorkspaceFolder(rootUri)) {
-					const history = this.getHistory(providerLabel, rootUri);
-
-					for (const entry of Iterable.reverse(legacyHistory.history as string[])) {
-						history.prepend(entry);
-					}
-
-					didSomethingChange = true;
-					this.storageService.remove(key, StorageScope.APPLICATION);
-				}
-			} catch {
-				this.storageService.remove(key, StorageScope.APPLICATION);
-			}
+			this.storageService.remove(key, StorageScope.APPLICATION);
 		}
-
-		return didSomethingChange;
 	}
 
 	dispose() {
@@ -375,12 +345,11 @@ export class SCMService implements ISCMService {
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
-		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IStorageService storageService: IStorageService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
-		this.inputHistory = new SCMInputHistory(storageService, workspaceContextService);
+		this.inputHistory = new SCMInputHistory(storageService);
 
 		this.providerCount = contextKeyService.createKey('scm.providerCount', 0);
 		this.historyProviderCount = contextKeyService.createKey('scm.historyProviderCount', 0);
