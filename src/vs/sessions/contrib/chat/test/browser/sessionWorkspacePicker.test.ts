@@ -1358,7 +1358,7 @@ suite('WorkspacePicker - Connection Status', () => {
 		const devContainerSubmenu = devContainerFolderItem?.submenuActions?.[0];
 		const devContainerLabel = container.querySelector('.sessions-chat-dropdown-label')?.textContent;
 		const devContainerAriaLabel = container.querySelector('.action-label')?.getAttribute('aria-label');
-		await picker.selectSubmenu('agent-host/project', 'Use Local');
+		await picker.selectSubmenu('agent-host/project', 'Use This Computer');
 
 		assert.deepStrictEqual({
 			stableItemIds: [initialFolderItem?.item?.id, devContainerFolderItem?.item?.id],
@@ -1383,11 +1383,11 @@ suite('WorkspacePicker - Connection Status', () => {
 				'workspacePicker.workspace.file:///agent-host/project',
 			],
 			initialSubmenu: [
-				{ label: 'Use Local', tooltip: '', checked: true },
+				{ label: 'Use This Computer', tooltip: '', checked: true },
 				{ label: 'Use Dev Container', tooltip: '', checked: false },
 			],
 			devContainerSubmenu: [
-				{ label: 'Use Local', checked: false },
+				{ label: 'Use This Computer', checked: false },
 				{ label: 'Use Dev Container', checked: true },
 			],
 			unavailableFolderHasSubmenu: false,
@@ -1427,7 +1427,7 @@ suite('WorkspacePicker - Connection Status', () => {
 			submenu: submenu instanceof SubmenuAction ? submenu.actions.map(action => action.label) : undefined,
 		}, {
 			providerId: recentProvider.id,
-			submenu: ['Use Local', 'Use Dev Container'],
+			submenu: ['Use This Computer', 'Use Dev Container'],
 		});
 	});
 

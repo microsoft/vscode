@@ -1324,7 +1324,7 @@ export class NewChatWidget extends Disposable {
 		const submenuActions = providers.length > 1
 			? providers.map(provider => {
 				const label = provider.id === LOCAL_AGENT_HOST_PROVIDER_ID
-					? localize('newSessionWorkspacePicker.localQuickChat', "Local")
+					? localize('newSessionWorkspacePicker.localQuickChat', "This Computer")
 					: provider.label;
 				const action = toAction({
 					id: `newSessionWorkspacePicker.quickChat.${provider.id}`,
