@@ -74,6 +74,8 @@ export interface IModelCardRoutingAlternative {
 	readonly model: ILanguageModelChatMetadataAndIdentifier;
 	/** Shown below the tiers while the alternative is chosen. */
 	readonly description: string;
+	/** Describes the routing feature in the option's hover. */
+	readonly tooltip?: string;
 	readonly learnMoreUrl?: URI;
 	/** Whether the alternative is the model in use, rather than one of Auto's tiers. */
 	readonly selected: boolean;
@@ -93,6 +95,7 @@ export class ModelCard extends DisposableStore {
 	private readonly _pricingDisclosureListener = this.add(new MutableDisposable());
 	private _configurationChangeVersion = 0;
 	private _headerActions: ActionBar | undefined;
+	private _routingBadge: HTMLElement | undefined;
 	/** The pricing disclosure's button, rebuilt with the rest of the card on each render. */
 	private _pricingToggle: HTMLElement | undefined;
 	private _pricingChevron: HTMLElement | undefined;
@@ -216,6 +219,7 @@ export class ModelCard extends DisposableStore {
 		this._pricingChevron = undefined;
 		this._pricingBody = undefined;
 		this._headerActions = undefined;
+		this._routingBadge = undefined;
 		this._groupControls.clear();
 
 		const { model, isUBB, openerService } = this._options;
@@ -231,6 +235,10 @@ export class ModelCard extends DisposableStore {
 		}
 		if (metadata.tooltip) {
 			this._renderDescription(metadata.tooltip);
+		}
+		// Without tiers to sit below, Auto's discount follows its description.
+		if (isAuto && !effort && metadata.autoModelDiscountPercent !== undefined) {
+			this._renderDescription(ILanguageModelChatMetadata.getAutoModelDiscountDescription(metadata.autoModelDiscountPercent));
 		}
 
 		if (!isAuto) {
@@ -278,13 +286,18 @@ export class ModelCard extends DisposableStore {
 		const name = dom.append(header, dom.$('.chat-model-card-name', undefined, metadata.name));
 		this._contentDisposables.add(getBaseLayerHoverDelegate().setupManagedHover(getDefaultHoverDelegate('mouse'), name, metadata.name));
 
-		const badgeLabel = isRoutingModel
-			? metadata.detail
-			: this._showsPriceBadgeInPricing()
-				? undefined
-				: getPriceCategoryLabel(metadata.priceCategory) ?? getCategoryLabel(metadata.category);
-		if (badgeLabel) {
-			this._renderBadge(header, badgeLabel, !isRoutingModel && isHighCostCategory(metadata.priceCategory));
+		if (this._options.routingAlternative) {
+			this._routingBadge = this._renderBadge(header, '', false);
+			this._updateRoutingBadge();
+		} else {
+			const badgeLabel = isRoutingModel
+				? metadata.detail
+				: this._showsPriceBadgeInPricing()
+					? undefined
+					: getPriceCategoryLabel(metadata.priceCategory) ?? getCategoryLabel(metadata.category);
+			if (badgeLabel) {
+				this._renderBadge(header, badgeLabel, !isRoutingModel && isHighCostCategory(metadata.priceCategory));
+			}
 		}
 
 		const changed = getChangedModelConfigProperties(this._options.model, this._options.configurationAccess);
@@ -341,9 +354,10 @@ export class ModelCard extends DisposableStore {
 		return this._options.isUBB && !!getPriceCategoryLabel(metadata.priceCategory) && getModelCostMetrics(metadata).length > 0;
 	}
 
-	private _renderBadge(container: HTMLElement, label: string, highCost: boolean): void {
+	private _renderBadge(container: HTMLElement, label: string, highCost: boolean): HTMLElement {
 		const badge = dom.append(container, dom.$('span.chat-model-card-badge', undefined, label));
 		badge.classList.toggle('high-cost', highCost);
+		return badge;
 	}
 
 	private _renderDescription(tooltip: string): void {
@@ -394,8 +408,10 @@ export class ModelCard extends DisposableStore {
 			const label = alternative.model.metadata.name;
 			items.push({
 				text: label,
-				tooltip: alternative.description,
-				ariaLabel: localize('chat.modelPicker.optionDescription', "{0}, {1}", label, alternative.description),
+				tooltip: alternative.tooltip ?? alternative.description,
+				ariaLabel: alternative.tooltip
+					? localize('chat.modelPicker.alternativeDescription', "{0}, {1} {2}", label, alternative.description, alternative.tooltip)
+					: localize('chat.modelPicker.optionDescription', "{0}, {1}", label, alternative.description),
 				isActive: alternative.selected,
 				disabled: false,
 			});
@@ -409,6 +425,7 @@ export class ModelCard extends DisposableStore {
 			items,
 		}));
 		let alternativeDescription: HTMLElement | undefined;
+		let discountDescription: HTMLElement | undefined;
 		const onDidChoose = isAuto ? control.onDidActivate : control.onDidSelect;
 		this._contentDisposables.add(onDidChoose(index => {
 			if (alternative && index === choices.length) {
@@ -419,9 +436,19 @@ export class ModelCard extends DisposableStore {
 			if (alternativeDescription) {
 				alternativeDescription.hidden = index !== choices.length;
 			}
+			if (discountDescription) {
+				discountDescription.hidden = !!alternative && index === choices.length;
+			}
 		}));
 		this._groupControls.set(group, control);
 		section.appendChild(control.domNode);
+		const discountPercent = isAuto && group === MODEL_CONFIG_GROUP_EFFORT ? this._options.model.metadata.autoModelDiscountPercent : undefined;
+		if (discountPercent !== undefined) {
+			discountDescription = renderModelDescription(ILanguageModelChatMetadata.getAutoModelDiscountDescription(discountPercent, choices.find(choice => choice.checked)?.label), this._options.openerService, this._contentDisposables).element;
+			discountDescription.classList.add('chat-model-card-description', 'chat-model-card-discount-description');
+			discountDescription.hidden = !!alternative?.selected;
+			section.appendChild(discountDescription);
+		}
 		if (alternative) {
 			alternativeDescription = renderModelDescription(alternative.description, this._options.openerService, this._contentDisposables, alternative.learnMoreUrl).element;
 			alternativeDescription.classList.add('chat-model-card-description', 'chat-model-card-alternative-description');
@@ -481,6 +508,18 @@ export class ModelCard extends DisposableStore {
 		const alternative = this._options.routingAlternative;
 		if (alternative && alternative.selected !== selected) {
 			this._options = { ...this._options, routingAlternative: { ...alternative, selected } };
+			this._updateRoutingBadge();
+		}
+	}
+
+	/** Shows the alternative's badge while it is chosen, otherwise the routing model's own. */
+	private _updateRoutingBadge(): void {
+		const alternative = this._options.routingAlternative;
+		const badge = this._routingBadge;
+		if (alternative && badge) {
+			const label = (alternative.selected ? alternative.model : this._options.model).metadata.detail;
+			badge.textContent = label ?? '';
+			badge.hidden = !label;
 		}
 	}
 
