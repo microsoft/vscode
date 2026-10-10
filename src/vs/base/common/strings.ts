@@ -1205,6 +1205,20 @@ function getOffsetBeforeLastEmojiComponent(initialOffset: number, str: string): 
 
 	let resultOffset = iterator.offset;
 
+	if (isRegionalIndicator(codePoint)) {
+		// Regional indicators combine in pairs to form a single flag emoji
+		// (Unicode UAX #29 GB12/GB13: do not break within an emoji flag
+		// sequence). If this regional indicator completes such a pair,
+		// delete both code points together; otherwise it is a lone,
+		// unpaired indicator and only it should be deleted.
+		if (isRegionalIndicatorPaired(str, resultOffset)) {
+			const pairIterator = new CodePointIterator(str, resultOffset);
+			pairIterator.prevCodePoint();
+			resultOffset = pairIterator.offset;
+		}
+		return resultOffset;
+	}
+
 	if (resultOffset > 0) {
 		// Skip optional ZWJ code points that combine multiple emojis.
 		// In theory, we should check if that ZWJ actually combines multiple emojis
@@ -1220,6 +1234,27 @@ function getOffsetBeforeLastEmojiComponent(initialOffset: number, str: string): 
 
 function isEmojiModifier(codePoint: number): boolean {
 	return 0x1F3FB <= codePoint && codePoint <= 0x1F3FF;
+}
+
+function isRegionalIndicator(codePoint: number): boolean {
+	return 0x1F1E6 <= codePoint && codePoint <= 0x1F1FF;
+}
+
+/**
+ * Returns whether the regional indicator ending at `offset` (already counted
+ * by the caller) is paired, i.e. whether the full contiguous run of regional
+ * indicators it belongs to has even length.
+ */
+function isRegionalIndicatorPaired(str: string, offset: number): boolean {
+	let runLength = 1;
+	const scan = new CodePointIterator(str, offset);
+	while (scan.offset > 0) {
+		if (!isRegionalIndicator(scan.prevCodePoint())) {
+			break;
+		}
+		runLength++;
+	}
+	return runLength % 2 === 0;
 }
 
 const enum CodePoint {
