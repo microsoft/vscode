@@ -302,7 +302,7 @@ suite('TreeSitterCommandParser', () => {
 	});
 
 	suite('extractCommands', () => {
-		async function t(languageId: TreeSitterCommandParserLanguage, commandLine: string, expectedCommands: { keyword: string; args: string[] }[]) {
+		async function t(languageId: TreeSitterCommandParserLanguage, commandLine: string, expectedCommands: { keyword: string; args: string[]; environmentAssignments?: string[] }[]) {
 			const result = await parser.extractCommands(languageId, commandLine);
 			deepStrictEqual(result, expectedCommands);
 		}
@@ -319,10 +319,10 @@ suite('TreeSitterCommandParser', () => {
 			[{ keyword: 'git', args: ['-C', 'repo', 'commit', '-m', 'test'] }]
 		));
 
-		test('skips leading variable assignments', () => t(
+		test('skips leading variable assignments when finding the command, and reports them', () => t(
 			TreeSitterCommandParserLanguage.Bash,
 			'GIT_EDITOR=true git commit -m test',
-			[{ keyword: 'git', args: ['commit', '-m', 'test'] }]
+			[{ keyword: 'git', args: ['commit', '-m', 'test'], environmentAssignments: ['GIT_EDITOR=true'] }]
 		));
 
 		test('does not extract quoted command text as a command', () => t(
@@ -341,20 +341,27 @@ suite('TreeSitterCommandParser', () => {
 		));
 
 		test('applies the Git runtime policy for common command formats', async () => {
-			for (const commandLine of [
-				'git status',
-				'/usr/bin/git status',
-				'HOME=/tmp git status',
-				'env git status',
-				'env -u HOME git status',
-				'env --unset HOME git status',
-				'env --unset=HOME git status',
-				'env HOME=/tmp git status',
-				'env -i -- git status',
-				'/usr/bin/env -u HOME /usr/bin/git status',
-			]) {
+			// `HOME` does not change what Git executes, so these keep the grant. The
+			// assignments are reported either way, since a rule that grants extra
+			// capabilities has to be able to see them.
+			for (const [commandLine, environmentAssignments] of [
+				['git status', []],
+				['/usr/bin/git status', []],
+				['HOME=/tmp git status', ['HOME=/tmp']],
+				['env git status', []],
+				['env -u HOME git status', []],
+				['env --unset HOME git status', []],
+				['env --unset=HOME git status', []],
+				['env HOME=/tmp git status', ['HOME=/tmp']],
+				['env -i -- git status', []],
+				['/usr/bin/env -u HOME /usr/bin/git status', []],
+			] as readonly (readonly [string, string[]])[]) {
 				const commands = await parser.extractCommands(TreeSitterCommandParserLanguage.Bash, commandLine);
-				deepStrictEqual(commands, [{ keyword: 'git', args: ['status'] }], commandLine);
+				deepStrictEqual(commands, [{
+					keyword: 'git',
+					args: ['status'],
+					...(environmentAssignments.length > 0 ? { environmentAssignments } : undefined),
+				}], commandLine);
 				for (const os of [OperatingSystem.Linux, OperatingSystem.Macintosh]) {
 					const allowRead = getTerminalSandboxReadAllowListForCommands(os, commands.map(command => command.keyword), commands);
 					ok(allowRead.includes('~/.gitconfig'), `${commandLine} should apply the Git read policy on ${os}`);
