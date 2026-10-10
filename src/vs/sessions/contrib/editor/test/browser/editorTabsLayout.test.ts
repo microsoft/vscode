@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $, Dimension, ModifierKeyEmitter, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
+import { $, Dimension, getTotalWidth, ModifierKeyEmitter, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Action } from '../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -285,16 +285,22 @@ suite('Sessions - Editor tabs trailing layout', () => {
 				const oldOptions = partOptions;
 				partOptions = { ...partOptions, tabSizing, tabHeight };
 				control.updateOptions(oldOptions, partOptions);
-				for (const width of [180, 240, 300]) {
+				await layout(2000);
+				const strip = title.querySelector<HTMLElement>('.tabs-and-actions-container')!;
+				const tabs = Array.from(strip.querySelectorAll<HTMLElement>('.tabs-container > .tab'));
+				const add = strip.querySelector<HTMLElement>('.tabs-bar-add-tab')!;
+				const toolbar = strip.querySelector<HTMLElement>('.editor-toolbars')!;
+				const tabWidth = Math.max(...tabs.map(getTotalWidth));
+				const controlsWidth = getTotalWidth(add) + getTotalWidth(toolbar);
+				for (const tabsPerRow of [1, 2, 3]) {
+					const width = Math.ceil(Math.max(tabsPerRow * tabWidth, controlsWidth)) + 12;
 					await layout(width);
-					const strip = title.querySelector<HTMLElement>('.tabs-and-actions-container')!;
-					const tabs = Array.from(strip.querySelectorAll<HTMLElement>('.tabs-container > .tab'));
-					const add = strip.querySelector<HTMLElement>('.tabs-bar-add-tab')!;
 					const active = strip.querySelector<HTMLElement>('.tab.active')!;
 					results.push({
 						tabSizing, tabHeight, width,
 						wrapping: strip.classList.contains('wrapping'),
 						...trailingBounds(strip),
+						addOnlyLastRow: tabs.every(tab => tab.offsetTop < add.offsetTop),
 						rowMarkers: tabs.every(tab => tab.classList.contains('connected-tab-upper-row') === (tab.offsetTop !== add.offsetTop)),
 						noPhantomCap: !active.classList.contains('connected-tab-upper-row') || mainWindow.getComputedStyle(active.querySelector<HTMLElement>('.tab-fill')!, '::after').content === 'none',
 						lastRowHeight: add.getBoundingClientRect().height > 0,
@@ -302,7 +308,7 @@ suite('Sessions - Editor tabs trailing layout', () => {
 				}
 			}
 		}
-		assert.deepStrictEqual(results, results.map(result => ({ ...result, wrapping: true, actions: [2, 2], visibleActions: [2, 2], overlaps: false, inBounds: true, tabsClear: true, addPosition: 'static', rowMarkers: true, noPhantomCap: true, lastRowHeight: true })));
+		assert.deepStrictEqual(results, results.map(result => ({ ...result, wrapping: true, actions: [2, 2], visibleActions: [2, 2], overlaps: false, inBounds: true, tabsClear: true, addPosition: 'static', addOnlyLastRow: true, rowMarkers: true, noPhantomCap: true, lastRowHeight: true })));
 	});
 
 	test('an oversized non-final fit tab retains horizontal scrolling with Add Tab visible', async () => {
@@ -322,16 +328,18 @@ suite('Sessions - Editor tabs trailing layout', () => {
 		for (const style of ['legacy', 'pill', 'connected']) {
 			root.classList.toggle('modern-ui-tabs', style !== 'legacy');
 			root.classList.toggle('modern-ui-connected-editor-tabs', style === 'connected');
-			await layout(300);
+			await layout(2000);
 			const strip = title.querySelector<HTMLElement>('.tabs-and-actions-container')!;
 			const tabs = strip.querySelector<HTMLElement>('.tabs-container')!;
 			const last = tabs.querySelector<HTMLElement>('.tab.last-tab')!;
 			const toolbar = strip.querySelector<HTMLElement>('.editor-toolbars')!;
+			const width = Math.ceil(last.offsetWidth + toolbar.offsetWidth / 2);
+			await layout(width);
 			results.push({
-				style,
-				earlierTabOversized: tabs.querySelector<HTMLElement>('.tab.active')!.offsetWidth > 300,
-				finalTabAloneFits: last.offsetWidth < 300,
-				finalTabWithToolbarDoesNotFit: last.offsetWidth + toolbar.offsetWidth > 300,
+				style, width,
+				earlierTabOversized: tabs.querySelector<HTMLElement>('.tab.active')!.offsetWidth > width,
+				finalTabAloneFits: last.offsetWidth < width,
+				finalTabWithToolbarDoesNotFit: last.offsetWidth + toolbar.offsetWidth > width,
 				wrapping: strip.classList.contains('wrapping'),
 				scrolling: tabs.scrollWidth > tabs.clientWidth,
 			});

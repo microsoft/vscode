@@ -278,13 +278,13 @@
 .modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tabs-bar-add-tab {
 	height: auto;
 	align-self: stretch;
+	background: var(--vscode-editor-background);
 }
 
 .modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container:not(.wrapping) .tabs-container > .tabs-bar-add-tab {
 	position: sticky;
 	right: 0;
 	z-index: 9;
-	background: var(--vscode-editor-background);
 }
 
 /* Keep 24px fills inside 32px hit targets while avoiding an 8px double gutter
