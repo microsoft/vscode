@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
 import { MainThreadDocumentsAndEditors } from '../../browser/mainThreadDocumentsAndEditors.js';
 import { SingleProxyRPCProtocol } from '../common/testRPCProtocol.js';
 import { TestConfigurationService } from '../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -148,6 +149,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 	});
 
 	teardown(() => {
+		sinon.restore();
 		disposables.dispose();
 	});
 
@@ -166,6 +168,34 @@ suite('MainThreadDocumentsAndEditors', () => {
 		assert.strictEqual(delta.addedEditors, undefined);
 		assert.strictEqual(delta.removedEditors, undefined);
 		assert.strictEqual(delta.newActiveEditor, undefined);
+	});
+
+	test('removes unattached models without rescanning all documents', () => {
+		const models = Array.from({ length: 200 }, () => disposables.add(modelService.createModel('content', null)));
+		const getModels = sinon.spy(modelService, 'getModels');
+		deltas.length = 0;
+
+		for (const model of models) {
+			model.dispose();
+		}
+
+		assert.deepStrictEqual({
+			scans: getModels.callCount,
+			deltas: deltas.map(delta => ({ ...delta })),
+		}, {
+			scans: 0,
+			deltas: models.map(model => ({ removedDocuments: [model.uri] })),
+		});
+	});
+
+	test('ignores removed simple widget models without rescanning documents', () => {
+		const model = disposables.add(modelService.createModel('', null, undefined, true));
+		const getModels = sinon.spy(modelService, 'getModels');
+		deltas.length = 0;
+
+		model.dispose();
+
+		assert.deepStrictEqual({ scans: getModels.callCount, deltas }, { scans: 0, deltas: [] });
 	});
 
 	test('ignore huge model', function () {
@@ -337,6 +367,24 @@ suite('MainThreadDocumentsAndEditors', () => {
 
 		editor.dispose();
 		model.dispose();
+	});
+
+	test('removing an attached model clears its active editor', () => {
+		const model = disposables.add(modelService.createModel('content', null));
+		const editor = disposables.add(createTestCodeEditor(model, {
+			hasTextFocus: true,
+			serviceCollection: new ServiceCollection([ICodeEditorService, codeEditorService]),
+		}));
+		const editorId = mainThreadDocumentsAndEditors.getIdOfCodeEditor(editor);
+		deltas.length = 0;
+
+		model.dispose();
+
+		assert.deepStrictEqual(deltas.map(delta => ({ ...delta })), [{
+			removedDocuments: [model.uri],
+			removedEditors: [editorId],
+			newActiveEditor: null,
+		}]);
 	});
 
 	test('dispose removes editor listeners', () => {
