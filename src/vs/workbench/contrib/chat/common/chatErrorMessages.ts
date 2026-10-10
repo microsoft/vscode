@@ -372,7 +372,15 @@ export function getChatErrorDetailsFromMeta(error: ErrorInfo | undefined, contex
 			isExpectedError: error.errorType === 'rate_limit' || error.errorType === 'quota',
 		};
 	}
-	const chatError = detail?.kind === 'fetch' ? detail.value : undefined;
+	// Some hosts forward _meta.chatError as a JSON string.
+	let chatError = detail?.kind === 'fetch' ? detail.value : error?._meta?.chatError;
+	if (typeof chatError === 'string') {
+		try {
+			chatError = JSON.parse(chatError);
+		} catch {
+			return undefined;
+		}
+	}
 	if (!isForwardedChatError(chatError)) {
 		return undefined;
 	}
