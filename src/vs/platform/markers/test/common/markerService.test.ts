@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { IMarkerData, MarkerSeverity } from '../../common/markers.js';
+import { getMarkerMessageText, IMarkerData, MarkerSeverity } from '../../common/markers.js';
 import * as markerService from '../../common/markerService.js';
 
 function randomMarkerData(severity = MarkerSeverity.Error): IMarkerData {
@@ -396,7 +396,7 @@ suite('Marker Service', () => {
 		const markers = service.read({ resource });
 		assert.strictEqual(markers.length, 1);
 		assert.strictEqual(markers[0].severity, MarkerSeverity.Info);
-		assert.ok(markers[0].message.includes(filterReason));
+		assert.ok(getMarkerMessageText(markers[0].message).includes(filterReason));
 
 		// Remove filter and verify the original markers are back
 		filter.dispose();
@@ -434,7 +434,7 @@ suite('Marker Service', () => {
 		// Verify the info marker
 		assert.ok(infoMarker);
 		assert.strictEqual(infoMarker?.resource.toString(), resource1.toString());
-		assert.ok(infoMarker?.message.includes(filterReason));
+		assert.ok(infoMarker && getMarkerMessageText(infoMarker.message).includes(filterReason));
 
 		// Remove filter
 		filter.dispose();
@@ -469,7 +469,7 @@ suite('Marker Service', () => {
 
 		// Check if message contains the correct count of filters
 		const markers = service.read({ resource });
-		assert.ok(markers[0].message.includes('Problems are paused because'));
+		assert.ok(getMarkerMessageText(markers[0].message).includes('Problems are paused because'));
 
 		// Remove remaining filters in any order
 		filter3.dispose();
