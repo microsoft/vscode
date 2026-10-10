@@ -43,6 +43,7 @@
 	"configuration.markdown.preview.openMarkdownLinks.description": "Controls how links to other Markdown files in the Markdown preview should be opened.",
 	"configuration.markdown.preview.openMarkdownLinks.inEditor": "Try to open links in the editor.",
 	"configuration.markdown.preview.openMarkdownLinks.inPreview": "Try to open links in the Markdown preview.",
+	"configuration.markdown.preview.openLinksInBackground.description": "When enabled, local file links that open in an editor preserve focus on the Markdown preview.",
 	"configuration.markdown.preview.frontMatter.description": "Controls how YAML frontmatter (delimited by `---`) at the start of a Markdown file is rendered in the preview.",
 	"configuration.markdown.preview.frontMatter.hide": "Do not render frontmatter.",
 	"configuration.markdown.preview.frontMatter.codeBlock": "Render frontmatter as a code block.",

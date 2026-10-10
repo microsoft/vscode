@@ -1865,6 +1865,12 @@
               "%configuration.markdown.preview.openMarkdownLinks.inEditor%"
             ]
           },
+          "markdown.preview.openLinksInBackground": {
+            "type": "boolean",
+            "default": false,
+            "description": "%configuration.markdown.preview.openLinksInBackground.description%",
+            "scope": "resource"
+          },
           "markdown.preview.frontMatter": {
             "type": "string",
             "default": "table",
