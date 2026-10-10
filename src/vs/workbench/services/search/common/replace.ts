@@ -28,7 +28,7 @@ export class ReplacePattern {
 		} else {
 			searchPatternInfo = arg2;
 			parseParameters = !!searchPatternInfo.isRegExp;
-			this._regExp = strings.createRegExp(searchPatternInfo.pattern, !!searchPatternInfo.isRegExp, { matchCase: searchPatternInfo.isCaseSensitive, wholeWord: searchPatternInfo.isWordMatch, multiline: searchPatternInfo.isMultiline, global: false, unicode: true });
+			this._regExp = strings.createRegExp(searchPatternInfo.pattern, !!searchPatternInfo.isRegExp, { matchCase: searchPatternInfo.isCaseSensitive, wholeWord: searchPatternInfo.isWordMatch, multiline: searchPatternInfo.isMultiline, global: false, unicode: 'unicodeSets' });
 		}
 
 		if (parseParameters) {
