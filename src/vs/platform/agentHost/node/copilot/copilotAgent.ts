@@ -2006,21 +2006,28 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private async _resolveSessionCanvasChat(session: URI, chat: URI, operationContext: AgentChatOperationContext, operation: 'listSessionCanvases' | 'openSessionCanvas'): Promise<CopilotAgentSession> {
-		const context = this._resolveChatContext(chat, operationContext);
-		if (!isEqual(context.configurationResource, session)) {
-			throw new Error(`Canvas operation targeted a chat outside session '${session.toString()}'.`);
-		}
-		if (this._provisionalSessions.has(context.configurationId)) {
-			throw new Error('Canvas operation requires an initialized Copilot chat.');
-		}
+		const context = this._resolveSessionCanvasChatContext(session, chat, operationContext);
 		const liveSession = await this._queueChat(context.configurationId, context.sequencerKey, operation, async () => {
-			const current = this._resolveChatContext(chat, operationContext);
+			const current = this._resolveSessionCanvasChatContext(session, chat, operationContext);
 			return current.target ?? this._ensureResolvedChatSession(current);
 		});
 		if (!liveSession || !isEqual(liveSession.ownerSessionUri, session)) {
 			throw new Error(`Canvas operation requires a resumable Copilot chat: ${chat.toString()}`);
 		}
 		return liveSession;
+	}
+
+	private _resolveSessionCanvasChatContext(session: URI, chat: URI, operationContext: AgentChatOperationContext): IResolvedCopilotChatContext {
+		const context = this._resolveChatContext(chat, operationContext);
+		const recordedScope = this._chatScopes.get(context.chatKey);
+		if (!isEqual(context.configurationResource, session) || !recordedScope || !isEqual(recordedScope, session)) {
+			throw new Error(`Canvas operation targeted a chat outside session '${session.toString()}'.`);
+		}
+		const provisional = this._provisionalSessions.get(context.configurationId);
+		if (provisional && isEqual(provisional.chat, chat)) {
+			throw new Error('Canvas operation requires an initialized Copilot chat.');
+		}
+		return context;
 	}
 
 	async installPlugin(request: IAgentPluginInstallRequest): Promise<void> {
