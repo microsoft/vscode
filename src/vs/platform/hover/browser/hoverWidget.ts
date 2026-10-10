@@ -361,6 +361,8 @@ export class HoverWidget extends Widget implements IHoverWidget {
 
 		this._hover.containerDomNode.classList.remove('right-aligned');
 		this._hover.contentsDomNode.style.maxHeight = '';
+		// Re-added below only while content overflows; a stale gutter skews that measurement.
+		this._hover.contentsDomNode.style.paddingRight = '';
 		this._hover.containerDomNode.style.maxWidth = '';
 
 		const getZoomAccountedBoundingClientRect = (e: HTMLElement) => {
