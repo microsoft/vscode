@@ -437,6 +437,9 @@ export const CLAUDE_AGENT_PROVIDER_ID = 'claude' as const;
 /** Well-known agent provider id for the Codex agent-host backend. */
 export const CODEX_AGENT_PROVIDER_ID = 'codex' as const;
 
+/** Prefix of the providers registered for user-configured Agent Client Protocol agents (`acp-<id>`). */
+export const ACP_AGENT_PROVIDER_PREFIX = 'acp-';
+
 /** Well-known agent provider id for the Copilot CLI agent-host backend. */
 export const COPILOT_CLI_AGENT_PROVIDER_ID = 'copilotcli' as const;
 

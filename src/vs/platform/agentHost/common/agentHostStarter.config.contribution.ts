@@ -20,6 +20,8 @@ import {
 	AgentHostClaudeAgentEnabledSettingId,
 	AgentHostClaudeMultiRootEnabledSettingId,
 	AgentHostCodexAgentBinaryArgsSettingId,
+	AgentHostAcpAgentEnabledSettingId,
+	AgentHostAcpAgentsSettingId,
 	AgentHostCodexAgentEnabledSettingId,
 	AgentHostCodexMultiRootEnabledSettingId,
 	AgentHostCodexAgentSdkRootSettingId,
@@ -47,6 +49,8 @@ import {
 	AgentHostByokModelsEnabledDefault,
 	AgentHostCanvasesEnabledConfigKey,
 	AgentHostClaudeMultiRootEnabledConfigKey,
+	AgentHostAcpAgentsConfigKey,
+	AgentHostAcpEnabledConfigKey,
 	AgentHostCodexEnabledConfigKey,
 	AgentHostCodexMultiRootEnabledConfigKey,
 	AgentHostCopilotMultiRootEnabledConfigKey,
@@ -381,6 +385,48 @@ configurationRegistry.registerConfiguration({
 			default: [],
 			tags: ['experimental', 'advanced'],
 			included: product.quality !== 'stable',
+		},
+		[AgentHostAcpAgentEnabledSettingId]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.agentHost.acpAgent.enabled', "When enabled, the agent host registers the agents listed in `#chat.agentHost.acpAgents#`. Enabling takes effect without restarting the agent host; disabling takes effect after it restarts."),
+			default: true,
+			tags: ['experimental'],
+			// Always mirrored, including when `false`, like the Codex toggle.
+			agentHost: { key: AgentHostAcpEnabledConfigKey },
+			// ACP agents do not enforce Copilot-managed controls, so they share the third-party harness policy semantics.
+			policy: {
+				name: 'AcpAgents3PIntegration',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.142',
+				value: thirdPartyAgentEnabledValue,
+				localization: {
+					description: {
+						key: 'chat.agentHost.acpAgent.enabled.policy',
+						value: nls.localize('chat.agentHost.acpAgent.enabled.policy', "Enable Agent Client Protocol (ACP) agent sessions in VS Code. Users can run agents they configure in `chat.agentHost.acpAgents`, such as Qwen Code or OpenCode, with the agent's own authentication."),
+					}
+				}
+			},
+		},
+		[AgentHostAcpAgentsSettingId]: {
+			type: 'array',
+			markdownDescription: nls.localize('chat.agentHost.acpAgents', "Agents that speak the [Agent Client Protocol](https://agentclientprotocol.com) to run in the Agents window. Each entry registers a provider; the command runs without a shell, with your user's permissions, on the machine that hosts the agent host. For example: `{ \"id\": \"qwen\", \"displayName\": \"Qwen Code\", \"command\": \"qwen\", \"args\": [\"--acp\"] }` or `{ \"id\": \"opencode\", \"displayName\": \"OpenCode\", \"command\": \"opencode\", \"args\": [\"acp\"] }`. Removing an entry takes effect after the agent host restarts."),
+			items: {
+				type: 'object',
+				properties: {
+					id: { type: 'string', pattern: '^[a-z0-9][a-z0-9-]{0,31}$', description: nls.localize('chat.agentHost.acpAgents.id', "Stable identifier of the agent: lowercase letters, digits and dashes.") },
+					displayName: { type: 'string', description: nls.localize('chat.agentHost.acpAgents.displayName', "Name shown in the Agents window.") },
+					command: { type: 'string', description: nls.localize('chat.agentHost.acpAgents.command', "Executable that starts the agent in ACP mode.") },
+					args: { type: 'array', items: { type: 'string' }, description: nls.localize('chat.agentHost.acpAgents.args', "Arguments passed to the command.") },
+					env: { type: 'object', additionalProperties: { type: 'string' }, description: nls.localize('chat.agentHost.acpAgents.env', "Additional environment variables for the agent process.") },
+				},
+				required: ['id', 'command'],
+				additionalProperties: false,
+			},
+			default: [],
+			scope: ConfigurationScope.APPLICATION,
+			restricted: true,
+			tags: ['experimental'],
+			agentHost: { key: AgentHostAcpAgentsConfigKey },
 		},
 		[AgentHostOTelEnabledSettingId]: {
 			type: 'boolean',
