@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
 import type Anthropic from '@anthropic-ai/sdk';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { COPILOT_API_ERROR_STATUS_STREAMING, CopilotApiError, CopilotApiService, type FetchFunction } from '../../../node/shared/copilotApiService.js';
@@ -12,6 +14,7 @@ import { createTestGitHubEndpointService } from '../testGitHubEndpointService.js
 import { NullLogService } from '../../../../log/common/log.js';
 import { IProductService } from '../../../../product/common/productService.js';
 import product from '../../../../product/common/product.js';
+import { captureCopilotTelemetryContext, toCopilotTelemetryData } from '../../../node/shared/copilotSkuTelemetry.js';
 
 // #region Test Helpers
 
@@ -125,6 +128,106 @@ suite('CopilotApiService', () => {
 	function createService(fetchImpl: FetchFunction, enterpriseUri?: string): CopilotApiService {
 		return disposables.add(new CopilotApiService(fetchImpl, new NullLogService(), testProductService, createTestGitHubEndpointService(enterpriseUri)));
 	}
+
+	suite('account telemetry context', () => {
+		teardown(() => sinon.restore());
+
+		test('maps account properties only at emission without leaking internal names or refreshing credentials', async () => {
+			let requests = 0;
+			let current = true;
+			const service = createService(async () => {
+				requests++;
+				return userResponse({ access_type_sku: 'sku-a', analytics_tracking_id: 'analytics-a' });
+			});
+			const context = captureCopilotTelemetryContext(service, 'token-a', () => current);
+			const undiscovered = toCopilotTelemetryData(context);
+			await service.resolveCopilotSku('token-a');
+			const emitted = toCopilotTelemetryData(context);
+			current = false;
+			const invalidated = toCopilotTelemetryData(context);
+			assert.deepStrictEqual({ undiscovered, emitted, invalidated, absent: toCopilotTelemetryData(undefined), requests }, {
+				undiscovered: { copilotSku: undefined },
+				emitted: { copilotSku: 'sku-a', 'common.copilotTrackingId': 'analytics-a' },
+				invalidated: { copilotSku: undefined },
+				absent: undefined,
+				requests: 1,
+			});
+		});
+
+		test('captures late discovery without extra requests and isolates tokens and credential generations', async () => {
+			const discovery = new DeferredPromise<Response>();
+			let requests = 0;
+			const service = createService(async () => { requests++; return discovery.p; });
+			let current = true;
+			const context = captureCopilotTelemetryContext(service, 'token-a', () => current);
+			const other = captureCopilotTelemetryContext(service, 'token-b', () => true);
+			const before = { ...context };
+			const resolving = service.resolveCopilotSku('token-a');
+			discovery.complete(userResponse({ access_type_sku: 'sku-a', analytics_tracking_id: 'analytics-a' }));
+			await resolving;
+			const after = { ...context };
+			current = false;
+			assert.deepStrictEqual({ before, after, obsolete: { ...context }, other: { ...other }, requests }, {
+				before: { copilotSku: undefined, copilotTrackingId: undefined },
+				after: { copilotSku: 'sku-a', copilotTrackingId: 'analytics-a' },
+				obsolete: { copilotSku: undefined, copilotTrackingId: undefined },
+				other: { copilotSku: undefined, copilotTrackingId: undefined },
+				requests: 1,
+			});
+		});
+
+		test('refreshes SKU and tracking ID together, expires them together, and clears them on disposal', async () => {
+			const clock = sinon.useFakeTimers({ now: Date.now(), toFake: ['Date'] });
+			let revision = 0;
+			const service = createService(async () => userResponse({
+				access_type_sku: `sku-${++revision}`, analytics_tracking_id: `analytics-${revision}`,
+			}));
+			const read = service.captureCopilotTelemetryContext('token-a');
+			await service.resolveCopilotSku('token-a');
+			const first = read();
+			clock.tick(26 * 60 * 1000);
+			await service.resolveCopilotSku('token-a');
+			const refreshed = read();
+			clock.tick(31 * 60 * 1000);
+			const expired = read();
+			await service.resolveCopilotSku('token-a');
+			service.dispose();
+			assert.deepStrictEqual({ first, refreshed, expired, disposed: read() }, {
+				first: { copilotSku: 'sku-1', copilotTrackingId: 'analytics-1' },
+				refreshed: { copilotSku: 'sku-2', copilotTrackingId: 'analytics-2' },
+				expired: undefined,
+				disposed: undefined,
+			});
+		});
+
+		test('rejected credentials cannot revive an old context after rediscovery', async () => {
+			let rejected = false;
+			const service = createService(async () => rejected
+				? new Response('Unauthorized', { status: 401 })
+				: userResponse({ access_type_sku: 'sku-a', analytics_tracking_id: 'analytics-a' }));
+			const oldContext = service.captureCopilotTelemetryContext('token-a');
+			await service.resolveCopilotSku('token-a');
+			rejected = true;
+			await assert.rejects(() => service.models('token-a'));
+			const rejectedContext = oldContext();
+			rejected = false;
+			await service.resolveCopilotSku('token-a');
+			assert.deepStrictEqual({ rejectedContext, old: oldContext(), fresh: service.captureCopilotTelemetryContext('token-a')() }, {
+				rejectedContext: undefined, old: undefined,
+				fresh: { copilotSku: 'sku-a', copilotTrackingId: 'analytics-a' },
+			});
+		});
+
+		test('omits unavailable or malformed tracking IDs without inventing an account identity', async () => {
+			const contexts = [];
+			for (const analytics_tracking_id of [undefined, '', '   ', 123, null]) {
+				const service = createService(async () => userResponse({ access_type_sku: 'sku-a', analytics_tracking_id }));
+				await service.resolveCopilotSku('token-a');
+				contexts.push(service.captureCopilotTelemetryContext('token-a')());
+			}
+			assert.deepStrictEqual(contexts, Array.from({ length: 5 }, () => ({ copilotSku: 'sku-a' })));
+		});
+	});
 
 	function streamService(chunks: Uint8Array[], tokenOverrides?: Record<string, unknown>): CopilotApiService {
 		const { fetch: fetchFn } = routingFetch(() => sseResponse(chunks), tokenOverrides);
@@ -311,12 +414,12 @@ suite('CopilotApiService', () => {
 				? userResponse({ access_type_sku: 'sku-a' })
 				: new Response('unauthorized', { status: 401, statusText: 'Unauthorized' }));
 			await service.resolveCopilotSku(token);
-			const capturedSku = service.captureCopilotSku(token);
+			const capturedContext = service.captureCopilotTelemetryContext(token);
 
 			await assert.rejects(() => service.messages(token, baseRequest));
 
 			assert.deepStrictEqual({
-				capturedSku: capturedSku(),
+				capturedSku: capturedContext()?.copilotSku,
 				retainedAsMapKey: hasMapKey(service, token),
 			}, {
 				capturedSku: undefined,

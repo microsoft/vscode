@@ -107,6 +107,40 @@ function createHarness(disposables: Pick<DisposableStore, 'add'>, fetch: FetchFu
 suite('Codex Copilot SKU telemetry', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('shares account tracking IDs across turn and tool telemetry without relabeling delayed events', async () => {
+		let account = 'a';
+		const harness = createHarness(disposables, async () => Response.json({
+			endpoints: { api: 'https://api.githubcopilot.com' },
+			access_type_sku: `sku-${account}`, analytics_tracking_id: `analytics-${account}`,
+		}));
+		await harness.authenticate('test-token-a');
+		harness.completeTurn('account-a');
+		harness.tracker.turnStarted(harness.agent, harness.session, 'tools-a', 'gpt-5.4', 'trusted', 'explicit', undefined, undefined);
+		harness.toolTracker.toolCallStarted(harness.agent.id, harness.session, 'tools-a', 'tool-a', 'grep', undefined, 'gpt-5.4', 'trusted');
+		harness.toolTracker.updateTurnModel(harness.session, 'tools-a', 'gpt-5.4', 'trusted');
+		harness.toolTracker.toolCallCompleted(harness.session, 'tool-a', { success: true, content: [], pastTenseMessage: 'Searched' });
+		harness.toolTracker.toolCallStarted(harness.agent.id, harness.session, 'tools-a', 'delayed-tool-a', 'grep', undefined, 'gpt-5.4', 'trusted');
+		account = 'b';
+		await harness.authenticate('test-token-b');
+		harness.toolTracker.toolCallCompleted(harness.session, 'delayed-tool-a', { success: true, content: [], pastTenseMessage: 'Searched' });
+		harness.toolTracker.clearSession(harness.session);
+		harness.tracker.turnCompleted(harness.session, 'tools-a', 'success');
+		harness.completeTurn('account-b');
+		await harness.authenticate('');
+		harness.completeTurn('signed-out');
+
+		assert.deepStrictEqual(harness.events
+			.filter(event => event.eventName === 'agentHost.turnCompleted' || event.eventName === 'languageModelToolInvoked')
+			.map(({ eventName, data }) => ({ eventName, copilotSku: data.copilotSku, trackingId: data['common.copilotTrackingId'] })), [
+			{ eventName: 'agentHost.turnCompleted', copilotSku: 'sku-a', trackingId: 'analytics-a' },
+			{ eventName: 'languageModelToolInvoked', copilotSku: 'sku-a', trackingId: 'analytics-a' },
+			{ eventName: 'languageModelToolInvoked', copilotSku: undefined, trackingId: undefined },
+			{ eventName: 'agentHost.turnCompleted', copilotSku: undefined, trackingId: undefined },
+			{ eventName: 'agentHost.turnCompleted', copilotSku: 'sku-b', trackingId: 'analytics-b' },
+			{ eventName: 'agentHost.turnCompleted', copilotSku: undefined, trackingId: undefined },
+		]);
+	});
+
 	test('reports the authenticated CAPI account SKU without initializing Copilot', async () => {
 		const harness = createHarness(disposables, async () => Response.json({
 			endpoints: { api: 'https://api.githubcopilot.com' },

@@ -1569,6 +1569,7 @@ export class CopilotAgentSession extends Disposable {
 			this._completedTokenUsage.clear();
 			this._subagentObservedTokenUsage.clear();
 			this._observedUsageEventIds.clear();
+			this.modelCallTurnCorrelation.clearTelemetryContexts();
 		}));
 		this._abortCts.value = new CancellationTokenSource();
 		this._developmentErrorInjectionEnabled = options.enableDevelopmentErrorInjection ?? !product.commit;
@@ -1736,6 +1737,8 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private _emitModelCallCompleted(turnId: string, modelCallId: string, parentToolCallId?: string): void {
+		const turn = this._owningRootTurn(parentToolCallId);
+		this.modelCallTurnCorrelation.recordTelemetryContext(modelCallId, turn?.id === turnId ? turn.telemetryContext : undefined);
 		this._onDidSessionProgress.fire({
 			kind: 'model_call_completed',
 			resource: this._chatChannelUri,
