@@ -2360,7 +2360,7 @@ export class Repository {
 
 		// In case there are no branches, we must use rm --cached
 		if (!result.stdout) {
-			args = ['rm', '--cached', '-r'];
+			args = ['rm', '--cached', '-r', '-f'];
 		} else {
 			args = ['reset', '-q', treeish];
 		}
