@@ -130,12 +130,14 @@ suite('SSH Config Parsing', () => {
 				'identityfile ~/.ssh/id_rsa',
 				'identityfile ~/.ssh/id_ed25519',
 				'forwardagent no',
+				'proxyjump jumpserver',
 			].join('\n');
 
 			assert.deepStrictEqual(parseSSHGOutput(output), {
 				hostname: '10.0.0.1',
 				user: 'admin',
 				port: 22,
+				proxyJump: 'jumpserver',
 				identityFile: ['~/.ssh/id_rsa', '~/.ssh/id_ed25519'],
 				identityAgent: undefined,
 				forwardAgent: false,
@@ -143,6 +145,11 @@ suite('SSH Config Parsing', () => {
 				globalKnownHostsFiles: [],
 				strictHostKeyChecking: undefined,
 			});
+		});
+
+		test('treats ProxyJump none as absent', () => {
+			const result = parseSSHGOutput('proxyjump none');
+			assert.strictEqual(result.proxyJump, undefined);
 		});
 
 		test('parses forwardagent yes', () => {
@@ -186,6 +193,7 @@ suite('SSH Config Parsing', () => {
 				'globalknownhostsfile C:\\Users\\Test User\\known_hosts C:\\ProgramData\\ssh\\known_hosts',
 			].join('\n')), {
 				hostname: '', user: undefined, port: 22, identityFile: [], identityAgent: undefined, forwardAgent: false,
+				proxyJump: undefined,
 				userKnownHostsFiles: ['/Users/test/Library/Application', 'Support/Docker/known_hosts', '/Users/test/.ssh/known_hosts'],
 				globalKnownHostsFiles: ['C:\\Users\\Test', 'User\\known_hosts', 'C:\\ProgramData\\ssh\\known_hosts'],
 				strictHostKeyChecking: undefined,
@@ -251,6 +259,7 @@ suite('SSH Config Parsing', () => {
 				hostname: '',
 				user: undefined,
 				port: 22,
+				proxyJump: undefined,
 				identityFile: [],
 				identityAgent: undefined,
 				forwardAgent: false,
