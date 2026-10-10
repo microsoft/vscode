@@ -518,6 +518,91 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 		});
 	});
 
+	test('issue #38833: preserve the internal indentation of a pasted block', () => {
+
+		// https://github.com/microsoft/vscode/issues/38833
+
+		const model = createTextModel('', languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: 'full', serviceCollection }, (editor, viewModel, instantiationService) => {
+			const pasteText = [
+				'type T =',
+				'\t| number',
+				'\t| string;'
+			].join('\n');
+			viewModel.paste(pasteText, true, undefined, 'keyboard');
+			const autoIndentOnPasteController = editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
+			autoIndentOnPasteController.trigger(new Range(1, 1, 3, 11));
+			assert.strictEqual(model.getValue(), pasteText);
+		});
+	});
+
+	test('issue #38833: preserve continuation lines when pasting at an indented position', () => {
+
+		// https://github.com/microsoft/vscode/issues/38833
+
+		const model = createTextModel([
+			'function g() {',
+			'\t',
+			'}'
+		].join('\n'), languageId, { insertSpaces: false });
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: 'full', serviceCollection }, (editor, viewModel, instantiationService) => {
+			editor.setSelection(new Selection(2, 2, 2, 2));
+			const text = [
+				'const x = foo',
+				'\t\t.bar()',
+				'\t\t.baz();'
+			].join('\n');
+			viewModel.paste(text, true, undefined, 'keyboard');
+			const autoIndentOnPasteController = editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
+			autoIndentOnPasteController.trigger(new Range(2, 2, 4, 10));
+			assert.strictEqual(model.getValue(), [
+				'function g() {',
+				'\tconst x = foo',
+				'\t\t.bar()',
+				'\t\t.baz();',
+				'}'
+			].join('\n'));
+		});
+	});
+
+	test('issue #285222: autoIndentOnPaste when the first line is already correctly indented', () => {
+
+		// https://github.com/microsoft/vscode/issues/285222
+
+		const model = createTextModel([
+			'{',
+			'\t',
+			'}'
+		].join('\n'), languageId, { insertSpaces: false });
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: 'full', serviceCollection }, (editor, viewModel, instantiationService) => {
+			// paste after the existing tab, so the first pasted line is already correctly indented
+			editor.setSelection(new Selection(2, 2, 2, 2));
+			const text = [
+				'const a = 4;',
+				'const b = 4;',
+				'const c = 4;',
+				'const d = 4;'
+			].join('\n');
+			viewModel.paste(text, true, undefined, 'keyboard');
+			const autoIndentOnPasteController = editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
+			autoIndentOnPasteController.trigger(new Range(2, 2, 5, 13));
+			assert.strictEqual(model.getValue(), [
+				'{',
+				'\tconst a = 4;',
+				'\tconst b = 4;',
+				'\tconst c = 4;',
+				'\tconst d = 4;',
+				'}'
+			].join('\n'));
+		});
+	});
+
 	test('issue #29753: incorrect indentation after comment', () => {
 
 		// https://github.com/microsoft/vscode/issues/29753
