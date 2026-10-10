@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { noBreakWhitespace } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { CoreEditingCommands, CoreNavigationCommands } from '../../../browser/coreCommands.js';
@@ -21,7 +22,7 @@ import { ILanguageService } from '../../../common/languages/language.js';
 import { IndentAction, IndentationRule } from '../../../common/languages/languageConfiguration.js';
 import { ILanguageConfigurationService } from '../../../common/languages/languageConfigurationRegistry.js';
 import { NullState } from '../../../common/languages/nullTokenize.js';
-import { EndOfLinePreference, EndOfLineSequence, ITextModel } from '../../../common/model.js';
+import { EndOfLinePreference, EndOfLineSequence, InjectedTextCursorStops, ITextModel } from '../../../common/model.js';
 import { TextModel } from '../../../common/model/textModel.js';
 import { ViewModel } from '../../../common/viewModel/viewModelImpl.js';
 import { OutgoingViewModelEventKind } from '../../../common/viewModelEventDispatcher.js';
@@ -556,6 +557,54 @@ suite('Editor Controller - Cursor', () => {
 				'(2,8)',
 				'(1,1)',
 				'(1,1)',
+			]);
+		});
+
+		model.dispose();
+	});
+
+	test('cursor is on the same side of decorative injected text, no matter where it comes from', () => {
+		const model = createTextModel('x = #123DEF;');
+
+		withTestCodeEditor(model, {}, (editor, viewModel) => {
+			// mirrors the color decorator, see `ColorDetector`
+			editor.changeDecorations((changeAccessor) => {
+				changeAccessor.deltaDecorations([], [
+					{
+						range: new Range(1, 5, 1, 12),
+						options: {
+							description: 'test',
+							before: {
+								content: noBreakWhitespace,
+								cursorStops: InjectedTextCursorStops.None,
+							}
+						}
+					}
+				]);
+			});
+
+			// the view line reads `x = \u00a0#123DEF;`, so the injected text
+			// occupies the view columns 5 to 6 and the model column 5 is ambiguous
+			const cursorPositions: string[] = [];
+			function reportCursorPosition() {
+				const cursor = viewModel.getCursorStates()[0];
+				cursorPositions.push(`view ${cursor.viewState.position.toString()}, model ${cursor.modelState.position.toString()}`);
+			}
+
+			viewModel.setSelections('test', [new Selection(1, 4, 1, 4)]);
+			editor.runCommand(CoreNavigationCommands.CursorRight, null);
+			reportCursorPosition();
+			editor.runCommand(CoreNavigationCommands.CursorRight, null);
+			reportCursorPosition();
+
+			viewModel.setSelections('test', [new Selection(1, 6, 1, 6)]);
+			editor.runCommand(CoreNavigationCommands.CursorLeft, null);
+			reportCursorPosition();
+
+			assert.deepStrictEqual(cursorPositions, [
+				'view (1,5), model (1,5)',
+				'view (1,7), model (1,6)',
+				'view (1,5), model (1,5)',
 			]);
 		});
 
