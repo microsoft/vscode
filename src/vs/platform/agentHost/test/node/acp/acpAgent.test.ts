@@ -142,16 +142,11 @@ suite('AcpAgent', () => {
 		await waitFor(() => actionTypes().includes(ActionType.ChatTurnCancelled));
 	});
 
-	test('serves file reads inside the working directory only', async () => {
-		await fs.promises.writeFile(join(workspace, 'a.txt'), 'one\ntwo\nthree');
+	test('does not offer client file system or terminal access', async () => {
 		await createChat();
-		assert.deepStrictEqual(await agentProcess.request('fs/read_text_file', { sessionId: 'native-1', path: join(workspace, 'a.txt'), line: 2, limit: 1 }), { content: 'two' });
-		const outside = await agentProcess.request('fs/read_text_file', { sessionId: 'native-1', path: join(workspace, '..', 'escape.txt') });
-		assert.match((outside as { error: { message: string } }).error.message, /outside the session working directory|ENOENT/);
-		assert.deepStrictEqual(await agentProcess.request('fs/write_text_file', { sessionId: 'native-1', path: join(workspace, 'new', 'b.txt'), content: 'b' }), null);
-		assert.strictEqual(await fs.promises.readFile(join(workspace, 'new', 'b.txt'), 'utf8'), 'b');
-		const escape = await agentProcess.request('fs/write_text_file', { sessionId: 'native-1', path: join(os.tmpdir(), 'acp-escape.txt'), content: 'x' });
-		assert.match((escape as { error: { message: string } }).error.message, /outside the session working directory/);
+		assert.deepStrictEqual((agentProcess.received[0].params as { clientCapabilities: unknown }).clientCapabilities, { fs: { readTextFile: false, writeTextFile: false }, terminal: false });
+		const read = await agentProcess.request('fs/read_text_file', { sessionId: 'native-1', path: join(workspace, 'a.txt') });
+		assert.strictEqual((read as { error: { code: number } }).error.code, -32601);
 	});
 
 	test('restores a chat by resuming its native session', async () => {

@@ -4,12 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { spawn } from 'child_process';
-import * as fs from 'fs';
 import * as os from 'os';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { observableValue, type IObservable, type ISettableObservable } from '../../../../base/common/observable.js';
-import { basename, dirname, isAbsolute, join, relative, resolve as resolvePath, sep } from '../../../../base/common/path.js';
+import { basename } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ILogService } from '../../../log/common/log.js';
@@ -167,11 +166,6 @@ export class AcpAgent extends Disposable implements IAgent {
 		}));
 		disposables.add(client.onNotification('session/update', params => this._handleSessionUpdate(params)));
 		disposables.add(client.onRequest('session/request_permission', params => this._handlePermissionRequest(params).then(result => ({ result }))));
-		disposables.add(client.onRequest('fs/read_text_file', async params => ({ result: { content: await this._readTextFile(params.sessionId, params.path, params.line ?? undefined, params.limit ?? undefined) } })));
-		disposables.add(client.onRequest('fs/write_text_file', async params => {
-			await this._writeTextFile(params.sessionId, params.path, params.content);
-			return { result: null };
-		}));
 		let connection: IAcpConnection | undefined;
 		disposables.add(client.onExit(e => {
 			this._logService.info(`[ACP:${this._config.id}] agent process exited (code=${e.code}, signal=${e.signal})`);
@@ -180,7 +174,9 @@ export class AcpAgent extends Disposable implements IAgent {
 		try {
 			const initialize = await client.request('initialize', {
 				protocolVersion: ACP_PROTOCOL_VERSION,
-				clientCapabilities: { fs: { readTextFile: true, writeTextFile: true }, terminal: false },
+				// fs/* and terminal/* are not advertised: agents keep using their own file access and
+				// terminals, as they do from a shell (some route their own state files through fs/*).
+				clientCapabilities: { fs: { readTextFile: false, writeTextFile: false }, terminal: false },
 				clientInfo: { name: 'vscode', title: 'Visual Studio Code', version: '1' },
 			});
 			if (initialize.protocolVersion !== ACP_PROTOCOL_VERSION) {
@@ -435,56 +431,6 @@ export class AcpAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private async _readTextFile(sessionId: string, path: string, line: number | undefined, limit: number | undefined): Promise<string> {
-		const file = await this._resolveSessionPath(sessionId, path, true);
-		const content = await fs.promises.readFile(file, 'utf8');
-		if (line === undefined && limit === undefined) {
-			return content;
-		}
-		const lines = content.split('\n');
-		const start = Math.max(0, (line ?? 1) - 1);
-		return lines.slice(start, limit === undefined ? undefined : start + limit).join('\n');
-	}
-
-	private async _writeTextFile(sessionId: string, path: string, content: string): Promise<void> {
-		const file = await this._resolveSessionPath(sessionId, path, false);
-		await fs.promises.mkdir(dirname(file), { recursive: true });
-		await fs.promises.writeFile(file, content, 'utf8');
-	}
-
-	/** Resolves `path` and refuses anything outside the session's working directory, following symlinks. */
-	private async _resolveSessionPath(sessionId: string, path: string, mustExist: boolean): Promise<string> {
-		const state = this._chatBySessionId.get(sessionId);
-		if (!state) {
-			throw new Error('Unknown session.');
-		}
-		if (!isAbsolute(path)) {
-			throw new Error('File paths must be absolute.');
-		}
-		const root = await fs.promises.realpath(state.cwd);
-		// Resolve symlinks of the longest existing prefix; a file being created may not exist yet.
-		let existing = resolvePath(path);
-		const missing: string[] = [];
-		for (; ;) {
-			try {
-				existing = await fs.promises.realpath(existing);
-				break;
-			} catch (error) {
-				const parent = dirname(existing);
-				if (mustExist || parent === existing) {
-					throw error;
-				}
-				missing.unshift(basename(existing));
-				existing = parent;
-			}
-		}
-		const target = missing.length ? join(existing, ...missing) : existing;
-		if (!isInside(root, target)) {
-			throw new Error(`Access outside the session working directory is not allowed: ${path}`);
-		}
-		return target;
-	}
-
 	// #endregion
 
 	// #region Required IAgent surface without ACP-specific behavior
@@ -649,9 +595,4 @@ export function describeAuthRequired(displayName: string, methods: readonly IAcp
 	return hints.length
 		? `${displayName} needs you to sign in: ${hints.join('; ')}`
 		: `${displayName} needs you to sign in. Run the agent in a terminal to complete authentication.`;
-}
-
-function isInside(root: string, target: string): boolean {
-	const rel = relative(root, target);
-	return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel) && !rel.startsWith(`..${sep}`));
 }
