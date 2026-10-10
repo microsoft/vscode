@@ -1675,6 +1675,11 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 
 	private createEmptySession(resource: Uri): vscode.ChatSession {
 		const sessionId = resource ? resource.path.slice(1) : undefined;
+		const selectedRepository = this.sessionRepositoryMap.get(resource);
+		if (selectedRepository === DEFAULT_REPOSITORY_ID) {
+			this.sessionRepositoryMap.delete(resource);
+		}
+
 		return {
 			history: [],
 			...(sessionId && isUntitledSessionId(sessionId)
@@ -1689,9 +1694,9 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 						[PARTNER_AGENTS_OPTION_GROUP_ID]:
 							this.sessionPartnerAgentMap.get(resource)
 							?? (this.sessionPartnerAgentMap.set(resource, DEFAULT_PARTNER_AGENT_ID), DEFAULT_PARTNER_AGENT_ID),
-						[REPOSITORIES_OPTION_GROUP_ID]:
-							this.sessionRepositoryMap.get(resource)
-							?? (this.sessionRepositoryMap.set(resource, DEFAULT_REPOSITORY_ID), DEFAULT_REPOSITORY_ID)
+						...(selectedRepository && selectedRepository !== DEFAULT_REPOSITORY_ID
+							? { [REPOSITORIES_OPTION_GROUP_ID]: selectedRepository }
+							: {})
 					}
 				}
 				: {}),
