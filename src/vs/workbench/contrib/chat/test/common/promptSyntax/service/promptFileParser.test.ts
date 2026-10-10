@@ -726,4 +726,22 @@ suite('PromptFileParser', () => {
 		assert.deepEqual(result.header.target, 'vscode');
 	});
 
+	test('agent skill with UTF-8 BOM in frontmatter', async () => {
+		const uri = URI.parse('file:///test/test.agent.md');
+		const content = [
+			'\uFEFF---',
+			'name: bom-test',
+			'description: Tests skill discovery with a UTF-8 BOM',
+			'---',
+			'# BOM test body',
+		].join('\n');
+		const result = new PromptFileParser().parse(uri, content);
+		assert.deepEqual(result.uri, uri);
+		assert.ok(result.header);
+		assert.ok(result.body);
+		assert.deepEqual(result.header.name, 'bom-test');
+		assert.deepEqual(result.header.description, 'Tests skill discovery with a UTF-8 BOM');
+		assert.strictEqual(result.body.getContent(), '# BOM test body');
+	});
+
 });
