@@ -1,0 +1,64 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Use your request_user_input capability to ask me one question: "Which fruit?" with options Apple and Banana. After I answer, reply with only the option I chose.'
+    response:
+      content:
+        - type: text
+          text: Got it — I’ll ask that exact question now.
+        - type: tool_use
+          id: toolcall_0
+          name: request_user_input
+          input:
+            questions:
+              - header: Fruit
+                id: which_fruit
+                question: Which fruit?
+                options:
+                  - label: Apple (Recommended)
+                    description: Choose Apple.
+                  - label: Banana
+                    description: Choose Banana.
+      stopReason: tool_use
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: 'Use your request_user_input capability to ask me one question: "Which fruit?" with options Apple and Banana. After I answer, reply with only the option I chose.'
+        - role: assistant
+          content: Got it — I’ll ask that exact question now.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: request_user_input
+              input:
+                questions:
+                  - header: Fruit
+                    id: which_fruit
+                    question: Which fruit?
+                    options:
+                      - label: Apple (Recommended)
+                        description: Choose Apple.
+                      - label: Banana
+                        description: Choose Banana.
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: aborted by user after 0.1s
+        - role: user
+          content: |-
+            <turn_aborted>
+            The user interrupted the previous turn on purpose. Any running unified exec processes may still be running in the background. If any tools/commands were aborted, they may have partially executed.
+            </turn_aborted>
+        - role: user
+          content: Reply exactly "replacement".
+    response:
+      content: replacement
+      stopReason: end_turn

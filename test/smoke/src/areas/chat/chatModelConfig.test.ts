@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { Application, Chat, Logger } from '../../../../automation';
-import { dumpFailureDiagnostics, getCopilotSmokeTestEnv, getMockLlmServerPath, installAllHandlers, MockLlmServer, preseedChatExtensionEnablement } from '../../utils';
+import { dumpFailureDiagnostics, getCopilotSmokeTestEnv, getMockLlmServerPath, installAllHandlers, latestUserInputCarriesTag, MOCK_CONFIG_MODEL_DEFAULT_LABEL, MOCK_CONFIG_MODEL_DEFAULT_SECTIONS, MockLlmServer, preseedChatExtensionEnablement } from '../../utils';
 
 /**
  * A chat request captured by the mock LLM server, exposed via
@@ -66,7 +66,7 @@ interface ConfigCase {
 	readonly expectedEffort: string;
 	readonly contextLabel: string;
 	readonly expectedCompactThreshold: number;
-	/** The combined label the model-config button should show after selection (e.g. "High 1M"). */
+	/** The combined label the model-config readout should show after selection (e.g. "High · 1M"). */
 	readonly expectedConfigLabel: string;
 	/** The context-window denominator the context-usage gauge details popup should show. */
 	readonly expectedContextWindowLabel: string;
@@ -78,9 +78,9 @@ const CONFIG_CASES: readonly ConfigCase[] = [
 	// Listed first so the Thinking Effort picker is still at its schema default
 	// (`medium`): this case leaves the effort untouched and only selects the
 	// context size, verifying that an unmodified picker forwards its default.
-	{ name: 'Default effort (untouched), full context', expectedEffort: 'medium', contextLabel: '1M', expectedCompactThreshold: 829_800, expectedConfigLabel: 'Medium 1M', expectedContextWindowLabel: '1M', scenarioId: 'smoke-model-config-default-long', reply: 'MOCKED_MODEL_CONFIG_DEFAULT_LONG' },
-	{ name: 'High effort, full context', effortLabel: 'High', expectedEffort: 'high', contextLabel: '1M', expectedCompactThreshold: 829_800, expectedConfigLabel: 'High 1M', expectedContextWindowLabel: '1M', scenarioId: 'smoke-model-config-high-long', reply: 'MOCKED_MODEL_CONFIG_HIGH_LONG' },
-	{ name: 'Medium effort, default context', effortLabel: 'Medium', expectedEffort: 'medium', contextLabel: '272K', expectedCompactThreshold: 244_800, expectedConfigLabel: 'Medium 272K', expectedContextWindowLabel: '400K', scenarioId: 'smoke-model-config-medium-default', reply: 'MOCKED_MODEL_CONFIG_MEDIUM_DEFAULT' },
+	{ name: 'Default effort (untouched), full context', expectedEffort: 'medium', contextLabel: '1M', expectedCompactThreshold: 829_800, expectedConfigLabel: 'Medium \u00b7 1M', expectedContextWindowLabel: '1M', scenarioId: 'smoke-model-config-default-long', reply: 'MOCKED_MODEL_CONFIG_DEFAULT_LONG' },
+	{ name: 'High effort, full context', effortLabel: 'High', expectedEffort: 'high', contextLabel: '1M', expectedCompactThreshold: 829_800, expectedConfigLabel: 'High \u00b7 1M', expectedContextWindowLabel: '1M', scenarioId: 'smoke-model-config-high-long', reply: 'MOCKED_MODEL_CONFIG_HIGH_LONG' },
+	{ name: 'Medium effort, default context', effortLabel: 'Medium', expectedEffort: 'medium', contextLabel: '272K', expectedCompactThreshold: 244_800, expectedConfigLabel: 'Medium \u00b7 272K', expectedContextWindowLabel: '400K', scenarioId: 'smoke-model-config-medium-default', reply: 'MOCKED_MODEL_CONFIG_MEDIUM_DEFAULT' },
 ];
 
 /**
@@ -106,28 +106,6 @@ function findResponsesRequest(requests: CapturedRequest[], fromIndex: number, sc
 		}
 	}
 	return undefined;
-}
-
-/**
- * Whether the latest `user` item in a Responses API request's `input` array
- * contains `scenarioTag`. The item's `content` is either a plain string or an
- * array of `{ text }` parts (matching the mock server's own scenario parsing).
- */
-function latestUserInputCarriesTag(body: any, scenarioTag: string): boolean {
-	const input = Array.isArray(body?.input) ? body.input : [];
-	for (let i = input.length - 1; i >= 0; i--) {
-		const item = input[i];
-		if (item?.role !== 'user') {
-			continue;
-		}
-		const content = typeof item.content === 'string'
-			? item.content
-			: Array.isArray(item.content)
-				? item.content.map((part: any) => part?.text ?? '').join('')
-				: '';
-		return content.includes(scenarioTag);
-	}
-	return false;
 }
 
 /**
@@ -188,7 +166,7 @@ export function setup(logger: Logger) {
 		});
 
 		installAllHandlers(logger, opts => {
-			const copilotEnv = getCopilotSmokeTestEnv(mockServer);
+			const copilotEnv = getCopilotSmokeTestEnv(mockServer, { userDataDir: opts.userDataDir });
 			return {
 				...opts,
 				extraArgs: [...(opts.extraArgs ?? []), '--log=trace'],
@@ -197,13 +175,13 @@ export function setup(logger: Logger) {
 					...copilotEnv,
 				},
 			};
-		}, app => {
+		}, async app => {
 			// Seed the migration storage key so the from-source built-in
 			// copilot-chat stays enabled on the fresh per-run profile. Without
 			// this, BuiltinChatExtensionEnablementMigration disables it (chat
 			// setup is never "completed" in automation) and the first send fails
 			// through chat-setup's install path before the warm-up retry recovers.
-			preseedChatExtensionEnablement(app.userDataPath);
+			await preseedChatExtensionEnablement(app.userDataPath);
 		});
 
 		before(async function () {
@@ -234,7 +212,12 @@ export function setup(logger: Logger) {
 			await mockServer?.close();
 		});
 
-		it('forwards the selected reasoning effort and context size to the server', async function () {
+		// Warm up and select the mock model once for the whole suite: cold-starting
+		// copilot-chat and registering the models is expensive, and both tests need
+		// the same starting point. Selecting the model does not touch its
+		// configuration, so the default-state test below still sees a pristine
+		// picker.
+		before(async function () {
 			const app = this.app as Application;
 			const chat = app.workbench.chat;
 
@@ -252,14 +235,60 @@ export function setup(logger: Logger) {
 
 				// Select the mock model that exposes both configuration pickers.
 				await chat.selectModel(MODEL_NAME);
+			} catch (error) {
+				logger.log(`[Chat Model Config] SETUP FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
+				await dumpFailureDiagnostics(app, logger, 'Chat Model Configuration');
+				throw error;
+			}
+		});
 
+		// Must run before any test selects an option: the per-editor model
+		// configuration is sticky, so the pristine defaults are only observable on
+		// the first test of the suite.
+		it('shows the schema defaults and every configured option in the model details page', async function () {
+			const app = this.app as Application;
+			const chat = app.workbench.chat;
+
+			try {
+				// The readout summarizes the *effective* configuration, which before any
+				// selection is the schema default of each group.
+				const defaultLabel = await chat.getModelConfigLabel();
+				assert.strictEqual(
+					defaultLabel.replace(/\s+/g, ' ').trim(),
+					MOCK_CONFIG_MODEL_DEFAULT_LABEL,
+					`Expected the untouched model-config button to show '${MOCK_CONFIG_MODEL_DEFAULT_LABEL}', got '${defaultLabel}'.`
+				);
+
+				await chat.openModelConfig();
+				const sections = await chat.getModelConfigSections();
+				await chat.closeModelConfig();
+
+				assert.deepStrictEqual(
+					sections,
+					MOCK_CONFIG_MODEL_DEFAULT_SECTIONS,
+					`Model details page did not list every option declared by '${MODEL_NAME}' with its pristine defaults.`
+				);
+
+				logger.log(`[Chat Model Config] defaults verified: label='${defaultLabel}', sections=${JSON.stringify(sections)}`);
+			} catch (error) {
+				logger.log(`[Chat Model Config] FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
+				await dumpFailureDiagnostics(app, logger, 'Chat Model Configuration');
+				throw error;
+			}
+		});
+
+		it('forwards the selected reasoning effort and context size to the server', async function () {
+			const app = this.app as Application;
+			const chat = app.workbench.chat;
+
+			try {
 				for (const testCase of CONFIG_CASES) {
 					logger.log(`[Chat Model Config] case '${testCase.name}': selecting effort='${testCase.effortLabel ?? '(default)'}', context='${testCase.contextLabel}'`);
 
 					// Select the Thinking Effort (when the case specifies one) and the
-					// Context Size in the combined model-configuration dropdown. Cases
-					// without an `effortLabel` leave the effort picker untouched to verify
-					// its default is forwarded.
+					// Context Size on the model's details page. Cases without an
+					// `effortLabel` leave the effort untouched to verify its default is
+					// forwarded.
 					await chat.openModelConfig();
 					if (testCase.effortLabel) {
 						await chat.selectModelConfigOption(testCase.effortLabel);
@@ -267,8 +296,8 @@ export function setup(logger: Logger) {
 					await chat.selectModelConfigOption(testCase.contextLabel);
 					await chat.closeModelConfig();
 
-					// Consistency check #1: the model-config button reflects the
-					// selection (e.g. "High 200K").
+					// Consistency check #1: the model-config readout reflects the
+					// selection (e.g. "High · 1M").
 					const configLabel = await chat.getModelConfigLabel();
 					assert.strictEqual(
 						configLabel.replace(/\s+/g, ' ').trim(),

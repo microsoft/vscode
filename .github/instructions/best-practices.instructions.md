@@ -18,6 +18,16 @@ applyTo: src/vs/**
 - Don't assume the action runs on the active editor/session. An action (e.g. one contributed to some editor or session related toolbar) can be triggered for an editor/session that isn't active. The `run` method receives arguments describing the invocation context (such as the originating editor group or the originating session).
 - Resolve editor action arguments with `resolveCommandsContext` (`vs/workbench/browser/parts/editor/editorCommandsContext.ts`) to get the correct editor(s) instead of reading `editorService.activeEditor`.
 - Support multi-selection. The resolved editor actions context can contain several editors (e.g. multi-selected tabs).
+- For every action contributed to the Sessions list context menu, explicitly handle multi-selection: apply the action to all selected sessions when that behavior is meaningful; otherwise keep the action visible but disable it while multiple sessions are selected. Use the action's precondition or enablement with `SessionItemIsMultiSelectionContext.negate()` (or the equivalent `!sessionItem.isMultiSelection` extension expression) rather than hiding it with a menu `when` clause.
+
+## Context Keys
+
+- Don't use context keys as a source of truth for application logic (for example, by reading `IContextKeyService.getContextKeyValue()` and branching on the result). Read the state from its owning service or model instead. Context keys are intended for declarative enablement and visibility, such as when clauses, command preconditions, and menu contributions.
+
+## Multi-Window DOM
+
+- Always create workbench DOM elements in the main window JavaScript realm, including elements that will be rendered in an auxiliary window. Use helpers such as `dom.$` and `dom.h`, or use `mainWindow.document.createElement`. Do not use `targetWindow.document.createElement` or `element.ownerDocument.createElement`; auxiliary windows intentionally reject `createElement` so that checks such as `element instanceof HTMLElement` continue to work.
+- This rule applies to DOM element creation, not to window-bound APIs. Resolve the target window with `dom.getWindow(element)` when using APIs such as timers, animation frames, focus, observers, or `getComputedStyle`.
 
 ## URI
 
@@ -32,7 +42,6 @@ applyTo: src/vs/**
 ## Styling
 
 - Avoid `getComputedStyle`. If a style value is needed in both CSS and TypeScript, prefer hardcoding the value in TypeScript and setting it directly on the DOM element (e.g. `element.style.width = '100px'`), or set a CSS custom property via `element.style.setProperty('--my-var', value)` when the value is needed across multiple CSS rules.
-- Never anchor a `:has()` selector on `body` or another workbench-wide root (e.g. `body:has(.my-dialog) .context-view { … }`). A `:has()` on a global root forces the style engine to re-evaluate the selector against the whole document on nearly every DOM mutation, which degrades interaction smoothness across the entire workbench. It costs even in builds where the feature is disabled, because the CSS still ships. Instead, toggle a class on the specific container while the state is active and scope the rules to that class: add the class to `layoutService.activeContainer` when the state begins, remove it via a registered disposable when it ends, and write `.my-dialog-open .context-view { … }`. Capture the container reference once so the class is removed from the same element it was added to.
 
 ## Editor Decorations
 

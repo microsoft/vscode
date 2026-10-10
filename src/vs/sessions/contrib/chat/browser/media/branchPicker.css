@@ -14,3 +14,10 @@
 	white-space: nowrap;
 	border: 0;
 }
+
+.sessions-chat-branch-picker-group {
+	display: inline-flex;
+	align-items: center;
+	min-width: 0;
+	user-select: none;
+}

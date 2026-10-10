@@ -113,21 +113,6 @@ function activate(context) {
 	);
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand('smoketest.openClaudeChat', async () => {
-			const command = 'workbench.action.chat.openNewSessionEditor.claude-code';
-			// Wait until copilot-chat is enabled and activated before invoking its
-			// diagnostic command: the preceding "Chat Disabled" suite disables AI
-			// features and this suite re-enables them, so there is a brief window
-			// where the command is still "not found".
-			await waitForCommand('github.copilot.debug.extensionState', 60_000);
-			await vscode.commands.executeCommand('github.copilot.debug.extensionState');
-			await waitForCommand(command, 60_000);
-			await vscode.commands.executeCommand('workbench.action.closeAllEditors');
-			await vscode.commands.executeCommand(command);
-		})
-	);
-
-	context.subscriptions.push(
 		vscode.commands.registerCommand('smoketest.openLocalChat', async () => {
 			// Open the chat panel directly into the built-in Local harness. The
 			// panel default is Agent Host Copilot when the agent host is enabled,

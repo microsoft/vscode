@@ -15,7 +15,7 @@ Integration tests in VS Code are split into two categories:
 - **macOS / Linux:** `./scripts/test-integration.sh [options]`
 - **Windows:** `.\scripts\test-integration.bat [options]`
 
-When run **without filters**, both scripts execute all node.js integration tests followed by all extension host tests.
+When run **without filters**, both scripts execute all node.js integration tests followed by all extension host tests. The deterministic Agent Host E2E entrypoints are parallelized across isolated test processes during the node.js phase, then excluded from the remaining serial node.js run.
 
 When run **with `--run` or `--runGlob`** (without `--suite`), only the node.js integration tests are run and the filter is applied. Extension host tests are skipped since these filters are node.js-specific.
 
@@ -24,6 +24,14 @@ When run **with `--grep` alone** (no `--run`, `--runGlob`, or `--suite`), all te
 When run **with `--suite`**, only the matching extension host test suites are run. Node.js integration tests are skipped. Combine `--suite` with `--grep` to filter individual tests within the selected suites.
 
 ## Options
+
+### `--build` - Run against build output
+
+Selects the `out-build/` directory instead of `out/` for node.js integration tests and the shared VS Code modules used by the standalone JSON suite. This does not compile either output tree; the JSON extension tests still require `compile-extension:json-language-features-client` to generate `client/out/`.
+
+```bash
+./scripts/test-integration.sh --suite json --build
+```
 
 ### `--run <file>` - Run tests from a specific file
 
@@ -53,7 +61,9 @@ Filters which **test cases** run by matching against their test titles (e.g. `de
 
 Runs only the extension host test suites whose name matches the pattern. Supports comma-separated values and shell glob patterns (on macOS/Linux). Node.js integration tests are skipped.
 
-Available suite names: `api-folder`, `api-workspace`, `colorize`, `terminal-suggest`, `typescript`, `markdown`, `emmet`, `git`, `git-base`, `ipynb`, `notebook-renderers`, `configuration-editing`, `github-authentication`, `css`, `html`.
+Available suite names: `api-folder`, `api-workspace`, `colorize`, `terminal-suggest`, `typescript`, `markdown`, `emmet`, `git`, `git-base`, `ipynb`, `notebook-renderers`, `configuration-editing`, `github-authentication`, `copilot`, `css`, `html`, `json`.
+
+The `css`, `html`, and `json` suites are standalone extension tests that run in Electron's Node.js mode without opening a workbench. They share the same suite selection and grep filtering as extension host tests.
 
 ```bash
 # Run only Git extension tests

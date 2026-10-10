@@ -48,9 +48,9 @@ export interface IWebviewManagerService {
 
 	setIgnoreMenuShortcuts(id: WebviewWebContentsId | WebviewWindowId, enabled: boolean): Promise<void>;
 
-	findInFrame(windowId: WebviewWindowId, frameName: string, text: string, options: FindInFrameOptions): Promise<void>;
+	findInFrame(id: WebviewWebContentsId | WebviewWindowId, frameName: string, text: string, options: FindInFrameOptions): Promise<void>;
 
-	stopFindInFrame(windowId: WebviewWindowId, frameName: string, options: { keepSelection?: boolean }): Promise<void>;
+	stopFindInFrame(id: WebviewWebContentsId | WebviewWindowId, frameName: string, options: { keepSelection?: boolean }): Promise<void>;
 }
 
 export interface WebviewDocumentRegistration {

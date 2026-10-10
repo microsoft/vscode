@@ -12,7 +12,7 @@ import { CustomizationType, McpServerStatus, type McpServerCustomization } from 
 import type { IMcpServerDefinition } from '../../../../../../platform/agentPlugins/common/pluginParsers.js';
 
 function stubMcpCustomization(): McpServerCustomization {
-	return { type: CustomizationType.McpServer, id: 'stub', uri: 'file:///test', name: 'test', enabled: true, state: { kind: McpServerStatus.Starting } };
+	return { type: CustomizationType.McpServer, id: 'stub', uri: 'file:///test', name: 'test', state: { kind: McpServerStatus.Starting } };
 }
 
 /**

@@ -8,11 +8,13 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { type ProgressParams } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { IProgress, IProgressNotificationOptions, IProgressService, IProgressStep } from '../../../../../../platform/progress/common/progress.js';
-import { ChatConfiguration } from '../../../common/constants.js';
+import { ChatAIDisabledSettingId } from '../../../common/constants.js';
 import { AgentHostDownloadProgress } from '../../../browser/agentSessions/agentHost/agentHostDownloadProgress.js';
+import { getNotificationTelemetrySource } from '../../../../../../platform/notification/common/notificationTelemetry.js';
 
 interface IRecordedProgress {
-	title: string | undefined;
+	title: IProgressNotificationOptions['title'];
+	telemetry: IProgressNotificationOptions['telemetry'];
 	readonly steps: IProgressStep[];
 	dismissed: boolean;
 	/** Resolves once the backing notification promise settles (i.e. is dismissed). */
@@ -24,7 +26,7 @@ class RecordingProgressService {
 	readonly opened: IRecordedProgress[] = [];
 
 	withProgress(options: IProgressNotificationOptions, task: (progress: IProgress<IProgressStep>) => Promise<unknown>): Promise<unknown> {
-		const record: IRecordedProgress = { title: options.title, steps: [], dismissed: false, settled: Promise.resolve() };
+		const record: IRecordedProgress = { title: options.title, telemetry: options.telemetry, steps: [], dismissed: false, settled: Promise.resolve() };
 		this.opened.push(record);
 		const result = task({ report: step => { record.steps.push(step); } });
 		record.settled = result.then(() => { record.dismissed = true; }, () => { record.dismissed = true; });
@@ -35,7 +37,7 @@ class RecordingProgressService {
 class FakeConfigurationService {
 	constructor(private readonly _aiDisabled: boolean) { }
 	getValue(key: string): unknown {
-		return key === ChatConfiguration.AIDisabled ? this._aiDisabled : undefined;
+		return key === ChatAIDisabledSettingId ? this._aiDisabled : undefined;
 	}
 }
 
@@ -60,35 +62,44 @@ suite('AgentHostDownloadProgress', () => {
 	test('determinate download opens one notification, reports percent, dismisses on terminal frame', async () => {
 		const { controller, progressService } = create();
 
-		controller.handleProgress(frame({ progressToken: 'claude', progress: 0, total: 1000, message: 'Downloading Claude agent' }));
-		controller.handleProgress(frame({ progressToken: 'claude', progress: 500, total: 1000, message: 'Downloading Claude agent' }));
-		controller.handleProgress(frame({ progressToken: 'claude', progress: 1000, total: 1000, message: 'Downloading Claude agent' }));
+		controller.handleProgress(frame({ progressToken: 'claude', progress: 0, total: 1000, message: 'Downloading Claude Agent' }));
+		controller.handleProgress(frame({ progressToken: 'claude', progress: 500, total: 1000, message: 'Downloading Claude Agent' }));
+		controller.handleProgress(frame({ progressToken: 'claude', progress: 1000, total: 1000, message: 'Downloading Claude Agent' }));
 
 		// The terminal frame resolves the notification promise asynchronously.
 		await progressService.opened[0].settled;
 
 		assert.deepStrictEqual(
 			progressService.opened.map(o => ({ title: o.title, steps: o.steps.map(s => s.message), dismissed: o.dismissed })),
-			[{ title: 'Downloading Claude agent', steps: ['0%', '50%'], dismissed: true }],
+			[{ title: 'Downloading Claude Agent', steps: ['0%', '50%'], dismissed: true }],
 		);
 	});
 
 	test('indeterminate download (no total) reports megabytes received', () => {
 		const { controller, progressService } = create();
 
-		controller.handleProgress(frame({ progressToken: 'codex', progress: 5 * 1024 * 1024, message: 'Downloading Codex agent' }));
+		controller.handleProgress(frame({ progressToken: 'codex', progress: 5 * 1024 * 1024, message: 'Downloading Codex Agent' }));
 
 		assert.deepStrictEqual(
 			progressService.opened.map(o => ({ title: o.title, steps: o.steps.map(s => s.message) })),
-			[{ title: 'Downloading Codex agent', steps: ['5.0 MB'] }],
+			[{ title: 'Downloading Codex Agent', steps: ['5.0 MB'] }],
 		);
 	});
 
 	test('no notification when AI features are disabled', () => {
 		const { controller, progressService } = create(true);
 
-		controller.handleProgress(frame({ progressToken: 'claude', progress: 0, total: 1000, message: 'Downloading Claude agent' }));
+		controller.handleProgress(frame({ progressToken: 'claude', progress: 0, total: 1000, message: 'Downloading Claude Agent' }));
 
 		assert.strictEqual(progressService.opened.length, 0);
+	});
+
+	test('host messages, tokens and non-VS Code channel URIs never determine telemetry identity', () => {
+		const { controller, progressService } = create();
+		controller.handleProgress({ channel: 'custom-host:/root', progressToken: '/private/download', progress: 0, message: 'private title' });
+		controller.handleProgress({ channel: 'custom-host:/root', progressToken: '/private/download', progress: 1, message: 'changed private title' });
+		assert.deepStrictEqual(progressService.opened.map(record => getNotificationTelemetrySource(record.telemetry)), [
+			{ origin: 'core', notificationId: 'agentHost.progress', extensionId: 'none' }
+		]);
 	});
 });

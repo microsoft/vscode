@@ -5,6 +5,8 @@
 
 import Severity from '../../../../base/common/severity.js';
 import { mnemonicButtonLabel } from '../../../../base/common/labels.js';
+import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { localize } from '../../../../nls.js';
 import { AbstractDialogHandler, DialogType, IConfirmation, IConfirmationResult, IInput, IInputResult, IPrompt, IAsyncPromptResult } from '../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -46,7 +48,7 @@ export class MobileAwareDialogHandler extends AbstractDialogHandler {
 		const { button, checkboxChecked } = await showMobileDialogSheet(this._layoutService, {
 			title: this._titleFor(confirmation.type),
 			message: confirmation.message,
-			detail: confirmation.detail,
+			detail: this._toSheetDetail(confirmation.detail),
 			buttons: this._toSheetButtons(labels, cancelIndex),
 			defaultButtonIndex: cancelIndex,
 			checkbox: confirmation.checkbox,
@@ -65,7 +67,7 @@ export class MobileAwareDialogHandler extends AbstractDialogHandler {
 		const { button, checkboxChecked } = await showMobileDialogSheet(this._layoutService, {
 			title: this._titleFor(prompt.type),
 			message: prompt.message,
-			detail: prompt.detail,
+			detail: this._toSheetDetail(prompt.detail),
 			buttons: this._toSheetButtons(labels, cancelIndex),
 			defaultButtonIndex: cancelIndex >= 0 ? cancelIndex : 0,
 			checkbox: prompt.checkbox,
@@ -88,6 +90,15 @@ export class MobileAwareDialogHandler extends AbstractDialogHandler {
 			label: mnemonicButtonLabel(label, true),
 			isCancel: index === cancelIndex,
 		}));
+	}
+
+	/**
+	 * The mobile bottom sheet renders `detail` as plain text, so a Markdown
+	 * detail is degraded to its plain-text equivalent rather than shown with
+	 * raw Markdown/link syntax.
+	 */
+	private _toSheetDetail(detail: string | IMarkdownString | undefined): string | undefined {
+		return typeof detail === 'object' ? renderAsPlaintext(detail) : detail;
 	}
 
 	private _titleFor(type: Severity | DialogType | undefined): string {

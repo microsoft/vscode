@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getWindow } from '../../../../base/browser/dom.js';
+import { CodeWindow, isAuxiliaryWindow } from '../../../../base/browser/window.js';
 import { Delayer } from '../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { listenStream } from '../../../../base/common/stream.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
-import { CodeWindow } from '../../../../base/browser/window.js';
 import { createTrustedTypesPolicy } from '../../../../base/browser/trustedTypes.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { escape } from '../../../../base/common/strings.js';
@@ -24,7 +25,7 @@ import { INativeHostService } from '../../../../platform/native/common/native.js
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IRemoteAuthorityResolverService } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
 import { ITunnelService } from '../../../../platform/tunnel/common/tunnel.js';
-import { FindInFrameOptions, IWebviewManagerService, WebviewResourceRequest } from '../../../../platform/webview/common/webviewManagerService.js';
+import { FindInFrameOptions, IWebviewManagerService, WebviewResourceRequest, WebviewWebContentsId, WebviewWindowId } from '../../../../platform/webview/common/webviewManagerService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { WebviewThemeDataProvider } from '../browser/themeing.js';
 import { WebviewInitInfo } from '../browser/webview.js';
@@ -88,7 +89,8 @@ const singleIframeBootstrap = String.raw`(() => {
 	window.addEventListener('DOMContentLoaded', () => { if (lastStyleData) { applyStyles(lastStyleData); } });
 	window.addEventListener('scroll', () => post('did-scroll', { scrollYPercentage: document.body.scrollHeight ? scrollY / document.body.scrollHeight : 0 }), { passive: true });
 	window.addEventListener('wheel', event => post('did-scroll-wheel', { deltaMode: event.deltaMode, deltaX: event.deltaX, deltaY: event.deltaY, deltaZ: event.deltaZ }), { passive: true });
-	const keyData = event => ({ key: event.key, keyCode: event.keyCode, code: event.code, shiftKey: event.shiftKey, altKey: event.altKey, ctrlKey: event.ctrlKey, metaKey: event.metaKey, repeat: event.repeat, isTrusted: event.isTrusted });
+	const keyEventToken = crypto.randomUUID();
+	const keyData = event => ({ keyEventToken, key: event.key, keyCode: event.keyCode, code: event.code, shiftKey: event.shiftKey, altKey: event.altKey, ctrlKey: event.ctrlKey, metaKey: event.metaKey, repeat: event.repeat, isTrusted: event.isTrusted });
 	window.addEventListener('keydown', event => post('did-keydown', keyData(event)));
 	window.addEventListener('keyup', event => post('did-keyup', keyData(event)));
 	const hasOnlyFiles = event => event.dataTransfer?.items.length && Array.from(event.dataTransfer.items).every(item => item.kind === 'file');
@@ -132,7 +134,7 @@ const singleIframeBootstrap = String.raw`(() => {
 		event.preventDefault();
 	});
 
-	parent.postMessage({ target: bootstrap.target, channel: 'webview-ready', data: { generation: bootstrap.generation } }, '*', [channel.port2]);
+	parent.postMessage({ target: bootstrap.target, channel: 'webview-ready', data: { generation: bootstrap.generation, mountId: bootstrap.mountId, keyEventToken } }, '*', [channel.port2]);
 })();`;
 
 const singleIframeHtmlPolicy = createTrustedTypesPolicy('singleIframeWebview', {
@@ -368,6 +370,7 @@ export class ElectronWebviewElement extends WebviewElement {
 			const transformed = await this.transformDirectHtml(content.html, !!content.options.allowScripts, {
 				target: this.id,
 				generation: handshakeId,
+				mountId: this.mountId ?? '',
 				allowMultipleAPIAcquire: !!content.options.allowMultipleAPIAcquire,
 			}, content.state, content.title);
 			if (this._directDisposed || generation !== this._directGeneration) {
@@ -428,7 +431,7 @@ export class ElectronWebviewElement extends WebviewElement {
 		await this._webviewMainService.unregisterWebviewDocument(registeredDocument.extensionId, registeredDocument.webviewId);
 	}
 
-	private async transformDirectHtml(html: string, allowScripts: boolean, bootstrapData: { readonly target: string; readonly generation: string; readonly allowMultipleAPIAcquire: boolean }, persistedState: string | undefined, title: string | undefined): Promise<{ html: string; csp: string }> {
+	private async transformDirectHtml(html: string, allowScripts: boolean, bootstrapData: { readonly target: string; readonly generation: string; readonly mountId: string; readonly allowMultipleAPIAcquire: boolean }, persistedState: string | undefined, title: string | undefined): Promise<{ html: string; csp: string }> {
 		const source = html || '<!DOCTYPE html><html><head></head><body></body></html>';
 		const trustedSource = singleIframeHtmlPolicy?.createHTML(source) ?? source;
 		const parsedDocument = new DOMParser().parseFromString(trustedSource as string, 'text/html');
@@ -508,6 +511,13 @@ export class ElectronWebviewElement extends WebviewElement {
 		return `${Schemas.vscodeWebview}://${iframeId}`;
 	}
 
+	private get findTarget(): WebviewWebContentsId | WebviewWindowId {
+		const targetWindow = getWindow(this.element);
+		return isAuxiliaryWindow(targetWindow)
+			? { webContentsId: targetWindow.vscodeWindowId }
+			: { windowId: this._nativeHostService.windowId };
+	}
+
 	/**
 	 * Webviews expose a stateful find API.
 	 * Successive calls to find will move forward or backward through onFindResults
@@ -525,7 +535,7 @@ export class ElectronWebviewElement extends WebviewElement {
 		} else {
 			// continuing the find, so set findNext to false
 			const options: FindInFrameOptions = { forward: !previous, findNext: false, matchCase: false };
-			this._webviewMainService.findInFrame({ windowId: this._nativeHostService.windowId }, this.id, value, options);
+			this._webviewMainService.findInFrame(this.findTarget, this.id, value, options);
 		}
 	}
 
@@ -543,7 +553,7 @@ export class ElectronWebviewElement extends WebviewElement {
 
 		this._iframeDelayer.trigger(() => {
 			this._findStarted = true;
-			this._webviewMainService.findInFrame({ windowId: this._nativeHostService.windowId }, this.id, value, options);
+			this._webviewMainService.findInFrame(this.findTarget, this.id, value, options);
 		});
 	}
 
@@ -553,7 +563,7 @@ export class ElectronWebviewElement extends WebviewElement {
 		}
 		this._iframeDelayer.cancel();
 		this._findStarted = false;
-		this._webviewMainService.stopFindInFrame({ windowId: this._nativeHostService.windowId }, this.id, {
+		this._webviewMainService.stopFindInFrame(this.findTarget, this.id, {
 			keepSelection
 		});
 		this._onDidStopFind.fire();

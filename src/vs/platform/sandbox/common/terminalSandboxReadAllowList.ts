@@ -21,11 +21,13 @@ export const enum TerminalSandboxReadAllowListOperation {
 	NativeBuild = 'nativeBuild',
 	Conan = 'conan',
 	GnuPG = 'gnupg',
+	Ssh = 'ssh',
 }
 
 const terminalSandboxReadAllowListKeywordMap: ReadonlyMap<string, TerminalSandboxReadAllowListOperation> = new Map([
 	['git', TerminalSandboxReadAllowListOperation.Git],
 	['gh', TerminalSandboxReadAllowListOperation.Git],
+	['gpg', TerminalSandboxReadAllowListOperation.GnuPG],
 	['node', TerminalSandboxReadAllowListOperation.Node],
 	['npm', TerminalSandboxReadAllowListOperation.Node],
 	['npx', TerminalSandboxReadAllowListOperation.Node],
@@ -323,6 +325,16 @@ function getTerminalSandboxReadAllowListForOperation(operation: TerminalSandboxR
 						'~/.gnupg',
 					];
 			}
+
+		case TerminalSandboxReadAllowListOperation.Ssh:
+			switch (os) {
+				case OperatingSystem.Macintosh:
+				case OperatingSystem.Linux:
+				default:
+					return [
+						'~/.ssh',
+					];
+			}
 	}
 }
 
@@ -354,6 +366,10 @@ const terminalSandboxReadAllowListCommandDetailRules: readonly ITerminalSandboxC
 	{
 		keywords: ['git'],
 		value: TerminalSandboxReadAllowListOperation.GnuPG,
+	},
+	{
+		keywords: ['git', 'ssh', 'scp', 'sftp', 'rsync'],
+		value: TerminalSandboxReadAllowListOperation.Ssh,
 	},
 ];
 

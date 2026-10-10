@@ -16,7 +16,7 @@ const doc = `const a = 1;\nconst b = 2;\n`;
  * cleanly; overlapping replacements make replay throw, which is how we exercise
  * the error path without any stubbing.
  */
-function makeRow(originalRowIndex: number, oracleEdit: [number, number, string][]): IInputRow {
+function makeRowWithPostEntries(originalRowIndex: number, postRequestEntries: LogEntry[]): IInputRow {
 	const entries: LogEntry[] = [
 		{ kind: 'meta', data: { repoRootUri: 'file:///ws' } },
 		{ kind: 'documentEncountered', id: 0, time: 1000, relativePath: 'src/a.ts' },
@@ -24,7 +24,7 @@ function makeRow(originalRowIndex: number, oracleEdit: [number, number, string][
 		// Pre-pivot no-op edit so the replayer has a `lastId`.
 		{ kind: 'changed', id: 0, time: 1002, edit: [[0, 0, '']], v: 1 },
 		// --- requestTime 1003 splits here; the rest is the oracle ---
-		{ kind: 'changed', id: 0, time: 1004, edit: oracleEdit, v: 2 },
+		...postRequestEntries,
 	];
 	return {
 		originalRowIndex,
@@ -42,6 +42,12 @@ function makeRow(originalRowIndex: number, oracleEdit: [number, number, string][
 		postProcessingOutcome: { suggestedEdit: '', isInlineCompletion: false },
 		activeDocumentLanguageId: 'typescript',
 	};
+}
+
+function makeRow(originalRowIndex: number, oracleEdit: [number, number, string][]): IInputRow {
+	return makeRowWithPostEntries(originalRowIndex, [
+		{ kind: 'changed', id: 0, time: 1004, edit: oracleEdit, v: 2 },
+	]);
 }
 
 describe('processAllRows', () => {
@@ -64,6 +70,53 @@ describe('processAllRows', () => {
 			]);
 		} finally {
 			processed.forEach(p => p.replayer.dispose());
+		}
+	});
+
+	it('composes touching operations before applying the oracle edit limit', () => {
+		const insertedText = 'abcdefghijkl';
+		const postRequestEntries: LogEntry[] = [...insertedText].map((text, index) => ({
+			kind: 'changed',
+			id: 0,
+			time: 1004 + index,
+			edit: [[doc.length + index, doc.length + index, text]],
+			v: index + 2,
+		}));
+		const { processed, errors } = processAllRows([makeRowWithPostEntries(0, postRequestEntries)], 1);
+		try {
+			expect({
+				errors,
+				nextUserEdit: processed[0]?.nextUserEdit,
+			}).toEqual({
+				errors: [],
+				nextUserEdit: {
+					edit: [[doc.length, doc.length, insertedText]],
+					relativePath: 'src/a.ts',
+					originalOpIdx: 3,
+				},
+			});
+		} finally {
+			processed.forEach(processedRow => processedRow.replayer.dispose());
+		}
+	});
+
+	it('stops the oracle before a content restore', () => {
+		const postRequestEntries: LogEntry[] = [
+			{ kind: 'changed', id: 0, time: 1004, edit: [[6, 7, 'x']], v: 2 },
+			{ kind: 'restoreContent', id: 0, time: 1005, contentId: 'saved', v: 3 },
+			{ kind: 'changed', id: 0, time: 1006, edit: [[19, 20, 'y']], v: 4 },
+		];
+		const { processed, errors } = processAllRows([makeRowWithPostEntries(0, postRequestEntries)]);
+		try {
+			expect({
+				errors,
+				nextUserEdit: processed[0]?.nextUserEdit.edit,
+			}).toEqual({
+				errors: [],
+				nextUserEdit: [[6, 7, 'x']],
+			});
+		} finally {
+			processed.forEach(processedRow => processedRow.replayer.dispose());
 		}
 	});
 });

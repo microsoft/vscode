@@ -33,6 +33,8 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { InstallChatEvent, InstallChatClassification, ChatSetupStrategy } from '../../chat/browser/chatSetup/chatSetup.js';
+import { IChatMicrosoftSignInProbeService } from '../../chat/browser/chatSetup/chatSetupMicrosoftProbe.js';
+import { autorun } from '../../../../base/common/observable.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import {
@@ -43,11 +45,10 @@ import {
 	IOnboardingThemeOption,
 	getOnboardingStepTitle,
 	getOnboardingStepSubtitle,
-	GHE_FULL_URI_REGEX,
-	GheParseResultKind,
-	parseGheInstanceInput,
 } from '../common/onboardingTypes.js';
 import { IOnboardingService } from '../common/onboardingService.js';
+import { addGitHubEnterpriseUri, getConfiguredGitHubEnterpriseUris, GheParseResultKind, isValidGitHubEnterpriseUri, parseGheInstanceInput } from '../../../services/accounts/common/githubEnterprise.js';
+import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 
 type OnboardingStepViewClassification = {
 	owner: 'cwebster-99';
@@ -88,9 +89,9 @@ const defaultChat = product.defaultChatAgent;
  * tab. When dismissed, the welcome tab is revealed underneath.
  *
  * Steps:
- * 1. Sign In — sessions-style sign-in hero with GitHub Copilot, Google, and Apple options
+ * 1. Sign In — sessions-style sign-in hero with GitHub Copilot, Google, and Apple options, plus
+ *    Microsoft when {@link IChatMicrosoftSignInProbeService} offers it
  * 2. Personalize — Theme selection grid + keymap pills
- * 3. Agent Sessions — Feature cards showcasing AI capabilities
  */
 export class OnboardingVariationA extends Disposable implements IOnboardingService {
 
@@ -147,6 +148,8 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@IChatMicrosoftSignInProbeService private readonly microsoftSignInProbeService: IChatMicrosoftSignInProbeService,
+		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 	) {
 		super();
 
@@ -240,6 +243,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		}));
 		this.disposables.add(addDisposableListener(this.nextButton, EventType.CLICK, () => {
 			if (this._isLastStep()) {
+				this._applyStepSelections(this.steps[this.currentStepIndex]);
 				this._logAction('complete');
 				this._dismiss('complete');
 			} else if (this.currentStepIndex === 0) {
@@ -319,15 +323,23 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 				this.enterpriseInstanceValue = '';
 				this.enterpriseSignInWatch = undefined;
 			}
-			if (leavingStep === OnboardingStepId.Personalize) {
-				this._applyKeymap(this.selectedKeymapId);
-			}
+			this._applyStepSelections(leavingStep);
 			this.currentStepIndex++;
 			this._renderStep();
 			this._renderProgress();
 			this._updateButtonStates();
 			this._focusCurrentStepElement();
 			this._logStepView();
+		}
+	}
+
+	/**
+	 * Applies the selections made on a step once the user moves past it, either
+	 * by continuing to the next step or by completing the onboarding.
+	 */
+	private _applyStepSelections(stepId: OnboardingStepId): void {
+		if (stepId === OnboardingStepId.Personalize) {
+			this._applyKeymap(this.selectedKeymapId);
 		}
 	}
 
@@ -384,9 +396,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		this.titleEl.style.display = useSignInHero ? 'none' : '';
 		this.subtitleEl.style.display = useSignInHero ? 'none' : '';
 		this.titleEl.textContent = getOnboardingStepTitle(stepId);
-		if (stepId === OnboardingStepId.AgentSessions) {
-			this._renderAgentSessionsSubtitle(this.subtitleEl);
-		} else if (stepId === OnboardingStepId.Personalize) {
+		if (stepId === OnboardingStepId.Personalize) {
 			this._renderPersonalizeSubtitle(this.subtitleEl);
 		} else {
 			this.subtitleEl.textContent = getOnboardingStepSubtitle(stepId);
@@ -403,9 +413,6 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 				break;
 			case OnboardingStepId.AiPreference:
 				this._renderAiPreferenceStep(this.contentEl);
-				break;
-			case OnboardingStepId.AgentSessions:
-				this._renderAgentSessionsStep(this.contentEl);
 				break;
 		}
 
@@ -554,6 +561,20 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 			this._handleSignIn('apple');
 		}));
 
+		const microsoftBtn = this._registerStepFocusable(this._createSignInButton(actions, 'microsoft', localize('onboarding.signIn.microsoft', "Continue with Microsoft"), {
+			iconOnly: true,
+			label: localize('onboarding.signIn.microsoft', "Continue with Microsoft")
+		}));
+		this.stepDisposables.add(addDisposableListener(microsoftBtn, EventType.CLICK, () => {
+			this._logAction('signIn', undefined, 'microsoft');
+			this._handleSignIn(defaultChat.provider.microsoft.id);
+		}));
+		// Only offered once a linked Microsoft account is found, which can happen while this step shows.
+		this.microsoftSignInProbeService.notifySignInShown();
+		this.stepDisposables.add(autorun(reader => {
+			microsoftBtn.style.display = this.microsoftSignInProbeService.offerMicrosoftSignIn.read(reader) ? '' : 'none';
+		}));
+
 		const gheBtn = this._registerStepFocusable(this._createSignInButton(actions, 'github-enterprise', localize('onboarding.signIn.ghe', "GHE"), {
 			textOnly: true,
 			label: localize('onboarding.signIn.ghe.aria', "Continue with GitHub Enterprise")
@@ -568,6 +589,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 
 	private _renderEnterpriseInstanceForm(actions: HTMLElement): void {
 		const enterprisePromptLabel = this._getEnterpriseInstancePromptLabel();
+		const replacedUri = getConfiguredGitHubEnterpriseUris(this.configurationService, this.workspaceTrustManagementService.isWorkspaceTrusted(), defaultChat.providerUriSetting).find(uri => !isValidGitHubEnterpriseUri(uri));
 
 		const container = append(actions, $('.onboarding-a-signin-ghe-input'));
 
@@ -594,7 +616,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 				validate();
 				return;
 			}
-			await this._submitEnterpriseInstance(result.resolvedUri);
+			await this._submitEnterpriseInstance(result.resolvedUri, replacedUri);
 		};
 		submitAction.run = submit;
 
@@ -623,7 +645,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 				case GheParseResultKind.Invalid:
 					inputBox.element.classList.add('error');
 					message.classList.add('error');
-					message.textContent = localize('onboarding.signIn.enterprise.invalid', 'You must enter a valid {0} instance (i.e. "octocat" or "https://octocat.ghe.com")', defaultChat.provider.enterprise.name);
+					message.textContent = localize('onboarding.signIn.enterprise.invalid', "Enter a GHE.com instance name or HTTPS URL.");
 					submitAction.enabled = false;
 					return false;
 			}
@@ -676,7 +698,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		}
 	}
 
-	private _createSignInButton(parent: HTMLElement, providerClass: 'github' | 'github-enterprise' | 'google' | 'apple', label: string, options?: { emphasized?: boolean; iconOnly?: boolean; textOnly?: boolean; label?: string }): HTMLButtonElement {
+	private _createSignInButton(parent: HTMLElement, providerClass: 'github' | 'github-enterprise' | 'google' | 'apple' | 'microsoft', label: string, options?: { emphasized?: boolean; iconOnly?: boolean; textOnly?: boolean; label?: string }): HTMLButtonElement {
 		const isCompact = options?.iconOnly || options?.textOnly;
 		const btn = append(parent, $<HTMLButtonElement>(isCompact ? 'button.onboarding-a-signin-icon-btn' : 'button.onboarding-a-signin-btn'));
 		btn.type = 'button';
@@ -736,23 +758,30 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 	}
 
 	private async _handleEnterpriseSignIn(): Promise<void> {
-		const existingUri = this.configurationService.getValue<string>(defaultChat.providerUriSetting);
-		if (typeof existingUri !== 'string' || !GHE_FULL_URI_REGEX.test(existingUri)) {
-			this.enterpriseInstanceValue = existingUri ?? '';
-			this.enterpriseSignInWatch = StopWatch.create();
+		let uris: readonly string[];
+		try {
+			uris = getConfiguredGitHubEnterpriseUris(this.configurationService, this.workspaceTrustManagementService.isWorkspaceTrusted(), defaultChat.providerUriSetting);
+		} catch {
+			this._notifyEnterpriseSignInError();
+			return;
+		}
+		const invalidUri = uris.find(uri => !isValidGitHubEnterpriseUri(uri));
+		const hasCloudInstance = uris.some(uri => parseGheInstanceInput(uri).kind === GheParseResultKind.FullUri);
+		if (!hasCloudInstance || invalidUri !== undefined) {
+			this.enterpriseInstanceValue = invalidUri ?? '';
+			this.enterpriseSignInWatch ??= StopWatch.create();
 			this._setEnterpriseSignInUiState('instance');
 			return;
 		}
 
-		this.enterpriseInstanceValue = existingUri;
 		await this._runEnterpriseSignInSetup();
 	}
 
-	private async _submitEnterpriseInstance(resolvedUri: string): Promise<void> {
+	private async _submitEnterpriseInstance(resolvedUri: string, replacedUri?: string): Promise<void> {
 		try {
-			await this.configurationService.updateValue(defaultChat.providerUriSetting, resolvedUri, ConfigurationTarget.USER);
+			await addGitHubEnterpriseUri(this.configurationService, resolvedUri, this.workspaceTrustManagementService.isWorkspaceTrusted(), defaultChat.providerUriSetting, replacedUri);
 			this.enterpriseInstanceValue = resolvedUri;
-			await this._runEnterpriseSignInSetup();
+			await this._handleEnterpriseSignIn();
 		} catch {
 			this.enterpriseSignInWatch = undefined;
 			this._setEnterpriseSignInUiState('instance');
@@ -1106,104 +1135,23 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		}
 	}
 
-	// =====================================================================
-	// Step: Agent Sessions
-	// =====================================================================
-
-	private _renderAgentSessionsSubtitle(el: HTMLElement): void {
-		clearNode(el);
-		const keys = isMacintosh
-			? ['\u2318', '\u2303', 'I']  // Cmd+Control+I
-			: ['Ctrl', 'Alt', 'I'];
-		const shortcut = keys.map(k => this._createKbd(k));
-		el.append(localize('onboarding.step.agentSessions.subtitle.before', "Open Chat anytime with "));
-		for (let i = 0; i < shortcut.length; i++) {
-			if (i > 0) {
-				el.append('+');
-			}
-			el.append(shortcut[i]);
-		}
-	}
-
-	private _renderAgentSessionsStep(container: HTMLElement): void {
-		const wrapper = append(container, $('.onboarding-a-sessions'));
-
-		const features = append(wrapper, $('.onboarding-a-sessions-features'));
-
-		// Group 1: Chat modes — Plan / Agent
-		const chatGroup = append(features, $('.onboarding-a-sessions-group'));
-		const chatLabel = append(chatGroup, $('div.onboarding-a-sessions-group-label'));
-		chatLabel.textContent = localize('onboarding.sessions.group.chat', "Agents made for the task");
-		const chatGrid = append(chatGroup, $('.onboarding-a-sessions-grid.onboarding-a-sessions-grid-2'));
-
-		this._createFeatureCard(chatGrid, Codicon.listOrdered,
-			localize('onboarding.sessions.planMode', "Plan"),
-			localize('onboarding.sessions.planMode.desc', "Produce a structured implementation plan before any code changes, then hand it off to an agent to execute."));
-
-		this._createFeatureCard(chatGrid, Codicon.commentDiscussion,
-			localize('onboarding.sessions.agentMode', "Agent"),
-			localize('onboarding.sessions.agentMode.desc', "Describe a goal. The agent plans the approach, edits files, runs commands, and self-corrects. You review and approve along the way."));
-
-		// Group 2: ways to run and customize agents beyond the default Chat experience
-		const moreGroup = append(features, $('.onboarding-a-sessions-group'));
-		const moreLabel = append(moreGroup, $('div.onboarding-a-sessions-group-label'));
-		moreLabel.textContent = localize('onboarding.sessions.group.more', "Agents that work your way");
-		const moreGrid = append(moreGroup, $('.onboarding-a-sessions-grid.onboarding-a-sessions-grid-2'));
-
-		this._createFeatureCard(moreGrid, Codicon.rocket,
-			localize('onboarding.sessions.runAnywhere', "Run Agents Anywhere"),
-			localize('onboarding.sessions.runAnywhere.desc', "Run agents locally for interactive work, in the background with Copilot CLI, or in the cloud with cloud agents that open a pull request your team can review."));
-
-		this._createFeatureCard(moreGrid, Codicon.settingsGear,
-			localize('onboarding.sessions.customize', "Customize Your Agents"),
-			localize('onboarding.sessions.customize.desc', "Tailor Copilot to your project with custom instructions and agents, skills, reusable prompts, and MCP servers that connect to the tools and context you rely on."));
-
-		// Tutorial link at bottom of content, above footer
-		const docsRow = append(wrapper, $('.onboarding-a-sessions-docs'));
-		this._createDocLink(docsRow, localize('onboarding.sessions.agentsTutorial', "Agents tutorial"), 'https://code.visualstudio.com/docs/copilot/agents/agents-tutorial', 'agentsTutorial');
-	}
-
-	private _createFeatureCard(parent: HTMLElement, icon: ThemeIcon, title: string, description?: string): HTMLElement {
-		const card = append(parent, $('div.onboarding-a-feature-card'));
-		const iconCol = append(card, $('div.onboarding-a-feature-icon'));
-		iconCol.appendChild(renderIcon(icon));
-		const textCol = append(card, $('div.onboarding-a-feature-text'));
-		const titleEl = append(textCol, $('div.onboarding-a-feature-title'));
-		titleEl.textContent = title;
-		const descEl = append(textCol, $('div.onboarding-a-feature-desc'));
-		if (description) {
-			descEl.textContent = description;
-		}
-		return descEl;
-	}
-
 	private _createKbd(label: string): HTMLElement {
 		const kbd = $('kbd.onboarding-a-kbd');
 		kbd.textContent = label;
 		return kbd;
 	}
 
-	private _createDocLink(parent: HTMLElement, label: string, href: string, linkId?: string): void {
-		const link = this._registerStepFocusable(append(parent, $<HTMLAnchorElement>('a.onboarding-a-doc-link')));
-		link.textContent = label;
-		link.href = href;
-		link.target = '_blank';
-		link.rel = 'noopener';
-		link.prepend(renderIcon(Codicon.linkExternal));
-		if (linkId) {
-			this.stepDisposables.add(addDisposableListener(link, EventType.CLICK, () => {
-				this._logAction('docLinkClick', undefined, linkId);
-			}));
+	private _createInlineLink(parent: HTMLElement, label: string, href: string | undefined): void {
+		if (!href) {
+			parent.append(label);
+			return;
 		}
-	}
 
-	private _createInlineLink(parent: HTMLElement, label: string, href: string): HTMLAnchorElement {
 		const link = this._registerStepFocusable(append(parent, $<HTMLAnchorElement>('a.onboarding-a-inline-link')));
 		link.textContent = label;
 		link.href = href;
 		link.target = '_blank';
 		link.rel = 'noopener';
-		return link;
 	}
 
 	// =====================================================================

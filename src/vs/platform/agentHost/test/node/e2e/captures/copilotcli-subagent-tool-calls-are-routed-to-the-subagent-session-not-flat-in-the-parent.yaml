@@ -1,0 +1,85 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use the `task` tool to spawn a subagent to read `file-a.txt` in the current working directory. Explicitly set the subagent model to `claude-sonnet-5`. The subagent should call a single read-only file-reading tool (e.g. `Read` or `view`) to read `file-a.txt` and report its contents; do not run a shell command. Do not read the file yourself — delegate to the subagent.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: task
+          input:
+            name: read-file-a
+            agent_type: explore
+            model: claude-sonnet-5
+            description: Read file-a.txt contents
+            prompt: Use a single read-only file-reading tool call (e.g. `view` or `Read`) to read the file `file-a.txt` located in the current working directory. Do not run any shell command (no `cat`, `head`, etc.) and do not use any other tool. Report back the exact contents of the file.
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use a single read-only file-reading tool call (e.g. `view` or `Read`) to read the file `file-a.txt` located in the current working directory. Do not run any shell command (no `cat`, `head`, etc.) and do not use any other tool. Report back the exact contents of the file.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_1
+          name: view
+          input:
+            path: ${workdir}/file-a.txt
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use a single read-only file-reading tool call (e.g. `view` or `Read`) to read the file `file-a.txt` located in the current working directory. Do not run any shell command (no `cat`, `head`, etc.) and do not use any other tool. Report back the exact contents of the file.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: view
+              input:
+                path: ${workdir}/file-a.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: alpha
+    response:
+      content: 'The file `file-a.txt` contains exactly: `alpha`'
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Use the `task` tool to spawn a subagent to read `file-a.txt` in the current working directory. Explicitly set the subagent model to `claude-sonnet-5`. The subagent should call a single read-only file-reading tool (e.g. `Read` or `view`) to read `file-a.txt` and report its contents; do not run a shell command. Do not read the file yourself — delegate to the subagent.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: task
+              input:
+                name: read-file-a
+                agent_type: explore
+                model: claude-sonnet-5
+                description: Read file-a.txt contents
+                prompt: Use a single read-only file-reading tool call (e.g. `view` or `Read`) to read the file `file-a.txt` located in the current working directory. Do not run any shell command (no `cat`, `head`, etc.) and do not use any other tool. Report back the exact contents of the file.
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'The file `file-a.txt` contains exactly: `alpha`'
+    response:
+      content: |-
+        The subagent (running on `claude-sonnet-5`) read [file-a.txt](${workdir}/file-a.txt) using a single read-only file tool call and reported its contents as:
+
+        ```
+        alpha
+        ```
+      stopReason: end_turn

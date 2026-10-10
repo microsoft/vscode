@@ -178,7 +178,7 @@ export function toCustomizationsIndexReference(content: string): vscode.ChatProm
 /**
  * URI schemes used for chat session references.
  */
-export const SessionReferenceSchemes: ReadonlySet<string> = new Set(['vscode-chat-session', 'copilotcli', 'claude-code']);
+export const SessionReferenceSchemes: ReadonlySet<string> = new Set(['vscode-chat-session', 'copilotcli']);
 
 /**
  * Check if a URI scheme identifies a chat session reference.

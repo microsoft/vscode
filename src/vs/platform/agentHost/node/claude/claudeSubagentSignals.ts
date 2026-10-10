@@ -7,13 +7,13 @@ import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 import type { URI } from '../../../../base/common/uri.js';
 import type { Mutable } from '../../../../base/common/types.js';
 import { toToolCallMeta, type IToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
-import type { AgentSignal, IAgentSubagentStartedSignal } from '../../common/agentService.js';
+import type { AgentSignal, IAgentSubagentStartedSignal } from '../../common/agent.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { ResponsePartKind, ToolCallConfirmationReason } from '../../common/state/sessionState.js';
+import { ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind } from '../../common/state/sessionState.js';
 import type { ClaudeMapperState } from './claudeMapSessionEvents.js';
 import { SUBAGENT_TOOL_NAMES, type SubagentRegistry } from './claudeSubagentRegistry.js';
 import { buildClaudeToolCallMeta, buildClaudeToolMeta, getClaudeInvocationMessage, getClaudeToolDisplayName, getClaudeToolInputString } from './claudeToolDisplay.js';
-import { stripClientToolNamePrefix } from './clientTools/claudeClientToolMcpServer.js';
+import { hasClientToolNamePrefix, stripClientToolNamePrefix } from './clientTools/claudeClientToolMcpServer.js';
 
 /**
  * Phase 12 — SDK tool names that spawn subagent sessions. Re-exported
@@ -53,6 +53,9 @@ export function tagWithParent(
 		if (s.kind === 'pending_confirmation') {
 			return { ...s, parentToolCallId: parentToolUseId };
 		}
+		if (s.kind === 'model_call_completed') {
+			return { ...s, parentToolCallId: parentToolUseId };
+		}
 		return s;
 	});
 	const spawn = registry.getSpawn(parentToolUseId);
@@ -67,8 +70,11 @@ export function tagWithParent(
 		agentDisplayName: spawn.subagentType ?? 'Subagent',
 		agentDescription: spawn.description,
 		// The Task tool's short `description` input doubles as the concise
-		// per-task tab title for the subagent's read-only peer chat.
+		// per-task tab title for the subagent's read-only chat.
 		taskDescription: spawn.description,
+		// The Task tool's `prompt` input is the full delegated instruction
+		// that seeds the subagent chat's opening request.
+		taskPrompt: spawn.prompt,
 		// When the spawning Task tool is itself an inner tool of another
 		// subagent, its parent Task (one level up) is the tool call in
 		// whose chat this spawning tool lives. The host uses it to route
@@ -145,6 +151,8 @@ export function mapSubagentSystemMessage(
  *     `_meta.subagentDescription` and `action.invocationMessage`.
  *   - `block.input.subagent_type` → `spawn.subagentType` and
  *     `_meta.subagentAgentName`.
+ *   - `block.input.prompt` → `spawn.prompt` (seeds the subagent's
+ *     opening request via the `subagent_started` signal's `taskPrompt`).
  */
 export function buildTopLevelSubagentReadyAction(
 	block: Extract<import('@anthropic-ai/claude-agent-sdk').SDKAssistantMessage['message']['content'][number], { type: 'tool_use' }>,
@@ -155,8 +163,9 @@ export function buildTopLevelSubagentReadyAction(
 	const input = block.input as Record<string, unknown> | undefined;
 	const description = typeof input?.description === 'string' ? input.description : undefined;
 	const agentName = typeof input?.subagent_type === 'string' ? input.subagent_type : undefined;
+	const prompt = typeof input?.prompt === 'string' ? input.prompt : undefined;
 	const inputJson = block.input !== undefined ? safeStringify(block.input) : undefined;
-	registry.recordSpawn(block.id, { subagentType: agentName, description });
+	registry.recordSpawn(block.id, { subagentType: agentName, description, prompt });
 	const meta: Mutable<IToolCallMeta> = { ...buildClaudeToolCallMeta(block.name) };
 	if (!meta.toolKind) {
 		meta.toolKind = 'subagent';
@@ -209,6 +218,7 @@ export function emitInnerAssistantSignals(
 	state: ClaudeMapperState,
 	parentToolUseId: string,
 	registry: SubagentRegistry,
+	clientToolOwner?: (toolName: string) => string | undefined,
 ): AgentSignal[] {
 	const messageId = message.message.id;
 	const signals: AgentSignal[] = [];
@@ -251,7 +261,9 @@ export function emitInnerAssistantSignals(
 			// calls render with their real name (matches the top-level stream
 			// mapper). SDK-owned tools and Task/Agent passes through unchanged.
 			const toolName = stripClientToolNamePrefix(block.name);
-			state.startToolBlock(index, block.id, toolName, turnId);
+			const isClientTool = hasClientToolNamePrefix(block.name);
+			const clientId = isClientTool ? clientToolOwner?.(toolName) : undefined;
+			state.startToolBlock(index, block.id, toolName, turnId, isClientTool);
 			// Inner tool input arrives pre-parsed on the synthesized
 			// `assistant` message (not via `input_json_delta` chunks), so
 			// seed the registry directly. Without this the live
@@ -260,9 +272,10 @@ export function emitInnerAssistantSignals(
 			// always computes rich text) drifts from live — violating D6.
 			state.toolCalls.seedParsedInput(block.id, block.input);
 			registry.noteInnerTool(block.id, parentToolUseId);
-			const displayName = getClaudeToolDisplayName(toolName);
-			const meta = buildClaudeToolMeta(toolName);
-			const toolInputStr = getClaudeToolInputString(toolName, block.input);
+			const displayName = isClientTool ? toolName : getClaudeToolDisplayName(toolName);
+			const meta = isClientTool ? undefined : buildClaudeToolMeta(toolName);
+			const info = state.toolCalls.lookup(block.id)?.info;
+			const toolInputStr = info?.toolInput ?? getClaudeToolInputString(toolName, block.input);
 			signals.push({
 				kind: 'action',
 				resource: chat,
@@ -272,6 +285,7 @@ export function emitInnerAssistantSignals(
 					toolCallId: block.id,
 					toolName,
 					displayName,
+					...(clientId ? { contributor: { kind: ToolCallContributorKind.Client, clientId } } : {}),
 					...(meta ? { _meta: meta } : {}),
 				},
 			});
@@ -282,7 +296,7 @@ export function emitInnerAssistantSignals(
 					type: ActionType.ChatToolCallReady,
 					turnId,
 					toolCallId: block.id,
-					invocationMessage: getClaudeInvocationMessage(toolName, displayName, block.input),
+					invocationMessage: isClientTool ? displayName : getClaudeInvocationMessage(toolName, displayName, block.input),
 					...(toolInputStr !== undefined ? { toolInput: toolInputStr } : {}),
 					confirmed: ToolCallConfirmationReason.NotNeeded,
 				},

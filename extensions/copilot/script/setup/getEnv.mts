@@ -51,7 +51,7 @@ async function fetchSecret(secretClient: SecretClient, secretName: string): Prom
 }
 
 async function fetchSecrets(): Promise<{ [key: string]: string | undefined }> {
-	const keyVaultClient = await setupSecretClient('https://copilot-automation.vault.azure.net/');
+	const keyVaultClient = await setupSecretClient('https://kv-eval-assume-breached.vault.azure.net/');
 
 	const secrets: { [key: string]: string | undefined } = {};
 	secrets['HMAC_SECRET'] = await fetchSecret(keyVaultClient, 'hmac-secret');

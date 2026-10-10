@@ -1,0 +1,12 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "DONE".
+    response:
+      content: DONE
+      stopReason: end_turn

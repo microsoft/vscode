@@ -10,7 +10,7 @@ import { DomScrollableElement } from '../scrollbar/scrollableElement.js';
 import { commonPrefixLength } from '../../../common/arrays.js';
 import { ThemeIcon } from '../../../common/themables.js';
 import { Emitter, Event } from '../../../common/event.js';
-import { DisposableStore, dispose, IDisposable } from '../../../common/lifecycle.js';
+import { DisposableStore, dispose, IDisposable, MutableDisposable } from '../../../common/lifecycle.js';
 import { ScrollbarVisibility } from '../../../common/scrollable.js';
 import './breadcrumbsWidget.css';
 
@@ -60,6 +60,7 @@ export class BreadcrumbsWidget {
 
 	private _pendingDimLayout: IDisposable | undefined;
 	private _pendingLayout: IDisposable | undefined;
+	private readonly _pendingReveal = this._disposables.add(new MutableDisposable<IDisposable>());
 	private _dimension: dom.Dimension | undefined;
 
 	constructor(
@@ -67,7 +68,8 @@ export class BreadcrumbsWidget {
 		horizontalScrollbarSize: number,
 		horizontalScrollbarVisibility: ScrollbarVisibility = ScrollbarVisibility.Auto,
 		separatorIcon: ThemeIcon,
-		styles: IBreadcrumbsWidgetStyles
+		styles: IBreadcrumbsWidgetStyles,
+		private readonly _measure: typeof dom.measure = dom.measure,
 	) {
 		this._domNode = document.createElement('div');
 		this._domNode.className = 'monaco-breadcrumbs';
@@ -241,6 +243,7 @@ export class BreadcrumbsWidget {
 	}
 
 	private _reveal(nth: number, minimal: boolean): void {
+		this._pendingReveal.clear();
 		if (nth < 0 || nth >= this._nodes.length) {
 			return;
 		}
@@ -248,11 +251,25 @@ export class BreadcrumbsWidget {
 		if (!node) {
 			return;
 		}
+		if (!minimal) {
+			this._pendingReveal.value = this._measure(dom.getWindow(this._domNode), () => {
+				if (this._nodes[nth] === node) {
+					this._revealNode(node, false);
+				}
+			});
+			return;
+		}
+
+		this._revealNode(node, true);
+	}
+
+	private _revealNode(node: HTMLElement, minimal: boolean): void {
 		const { width } = this._scrollable.getScrollDimensions();
 		const { scrollLeft } = this._scrollable.getScrollPosition();
-		if (!minimal || node.offsetLeft > scrollLeft + width || node.offsetLeft < scrollLeft) {
+		const nodeOffsetLeft = node.offsetLeft;
+		if (!minimal || nodeOffsetLeft > scrollLeft + width || nodeOffsetLeft < scrollLeft) {
 			this._scrollable.setRevealOnScroll(false);
-			this._scrollable.setScrollPosition({ scrollLeft: node.offsetLeft });
+			this._scrollable.setScrollPosition({ scrollLeft: nodeOffsetLeft });
 			this._scrollable.setRevealOnScroll(true);
 		}
 	}

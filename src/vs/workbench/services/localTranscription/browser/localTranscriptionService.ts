@@ -26,6 +26,10 @@ export class NullLocalTranscriptionService implements ILocalTranscriptionService
 		return { state: LocalTranscriptionModelState.Error, error: 'unsupported' };
 	}
 
+	async importModel(): Promise<never> {
+		throw new Error('On-device transcription is not supported in this environment.');
+	}
+
 	async start(): Promise<void> {
 		throw new Error('On-device transcription is not supported in this environment.');
 	}

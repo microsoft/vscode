@@ -22,6 +22,7 @@ import { ResourceMap, ResourceSet } from '../../../util/vs/base/common/map';
 import { basename, dirname } from '../../../util/vs/base/common/resources';
 import { posix } from '../../../util/vs/base/common/path';
 import { stringDiff } from '../../../util/vs/base/common/diff/diff';
+import { escape as escapeXml } from '../../../util/vs/base/common/strings';
 import { URI } from '../../../util/vs/base/common/uri';
 import { ParsedPromptFile } from '../../../util/vs/workbench/contrib/chat/common/promptSyntax/promptFileParser';
 import { isLocation } from '../../../util/common/types';
@@ -35,6 +36,7 @@ import { ICustomInstructionsService } from '../../customInstructions/common/cust
 import { IPromptVariablesService } from '../../../extension/prompt/node/promptVariablesService';
 import { arrayEqual } from 'diff/lib/util/array.js';
 import { structuralEquals } from '../../../util/vs/base/common/equals';
+import { INativeEnvService } from '../../env/common/envService';
 
 /**
  * Telemetry payload (parity with core's `instructionsCollected` event).
@@ -50,6 +52,7 @@ export interface InstructionsCollectionEvent {
 	claudeMdCount: number;
 	claudeAgentsCount: number;
 }
+
 
 export interface IAutomaticInstructionsCollectorContext {
 	readonly tools: Map<vscode.LanguageModelToolInformation, boolean>;
@@ -134,6 +137,7 @@ export class AutomaticInstructionsCollector implements IAutomaticInstructionsCol
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILogService private readonly _logService: ILogService,
 		@IExperimentationService private readonly _experimentationService: IExperimentationService,
+		@INativeEnvService private readonly _envService: INativeEnvService,
 	) { }
 
 
@@ -314,7 +318,11 @@ export class AutomaticInstructionsCollector implements IAutomaticInstructionsCol
 			// Resolve all referenced URIs from this file's body.
 			const candidates: URI[] = [];
 			for (const ref of parsed.body.fileReferences) {
-				const resolved = parsed.body.resolveFilePath(ref.content);
+				const resolved = ref.content === '~'
+					? this._envService.userHome
+					: ref.content.startsWith('~/')
+						? URI.joinPath(this._envService.userHome, ref.content.substring(2))
+						: parsed.body.resolveFilePath(ref.content);
 				if (!resolved || seen.has(resolved)) {
 					continue;
 				}
@@ -407,10 +415,10 @@ export class AutomaticInstructionsCollector implements IAutomaticInstructionsCol
 				lines.push('<instruction>');
 				lines.push(`<file>${filePath(instruction.uri)}</file>`);
 				if (instruction.description) {
-					lines.push(`<description>${instruction.description}</description>`);
+					lines.push(`<description>${escapeXml(instruction.description)}</description>`);
 				}
 				if (instruction.pattern) {
-					lines.push(`<applyTo>${instruction.pattern}</applyTo>`);
+					lines.push(`<applyTo>${escapeXml(instruction.pattern)}</applyTo>`);
 				}
 				lines.push('</instruction>');
 				hasContent = true;
@@ -424,7 +432,7 @@ export class AutomaticInstructionsCollector implements IAutomaticInstructionsCol
 					: l10n.t('Instructions for folder \'{0}\'', folderName);
 				lines.push('<instruction>');
 				lines.push(`<file>${filePath(uri)}</file>`);
-				lines.push(`<description>${description}</description>`);
+				lines.push(`<description>${escapeXml(description)}</description>`);
 				lines.push('</instruction>');
 				hasContent = true;
 			}
@@ -495,9 +503,9 @@ export class AutomaticInstructionsCollector implements IAutomaticInstructionsCol
 				let truncatedAtIndex = modelInvocableSkills.length;
 				for (let i = 0; i < modelInvocableSkills.length; i++) {
 					const skill = modelInvocableSkills[i];
-					const skillEntry = ['<skill>', `<name>${skill.name}</name>`];
+					const skillEntry = ['<skill>', `<name>${escapeXml(skill.name)}</name>`];
 					if (skill.description) {
-						skillEntry.push(`<description>${skill.description}</description>`);
+						skillEntry.push(`<description>${escapeXml(skill.description)}</description>`);
 					}
 					skillEntry.push(`<file>${filePath(skill.uri)}</file>`);
 					skillEntry.push('</skill>');
@@ -514,12 +522,13 @@ export class AutomaticInstructionsCollector implements IAutomaticInstructionsCol
 					const names: string[] = [];
 					let nameListLength = 0;
 					for (const skill of truncatedSkills) {
-						const addition = (names.length > 0 ? 2 : 0) + skill.name.length;
+						const escapedName = escapeXml(skill.name);
+						const addition = (names.length > 0 ? 2 : 0) + escapedName.length;
 						if (nameListLength + addition > TRUNCATED_NAMES_CHAR_BUDGET) {
 							break;
 						}
 						nameListLength += addition;
-						names.push(skill.name);
+						names.push(escapedName);
 					}
 					const remaining = truncatedSkills.length - names.length;
 					const nameList = names.join(', ');
@@ -550,19 +559,19 @@ export class AutomaticInstructionsCollector implements IAutomaticInstructionsCol
 				lines.push('<agents>');
 				lines.push('Here is a list of agents that can be used when running a subagent.');
 				lines.push('Each agent has optionally a description with the agent\'s purpose and expertise. When asked to run a subagent, choose the most appropriate agent from this list.');
-				lines.push(`Use the ${getToolReferencePromptContent(runSubagentTool)} tool with an agent name from this list to run that agent, or omit agentName to use the current agent.`);
+				lines.push(`Use the ${getToolReferencePromptContent(runSubagentTool)} tool with the agent name to run the subagent.`);
 
 				for (const agent of customAgents) {
 					if (!canInvokeAgent(agent)) {
 						continue;
 					}
 					lines.push('<agent>');
-					lines.push(`<name>${agent.name}</name>`);
+					lines.push(`<name>${escapeXml(agent.name)}</name>`);
 					if (agent.description) {
-						lines.push(`<description>${agent.description}</description>`);
+						lines.push(`<description>${escapeXml(agent.description)}</description>`);
 					}
 					if (agent.argumentHint) {
-						lines.push(`<argumentHint>${agent.argumentHint}</argumentHint>`);
+						lines.push(`<argumentHint>${escapeXml(agent.argumentHint)}</argumentHint>`);
 					}
 					lines.push('</agent>');
 					if (isInClaudeAgentsFolder(agent.uri)) {
@@ -970,4 +979,3 @@ namespace ICustomInstructionsDebugInfo {
 		return result.join('\n');
 	}
 }
-

@@ -21,7 +21,7 @@ import { IRequestService } from '../../request/common/request.js';
 import { StorageScope, StorageTarget } from '../../storage/common/storage.js';
 import { IApplicationStorageMainService } from '../../storage/electron-main/storageMainService.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
-import { AvailableForDownload, DisablementReason, IUpdateService, State, StateType, UpdateType } from '../common/update.js';
+import { AvailableForDownload, DisablementReason, IUpdate, IUpdateService, State, StateType, UpdateType } from '../common/update.js';
 
 const LAST_KNOWN_VERSION_STORAGE_KEY = 'abstractUpdateService/lastKnownVersion';
 
@@ -96,13 +96,18 @@ function isCancellableState(type: StateType): boolean {
 	}
 }
 
+interface IInternalUpdateState {
+	readonly state: State;
+	readonly deferred: boolean;
+}
+
 export abstract class AbstractUpdateService extends Disposable implements IUpdateService {
 
 	declare readonly _serviceBrand: undefined;
 
 	protected quality: string | undefined;
 
-	private _state: State = State.Uninitialized;
+	private _state: IInternalUpdateState = { state: State.Uninitialized, deferred: false };
 	protected _overwrite: boolean = false;
 	private _hasCheckedForOverwriteOnQuit: boolean = false;
 	private readonly overwriteUpdatesCheckInterval = this._register(new IntervalTimer());
@@ -121,22 +126,22 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 	readonly onStateChange: Event<State> = this._onStateChange.event;
 
 	get state(): State {
-		return this._state;
+		return this._state.state;
 	}
 
-	protected setState(state: State): void {
+	protected setState(state: State, options?: { deferred?: boolean }): void {
 		if (state.type === StateType.Updating) {
 			this.logService.trace('update#setState', state.type);
 		} else {
 			this.logService.info('update#setState', state.type);
 		}
-		this._state = state;
+		this._state = { state, deferred: options?.deferred ?? false };
 		this._onStateChange.fire(state);
 
 		// Clear transient one-time properties from Idle state after delivering the event.
 		// This prevents new windows from seeing stale error/notAvailable messages.
 		if (state.type === StateType.Idle && (state.error || state.notAvailable)) {
-			this._state = State.Idle(state.updateType);
+			this._state = { state: State.Idle(state.updateType), deferred: false };
 		}
 
 		// Schedule 5-minute checks when in Ready state and overwrite is supported
@@ -146,6 +151,12 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 			} else {
 				this.overwriteUpdatesCheckInterval.cancel();
 			}
+		}
+	}
+
+	private setDeferred(deferred: boolean): void {
+		if (this._state.deferred !== deferred) {
+			this._state = { ...this._state, deferred };
 		}
 	}
 
@@ -165,6 +176,12 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 
 		lifecycleMainService.when(LifecycleMainPhase.AfterWindowOpen)
 			.finally(() => this.initialize());
+
+		this._register(this.meteredConnectionService.onDidChangeIsConnectionMetered(isMetered => {
+			if (!isMetered) {
+				this.resumeAutomaticUpdates();
+			}
+		}));
 	}
 
 	/**
@@ -191,6 +208,8 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 			this.logService.info('update#ctor - updates are disabled as there is no update URL');
 			return;
 		}
+
+		await this.meteredConnectionService.whenConnectionStateInitialized;
 
 		// React to runtime `update.mode`/policy changes so switching to/from `none` applies without a restart.
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -225,7 +244,7 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 			const reason = policyDisablesUpdates ? DisablementReason.Policy : DisablementReason.ManuallyDisabled;
 
 			// Skip if already disabled for this reason, so a repeated write or policy refresh is a no-op.
-			if (this._state.type === StateType.Disabled && this._state.reason === reason) {
+			if (this.state.type === StateType.Disabled && this.state.reason === reason) {
 				return;
 			}
 
@@ -242,14 +261,14 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 		this.quality = quality;
 
 		// Move to Idle so one-time platform init (which may resume a pending update) can act; it requires Idle.
-		if (this._state.type === StateType.Disabled || this._state.type === StateType.Uninitialized) {
+		if (this.state.type === StateType.Disabled || this.state.type === StateType.Uninitialized) {
 			this.setState(State.Idle(this.getUpdateType()));
 		}
 
 		// One-time platform init, gated behind updates being enabled so a pending update is never resumed under `none`.
 		if (!this._postInitialized) {
-			this._postInitialized = true;
 			await this.postInitialize();
+			this._postInitialized = true;
 		}
 
 		this.scheduleAccordingToMode(updateMode);
@@ -263,7 +282,7 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 		this.scheduler.clear();
 
 		// Show a transient Cancelling state only when there is in-flight or pending work to tear down.
-		if (isCancellableState(this._state.type)) {
+		if (isCancellableState(this.state.type)) {
 			this.setState(State.Cancelling);
 		}
 
@@ -299,6 +318,16 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 			return;
 		}
 
+		if (this._state.deferred && !this.meteredConnectionService.isConnectionMetered) {
+			this.resumeAutomaticUpdates();
+			return;
+		}
+
+		if (this.state.type !== StateType.Idle) {
+			return;
+		}
+		this.setDeferred(false);
+
 		if (updateMode === 'start') {
 			this.logService.info('update#ctor - startup checks only; automatic updates are disabled by user preference');
 
@@ -308,6 +337,41 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 			// Start checking for updates after 30 seconds
 			this.scheduleCheckForUpdates(30 * 1000, true);
 		}
+	}
+
+	private resumeAutomaticUpdates(): void {
+		if (this._disabledPermanently || !this._postInitialized || !this.quality) {
+			return;
+		}
+
+		const updateMode = this.configurationService.getValue<'none' | 'manual' | 'start' | 'default'>('update.mode');
+		if (updateMode === 'none' || updateMode === 'manual') {
+			return;
+		}
+
+		if (this.state.type === StateType.AvailableForDownload) {
+			if (this._state.deferred) {
+				this.resumeDeferredDownload();
+			}
+			return;
+		}
+
+		if (this.state.type === StateType.Ready) {
+			if (this._state.deferred) {
+				void this.checkForOverwriteUpdates();
+			}
+			return;
+		}
+
+		if (this.state.type !== StateType.Idle) {
+			return;
+		}
+
+		if (updateMode === 'start' && !this._state.deferred) {
+			return;
+		}
+		this.setDeferred(false);
+		this.scheduleCheckForUpdates(0, updateMode === 'default');
 	}
 
 	private async trackVersionChange(): Promise<void> {
@@ -408,6 +472,13 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 			return;
 		}
 
+		if (!explicit && this.meteredConnectionService.isConnectionMetered) {
+			this.setDeferred(true);
+			this.logService.info('update#checkForUpdates - skipping automatic check because connection is metered');
+			return;
+		}
+
+		this.setDeferred(false);
 		this.doCheckForUpdates(explicit);
 	}
 
@@ -419,15 +490,31 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 		}
 
 		if (!explicit && this.meteredConnectionService.isConnectionMetered) {
+			this.setDeferred(true);
 			this.logService.info('update#downloadUpdate - skipping download because connection is metered');
 			return;
 		}
 
+		this.setDeferred(false);
 		await this.doDownloadUpdate(this.state);
 	}
 
 	protected async doDownloadUpdate(state: AvailableForDownload): Promise<void> {
 		// noop
+	}
+
+	protected resumeDeferredDownload(): void {
+		void this.downloadUpdate(false);
+	}
+
+	protected deferAutomaticDownload(update: IUpdate, explicit: boolean): boolean {
+		if (explicit || !this.meteredConnectionService.isConnectionMetered) {
+			return false;
+		}
+
+		this.logService.info('update#deferAutomaticDownload - deferring download because connection is metered');
+		this.setState(State.AvailableForDownload(update), { deferred: true });
+		return true;
 	}
 
 	async applyUpdate(): Promise<void> {
@@ -483,11 +570,16 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 	}
 
 	private async checkForOverwriteUpdates(explicit: boolean = false): Promise<boolean> {
-		if (this._state.type !== StateType.Ready) {
+		if (this.state.type !== StateType.Ready) {
 			return false;
 		}
 
-		const pendingUpdateCommit = this._state.update.version;
+		if (this.deferOverwriteCheckIfMetered(explicit)) {
+			return false;
+		}
+
+		this.setDeferred(false);
+		const pendingUpdateCommit = this.state.update.version;
 
 		if (!pendingUpdateCommit || pendingUpdateCommit === 'unknown') {
 			return false;
@@ -495,18 +587,23 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 
 		let isLatest: boolean | undefined;
 
+		const cts = new CancellationTokenSource();
 		try {
-			const cts = new CancellationTokenSource();
-			const timeoutPromise = timeout(2000).then(() => { cts.cancel(); return undefined; });
-			isLatest = await Promise.race([this.isLatestVersion(pendingUpdateCommit, cts.token), timeoutPromise]);
-			cts.dispose();
+			const timeoutPromise = timeout(2000, cts.token).then(() => { cts.cancel(); return undefined; });
+			isLatest = await Promise.race([this.doIsLatestVersion(pendingUpdateCommit, cts.token), timeoutPromise]);
 		} catch (error) {
 			this.logService.warn('update#checkForOverwriteUpdates(): failed to check for updates, proceeding with restart');
 			this.logService.warn(error);
 			return false;
+		} finally {
+			cts.dispose(true);
 		}
 
-		if (isLatest === false && this._state.type === StateType.Ready) {
+		if (isLatest === false && this.state.type === StateType.Ready) {
+			if (this.deferOverwriteCheckIfMetered(explicit)) {
+				return false;
+			}
+
 			this.logService.info('update#readyStateCheck: newer update available, restarting update machinery');
 
 			try {
@@ -517,8 +614,12 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 				return false;
 			}
 
+			if (this.deferOverwriteCheckIfMetered(explicit)) {
+				return false;
+			}
+
 			this._overwrite = true;
-			this.setState(State.Overwriting(this._state.update, explicit));
+			this.setState(State.Overwriting(this.state.update, explicit));
 			this.doCheckForUpdates(explicit, pendingUpdateCommit);
 			return true;
 		}
@@ -526,7 +627,26 @@ export abstract class AbstractUpdateService extends Disposable implements IUpdat
 		return false;
 	}
 
+	private deferOverwriteCheckIfMetered(explicit: boolean): boolean {
+		if (explicit || !this.meteredConnectionService.isConnectionMetered) {
+			return false;
+		}
+
+		this.setDeferred(true);
+		this.logService.info('update#checkForOverwriteUpdates - deferring overwrite because connection is metered');
+		return true;
+	}
+
 	async isLatestVersion(commit?: string, token: CancellationToken = CancellationToken.None): Promise<boolean | undefined> {
+		if (this.meteredConnectionService.isConnectionMetered) {
+			this.logService.info('update#isLatestVersion - skipping automatic check because connection is metered');
+			return undefined;
+		}
+
+		return this.doIsLatestVersion(commit, token);
+	}
+
+	protected async doIsLatestVersion(commit?: string, token: CancellationToken = CancellationToken.None): Promise<boolean | undefined> {
 		if (!this.quality) {
 			return undefined;
 		}

@@ -4,10 +4,16 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/daaain/Handlebars/commit/85a153a6f759df4e8da7533e1b3651f007867c51",
+	"version": "https://github.com/daaain/Handlebars/commit/0ffd0a2d95bfc052c3ff29a3eb4dd3749957b466",
 	"name": "Handlebars",
 	"scopeName": "text.html.handlebars",
 	"patterns": [
+		{
+			"include": "#escaped_backslash"
+		},
+		{
+			"include": "#escaped_expression"
+		},
 		{
 			"include": "#yfm"
 		},
@@ -43,6 +49,16 @@
 		}
 	],
 	"repository": {
+		"escaped_backslash": {
+			"comment": "A backslash escapes the following backslash, so each \\\\ pair renders as a single literal backslash. Only pairs that lead up to a mustache are meaningful for escaping (the lookahead), which is what lets an odd number of backslashes fall through to escaped_expression: the pairs are consumed here and the lone leftover backslash escapes the mustache.",
+			"match": "\\\\\\\\(?=\\\\*\\{{2,3})",
+			"name": "constant.character.escape.handlebars"
+		},
+		"escaped_expression": {
+			"comment": "A backslash escapes a mustache so it renders literally (\\{{foo}}); the escaped braces are consumed so the rest is plain text, not an expression. Any escaped-backslash pairs in front are consumed by escaped_backslash first, so this only ever sees the single leftover backslash of an odd-length run — an even run (e.g. \\\\{{foo}}) leaves no backslash here and the mustache evaluates normally.",
+			"match": "\\\\\\{{2,3}",
+			"name": "constant.character.escape.handlebars"
+		},
 		"html_tags": {
 			"patterns": [
 				{
@@ -369,7 +385,7 @@
 			]
 		},
 		"end_block": {
-			"begin": "(\\{\\{)(~?/)([a-zA-Z0-9/_\\.-]+)\\s*",
+			"begin": "(\\{\\{)(~?/)([\\p{L}\\p{N}/_\\.-]+)\\s*",
 			"end": "(~?\\}\\})",
 			"name": "meta.function.block.end.handlebars",
 			"endCaptures": {
@@ -398,8 +414,8 @@
 							"include": "source.yaml"
 						}
 					],
-					"begin": "(?<!\\s)---\\n$",
-					"end": "^---\\s",
+					"begin": "\\A-{3}$",
+					"end": "^-{3}$",
 					"name": "markup.raw.yaml.front-matter"
 				}
 			]
@@ -416,8 +432,8 @@
 							"include": "#comments"
 						}
 					],
-					"begin": "\\{\\{!",
-					"end": "\\}\\}",
+					"begin": "\\{\\{~?!",
+					"end": "~?\\}\\}",
 					"name": "comment.block.handlebars"
 				},
 				{
@@ -450,8 +466,8 @@
 							"include": "#comments"
 						}
 					],
-					"begin": "\\{\\{!--",
-					"end": "--\\}\\}",
+					"begin": "\\{\\{~?!--",
+					"end": "--~?\\}\\}",
 					"name": "comment.block.handlebars"
 				},
 				{
@@ -473,7 +489,7 @@
 			]
 		},
 		"block_helper": {
-			"begin": "(\\{\\{)(~?\\#)([-a-zA-Z0-9_\\./>]+)\\s?(@?[-a-zA-Z0-9_\\./]+)*\\s?(@?[-a-zA-Z0-9_\\./]+)*\\s?(@?[-a-zA-Z0-9_\\./]+)*",
+			"begin": "(\\{\\{)(~?\\#)([-\\p{L}\\p{N}_\\./>]+)\\s?(@?[-\\p{L}\\p{N}_\\./]+)*\\s?(@?[-\\p{L}\\p{N}_\\./]+)*\\s?(@?[-\\p{L}\\p{N}_\\./]+)*",
 			"end": "(~?\\}\\})",
 			"name": "meta.function.block.start.handlebars",
 			"endCaptures": {
@@ -570,7 +586,7 @@
 			"match": "\\\\\""
 		},
 		"partial_and_var": {
-			"begin": "(\\{\\{~?\\{*(>|!<)*)\\s*(@?[-a-zA-Z0-9$_\\./]+)*",
+			"begin": "(\\{\\{~?\\{*(>|!<)*)\\s*(@?[-\\p{L}\\p{N}$_\\./]+)*",
 			"end": "(~?\\}\\}\\}*)",
 			"name": "meta.function.inline.other.handlebars",
 			"beginCaptures": {
@@ -596,7 +612,7 @@
 			]
 		},
 		"handlebars_attribute_name": {
-			"begin": "\\b([-a-zA-Z0-9_\\.]+)\\b=",
+			"begin": "\\b([-\\p{L}\\p{N}_\\.]+)\\b=",
 			"captures": {
 				"1": {
 					"name": "variable.parameter.handlebars"
@@ -606,7 +622,7 @@
 			"name": "entity.other.attribute-name.handlebars"
 		},
 		"handlebars_attribute_value": {
-			"begin": "([-a-zA-Z0-9_\\./]+)\\b",
+			"begin": "([-\\p{L}\\p{N}_\\./]+)\\b",
 			"captures": {
 				"1": {
 					"name": "variable.parameter.handlebars"
@@ -634,7 +650,7 @@
 			"patterns": [
 				{
 					"end": "(\\}\\})",
-					"begin": "(\\{\\{!<)\\s([-a-zA-Z0-9_\\./]+)",
+					"begin": "(\\{\\{!<)\\s([-\\p{L}\\p{N}_\\./]+)",
 					"beginCaptures": {
 						"1": {
 							"name": "support.function.handlebars"
@@ -653,7 +669,7 @@
 			]
 		},
 		"else_token": {
-			"begin": "(\\{\\{)(~?else)(@?\\s(if)\\s([-a-zA-Z0-9_\\.\\(\\s\\)/]+))?",
+			"begin": "(\\{\\{)(~?else)(@?\\s(if)\\s([-\\p{L}\\p{N}_\\.\\(\\s\\)/]+))?",
 			"end": "(~?\\}\\}\\}*)",
 			"name": "meta.function.inline.else.handlebars",
 			"beginCaptures": {
@@ -715,19 +731,13 @@
 			]
 		},
 		"inline_script": {
-			"begin": "(?:^\\s+)?(<)((?i:script))\\b(?:.*(type)=([\"'](?:text/x-handlebars-template|text/x-handlebars|text/template|x-tmpl-handlebars)[\"']))(?![^>]*/>)",
+			"begin": "(?:^\\s+)?(<)((?i:script))\\b(?=[^>]*\\stype=[\"'](?:text/x-handlebars-template|text/x-handlebars|text/template|x-tmpl-handlebars)[\"'])(?![^>]*/>)",
 			"beginCaptures": {
 				"1": {
 					"name": "punctuation.definition.tag.html"
 				},
 				"2": {
 					"name": "entity.name.tag.script.html"
-				},
-				"3": {
-					"name": "entity.other.attribute-name.html"
-				},
-				"4": {
-					"name": "string.quoted.double.html"
 				}
 			},
 			"end": "(?<=</(script|SCRIPT))(>)(?:\\s*\\n)?",
@@ -753,6 +763,12 @@
 					},
 					"end": "(</)((?i:script))",
 					"patterns": [
+						{
+							"include": "#escaped_backslash"
+						},
+						{
+							"include": "#escaped_expression"
+						},
 						{
 							"include": "#block_comments"
 						},

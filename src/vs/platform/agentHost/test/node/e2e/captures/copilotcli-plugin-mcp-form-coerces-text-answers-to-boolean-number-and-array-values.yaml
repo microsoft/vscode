@@ -1,0 +1,35 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call customization_elicit_coercion exactly once, then reply with only its exact result.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: customization_probe_server-customization_elicit_coercion
+          input: {}
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call customization_elicit_coercion exactly once, then reply with only its exact result.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: customization_probe_server-customization_elicit_coercion
+              input: {}
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: COERCION:boolean:false:number:4.5:array:Blue:string:Banana
+    response:
+      content: COERCION:boolean:false:number:4.5:array:Blue:string:Banana
+      stopReason: end_turn

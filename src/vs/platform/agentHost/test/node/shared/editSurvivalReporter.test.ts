@@ -15,6 +15,8 @@ import { InMemoryFileSystemProvider } from '../../../../files/common/inMemoryFil
 import { NullLogService } from '../../../../log/common/log.js';
 import { NullTelemetryServiceShape } from '../../../../telemetry/common/telemetryUtils.js';
 import { EditSurvivalReporterFactory } from '../../../node/shared/editSurvivalReporter.js';
+import { AgentHostClientType } from '../../../common/agentHostClientInfo.js';
+import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind } from '../../../common/agentHostTelemetry.js';
 import { buildDefaultChatUri } from '../../../common/state/sessionState.js';
 
 class RecordingTelemetryService extends NullTelemetryServiceShape {
@@ -48,6 +50,14 @@ suite('agentHost editSurvivalReporter', () => {
 		await fileService.writeFile(URI.file('/workspace/a.ts'), VSBuffer.fromString('after-text'));
 
 		const reporter = factory.launch({
+			clientContext: {
+				clientType: AgentHostClientType.EditorWindow,
+				connectionKind: AgentHostClientConnectionKind.RemoteExtensionHost,
+				transportKind: AgentHostTransportKind.MessagePort,
+				hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
+				machineId: 'client-machine-id',
+				devDeviceId: 'client-dev-device-id',
+			},
 			sessionUri: 'claude:/session-1',
 			turnId: 'turn-1',
 			toolCallId: 'tc-1',
@@ -74,6 +84,12 @@ suite('agentHost editSurvivalReporter', () => {
 		assert.strictEqual(data.agentSessionId, 'session-1');
 		assert.strictEqual(data.turnId, 'turn-1');
 		assert.strictEqual(data.toolCallId, 'tc-1');
+		assert.strictEqual(data.initiatorClientType, 'editor_window');
+		assert.strictEqual(data.initiatorConnectionKind, 'remote_extension_host');
+		assert.strictEqual(data.initiatorTransportKind, 'message_port');
+		assert.strictEqual(data.hostLaunchKind, 'vscode_main_process');
+		assert.strictEqual(data.initiatorMachineId, 'client-machine-id');
+		assert.strictEqual(data.initiatorDevDeviceId, 'client-dev-device-id');
 		assert.strictEqual(data.fileExtension, '.ts');
 		assert.strictEqual(data.timeDelayMs, 0);
 		assert.strictEqual(data.didFileGetDeleted, 0);
@@ -97,6 +113,7 @@ suite('agentHost editSurvivalReporter', () => {
 			isCreate: false,
 			aiChunks: ['after-text'],
 		});
+
 		disposables.add(reporter);
 
 		await timeout(50);
@@ -104,6 +121,19 @@ suite('agentHost editSurvivalReporter', () => {
 		const data = telemetry.events[0].data as Record<string, unknown>;
 		assert.strictEqual(data.provider, 'claude');
 		assert.strictEqual(data.agentSessionId, 'session-9');
+	});
+
+	test('standard session samples retain their explicit provider', async () => {
+		await fileService.writeFile(URI.file('/workspace/standard.ts'), VSBuffer.fromString('after-text'));
+		const reporter = factory.launch({
+			sessionUri: 'ahp-session:/standard', provider: 'claude', turnId: 'turn-1', toolCallId: 'tc-standard',
+			filePath: '/workspace/standard.ts', beforeText: 'before-text', afterText: 'after-text',
+			isCreate: false, modelId: 'model', toolName: 'Edit',
+		});
+		disposables.add(reporter);
+		await timeout(50);
+		const data = telemetry.events[0].data as Record<string, unknown>;
+		assert.deepStrictEqual([data.provider, data.agentSessionId], ['claude', 'standard']);
 	});
 
 	test('emits a delete event when the file is missing', async () => {

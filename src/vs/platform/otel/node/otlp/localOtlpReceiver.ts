@@ -18,11 +18,13 @@ const DEFAULT_MAX_BODY_BYTES = 64 * 1024 * 1024;
 
 /** Callbacks the receiver invokes for each accepted request. */
 export interface IOtlpReceiverHandlers {
+	/** Optionally rewrite an OTLP/JSON request before local decode and forwarding. Throwing rejects the request. */
+	transformBody?(body: Buffer): Buffer;
 	/** Invoked with the decoded spans for every successfully-parsed request. */
 	onSpans(result: IDecodeResult): void;
 	/**
-	 * Invoked with the raw request body and content-type so the caller can
-	 * forward the bytes to an upstream collector unchanged. Called before
+	 * Invoked with the transformed request body (or the original when no transform is configured)
+	 * and content-type so the caller can forward the bytes to an upstream collector. Called before
 	 * the receiver responds, but failures here MUST NOT affect the response.
 	 */
 	onForward?(body: Buffer, contentType: string): void;
@@ -152,8 +154,19 @@ async function handleRequest(
 		return;
 	}
 
+	if (handlers.transformBody) {
+		try {
+			body = handlers.transformBody(body);
+		} catch {
+			// A transform may enforce policy, and its error may contain unredacted payload data.
+			logService.warn('[agentHost-otel] request transformation failed; rejecting telemetry payload');
+			writePlain(res, 400, 'invalid telemetry payload');
+			return;
+		}
+	}
+
 	// Best-effort forward of raw bytes BEFORE decoding so the upstream
-	// collector sees an identical payload to what the SDK emitted. Failures
+	// collector sees the normalized payload. Failures
 	// here are isolated from the local-decode path.
 	if (handlers.onForward) {
 		try {

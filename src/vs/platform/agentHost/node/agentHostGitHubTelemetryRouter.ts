@@ -14,6 +14,7 @@ const enum TelemetryDestination {
 const targetDestinations = new Map<string, TelemetryDestination>([
 	['engine.messages', TelemetryDestination.EnhancedGH],
 	['engine.messages.length', TelemetryDestination.EnhancedGH | TelemetryDestination.InternalMSFT],
+	['conversation.repetition.detected', TelemetryDestination.EnhancedGH],
 	['model.message.added', TelemetryDestination.InternalMSFT],
 	['model.modelCall.input', TelemetryDestination.InternalMSFT],
 	['model.modelCall.output', TelemetryDestination.InternalMSFT],
@@ -29,7 +30,7 @@ export class AgentHostGitHubTelemetryRouter {
 		return targetDestinations.has(notification.event.kind);
 	}
 
-	route(notification: GitHubTelemetryNotification, context?: IAgentHostRestrictedTelemetryContext): boolean {
+	async route(notification: GitHubTelemetryNotification, context?: IAgentHostRestrictedTelemetryContext, additionalProperties?: TelemetryProps): Promise<boolean> {
 		const { event } = notification;
 		const eventName = event.kind;
 		const destinations = targetDestinations.get(eventName);
@@ -43,10 +44,12 @@ export class AgentHostGitHubTelemetryRouter {
 			return true;
 		}
 
-		const properties: TelemetryProps = event.model_call_id && event.properties.modelCallId === undefined
-			? { ...event.properties, modelCallId: event.model_call_id }
-			: event.properties;
-		const multiplexedProperties = multiplexProperties(properties);
+		const properties: TelemetryProps = {
+			...event.properties,
+			...(event.model_call_id && event.properties.modelCallId === undefined ? { modelCallId: event.model_call_id } : {}),
+			...additionalProperties,
+		};
+		const multiplexedProperties = await multiplexProperties(properties);
 		if ((destinations & TelemetryDestination.EnhancedGH) && context.restrictedTelemetryEnabled) {
 			this._telemetryService.sendEnhancedGHTelemetryEventForContext(context, eventName, multiplexedProperties, event.metrics);
 		}

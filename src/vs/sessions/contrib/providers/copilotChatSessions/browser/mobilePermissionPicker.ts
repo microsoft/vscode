@@ -7,6 +7,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { localize } from '../../../../../nls.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
+import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
@@ -14,7 +15,8 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
-import { ChatConfiguration, ChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
+import { ChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
+import { getPermissionLevelBadge } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
 import { DEFAULT_PERMISSION_LEVELS, IPermissionPickerDelegate, PermissionPicker } from './permissionPicker.js';
 import { isPhoneLayout } from '../../../../browser/parts/mobile/mobileLayout.js';
 import { IMobilePickerSheetItem, showMobilePickerSheet } from '../../../../browser/parts/mobile/mobilePickerSheet.js';
@@ -42,20 +44,25 @@ export class MobilePermissionPicker extends PermissionPicker {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService,
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
+		@IAgentHostEnablementService agentHostEnablementService: IAgentHostEnablementService,
 	) {
-		super(_delegate, actionWidgetService, configurationService, dialogService, openerService, storageService, telemetryService, hoverService);
+		super(_delegate, actionWidgetService, configurationService, dialogService, openerService, storageService, telemetryService, hoverService, agentHostEnablementService);
 	}
 
 	override showPicker(): void {
-		if (!this._triggerElement || this.actionWidgetService.isVisible) {
+		this._showPicker();
+	}
+
+	protected override _showPicker(): void {
+		if (!this._triggerElement || this.actionWidgetService.isVisible || this._isResolving()) {
 			return;
 		}
 		if (!isPhoneLayout(this._layoutService)) {
-			super.showPicker();
+			super._showPicker();
 			return;
 		}
 
-		const policyRestricted = this.configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
+		const policyRestricted = this._isPolicyRestricted();
 
 		const levels = this._delegate.availableLevels ?? DEFAULT_PERMISSION_LEVELS;
 		const items: IMobilePickerSheetItem[] = levels.map(level => {
@@ -63,6 +70,7 @@ export class MobilePermissionPicker extends PermissionPicker {
 			return {
 				id: level,
 				label: meta.label,
+				badge: getPermissionLevelBadge(level).badge,
 				description: meta.detail,
 				icon: meta.icon,
 				checked: this._currentLevel === level,

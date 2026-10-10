@@ -140,6 +140,11 @@ export class WebviewViewPane extends ViewPane {
 		this.layoutWebview();
 	}
 
+	protected override layoutBody(height: number, width: number): void {
+		super.layoutBody(height, width);
+		this.layoutWebview();
+	}
+
 	public override saveState() {
 		if (this._webview.value) {
 			this.viewState[storageKeys.webviewState] = this._webview.value.state;
@@ -207,6 +212,10 @@ export class WebviewViewPane extends ViewPane {
 
 		const source = this._webviewDisposables.add(new CancellationTokenSource());
 
+		// Cancel in-flight revival when the webview is torn down (dispose or re-activation)
+		// so the webview view service drops any pending `_awaitingRevival` entry for this view.
+		this._webviewDisposables.add(toDisposable(() => source.cancel()));
+
 		this.withProgress(async () => {
 			await this.extensionService.activateByEvent(`onView:${this.id}`);
 
@@ -260,6 +269,8 @@ export class WebviewViewPane extends ViewPane {
 				priority: 150
 			};
 			this.activity.value = this.activityService.showViewActivity(this.id, activity);
+		} else {
+			this.activity.clear();
 		}
 	}
 

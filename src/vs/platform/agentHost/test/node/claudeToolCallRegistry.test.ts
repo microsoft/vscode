@@ -69,7 +69,7 @@ suite('claudeToolCallRegistry — Phase 8.5 input/info tracking', () => {
 			{
 				parsedInput: undefined,
 				displayName: 'Read file',
-				invocationMessage: 'Reading file',
+				invocationMessage: 'Read file',
 				toolInput: '{not valid json',
 			},
 		);

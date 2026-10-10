@@ -1,0 +1,43 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Call send_message exactly once with session "codex:/${uuid_0}" and message "loop", then reply exactly "refused".
+    response:
+      content:
+        - type: text
+          text: Understood — I’ll send that one message now.
+        - type: tool_use
+          id: toolcall_0
+          name: send_message
+          input:
+            session: codex:/${uuid_0}
+            message: loop
+      stopReason: tool_use
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Call send_message exactly once with session "codex:/${uuid_0}" and message "loop", then reply exactly "refused".
+        - role: assistant
+          content: Understood — I’ll send that one message now.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: send_message
+              input:
+                session: codex:/${uuid_0}
+                message: loop
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'Server tool send_message failed: Invalid send_message input: refusing to send a message to the current chat.'
+    response:
+      content: refused
+      stopReason: end_turn

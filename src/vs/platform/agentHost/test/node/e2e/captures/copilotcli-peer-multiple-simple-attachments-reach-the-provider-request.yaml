@@ -1,0 +1,24 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content:
+            - type: text
+              text: Reply exactly "attachments".
+            - type: text
+              text: |-
+                <attachment mimeType="text/plain" name="first">
+                PEER_FIRST_ATTACHMENT
+                </attachment>
+            - type: text
+              text: |-
+                <attachment mimeType="text/plain" name="second">
+                PEER_SECOND_ATTACHMENT
+                </attachment>
+    response:
+      content: attachments
+      stopReason: end_turn

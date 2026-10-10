@@ -5,29 +5,56 @@
 
 import { isUNC } from '../../../base/common/extpath.js';
 import { Schemas } from '../../../base/common/network.js';
+import { isWindows } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
 import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
 
 export function isWebviewResourceAllowed(resource: URI, roots: readonly URI[], uriIdentityService: IUriIdentityService): boolean {
 	const resourceWithoutQuery = resource.with({ query: '' });
-	for (const root of roots) {
-		if (uriIdentityService.extUri.isEqual(root, resourceWithoutQuery, true)) {
-			continue;
-		}
+	if (hasWindowsParentTraversalSegment(resourceWithoutQuery)) {
+		return false;
+	}
+	return roots.some(root => containsResource(root, resourceWithoutQuery, uriIdentityService));
+}
 
-		// Compare UNC paths case-insensitively.
-		if (root.scheme === Schemas.file && isUNC(root.fsPath)) {
-			if (resourceWithoutQuery.scheme === Schemas.file && isUNC(resourceWithoutQuery.fsPath)
-				&& uriIdentityService.extUri.isEqualOrParent(
-					resourceWithoutQuery.with({ path: resourceWithoutQuery.path.toLowerCase(), authority: resourceWithoutQuery.authority.toLowerCase() }),
-					root.with({ path: root.path.toLowerCase(), authority: root.authority.toLowerCase() }),
-					true,
-				)) {
-				return true;
-			}
-		} else if (uriIdentityService.extUri.isEqualOrParent(resourceWithoutQuery, root, true)) {
-			return true;
+function containsResource(root: URI, resource: URI, uriIdentityService: IUriIdentityService): boolean {
+	// Normalize backslashes for non-file schemes that may target Windows remotes.
+	if (root.scheme !== Schemas.file) {
+		const normalizedPath = resource.path.replace(/\\/g, '/');
+		if (normalizedPath !== resource.path) {
+			resource = resource.with({ path: normalizedPath });
 		}
 	}
-	return false;
+
+	if (uriIdentityService.extUri.isEqual(root, resource, /* ignoreFragment */ true)) {
+		return false;
+	}
+
+	// Compare unc paths case-insensitively
+	if (root.scheme === Schemas.file && isUNC(root.fsPath)) {
+		if (resource.scheme === Schemas.file && isUNC(resource.fsPath)) {
+			return uriIdentityService.extUri.isEqualOrParent(
+				resource.with({
+					path: resource.path.toLowerCase(),
+					authority: resource.authority.toLowerCase()
+				}),
+				root.with({
+					path: root.path.toLowerCase(),
+					authority: root.authority.toLowerCase()
+				}),
+				/* ignoreFragment */ true
+			);
+		}
+		return false;
+	}
+
+	return uriIdentityService.extUri.isEqualOrParent(resource, root, /* ignoreFragment */ true);
+}
+
+const WINDOWS_PARENT_TRAVERSAL_SEGMENT = /(?:^|[\\/])\.\. +(?=$|[\\/])/;
+
+function hasWindowsParentTraversalSegment(resource: URI): boolean {
+	return isWindows
+		&& resource.scheme === Schemas.file
+		&& WINDOWS_PARENT_TRAVERSAL_SEGMENT.test(resource.path);
 }

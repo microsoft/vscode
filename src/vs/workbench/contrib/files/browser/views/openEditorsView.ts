@@ -55,9 +55,28 @@ import { ILocalizedString } from '../../../../../platform/action/common/action.j
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { EditorGroupView } from '../../../../browser/parts/editor/editorGroupView.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
+import { EventType as TouchEventType, Gesture } from '../../../../../base/browser/touch.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 
 const $ = dom.$;
+
+/**
+ * Finds the first editor with unsaved changes in index order, i.e. the first
+ * unsaved editor of the first group that has one.
+ */
+export function findFirstDirtyEditor(groups: readonly IEditorGroup[]): OpenEditor | undefined {
+	for (const group of groups) {
+		for (const editor of group.editors) {
+			if (editor.isDirty()) {
+				return new OpenEditor(editor, group);
+			}
+		}
+	}
+
+	return undefined;
+}
 
 export class OpenEditorsView extends ViewPane {
 
@@ -191,7 +210,33 @@ export class OpenEditorsView extends ViewPane {
 		this.dirtyCountElement.style.color = asCssVariable(badgeForeground);
 		this.dirtyCountElement.style.border = `1px solid ${asCssVariable(contrastBorder)}`;
 
+		// The badge acts as a shortcut to the first editor with unsaved changes
+		this.dirtyCountElement.tabIndex = 0;
+		this.dirtyCountElement.setAttribute('role', 'button');
+		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this.dirtyCountElement, nls.localize('openUnsavedEditor', "Open Unsaved Editor")));
+		this._register(Gesture.addTarget(this.dirtyCountElement));
+		for (const eventType of [dom.EventType.CLICK, TouchEventType.Tap]) {
+			this._register(dom.addDisposableListener(this.dirtyCountElement, eventType, e => {
+				dom.EventHelper.stop(e, true); // prevent the pane from toggling its expanded state
+				this.openFirstDirtyEditor();
+			}));
+		}
+		this._register(dom.addDisposableListener(this.dirtyCountElement, dom.EventType.KEY_DOWN, e => {
+			const event = new StandardKeyboardEvent(e);
+			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
+				dom.EventHelper.stop(e, true); // prevent the pane from toggling its expanded state
+				this.openFirstDirtyEditor();
+			}
+		}));
+
 		this.updateDirtyIndicator();
+	}
+
+	private openFirstDirtyEditor(): void {
+		const openEditor = findFirstDirtyEditor(this.editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE));
+		if (openEditor) {
+			this.openEditor(openEditor, { pinned: true });
+		}
 	}
 
 	protected override renderBody(container: HTMLElement): void {
@@ -540,6 +585,7 @@ export class OpenEditorsView extends ViewPane {
 			this.dirtyCountElement.classList.add('hidden');
 		} else {
 			this.dirtyCountElement.textContent = nls.localize('dirtyCounter', "{0} unsaved", dirty);
+			this.dirtyCountElement.setAttribute('aria-label', nls.localize('dirtyCounterAriaLabel', "{0} unsaved, open unsaved editor", dirty));
 			this.dirtyCountElement.classList.remove('hidden');
 		}
 	}

@@ -23,13 +23,19 @@ import { AgentSessionApprovalModel } from '../../../../workbench/contrib/chat/br
 export const IGNORE_INPUT_NEEDED_COMMAND_ID = 'sessions.blockedSessions.ignoreInputNeeded';
 export const IGNORE_CI_FAILURE_COMMAND_ID = 'sessions.blockedSessions.ignoreCIFailure';
 
+export interface IBlockedSessionsHeaderActionContext {
+	readonly showAllSessions: () => void;
+	readonly ignoreAllSessions: () => void;
+	readonly close: () => void;
+}
+
 /** Register the actions shown in blocked-session row toolbars. */
 export function registerBlockedSessionsItemActions(): IDisposable {
 	return combinedDisposable(
 		MenuRegistry.appendMenuItem(Menus.BlockedSessionsItem, {
 			command: {
 				id: IGNORE_INPUT_NEEDED_COMMAND_ID,
-				title: localize('ignoreInputNeeded', "Ignore Input Needed"),
+				title: localize('ignoreInputNeeded', "Ignore Needs Attention Alert"),
 				icon: Codicon.bellSlash,
 			},
 			group: 'navigation',
@@ -67,6 +73,12 @@ export interface IBlockedSessionsListOptions {
 	readonly ciFixModel?: ISessionCIFixModel;
 	/** Ignores the session's current blocked occurrence. */
 	readonly onIgnoreSession: (session: ISession) => void;
+	/** Opens the full sessions picker. */
+	readonly onShowAllSessions: () => void;
+	/** Ignores every blocked occurrence currently shown. */
+	readonly onIgnoreAllSessions: () => void;
+	/** Closes the surrounding blocked-sessions overlay. */
+	readonly onClose: () => void;
 }
 
 /**
@@ -107,10 +119,20 @@ export class BlockedSessionsList extends Disposable {
 		// right (e.g. the action that opens the full sessions picker).
 		const header = append(element, $('.agent-sessions-blocked-list-header'));
 		const title = append(header, $('.agent-sessions-blocked-list-title'));
-		title.textContent = localize('sessionsRequiringInput', "Sessions requiring input");
+		title.textContent = localize('sessionsRequiringInput', "Sessions needing attention");
 		const headerActions = append(header, $('.agent-sessions-blocked-list-header-actions'));
 		this._register(instantiationService.createInstance(MenuWorkbenchToolBar, headerActions, Menus.BlockedSessionsHeader, {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
+			menuOptions: {
+				arg: {
+					showAllSessions: options.onShowAllSessions,
+					ignoreAllSessions: () => {
+						options.onIgnoreAllSessions();
+						status(localize('allInputNeededIgnored', "All current blocked sessions were ignored."));
+					},
+					close: options.onClose,
+				} satisfies IBlockedSessionsHeaderActionContext,
+			},
 			toolbarOptions: { primaryGroup: () => true },
 			telemetrySource: 'blockedSessionsList.header',
 		}));
@@ -124,13 +146,14 @@ export class BlockedSessionsList extends Disposable {
 			ciFixModel: options.ciFixModel,
 			approvalRowMaxLines: BLOCKED_LIST_APPROVAL_ROW_MAX_LINES,
 			toolbarMenuId: Menus.BlockedSessionsItem,
+			toolbarTelemetrySource: 'blockedSessionsList.row',
 			onToolbarAction: (action, session) => {
 				if (action.id !== IGNORE_INPUT_NEEDED_COMMAND_ID && action.id !== IGNORE_CI_FAILURE_COMMAND_ID) {
 					return false;
 				}
 				options.onIgnoreSession(session);
 				status(action.id === IGNORE_INPUT_NEEDED_COMMAND_ID
-					? localize('inputNeededIgnored', "Input needed ignored until this session needs input again.")
+					? localize('inputNeededIgnored', "Needs attention alert ignored until this session needs attention again.")
 					: localize('ciFailureIgnored', "CI failure ignored until this session has another CI failure."));
 				return true;
 			},

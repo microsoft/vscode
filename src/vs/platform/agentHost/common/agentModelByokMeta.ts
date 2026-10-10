@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { SessionModelInfo } from './state/protocol/state.js';
-import type { IAgentModelInfo } from './agentService.js';
+import type { IAgentModelInfo } from './agent.js';
 
 /**
  * Well-known key for the renderer LM-service identifier of the BYOK model an

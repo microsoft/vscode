@@ -5,8 +5,7 @@
 
 import { localize, localize2 } from '../../../../../nls.js';
 import { $ } from '../../../../../base/browser/dom.js';
-import { disposableTimeout } from '../../../../../base/common/async.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { KeyMod, KeyCode } from '../../../../../base/common/keyCodes.js';
@@ -58,6 +57,9 @@ const CONTEXT_BROWSER_CAN_GO_FORWARD = new RawContextKey<boolean>('browserCanGoF
 class BrowserNavigationBar extends Disposable {
 	readonly element: HTMLElement;
 	private readonly _urlBar: BrowserUrlBarWidget;
+	private readonly _navToolbar: MenuWorkbenchToolBar;
+	private readonly _contributionListeners = this._register(new DisposableStore());
+	private _contributions: readonly BrowserEditorContribution[] = [];
 
 	constructor(
 		editor: BrowserEditor,
@@ -84,22 +86,32 @@ class BrowserNavigationBar extends Disposable {
 		));
 
 		const navContainer = $('.browser-nav-toolbar');
-		const navToolbar = this._register(scopedInstantiationService.createInstance(
+		this._navToolbar = this._register(scopedInstantiationService.createInstance(
 			MenuWorkbenchToolBar,
 			navContainer,
 			MenuId.BrowserNavigationToolbar,
 			{
 				hoverDelegate,
 				highlightToggledItems: true,
+				actionViewItemProvider: (action, options) => {
+					for (const contribution of this._contributions) {
+						const viewItem = contribution.getActionViewItem(action, options, scopedInstantiationService);
+						if (viewItem) {
+							return viewItem;
+						}
+					}
+					return undefined;
+				},
 				// Render all actions inline regardless of group.
 				toolbarOptions: { primaryGroup: () => true, useSeparatorsInPrimaryActions: true },
 				menuOptions: { shouldForwardArgs: true }
 			}
 		));
-		navToolbar.context = editor;
+		this._navToolbar.context = editor;
 
 		const urlBarHost: IBrowserUrlBarHost = {
 			get input() { return editor.input instanceof BrowserEditorInput ? editor.input : undefined; },
+			get isReadonly() { return editor.input instanceof BrowserEditorInput && editor.input.associatedResource !== undefined; },
 			ensureBrowserFocus: () => editor.ensureBrowserFocus(),
 			getPrimaryActions: (text) => this._resolvePrimaryActions(text),
 			getPlaceholder: () => this._searchEngine
@@ -148,7 +160,15 @@ class BrowserNavigationBar extends Disposable {
 	openUrlPicker(): void { this._urlBar.openUrlPicker(); }
 	clear(): void { this._urlBar.clear(); }
 
-	mountContributions(contributions: readonly BrowserEditorContribution[]): void { this._urlBar.mountContributions(contributions); }
+	mountContributions(contributions: readonly BrowserEditorContribution[]): void {
+		this._contributions = contributions;
+		this._contributionListeners.clear();
+		for (const contribution of contributions) {
+			this._contributionListeners.add(contribution.onDidChangeActionViewItems(() => this._navToolbar.refresh()));
+		}
+		this._navToolbar.refresh();
+		this._urlBar.mountContributions(contributions);
+	}
 
 	/**
 	 * The configured address bar search engine, or `undefined` when search
@@ -216,14 +236,6 @@ export class BrowserNavigationFeatures extends BrowserEditorContribution {
 	private readonly _navbar: BrowserNavigationBar;
 	private readonly _canGoBackContext: IContextKey<boolean>;
 	private readonly _canGoForwardContext: IContextKey<boolean>;
-	private readonly _pendingTryFocus = this._register(new MutableDisposable());
-
-	/**
-	 * Whether a navigation has been initiated on the current tab. Once true,
-	 * an empty URL means "navigation in flight" rather than "fresh tab", so
-	 * {@link tryFocus} keeps focus on the page instead of reopening the picker.
-	 */
-	private _hasInitiatedNavigation = false;
 
 	constructor(
 		editor: BrowserEditor,
@@ -267,44 +279,17 @@ export class BrowserNavigationFeatures extends BrowserEditorContribution {
 	}
 
 	protected override onModelAttached(model: IBrowserViewModel, store: DisposableStore): void {
-		// A model that is already loading on attach (e.g. switching back to a
-		// tab mid-navigation) counts as having initiated navigation.
-		this._hasInitiatedNavigation = model.loading;
 		this._updateFromModel(model);
 		store.add(model.onDidNavigate(() => this._updateFromModel(model)));
 		store.add(model.onWillNavigate(url => {
-			this._hasInitiatedNavigation = true;
 			this._navbar.previewUrl(url);
 		}));
 	}
 
 	override onModelDetached(): void {
-		this._hasInitiatedNavigation = false;
 		this._navbar.clear();
 		this._canGoBackContext.reset();
 		this._canGoForwardContext.reset();
-	}
-
-	override tryFocus(): boolean {
-		const input = this.editor.input;
-
-		// Defer one tick so editor-tab activation can focus the tab control first;
-		// then we move focus into the browser editor's URL flow.
-		this._pendingTryFocus.value = disposableTimeout(() => {
-			if (this.editor.input !== input) {
-				return;
-			}
-
-			// A new tab (no URL loaded) auto-opens the picker so the user can immediately type / browse suggestions.
-			// Otherwise we move focus into the browser editor so it doesn't stay on the tab control.
-			const url = this.editor.model?.url ?? (input instanceof BrowserEditorInput ? input.url : undefined);
-			if (!url && !this._hasInitiatedNavigation) {
-				this._navbar.openUrlPicker();
-			} else {
-				this.editor.ensureBrowserFocus();
-			}
-		}, 0);
-		return true;
 	}
 
 	private _updateFromModel(model: IBrowserViewModel): void {

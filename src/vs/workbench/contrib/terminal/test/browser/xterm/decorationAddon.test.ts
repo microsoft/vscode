@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { IDecoration, IDecorationOptions, Terminal as RawXtermTerminal } from '@xterm/xterm';
-import { notEqual, strictEqual, throws } from 'assert';
+import { deepStrictEqual, notEqual, strictEqual, throws } from 'assert';
 import { importAMDNodeModule } from '../../../../../../amdX.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { ITerminalCommand, TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { CommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/commandDetectionCapability.js';
 import { TerminalCapabilityStore } from '../../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
@@ -20,8 +21,12 @@ suite('DecorationAddon', () => {
 
 	let decorationAddon: DecorationAddon;
 	let xterm: RawXtermTerminal;
+	let hoverDisposed: boolean;
+	let removedEventListeners: string[];
 
 	setup(async () => {
+		hoverDisposed = false;
+		removedEventListeners = [];
 		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
 		class TestTerminal extends TerminalCtor {
 			override registerDecoration(decorationOptions: IDecorationOptions): IDecoration | undefined {
@@ -29,7 +34,33 @@ suite('DecorationAddon', () => {
 					return undefined;
 				}
 				const element = document.createElement('div');
-				return { marker: decorationOptions.marker, element, onDispose: () => { }, isDisposed: false, dispose: () => { }, onRender: (element: HTMLElement) => { return element; } } as unknown as IDecoration;
+				const removeEventListener = element.removeEventListener.bind(element);
+				element.removeEventListener = ((...args: Parameters<typeof element.removeEventListener>) => {
+					removedEventListeners.push(args[0]);
+					removeEventListener(...args);
+				}) as typeof element.removeEventListener;
+				const disposeListeners = new Set<() => void>();
+				let isDisposed = false;
+				return {
+					marker: decorationOptions.marker,
+					element,
+					onDispose: (listener: () => void) => {
+						disposeListeners.add(listener);
+						return { dispose: () => disposeListeners.delete(listener) };
+					},
+					get isDisposed() { return isDisposed; },
+					dispose: () => {
+						isDisposed = true;
+						for (const listener of disposeListeners) {
+							listener();
+						}
+						disposeListeners.clear();
+					},
+					onRender: (listener: (element: HTMLElement) => void) => {
+						listener(element);
+						return { dispose: () => { } };
+					}
+				} as unknown as IDecoration;
 			}
 		}
 
@@ -48,6 +79,9 @@ suite('DecorationAddon', () => {
 				}
 			})
 		}, store);
+		instantiationService.stub(IHoverService, {
+			setupDelayedHover: () => ({ dispose: () => hoverDisposed = true })
+		} as unknown as IHoverService);
 		xterm = store.add(new TestTerminal({
 			allowProposedApi: true,
 			cols: 80,
@@ -76,6 +110,17 @@ suite('DecorationAddon', () => {
 		test('should return decoration with mark properties', async () => {
 			const marker = xterm.registerMarker(2);
 			notEqual(decorationAddon.registerCommandDecoration(undefined, undefined, { marker }), undefined);
+		});
+		test('should dispose decoration resources when the decoration is disposed', () => {
+			const marker = xterm.registerMarker(2)!;
+			const decoration = decorationAddon.registerCommandDecoration({ command: 'cd src', marker, exitCode: 0, timestamp: Date.now(), hasOutput: () => false } as ITerminalCommand)!;
+			const decorations = (decorationAddon as unknown as { _decorations: Map<number, unknown> })._decorations;
+
+			decoration.dispose();
+
+			strictEqual(hoverDisposed, true);
+			deepStrictEqual(removedEventListeners.sort(), ['click', 'contextmenu', 'mousedown']);
+			strictEqual(decorations.has(marker.id), false);
 		});
 	});
 });

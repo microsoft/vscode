@@ -130,6 +130,7 @@ class UtilityProcessWorker extends Disposable {
 			type: this.configuration.process.type,
 			name: this.configuration.process.name,
 			entryPoint: this.configuration.process.moduleId,
+			allowLoadingUnsignedLibraries: this.configuration.process.allowLoadingUnsignedLibraries,
 			parentLifecycleBound: windowPid,
 			windowLifecycleBound: true,
 			correlationId: `${this.configuration.reply.windowId}`,

@@ -36,6 +36,7 @@ export const BUILTIN_STORAGE = AICustomizationSources.builtin;
  * Possible section IDs for the AI Customization Management Editor sidebar.
  */
 export const AICustomizationManagementSection = {
+	Marketplace: 'marketplace',
 	Agents: 'agents',
 	Skills: 'skills',
 	Instructions: 'instructions',
@@ -46,9 +47,32 @@ export const AICustomizationManagementSection = {
 	Plugins: 'plugins',
 	Models: 'models',
 	Tools: 'tools',
+	HarnessSettings: 'harnessSettings',
 } as const;
 
 export type AICustomizationManagementSection = typeof AICustomizationManagementSection[keyof typeof AICustomizationManagementSection];
+
+export interface IAICustomizationMarketplaceOpenTarget {
+	readonly section: AICustomizationManagementSection;
+	readonly sourceId?: string;
+}
+
+/** Command IDs for the AI Customizations Management Editor. */
+export const AICustomizationManagementCommands = {
+	OpenEditor: 'aiCustomization.openManagementEditor',
+	OpenMarketplace: 'aiCustomization.openMarketplace',
+	CreateNewAgent: 'aiCustomization.createNewAgent',
+	CreateNewSkill: 'aiCustomization.createNewSkill',
+	CreateNewInstructions: 'aiCustomization.createNewInstructions',
+	CreateNewPrompt: 'aiCustomization.createNewPrompt',
+	GenerateDebugReport: 'aiCustomization.generateDebugReport',
+	DismissMigrationHint: 'aiCustomization.dismissMigrationHint',
+} as const;
+
+/** Returns the workspace storage key for a harness-specific migration hint dismissal. */
+export function getCustomizationMigrationHintDismissedStorageKey(sessionType: string): string {
+	return `chat.customizationMigrationHint.dismissed.${sessionType}`;
+}
 
 /**
  * Per-type filter policy controlling which storage sources are visible
@@ -69,6 +93,11 @@ export interface IAICustomizationWorkspaceService {
 	 * Observable that fires when the active project root changes.
 	 */
 	readonly activeProjectRoot: IObservable<URI | undefined>;
+
+	/**
+	 * Display label for the active project.
+	 */
+	readonly activeProjectLabel: IObservable<string | undefined>;
 
 	/**
 	 * Returns the current active project root, if any.
@@ -105,9 +134,10 @@ export interface IAICustomizationWorkspaceService {
 	deleteFiles(projectRoot: URI, fileUris: URI[]): Promise<void>;
 
 	/**
-	 * Launches the AI-guided creation flow for the given customization type.
+	 * Launches the AI-guided creation flow for the given customization type,
+	 * optionally scoped to a workspace folder.
 	 */
-	generateCustomization(type: PromptsType): Promise<void>;
+	generateCustomization(type: PromptsType, workspaceFolder?: URI): Promise<void>;
 
 	/**
 	 * Whether a transient project root override is currently active.

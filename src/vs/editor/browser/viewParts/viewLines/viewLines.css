@@ -19,6 +19,18 @@
 	background: rgb(150, 0, 0) !important;
 }
 
+/*
+ * A full-width character centered in exactly two character cells. The cell width is editor
+ * specific and stays inline. Deliberately not scoped to `.monaco-editor`, so that the lines
+ * `DOMLineBreaksComputer` measures in a container attached to the document body are styled
+ * the same way as the rendered ones.
+ */
+.mtkfullwidth {
+	display: inline-block;
+	box-sizing: border-box;
+	text-align: center;
+}
+
 .mtkoverflow {
 	background-color: var(--vscode-button-background, var(--vscode-editor-background));
 	color: var(--vscode-button-foreground, var(--vscode-editor-foreground));

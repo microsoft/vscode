@@ -21,7 +21,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { IChatRequestModel, IChatResponseModel } from '../../../common/model/chatModel.js';
-import { ILanguageModelConfigurationSchema, ILanguageModelsService } from '../../../common/languageModels.js';
+import { getModelContextWindowTotal, ILanguageModelConfigurationSchema, ILanguageModelsService } from '../../../common/languageModels.js';
 import { ChatContextUsageDetails, IChatContextUsageData } from './chatContextUsageDetails.js';
 import type { IChatWidget } from '../../chat.js';
 import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
@@ -30,25 +30,13 @@ import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 const $ = dom.$;
 
 /**
- * Resolves the input-token denominator used by the context-usage gauge.
- *
- * Resolution order, mirroring the request path's `applyContextSizeOverride`:
- *   1. An explicit `contextSize` in the resolved model configuration.
- *   2. The schema's default `contextSize` tier (e.g. 200K). Used when the
- *      resolved configuration is missing `contextSize` (e.g. the schema default
- *      has not loaded yet) so the gauge denominator agrees with the size the
- *      request actually uses instead of jumping to the model's full native
- *      window. See issue #320393.
- *   3. The model's full native window (`maxInputTokens`). Models without a
- *      context-size picker have no such schema property and land here, where
- *      default and max are the same value.
- *
- * @internal - exported for testing
+ * Resolves the configured input-token limit, falling back to the schema default tier and then the optional input budget.
+ * This mirrors the request path's `applyContextSizeOverride`.
  */
 export function resolveContextWindowInputTokens(
 	modelConfiguration: IStringDictionary<unknown> | undefined,
 	configurationSchema: ILanguageModelConfigurationSchema | undefined,
-	maxInputTokens: number | undefined,
+	maxInputTokens?: number,
 ): number | undefined {
 	const configuredContextSize = typeof modelConfiguration?.contextSize === 'number' ? modelConfiguration.contextSize : undefined;
 	const schemaDefaultContextSize = configurationSchema?.properties?.contextSize?.default;
@@ -161,7 +149,6 @@ export class ChatContextUsageWidget extends Disposable {
 	 * request is sent. The usage numerator still comes from the last response.
 	 */
 	private _selectedModelId: string | undefined;
-	private _sessionCost: number = 0;
 	private readonly _hoverDisposable = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _contextUsageDetails = this._register(new MutableDisposable<ChatContextUsageDetails>());
 	private _chatWidget: IChatWidget | undefined;
@@ -307,13 +294,11 @@ export class ChatContextUsageWidget extends Disposable {
 	 * Updates the widget with the latest request/response data.
 	 * The model is retrieved from the request's modelId.
 	 * @param lastRequest The last request in the session
-	 * @param sessionCost Total copilot credits consumed across all turns
 	 */
-	update(lastRequest: IChatRequestModel | undefined, sessionCost: number = 0): void {
+	update(lastRequest: IChatRequestModel | undefined): void {
 		this._lastRequestDisposable.clear();
 		this._currentResponse = undefined;
 		this._currentModelId = undefined;
-		this._sessionCost = sessionCost;
 
 		if (!lastRequest) {
 			// New/empty chat session clear everything
@@ -342,6 +327,13 @@ export class ChatContextUsageWidget extends Disposable {
 		this._lastRequestDisposable.value = response.onDidChange(() => {
 			this.updateFromResponse(response, modelId);
 		});
+	}
+
+	updateSessionCost(sessionCost: number): void {
+		const data = this._currentData.get();
+		if (data && data.sessionCost !== sessionCost) {
+			this.render({ ...data, sessionCost });
+		}
 	}
 
 	/**
@@ -390,20 +382,15 @@ export class ChatContextUsageWidget extends Disposable {
 			return undefined;
 		}
 		const modelMetadata = this.languageModelsService.lookupLanguageModel(modelId);
-		// Computing the total context window needs the model's metadata, notably its output-token budget
-		// (`maxOutputTokens`), which — unlike the input window — has no configuration fallback. Right after a reload the
-		// model provider may not have registered the selected model yet while a persisted `contextSize` is already
-		// resolvable, so the window would be computed input-only (e.g. 272K instead of 272K + 128K for GPT-5). Bail out
-		// until metadata is available rather than render a misleading partial value; the widget re-renders on model
-		// registration (`onDidChangeLanguageModels`) and on model selection.
+		// A persisted context size alone cannot determine the model's context window or output budget.
 		if (!modelMetadata) {
 			return undefined;
 		}
 		const modelConfiguration = this._modelConfigurationResolver?.(modelId) ?? this.languageModelsService.getModelConfiguration(modelId);
 		// Prefer the schema default context-size tier when config is missing (keeps denominator aligned with the request path).
-		const maxInputTokens = resolveContextWindowInputTokens(modelConfiguration, modelMetadata.configurationSchema, modelMetadata.maxInputTokens);
+		const inputTokenLimit = resolveContextWindowInputTokens(modelConfiguration, modelMetadata.configurationSchema);
 		const maxOutputTokens = modelMetadata.maxOutputTokens;
-		const totalContextWindow = (maxInputTokens ?? 0) + (maxOutputTokens ?? 0);
+		const totalContextWindow = getModelContextWindowTotal(modelMetadata, inputTokenLimit);
 		if (totalContextWindow <= 0) {
 			return undefined;
 		}
@@ -421,19 +408,24 @@ export class ChatContextUsageWidget extends Disposable {
 		// immediately; the numerator (usage) still comes from the last response. A meta-model such as "auto" has no
 		// context window of its own, so fall back to the model that actually served the request (see issue #321781).
 		const contextWindow = this.resolveContextWindow(this._selectedModelId) ?? this.resolveContextWindow(effectiveModelId);
-		if (!usage || !contextWindow) {
+		const reportedContext = usage?.contextUsage
+			&& Number.isFinite(usage.contextUsage.currentTokens) && usage.contextUsage.currentTokens >= 0
+			&& Number.isFinite(usage.contextUsage.tokenLimit) && usage.contextUsage.tokenLimit > 0
+			? usage.contextUsage : undefined;
+		if (!usage || (!contextWindow && !reportedContext)) {
 			if (!this._currentData.get()) {
 				this.hide();
 			}
 			return;
 		}
 
-		const { maxOutputTokens, totalContextWindow } = contextWindow;
+		const maxOutputTokens = contextWindow?.maxOutputTokens;
+		const totalContextWindow = reportedContext?.tokenLimit ?? contextWindow!.totalContextWindow;
 
 		const promptTokens = usage.promptTokens;
 		const completionTokens = usage.completionTokens;
 		const promptTokenDetails = usage.promptTokenDetails;
-		const usedTokens = promptTokens + completionTokens;
+		const usedTokens = reportedContext?.currentTokens ?? promptTokens + completionTokens;
 		const percentage = (usedTokens / totalContextWindow) * 100;
 
 		// The reserve band is a property of the model the user currently has
@@ -449,7 +441,7 @@ export class ChatContextUsageWidget extends Disposable {
 		this.render({
 			usedTokens, completionTokens, totalContextWindow,
 			percentage, outputBufferPercentage,
-			promptTokenDetails, sessionCost: this._sessionCost,
+			promptTokenDetails, sessionCost: response.session.sessionCost,
 		});
 		this.show();
 	}

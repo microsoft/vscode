@@ -50,20 +50,21 @@ Each extension follows the standard VS Code extension structure with `package.js
 
 ## Validating TypeScript changes
 
-MANDATORY: Always check for compilation errors before running any tests or validation scripts, or declaring work complete, then fix all compilation errors before moving forward.
+Choose validation based on the scope and risk of the change. Large-scale builds and typechecking can be slow, and consume significant resources, so minimize their use. Prefer existing editor or watch-task diagnostics and the smallest targeted tests that cover the changed behavior. Do not start build or watch tasks, run broad type checks, or make type checking a prerequisite for targeted tests solely as a completion ritual.
 
-- NEVER run tests if there are compilation errors
-- NEVER use `npm run compile` to compile TypeScript files
+When running in a VS Code editor window with a workspace folder, use the VS Code task tools for build and watch workflows: inspect the existing task output first, and run an existing task instead of invoking its equivalent shell command. Do not start a duplicate build or watch process when the workspace task already provides current diagnostics. Agents window chats and isolated worktree sessions may not have access to the editor's workspace tasks; use the repository commands directly in those contexts.
 
-### TypeScript compilation steps
-- If the `#runTasks/getTaskOutput` tool is available, check the `VS Code - Build` watch task output for compilation errors. This task runs `Core - Build` and `Ext - Build` to incrementally compile VS Code TypeScript sources and built-in extensions. Start the task if it's not already running in the background.
-- If the tool is not available (e.g. in CLI environments) and you only changed code under `src/`, run `npm run typecheck-client` after making changes to type-check the main VS Code sources (it validates `./src/tsconfig.json`).
-- If you changed built-in extensions under `extensions/` and the tool is not available, run the corresponding gulp task `npm run gulp compile-extensions` instead so that TypeScript errors in extensions are also reported.
-- For TypeScript changes in the `build` folder, you can simply run `npm run typecheck` in the `build` folder.
+Run a targeted type check or build when you are not fully confident in the change, and the change is broad or cross-cutting, it affects build or type configuration, or another validation step reports a compilation problem. When task tools are unavailable or no suitable task exists, useful commands include:
 
-### TypeScript validation steps
-- Use the run test tool if you need to run tests. If that tool is not available, then you can use `scripts/test.sh` (or `scripts\test.bat` on Windows) for unit tests (add `--grep <pattern>` to filter tests) or `scripts/test-integration.sh` (or `scripts\test-integration.bat` on Windows) for integration tests (integration tests end with .integrationTest.ts or are in /extensions/).
-- Use `npm run valid-layers-check` to check for layering issues
+- `npm run typecheck-client` for the main sources under `src/`
+- `npm run gulp compile-extensions` for built-in extensions
+- `npm run typecheck` from the `build` folder for build tooling
+
+Development compile tasks already type-check their inputs. Do not run `npm run typecheck-client` immediately before `npm run compile` or `npm run compile-client`; choose the command that covers the required validation. When tests only need fresh client output, use `npm run build-fast -- --client-only`. It supports cold builds and file-granular incremental updates without starting a watcher or building extensions. Use `npm run build-fast` when extension and Copilot outputs are also needed. The client and extension JavaScript lanes transpile rather than type-check; extension media retains its existing type checks. Run explicit type checks when the change warrants them. Reserve `npm run transpile-client` for an intentional clean client rebuild.
+
+Reuse successful validation while its relevant inputs remain unchanged, including when moving into review, commit, or PR creation. Batch related test selectors in one invocation. Prefer `npm run eslint -- <changed files>` for targeted linting; this wrapper caches results by file content. Install dependencies only when dependency inputs change or validation identifies missing dependencies; use `npm run install-fast` for a needed refresh, which skips up-to-date installations and falls back to `npm install` when required. Never share or symlink `node_modules` between worktrees.
+
+Use `scripts/test.sh` (or `scripts\test.bat` on Windows) for unit tests and `scripts/test-integration.sh` (or `scripts\test-integration.bat` on Windows) for integration tests. Add a targeted selector such as `--grep` whenever possible. Run `npm run valid-layers-check` only when a change may affect module layering.
 
 ## Coding Guidelines
 

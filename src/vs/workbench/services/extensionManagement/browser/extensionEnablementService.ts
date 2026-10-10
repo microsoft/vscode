@@ -14,6 +14,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { ExtensionType, IExtension, IExtensionManifest, isAuthenticationProviderExtension, isLanguagePackExtension, isResolverExtension } from '../../../../platform/extensions/common/extensions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ChatAIDisabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { StorageManager } from '../../../../platform/extensionManagement/common/extensionEnablementService.js';
 import { webWorkerExtHostConfig, WebWorkerExtHostConfigValue } from '../../extensions/common/extensions.js';
@@ -21,6 +22,7 @@ import { IUserDataSyncAccountService } from '../../../../platform/userDataSync/c
 import { IUserDataSyncEnablementService } from '../../../../platform/userDataSync/common/userDataSync.js';
 import { ILifecycleService, LifecyclePhase } from '../../lifecycle/common/lifecycle.js';
 import { INotificationService, NotificationPriority, Severity } from '../../../../platform/notification/common/notification.js';
+import { NotificationTelemetryId, NotificationActionTelemetryId } from '../../../../platform/notification/common/notificationTelemetry.js';
 import { IHostService } from '../../host/browser/host.js';
 import { IExtensionBisectService } from './extensionBisect.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
@@ -139,9 +141,11 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		if (this.allUserExtensionsDisabled) {
 			this.lifecycleService.when(LifecyclePhase.Eventually).then(() => {
 				this.notificationService.prompt(Severity.Info, localize('extensionsDisabled', "All installed extensions are temporarily disabled."), [{
+					telemetryId: NotificationActionTelemetryId.Reload,
 					label: localize('Reload', "Reload and Enable Extensions"),
 					run: () => hostService.reload({ disableExtensions: false })
 				}], {
+					telemetry: NotificationTelemetryId.ExtensionsDisabled,
 					sticky: true,
 					priority: NotificationPriority.URGENT
 				});
@@ -170,10 +174,10 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 				// User has used chat features before
 				if (this._isDisabledGlobally({ id: this._chatExtensionId })) {
 					// User had specifically disabled the chat extension to disable AI features
-					if (this.configurationService.getValue('chat.disableAIFeatures') !== true) {
+					if (this.configurationService.getValue(ChatAIDisabledSettingId) !== true) {
 						// Honor that choice by disabling AI features
 						this.logService.debug('Disabling AI features because builtin chat extension is disabled');
-						this.configurationService.updateValue('chat.disableAIFeatures', true)
+						this.configurationService.updateValue(ChatAIDisabledSettingId, true)
 							.catch(err => this.logService.error('Failed to update chat.disableAIFeatures setting during builtin chat extension enablement migration', err));
 					}
 				}
@@ -673,21 +677,11 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 			return false;
 		}
 
-		// Built-in extensions are enabled in sessions window except the chat extension and extensions that contribute not supported features.
-		if (extension.isBuiltin) {
-			if (extension.identifier.id.toLowerCase() === this._chatExtensionId) {
-				return false;
-			}
-
-			const contributes = extension.manifest.contributes;
-			if (contributes?.debuggers || contributes?.views || contributes?.viewsContainers || contributes?.walkthroughs) {
-				return true;
-			}
-
+		if (extension.isBuiltin && extension.identifier.id.toLowerCase() === this._chatExtensionId) {
 			return false;
 		}
 
-		return !this.extensionManifestPropertiesService.canExecuteOnSessionsWindow(extension.manifest);
+		return !this.extensionManifestPropertiesService.canExecuteOnSessionsWindow(extension.manifest, extension.isBuiltin);
 	}
 
 	private _enableExtension(identifier: IExtensionIdentifier): Promise<boolean> {

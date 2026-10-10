@@ -21,19 +21,20 @@ export const enum AgentHostConfigKey {
 	 */
 	DefaultShell = 'defaultShell',
 	/**
-	 * When true (the default), the Claude provider routes all Anthropic
-	 * `messages` traffic through the local Copilot-CAPI proxy (Copilot-routed
-	 * Claude). When false, the Claude Agent SDK talks to Anthropic directly on
-	 * the user's own credentials (BYO Anthropic — Phase 19).
+	 * Experimentation flag for conditional Agent Host auth. When true, session
+	 * types that are usable without GitHub remain available to signed-out users
+	 * instead of forcing GitHub sign-in. The workbench forwards it here from the
+	 * `chat.agentHost.allowSignedOutWhenUsable` VS Code setting; when unset the
+	 * feature is dark (today's always-proxy behavior).
 	 */
-	ClaudeUseCopilotProxy = 'claudeUseCopilotProxy',
+	AllowSignedOutWhenUsable = 'allowSignedOutWhenUsable',
 	/**
 	 * Optional GitHub Enterprise base URI (e.g. `https://ghe.example.com` for a
 	 * GitHub Enterprise Server, or `https://tenant.ghe.com` for GitHub Enterprise
 	 * Cloud). When set, the agent host computes its GitHub protected resources and
 	 * REST/GraphQL endpoints from this base instead of github.com. Normally pushed
-	 * by the local VS Code client from the workbench `github-enterprise.uri`
-	 * setting; remote operators set it directly in the remote
+	 * by the local VS Code client from the selected enterprise account's
+	 * authorization server; remote operators set it directly in the remote
 	 * `agent-host-config.json`.
 	 */
 	GithubEnterpriseUri = 'githubEnterpriseUri',
@@ -83,16 +84,16 @@ export const agentHostCustomizationConfigSchema = createSchema({
 		title: localize('agentHost.config.defaultShell.title', "Default Shell"),
 		description: localize('agentHost.config.defaultShell.description', "Absolute path to the shell executable used by host-managed terminals. Normally pushed by the connected VS Code client from `terminal.integrated.agentHostProfile.<os>` (falling back to `terminal.integrated.defaultProfile.<os>`); when unset, the agent host falls back to the system shell. Only the path is supported; `args` and `env` from the workbench profile are not piped through yet. The workbench only pushes this for the local agent host — remote agent host operators should set this directly in the remote machine's `agent-host-config.json`."),
 	}),
-	[AgentHostConfigKey.ClaudeUseCopilotProxy]: schemaProperty<boolean>({
+	[AgentHostConfigKey.AllowSignedOutWhenUsable]: schemaProperty<boolean>({
 		type: 'boolean',
-		title: localize('agentHost.config.claudeUseCopilotProxy.title', "Route Claude Through Copilot"),
-		description: localize('agentHost.config.claudeUseCopilotProxy.description', "When enabled (the default), the Claude agent routes all requests through GitHub Copilot. When disabled, Claude talks to Anthropic directly using your own credentials (API key or Claude subscription)."),
-		default: true,
+		title: localize('agentHost.config.allowSignedOutWhenUsable.title', "Allow Signed-Out Agent Host"),
+		description: localize('agentHost.config.allowSignedOutWhenUsable.description', "Experimental. When enabled, Agent Host sessions remain available while signed out as long as the selected agent has a usable model and authentication (for example Codex with ChatGPT authentication or Claude in native mode with your own Anthropic credentials). When disabled (the default), GitHub sign-in is required."),
+		default: false,
 	}),
 	[AgentHostConfigKey.GithubEnterpriseUri]: schemaProperty<string>({
 		type: 'string',
 		title: localize('agentHost.config.githubEnterpriseUri.title', "GitHub Enterprise URI"),
-		description: localize('agentHost.config.githubEnterpriseUri.description', "Optional base URI of a GitHub Enterprise instance (for example \"https://ghe.example.com\" for GitHub Enterprise Server, or \"https://tenant.ghe.com\" for GitHub Enterprise Cloud). When set, the agent host authenticates and makes GitHub API calls against this instance instead of github.com. Normally pushed by the connected VS Code client from the `github-enterprise.uri` setting; remote agent host operators can set it directly in the remote `agent-host-config.json`."),
+		description: localize('agentHost.config.githubEnterpriseUri.description', "Optional base URI of a GitHub Enterprise instance (for example \"https://ghe.example.com\" for GitHub Enterprise Server, or \"https://tenant.ghe.com\" for GitHub Enterprise Cloud). When set, the agent host authenticates and makes GitHub API calls against this instance instead of github.com. Normally pushed by the connected VS Code client from the selected enterprise account's authorization server; remote agent host operators can set it directly in the remote `agent-host-config.json`."),
 	}),
 });
 
@@ -123,6 +124,5 @@ export function toContainerCustomization(entry: IPersistedCustomizationConfigEnt
 		id: customizationId(entry.uri),
 		uri: entry.uri,
 		name: entry.displayName,
-		enabled: true,
 	};
 }

@@ -35,6 +35,10 @@ export interface HistoricalImageProps extends BasePromptElementProps {
 	mimeType?: string;
 }
 
+function canSendImage(endpoint: IPromptEndpoint): boolean {
+	return endpoint.supportsVision;
+}
+
 /**
  * Renders an image from conversation history.
  * Checks if the current model supports vision and omits the image if not.
@@ -48,8 +52,7 @@ export class HistoricalImage extends PromptElement<HistoricalImageProps, unknown
 	}
 
 	override async render(_state: unknown, sizing: PromptSizing) {
-		// If the model doesn't support vision, omit historical images
-		if (!this.promptEndpoint.supportsVision) {
+		if (!canSendImage(this.promptEndpoint)) {
 			return undefined;
 		}
 
@@ -70,19 +73,20 @@ export class Image extends PromptElement<ImageProps, unknown> {
 	}
 
 	override async render(_state: unknown, sizing: PromptSizing) {
-		const options = { status: { description: l10n.t("{0} does not support images.", this.promptEndpoint.model), kind: ChatResponseReferencePartStatusKind.Omitted } };
+		const noVisionDescription = l10n.t("{0} does not support images.", this.promptEndpoint.model);
+		const omittedOptions = { status: { description: noVisionDescription, kind: ChatResponseReferencePartStatusKind.Omitted } };
 
 		const fillerUri: Uri = this.props.reference ?? Uri.parse('Attached Image');
 
 		try {
-			if (!this.promptEndpoint.supportsVision) {
+			if (!canSendImage(this.promptEndpoint)) {
 				if (this.props.omitReferences) {
 					return;
 				}
 
 				return (
 					<>
-						<references value={[new PromptReference(this.props.variableName ? { variableName: this.props.variableName, value: fillerUri } : fillerUri, undefined, options)]} />
+						<references value={[new PromptReference(this.props.variableName ? { variableName: this.props.variableName, value: fillerUri } : fillerUri, undefined, omittedOptions)]} />
 					</>
 				);
 			}
@@ -121,7 +125,7 @@ export class Image extends PromptElement<ImageProps, unknown> {
 
 			return (
 				<>
-					<references value={[new PromptReference(this.props.variableName ? { variableName: this.props.variableName, value: fillerUri } : fillerUri, undefined, options)]} />
+					<references value={[new PromptReference(this.props.variableName ? { variableName: this.props.variableName, value: fillerUri } : fillerUri, undefined, omittedOptions)]} />
 				</>);
 		}
 	}

@@ -20,7 +20,7 @@ import { getSemanticTokens, getSemanticTokenLegend } from './javascriptSemanticT
 const JS_WORD_REGEX = /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g;
 
 function getLanguageServiceHost(scriptKind: ts.ScriptKind) {
-	const compilerOptions: ts.CompilerOptions = { allowNonTsExtensions: true, allowJs: true, lib: ['lib.es2020.full.d.ts'], target: ts.ScriptTarget.Latest, moduleResolution: ts.ModuleResolutionKind.Classic, experimentalDecorators: false };
+	const compilerOptions: ts.CompilerOptions = { allowNonTsExtensions: true, allowJs: true, lib: ['lib.es2020.full.d.ts'], target: ts.ScriptTarget.Latest, module: ts.ModuleKind.ESNext, moduleResolution: ts.ModuleResolutionKind.Classic, experimentalDecorators: false };
 
 	let currentTextDocument = TextDocument.create('init', 'javascript', 1, '');
 	const jsLanguageService = import(/* webpackChunkName: "javascriptLibs" */ './javascriptLibs.js').then(libs => {
@@ -126,18 +126,21 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 		async doValidation(document: TextDocument, settings = workspace.settings): Promise<Diagnostic[]> {
 			updateHostSettings(settings);
 
-			const jsDocument = jsDocuments.get(document);
-			const languageService = await host.getLanguageService(jsDocument);
-			const syntaxDiagnostics: ts.Diagnostic[] = languageService.getSyntacticDiagnostics(jsDocument.uri);
-			const semanticDiagnostics = languageService.getSemanticDiagnostics(jsDocument.uri);
-			return syntaxDiagnostics.concat(semanticDiagnostics).filter(d => !ignoredErrors.includes(d.code)).map((diag: ts.Diagnostic): Diagnostic => {
-				return {
-					range: convertRange(jsDocument, diag),
-					severity: DiagnosticSeverity.Error,
-					source: languageId,
-					message: ts.flattenDiagnosticMessageText(diag.messageText, '\n')
-				};
-			});
+			const diagnostics: Diagnostic[] = [];
+			for (const jsDocument of documentRegions.get(document).getEmbeddedDocuments(languageId)) {
+				const languageService = await host.getLanguageService(jsDocument);
+				const syntaxDiagnostics: ts.Diagnostic[] = languageService.getSyntacticDiagnostics(jsDocument.uri);
+				const semanticDiagnostics = languageService.getSemanticDiagnostics(jsDocument.uri);
+				diagnostics.push(...syntaxDiagnostics.concat(semanticDiagnostics).filter(d => !ignoredErrors.includes(d.code)).map((diag: ts.Diagnostic): Diagnostic => {
+					return {
+						range: convertRange(jsDocument, diag),
+						severity: DiagnosticSeverity.Error,
+						source: languageId,
+						message: ts.flattenDiagnosticMessageText(diag.messageText, '\n')
+					};
+				}));
+			}
+			return diagnostics;
 		},
 		async doComplete(document: TextDocument, position: Position, _documentContext: DocumentContext): Promise<CompletionList> {
 			const jsDocument = jsDocuments.get(document);

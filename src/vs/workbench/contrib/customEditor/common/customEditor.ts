@@ -54,6 +54,8 @@ export interface ICustomEditorModelManager {
 	add(resource: URI, viewType: string, model: Promise<ICustomEditorModel>): Promise<IReference<ICustomEditorModel>>;
 
 	disposeAllModelsForView(viewType: string): void;
+
+	disposeAllModelsForResource(resource: URI): void;
 }
 
 export interface ICustomEditorModel extends IDisposable {
@@ -81,7 +83,7 @@ export const enum CustomEditorPriority {
 	default = 'default',
 	builtin = 'builtin',
 	option = 'option',
-	never = 'never',
+	explicit = 'explicit',
 }
 
 export const enum CustomEditorDiffEditorLayout {
@@ -93,7 +95,7 @@ export interface CustomEditorSelector {
 	readonly filenamePattern?: string;
 }
 
-export type CustomEditorPriorityInfo = RegisteredEditorPriorityInfo;
+export type CustomEditorPriorityInfo = Omit<RegisteredEditorPriorityInfo, 'merge'>;
 
 export interface CustomEditorDescriptor {
 	readonly id: string;

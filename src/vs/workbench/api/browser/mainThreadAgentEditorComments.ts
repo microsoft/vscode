@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableMap, DisposableStore } from '../../../base/common/lifecycle.js';
+import { isEqual } from '../../../base/common/resources.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { IRange } from '../../../editor/common/core/range.js';
 import { IAgentEditorCommentsBridge } from '../../services/agentEditorComments/common/agentEditorComments.js';
@@ -38,6 +39,11 @@ export class MainThreadAgentEditorComments implements MainThreadAgentEditorComme
 
 		const store = new DisposableStore();
 		store.add(this._bridge.onDidChangeComments(() => this._sendComments(handle)));
+		store.add(this._bridge.onDidRevealComment(event => {
+			if (isEqual(event.resource, resource)) {
+				this._proxy.$revealAgentEditorComment(handle, event.id);
+			}
+		}));
 		this._disposables.set(handle, store);
 
 		this._sendComments(handle);

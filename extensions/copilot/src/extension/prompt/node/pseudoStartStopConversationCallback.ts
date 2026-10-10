@@ -39,7 +39,7 @@ export class PseudoStopStartResponseProcessor implements IResponseProcessor {
 	constructor(
 		private readonly stopStartMappings: readonly StartStopMapping[],
 		private readonly processNonReportedDelta: ((deltas: IResponseDelta[]) => string[]) | undefined,
-		private readonly options?: { subagentInvocationId?: string }
+		private readonly options?: { subagentInvocationId?: string; hiddenToolNames?: ReadonlySet<string> }
 	) { }
 
 	async processResponse(_context: IResponseProcessorContext, inputStream: AsyncIterable<IResponsePart>, outputStream: ChatResponseStream, token: CancellationToken): Promise<void> {
@@ -98,6 +98,9 @@ export class PseudoStopStartResponseProcessor implements IResponseProcessor {
 
 		if (delta.beginToolCalls?.length) {
 			for (const beginCall of delta.beginToolCalls) {
+				if (this.options?.hiddenToolNames?.has(beginCall.name)) {
+					continue;
+				}
 				progress.beginToolInvocation(beginCall.id ?? '', getContributedToolName(beginCall.name), { subagentInvocationId: this.options?.subagentInvocationId });
 			}
 		}
@@ -105,7 +108,7 @@ export class PseudoStopStartResponseProcessor implements IResponseProcessor {
 		if (delta.copilotToolCallStreamUpdates?.length) {
 			const now = Date.now();
 			for (const update of delta.copilotToolCallStreamUpdates) {
-				if (!update.name) {
+				if (!update.name || this.options?.hiddenToolNames?.has(update.name)) {
 					continue;
 				}
 				const toolId = update.id ?? '';

@@ -273,6 +273,15 @@
 	max-width: 70%;
 }
 
+/** When fitting the widget width to the inline detail, prioritize showing the full label: the label keeps its width and the detail truncates instead. **/
+.monaco-editor .suggest-widget.fit-width-to-details .monaco-list .monaco-list-row > .contents > .main > .left {
+	flex-shrink: 0;
+}
+
+.monaco-editor .suggest-widget.fit-width-to-details .monaco-list .monaco-list-row > .contents > .main > .right {
+	max-width: none;
+}
+
 .monaco-editor .suggest-widget .monaco-list .monaco-list-row > .contents > .main > .right > .readMore {
 	display: inline-block;
 	position: absolute;

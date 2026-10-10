@@ -15,9 +15,8 @@ import { customEditorsExtensionPoint, ICustomEditorsExtensionPoint } from './ext
 import { RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
 import { IExtensionPointUser } from '../../../services/extensions/common/extensionsRegistry.js';
 
-type StoredCustomEditorPriorityInfo = Omit<CustomEditorPriorityInfo, 'diff' | 'merge'> & {
+type StoredCustomEditorPriorityInfo = Omit<CustomEditorPriorityInfo, 'diff'> & {
 	readonly diff?: RegisteredEditorPriority;
-	readonly merge?: RegisteredEditorPriority;
 };
 
 type StoredCustomEditorDescriptor = Omit<CustomEditorDescriptor, 'priority'> & {
@@ -58,9 +57,8 @@ export class ContributedCustomEditors extends Disposable {
 		this._editors.clear();
 
 		for (const extension of extensions) {
-			const hasCustomEditorPriorityProposal = extension.description.enabledApiProposals?.includes('customEditorPriority') ?? false;
 			for (const webviewEditorContribution of extension.value) {
-				const priority = getPriorityFromContribution(webviewEditorContribution.priority, extension.description, hasCustomEditorPriorityProposal);
+				const priority = getPriorityFromContribution(webviewEditorContribution.priority, extension.description);
 				this.add(new CustomEditorInfo({
 					id: webviewEditorContribution.viewType,
 					displayName: webviewEditorContribution.displayName,
@@ -108,12 +106,10 @@ function normalizeStoredCustomEditorDescriptor(descriptor: StoredCustomEditorDes
 		selector: descriptor.selector,
 		priority: typeof descriptor.priority === 'string' ? {
 			editor: descriptor.priority,
-			diff: RegisteredEditorPriority.never,
-			merge: RegisteredEditorPriority.never,
+			diff: RegisteredEditorPriority.explicit,
 		} : {
 			editor: descriptor.priority.editor,
-			diff: descriptor.priority.diff ?? RegisteredEditorPriority.never,
-			merge: descriptor.priority.merge ?? RegisteredEditorPriority.never,
+			diff: descriptor.priority.diff ?? RegisteredEditorPriority.explicit,
 		},
 	};
 }
@@ -121,18 +117,11 @@ function normalizeStoredCustomEditorDescriptor(descriptor: StoredCustomEditorDes
 function getPriorityFromContribution(
 	contribution: ICustomEditorsExtensionPoint['priority'],
 	extension: IExtensionDescription,
-	includeDiffAndMergePriority: boolean,
 ): CustomEditorDescriptor['priority'] {
-	// The `textEditor` value drives the normal editor and keeps its historical `default` fallback when
-	// omitted. `diffEditor` and `mergeEditor` do not inherit from `textEditor`: they default to
-	// `never`, so a custom editor is not used for diffs or merges unless it explicitly opts in (which
-	// requires the `customEditorPriority` proposal).
 	const editorPriority = getSinglePriorityFromContribution(typeof contribution === 'string' ? contribution : contribution?.textEditor, extension) ?? RegisteredEditorPriority.default;
-	const readObjectField = includeDiffAndMergePriority && typeof contribution !== 'string';
 	return {
 		editor: editorPriority,
-		diff: (readObjectField ? getSinglePriorityFromContribution(contribution?.diffEditor, extension) : undefined) ?? RegisteredEditorPriority.never,
-		merge: (readObjectField ? getSinglePriorityFromContribution(contribution?.mergeEditor, extension) : undefined) ?? RegisteredEditorPriority.never,
+		diff: (typeof contribution === 'string' ? undefined : getSinglePriorityFromContribution(contribution?.diffEditor, extension)) ?? RegisteredEditorPriority.explicit,
 	};
 }
 
@@ -144,8 +133,8 @@ function getSinglePriorityFromContribution(value: CustomEditorPriority | undefin
 		case CustomEditorPriority.option:
 			return RegisteredEditorPriority.option;
 
-		case CustomEditorPriority.never:
-			return RegisteredEditorPriority.never;
+		case CustomEditorPriority.explicit:
+			return RegisteredEditorPriority.explicit;
 
 		case CustomEditorPriority.builtin:
 			// Builtin is only valid for builtin extensions

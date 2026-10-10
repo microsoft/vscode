@@ -10,7 +10,7 @@ import { Disposable, MutableDisposable } from '../../../base/common/lifecycle.js
 import { equals } from '../../../base/common/objects.js';
 import { IManagedSettingsPolicyDefinitions, ManagedSettingsData } from '../../../base/common/policy.js';
 import { ILogService } from '../../log/common/log.js';
-import { collectManagedSettingsDefinitions, INativeManagedSettingsService } from '../common/copilotManagedSettings.js';
+import { collectManagedSettingsDefinitions, INativeManagedSettingsService, MANAGED_SETTINGS_CONTROL_DEFINITIONS } from '../common/copilotManagedSettings.js';
 import { PolicyDefinition, PolicyValue } from '../common/policy.js';
 import type { Watcher } from '@vscode/policy-watcher';
 
@@ -32,7 +32,9 @@ export class NativeManagedSettingsService extends Disposable implements INativeM
 	private readonly throttler = this._register(new Throttler());
 	private readonly watcher = this._register(new MutableDisposable<Watcher>());
 	private readonly managedSettingsValues = new Map<string, PolicyValue>();
-	private watchedSettings: IManagedSettingsPolicyDefinitions = {};
+	private watchedSettings: IManagedSettingsPolicyDefinitions = MANAGED_SETTINGS_CONTROL_DEFINITIONS;
+	private initializationPromise: Promise<void> | undefined;
+	private initializationVersion = 0;
 
 	private readonly _onDidChangeManagedSettings = this._register(new Emitter<ManagedSettingsData>());
 	readonly onDidChangeManagedSettings = this._onDidChangeManagedSettings.event;
@@ -50,20 +52,48 @@ export class NativeManagedSettingsService extends Disposable implements INativeM
 		super();
 	}
 
+	async initialize(): Promise<ManagedSettingsData> {
+		await this.ensureWatcher();
+		return this.managedSettings;
+	}
+
 	async updatePolicyDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<ManagedSettingsData> {
-		const managedSettings = collectManagedSettingsDefinitions(policyDefinitions);
+		const managedSettings = {
+			...collectManagedSettingsDefinitions(policyDefinitions),
+			...MANAGED_SETTINGS_CONTROL_DEFINITIONS,
+		};
 
 		if (equals(this.watchedSettings, managedSettings)) {
-			return this.managedSettings;
+			return this.initialize();
 		}
 
 		this.watchedSettings = managedSettings;
 		const changed = this.pruneManagedSettingsValues();
-		await this.updateWatcher();
+		await this.ensureWatcher(true);
 		if (changed) {
 			this._onDidChangeManagedSettings.fire(this.managedSettings);
 		}
 		return this.managedSettings;
+	}
+
+	private ensureWatcher(force = false): Promise<void> {
+		if (!force && this.initializationPromise) {
+			return this.initializationPromise;
+		}
+		const update = this.updateWatcherAndTrack(++this.initializationVersion);
+		this.initializationPromise = update;
+		return update;
+	}
+
+	private async updateWatcherAndTrack(version: number): Promise<void> {
+		try {
+			await this.updateWatcher();
+		} catch (error) {
+			if (this.initializationVersion === version) {
+				this.initializationPromise = undefined;
+			}
+			throw error;
+		}
 	}
 
 	private pruneManagedSettingsValues(): boolean {

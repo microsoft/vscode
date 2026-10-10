@@ -95,7 +95,7 @@ class TypeScriptHoverProvider implements vscode.HoverProvider {
 	}
 
 	private getPreviousLevel(previousHover: vscode.Hover | undefined): number {
-		if (previousHover && this.lastHoverAndLevel && this.lastHoverAndLevel[0] === previousHover) {
+		if (previousHover && this.lastHoverAndLevel?.[0] === previousHover) {
 			return this.lastHoverAndLevel[1];
 		}
 		return 0;

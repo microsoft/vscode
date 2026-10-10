@@ -29,6 +29,7 @@ export interface InstructionsCollectionDebugEntry {
 }
 
 export type InstructionsCollectionEvent = {
+	provider?: string;
 	applyingInstructionsCount: number;
 	referencedInstructionsCount: number;
 	agentInstructionsCount: number;
@@ -118,6 +119,10 @@ export enum PromptsStorage {
 	extension = 'extension',
 	plugin = 'plugin',
 	builtIn = 'builtin',
+}
+
+export function isUserToggleableCustomization(type: PromptsType, storage: PromptsStorage): boolean {
+	return type === PromptsType.skill && storage === PromptsStorage.builtIn;
 }
 
 /**
@@ -378,7 +383,7 @@ export interface IChatPromptSlashCommand {
 }
 
 export interface IResolvedChatPromptSlashCommand extends IChatPromptSlashCommand {
-	readonly parsedPromptFile: ParsedPromptFile;
+	readonly parsedPromptFile?: ParsedPromptFile;
 }
 
 
@@ -615,9 +620,9 @@ export interface IPromptsService extends IDisposable {
 	listPromptFiles(type: PromptsType, token: CancellationToken): Promise<readonly IPromptPath[]>;
 
 	/**
-	 * List all available prompt files.
+	 * Lists all available prompt files from a storage location. For local storage, root scopes relative locations; it is ignored for other storages, and without it the current workspace folders are used.
 	 */
-	listPromptFilesForStorage(type: PromptsType, storage: PromptsStorage, token: CancellationToken): Promise<readonly IPromptPath[]>;
+	listPromptFilesForStorage(type: PromptsType, storage: PromptsStorage, token: CancellationToken, root?: URI): Promise<readonly IPromptPath[]>;
 
 	/**
 	 * Get a list of prompt source folders based on the provided prompt type.
@@ -711,6 +716,18 @@ export interface IPromptsService extends IDisposable {
 	 * Combines results from listAgentMDs (non-nested), listClaudeMDs, and listCopilotInstructionsMDs.
 	 */
 	listAgentInstructions(token: CancellationToken, logger?: Logger): Promise<IAgentInstructionFile[]>;
+
+	/**
+	 * Gets the combined voice customization from `~/.copilot/voice.md` and each
+	 * trusted workspace's `.github/voice.md`.
+	 */
+	getVoiceInstructions(token: CancellationToken): Promise<string | undefined>;
+
+	/**
+	 * Gets the combined dictation customization from `~/.copilot/dictation.md`
+	 * and each trusted workspace's `.github/dictation.md`.
+	 */
+	getDictationInstructions(token: CancellationToken): Promise<string | undefined>;
 
 	/**
 	 * For a chat mode file URI, return the name of the agent file that it should use.

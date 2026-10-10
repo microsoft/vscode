@@ -38,7 +38,6 @@ export const enum LogsViewMode {
 }
 
 export const CHAT_DEBUG_FILTER_ACTIVE = new RawContextKey<boolean>('chatDebugFilterActive', false);
-export const CHAT_DEBUG_ACTIVE_SESSION_IS_AGENT_HOST = new RawContextKey<boolean>('chatDebug.activeSessionIsAgentHost', false);
 export const CHAT_DEBUG_KIND_TOOL_CALL = new RawContextKey<boolean>('chatDebug.kindToolCall', true);
 export const CHAT_DEBUG_KIND_MODEL_TURN = new RawContextKey<boolean>('chatDebug.kindModelTurn', true);
 export const CHAT_DEBUG_KIND_PROMPT_DISCOVERY = new RawContextKey<boolean>('chatDebug.kindPromptDiscovery', true);

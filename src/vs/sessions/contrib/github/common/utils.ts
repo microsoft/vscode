@@ -5,6 +5,7 @@
 
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
+import { GITHUB_REMOTE_FILE_SCHEME } from '../../../services/sessions/common/session.js';
 import { IGitHubChangedFile } from './types.js';
 
 export interface IPullRequestContentUriParams {
@@ -17,6 +18,10 @@ export interface IPullRequestContentUriParams {
 	readonly status?: IGitHubChangedFile['status'];
 }
 
+export interface IPullRequestContentUriData extends IPullRequestContentUriParams {
+	readonly fileName: string;
+}
+
 export function toPRContentUri(fileName: string, params: IPullRequestContentUriParams): URI {
 	return URI.from({
 		scheme: Schemas.copilotPr,
@@ -25,6 +30,46 @@ export function toPRContentUri(fileName: string, params: IPullRequestContentUriP
 	});
 }
 
+export function parsePRContentUri(resource: URI): IPullRequestContentUriData | undefined {
+	if (resource.scheme !== Schemas.copilotPr) {
+		return undefined;
+	}
+	try {
+		const value = JSON.parse(resource.query) as Partial<IPullRequestContentUriData>;
+		if (
+			typeof value.owner !== 'string'
+			|| typeof value.repo !== 'string'
+			|| !Number.isInteger(value.prNumber)
+			|| typeof value.commitSha !== 'string'
+			|| typeof value.isBase !== 'boolean'
+			|| typeof value.fileName !== 'string'
+		) {
+			return undefined;
+		}
+		return value as IPullRequestContentUriData;
+	} catch {
+		return undefined;
+	}
+}
+
 export function getPullRequestKey(owner: string, repo: string, prNumber: number): string {
 	return `${owner}/${repo}/${prNumber}`;
+}
+
+export function getGitHubRepositoryFromUri(uri: URI): { readonly owner: string; readonly repo: string } | undefined {
+	if (uri.scheme !== GITHUB_REMOTE_FILE_SCHEME) {
+		return undefined;
+	}
+	const segments = uri.path.split('/').filter(Boolean);
+	if (segments.length < 2) {
+		return undefined;
+	}
+	try {
+		return {
+			owner: decodeURIComponent(segments[0]),
+			repo: decodeURIComponent(segments[1]),
+		};
+	} catch {
+		return undefined;
+	}
 }
