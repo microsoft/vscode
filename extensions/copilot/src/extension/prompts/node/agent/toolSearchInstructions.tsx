@@ -27,7 +27,12 @@ export function hasDeferredTool(
 	availableTools: readonly LanguageModelToolInformation[] | undefined,
 	toolDeferralService: IToolDeferralService,
 ): boolean {
-	return !!availableTools?.some(tool => !toolDeferralService.isNonDeferredTool(tool.name));
+	return !!availableTools && hasToolSearchTool(availableTools) && availableTools.some(tool => !toolDeferralService.isNonDeferredTool(tool.name));
+}
+
+/** True when the tool search tool is offered for this request (it is not for subagents). */
+export function hasToolSearchTool(availableTools: readonly LanguageModelToolInformation[] | undefined): boolean {
+	return !!availableTools?.some(tool => tool.name === CUSTOM_TOOL_SEARCH_NAME);
 }
 
 /**
@@ -83,11 +88,12 @@ export class DeferredToolListReminder extends PromptElement<DeferredToolListRemi
 
 	async render(state: void, sizing: PromptSizing) {
 		const endpoint = sizing.endpoint as IChatEndpoint | undefined;
-		if (!endpoint?.supportsToolSearch || !this.props.availableTools) {
+		const availableTools = this.props.availableTools;
+		if (!endpoint?.supportsToolSearch || !availableTools || !hasToolSearchTool(availableTools)) {
 			return;
 		}
 
-		const deferredTools = this.props.availableTools
+		const deferredTools = availableTools
 			.filter(tool => !this.toolDeferralService.isNonDeferredTool(tool.name))
 			.map(tool => tool.name)
 			.sort();
