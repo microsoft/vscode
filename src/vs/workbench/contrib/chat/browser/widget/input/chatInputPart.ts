@@ -217,6 +217,7 @@ function getToolbarPickerResponsiveItems(
 		visibleActionIds.add(action.id);
 		const element = toolbar.getItemElement(index);
 		items.push({
+			id: action.id,
 			element,
 			canShrink: action.id === OpenModelPickerAction.ID,
 			isCompact: () => viewItemState?.isCompact() ?? state!.get(),
@@ -234,6 +235,7 @@ function getToolbarPickerResponsiveItems(
 		if (!visibleActionIds.has(actionId)) {
 			const minimalState = minimalStates?.get(actionId);
 			items.push({
+				id: actionId,
 				element: undefined,
 				isCompact: () => state.get(),
 				isMinimal: minimalState ? () => minimalState.get() : undefined,
@@ -2376,6 +2378,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	setVisible(visible: boolean): void {
+		if (visible && !this._notificationHostVisible.get()) {
+			this._inputPickerResponsiveLayout?.invalidate();
+			this._secondaryPickerResponsiveLayout?.invalidate();
+		}
 		this._notificationHostVisible.set(visible, undefined);
 		this._onDidChangeVisibility.fire(visible);
 	}
@@ -4202,8 +4208,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}));
 		}
 
-		this._inputPickerResponsiveLayout.layout();
-		this._secondaryPickerResponsiveLayout?.layout();
+		const invalidatePickerLayout = () => {
+			this._inputPickerResponsiveLayout?.invalidate();
+			this._secondaryPickerResponsiveLayout?.invalidate();
+		};
+		this._register(this.themeService.onDidColorThemeChange(invalidatePickerLayout));
+		this._register(this.themeService.onDidProductIconThemeChange(invalidatePickerLayout));
+		this._register(this.configurationService.onDidChangeConfiguration(invalidatePickerLayout));
+		this._inputPickerResponsiveLayout.scheduleLayout();
+		this._secondaryPickerResponsiveLayout?.scheduleLayout();
 
 		let inputModel = this.modelService.getModel(this.inputUri);
 		let createdInputModel: ITextModel | undefined;
@@ -5267,8 +5280,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._updateWorkingProgressAnimationDuration(width);
 
 		const result = this._layout(width);
-		this._inputPickerResponsiveLayout?.layout();
-		this._secondaryPickerResponsiveLayout?.layout();
+		this._inputPickerResponsiveLayout?.scheduleLayout();
+		this._secondaryPickerResponsiveLayout?.scheduleLayout();
 		return result;
 	}
 
