@@ -870,7 +870,7 @@ export namespace ConfigKey {
 		export const LongToolCallCachePreservation = defineSetting<boolean>('chat.agent.longToolCallCachePreservation.enabled', ConfigType.ExperimentBased, false);
 		export const LongToolCallCachePreservationMaxProbes = defineSetting<number>('chat.agent.longToolCallCachePreservation.maxProbes', ConfigType.ExperimentBased, 1);
 
-		/** Enable extended (1 hour) prompt cache TTL on tools and system blocks for the Anthropic Messages API. Applied to Claude Opus 4.5/4.6/4.7 and Sonnet 4.5/4.6 variants. */
+		/** Enable extended (1 hour) prompt cache TTL on tools and system blocks for the Anthropic Messages API. Applied to the models matched by `modelSupportsExtendedCacheTtl` (Claude Fable 5.x, Opus 5.x/4.5-4.8, Sonnet 5.x/4.5/4.6, Haiku 5.x/4.5). */
 		export const AnthropicExtendedCacheTtl = defineSetting<boolean>('chat.anthropic.promptCaching.extendedTtl', ConfigType.ExperimentBased, false);
 
 		/** Enable extended (1 hour) prompt cache TTL on the rolling message-level breakpoints (last cacheable user/tool-result blocks) for the Anthropic Messages API. Same model/location/subagent gating as {@link AnthropicExtendedCacheTtl}. */
