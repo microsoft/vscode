@@ -137,6 +137,52 @@ suite('parseClaudeModelId', () => {
 		});
 	});
 
+	suite('bracketed context suffix (Claude Code `[1m]` form)', () => {
+		test('keeps the minor version and the bracketed suffix', () => {
+			const ids = [
+				'claude-fable-5-1[1m]',
+				'claude-opus-5-5[1m]',
+				'claude-sonnet-5-5[1m]',
+				'claude-haiku-5-5[1m]',
+				'claude-opus-4-8[1m]',
+				'claude-opus-5[1m]',
+				'claude-sonnet-5[1m]',
+				'claude-sonnet-4-5-20250929[1m]',
+				'claude-fable-5-1',
+			];
+			assert.deepStrictEqual(
+				ids.map(id => {
+					const result = parseClaudeModelId(id);
+					return { name: result.name, version: result.version, sdk: result.toSdkModelId(), endpoint: result.toEndpointModelId() };
+				}),
+				[
+					{ name: 'fable', version: '5.1', sdk: 'claude-fable-5-1[1m]', endpoint: 'claude-fable-5.1' },
+					{ name: 'opus', version: '5.5', sdk: 'claude-opus-5-5[1m]', endpoint: 'claude-opus-5.5' },
+					{ name: 'sonnet', version: '5.5', sdk: 'claude-sonnet-5-5[1m]', endpoint: 'claude-sonnet-5.5' },
+					{ name: 'haiku', version: '5.5', sdk: 'claude-haiku-5-5[1m]', endpoint: 'claude-haiku-5.5' },
+					{ name: 'opus', version: '4.8', sdk: 'claude-opus-4-8[1m]', endpoint: 'claude-opus-4.8' },
+					{ name: 'opus', version: '5', sdk: 'claude-opus-5[1m]', endpoint: 'claude-opus-5' },
+					{ name: 'sonnet', version: '5', sdk: 'claude-sonnet-5[1m]', endpoint: 'claude-sonnet-5' },
+					{ name: 'sonnet', version: '4.5', sdk: 'claude-sonnet-4-5[1m]', endpoint: 'claude-sonnet-4.5' },
+					{ name: 'fable', version: '5.1', sdk: 'claude-fable-5-1', endpoint: 'claude-fable-5.1' },
+				],
+			);
+		});
+
+		test('returns undefined for malformed or non-Claude bracketed IDs', () => {
+			const ids = [
+				'foo[1m]',
+				'gpt-4o[1m]',
+				'claude-opus-4-6[foo]',
+				'claude-opus-4-6[]',
+				'claude-opus-4-6[3m]',
+				'claude-opus-4-6[1m][1m]',
+				'claude-opus-4-6[1m]-20251101',
+			];
+			assert.deepStrictEqual(ids.map(tryParseClaudeModelId), ids.map(() => undefined));
+		});
+	});
+
 	suite('bare model names', () => {
 		test('parses a bare name with no version', () => {
 			const result = parseClaudeModelId('foo');
@@ -262,8 +308,8 @@ suite('parseClaudeModelId', () => {
 	suite('toSdkModelId (standalone)', () => {
 		test('normalizes endpoint-format Claude IDs to SDK format; passes through SDK-format and non-Claude IDs unchanged', () => {
 			assert.deepStrictEqual(
-				['claude-haiku-4.5', 'claude-opus-4.5', 'claude-haiku-4-5', 'claude-sonnet-4', 'gpt-4o'].map(toSdkModelId),
-				['claude-haiku-4-5', 'claude-opus-4-5', 'claude-haiku-4-5', 'claude-sonnet-4', 'gpt-4o'],
+				['claude-haiku-4.5', 'claude-opus-4.5', 'claude-haiku-4-5', 'claude-sonnet-4', 'claude-fable-5-1[1m]', 'gpt-4o'].map(toSdkModelId),
+				['claude-haiku-4-5', 'claude-opus-4-5', 'claude-haiku-4-5', 'claude-sonnet-4', 'claude-fable-5-1[1m]', 'gpt-4o'],
 			);
 		});
 	});
