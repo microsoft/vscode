@@ -47,6 +47,14 @@ suite('built-in skills', () => {
 			'CanvasError',
 			'joinSession',
 			'VSCODE_CANVAS_DATA_DIR',
+			'### Portable storage',
+			'session.workspacePath',
+			'process.env.COPILOT_HOME',
+			'path.join(os.homedir(), \'.copilot\')',
+			'extensions/<name>/artifacts/<extension-identity>/',
+			'Only use the Copilot-home fallback when the user has chosen private storage across sessions.',
+			'preserve its storage location, identity algorithm, and record layout',
+			'with `VSCODE_CANVAS_DATA_DIR` unset',
 			'127.0.0.1',
 			'list_canvas_capabilities',
 			'open_canvas',
@@ -59,6 +67,7 @@ suite('built-in skills', () => {
 		expect(skill).not.toContain('disable-model-invocation: true');
 		expect(skill).not.toContain('extensions_manage({');
 		expect(skill).not.toContain('run `/extensions`');
+		expect(skill).not.toContain('- Use `process.env.VSCODE_CANVAS_DATA_DIR` for private durable extension data.');
 	});
 
 	test('contributes the customization migration skill to Agent Host sessions', () => {
