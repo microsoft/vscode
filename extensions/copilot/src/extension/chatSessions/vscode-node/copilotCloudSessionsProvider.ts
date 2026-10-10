@@ -25,10 +25,11 @@ import { GenAiMetrics } from '../../../platform/otel/common/genAiMetrics';
 import { IOTelService } from '../../../platform/otel/common/otelService';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
-import { IntervalTimer, RunOnceScheduler, timeout } from '../../../util/vs/base/common/async';
+import { IntervalTimer, Limiter, RunOnceScheduler, timeout } from '../../../util/vs/base/common/async';
 import { Event } from '../../../util/vs/base/common/event';
+import { CancellationError } from '../../../util/vs/base/common/errors';
 import { Disposable, DisposableStore, toDisposable } from '../../../util/vs/base/common/lifecycle';
-import { ResourceMap } from '../../../util/vs/base/common/map';
+import { LRUCache, ResourceMap } from '../../../util/vs/base/common/map';
 import { joinPath } from '../../../util/vs/base/common/resources';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { SingleSlotTtlCache, TtlCache } from '../common/ttlCache';
@@ -41,7 +42,7 @@ import { ChatSessionContentBuilder } from './copilotCloudSessionContentBuilder';
 import { StreamBaseline, TaskTurnStreamer } from './taskTurnStreamer';
 import { CloudBackendInstrumentation } from './cloudBackendTelemetry';
 import { CloudTaskOwnership } from './cloudTaskOwnership';
-import { parseRepoFromTaskUrl, TaskApiBackend, TaskApiHttpClient } from './taskApiBackend';
+import { parseRepoFromTaskUrl, TaskApiBackend, TaskApiError, TaskApiHttpClient } from './taskApiBackend';
 import { resolvePullArtifact } from './pullArtifactResolver';
 import { IPullRequestFileChangesService } from './pullRequestFileChangesService';
 import MarkdownIt = require('markdown-it');
@@ -344,6 +345,7 @@ const SEARCH_REPOSITORIES_COMMAND_ID = '_github.copilot.chat.cloudSessions.searc
 const OPEN_ISSUE_COMMAND_ID = 'github.copilot.chat.cloudSessions.openIssue';
 const OPEN_PULL_REQUEST_COMMAND_ID = 'github.copilot.chat.cloudSessions.openPullRequest';
 const CLEAR_CACHES_COMMAND_ID = 'github.copilot.chat.cloudSessions.clearCaches';
+const RESOLVE_TASK_COMMAND_ID = 'github.copilot.chat.cloudSessions.resolveTask';
 const CREATE_PULL_REQUEST_FOR_TASK_COMMAND_ID = 'github.copilot.chat.cloudSessions.createPullRequestForTask';
 const OPEN_PULL_REQUEST_FOR_TASK_COMMAND_ID = 'github.copilot.chat.cloudSessions.openPullRequestForTask';
 
@@ -510,6 +512,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 	});
 	private cachedSessionsSize: number = 0;
 	private cachedSessionItems: vscode.ChatSessionItem[] | undefined;
+	private cachedDiscoveredTaskIds = new Set<string>();
 	private cachedSessionItemsExpiresAt = Infinity;
 	private readonly cachedSessionItemsExpiryScheduler = this._register(new RunOnceScheduler(() => {
 		if (Date.now() > this.cachedSessionItemsExpiresAt) {
@@ -519,6 +522,9 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		}
 	}, 0));
 	private sessionItemsRequestGeneration = 0;
+	private readonly explicitlyResolvedSessions = new LRUCache<string, vscode.ChatSessionItem>(50);
+	private readonly unpublishedExactTasks = new Set<string>();
+	private sessionSourceGeneration = 0;
 	// Task ids with an in-flight "Create pull request" toolbar request, used to guard against
 	// re-entrant invocations (e.g. rapid double-clicks) that would otherwise submit duplicate PRs.
 	private readonly _createPullRequestInFlightTaskIds = new Set<string>();
@@ -605,9 +611,17 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			}
 		}));
 
+		this._register(this._authenticationService.onDidAuthenticationChange(() => {
+			this.sessionSourceGeneration++;
+			this.explicitlyResolvedSessions.clear();
+			this.refresh();
+		}));
+
 		// Refresh when CAPI URL changes (e.g., when GHE Copilot token arrives and updates the base URL)
 		this._register(this._domainService.onDidChangeDomains(e => {
 			if (e.capiUrlChanged) {
+				this.sessionSourceGeneration++;
+				this.explicitlyResolvedSessions.clear();
 				this.logService.debug('copilotCloudSessionsProvider: CAPI URL changed, refreshing sessions');
 				this.clearOptionsCaches();
 				this.refresh();
@@ -903,6 +917,42 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		}));
 
 		this._register(vscode.commands.registerCommand(CREATE_PULL_REQUEST_FOR_TASK_COMMAND_ID, (sessionItemOrResource?: vscode.ChatSessionItem | vscode.Uri) => this.handleCreatePullRequestForTaskCommand(sessionItemOrResource)));
+		this._register(vscode.commands.registerCommand(RESOLVE_TASK_COMMAND_ID, async (resource: vscode.Uri) => {
+			const taskId = resource?.scheme === CopilotCloudSessionsProvider.TYPE && !resource.authority && !resource.query && !resource.fragment
+				? SessionIdForTask.parseTaskId(resource) : undefined;
+			if (!taskId || taskId.includes('/')) {
+				throw new Error(l10n.t('Invalid Copilot cloud task resource.'));
+			}
+			const sourceGeneration = this.sessionSourceGeneration;
+			const entry = await this._backend.fetchSession(taskId);
+			if (this._store.isDisposed || sourceGeneration !== this.sessionSourceGeneration) {
+				throw new CancellationError();
+			}
+			const item = await this.toChatSessionItem(entry, undefined, true, !this._ownership.getOwnedTaskIds().has(taskId));
+			if (this._store.isDisposed || sourceGeneration !== this.sessionSourceGeneration) {
+				throw new CancellationError();
+			}
+			if (item === undefined) {
+				throw new Error(l10n.t('Could not resolve cloud task {0}.', taskId));
+			}
+			const previousTaskIds = new Set(this.explicitlyResolvedSessions.keys());
+			this.explicitlyResolvedSessions.set(taskId, item);
+			this.unpublishedExactTasks.add(taskId);
+			for (const id of previousTaskIds) {
+				if (!this.explicitlyResolvedSessions.has(id)) {
+					this.unpublishedExactTasks.delete(id);
+				}
+			}
+			if (this.cachedSessionItems) {
+				this.cachedSessionItems = this.cachedSessionItems.filter(existing => {
+					const existingTaskId = SessionIdForTask.parseTaskId(existing.resource);
+					return existingTaskId !== taskId && (!existingTaskId || !previousTaskIds.has(existingTaskId) || this.explicitlyResolvedSessions.has(existingTaskId) || this.cachedDiscoveredTaskIds.has(existingTaskId));
+				});
+				this.cachedSessionItems.push(item);
+				vscode.commands.executeCommand('setContext', 'github.copilot.chat.cloudSessionsEmpty', false);
+			}
+			this._onDidChangeChatSessionItems.fire();
+		}));
 		this._register(vscode.commands.registerCommand(OPEN_PULL_REQUEST_FOR_TASK_COMMAND_ID, (sessionItemOrResource?: vscode.ChatSessionItem | vscode.Uri) => this.handleOpenPullRequestForTaskCommand(sessionItemOrResource)));
 	}
 
@@ -924,9 +974,11 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 	}
 
 	public refresh(): void {
+		this.unpublishedExactTasks.clear();
 		this.cachedSessionItemsExpiryScheduler.cancel();
 		this.sessionItemsRequestGeneration++;
 		this.cachedSessionItems = undefined;
+		this.cachedDiscoveredTaskIds.clear();
 		this.cachedSessionItemsExpiresAt = Infinity;
 		this.chatSessionItemsPromise = undefined;
 		// Note: _ccaEnabledCache and _optionsCache are TTL-based and NOT cleared on refresh.
@@ -1431,90 +1483,94 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			return this.chatSessionItemsPromise;
 		}
 		const generation = ++this.sessionItemsRequestGeneration;
+		const exactItemsToRefresh = new Map(this.explicitlyResolvedSessions);
 		this.chatSessionItemsPromise = (async (): Promise<vscode.ChatSessionItem[]> => {
 			const repoIds = await getRepoId(this._gitService);
 			this.logService.debug(`copilotCloudSessionsProvider#provideChatSessionItems: repoIds=${JSON.stringify(repoIds?.map(r => ({ org: r.org, repo: r.repo, host: r.host })))}, isAgentSessionsWorkspace=${vscode.workspace.isAgentSessionsWorkspace}`);
-			// Make sure if it's not a github repo we don't show any sessions
-			// (unless we're in an agent sessions workspace)
-			if (!vscode.workspace.isAgentSessionsWorkspace && !this.isGitHubRepoOrEmpty(repoIds)) {
-				this.logService.debug('copilotCloudSessionsProvider#provideChatSessionItems: not a GitHub repo, returning empty');
-				return [];
-			}
-			const { sessions: sessionList, expiresAt, isExternal } = await this.fetchSessionList(repoIds);
+			const canDiscover = vscode.workspace.isAgentSessionsWorkspace || this.isGitHubRepoOrEmpty(repoIds);
+			const { sessions: sessionList, expiresAt, isExternal } = canDiscover
+				? await this.fetchSessionList(repoIds)
+				: { sessions: [], expiresAt: Infinity, isExternal: (taskId: string) => !this._ownership.getOwnedTaskIds().has(taskId) };
 			this.logService.debug(`copilotCloudSessionsProvider#provideChatSessionItems: fetched ${sessionList.length} grouped sessions`);
-			const validateISOTimestamp = (date: string | undefined): number | undefined => {
-				try {
-					if (!date) {
-						return;
-					}
-					const time = new Date(date).getTime();
-					if (time > 0) {
-						return time;
-					}
-				} catch { }
-			};
-
-			const sessionItems = await Promise.all(sessionList.map(async (entry): Promise<vscode.ChatSessionItem | undefined> => {
-				const pr = entry.pullArtifact
-					? await resolvePullArtifact(this._octoKitService, this.logService, entry.pullArtifact, entry.repo, undefined, this.telemetry)
-					: undefined;
-				if (pr) {
-					const state = pr.state.toUpperCase();
-					if (state === 'CLOSED' || state === 'MERGED') {
-						return undefined;
-					}
-				}
-
-				const createdAt = validateISOTimestamp(entry.createdAt);
-				const changes = pr
-					? (await this._prFileChangesService.getFileChangesMultiDiffPart(pr))?.value?.map(change => new vscode.ChatSessionChangedFile(
-						change.goToFileUri!,
-						change.originalUri,
-						change.modifiedUri,
-						change.added ?? 0,
-						change.removed ?? 0,
-					))
-					: entry.diffRefs
-						? await this._prFileChangesService.getComparisonChangedFiles(entry.diffRefs)
-						: undefined;
-				const repositoryMetadata = getCloudSessionItemMetadata(entry.repo, entry.diffRefs, pr);
-				// Tells the Agents window that the task was started outside VS Code and not adopted yet.
-				const metadata = {
-					...repositoryMetadata,
-					event_type: entry.eventType || this._ownership.getApplication(entry.taskId) || (isExternal(entry.taskId) ? 'github/autopilot' : 'vscode'),
-					...(isExternal(entry.taskId) ? { external: true } : {}),
-				};
-
-				return {
-					...getCloudSessionResources(entry.taskId, pr?.number),
-					label: pr?.title || entry.title || entry.taskId,
-					status: taskStateToChatSessionStatus(entry.state),
-					...(pr ? {
-						badge: this.getPullRequestBadge(repoIds, pr),
-						tooltip: this.createPullRequestTooltip(pr),
-					} : {}),
-					...(changes?.length ? { changes } : {}),
-					...(metadata ? { metadata } : {}),
-					...(createdAt ? {
-						timing: {
-							created: createdAt,
-							startTime: createdAt,
-							endTime: validateISOTimestamp(entry.completedAt),
-						},
-					} : {}),
-				};
-			}));
+			const sessionItems = await Promise.all(sessionList.map(entry => this.toChatSessionItem(entry, repoIds, false, isExternal(entry.taskId))));
 			const filteredSessions = sessionItems.filter((item): item is vscode.ChatSessionItem => item !== undefined);
 
 			if (this.sessionItemsRequestGeneration !== generation) {
 				return this.provideChatSessionItems(token);
 			}
+			const listed = new Set(filteredSessions.map(item => item.resource.toString()));
+			for (const item of filteredSessions) {
+				const taskId = SessionIdForTask.parseTaskId(item.resource);
+				if (taskId && !this.unpublishedExactTasks.has(taskId) && this.explicitlyResolvedSessions.has(taskId)) {
+					this.explicitlyResolvedSessions.set(taskId, item);
+				}
+			}
+			const exactEntries = [...exactItemsToRefresh];
+			const limiter = new Limiter<vscode.ChatSessionItem | null | undefined>(4);
+			let refreshedItems: (vscode.ChatSessionItem | null | undefined)[];
+			try {
+				refreshedItems = await Promise.all(exactEntries.map(([taskId, previousItem]) => limiter.queue(async () => {
+					if (this._store.isDisposed || this.sessionItemsRequestGeneration !== generation
+						|| this.unpublishedExactTasks.has(taskId) || this.explicitlyResolvedSessions.get(taskId) !== previousItem
+						|| listed.has(getCloudSessionResources(taskId, undefined).resource.toString())) {
+						return undefined;
+					}
+					try {
+						const entry = await this._backend.fetchSession(taskId);
+						if (this._store.isDisposed || this.sessionItemsRequestGeneration !== generation) {
+							return undefined;
+						}
+						return await this.toChatSessionItem(entry, repoIds, true, isExternal(taskId));
+					} catch (error) {
+						if (this._store.isDisposed || this.sessionItemsRequestGeneration !== generation) {
+							return undefined;
+						}
+						if (error instanceof TaskApiError && error.status === 404) {
+							this.logService.trace(`Explicitly resolved cloud task ${taskId} is no longer available.`);
+							return null;
+						}
+						this.logService.warn(`Failed to refresh explicitly resolved cloud task ${taskId}; retaining its last known item: ${error}`);
+						return undefined;
+					}
+				})));
+			} finally {
+				limiter.dispose();
+			}
+			if (this.sessionItemsRequestGeneration !== generation) {
+				return this.provideChatSessionItems(token);
+			}
+			for (let i = 0; i < exactEntries.length; i++) {
+				const [taskId, previousItem] = exactEntries[i];
+				if (this.explicitlyResolvedSessions.get(taskId) !== previousItem) {
+					continue;
+				}
+				const item = refreshedItems[i];
+				if (item === null) {
+					this.explicitlyResolvedSessions.delete(taskId);
+				} else if (item) {
+					this.explicitlyResolvedSessions.set(taskId, item);
+				}
+			}
+			for (let i = 0; i < filteredSessions.length; i++) {
+				const taskId = SessionIdForTask.parseTaskId(filteredSessions[i].resource);
+				if (taskId && this.unpublishedExactTasks.has(taskId)) {
+					filteredSessions[i] = this.explicitlyResolvedSessions.get(taskId) ?? filteredSessions[i];
+				}
+			}
+			const discoveredTaskIds = new Set(filteredSessions.map(item => SessionIdForTask.parseTaskId(item.resource)).filter((id): id is string => id !== undefined));
+			for (const item of this.explicitlyResolvedSessions.values()) {
+				if (!listed.has(item.resource.toString())) {
+					filteredSessions.push(item);
+				}
+			}
 			vscode.commands.executeCommand('setContext', 'github.copilot.chat.cloudSessionsEmpty', filteredSessions.length === 0);
-			this.logService.debug(`copilotCloudSessionsProvider#provideChatSessionItems: returning ${filteredSessions.length} sessions (${sessionItems.length - filteredSessions.length} filtered out)`);
+			this.logService.debug(`copilotCloudSessionsProvider#provideChatSessionItems: returning ${filteredSessions.length} sessions (${sessionItems.length - listed.size} filtered out, ${filteredSessions.length - listed.size} explicitly resolved)`);
 
 			// Cache the results
 			this.cachedSessionsSize = sessionList.length;
 			this.cachedSessionItems = filteredSessions;
+			this.cachedDiscoveredTaskIds = discoveredTaskIds;
+			this.unpublishedExactTasks.clear();
 			this.cachedSessionItemsExpiresAt = expiresAt;
 			this.scheduleCachedSessionItemsExpiry();
 
@@ -1525,6 +1581,36 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			}
 		});
 		return this.chatSessionItemsPromise;
+	}
+
+	private async toChatSessionItem(entry: CloudSessionData, repoIds: GithubRepoId[] | undefined, explicit = false, external = false): Promise<vscode.ChatSessionItem | undefined> {
+		const pr = entry.pullArtifact
+			? await resolvePullArtifact(this._octoKitService, this.logService, entry.pullArtifact, entry.repo, undefined, this.telemetry)
+			: undefined;
+		if (!explicit && pr && (pr.state.toUpperCase() === 'CLOSED' || pr.state.toUpperCase() === 'MERGED')) {
+			return undefined;
+		}
+		const createdAt = Date.parse(entry.createdAt);
+		const completedAt = entry.completedAt === undefined ? NaN : Date.parse(entry.completedAt);
+		const changes = pr
+			? (await this._prFileChangesService.getFileChangesMultiDiffPart(pr))?.value?.map(change => new vscode.ChatSessionChangedFile(
+				change.goToFileUri!, change.originalUri, change.modifiedUri, change.added ?? 0, change.removed ?? 0))
+			: entry.diffRefs ? await this._prFileChangesService.getComparisonChangedFiles(entry.diffRefs) : undefined;
+		const metadata = {
+			...getCloudSessionItemMetadata(entry.repo, entry.diffRefs, pr),
+			event_type: entry.eventType || this._ownership.getApplication(entry.taskId) || (external ? 'github/autopilot' : 'vscode'),
+		};
+		return {
+			...getCloudSessionResources(entry.taskId, pr?.number),
+			label: pr?.title || entry.title || entry.taskId,
+			status: taskStateToChatSessionStatus(entry.state),
+			...(pr ? { badge: this.getPullRequestBadge(repoIds, pr), tooltip: this.createPullRequestTooltip(pr) } : {}),
+			...(changes?.length ? { changes } : {}),
+			...(metadata || entry.automationId || external ? { metadata: { ...metadata, ...(entry.automationId ? { isAutomation: true } : {}), ...(external ? { external: true } : {}) } } : {}),
+			...(Number.isFinite(createdAt) && createdAt > 0 ? {
+				timing: { created: createdAt, startTime: createdAt, endTime: Number.isFinite(completedAt) && completedAt > 0 ? completedAt : undefined },
+			} : {}),
+		};
 	}
 
 	private isGitHubRepoOrEmpty(repoIds: GithubRepoId[] | undefined) {

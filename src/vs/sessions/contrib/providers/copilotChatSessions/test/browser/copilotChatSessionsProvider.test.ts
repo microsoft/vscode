@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { spy } from 'sinon';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
@@ -35,7 +36,7 @@ import { IChatService, ChatSendResult, IChatSendRequestData, IChatSendRequestOpt
 import { ChatSessionStatus, IChatSessionContentProvider, IChatSessionProviderOptionGroup, IChatSessionsService } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, isUserProvidedModel } from '../../../../../../workbench/contrib/chat/common/languageModels.js';
-import { IChatResponseModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { IChatAgentData } from '../../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
 import { IAutomationSessionConfiguration, ISendRequestOptions, ISessionChangeEvent, ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
 import { ChatModelSource, GITHUB_REMOTE_FILE_SCHEME, IChat, ISession, ISessionChangesSummary, ISessionCreationReference, ISessionFileChange, ISessionWorkspace, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SessionArtifactKind, SessionStatus } from '../../../../../services/sessions/common/session.js';
@@ -112,6 +113,7 @@ function createMockAgentSession(resource: URI, opts?: {
 	archived?: boolean;
 	read?: boolean;
 	createdAt?: number;
+	completedAt?: number;
 	status?: ChatSessionStatus;
 	changes?: IAgentSession['changes'];
 	metadata?: Record<string, unknown>;
@@ -127,7 +129,7 @@ function createMockAgentSession(resource: URI, opts?: {
 		override readonly label = opts?.title ?? 'Test Session';
 		override readonly status = opts?.status ?? ChatSessionStatus.Completed;
 		override readonly icon = Codicon.copilot;
-		override readonly timing = { created: opts?.createdAt ?? Date.now(), lastRequestStarted: undefined, lastRequestEnded: undefined };
+		override readonly timing = { created: opts?.createdAt ?? Date.now(), lastRequestStarted: undefined, lastRequestEnded: opts?.completedAt };
 		override readonly changes = opts?.changes;
 		override readonly metadata = opts?.metadata ?? { owner: 'owner', name: 'repo' };
 		override isArchived(): boolean { return archived; }
@@ -207,6 +209,7 @@ function serializeCreationReference(reference: ISessionCreationReference | undef
 }
 
 interface ICreateProviderOptions {
+	readonly chatModels?: IChatService['chatModels'];
 	readonly providerMode?: 'default' | 'sandbox';
 	readonly consolidatedRemoteWorkspaces?: boolean;
 	readonly commandService?: ICommandService;
@@ -344,6 +347,7 @@ function createProviderWithConfig(
 		getSession: (resource: URI) => model.getSession(resource),
 	});
 	instantiationService.stub(IChatSessionsService, {
+		activateChatSessionItemProvider: async () => { },
 		registerChatSessionContentProvider: () => toDisposable(() => { }),
 		getChatSessionContribution: () => ({ type: 'test-copilot', name: 'test', displayName: 'Test', description: 'test', icon: undefined }),
 		getOrCreateChatSession: async () => ({ onWillDispose: () => ({ dispose() { } }), sessionResource: URI.from({ scheme: 'test' }), history: [], dispose() { } }),
@@ -355,6 +359,7 @@ function createProviderWithConfig(
 		onDidChangeOptionGroups: Event.None,
 	});
 	instantiationService.stub(IChatService, {
+		chatModels: opts?.chatModels ?? constObservable([]),
 		acquireOrLoadSession: async () => undefined,
 		sendRequest: async (): Promise<ChatSendResult> => ({ kind: 'sent' as const, data: {} as IChatSendRequestData }),
 		removeHistoryEntry: async (resource: URI) => { model.removeSession(resource); },
@@ -459,6 +464,7 @@ function createProviderForSendTests(
 	instantiationService.stub(IChatService, {
 		acquireOrLoadSession: async () => undefined,
 		sendRequest: sendRequest,
+		chatModels: constObservable([]),
 		removeHistoryEntry: async (resource: URI) => { model.removeSession(resource); },
 		setChatSessionTitle: () => { },
 	});
@@ -1381,6 +1387,148 @@ suite('CopilotChatSessionsProvider', () => {
 		model.replaceSession(createMockAgentSession(resource, { title: 'Running (updated)', createdAt: 1, status: ChatSessionStatus.InProgress, read: true }));
 
 		assert.strictEqual(provider.getSessions()[0].isRead.get(), true);
+	});
+
+	test('only known automation follow-ups request history discovery, without waiting for a history entry', () => {
+		const automated = URI.parse('copilot-cloud-agent:/task/automation');
+		const ordinary = URI.parse('copilot-cloud-agent:/task/ordinary');
+		const unknown = URI.parse('copilot-cloud-agent:/task/unknown');
+		const running = [automated, ordinary, unknown].map(resource => ({ resource, running: observableValue(resource.toString(), false) }));
+		const chatModels = constObservable(running.map(({ resource, running }) => upcastPartial<IChatModel>({
+			sessionResource: resource, requestInProgress: running,
+		})));
+		model.addSession(createMockAgentSession(automated, { metadata: { isAutomation: true } }));
+		model.addSession(createMockAgentSession(ordinary));
+		const provider = createProvider(disposables, model, { chatModels });
+		const observe = spy(provider.automations!, 'observeLocalRequest');
+		disposables.add(toDisposable(() => observe.restore()));
+		for (const request of running) {
+			request.running.set(true, undefined);
+		}
+		assert.deepStrictEqual(observe.args.map(([resource]) => resource.toString()), [automated.toString()]);
+	});
+
+	test('automation provenance updates the stable session facade without changing external ownership', () => {
+		const resource = URI.parse('copilot-cloud-agent:/task/automation');
+		model.addSession(createMockAgentSession(resource, { createdAt: 1, metadata: { external: true } }));
+		const provider = createProvider(disposables, model);
+		const session = provider.getSessions()[0];
+		model.replaceSession(createMockAgentSession(resource, { createdAt: 1, metadata: { isAutomation: true, external: true } }));
+		assert.deepStrictEqual({
+			sameSession: provider.getSessions()[0] === session,
+			automation: session.isAutomation?.get(),
+			external: session.isExternal?.get(),
+		}, { sameSession: true, automation: true, external: true });
+	});
+
+	test('newer completion marks unread when polling skipped running but unchanged completion does not', () => {
+		const resource = URI.parse('copilot-cloud-agent:/task/newer-turn');
+		model.addSession(createMockAgentSession(resource, { createdAt: 1, completedAt: 100 }));
+		const provider = createProvider(disposables, model);
+		model.replaceSession(createMockAgentSession(resource, { createdAt: 1, completedAt: 200, onSetRead: () => model.fireDidChangeSessions() }));
+		const afterCompletion = provider.getSessions()[0].isRead.get();
+		model.getSession(resource)!.setRead(true);
+		model.replaceSession(createMockAgentSession(resource, { createdAt: 1, completedAt: 200 }));
+		assert.deepStrictEqual({ afterCompletion, afterSameCompletion: provider.getSessions()[0].isRead.get() }, { afterCompletion: false, afterSameCompletion: true });
+	});
+
+	test('first observed completion after creation marks an existing settled session unread', () => {
+		const resource = URI.parse('copilot-cloud-agent:/task/first-completion');
+		model.addSession(createMockAgentSession(resource, { createdAt: 1 }));
+		const provider = createProvider(disposables, model);
+		model.replaceSession(createMockAgentSession(resource, { createdAt: 1, completedAt: 200, onSetRead: () => model.fireDidChangeSessions() }));
+		assert.strictEqual(provider.getSessions()[0].isRead.get(), false);
+	});
+
+	test('first completion equal to creation marks unread once, without undoing a later acknowledgement', () => {
+		const resource = URI.parse('copilot-cloud-agent:/task/creation-time-completion');
+		const onSetRead = () => model.fireDidChangeSessions();
+		model.addSession(createMockAgentSession(resource, { createdAt: 100, onSetRead }));
+		const provider = createProvider(disposables, model);
+		model.replaceSession(createMockAgentSession(resource, { createdAt: 100, completedAt: 100, onSetRead }));
+		const afterCompletion = provider.getSessions()[0].isRead.get();
+		model.getSession(resource)!.setRead(true);
+		model.replaceSession(createMockAgentSession(resource, { createdAt: 100, completedAt: 100, onSetRead }));
+		assert.deepStrictEqual({
+			afterCompletion,
+			afterAcknowledgedRefresh: provider.getSessions()[0].isRead.get(),
+		}, { afterCompletion: false, afterAcknowledgedRefresh: true });
+	});
+
+	test('a delayed catalogue completion does not undo acknowledgement of the same local turn', () => {
+		const resource = URI.parse('copilot-cloud-agent:/task/acknowledged');
+		const running = observableValue('request', false);
+		const response = upcastPartial<IChatResponseModel>({ isComplete: true, isCanceled: false, completionTimestamp: 300 });
+		const chat = upcastPartial<IChatModel>({
+			sessionResource: resource, requestInProgress: running, lastRequest: upcastPartial<IChatRequestModel>({ response }),
+		});
+		const chatModels = observableValue<Iterable<IChatModel>>('models', [chat]);
+		const onSetRead = () => model.fireDidChangeSessions();
+		model.addSession(createMockAgentSession(resource, { createdAt: 1, completedAt: 100, onSetRead }));
+		const provider = createProvider(disposables, model, { chatModels });
+		running.set(true, undefined);
+		running.set(false, undefined);
+		model.getSession(resource)!.setRead(true);
+		chatModels.set([], undefined);
+		model.replaceSession(createMockAgentSession(resource, { createdAt: 1, completedAt: 200, onSetRead }));
+		const afterDelayedCatalogue = provider.getSessions()[0].isRead.get();
+		model.replaceSession(createMockAgentSession(resource, { createdAt: 1, completedAt: 400, onSetRead }));
+		assert.deepStrictEqual({ afterDelayedCatalogue, afterNewRemoteTurn: provider.getSessions()[0].isRead.get() }, { afterDelayedCatalogue: true, afterNewRemoteTurn: false });
+	});
+
+	for (const cancelled of [false, true]) {
+		test(`local follow-up completion marks unread without polling and disposes observers (cancelled: ${cancelled})`, () => {
+			const resource = URI.parse('copilot-cloud-agent:/task/follow-up');
+			const running = observableValue('request', false);
+			const response = upcastPartial<IChatResponseModel>({ isComplete: !cancelled, isCanceled: cancelled });
+			const chat = upcastPartial<IChatModel>({
+				sessionResource: resource, requestInProgress: running, lastRequest: upcastPartial<IChatRequestModel>({ response }),
+			});
+			const chatModels = observableValue<Iterable<IChatModel>>('models', [chat]);
+			model.addSession(createMockAgentSession(resource, { onSetRead: () => model.fireDidChangeSessions() }));
+			const provider = createProvider(disposables, model, { chatModels });
+			running.set(true, undefined);
+			chatModels.set([chat], undefined);
+			running.set(false, undefined);
+			const afterCompletion = provider.getSessions()[0].isRead.get();
+			chatModels.set([], undefined);
+			model.getSession(resource)!.setRead(true);
+			running.set(true, undefined);
+			running.set(false, undefined);
+			assert.deepStrictEqual({ afterCompletion, afterRemoval: provider.getSessions()[0].isRead.get() }, { afterCompletion: cancelled, afterRemoval: true });
+		});
+	}
+
+	test('exact task resolution waits for publication and declines disabled or malformed resources', async () => {
+		const resource = URI.parse('copilot-cloud-agent:/task/exact');
+		const commands: string[] = [];
+		const publish = new DeferredPromise<void>();
+		const { provider, configService } = createProviderWithConfig(disposables, model, {
+			commandService: new class extends mock<ICommandService>() {
+				override async executeCommand<T>(id: string, requested: URI): Promise<T | undefined> {
+					commands.push(`${id}:${requested.path}`);
+					await publish.p;
+					model.addSession(createMockAgentSession(requested, { metadata: { isAutomation: true } }));
+					return undefined;
+				}
+			}(),
+		});
+		assert.strictEqual(await provider.resolveSessionResource(resource), undefined);
+		await configService.setUserConfiguration('chat.automations.enabled', true);
+		await configService.setUserConfiguration('chat.automations.cloud.enabled', true);
+		configService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true, affectedKeys: new Set(), change: { keys: [], overrides: [] }, source: 1 });
+		const opening = provider.resolveSessionResource(resource);
+		await publish.complete();
+		const resolved = await opening;
+		await provider.resolveSessionResource(resource);
+		const malformed = await provider.resolveSessionResource(resource.with({ query: 'other=true' }));
+		assert.deepStrictEqual({
+			resolved: resolved?.toString(), malformed, commands,
+			automation: provider.getSessions()[0].isAutomation?.get(),
+		}, {
+			resolved: resource.toString(), malformed: undefined,
+			commands: ['github.copilot.chat.cloudSessions.resolveTask:/task/exact'], automation: true,
+		});
 	});
 
 	test('setSessionReadState updates the agent session read state', async () => {

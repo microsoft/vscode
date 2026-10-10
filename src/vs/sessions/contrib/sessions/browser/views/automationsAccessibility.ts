@@ -13,12 +13,15 @@ import { IAutomationDescriptor, IAutomationRun, IAutomationSchedule } from '../.
 import { AutomationCatalogueState, type IAutomationProviderDescriptor, IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { automationScheduleToLocal, DAYS_OF_WEEK } from '../../../../../workbench/contrib/chat/common/automations/schedule.js';
 import { IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
+import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { AutomationsCustomViewFocusContext } from '../../../../common/contextkeys.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IAutomationTemplate, readAutomationTemplates } from './automationTemplates.js';
 import { formatUnavailableAutomationsMessage } from './automationCataloguePresentation.js';
+import { automationRunWithLocalProgress } from './automationRunProgress.js';
 
 class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly type = AccessibleViewType.Help;
@@ -55,7 +58,7 @@ class AutomationsCustomViewAccessibilityHelp implements IAccessibleViewImplement
 				localize('automationsCustomView.help.cloudDialog', "Choose Work in GitHub in the workspace picker to search for a private repository or paste its URL. A matching local folder is retained and Cloud is selected by default. Use the session type picker to choose another agent supported by the workspace. Eligible local folders also support selecting Cloud directly. When creating an automation, changing to a public repository switches Cloud back to Copilot when available. Non-private repositories chosen through Work in GitHub are rejected with an error notification. Cloud models are configured in the prompt section. In the Tools section, use Configure allowed tools to open a searchable checklist of the tools GitHub offers, grouped by category; press Space to toggle a tool, Enter to apply changes, or Escape to cancel. New automations start with every listed tool selected. Built-in tools are always available. While the list loads the button is unavailable, and if it cannot be loaded a Retry button appears. These are followed by the schedule in your local time zone. GitHub stores a fixed UTC schedule, so the local run time may shift when daylight saving time changes. When editing a cloud automation, the workspace picker is disabled because changing the repository or provider requires duplication. Editing preserves enabled state; enable or disable an automation from its card. When Cloud is selected, a note beside the Create button explains that the automation runs even when your computer is off, triggered on a schedule."),
 			] : []),
 			localize('automationsCustomView.help.history', "Run history is grouped by date. While a run is waiting for its session, a lightweight row shows the automation name with a Working... description. Once the session is available, use Up Arrow and Down Arrow to navigate the Sessions list, Enter to open, and Tab to reach Stop, the configured Archive or Mark as Done action, or Delete when available. Open a row's context menu, for example with Shift+F10, to rename it, change its active or read state, or delete it. Delete permanently deletes the session and removes it from run history after confirmation."),
-			localize('automationsCustomView.help.cloudHistory', "Cloud history shows the repository, status, and last updated time even when no local session is available. Tab to a row's toolbar and use Left Arrow and Right Arrow to reach Open on GitHub and Stop when supported. Stop requests cancellation; the status changes when GitHub reports it. Use Refresh in the view header to reload definitions and history. Active cloud runs refresh every 15 seconds without moving the history rows; idle definitions do not poll."),
+			localize('automationsCustomView.help.cloudHistory', "Cloud history shows the repository, status, and last updated time even when no local session is available. Tab to a row's toolbar and use Left Arrow and Right Arrow to reach Open Session, Open on GitHub, and Stop when supported. Open Session resolves that exact task in VS Code. Archive or Mark as Done changes local session state; it does not stop the task on GitHub. Stop requests remote cancellation; the status changes when GitHub reports it. Follow-up requests show conversation progress and restart bounded history discovery. Use Refresh in the view header to reload definitions and history. Active cloud runs refresh every 15 seconds without moving the history rows; idle definitions do not poll."),
 			localize('automationsCustomView.help.read', "Completed and failed runs that have not been opened are announced as unread. Use Mark all as read to clear all available unread runs."),
 			localize('automationsCustomView.help.accessibleView', "Use Open Accessible View to read the current automations and run history as text."),
 		].join('\n');
@@ -79,6 +82,7 @@ class AutomationsCustomViewAccessibleView implements IAccessibleViewImplementati
 		const automationService = accessor.get(IAutomationService);
 		const layoutService = accessor.get(IAgentWorkbenchLayoutService);
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const chatService = accessor.get(IChatService);
 		const agentPluginService = accessor.get(IAgentPluginService);
 		const restoreFocus = createFocusRestorer(layoutService);
 		return new AccessibleContentProvider(
@@ -96,6 +100,7 @@ class AutomationsCustomViewAccessibleView implements IAccessibleViewImplementati
 				readAutomationTemplates(agentPluginService.plugins.get()),
 				automationService.unavailableProviders.get(),
 				automationService.historyState?.get(),
+				chatService.chatModels.get(),
 			),
 			restoreFocus,
 			AccessibilityVerbositySettingId.Automations,
@@ -114,7 +119,7 @@ function createFocusRestorer(layoutService: IAgentWorkbenchLayoutService): () =>
 	};
 }
 
-export function buildAutomationsAccessibleContent(automations: readonly IAutomationDescriptor[], runs: readonly IAutomationRun[], catalogueState: AutomationCatalogueState, templates: readonly IAutomationTemplate[] = readAutomationTemplates([]), unavailableProviders: readonly IAutomationProviderDescriptor[] = [], historyState?: AutomationCatalogueState): string {
+export function buildAutomationsAccessibleContent(automations: readonly IAutomationDescriptor[], runs: readonly IAutomationRun[], catalogueState: AutomationCatalogueState, templates: readonly IAutomationTemplate[] = readAutomationTemplates([]), unavailableProviders: readonly IAutomationProviderDescriptor[] = [], historyState?: AutomationCatalogueState, chatModels: Iterable<IChatModel> = []): string {
 	const lines = [localize('automationsAccessibleView.title', "Automations")];
 	const builtInTemplates = templates.filter(template => !template.source);
 	const pluginTemplates = templates.filter(template => !!template.source);
@@ -183,7 +188,8 @@ export function buildAutomationsAccessibleContent(automations: readonly IAutomat
 		}
 	} else {
 		const automationNames = new Map(automations.map(automation => [automation.id, automation.name]));
-		for (const run of runs) {
+		for (const historyRun of runs) {
+			const run = automationRunWithLocalProgress(historyRun, chatModels);
 			lines.push(localize(
 				'automationsAccessibleView.run',
 				"{0}, {1}, started {2}",
@@ -234,6 +240,9 @@ function formatTime(hour: number, minute: number): string {
 function formatRunStatus(run: IAutomationRun): string {
 	if (run.statusDescription) {
 		return run.statusDescription;
+	}
+	if (run.needsInput) {
+		return localize('automationsAccessibleView.needsInput', "Needs input");
 	}
 	switch (run.status) {
 		case 'pending':

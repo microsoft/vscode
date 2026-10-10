@@ -62,6 +62,7 @@ import { IActionViewItemService } from '../../../../../platform/actions/browser/
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { AutomationsHasItemsContext } from '../../../../common/contextkeys.js';
 import { buildAutomationsAccessibleContent } from '../../browser/views/automationsAccessibility.js';
+import { automationRunWithLocalProgress } from '../../browser/views/automationRunProgress.js';
 import { AUTOMATION_TEMPLATES } from '../../browser/views/automationTemplates.js';
 import { AutomationsCardsWidget, AutomationsCustomViewContribution, SEEN_PLUGIN_AUTOMATION_TEMPLATES_STORAGE_KEY } from '../../browser/views/automationsView.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
@@ -69,6 +70,8 @@ import { ISessionsListModelService } from '../../../../services/sessions/browser
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IMenuService, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
 import { Menus } from '../../../../browser/menus.js';
@@ -425,6 +428,11 @@ class FakeSessionsService extends mock<ISessionsService>() {
 }
 
 class FakeSessionsManagementService extends mock<ISessionsManagementService>() implements IDisposable {
+	readonly resolved: URI[] = [];
+	override async resolveSessionResource(resource: URI): Promise<URI> {
+		this.resolved.push(resource);
+		return resource;
+	}
 	private readonly sessionDeletedEmitter = new Emitter<ISession>();
 	private readonly sessionsChangedEmitter = new Emitter<ISessionsChangeEvent>();
 	private readonly deletedSessionResources = new Set<string>();
@@ -564,7 +572,7 @@ class FakeSessionsManagementService extends mock<ISessionsManagementService>() i
 
 	override async archiveSession(session: ISession): Promise<void> {
 		this.archived.push(session);
-		if (session === this.session) {
+		if (session.sessionId === this.session.sessionId) {
 			this.isArchived.set(true, undefined);
 		}
 	}
@@ -678,6 +686,7 @@ suite('AutomationsCardsWidget', () => {
 		}
 		const contextKeyService = store.add(new ContextKeyService(configurationService));
 		ChatAutomationsEnabledContext.bindTo(contextKeyService).set(true);
+		ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
 		instantiationService.stub(IContextKeyService, contextKeyService);
 		instantiationService.stub(IKeybindingService, keybindingService);
 		instantiationService.stub(IHoverService, hoverService);
@@ -705,8 +714,9 @@ suite('AutomationsCardsWidget', () => {
 				observeSession: () => constObservable(undefined),
 			},
 		});
+		const chatModels = observableValue<Iterable<IChatModel>>('models', []);
 		instantiationService.stub(IChatService, new class extends mock<IChatService>() {
-			override readonly chatModels = constObservable([]);
+			override readonly chatModels = chatModels;
 		});
 		instantiationService.stub(ICustomViewService, new class extends mock<ICustomViewService>() {
 			override readonly activeCustomView = constObservable(undefined);
@@ -717,8 +727,109 @@ suite('AutomationsCardsWidget', () => {
 		const widget = disposables.add(instantiationService.createInstance(AutomationsCardsWidget));
 		document.body.append(widget.element);
 		disposables.add(toDisposable(() => widget.element.remove()));
-		return { agentPluginService, automationService, automationDialogService, commandService, configurationService, contextKeyService, contextMenuService, dialogService, instantiationService, keybindingService, logService, runner, sessionsManagementService, sessionsService, telemetryService, widget, refreshErrors, opened };
+		return { agentPluginService, automationService, automationDialogService, commandService, configurationService, contextKeyService, contextMenuService, dialogService, instantiationService, keybindingService, logService, runner, sessionsManagementService, sessionsService, telemetryService, widget, refreshErrors, opened, chatModels };
 	}
+
+	test('native cloud actions retain GitHub opening and remote Stop while Mark as Done is local', async () => {
+		const { widget, automationService, sessionsManagementService, opened, contextMenuService } = setup('done');
+		const external = run({ status: 'running', externalResource: URI.parse('https://github.com/owner/private/tasks/exact') });
+		automationService.setAutomations([automation()]);
+		automationService.setRuns([external]);
+		await waitForSessionActions();
+		getSessionAction(widget, 'Open on GitHub')!.click();
+		getSessionAction(widget, 'Stop')!.click();
+		await timeout(0);
+		automationService.setRuns([{ ...external, status: 'completed' }]);
+		await waitForSessionActions();
+		dispatchContextMenu(widget.element.querySelector<HTMLElement>('.automations-run-session-list .session-item')!);
+		const delegate = contextMenuService.delegate!;
+		const archive = delegate.getActions().find(action => action.label === 'Mark as Done')!;
+		await delegate.actionRunner!.run(archive, delegate.getActionsContext?.());
+		delegate.onHide?.(false);
+		await timeout(0);
+		assert.deepStrictEqual({
+			opened, stopped: automationService.stoppedRuns,
+			localCancels: sessionsManagementService.cancelCurrentRequestCalls,
+			archived: sessionsManagementService.archived.map(session => session.sessionId),
+		}, { opened: [external.externalResource!.toString()], stopped: [external.id], localCancels: 0, archived: [sessionsManagementService.session.sessionId] });
+	});
+
+	test('local follow-up progress and completion override stale cloud history without losing unread state', async () => {
+		const { widget, automationService, sessionsManagementService, chatModels, instantiationService } = setup();
+		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() { });
+		const accessibleView = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'sessions-automations-view');
+		assert.ok(accessibleView);
+		const accessibleProvider = instantiationService.invokeFunction(accessor => accessibleView.getProvider(accessor));
+		assert.ok(accessibleProvider);
+		disposables.add(accessibleProvider);
+		const running = observableValue('running', false);
+		const requestedAt = Date.now() - 3_600_000;
+		const completedAt = Date.now() - 60_000;
+		const lastRequest = observableValue<IChatRequestModel | undefined>('lastRequest', upcastPartial<IChatRequestModel>({ timestamp: requestedAt }));
+		chatModels.set([upcastPartial<IChatModel>({
+			sessionResource: SESSION_RESOURCE, requestInProgress: running, requestNeedsInput: constObservable(undefined), lastRequestObs: lastRequest,
+			onDidChange: Event.None, getRequests: () => [],
+		})], undefined);
+		automationService.setAutomations([automation()]);
+		const external = run({ status: 'completed', updatedAt: '2026-01-01T00:00:00Z', externalResource: URI.parse('https://github.com/owner/private/tasks/exact') });
+		automationService.setRuns([external]);
+		running.set(true, undefined);
+		const inProgress = !!widget.element.querySelector('.session-item.in-progress');
+		const unreadDuringFollowUp = isMarkAllReadVisible(widget);
+		const accessibleWhileRunning = accessibleProvider.provideContent().includes('Daily review, Running, started');
+		const activeRow = widget.element.querySelector('.automations-run-session-list .monaco-list-row')!;
+		const runningTime = activeRow.querySelector('.session-time')?.textContent;
+		const runningTimeMatchesAria = activeRow.getAttribute('aria-label')?.includes(`updated ${runningTime}`);
+		automationService.setRuns([{ ...external, status: 'running' }]);
+		lastRequest.set(upcastPartial<IChatRequestModel>({ timestamp: requestedAt, response: upcastPartial<IChatResponseModel>({ isComplete: true, isCanceled: false, completionTimestamp: completedAt }) }), undefined);
+		running.set(false, undefined);
+		assert.deepStrictEqual({
+			inProgress, unreadDuringFollowUp,
+			accessibleWhileRunning,
+			runningTime, runningTimeMatchesAria,
+			completedTime: activeRow.querySelector('.session-time')?.textContent,
+			completedTimeMatchesAria: activeRow.getAttribute('aria-label')?.includes(`updated ${activeRow.querySelector('.session-time')?.textContent}`),
+			accessibleAfterCompletion: accessibleProvider.provideContent().includes('Daily review, Completed, started'),
+			completed: !widget.element.querySelector('.session-item.in-progress'),
+			unreadAfter: isMarkAllReadVisible(widget), read: sessionsManagementService.isRead.get(),
+		}, { inProgress: true, unreadDuringFollowUp: false, accessibleWhileRunning: true, runningTime: '1 hr ago', runningTimeMatchesAria: true, completedTime: '1 min ago', completedTimeMatchesAria: true, accessibleAfterCompletion: true, completed: true, unreadAfter: true, read: false });
+	});
+
+	test('pending confirmation projects needs input while requestInProgress is false', () => {
+		const { widget, automationService, chatModels } = setup();
+		const timestamp = Date.now() - 60_000;
+		const needsInput = observableValue<{ title: string } | undefined>('needsInput', { title: 'Approval needed' });
+		const model = upcastPartial<IChatModel>({
+			sessionResource: SESSION_RESOURCE, requestInProgress: constObservable(false), requestNeedsInput: needsInput,
+			lastRequestObs: constObservable(upcastPartial<IChatRequestModel>({ timestamp })),
+			onDidChange: Event.None, getRequests: () => [],
+		});
+		chatModels.set([model], undefined);
+		automationService.setAutomations([automation()]);
+		const results = (['completed', 'running'] as const).map(status => {
+			const remote = run({ status, updatedAt: '2026-01-01T00:00:00Z', externalResource: URI.parse('https://github.com/owner/private/tasks/exact') });
+			automationService.setRuns([remote]);
+			const projected = automationRunWithLocalProgress(remote, [model]);
+			return {
+				status: projected.status, needsInput: projected.needsInput, updatedAt: projected.updatedAt,
+				unreadCompletion: isMarkAllReadVisible(widget),
+				accessible: buildAutomationsAccessibleContent([automation()], [remote], 'ready', [], [], 'ready', [model]).includes('Daily review, Needs input, started'),
+			};
+		});
+		assert.deepStrictEqual(results, Array.from({ length: 2 }, () => ({
+			status: 'running', needsInput: true, updatedAt: new Date(timestamp).toISOString(), unreadCompletion: false, accessible: true,
+		})));
+	});
+
+	test('unresolved cloud history opens only its exact task and reports unavailable native sessions', async () => {
+		const { widget, automationService, sessionsManagementService, dialogService, sessionsService } = setup();
+		const resource = URI.parse('copilot-cloud-agent:/task/not-listed');
+		automationService.setAutomations([automation()]);
+		automationService.setRuns([run({ sessionResource: resource, externalResource: URI.parse('https://github.com/owner/private/tasks/not-listed') })]);
+		widget.element.querySelector<HTMLElement>('[aria-label="Open Session"]')!.click();
+		await dialogService.errorCalled.p;
+		assert.deepStrictEqual({ resolved: sessionsManagementService.resolved.map(uri => uri.toString()), opens: sessionsService.openCalls, errors: dialogService.errors.length }, { resolved: [resource.toString()], opens: 0, errors: 1 });
+	});
 
 	test('entry and manual refresh reload catalogues, but restoring focus does not', async () => {
 		const { widget, automationService, refreshErrors, instantiationService, contextKeyService } = setup();
@@ -3337,6 +3448,67 @@ suite('AutomationsCardsWidget', () => {
 			buildAutomationsAccessibleContent([automation()], [run({ status: 'failed', errorMessage: 'boom' })], 'ready').includes('Daily review, Failed'),
 			true,
 		);
+	});
+
+	test('accessible local progress clears stale descriptions and errors and reports input and failures', () => {
+		const external = run({
+			status: 'failed', updatedAt: '2026-01-01T00:00:00Z',
+			errorMessage: 'old failure', statusDescription: 'Old remote status',
+			externalResource: URI.parse('https://github.com/owner/private/tasks/exact'),
+		});
+		const running = observableValue('running', true);
+		const needsInput = observableValue<{ title: string } | undefined>('needsInput', undefined);
+		const lastRequest = observableValue<IChatRequestModel | undefined>('lastRequest', undefined);
+		const model = upcastPartial<IChatModel>({
+			sessionResource: SESSION_RESOURCE, requestInProgress: running, requestNeedsInput: needsInput, lastRequestObs: lastRequest,
+		});
+		const content = () => buildAutomationsAccessibleContent([automation()], [external], 'ready', [], [], 'ready', [model]);
+		const active = content();
+		needsInput.set({ title: 'Permission needed' }, undefined);
+		const waiting = content();
+		lastRequest.set(upcastPartial<IChatRequestModel>({
+			timestamp: Date.parse('2026-01-01T12:00:00Z'),
+			response: upcastPartial<IChatResponseModel>({
+				isComplete: true, isCanceled: false, completionTimestamp: Date.parse('2026-01-02T00:00:00Z'),
+				result: { errorDetails: { message: 'New local failure' } },
+			}),
+		}), undefined);
+		running.set(false, undefined);
+		needsInput.set(undefined, undefined);
+		const failed = content();
+		assert.deepStrictEqual({
+			running: active.includes('Daily review, Running, started'),
+			needsInput: waiting.includes('Daily review, Needs input, started'),
+			failed: failed.includes('Daily review, Failed, started'),
+			error: failed.includes('Error: New local failure'),
+			stale: [active, waiting, failed].some(value => value.includes('old failure') || value.includes('Old remote status')),
+		}, { running: true, needsInput: true, failed: true, error: true, stale: false });
+	});
+
+	test('accessible history ignores cancelled, older, unrelated and non-cloud local progress', () => {
+		const external = run({
+			status: 'completed', updatedAt: '2026-01-02T00:00:00Z', statusDescription: 'Authoritative remote status',
+			externalResource: URI.parse('https://github.com/owner/private/tasks/exact'),
+		});
+		const cases = [
+			{ run: external, resource: SESSION_RESOURCE, running: false, cancelled: true, completedAt: '2026-01-03T00:00:00Z' },
+			{ run: external, resource: SESSION_RESOURCE, running: false, cancelled: false, completedAt: '2026-01-01T00:00:00Z' },
+			{ run: external, resource: SECOND_SESSION_RESOURCE, running: true, cancelled: false },
+			{ run: { ...external, externalResource: undefined }, resource: SESSION_RESOURCE, running: true, cancelled: false },
+		];
+		assert.deepStrictEqual(cases.map(value => {
+			const model = upcastPartial<IChatModel>({
+				sessionResource: value.resource, requestInProgress: constObservable(value.running), requestNeedsInput: constObservable(undefined),
+				lastRequestObs: constObservable(upcastPartial<IChatRequestModel>({
+					response: upcastPartial<IChatResponseModel>({
+						isComplete: true, isCanceled: value.cancelled,
+						completionTimestamp: value.completedAt ? Date.parse(value.completedAt) : undefined,
+					}),
+				})),
+			});
+			return buildAutomationsAccessibleContent([automation()], [value.run], 'ready', [], [], 'ready', [model])
+				.includes('Daily review, Authoritative remote status, started');
+		}), [true, true, true, true]);
 	});
 
 	test('accessible view summarizes templates without reading full prompts', () => {
