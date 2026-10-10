@@ -40,6 +40,12 @@ const spawnAcpAgent: AcpAgentLauncher = (config, onStderr) => {
 	});
 	child.stderr.setEncoding('utf8');
 	child.stderr.on('data', chunk => onStderr(String(chunk)));
+	// A missing or non-executable command fails asynchronously with `error` and
+	// no `exit`; unhandled, it would take down the agent host. Surface it as an exit.
+	child.once('error', error => {
+		onStderr(`failed to start: ${error.message}`);
+		child.emit('exit', null, null);
+	});
 	return transportFromChildProcess(child);
 };
 
@@ -176,7 +182,8 @@ export class AcpAgent extends Disposable implements IAgent {
 			return connection;
 		} catch (error) {
 			disposables.dispose();
-			throw error;
+			const message = error instanceof Error ? error.message : String(error);
+			throw new Error(`Failed to start ${this._displayName} (\`${this._config.command}\`): ${message}`);
 		}
 	}
 

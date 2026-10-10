@@ -169,6 +169,13 @@ suite('AcpAgent', () => {
 		await assert.rejects(createChat(), /Qwen Code needs you to sign in: Run `opencode auth login`/);
 	});
 
+	test('reports agents that fail to start', async () => {
+		agentProcess.handlers.delete('initialize');
+		const exited = agentProcess.nextMessage('initialize').then(() => agentProcess.exit(null));
+		await assert.rejects(createChat(), /Failed to start Qwen Code \(`qwen`\)/);
+		await exited;
+	});
+
 	test('fails the running turn when the agent process exits', async () => {
 		agentProcess.handlers.set('session/prompt', () => new Promise(() => { /* never answers */ }));
 		await createChat();
