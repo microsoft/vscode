@@ -21,7 +21,9 @@ import { UndoRedoSource } from '../../../../platform/undoRedo/common/undoRedo.js
 import { IExplorerView, IExplorerService } from './files.js';
 import { IProgressService, ProgressLocation, IProgressCompositeOptions, IProgressOptions } from '../../../../platform/progress/common/progress.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { Promises, RunOnceScheduler } from '../../../../base/common/async.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
+import { ResourceMap } from '../../../../base/common/map.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IExpression } from '../../../../base/common/glob.js';
@@ -29,8 +31,17 @@ import { ResourceGlobMatcher } from '../../../common/resources.js';
 import { IFilesConfigurationService } from '../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { IDecorationsService } from '../../../services/decorations/common/decorations.js';
 import { ExplorerDecorationsProvider } from './views/explorerDecorationsProvider.js';
+import { IWorkingCopyFileService } from '../../../services/workingCopy/common/workingCopyFileService.js';
 
 export const UNDO_REDO_SOURCE = new UndoRedoSource();
+
+interface IExplorerMoveBatch {
+	readonly targets: ResourceMap<URI>;
+	readonly operations: Promise<void>[];
+	readonly refreshes: Map<ExplorerItem, boolean>;
+	readonly sourceParents: Set<ExplorerItem>;
+	readonly targetParents: Set<ExplorerItem>;
+}
 
 export class ExplorerService implements IExplorerService {
 	declare readonly _serviceBrand: undefined;
@@ -48,6 +59,7 @@ export class ExplorerService implements IExplorerService {
 	private onFileChangesScheduler: RunOnceScheduler;
 	private fileChangeEvents: FileChangesEvent[] = [];
 	private revealExcludeMatcher: ResourceGlobMatcher;
+	private readonly moveBatches = new Map<number, IExplorerMoveBatch>();
 
 	constructor(
 		@IFileService private fileService: IFileService,
@@ -62,12 +74,40 @@ export class ExplorerService implements IExplorerService {
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
 		@IDecorationsService private readonly decorationsService: IDecorationsService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService,
 	) {
 		this.config = this.configurationService.getValue('explorer');
 
 		this.model = new ExplorerModel(this.contextService, this.uriIdentityService, this.fileService, this.configurationService, this.filesConfigurationService);
 		this.disposables.add(this.model);
-		this.disposables.add(this.fileService.onDidRunOperation(e => this.onDidRunOperation(e)));
+		this.disposables.add(workingCopyFileService.onWillRunWorkingCopyFileOperation(e => {
+			if (e.operation === FileOperation.MOVE && e.files.length > 1) {
+				const targets = new ResourceMap<URI>(resource => this.uriIdentityService.extUri.getComparisonKey(resource));
+				for (const { source, target } of e.files) {
+					if (source) {
+						targets.set(source, target);
+					}
+				}
+				this.moveBatches.set(e.correlationId, { targets, operations: [], refreshes: new Map(), sourceParents: new Set(), targetParents: new Set() });
+			}
+		}));
+		this.disposables.add(Event.any(workingCopyFileService.onDidRunWorkingCopyFileOperation, workingCopyFileService.onDidFailWorkingCopyFileOperation)(e => {
+			e.waitUntil(this.finishMoveBatch(e.correlationId));
+		}));
+		this.disposables.add(this.fileService.onDidRunOperation(e => {
+			const batches: IExplorerMoveBatch[] = [];
+			if (e.isOperation(FileOperation.MOVE)) {
+				for (const batch of this.moveBatches.values()) {
+					if (this.uriIdentityService.extUri.isEqual(batch.targets.get(e.resource), e.target.resource)) {
+						batches.push(batch);
+					}
+				}
+			}
+			const operation = this.onDidRunOperation(e, batches).catch(onUnexpectedError);
+			for (const batch of batches) {
+				batch.operations.push(operation);
+			}
+		}));
 
 		this.onFileChangesScheduler = this.disposables.add(new RunOnceScheduler(async () => {
 			const events = this.fileChangeEvents;
@@ -374,7 +414,53 @@ export class ExplorerService implements IExplorerService {
 
 	// File events
 
-	private async onDidRunOperation(e: FileOperationEvent): Promise<void> {
+	private async finishMoveBatch(correlationId: number): Promise<void> {
+		const batch = this.moveBatches.get(correlationId);
+		if (!batch) {
+			return;
+		}
+		this.moveBatches.delete(correlationId);
+		try {
+			// File service events are synchronous, but their model/view handlers can still be running.
+			await Promises.settled(batch.operations);
+			const refresh = async ([item, recursive]: [ExplorerItem, boolean]) => {
+				if (!this.disposables.isDisposed) {
+					await this.view?.refresh(recursive, item);
+				}
+			};
+			const refreshes = Array.from(batch.refreshes);
+			// Reconcile every source before destinations, including parents that serve both roles.
+			const sources = Promises.settled(refreshes.filter(([item]) => batch.sourceParents.has(item) || !batch.targetParents.has(item)).map(refresh));
+			const refreshTargets = () => Promises.settled(refreshes.filter(([item]) => batch.targetParents.has(item)).map(refresh));
+			await Promises.settled([sources, sources.then(refreshTargets, refreshTargets)]);
+		} finally {
+			batch.targets.clear();
+			batch.operations.length = 0;
+			batch.refreshes.clear();
+			batch.sourceParents.clear();
+			batch.targetParents.clear();
+		}
+	}
+
+	private async refreshMove(recursive: boolean, item: ExplorerItem | undefined, batches: readonly IExplorerMoveBatch[], role?: 'source' | 'target'): Promise<void> {
+		if (this.disposables.isDisposed) {
+			return;
+		}
+		if (item && batches.length) {
+			for (const batch of batches) {
+				batch.refreshes.set(item, recursive || batch.refreshes.get(item) === true);
+				if (role === 'source') {
+					batch.sourceParents.add(item);
+				} else if (role === 'target') {
+					batch.targetParents.add(item);
+				}
+			}
+		} else {
+			await this.view?.refresh(recursive, item);
+		}
+	}
+
+	private async onDidRunOperation(e: FileOperationEvent, batches: readonly IExplorerMoveBatch[]): Promise<void> {
 		// When nesting, changes to one file in a folder may impact the rendered structure
 		// of all the folder's immediate children, thus a recursive refresh is needed.
 		// Ideally the tree would be able to recusively refresh just one level but that does not yet exist.
@@ -424,7 +510,7 @@ export class ExplorerService implements IExplorerService {
 				await Promise.all(modelElements.map(async modelElement => {
 					// Rename File (Model)
 					modelElement.rename(newElement);
-					await this.view?.refresh(shouldDeepRefresh, modelElement.parent);
+					await this.refreshMove(shouldDeepRefresh, modelElement.parent, batches);
 				}));
 			}
 
@@ -438,10 +524,10 @@ export class ExplorerService implements IExplorerService {
 						const oldNestedParent = modelElement.nestedParent;
 						modelElement.move(newParents[index]);
 						if (oldNestedParent) {
-							await this.view?.refresh(false, oldNestedParent);
+							await this.refreshMove(false, oldNestedParent, batches, 'source');
 						}
-						await this.view?.refresh(false, oldParent);
-						await this.view?.refresh(shouldDeepRefresh, newParents[index]);
+						await this.refreshMove(false, oldParent, batches, 'source');
+						await this.refreshMove(shouldDeepRefresh, newParents[index], batches, 'target');
 					}));
 				}
 			}
@@ -532,6 +618,15 @@ export class ExplorerService implements IExplorerService {
 
 	dispose(): void {
 		this.disposables.dispose();
+		for (const batch of this.moveBatches.values()) {
+			batch.targets.clear();
+			batch.operations.length = 0;
+			batch.refreshes.clear();
+			batch.sourceParents.clear();
+			batch.targetParents.clear();
+		}
+		this.moveBatches.clear();
+		this.view = undefined;
 	}
 }
 
