@@ -167,6 +167,22 @@ suite('AcpAgent', () => {
 		assert.strictEqual(agentProcess.received.length, sent);
 	});
 
+	test('closes the native session when setup after session/new fails', async () => {
+		agentProcess.handlers.set('session/set_config_option', () => { throw new Error('model unavailable'); });
+		agentProcess.handlers.set('session/close', () => ({}));
+		await assert.rejects(agent.chats.createChat(chat, session, { workingDirectories: [URI.file(workspace)], model: { id: 'qwen3-max' } }), /model unavailable/);
+		assert.deepStrictEqual(agentProcess.received.at(-1), { method: 'session/close', params: { sessionId: 'native-1' } });
+		assert.strictEqual(await agent.getChatMetadata(chat), undefined);
+	});
+
+	test('forgets a chat whose restore failed so it can be retried', async () => {
+		agentProcess.handlers.set('session/resume', () => { throw new Error('gone'); });
+		await assert.rejects(agent.materializeChat(chat, session, JSON.stringify({ sessionId: 'native-7', cwd: workspace })), /gone/);
+		agentProcess.handlers.set('session/resume', () => ({}));
+		await agent.materializeChat(chat, session, JSON.stringify({ sessionId: 'native-7', cwd: workspace }));
+		assert.ok(await agent.getChatMetadata(chat));
+	});
+
 	test('explains authentication errors with the agent auth methods', async () => {
 		agentProcess.handlers.set('initialize', () => ({ protocolVersion: 1, authMethods: [{ id: 'login', name: 'Login', description: 'Run `opencode auth login`' }] }));
 		agentProcess.handlers.set('session/new', () => { throw Object.assign(new Error('Authentication required'), { code: -32000 }); });

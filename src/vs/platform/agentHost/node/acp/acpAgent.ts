@@ -12,8 +12,9 @@ import { basename } from '../../../../base/common/path.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
+import { formatSubprocessArguments } from '../../../../base/node/processes.js';
 import { ILogService } from '../../../log/common/log.js';
-import { type AgentChatMigrationResult, type AgentSignal, type IActiveClient, type IAgent, type IAgentChatConfigCompletionsParams, type IAgentChatContext, type IAgentChatMetadata, type IAgentChats, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentModelInfo, type IAgentPermissionResponseContext, type IAgentResolveChatConfigParams, type IAgentToolPendingConfirmationSignal } from '../../common/agent.js';
+import { ACP_AGENT_PROVIDER_PREFIX, type AgentChatMigrationResult, type AgentSignal, type IActiveClient, type IAgent, type IAgentChatConfigCompletionsParams, type IAgentChatContext, type IAgentChatMetadata, type IAgentChats, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentModelInfo, type IAgentPermissionResponseContext, type IAgentResolveChatConfigParams, type IAgentToolPendingConfirmationSignal } from '../../common/agent.js';
 import type { IAgentHostAcpAgentConfig } from '../../common/agentHostSchema.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import type { AgentSelection, MessageAttachment, ModelSelection } from '../../common/state/protocol/state.js';
@@ -23,21 +24,19 @@ import { AcpClient, type IAcpClient, type IAcpTransport } from './acpClient.js';
 import { ACP_AUTH_REQUIRED_ERROR_CODE, ACP_PROTOCOL_VERSION, type AcpContentBlock, type IAcpAuthMethod, type IAcpInitializeResult, type IAcpPermissionOption, type IAcpRequestPermissionParams, type IAcpRequestPermissionResult, type IAcpSessionConfigOption, type IAcpSessionNotification, type IAcpSessionSetup } from './acpProtocol.js';
 import { AcpTurnMapper } from './acpTurnMapper.js';
 
-/** Prefix of every ACP provider id; the configured agent id follows. */
-export const ACP_AGENT_PROVIDER_PREFIX = 'acp-';
-
 export function acpProviderId(config: Pick<IAgentHostAcpAgentConfig, 'id'>): string {
 	return `${ACP_AGENT_PROVIDER_PREFIX}${config.id}`;
 }
 
 /** Starts the agent process. Injectable so tests can run an in-memory agent. */
-export type AcpAgentLauncher = (config: IAgentHostAcpAgentConfig, onStderr: (text: string) => void) => IAcpTransport;
+export type AcpAgentLauncher = (config: IAgentHostAcpAgentConfig, onStderr: (text: string) => void) => IAcpTransport | Promise<IAcpTransport>;
 
-const spawnAcpAgent: AcpAgentLauncher = (config, onStderr) => {
-	const child = spawn(config.command, [...(config.args ?? [])], {
-		env: { ...process.env, ...config.env },
-		stdio: ['pipe', 'pipe', 'pipe'],
-	});
+const spawnAcpAgent: AcpAgentLauncher = async (config, onStderr) => {
+	const env = { ...process.env, ...config.env };
+	// npm installs agents as `.cmd` shims on Windows, which cannot be spawned without a shell
+	// (CVE-2024-27980); this quotes them for a shell exactly like MCP stdio servers.
+	const { executable, args, shell } = await formatSubprocessArguments(config.command, config.args ?? [], undefined, env);
+	const child = spawn(executable, [...args], { env, shell, stdio: ['pipe', 'pipe', 'pipe'] });
 	child.stderr.setEncoding('utf8');
 	child.stderr.on('data', chunk => onStderr(String(chunk)));
 	// A missing or non-executable command fails asynchronously with `error` and
@@ -153,7 +152,7 @@ export class AcpAgent extends Disposable implements IAgent {
 
 	private async _connect(): Promise<IAcpConnection> {
 		this._logService.info(`[ACP:${this._config.id}] starting agent process`);
-		const transport = this._launch(this._config, text => this._logService.trace(`[ACP:${this._config.id} stderr] ${text.trimEnd()}`));
+		const transport = await this._launch(this._config, text => this._logService.trace(`[ACP:${this._config.id} stderr] ${text.trimEnd()}`));
 		const disposables = new DisposableStore();
 		const client = disposables.add(new AcpClient(transport, (level, message) => {
 			const line = `[ACP:${this._config.id}] ${message}`;
@@ -268,9 +267,15 @@ export class AcpAgent extends Disposable implements IAgent {
 			throw this._describeError(error, connection);
 		}
 		const state = this._track(chat, result.sessionId, cwd, connection);
-		this._applySetup(state, result);
-		if (options?.model) {
-			await this._changeModel(chat, options.model);
+		try {
+			this._applySetup(state, result);
+			if (options?.model) {
+				await this._changeModel(chat, options.model);
+			}
+		} catch (error) {
+			// The host never receives providerData for a failed create, so it cannot clean up after us.
+			await this._closeChat(chat);
+			throw error;
 		}
 		const providerData: IAcpChatProviderData = { sessionId: result.sessionId, cwd };
 		return { providerData: JSON.stringify(providerData), resolvedWorkingDirectory: URI.file(cwd) };
@@ -285,7 +290,13 @@ export class AcpAgent extends Disposable implements IAgent {
 			throw new Error(`${this._displayName} has no session to restore for ${chat.toString()}.`);
 		}
 		const state = this._track(chat, data.sessionId, data.cwd, undefined);
-		await this._ensureBound(state);
+		try {
+			await this._ensureBound(state);
+		} catch (error) {
+			// Leave no half-restored entry behind, so a later materialize can retry.
+			this._untrack(state);
+			throw error;
+		}
 	}
 
 	private _track(chat: URI, sessionId: string, cwd: string, connection: IAcpConnection | undefined): IAcpChatState {
@@ -296,13 +307,21 @@ export class AcpAgent extends Disposable implements IAgent {
 		return state;
 	}
 
+	private _untrack(state: IAcpChatState): void {
+		if (this._chats.get(state.chat.toString()) === state) {
+			this._chats.delete(state.chat.toString());
+		}
+		if (this._chatBySessionId.get(state.sessionId) === state) {
+			this._chatBySessionId.delete(state.sessionId);
+		}
+	}
+
 	private async _closeChat(chat: URI): Promise<void> {
 		const state = this._chats.get(chat.toString());
 		if (!state) {
 			return;
 		}
-		this._chats.delete(chat.toString());
-		this._chatBySessionId.delete(state.sessionId);
+		this._untrack(state);
 		const connection = state.connection;
 		if (connection?.initialize.agentCapabilities?.sessionCapabilities?.close) {
 			await connection.client.request('session/close', { sessionId: state.sessionId }).catch(error => {

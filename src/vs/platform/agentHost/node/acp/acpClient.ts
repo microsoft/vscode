@@ -100,7 +100,7 @@ export class AcpClient extends Disposable implements IAcpClient {
 			if (!line) {
 				continue;
 			}
-			let msg: IWireMessage;
+			let msg: unknown;
 			try {
 				msg = JSON.parse(line);
 			} catch {
@@ -108,7 +108,12 @@ export class AcpClient extends Disposable implements IAcpClient {
 				this._log('warn', `ignoring non-JSON line from agent (${line.length} chars)`);
 				continue;
 			}
-			this._dispatch(msg);
+			// `null`, numbers, strings and arrays are valid JSON but not JSON-RPC messages.
+			if (typeof msg !== 'object' || msg === null || Array.isArray(msg)) {
+				this._log('warn', 'ignoring non-object JSON message from agent');
+				continue;
+			}
+			this._dispatch(msg as IWireMessage);
 		}
 	}
 

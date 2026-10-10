@@ -20,6 +20,7 @@ import {
 	AgentHostClaudeAgentEnabledSettingId,
 	AgentHostClaudeMultiRootEnabledSettingId,
 	AgentHostCodexAgentBinaryArgsSettingId,
+	AgentHostAcpAgentEnabledSettingId,
 	AgentHostAcpAgentsSettingId,
 	AgentHostCodexAgentEnabledSettingId,
 	AgentHostCodexMultiRootEnabledSettingId,
@@ -49,6 +50,7 @@ import {
 	AgentHostCanvasesEnabledConfigKey,
 	AgentHostClaudeMultiRootEnabledConfigKey,
 	AgentHostAcpAgentsConfigKey,
+	AgentHostAcpEnabledConfigKey,
 	AgentHostCodexEnabledConfigKey,
 	AgentHostCodexMultiRootEnabledConfigKey,
 	AgentHostCopilotMultiRootEnabledConfigKey,
@@ -383,6 +385,27 @@ configurationRegistry.registerConfiguration({
 			default: [],
 			tags: ['experimental', 'advanced'],
 			included: product.quality !== 'stable',
+		},
+		[AgentHostAcpAgentEnabledSettingId]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.agentHost.acpAgent.enabled', "When enabled, the agent host registers the agents listed in `#chat.agentHost.acpAgents#`. Enabling takes effect without restarting the agent host; disabling takes effect after it restarts."),
+			default: true,
+			tags: ['experimental'],
+			// Always mirrored, including when `false`, like the Codex toggle.
+			agentHost: { key: AgentHostAcpEnabledConfigKey },
+			// ACP agents do not enforce Copilot-managed controls, so they share the third-party harness policy semantics.
+			policy: {
+				name: 'AcpAgents3PIntegration',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.142',
+				value: thirdPartyAgentEnabledValue,
+				localization: {
+					description: {
+						key: 'chat.agentHost.acpAgent.enabled.policy',
+						value: nls.localize('chat.agentHost.acpAgent.enabled.policy', "Enable Agent Client Protocol (ACP) agent sessions in VS Code. Users can run agents they configure in `chat.agentHost.acpAgents`, such as Qwen Code or OpenCode, with the agent's own authentication."),
+					}
+				}
+			},
 		},
 		[AgentHostAcpAgentsSettingId]: {
 			type: 'array',

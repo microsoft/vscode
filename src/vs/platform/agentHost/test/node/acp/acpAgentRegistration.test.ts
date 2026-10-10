@@ -36,6 +36,7 @@ suite('ACP agent registration', () => {
 
 	test('registers configured agents once and picks up additions', () => {
 		const onDidRootConfigChange = new Emitter<void>();
+		let enabled: unknown = false;
 		let configured: unknown = [{ id: 'qwen', command: 'qwen', args: ['--acp'] }];
 		const providers = new Map<string, IAgent>();
 		const providerService = {
@@ -45,8 +46,13 @@ suite('ACP agent registration', () => {
 		const instantiationService = {
 			createInstance: ((ctor: typeof AcpAgent, ...args: ConstructorParameters<typeof AcpAgent>) => new ctor(args[0], args[1], log)) as never,
 		};
-		const listener = registerConfiguredAcpAgents(providerService, { getRootValue: (() => configured) as never, onDidRootConfigChange: onDidRootConfigChange.event }, instantiationService, log);
+		const getRootValue = (_schema: unknown, key: string) => key === 'acpAgentEnabled' ? enabled : configured;
+		const listener = registerConfiguredAcpAgents(providerService, { getRootValue: getRootValue as never, onDidRootConfigChange: onDidRootConfigChange.event }, instantiationService, log);
 
+		// Gated by the policy-aware `acpAgentEnabled` root key.
+		assert.deepStrictEqual([...providers.keys()], []);
+		enabled = true;
+		onDidRootConfigChange.fire();
 		assert.deepStrictEqual([...providers.keys()], ['acp-qwen']);
 		onDidRootConfigChange.fire();
 		assert.deepStrictEqual([...providers.keys()], ['acp-qwen']);

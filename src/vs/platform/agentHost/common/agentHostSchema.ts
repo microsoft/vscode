@@ -486,6 +486,12 @@ export const AgentHostCodexEnabledConfigKey = 'codexAgentEnabled';
  */
 export const AgentHostAcpAgentsConfigKey = 'acpAgents';
 
+/**
+ * Root config key forwarded from the renderer carrying the policy-aware value of
+ * `chat.agentHost.acpAgent.enabled`. ACP providers register only while it is `true`.
+ */
+export const AgentHostAcpEnabledConfigKey = 'acpAgentEnabled';
+
 /** One user-configured Agent Client Protocol agent. */
 export interface IAgentHostAcpAgentConfig {
 	/** Stable identifier; the provider id becomes `acp-<id>`. */
@@ -920,6 +926,12 @@ export const platformRootSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.codexAgentEnabled.title', "Codex Agent"),
 		description: localize('agentHost.config.codexAgentEnabled.description', "Whether the Codex provider is enabled."),
+		default: false,
+	}),
+	[AgentHostAcpEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.acpAgentEnabled.title', "ACP Agents Enabled"),
+		description: localize('agentHost.config.acpAgentEnabled.description', "Whether Agent Client Protocol providers are enabled."),
 		default: false,
 	}),
 	[AgentHostAcpAgentsConfigKey]: schemaProperty<readonly IAgentHostAcpAgentConfig[]>({

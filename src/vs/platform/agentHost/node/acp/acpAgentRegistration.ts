@@ -6,7 +6,7 @@
 import type { IDisposable } from '../../../../base/common/lifecycle.js';
 import type { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import type { ILogService } from '../../../log/common/log.js';
-import { AgentHostAcpAgentsConfigKey, platformRootSchema, type IAgentHostAcpAgentConfig } from '../../common/agentHostSchema.js';
+import { AgentHostAcpAgentsConfigKey, AgentHostAcpEnabledConfigKey, platformRootSchema, type IAgentHostAcpAgentConfig } from '../../common/agentHostSchema.js';
 import type { IAgentConfigurationService } from '../agentConfigurationService.js';
 import type { IAgentHostProviderService } from '../agentHostProviderService.js';
 import { AcpAgent, acpProviderId } from './acpAgent.js';
@@ -60,7 +60,7 @@ export function validateAcpAgentConfigs(value: unknown, logService: Pick<ILogSer
 
 /**
  * Registers an {@link AcpAgent} for every configured ACP agent and for agents
- * added later. Registration is one-way like the Codex provider's: the provider
+ * added later, while `chat.agentHost.acpAgent.enabled` is on. Registration is one-way like the Codex provider's: the provider
  * service cannot unregister, so removed or edited entries take effect on the
  * next agent host restart.
  */
@@ -72,6 +72,10 @@ export function registerConfiguredAcpAgents(
 ): IDisposable {
 	const registered = new Set<string>();
 	const registerNew = () => {
+		// Policy-aware gate (`AcpAgents3PIntegration`); absent means the client did not opt in.
+		if (configurationService.getRootValue(platformRootSchema, AgentHostAcpEnabledConfigKey) !== true) {
+			return;
+		}
 		const configs = validateAcpAgentConfigs(configurationService.getRootValue(platformRootSchema, AgentHostAcpAgentsConfigKey), logService);
 		for (const config of configs) {
 			const providerId = acpProviderId(config);

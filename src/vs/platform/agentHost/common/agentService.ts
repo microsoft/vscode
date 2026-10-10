@@ -28,7 +28,7 @@ import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomati
 import type { ActionEnvelope, ClientAutomationAction, ClientAutomationRunAction, INotification, IRootConfigChangedAction, SessionAction, ChatAction, TerminalAction, ClientAnnotationsAction, ClientChangesetAction } from './state/sessionActions.js';
 import type { ContentEncoding, ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMkdirParams, ResourceMkdirResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceResolveParams, ResourceResolveResult, ResourceWatchState, ResourceWriteParams, ResourceWriteResult, CreateResourceWatchParams, CreateResourceWatchResult, IStateSnapshot } from './state/sessionProtocol.js';
 import { ComponentToState, StateComponents, type RootState } from './state/sessionState.js';
-import { type AgentProvider, CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID, type AuthenticateParams, type AuthenticateResult, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentCustomizationInstallation, type IAgentCustomizationInstallationRequest, type IAgentCustomizationInstallationReview, type IAgentCustomizationMarketplaceSearchRequest, type IAgentCustomizationMarketplaceSearchResult, type IAgentPluginInstallRequest, type IAgentPluginUninstallRequest, type IAgentSessionMetadata, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IMcpNotification, type IAgentHostNetworkEndpoint, type IAgentHostManagedSettingsSnapshot } from './agent.js';
+import { ACP_AGENT_PROVIDER_PREFIX, type AgentProvider, CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID, type AuthenticateParams, type AuthenticateResult, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentCustomizationInstallation, type IAgentCustomizationInstallationRequest, type IAgentCustomizationInstallationReview, type IAgentCustomizationMarketplaceSearchRequest, type IAgentCustomizationMarketplaceSearchResult, type IAgentPluginInstallRequest, type IAgentPluginUninstallRequest, type IAgentSessionMetadata, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IMcpNotification, type IAgentHostNetworkEndpoint, type IAgentHostManagedSettingsSnapshot } from './agent.js';
 
 // ---- Provider-model re-exports (compatibility) ------------------------------
 // New provider code imports these from agent.ts.
@@ -234,6 +234,13 @@ export const AgentHostCodexAgentEnabledSettingId = 'chat.agentHost.codexAgent.en
 export const AgentHostAcpAgentsSettingId = 'chat.agentHost.acpAgents';
 
 /**
+ * Configuration key gating every ACP provider. Owns the `AcpAgents3PIntegration`
+ * policy, which forces it off under managed settings like the Claude and Codex
+ * harness policies: ACP agents do not enforce Copilot-managed controls.
+ */
+export const AgentHostAcpAgentEnabledSettingId = 'chat.agentHost.acpAgent.enabled';
+
+/**
  * Configuration key controlling whether extension-provided BYOK ("bring your
  * own key") models are published and included in new agent-host sessions.
  * Changes are synchronized to the running agent host.
@@ -307,6 +314,7 @@ export const CodexPreferAgentHostEditorSettingId = 'chat.editor.codex.preferAgen
 export function affectsAgentHostProviderPreference(event: IConfigurationChangeEvent, isSessionsWindow: boolean): boolean {
 	return event.affectsConfiguration(AgentHostClaudeAgentEnabledSettingId)
 		|| event.affectsConfiguration(AgentHostCodexAgentEnabledSettingId)
+		|| event.affectsConfiguration(AgentHostAcpAgentEnabledSettingId)
 		|| (!isSessionsWindow && event.affectsConfiguration(CodexPreferAgentHostEditorSettingId));
 }
 
@@ -318,7 +326,7 @@ export function shouldSurfaceLocalAgentHostProvider(provider: AgentProvider, con
 			return configurationService.getValue<boolean>(AgentHostCodexAgentEnabledSettingId) === true
 				&& (isSessionsWindow || configurationService.getValue<boolean>(CodexPreferAgentHostEditorSettingId) === true);
 		default:
-			return true;
+			return !provider.startsWith(ACP_AGENT_PROVIDER_PREFIX) || configurationService.getValue<boolean>(AgentHostAcpAgentEnabledSettingId) !== false;
 	}
 }
 

@@ -128,6 +128,7 @@ suite('AcpClient', () => {
 		const listener = client.onNotification('session/update', params => updates.push(params));
 		const line = JSON.stringify({ jsonrpc: '2.0', method: 'session/update', params: { sessionId: 's', update: { sessionUpdate: 'plan', entries: [] } } });
 		agent.pushRaw('debug output from agent\n');
+		agent.pushRaw('null\n42\n"text"\n[1]\n');
 		agent.pushRaw(line.slice(0, 10));
 		agent.pushRaw(line.slice(10) + '\n');
 		const response = client.request('session/list', {});

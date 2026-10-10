@@ -9,7 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationService } from '../../../configuration/common/configuration.js';
 import { thirdPartyAgentEnabledValue } from '../../../policy/common/copilotManagedSettings.js';
 import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, protectedResourcesRequireGitHubCopilotSignIn } from '../../common/agent.js';
-import { affectsAgentHostProviderPreference, AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentEnabledSettingId, AgentHostOTelEnvVars, AgentHostOTelPolicyState, buildAgentHostOTelEnv, CodexPreferAgentHostEditorSettingId, isAgentEnabled, readAgentHostOTelPolicySettings, sanitizeAgentHostOTelPolicySettings, shouldSurfaceLocalAgentHostProvider } from '../../common/agentService.js';
+import { affectsAgentHostProviderPreference, AgentHostAcpAgentEnabledSettingId, AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentEnabledSettingId, AgentHostOTelEnvVars, AgentHostOTelPolicyState, buildAgentHostOTelEnv, CodexPreferAgentHostEditorSettingId, isAgentEnabled, readAgentHostOTelPolicySettings, sanitizeAgentHostOTelPolicySettings, shouldSurfaceLocalAgentHostProvider } from '../../common/agentService.js';
 import type { ProtectedResourceMetadata } from '../../common/state/protocol/state.js';
 import { buildChatUri, buildDefaultChatUri, resolveChatUri } from '../../common/state/sessionState.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
@@ -192,12 +192,13 @@ suite('shouldSurfaceLocalAgentHostProvider', () => {
 			const configurationService = new TestConfigurationService({
 				[AgentHostClaudeAgentEnabledSettingId]: thirdPartyAgentEnabledValue(policyData) ?? true,
 				[AgentHostCodexAgentEnabledSettingId]: thirdPartyAgentEnabledValue(policyData) ?? true,
+				[AgentHostAcpAgentEnabledSettingId]: thirdPartyAgentEnabledValue(policyData) ?? true,
 				[CodexPreferAgentHostEditorSettingId]: true,
 			});
 			assert.deepStrictEqual({
-				editor: ['claude', 'codex', 'copilot'].map(provider => shouldSurfaceLocalAgentHostProvider(provider, configurationService, false)),
-				agents: ['claude', 'codex', 'copilot'].map(provider => shouldSurfaceLocalAgentHostProvider(provider, configurationService, true)),
-			}, { editor: [false, false, true], agents: [false, false, true] });
+				editor: ['claude', 'codex', 'acp-qwen', 'copilot'].map(provider => shouldSurfaceLocalAgentHostProvider(provider, configurationService, false)),
+				agents: ['claude', 'codex', 'acp-qwen', 'copilot'].map(provider => shouldSurfaceLocalAgentHostProvider(provider, configurationService, true)),
+			}, { editor: [false, false, false, true], agents: [false, false, false, true] });
 		}
 	});
 });
