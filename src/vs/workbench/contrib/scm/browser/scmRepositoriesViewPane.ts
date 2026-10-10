@@ -555,6 +555,7 @@ export class SCMRepositoriesViewPane extends ViewPane {
 		this.treeIdentityProvider = new RepositoryTreeIdentityProvider();
 		this.treeDataSource = this.instantiationService.createInstance(RepositoryTreeDataSource);
 		this._register(this.treeDataSource);
+		const expanded = Array.isArray(viewState?.expanded) ? viewState.expanded : undefined;
 
 		this.tree = this.instantiationService.createInstance(
 			WorkbenchCompressibleAsyncDataTree,
@@ -574,15 +575,18 @@ export class SCMRepositoriesViewPane extends ViewPane {
 				collapseByDefault: (e: unknown) => {
 					if (this.scmViewService.explorerEnabledConfig.get() === false) {
 						if (isSCMRepository(e) && e.provider.parentId === undefined) {
+							if (expanded) {
+								return expanded.indexOf(this.treeIdentityProvider.getId(e)) === -1;
+							}
 							return false;
 						}
 						return true;
 					}
 
 					// Explorer mode
-					if (viewState?.expanded && (isSCMRepository(e) || isSCMArtifactGroupTreeElement(e) || isSCMArtifactTreeElement(e))) {
+					if (expanded && (isSCMRepository(e) || isSCMArtifactGroupTreeElement(e) || isSCMArtifactTreeElement(e))) {
 						// Only expand repositories/artifact groups/artifacts that were expanded before
-						return viewState.expanded.indexOf(this.treeIdentityProvider.getId(e)) === -1;
+						return expanded.indexOf(this.treeIdentityProvider.getId(e)) === -1;
 					} else if (isSCMArtifactNode(e)) {
 						// Only expand artifact folders as they are compressed by default
 						return !(e.childrenCount === 1 && Iterable.first(e.children)?.element === undefined);
@@ -793,8 +797,11 @@ export class SCMRepositoriesViewPane extends ViewPane {
 			return;
 		}
 
+		const wasParentCollapsed = this.tree.hasNode(parentRepository) && this.tree.isCollapsed(parentRepository);
 		await this.updateChildren(parentRepository);
-		await this.expand(parentRepository);
+		if (!wasParentCollapsed && this.tree.hasNode(parentRepository) && !this.tree.isCollapsed(parentRepository)) {
+			await this.expand(parentRepository);
+		}
 	}
 
 	private updateBodySize(contentHeight: number, visibleCount?: number): void {
