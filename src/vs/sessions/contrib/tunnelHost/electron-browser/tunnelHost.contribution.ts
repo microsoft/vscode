@@ -8,7 +8,6 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { IActionViewItemService, type IActionViewItemFactory } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
@@ -36,6 +35,7 @@ export class SessionsTunnelHostTitlebarContribution extends Disposable implement
 				id: TOGGLE_SHARING_FROM_AGENTS_ID,
 				title: localize('toggleSharing', "Allow Remote Connections"),
 				icon: Codicon.radioTower,
+				precondition: ChatContextKeys.enabled,
 				toggled: ContextKeyExpr.equals(TUNNEL_HOST_SHARING_KEY, true),
 			},
 			group: 'navigation',
@@ -55,8 +55,7 @@ export class SessionsTunnelHostTitlebarContribution extends Disposable implement
 
 			async run(accessor: ServicesAccessor): Promise<void> {
 				await executeToggleRemoteConnections(
-					accessor.get(IRemoteTunnelService),
-					accessor.get(ICommandService),
+					accessor,
 					{ authenticationProviderId: 'github', showServiceOption: false, showSuccessNotification: false },
 				);
 			}

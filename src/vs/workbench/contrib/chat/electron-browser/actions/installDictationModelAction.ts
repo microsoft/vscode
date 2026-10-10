@@ -14,6 +14,7 @@ import { IEnvironmentService } from '../../../../../platform/environment/common/
 import { DEFAULT_LOCAL_TRANSCRIPTION_MODEL, ILocalTranscriptionService } from '../../../../../platform/localTranscription/common/localTranscription.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
+import { NotificationTelemetryId } from '../../../../../platform/notification/common/notificationTelemetry.js';
 import { CHAT_CATEGORY } from '../../browser/actions/chatActions.js';
 import { INSTALL_DICTATION_MODEL_COMMAND_ID } from '../../browser/speechToText/chatSpeechToTextService.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
@@ -69,6 +70,7 @@ export function registerInstallDictationModelAction(): void {
 			try {
 				const result = await progressService.withProgress({
 					location: ProgressLocation.Notification,
+					telemetry: NotificationTelemetryId.DictationModelImport,
 					title: localize('chat.installDictationModel.progress', "Installing dictation model..."),
 				}, () => localTranscriptionService.importModel({ sourcePath: source.fsPath, cacheDir }));
 				notificationService.info(localize(

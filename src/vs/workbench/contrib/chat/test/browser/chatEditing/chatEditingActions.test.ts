@@ -4,7 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { KeyCode } from '../../../../../../base/common/keyCodes.js';
+import { decodeKeybinding } from '../../../../../../base/common/keybindings.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
+import { OperatingSystem } from '../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -12,12 +15,16 @@ import { CodeEditorWidget } from '../../../../../../editor/browser/widget/codeEd
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyValue, IContext } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { InputFocusedContext } from '../../../../../../platform/contextkey/common/contextkeys.js';
 import { IDialogService, IConfirmationResult } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { KeybindingsRegistry } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ChatAttachmentModel } from '../../../browser/attachments/chatAttachmentModel.js';
 import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
 import { RestoreCheckpointActionId, StartOverActionId } from '../../../browser/chatEditing/chatEditingActions.js';
 import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
+import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { IChatRequestFileEntry, IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { IChatEditingSession, IModifiedFileEntry } from '../../../common/editing/chatEditingService.js';
@@ -29,6 +36,38 @@ import { MockChatWidgetService } from '../widget/mockChatWidget.js';
 
 suite('Chat editing actions', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('Delete actions do not run while a native input is focused', () => {
+		const deleteHash = decodeKeybinding(KeyCode.Delete, OperatingSystem.Windows)!.getHashCode();
+		const rules = KeybindingsRegistry.getDefaultKeybindingsForOS(OperatingSystem.Windows)
+			.filter(rule => rule.keybinding?.getHashCode() === deleteHash && (
+				rule.command === 'workbench.action.chat.undoEdits'
+				|| rule.command === RestoreCheckpointActionId
+			));
+		const context = (inputFocused: boolean): IContext => ({
+			getValue: <T extends ContextKeyValue>(key: string) => ({
+				[ChatContextKeys.inChatSession.key]: true,
+				[InputFocusedContext.key]: inputFocused,
+			})[key] as T | undefined
+		});
+
+		assert.deepStrictEqual(rules.map(rule => ({
+			command: rule.command,
+			inTranscript: rule.when?.evaluate(context(false)),
+			inNativeInput: rule.when?.evaluate(context(true)),
+		})).sort((a, b) => (a.command ?? '').localeCompare(b.command ?? '')), [
+			{
+				command: RestoreCheckpointActionId,
+				inTranscript: true,
+				inNativeInput: false,
+			},
+			{
+				command: 'workbench.action.chat.undoEdits',
+				inTranscript: true,
+				inNativeInput: false,
+			},
+		]);
+	});
 
 	async function runCheckpointAction(actionId: string, initialInput: string, confirmRestore?: boolean) {
 		const instantiationService = store.add(new TestInstantiationService());

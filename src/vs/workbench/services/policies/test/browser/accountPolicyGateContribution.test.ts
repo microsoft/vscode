@@ -146,19 +146,10 @@ suite('AccountPolicyGateContribution', () => {
 		defaultAccountService.setManagedSettingsCompatibilityError(null);
 		captureState();
 
-		const compatibilityDialog = promptStub.firstCall.args[0];
-		const fallbackCompatibilityDialog = promptStub.secondCall.args[0];
 		assert.deepStrictEqual({
 			states,
 			forceHiddenValues: chatEntitlementService.forceHiddenValues,
-			compatibilityDialog: {
-				title: compatibilityDialog.title,
-				message: compatibilityDialog.message,
-				custom: compatibilityDialog.custom,
-				buttons: compatibilityDialog.buttons?.map(button => button.label),
-				cancelButton: compatibilityDialog.cancelButton,
-			},
-			fallbackCompatibilityMessage: fallbackCompatibilityDialog.message,
+			dialogCount: promptStub.callCount,
 		}, {
 			states: [
 				{ context: false, hidden: false },
@@ -170,14 +161,7 @@ suite('AccountPolicyGateContribution', () => {
 				{ context: false, hidden: false },
 			],
 			forceHiddenValues: [false, true, false, true, false],
-			compatibilityDialog: {
-				title: 'Update Required',
-				message: 'Your version of Code cannot enforce your organization\'s managed settings. Update Code to version 1.135.0 or later to continue using AI features.',
-				custom: true,
-				buttons: ['Check for Updates', 'Learn More'],
-				cancelButton: 'Close',
-			},
-			fallbackCompatibilityMessage: 'Your version of Code cannot enforce your organization\'s managed settings. Update Code to continue using AI features.',
+			dialogCount: 0,
 		});
 	});
 
@@ -354,7 +338,7 @@ suite('AccountPolicyGateContribution', () => {
 		assert.match(promptStub.getCall(5).args[0].message, /requires Code to refresh managed settings whenever it starts or reloads\.\n\nAn error prevented the required policy/);
 	});
 
-	test('uses the compatibility dialog for update-required freshness without duplication', async () => {
+	test('leaves update-required explanations to persistent surfaces without a duplicate dialog', async () => {
 		const gateService = disposables.add(new TestAccountPolicyGateService());
 		const defaultAccountService = disposables.add(new TestDefaultAccountService());
 		const dialogService = new TestDialogService();
@@ -399,19 +383,6 @@ suite('AccountPolicyGateContribution', () => {
 		await Promise.resolve();
 		await Promise.resolve();
 
-		const dialog = promptStub.firstCall.args[0];
-		assert.deepStrictEqual({
-			callCount: promptStub.callCount,
-			title: dialog.title,
-			message: dialog.message,
-			buttons: dialog.buttons?.map(button => button.label),
-			cancelButton: dialog.cancelButton,
-		}, {
-			callCount: 1,
-			title: 'Update Required',
-			message: 'Your version of Code cannot enforce your organization\'s managed settings. Update Code to version 1.135.0 or later to continue using AI features.',
-			buttons: ['Check for Updates', 'Learn More'],
-			cancelButton: 'Close',
-		});
+		assert.strictEqual(promptStub.callCount, 0);
 	});
 });

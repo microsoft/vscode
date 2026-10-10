@@ -11,6 +11,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Disposable, markAsSingleton, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
@@ -18,13 +19,16 @@ import { MenuEntryActionViewItem } from '../../../../../platform/actions/browser
 import { Action2, MenuId, MenuItemAction, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { EditorOpenSource, EditorResolution } from '../../../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { extractSelection } from '../../../../../platform/opener/common/opener.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { katexContainerClassName, katexContainerLatexAttributeName } from '../../../markdown/common/markedKatexExtension.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isChatTreeItem, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
-import { ChatTreeItem, IChatWidgetService } from '../chat.js';
+import { IChatWidgetService, isChatContextMenuActionContext, unwrapChatContextMenuActionContext } from '../chat.js';
 import { CHAT_CATEGORY, stringifyItem } from './chatActions.js';
 import { toPortableMarkdown } from '../widget/chatClipboard.js';
 
@@ -154,6 +158,39 @@ export function registerChatCopyActions() {
 		when: ChatContextKeys.inputHasFocus,
 	});
 
+	registerAction2(class OpenLinkWithAction extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.chat.openLinkWith',
+				title: localize2('chat.openLinkWith', "Open With..."),
+				f1: false,
+				category: CHAT_CATEGORY,
+				menu: {
+					id: MenuId.ChatContext,
+					when: ChatContextKeys.contextMenuHasAvailableEditors,
+					group: '0_link',
+					order: 1,
+				},
+			});
+		}
+
+		run(accessor: ServicesAccessor, context: unknown) {
+			if (!isChatContextMenuActionContext(context) || !context.linkTarget) {
+				return;
+			}
+
+			const { uri: resource, selection } = extractSelection(URI.parse(context.linkTarget));
+			return accessor.get(IEditorService).openEditor({
+				resource,
+				options: {
+					override: EditorResolution.PICK,
+					source: EditorOpenSource.USER,
+					selection,
+				},
+			});
+		}
+	});
+
 	registerAction2(class CopyAllAction extends Action2 {
 		constructor() {
 			super({
@@ -169,9 +206,10 @@ export function registerChatCopyActions() {
 			});
 		}
 
-		run(accessor: ServicesAccessor, context?: ChatTreeItem) {
+		run(accessor: ServicesAccessor, context?: unknown) {
 			const clipboardService = accessor.get(IClipboardService);
 			const chatWidgetService = accessor.get(IChatWidgetService);
+			context = unwrapChatContextMenuActionContext(context);
 			const widget = ((isRequestVM(context) || isResponseVM(context)) && chatWidgetService.getWidgetBySessionResource(context.sessionResource)) || chatWidgetService.lastFocusedWidget;
 			if (widget) {
 				const viewModel = widget.viewModel;
@@ -215,7 +253,7 @@ export function registerChatCopyActions() {
 			const clipboardService = accessor.get(IClipboardService);
 
 			const widget = chatWidgetService.lastFocusedWidget;
-			let item = args[0] as ChatTreeItem | undefined;
+			let item = unwrapChatContextMenuActionContext(args[0]);
 			if (!isChatTreeItem(item)) {
 				item = widget?.getFocus();
 				if (!item) {
@@ -261,7 +299,7 @@ export function registerChatCopyActions() {
 			const clipboardService = accessor.get(IClipboardService);
 
 			const widget = chatWidgetService.lastFocusedWidget;
-			let item = args[0] as ChatTreeItem | undefined;
+			let item = unwrapChatContextMenuActionContext(args[0]);
 			if (!isChatTreeItem(item)) {
 				item = widget?.getFocus();
 				if (!item) {
@@ -300,7 +338,7 @@ export function registerChatCopyActions() {
 			const clipboardService = accessor.get(IClipboardService);
 
 			const widget = chatWidgetService.lastFocusedWidget;
-			let item = args[0] as ChatTreeItem | undefined;
+			let item = unwrapChatContextMenuActionContext(args[0]);
 			if (!isChatTreeItem(item)) {
 				item = widget?.getFocus();
 				if (!item) {

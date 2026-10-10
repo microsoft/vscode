@@ -225,6 +225,23 @@ suite('PolicyConfiguration', () => {
 		assert.deepStrictEqual(acutal.getValue('policy.objectSetting'), expected);
 	});
 
+	test('initialize: with object type policy preserves __proto__ as own data', async () => {
+		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicyObjectSetting': '{ "__proto__": { "polluted": true } }' })));
+
+		await testObject.initialize();
+		const value = testObject.configurationModel.getValue<Record<string, unknown>>('policy.objectSetting')!;
+
+		assert.deepStrictEqual({
+			prototype: Object.getPrototypeOf(value),
+			hasOwnProto: Object.hasOwn(value, '__proto__'),
+			polluted: value.polluted,
+		}, {
+			prototype: Object.prototype,
+			hasOwnProto: true,
+			polluted: undefined,
+		});
+	});
+
 	test('initialize: with array type policy', async () => {
 		await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ 'PolicyArraySetting': JSON.stringify([1]) })));
 
@@ -343,6 +360,32 @@ suite('PolicyConfiguration', () => {
 
 		assert.strictEqual(actual.getValue('policy.orphanReferenceSetting'), false);
 		assert.deepStrictEqual(actual.keys, ['policy.orphanReferenceSetting']);
+	});
+
+	test('initialize: nullable boolean reference preserves an explicit false policy and an unset default', async () => {
+		const reference: IConfigurationNode = {
+			id: '_test_nullable_policy_reference',
+			properties: {
+				'policy.nullableReference': {
+					type: ['boolean', 'null'],
+					default: null,
+					policyReference: { name: 'PolicyShared' },
+				},
+			},
+		};
+		const registry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+		registry.registerConfiguration(reference);
+		try {
+			await fileService.writeFile(policyFile, VSBuffer.fromString(JSON.stringify({ PolicyShared: false })));
+			await testObject.initialize();
+			assert.deepStrictEqual({
+				defaultValue: defaultConfiguration.configurationModel.getValue('policy.nullableReference'),
+				policyValue: testObject.configurationModel.getValue('policy.nullableReference'),
+				policyType: policyService.policyDefinitions.PolicyShared.type,
+			}, { defaultValue: null, policyValue: false, policyType: 'boolean' });
+		} finally {
+			registry.deregisterConfigurations([reference]);
+		}
 	});
 
 	test('initialize: the owner definition is authoritative; a reference only contributes the policy name', async () => {

@@ -5,8 +5,9 @@
 
 import { Event } from '../../../base/common/event.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
-import { IBrowserViewAudience, IBrowserViewCreationContext, matchesBrowserViewAudience } from './browserView.js';
+import { IBrowserViewAudience, IBrowserViewCreationContext, IBrowserViewOwner, matchesBrowserViewAudience } from './browserView.js';
 import { CDPEvent, CDPRequest, CDPResponse } from './cdp/types.js';
+import { ISandboxNetworkRestrictions } from '../../sandbox/common/sandboxSettingsResolutionHelper.js';
 
 export const ipcBrowserViewGroupChannelName = 'browserViewGroup';
 
@@ -25,6 +26,8 @@ export interface IBrowserViewGroup extends IDisposable {
 }
 
 export interface IBrowserViewGroupFilter {
+	/** Require agent ownership and isolated storage for this session, even for explicitly added views. */
+	readonly sandboxSessionId?: string;
 	/** Include views granted to this audience. */
 	readonly audience?: IBrowserViewAudience;
 	/** Include these views regardless of their audiences. */
@@ -37,6 +40,12 @@ export function matchesBrowserViewGroupFilter(browserId: string, audiences: read
 		|| (audienceFilter !== undefined && audiences.some(audience => matchesBrowserViewAudience(audienceFilter, audience)));
 }
 
+/** Shared visibility gate for sandboxed automation and its workbench page list. */
+export function matchesBrowserViewSandboxSession(owner: IBrowserViewOwner | undefined, sandboxSessionId: string | undefined, expectedSessionId: string | undefined): boolean {
+	return expectedSessionId === undefined || (owner?.type === 'agent'
+		&& owner.sessionId === expectedSessionId && sandboxSessionId === expectedSessionId);
+}
+
 /**
  * Common service for managing browser view groups across processes.
  *
@@ -47,6 +56,7 @@ export function matchesBrowserViewGroupFilter(browserId: string, audiences: read
  * The main-process implementation is {@link BrowserViewGroupMainService}.
  */
 export interface IBrowserViewGroupService {
+	setSessionNetworkRestrictions(sessionId: string, restrictions: ISandboxNetworkRestrictions): Promise<void>;
 
 	// Dynamic events - one per group instance, keyed by group ID.
 	onDynamicDidDestroy(groupId: string): Event<void>;

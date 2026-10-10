@@ -754,7 +754,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		const resource = EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.BOTH });
 		if (URI.isUri(resource)) {
-			descriptor['resource'] = this.toResourceTelemetryDescriptor(resource);
+			descriptor.resource = this.toResourceTelemetryDescriptor(resource);
 
 			/* __GDPR__FRAGMENT__
 				"EditorTelemetryDescriptor" : {
@@ -764,10 +764,10 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			return descriptor;
 		} else if (resource) {
 			if (resource.primary) {
-				descriptor['resource'] = this.toResourceTelemetryDescriptor(resource.primary);
+				descriptor.resource = this.toResourceTelemetryDescriptor(resource.primary);
 			}
 			if (resource.secondary) {
-				descriptor['resourceSecondary'] = this.toResourceTelemetryDescriptor(resource.secondary);
+				descriptor.resourceSecondary = this.toResourceTelemetryDescriptor(resource.secondary);
 			}
 			/* __GDPR__FRAGMENT__
 				"EditorTelemetryDescriptor" : {

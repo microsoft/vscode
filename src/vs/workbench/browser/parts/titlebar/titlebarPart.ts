@@ -430,6 +430,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		this.menubar.setAttribute('role', 'menubar');
 
 		this.customMenubarDisposables.add(customMenubar.onVisibilityChange(e => this.onMenubarVisibilityChanged(e)));
+		this.customMenubarDisposables.add(customMenubar.onFocusStateChange(focused => this.element.classList.toggle('menubar-focused', focused)));
 
 		customMenubar.create(this.menubar);
 	}
@@ -437,6 +438,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	private uninstallMenubar(): void {
 		this.customMenubarDisposables.clear();
 		this.customMenubar.clear();
+		this.element.classList.remove('menubar-focused');
 
 		this.menubar?.remove();
 		this.menubar = undefined;
@@ -560,14 +562,15 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 				// Linux/Windows: controls are explicitly disabled
 			} else {
 				this.windowControlsContainer = append(primaryWindowControlsLocation === 'left' ? this.leftContent : this.rightContent, $('div.window-controls-container'));
-				if (isWeb) {
+				if (isWCOEnabled()) {
+					this.windowControlsContainer.classList.add('wco-enabled');
+					if (isWeb || isLinux) {
+						append(primaryWindowControlsLocation === 'left' ? this.rightContent : this.leftContent, $('div.window-controls-container.wco-enabled'));
+					}
+				} else if (isWeb) {
 					// Web: its possible to have control overlays on both sides, for example on macOS
 					// with window controls on the left and PWA controls on the right.
 					append(primaryWindowControlsLocation === 'left' ? this.rightContent : this.leftContent, $('div.window-controls-container'));
-				}
-
-				if (isWCOEnabled()) {
-					this.windowControlsContainer.classList.add('wco-enabled');
 				}
 			}
 		}

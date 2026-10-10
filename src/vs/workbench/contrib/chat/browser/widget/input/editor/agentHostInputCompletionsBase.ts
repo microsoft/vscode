@@ -123,4 +123,16 @@ export abstract class AgentHostInputCompletionsBase<TContext, TRegData = void> e
 		const insert = new Range(start.lineNumber, start.column, position.lineNumber, position.column);
 		return { insert, replace };
 	}
+
+	protected static buildTextCompletionItem(position: Position, item: IChatInputCompletionItem): CompletionItem {
+		return {
+			label: item.insertText.startsWith('/') && item.label !== undefined && item.label !== item.insertText && item.label !== item.insertText.trimEnd()
+				? { label: item.insertText.trimEnd(), description: item.label }
+				: item.label ?? item.insertText,
+			insertText: item.insertText,
+			filterText: item.insertText,
+			range: this.computeRange(position, item),
+			kind: CompletionItemKind.Text,
+		};
+	}
 }

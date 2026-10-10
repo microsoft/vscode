@@ -566,6 +566,59 @@ suite('Base IPC', function () {
 		});
 	});
 
+	suite('one to one (proxy, event buffering)', function () {
+
+		test('service events are eagerly subscribed to and buffered by default', async function () {
+			const disposables = store.add(new DisposableStore());
+			const emitter = disposables.add(new Emitter<string>());
+			const service = { onDidChange: emitter.event };
+
+			const channel = ProxyChannel.fromService(service, disposables);
+			assert.strictEqual(emitter.hasListeners(), true);
+
+			emitter.fire('early');
+			const received: string[] = [];
+			disposables.add(channel.listen<string>(undefined, 'onDidChange')(msg => received.push(msg)));
+			await timeout(0);
+			assert.deepStrictEqual(received, ['early']);
+
+			emitter.fire('late');
+			assert.deepStrictEqual(received, ['early', 'late']);
+		});
+
+		test('unbuffered events do not change buffering for other service events', async function () {
+			const disposables = store.add(new DisposableStore());
+			const buffered = disposables.add(new Emitter<string>());
+			const unbuffered = disposables.add(new Emitter<string>());
+			const service = { onDidChange: buffered.event, onDidOutput: unbuffered.event };
+			const channel = ProxyChannel.fromService(service, disposables, { unbufferedEvents: ['onDidOutput'] });
+			const eagerSubscriptions = { buffered: buffered.hasListeners(), unbuffered: unbuffered.hasListeners() };
+
+			buffered.fire('early');
+			unbuffered.fire('early');
+			const receivedBuffered: string[] = [];
+			const receivedUnbuffered: string[] = [];
+			disposables.add(channel.listen<string>(undefined, 'onDidChange')(msg => receivedBuffered.push(msg)));
+			disposables.add(channel.listen<string>(undefined, 'onDidOutput')(msg => receivedUnbuffered.push(msg)));
+			await timeout(0);
+			buffered.fire('late');
+			unbuffered.fire('late');
+			disposables.dispose();
+
+			assert.deepStrictEqual({
+				eagerSubscriptions,
+				receivedBuffered,
+				receivedUnbuffered,
+				remainingSubscriptions: { buffered: buffered.hasListeners(), unbuffered: unbuffered.hasListeners() }
+			}, {
+				eagerSubscriptions: { buffered: true, unbuffered: false },
+				receivedBuffered: ['early', 'late'],
+				receivedUnbuffered: ['late'],
+				remainingSubscriptions: { buffered: false, unbuffered: false }
+			});
+		});
+	});
+
 	suite('one to many', function () {
 		test('all clients get pinged', async function () {
 			const service = store.add(new TestService());
