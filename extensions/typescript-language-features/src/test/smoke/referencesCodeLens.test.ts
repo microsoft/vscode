@@ -26,11 +26,13 @@ export async function updateConfig(newConfig: VsCodeConfiguration): Promise<VsCo
 
 namespace Config {
 	export const referencesCodeLens = 'typescript.referencesCodeLens.enabled';
+	export const javascriptReferencesCodeLens = 'javascript.referencesCodeLens.enabled';
 }
 
 suite('TypeScript References', () => {
 	const configDefaults = Object.freeze<VsCodeConfiguration>({
 		[Config.referencesCodeLens]: true,
+		[Config.javascriptReferencesCodeLens]: true,
 	});
 
 	const _disposables: vscode.Disposable[] = [];
@@ -93,7 +95,7 @@ suite('TypeScript References', () => {
 		assert.strictEqual(codeLenses?.length, 0);
 	});
 
-	test.skip('Should not show duplicate references on ES5 class (https://github.com/microsoft/vscode/issues/90396)', async () => {
+	test('Should not show duplicate references on ES5 class (https://github.com/microsoft/vscode/issues/90396)', async () => {
 		const testDocumentUri = vscode.Uri.parse('untitled:test3.js');
 		await createTestEditor(testDocumentUri,
 			`function A() {`,
