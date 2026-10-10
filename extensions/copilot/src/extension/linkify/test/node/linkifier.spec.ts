@@ -5,6 +5,7 @@
 
 import { suite, test } from 'vitest';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
+import { Location, Position, Range } from '../../../../vscodeTypes';
 import { coalesceParts, LinkifiedPart, LinkifyLocationAnchor } from '../../common/linkifiedText';
 import { ILinkifier, LinkifierContext } from '../../common/linkifyService';
 import { assertPartsEqual, createTestLinkifierService, workspaceFile } from './util';
@@ -411,6 +412,77 @@ suite('Stateful Linkifier', () => {
 			]);
 			assertPartsEqual(result, [
 				'a $c [g](x) d$ x',
+			]);
+		}
+	});
+
+	test(`Should handle markdown links immediately preceded by text (no space before '[')`, async () => {
+		{
+			// "abc[file.ts](file.ts)" — no space before `[`, no space in link text
+			const linkifier = createTestLinkifierService(
+				'file.ts',
+				'src/file.ts',
+			).createLinkifier(emptyContext);
+
+			const result = await runLinkifier(linkifier, [
+				'abc[file.ts](file.ts)',
+			]);
+			assertPartsEqual(result, [
+				'abc',
+				new LinkifyLocationAnchor(workspaceFile('file.ts')),
+			]);
+		}
+		{
+			// "abc[src/main.ts 17](src/main.ts#L17)" — no space before `[`, space in link text
+			const linkifier = createTestLinkifierService(
+				'src/main.ts',
+			).createLinkifier(emptyContext);
+
+			const result = await runLinkifier(linkifier, [
+				'abc[src/main.ts 17](src/main.ts#L17)',
+			]);
+			assertPartsEqual(result, [
+				'abc',
+				new LinkifyLocationAnchor(new Location(workspaceFile('src/main.ts'), new Range(new Position(16, 0), new Position(16, 0)))),
+			]);
+		}
+	});
+
+	test(`Should handle markdown links preceded by text when tokenized incrementally`, async () => {
+		{
+			// Simulates streaming tokenization: "abc[src/main.ts " arrives as one token
+			const linkifier = createTestLinkifierService(
+				'src/main.ts',
+			).createLinkifier(emptyContext);
+
+			const parts: string[] = [
+				'abc[src/main.ts ',
+				'17](src/main.ts',
+				'#L17)',
+			];
+
+			const result = await runLinkifier(linkifier, parts);
+			assertPartsEqual(result, [
+				'abc',
+				new LinkifyLocationAnchor(new Location(workspaceFile('src/main.ts'), new Range(new Position(16, 0), new Position(16, 0)))),
+			]);
+		}
+		{
+			// Split before the `[`: "abc" then "[src/main.ts 17](...)"
+			const linkifier = createTestLinkifierService(
+				'src/main.ts',
+			).createLinkifier(emptyContext);
+
+			const parts: string[] = [
+				'abc[src',
+				'/main.ts 17](src/main.ts',
+				'#L17)',
+			];
+
+			const result = await runLinkifier(linkifier, parts);
+			assertPartsEqual(result, [
+				'abc',
+				new LinkifyLocationAnchor(new Location(workspaceFile('src/main.ts'), new Range(new Position(16, 0), new Position(16, 0)))),
 			]);
 		}
 	});
