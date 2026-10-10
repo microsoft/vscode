@@ -3,13 +3,16 @@ parameters:
     type: string
   - name: VSCODE_SCHEDULEDBUILD
     type: boolean
+  - name: VSCODE_POOL_NAME
+    type: string
+    default: 1es-windows-2022-x64
 
 jobs:
   - job: PublishBuild
     displayName: Publish Build
     timeoutInMinutes: 180
     pool:
-      name: 1es-windows-2022-x64
+      name: ${{ parameters.VSCODE_POOL_NAME }}
       os: windows
     variables:
       - name: BUILDS_API_URL
@@ -53,6 +56,23 @@ jobs:
       # allow-any-unicode-next-line
       - pwsh: Write-Host "##vso[build.addbuildtag]🚀"
         displayName: Add build tag
+
+      - pwsh: |
+          $ErrorActionPreference = 'Stop'
+          # Set the private NPM registry to the global npmrc file
+          # so that authentication works for subfolders like build/, remote/, extensions/ etc
+          # which does not have their own .npmrc file
+          npm config set registry "$env:NPM_REGISTRY"
+          $NpmrcPath = (npm config get userconfig)
+          Write-Host "##vso[task.setvariable variable=NPMRC_PATH]$NpmrcPath"
+        condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+        displayName: Setup NPM
+
+      - task: npmAuthenticate@0
+        inputs:
+          workingFile: $(NPMRC_PATH)
+        condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+        displayName: Setup NPM Authentication
 
       - pwsh: |
           npm ci

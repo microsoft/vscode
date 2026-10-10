@@ -9,6 +9,7 @@ import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
+import { ChatInputStackSlot, setChatInputStackSlot } from './chatInputStack.js';
 import './media/chatGoalBannerWidget.css';
 
 const $ = dom.$;
@@ -29,6 +30,15 @@ export class ChatGoalBannerWidget extends Disposable {
 	private readonly _textEl: HTMLElement;
 	private readonly _onDismissEmitter = this._register(new Emitter<void>());
 	readonly onDismiss = this._onDismissEmitter.event;
+	private _slot: HTMLElement | undefined;
+	private _visible = false;
+
+	/** Add the banner to its slot in the chat input stack. */
+	attachTo(slot: HTMLElement): void {
+		this._slot = slot;
+		slot.appendChild(this.domNode);
+		setChatInputStackSlot(slot, this._visible ? ChatInputStackSlot.Docked : ChatInputStackSlot.Empty);
+	}
 
 	constructor() {
 		super();
@@ -48,7 +58,7 @@ export class ChatGoalBannerWidget extends Disposable {
 		const dismissBtn = dom.append(this._bannerEl, $('button.chat-goal-banner-dismiss'));
 		dismissBtn.title = localize('chat.goalBanner.dismiss', "Dismiss");
 		dismissBtn.setAttribute('aria-label', localize('chat.goalBanner.dismiss', "Dismiss"));
-		dismissBtn.appendChild($(ThemeIcon.asCSSSelector(Codicon.close)));
+		dismissBtn.appendChild($(ThemeIcon.asCSSSelector(Codicon.closeSmall)));
 		this._register(dom.addDisposableListener(dismissBtn, dom.EventType.CLICK, () => {
 			this.clear();
 			this._onDismissEmitter.fire();
@@ -79,12 +89,16 @@ export class ChatGoalBannerWidget extends Disposable {
 		this._textEl.textContent = '';
 		this._textEl.classList.remove('loading');
 		this._bannerEl.removeAttribute('title');
-		this.domNode.parentElement?.classList.remove('has-goal');
-		this.domNode.style.display = 'none';
+		this._setVisible(false);
 	}
 
 	private _show(): void {
-		this.domNode.style.display = '';
-		this.domNode.parentElement?.classList.add('has-goal');
+		this._setVisible(true);
+	}
+
+	private _setVisible(visible: boolean): void {
+		this._visible = visible;
+		this.domNode.style.display = visible ? '' : 'none';
+		setChatInputStackSlot(this._slot, visible ? ChatInputStackSlot.Docked : ChatInputStackSlot.Empty);
 	}
 }

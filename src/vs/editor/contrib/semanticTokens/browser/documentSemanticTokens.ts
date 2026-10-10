@@ -43,18 +43,28 @@ export class DocumentSemanticTokensFeature extends Disposable {
 
 		const register = (model: ITextModel) => {
 			this._watchers.get(model.uri)?.dispose();
-			this._watchers.set(model.uri, new ModelSemanticColoring(model, semanticTokensStylingService, themeService, languageFeatureDebounceService, languageFeaturesService));
+			this._watchers.set(model.uri, new ModelSemanticColoring(model, semanticTokensStylingService, languageFeatureDebounceService, languageFeaturesService));
 		};
 		const deregister = (model: ITextModel, modelSemanticColoring: ModelSemanticColoring) => {
 			modelSemanticColoring.dispose();
 			this._watchers.delete(model.uri);
 		};
-		const handleSettingOrThemeChange = () => {
+		const handleSettingOrThemeChange = (themeChanged: boolean) => {
 			for (const model of modelService.getModels()) {
+				// Updating tokens can synchronously dispose another model in this snapshot.
+				if (model.isDisposed()) {
+					continue;
+				}
 				const curr = this._watchers.get(model.uri);
 				if (isSemanticColoringEnabled(model, themeService, configurationService)) {
 					if (!curr) {
 						register(model);
+					} else if (themeChanged) {
+						try {
+							curr.handleThemeChange();
+						} catch (err) {
+							errors.onUnexpectedError(err);
+						}
 					}
 				} else {
 					if (curr) {
@@ -95,10 +105,10 @@ export class DocumentSemanticTokensFeature extends Disposable {
 		}));
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(SEMANTIC_HIGHLIGHTING_SETTING_ID)) {
-				handleSettingOrThemeChange();
+				handleSettingOrThemeChange(false);
 			}
 		}));
-		this._register(themeService.onDidColorThemeChange(handleSettingOrThemeChange));
+		this._register(themeService.onDidColorThemeChange(() => handleSettingOrThemeChange(true)));
 		bindProviderChangeListeners();
 		this._register(provider.onDidChange(() => {
 			bindProviderChangeListeners();
@@ -134,7 +144,6 @@ class ModelSemanticColoring extends Disposable {
 	constructor(
 		model: ITextModel,
 		@ISemanticTokensStylingService private readonly _semanticTokensStylingService: ISemanticTokensStylingService,
-		@IThemeService themeService: IThemeService,
 		@ILanguageFeatureDebounceService languageFeatureDebounceService: ILanguageFeatureDebounceService,
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 	) {
@@ -175,13 +184,12 @@ class ModelSemanticColoring extends Disposable {
 			this._fetchDocumentSemanticTokens.schedule(0);
 		}));
 
-		this._register(themeService.onDidColorThemeChange(_ => {
-			// clear out existing tokens
-			this._setDocumentSemanticTokens(null, null, null, []);
-			this._fetchDocumentSemanticTokens.schedule(this._debounceInformation.get(this._model));
-		}));
-
 		this._fetchDocumentSemanticTokens.schedule(0);
+	}
+
+	public handleThemeChange(): void {
+		this._setDocumentSemanticTokens(null, null, null, []);
+		this._fetchDocumentSemanticTokens.schedule(this._debounceInformation.get(this._model));
 	}
 
 	public handleRegistryChange(): void {
@@ -323,9 +331,17 @@ class ModelSemanticColoring extends Disposable {
 		}
 
 		if (isSemanticTokensEdits(tokens)) {
+			const resultId = tokens.resultId;
+			const rejectInvalidEdits = (requestFullRefresh: boolean) => {
+				provider.releaseDocumentSemanticTokens(resultId);
+				this._model.tokenization.setSemanticTokens(null, true);
+				if (requestFullRefresh) {
+					this._fetchDocumentSemanticTokens.schedule(0);
+				}
+			};
 			if (!currentResponse) {
 				// not possible!
-				this._model.tokenization.setSemanticTokens(null, true);
+				rejectInvalidEdits(false);
 				return;
 			}
 			if (tokens.edits.length === 0) {
@@ -341,7 +357,13 @@ class ModelSemanticColoring extends Disposable {
 				}
 
 				const srcData = currentResponse.data;
-				const destData = new Uint32Array(srcData.length + deltaLength);
+				const destDataLength = srcData.length + deltaLength;
+				if (destDataLength < 0) {
+					styling.warnInvalidEditDeleteCount(currentResponse.resultId, resultId, srcData.length, deltaLength);
+					rejectInvalidEdits(true);
+					return;
+				}
+				const destData = new Uint32Array(destDataLength);
 
 				let srcLastStart = srcData.length;
 				let destLastStart = destData.length;
@@ -349,9 +371,8 @@ class ModelSemanticColoring extends Disposable {
 					const edit = tokens.edits[i];
 
 					if (edit.start > srcData.length) {
-						styling.warnInvalidEditStart(currentResponse.resultId, tokens.resultId, i, edit.start, srcData.length);
-						// The edits are invalid and there's no way to recover
-						this._model.tokenization.setSemanticTokens(null, true);
+						styling.warnInvalidEditStart(currentResponse.resultId, resultId, i, edit.start, srcData.length);
+						rejectInvalidEdits(true);
 						return;
 					}
 

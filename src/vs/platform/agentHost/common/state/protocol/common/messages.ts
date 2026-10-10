@@ -9,10 +9,11 @@
 import type { InitializeParams, InitializeResult, PingParams, ReconnectParams, ReconnectResult, SubscribeParams, SubscribeResult, ResourceReadParams, ResourceReadResult, ResourceWriteParams, ResourceWriteResult, ResourceListParams, ResourceListResult, ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceMoveParams, ResourceMoveResult, ResourceResolveParams, ResourceResolveResult, ResourceMkdirParams, ResourceMkdirResult, ResourceRequestParams, ResourceRequestResult, UnsubscribeParams, DispatchActionParams, AuthenticateParams, AuthenticateResult } from './commands.js';
 import type { ListSessionsParams, ListSessionsResult, ResolveSessionConfigParams, ResolveSessionConfigResult, SessionConfigCompletionsParams, SessionConfigCompletionsResult } from '../channels-root/commands.js';
 import type { CreateSessionParams, DisposeSessionParams, FetchTurnsParams, FetchTurnsResult, CompletionsParams, CompletionsResult } from '../channels-session/commands.js';
-import type { CreateChatParams, DisposeChatParams } from '../channels-chat/commands.js';
+import type { CreateChatParams, MoveChatParams, MoveChatResult, DisposeChatParams } from '../channels-chat/commands.js';
 import type { CreateTerminalParams, DisposeTerminalParams } from '../channels-terminal/commands.js';
 import type { CreateResourceWatchParams, CreateResourceWatchResult } from '../channels-resource-watch/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../channels-changeset/commands.js';
+import type { ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult, FetchAutomationRunsParams, FetchAutomationRunsResult } from '../channels-automation/commands.js';
 
 import type { ActionEnvelope } from './actions.js';
 import type { SessionAddedParams, SessionRemovedParams, SessionSummaryChangedParams, ProgressParams } from '../channels-root/notifications.js';
@@ -88,6 +89,7 @@ export interface CommandMap {
 	'createSession': { params: CreateSessionParams; result: null };
 	'disposeSession': { params: DisposeSessionParams; result: null };
 	'createChat': { params: CreateChatParams; result: null };
+	'moveChat': { params: MoveChatParams; result: MoveChatResult };
 	'disposeChat': { params: DisposeChatParams; result: null };
 	'createTerminal': { params: CreateTerminalParams; result: null };
 	'disposeTerminal': { params: DisposeTerminalParams; result: null };
@@ -108,6 +110,9 @@ export interface CommandMap {
 	'sessionConfigCompletions': { params: SessionConfigCompletionsParams; result: SessionConfigCompletionsResult };
 	'completions': { params: CompletionsParams; result: CompletionsResult };
 	'invokeChangesetOperation': { params: InvokeChangesetOperationParams; result: InvokeChangesetOperationResult };
+	'listAutomationTriggerDefinitions': { params: ListAutomationTriggerDefinitionsParams; result: ListAutomationTriggerDefinitionsResult };
+	'runAutomation': { params: RunAutomationParams; result: RunAutomationResult };
+	'fetchAutomationRuns': { params: FetchAutomationRunsParams; result: FetchAutomationRunsResult };
 }
 
 /**
@@ -220,8 +225,8 @@ export type AhpServerRequest<M extends keyof ServerCommandMap = keyof ServerComm
  * generic parameter when you know the method from the associated request:
  *
  * ```ts
- * const result: AhpSuccessResponse<'fetchTurns'> = ...;
- * result.result.turns; // typed as Turn[]
+ * const result: AhpSuccessResponse<'listSessions'> = ...;
+ * result.result.items; // typed as SessionSummary[]
  * ```
  */
 export type AhpSuccessResponse<M extends keyof CommandMap = keyof CommandMap> =

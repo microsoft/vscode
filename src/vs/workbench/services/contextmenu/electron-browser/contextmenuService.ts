@@ -27,6 +27,9 @@ import { AnchorAlignment, AnchorAxisAlignment, isAnchor } from '../../../../base
 import { IMenuService } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
+import { IHostService } from '../../host/browser/host.js';
+import { FocusMode } from '../../../../platform/native/common/native.js';
+import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 
 export class ContextMenuService implements IContextMenuService {
 
@@ -46,10 +49,11 @@ export class ContextMenuService implements IContextMenuService {
 		@IContextViewService contextViewService: IContextViewService,
 		@IMenuService menuService: IMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IHostService hostService: IHostService,
 	) {
 		function createContextMenuService(native: boolean) {
 			return native ?
-				new NativeContextMenuService(notificationService, telemetryService, keybindingService, menuService, contextKeyService)
+				new NativeContextMenuService(popup, notificationService, telemetryService, keybindingService, menuService, contextKeyService, hostService)
 				: new HTMLContextMenuService(telemetryService, notificationService, contextViewService, keybindingService, menuService, contextKeyService);
 		}
 
@@ -87,7 +91,7 @@ export class ContextMenuService implements IContextMenuService {
 	}
 }
 
-class NativeContextMenuService extends Disposable implements IContextMenuService {
+export class NativeContextMenuService extends Disposable implements IContextMenuService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -98,11 +102,13 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 	readonly onDidHideContextMenu = this._onDidHideContextMenu.event;
 
 	constructor(
+		private readonly menuPopup: typeof popup,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IMenuService private readonly menuService: IMenuService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IHostService private readonly hostService: IHostService
 	) {
 		super();
 	}
@@ -120,13 +126,14 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 				this._onDidHideContextMenu.fire();
 			});
 
-			const menu = this.createMenu(delegate, actions, onHide);
 			const anchor = delegate.getAnchor();
+			const targetWindow = dom.isHTMLElement(anchor) ? dom.getWindow(anchor) : anchor instanceof StandardMouseEvent ? dom.getWindow(anchor.browserEvent) : dom.getActiveWindow();
+			const menu = this.createMenu(delegate, actions, onHide, targetWindow);
 
 			let x: number | undefined;
 			let y: number | undefined;
 
-			let zoom = getZoomFactor(dom.isHTMLElement(anchor) ? dom.getWindow(anchor) : dom.getActiveWindow());
+			let zoom = getZoomFactor(targetWindow);
 			if (dom.isHTMLElement(anchor)) {
 				const clientRect = anchor.getBoundingClientRect();
 				const elementPosition = { left: clientRect.left, top: clientRect.top, width: clientRect.width, height: clientRect.height };
@@ -205,17 +212,17 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 				y = Math.floor(y * zoom);
 			}
 
-			popup(menu, { x, y, positioningItem: delegate.autoSelectFirstItem ? 0 : undefined, }, () => onHide());
+			this.menuPopup(menu, { x, y, positioningItem: delegate.autoSelectFirstItem ? 0 : undefined, }, () => onHide());
 
 			this._onDidShowContextMenu.fire();
 		}
 	}
 
-	private createMenu(delegate: IContextMenuDelegate, entries: readonly IAction[], onHide: () => void, submenuIds = new Set<string>()): IContextMenuItem[] {
-		return coalesce(entries.map(entry => this.createMenuItem(delegate, entry, onHide, submenuIds)));
+	private createMenu(delegate: IContextMenuDelegate, entries: readonly IAction[], onHide: () => void, targetWindow: Window, submenuIds = new Set<string>()): IContextMenuItem[] {
+		return coalesce(entries.map(entry => this.createMenuItem(delegate, entry, onHide, targetWindow, submenuIds)));
 	}
 
-	private createMenuItem(delegate: IContextMenuDelegate, entry: IAction, onHide: () => void, submenuIds: Set<string>): IContextMenuItem | undefined {
+	private createMenuItem(delegate: IContextMenuDelegate, entry: IAction, onHide: () => void, targetWindow: Window, submenuIds: Set<string>): IContextMenuItem | undefined {
 		// Separator
 		if (entry instanceof Separator) {
 			return { type: 'separator' };
@@ -230,7 +237,7 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 
 			return {
 				label: unmnemonicLabel(stripIcons(entry.label)).trim(),
-				submenu: this.createMenu(delegate, entry.actions, onHide, new Set([...submenuIds, entry.id]))
+				submenu: this.createMenu(delegate, entry.actions, onHide, targetWindow, new Set([...submenuIds, entry.id]))
 			};
 		}
 
@@ -258,7 +265,7 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 					onHide();
 
 					// Run action which will close the menu
-					this.runAction(entry, delegate, event);
+					this.runAction(entry, delegate, event, targetWindow);
 				}
 			};
 
@@ -279,7 +286,7 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 		}
 	}
 
-	private async runAction(actionToRun: IAction, delegate: IContextMenuDelegate, event: IContextMenuEvent): Promise<void> {
+	private async runAction(actionToRun: IAction, delegate: IContextMenuDelegate, event: IContextMenuEvent, targetWindow: Window): Promise<void> {
 		if (!delegate.skipTelemetry) {
 			this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: actionToRun.id, from: 'contextMenu' });
 		}
@@ -287,6 +294,9 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 		const context = delegate.getActionsContext ? delegate.getActionsContext(event) : undefined;
 
 		try {
+			// Native menus can run actions in an inactive application; DOM focus alone cannot activate it.
+			await this.hostService.focus(targetWindow, { mode: FocusMode.Force });
+
 			if (delegate.actionRunner) {
 				await delegate.actionRunner.run(actionToRun, context);
 			} else if (actionToRun.enabled) {

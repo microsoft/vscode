@@ -6,7 +6,7 @@
 import { toAction } from '../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -19,7 +19,7 @@ import { IAgentHostToolSetEnablementService, IToolEnablementState } from '../../
 import { IAICustomizationItemsModel, ItemsModelSection } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
 import { ICustomizationHarnessService, IHarnessDescriptor } from '../../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { getChatSessionType } from '../../../../../workbench/contrib/chat/common/model/chatUri.js';
-import { AICustomizationManagementSection, AICustomizationSources } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { AICustomizationManagementSection } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IAICustomizationListItem } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemSource.js';
 import { AICustomizationShortcutsWidget } from '../../browser/aiCustomizationShortcutsWidget.js';
 import { CUSTOMIZATION_ITEMS, CustomizationLinkViewItem, ICustomizationItemConfig } from '../../browser/customizationsToolbar.contribution.js';
@@ -27,7 +27,11 @@ import { IEditorService } from '../../../../../workbench/services/editor/common/
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { Menus } from '../../../../browser/menus.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { ContributionEnablementState } from '../../../../../workbench/contrib/chat/common/enablement.js';
+import { IAgentHostCustomizationService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
+import { AICustomizationMcpServerCountService, IAICustomizationMcpServerCountService } from '../../browser/customizationMcpServerCount.js';
 
 // Ensure color registrations are loaded
 import '../../../../common/theme.js';
@@ -149,8 +153,9 @@ function createMockItemsModel(counts?: ICustomizationCounts): IAICustomizationIt
 }
 
 function createMockMcpService(serverCount: number = 0): IMcpService {
-	const MockServer = mock<IMcpServer>();
-	const servers = observableValue<readonly IMcpServer[]>('mockMcpServers', Array.from({ length: serverCount }, () => new MockServer()));
+	const servers = observableValue<readonly IMcpServer[]>('mockMcpServers', Array.from({ length: serverCount }, () => new class extends mock<IMcpServer>() {
+		override readonly enablement = constObservable(ContributionEnablementState.EnabledProfile);
+	}()));
 	return new class extends mock<IMcpService>() {
 		override readonly servers = servers;
 	}();
@@ -162,7 +167,6 @@ function createMockHarnessService(hiddenSections: readonly string[] = []): ICust
 		label: 'Fixture',
 		icon: ThemeIcon.fromId('vm'),
 		hiddenSections,
-		getStorageSourceFilter: () => ({ sources: AICustomizationSources.all }),
 	};
 	return new class extends mock<ICustomizationHarnessService>() {
 		override readonly activeSessionResource = observableValue('mockActiveSessionResource', URI.parse(`${descriptor.id}:///session`));
@@ -202,6 +206,11 @@ function renderWidget(ctx: ComponentFixtureContext, options?: { mcpServerCount?:
 			reg.defineInstance(IAICustomizationItemsModel, createMockItemsModel(options?.counts));
 			reg.defineInstance(ICustomizationHarnessService, createMockHarnessService(options?.hiddenSections));
 			reg.defineInstance(IMcpService, createMockMcpService(options?.mcpServerCount ?? 0));
+			reg.defineInstance(IAgentHostCustomizationService, new class extends mock<IAgentHostCustomizationService>() {
+				override readonly onDidChangeCustomizations = Event.None;
+				override getMcpServers() { return []; }
+			}());
+			reg.define(IAICustomizationMcpServerCountService, AICustomizationMcpServerCountService);
 			reg.defineInstance(IAgentPluginService, new class extends mock<IAgentPluginService>() {
 				override readonly plugins = observableValue<readonly never[]>('mockPlugins', []);
 			}());
@@ -210,6 +219,9 @@ function renderWidget(ctx: ComponentFixtureContext, options?: { mcpServerCount?:
 			}());
 			reg.defineInstance(IAgentHostToolSetEnablementService, new class extends mock<IAgentHostToolSetEnablementService>() {
 				override observe() { return observableValue<IToolEnablementState>('mockToolEnablement', { toolSets: new Map(), tools: new Map() }); }
+			}());
+			reg.defineInstance(IAutomationService, new class extends mock<IAutomationService>() {
+				override readonly automations = observableValue<readonly never[]>('mockAutomations', []);
 			}());
 		},
 	});

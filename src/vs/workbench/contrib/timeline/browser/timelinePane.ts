@@ -328,7 +328,7 @@ export class TimelinePane extends ViewPane {
 		let pageSize = this.configurationService.getValue<number | null | undefined>('timeline.pageSize');
 		if (pageSize === undefined || pageSize === null) {
 			// If we are paging when scrolling, then add an extra item to the end to make sure the "Load more" item is out of view
-			pageSize = Math.max(20, Math.floor((this.tree?.renderHeight ?? 0 / ItemHeight) + (this.pageOnScroll ? 1 : -1)));
+			pageSize = Math.max(20, Math.floor(((this.tree?.renderHeight ?? 0) / ItemHeight) + (this.pageOnScroll ? 1 : -1)));
 		}
 		return pageSize;
 	}
@@ -410,6 +410,10 @@ export class TimelinePane extends ViewPane {
 	private onProvidersChanged(e: TimelineProvidersChangeEvent) {
 		if (e.removed) {
 			for (const source of e.removed) {
+				const pendingRequest = this.pendingRequests.get(source);
+				this.pendingRequests.delete(source);
+				pendingRequest?.request.tokenSource.cancel();
+				pendingRequest?.dispose();
 				this.timelinesBySource.delete(source);
 			}
 
@@ -620,7 +624,11 @@ export class TimelinePane extends ViewPane {
 		const disposables = new DisposableStore();
 		this.pendingRequests.set(source, { request: newRequest, dispose: () => disposables.dispose() });
 		disposables.add(tokenSource);
-		disposables.add(tokenSource.token.onCancellationRequested(() => this.pendingRequests.delete(source)));
+		disposables.add(tokenSource.token.onCancellationRequested(() => {
+			if (this.pendingRequests.get(source)?.request === newRequest) {
+				this.pendingRequests.delete(source);
+			}
+		}));
 
 		this.handleRequest(newRequest);
 
@@ -650,11 +658,13 @@ export class TimelinePane extends ViewPane {
 			// Ignore
 		}
 
-		// If the request was cancelled then it was already deleted from the pendingRequests map
-		if (!request.tokenSource.token.isCancellationRequested) {
-			this.pendingRequests.get(request.source)?.dispose();
-			this.pendingRequests.delete(request.source);
+		// Ignore cancelled or replaced requests, including results from removed providers.
+		const pendingRequest = this.pendingRequests.get(request.source);
+		if (pendingRequest?.request !== request) {
+			return;
 		}
+		this.pendingRequests.delete(request.source);
+		pendingRequest.dispose();
 
 		if (response === undefined || request.uri !== this.uri) {
 			if (this.pendingRequests.size === 0 && this._pendingRefresh) {

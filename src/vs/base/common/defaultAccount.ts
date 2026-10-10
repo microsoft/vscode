@@ -9,6 +9,7 @@ export interface IQuotaSnapshotData {
 	readonly overage_count: number;
 	readonly overage_entitlement: number;
 	readonly overage_permitted: boolean;
+	readonly credits_used?: number;
 	readonly percent_remaining: number;
 	readonly unlimited: boolean;
 	readonly quota_reset_at?: number;
@@ -36,6 +37,7 @@ export interface IEntitlementsData extends ILegacyQuotaSnapshotData {
 	readonly can_signup_for_limited: boolean;
 	readonly copilot_plan: string;
 	readonly organization_login_list: string[];
+	readonly is_staff?: boolean;
 	readonly analytics_tracking_id: string;
 	readonly limited_user_reset_date?: string; 	// for Copilot Free
 	readonly quota_reset_date?: string; 		// for all other Copilot SKUs
@@ -48,6 +50,7 @@ export interface IEntitlementsData extends ILegacyQuotaSnapshotData {
 		completions?: IQuotaSnapshotData;
 		premium_interactions?: IQuotaSnapshotData;
 	};
+	readonly endpoints?: Record<string, string>;
 }
 
 export interface IPolicyData {
@@ -67,6 +70,16 @@ export interface IPolicyData {
 	 * `enabledPlugins`, `extraKnownMarketplaces`) are carried as canonical JSON strings.
 	 */
 	readonly managedSettings?: ManagedSettingsData;
+
+	/**
+	 * Whether at least one managed-settings delivery channel currently supplies a setting — i.e.
+	 * the user is governed by GitHub Copilot managed settings at all, independent of which keys
+	 * were set.
+	 *
+	 * Unlike {@link managedSettings}, this also reflects structured runtime-owned keys that the
+	 * policy projection does not retain.
+	 */
+	readonly managedSettingsActive?: boolean;
 }
 
 export interface ICopilotTokenInfo {

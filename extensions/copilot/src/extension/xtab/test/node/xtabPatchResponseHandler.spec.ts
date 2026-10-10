@@ -9,6 +9,8 @@ import { NoNextEditReason, StreamedEdit } from '../../../../platform/inlineEdits
 import { TestLogService } from '../../../../platform/testing/common/testLogService';
 import { AsyncIterUtils } from '../../../../util/common/asyncIterableUtils';
 import { AsyncIterableSource } from '../../../../util/vs/base/common/async';
+import { isWindows } from '../../../../util/vs/base/common/platform';
+import { URI } from '../../../../util/vs/base/common/uri';
 import { LineReplacement } from '../../../../util/vs/editor/common/core/edits/lineEdit';
 import { Position } from '../../../../util/vs/editor/common/core/position';
 import { LineRange } from '../../../../util/vs/editor/common/core/ranges/lineRange';
@@ -95,6 +97,43 @@ relative/path/to/another_file.js:42
 +Added line`;
 		const patches = await collectPatches(patchText);
 		expect(patches).toEqual(patchText);
+	});
+
+	it.skipIf(!isWindows)('applies a patch for a Windows path whose parent folder contains a space', async () => {
+		const workspaceRoot = URI.file('C:\\workspace');
+		const documentId = DocumentId.create(URI.file('C:\\workspace\\space folder\\test.py').toString());
+		const document = new CurrentDocument(new StringText('def my_function'), new Position(1, 16));
+		const lines = AsyncIterUtils.fromArray([
+			'space folder/test.py:0',
+			'-def my_function',
+			'+def my_function():',
+			'+    pass',
+		]);
+
+		const { edits } = await consumeHandleResponse(
+			lines,
+			document,
+			documentId,
+			workspaceRoot,
+			undefined,
+			new TestLogService(),
+			DuplicateAdditionsMode.Off,
+			true,
+		);
+
+		expect(edits.map(edit => ({
+			targetDocument: edit.targetDocument.toString(),
+			lineRange: edit.edit.lineRange.toString(),
+			newLines: edit.edit.newLines,
+		}))).toEqual([{
+			targetDocument: 'file:///c%3A/workspace/space%20folder/test.py',
+			lineRange: '[1,2)',
+			newLines: ['def my_function():'],
+		}, {
+			targetDocument: 'file:///c%3A/workspace/space%20folder/test.py',
+			lineRange: '[2,2)',
+			newLines: ['    pass'],
+		}]);
 	});
 
 	it('discard a patch if no valid header', async () => {
@@ -762,9 +801,9 @@ another_file.js:
 
 	describe('progressive ghost-text reveal via extractEdits', () => {
 
-		async function collectPatchesWithCursor(patchText: string, cursorLineZeroBased: number, activeDocPath: string = 'file.py'): Promise<string> {
+		async function collectPatchesWithCursor(patchText: string, cursorLineZeroBased: number, activeDocPath: string = 'file.py', allowMultiLineRemoval: boolean = false): Promise<string> {
 			const linesStream = AsyncIterUtils.fromArray(patchText.split('\n'));
-			const patches = await AsyncIterUtils.toArray(XtabPatchResponseHandler.extractEdits(linesStream, cursorLineZeroBased, activeDocPath));
+			const patches = await AsyncIterUtils.toArray(XtabPatchResponseHandler.extractEdits(linesStream, cursorLineZeroBased, activeDocPath, allowMultiLineRemoval));
 			return patches.map(p => p.toString()).join('\n');
 		}
 
@@ -970,6 +1009,198 @@ another_file.js:
 		});
 	});
 
+	describe('progressive ghost-text reveal (multi-line) via extractEdits', () => {
+
+		async function collectMultiLine(patchText: string, cursorLineZeroBased: number, activeDocPath: string = 'file.py'): Promise<string> {
+			const linesStream = AsyncIterUtils.fromArray(patchText.split('\n'));
+			const patches = await AsyncIterUtils.toArray(XtabPatchResponseHandler.extractEdits(linesStream, cursorLineZeroBased, activeDocPath, /* allowMultiLineRemoval */ true));
+			return patches.map(p => p.toString()).join('\n');
+		}
+
+		it('splits a multi-removed-line patch into cursor-line replacement + continuation replacement', async () => {
+			const result = await collectMultiLine(
+				[
+					'file.py:4',
+					'-lineA',
+					'-lineB',
+					'+lineA_extended',
+					'+lineB_changed',
+				].join('\n'),
+				4,
+			);
+			expect(result).toEqual([
+				'file.py:4',
+				'-lineA',
+				'+lineA_extended',
+				'file.py:5',
+				'-lineB',
+				'+lineB_changed',
+			].join('\n'));
+		});
+
+		it('does not split a multi-removed-line patch when allowMultiLineRemoval is off', async () => {
+			// Same input, but with allowMultiLineRemoval defaulting to false.
+			const linesStream = AsyncIterUtils.fromArray([
+				'file.py:4',
+				'-lineA',
+				'-lineB',
+				'+lineA_extended',
+				'+lineB_changed',
+			]);
+			const patches = await AsyncIterUtils.toArray(XtabPatchResponseHandler.extractEdits(linesStream, 4, 'file.py'));
+			const result = patches.map(p => p.toString()).join('\n');
+			expect(result).toEqual([
+				'file.py:4',
+				'-lineA',
+				'-lineB',
+				'+lineA_extended',
+				'+lineB_changed',
+			].join('\n'));
+		});
+
+		it('continuation is a deletion when fewer added than removed lines', async () => {
+			const result = await collectMultiLine(
+				[
+					'file.py:4',
+					'-lineA',
+					'-lineB',
+					'+lineA_extended',
+				].join('\n'),
+				4,
+			);
+			expect(result).toEqual([
+				'file.py:4',
+				'-lineA',
+				'+lineA_extended',
+				'file.py:5',
+				'-lineB',
+			].join('\n'));
+		});
+
+		it('continuation replaces one line with many when more added than removed lines', async () => {
+			const result = await collectMultiLine(
+				[
+					'file.py:4',
+					'-lineA',
+					'-lineB',
+					'+lineA_extended',
+					'+lineB1',
+					'+lineB2',
+				].join('\n'),
+				4,
+			);
+			expect(result).toEqual([
+				'file.py:4',
+				'-lineA',
+				'+lineA_extended',
+				'file.py:5',
+				'-lineB',
+				'+lineB1',
+				'+lineB2',
+			].join('\n'));
+		});
+
+		it('splits a single-removed-line patch identically when allowMultiLineRemoval is on', async () => {
+			const result = await collectMultiLine(
+				[
+					'file.py:4',
+					'-lineA',
+					'+lineA_extended',
+					'+lineB',
+				].join('\n'),
+				4,
+			);
+			expect(result).toEqual([
+				'file.py:4',
+				'-lineA',
+				'+lineA_extended',
+				'file.py:5',
+				'+lineB',
+			].join('\n'));
+		});
+
+		it('does not split when the first line edit is not additive', async () => {
+			const result = await collectMultiLine(
+				[
+					'file.py:4',
+					'-hello world',
+					'-lineB',
+					'+goodbye',
+					'+lineC',
+				].join('\n'),
+				4,
+			);
+			expect(result).toEqual([
+				'file.py:4',
+				'-hello world',
+				'-lineB',
+				'+goodbye',
+				'+lineC',
+			].join('\n'));
+		});
+
+		it('does not split when the cursor line does not match the patch line', async () => {
+			const result = await collectMultiLine(
+				[
+					'file.py:4',
+					'-lineA',
+					'-lineB',
+					'+lineA_extended',
+					'+lineC',
+				].join('\n'),
+				10,
+			);
+			expect(result).toEqual([
+				'file.py:4',
+				'-lineA',
+				'-lineB',
+				'+lineA_extended',
+				'+lineC',
+			].join('\n'));
+		});
+
+		it('does not split an empty cursor line that merely absorbs the next line', async () => {
+			// removed[0] is blank and the first added line equals removed[1] (the line just
+			// below the cursor): the model is deleting the empty line, not additively editing it.
+			const result = await collectMultiLine(
+				[
+					'file.py:4',
+					'-',
+					'-foo()',
+					'+foo()',
+				].join('\n'),
+				4,
+			);
+			expect(result).toEqual([
+				'file.py:4',
+				'-',
+				'-foo()',
+				'+foo()',
+			].join('\n'));
+		});
+
+		it('splits an empty cursor line when the next line is genuinely different', async () => {
+			const result = await collectMultiLine(
+				[
+					'file.py:4',
+					'-',
+					'-bar()',
+					'+foo()',
+					'+baz()',
+				].join('\n'),
+				4,
+			);
+			expect(result).toEqual([
+				'file.py:4',
+				'-',
+				'+foo()',
+				'file.py:5',
+				'-bar()',
+				'+baz()',
+			].join('\n'));
+		});
+	});
+
 	describe('handleResponse with enableProgressiveGhostText', () => {
 
 		it('yields two edits for ghost-text when progressive reveal is enabled', async () => {
@@ -1085,6 +1316,152 @@ another_file.js:
 			// Early edit is yielded, continuation is dropped by dedup
 			expect(edits).toHaveLength(1);
 			expect(edits[0].edit).toEqual(new LineReplacement(new LineRange(2, 3), ['    let x = 1;']));
+		});
+	});
+
+	describe('handleResponse with enableProgressiveGhostTextMultiLine', () => {
+
+		// docContent lines (1-based): 1 "function foo() {", 2 "    const a = 1;", 3 "    doStuff(a);", 4 "}"
+		const docContent = 'function foo() {\n    const a = 1;\n    doStuff(a);\n}\n';
+		// Cursor on line 2 (1-based) → cursorLineOffset = 1 (0-based), the "const a = 1;" line.
+		function makeDoc(): CurrentDocument {
+			return new CurrentDocument(new StringText(docContent), new Position(2, 5));
+		}
+
+		async function* multiLineStream(): AsyncGenerator<string> {
+			yield '/test.ts:1';
+			yield '-    const a = 1;';
+			yield '-    doStuff(a);';
+			yield '+    const a = 1, b = 2;';
+			yield '+    doStuff(a, b);';
+		}
+
+		it('yields two edits (cursor-line replacement + continuation replacement) when multi-line reveal is enabled', async () => {
+			const { edits } = await consumeHandleResponse(
+				multiLineStream(),
+				makeDoc(),
+				DocumentId.create('file:///test.ts'),
+				undefined,
+				undefined,
+				new TestLogService(),
+				DuplicateAdditionsMode.Off,
+				true, // enableProgressiveGhostText
+				false, // splitPatchOnDiff
+				true, // enableProgressiveGhostTextMultiLine
+			);
+
+			expect(edits).toHaveLength(2);
+			// First edit: cursor-line replacement (additive)
+			expect(edits[0].edit).toEqual(new LineReplacement(new LineRange(2, 3), ['    const a = 1, b = 2;']));
+			// Second edit: continuation replacement of the line below the cursor
+			expect(edits[1].edit).toEqual(new LineReplacement(new LineRange(3, 4), ['    doStuff(a, b);']));
+		});
+
+		it('yields a single unsplit edit for a multi-removed-line patch when multi-line reveal is disabled (default)', async () => {
+			const { edits } = await consumeHandleResponse(
+				multiLineStream(),
+				makeDoc(),
+				DocumentId.create('file:///test.ts'),
+				undefined,
+				undefined,
+				new TestLogService(),
+				DuplicateAdditionsMode.Off,
+				true, // enableProgressiveGhostText (single-line reveal only)
+			);
+
+			expect(edits).toHaveLength(1);
+			expect(edits[0].edit).toEqual(new LineReplacement(new LineRange(2, 4), ['    const a = 1, b = 2;', '    doStuff(a, b);']));
+		});
+
+		it('falls back to a single unsplit edit under DropPatch (unsafe dedup mode)', async () => {
+			// DropPatch could skip a multi-line continuation *after* the early edit is emitted,
+			// leaving stale lines below the cursor — so multi-line reveal is disabled for it and
+			// the whole patch is yielded as one edit instead.
+			const { edits } = await consumeHandleResponse(
+				multiLineStream(),
+				makeDoc(),
+				DocumentId.create('file:///test.ts'),
+				undefined,
+				undefined,
+				new TestLogService(),
+				DuplicateAdditionsMode.DropPatch,
+				true, // enableProgressiveGhostText
+				false, // splitPatchOnDiff
+				true, // enableProgressiveGhostTextMultiLine
+			);
+
+			expect(edits).toHaveLength(1);
+			expect(edits[0].edit).toEqual(new LineReplacement(new LineRange(2, 4), ['    const a = 1, b = 2;', '    doStuff(a, b);']));
+		});
+
+		it('stays active under TrimDuplicate and keeps the continuation removal while trimming duplicate additions', async () => {
+			// Document has a trailing "    return a;" the model re-emits as an addition.
+			const docWithReturn = 'function foo() {\n    const a = 1;\n    doStuff(a);\n    return a;\n}\n';
+			const doc = new CurrentDocument(new StringText(docWithReturn), new Position(2, 5));
+
+			async function* stream(): AsyncGenerator<string> {
+				yield '/test.ts:1';
+				yield '-    const a = 1;';
+				yield '-    doStuff(a);';
+				yield '+    const a = 1, b = 2;';
+				yield '+    doStuff(a, b);';
+				yield '+    return a;'; // duplicates the existing line 4
+			}
+
+			const { edits } = await consumeHandleResponse(
+				stream(),
+				doc,
+				DocumentId.create('file:///test.ts'),
+				undefined,
+				undefined,
+				new TestLogService(),
+				DuplicateAdditionsMode.TrimDuplicate,
+				true, // enableProgressiveGhostText
+				false, // splitPatchOnDiff
+				true, // enableProgressiveGhostTextMultiLine
+			);
+
+			// Early edit kept; continuation still removes line 3 but drops the duplicated "return a;".
+			expect(edits).toHaveLength(2);
+			expect(edits[0].edit).toEqual(new LineReplacement(new LineRange(2, 3), ['    const a = 1, b = 2;']));
+			expect(edits[1].edit).toEqual(new LineReplacement(new LineRange(3, 4), ['    doStuff(a, b);']));
+		});
+
+		it('keeps the early cursor-line edit under TrimDuplicate when its added line matches the next removed line (cascade)', async () => {
+			// Cascade edit: the cursor line is completed to match the line below it, which the same
+			// patch then extends further. Here `added[0]` ("    log(x, y)") equals `removed[1]`
+			// ("    log(x, y)"), the original line just below the cursor. Since the early patch's
+			// dedup "following" window is that same line, an unguarded TrimDuplicate would trim the
+			// early patch's only added line to empty and emit a cursor-line *deletion*, dropping the
+			// intended change. The early edit must be preserved verbatim.
+			const docContent = 'f();\n    log(x)\n    log(x, y)\nz\n';
+			const doc = new CurrentDocument(new StringText(docContent), new Position(2, 5));
+
+			async function* stream(): AsyncGenerator<string> {
+				yield '/test.ts:1';
+				yield '-    log(x)';
+				yield '-    log(x, y)';
+				yield '+    log(x, y)'; // equals removed[1] (the line below the cursor)
+				yield '+    log(x, y, z)';
+			}
+
+			const { edits } = await consumeHandleResponse(
+				stream(),
+				doc,
+				DocumentId.create('file:///test.ts'),
+				undefined,
+				undefined,
+				new TestLogService(),
+				DuplicateAdditionsMode.TrimDuplicate,
+				true, // enableProgressiveGhostText
+				false, // splitPatchOnDiff
+				true, // enableProgressiveGhostTextMultiLine
+			);
+
+			// Early edit is a replacement (not a deletion); continuation replaces the line below.
+			expect(edits).toHaveLength(2);
+			expect(edits[0].edit).toEqual(new LineReplacement(new LineRange(2, 3), ['    log(x, y)']));
+			expect(edits[1].edit).toEqual(new LineReplacement(new LineRange(3, 4), ['    log(x, y, z)']));
 		});
 	});
 

@@ -8,19 +8,73 @@
 
 import type { URI } from '../common/state.js';
 import type { BaseParams } from '../common/commands.js';
-import type { Message } from './state.js';
+import type { Message, SideChatSelection } from './state.js';
 
 // ─── createChat ──────────────────────────────────────────────────────────────
 
 /**
- * Identifies a source chat and turn to fork from.
+ * How a new chat uses its source chat and turn.
+ * @nonexhaustive
  */
-export interface ChatForkSource {
-	/** URI of the existing chat to fork from */
+export const enum ChatSourceKind {
+	/** Copy source history through the referenced turn into the new chat. */
+	Fork = 'fork',
+	/** Supply source context without copying it into the new chat's visible history. */
+	SideChat = 'sideChat',
+}
+
+/**
+ * Copies source history through a completed turn into the new chat.
+ */
+export interface ForkChatSource {
+	/** Discriminant */
+	kind: ChatSourceKind.Fork;
+	/** URI of the existing source chat. */
 	chat: URI;
-	/** Turn ID in the source chat; content up to and including this turn's response is copied */
+	/**
+	 * Completed turn identifier in the source chat.
+	 *
+	 * Content through this turn is copied into the new chat's visible `turns`.
+	 */
 	turnId: string;
 }
+
+/**
+ * Supplies source context to a new side chat without copying it into the side
+ * chat's visible history.
+ */
+export interface SideChatSource {
+	/** Discriminant */
+	kind: ChatSourceKind.SideChat;
+	/** URI of the existing source chat. */
+	chat: URI;
+	/**
+	 * Stable source-turn identifier in the source chat.
+	 *
+	 * Hosts resolve this id against the source chat's current `activeTurn` or its
+	 * retained `turns` when accepting `createChat`. If it names the current
+	 * active turn, the host snapshots the source chat's retained history plus
+	 * that turn's current user message and any partial assistant response already
+	 * available. Once that turn later becomes historical, it is still referenced
+	 * by this same identifier.
+	 */
+	turnId: string;
+	/**
+	 * Optional immutable selected-text snapshot to carry into the created side
+	 * chat's origin.
+	 *
+	 * When present, the host MUST snapshot and preserve this exact selection when
+	 * it accepts `createChat`; later source-turn deltas do not alter it.
+	 */
+	selection?: SideChatSelection;
+}
+
+/**
+ * Identifies a source chat for a new chat.
+ */
+export type ChatSource =
+	| ForkChatSource
+	| SideChatSource;
 
 /**
  * Creates a new chat within a session.
@@ -38,8 +92,130 @@ export interface CreateChatParams extends BaseParams {
 	chat: URI;
 	/** Optional initial message for the new chat. */
 	initialMessage?: Message;
-	/** Optional source chat and turn to fork from. */
-	source?: ChatForkSource;
+	/**
+	 * Optional source chat and source turn.
+	 *
+	 * The source chat MUST belong to this session. Clients MUST only request
+	 * `kind: "fork"` when the selected agent advertises
+	 * `capabilities.multipleChats.fork`, and `kind: "sideChat"` when the
+	 * selected agent advertises `capabilities.multipleChats.sideChat`. Both
+	 * source forms carry a stable top-level `turnId`. Forks target completed
+	 * turns. Side chats also carry a stable `turnId`, which the host resolves
+	 * against the source chat's current active turn or retained history. If it
+	 * resolves to the active turn, the host snapshots the currently available
+	 * partial response when accepting `createChat`. When
+	 * `source.kind === "sideChat"` and `source.selection` is present, the host
+	 * also snapshots and preserves that exact selected text in the created chat's
+	 * origin; any `responsePartId` there is provenance only, not a live range.
+	 */
+	source?: ChatSource;
+	/**
+	 * Initial working-directory subset for this chat. Every entry MUST be
+	 * present in the owning session's `workingDirectories`; the server MUST
+	 * reject any entry that is not. When absent, the chat inherits the full
+	 * session set. Forked chats (those whose `source.kind` is `"fork"`) inherit
+	 * the source chat's `workingDirectories`; this field is ignored for forks.
+	 *
+	 * A client MUST NOT supply this field unless the agent advertises
+	 * {@link AgentCapabilities.multipleWorkingDirectories}.
+	 */
+	workingDirectories?: URI[];
+}
+
+// ─── moveChat ────────────────────────────────────────────────────────────────
+
+/**
+ * Destination kind for an atomic chat move.
+ *
+ * @category Commands
+ * @nonexhaustive
+ */
+export const enum ChatMoveDestinationKind {
+	/** Move the source chat subtree into an existing session. */
+	Session = 'session',
+	/** Move the source chat subtree into a newly allocated session. */
+	NewSession = 'newSession',
+}
+
+/** Moves a chat within or into an existing session. */
+export interface ChatMoveToSessionDestination {
+	/** Discriminant */
+	kind: ChatMoveDestinationKind.Session;
+	/** Destination session URI. */
+	session: URI;
+	/**
+	 * Chat after which to place the requested chat.
+	 *
+	 * The anchor MUST be a different chat in the destination session. When
+	 * omitted, the requested chat is placed at the beginning of the catalog.
+	 */
+	after?: URI;
+}
+
+/** Moves a top-level chat subtree into a newly allocated session. */
+export interface ChatMoveToNewSessionDestination {
+	/** Discriminant */
+	kind: ChatMoveDestinationKind.NewSession;
+}
+
+/** Identifies the destination of an atomic chat move. */
+export type ChatMoveDestination =
+	| ChatMoveToSessionDestination
+	| ChatMoveToNewSessionDestination;
+
+/**
+ * Atomically moves a host-authorized chat within or between sessions.
+ *
+ * The source is the chat named by `channel`. When a `session` destination is
+ * the source's current session, only the requested entry is repositioned in
+ * that session's public chat catalog. When it names another session, the host
+ * transfers the requested chat and its complete host-managed descendant
+ * hierarchy. The optional `after` anchor positions the requested chat in the
+ * destination catalog; when omitted, the requested chat is placed first.
+ *
+ * A `newSession` destination allocates a session, transfers the complete
+ * hierarchy, and makes the requested chat that session's non-movable default
+ * chat. The host owns descendant relationships; AHP does not expose them as
+ * chat state.
+ *
+ * Clients MUST only request a move when the source chat advertises
+ * `movable: true` in its `ChatState` or `ChatSummary`. This is structural
+ * eligibility, not a guarantee that request-specific validation will succeed.
+ *
+ * The host MUST validate the complete operation before committing it and MAY
+ * reject unsupported destinations or transient source conditions. At minimum,
+ * the source MUST exist and advertise `movable: true`; the destination and
+ * optional anchor MUST resolve; and the source MUST NOT anchor itself.
+ * Rejection leaves ownership, catalog order, chat state, and root summaries
+ * unchanged.
+ *
+ * On success every moved chat keeps its URI, state, and immutable
+ * `ChatOrigin`. The host commits ownership and catalog order before publishing
+ * `session/chatRemoved`, `session/chatAdded`, `session/chatsReordered`, and
+ * root summary updates as applicable. Session and root snapshots are the
+ * durable recovery path after reconnect or an uncertain response.
+ *
+ * @category Commands
+ * @method moveChat
+ * @direction Client → Server
+ * @messageType Request
+ * @version 1
+ */
+export interface MoveChatParams extends BaseParams {
+	/** Source chat URI. */
+	channel: URI;
+	/** Atomic move destination. */
+	destination: ChatMoveDestination;
+}
+
+/**
+ * Result of an atomic chat move.
+ *
+ * @category Commands
+ */
+export interface MoveChatResult {
+	/** Authoritative owning session URI after the move. */
+	session: URI;
 }
 
 // ─── disposeChat ─────────────────────────────────────────────────────────────

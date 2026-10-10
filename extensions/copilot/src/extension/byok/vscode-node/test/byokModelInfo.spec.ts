@@ -60,4 +60,14 @@ describe('byokKnownModelToAPIInfoWithEffort', () => {
 
 		expect((info as { configurationSchema?: { properties: { reasoningEffort: { default?: string } } } }).configurationSchema?.properties.reasoningEffort.default).toBe('low');
 	});
+
+	it('uses a model-declared default reasoning effort', () => {
+		const info = byokKnownModelToAPIInfoWithEffort('Gemini', 'gemini-3-pro-preview', {
+			...baseCapabilities,
+			supportsReasoningEffort: ['low', 'high'],
+			defaultReasoningEffort: 'high',
+		});
+
+		expect((info as { configurationSchema?: { properties: { reasoningEffort: { default?: string } } } }).configurationSchema?.properties.reasoningEffort.default).toBe('high');
+	});
 });

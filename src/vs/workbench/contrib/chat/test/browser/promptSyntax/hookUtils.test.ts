@@ -4,10 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { OperatingSystem } from '../../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { findHookCommandInYaml, findHookCommandSelection } from '../../../browser/promptSyntax/hookUtils.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
+import { findHookCommandInYaml, findHookCommandSelection, parseAllHookFiles } from '../../../browser/promptSyntax/hookUtils.js';
 import { ITextEditorSelection } from '../../../../../../platform/editor/common/editor.js';
 import { buildNewHookEntry, HookSourceFormat } from '../../../common/promptSyntax/hookCompatibility.js';
+import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { ILabelService } from '../../../../../../platform/label/common/label.js';
+import { IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
+import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 
 /**
  * Helper to extract the selected text from content using a selection range.
@@ -29,6 +36,36 @@ function getSelectedText(content: string, selection: ITextEditorSelection): stri
 
 suite('hookUtils', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('restricts initial hook discovery to the preferred storage', async () => {
+		const calls: string[] = [];
+		const promptsService = new class extends mock<IPromptsService>() {
+			override async listPromptFiles() {
+				calls.push('all');
+				return [];
+			}
+			override async listPromptFilesForStorage(_type: PromptsType, storage: PromptsStorage) {
+				calls.push(storage);
+				return [];
+			}
+			override async getCustomAgents() {
+				return [];
+			}
+		}();
+
+		await parseAllHookFiles(
+			promptsService,
+			new class extends mock<IFileService>() { }(),
+			new class extends mock<ILabelService>() { }(),
+			undefined,
+			'/home/test',
+			OperatingSystem.Linux,
+			CancellationToken.None,
+			{ includeAgentHooks: true, preferredStorage: PromptsStorage.user },
+		);
+
+		assert.deepStrictEqual(calls, [PromptsStorage.user]);
+	});
 
 	suite('findHookCommandSelection', () => {
 

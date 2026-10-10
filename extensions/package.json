@@ -16,5 +16,9 @@
   },
   "overrides": {
     "node-gyp-build": "4.8.1"
+  },
+  "allowScripts": {
+    "@parcel/watcher@2.5.6": true,
+    "esbuild@0.28.1": true
   }
 }

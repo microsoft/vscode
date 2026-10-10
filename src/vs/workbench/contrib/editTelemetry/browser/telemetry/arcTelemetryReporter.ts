@@ -9,7 +9,7 @@ import { BaseStringEdit } from '../../../../../editor/common/core/edits/stringEd
 import { StringText } from '../../../../../editor/common/core/text/abstractText.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ArcTracker } from '../../common/arcTracker.js';
-import type { ScmRepoAdapter } from './scmAdapter.js';
+import type { IScmRepoAdapter } from './scmAdapter.js';
 
 export class ArcTelemetryReporter extends Disposable {
 	private readonly _arcTracker;
@@ -22,7 +22,7 @@ export class ArcTelemetryReporter extends Disposable {
 		private readonly _documentValueBeforeTrackedEdit: StringText,
 		private readonly _document: { value: IObservableWithChange<StringText, { edit: BaseStringEdit }> },
 		// _markedEdits -> document.value
-		private readonly _gitRepo: IObservable<ScmRepoAdapter | undefined>,
+		private readonly _gitRepo: IObservable<IScmRepoAdapter | undefined>,
 		private readonly _trackedEdit: BaseStringEdit,
 		private readonly _sendTelemetryEvent: (res: ArcTelemetryReporterData) => void,
 		private readonly _dispose: () => void,

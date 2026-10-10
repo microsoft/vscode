@@ -6,9 +6,14 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
-import { AbstractPolicyService, PolicyDefinition } from '../../common/policy.js';
+import { PolicyName } from '../../../../base/common/policy.js';
+import { AbstractPolicyService, PolicyDefinition, PolicyValue, PolicyValueSource } from '../../common/policy.js';
 
 class TestPolicyService extends AbstractPolicyService {
+	update(name: PolicyName, value: PolicyValue | undefined, source: PolicyValueSource | undefined): boolean {
+		return this.updatePolicyValue(name, value, source);
+	}
+
 	protected async _updatePolicyDefinitions(_policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<void> {
 		// no-op: the OS/file watcher is irrelevant for serialization tests
 	}
@@ -44,6 +49,35 @@ suite('AbstractPolicyService', () => {
 		// The whole payload must be structured-clone-safe (this is how it is delivered to the
 		// renderer as part of the window configuration's policiesData).
 		assert.doesNotThrow(() => structuredClone(serialized));
+
+		service.dispose();
+	});
+
+	test('tracks value and source changes together', () => {
+		const service = new TestPolicyService();
+		const states: { changed: boolean; value: PolicyValue | undefined; source: PolicyValueSource | undefined }[] = [];
+		const update = (value: PolicyValue | undefined, source: PolicyValueSource | undefined) => {
+			const changed = service.update('Policy', value, source);
+			states.push({
+				changed,
+				value: service.getPolicyValue('Policy'),
+				source: service.getPolicyValueSource('Policy'),
+			});
+		};
+
+		update(false, undefined);
+		update(false, PolicyValueSource.Account);
+		update(false, PolicyValueSource.AccountGate);
+		update(false, PolicyValueSource.AccountGate);
+		update(undefined, undefined);
+
+		assert.deepStrictEqual(states, [
+			{ changed: true, value: false, source: PolicyValueSource.Device },
+			{ changed: true, value: false, source: PolicyValueSource.Account },
+			{ changed: true, value: false, source: PolicyValueSource.AccountGate },
+			{ changed: false, value: false, source: PolicyValueSource.AccountGate },
+			{ changed: true, value: undefined, source: undefined },
+		]);
 
 		service.dispose();
 	});

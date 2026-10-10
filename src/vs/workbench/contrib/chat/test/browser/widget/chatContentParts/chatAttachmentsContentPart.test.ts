@@ -4,13 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
+import * as dom from '../../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ExtensionIdentifier } from '../../../../../../../platform/extensions/common/extensions.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
-import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
-import { getEffectiveImageOmittedState } from '../../../../browser/attachments/chatAttachmentWidgets.js';
+import { IFileService } from '../../../../../../../platform/files/common/files.js';
+import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../../../platform/hover/test/browser/nullHoverService.js';
+import { TestFileService, workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
+import { DEFAULT_LABELS_CONTAINER, ResourceLabels } from '../../../../../../browser/labels.js';
+import { getEffectiveImageOmittedState, ImageAttachmentWidget } from '../../../../browser/attachments/chatAttachmentWidgets.js';
 import { ChatAttachmentsContentPart } from '../../../../browser/widget/chatContentParts/chatAttachmentsContentPart.js';
 import { AgentHostCompletionReferenceKind, IChatRequestVariableEntry, OmittedState, toAgentHostCompletionVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../../../common/languageModels.js';
@@ -72,6 +77,33 @@ suite('ChatAttachmentsContentPart', () => {
 			},
 		} as ILanguageModelsService);
 	}
+
+	test('should keep the image preview in thumbnail hovers by default', () => {
+		const imageHoverContents: HTMLElement[] = [];
+		instantiationService.stub(IHoverService, {
+			...NullHoverService,
+			setupDelayedHover: (target, hoverOptions) => {
+				const options = typeof hoverOptions === 'function' ? hoverOptions() : hoverOptions;
+				if (target.classList.contains('image-attachment') && dom.isHTMLElement(options.content)) {
+					imageHoverContents.push(options.content);
+				}
+				return Disposable.None;
+			},
+		});
+
+		disposables.add(instantiationService.createInstance(
+			ChatAttachmentsContentPart,
+			{ variables: [createImageEntry('image.png', new Uint8Array([0x89, 0x50, 0x4E, 0x47]))] }
+		));
+
+		assert.deepStrictEqual({
+			imageHovers: imageHoverContents.length,
+			imageHoverPreviews: imageHoverContents.reduce((count, content) => count + content.querySelectorAll('.chat-attached-context-image').length, 0),
+		}, {
+			imageHovers: 1,
+			imageHoverPreviews: 1,
+		});
+	});
 
 	suite('updateVariables', () => {
 		test('should update variables and re-render', () => {
@@ -346,6 +378,89 @@ suite('ChatAttachmentsContentPart', () => {
 			} satisfies { identifier: string; metadata: ILanguageModelChatMetadata };
 
 			assert.strictEqual(getEffectiveImageOmittedState(OmittedState.Full, autoModel, true), OmittedState.NotOmitted);
+		});
+
+		suite('hydrated image attachments', () => {
+			async function renderImageAndCollectReads(image: IChatRequestVariableEntry): Promise<string[]> {
+				const fileService = instantiationService.get(IFileService) as TestFileService;
+				const part = store.add(instantiationService.createInstance(
+					ChatAttachmentsContentPart,
+					{ variables: [image] }
+				));
+
+				mainWindow.document.body.appendChild(part.domNode!);
+				disposables.add(toDisposable(() => part.domNode?.remove()));
+
+				// Let the widget's lazy byte load (a microtask) settle before inspecting reads.
+				await new Promise<void>(resolve => setTimeout(resolve, 0));
+
+				return fileService.readOperations.map(read => read.resource.toString());
+			}
+
+			test('should load bytes from the resource for a hydrated (uri-only) image', async () => {
+				const resource = URI.file('/test/pasted-image.png');
+				const reads = await renderImageAndCollectReads({
+					kind: 'image',
+					id: 'hydrated-image',
+					name: 'pasted-image.png',
+					value: resource,
+					mimeType: 'image/png',
+					isURL: true,
+					references: [{ kind: 'reference', reference: resource }]
+				});
+
+				assert.deepStrictEqual(reads, [resource.toString()]);
+			});
+
+			test('should not read the resource for an image with inline bytes', async () => {
+				const resource = URI.file('/test/inline-image.png');
+				const reads = await renderImageAndCollectReads({
+					kind: 'image',
+					id: 'inline-image',
+					name: 'inline-image.png',
+					value: new Uint8Array([0x89, 0x50, 0x4E, 0x47]),
+					mimeType: 'image/png',
+					isURL: false,
+					references: [{ kind: 'reference', reference: resource }]
+				});
+
+				assert.deepStrictEqual(reads, []);
+			});
+
+			test('should keep delete hint after loading hydrated image bytes', async () => {
+				const resource = URI.file('/test/pasted-image.png');
+				const container = mainWindow.document.createElement('div');
+				mainWindow.document.body.appendChild(container);
+				disposables.add(toDisposable(() => container.remove()));
+				const contextResourceLabels = disposables.add(instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
+				const widget = disposables.add(instantiationService.createInstance(
+					ImageAttachmentWidget,
+					resource,
+					{
+						kind: 'image',
+						id: 'hydrated-image-with-delete',
+						name: 'pasted-image.png',
+						value: resource,
+						mimeType: 'image/png',
+						isURL: true,
+						references: [{ kind: 'reference', reference: resource }]
+					},
+					undefined,
+					{ shouldFocusClearButton: false, supportsDeletion: true },
+					container,
+					contextResourceLabels
+				));
+
+				await new Promise<void>(resolve => setTimeout(resolve, 0));
+
+				assert.deepStrictEqual({
+					ariaLabel: widget.element.ariaLabel,
+					clearButtonClass: widget.element.querySelector('.monaco-button')?.className,
+				}, {
+					ariaLabel: 'Attached image, pasted-image.png (Delete)',
+					clearButtonClass: 'monaco-button codicon codicon-close-compact',
+				});
+			});
 		});
 	});
 });

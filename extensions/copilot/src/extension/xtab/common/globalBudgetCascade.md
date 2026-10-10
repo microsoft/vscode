@@ -158,7 +158,7 @@ current-file clip:
     neighborSnippetsResult,    // unchanged telemetry payload
     editDiffHistory,
     nDiffsInPrompt,
-    diffTokensInPrompt,
+    subsections,               // recentlyViewed/langCtx/neighbor strings, for per-subsection token reporting
     finalSurplus,              // end-of-loop surplus, reused by the current-file clip
 }
 ```

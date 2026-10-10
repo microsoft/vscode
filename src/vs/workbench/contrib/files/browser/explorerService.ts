@@ -6,7 +6,7 @@
 import { Event } from '../../../../base/common/event.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
-import { IFilesConfiguration, ISortOrderConfiguration, SortOrder, LexicographicOptions } from '../common/files.js';
+import { IFilesConfiguration, ISortOrderConfiguration, SortOrder, LexicographicOptions, SESSIONS_FILES_VIEW_ID, VIEW_ID } from '../common/files.js';
 import { ExplorerItem, ExplorerModel } from '../common/explorerModel.js';
 import { URI } from '../../../../base/common/uri.js';
 import { FileOperationEvent, FileOperation, IFileService, FileChangesEvent, FileChangeType, IResolveFileOptions } from '../../../../platform/files/common/files.js';
@@ -23,9 +23,12 @@ import { IProgressService, ProgressLocation, IProgressCompositeOptions, IProgres
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { IHostService } from '../../../services/host/browser/host.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IExpression } from '../../../../base/common/glob.js';
 import { ResourceGlobMatcher } from '../../../common/resources.js';
 import { IFilesConfigurationService } from '../../../services/filesConfiguration/common/filesConfigurationService.js';
+import { IDecorationsService } from '../../../services/decorations/common/decorations.js';
+import { ExplorerDecorationsProvider } from './views/explorerDecorationsProvider.js';
 
 export const UNDO_REDO_SOURCE = new UndoRedoSource();
 
@@ -36,9 +39,11 @@ export class ExplorerService implements IExplorerService {
 
 	private readonly disposables = new DisposableStore();
 	private editable: { stat: ExplorerItem; data: IEditableData } | undefined;
+	private shouldRefreshAfterEditing = false;
 	private config: IFilesConfiguration['explorer'];
 	private cutItems: ExplorerItem[] | undefined;
 	private view: IExplorerView | undefined;
+	private decorationsProviderRegistered = false;
 	private model: ExplorerModel;
 	private onFileChangesScheduler: RunOnceScheduler;
 	private fileChangeEvents: FileChangesEvent[] = [];
@@ -54,7 +59,9 @@ export class ExplorerService implements IExplorerService {
 		@IBulkEditService private readonly bulkEditService: IBulkEditService,
 		@IProgressService private readonly progressService: IProgressService,
 		@IHostService hostService: IHostService,
-		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService
+		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
+		@IDecorationsService private readonly decorationsService: IDecorationsService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 	) {
 		this.config = this.configurationService.getValue('explorer');
 
@@ -132,7 +139,11 @@ export class ExplorerService implements IExplorerService {
 		// Refresh explorer when window gets focus to compensate for missing file events #126817
 		this.disposables.add(hostService.onDidChangeFocus(hasFocus => {
 			if (hasFocus) {
-				this.refresh(false);
+				if (this.editable) {
+					this.shouldRefreshAfterEditing = true;
+				} else {
+					this.refresh(false);
+				}
 			}
 		}));
 		this.revealExcludeMatcher = new ResourceGlobMatcher(
@@ -156,10 +167,20 @@ export class ExplorerService implements IExplorerService {
 
 	registerView(contextProvider: IExplorerView): void {
 		this.view = contextProvider;
+
+		// The explorer decorations are computed from this (window wide) model and
+		// are therefore shared by all explorer views. Register the provider only
+		// once, otherwise each view contributes its own badge and decorations
+		// render multiple times per resource.
+		if (!this.decorationsProviderRegistered) {
+			this.decorationsProviderRegistered = true;
+			const provider = this.disposables.add(new ExplorerDecorationsProvider(this, this.contextService));
+			this.disposables.add(this.decorationsService.registerDecorationsProvider(provider));
+		}
 	}
 
-	getViewId(): string | undefined {
-		return this.view?.id;
+	getViewId(): string {
+		return this.environmentService.isSessionsWindow ? SESSIONS_FILES_VIEW_ID : VIEW_ID;
 	}
 
 	getContext(respectMultiSelection: boolean, ignoreNestedChildren: boolean = false): ExplorerItem[] {
@@ -242,6 +263,7 @@ export class ExplorerService implements IExplorerService {
 			this.editable = undefined;
 		} else {
 			this.editable = { stat, data };
+			this.onFileChangesScheduler.cancel();
 		}
 		const isEditing = this.isEditable(stat);
 		try {
@@ -251,8 +273,14 @@ export class ExplorerService implements IExplorerService {
 		}
 
 
-		if (!this.editable && this.fileChangeEvents.length && !this.onFileChangesScheduler.isScheduled()) {
-			this.onFileChangesScheduler.schedule();
+		if (!this.editable) {
+			if (this.shouldRefreshAfterEditing) {
+				this.shouldRefreshAfterEditing = false;
+				await this.refresh(false);
+			}
+			if (this.fileChangeEvents.length && !this.onFileChangesScheduler.isScheduled()) {
+				this.onFileChangesScheduler.schedule();
+			}
 		}
 	}
 

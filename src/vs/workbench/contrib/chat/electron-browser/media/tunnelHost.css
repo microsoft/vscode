@@ -37,7 +37,7 @@
 }
 
 .tunnel-host-toggle.sharing .tunnel-host-icon .codicon {
-	color: var(--vscode-problemsWarningIcon-foreground) !important;
+	color: var(--vscode-focusBorder) !important;
 }
 
 .tunnel-host-toggle.connecting .tunnel-host-icon .codicon {
@@ -64,7 +64,7 @@
 	overflow: hidden;
 	white-space: nowrap;
 	opacity: 0;
-	font-size: var(--vscode-agents-fontSize-label2, 11px);
+	font-size: var(--vscode-fontSize-label2, 11px);
 	transition: max-width 0.3s ease-out, opacity 0.3s ease-out;
 }
 

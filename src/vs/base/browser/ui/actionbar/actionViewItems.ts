@@ -19,7 +19,7 @@ import * as platform from '../../../common/platform.js';
 import * as types from '../../../common/types.js';
 import './actionbar.css';
 import * as nls from '../../../../nls.js';
-import type { IManagedHover, IManagedHoverContent } from '../hover/hover.js';
+import type { IManagedHover, IManagedHoverContent, IManagedHoverOptions } from '../hover/hover.js';
 import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2.js';
 
 export interface IBaseActionViewItemOptions {
@@ -229,6 +229,10 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 		return this.getTooltip();
 	}
 
+	protected getHoverOptions(): IManagedHoverOptions | undefined {
+		return undefined;
+	}
+
 	protected updateTooltip(): void {
 		if (!this.element) {
 			return;
@@ -238,9 +242,9 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 
 		if (!this.customHover && title !== '') {
 			const hoverDelegate = this.options.hoverDelegate ?? getDefaultHoverDelegate('element');
-			this.customHover = this._store.add(getBaseLayerHoverDelegate().setupManagedHover(hoverDelegate, this.element, title));
+			this.customHover = this._store.add(getBaseLayerHoverDelegate().setupManagedHover(hoverDelegate, this.element, title, this.getHoverOptions()));
 		} else if (this.customHover) {
-			this.customHover.update(title);
+			this.customHover.update(title, this.getHoverOptions());
 		}
 	}
 

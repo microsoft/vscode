@@ -4,11 +4,43 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationTokenSource } from '../../../../../../../base/common/cancellation.js';
+import { renderAsPlaintext } from '../../../../../../../base/browser/markdownRenderer.js';
 import { DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
-import { IChatToolRiskAssessmentService, ToolRiskPromptKind } from '../../../tools/chatToolRiskAssessmentService.js';
-import { ILanguageModelToolsService } from '../../../../common/tools/languageModelToolsService.js';
+import { IChatToolRiskAssessmentService, ToolRiskLevel, ToolRiskPromptKind } from '../../../tools/chatToolRiskAssessmentService.js';
+import { ILanguageModelToolsService, IToolApprovalReason } from '../../../../common/tools/languageModelToolsService.js';
 import { ToolRiskBadgeWidget } from './toolRiskBadgeWidget.js';
+
+export function toolRiskLevelForSafety(safety: number): ToolRiskLevel {
+	const normalized = Math.max(0, Math.min(1, safety));
+	if (normalized >= 2 / 3) {
+		return ToolRiskLevel.Green;
+	}
+	if (normalized >= 1 / 3) {
+		return ToolRiskLevel.Orange;
+	}
+	return ToolRiskLevel.Red;
+}
+
+export function createApprovalReasonBadge(
+	store: DisposableStore,
+	instantiationService: IInstantiationService,
+	reason: IToolApprovalReason | undefined,
+): ToolRiskBadgeWidget | undefined {
+	if (!reason) {
+		return undefined;
+	}
+	const widget = store.add(instantiationService.createInstance(ToolRiskBadgeWidget));
+	if (reason.status === 'loading') {
+		widget.setLoading();
+	} else {
+		widget.setAssessment({
+			risk: toolRiskLevelForSafety(reason.safety),
+			explanation: typeof reason.explanation === 'string' ? reason.explanation : renderAsPlaintext(reason.explanation),
+		});
+	}
+	return widget;
+}
 
 /**
  * Creates a {@link ToolRiskBadgeWidget} for a tool confirmation surface, or `undefined` when the

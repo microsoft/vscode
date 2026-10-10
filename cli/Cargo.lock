@@ -19,11 +19,12 @@ dependencies = [
 
 [[package]]
 name = "ahp"
-version = "0.4.0"
+version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8fa7af01c6ff90f8b54fa169a71de21cc26e5a98621249ad882a5b2e137f57c0"
+checksum = "b9ab1bb92d9b25ef4ba857d1e9ea359fd640fda3a272217a23058c35d757b54c"
 dependencies = [
  "ahp-types",
+ "jiff",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
@@ -33,9 +34,9 @@ dependencies = [
 
 [[package]]
 name = "ahp-types"
-version = "0.4.0"
+version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1632209b0398b17c4a9928d71eaad0ced329d3617ffcbe32be789f59b1d65c70"
+checksum = "00035f650ea9aaa25c271b4abefe8870a84ea4b43f840108f888a04ada882de2"
 dependencies = [
  "serde",
  "serde_json",
@@ -3343,7 +3344,7 @@ dependencies = [
 [[package]]
 name = "tunnels"
 version = "0.1.0"
-source = "git+https://github.com/microsoft/dev-tunnels?rev=64048c1409ff56cb958b879de7ea069ec71edc8b#64048c1409ff56cb958b879de7ea069ec71edc8b"
+source = "git+https://github.com/microsoft/dev-tunnels?rev=b73b0eb774b86a5b519c300f2f41c9072a66f663#b73b0eb774b86a5b519c300f2f41c9072a66f663"
 dependencies = [
  "async-trait",
  "futures-util",

@@ -4,12 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IAutomation } from './automation.js';
+import { AutomationTarget, IAutomationDescriptor } from './automation.js';
 import { ICreateAutomationOptions, IUpdateAutomationOptions } from './automationService.js';
 
-export interface IShowAutomationDialogOptions {
-	readonly existing?: IAutomation;
-}
+export type AutomationDialogCreateInitialValues = Omit<ICreateAutomationOptions, 'target'> & { readonly target?: AutomationTarget };
+
+export type IShowAutomationDialogOptions = (
+	| { readonly existing: IAutomationDescriptor; readonly initialValues?: never }
+	| { readonly existing?: never; readonly initialValues?: AutomationDialogCreateInitialValues }
+) & {
+	/**
+	 * Persists the result while the dialog stays open and shows progress. A rejection
+	 * is shown in the dialog so the user can retry or cancel; the dialog resolves
+	 * only after `commit` succeeds.
+	 */
+	readonly commit?: (result: IAutomationDialogResult) => Promise<void>;
+};
 
 export type IAutomationDialogResult =
 	| { readonly kind: 'create'; readonly value: ICreateAutomationOptions }

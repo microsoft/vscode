@@ -6,7 +6,7 @@
       <g>
         <path d="M16 36.3704C16 32.2999 19.2999 29 23.3704 29H473.889C477.959 29 481.259 32.2999 481.259 36.3704V58.4818H16V36.3704Z" fill="var(--vscode-titleBar-activeBackground, #181818)" />
         <g>
-          <mask style="mask-type:luminance" maskUnits="userSpaceOnUse" x="16" y="29" width="466" height="30">
+          <mask maskUnits="userSpaceOnUse" x="16" y="29" width="466" height="30">
             <g>
               <path d="M16 36.3704C16 32.2999 19.2999 29 23.3704 29H473.889C477.959 29 481.259 32.2999 481.259 36.3704V58.4818H16V36.3704Z" fill="var(--vscode-tab-activeForeground, #FFFFFF)" />
             </g>
@@ -16,7 +16,7 @@
       </g>
       <g>
         <g>
-          <mask style="mask-type:luminance" maskUnits="userSpaceOnUse" x="16" y="58" width="466" height="415">
+          <mask maskUnits="userSpaceOnUse" x="16" y="58" width="466" height="415">
             <g>
               <path d="M16 58.4819H473.259C477.677 58.4819 481.259 62.0636 481.259 66.4819V464.148C481.259 468.566 477.677 472.148 473.259 472.148H24C19.5817 472.148 16 468.566 16 464.148V58.4819Z" fill="var(--vscode-tab-activeForeground, #FFFFFF)" />
             </g>
@@ -27,7 +27,7 @@
                 <g>
                   <path d="M16 58.4819H481.259V90.7275H16V58.4819Z" fill="var(--vscode-editor-background, #181818)" />
                   <g>
-                    <mask style="mask-type:luminance" maskUnits="userSpaceOnUse" x="16" y="58" width="466" height="33">
+                    <mask maskUnits="userSpaceOnUse" x="16" y="58" width="466" height="33">
                       <g>
                         <path d="M16 58.4819H481.259V90.7275H16V58.4819Z" fill="var(--vscode-tab-activeForeground, #FFFFFF)" />
                       </g>
@@ -39,7 +39,7 @@
                       <g>
                         <path d="M16 58.4819H141.223V90.7275H16V58.4819Z" fill="var(--vscode-editor-background, #1F1F1F)" />
                         <g>
-                          <mask style="mask-type:luminance" maskUnits="userSpaceOnUse" x="16" y="58" width="126" height="33">
+                          <mask maskUnits="userSpaceOnUse" x="16" y="58" width="126" height="33">
                             <g>
                               <path d="M16 58.4819H141.223V90.7275H16V58.4819Z" fill="var(--vscode-tab-activeForeground, #FFFFFF)" />
                             </g>
@@ -68,7 +68,7 @@
                   <g>
                     <g>
                       <g>
-                        <mask style="mask-type:luminance" maskUnits="userSpaceOnUse" x="425" y="63" width="21" height="23">
+                        <mask maskUnits="userSpaceOnUse" x="425" y="63" width="21" height="23">
                           <g>
                             <path d="M443.227 63.4194H428.227C426.7 63.4194 425.463 64.6569 425.463 66.1833V83.0259C425.463 84.5524 426.7 85.7898 428.227 85.7898H443.227C444.753 85.7898 445.991 84.5524 445.991 83.0259V66.1833C445.991 64.6569 444.753 63.4194 443.227 63.4194Z" fill="var(--vscode-tab-activeForeground, #FFFFFF)" />
                           </g>
@@ -84,7 +84,7 @@
                     </g>
                     <g>
                       <g>
-                        <mask style="mask-type:luminance" maskUnits="userSpaceOnUse" x="449" y="63" width="22" height="23">
+                        <mask maskUnits="userSpaceOnUse" x="449" y="63" width="22" height="23">
                           <g>
                             <path d="M467.44 63.4194H452.44C450.913 63.4194 449.676 64.6569 449.676 66.1833V83.0259C449.676 84.5524 450.913 85.7898 452.44 85.7898H467.44C468.966 85.7898 470.204 84.5524 470.204 83.0259V66.1833C470.204 64.6569 468.966 63.4194 467.44 63.4194Z" fill="var(--vscode-tab-activeForeground, #FFFFFF)" />
                           </g>
@@ -102,7 +102,7 @@
                 </g>
                 <g>
                   <g>
-                    <mask style="mask-type:luminance" maskUnits="userSpaceOnUse" x="16" y="90" width="466" height="383">
+                    <mask maskUnits="userSpaceOnUse" x="16" y="90" width="466" height="383">
                       <g>
                         <path d="M16 90.7275H481.259V464.148C481.259 468.566 477.677 472.148 473.259 472.148H24C19.5817 472.148 16 468.566 16 464.148V90.7275Z" fill="var(--vscode-tab-activeForeground, #FFFFFF)" />
                       </g>
@@ -217,7 +217,7 @@
                   </g>
                 </g>
                 <g>
-                  <mask style="mask-type:luminance" maskUnits="userSpaceOnUse" x="78" y="119" width="465" height="15">
+                  <mask maskUnits="userSpaceOnUse" x="78" y="119" width="465" height="15">
                     <g>
                       <path d="M543 119H78V134H543V119Z" fill="var(--vscode-tab-activeForeground, #FFFFFF)" />
                     </g>
@@ -334,7 +334,7 @@
           <g>
             <g>
               <g>
-                <mask style="mask-type:luminance" maskUnits="userSpaceOnUse" x="286" y="54" width="23" height="24">
+                <mask maskUnits="userSpaceOnUse" x="286" y="54" width="23" height="24">
                   <g>
                     <path d="M308.111 66C308.111 59.8941 303.162 54.9443 297.056 54.9443C290.95 54.9443 286 59.8941 286 66C286 72.1059 290.95 77.0556 297.056 77.0556C303.162 77.0556 308.111 72.1059 308.111 66Z" fill="var(--vscode-tab-activeForeground, #FFFFFF)" />
                   </g>
@@ -371,7 +371,7 @@
           <path d="M286 180L286 138.5C286 136.014 287.612 134 289.61 134L574.39 134C576.384 134 578 136.014 578 138.5L578 180L286 180Z" fill="var(--vscode-editor-background, #1F1F1F)" stroke="#454545" />
           <g>
             <g>
-              <mask style="mask-type:luminance" maskUnits="userSpaceOnUse" x="298" y="142" width="14" height="15">
+              <mask maskUnits="userSpaceOnUse" x="298" y="142" width="14" height="15">
                 <g>
                   <path d="M312 142.625H298V156.625H312V142.625Z" fill="var(--vscode-tab-activeForeground, #FFFFFF)" />
                 </g>

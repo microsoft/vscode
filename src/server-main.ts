@@ -43,7 +43,7 @@ const extensionInstallArgs = ['install-extension', 'install-builtin-extension', 
 
 const shouldSpawnCli = parsedArgs.help || parsedArgs.version || extensionLookupArgs.some(a => !!parsedArgs[a]) || (extensionInstallArgs.some(a => !!parsedArgs[a]) && !parsedArgs['start-server']);
 
-const nlsConfiguration = await resolveNLSConfiguration({ userLocale: 'en', osLocale: 'en', commit: product.commit, userDataPath: '', nlsMetadataPath: import.meta.dirname });
+const nlsConfiguration = await resolveNLSConfiguration({ userLocale: 'en', osLocale: 'en', commit: product.commit, nlsMetadataHash: product.nlsMetadataHash, userDataPath: '', nlsMetadataPath: import.meta.dirname });
 
 if (shouldSpawnCli) {
 	loadCode(nlsConfiguration).then((mod) => {

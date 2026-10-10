@@ -18,6 +18,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { Location } from '../../../../../editor/common/languages.js';
 import { localize } from '../../../../../nls.js';
 import { ConfirmationOption } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ISandboxNetworkRestrictions } from '../../../../../platform/sandbox/common/sandboxSettingsResolutionHelper.js';
 import { ContextKeyExpression, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { ByteSize } from '../../../../../platform/files/common/files.js';
@@ -25,7 +26,7 @@ import { createDecorator } from '../../../../../platform/instantiation/common/in
 import { IProgress } from '../../../../../platform/progress/common/progress.js';
 import { ChatRequestToolReferenceEntry } from '../attachments/chatVariableEntries.js';
 import { IVariableReference } from '../chatModes.js';
-import { IChatAgentFeedbackReviewConfirmationData, IChatExtensionsContent, IChatModifiedFilesConfirmationData, IChatSearchToolInvocationData, IChatSimpleToolInvocationData, IChatSubagentToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, type IChatTerminalToolInvocationData } from '../chatService/chatService.js';
+import { ConfirmedReason, IChatAgentFeedbackReviewConfirmationData, IChatAutomationConfigurationData, IChatAutomationConfiguredData, IChatExtensionsContent, IChatGeneratedImageData, IChatModifiedFilesConfirmationData, IChatSearchToolInvocationData, IChatSessionCreatedData, IChatSimpleToolInvocationData, IChatSubagentToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, type IChatTerminalToolInvocationData } from '../chatService/chatService.js';
 import { ILanguageModelChatMetadata, LanguageModelPartAudience } from '../languageModels.js';
 import { UserSelectedTools } from '../participants/chatAgents.js';
 import { PromptElementJSON, stringifyPromptElementJSON } from './promptTsxTypes.js';
@@ -42,6 +43,10 @@ export interface ILanguageModelChatSelector {
 }
 
 export interface IToolData {
+	readonly agentHostPreferences?: {
+		readonly defer?: 'auto' | 'never';
+		readonly availability?: 'session' | 'userChats';
+	};
 	readonly id: string;
 	readonly source: ToolDataSource;
 	readonly toolReferenceName?: string;
@@ -190,13 +195,23 @@ export interface IToolInvocation {
 	 * Lets us add some nicer UI to toolcalls that came from a sub-agent, but in the long run, this should probably just be rendered in a similar way to thinking text + tool call groups
 	 */
 	subAgentInvocationId?: string;
-	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatModifiedFilesConfirmationData | IChatAgentFeedbackReviewConfirmationData;
+	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatModifiedFilesConfirmationData | IChatAgentFeedbackReviewConfirmationData | IChatSessionCreatedData | IChatGeneratedImageData | IChatAutomationConfigurationData | IChatAutomationConfiguredData;
 	modelId?: string;
 	userSelectedTools?: UserSelectedTools;
 	/** The label of the custom button selected by the user during confirmation, if custom buttons were used. */
 	selectedCustomButton?: string;
 	/** Pre-tool-use hook result passed from the extension, if the hook was already executed externally. */
 	preToolUseResult?: IExternalPreToolUseHookResult;
+	/**
+	 * A confirmation reason resolved out-of-band by the caller (e.g. the agent
+	 * host, which decides auto-approval server-side). When set, the invocation
+	 * is treated as already auto-approved and transitions straight to executing
+	 * without ever entering the `WaitingForConfirmation` state. This avoids a
+	 * transient "needs input" flicker in surfaces (like the sessions list) that
+	 * observe pending confirmations, for tool calls that will be auto-approved
+	 * anyway.
+	 */
+	preApproved?: ConfirmedReason;
 	/**
 	 * Optional W3C trace context `traceparent` value identifying the parent distributed
 	 * tracing span for this tool invocation. Forwarded to MCP tool implementations as
@@ -208,7 +223,13 @@ export interface IToolInvocation {
 }
 
 export interface IToolInvocationContext {
+	readonly sandboxNetworkRestrictions?: ISandboxNetworkRestrictions;
 	readonly sessionResource: URI;
+	/**
+	 * The id of the chat request that the tool is invoked for. For a subagent
+	 * started by the run subagent tool, this is the id of the subagent's request.
+	 */
+	readonly requestId?: string;
 	/**
 	 * The working directory URI associated with this session.
 	 * Only set in the agents window context where each session can
@@ -223,12 +244,15 @@ export function isToolInvocationContext(obj: any): obj is IToolInvocationContext
 }
 
 export interface IToolInvocationPreparationContext {
+	readonly sandboxNetworkRestrictions?: ISandboxNetworkRestrictions;
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	parameters: any;
 	toolCallId: string;
 	chatRequestId?: string;
 	chatSessionResource: URI | undefined;
 	chatInteractionId?: string;
+	/** The {@link IToolInvocationContext.requestId} of the invocation. */
+	invocationRequestId?: string;
 	modelId?: string;
 	/** If set, tells the tool that it should include confirmation messages. */
 	forceConfirmationReason?: string;
@@ -285,6 +309,7 @@ export function isToolResultOutputDetails(obj: any): obj is IToolResultOutputDet
 
 export interface IToolResult {
 	content: (IToolResultPromptTsxPart | IToolResultTextPart | IToolResultDataPart)[];
+	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatModifiedFilesConfirmationData | IChatAgentFeedbackReviewConfirmationData | IChatSessionCreatedData | IChatGeneratedImageData | IChatAutomationConfiguredData;
 	toolResultMessage?: string | IMarkdownString;
 	toolResultDetails?: Array<URI | Location> | IToolResultInputOutputDetails | IToolResultOutputDetails;
 	toolResultError?: string | boolean;
@@ -336,12 +361,23 @@ export interface IToolResultDataPart {
 	title?: string;
 }
 
+export type IToolApprovalReason =
+	| { readonly status: 'loading' }
+	| {
+		readonly status: 'complete';
+		readonly explanation: string | IMarkdownString;
+		readonly safety: number;
+	};
+
 export interface IToolConfirmationMessages {
 	/** Title for the confirmation. If set, the user will be asked to confirm execution of the tool */
 	title?: string | IMarkdownString;
 	/** MUST be set if `title` is also set */
 	message?: string | IMarkdownString;
 	disclaimer?: string | IMarkdownString;
+	/** Model-provided assessment of whether automatic approval is safe. */
+	approvalReason?: IToolApprovalReason;
+	/** Whether this confirmation is eligible for automatic approval. */
 	allowAutoConfirm?: boolean;
 	terminalCustomActions?: ToolConfirmationAction[];
 	/** If true, confirmation will be requested after the tool executes and before results are sent to the model */
@@ -395,7 +431,7 @@ export interface IPreparedToolInvocation {
 	confirmationMessages?: IToolConfirmationMessages;
 	presentation?: ToolInvocationPresentation;
 	icon?: ThemeIcon;
-	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatModifiedFilesConfirmationData | IChatAgentFeedbackReviewConfirmationData;
+	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatSearchToolInvocationData | IChatModifiedFilesConfirmationData | IChatAgentFeedbackReviewConfirmationData | IChatSessionCreatedData | IChatGeneratedImageData | IChatAutomationConfigurationData | IChatAutomationConfiguredData;
 }
 
 export interface IToolImpl {

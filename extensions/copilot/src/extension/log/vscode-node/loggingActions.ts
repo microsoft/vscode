@@ -100,9 +100,9 @@ User Settings:
 			const loadSystemCertificatesFromNode = this.configurationService.getNonExtensionConfig<boolean>('http.systemCertificatesNode');
 			const osCertificates = proxyAgent?.loadSystemCertificates ? await loadSystemCertificates(proxyAgent.loadSystemCertificates, loadSystemCertificatesFromNode, this.logService) : undefined;
 			const urls = [
-				this.capiClientService.dotcomAPIURL,
-				this.capiClientService.capiPingURL,
-				this.capiClientService.proxyBaseURL + '/_ping',
+				{ url: this.capiClientService.dotcomAPIURL, expectedContent: 'current_user_url' },
+				{ url: this.capiClientService.capiPingURL, expectedContent: 'OK' },
+				{ url: this.capiClientService.proxyBaseURL + '/_ping', expectedContent: '"status":"ok"' },
 			];
 			const isGHEnterprise = this.capiClientService.dotcomAPIURL !== 'https://api.github.com';
 			const timeoutSeconds = 10;
@@ -120,7 +120,7 @@ User Settings:
 				nodeFetchFetcher,
 			];
 			const dnsLookup = util.promisify(dns.lookup);
-			for (const url of urls) {
+			for (const { url, expectedContent } of urls) {
 				const authHeaders = await this.getAuthHeaders(isGHEnterprise, url);
 				const host = new URL(url).hostname;
 				await appendText(editor, `\nConnecting to ${url}:\n`);
@@ -200,7 +200,16 @@ User Settings:
 						try {
 							const response = await Promise.race([fetcher.fetch(url, { headers: authHeaders, callSite: 'diagnostics-fetcher-probe' }), timeout(timeoutSeconds * 1000)]);
 							if (response) {
-								await appendText(editor, `HTTP ${response.status} (${Date.now() - start} ms)\n`);
+								let contentNote = '';
+								try {
+									const body = await response.text();
+									if (!body.includes(expectedContent)) {
+										contentNote = ` - unexpected content: ${formatUnexpectedContent(body)} (expected: '${expectedContent}')`;
+									}
+								} catch (bodyErr) {
+									contentNote = ` - failed to read content: ${collectErrorMessages(bodyErr)}`;
+								}
+								await appendText(editor, `HTTP ${response.status} (${Date.now() - start} ms)${contentNote}\n`);
 							} else {
 								await appendText(editor, `timed out after ${timeoutSeconds} seconds\n`);
 							}
@@ -323,6 +332,15 @@ async function appendText(editor: vscode.TextEditor, string: string) {
 
 function timeoutAfter(ms: number) {
 	return new Promise<'timeout'>(resolve => setTimeout(() => resolve('timeout'), ms));
+}
+
+/**
+ * Formats an unexpected response body for single-line display: replaces line breaks with `\n`
+ * indicators and truncates to 200 characters.
+ */
+function formatUnexpectedContent(body: string): string {
+	const oneLine = body.replace(/\r\n|\r|\n/g, '\\n');
+	return oneLine.length > 200 ? `${oneLine.slice(0, 200)}…` : oneLine;
 }
 
 /**

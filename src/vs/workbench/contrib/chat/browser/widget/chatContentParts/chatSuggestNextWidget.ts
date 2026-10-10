@@ -165,7 +165,7 @@ export class ChatSuggestNextWidget extends Disposable {
 
 			const separator = dom.append(dropdownContainer, dom.$('.chat-suggest-next-separator'));
 			separator.setAttribute('aria-hidden', 'true');
-			const chevron = dom.append(dropdownContainer, dom.$('.codicon.codicon-chevron-down.dropdown-chevron'));
+			const chevron = dom.append(dropdownContainer, dom.$('.codicon.codicon-chevron-down-compact.dropdown-chevron'));
 			chevron.setAttribute('aria-hidden', 'true');
 
 			const showContextMenu = (e: MouseEvent | KeyboardEvent, anchor?: HTMLElement) => {

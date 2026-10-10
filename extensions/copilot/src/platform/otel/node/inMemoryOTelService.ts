@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { AsyncLocalStorage } from 'async_hooks';
-import { Emitter, type Event } from '../../../util/vs/base/common/event';
+import { Emitter, Event } from '../../../util/vs/base/common/event';
+import { filterIdentityAttributes, filterIdentitySpan } from '../common/otelIdentity';
 import type { OTelConfig } from '../common/otelConfig';
 import { SpanStatusCode, type ICompletedSpanData, type IOTelService, type ISpanEventData, type ISpanEventRecord, type ISpanHandle, type SpanOptions, type TraceContext } from '../common/otelService';
 
@@ -133,9 +134,11 @@ export class InMemoryOTelService implements IOTelService {
 	readonly config: OTelConfig;
 
 	private readonly _onDidCompleteSpan = new Emitter<ICompletedSpanData>();
-	readonly onDidCompleteSpan: Event<ICompletedSpanData> = this._onDidCompleteSpan.event;
+	readonly onDidCompleteSpan: Event<ICompletedSpanData> = Event.map(this._onDidCompleteSpan.event, span => filterIdentitySpan(span, this.config.captureIdentity && this._currentIdentityAllowed()));
 	private readonly _onDidEmitSpanEvent = new Emitter<ISpanEventData>();
-	readonly onDidEmitSpanEvent: Event<ISpanEventData> = this._onDidEmitSpanEvent.event;
+	readonly onDidEmitSpanEvent: Event<ISpanEventData> = Event.map(this._onDidEmitSpanEvent.event, event => ({
+		...event, attributes: filterIdentityAttributes(event.attributes, this.config.captureIdentity && this._currentIdentityAllowed()),
+	}));
 
 	injectCompletedSpan(span: ICompletedSpanData): void {
 		try { this._onDidCompleteSpan.fire(span); } catch { /* emitter may be disposed */ }
@@ -149,7 +152,7 @@ export class InMemoryOTelService implements IOTelService {
 	private readonly _traceContextStore = new Map<string, TraceContext>();
 	private readonly _traceContextTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
-	constructor(config: OTelConfig) {
+	constructor(config: OTelConfig, private readonly _currentIdentityAllowed: () => boolean = () => config.captureIdentity) {
 		this.config = config;
 	}
 

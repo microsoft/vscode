@@ -10,18 +10,22 @@ import { IListContextMenuEvent } from '../../../../base/browser/ui/list/list.js'
 import { IPagedRenderer } from '../../../../base/browser/ui/list/listPaging.js';
 import { Action, IAction, Separator } from '../../../../base/common/actions.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
-import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { getErrorMessage } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, disposeIfDisposable, IDisposable, isDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { autorun, derived, IObservable, IReaderWithStore } from '../../../../base/common/observable.js';
 import { IPagedModel, PagedModel } from '../../../../base/common/paging.js';
-import { dirname } from '../../../../base/common/resources.js';
+import { dirname, isEqual } from '../../../../base/common/resources.js';
 import { localize, localize2 } from '../../../../nls.js';
-import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { CustomizationMarketplaceConfiguration } from '../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
@@ -29,27 +33,33 @@ import { IInstantiationService, ServicesAccessor } from '../../../../platform/in
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { WorkbenchPagedList } from '../../../../platform/list/browser/listService.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { getLocationBasedViewColors } from '../../../browser/parts/views/viewPane.js';
 import { IViewletViewOptions } from '../../../browser/parts/views/viewsViewlet.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IViewDescriptorService, IViewsRegistry, Extensions as ViewExtensions } from '../../../common/views.js';
+import { getWorkbenchMenuMotionContextMenuOptions } from '../../../browser/actions/menuMotion.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { VIEW_CONTAINER } from '../../extensions/browser/extensions.contribution.js';
 import { manageExtensionIcon } from '../../extensions/browser/extensionsIcons.js';
 import { AbstractExtensionsListView } from '../../extensions/browser/extensionsViews.js';
-import { DefaultViewsContext, extensionsFilterSubMenu, IExtensionsWorkbenchService, SearchAgentPluginsContext } from '../../extensions/common/extensions.js';
+import { extensionsFilterSubMenu, IExtensionsWorkbenchService, SearchAgentPluginsContext } from '../../extensions/common/extensions.js';
 import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
+import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../common/aiCustomizationWorkspaceService.js';
 import { IAgentPlugin, IAgentPluginService } from '../common/plugins/agentPluginService.js';
 import { isContributionEnabled } from '../common/enablement.js';
 import { IPluginInstallService } from '../common/plugins/pluginInstallService.js';
 import { hasSourceChanged, IMarketplacePlugin, IPluginMarketplaceService } from '../common/plugins/pluginMarketplaceService.js';
 import { AgentPluginEditorInput } from './agentPluginEditor/agentPluginEditorInput.js';
-import { AgentPluginItemKind, IAgentPluginItem, IInstalledPluginItem, IMarketplacePluginItem } from './agentPluginEditor/agentPluginItems.js';
+import { AgentPluginItemKind, findInstalledPlugin, IAgentPluginItem, IInstalledPluginItem, IMarketplacePluginItem } from './agentPluginEditor/agentPluginItems.js';
 import { getInstalledPluginContextMenuActions, InstallPluginAction, OpenPluginReadmeAction } from './agentPluginActions.js';
-import { InstalledAgentPluginsViewId, HasInstalledAgentPluginsContext } from './chat.js';
+import { RefreshAgentPluginMarketplacesCommandId } from './chat.js';
+import { pluginIcon } from './aiCustomization/aiCustomizationIcons.js';
+import { CustomizationMarketplaceWelcome } from './aiCustomization/customizationMarketplaceWelcome.js';
 
 //#region Item model
 
@@ -65,6 +75,7 @@ function marketplacePluginToItem(plugin: IMarketplacePlugin): IMarketplacePlugin
 		kind: AgentPluginItemKind.Marketplace,
 		name: plugin.name,
 		description: plugin.description,
+		version: plugin.version,
 		source: plugin.source,
 		sourceDescriptor: plugin.sourceDescriptor,
 		marketplace: plugin.marketplace,
@@ -84,18 +95,14 @@ class UpdatePluginAction extends Action {
 	static readonly ID = 'agentPlugin.update';
 
 	constructor(
-		private readonly plugin: IAgentPlugin,
 		private readonly liveMarketplacePlugin: IMarketplacePlugin,
 		@IPluginInstallService private readonly pluginInstallService: IPluginInstallService,
-		@IPluginMarketplaceService private readonly pluginMarketplaceService: IPluginMarketplaceService,
 	) {
 		super(UpdatePluginAction.ID, localize('update', "Update"), 'extension-action label prominent install');
 	}
 
 	override async run(): Promise<void> {
-		if (await this.pluginInstallService.updatePlugin(this.liveMarketplacePlugin)) {
-			this.pluginMarketplaceService.addInstalledPlugin(this.plugin.uri, this.liveMarketplacePlugin);
-		}
+		await this.pluginInstallService.updatePlugin(this.liveMarketplacePlugin);
 	}
 }
 
@@ -140,9 +147,8 @@ class DropDownActionViewItem extends ActionViewItem {
 		if (actions.length > 0) {
 			actions.pop();
 		}
-		const { left, top, height } = dom.getDomNodePagePosition(this.element);
 		this.contextMenuService.showContextMenu({
-			getAnchor: () => ({ x: left, y: top + height + 10 }),
+			...getWorkbenchMenuMotionContextMenuOptions(this.element),
 			getActions: () => actions,
 			onHide: () => disposeIfDisposable(actions),
 		});
@@ -225,7 +231,7 @@ class AgentPluginRenderer implements IPagedRenderer<IAgentPluginItem, IAgentPlug
 				const actions: Action[] = [];
 				const livePlugin = element.outdated?.read(reader);
 				if (livePlugin) {
-					const updateAction = this.instantiationService.createInstance(UpdatePluginAction, element.plugin, livePlugin);
+					const updateAction = this.instantiationService.createInstance(UpdatePluginAction, livePlugin);
 					reader.store.add(updateAction);
 					actions.push(updateAction);
 				}
@@ -261,6 +267,7 @@ class AgentPluginRenderer implements IPagedRenderer<IAgentPluginItem, IAgentPlug
 
 interface IAgentPluginsListViewOptions {
 	installedOnly?: boolean;
+	showMarketplaceWelcome?: boolean;
 }
 
 export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPluginItem> {
@@ -269,6 +276,7 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 	private readonly queryCts = new MutableDisposable<CancellationTokenSource>();
 	private list: WorkbenchPagedList<IAgentPluginItem> | null = null;
 	private listContainer: HTMLElement | null = null;
+	private welcomeContainer: HTMLElement | null = null;
 	private currentQuery = '@agentPlugins';
 	private readonly refreshOnPluginsChangedScheduler = this._register(new RunOnceScheduler(() => {
 		if (this.list) {
@@ -289,7 +297,7 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IHoverService hoverService: IHoverService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationService private readonly marketplaceConfigurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IOpenerService openerService: IOpenerService,
@@ -299,7 +307,7 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 		@ILabelService private readonly labelService: ILabelService,
 		@IEditorService private readonly editorService: IEditorService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
+		super(options, keybindingService, contextMenuService, marketplaceConfigurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
 		this._register(autorun(reader => {
 			const plugins = this.agentPluginService.plugins.read(reader);
@@ -316,10 +324,25 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 				this.refreshOnPluginsChangedScheduler.schedule();
 			}
 		}));
+
+		this._register(this.marketplaceConfigurationService.onDidChangeConfiguration(event => {
+			if (event.affectsConfiguration(CustomizationMarketplaceConfiguration.MarketplaceEnabled) && this.list && this.isBodyVisible()) {
+				this.refreshOnPluginsChangedScheduler.schedule();
+			}
+		}));
 	}
 
 	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
+
+		this.welcomeContainer = dom.append(container, dom.$('.customizations-marketplace-welcome-container.hide'));
+		this._register(this.instantiationService.createInstance(CustomizationMarketplaceWelcome, this.welcomeContainer, {
+			icon: pluginIcon,
+			title: localize('agentPlugins.welcome.title', "Find Agent Plugins in Customizations"),
+			description: new MarkdownString(localize('agentPlugins.welcome.description', "Browse and install [agent plugins](https://code.visualstudio.com/docs/agent-customization/agent-plugins) from the Customizations marketplace.")),
+			buttonLabel: localize('agentPlugins.welcome.openCustomizationsButton', "Browse Agent Plugins"),
+			section: AICustomizationManagementSection.Plugins,
+		}));
 
 		const messageContainer = dom.append(container, dom.$('.message-container'));
 		const messageBox = dom.append(messageContainer, dom.$('.message'));
@@ -410,12 +433,23 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 
 	async show(query: string): Promise<IPagedModel<IAgentPluginItem>> {
 		this.currentQuery = query;
+		const showWelcome = this.listOptions.showMarketplaceWelcome && this.marketplaceConfigurationService.getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) === true;
+		this.showMarketplaceWelcome(!!showWelcome);
+		if (showWelcome) {
+			const model = new PagedModel<IAgentPluginItem>([]);
+			if (this.list) {
+				this.list.model = model;
+			}
+			return model;
+		}
+
 		const stripped = query.replace(/@agentPlugins/i, '').trim();
 		const isRecommended = /^@recommended$/i.test(stripped);
 		const isInstalled = /(?:^|\s)@installed(?:\s|$)/i.test(stripped);
 		const text = isRecommended ? '' : stripped.replace(/(?:^|\s)@installed(?:\s|$)/gi, ' ').trim().toLowerCase();
 
-		let installed = this.queryInstalled();
+		const allInstalled = this.queryInstalled();
+		let installed = allInstalled;
 		if (text) {
 			installed = installed.filter(p =>
 				p.name.toLowerCase().includes(text) ||
@@ -458,19 +492,19 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 			const marketplace = filteredMp.map(marketplacePluginToItem);
 
 			// Filter out marketplace items that are already installed
-			const installedPaths = new Set(installed.map(i => i.plugin.uri.toString()));
+			const installedPlugins = allInstalled.map(i => i.plugin);
 			const filteredMarketplace = marketplace.filter(m => {
 				const expectedUri = this.pluginInstallService.getPluginInstallUri({
 					name: m.name,
 					description: m.description,
-					version: '',
+					version: m.version ?? '',
 					source: m.source,
 					sourceDescriptor: m.sourceDescriptor,
 					marketplace: m.marketplace,
 					marketplaceReference: m.marketplaceReference,
 					marketplaceType: m.marketplaceType,
 				});
-				return !installedPaths.has(expectedUri.toString());
+				return !findInstalledPlugin(installedPlugins, expectedUri, m);
 			});
 
 			items = [...installed, ...filteredMarketplace];
@@ -482,6 +516,12 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 		}
 		this.updateBody(model.length);
 		return model;
+	}
+
+	private showMarketplaceWelcome(show: boolean): void {
+		this.welcomeContainer?.classList.toggle('hide', !show);
+		this.listContainer?.classList.toggle('hide', show);
+		this.bodyTemplate?.messageContainer.classList.toggle('hidden', show);
 	}
 
 	/**
@@ -518,7 +558,7 @@ export class AgentPluginsListView extends AbstractExtensionsListView<IAgentPlugi
 				if (storedPlugin) {
 					const key = `${storedPlugin.marketplaceReference.canonicalId}::${storedPlugin.name}`;
 					const live = marketplaceByKey.get(key);
-					if (live && hasSourceChanged(storedPlugin.sourceDescriptor, live.sourceDescriptor)) {
+					if (live && (hasSourceChanged(storedPlugin.sourceDescriptor, live.sourceDescriptor) || !isEqual(p.uri, this.pluginInstallService.getPluginInstallUri(live)))) {
 						return live;
 					}
 				}
@@ -569,48 +609,74 @@ class AgentPluginsBrowseCommand extends Action2 {
 				group: '1_predefined',
 				order: 2,
 				when: ContextKeyExpr.and(ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate()),
-			}, {
-				id: MenuId.ViewTitle,
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', InstalledAgentPluginsViewId), ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate()),
-				group: 'navigation',
 			}],
 		});
 	}
 
 	async run(accessor: ServicesAccessor) {
-		accessor.get(IExtensionsWorkbenchService).openSearch('@agentPlugins ');
+		if (accessor.get(IConfigurationService).getValue<boolean>(CustomizationMarketplaceConfiguration.MarketplaceEnabled) === true) {
+			await accessor.get(ICommandService).executeCommand(
+				AICustomizationManagementCommands.OpenMarketplace,
+				AICustomizationManagementSection.Plugins,
+			);
+		} else {
+			await accessor.get(IExtensionsWorkbenchService).openSearch('@agentPlugins ');
+		}
 	}
 }
 
-class CheckForPluginUpdatesCommand extends Action2 {
+class RefreshPluginMarketplacesCommand extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.agentPlugins.checkForUpdates',
-			title: localize2('agentPlugins.checkForUpdates', "Update Plugins"),
+			id: RefreshAgentPluginMarketplacesCommandId,
+			title: localize2('agentPlugins.refreshMarketplaces', "Refresh Plugin Marketplaces"),
 			category: localize2('chat.category', "Chat"),
+			icon: Codicon.refresh,
 			precondition: ChatContextKeys.enabled,
 			f1: true,
 		});
 	}
 
 	async run(accessor: ServicesAccessor) {
-		await accessor.get(IPluginInstallService).updateAllPlugins({}, CancellationToken.None);
-	}
-}
+		// Services must be resolved synchronously — the accessor is invalidated
+		// as soon as this method returns its promise.
+		const marketplaceService = accessor.get(IPluginMarketplaceService);
+		const notificationService = accessor.get(INotificationService);
+		const progressService = accessor.get(IProgressService);
 
-class ForceUpdatePluginsCommand extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.agentPlugins.forceUpdate',
-			title: localize2('agentPlugins.forceUpdate', "Update Plugins (Force)"),
-			category: localize2('chat.category', "Chat"),
-			precondition: ChatContextKeys.enabled,
-			f1: true,
-		});
-	}
+		const cts = new CancellationTokenSource();
+		const failedLabels: string[] = [];
+		try {
+			await progressService.withProgress(
+				{
+					location: ProgressLocation.Notification,
+					title: localize('agentPlugins.refreshingMarketplaces', "Refreshing plugin marketplaces..."),
+					cancellable: true,
+				},
+				() => marketplaceService.fetchMarketplacePlugins(cts.token, undefined, {
+					refresh: true,
+					onMarketplaceError: reference => failedLabels.push(reference.displayLabel),
+				}),
+				() => cts.dispose(true),
+			);
 
-	async run(accessor: ServicesAccessor) {
-		await accessor.get(IPluginInstallService).updateAllPlugins({ force: true }, CancellationToken.None);
+			if (cts.token.isCancellationRequested) {
+				return;
+			}
+
+			// Individual marketplace failures don't reject the fetch, so report
+			// them explicitly rather than claiming an unqualified success.
+			if (failedLabels.length > 0) {
+				notificationService.warn(localize('agentPlugins.marketplacesRefreshedWithErrors', "Refreshed plugin marketplaces, but {0} could not be read: {1}", failedLabels.length, failedLabels.join(', ')));
+			} else {
+				notificationService.info(localize('agentPlugins.marketplacesRefreshed', "Plugin marketplaces refreshed."));
+			}
+		} catch (error) {
+			notificationService.error(localize('agentPlugins.refreshMarketplacesFailed', "Failed to refresh plugin marketplaces: {0}", getErrorMessage(error)));
+			throw error;
+		} finally {
+			cts.dispose();
+		}
 	}
 }
 
@@ -621,45 +687,17 @@ export class AgentPluginsViewsContribution extends Disposable implements IWorkbe
 
 	static ID = 'workbench.chat.agentPlugins.views.contribution';
 
-	constructor(
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IAgentPluginService agentPluginService: IAgentPluginService,
-	) {
+	constructor() {
 		super();
 
-		const hasInstalledKey = HasInstalledAgentPluginsContext.bindTo(contextKeyService);
-		this._register(autorun(reader => {
-			hasInstalledKey.set(agentPluginService.plugins.read(reader).length > 0);
-		}));
-
 		registerAction2(AgentPluginsBrowseCommand);
-		registerAction2(CheckForPluginUpdatesCommand);
-		registerAction2(ForceUpdatePluginsCommand);
+		registerAction2(RefreshPluginMarketplacesCommand);
 
 		Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([
 			{
-				id: InstalledAgentPluginsViewId,
-				name: localize2('agent-plugins-installed', "Agent Plugins - Installed"),
-				ctorDescriptor: new SyncDescriptor(AgentPluginsListView, [{ installedOnly: true }]),
-				when: ContextKeyExpr.and(DefaultViewsContext, HasInstalledAgentPluginsContext, ChatContextKeys.Setup.hidden.negate()),
-				weight: 30,
-				order: 5,
-				canToggleVisibility: true,
-			},
-			{
-				id: 'workbench.views.agentPlugins.default.marketplace',
-				name: localize2('agent-plugins', "Agent Plugins"),
-				ctorDescriptor: new SyncDescriptor(AgentPluginsListView, [{}]),
-				when: ContextKeyExpr.and(DefaultViewsContext, HasInstalledAgentPluginsContext.toNegated(), ChatContextKeys.Setup.hidden.negate()),
-				weight: 30,
-				order: 5,
-				canToggleVisibility: true,
-				hideByDefault: true,
-			},
-			{
 				id: 'workbench.views.agentPlugins.marketplace',
 				name: localize2('agent-plugins', "Agent Plugins"),
-				ctorDescriptor: new SyncDescriptor(AgentPluginsListView, [{}]),
+				ctorDescriptor: new SyncDescriptor(AgentPluginsListView, [{ showMarketplaceWelcome: true }]),
 				when: ContextKeyExpr.and(SearchAgentPluginsContext, ChatContextKeys.Setup.hidden.negate()),
 			},
 		], VIEW_CONTAINER);

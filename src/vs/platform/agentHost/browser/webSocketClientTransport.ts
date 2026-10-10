@@ -11,8 +11,9 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import { connectionTokenQueryName } from '../../../base/common/network.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { AhpJsonlLogger, getAhpLogByteLength, IAhpJsonlLoggerOptions } from '../common/ahpJsonlLogger.js';
+import { AgentHostClientConnectionKind } from '../common/agentHostTelemetry.js';
 import type { AhpServerNotification, JsonRpcNotification, JsonRpcRequest, JsonRpcResponse, ProtocolMessage } from '../common/state/sessionProtocol.js';
-import type { IClientTransport } from '../common/state/sessionTransport.js';
+import type { IClientTransport, ITransportCloseDetails } from '../common/state/sessionTransport.js';
 import { MALFORMED_FRAMES_FORCE_CLOSE_THRESHOLD, MALFORMED_FRAMES_LOG_CAP } from '../common/transportConstants.js';
 
 // ---- Client transport -------------------------------------------------------
@@ -23,6 +24,7 @@ import { MALFORMED_FRAMES_FORCE_CLOSE_THRESHOLD, MALFORMED_FRAMES_LOG_CAP } from
  * Implements {@link IClientTransport} with JSON serialization and URI revival.
  */
 export class WebSocketClientTransport extends Disposable implements IClientTransport {
+	readonly clientConnectionKind = AgentHostClientConnectionKind.DirectWebSocket;
 
 	private readonly _onMessage = this._register(new Emitter<ProtocolMessage>());
 	readonly onMessage = this._onMessage.event;
@@ -38,6 +40,8 @@ export class WebSocketClientTransport extends Disposable implements IClientTrans
 
 	/** Guards against firing onClose more than once. */
 	private _closeFired = false;
+	private readonly _onDidCloseDetails = this._register(new Emitter<ITransportCloseDetails>());
+	readonly onDidCloseDetails = this._onDidCloseDetails.event;
 
 	get isOpen(): boolean {
 		return this._ws?.readyState === WebSocket.OPEN;
@@ -78,7 +82,7 @@ export class WebSocketClientTransport extends Disposable implements IClientTrans
 				url += `${separator}${connectionTokenQueryName}=${encodeURIComponent(this._connectionToken)}`;
 			}
 
-			const ws = new WebSocket(url);
+			const ws = this.createWebSocket(url);
 			this._ws = ws;
 
 			const onOpen = () => {
@@ -151,7 +155,8 @@ export class WebSocketClientTransport extends Disposable implements IClientTrans
 				this._onMessage.fire(message);
 			});
 
-			ws.addEventListener('close', () => {
+			ws.addEventListener('close', event => {
+				this._onDidCloseDetails.fire({ code: event.code, reason: event.reason, wasClean: event.wasClean });
 				if (!this._closeFired) {
 					this._closeFired = true;
 					this._onClose.fire();
@@ -159,14 +164,17 @@ export class WebSocketClientTransport extends Disposable implements IClientTrans
 			});
 
 			ws.addEventListener('error', () => {
-				// Error always precedes close - closing is handled in the close handler.
-				// Only fire if close hasn't already been fired (e.g. from send failure).
+				// Reconnect immediately; the later close event supplies diagnostic metadata only.
 				if (!this._closeFired) {
 					this._closeFired = true;
 					this._onClose.fire();
 				}
 			});
 		});
+	}
+
+	protected createWebSocket(url: string): WebSocket {
+		return new WebSocket(url);
 	}
 
 	/**

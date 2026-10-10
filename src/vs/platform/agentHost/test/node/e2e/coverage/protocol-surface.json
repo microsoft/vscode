@@ -1,0 +1,47 @@
+{
+	"version": 1,
+	"scope": {
+		"source": "src/vs/platform/agentHost/common/state/protocol",
+		"note": "A symbol is \"covered\" when an E2E test sends or receives it; this does not measure how deeply its semantics are asserted."
+	},
+	"commands": {
+		"covered": 32,
+		"total": 33,
+		"percentage": 96.96,
+		"uncovered": [
+			"moveChat"
+		]
+	},
+	"notifications": {
+		"covered": 5,
+		"total": 8,
+		"percentage": 62.5,
+		"uncovered": [
+			"otlp/exportMetrics",
+			"otlp/exportTraces",
+			"root/progress"
+		]
+	},
+	"actions": {
+		"covered": 91,
+		"total": 106,
+		"percentage": 85.84,
+		"uncovered": [
+			"automationRun/sessionRemoved",
+			"canvas/stateChanged",
+			"changeset/fileRemoved",
+			"changeset/fileSet",
+			"chat/canvasesChanged",
+			"chat/isArchivedChanged",
+			"chat/movableChanged",
+			"chat/reasoning",
+			"chat/toolCallAuthRequired",
+			"chat/toolCallAuthResolved",
+			"session/activityChanged",
+			"session/chatsReordered",
+			"session/defaultChatChanged",
+			"session/mcpServerBackgroundRequested",
+			"terminal/commandDetectionAvailable"
+		]
+	}
+}

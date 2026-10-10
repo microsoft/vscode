@@ -10,9 +10,15 @@ import { IObservable, constObservable } from '../../../../../base/common/observa
 import { mock } from '../../../../../base/test/common/mock.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
 // eslint-disable-next-line local/code-import-patterns
 import { IChat, ISession, ISessionWorkspace } from '../../../../../sessions/services/sessions/common/session.js';
+// eslint-disable-next-line local/code-import-patterns
+import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../../../sessions/common/sessionConfig.js';
 // eslint-disable-next-line local/code-import-patterns
 import { IActiveSession, ISessionsManagementService } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
 // eslint-disable-next-line local/code-import-patterns
@@ -20,27 +26,57 @@ import { ISessionsService } from '../../../../../sessions/services/sessions/brow
 // eslint-disable-next-line local/code-import-patterns
 import { ISessionsProvidersService } from '../../../../../sessions/services/sessions/browser/sessionsProvidersService.js';
 // eslint-disable-next-line local/code-import-patterns
+import { IAgentHostFilterService } from '../../../../../sessions/services/agentHostFilter/common/agentHostFilter.js';
+// eslint-disable-next-line local/code-import-patterns
 import { BlockedSessionReason, BlockedSessions, IBlockedSession } from '../../../../../sessions/contrib/blockedSessions/browser/blockedSessions.js';
 // eslint-disable-next-line local/code-import-patterns
 import { SessionActionFeedback } from '../../../../../sessions/contrib/sessions/browser/sessionActionFeedback.js';
 // eslint-disable-next-line local/code-import-patterns
 import { SessionsTitleBarWidget } from '../../../../../sessions/contrib/sessions/browser/sessionsTitleBarWidget.js';
-import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
+// eslint-disable-next-line local/code-import-patterns
+import { BlockedSessionsCIFixModel } from '../../../../../sessions/contrib/sessions/browser/blockedSessionsCIFixModel.js';
+// eslint-disable-next-line local/code-import-patterns
+import { BlockedSessionsIndicatorModel } from '../../../../../sessions/contrib/sessions/browser/blockedSessionsIndicatorModel.js';
+import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 
 // ============================================================================
 // Mock helpers
 // ============================================================================
 
-function createMockActiveSession(title: string, workspaceLabel: string): IActiveSession {
-	const workspace = new class extends mock<ISessionWorkspace>() {
-		override readonly label = workspaceLabel;
+function createMockActiveSession(title: string, workspaceLabel?: string, branch?: string): IActiveSession {
+	let workspace: ISessionWorkspace | undefined;
+	if (workspaceLabel) {
+		const label = workspaceLabel;
+		workspace = new class extends mock<ISessionWorkspace>() {
+			override readonly label = label;
+			override readonly folders = [{
+				root: URI.file('/src/vscode'),
+				workingDirectory: URI.file(branch ? '/src/vscode.worktrees/feature' : '/src/vscode'),
+				name: label,
+				description: undefined,
+				gitRepository: branch ? {
+					uri: URI.file('/src/vscode'),
+					workTreeUri: URI.file('/src/vscode.worktrees/feature'),
+					branchName: branch,
+					baseBranchName: 'main',
+					gitHubInfo: constObservable(undefined),
+				} : undefined,
+			}];
+			override readonly isVirtualWorkspace = false;
+		}();
+	}
+	// A chat without its own folders shares the session's workspace.
+	const activeChat = new class extends mock<IChat>() {
+		override readonly title: IObservable<string> = constObservable('Current chat');
+		override readonly workspace: IObservable<ISessionWorkspace | undefined> = constObservable(workspace);
 	}();
 	return new class extends mock<IActiveSession>() {
 		override readonly icon = Codicon.copilot;
 		override readonly title: IObservable<string> = constObservable(title);
 		override readonly workspace: IObservable<ISessionWorkspace | undefined> = constObservable(workspace);
-		override readonly isQuickChat: IObservable<boolean> = constObservable<boolean>(false);
+		override readonly activeChat: IObservable<IChat> = constObservable(activeChat);
+		override readonly isQuickChat: IObservable<boolean> = constObservable<boolean>(workspace === undefined);
 	}();
 }
 
@@ -62,6 +98,7 @@ function buildBlocked(specs: readonly IBlockedSpec[]): { blocked: IBlockedSessio
 		const chatResource = URI.parse(`session-chat:/blocked/${i}`);
 		if (spec.approvalKind) {
 			approvals.set(chatResource.toString(), {
+				approvalId: chatResource.toString(),
 				kind: spec.approvalKind,
 				label: 'npm run build',
 				languageId: undefined,
@@ -76,7 +113,7 @@ function buildBlocked(specs: readonly IBlockedSpec[]): { blocked: IBlockedSessio
 			override readonly sessionId = `blocked-${i}`;
 			override readonly chats: IObservable<readonly IChat[]> = constObservable([chat]);
 		}();
-		return { session, reason: spec.reason };
+		return { session, reason: spec.reason, occurrenceId: `${spec.reason}:${i}` };
 	});
 	const approvalModel = new class extends mock<AgentSessionApprovalModel>() {
 		override getApproval(resource: URI): IObservable<IAgentSessionApprovalInfo | undefined> {
@@ -87,14 +124,13 @@ function buildBlocked(specs: readonly IBlockedSpec[]): { blocked: IBlockedSessio
 }
 
 interface ITitleBarState {
-	/** The active session shown in the default pill (falls back to "New Session"). */
+	/** The active session whose workspace is shown in the default pill. */
 	activeSession?: IActiveSession;
+	chatTabsMode?: SessionsChatTabsMode;
 	/** Number of blocked sessions (drives the orange "N sessions require input"). */
 	blockedCount?: number;
 	/** Explicit typed blocked sessions (drives the specific requires-input message). */
 	blocked?: readonly IBlockedSpec[];
-	/** Whether the primary side bar is visible (requires-input only shows when hidden). */
-	sidebarVisible?: boolean;
 	/** Number of recently approved sessions (drives the green "Approved N sessions"). */
 	approvedCount?: number;
 }
@@ -111,27 +147,40 @@ function renderTitleBar(ctx: ComponentFixtureContext, state: ITitleBarState): vo
 	const specs: readonly IBlockedSpec[] = state.blocked
 		?? Array.from({ length: state.blockedCount ?? 0 }, (): IBlockedSpec => ({ reason: BlockedSessionReason.NeedsInput }));
 	const { blocked, approvalModel } = buildBlocked(specs);
-	const sidebarVisible = state.sidebarVisible ?? true;
 
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: ctx.theme,
 		additionalServices: (reg) => {
 			registerWorkbenchServices(reg);
+			reg.defineInstance(IConfigurationService, new TestConfigurationService({
+				[SESSIONS_CHAT_TABS_SETTING]: state.chatTabsMode ?? SessionsChatTabsMode.Multiple,
+			}));
 			reg.defineInstance(ISessionsService, new class extends mock<ISessionsService>() {
 				override readonly activeSession: IObservable<IActiveSession | undefined> = constObservable(state.activeSession);
 				override readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> = constObservable<readonly (IActiveSession | undefined)[]>([]);
 			}());
 			reg.defineInstance(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 				override readonly onDidChangeSessions = Event.None;
+				override readonly onDidChangeSessionTypes = Event.None;
 			}());
 			reg.defineInstance(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
 				override readonly onDidChangeProviders = Event.None;
+				override getProvider(): undefined { return undefined; }
+			}());
+			reg.defineInstance(IAgentHostFilterService, new class extends mock<IAgentHostFilterService>() {
+				override readonly onDidChange = Event.None;
+				override readonly selectedHostId = undefined;
+				override readonly selectedHost = undefined;
 			}());
 			reg.defineInstance(IWorkbenchLayoutService, new class extends mock<IWorkbenchLayoutService>() {
 				override readonly onDidChangePartVisibility = Event.None;
-				override isVisible(part: Parts): boolean {
-					return part === Parts.SIDEBAR_PART ? sidebarVisible : true;
-				}
+			}());
+			reg.defineInstance(IQuickInputService, new class extends mock<IQuickInputService>() {
+				override readonly onShow = Event.None;
+			}());
+			// The blocked-sessions feature is only enabled outside of stable builds.
+			reg.defineInstance(IProductService, new class extends mock<IProductService>() {
+				override readonly quality = 'insider';
 			}());
 		},
 	});
@@ -162,7 +211,20 @@ function renderTitleBar(ctx: ComponentFixtureContext, state: ITitleBarState): vo
 		override readonly blockedSessionsWithReasons: IObservable<readonly IBlockedSession[]> = constObservable(blocked);
 	}();
 
-	const widget = disposableStore.add(instantiationService.createInstance(SessionsTitleBarWidget, action, undefined, sessionActionFeedback, approvalModel, blockedSessionsModel));
+	// A no-op CI-fix model seam: the fixture never clicks "Fix CI", so it only
+	// needs to report no sessions hidden. Supplying it avoids the real model,
+	// which would depend on services not registered in this fixture.
+	const ciFixModel = new class extends mock<BlockedSessionsCIFixModel>() {
+		override readonly hiddenSessions: IObservable<ReadonlySet<string>> = constObservable<ReadonlySet<string>>(new Set());
+	}();
+
+	const widget = disposableStore.add(instantiationService.createInstance(
+		SessionsTitleBarWidget,
+		action,
+		undefined,
+		sessionActionFeedback,
+		disposableStore.add(instantiationService.createInstance(BlockedSessionsIndicatorModel, approvalModel, blockedSessionsModel, ciFixModel)),
+	));
 	widget.render(widgetHost);
 }
 
@@ -172,10 +234,46 @@ function renderTitleBar(ctx: ComponentFixtureContext, state: ITitleBarState): vo
 
 export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 
-	// Default: shows the active session pill (icon + title + workspace).
+	// Default: shows the active session workspace.
 	SessionsTitleBar_ActiveSession: defineComponentFixture({
 		render: (ctx) => renderTitleBar(ctx, {
 			activeSession: createMockActiveSession('Fix authentication redirect loop', 'vscode'),
+		}),
+	}),
+
+	SessionsTitleBar_SingleChat: defineComponentFixture({
+		expectedVisualDescriptions: [
+			'The command center shows a folder icon and "vscode", without a session or chat title.',
+		],
+		render: ctx => renderTitleBar(ctx, {
+			activeSession: createMockActiveSession('Fix authentication redirect loop', 'vscode'),
+			chatTabsMode: SessionsChatTabsMode.Single,
+		}),
+	}),
+
+	SessionsTitleBar_SingleChatWorktree: defineComponentFixture({
+		expectedVisualDescriptions: [
+			'The command center shows a worktree icon, "vscode", and the branch "feature/session-branch", without a session or chat title.',
+		],
+		render: ctx => renderTitleBar(ctx, {
+			activeSession: createMockActiveSession('Fix authentication redirect loop', 'vscode', 'feature/session-branch'),
+			chatTabsMode: SessionsChatTabsMode.Single,
+		}),
+	}),
+
+	SessionsTitleBar_SingleChatNoWorkspace: defineComponentFixture({
+		expectedVisualDescriptions: [
+			'The command center shows a chat icon and "No workspace", without a session or chat title.',
+		],
+		render: ctx => renderTitleBar(ctx, {
+			activeSession: createMockActiveSession('General help'),
+			chatTabsMode: SessionsChatTabsMode.Single,
+		}),
+	}),
+
+	SessionsTitleBar_NoWorkspace: defineComponentFixture({
+		render: (ctx) => renderTitleBar(ctx, {
+			activeSession: createMockActiveSession('Quick chat'),
 		}),
 	}),
 
@@ -184,7 +282,6 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		render: (ctx) => renderTitleBar(ctx, {
 			activeSession: createMockActiveSession('Fix authentication redirect loop', 'vscode'),
 			blockedCount: 3,
-			sidebarVisible: false,
 		}),
 	}),
 
@@ -196,7 +293,6 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 				{ reason: BlockedSessionReason.NeedsInput, approvalKind: AgentSessionApprovalKind.Terminal },
 				{ reason: BlockedSessionReason.NeedsInput, approvalKind: AgentSessionApprovalKind.Terminal },
 			],
-			sidebarVisible: false,
 		}),
 	}),
 
@@ -207,7 +303,6 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 			blocked: [
 				{ reason: BlockedSessionReason.NeedsInput, approvalKind: AgentSessionApprovalKind.Question },
 			],
-			sidebarVisible: false,
 		}),
 	}),
 
@@ -219,7 +314,6 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 				{ reason: BlockedSessionReason.FailingCI },
 				{ reason: BlockedSessionReason.FailingCI },
 			],
-			sidebarVisible: false,
 		}),
 	}),
 
@@ -231,7 +325,6 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 				{ reason: BlockedSessionReason.NeedsInput, approvalKind: AgentSessionApprovalKind.Terminal },
 				{ reason: BlockedSessionReason.FailingCI },
 			],
-			sidebarVisible: false,
 		}),
 	}),
 
@@ -249,7 +342,6 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		render: (ctx) => renderTitleBar(ctx, {
 			activeSession: createMockActiveSession('Fix authentication redirect loop', 'vscode'),
 			blockedCount: 3,
-			sidebarVisible: false,
 			approvedCount: 3,
 		}),
 	}),

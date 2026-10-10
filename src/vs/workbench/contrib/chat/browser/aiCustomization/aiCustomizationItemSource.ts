@@ -11,17 +11,19 @@ import { parse as parseJSONC } from '../../../../../base/common/json.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { OS } from '../../../../../base/common/platform.js';
-import { basename, dirname } from '../../../../../base/common/resources.js';
+import { basename } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
+import { ICustomizationMarketplaceResource } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { AICustomizationSources, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
-import { ICustomizationItem, ICustomizationItemProvider } from '../../common/customizationHarnessService.js';
+import { RecordedCustomizationMarketplaceInstallState } from '../../common/customizationMarketplaceInstallService.js';
+import { ICustomizationItem, ICustomizationItemProvider, ICustomizationSourceFolder } from '../../common/customizationHarnessService.js';
 import { parseHooksFromFile } from '../../common/promptSyntax/hookCompatibility.js';
 import { formatHookCommandLabel } from '../../common/promptSyntax/hookSchema.js';
 import { HOOK_METADATA } from '../../common/promptSyntax/hookTypes.js';
@@ -31,6 +33,11 @@ import { sourceToIcon } from './aiCustomizationIcons.js';
 import { type AICustomizationSource, BUILTIN_STORAGE } from './aiCustomizationManagement.js';
 
 // #region Interfaces
+
+interface IAICustomizationMarketplaceMetadata {
+	readonly resource: ICustomizationMarketplaceResource;
+	readonly state: RecordedCustomizationMarketplaceInstallState;
+}
 
 /**
  * Represents an AI customization item in the list widget.
@@ -57,6 +64,8 @@ export interface IAICustomizationListItem {
 	readonly badgeTooltip?: string;
 	/** When set, overrides the default prompt-type icon. */
 	readonly typeIcon?: ThemeIcon;
+	/** Marketplace installation associated with this exact local item. */
+	readonly marketplace?: IAICustomizationMarketplaceMetadata;
 	/** True when item comes from the default chat extension (grouped under Built-in). */
 	readonly isBuiltin?: boolean;
 	/** Display name of the contributing extension (for non-built-in extension items). */
@@ -70,7 +79,7 @@ export interface IAICustomizationListItem {
 	/** When true, this syncable item is currently selected for syncing. */
 	readonly synced?: boolean;
 	nameMatches?: IMatch[];
-	descriptionMatches?: IMatch[];
+	secondaryTextMatches?: IMatch[];
 }
 
 /**
@@ -84,6 +93,7 @@ export interface IAICustomizationItemSource extends IDisposable {
 	readonly onDidAICustomizationItemsChange: Event<void>;
 	fetchProviderItems(): Promise<readonly ICustomizationItem[]>;
 	fetchAICustomizationItems(promptType: PromptsType): Promise<IAICustomizationListItem[]>;
+	fetchSourceFolders(promptType: PromptsType): Promise<readonly ICustomizationSourceFolder[]>;
 }
 
 // #endregion
@@ -207,7 +217,7 @@ export class AICustomizationItemNormalizer {
 			id: `${item.uri.toString()}${duplicateSuffix}`,
 			uri: item.uri,
 			name: item.name,
-			filename: item.uri.scheme === Schemas.file
+			filename: item.uri.scheme === Schemas.file || item.uri.scheme === Schemas.vscodeRemote
 				? this.labelService.getUriLabel(item.uri, { relative: isWorkspaceItem })
 				: basename(item.uri),
 			description: item.description,
@@ -327,6 +337,14 @@ export class ItemProviderItemSource extends Disposable implements IAICustomizati
 		return normalized;
 	}
 
+	async fetchSourceFolders(promptType: PromptsType): Promise<readonly ICustomizationSourceFolder[]> {
+		if (!this.itemProvider.provideSourceFolders) {
+			return [];
+		}
+
+		return (await this.itemProvider.provideSourceFolders(this.sessionResource, promptType, CancellationToken.None)) ?? [];
+	}
+
 	/**
 	 * Merges built-in skills (bundled with the app under `vs/sessions/skills/`)
 	 * into the provider's items. The provider may re-discover the bundled
@@ -335,16 +353,11 @@ export class ItemProviderItemSource extends Disposable implements IAICustomizati
 	 * `groupKey: BUILTIN_STORAGE` so the UI renders them in the "Built-in"
 	 * group. User-authored overrides (different URI, same name) are preserved.
 	 *
-	 * A workbench that uses the base `PromptsService` will throw on
-	 * `BUILTIN_STORAGE` — we catch and return the items unchanged in that case.
+	 * A workbench that uses the base `PromptsService` contributes no built-in
+	 * skills, so `builtinPaths` is empty and the items are returned unchanged.
 	 */
 	private async mergeBuiltinSkills(items: readonly IAICustomizationListItem[], promptType: PromptsType): Promise<IAICustomizationListItem[]> {
-		let builtinPaths: readonly { uri: URI; name?: string; description?: string }[] = [];
-		try {
-			builtinPaths = await this.promptsService.listPromptFilesForStorage(PromptsType.skill, BUILTIN_STORAGE as unknown as PromptsStorage, CancellationToken.None);
-		} catch {
-			return [...items];
-		}
+		const builtinPaths: readonly { uri: URI; name?: string; description?: string }[] = await this.promptsService.listPromptFilesForStorage(PromptsType.skill, PromptsStorage.builtIn, CancellationToken.None);
 		if (builtinPaths.length === 0) {
 			return [...items];
 		}
@@ -357,9 +370,6 @@ export class ItemProviderItemSource extends Disposable implements IAICustomizati
 		// Drop provider items that are the same URI as a built-in (the provider
 		// re-discovered the bundled copy by scanning disk).
 		const deduped = items.filter(item => !builtinUris.has(item.uri));
-
-		const uiIntegrations = this.workspaceService.getSkillUIIntegrations();
-		const uiIntegrationBadge = localize('uiIntegrationBadge', "UI Integration");
 
 		// Collect names of user/workspace skills so we can hide the built-in
 		// copy once the user has added an override at either level.
@@ -385,8 +395,6 @@ export class ItemProviderItemSource extends Disposable implements IAICustomizati
 			if (overriddenNames.has(name)) {
 				continue;
 			}
-			const folderName = basename(dirname(p.uri));
-			const uiTooltip = uiIntegrations.get(folderName);
 			const builtinItem: ICustomizationItem = {
 				uri: p.uri,
 				type: PromptsType.skill,
@@ -395,8 +403,6 @@ export class ItemProviderItemSource extends Disposable implements IAICustomizati
 				source: AICustomizationSources.builtin,
 				groupKey: BUILTIN_STORAGE,
 				enabled: !disabledPromptFiles.has(p.uri),
-				badge: uiTooltip ? uiIntegrationBadge : undefined,
-				badgeTooltip: uiTooltip,
 				extensionId: undefined,
 				pluginUri: undefined,
 				userInvocable: true,
@@ -435,6 +441,10 @@ export class EmptyItemProviderItemSource extends Disposable implements IAICustom
 	}
 
 	fetchProviderItems(): Promise<readonly ICustomizationItem[]> {
+		return Promise.resolve([]);
+	}
+
+	fetchSourceFolders(_promptType: PromptsType): Promise<readonly ICustomizationSourceFolder[]> {
 		return Promise.resolve([]);
 	}
 }
@@ -485,6 +495,14 @@ export class PureItemProviderItemSource extends Disposable implements IAICustomi
 	async fetchAICustomizationItems(promptType: PromptsType): Promise<IAICustomizationListItem[]> {
 		const allItems = await this.fetchProviderItems();
 		return this.itemNormalizer.normalizeItems(allItems, promptType);
+	}
+
+	async fetchSourceFolders(promptType: PromptsType): Promise<readonly ICustomizationSourceFolder[]> {
+		if (!this.itemProvider.provideSourceFolders) {
+			return [];
+		}
+
+		return (await this.itemProvider.provideSourceFolders(this.sessionResource, promptType, CancellationToken.None)) ?? [];
 	}
 
 

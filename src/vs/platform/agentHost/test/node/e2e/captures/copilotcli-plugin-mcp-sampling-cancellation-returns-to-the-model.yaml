@@ -1,0 +1,35 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call customization_sample exactly once. If sampling is cancelled, reply exactly "sampling cancelled".
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: customization_probe_server-customization_sample
+          input: {}
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call customization_sample exactly once. If sampling is cancelled, reply exactly "sampling cancelled".
+        - role: assistant
+          content:
+            - type: tool_use
+              name: customization_probe_server-customization_sample
+              input: {}
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: MCP_SAMPLE:The user cancelled the request.
+    response:
+      content: sampling cancelled
+      stopReason: end_turn

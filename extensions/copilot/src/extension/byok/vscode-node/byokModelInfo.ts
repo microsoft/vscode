@@ -17,11 +17,15 @@ export function byokKnownModelToAPIInfoWithEffort(providerName: string, id: stri
 	if (!effortLevels || effortLevels.length === 0) {
 		return model;
 	}
+	const reasoningEffort = buildReasoningEffortSchemaProperty(effortLevels, model.family);
+	if (capabilities.defaultReasoningEffort && effortLevels.includes(capabilities.defaultReasoningEffort)) {
+		reasoningEffort.default = capabilities.defaultReasoningEffort;
+	}
 	return {
 		...model,
 		configurationSchema: {
 			properties: {
-				reasoningEffort: buildReasoningEffortSchemaProperty(effortLevels, model.family),
+				reasoningEffort,
 			},
 		},
 	};
@@ -36,4 +40,3 @@ export function byokKnownModelsToAPIInfoWithEffort(providerName: string, knownMo
 	}
 	return Object.entries(knownModels).map(([id, capabilities]) => byokKnownModelToAPIInfoWithEffort(providerName, id, capabilities));
 }
-

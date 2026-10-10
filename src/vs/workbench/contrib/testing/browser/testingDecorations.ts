@@ -593,10 +593,17 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 						continue;
 					}
 
+					const model = this.editor.getModel();
+					if (model && (line < 1 || line > model.getLineCount())) {
+						// The message location was recorded against a previous document
+						// state; the referenced line no longer exists after edits.
+						continue;
+					}
+
 					seenLines.add(line);
 					let deco = this.errorContentWidgets.get(m);
 					if (!deco) {
-						const lineLength = this.editor.getModel()?.getLineLength(line) ?? 100;
+						const lineLength = model?.getLineLength(line) ?? 100;
 						deco = this.instantiationService.createInstance(
 							TestErrorContentWidget,
 							this.editor,

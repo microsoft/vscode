@@ -1,0 +1,93 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { URI } from '../../../../../../base/common/uri.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
+import { StateComponents } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ResolveSessionConfigResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
+import { isAutoApprovePolicyRestricted, normalizeSessionConfigValue } from '../../../common/agentHostConfigPolicy.js';
+import { isUntitledChatSession } from '../../../common/model/chatUri.js';
+import { getLocalAgentHostSessionProvider, resolveAgentHostChatSession, toAgentHostBackendSessionUri } from './agentHostSessionUri.js';
+import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
+import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
+
+/**
+ * Services needed to apply a session-config change to an agent-host-backed chat
+ * session from the editor window.
+ */
+export interface IApplyAgentHostSessionConfigServices {
+	readonly agentHostService: IAgentHostService;
+	readonly connectionsService: IAgentHostConnectionsService;
+	readonly provisionalService: IAgentHostUntitledProvisionalSessionService;
+	readonly workingDirectoryResolver: IAgentHostSessionWorkingDirectoryResolver;
+	readonly workspaceContextService: IWorkspaceContextService;
+	readonly configurationService: IConfigurationService;
+}
+
+export function getAgentHostSessionConfig(
+	sessionResource: URI,
+	provisionalService: IAgentHostUntitledProvisionalSessionService,
+	connectionsService: IAgentHostConnectionsService,
+): ResolveSessionConfigResult | undefined {
+	const resolution = resolveAgentHostChatSession(sessionResource, provisionalService.get(sessionResource), connectionsService);
+	const snapshot = resolution?.connection.getSubscriptionUnmanaged(StateComponents.Session, resolution.backendSession)?.value;
+	return (snapshot && !(snapshot instanceof Error) ? snapshot.config : undefined) ?? provisionalService.getResolvedConfig(sessionResource);
+}
+
+/**
+ * Applies a partial session-config change (e.g. `autoApprove` and/or `mode`) to
+ * the agent-host session backing `sessionResource` in the editor window. This is
+ * the editor-window analogue of the Agents-window provider `setSessionConfigValue`
+ * path — it routes untitled sessions through the provisional service and existing
+ * sessions through an AHP `SessionConfigChanged` dispatch, matching how the
+ * agent-host chat-input pickers apply changes.
+ *
+ * An elevated `autoApprove` value is clamped back to `default` when enterprise
+ * policy disables global auto-approval, mirroring the pickers.
+ *
+ * @returns `true` when `sessionResource` is agent-host-backed and the change was
+ * dispatched, `false` otherwise (so callers can fall back).
+ */
+export async function applyAgentHostSessionConfigChange(
+	sessionResource: URI,
+	config: Readonly<Record<string, string>>,
+	services: IApplyAgentHostSessionConfigServices,
+): Promise<boolean> {
+	const provider = getLocalAgentHostSessionProvider(sessionResource);
+	if (!provider) {
+		return false;
+	}
+
+	const { agentHostService, connectionsService, provisionalService, workingDirectoryResolver, workspaceContextService, configurationService } = services;
+	const backendSession = toAgentHostBackendSessionUri(sessionResource, connectionsService);
+	const state = backendSession ? agentHostService.getSubscriptionUnmanaged(StateComponents.Session, backendSession)?.value : undefined;
+	const currentConfig = (state && !(state instanceof Error) ? state.config : undefined) ?? provisionalService.getResolvedConfig(sessionResource);
+	const policyRestricted = isAutoApprovePolicyRestricted(configurationService, currentConfig?.schema);
+	const partial = Object.fromEntries(Object.entries(config).map(([key, value]) => [key, normalizeSessionConfigValue(key, value, policyRestricted)]));
+
+	const workingDirectory = workingDirectoryResolver.resolve(sessionResource)
+		?? workspaceContextService.getWorkspace().folders[0]?.uri;
+
+	if (isUntitledChatSession(sessionResource)) {
+		await provisionalService.applyConfigChange(sessionResource, provider, workingDirectory, partial);
+		return true;
+	}
+
+	if (!backendSession) {
+		return false;
+	}
+	agentHostService.dispatch(backendSession.toString(), {
+		type: ActionType.SessionConfigChanged,
+		config: partial,
+	});
+	const currentValues = state && !(state instanceof Error) ? state.config?.values : undefined;
+	const nextConfig = { ...(currentValues ?? {}), ...partial };
+	void provisionalService.refreshResolvedConfig(sessionResource, provider, workingDirectory, nextConfig);
+	return true;
+}

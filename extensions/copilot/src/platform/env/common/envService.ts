@@ -135,14 +135,22 @@ export abstract class AbstractEnvService implements IEnvService {
 	 */
 	abstract getEditorPluginInfo(): NameAndVersion;
 
-	getEditorVersionHeaders(): { [key: string]: string } {
-		return {
-			'Editor-Version': this.getEditorInfo().format(),
-			'Editor-Plugin-Version': this.getEditorPluginInfo().format(),
-		};
-	}
-
 	abstract openExternal(target: URI): Promise<boolean>;
+}
+
+/**
+ * Builds the editor-related request headers (`Editor-Version` and `Editor-Plugin-Version`)
+ * that identify the host editor and the Copilot plugin to the backend.
+ *
+ * Implemented as a free function taking any {@link IEnvService} so that it works for every
+ * environment (VS Code, the standalone chat-lib/CLI host, tests) - including implementations
+ * that do not extend {@link AbstractEnvService}.
+ */
+export function getEditorVersionHeaders(envService: IEnvService): { [key: string]: string } {
+	return {
+		'Editor-Version': envService.getEditorInfo().format(),
+		'Editor-Plugin-Version': envService.getEditorPluginInfo().format(),
+	};
 }
 
 // FIXME: This needs to be used in locations where the EnvService is not yet available, so it's

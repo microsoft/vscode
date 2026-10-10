@@ -96,9 +96,57 @@ suite('BrowserSearch - resolveAddressBarInput', () => {
 			'a&b?c=d', // invalid host char `&`
 			'0.1.2.3', // IPv4 with first octet 0 (not 0.0.0.0)
 			'[:::::::]', // malformed IPv6
+			'foo bar/baz', // whitespace in the host, bare path
 		];
 		const actual = inputs.map((i) => resolveAddressBarInputType(i));
 		assert.deepStrictEqual(actual, inputs.map(() => 'query'));
+	});
+
+	test('whitespace in the path/query/fragment is a URL (percent-encoded later)', () => {
+		const inputs = [
+			'http://localhost:8888/my file.php', // space in path, explicit scheme (issue #326784)
+			'https://example.com/my file.php',
+			'localhost:8888/my file.php', // scheme-less host:port
+			'example.com/foo bar', // scheme-less host with known TLD
+			'example.com?q=hello world', // space in the query
+			'example.com/a#frag ment', // space in the fragment
+		];
+		const actual = inputs.map((i) => resolveAddressBarInputType(i));
+		assert.deepStrictEqual(actual, inputs.map(() => 'url'));
+	});
+
+	test('whitespace in the userinfo is unknown (defaults to search)', () => {
+		const inputs = [
+			'user name@example.com',
+			'user name@example.com/',
+			'user name@localhost',
+		];
+		const actual = inputs.map((i) => resolveAddressBarInputType(i));
+		assert.deepStrictEqual(actual, inputs.map(() => 'unknown'));
+	});
+
+	test('an explicit http(s) scheme keeps whitespace-userinfo input a URL', () => {
+		// The scheme-less cases above are `unknown`, but an explicit http(s)
+		// scheme wins (the `!isHttpScheme` exception on the userinfo guard),
+		// matching Chromium's explicit-scheme → URL rule.
+		const inputs = [
+			'http://user name@example.com',
+			'https://user name@example.com',
+		];
+		const actual = inputs.map((i) => resolveAddressBarInputType(i));
+		assert.deepStrictEqual(actual, inputs.map(() => 'url'));
+	});
+
+	test('whitespace in the userinfo with an IP-literal host is still a URL', () => {
+		// Chromium's AutocompleteInput::Parse classifies IPv4/IPv6 hosts as URL
+		// before it applies the "space in the username" heuristic, so these stay
+		// URLs even though a domain host with a space in the userinfo is `unknown`.
+		const inputs = [
+			'user name@127.0.0.1',
+			'user name@[::1]',
+		];
+		const actual = inputs.map((i) => resolveAddressBarInputType(i));
+		assert.deepStrictEqual(actual, inputs.map(() => 'url'));
 	});
 
 	test('ambiguous inputs return unknown', () => {

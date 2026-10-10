@@ -1,0 +1,26 @@
+name: Detect Agent Host E2E changes
+description: Determines whether a pull request can affect the Agent Host end-to-end tests.
+
+inputs:
+  token:
+    description: GitHub token used to list the pull request files.
+    required: true
+
+outputs:
+  affected:
+    description: "'true' when the Agent Host E2E tests may be affected."
+    value: ${{ steps.detect.outputs.affected }}
+
+runs:
+  using: composite
+  steps:
+    - name: Detect relevant changes
+      id: detect
+      uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+      with:
+        github-token: ${{ inputs.token }}
+        script: |
+          const { pathToFileURL } = require('url');
+          const scriptUrl = pathToFileURL(process.env.GITHUB_WORKSPACE + '/.github/actions/detect-agent-host-e2e-changes/detect.ts');
+          const { detectAgentHostE2EChanges } = await import(scriptUrl.href);
+          await detectAgentHostE2EChanges(github, context, core);
