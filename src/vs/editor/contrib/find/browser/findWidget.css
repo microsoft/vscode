@@ -140,8 +140,9 @@
 	justify-content: center;
 }
 
-/* find in selection button */
-.monaco-editor .find-widget .codicon-find-selection {
+/* find in selection button & ignore folded regions button */
+.monaco-editor .find-widget .codicon-find-selection,
+.monaco-editor .find-widget .codicon-find-ignore-folded {
 	width: 22px;
 	height: 22px;
 	padding: 3px;

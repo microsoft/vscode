@@ -73,6 +73,7 @@ export const FIND_IDS = {
 	ToggleRegexCommand: 'toggleFindRegex',
 	ToggleSearchScopeCommand: 'toggleFindInSelection',
 	TogglePreserveCaseCommand: 'togglePreserveCase',
+	ToggleIgnoreFoldedCommand: 'toggleFindIgnoreFolded',
 	ReplaceOneAction: 'editor.action.replaceOne',
 	ReplaceAllAction: 'editor.action.replaceAll',
 	SelectAllMatchesAction: 'editor.action.selectAllMatches'
@@ -135,6 +136,12 @@ export class FindModelBoundToEditorModel {
 
 		this._toDispose.add(this._state.onFindReplaceStateChange((e) => this._onStateChanged(e)));
 
+		this._toDispose.add(this._editor.onDidChangeHiddenAreas(() => {
+			if (this._state.ignoreFoldedRegions) {
+				this._updateDecorationsScheduler.schedule();
+			}
+		}));
+
 		this.research(false, this._state.searchScope);
 	}
 
@@ -153,7 +160,7 @@ export class FindModelBoundToEditorModel {
 			// The find model will be disposed momentarily
 			return;
 		}
-		if (e.searchString || e.isReplaceRevealed || e.isRegex || e.wholeWord || e.matchCase || e.searchScope) {
+		if (e.searchString || e.isReplaceRevealed || e.isRegex || e.wholeWord || e.matchCase || e.searchScope || e.ignoreFoldedRegions) {
 			const model = this._editor.getModel();
 
 			if (model.isTooLargeForSyncing()) {
@@ -286,7 +293,7 @@ export class FindModelBoundToEditorModel {
 		return new Position(lineNumber, column);
 	}
 
-	private _moveToPrevMatch(before: Position, isRecursed: boolean = false): void {
+	private _moveToPrevMatch(before: Position, isRecursed: boolean = false, startPosition: Position | null = null): void {
 		if (!this._state.canNavigateBack()) {
 			// we are beyond the first matched find result
 			// instead of doing nothing, we should refocus the first item
@@ -348,7 +355,21 @@ export class FindModelBoundToEditorModel {
 		}
 
 		if (!isRecursed && !searchRange.containsRange(prevMatch.range)) {
-			return this._moveToPrevMatch(prevMatch.range.getStartPosition(), true);
+			return this._moveToPrevMatch(prevMatch.range.getStartPosition(), true, startPosition ?? before);
+		}
+
+		if (this._state.ignoreFoldedRegions) {
+			const hiddenAreas = this._editor._getViewModel()?.getHiddenAreas();
+			if (hiddenAreas && hiddenAreas.length > 0) {
+				const isFolded = hiddenAreas.some(area => Range.areIntersecting(prevMatch.range, area));
+				if (isFolded) {
+					const prevPosition = prevMatch.range.getStartPosition();
+					if (prevPosition.equals(startPosition ?? before)) {
+						return;
+					}
+					return this._moveToPrevMatch(prevPosition, true, startPosition ?? before);
+				}
+			}
 		}
 
 		this._setCurrentFindMatch(prevMatch.range);
@@ -413,7 +434,7 @@ export class FindModelBoundToEditorModel {
 		}
 	}
 
-	private _getNextMatch(after: Position, captureMatches: boolean, forceMove: boolean, isRecursed: boolean = false): FindMatch | null {
+	private _getNextMatch(after: Position, captureMatches: boolean, forceMove: boolean, isRecursed: boolean = false, startPosition: Position | null = null): FindMatch | null {
 		if (this._cannotFind()) {
 			return null;
 		}
@@ -450,7 +471,21 @@ export class FindModelBoundToEditorModel {
 		}
 
 		if (!isRecursed && !searchRange.containsRange(nextMatch.range)) {
-			return this._getNextMatch(nextMatch.range.getEndPosition(), captureMatches, forceMove, true);
+			return this._getNextMatch(nextMatch.range.getEndPosition(), captureMatches, forceMove, true, startPosition ?? after);
+		}
+
+		if (this._state.ignoreFoldedRegions) {
+			const hiddenAreas = this._editor._getViewModel()?.getHiddenAreas();
+			if (hiddenAreas && hiddenAreas.length > 0) {
+				const isFolded = hiddenAreas.some(area => Range.areIntersecting(nextMatch.range, area));
+				if (isFolded) {
+					const nextPosition = nextMatch.range.getEndPosition();
+					if (nextPosition.equals(startPosition ?? after)) {
+						return null;
+					}
+					return this._getNextMatch(nextPosition, captureMatches, forceMove, true, startPosition ?? after);
+				}
+			}
 		}
 
 		return nextMatch;
@@ -509,7 +544,16 @@ export class FindModelBoundToEditorModel {
 			FindModelBoundToEditorModel._getSearchRange(this._editor.getModel(), scope)
 		);
 
-		return this._editor.getModel().findMatches(this._state.searchString, searchRanges, this._state.isRegex, this._state.matchCase, this._state.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, captureMatches, limitResultCount);
+		const matches = this._editor.getModel().findMatches(this._state.searchString, searchRanges, this._state.isRegex, this._state.matchCase, this._state.wholeWord ? this._editor.getOption(EditorOption.wordSeparators) : null, captureMatches, limitResultCount);
+
+		if (this._state.ignoreFoldedRegions) {
+			const hiddenAreas = this._editor._getViewModel()?.getHiddenAreas();
+			if (hiddenAreas && hiddenAreas.length > 0) {
+				return matches.filter(match => !hiddenAreas.some(area => Range.areIntersecting(match.range, area)));
+			}
+		}
+
+		return matches;
 	}
 
 	public replaceAll(): void {
