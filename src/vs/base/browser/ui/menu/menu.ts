@@ -1260,6 +1260,10 @@ ${formatRule(Codicon.menuSubmenu)}
 	justify-content: center;
 }
 
+.monaco-menu-container {
+	border-radius: var(--vscode-cornerRadius-large);
+}
+
 /* Context Menu */
 
 .context-view.monaco-menu-container {
@@ -1268,7 +1272,6 @@ ${formatRule(Codicon.menuSubmenu)}
 	border: none;
 	-webkit-app-region: no-drag;
 	box-shadow: var(${CONTEXT_VIEW_MENU_MOTION_SHADOW_VARIABLE});
-	border-radius: var(--vscode-cornerRadius-large);
 	overflow: hidden;
 }
 
