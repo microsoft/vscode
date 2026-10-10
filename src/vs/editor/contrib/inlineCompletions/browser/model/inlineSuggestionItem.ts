@@ -416,7 +416,7 @@ export class InlineEditItem extends InlineSuggestionItemBase {
 		if (data.action?.kind === 'edit') {
 			const offsetEdit = shouldDiffEdit ? getDiffedStringEdit(textModel, data.action.range, data.action.insertText) : getStringEdit(textModel, data.action.range, data.action.insertText); // TODO compute async
 			const textEdit = TextEdit.fromStringEdit(offsetEdit, textModel);
-			const singleTextEdit = offsetEdit.isEmpty() ? new TextReplacement(new Range(1, 1, 1, 1), '') : textEdit.toReplacement(textModel); // FIXME: .toReplacement() can throw because offsetEdit is empty because we get an empty diff in getStringEdit after diffing
+			const singleTextEdit = offsetEdit.isEmpty() ? new TextReplacement(Range.fromPositions(data.action.range.getStartPosition()), '') : textEdit.toReplacement(textModel);
 
 			edits = offsetEdit.replacements.map(edit => {
 				const replacedRange = Range.fromPositions(textModel.getPositionAt(edit.replaceRange.start), textModel.getTransformer().getPosition(edit.replaceRange.endExclusive));
