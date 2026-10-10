@@ -834,8 +834,9 @@ export function makeUriConfirmationChecker(configuration: IConfigurationService,
 	const agentFilesPatterns: Record<string, boolean> = {};
 	for (const setting of ['chat.agentFilesLocations', 'chat.agentSkillsLocations']) {
 		const locations = configuration.getNonExtensionConfig<Record<string, boolean>>(setting);
-		for (const pattern of Object.keys(locations ?? {})) {
-			if (!pattern.startsWith('~/')) {
+		for (const key of Object.keys(locations ?? {})) {
+			const pattern = key.trim();
+			if (pattern && !pattern.startsWith('~/')) {
 				const normalizedPattern = pattern.startsWith('**/') || pattern.startsWith('/') ? pattern : '**/' + pattern;
 				agentFilesPatterns[normalizedPattern] = false;
 				agentFilesPatterns[normalizedPattern.endsWith('/') ? normalizedPattern + '**' : normalizedPattern + '/**'] = false;
