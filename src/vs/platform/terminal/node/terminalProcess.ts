@@ -543,10 +543,9 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		}
 		// Ensure that cols and rows are always >= 1, this prevents a native exception in winpty.
 		// TODO: Handle this directly on node-pty instead: https://github.com/microsoft/node-pty/issues/877
+		cols = Math.max(cols, 1);
+		rows = Math.max(rows, 1);
 		if (this._ptyProcess) {
-			cols = Math.max(cols, 1);
-			rows = Math.max(rows, 1);
-
 			// Delay resize if needed
 			if (this._delayedResizer) {
 				this._delayedResizer.cols = cols;
@@ -569,6 +568,10 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 					throw e;
 				}
 			}
+		} else {
+			// Not spawned yet (e.g. a revived process), so spawn at this size
+			this._ptyOptions.cols = cols;
+			this._ptyOptions.rows = rows;
 		}
 	}
 

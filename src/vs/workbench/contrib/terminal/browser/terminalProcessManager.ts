@@ -416,6 +416,11 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			}
 		}, ProcessConstants.ErrorLaunchThresholdDuration);
 
+		// Spawn revived processes at the current size (remote ptys only resize once started)
+		if (shellLaunchConfig.attachPersistentProcess && !this.remoteAuthority) {
+			newProcess.resize(cols, rows);
+		}
+
 		const result = await newProcess.start();
 		if (result) {
 			// Error

@@ -102,6 +102,9 @@ export abstract class BasePty extends Disposable implements Partial<ITerminalChi
 			}
 		} finally {
 			this._inReplay = false;
+			// The pre-start resize may have been ignored or lacked the pixel size, so resend the next one
+			this._lastDimensions.cols = -1;
+			this._lastDimensions.rows = -1;
 		}
 
 		if (e.commands) {
