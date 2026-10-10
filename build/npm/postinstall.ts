@@ -8,7 +8,7 @@ import path from 'path';
 import * as os from 'os';
 import * as child_process from 'child_process';
 import { dirs } from './dirs.ts';
-import { root, stateFile, stateContentsFile, computeState, computeContents, isUpToDate } from './installStateHash.ts';
+import { root, stateFile, stateContentsFile, computeState, computeContents, getOutdatedDirs } from './installStateHash.ts';
 import { ensureElectronTypes } from './electronTypes.ts';
 import { finishCloudSandbox } from './cloudSandbox.ts';
 
@@ -242,7 +242,9 @@ async function runWithConcurrency(tasks: (() => Promise<void>)[], concurrency: n
 async function main() {
 	await ensureElectronTypes();
 
-	if (!process.env['VSCODE_FORCE_INSTALL'] && isUpToDate()) {
+	const outdatedDirs = new Set(process.env['VSCODE_FORCE_INSTALL'] ? dirs : getOutdatedDirs());
+
+	if (outdatedDirs.size === 0) {
 		finishCloudSandbox();
 		log('.', 'All dependencies up to date, skipping postinstall.');
 		child_process.execSync('git config pull.rebase merges');
@@ -259,6 +261,11 @@ async function main() {
 		if (dir === '') {
 			removeParcelWatcherPrebuild(dir);
 			continue; // already executed in root
+		}
+
+		if (!outdatedDirs.has(dir)) {
+			log(dir, 'Dependencies up to date, skipping.');
+			continue;
 		}
 
 		if (dir === 'build') {

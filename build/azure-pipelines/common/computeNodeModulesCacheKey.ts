@@ -9,6 +9,19 @@ import { dirs } from '../../npm/dirs.ts';
 
 const ROOT = path.join(import.meta.dirname, '../../../');
 
+const args = process.argv.slice(2);
+
+// `--restore-scope` hashes only the inputs that make a cached `node_modules`
+// unusable as the base of an incremental install (e.g. a Node.js or Electron
+// version change requires rebuilding native modules, or a change to the set of
+// install directories), so it can be used as a cache restore key prefix that
+// survives `package.json` and lockfile changes. It also changes every week, so
+// incremental installs restart from a clean install at least once a week.
+const restoreScope = args[0] === '--restore-scope';
+if (restoreScope) {
+	args.shift();
+}
+
 const shasum = crypto.createHash('sha256');
 
 shasum.update(fs.readFileSync(path.join(ROOT, 'build/.cachesalt')));
@@ -16,26 +29,41 @@ shasum.update(fs.readFileSync(path.join(ROOT, '.npmrc')));
 shasum.update(fs.readFileSync(path.join(ROOT, 'build', '.npmrc')));
 shasum.update(fs.readFileSync(path.join(ROOT, 'remote', '.npmrc')));
 
-// Add `package.json` and `package-lock.json` files
-for (const dir of dirs) {
-	const packageJsonPath = path.join(ROOT, dir, 'package.json');
-	const packageJson = JSON.parse(fs.readFileSync(packageJsonPath).toString());
-	const relevantPackageJsonSections = {
-		dependencies: packageJson.dependencies,
-		devDependencies: packageJson.devDependencies,
-		optionalDependencies: packageJson.optionalDependencies,
-		resolutions: packageJson.resolutions,
-		distro: packageJson.distro
-	};
-	shasum.update(JSON.stringify(relevantPackageJsonSections));
+if (restoreScope) {
+	const week = Math.floor(Date.now() / (7 * 24 * 60 * 60 * 1000));
+	shasum.update(String(week));
+	shasum.update(fs.readFileSync(path.join(ROOT, '.nvmrc')));
+	shasum.update(JSON.stringify(dirs));
 
-	const packageLockPath = path.join(ROOT, dir, 'package-lock.json');
-	shasum.update(fs.readFileSync(packageLockPath));
+	for (const dir of dirs) {
+		const npmrcPath = path.join(ROOT, dir, '.npmrc');
+		if (fs.existsSync(npmrcPath)) {
+			shasum.update(dir);
+			shasum.update(fs.readFileSync(npmrcPath));
+		}
+	}
+} else {
+	// Add `package.json` and `package-lock.json` files
+	for (const dir of dirs) {
+		const packageJsonPath = path.join(ROOT, dir, 'package.json');
+		const packageJson = JSON.parse(fs.readFileSync(packageJsonPath).toString());
+		const relevantPackageJsonSections = {
+			dependencies: packageJson.dependencies,
+			devDependencies: packageJson.devDependencies,
+			optionalDependencies: packageJson.optionalDependencies,
+			resolutions: packageJson.resolutions,
+			distro: packageJson.distro
+		};
+		shasum.update(JSON.stringify(relevantPackageJsonSections));
+
+		const packageLockPath = path.join(ROOT, dir, 'package-lock.json');
+		shasum.update(fs.readFileSync(packageLockPath));
+	}
 }
 
 // Add any other command line arguments
-for (let i = 2; i < process.argv.length; i++) {
-	shasum.update(process.argv[i]);
+for (const arg of args) {
+	shasum.update(arg);
 }
 
 process.stdout.write(shasum.digest('hex'));

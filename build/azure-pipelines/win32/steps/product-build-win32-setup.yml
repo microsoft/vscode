@@ -51,17 +51,28 @@ steps:
   - pwsh: |
       mkdir .build -ea 0
       node build/azure-pipelines/common/computeNodeModulesCacheKey.ts win32 $(VSCODE_ARCH) $(node -p process.arch) > .build/packagelockhash
+      node build/azure-pipelines/common/computeNodeModulesCacheKey.ts --restore-scope win32 $(VSCODE_ARCH) $(node -p process.arch) > .build/packagelockrestorescope
     displayName: Prepare node_modules cache key
 
+  # CI builds fall back to the most recent cache with the same Node.js, Electron,
+  # npm configuration and install directories when the lockfiles changed, and
+  # then only reinstall the directories whose dependencies changed
+  # (NODE_MODULES_RESTORED=inexact). The restore scope also changes weekly, which
+  # forces a clean install at least once a week. Product builds keep doing clean
+  # installs.
   - task: Cache@2
     inputs:
-      key: '"node_modules" | .build/packagelockhash'
+      ${{ if eq(parameters.VSCODE_CIBUILD, true) }}:
+        key: '"node_modules" | .build/packagelockrestorescope | .build/packagelockhash'
+        restoreKeys: '"node_modules" | .build/packagelockrestorescope'
+      ${{ else }}:
+        key: '"node_modules" | .build/packagelockhash'
       path: .build/node_modules_cache
       cacheHitVar: NODE_MODULES_RESTORED
     displayName: Restore node_modules cache
 
   - powershell: 7z.exe x .build/node_modules_cache/cache.7z -aoa
-    condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
+    condition: and(succeeded(), in(variables.NODE_MODULES_RESTORED, 'true', 'inexact'))
     displayName: Extract node_modules cache
 
   - powershell: |
@@ -89,7 +100,15 @@ steps:
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
-      exec { npm ci }
+      if ($env:NODE_MODULES_RESTORED -eq 'inexact') {
+        # Keep the restored node_modules, so unchanged native modules are not
+        # rebuilt, without rewriting the lockfiles. CI on other platforms keeps
+        # using `npm ci`, which verifies the lockfiles are in sync.
+        $env:npm_config_save = 'false'
+        exec { npm install }
+      } else {
+        exec { npm ci }
+      }
     env:
       npm_config_arch: $(VSCODE_ARCH)
       npm_config_foreground_scripts: "true"
@@ -121,6 +140,9 @@ steps:
       $ErrorActionPreference = "Stop"
       exec { node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt }
       exec { mkdir -Force .build/node_modules_cache }
+      # An inexact cache restore leaves the previous archive behind, which `7z a`
+      # would otherwise update in place and keep files of removed packages.
+      Remove-Item -Force -ErrorAction SilentlyContinue .build/node_modules_cache/cache.7z
       exec { 7z.exe a .build/node_modules_cache/cache.7z -mx3 `@.build/node_modules_list.txt }
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
     displayName: Create node_modules archive
