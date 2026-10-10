@@ -8,6 +8,7 @@ import assert from 'assert';
 import { suite, test } from 'vitest';
 import { Event } from '../../../../util/vs/base/common/event';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
+import { IEnvService } from '../../../env/common/envService';
 import { createFakeResponse } from '../../../test/node/fetcher';
 import { createPlatformServices } from '../../../test/node/services';
 import { FetchOptions, IAbortController, IFetcherService, PaginationOptions, Response, WebSocketConnection } from '../../common/fetcherService';
@@ -72,6 +73,32 @@ suite('Networking test Suite', function () {
 		assert.strictEqual(headerBuffer!['VScode-SessionId'], 'test-session');
 		assert.strictEqual(headerBuffer!['VScode-MachineId'], 'test-machine');
 		assert.strictEqual(headerBuffer!['Editor-Version'], `vscode/test-version`);
+	});
+
+	test('Proxy* requests contain editor info headers even though the copilot-api mixin skips them', async function () {
+		const testingServiceCollection = createPlatformServices();
+		testingServiceCollection.define(IFetcherService, new StaticFetcherService());
+		const accessor = testingServiceCollection.createTestingAccessor();
+		const envService = accessor.get(IEnvService);
+		await accessor.get(IInstantiationService).invokeFunction(postRequest, {
+			endpointOrUrl: { type: RequestType.ProxyChatCompletions },
+			secretKey: '',
+			intent: 'test',
+			requestId: 'id',
+		});
+
+		// The @vscode/copilot-api mixin only stamps editor headers for its allow-listed request types
+		// and skips Proxy* types, so `networkRequest` injects the real editor identity for them instead.
+		assert.deepStrictEqual(
+			{
+				'Editor-Version': headerBuffer!['Editor-Version'],
+				'Editor-Plugin-Version': headerBuffer!['Editor-Plugin-Version'],
+			},
+			{
+				'Editor-Version': envService.getEditorInfo().format(),
+				'Editor-Plugin-Version': envService.getEditorPluginInfo().format(),
+			}
+		);
 	});
 
 	test('sets Authorization header when secretKey is provided', async function () {
