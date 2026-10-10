@@ -9,6 +9,7 @@ import { CancellationError, isCancellationError } from '../../../../../base/comm
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IObservable } from '../../../../../base/common/observable.js';
+import { equalsIgnoreCase } from '../../../../../base/common/strings.js';
 import { isObject } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
@@ -24,6 +25,8 @@ import {
 	ICloudSandboxApiService,
 	isCloudSandboxEnabled,
 	type ICloudSandboxConnectOptions,
+	type ICloudSandboxCreatedSession,
+	type ICloudSandboxCreateSessionRequest,
 	type ICloudSandboxDiscoveryResult,
 	type ICloudSandboxDiscoveredSession,
 } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
@@ -35,6 +38,7 @@ import { getEntryAddress, IRemoteAgentHostService, RemoteAgentHostConnectionStat
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IProgress } from '../../../../../platform/progress/common/progress.js';
 import { IStorageEntry, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
@@ -46,6 +50,9 @@ import { IRemoteAgentHostConnectionCustomizationService } from './remoteAgentHos
 import { createCloudSandboxConnectionCustomization, isCloudSandboxConnectionAddress } from './cloudSandboxConnectionCustomization.js';
 import { sealMissionControlMcpCredential } from './missionControlCredentialSealing.js';
 import { withSessionInitiator } from '../../../../../platform/agentHost/common/meta/agentSessionInitiatorMeta.js';
+import { readCloudSandboxProjects } from '../../../../../platform/agentHost/common/meta/cloudSandboxProjectMeta.js';
+import { getGitHubRepositoryFromRemoteUrl } from '../../../git/common/utils.js';
+import { withSessionWorkspaceless } from '../../../../../platform/agentHost/common/state/sessionState.js';
 
 const LOG_PREFIX = '[CloudSandboxAgentHost]';
 const DISCOVERY_STALE_AFTER_MS = 60_000;
@@ -107,6 +114,21 @@ export interface ICloudSandboxSessionList extends IDisposable {
 	setConnection(connection: IAgentConnection, defaultDirectory: string | undefined): void;
 	setConnectionStatus(status: RemoteAgentHostConnectionStatus): void;
 	setSessionArchived(rawId: string, archived: boolean): void;
+	/**
+	 * Record a session this window just provisioned, before the host announces it. Implementations
+	 * may withhold it from listings until {@link publishWithheldSession} or the host lists it.
+	 */
+	seedProvisionalSession?(metadata: IAgentSessionMetadata): void;
+	/** Reveal a session seeded by {@link seedProvisionalSession} whose first turn did not dispatch. */
+	publishWithheldSession?(rawId: string): void;
+}
+
+/** A sandbox environment this window provisioned and connected to. */
+export interface ICloudSandboxProvisionedEnvironment<T extends ICloudSandboxSessionList> extends ICloudSandboxCreatedSession {
+	readonly address: string;
+	readonly name: string;
+	readonly repoNwo: string | undefined;
+	readonly provider: T;
 }
 
 export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSessionList> extends Disposable implements IWorkbenchContribution {
@@ -846,6 +868,120 @@ export abstract class CloudSandboxSessionContribution<T extends ICloudSandboxSes
 
 	protected _isEnabled(): boolean {
 		return !this._store.isDisposed && isCloudSandboxEnabled(this._configurationService) && !this._chatEntitlementService.sentiment.hidden;
+	}
+
+	/**
+	 * Create a Mission Control task for a brand-new sandbox, seed its session on the provider and
+	 * connect to the environment. Provisioning runs the same `_ensureProvider → seed → connect`
+	 * path discovery does, so a later discovery pass reconciles the task rather than duplicating it.
+	 *
+	 * The seeded session stays withheld on providers that support it until the caller publishes
+	 * it (or this method fails, in which case the remote task is published so it is not lost).
+	 */
+	protected async _provisionSandbox(request: ICloudSandboxCreateSessionRequest, token: CancellationToken, progress?: IProgress<string>): Promise<ICloudSandboxProvisionedEnvironment<T>> {
+		if (!this._isEnabled()) {
+			throw new Error('Copilot cloud sandbox connections are not enabled.');
+		}
+		const accountKey = await this._apiService.getAccountKey();
+		if (!this._isEnabled() || token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		if (!accountKey) {
+			throw new CloudSandboxAuthenticationRequiredError();
+		}
+		this._restoreAccount(accountKey);
+		const enabledToken = this._enabledCts.token;
+		progress?.report(localize('sandbox.provisioningContainer', "Setting up cloud container"));
+		const provisioningStartedAt = Date.now();
+		const created = await this._apiService.createSession(request, token);
+		const name = request.repoNwo ?? created.taskId;
+		const address = cloudSandboxAddress(created.environmentId);
+		if (!this._isEnabled() || token.isCancellationRequested || enabledToken.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		this._provisioning.add(address);
+		let seededProvider: T | undefined;
+		let connectionAttempt: Promise<string> | undefined;
+		try {
+			const now = Date.now();
+			this._ensureProvider({ ...created, name, repoName: request.repoNwo, hasRepository: request.repoNwo !== undefined, updatedAt: new Date(now).toISOString() });
+			const provider = this._providerInstances.get(address);
+			if (!provider) {
+				throw new Error(`No sessions provider was registered for sandbox environment ${created.environmentId}`);
+			}
+			const project = discoveredSessionProject(request.repoNwo);
+			provider.seedProvisionalSession?.({
+				session: AgentSession.uri(CLOUD_SANDBOX_SESSION_SCHEME, created.sessionId),
+				provider: CLOUD_SANDBOX_AGENT_PROVIDER,
+				_meta: withSessionWorkspaceless(undefined, request.repoNwo === undefined),
+				startTime: now,
+				modifiedTime: now,
+				summary: name,
+				...(project ? { project } : {}),
+			});
+			seededProvider = provider;
+			this._persistInventory();
+			progress?.report(localize('sandbox.connectingContainer', "Connecting to cloud container"));
+			connectionAttempt = this.connect({ environmentId: created.environmentId, sessionId: created.sessionId, name, connectionSource: 'created', provisioningStartedAt });
+			await raceCancellationError(connectionAttempt, token);
+			if (token.isCancellationRequested || !this._isEnabled() || this._providerInstances.get(address) !== provider) {
+				throw new CancellationError();
+			}
+			return { ...created, address, name, repoNwo: request.repoNwo, provider };
+		} catch (error) {
+			// The remote task exists even if connecting or publishing it failed.
+			if (seededProvider && this._providerInstances.get(address) === seededProvider) {
+				seededProvider.publishWithheldSession?.(created.sessionId);
+			}
+			throw error;
+		} finally {
+			const releaseProvisioning = () => { this._provisioning.delete(address); };
+			if (connectionAttempt) {
+				// A canceled caller must not let discovery tear down a connection that is still waking.
+				void connectionAttempt.then(releaseProvisioning, releaseProvisioning);
+			} else {
+				releaseProvisioning();
+			}
+		}
+	}
+
+	/**
+	 * Observe repository setup on a freshly provisioned environment. The returned store disposes
+	 * itself once the repository is ready or its clone failed.
+	 */
+	trackSessionCreationProgress(environmentId: string, repoNwo: string, progress: IProgress<string>): IDisposable {
+		const store = new DisposableStore();
+		const connection = this._remoteAgentHostService.getConnection(cloudSandboxAddress(environmentId));
+		if (!connection) {
+			return store;
+		}
+		let cloningProjectId: string | undefined;
+		const update = () => {
+			const state = connection.rootState.value;
+			if (!state || state instanceof Error) {
+				return;
+			}
+			const projects = readCloudSandboxProjects(state)?.filter(project => {
+				const remote = project.remoteUrl && getGitHubRepositoryFromRemoteUrl(project.remoteUrl, ['github.com']);
+				return remote && equalsIgnoreCase(`${remote.owner}/${remote.repo}`, repoNwo);
+			});
+			const project = projects?.find(project => project.status === 'ready') ?? projects?.find(project => project.status === 'cloning') ?? projects?.[0];
+			if (project?.status === 'cloning') {
+				cloningProjectId = project.id;
+				progress.report(project.progress === undefined
+					? localize('sandbox.cloningRepository', "Cloning repository")
+					: localize('sandbox.cloningRepositoryProgress', "Cloning repository ({0}%)", Math.round(project.progress)));
+			} else if (project?.status === 'ready') {
+				progress.report(localize('sandbox.startingAgent', "Starting Copilot agent"));
+				store.dispose();
+			} else if (project?.status === 'failed' && project.id === cloningProjectId) {
+				progress.report(localize('sandbox.cloningFailed', "Repository cloning failed"));
+				store.dispose();
+			}
+		};
+		store.add(connection.rootState.onDidChange(update));
+		update();
+		return store;
 	}
 
 	private _updateEnablement(): void {

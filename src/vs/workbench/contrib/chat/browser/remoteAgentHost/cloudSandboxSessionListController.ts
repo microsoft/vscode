@@ -46,6 +46,8 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 	private readonly _items: IObservable<readonly IChatSessionItem[]>;
 	private readonly _archivedStates = observableValue<ReadonlyMap<string, boolean>>(this, new Map());
 	private readonly _archiveSequencer = new Sequencer();
+	/** Repository requested for sessions this window provisioned, keyed by raw session id. */
+	private readonly _provisionalRepositories = new Map<string, string | undefined>();
 
 	constructor(
 		address: string,
@@ -146,6 +148,29 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 		});
 	}
 
+	seedProvisionalSession(metadata: IAgentSessionMetadata): void {
+		const rawId = AgentSession.id(metadata.session);
+		const project = metadata.project ? getGitHubRepositoryFromRemoteUrl(metadata.project.uri.toString(), ['github.com']) : undefined;
+		this._provisionalRepositories.set(rawId, project ? `${project.owner}/${project.repo}` : undefined);
+		this._sessionListStore.addPendingNewSession(CLOUD_SANDBOX_AGENT_PROVIDER, rawId);
+		this.seedSessions([metadata]);
+		this._sessionListStore.seedSessions([metadata]);
+	}
+
+	publishWithheldSession(rawId: string): void {
+		// The editor lists provisioned sessions immediately; only forget the creation intent.
+		this._provisionalRepositories.delete(rawId);
+	}
+
+	isNewSession(resource: URI): boolean {
+		return this._controller.isNewSession(resource);
+	}
+
+	notifySessionMaterialized(resource: URI): void {
+		this._provisionalRepositories.delete(AgentSession.id(resource));
+		this._controller.notifySessionMaterialized(resource);
+	}
+
 	setConnection(connection: IAgentConnection): void {
 		if (this._connection.get() === connection && RemoteAgentHostConnectionStatus.isConnected(this.connectionStatus.get())) {
 			return;
@@ -166,9 +191,20 @@ export class CloudSandboxSessionListController extends Disposable implements ICl
 	}
 
 	resolveWorkingDirectory(resource: URI): URI | undefined {
-		const entry = this._sessionListStore.getSessions(CLOUD_SANDBOX_AGENT_PROVIDER).find(entry => entry.rawId === AgentSession.id(resource));
-		const directory = entry?.summary.workingDirectories?.[0];
+		const rawId = AgentSession.id(resource);
 		const connection = this._connection.get();
+		if (this.isNewSession(resource) && this._provisionalRepositories.has(rawId)) {
+			// Session preparation clones the requested repository and yields its host directory;
+			// a workspaceless sandbox starts in the host's default directory rather than a local folder.
+			const repoNwo = this._provisionalRepositories.get(rawId);
+			if (repoNwo) {
+				return URI.from({ scheme: Schemas.https, authority: 'github.com', path: `/${repoNwo}` });
+			}
+			const defaultDirectory = connection?.initializeResult.get()?.defaultDirectory;
+			return defaultDirectory ? connection?.resourceUris.fromAgentHost(URI.parse(defaultDirectory)) : undefined;
+		}
+		const entry = this._sessionListStore.getSessions(CLOUD_SANDBOX_AGENT_PROVIDER).find(entry => entry.rawId === rawId);
+		const directory = entry?.summary.workingDirectories?.[0];
 		return directory && connection
 			? connection.resourceUris.fromAgentHost(fromAgentHostUri(URI.parse(directory)))
 			: undefined;
