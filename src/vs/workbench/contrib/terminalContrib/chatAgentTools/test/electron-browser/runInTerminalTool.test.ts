@@ -917,6 +917,29 @@ suite('RunInTerminalTool', () => {
 		});
 	});
 
+	test('existing terminal with an untrusted cwd does not use it', async () => {
+		const sessionResource = LocalChatSessionUri.forSession('existing-terminal-untrusted-cwd');
+		createChatModelWithRequest(sessionResource);
+		runInTerminalTool.sessionTerminalAssociations.set(sessionResource, {
+			instance: {
+				...createdTerminalInstance,
+				capabilities: { get: (capability: TerminalCapability) => capability === TerminalCapability.CwdDetection ? { isTrusted: false } : undefined },
+				getCwdResource: async () => URI.file('/workspace'),
+			} as unknown as ITerminalInstance,
+			shellIntegrationQuality: ShellIntegrationQuality.Rich,
+			isBackground: false,
+		});
+
+		const prepared = await runInTerminalTool.prepareToolInvocation({
+			parameters: { command: 'echo hello > out.txt', mode: 'sync', timeout: 30000 } as IRunInTerminalInputParams,
+			chatSessionResource: sessionResource,
+		} as IToolInvocationPreparationContext, CancellationToken.None);
+
+		ok(prepared);
+		assertConfirmationRequired(prepared);
+		strictEqual((prepared.toolSpecificData as IChatTerminalToolInvocationData).cwd, undefined);
+	});
+
 	suite('automatic sandbox retry', () => {
 		const baseRetryOptions = {
 			allowUnsandboxedCommands: true,
