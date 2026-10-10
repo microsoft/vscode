@@ -22693,6 +22693,44 @@ Use the attached image as context.
 			}
 		}
 
+		test('preserves re-enabling a live-disabled server across the SDK restart status', async () => {
+			const serverName = 'runtime-transport';
+			const id = 'mcp-top-level:copilotcli:test-session-1:runtime-transport';
+			let desired = false;
+			const enableGate = new DeferredPromise<void>();
+			const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables, {
+				sessionCustomizations: () => [{
+					type: CustomizationType.McpServer, id, uri: id, name: serverName,
+					state: { kind: McpServerStatus.Stopped },
+				}],
+				resolveCustomizationEnablement: () => ({
+					kind: 'resolved',
+					enablement: [{ kind: CustomizationEnablementKind.Session, enabled: desired }],
+					enabled: desired,
+					workingDirectory: { kind: 'workspaceless' },
+				}),
+				configureMockSession: mock => {
+					mock.mcpConfiguredListResult = { servers: [{ name: serverName, enabled: true, live: { status: 'disabled' } }] };
+					mock.mcpEnableGate = enableGate.p;
+				},
+			});
+			await waitForSignal(signal => isAction(signal, ActionType.SessionCustomizationUpdated));
+			await session.send('keep the server disabled');
+			desired = true;
+			const sending = session.send('re-enable the server');
+			await timeout(0);
+			mockSession.fire('session.mcp_server_status_changed', { serverName, status: 'disabled' });
+			enableGate.complete();
+			await sending;
+			mockSession.fire('session.mcp_server_status_changed', { serverName, status: 'pending' });
+
+			assert.deepStrictEqual({
+				enable: mockSession.mcpEnableCalls,
+				disable: mockSession.mcpDisableCalls,
+				toggles: getActions(signals).filter(action => action.type === ActionType.SessionCustomizationToggled),
+				materializingListCalls: mockSession.mcpMaterializingListCalls,
+			}, { enable: [{ serverName }], disable: [], toggles: [], materializingListCalls: 0 });
+		});
 		for (const configuredEnabled of [true, false]) {
 			test(`reconciles warm runtime toggles without changing configured enablement ${configuredEnabled}`, async () => {
 				const serverName = 'component-explorer';

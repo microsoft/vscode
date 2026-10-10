@@ -1,0 +1,30 @@
+version: 1
+exchanges:
+  - method: POST
+    path: /chat/completions
+    response:
+      status: 200
+      headers:
+        content-type: text/event-stream
+      body: |+
+        data: {"choices":[{"index":0,"delta":{"content":"READY","role":"assistant"}}],"created":1791300326,"id":"msg_011CfmDVmDHMXNs7F5vYxwDh","model":"claude-sonnet-5"}
+
+        data: {"choices":[{"finish_reason":"stop","index":0,"delta":{"content":null}}],"created":1791300326,"id":"msg_011CfmDVmDHMXNs7F5vYxwDh","usage":{"completion_tokens":4,"prompt_tokens":42119,"prompt_tokens_details":{"cached_tokens":10863},"total_tokens":42123},"model":"claude-sonnet-5","copilot_usage":{"token_details":[{"batch_size":1000000,"cost_per_batch":200000000000,"model":"claude-sonnet-5","token_count":2,"token_type":"input"},{"batch_size":1000000,"cost_per_batch":20000000000,"model":"claude-sonnet-5","token_count":10863,"token_type":"cache_read"},{"batch_size":1000000,"cost_per_batch":250000000000,"model":"claude-sonnet-5","token_count":31254,"token_type":"cache_write"},{"batch_size":1000000,"cost_per_batch":1000000000000,"model":"claude-sonnet-5","token_count":4,"token_type":"output"}],"total_nano_aiu":8035160000}}
+
+        data: [DONE]
+
+  - method: POST
+    path: /chat/completions
+    response:
+      status: 200
+      headers:
+        content-type: text/event-stream
+      body: |+
+        data: {"choices":[{"index":0,"delta":{"content":"LEGACY","role":"assistant"}}],"copilot_info_messages":[{"code":"model_pending_deprecation","message":"Claude Opus 4.6 has a planned deprecation date of 2026-09-01."}],"created":1791300329,"id":"msg_vrtx_011CfmDVwh595pKrQhwSvAE9","model":"claude-opus-4.6"}
+
+        data: {"choices":[{"index":0,"delta":{"content":"_MODEL_MEMORY","role":"assistant"}}],"created":1791300330,"id":"msg_vrtx_011CfmDVwh595pKrQhwSvAE9","model":"claude-opus-4.6"}
+
+        data: {"choices":[{"finish_reason":"stop","index":0,"delta":{"content":null}}],"created":1791300330,"id":"msg_vrtx_011CfmDVwh595pKrQhwSvAE9","usage":{"completion_tokens":10,"prompt_tokens":30261,"prompt_tokens_details":{"cached_tokens":0},"total_tokens":30271},"model":"claude-opus-4.6","copilot_usage":{"token_details":[{"batch_size":1000000,"cost_per_batch":500000000000,"model":"claude-opus-4.6","token_count":3,"token_type":"input"},{"batch_size":1000000,"cost_per_batch":50000000000,"model":"claude-opus-4.6","token_count":0,"token_type":"cache_read"},{"batch_size":1000000,"cost_per_batch":625000000000,"model":"claude-opus-4.6","token_count":30258,"token_type":"cache_write"},{"batch_size":1000000,"cost_per_batch":2500000000000,"model":"claude-opus-4.6","token_count":10,"token_type":"output"}],"total_nano_aiu":18937750000}}
+
+        data: [DONE]
+

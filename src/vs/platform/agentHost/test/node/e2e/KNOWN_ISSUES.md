@@ -16,6 +16,34 @@ When a valid E2E scenario exposes a gap:
 
 Capability skips are tracked separately from suspected bugs. A provider that does not advertise a capability is expected to skip positive-path tests for that capability.
 
+### Copilot session SQL cannot create a trigger with a multi-statement body
+
+A user can ask the agent to keep related records consistent using a SQLite trigger in its per-session database. Creating a trigger with more than one statement in its body fails with an incomplete-input error, so subsequent writes cannot produce the expected audit records.
+
+- Test: `runtime coverage data: SQL triggers execute all statements in their bodies`.
+- Scope: Copilot CLI 1.0.84-5; reproduced on Windows.
+- Expected: the SQL tool creates the trigger and an insertion produces both audit rows.
+- Observed: the tool reports `SQL Error after statement 3 (CREATE): Error: incomplete input`; the two preceding table creations succeed.
+- Gate: `context.runKnownIssueTests`; the reproduction requires both recording and the known-issue opt-in.
+- Reproduce:
+
+  ```powershell
+  $env:AGENT_HOST_REPLAY_RECORD = '1'
+  $env:AGENT_HOST_RUN_KNOWN_ISSUES = '1'
+  .\scripts\test-integration.bat --run src\vs\platform\agentHost\test\node\e2e\providers\copilotAgentHostE2E.integrationTest.ts --grep "runtime coverage data: SQL triggers execute all statements in their bodies"
+  ```
+
+### Copilot directory viewing does not follow its advertised filtering and depth
+
+When a user asks the agent to inspect a directory, the native `view` tool advertises a non-hidden listing that includes two directory levels. The result instead includes dot-prefixed entries and lists only immediate children, so the agent does not receive the expected nested file inventory.
+
+- Test: `runtime coverage data: view directory listings exclude hidden entries and deeper descendants`.
+- Scope: Copilot CLI 1.0.84-5; reproduced on Windows with an explicit absolute workspace path.
+- Expected: the listing includes `visible/child.txt`, excludes `.hidden`, and does not include the third-level `visible/nested/deep.txt`.
+- Observed: `.hidden` is listed and `child.txt` is absent.
+- Gate: `context.runKnownIssueTests`.
+- Reproduce with `AGENT_HOST_REPLAY_RECORD=1` and `AGENT_HOST_RUN_KNOWN_ISSUES=1`, selecting the exact test title in the Copilot provider entrypoint.
+
 ### Copilot managed identity denial retains an inherited account resource attribute
 
 An administrator can disable identity capture while the runtime inherits an explicit `user.name` resource attribute. The native runtime removes `process.user.name` and `host.name`, but the inherited `user.name` still reaches the managed collector. This scenario concerns native Copilot export, not the separate Agent Host metadata pipeline.
@@ -182,6 +210,9 @@ A user can start a shell command in the background, inspect or list the running 
   - `managed shell can be read and stopped after asynchronous execution`
   - `managed shell sessions can be listed after asynchronous execution`
   - `custom terminal tool manages an asynchronous shell lifecycle`
+  - `runtime coverage shell: reads a signal-controlled background build and stops its shell`
+  - `runtime coverage shell: cancels a waiting watcher and runs a healthy follow-up command`
+  - `runtime coverage shell: manages two concurrent jobs without mixing their output`
 - Scope: Copilot deterministic replay.
 - Expected: the same fixture replays whether the short-lived background command completes just before or just after the model's next request.
 - Observed: focused replay can include the completion system notification while a broad shared-process run omits it, causing strict model-request mismatches.
@@ -193,6 +224,54 @@ A user can start a shell command in the background, inspect or list the running 
     src/vs/platform/agentHost/test/node/e2e/providers/copilotAgentHostE2E.integrationTest.ts \
     --grep "managed shell|custom terminal tool manages"
   ```
+
+### Cancelling a rate-limited turn is record-only
+
+A user can cancel a turn while the provider is waiting to retry a rate-limited model request, then run a new task. The cancellation workflow succeeds live and in an isolated replay, but a shared-process replay can finish the interrupted turn as an error before the cancellation reaches it.
+
+- Test: `runtime coverage resilience: cancelling a rate-limited turn allows a later native file read`.
+- Scope: Copilot deterministic replay.
+- Expected: the cancelled turn has no active or queued work and a subsequent native file read succeeds.
+- Observed: a full-prefix replay reports `Error` rather than `Cancelled` for the interrupted turn; isolated replay passes unchanged.
+- Gate: recording mode only. This is a scheduling-dependent test limitation, not an assertion that the provider's retry delay must end within a particular duration.
+- Reproduce with `AGENT_HOST_REPLAY_RECORD=1`, selecting the exact title in the Copilot provider entrypoint.
+
+### Background automatic compaction is record-only
+
+A long-running configuration review can automatically summarize history while the agent continues ordinary work. Native background summarization can reach the model boundary in a different order relative to the next regular request, so strict ordinal replay can serve the wrong response even though genuine recording succeeds.
+
+- Tests:
+  - `runtime coverage automatic context: configured prompt limits automatically summarize a real Node configuration review before verification`
+  - `runtime coverage automatic context: automatic history replacement preserves a native SQL review ledger`
+  - `runtime coverage automatic context: reviewing attached service configurations compacts history without losing snapshot facts`
+  - `runtime coverage automatic context: cold resubscription restores automatically compacted history for the next native task`
+- Scope: Copilot deterministic replay.
+- Expected: configuration limits trigger native summaries and the subsequent file, SQL, attachment, or cold-resume outcome succeeds.
+- Observed: all four recordings pass, but replay can send regular traffic when the fixture expects a summary, causing request/history mismatches or loss of the expected read.
+- Gate: recording mode only; these profiles are not counted toward deterministic coverage gains.
+- Reproduce with `AGENT_HOST_REPLAY_RECORD=1` and the exact title or the `runtime coverage automatic context:` prefix.
+
+### Copilot MCP readiness can remain starting after local resource authentication
+
+A user can supply a credential requested by a protected MCP server. The provider reconnects with the credential and loads the server's tool catalog, but the Agent Host continues to publish the server as starting rather than ready, leaving the client without an accurate readiness indication.
+
+- Test: `runtime coverage mcp authorization: uses advertised protected resource metadata and required scopes`.
+- Scope: Copilot CLI 1.0.84-5; reproduced against a synthetic local protected-resource server on Windows.
+- Expected: successful resource authentication, reconnection, and tool discovery publish `ready`.
+- Observed: the local server receives authenticated initialization and `tools/list`, while AHP remains `starting`.
+- Gate: `context.runKnownIssueTests`; recording and `AGENT_HOST_RUN_KNOWN_ISSUES=1` are required for this focused reproduction.
+- Reproduce by selecting the exact test title in the Copilot provider entrypoint with both opt-ins.
+
+### Copilot forwards invalid protected-resource metadata types into AHP authentication
+
+A protected MCP server can advertise authorization metadata before the user supplies a credential. If the metadata uses invalid types for its resource or authorization-server list, the provider forwards those values into the client authentication request instead of rejecting them and falling back to the challenged server's URL.
+
+- Test: `runtime coverage mcp authorization: ignores malformed protected resource metadata without bypassing authentication`.
+- Scope: Copilot CLI 1.0.84-5; reproduced with local JSON metadata containing `resource: 42` and a string `authorization_servers`.
+- Expected: the authentication request uses a valid string resource and well-shaped authorization metadata.
+- Observed: AHP forwards the numeric resource and issuer string before any token is supplied.
+- Gate: `context.runKnownIssueTests`; recording and `AGENT_HOST_RUN_KNOWN_ISSUES=1` are required.
+- Reproduce by selecting the exact test title in the Copilot provider entrypoint with both opt-ins.
 
 ### Copilot deferred tool search cannot be replayed
 
@@ -874,6 +953,21 @@ AGENT_HOST_UPDATE_SNAPSHOTS=1 ./scripts/test-integration.sh --run \
   ```
 
 Closing this requires separately reviewed Windows baselines generated on runners with consistent PowerShell capabilities. Linux and macOS already detect provider-wide prompt drift.
+
+### Copilot managed shell-read replay on POSIX
+
+- Test: `managed settings: read rules deny shell reads of a protected file`.
+- Scope: Copilot on Linux and macOS.
+- Expected: a host-injected `Read(./protected.txt)` restriction blocks a native shell read before file contents reach the model, without changing the file or offering user approval.
+- Observed limitation: the genuine Windows fixture invokes `Get-Content -LiteralPath protected.txt`. Windows production and strict replay both pass. The harness substitutes platform shell tool names, but does not translate the captured PowerShell command into the source-supported POSIX `cat protected.txt` command. This case has not been recorded or validated on POSIX.
+- Gate: `context.isWindows` for this one scenario. The other 29 managed-settings scenarios remain enabled on every platform.
+- Reproduce the enabled Windows contract:
+
+  ```bat
+  scripts\test-integration.bat --run src\vs\platform\agentHost\test\node\e2e\providers\copilotAgentHostE2E.integrationTest.ts --grep "managed settings: read rules deny shell reads of a protected file"
+  ```
+
+Closing this gap requires a genuine POSIX recording selected separately from the Windows fixture. Do not hand-edit the capture or substitute a Node file read without verifying that the runtime derives the same managed Read permission evidence. This is a fixture-portability limitation, not an observed enterprise-enforcement defect.
 
 ### Windows shell and filesystem behavior
 

@@ -9,10 +9,11 @@
 
 import assert from 'assert';
 import { execSync } from 'child_process';
-import { chmodSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, statSync } from 'fs';
+import { chmodSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync } from 'fs';
 import { homedir, tmpdir, userInfo } from 'os';
 import { fileURLToPath } from 'url';
 import { timeout } from '../../../../../../base/common/async.js';
+import type { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { basename, join } from '../../../../../../base/common/path.js';
 import { removeAnsiEscapeCodes } from '../../../../../../base/common/strings.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -39,8 +40,9 @@ import {
 } from '../../serverIntegrationTestHelpers.js';
 import { defaultAgentHostTarget, type IAgentHostTarget } from './agentHostTarget.js';
 import { createProviderSession, dispatchTurn, dispatchTurnWithAttachments } from '../../providerIntegrationTestHelpers.js';
-import { AgentHostUpdateSnapshotsEnvVar, AhpSnapshotScenario, waitForChatUnreadAfterTurn, type IAhpSnapshotOptions } from './ahpSnapshot.js';
+import { AgentHostUpdateSnapshotsEnvVar, AhpSnapshotScenario, normalizeWorkspacePaths, waitForChatUnreadAfterTurn, type IAhpSnapshotOptions } from './ahpSnapshot.js';
 import { normalizeShellToolNameForCapture } from './shellToolNames.js';
+import type { IStubResponse } from './capiStubs.js';
 import { preserveAgentHostE2ELogs } from './agentHostE2EDiagnostics.js';
 import { createTestDirectory } from './testDirectories.js';
 
@@ -710,9 +712,7 @@ function normalizeToolResultText(value: string, workspace?: string): string {
 	const withoutAnsi = removeAnsiEscapeCodes(value).replaceAll('\r\n', '\n').replaceAll('\r', '\n');
 	let normalizedWorkspace = withoutAnsi;
 	if (workspace) {
-		normalizedWorkspace = normalizedWorkspace
-			.replaceAll(realpathSync(workspace), '${workdir}')
-			.replaceAll(workspace, '${workdir}');
+		normalizedWorkspace = normalizeWorkspacePaths(normalizedWorkspace, workspace);
 	}
 	return normalizedWorkspace.replaceAll('\\', '/').trim();
 }
@@ -906,6 +906,7 @@ export class AgentHostE2EServerLease {
 	private _testsOnCurrentServer = 0;
 	private _cleanupClientSeq = 1_000_000;
 	private _currentCapiReplay: ReturnType<typeof capiReplayFor> | undefined;
+	private _testEnvironment: Readonly<Record<string, string>> = {};
 	private _startOptions: { readonly claudeSdkRoot?: string; readonly codexSdkRoot?: string; readonly codexHomeDir: string; readonly homeDir: string; readonly userDataDir: string; readonly env: Readonly<Record<string, string>> };
 	private readonly _target: IAgentHostTarget;
 
@@ -942,7 +943,7 @@ export class AgentHostE2EServerLease {
 	}
 
 	/** Acquire a server + connected client for a test, returning both. */
-	async acquire(testTitle: string, modelTraffic: AgentHostE2EModelTraffic = 'recorded'): Promise<{ server: IServerHandle; client: TestProtocolClient }> {
+	async acquire(testTitle: string, modelTraffic: AgentHostE2EModelTraffic = 'recorded', environment: Readonly<Record<string, string>> = {}): Promise<{ server: IServerHandle; client: TestProtocolClient }> {
 		if (this._needsFreshDataDirectory) {
 			this._startOptions = { ...this._startOptions, ...this._createDataDirectories() };
 			this._needsFreshDataDirectory = false;
@@ -951,11 +952,13 @@ export class AgentHostE2EServerLease {
 		this._currentCapiReplay = capiReplay;
 		// Bound both provider-model load and host-owned resource accumulation.
 		if (this._shared && this._server && (
-			this._testsOnCurrentServer >= MAX_TESTS_PER_SHARED_SERVER
+			!this._hasEnvironment(environment)
+			|| this._testsOnCurrentServer >= MAX_TESTS_PER_SHARED_SERVER
 			|| this._modelBackedTestsOnCurrentServer >= MAX_MODEL_BACKED_TESTS_PER_SHARED_SERVER
 		)) {
 			await this._recycleSharedServer();
 		}
+		this._testEnvironment = { ...environment };
 		if (this._shared && this._server) {
 			const proxy = this._server.capiReplay;
 			if (!proxy) {
@@ -968,7 +971,11 @@ export class AgentHostE2EServerLease {
 		} else {
 			// Only the Copilot CLI provider writes the `@github/copilot` runtime logs we
 			// capture, so only it is run verbosely; Claude/Codex use their own runtimes.
-			this._server = await this._target.launch({ ...this._startOptions, capiReplay, logLevel: this._isCopilotProvider ? 'trace' : undefined });
+			this._server = await this._target.launch({
+				...this._startOptions,
+				env: { ...this._startOptions.env, ...this._testEnvironment },
+				capiReplay, logLevel: this._isCopilotProvider ? 'trace' : undefined,
+			});
 			this._modelBackedTestsOnCurrentServer = 0;
 			this._testsOnCurrentServer = 0;
 		}
@@ -1022,6 +1029,7 @@ export class AgentHostE2EServerLease {
 		try {
 			this._server = await this._target.launch({
 				...this._startOptions,
+				env: { ...this._startOptions.env, ...this._testEnvironment },
 				capiReplay,
 				existingCapiReplay: proxy,
 				logLevel: this._isCopilotProvider ? 'trace' : undefined,
@@ -1047,6 +1055,34 @@ export class AgentHostE2EServerLease {
 			throw new Error('[agent-host-e2e] no replay-backed server');
 		}
 		proxy.setRecordingModelResponse(response, path);
+	}
+
+	registerFixtureUrl(name: string, url: string): IDisposable {
+		const proxy = this._server?.capiReplay;
+		const client = this._client;
+		if (!proxy || !client) {
+			throw new Error('[agent-host-e2e] no replay-backed server');
+		}
+		const binding = proxy.registerFixtureUrl(name, url);
+		client.setAhpSnapshotFixtureUrl(name, url);
+		return binding;
+	}
+
+	setAncillaryResponse(method: string, path: string, response: IStubResponse, syntheticSessionToken?: string): IDisposable {
+		const proxy = this._server?.capiReplay;
+		if (!proxy) {
+			throw new Error('[agent-host-e2e] no replay-backed server');
+		}
+		return proxy.setAncillaryResponse(method, path, response, syntheticSessionToken);
+	}
+
+	get observedAncillaryRequests() {
+		return this._server?.capiReplay?.observedAncillaryRequests ?? [];
+	}
+
+	private _hasEnvironment(environment: Readonly<Record<string, string>>): boolean {
+		return Object.keys(environment).length === Object.keys(this._testEnvironment).length
+			&& Object.entries(environment).every(([key, value]) => this._testEnvironment[key] === value);
 	}
 
 	/**

@@ -1,0 +1,38 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call view on "protected.txt" in this session's current working directory. Set path to its full absolute path. Call only the named tool exactly once. Do not retry, use a fallback, or call any other tool. If access is denied, report it without trying again. Work only with the specified synthetic fixture. Then reply exactly MANAGED_CHECK_COMPLETE.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: view
+          input:
+            path: ${workdir}/protected.txt
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call view on "protected.txt" in this session's current working directory. Set path to its full absolute path. Call only the named tool exactly once. Do not retry, use a fallback, or call any other tool. If access is denied, report it without trying again. Work only with the specified synthetic fixture. Then reply exactly MANAGED_CHECK_COMPLETE.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: view
+              input:
+                path: ${workdir}/protected.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: SYNTHETIC_MANAGED_READ_CANARY
+    response:
+      content: MANAGED_CHECK_COMPLETE
+      stopReason: end_turn

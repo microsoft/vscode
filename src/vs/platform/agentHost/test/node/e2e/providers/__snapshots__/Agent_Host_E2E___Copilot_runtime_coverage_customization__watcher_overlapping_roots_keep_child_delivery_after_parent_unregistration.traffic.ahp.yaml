@@ -1,0 +1,143 @@
+version: 1
+rounds:
+  - clientToServer:
+      - channel: ${chat_0}
+        action:
+          type: chat/turnStarted
+          turnId: ${turn_0}
+          message:
+            text: 'The workspace is ${workdir}. Call lsp exactly once with these parameters: {"operation":"hover","line":1,"character":4}. Set the file parameter to this exact absolute path: ${workdir}/fixture.rtlang. Do not call other tools. After the tool finishes, reply exactly RUNTIME_LSP_DONE.'
+            origin:
+              kind: user
+      - channel: ${chat_0}
+        action:
+          type: chat/turnStarted
+          turnId: ${turn_1}
+          message:
+            text: 'The workspace is ${workdir}. Call lsp exactly once with these parameters: {"operation":"hover","line":1,"character":4}. Set the file parameter to this exact absolute path: ${workdir}/fixture.rtlang. Do not call other tools. After the tool finishes, reply exactly RUNTIME_LSP_DONE.'
+            origin:
+              kind: user
+      - channel: ${chat_0}
+        action:
+          type: chat/turnStarted
+          turnId: ${turn_2}
+          message:
+            text: 'The workspace is ${workdir}. Call lsp exactly once with these parameters: {"operation":"hover","line":1,"character":1}. Set the file parameter to this exact absolute path: ${workdir}/watched/nested/child.rtlang. Do not call other tools. After the tool finishes, reply exactly RUNTIME_LSP_DONE.'
+            origin:
+              kind: user
+    serverToClient:
+      - channel: ${chat_0}
+        action:
+          type: chat/turnStarted
+          turnId: ${turn_0}
+          message:
+            text: 'The workspace is ${workdir}. Call lsp exactly once with these parameters: {"operation":"hover","line":1,"character":4}. Set the file parameter to this exact absolute path: ${workdir}/fixture.rtlang. Do not call other tools. After the tool finishes, reply exactly RUNTIME_LSP_DONE.'
+            origin:
+              kind: user
+      - channel: ${session_0}
+        action:
+          type: session/titleChanged
+      - method: root/sessionAdded
+      - channel: ${session_0}
+        action:
+          type: session/ready
+      - channel: ${chat_0}
+        action:
+          type: chat/changesetsChanged
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallStart
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_0}
+          toolName: lsp
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallComplete
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_0}
+          result:
+            success: true
+      - channel: ${chat_0}
+        action:
+          type: chat/responsePart
+          turnId: ${turn_0}
+          part:
+            kind: markdown
+            content: RUNTIME_LSP_DONE
+      - channel: ${chat_0}
+        action:
+          type: chat/turnComplete
+          turnId: ${turn_0}
+      - channel: ${chat_0}
+        action:
+          type: chat/isReadChanged
+      - channel: ${chat_0}
+        action:
+          type: chat/turnStarted
+          turnId: ${turn_1}
+          message:
+            text: 'The workspace is ${workdir}. Call lsp exactly once with these parameters: {"operation":"hover","line":1,"character":4}. Set the file parameter to this exact absolute path: ${workdir}/fixture.rtlang. Do not call other tools. After the tool finishes, reply exactly RUNTIME_LSP_DONE.'
+            origin:
+              kind: user
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallStart
+          turnId: ${turn_1}
+          toolCallId: ${toolCall_1}
+          toolName: lsp
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallComplete
+          turnId: ${turn_1}
+          toolCallId: ${toolCall_1}
+          result:
+            success: true
+      - channel: ${chat_0}
+        action:
+          type: chat/responsePart
+          turnId: ${turn_1}
+          part:
+            kind: markdown
+            content: RUNTIME_LSP_DONE
+      - channel: ${chat_0}
+        action:
+          type: chat/turnComplete
+          turnId: ${turn_1}
+      - channel: ${chat_0}
+        action:
+          type: chat/isReadChanged
+      - channel: ${chat_0}
+        action:
+          type: chat/turnStarted
+          turnId: ${turn_2}
+          message:
+            text: 'The workspace is ${workdir}. Call lsp exactly once with these parameters: {"operation":"hover","line":1,"character":1}. Set the file parameter to this exact absolute path: ${workdir}/watched/nested/child.rtlang. Do not call other tools. After the tool finishes, reply exactly RUNTIME_LSP_DONE.'
+            origin:
+              kind: user
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallStart
+          turnId: ${turn_2}
+          toolCallId: ${toolCall_2}
+          toolName: lsp
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallComplete
+          turnId: ${turn_2}
+          toolCallId: ${toolCall_2}
+          result:
+            success: true
+      - channel: ${chat_0}
+        action:
+          type: chat/responsePart
+          turnId: ${turn_2}
+          part:
+            kind: markdown
+            content: RUNTIME_LSP_DONE
+      - channel: ${chat_0}
+        action:
+          type: chat/turnComplete
+          turnId: ${turn_2}
+      - channel: ${chat_0}
+        action:
+          type: chat/isReadChanged

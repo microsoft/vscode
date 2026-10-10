@@ -104,6 +104,19 @@ steps:
     - template: ../../common/run-test-with-checkpoint.yml@self
       parameters:
         testId: integration-electron
+        beforeTestSteps:
+          - powershell: |
+              . build/azure-pipelines/win32/exec.ps1
+              $ErrorActionPreference = "Stop"
+              $AppRoot = "$(agent.builddirectory)\test\VSCode-win32-$(VSCODE_ARCH)"
+              $ProductJsonPath = (Get-ChildItem -Path "$AppRoot" -Name "product.json" -Recurse | Select-Object -First 1)
+              $AppProductJson = Get-Content -Raw -Path "$AppRoot\$ProductJsonPath" | ConvertFrom-Json
+              $env:INTEGRATION_TEST_ELECTRON_PATH = "$AppRoot\$($AppProductJson.nameShort).exe"
+              exec { node .\test\integration\agentHost\runner.ts --build --tfs "Agent Host E2E" }
+            env:
+              VSCODE_SKIP_PRELAUNCH: '1'
+            displayName: 🧪 Run Agent Host E2E tests (Electron)
+            timeoutInMinutes: 30
         testStep:
           powershell: |
             # Figure out the full absolute path of the product we just built
@@ -119,6 +132,7 @@ steps:
             $env:VSCODE_REMOTE_SERVER_PATH = "$(agent.builddirectory)\test\vscode-server-win32-$(VSCODE_ARCH)"
             exec { .\scripts\test-integration.bat --build --tfs "Integration Tests" }
           env:
+            VSCODE_SKIP_AGENT_HOST_E2E: '1'
             VSCODE_SKIP_PRELAUNCH: '1'
           displayName: 🧪 Run integration tests (Electron)
           timeoutInMinutes: 30

@@ -1,0 +1,97 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: If a tool reports an error, do not retry it or call another tool. Reply exactly TOOL_FAULT_HANDLED.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: resilience_unavailable_tool
+          input: {}
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: If a tool reports an error, do not retry it or call another tool. Reply exactly TOOL_FAULT_HANDLED.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: resilience_unavailable_tool
+              input: {}
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: Tool 'resilience_unavailable_tool' does not exist. Available tools that can be called are powershell, read_powershell, stop_powershell, list_powershell, view, create, edit, web_fetch, skill, ask_user, sql, read_agent, list_agents, write_agent, grep, glob, task, addComment, listComments, replyToComment, deleteComments, resolveComments, viewUnreviewedComments, list_sessions, get_current_session, create_session, send_message, get_session_context, delete_session.
+    response:
+      content: TOOL_FAULT_HANDLED
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: If a tool reports an error, do not retry it or call another tool. Reply exactly TOOL_FAULT_HANDLED.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: resilience_unavailable_tool
+              input: {}
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: Tool 'resilience_unavailable_tool' does not exist. Available tools that can be called are powershell, read_powershell, stop_powershell, list_powershell, view, create, edit, web_fetch, skill, ask_user, sql, read_agent, list_agents, write_agent, grep, glob, task, addComment, listComments, replyToComment, deleteComments, resolveComments, viewUnreviewedComments, list_sessions, get_current_session, create_session, send_message, get_session_context, delete_session.
+        - role: assistant
+          content: TOOL_FAULT_HANDLED
+        - role: user
+          content: Call view exactly once on "${workdir}/recovery.txt". Do not use other tools. Reply exactly RECOVERY_READ.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_1
+          name: view
+          input:
+            path: ${workdir}/recovery.txt
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: If a tool reports an error, do not retry it or call another tool. Reply exactly TOOL_FAULT_HANDLED.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: resilience_unavailable_tool
+              input: {}
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: Tool 'resilience_unavailable_tool' does not exist. Available tools that can be called are powershell, read_powershell, stop_powershell, list_powershell, view, create, edit, web_fetch, skill, ask_user, sql, read_agent, list_agents, write_agent, grep, glob, task, addComment, listComments, replyToComment, deleteComments, resolveComments, viewUnreviewedComments, list_sessions, get_current_session, create_session, send_message, get_session_context, delete_session.
+        - role: assistant
+          content: TOOL_FAULT_HANDLED
+        - role: user
+          content: Call view exactly once on "${workdir}/recovery.txt". Do not use other tools. Reply exactly RECOVERY_READ.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: view
+              input:
+                path: ${workdir}/recovery.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: LOCAL_TRANSPORT_RECOVERY
+    response:
+      content: RECOVERY_READ
+      stopReason: end_turn

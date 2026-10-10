@@ -1,0 +1,197 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly MCP_TRANSPORT_READY. Do not call tools or run commands.
+    response:
+      content: MCP_TRANSPORT_READY
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly MCP_TRANSPORT_READY. Do not call tools or run commands.
+        - role: assistant
+          content: MCP_TRANSPORT_READY
+        - role: user
+          content: Call coverage_probe exactly once with {"tag":"enabled-before"}. Do not retry it, call other tools, run commands, or change the arguments. Afterwards reply exactly MCP_TURN_DONE.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: runtime-transport-coverage_probe
+          input:
+            tag: enabled-before
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly MCP_TRANSPORT_READY. Do not call tools or run commands.
+        - role: assistant
+          content: MCP_TRANSPORT_READY
+        - role: user
+          content: Call coverage_probe exactly once with {"tag":"enabled-before"}. Do not retry it, call other tools, run commands, or change the arguments. Afterwards reply exactly MCP_TURN_DONE.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: runtime-transport-coverage_probe
+              input:
+                tag: enabled-before
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: RUNTIME_MCP_OK:{"tag":"enabled-before"}
+    response:
+      content: MCP_TURN_DONE
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly MCP_TRANSPORT_READY. Do not call tools or run commands.
+        - role: assistant
+          content: MCP_TRANSPORT_READY
+        - role: user
+          content: Call coverage_probe exactly once with {"tag":"enabled-before"}. Do not retry it, call other tools, run commands, or change the arguments. Afterwards reply exactly MCP_TURN_DONE.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: runtime-transport-coverage_probe
+              input:
+                tag: enabled-before
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: RUNTIME_MCP_OK:{"tag":"enabled-before"}
+        - role: assistant
+          content: MCP_TURN_DONE
+        - role: user
+          content: |-
+            <tools_changed_notice>
+            Tools no longer available: runtime-transport-coverage_probe
+
+            Important: Do not attempt to call tools that are no longer available unless you've been notified that they're available again.
+            </tools_changed_notice>
+
+            Reply exactly MCP_DISABLED_IDLE. Do not call tools or run commands.
+    response:
+      content: MCP_DISABLED_IDLE
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly MCP_TRANSPORT_READY. Do not call tools or run commands.
+        - role: assistant
+          content: MCP_TRANSPORT_READY
+        - role: user
+          content: Call coverage_probe exactly once with {"tag":"enabled-before"}. Do not retry it, call other tools, run commands, or change the arguments. Afterwards reply exactly MCP_TURN_DONE.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: runtime-transport-coverage_probe
+              input:
+                tag: enabled-before
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: RUNTIME_MCP_OK:{"tag":"enabled-before"}
+        - role: assistant
+          content: MCP_TURN_DONE
+        - role: user
+          content: |-
+            <tools_changed_notice>
+            Tools no longer available: runtime-transport-coverage_probe
+
+            Important: Do not attempt to call tools that are no longer available unless you've been notified that they're available again.
+            </tools_changed_notice>
+
+            Reply exactly MCP_DISABLED_IDLE. Do not call tools or run commands.
+        - role: assistant
+          content: MCP_DISABLED_IDLE
+        - role: user
+          content: |-
+            <tools_changed_notice>
+            New tools available: runtime-transport-coverage_probe
+            </tools_changed_notice>
+
+            Call coverage_probe exactly once with {"tag":"enabled-after"}. Do not retry it, call other tools, run commands, or change the arguments. Afterwards reply exactly MCP_TURN_DONE.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_1
+          name: runtime-transport-coverage_probe
+          input:
+            tag: enabled-after
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly MCP_TRANSPORT_READY. Do not call tools or run commands.
+        - role: assistant
+          content: MCP_TRANSPORT_READY
+        - role: user
+          content: Call coverage_probe exactly once with {"tag":"enabled-before"}. Do not retry it, call other tools, run commands, or change the arguments. Afterwards reply exactly MCP_TURN_DONE.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: runtime-transport-coverage_probe
+              input:
+                tag: enabled-before
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: RUNTIME_MCP_OK:{"tag":"enabled-before"}
+        - role: assistant
+          content: MCP_TURN_DONE
+        - role: user
+          content: |-
+            <tools_changed_notice>
+            Tools no longer available: runtime-transport-coverage_probe
+
+            Important: Do not attempt to call tools that are no longer available unless you've been notified that they're available again.
+            </tools_changed_notice>
+
+            Reply exactly MCP_DISABLED_IDLE. Do not call tools or run commands.
+        - role: assistant
+          content: MCP_DISABLED_IDLE
+        - role: user
+          content: |-
+            <tools_changed_notice>
+            New tools available: runtime-transport-coverage_probe
+            </tools_changed_notice>
+
+            Call coverage_probe exactly once with {"tag":"enabled-after"}. Do not retry it, call other tools, run commands, or change the arguments. Afterwards reply exactly MCP_TURN_DONE.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: runtime-transport-coverage_probe
+              input:
+                tag: enabled-after
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: RUNTIME_MCP_OK:{"tag":"enabled-after"}
+    response:
+      content: MCP_TURN_DONE
+      stopReason: end_turn

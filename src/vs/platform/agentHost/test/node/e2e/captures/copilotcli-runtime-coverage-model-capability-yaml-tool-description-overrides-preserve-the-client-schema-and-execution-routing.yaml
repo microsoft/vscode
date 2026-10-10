@@ -1,0 +1,43 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call capability_client exactly once with tag "CAPABILITY_INPUT" and options {"count":2,"label":null}. Then reply CAPABILITY_COMPLETE.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: capability_client
+          input:
+            tag: CAPABILITY_INPUT
+            options:
+              count: 2
+              label: null
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call capability_client exactly once with tag "CAPABILITY_INPUT" and options {"count":2,"label":null}. Then reply CAPABILITY_COMPLETE.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: capability_client
+              input:
+                tag: CAPABILITY_INPUT
+                options:
+                  count: 2
+                  label: null
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: CAPABILITY_DESCRIPTION_RESULT
+    response:
+      content: CAPABILITY_COMPLETE
+      stopReason: end_turn

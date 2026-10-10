@@ -1,0 +1,42 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Do not use tools. Reply exactly ROUTED.
+    response:
+      content: ROUTED.
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Do not use tools. Reply exactly ROUTED.
+        - role: assistant
+          content: ROUTED.
+        - role: user
+          content: Do not use tools. Reply exactly ROUTED.
+    response:
+      content: ROUTED.
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Do not use tools. Reply exactly ROUTED.
+        - role: assistant
+          content: ROUTED.
+        - role: user
+          content: Do not use tools. Reply exactly ROUTED.
+        - role: assistant
+          content: ROUTED.
+        - role: user
+          content: Do not use tools. Reply exactly ROUTED.
+    response:
+      content: ROUTED.
+      stopReason: end_turn

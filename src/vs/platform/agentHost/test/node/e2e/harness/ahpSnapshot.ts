@@ -5,6 +5,7 @@
 
 import { createRequire } from 'module';
 import { readFileSync, realpathSync, writeFileSync } from 'fs';
+import { getErrorCode } from '../../../../../../base/common/errors.js';
 import { FileAccess } from '../../../../../../base/common/network.js';
 import { dirname, win32 } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -77,6 +78,8 @@ interface IAhpSnapshotClient {
 export interface IAhpSnapshotOptions {
 	readonly profile?: 'protocol' | 'behavior';
 	readonly ignoredActionTypes?: readonly ActionType[];
+	/** Helper RPC methods omitted together with their responses from a code-driven snapshot. */
+	readonly ignoredMethods?: readonly string[];
 	/** Server action types whose cross-channel interleaving is canonicalized while preserving per-channel order. */
 	readonly orderIndependentActionTypes?: readonly ActionType[];
 	/** Provider tool names whose completion success is omitted before snapshot name normalization. */
@@ -94,9 +97,14 @@ export class AhpSnapshotRecorder {
 	private readonly _messages: ICapturedAhpMessage[] = [];
 	private readonly _roundStarts: number[] = [];
 	private _normalization: IAhpSnapshotNormalization | undefined;
+	private readonly _fixtureUrls = new Map<string, string>();
 
 	setNormalization(normalization: IAhpSnapshotNormalization): void {
 		this._normalization = normalization;
+	}
+
+	setFixtureUrl(name: string, url: string): void {
+		this._fixtureUrls.set(url, `\${url_${name}}`);
 	}
 
 	record(direction: AhpSnapshotDirection, message: object): void {
@@ -137,6 +145,9 @@ export class AhpSnapshotRecorder {
 				if (message.id !== undefined) {
 					(direction === 'c2s' ? clientRequests : serverRequests).set(message.id, message.method);
 				}
+				if (options.ignoredMethods?.includes(message.method)) {
+					continue;
+				}
 				// notifications/tools/list_changed is legitimate behavior (Copilot >= 1.0.72
 				// emits session.tools_updated), but it is only forwarded for MCP servers
 				// in the Ready state. The harness runs against the real homedir, so the
@@ -176,9 +187,13 @@ export class AhpSnapshotRecorder {
 				}
 			} else if (isResponseMessage(message)) {
 				const requests = direction === 'c2s' ? serverRequests : clientRequests;
+				const method = requests.get(message.id);
+				if (method && options.ignoredMethods?.includes(method)) {
+					continue;
+				}
 				projected = {
-					responseTo: requests.get(message.id) ?? `request-${message.id}`,
-					...(message.error ? { error: { code: message.error.code, message: message.error.message } } : { result: 'success' }),
+					responseTo: method ?? `request-${message.id}`,
+					...(message.error ? { error: { code: message.error.code, message: normalizeRpcErrorMessage(message.error.message) } } : { result: 'success' }),
 				};
 			} else {
 				projected = { message: 'unparsed' };
@@ -192,11 +207,19 @@ export class AhpSnapshotRecorder {
 			normalizeSnapshotObjects(round.clientToServer, this._normalization);
 			normalizeSnapshotObjects(round.serverToClient, this._normalization);
 		}
-		return serializeFixture({ version: 1, rounds });
+		let serialized = serializeFixture({ version: 1, rounds });
+		for (const [url, placeholder] of [...this._fixtureUrls].sort(([left], [right]) => right.length - left.length)) {
+			serialized = serialized.replaceAll(url, placeholder);
+		}
+		return serialized;
 	}
 }
 
 /** Records code-driven AHP traffic during snapshot updates and asserts it during replay. */
+function normalizeRpcErrorMessage(message: string): string {
+	return message.replace(/\r\n/g, '\n').split('\n').filter(line => !/^[ \t]+at .+(?::\d+:\d+\)?|<anonymous>\)?)$/.test(line)).join('\n').trimEnd();
+}
+
 export async function assertRecordedAhpSnapshot(test: Mocha.Runnable, client: IAhpSnapshotClient, options?: IAhpSnapshotOptions): Promise<void> {
 	const actual = client.serializeAhpSnapshot(options);
 	if (UPDATE_AHP_SNAPSHOTS || UPDATE_ALL_SNAPSHOTS) {
@@ -652,28 +675,39 @@ function normalizeSnapshotValue(value: unknown, normalization: IAhpSnapshotNorma
 	return value;
 }
 
-function normalizeSnapshotText(value: string, normalization: IAhpSnapshotNormalization): string {
-	const workDirs = new Set([normalization.workingDirectory]);
+function workspaceDirectories(workingDirectory: string): readonly string[] {
+	const workDirs = new Set([workingDirectory]);
 	try {
-		workDirs.add(realpathSync.native(normalization.workingDirectory));
-	} catch {
+		workDirs.add(realpathSync.native(workingDirectory));
+	} catch (error) {
 		// The workspace can be deleted during teardown after the traffic was captured.
+		if (getErrorCode(error) !== 'ENOENT') {
+			throw error;
+		}
 	}
+	return [...workDirs].sort((a, b) => b.length - a.length);
+}
+
+/** Normalizes workspace spelling while retaining relative paths in snapshots and tool-result assertions. */
+export function normalizeWorkspacePaths(value: string, workingDirectory: string): string {
 	let normalized = value;
-	// Line endings first, so every line-anchored pattern below sees LF-only
-	// text. Windows produces CRLF for the same behavior a POSIX host reports
-	// with LF, which would otherwise fail a snapshot recorded on macOS/Linux
-	// for a reason unrelated to the behavior under test. The escaped form is
-	// normalized too because tool inputs are often embedded JSON, where the
-	// carriage return survives as a literal `\r` escape rather than a control
-	// character.
-	normalized = normalized.replaceAll('\r\n', '\n').replaceAll('\\r\\n', '\\n');
-	for (const workDir of [...workDirs].sort((a, b) => b.length - a.length)) {
-		normalized = normalized
-			.replaceAll(JSON.stringify(workDir).slice(1, -1), '${workdir}')
-			.replaceAll(workDir, '${workdir}')
-			.replaceAll(URI.file(workDir).toString(), '${workdir}');
+	for (const workDir of workspaceDirectories(workingDirectory)) {
+		const paths = new Set([workDir, workDir.replaceAll('\\', '/'), URI.file(workDir).toString()]);
+		for (const path of [...paths]) {
+			paths.add(JSON.stringify(path).slice(1, -1));
+		}
+		for (const path of [...paths].sort((a, b) => b.length - a.length)) {
+			normalized = /^(?:[a-z]:[\\/]|\\\\)/i.test(workDir)
+				? normalized.replace(new RegExp(escapeRegExpCharacters(path), 'gi'), '${workdir}')
+				: normalized.replaceAll(path, '${workdir}');
+		}
 	}
+	return normalized.replace(/\$\{workdir\}(?:[\\/](?:(?![.,;:]\s)[^\r\n"'`])*)?/g, path => path.replace(/\\+/g, '/'));
+}
+
+function normalizeSnapshotText(value: string, normalization: IAhpSnapshotNormalization): string {
+	const workDirs = workspaceDirectories(normalization.workingDirectory);
+	let normalized = normalizeWorkspacePaths(value.replaceAll('\r\n', '\n').replaceAll('\\r\\n', '\\n'), normalization.workingDirectory);
 	normalized = normalized.replaceAll('/private${workdir}', '${workdir}');
 	const tempRoots = new Set([...workDirs].flatMap(workDir => [dirname(workDir), win32.dirname(workDir)]).filter(root => root !== '.'));
 	for (const tempRoot of tempRoots) {

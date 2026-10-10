@@ -19,6 +19,7 @@
     "test-agent-host-e2e": "node test/integration/agentHost/runner.ts",
     "markdown-editor-package-json-check": "npm --prefix extensions/markdown-language-features run check-markdown-editor-package-json",
     "test-agent-host-e2e-coverage": "node test/integration/agentHost/coverage.ts",
+    "test-copilot-runtime-e2e-coverage": "node scripts/copilot-runtime-e2e-coverage.ts",
     "check-cyclic-dependencies": "node build/lib/checkCyclicDependencies.ts out",
     "preinstall": "node build/npm/preinstall.ts",
     "postinstall": "node build/npm/postinstall.ts",

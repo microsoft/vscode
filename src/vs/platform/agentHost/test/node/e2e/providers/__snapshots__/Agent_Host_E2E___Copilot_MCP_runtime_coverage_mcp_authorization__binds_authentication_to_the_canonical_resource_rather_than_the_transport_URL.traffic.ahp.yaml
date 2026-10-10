@@ -1,0 +1,47 @@
+version: 1
+rounds:
+  - clientToServer:
+      - channel: ${chat_0}
+        action:
+          type: chat/turnStarted
+          turnId: ${turn_0}
+          message:
+            text: Call authorization_probe exactly once with {"tag":"canonical-authorized"}. Do not retry it or call other tools. Afterwards reply exactly MCP_AUTH_DONE.
+            origin:
+              kind: user
+    serverToClient:
+      - channel: ${chat_0}
+        action:
+          type: chat/turnStarted
+          turnId: ${turn_0}
+          message:
+            text: Call authorization_probe exactly once with {"tag":"canonical-authorized"}. Do not retry it or call other tools. Afterwards reply exactly MCP_AUTH_DONE.
+            origin:
+              kind: user
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallStart
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_0}
+          toolName: runtime-authorization-authorization_probe
+      - channel: ${chat_0}
+        action:
+          type: chat/toolCallComplete
+          turnId: ${turn_0}
+          toolCallId: ${toolCall_0}
+          result:
+            success: true
+      - channel: ${chat_0}
+        action:
+          type: chat/responsePart
+          turnId: ${turn_0}
+          part:
+            kind: markdown
+            content: MCP_AUTH_DONE
+      - channel: ${chat_0}
+        action:
+          type: chat/turnComplete
+          turnId: ${turn_0}
+      - channel: ${chat_0}
+        action:
+          type: chat/isReadChanged

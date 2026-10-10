@@ -1,0 +1,116 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call view on "protected.txt" in this session's current working directory. Set path to its full absolute path. Call only the named tool exactly once. Do not retry, use a fallback, or call any other tool. If access is denied, report it without trying again. Work only with the specified synthetic fixture. Then reply exactly MANAGED_CHECK_COMPLETE.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: view
+          input:
+            path: ${workdir}/protected.txt
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call view on "protected.txt" in this session's current working directory. Set path to its full absolute path. Call only the named tool exactly once. Do not retry, use a fallback, or call any other tool. If access is denied, report it without trying again. Work only with the specified synthetic fixture. Then reply exactly MANAGED_CHECK_COMPLETE.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: view
+              input:
+                path: ${workdir}/protected.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'Permission to run this tool was denied due to the following rules: `Read(./protected.txt)`'
+    response:
+      content: |-
+        Access denied: the `view` tool call on `protected.txt` was blocked by a rule denying `Read(./protected.txt)`.
+
+        MANAGED_CHECK_COMPLETE
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call view on "protected.txt" in this session's current working directory. Set path to its full absolute path. Call only the named tool exactly once. Do not retry, use a fallback, or call any other tool. If access is denied, report it without trying again. Work only with the specified synthetic fixture. Then reply exactly MANAGED_CHECK_COMPLETE.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: view
+              input:
+                path: ${workdir}/protected.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'Permission to run this tool was denied due to the following rules: `Read(./protected.txt)`'
+        - role: assistant
+          content: |-
+            Access denied: the `view` tool call on `protected.txt` was blocked by a rule denying `Read(./protected.txt)`.
+
+            MANAGED_CHECK_COMPLETE
+        - role: user
+          content: Call view on "public.txt" in this session's current working directory. Set path to its full absolute path. Call only the named tool exactly once. Do not retry, use a fallback, or call any other tool. If access is denied, report it without trying again. Work only with the specified synthetic fixture. Then reply exactly MANAGED_CHECK_COMPLETE.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_1
+          name: view
+          input:
+            path: ${workdir}/public.txt
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call view on "protected.txt" in this session's current working directory. Set path to its full absolute path. Call only the named tool exactly once. Do not retry, use a fallback, or call any other tool. If access is denied, report it without trying again. Work only with the specified synthetic fixture. Then reply exactly MANAGED_CHECK_COMPLETE.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: view
+              input:
+                path: ${workdir}/protected.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'Permission to run this tool was denied due to the following rules: `Read(./protected.txt)`'
+        - role: assistant
+          content: |-
+            Access denied: the `view` tool call on `protected.txt` was blocked by a rule denying `Read(./protected.txt)`.
+
+            MANAGED_CHECK_COMPLETE
+        - role: user
+          content: Call view on "public.txt" in this session's current working directory. Set path to its full absolute path. Call only the named tool exactly once. Do not retry, use a fallback, or call any other tool. If access is denied, report it without trying again. Work only with the specified synthetic fixture. Then reply exactly MANAGED_CHECK_COMPLETE.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: view
+              input:
+                path: ${workdir}/public.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: SYNTHETIC_PUBLIC_FILE
+    response:
+      content: |-
+        File content: `SYNTHETIC_PUBLIC_FILE`
+
+        MANAGED_CHECK_COMPLETE
+      stopReason: end_turn

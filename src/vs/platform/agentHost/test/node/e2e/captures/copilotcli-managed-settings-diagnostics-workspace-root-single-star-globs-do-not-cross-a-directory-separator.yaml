@@ -1,0 +1,104 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call view. The file is "top.txt" under directory components ["private"] relative to this session working directory. Set path to its full absolute path. Call only that named tool exactly once, without retries, fallbacks, wrappers, or any other tool. Use only the specified synthetic fixture. After success or refusal, reply exactly DIAGNOSTICS_COMPLETE.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: view
+          input:
+            path: ${workdir}/workspace/private/top.txt
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call view. The file is "top.txt" under directory components ["private"] relative to this session working directory. Set path to its full absolute path. Call only that named tool exactly once, without retries, fallbacks, wrappers, or any other tool. Use only the specified synthetic fixture. After success or refusal, reply exactly DIAGNOSTICS_COMPLETE.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: view
+              input:
+                path: ${workdir}/workspace/private/top.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'Permission to run this tool was denied due to the following rules: `Read(/private/*.txt)`'
+    response:
+      content: DIAGNOSTICS_COMPLETE
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call view. The file is "top.txt" under directory components ["private"] relative to this session working directory. Set path to its full absolute path. Call only that named tool exactly once, without retries, fallbacks, wrappers, or any other tool. Use only the specified synthetic fixture. After success or refusal, reply exactly DIAGNOSTICS_COMPLETE.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: view
+              input:
+                path: ${workdir}/workspace/private/top.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'Permission to run this tool was denied due to the following rules: `Read(/private/*.txt)`'
+        - role: assistant
+          content: DIAGNOSTICS_COMPLETE
+        - role: user
+          content: Call view. The file is "leaf.txt" under directory components ["private","nested"] relative to this session working directory. Set path to its full absolute path. Call only that named tool exactly once, without retries, fallbacks, wrappers, or any other tool. Use only the specified synthetic fixture. After success or refusal, reply exactly DIAGNOSTICS_COMPLETE.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_1
+          name: view
+          input:
+            path: ${workdir}/workspace/private/nested/leaf.txt
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Call view. The file is "top.txt" under directory components ["private"] relative to this session working directory. Set path to its full absolute path. Call only that named tool exactly once, without retries, fallbacks, wrappers, or any other tool. Use only the specified synthetic fixture. After success or refusal, reply exactly DIAGNOSTICS_COMPLETE.
+        - role: assistant
+          content:
+            - type: thinking
+            - type: tool_use
+              name: view
+              input:
+                path: ${workdir}/workspace/private/top.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: 'Permission to run this tool was denied due to the following rules: `Read(/private/*.txt)`'
+        - role: assistant
+          content: DIAGNOSTICS_COMPLETE
+        - role: user
+          content: Call view. The file is "leaf.txt" under directory components ["private","nested"] relative to this session working directory. Set path to its full absolute path. Call only that named tool exactly once, without retries, fallbacks, wrappers, or any other tool. Use only the specified synthetic fixture. After success or refusal, reply exactly DIAGNOSTICS_COMPLETE.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: view
+              input:
+                path: ${workdir}/workspace/private/nested/leaf.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_1
+              content: SYNTHETIC_DIAGNOSTICS_PUBLIC_CONTENT
+    response:
+      content: DIAGNOSTICS_COMPLETE
+      stopReason: end_turn

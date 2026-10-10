@@ -1,0 +1,34 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember SESSION_FIRST_ONLY. Do not use tools. Reply exactly READY.
+    response:
+      content: READY
+      stopReason: end_turn
+  - request:
+      model: claude-opus-4.6
+      system: ${system}
+      messages:
+        - role: user
+          content: Do not use tools. Reply exactly ROUTED.
+    response:
+      content: ROUTED
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember SESSION_FIRST_ONLY. Do not use tools. Reply exactly READY.
+        - role: assistant
+          content: READY
+        - role: user
+          content: Do not use tools. Reply exactly ROUTED.
+    response:
+      content: ROUTED
+      stopReason: end_turn

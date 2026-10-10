@@ -1,0 +1,57 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: |-
+            Call sql exactly once with database "session", description "Check runtime data", and this exact query. Do not use other tools. Then reply exactly DATA_CHECKED.
+            INSERT INTO todos (id, title, status) VALUES ('first', 'FIRST_TASK', 'done'), ('second', 'READY_TASK', 'pending'); INSERT INTO todo_deps (todo_id, depends_on) VALUES ('second', 'first'); WITH ready AS (SELECT t.title FROM todos t WHERE t.status = 'pending' AND NOT EXISTS (SELECT 1 FROM todo_deps d JOIN todos dependency ON d.depends_on = dependency.id WHERE d.todo_id = t.id AND dependency.status != 'done')) SELECT title FROM ready;
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: sql
+          input:
+            description: Check runtime data
+            query: INSERT INTO todos (id, title, status) VALUES ('first', 'FIRST_TASK', 'done'), ('second', 'READY_TASK', 'pending'); INSERT INTO todo_deps (todo_id, depends_on) VALUES ('second', 'first'); WITH ready AS (SELECT t.title FROM todos t WHERE t.status = 'pending' AND NOT EXISTS (SELECT 1 FROM todo_deps d JOIN todos dependency ON d.depends_on = dependency.id WHERE d.todo_id = t.id AND dependency.status != 'done')) SELECT title FROM ready;
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: |-
+            Call sql exactly once with database "session", description "Check runtime data", and this exact query. Do not use other tools. Then reply exactly DATA_CHECKED.
+            INSERT INTO todos (id, title, status) VALUES ('first', 'FIRST_TASK', 'done'), ('second', 'READY_TASK', 'pending'); INSERT INTO todo_deps (todo_id, depends_on) VALUES ('second', 'first'); WITH ready AS (SELECT t.title FROM todos t WHERE t.status = 'pending' AND NOT EXISTS (SELECT 1 FROM todo_deps d JOIN todos dependency ON d.depends_on = dependency.id WHERE d.todo_id = t.id AND dependency.status != 'done')) SELECT title FROM ready;
+        - role: assistant
+          content:
+            - type: tool_use
+              name: sql
+              input:
+                description: Check runtime data
+                query: INSERT INTO todos (id, title, status) VALUES ('first', 'FIRST_TASK', 'done'), ('second', 'READY_TASK', 'pending'); INSERT INTO todo_deps (todo_id, depends_on) VALUES ('second', 'first'); WITH ready AS (SELECT t.title FROM todos t WHERE t.status = 'pending' AND NOT EXISTS (SELECT 1 FROM todo_deps d JOIN todos dependency ON d.depends_on = dependency.id WHERE d.todo_id = t.id AND dependency.status != 'done')) SELECT title FROM ready;
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: |-
+                Executed 3 statement(s):
+
+                1. INSERT
+                   2 row(s) inserted. Last inserted row ID: 2.
+
+                2. INSERT
+                   1 row(s) inserted. Last inserted row ID: 1.
+
+                3. WITH
+                   1 row(s) returned:
+                   
+                   | title |
+                   | --- |
+                   | READY_TASK |
+    response:
+      content: DATA_CHECKED
+      stopReason: end_turn

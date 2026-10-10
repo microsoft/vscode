@@ -1,0 +1,63 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - method: POST
+    path: /v1/messages
+    response:
+      status: 503
+      headers:
+        content-type: application/json
+        retry-after-ms: '0'
+        retry-after: '86400'
+      body: '{"type":"error","error":{"type":"api_error","message":"RESILIENCE_UNAVAILABLE","code":"RESILIENCE_UNAVAILABLE"}}'
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly TRANSPORT_READY. Do not call any tools.
+    response:
+      content: TRANSPORT_READY
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly TRANSPORT_READY. Do not call any tools.
+        - role: assistant
+          content: TRANSPORT_READY
+        - role: user
+          content: Call view exactly once on "${workdir}/recovery.txt". Do not use other tools. Reply exactly RECOVERY_READ.
+    response:
+      content:
+        - type: tool_use
+          id: toolcall_0
+          name: view
+          input:
+            path: ${workdir}/recovery.txt
+      stopReason: tool_use
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly TRANSPORT_READY. Do not call any tools.
+        - role: assistant
+          content: TRANSPORT_READY
+        - role: user
+          content: Call view exactly once on "${workdir}/recovery.txt". Do not use other tools. Reply exactly RECOVERY_READ.
+        - role: assistant
+          content:
+            - type: tool_use
+              name: view
+              input:
+                path: ${workdir}/recovery.txt
+        - role: user
+          content:
+            - type: tool_result
+              tool_use_id: toolcall_0
+              content: LOCAL_TRANSPORT_RECOVERY
+    response:
+      content: RECOVERY_READ
+      stopReason: end_turn
