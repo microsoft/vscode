@@ -21,6 +21,14 @@ export function createImportRuleListener(validateImport: (node: TSESTree.Literal
 			_checkImport((node as TSESTree.ImportDeclaration).source);
 		},
 		// import('module').then(...) OR await import('module')
+		//
+		// Two selectors, because the AST shape changed. typescript-eslint emits `ImportExpression`
+		// for a dynamic import; the `CallExpression[callee.type="Import"]` form below matched older
+		// parser versions and matches nothing today. It is kept so the rule keeps working if the
+		// plugin is ever run against an older parser.
+		['ImportExpression > Literal']: (node: TSESTree.Literal) => {
+			_checkImport(node);
+		},
 		['CallExpression[callee.type="Import"][arguments.length=1] > Literal']: (node: TSESTree.Literal) => {
 			_checkImport(node);
 		},
