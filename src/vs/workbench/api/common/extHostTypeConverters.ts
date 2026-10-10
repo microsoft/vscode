@@ -1483,6 +1483,8 @@ export namespace EndOfLine {
 			return EndOfLineSequence.CRLF;
 		} else if (eol === types.EndOfLine.LF) {
 			return EndOfLineSequence.LF;
+		} else if (eol === types.EndOfLine.CR) {
+			return EndOfLineSequence.CR;
 		}
 		return undefined;
 	}
@@ -1492,6 +1494,8 @@ export namespace EndOfLine {
 			return types.EndOfLine.CRLF;
 		} else if (eol === EndOfLineSequence.LF) {
 			return types.EndOfLine.LF;
+		} else if (eol === EndOfLineSequence.CR) {
+			return types.EndOfLine.CR;
 		}
 		return undefined;
 	}
