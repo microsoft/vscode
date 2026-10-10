@@ -11,6 +11,7 @@ import { CancellationError } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable, IReference, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { Schemas } from '../../../base/common/network.js';
+import { stableStringify } from '../../../base/common/objects.js';
 import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
@@ -37,7 +38,7 @@ import { AGENT_HOST_SCHEME, agentHostAuthority, createAgentHostResourceUriMapper
 import { AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../common/agentHostResourceService.js';
 import type { ClientNotificationMap, CommandMap, JsonRpcErrorResponse, JsonRpcRequest, JsonRpcResponse } from '../common/state/protocol/messages.js';
 import { ActionType, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientChangesetAction, type INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
-import { MessageAttachmentKind, SessionSummary, ROOT_STATE_URI, StateComponents, isAhpRootChannel, isDefaultChatUri, isSessionChatArchived, isSessionStatusRead, type ClientPluginCustomization, type Message, type RootState } from '../common/state/sessionState.js';
+import { MessageAttachmentKind, SessionSummary, ROOT_STATE_URI, StateComponents, isAhpRootChannel, isDefaultChatUri, isSessionChatArchived, isSessionStatusRead, type ClientPluginCustomization, type Message, type RootState, type SessionState } from '../common/state/sessionState.js';
 import { normalizeLegacyActionEnvelope } from '../common/state/legacyProtocolCompatibility.js';
 import { getAgentHostSupportedProtocolVersions } from '../common/agentHostProtocolCompatibility.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, ProtocolError, ReconnectResultType, JSON_RPC_INTERNAL_ERROR, type ProtocolMessage, type IStateSnapshot, type SubscribeResult } from '../common/state/sessionProtocol.js';
@@ -285,6 +286,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	}
 
 	private readonly _subscriptionManager: AgentSubscriptionManager;
+	private readonly _lastActiveClientDispatches = new Map<string, { readonly serialized: string; readonly clientSeq: number }>();
 
 	private readonly _onDidAction = this._register(new Emitter<ActionEnvelope>());
 	readonly onDidAction = this._onDidAction.event;
@@ -507,6 +509,15 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		// Forward action envelopes from the transport to the subscription manager
 		this._register(this.onDidAction(envelope => {
 			this._subscriptionManager.receiveEnvelope(envelope);
+			if (envelope.action.type === ActionType.SessionActiveClientSet) {
+				const key = this._activeClientDispatchKey(envelope.channel, envelope.action.activeClient.clientId);
+				const pending = this._lastActiveClientDispatches.get(key);
+				if (envelope.origin?.clientId === this._clientId && pending?.clientSeq === envelope.origin.clientSeq) {
+					this._lastActiveClientDispatches.delete(key);
+				}
+			} else if (envelope.action.type === ActionType.SessionActiveClientRemoved && !envelope.rejectionReason) {
+				this._lastActiveClientDispatches.delete(this._activeClientDispatchKey(envelope.channel, envelope.action.clientId));
+			}
 		}));
 
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
@@ -620,6 +631,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		}
 		if (next.kind === AgentHostClientState.Reconnecting || next.kind === AgentHostClientState.Closed) {
 			this._devContainerService.connectionClosed();
+			this._lastActiveClientDispatches.clear();
 		}
 		this._onDidChangeConnectionState.fire(next.kind);
 	}
@@ -1510,8 +1522,26 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	}
 
 	dispatch(channel: string, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction): void {
+		if (action.type === ActionType.SessionActiveClientSet) {
+			const key = this._activeClientDispatchKey(channel, action.activeClient.clientId);
+			const state = this.getSubscriptionUnmanaged<SessionState>(StateComponents.Session, URI.parse(channel))?.verifiedValue;
+			const existing = state?.activeClients.find(client => client.clientId === action.activeClient.clientId);
+			const serialized = stableStringify(action.activeClient);
+			const pending = this._lastActiveClientDispatches.get(key);
+			if (pending ? pending.serialized === serialized : stableStringify(existing) === serialized) {
+				return;
+			}
+			const seq = this._subscriptionManager.dispatchOptimistic(channel, action);
+			this._lastActiveClientDispatches.set(key, { serialized, clientSeq: seq });
+			this.dispatchAction(channel, action, this._clientId, seq);
+			return;
+		}
 		const seq = this._subscriptionManager.dispatchOptimistic(channel, action);
 		this.dispatchAction(channel, action, this._clientId, seq);
+	}
+
+	private _activeClientDispatchKey(channel: string, clientId: string): string {
+		return `${channel}\0${clientId}`;
 	}
 
 	async dispatchConfirmed<T>(channel: string, subscription: IAgentSubscription<T>, action: SessionAction | ChatAction | TerminalAction | ClientChangesetAction | ClientAnnotationsAction | ClientAutomationAction | ClientAutomationRunAction | IRootConfigChangedAction, token: CancellationToken): Promise<ActionEnvelope> {

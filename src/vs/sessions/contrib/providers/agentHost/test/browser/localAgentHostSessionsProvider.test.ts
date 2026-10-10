@@ -34,7 +34,7 @@ import { BackgroundWorkKind, type BackgroundShellWork, type BackgroundSubagentWo
 import { toCopilotBackgroundShellMeta } from '../../../../../../platform/agentHost/common/meta/copilotBackgroundWorkMeta.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult, SessionConfigSchema } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AutomationRunOriginKind, AutomationRunStatus, ChatInteractivity as ProtocolChatInteractivity, ChatOriginKind as ProtocolChatOriginKind, CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpServerStatus, MessageKind, SessionLifecycle, type AgentCustomization, type AgentInfo, type AutomationState, type ChangesSummary, type Customization, type RootState, type SessionActiveClient, type SessionConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChangesetStatus, isAhpAutomationCatalogChannel, parseRequiredSessionUriFromChatUri, ResponsePartKind, SessionSourceControlOutcome, SessionStatus as ProtocolSessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, withMostRecentRelatedSessionPullRequest, withSessionCreationReference, withSessionExternal, withSessionEhcliAdoptable, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ChangesetState, type ChatState, type ChatSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { AUTOMATION_CATALOG_URI, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChangesetStatus, isAhpAutomationCatalogChannel, parseRequiredSessionUriFromChatUri, ResponsePartKind, SessionSourceControlOutcome, SessionStatus as ProtocolSessionStatus, StateComponents, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, withMostRecentRelatedSessionPullRequest, withSessionCreationReference, withSessionExternal, withSessionEhcliAdoptable, withSessionGitHubState, withSessionGitState, withSessionMultiRootMetadata, withSessionSourceControlState, withSessionWorkspaceless, withWorkingDirectoryKey, withWorkingDirectoryScopeId, type ChangesetState, type ChatState, type ChatSummary, type ComponentToState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { SessionArtifactType, withSessionArtifacts } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { ActionType, NotificationType, type ActionEnvelope, type IRootConfigChangedAction, type ChatAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction, type SessionSummaryChangedParams } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../../../../../platform/agentHost/common/state/protocol/version/registry.js';
@@ -399,6 +399,27 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		return this._getSubscription<T>(key);
 	}
 
+	override getSubscriptionUnmanaged<T extends StateComponents>(_kind: T, resource: URI): IAgentSubscription<ComponentToState[T]> | undefined {
+		const key = resource.toString();
+		const emitter = this._sessionStateEmitters.get(key);
+		const errorEmitter = this._sessionStateErrorEmitters.get(key);
+		if (!emitter || !errorEmitter) {
+			return undefined;
+		}
+		const self = this;
+		return {
+			get value() { return self._sessionStateValues.get(key) as ComponentToState[T] | Error | undefined; },
+			get verifiedValue() {
+				const value = self._sessionStateValues.get(key);
+				return value instanceof Error ? undefined : value as ComponentToState[T] | undefined;
+			},
+			onDidChange: emitter.event as Event<ComponentToState[T]>,
+			onDidError: errorEmitter.event,
+			onWillApplyAction: Event.None,
+			onDidApplyAction: Event.None,
+		};
+	}
+
 	private _getSubscription<T>(key: string): IReference<IAgentSubscription<T>> {
 		this.wireOps.push(`subscribe:${key}`);
 		this.sessionSubscribeCounts.set(key, (this.sessionSubscribeCounts.get(key) ?? 0) + 1);
@@ -720,6 +741,8 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 		override readonly visibleSessions: IObservable<readonly (IActiveSession | undefined)[]> = visibleSessionsObs;
 	}());
 	instantiationService.stub(IAgentHostActiveClientService, new class extends mock<IAgentHostActiveClientService>() {
+		override areScopeRootsEqual = (first: readonly URI[] | undefined, second: readonly URI[]) =>
+			first !== undefined && first.length === second.length && first.every((root, index) => extUriIgnorePathCase.isEqual(root, second[index]));
 		override acquireScope = (sessionType: string, roots: readonly URI[]) => options?.activeClientScope?.(sessionType, roots) ?? ({
 			customizations: constObservable(options?.activeClient?.customizations ?? []),
 			customAgents: options?.activeClientAgents ?? constObservable([]),
@@ -7964,6 +7987,145 @@ suite('LocalAgentHostSessionsProvider', () => {
 			clientId: 'test-local-client',
 			clientSeq: 0,
 		}]);
+	});
+
+	test('republishes the active client after the host removes it', async () => {
+		const activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+		const visibleSessions = observableValue<readonly (IActiveSession | undefined)[]>('visibleSessions', []);
+		const activeClient = {
+			tools: [],
+			customizations: [{
+				type: CustomizationType.Plugin,
+				id: 'file:///customizations/test',
+				uri: 'file:///customizations/test',
+				name: 'Test Customization',
+			}],
+		} satisfies Omit<SessionActiveClient, 'clientId'>;
+		const publishedActiveClient = { clientId: agentHost.clientId, ...activeClient };
+		const state = (activeClients: SessionActiveClient[]): SessionState => ({
+			provider: 'copilotcli',
+			title: 'Active client removal',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients,
+			chats: [],
+		});
+		agentHost.addSession(createSession('active-client-removal'));
+		agentHost.setSessionState('active-client-removal', 'copilotcli', state([]));
+		const provider = createProvider(disposables, agentHost, undefined, { activeSession, visibleSessions, activeClient });
+		provider.getSessions();
+		await timeout(0);
+		agentHost.dispatchedActions.length = 0;
+		const resource = URI.from({ scheme: 'agent-host-copilotcli', path: '/active-client-removal' });
+		const selectedSession = {
+			providerId: provider.id,
+			sessionId: `${provider.id}:${resource.toString()}`,
+			resource,
+		} as IActiveSession;
+		visibleSessions.set([selectedSession], undefined);
+		activeSession.set(selectedSession, undefined);
+		await timeout(0);
+
+		agentHost.setSessionState('active-client-removal', 'copilotcli', state([publishedActiveClient]));
+		agentHost.setSessionState('active-client-removal', 'copilotcli', state([]));
+		agentHost.fireAction({
+			channel: AgentSession.uri('copilotcli', 'active-client-removal').toString(),
+			action: {
+				type: ActionType.SessionActiveClientRemoved,
+				clientId: agentHost.clientId,
+			},
+			serverSeq: 1,
+			origin: undefined,
+		});
+		await timeout(0);
+
+		assert.strictEqual(agentHost.dispatchedActions.filter(dispatch => dispatch.action.type === ActionType.SessionActiveClientSet).length, 2);
+	});
+
+	test('does not republish the active client after a rejected publication rolls back', async () => {
+		const activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+		const visibleSessions = observableValue<readonly (IActiveSession | undefined)[]>('visibleSessions', []);
+		const activeClient = {
+			tools: [],
+			customizations: [],
+		} satisfies Omit<SessionActiveClient, 'clientId'>;
+		const publishedActiveClient = { clientId: agentHost.clientId, ...activeClient };
+		const state = (activeClients: SessionActiveClient[]): SessionState => ({
+			provider: 'copilotcli',
+			title: 'Rejected active client',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients,
+			chats: [],
+		});
+		agentHost.addSession(createSession('active-client-rejected'));
+		agentHost.setSessionState('active-client-rejected', 'copilotcli', state([]));
+		const provider = createProvider(disposables, agentHost, undefined, { activeSession, visibleSessions, activeClient });
+		provider.getSessions();
+		await timeout(0);
+		agentHost.dispatchedActions.length = 0;
+		const resource = URI.from({ scheme: 'agent-host-copilotcli', path: '/active-client-rejected' });
+		const selectedSession = {
+			providerId: provider.id,
+			sessionId: `${provider.id}:${resource.toString()}`,
+			resource,
+		} as IActiveSession;
+		visibleSessions.set([selectedSession], undefined);
+		activeSession.set(selectedSession, undefined);
+		await timeout(0);
+
+		agentHost.setSessionState('active-client-rejected', 'copilotcli', state([publishedActiveClient]));
+		agentHost.fireAction({
+			channel: AgentSession.uri('copilotcli', 'active-client-rejected').toString(),
+			action: {
+				type: ActionType.SessionActiveClientSet,
+				activeClient: publishedActiveClient,
+			},
+			serverSeq: 1,
+			origin: { clientId: agentHost.clientId, clientSeq: 0 },
+			rejectionReason: 'Publication rejected',
+		});
+		agentHost.setSessionState('active-client-rejected', 'copilotcli', state([]));
+		await timeout(0);
+
+		assert.strictEqual(agentHost.dispatchedActions.filter(dispatch => dispatch.action.type === ActionType.SessionActiveClientSet).length, 1);
+	});
+
+	test('quick chat excludes its host scratch directory from the active client customization scope', async () => {
+		const activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+		const scopeRoots: string[][] = [];
+		const scratchDirectory = URI.file('/root');
+		agentHost.addSession(createSession('quick-active-client', {
+			quickChat: true,
+			workingDirectory: scratchDirectory,
+		}));
+		const provider = createProvider(disposables, agentHost, undefined, {
+			activeSession,
+			activeClientScope: (_sessionType, roots) => {
+				scopeRoots.push(roots.map(root => root.toString()));
+				return {
+					customizations: constObservable([]),
+					customAgents: constObservable([]),
+					tools: constObservable([]),
+					isResolved: constObservable(true),
+					whenResolved: async () => { },
+					getSyncedUri: () => undefined,
+					activeClient: clientId => constObservable({ clientId, tools: [], customizations: [] }),
+					dispose: () => { },
+				};
+			},
+		});
+		provider.getSessions();
+		await timeout(0);
+		const resource = URI.from({ scheme: 'agent-host-copilotcli', path: '/quick-active-client' });
+		activeSession.set({
+			providerId: provider.id,
+			sessionId: `${provider.id}:${resource.toString()}`,
+			resource,
+		} as IActiveSession, undefined);
+		await timeout(0);
+
+		assert.deepStrictEqual(scopeRoots, [[]]);
 	});
 
 	test('does not publish empty customizations while resolving an unobserved active session scope', async () => {
