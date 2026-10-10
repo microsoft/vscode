@@ -1634,6 +1634,41 @@ suite('WorkspacePicker - Connection Status', () => {
 		});
 	});
 
+	test('shows a newly opened VS Code folder when Agents history is full', async () => {
+		const provider = createMockProvider('local-1', { group: SESSION_WORKSPACE_GROUP_LOCAL });
+		providersService.setProviders([provider]);
+		const ownFolders = Array.from({ length: 10 }, (_, index) => URI.file(`/local/recent-${index}`));
+		const openedFolder = URI.file('/local/newly-opened');
+		const storage = disposables.add(new TestStorageService());
+		seedStorage(storage, ownFolders.map(uri => ({ uri, providerId: provider.id, checked: false })));
+
+		const changed = disposables.add(new Emitter<void>());
+		let recentFolders = [ownFolders[0]];
+		const workspacesService = upcastPartial<IWorkspacesService>({
+			getRecentlyOpened: async () => ({ workspaces: recentFolders.map(folderUri => ({ folderUri })), files: [] }),
+			onDidChangeRecentlyOpened: changed.event,
+		});
+		const recentWorkspacesService = await createResolvedRecentWorkspacesService(disposables, storage, providersService, workspacesService);
+		const picker = createTestPicker(
+			disposables, providersService, storage, undefined, DispatchingWorkspacePicker, undefined,
+			workspacesService, recentWorkspacesService,
+			{ configuration: { [UNIFIED_WORKSPACE_PICKER_SETTING]: true } },
+		) as DispatchingWorkspacePicker;
+
+		recentFolders = [openedFolder, ownFolders[0]];
+		const refreshed = Event.toPromise(recentWorkspacesService.onDidChangeRecentWorkspaces);
+		changed.fire();
+		await refreshed;
+
+		assert.deepStrictEqual({
+			folders: picker.getItems().flatMap(entry => entry.item?.folderUri?.path ?? []),
+			selectedFolder: picker.selectedFolderUri?.path,
+		}, {
+			folders: [...ownFolders, openedFolder].map(uri => uri.path),
+			selectedFolder: ownFolders[0].path,
+		});
+	});
+
 	test('appends removable workspaces from eligible sessions after recent workspaces', async () => {
 		let sessions: ISession[] = [];
 		const provider = createMockProvider('local-1', { getSessions: () => sessions });
@@ -5551,7 +5586,7 @@ suite('WorkspacePicker - Tab discovery', () => {
 		});
 	});
 
-	test('caps recent workspaces in the unified picker so Remote remains visible', () => {
+	test('keeps browse actions after all recent workspaces in the unified picker', () => {
 		const storage = disposables.add(new TestStorageService());
 		seedStorage(storage, Array.from({ length: 11 }, (_, index) => ({
 			uri: URI.file(`/local/folder-${index}`),
@@ -5565,7 +5600,7 @@ suite('WorkspacePicker - Tab discovery', () => {
 		const picker = createTestablePicker(disposables, providersService, true, {}, undefined, storage, true);
 
 		assert.deepStrictEqual(picker.getItemLabels(), [
-			...Array.from({ length: 10 }, (_, index) => `local/folder-${index}`),
+			...Array.from({ length: 11 }, (_, index) => `local/folder-${index}`),
 			'Open Folder...',
 			'Select Remote',
 		]);
@@ -5700,7 +5735,7 @@ suite('WorkspacePicker - Tab discovery', () => {
 		});
 	});
 
-	test('caps recent workspaces at ten for either new picker setting', () => {
+	test('keeps all recent workspaces for either new picker setting', () => {
 		const provider = createMockProvider('local');
 		providersService.setProviders([provider]);
 		const recentWorkspaces = Array.from({ length: 12 }, (_, index) => ({
@@ -5731,8 +5766,8 @@ suite('WorkspacePicker - Tab discovery', () => {
 			experimentalComposerLayout: getRecentPaths(false, true),
 		}, {
 			legacy: allRecentPaths,
-			unifiedWorkspacePicker: allRecentPaths.slice(0, 10),
-			experimentalComposerLayout: allRecentPaths.slice(0, 10),
+			unifiedWorkspacePicker: allRecentPaths,
+			experimentalComposerLayout: allRecentPaths,
 		});
 	});
 
