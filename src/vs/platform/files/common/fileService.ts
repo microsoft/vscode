@@ -124,10 +124,36 @@ export class FileService extends Disposable implements IFileService {
 		return this.provider.has(resource.scheme);
 	}
 
+	private readonly pathCaseSensitiveCache = TernarySearchTree.forUris<boolean>(() => true); // scheme-root keyed cache; prefix lookup makes it apply to all paths under the same mount
+
 	hasCapability(resource: URI, capability: FileSystemProviderCapabilities): boolean {
+		if (capability === FileSystemProviderCapabilities.PathCaseSensitive) {
+			const cached = this.pathCaseSensitiveCache.findSubstr(resource);
+			if (typeof cached === 'boolean') {
+				return cached;
+			}
+		}
+
 		const provider = this.provider.get(resource.scheme);
 
 		return !!(provider && (provider.capabilities & capability));
+	}
+
+	async resolvePathCaseSensitive(resource: URI): Promise<boolean> {
+		const provider = await this.withProvider(resource);
+		if (typeof provider.isPathCaseSensitive === 'function') {
+			try {
+				const isCaseSensitive = await provider.isPathCaseSensitive(resource);
+				// Store at scheme root so the TernarySearchTree prefix lookup covers all paths under the same mount.
+				const schemeRoot = resource.with({ path: '/', query: null, fragment: null });
+				this.pathCaseSensitiveCache.set(schemeRoot, isCaseSensitive);
+				return isCaseSensitive;
+			} catch (error) {
+				this.logService.warn('[FileService] isPathCaseSensitive provider call failed', error);
+			}
+		}
+
+		return !!(provider.capabilities & FileSystemProviderCapabilities.PathCaseSensitive);
 	}
 
 	listCapabilities(): Iterable<{ scheme: string; capabilities: FileSystemProviderCapabilities }> {
@@ -191,7 +217,13 @@ export class FileService extends Disposable implements IFileService {
 	async resolve(resource: URI, options?: IResolveFileOptions): Promise<IFileStat>;
 	async resolve(resource: URI, options?: IResolveFileOptions): Promise<IFileStat> {
 		try {
-			return await this.doResolveFile(resource, options);
+			const stat = await this.doResolveFile(resource, options);
+			if (stat.isDirectory) {
+				this.resolvePathCaseSensitive(resource).catch(error => {
+					this.logService.warn('[FileService] resolvePathCaseSensitive failed, PathCaseSensitive capability cache will not be populated', error);
+				});
+			}
+			return stat;
 		} catch (error) {
 
 			// Specially handle file not found case as file operation result
