@@ -84,6 +84,10 @@ export class MockLanguageModelToolsService extends Disposable implements ILangua
 		return Disposable.None;
 	}
 
+	registerToolResultProcessor(_processor: (invocation: IToolInvocation, result: IToolResult) => Promise<IToolResult>): IDisposable {
+		return Disposable.None;
+	}
+
 	getTools(): Iterable<IToolData> {
 		return [];
 	}

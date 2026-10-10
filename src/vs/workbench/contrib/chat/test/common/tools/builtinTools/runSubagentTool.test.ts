@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../../../../base/common/async.js';
-import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
+import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../../base/common/cancellation.js';
+import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { Event } from '../../../../../../../base/common/event.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
@@ -28,6 +29,7 @@ import { ExtensionIdentifier } from '../../../../../../../platform/extensions/co
 import { IToolData, IToolInvocation, IToolResult, ToolAndToolSetEnablementMap, ToolProgress } from '../../../../common/tools/languageModelToolsService.js';
 import { IChatModel, IChatRequestModeInstructions } from '../../../../common/model/chatModel.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
+import { InMemoryStorageService } from '../../../../../../../platform/storage/common/storage.js';
 
 class TestTelemetryService extends NullTelemetryServiceShape {
 	readonly events: { readonly name: string; readonly data: unknown }[] = [];
@@ -139,6 +141,12 @@ suite('RunSubagentTool', () => {
 		copilotVendorResolved?: boolean;
 		onSelectLanguageModels?: () => void;
 		telemetryService?: ITelemetryService;
+		newerModeInstructions?: IChatRequestModeInstructions;
+		parentModelConfiguration?: Record<string, unknown>;
+		capturedProgress?: { requestId: string; part: IChatProgress }[];
+		completedResponse?: boolean;
+		collectAutomaticInstructions?: () => Promise<void>;
+		onMainRequest?: () => void;
 	}) {
 		const mockToolsService = testDisposables.add(new MockLanguageModelToolsService());
 		const configService = new TestConfigurationService({
@@ -160,11 +168,17 @@ suite('RunSubagentTool', () => {
 			},
 		};
 
-		const mockChatService: Pick<IChatService, 'getSession'> = {
+		const mockChatService: Pick<IChatService, 'getSession' | 'sendRequest'> = {
 			getSession() {
 				return {
 					getRequests: () => [{
 						id: 'req-1',
+						modelId: 'main-model-id',
+						modelConfiguration: opts.parentModelConfiguration,
+						response: opts.completedResponse ? {
+							isComplete: true,
+							updateContent: (part: IChatProgress) => opts.capturedProgress?.push({ requestId: 'req-1', part }),
+						} : undefined,
 						modeInfo: opts.currentModeInstructions ? {
 							kind: undefined,
 							isBuiltin: false,
@@ -172,15 +186,19 @@ suite('RunSubagentTool', () => {
 							telemetryModeId: 'custom',
 							applyCodeBlockSuggestionId: undefined,
 						} : undefined
-					}],
-					acceptResponseProgress: () => { },
+					}, ...(opts.newerModeInstructions ? [{ id: 'req-2', modeInfo: { modeInstructions: opts.newerModeInstructions } }] : [])],
+					acceptResponseProgress: (request: { id: string }, part: IChatProgress) => opts.capturedProgress?.push({ requestId: request.id, part }),
 				} as unknown as IChatModel;
+			},
+			async sendRequest() {
+				opts.onMainRequest?.();
+				throw new Error('Unexpected main-agent steering');
 			},
 		};
 
 		const mockInstantiationService: Pick<IInstantiationService, 'createInstance'> = {
 			createInstance(..._args: never[]): { collect: () => Promise<void> } {
-				return { collect: async () => { } };
+				return { collect: opts.collectAutomaticInstructions ?? (async () => { }) };
 			},
 		};
 		const tool = testDisposables.add(new RunSubagentTool(
@@ -194,6 +212,7 @@ suite('RunSubagentTool', () => {
 			mockInstantiationService as IInstantiationService,
 			{} as IProductService,
 			opts.telemetryService ?? NullTelemetryService,
+			testDisposables.add(new InMemoryStorageService()),
 		));
 
 		return { tool, mockChatAgentService };
@@ -203,8 +222,8 @@ suite('RunSubagentTool', () => {
 		return {
 			callId: `call-${++callIdCounter}`,
 			toolId: 'runSubagent',
-			parameters: { prompt: 'do something', description: 'test' },
-			context: { sessionResource: sessionUri },
+			parameters: { prompt: 'do something', description: 'test', mode: 'sync' },
+			context: { sessionResource: sessionUri, requestId: 'req-1' },
 			modelId,
 			userSelectedTools: userSelectedTools ?? { runSubagent: true },
 		} as IToolInvocation;
@@ -212,6 +231,158 @@ suite('RunSubagentTool', () => {
 
 	const countTokens = async () => 0;
 	const noProgress: ToolProgress = { report() { } };
+
+	suite('native background lifecycle', () => {
+		test('default async and background alias return IDs before agent completion', async () => {
+			for (const mode of [undefined, 'background']) {
+				const capturedRequests: IChatAgentRequest[] = [];
+				let mainRequests = 0;
+				const { tool, mockChatAgentService } = createInvokableTool({ allowInvocationsFromSubagents: true, capturedRequests, onMainRequest: () => mainRequests++ });
+				const done = new DeferredPromise<IChatAgentResult>();
+				mockChatAgentService.invokeAgent = async (_id, request, progress) => {
+					capturedRequests.push(request);
+					await done.p;
+					progress([{ kind: 'markdownContent', content: new MarkdownString('Completed worker') }]);
+					return {};
+				};
+				const invocation = createInvocation(URI.parse(`test://async/${mode ?? 'default'}`));
+				invocation.parameters.mode = mode;
+				const receipt = await tool.invoke(invocation, countTokens, noProgress, CancellationToken.None);
+				const roster = await tool.backgroundAgents.list(invocation.context!);
+				assert.deepStrictEqual({ running: roster.running, ids: roster.agents.length, beforeCompletion: done.isSettled }, { running: 1, ids: 1, beforeCompletion: false });
+				assert.ok(receipt.content.some(part => part.kind === 'text' && part.value.includes(roster.agents[0].id)));
+				done.complete({});
+				const terminal = await tool.backgroundAgents.wait(invocation.context!, roster.agents[0].id, 300, CancellationToken.None);
+				assert.deepStrictEqual({ status: terminal?.status, result: terminal?.result?.content[0] }, { status: 'completed', result: { kind: 'text', value: 'Completed worker' } });
+				assert.strictEqual(mainRequests, 0);
+			}
+		});
+
+		test('ten concurrent siblings each start at depth one and the eleventh is rejected', async () => {
+			const capturedRequests: IChatAgentRequest[] = [];
+			const { tool, mockChatAgentService } = createInvokableTool({ allowInvocationsFromSubagents: true, capturedRequests });
+			const done = new DeferredPromise<IChatAgentResult>();
+			mockChatAgentService.invokeAgent = async (_id, request) => { capturedRequests.push(request); return done.p; };
+			const sessionResource = URI.parse('test://async/siblings');
+			const invocations = Array.from({ length: 11 }, () => {
+				const invocation = createInvocation(sessionResource);
+				invocation.parameters.mode = 'async';
+				return invocation;
+			});
+			const receipts = await Promise.all(invocations.map(invocation => tool.invoke(invocation, countTokens, noProgress, CancellationToken.None)));
+			const roster = await tool.backgroundAgents.list(invocations[0].context!);
+			assert.deepStrictEqual({ running: roster.running, rejected: receipts.filter(receipt => receipt.toolResultError).length, depths: roster.agents.map(agent => agent.depth), enabled: capturedRequests.every(request => request.userSelectedTools?.runSubagent) }, {
+				running: 10, rejected: 1, depths: Array(10).fill(1), enabled: true,
+			});
+			done.complete({});
+			await Promise.all(roster.agents.map(agent => tool.backgroundAgents.wait(invocations[0].context!, agent.id, 300, CancellationToken.None)));
+		});
+
+		test('explicit sync returns an inline result and consumes its mailbox result once', async () => {
+			const capturedRequests: IChatAgentRequest[] = [];
+			const { tool } = createInvokableTool({ allowInvocationsFromSubagents: false, capturedRequests });
+			const invocation = createInvocation(URI.parse('test://async/sync'));
+			const result = await tool.invoke(invocation, countTokens, noProgress, CancellationToken.None);
+			assert.deepStrictEqual({ result: result.content[0], running: (await tool.backgroundAgents.list(invocation.context!)).running, pending: (await tool.backgroundAgents.list(invocation.context!)).pendingResults }, { result: { kind: 'text', value: 'Agent completed with no output' }, running: 0, pending: 0 });
+		});
+
+		test('exact parent request preserves mode instruction identity and model configuration despite a newer turn', async () => {
+			const capturedRequests: IChatAgentRequest[] = [];
+			const modeInstructions = { name: 'Original', content: 'Exact parent instruction', toolReferences: [], allowedSubagents: ['Allowed'], metadata: { marker: 'original' } };
+			const configuration = { reasoningEffort: 'high', contextSize: 1_000_000 };
+			const { tool } = createInvokableTool({
+				allowInvocationsFromSubagents: true, capturedRequests, currentModeInstructions: modeInstructions,
+				newerModeInstructions: { name: 'Newer', content: 'Unrelated turn', toolReferences: [], allowedSubagents: [] }, parentModelConfiguration: configuration
+			});
+			const invocation = createInvocation(URI.parse('test://async/exact'), undefined, 'unrelated-current-model');
+			invocation.chatRequestId = 'req-2';
+			const prepared = await tool.prepareToolInvocation({ parameters: invocation.parameters, toolCallId: invocation.callId, chatSessionResource: invocation.context?.sessionResource, invocationRequestId: 'req-1', modelId: invocation.modelId }, CancellationToken.None);
+			assert.deepStrictEqual(prepared?.toolSpecificData?.kind === 'subagent' ? prepared.toolSpecificData.modelConfiguration : undefined, configuration);
+			await tool.invoke(invocation, countTokens, noProgress, CancellationToken.None);
+			assert.deepStrictEqual({ preparedAgent: prepared?.toolSpecificData?.kind === 'subagent' ? prepared.toolSpecificData.agentName : undefined, parent: capturedRequests[0].parentRequestId, model: capturedRequests[0].userSelectedModelId, configuration: capturedRequests[0].modelConfiguration, instructions: capturedRequests[0].modeInstructions }, {
+				preparedAgent: 'Original', parent: 'req-1', model: 'main-model-id', configuration, instructions: modeInstructions,
+			});
+			assert.strictEqual(capturedRequests[0].modeInstructions, modeInstructions);
+		});
+
+		test('prepare caches with reused tool IDs remain isolated by exact session/request context', async () => {
+			const capturedRequests: IChatAgentRequest[] = [];
+			const alpha = createMetadata('Alpha', 1);
+			const beta = createMetadata('Beta', 1);
+			const { tool } = createInvokableTool({
+				allowInvocationsFromSubagents: false, capturedRequests,
+				models: new Map([['alpha', alpha], ['beta', beta]]), qualifiedNameMap: new Map([
+					['Alpha (TestVendor)', { metadata: alpha, identifier: 'alpha' }], ['Beta (TestVendor)', { metadata: beta, identifier: 'beta' }],
+				])
+			});
+			const invocations = ['Alpha', 'Beta'].map(name => {
+				const invocation = createInvocation(URI.parse(`test://async/cache-${name}`));
+				invocation.callId = 'reused-call';
+				invocation.parameters.model = `${name} (TestVendor)`;
+				return invocation;
+			});
+			for (const invocation of invocations) {
+				await tool.prepareToolInvocation({ parameters: invocation.parameters, toolCallId: invocation.callId, invocationRequestId: invocation.context?.requestId, chatSessionResource: invocation.context?.sessionResource }, CancellationToken.None);
+			}
+			await Promise.all(invocations.map(invocation => tool.invoke(invocation, countTokens, noProgress, CancellationToken.None)));
+			assert.deepStrictEqual(capturedRequests.map(request => request.userSelectedModelId).sort(), ['alpha', 'beta']);
+		});
+
+		test('missing exact request never falls back to latest', async () => {
+			const capturedRequests: IChatAgentRequest[] = [];
+			const { tool } = createInvokableTool({ allowInvocationsFromSubagents: false, capturedRequests });
+			const invocation = createInvocation(URI.parse('test://async/missing'));
+			invocation.context = { sessionResource: invocation.context!.sessionResource, requestId: 'missing' };
+			const result = await tool.invoke(invocation, countTokens, noProgress, CancellationToken.None);
+			assert.deepStrictEqual({ called: capturedRequests.length, error: result.content[0], marked: result.toolResultError }, { called: 0, error: { kind: 'text', value: 'Error invoking subagent: The exact invoking chat request was not found.' }, marked: true });
+		});
+
+		test('caller cancellation after an async receipt leaves the worker live', async () => {
+			const capturedRequests: IChatAgentRequest[] = [];
+			const { tool, mockChatAgentService } = createInvokableTool({ allowInvocationsFromSubagents: false, capturedRequests });
+			const done = new DeferredPromise<IChatAgentResult>();
+			let workerToken = CancellationToken.None;
+			mockChatAgentService.invokeAgent = async (_id, request, _progress, _history, token) => { capturedRequests.push(request); workerToken = token; return done.p; };
+			const source = testDisposables.add(new CancellationTokenSource());
+			const invocation = createInvocation(URI.parse('test://async/cancellation'));
+			invocation.parameters.mode = 'async';
+			await tool.invoke(invocation, countTokens, noProgress, source.token);
+			source.cancel();
+			const roster = await tool.backgroundAgents.list(invocation.context!);
+			assert.deepStrictEqual({ running: roster.running, cancelled: workerToken.isCancellationRequested }, { running: 1, cancelled: false });
+			done.complete({});
+			assert.strictEqual((await tool.backgroundAgents.wait(invocation.context!, roster.agents[0].id, 300, CancellationToken.None))?.status, 'completed');
+		});
+
+		test('native cards update isActive and result on a completed parent response without steering', async () => {
+			const capturedRequests: IChatAgentRequest[] = [];
+			const capturedProgress: { requestId: string; part: IChatProgress }[] = [];
+			const { tool } = createInvokableTool({ allowInvocationsFromSubagents: false, capturedRequests, capturedProgress, completedResponse: true });
+			const invocation = createInvocation(URI.parse('test://async/completed-parent'));
+			invocation.toolSpecificData = { kind: 'subagent', description: 'work' };
+			await tool.invoke(invocation, countTokens, noProgress, CancellationToken.None);
+			assert.deepStrictEqual(capturedProgress.filter(item => item.part.kind === 'externalToolInvocationUpdate').map(item => ({ request: item.requestId, complete: item.part.kind === 'externalToolInvocationUpdate' && item.part.isComplete })), [
+				{ request: 'req-1', complete: false }, { request: 'req-1', complete: true },
+			]);
+			assert.deepStrictEqual({ active: invocation.toolSpecificData.isActive, result: invocation.toolSpecificData.result }, { active: false, result: 'Agent completed with no output' });
+		});
+
+		test('cancellation during noncooperative setup ends the native card from committed registry state', async () => {
+			const capturedRequests: IChatAgentRequest[] = [];
+			const gate = new DeferredPromise<void>();
+			const { tool } = createInvokableTool({ allowInvocationsFromSubagents: false, capturedRequests, collectAutomaticInstructions: () => gate.p });
+			const invocation = createInvocation(URI.parse('test://async/stuck-setup'));
+			invocation.parameters.mode = 'async';
+			invocation.toolSpecificData = { kind: 'subagent', description: 'work' };
+			await tool.invoke(invocation, countTokens, noProgress, CancellationToken.None);
+			const roster = await tool.backgroundAgents.list(invocation.context!);
+			await tool.backgroundAgents.cancel(invocation.context!, roster.agents[0].id);
+			const terminal = await tool.backgroundAgents.wait(invocation.context!, roster.agents[0].id, 300, CancellationToken.None);
+			assert.deepStrictEqual({ status: terminal?.status, active: invocation.toolSpecificData.isActive, invoked: capturedRequests.length }, { status: 'cancelled', active: false, invoked: 0 });
+			gate.complete();
+			await timeout(0);
+		});
+	});
 
 	suite('resultText trimming', () => {
 		test('trims leading empty codeblocks (```\\n```) from result', () => {
@@ -263,6 +434,7 @@ suite('RunSubagentTool', () => {
 				{} as IInstantiationService,
 				{} as IProductService,
 				NullTelemetryService,
+				testDisposables.add(new InMemoryStorageService()),
 			));
 
 			const result = await tool.prepareToolInvocation(
@@ -308,6 +480,7 @@ suite('RunSubagentTool', () => {
 				{} as IInstantiationService,
 				{} as IProductService,
 				NullTelemetryService,
+				testDisposables.add(new InMemoryStorageService()),
 			));
 			return tool;
 		}
@@ -352,6 +525,7 @@ suite('RunSubagentTool', () => {
 				{} as IInstantiationService,
 				{} as IProductService,
 				NullTelemetryService,
+				testDisposables.add(new InMemoryStorageService()),
 			));
 
 			const toolData = tool.getToolData();
@@ -361,6 +535,10 @@ suite('RunSubagentTool', () => {
 			assert.ok(toolData.inputSchema.properties?.prompt);
 			assert.ok(toolData.inputSchema.properties?.description);
 			assert.ok(toolData.inputSchema.properties?.agentName, 'agentName should be in schema properties');
+			assert.deepStrictEqual(toolData.inputSchema.properties?.mode, {
+				type: 'string', enum: ['async', 'background', 'sync'], default: 'async',
+				description: 'async (default) returns an agent_id immediately. background is an alias. sync waits for an inline result. Completion never steers the parent.',
+			});
 			assert.deepStrictEqual(toolData.inputSchema.required, ['prompt', 'description']);
 		});
 	});
@@ -462,6 +640,7 @@ suite('RunSubagentTool', () => {
 				{} as IInstantiationService,
 				builtinProductService,
 				NullTelemetryService,
+				testDisposables.add(new InMemoryStorageService()),
 			));
 
 			return tool;
@@ -1139,6 +1318,7 @@ suite('RunSubagentTool', () => {
 				{} as IInstantiationService,
 				{} as IProductService,
 				NullTelemetryService,
+				testDisposables.add(new InMemoryStorageService()),
 			));
 
 			return tool;
@@ -1380,6 +1560,7 @@ suite('RunSubagentTool', () => {
 				mockInstantiationService as IInstantiationService,
 				{} as IProductService,
 				NullTelemetryService,
+				testDisposables.add(new InMemoryStorageService()),
 			));
 		}
 
@@ -1390,7 +1571,7 @@ suite('RunSubagentTool', () => {
 			return {
 				callId: `allowlist-call-${++callIdCounter}`,
 				toolId: 'runSubagent',
-				parameters: { prompt: 'do something', description: 'test', agentName },
+				parameters: { prompt: 'do something', description: 'test', agentName, mode: 'sync' },
 				context: { sessionResource, requestId: callingRequest?.requestId ?? 'req-1' },
 				subAgentInvocationId: callingRequest?.subAgentInvocationId,
 				userSelectedTools: { runSubagent: true },
@@ -1448,6 +1629,7 @@ suite('RunSubagentTool', () => {
 					parameters: { prompt: 'test', description: 'test task', agentName: 'Forbidden' },
 					toolCallId: 'allowlist-prepare',
 					chatSessionResource: URI.parse('test://session/allowlist'),
+					invocationRequestId: 'req-1',
 				}, CancellationToken.None),
 				(err: Error) => {
 					assert.ok(err.message.includes('Requested agent \'Forbidden\' is not allowed'));
@@ -1662,7 +1844,7 @@ suite('RunSubagentTool', () => {
 
 			assert.deepStrictEqual({ whileRunning, afterFinished }, {
 				whileRunning: [completed, completed],
-				afterFinished: [`Error invoking subagent: ${notAllowed('C')}`, `Error invoking subagent: ${notAllowed('C')}`],
+				afterFinished: ['Error invoking subagent: The exact invoking chat request was not found.', 'Error invoking subagent: The exact invoking chat request was not found.'],
 			});
 		});
 	});
@@ -1706,7 +1888,9 @@ suite('RunSubagentTool', () => {
 				capturedRequests.push(request);
 				// Keep nesting until we go beyond the hardcoded maxDepth
 				if (nestedInvocations++ < RUN_SUBAGENT_MAX_NESTING_DEPTH + 1) {
-					await tool.invoke(createInvocation(sessionUri), countTokens, noProgress, CancellationToken.None);
+					const child = createInvocation(sessionUri);
+					child.context = { sessionResource: sessionUri, requestId: request.requestId };
+					await tool.invoke(child, countTokens, noProgress, CancellationToken.None);
 				}
 				return {};
 			};
@@ -1721,7 +1905,7 @@ suite('RunSubagentTool', () => {
 			assert.strictEqual(enabledFlags[RUN_SUBAGENT_MAX_NESTING_DEPTH], false);
 		});
 
-		test('depth is decremented after invoke completes', async () => {
+		test('independent invocations retain depth one after earlier completion', async () => {
 			const capturedRequests: IChatAgentRequest[] = [];
 			const { tool } = createInvokableTool({ allowInvocationsFromSubagents: true, capturedRequests });
 			const sessionUri = URI.parse('test://session/depth-decrement');
@@ -1775,6 +1959,7 @@ suite('RunSubagentTool', () => {
 				toolCallId: invocation.callId,
 				modelId: invocation.modelId,
 				chatSessionResource: sessionUri,
+				invocationRequestId: invocation.context?.requestId,
 			}, CancellationToken.None);
 			assert.deepStrictEqual(telemetryService.events, []);
 			await tool.invoke(invocation, countTokens, noProgress, CancellationToken.None);
@@ -1856,6 +2041,7 @@ suite('RunSubagentTool', () => {
 				toolCallId: invocation.callId,
 				modelId: invocation.modelId,
 				chatSessionResource: sessionUri,
+				invocationRequestId: invocation.context?.requestId,
 			}, CancellationToken.None);
 			await tool.invoke(invocation, countTokens, noProgress, CancellationToken.None);
 
@@ -1906,7 +2092,7 @@ suite('RunSubagentTool', () => {
 					telemetryService,
 				});
 				const invocation = createInvocation(URI.parse(`test://session/${testCase.name}`), undefined, 'main-model-id');
-				invocation.parameters = testCase.parameters;
+				invocation.parameters = { ...testCase.parameters, mode: 'sync' };
 
 				const result = await tool.invoke(invocation, countTokens, noProgress, CancellationToken.None);
 				if (capturedRequests.length !== 1) {
@@ -1986,6 +2172,7 @@ suite('RunSubagentTool', () => {
 				mockInstantiationService as IInstantiationService,
 				{} as IProductService,
 				NullTelemetryService,
+				testDisposables.add(new InMemoryStorageService()),
 			));
 			return { tool, parentCredits };
 		}
@@ -1995,8 +2182,8 @@ suite('RunSubagentTool', () => {
 				callId: `credits-call-${++creditsCallIdCounter}`,
 				chatStreamToolCallId,
 				toolId: 'runSubagent',
-				parameters: { prompt: 'do something', description: 'test' },
-				context: { sessionResource: URI.parse('test://session/credits') },
+				parameters: { prompt: 'do something', description: 'test', mode: 'sync' },
+				context: { sessionResource: URI.parse('test://session/credits'), requestId: 'req-1' },
 				userSelectedTools: { runSubagent: true },
 				toolSpecificData: { kind: 'subagent', description: 'test' },
 			} as IToolInvocation;

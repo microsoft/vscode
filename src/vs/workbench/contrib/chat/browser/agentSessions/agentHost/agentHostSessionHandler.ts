@@ -117,7 +117,7 @@ import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTy
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { getChatSessionType, isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../../../common/participants/chatAgents.js';
-import { ILanguageModelToolsService, IToolData, IToolResult, stringifyPromptTsxPart, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
+import { getBackgroundToolInvocationContext, ILanguageModelToolsService, IToolData, IToolInvocationContext, IToolResult, stringifyPromptTsxPart, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { IChatWidgetService } from '../../chat.js';
 import { getAgentSessionProviderIcon } from '../agentSessions.js';
 import { IAgentCustomizationScope, IAgentHostActiveClientService } from './agentHostActiveClientService.js';
@@ -238,6 +238,8 @@ interface IObserveTurnOptions {
 	 */
 	readonly chatURI: string;
 	readonly turnId: string;
+	/** The original response request that owns this observer's subagent cards. */
+	readonly parentRequestId?: string;
 	readonly sink: (parts: IChatProgress[]) => void;
 	readonly cancellationToken: CancellationToken;
 	/**
@@ -1199,7 +1201,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * it. The session-level responder defers to those observers so the inline
 	 * UI stays in charge of answering.
 	 */
-	private readonly _renderedRequests = observableValue<ReadonlyMap<string, URI>>(this, new Map());
+	private readonly _renderedRequests = observableValue<ReadonlyMap<string, IToolInvocationContext>>(this, new Map());
 	/** Tool calls whose protocol outcome has already been dispatched. */
 	private readonly _resolvedToolCalls = new Set<string>();
 	/**
@@ -2870,14 +2872,14 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						&& readToolCallMeta(request.toolCall).toolSearchCandidates === undefined) {
 						return;
 					}
-					const execute = (contextSessionResource: URI | undefined) => {
+					const execute = (context: IToolInvocationContext | undefined) => {
 						startedRequest = request;
 						unobservedTimer.clear();
 						const requestGeneration = generation;
 						execution.activeAttempts++;
 						void this._executeClientTool(
 							request,
-							contextSessionResource,
+							context,
 							execution.source.token,
 							() => requestGeneration === generation && (invocationStarted || equals(request$.read(undefined), request)),
 							() => {
@@ -2977,6 +2979,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const key = this._toolCallKey(chatURI, turnId, toolCallId);
 		const existing = this._clientToolInvocations.get(key);
 		if (existing) {
+			if (subagentInvocationId !== undefined) {
+				existing.bindToSubagent(subagentInvocationId);
+			}
 			return existing;
 		}
 		const invocation = this._toolsService.beginToolCall({
@@ -3027,7 +3032,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * attribute to that observer's chat. Without it the tool runs headlessly,
 	 * independent of whether the owning turn is live.
 	 */
-	private async _executeClientTool(request: ClientToolExecutionRequest, contextSessionResource: URI | undefined, token: CancellationToken, isCurrent: () => boolean, markInvocationStarted: () => void): Promise<void> {
+	private async _executeClientTool(request: ClientToolExecutionRequest, context: IToolInvocationContext | undefined, token: CancellationToken, isCurrent: () => boolean, markInvocationStarted: () => void): Promise<void> {
 		const chatURI = request.chat.toString();
 		const toolCall = request.toolCall;
 		const toolName = toolCall.toolName;
@@ -3039,7 +3044,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const completionMeta = isToolSearch ? { _meta: metaWithoutToolSearchCandidates(toolCall) } : {};
 
 		const invocation = toolData
-			? this._ensureClientToolInvocation(chatURI, request.turnId, toolCall.toolCallId, toolData.id, undefined)
+			? this._ensureClientToolInvocation(chatURI, request.turnId, toolCall.toolCallId, toolData.id, context?.subagentInvocationId)
 			: undefined;
 		const fail = (message: string, code: string) => {
 			const pastTenseMessage = localize('agentHost.clientTool.pastTense', "Couldn't run {0}", toolCall.displayName);
@@ -3107,19 +3112,27 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			parameters = { ...parameters, candidateTools: toolSearchCandidates };
 		}
 
-		this._logService.info(`[AgentHost] Running client tool: ${toolName} (callId=${toolCall.toolCallId}, withContext=${contextSessionResource !== undefined})`);
+		this._logService.info(`[AgentHost] Running client tool: ${toolName} (callId=${toolCall.toolCallId}, withContext=${context !== undefined})`);
 		let result: IToolResult | undefined;
 		let error: unknown;
 		try {
+			const background = context && getBackgroundToolInvocationContext(context.sessionResource);
+			const parentRequestId = background?.parentRequestId ?? context?.parentRequestId;
+			const subagentInvocationId = context?.subagentInvocationId ?? background?.subagentInvocationId;
 			markInvocationStarted();
 			result = await this._toolsService.invokeTool({
 				callId: toolCall.toolCallId,
 				toolId: toolData.id,
 				parameters,
-				context: contextSessionResource ? {
-					sessionResource: contextSessionResource,
+				context: context ? {
+					...context,
+					requestId: request.turnId,
+					parentRequestId,
+					subagentInvocationId,
 					sandboxNetworkRestrictions: readToolCallMeta(toolCall)['vscode.copilotSandboxNetworkRestrictions'],
 				} : undefined,
+				chatRequestId: parentRequestId,
+				subAgentInvocationId: subagentInvocationId,
 				chatStreamToolCallId: toolCall.toolCallId,
 				preApproved: toolCall.status === ToolCallStatus.PendingConfirmation ? undefined : getClientToolPreApproval(toolCall),
 			}, async () => 0, token);
@@ -3410,6 +3423,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				sessionResource: request.sessionResource,
 				chatURI,
 				turnId,
+				parentRequestId: getBackgroundToolInvocationContext(request.sessionResource)?.parentRequestId ?? request.requestId,
 				sink: progress,
 				cancellationToken,
 				suppressErrorMarkdown: true,
@@ -3508,6 +3522,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				sessionResource: request.sessionResource,
 				chatURI,
 				turnId,
+				parentRequestId: getBackgroundToolInvocationContext(request.sessionResource)?.parentRequestId ?? request.requestId,
 				sink: progress,
 				cancellationToken,
 				suppressErrorMarkdown: true,
@@ -3613,7 +3628,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			if (observingTurn || options.subAgentInvocationId !== undefined) {
 				options.sink(parts);
 			} else {
-				this._appendSubagentProgress(options.sessionResource, options.turnId, parts);
+				this._appendSubagentProgress(options.sessionResource, options.parentRequestId ?? options.turnId, parts);
 			}
 		}));
 		const opts: IObserveTurnOptions = { ...options, sink: parts => publisher.publish(parts) };
@@ -4215,11 +4230,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			// watcher it may execute this call, and it must find the shared
 			// invocation already created when it does.
 			this._setupClientToolCall(initial, part$, store, opts, subagentContext, renderedBySnapshot);
-			store.add(this._markToolCallRendered(opts.chatURI, opts.turnId, initial.toolCallId, opts.sessionResource));
+			store.add(this._markToolCallRendered(opts.chatURI, opts.turnId, initial.toolCallId, opts.sessionResource, opts.parentRequestId ?? opts.turnId, opts.subAgentInvocationId));
 		} else if (contributor?.kind === ToolCallContributorKind.Client) {
 			this._setupOtherClientToolCall(initial, part$, store, opts, subagentContext);
 		} else {
-			store.add(this._markToolCallRendered(opts.chatURI, opts.turnId, initial.toolCallId, opts.sessionResource));
+			store.add(this._markToolCallRendered(opts.chatURI, opts.turnId, initial.toolCallId, opts.sessionResource, opts.parentRequestId ?? opts.turnId, opts.subAgentInvocationId));
 			this._setupServerToolCall(initial, part$, store, opts, subagentContext, renderedBySnapshot);
 		}
 	}
@@ -4233,9 +4248,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	/** Claims a request as rendered until the returned disposable is disposed. */
-	private _markRendered(key: string, sessionResource: URI): IDisposable {
-		this._renderedRequests.set(new Map(this._renderedRequests.get()).set(key, sessionResource), undefined);
+	private _markRendered(key: string, sessionResource: URI, parentRequestId?: string, subagentInvocationId?: string): IDisposable {
+		const context: IToolInvocationContext = { sessionResource, parentRequestId, subagentInvocationId };
+		this._renderedRequests.set(new Map(this._renderedRequests.get()).set(key, context), undefined);
 		return toDisposable(() => {
+			if (this._renderedRequests.get().get(key) !== context) {
+				return;
+			}
 			const next = new Map(this._renderedRequests.get());
 			next.delete(key);
 			this._renderedRequests.set(next, undefined);
@@ -4256,9 +4275,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 * claim also forgets the funnel entries, which is the only cleanup a tool
 	 * call that never reached `inputNeeded` ever gets.
 	 */
-	private _markToolCallRendered(chatURI: string, turnId: string, toolCallId: string, sessionResource: URI): IDisposable {
+	private _markToolCallRendered(chatURI: string, turnId: string, toolCallId: string, sessionResource: URI, parentRequestId: string, subagentInvocationId: string | undefined): IDisposable {
 		const key = this._toolCallKey(chatURI, turnId, toolCallId);
-		const rendered = this._markRendered(key, sessionResource);
+		const background = getBackgroundToolInvocationContext(sessionResource);
+		const rendered = this._markRendered(key, sessionResource, background?.parentRequestId ?? parentRequestId, subagentInvocationId ?? background?.subagentInvocationId);
 		return toDisposable(() => {
 			rendered.dispose();
 			this._forgetResolvedToolCall(key);
@@ -4595,13 +4615,18 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 	/** Late child activity updates the original response without reopening the completed parent turn. */
 	private _appendSubagentProgress(sessionResource: URI, requestId: string, parts: IChatProgress[]): void {
-		const response = this._chatService.getSession(sessionResource)?.getRequests().find(request => request.id === requestId)?.response;
+		const background = getBackgroundToolInvocationContext(sessionResource);
+		if (background && background.parentRequestId !== requestId) {
+			this._logService.warn(`[AgentHost] Late subagent parent request mismatch: ${requestId}`);
+			return;
+		}
+		const response = this._chatService.getSession(background?.parentSessionResource ?? sessionResource)?.getRequests().find(request => request.id === requestId)?.response;
 		if (!response) {
 			this._logService.trace(`[AgentHost] No response for late subagent progress: ${requestId}`);
 			return;
 		}
 		for (const part of parts) {
-			if (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized' || part.kind === 'markdownContent') {
+			if (part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized' || part.kind === 'markdownContent' || part.kind === 'externalEdit' || part.kind === 'hook') {
 				response.updateContent(part);
 			} else {
 				this._logService.warn(`[AgentHost] Unexpected late subagent progress: ${part.kind}`);
@@ -4705,7 +4730,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}));
 
 		const rootInvocationId = opts.subAgentInvocationId ?? toolCallId;
-		void this._observeSubagentSession(opts.sessionResource, opts.backendSession, toolCallId, childChatUri, rootInvocationId, invocation, opts.sink, observationStore, subagentContext, perInvocationCredits, perInvocationModel, opts.subagentSnapshot?.toolCalls);
+		void this._observeSubagentSession(opts.sessionResource, opts.backendSession, toolCallId, childChatUri, rootInvocationId, invocation, opts.sink, observationStore, subagentContext, perInvocationCredits, perInvocationModel, opts.subagentSnapshot?.toolCalls, opts.parentRequestId ?? opts.turnId);
 	}
 
 	/**
@@ -4756,7 +4781,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			return;
 		}
 
-		const invocation = this._ensureClientToolInvocation(opts.chatURI, opts.turnId, toolCallId, toolData.id, opts.subAgentInvocationId);
+		const background = getBackgroundToolInvocationContext(opts.sessionResource);
+		const invocation = this._ensureClientToolInvocation(opts.chatURI, opts.turnId, toolCallId, toolData.id, opts.subAgentInvocationId ?? background?.subagentInvocationId);
 		if (!invocation) {
 			this._logService.warn(`[AgentHost] Failed to begin client tool invocation: ${toolName}`);
 			this._dispatchAction(opts.backendSession, {
@@ -5535,6 +5561,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		perInvocationCreditsAccumulator: ISettableObservable<number>,
 		perInvocationModel: ISettableObservable<ITurnModelInfo | undefined>,
 		snapshotToolCalls?: ReadonlyMap<string, ChatToolInvocation | IChatToolInvocationSerialized>,
+		parentRequestId?: string,
 	): Promise<void> {
 		const parentSessionUri = parentSession.toString();
 
@@ -5658,6 +5685,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						sessionResource,
 						chatURI: childChatUri,
 						turnId,
+						parentRequestId,
 						sink: emitProgress,
 						cancellationToken: cts.token,
 						subAgentInvocationId: rootInvocationId,

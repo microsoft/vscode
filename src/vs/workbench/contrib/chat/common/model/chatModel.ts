@@ -3534,7 +3534,14 @@ export class ChatModel extends Disposable implements IChatModel {
 		}
 
 		if (request.response.isComplete) {
-			throw new Error('acceptResponseProgress: Adding progress to a completed response');
+			const subagentInvocationId = progress.kind === 'externalToolInvocationUpdate' ? progress.subagentInvocationId
+				: 'subAgentInvocationId' in progress && typeof progress.subAgentInvocationId === 'string' ? progress.subAgentInvocationId : undefined;
+			const ownsSubagent = subagentInvocationId && !request.response.isCanceled && request.response.entireResponse.value.some(part =>
+				(part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized')
+				&& part.toolCallId === subagentInvocationId && part.toolSpecificData?.kind === 'subagent');
+			if (!ownsSubagent) {
+				throw new Error('acceptResponseProgress: Adding progress to a completed response');
+			}
 		}
 
 		if (progress.kind === 'usage') {

@@ -26,10 +26,10 @@ import { ITelemetryService } from '../../../../../../platform/telemetry/common/t
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { LanguageModelToolsService } from '../../../browser/tools/languageModelToolsService.js';
 import { IChatToolRiskAssessmentService, IToolRiskAssessment, ToolRiskLevel, ToolRiskPromptKind } from '../../../browser/tools/chatToolRiskAssessmentService.js';
-import { ChatModel, IChatModel } from '../../../common/model/chatModel.js';
+import { ChatModel, IChatModel, IChatRequestModel } from '../../../common/model/chatModel.js';
 import { IChatService, IChatProgress, IChatInfoMessage, IChatToolInputInvocationData, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { ChatConfiguration, ChatPermissionLevel } from '../../../common/constants.js';
-import { SpecedToolAliases, isToolResultInputOutputDetails, IToolData, IToolImpl, IToolInvocation, ToolDataSource, IToolResultTextPart, ToolAndToolSetEnablementMap } from '../../../common/tools/languageModelToolsService.js';
+import { getBackgroundToolInvocationContext, SpecedToolAliases, isToolResultInputOutputDetails, IToolData, IToolImpl, IToolInvocation, IToolResult, ToolDataSource, IToolResultTextPart, ToolAndToolSetEnablementMap } from '../../../common/tools/languageModelToolsService.js';
 import { MockChatService } from '../../common/chatService/mockChatService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
@@ -528,6 +528,38 @@ suite('LanguageModelToolsService', () => {
 		assert.strictEqual(result.content[0].value, 'result');
 	});
 
+	test('tool result processors preserve binary content and metadata and can be disposed', async () => {
+		const original: IToolResult = {
+			content: [{ kind: 'data', value: { mimeType: 'image/png', data: VSBuffer.fromString('image') } }],
+			toolMetadata: { origin: 'binary-tool' },
+		};
+		const tool = registerToolForTest(service, store, 'binaryResult', { invoke: async () => original });
+		const registration = store.add(service.registerToolResultProcessor(async (invocation, result) => ({
+			...result,
+			content: [...result.content, { kind: 'text', value: `${invocation.toolId}: running=1/10` }],
+		})));
+		const decorated = await service.invokeTool(tool.makeDto({}), async () => 0, CancellationToken.None);
+		registration.dispose();
+		const undecorated = await service.invokeTool(tool.makeDto({}, undefined, '2'), async () => 0, CancellationToken.None);
+		assert.deepStrictEqual({
+			decoratedContent: decorated.content,
+			metadata: decorated.toolMetadata,
+			undecoratedContent: undecorated.content,
+		}, {
+			decoratedContent: [...original.content, { kind: 'text', value: 'binaryResult: running=1/10' }],
+			metadata: original.toolMetadata,
+			undecoratedContent: original.content,
+		});
+	});
+
+	test('tool result processor failure preserves the original result', async () => {
+		const original: IToolResult = { content: [{ kind: 'text', value: 'completed tool output' }] };
+		const tool = registerToolForTest(service, store, 'processorFailure', { invoke: async () => original });
+		store.add(service.registerToolResultProcessor(async () => { throw new Error('storage unavailable'); }));
+		const result = await service.invokeTool(tool.makeDto({}), async () => 0, CancellationToken.None);
+		assert.deepStrictEqual(result.content, original.content);
+	});
+
 	test('invokeTool uses re-registered implementation after prepareToolInvocation', async () => {
 		const toolData: IToolData = {
 			id: 'reRegisteredTool',
@@ -598,9 +630,125 @@ suite('LanguageModelToolsService', () => {
 		const withoutRequestId = tool.makeDto({}, { sessionId }, 'call-without-request-id');
 		const withRequestId = tool.makeDto({}, { sessionId }, 'call-with-request-id');
 		await service.invokeTool(withoutRequestId, async () => 0, CancellationToken.None);
-		await service.invokeTool({ ...withRequestId, context: { ...withRequestId.context!, requestId: 'subagent-request' } }, async () => 0, CancellationToken.None);
+		await service.invokeTool({ ...withRequestId, chatRequestId: 'requestId', context: { ...withRequestId.context!, requestId: 'subagent-request' } }, async () => 0, CancellationToken.None);
 
-		assert.deepStrictEqual(preparedRequestIds, [undefined, 'subagent-request']);
+		assert.deepStrictEqual(preparedRequestIds, ['requestId', 'subagent-request']);
+	});
+
+	suite('exact background tool routing', () => {
+		function createParent(complete = true, canceled = false) {
+			const model = stubGetSession(chatService, 'background-parent');
+			const requests = [
+				{ id: 'parent /中文?', modelId: 'parent-model', response: { isComplete: complete, isCanceled: canceled } },
+				{ id: 'new-turn', modelId: 'new-model' },
+			] as IChatRequestModel[];
+			model.getRequests = () => requests;
+			return { model, requests };
+		}
+
+		function childResource(parent: URI, agent = 'card /中文?') {
+			return parent.with({ path: `${parent.path}/background-subagent/${encodeURIComponent(agent)}/request/${encodeURIComponent('parent /中文?')}` });
+		}
+
+		test('decodes exact path identities and restores parent query and fragment', () => {
+			const parent = URI.parse('test://authority/parent?mode=a%26b#old-fragment');
+			const query = new URLSearchParams({ bgParentRequestId: 'parent /中文?', bgParentQuery: parent.query, bgParentFragment: parent.fragment }).toString();
+			const child = childResource(parent).with({ query, fragment: '' });
+			const context = getBackgroundToolInvocationContext(child);
+			assert.deepStrictEqual({ parent: context?.parentSessionResource.toString(), request: context?.parentRequestId, card: context?.subagentInvocationId, child: child.path }, {
+				parent: parent.toString(), request: 'parent /中文?', card: 'card /中文?', child: `${parent.path}/background-subagent/card%20%2F%E4%B8%AD%E6%96%87%3F/request/parent%20%2F%E4%B8%AD%E6%96%87%3F`,
+			});
+		});
+
+		test('parallel child tools keep their paths and cards on a completed exact parent after a new turn', async () => {
+			const { model } = createParent();
+			const invocations: IToolInvocation[] = [];
+			const published: { requestId: string; card: string | undefined }[] = [];
+			const bytes = VSBuffer.wrap(Uint8Array.from([0, 255, 128]));
+			const result: IToolResult = { content: [{ kind: 'data', value: { mimeType: 'application/octet-stream', data: bytes }, title: 'binary' }], toolMetadata: { nested: { retained: true } } };
+			const gate = new Barrier();
+			const tool = registerToolForTest(service, store, 'background-binary', {
+				invoke: async dto => { invocations.push(dto); await gate.wait(); return result; },
+			});
+			chatService.appendProgress = (request, progress) => {
+				if (progress.kind === 'toolInvocation') {
+					published.push({ requestId: request.id, card: progress.subAgentInvocationId });
+				}
+			};
+			const resources = ['card-a', 'card-b'].map(agent => childResource(model.sessionResource, agent));
+			const calls = resources.map((resource, index) => service.invokeTool({ ...tool.makeDto({ bytes }, undefined, `child-${index}`), context: { sessionResource: resource, requestId: `child-request-${index}` } }, async () => 0, CancellationToken.None));
+			gate.open();
+			const results = await Promise.all(calls);
+			assert.deepStrictEqual({
+				published,
+				invocations: invocations.map(dto => ({ path: dto.context?.sessionResource.path, parent: dto.chatRequestId, child: dto.context?.requestId, card: dto.subAgentInvocationId, model: dto.modelId, sameInput: dto.parameters.bytes === bytes })),
+				preservedResults: results.map(value => value === result && value.content[0] === result.content[0] && value.toolMetadata === result.toolMetadata),
+			}, {
+				published: [{ requestId: 'parent /中文?', card: 'card-a' }, { requestId: 'parent /中文?', card: 'card-b' }],
+				invocations: resources.map((resource, index) => ({ path: resource.path, parent: 'parent /中文?', child: `child-request-${index}`, card: `card-${index === 0 ? 'a' : 'b'}`, model: 'parent-model', sameInput: true })),
+				preservedResults: [true, true],
+			});
+		});
+
+		test('selects an exact ordinary request instead of the newest turn', async () => {
+			const { model } = createParent(false);
+			const published: string[] = [];
+			chatService.appendProgress = request => { published.push(request.id); };
+			const tool = registerToolForTest(service, store, 'exact-request', { invoke: async () => ({ content: [] }) });
+			await service.invokeTool({ ...tool.makeDto({}), context: { sessionResource: model.sessionResource, requestId: 'parent /中文?' } }, async () => 0, CancellationToken.None);
+			assert.deepStrictEqual(published, ['parent /中文?']);
+		});
+
+		for (const mismatch of ['query', 'dto', 'context', 'missing-request', 'bad-encoding', 'bad-path']) {
+			test(`rejects ${mismatch} without executing or appending to the new turn`, async () => {
+				const { model } = createParent();
+				let invoked = false;
+				const published: string[] = [];
+				chatService.appendProgress = request => { published.push(request.id); };
+				const tool = registerToolForTest(service, store, 'mismatch-tool', { invoke: async () => { invoked = true; return { content: [] }; } });
+				let resource = childResource(model.sessionResource);
+				if (mismatch === 'query') { resource = resource.with({ query: 'bgParentRequestId=new-turn' }); }
+				if (mismatch === 'missing-request') { resource = resource.with({ path: resource.path.replace(/\/request\/.*$/, '/request/absent') }); }
+				if (mismatch === 'bad-encoding') { resource = resource.with({ path: resource.path.replace(/\/request\/.*$/, '/request/%ZZ') }); }
+				if (mismatch === 'bad-path') { resource = resource.with({ path: `${resource.path}/extra` }); }
+				await assert.rejects(service.invokeTool({ ...tool.makeDto({}), chatRequestId: mismatch === 'dto' ? 'new-turn' : undefined, context: { sessionResource: resource, parentRequestId: mismatch === 'context' ? 'new-turn' : undefined } }, async () => 0, CancellationToken.None));
+				assert.deepStrictEqual({ invoked, published }, { invoked: false, published: [] });
+			});
+		}
+
+		test('canceled parents stay canceled despite a live newer request', async () => {
+			const { model } = createParent(true, true);
+			const tool = registerToolForTest(service, store, 'canceled-child', { invoke: async () => ({ content: [] }) });
+			await assert.rejects(service.invokeTool({ ...tool.makeDto({}), context: { sessionResource: childResource(model.sessionResource) } }, async () => 0, CancellationToken.None), isCancellationError);
+		});
+
+		test('an initially headless streaming call binds once to its exact card', async () => {
+			const { model } = createParent();
+			const tool = registerToolForTest(service, store, 'headless-stream', { invoke: async () => ({ content: [] }) });
+			const invocation = service.beginToolCall({ toolId: tool.id, toolCallId: 'headless', force: true });
+			assert.ok(invocation instanceof ChatToolInvocation);
+			await service.invokeTool({ ...tool.makeDto({}, undefined, 'headless'), context: { sessionResource: childResource(model.sessionResource) } }, async () => 0, CancellationToken.None);
+			assert.strictEqual(invocation.subAgentInvocationId, 'card /中文?');
+			assert.throws(() => invocation.bindToSubagent('other-card'), /ownership mismatch/);
+		});
+
+		test('a streaming call for another parent is rejected before execution', async () => {
+			const { model } = createParent(false);
+			let executed = false;
+			const tool = registerToolForTest(service, store, 'stream-mismatch', { invoke: async () => { executed = true; return { content: [] }; } });
+			service.beginToolCall({ toolId: tool.id, toolCallId: 'stream-mismatch', chatRequestId: 'new-turn', subagentInvocationId: 'card /中文?', force: true });
+			await assert.rejects(service.invokeTool({ ...tool.makeDto({}, undefined, 'stream-mismatch'), context: { sessionResource: childResource(model.sessionResource) } }, async () => 0, CancellationToken.None), /ownership mismatch/);
+			assert.strictEqual(executed, false);
+		});
+
+		test('beginToolCall never falls back from a missing explicit request', () => {
+			const { model } = createParent(false);
+			const published: string[] = [];
+			chatService.appendProgress = request => { published.push(request.id); };
+			const tool = registerToolForTest(service, store, 'exact-stream', { invoke: async () => ({ content: [] }) });
+			service.beginToolCall({ toolId: tool.id, toolCallId: 'absent-stream', sessionResource: model.sessionResource, chatRequestId: 'absent', force: true });
+			assert.deepStrictEqual(published, []);
+		});
 	});
 
 	test('invocation parameters are overridden by input toolSpecificData', async () => {

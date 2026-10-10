@@ -5,17 +5,21 @@
 
 import assert from 'assert';
 import type * as vscode from 'vscode';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
+import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../platform/log/common/log.js';
 import { nullExtensionDescription } from '../../../services/extensions/common/extensions.js';
-import { MainThreadLanguageModelsShape, MainThreadLanguageModelToolsShape } from '../../common/extHost.protocol.js';
+import { IToolInvocationContextDto, IToolInvocationDto, MainThreadLanguageModelsShape, MainThreadLanguageModelToolsShape } from '../../common/extHost.protocol.js';
 import { IExtHostAuthentication } from '../../common/extHostAuthentication.js';
 import { ExtHostLanguageModels } from '../../common/extHostLanguageModels.js';
 import { ExtHostLanguageModelTools } from '../../common/extHostLanguageModelTools.js';
 import { LanguageModelError, LanguageModelTextPart, LanguageModelToolResult } from '../../common/extHostTypes.js';
+import * as typeConvert from '../../common/extHostTypeConverters.js';
+import { ChatAgentLocation } from '../../../contrib/chat/common/constants.js';
+import { IChatAgentRequest } from '../../../contrib/chat/common/participants/chatAgents.js';
 import { SingleProxyRPCProtocol } from './testRPCProtocol.js';
 
 suite('ExtHostLanguageModelTools request model resolution', () => {
@@ -109,4 +113,160 @@ suite('ExtHostLanguageModelTools request model resolution', () => {
 			assert.strictEqual(invoked, false);
 		});
 	}
+});
+
+suite('ExtHostLanguageModelTools invocation identity', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const extension = { ...nullExtensionDescription, enabledApiProposals: ['chatParticipantPrivate', 'chatParticipantAdditions'] };
+	const modeInstructions = { name: 'Exact mode', content: 'Preserve\nthese instructions verbatim.', toolReferences: [], allowedSubagents: ['Explore'] };
+
+	function createTools(invoke?: MainThreadLanguageModelToolsShape['$invokeTool']) {
+		const calls: IToolInvocationDto[] = [];
+		const proxy: Partial<MainThreadLanguageModelToolsShape> = {
+			$getTools: async () => [],
+			$registerTool: () => { },
+			$unregisterTool: () => { },
+			$invokeTool: invoke ?? (async dto => {
+				calls.push(dto);
+				return { content: [] };
+			}),
+		};
+		const models = new class extends mock<ExtHostLanguageModels>() {
+			override async getLanguageModelForRequest(): Promise<vscode.LanguageModelChat> {
+				throw LanguageModelError.NotFound('external/model');
+			}
+		};
+		return { tools: new ExtHostLanguageModelTools(SingleProxyRPCProtocol(proxy), models), calls };
+	}
+
+	test('two concurrent parents keep their exact tokens, not contradictory explicit IDs', async () => {
+		const { tools, calls } = createTools();
+		const contexts: IToolInvocationContextDto[] = ['one', 'two'].map(id => ({
+			sessionResource: `vscode-chat:/parent-${id}?query=${id}#fragment-${id}`,
+			requestId: `request-${id}`,
+			subagentInvocationId: `subagent-${id}`,
+			modeInstructions: { ...modeInstructions, content: id },
+		}));
+		await Promise.all(contexts.map(context => tools.invokeTool(extension, 'testTool', {
+			input: {}, toolInvocationToken: Object.freeze(context) as never,
+			chatRequestId: 'other-request', subAgentInvocationId: 'other-subagent',
+		}, CancellationToken.None)));
+		assert.deepStrictEqual(calls.map(call => ({
+			session: URI.isUri(call.context?.sessionResource) ? call.context.sessionResource.toString(true) : undefined, request: call.chatRequestId,
+			subagent: call.subAgentInvocationId, mode: call.context?.modeInstructions?.content,
+		})), contexts.map(context => ({ session: context.sessionResource, request: context.requestId, subagent: context.subagentInvocationId, mode: context.modeInstructions?.content })));
+	});
+
+	for (const resource of [URI.parse('vscode-chat:/session?value=one#section'), { scheme: 'vscode-chat', path: '/session', query: 'value=one', fragment: 'section' }, 'vscode-chat:/session?value=one#section']) {
+		test(`revives ${typeof resource === 'string' ? 'string' : URI.isUri(resource) ? 'URI' : 'cross-realm components'} without changing session identity`, async () => {
+			const { tools, calls } = createTools();
+			await tools.invokeTool(nullExtensionDescription, 'testTool', {
+				input: {}, toolInvocationToken: { sessionResource: resource, requestId: 'exact', subagentInvocationId: 'subagent' } as never,
+			}, CancellationToken.None);
+			assert.deepStrictEqual({
+				session: URI.isUri(calls[0].context?.sessionResource) ? calls[0].context.sessionResource.toString(true) : undefined, request: calls[0].chatRequestId, subagent: calls[0].subAgentInvocationId,
+			}, { session: 'vscode-chat:/session?value=one#section', request: 'exact', subagent: 'subagent' });
+		});
+	}
+
+	test('detached child receives exact parent and mode with an unresolved model', async () => {
+		const { tools } = createTools();
+		let received: vscode.LanguageModelToolInvocationOptions<object> | undefined;
+		store.add(tools.registerTool(extension, 'testTool', {
+			invoke: options => {
+				received = options;
+				return new LanguageModelToolResult([]);
+			},
+		}));
+		await tools.$invokeTool({
+			callId: 'call', toolId: 'testTool', parameters: {}, modelId: 'external/model',
+			chatRequestId: 'other-request', subAgentInvocationId: 'other-subagent',
+			context: {
+				sessionResource: 'vscode-chat:/unknown-child', requestId: 'child-request',
+				parentSessionResource: 'vscode-chat:/known-parent?original=query#original-fragment', parentRequestId: 'parent-request',
+				subagentInvocationId: 'exact-subagent', modeInstructions,
+			},
+		}, CancellationToken.None);
+		assert.deepStrictEqual({
+			request: received?.chatRequestId, parent: received?.parentRequestId,
+			parentSession: received?.parentSessionResource?.toString(true), session: received?.chatSessionResource?.toString(true),
+			subagent: received?.subAgentInvocationId, mode: received?.modeInstructions2,
+		}, {
+			request: 'child-request', parent: 'parent-request', parentSession: 'vscode-chat:/known-parent?original=query#original-fragment',
+			session: 'vscode-chat:/unknown-child', subagent: 'exact-subagent',
+			mode: { ...modeInstructions, uri: undefined, metadata: undefined, isBuiltin: undefined },
+		});
+	});
+
+	test('request converter binds parent, subagent and exact instructions without inspecting model', () => {
+		const request: IChatAgentRequest = {
+			requestId: 'child-request', sessionResource: URI.parse('vscode-chat:/child'),
+			agentId: 'agent', message: 'prompt', location: ChatAgentLocation.Chat, variables: { variables: [] },
+			parentRequestId: 'parent-request', subAgentInvocationId: 'subagent', modeInstructions,
+		};
+		const model = new class extends mock<vscode.LanguageModelChat>() {
+			override get id(): string { throw new Error('Model must not be inspected'); }
+		};
+		const converted = typeConvert.ChatAgentRequest.to(request, undefined, model, undefined, [], new Map(), extension, new NullLogService());
+		const context = typeConvert.LanguageModelToolInvocationContext.to(converted.toolInvocationToken);
+		assert.deepStrictEqual({
+			request: context?.requestId, parent: context?.parentRequestId, subagent: context?.subagentInvocationId,
+			mode: context?.modeInstructions?.content, frozen: Object.isFrozen(converted.toolInvocationToken),
+		}, { request: 'child-request', parent: 'parent-request', subagent: 'subagent', mode: modeInstructions.content, frozen: true });
+	});
+
+	test('legacy tokens and tokenless private calls retain optional-ID behavior', async () => {
+		const { tools, calls } = createTools();
+		await tools.invokeTool(extension, 'testTool', { input: {}, toolInvocationToken: { sessionResource: URI.parse('vscode-chat:/legacy') } as never, chatRequestId: 'explicit' });
+		await tools.invokeTool(extension, 'testTool', { input: {}, toolInvocationToken: undefined, chatRequestId: 'tokenless', subAgentInvocationId: 'explicit-subagent' });
+		assert.deepStrictEqual(calls.map(call => [call.context?.requestId, call.chatRequestId, call.subAgentInvocationId]), [
+			[undefined, 'explicit', undefined], [undefined, 'tokenless', 'explicit-subagent'],
+		]);
+	});
+
+	for (const context of [null, {}, { sessionResource: 'no-scheme' }, { sessionResource: 42 }, { sessionResource: 'vscode-chat:/session', requestId: '' }, { sessionResource: 'vscode-chat:/session', parentRequestId: 42 }]) {
+		test(`rejects malformed token ${JSON.stringify(context)} before RPC`, async () => {
+			const { tools, calls } = createTools();
+			await assert.rejects(tools.invokeTool(extension, 'testTool', { input: {}, toolInvocationToken: context as never }), /Invalid tool invocation token|UriError/);
+			assert.deepStrictEqual(calls, []);
+		});
+	}
+
+	test('cancelled invocations do not cross RPC or invoke registered tools', async () => {
+		const { tools, calls } = createTools();
+		let invoked = false;
+		store.add(tools.registerTool(extension, 'testTool', { invoke: () => { invoked = true; return new LanguageModelToolResult([]); } }));
+		await assert.rejects(tools.invokeTool(extension, 'testTool', { input: {}, toolInvocationToken: undefined }, CancellationToken.Cancelled), CancellationError);
+		await assert.rejects(tools.$invokeTool({ callId: 'call', toolId: 'testTool', parameters: {}, context: undefined }, CancellationToken.Cancelled), CancellationError);
+		assert.deepStrictEqual({ calls, invoked }, { calls: [], invoked: false });
+	});
+
+	test('unknown or mismatched routing failures propagate unchanged', async () => {
+		const error = new Error('Unknown exact parent request');
+		const { tools } = createTools(async () => { throw error; });
+		await assert.rejects(tools.invokeTool(extension, 'testTool', {
+			input: {}, toolInvocationToken: { sessionResource: 'vscode-chat:/unknown-child', requestId: 'child', parentRequestId: 'unknown-parent' } as never,
+		}), candidate => candidate === error);
+	});
+
+	test('cancellation during model resolution prevents the extension invocation', async () => {
+		const source = store.add(new CancellationTokenSource());
+		const proxy: Partial<MainThreadLanguageModelToolsShape> = {
+			$getTools: async () => [], $registerTool: () => { }, $unregisterTool: () => { },
+		};
+		const models = new class extends mock<ExtHostLanguageModels>() {
+			override async getLanguageModelForRequest(): Promise<vscode.LanguageModelChat> {
+				source.cancel();
+				throw LanguageModelError.NotFound('external/model');
+			}
+		};
+		const tools = new ExtHostLanguageModelTools(SingleProxyRPCProtocol(proxy), models);
+		let invoked = false;
+		store.add(tools.registerTool(extension, 'testTool', { invoke: () => { invoked = true; return new LanguageModelToolResult([]); } }));
+		await assert.rejects(tools.$invokeTool({
+			callId: 'call', toolId: 'testTool', parameters: {}, modelId: 'external/model',
+			context: { sessionResource: 'vscode-chat:/child', requestId: 'child', parentRequestId: 'parent' },
+		}, source.token), CancellationError);
+		assert.strictEqual(invoked, false);
+	});
 });

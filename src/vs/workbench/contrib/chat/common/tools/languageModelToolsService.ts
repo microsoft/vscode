@@ -230,12 +230,47 @@ export interface IToolInvocationContext {
 	 * started by the run subagent tool, this is the id of the subagent's request.
 	 */
 	readonly requestId?: string;
+	/** The owning response request, distinct from a subagent's execution request. */
+	readonly parentRequestId?: string;
+	/** The native parent card's tool call id. */
+	readonly subagentInvocationId?: string;
 	/**
 	 * The working directory URI associated with this session.
 	 * Only set in the agents window context where each session can
 	 * have its own working directory that differs from the workspace folders.
 	 */
 	readonly workingDirectory?: URI;
+}
+
+/** Decodes a local background resource without changing the child execution resource. */
+export function getBackgroundToolInvocationContext(sessionResource: URI): { parentSessionResource: URI; parentRequestId: string; subagentInvocationId: string } | undefined {
+	const marker = '/background-subagent/';
+	const offset = sessionResource.path.lastIndexOf(marker);
+	if (offset < 0) {
+		return undefined;
+	}
+	const segments = sessionResource.path.slice(offset + marker.length).split('/');
+	if (segments.length !== 3 || segments[1] !== 'request' || !segments[0] || !segments[2]) {
+		throw new Error('Invalid background tool session path');
+	}
+	let subagentInvocationId: string;
+	let parentRequestId: string;
+	try {
+		subagentInvocationId = decodeURIComponent(segments[0]);
+		parentRequestId = decodeURIComponent(segments[2]);
+	} catch {
+		throw new Error('Invalid background tool session identity encoding');
+	}
+	const query = new URLSearchParams(sessionResource.query);
+	const queryRequestId = query.get('bgParentRequestId');
+	if (queryRequestId !== null && queryRequestId !== parentRequestId) {
+		throw new Error('Background tool path/query parent request mismatch');
+	}
+	return {
+		parentSessionResource: sessionResource.with({ path: sessionResource.path.slice(0, offset), query: query.get('bgParentQuery') ?? '', fragment: query.get('bgParentFragment') ?? '' }),
+		parentRequestId,
+		subagentInvocationId,
+	};
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -643,6 +678,7 @@ export interface ILanguageModelToolsService {
 	registerToolData(toolData: IToolData): IDisposable;
 	registerToolImplementation(id: string, tool: IToolImpl): IDisposable;
 	registerTool(toolData: IToolData, tool: IToolImpl): IDisposable;
+	registerToolResultProcessor(processor: (invocation: IToolInvocation, result: IToolResult) => Promise<IToolResult>): IDisposable;
 
 	/**
 	 * Get all tools currently enabled (matching `when` clauses and model).

@@ -7573,6 +7573,51 @@ suite('ChatListRenderer', () => {
 		}
 	}));
 
+	test('parallel late subtools stay in the completed original cards after a new response template starts', async () => {
+		const { disposables, model, viewModel, request, renderer, template, node, container } = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent });
+		const parents = ['card-a', 'card-b'].map(id => createSubagentTool(id, { kind: 'subagent', hasStarted: true, isActive: true, description: id }));
+		for (const parent of parents) {
+			model.acceptResponseProgress(request, parent);
+			await parent.didExecuteTool({ content: [{ kind: 'text', value: 'spawned in background' }] });
+		}
+		renderer.renderElement(node, 0, template);
+		request.response!.complete();
+		renderer.renderElement(node, 0, template);
+		const next = model.addRequest({ text: 'another turn', parts: [] }, { variables: [] }, 0);
+		const nextResponse = viewModel.getItems().filter(isResponseVM).find(response => response.requestId === next.id);
+		assert.ok(nextResponse);
+		const nextTemplate = renderer.renderTemplate(container);
+		disposables.add(toDisposable(() => renderer.disposeTemplate(nextTemplate)));
+		renderer.renderElement({ ...node, element: nextResponse }, 1, nextTemplate);
+		for (const id of ['card-b', 'card-a']) {
+			const tool = new ChatToolInvocation(
+				{ invocationMessage: `Read ${id}`, pastTenseMessage: `Read ${id}` },
+				{ id: 'read_file', displayName: 'Read file', modelDescription: 'Read file', source: ToolDataSource.Internal },
+				`child-${id}`, id, {},
+			);
+			model.acceptResponseProgress(request, tool);
+			await tool.didExecuteTool({ content: [{ kind: 'text', value: id }] });
+		}
+		renderer.renderElement(node, 0, template);
+		const cards = template.renderedParts?.filter(part => part instanceof ChatSubagentContentPart) ?? [];
+		for (const card of cards) {
+			card.domNode.querySelector<HTMLElement>('.chat-subagent-pill-content')?.click();
+		}
+		await timeout(0);
+		assert.deepStrictEqual({
+			cards: cards.map(card => ({ id: card.subAgentInvocationId, ownTool: card.domNode.textContent?.includes(`Read ${card.subAgentInvocationId}`), otherTool: card.domNode.textContent?.includes(`Read ${card.subAgentInvocationId === 'card-a' ? 'card-b' : 'card-a'}`) })),
+			nextCards: nextTemplate.renderedParts?.filter(part => part instanceof ChatSubagentContentPart).length ?? 0,
+			nextContent: next.response!.entireResponse.value,
+			originalComplete: request.response!.isComplete,
+		}, {
+			cards: [{ id: 'card-a', ownTool: true, otherTool: false }, { id: 'card-b', ownTool: true, otherTool: false }],
+			nextCards: 0,
+			nextContent: [],
+			originalComplete: true,
+		});
+		next.response!.complete();
+	});
+
 	for (const expandBeforeCompletion of [false, true]) {
 		test(`a background subagent that outlives a persistent response shows its own working row (expanded ${expandBeforeCompletion ? 'before' : 'after'} completion)`, async () => {
 			const { container, model, request, renderer, template, node } = createPersistentProgressRenderer({ chatMode: ChatModeKind.Agent });
