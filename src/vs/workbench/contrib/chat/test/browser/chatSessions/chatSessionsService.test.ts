@@ -15,19 +15,24 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { ContextKeyExpr, IContextKey, RawContextKey } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { applyCodexAgentHostPreference, ChatSessionsService } from '../../../browser/chatSessions/chatSessions.contribution.js';
 import { ChatSessionOptionsMap, ChatSessionStatus, ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatSession, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionsExtensionPoint, ReadonlyChatSessionOptionsMap, SessionType } from '../../../common/chatSessionsService.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
-import { AgentHostCodexAgentEnabledSettingId, CodexPreferAgentHostEditorSettingId, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, protectedResourcesRequireGitHubCopilotSignIn } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AGENT_HOST_ENABLED_CONTEXT_KEY, IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
+import { AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentEnabledSettingId, CodexPreferAgentHostEditorSettingId, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, IAgentHostService, protectedResourcesRequireGitHubCopilotSignIn } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { RootStateSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
 import { ICloudSandboxApiService } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { CloudSandboxSessionHandler } from '../../../browser/remoteAgentHost/cloudSandboxSessionHandler.js';
 import { ReadOnlyChatSession } from '../../../browser/remoteAgentHost/cloudSandboxReadOnlySessionHandler.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
+import { PolicyUnavailableAgentHostContentProvider } from '../../../browser/agentSessions/agentHost/agentHostPolicyUnavailableSession.js';
+import '../../../browser/agentSessions/agentHost/agentHostChatContribution.js';
 
 suite('Codex Agent Host preference', () => {
 
@@ -394,6 +399,92 @@ suite('ChatSessionsService - async activation', () => {
 		assert.deepStrictEqual({ resolved: await service.canResolveChatSession(sessionType), calls }, {
 			resolved: true, calls: ['specialized', 'fallback'],
 		});
+	});
+});
+
+suite('ChatSessionsService - policy history activation', () => {
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createService(provider: 'claude' | 'codex', options: { policy?: boolean; hostEnabled?: boolean; preferAgentHost?: boolean; isSessionsWindow?: boolean } = {}) {
+		const setting = provider === 'claude' ? AgentHostClaudeAgentEnabledSettingId : AgentHostCodexAgentEnabledSettingId;
+		const configurationService = new class extends TestConfigurationService {
+			override inspect<T>(key: string) {
+				const value = super.inspect<T>(key);
+				return { ...value, policyValue: options.policy !== false && key === setting ? value.value : undefined };
+			}
+		}({ [setting]: false, [CodexPreferAgentHostEditorSettingId]: options.preferAgentHost !== false });
+		store.add(configurationService.onDidChangeConfigurationEmitter);
+		const subscription = store.add(new RootStateSubscription('policy-history-activation', () => { }));
+		const instantiationService = store.add(workbenchInstantiationService(undefined, store));
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(IAgentHostEnablementService, { enabled: constObservable(options.hostEnabled !== false) });
+		instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: options.isSessionsWindow ?? false });
+		instantiationService.stub(IAgentHostService, new class extends mock<IAgentHostService>() {
+			override readonly rootState = subscription;
+			override readonly onAgentHostExit = Event.None;
+		}());
+		const service = store.add(instantiationService.createInstance(ChatSessionsService));
+		return { service, subscription, sessionType: `agent-host-${provider}` };
+	}
+
+	for (const provider of ['claude', 'codex'] as const) {
+		for (const root of ['valid', 'Error', 'undefined']) {
+			test(`waits for ${provider} policy history registration with a ${root} root snapshot`, async () => {
+				const { service, subscription, sessionType } = createService(provider);
+				if (root === 'valid') {
+					subscription.handleSnapshot({ agents: [], activeSessions: 0 }, 0);
+				} else if (root === 'Error') {
+					subscription.setError(new Error('Root snapshot failed'));
+				}
+				let resolution: boolean | undefined;
+				const activation = service.canResolveChatSession(sessionType).then(value => { resolution = value; return value; });
+				try {
+					await timeout(0);
+					const beforeRegistration = resolution;
+					store.add(service.registerChatSessionContentProvider(sessionType, new PolicyUnavailableAgentHostContentProvider()));
+					await timeout(0);
+					const session = resolution === true ? store.add(await service.getOrCreateChatSession(URI.from({ scheme: sessionType, path: '/saved' }), CancellationToken.None)) : undefined;
+					assert.deepStrictEqual({
+						beforeRegistration: beforeRegistration ?? 'pending',
+						afterRegistration: resolution ?? 'pending',
+						session: session && { history: session.history, readOnly: session.isReadOnly?.get(), canSend: !!session.requestHandler },
+						contributions: service.getAllChatSessionContributions().map(contribution => contribution.type),
+					}, {
+						beforeRegistration: 'pending',
+						afterRegistration: true,
+						session: { history: [], readOnly: true, canSend: false },
+						contributions: [],
+					});
+				} finally {
+					subscription.handleSnapshot({ agents: [], activeSessions: 0 }, 1);
+					await activation;
+				}
+			});
+		}
+
+		for (const reason of ['manual disablement', 'global Agent Host disablement']) {
+			test(`does not wait for ${provider} history after ${reason}`, async () => {
+				const { service, subscription, sessionType } = createService(provider, { policy: reason !== 'manual disablement', hostEnabled: reason !== 'global Agent Host disablement' });
+				subscription.handleSnapshot({ agents: [{ provider, displayName: provider, description: 'test', models: [] }], activeSessions: 0 }, 0);
+				assert.strictEqual(await service.canResolveChatSession(sessionType), false);
+			});
+		}
+	}
+
+	test('does not wait for Codex policy history when the editor prefers the extension', async () => {
+		const { service, subscription, sessionType } = createService('codex', { preferAgentHost: false });
+		subscription.handleSnapshot({ agents: [], activeSessions: 0 }, 0);
+		assert.strictEqual(await service.canResolveChatSession(sessionType), false);
+	});
+
+	test('the Agents window waits for Codex policy history independently of the editor preference', async () => {
+		const { service, subscription, sessionType } = createService('codex', { preferAgentHost: false, isSessionsWindow: true });
+		subscription.handleSnapshot({ agents: [], activeSessions: 0 }, 0);
+		const activation = service.canResolveChatSession(sessionType);
+		await timeout(0);
+		store.add(service.registerChatSessionContentProvider(sessionType, new PolicyUnavailableAgentHostContentProvider()));
+		assert.strictEqual(await activation, true);
 	});
 });
 
@@ -806,6 +897,32 @@ suite('ChatSessionsService - session resolution', () => {
 			provideCalls: 2,
 			resource: resource.toString(),
 		});
+	});
+
+	test('provider replacement cancels shared pending content and resolves through the replacement', async () => {
+		const type = 'replaced-pending-content';
+		const resource = URI.from({ scheme: type, path: '/saved' });
+		const started = new DeferredPromise<void>();
+		const delayed = new DeferredPromise<IChatSession>();
+		let cancelled = 0;
+		let lateDisposed = 0;
+		let replacementReadOnly: boolean | undefined;
+		const registration = store.add(service.registerChatSessionContentProvider(type, {
+			provideChatSessionContent: () => { started.complete(); return delayed.p; },
+		}));
+		const first = service.getOrCreateChatSession(resource, CancellationToken.None).catch(error => { if (isCancellationError(error)) { cancelled++; } });
+		const second = service.getOrCreateChatSession(resource, CancellationToken.None).catch(error => { if (isCancellationError(error)) { cancelled++; } });
+		await started.p;
+		registration.dispose();
+		store.add(service.registerChatSessionContentProvider(type, {
+			provideChatSessionContent: async () => ({ sessionResource: resource, history: [], isReadOnly: constObservable(true), onWillDispose: Event.None, dispose: () => { } }),
+		}));
+		const replacement = service.getOrCreateChatSession(resource, CancellationToken.None).then(session => { replacementReadOnly = session.isReadOnly?.get(); });
+		await timeout(0);
+		const beforeLateResult = { cancelled, replacementReadOnly };
+		await delayed.complete({ sessionResource: resource, history: [], onWillDispose: Event.None, dispose: () => { lateDisposed++; } });
+		await Promise.all([first, second, replacement]);
+		assert.deepStrictEqual({ beforeLateResult, lateDisposed }, { beforeLateResult: { cancelled: 2, replacementReadOnly: true }, lateDisposed: 1 });
 	});
 
 	test('does not let one caller cancellation cancel the shared resolution', async () => {

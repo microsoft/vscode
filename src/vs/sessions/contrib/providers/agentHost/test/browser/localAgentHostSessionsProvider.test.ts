@@ -1459,6 +1459,136 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
+	test('policy-disabled saved sessions remain visible without advertising creation', () => {
+		const configurationService = new class extends TestConfigurationService {
+			override inspect<T>(key: string) {
+				const value = super.inspect<T>(key);
+				return { ...value, policyValue: key === 'chat.agentHost.claudeAgent.enabled' || key === 'chat.agentHost.codexAgent.enabled' ? value.value : undefined };
+			}
+		}({ 'chat.agentHost.claudeAgent.enabled': false, 'chat.agentHost.codexAgent.enabled': false });
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService, isSessionsWindow: true });
+		fireSessionAdded(agentHost, 'claude-saved', { title: 'Claude saved', provider: 'claude' });
+		fireSessionAdded(agentHost, 'codex-saved', { title: 'Codex saved', provider: 'codex' });
+		assert.deepStrictEqual({
+			saved: provider.getSessions().map(s => s.sessionType).sort(),
+			creation: provider.sessionTypes.map(t => t.id),
+			interactivity: provider.getSessions().map(session => session.mainChat.get().interactivity.get()),
+		}, { saved: ['claude', 'codex'], creation: ['copilotcli'], interactivity: [ChatInteractivity.ReadOnly, ChatInteractivity.ReadOnly] });
+	});
+
+	for (const initiallyBlocked of [false, true]) {
+		test(`policy-disabled history never passively restores and releases existing subscriptions (cold=${initiallyBlocked})`, () => {
+			const setting = 'chat.agentHost.claudeAgent.enabled';
+			const configurationService = new class extends TestConfigurationService {
+				blocked = initiallyBlocked;
+				override inspect<T>(key: string) {
+					const value = super.inspect<T>(key);
+					return { ...value, policyValue: key === setting && this.blocked ? value.value : undefined };
+				}
+			}({ [setting]: !initiallyBlocked });
+			const provider = createProvider(disposables, agentHost, undefined, { configurationService, isSessionsWindow: true });
+			fireSessionAdded(agentHost, 'claude-policy', { title: 'Saved', provider: 'claude' });
+			const session = provider.getSessions()[0];
+			const backend = 'claude:/claude-policy';
+			const observe = () => disposables.add(autorun(reader => provider.getAgentMergeClientStateObservable(session.sessionId).read(reader)));
+			provider.getSessionByResource(session.resource);
+			const observer = observe();
+			const before = agentHost.sessionSubscribeCounts.get(backend) ?? 0;
+			configurationService.blocked = true;
+			configurationService.setUserConfiguration(setting, false);
+			fireConfigChange(configurationService, setting);
+			observer.dispose();
+			observe();
+			provider.getSessionByResource(session.resource);
+			provider.getSessionConfig(session.sessionId);
+			assert.deepStrictEqual({
+				before,
+				after: agentHost.sessionSubscribeCounts.get(backend) ?? 0,
+				released: agentHost.sessionUnsubscribeCounts.get(backend) ?? 0,
+				retained: provider.getSessions()[0] === session,
+				interactivity: session.mainChat.get().interactivity.get(),
+			}, { interactivity: ChatInteractivity.ReadOnly, before: initiallyBlocked ? 0 : 2, after: initiallyBlocked ? 0 : 2, released: initiallyBlocked ? 0 : 2, retained: true });
+		});
+	}
+
+	test('policy-disabled saved rows reject mutations and honor explicit deletion', async () => {
+		const setting = 'chat.agentHost.claudeAgent.enabled';
+		const configurationService = new class extends TestConfigurationService {
+			override inspect<T>(key: string) {
+				const value = super.inspect<T>(key);
+				return { ...value, policyValue: key === setting ? value.value : undefined };
+			}
+		}({ [setting]: false });
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService, isSessionsWindow: true });
+		fireSessionAdded(agentHost, 'claude-policy', { title: 'Saved', provider: 'claude' });
+		const session = provider.getSessions()[0];
+		await assert.rejects(provider.renameSession(session.sessionId, 'Changed'), /organization has disabled/);
+		await assert.rejects(provider.createNewChat(session.sessionId), /organization has disabled/);
+		await assert.rejects(provider.forkChat(session.sessionId, session.resource, 'turn'), /organization has disabled/);
+		await assert.rejects(provider.createSideChat(session.sessionId, session.resource, 'turn'), /organization has disabled/);
+		await assert.rejects(provider.deleteSession(session.sessionId), /organization has disabled/);
+		await assert.rejects(provider.sendRequest(session.sessionId, session.resource, { query: 'Do not send' }), /organization has disabled/);
+		assert.strictEqual(session.title.get(), 'Saved');
+		fireSessionRemoved(agentHost, 'claude-policy', 'claude');
+		assert.deepStrictEqual(provider.getSessions(), []);
+	});
+
+	test('policy-disabled cached rows survive omission even when a sibling is listed', async () => {
+		const setting = 'chat.agentHost.claudeAgent.enabled';
+		const configurationService = new class extends TestConfigurationService {
+			override inspect<T>(key: string) {
+				const value = super.inspect<T>(key);
+				return { ...value, policyValue: key === setting ? value.value : undefined };
+			}
+		}({ [setting]: false });
+		class RefreshableProvider extends LocalAgentHostSessionsProvider {
+			refreshForTest(): Promise<void> { return this._refreshSessions(); }
+		}
+		agentHost.addSession(createSession('claude-kept', { provider: 'claude', summary: 'Kept' }));
+		agentHost.addSession(createSession('claude-omitted', { provider: 'claude', summary: 'Omitted' }));
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService, isSessionsWindow: true, providerCtor: RefreshableProvider });
+		assert.ok(provider instanceof RefreshableProvider);
+		await provider.refreshForTest();
+		const original = provider.getSessions();
+		agentHost.stopListingSessions('claude-omitted');
+		await provider.refreshForTest();
+		assert.deepStrictEqual(provider.getSessions().map(session => session.title.get()).sort(), ['Kept', 'Omitted']);
+		assert.ok(provider.getSessions().every(session => original.includes(session)));
+	});
+
+	for (const removedBeforeResolve of [false, true]) {
+		test(`policy revoked during draft preconditions preserves the draft (removedBeforeResolve=${removedBeforeResolve})`, async () => {
+			const setting = 'chat.agentHost.claudeAgent.enabled';
+			const configurationService = new class extends TestConfigurationService {
+				blocked = false;
+				override inspect<T>(key: string) {
+					const value = super.inspect<T>(key);
+					return { ...value, policyValue: key === setting && this.blocked ? value.value : undefined };
+				}
+			}({ [setting]: true });
+			agentHost.setAgents([{ provider: 'claude', displayName: 'Claude', description: '', models: [] }]);
+			const barrier = new DeferredPromise<void>();
+			const provider = createProvider(disposables, agentHost, undefined, { configurationService, isSessionsWindow: true, workspaceTrustBarrier: barrier });
+			const draft = provider.createNewSession(URI.file('/home/user/project'), 'claude');
+			configurationService.blocked = true;
+			await configurationService.setUserConfiguration(setting, false);
+			fireConfigChange(configurationService, setting);
+			assert.strictEqual(draft.mainChat.get().interactivity.get(), ChatInteractivity.ReadOnly);
+			if (removedBeforeResolve) {
+				configurationService.blocked = false;
+				await configurationService.setUserConfiguration(setting, true);
+				fireConfigChange(configurationService, setting);
+			}
+			await barrier.complete();
+			await timeout(0);
+			assert.deepStrictEqual({ saved: provider.getSessions().length, created: agentHost.createdSessionUris.length }, { saved: 0, created: 0 });
+			configurationService.blocked = false;
+			await configurationService.setUserConfiguration(setting, true);
+			fireConfigChange(configurationService, setting);
+			assert.strictEqual(provider.getSessionByResource(draft.resource)?.resource.toString(), draft.resource.toString());
+		});
+	}
+
 	test('getSessions includes agent-host Claude sessions', () => {
 		agentHost.setAgents([
 			{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] } as AgentInfo,

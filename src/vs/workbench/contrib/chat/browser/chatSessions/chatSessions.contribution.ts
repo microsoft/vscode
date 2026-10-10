@@ -1210,6 +1210,14 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			dispose: () => {
 				this._contentProviders.delete(chatSessionType);
 
+				for (const [key, pending] of this._pendingSessionResolutions) {
+					const type = getChatSessionType(URI.parse(key));
+					if (type === chatSessionType || this._resolveToPrimaryType(type) === chatSessionType) {
+						this._pendingSessionResolutions.delete(key);
+						pending.cancellationTokenSource.cancel();
+					}
+				}
+
 				this._onDidChangeContentProviderSchemes.fire({ added: [], removed: [chatSessionType] });
 
 				// Remove all sessions that were created by this provider

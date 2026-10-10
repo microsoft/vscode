@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
-import { Event } from '../../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { IManagedSettingsService, NullManagedSettingsService } from '../../../../../../../platform/policy/common/copilotManagedSettings.js';
 import { AccountPolicyGateState, IAccountPolicyGateService } from '../../../../../../services/policies/common/accountPolicyService.js';
-import { DisposableStore, IReference } from '../../../../../../../base/common/lifecycle.js';
+import { DisposableStore, IReference, MutableDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
 import { constObservable } from '../../../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../../../base/common/resources.js';
@@ -38,14 +38,15 @@ import { ChatEditorInput, ChatEditorInputSerializer, ChatEditorModel } from '../
 import { ChatEditor, IChatEditorOptions } from '../../../../browser/widgetHosts/editor/chatEditor.js';
 import { ChatWidget } from '../../../../browser/widget/chatWidget.js';
 import { IAgentHostEnablementService } from '../../../../../../../platform/agentHost/common/agentHostEnablementService.js';
-import { IChatService, IChatSessionStartOptions } from '../../../../common/chatService/chatService.js';
+import { IChatModelReference, IChatService, IChatSessionStartOptions } from '../../../../common/chatService/chatService.js';
 import { IChatSessionsService, localChatSessionType, SessionType } from '../../../../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatConfiguration, SessionTypeSelectionReason } from '../../../../common/constants.js';
 import { IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../../common/editing/chatEditingService.js';
-import { IChatModel } from '../../../../common/model/chatModel.js';
+import { IChatModel, IInputModel } from '../../../../common/model/chatModel.js';
 import { getChatSessionType, isUntitledChatSession, LocalChatSessionUri } from '../../../../common/model/chatUri.js';
 import { MockChatSessionsService } from '../../../common/mockChatSessionsService.js';
 import { TestContextService, TestStorageService } from '../../../../../../test/common/workbenchTestServices.js';
+import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 
 suite('ChatEditorInput', () => {
 
@@ -53,6 +54,170 @@ suite('ChatEditorInput', () => {
 	const settledPolicyGate: IAccountPolicyGateService = {
 		_serviceBrand: undefined, gateInfo: { state: AccountPolicyGateState.Inactive }, onDidChangeGateInfo: Event.None, whenInitialized: async () => { },
 	};
+
+	function loadingState(container: HTMLElement) {
+		const overlay = container.getElementsByClassName('chat-loading-overlay')[0];
+		return {
+			busy: container.getAttribute('aria-busy'),
+			status: overlay ? { role: overlay.getAttribute('role'), live: overlay.getAttribute('aria-live'), message: overlay.textContent } : null,
+		};
+	}
+
+	for (const cancel of [undefined, 'navigation', 'policy'] as const) {
+		test(`policy recovery retains the editor transcript while another reference exists (cancel=${cancel})`, async () => {
+			const resource = URI.parse('agent-host-claude:/retained');
+			const disposed = disposables.add(new Emitter<{ sessionResources: readonly URI[]; reason: 'disposed' }>());
+			const bound: Array<IChatModel | undefined> = [];
+			let references = 2;
+			let resolutions = 0;
+			let restoredDraft: string | undefined;
+			const configurationService = new class extends TestConfigurationService {
+				blocked = false;
+				override inspect<T>(key: string) {
+					const value = super.inspect<T>(key);
+					return { ...value, policyValue: this.blocked ? value.value : undefined };
+				}
+			}({ 'chat.agentHost.claudeAgent.enabled': false });
+			const oldModel = upcastPartial<IChatModel>({ sessionResource: resource, inputModel: upcastPartial<IInputModel>({ intendedModel: undefined }) });
+			const freshModel = upcastPartial<IChatModel>({ sessionResource: resource, inputModel: upcastPartial<IInputModel>({ state: constObservable(undefined), setState: state => { restoredDraft = state?.inputText; } }) });
+			const input = Object.assign(Object.create(ChatEditorInput.prototype), {
+				releaseModel: () => { references--; },
+				updateModel: () => { references++; },
+				resolve: async () => { resolutions++; return disposables.add(new ChatEditorModel(freshModel)); },
+			});
+			const pending = disposables.add(new MutableDisposable<DisposableStore>());
+			const container = document.createElement('div');
+			const editor = Object.assign(Object.create(ChatEditor.prototype), {
+				_input: input,
+				_editorContainer: container,
+				configurationService,
+				_providerReload: pending,
+				chatService: { onDidDisposeSession: disposed.event },
+				_widget: {
+					viewModel: { model: oldModel },
+					getViewState: () => ({}),
+					getInputState: () => ({ inputText: 'Preserved draft' }),
+					setModel: (model: IChatModel | undefined) => bound.push(model),
+					restoreViewState: () => { },
+				},
+			}) as { _reloadChatAfterPolicy(resource: URI): Promise<void> };
+			const reloading = editor._reloadChatAfterPolicy(resource);
+			await timeout(0);
+			const waiting = { references, resolutions, changes: bound.length, loading: loadingState(container) };
+			if (cancel === 'navigation') {
+				pending.clear();
+			} else if (cancel === 'policy') {
+				configurationService.blocked = true;
+				await editor._reloadChatAfterPolicy(resource);
+			}
+			references--;
+			if (references === 0) {
+				disposed.fire({ sessionResources: [resource], reason: 'disposed' });
+			}
+			await reloading;
+			assert.deepStrictEqual({ waiting, resolutions, fresh: bound.at(-1) === freshModel, listening: disposed.hasListeners(), references, restoredDraft, loading: loadingState(container) }, {
+				waiting: { references: 1, resolutions: 0, changes: 0, loading: { busy: null, status: null } }, resolutions: cancel ? 0 : 1, fresh: !cancel, listening: false, references: cancel === 'policy' ? 1 : 0, restoredDraft: cancel ? undefined : 'Preserved draft', loading: { busy: null, status: null },
+			});
+		});
+	}
+
+	for (const outcome of ['success', 'navigation', 'policy'] as const) {
+		test(`policy recovery owns its loading overlay until ${outcome}`, async () => {
+			const resource = URI.parse('agent-host-claude:/deferred-policy');
+			const nextResource = outcome === 'navigation' ? URI.parse('agent-host-codex:/next-session') : resource;
+			const changed = disposables.add(new Emitter<{ added: string[]; removed: string[] }>());
+			const disposed = disposables.add(new Emitter<{ sessionResources: readonly URI[]; reason: 'disposed' }>());
+			const started = new DeferredPromise<void>();
+			const delayed = new DeferredPromise<IChatModelReference>();
+			const nextStarted = new DeferredPromise<void>();
+			const nextDelayed = new DeferredPromise<IChatModelReference>();
+			const configurationService = new class extends TestConfigurationService {
+				blocked = false;
+				override inspect<T>(key: string) {
+					const value = super.inspect<T>(key);
+					return { ...value, policyValue: this.blocked ? value.value : undefined };
+				}
+			}({ 'chat.agentHost.claudeAgent.enabled': false });
+			let restoredDraft: string | undefined;
+			const inputModel = upcastPartial<IInputModel>({ state: constObservable(undefined), intendedModel: undefined, setState: state => { restoredDraft = state?.inputText; } });
+			const oldModel = upcastPartial<IChatModel>({ sessionResource: resource, inputModel, title: 'Original', onDidChange: Event.None });
+			const freshModel = upcastPartial<IChatModel>({ sessionResource: resource, inputModel, title: 'Restored', hasCustomTitle: true, onDidChange: Event.None });
+			const nextModel = upcastPartial<IChatModel>({ sessionResource: nextResource, inputModel, title: 'Replacement', hasCustomTitle: true, onDidChange: Event.None });
+			const widgetState: { viewModel: { sessionResource: URI; model: IChatModel } | undefined } = { viewModel: { sessionResource: resource, model: oldModel } };
+			const bound: IChatModel[] = [];
+			const tokens: CancellationToken[] = [];
+			let lateDisposed = false;
+			const chatService = upcastPartial<IChatService>({
+				onDidDisposeSession: disposed.event,
+				getSession: () => widgetState.viewModel?.model,
+				acquireExistingSession: () => ({ object: oldModel, dispose: () => { widgetState.viewModel = undefined; disposed.fire({ sessionResources: [resource], reason: 'disposed' }); } }),
+				acquireOrLoadSession: async (_resource, _location, token) => {
+					tokens.push(token);
+					if (tokens.length === 1) { started.complete(); return delayed.p; }
+					nextStarted.complete();
+					return nextDelayed.p;
+				},
+			});
+			const sessions = Object.assign(new MockChatSessionsService(), { onDidChangeContentProviderSchemes: changed.event });
+			const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
+			instantiationService.stub(IConfigurationService, configurationService);
+			instantiationService.stub(IChatService, chatService);
+			instantiationService.stub(IChatSessionsService, sessions);
+			const createInput = (sessionResource: URI) => disposables.add(new ChatEditorInput(sessionResource, {}, chatService,
+				upcastPartial<IDialogService>({}), configurationService, sessions, instantiationService, disposables.add(new TestStorageService()), new NullLogService(), new TestContextService(),
+				{ _serviceBrand: undefined, enabled: constObservable(true), managedSandboxEnforced: constObservable(false), managedSandboxAllowsBypass: constObservable(false) },
+				upcastPartial<IAgentHostConnectionsService>({}), NullTelemetryService, upcastPartial<IProgressService>({}), new NullManagedSettingsService(), settledPolicyGate));
+			const input = createInput(resource);
+			input.updateModel(oldModel);
+			const editor = disposables.add(instantiationService.createInstance(ChatEditor, upcastPartial<IEditorGroup>({ id: 1 })));
+			const container = document.createElement('div');
+			Object.assign(editor, {
+				_input: input, _editorContainer: container, _widget: {
+					get viewModel() { return widgetState.viewModel; },
+					getViewState: () => ({}), getInputState: () => ({ inputText: 'Preserved deferred draft' }),
+					getInput: () => '', unlockFromCodingAgent: () => { },
+					setModel: (model: IChatModel | undefined) => { if (model) { bound.push(model); } widgetState.viewModel = model ? { sessionResource: model.sessionResource, model } : undefined; },
+					restoreViewState: () => { },
+				}
+			});
+			changed.fire({ removed: [resource.scheme], added: [] });
+			changed.fire({ removed: [], added: [resource.scheme] });
+			await started.p;
+			const loading = loadingState(container);
+			let navigating: Promise<void> | undefined;
+			let loadingAfterCancel: ReturnType<typeof loadingState> | undefined;
+			if (outcome === 'navigation') {
+				editor.clearInput();
+				loadingAfterCancel = loadingState(container);
+				navigating = editor.setInput(createInput(nextResource), undefined, {}, CancellationToken.None);
+			} else if (outcome === 'policy') {
+				configurationService.blocked = true;
+				changed.fire({ removed: [resource.scheme], added: [] });
+				changed.fire({ removed: [], added: [resource.scheme] });
+				loadingAfterCancel = loadingState(container);
+			}
+			if (outcome !== 'success') {
+				await nextStarted.p;
+			}
+			const cancelled = tokens[0].isCancellationRequested;
+			await delayed.complete({ object: freshModel, dispose: () => { lateDisposed = true; } });
+			await timeout(0);
+			const afterFirstResult = { loading: loadingState(container), lateDisposed, bound: bound.map(model => model.title) };
+			if (outcome !== 'success') {
+				await nextDelayed.complete({ object: nextModel, dispose: () => { } });
+				await navigating;
+				await timeout(0);
+			}
+			const activeLoading = { busy: 'true', status: { role: 'status', live: 'polite', message: 'Loading...' } };
+			const noLoading = { busy: null, status: null };
+			assert.deepStrictEqual({ loading, loadingAfterCancel, afterFirstResult, cancelled, loadingAfterBind: loadingState(container), bound: bound.map(model => model.title), restoredDraft }, {
+				loading: activeLoading,
+				loadingAfterCancel: outcome === 'success' ? undefined : noLoading,
+				afterFirstResult: { loading: outcome === 'success' ? noLoading : activeLoading, lateDisposed: outcome !== 'success', bound: outcome === 'success' ? ['Restored'] : [] },
+				cancelled: outcome !== 'success', loadingAfterBind: noLoading, bound: [outcome === 'success' ? 'Restored' : 'Replacement'], restoredDraft: outcome === 'navigation' ? undefined : 'Preserved deferred draft',
+			});
+		});
+	}
 
 	for (const toCopilot of [true, false]) {
 		test(`editor binds its agent from the resolved model before submission (toCopilot=${toCopilot})`, async () => {

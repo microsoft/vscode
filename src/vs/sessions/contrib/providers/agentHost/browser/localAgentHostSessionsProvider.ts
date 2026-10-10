@@ -8,7 +8,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
-import { autorun, constObservable, IObservable } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, IObservable, observableFromEvent } from '../../../../../base/common/observable.js';
 import { basename, dirname, isEqualOrParent, joinPath, relativePath } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -16,7 +16,7 @@ import { localize } from '../../../../../nls.js';
 import { type AgentHostUriMapper, LOCAL_AGENT_HOST_AUTHORITY, toAgentHostContentUri, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentSession, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agent.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { affectsAgentHostProviderPreference, IAgentConnection, IAgentHostService, shouldSurfaceLocalAgentHostProvider } from '../../../../../platform/agentHost/common/agentService.js';
+import { affectsAgentHostProviderPreference, getPolicyUnavailableLocalAgentHostProviders, isLocalAgentHostProviderDisabledByPolicy, IAgentConnection, IAgentHostService, shouldSurfaceLocalAgentHostProvider } from '../../../../../platform/agentHost/common/agentService.js';
 import { workspacelessScratchDir } from '../../../../../platform/agentHost/common/workspacelessScratchDir.js';
 import { findDevContainerSample, getDevContainerSampleUrl } from '../../../../../platform/agentHost/common/devContainerSamples.js';
 import { type ISessionGitState, readSessionEhcliAdoptable } from '../../../../../platform/agentHost/common/state/sessionState.js';
@@ -265,9 +265,10 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 				this._refreshSessionWorkspaces();
 			}
 			if (affectsAgentHostProviderPreference(e, this._isSessionsWindow)) {
+				this._onSessionPolicyChanged();
 				this._syncRootState(this._agentHostService.rootState.value);
-				// `getSessions()` filters by the same gate, so the set of visible
-				// sessions just changed too. Fire an empty-payload change so the
+				// Saved history and pending-session visibility may also change.
+				// Fire an empty-payload change so the
 				// open list re-queries and re-filters. The payload is deliberately
 				// empty: these sessions are hidden, not removed, and signalling
 				// them as `removed` would be misread as a remote deletion (e.g. by
@@ -324,6 +325,14 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 		return shouldSurfaceLocalAgentHostProvider(provider, this._configurationService, this._isSessionsWindow);
 	}
 
+	protected override _shouldShowSavedSession(provider: string): boolean {
+		return this._shouldAdvertiseAgent(provider) || getPolicyUnavailableLocalAgentHostProviders(this._configurationService, this._isSessionsWindow).includes(provider);
+	}
+
+	protected override _isAgentDisabledByPolicy(provider: string): boolean {
+		return isLocalAgentHostProviderDisabledByPolicy(provider, this._configurationService);
+	}
+
 	/**
 	 * Local resource scheme: `agent-host-${provider}`. Must match the type
 	 * string registered by AgentHostContribution. Distinct from the logical
@@ -335,8 +344,9 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 		return `${LOCAL_RESOURCE_SCHEME_PREFIX}${provider}`;
 	}
 
-	protected _adapterOptions() {
+	protected _adapterOptions(agentProvider: string) {
 		return {
+			readOnly: observableFromEvent(this, this._configurationService.onDidChangeConfiguration, () => this._isAgentDisabledByPolicy(agentProvider)),
 			supportsCanvasPresentation: (agentProvider: string) => agentProvider === CopilotCLISessionType.id,
 			buildWorkspace: (project: IAgentSessionMetadata['project'], workingDirectories: readonly URI[] | undefined, gitHubInfo: IObservable<IGitHubInfo | undefined>, gitState: ISessionGitState | undefined) => {
 				const primary = workingDirectories?.[0];

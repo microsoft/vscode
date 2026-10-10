@@ -3,10 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import './media/chatEditor.css';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { raceCancellationError } from '../../../../../../base/common/async.js';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
+import { isCancellationError, onUnexpectedError } from '../../../../../../base/common/errors.js';
+import { Event } from '../../../../../../base/common/event.js';
+import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { isLocalAgentHostProviderDisabledByPolicy } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -76,6 +82,15 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 		return this._scopedContextKeyService;
 	}
 
+	private _chatWithUnregisteredProvider: URI | undefined;
+	private readonly _providerReload = this._register(new MutableDisposable<DisposableStore>());
+	private _providerReloadState: {
+		readonly input: ChatEditorInput;
+		readonly viewState: IChatWidgetViewState;
+		readonly inputState: ReturnType<ChatWidget['getInputState']>;
+		readonly intendedModel: IChatModel['inputModel']['intendedModel'];
+	} | undefined;
+
 	private dimension = new dom.Dimension(0, 0);
 	private _loadingContainer: HTMLElement | undefined;
 	private _editorContainer: HTMLElement | undefined;
@@ -86,6 +101,7 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 		@IThemeService themeService: IThemeService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IChatService private readonly chatService: IChatService,
@@ -94,6 +110,82 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 	) {
 		super(ChatEditorInput.EditorID, group, ChatEditor.VIEW_STATE_KEY, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorService, editorGroupService);
+		this._register(chatSessionsService.onDidChangeContentProviderSchemes(({ added, removed }) => {
+			const resource = this.widget?.viewModel?.sessionResource ?? this._providerReloadState?.input.sessionResource;
+			if (!resource || (resource.scheme !== 'agent-host-claude' && resource.scheme !== 'agent-host-codex')) {
+				return;
+			}
+			if (removed.includes(resource.scheme)) {
+				this._chatWithUnregisteredProvider = resource;
+			}
+			if (added.includes(resource.scheme) && isEqual(resource, this._chatWithUnregisteredProvider)) {
+				void this._reloadChatAfterPolicy(resource).catch(onUnexpectedError);
+			}
+		}));
+	}
+
+	private async _reloadChatAfterPolicy(resource: URI): Promise<void> {
+		const input = this.input;
+		if (!(input instanceof ChatEditorInput)) {
+			return;
+		}
+		const model = this.widget.viewModel?.model ?? this.chatService.getSession(resource);
+		if (model && isLocalAgentHostProviderDisabledByPolicy(resource.scheme.slice('agent-host-'.length), this.configurationService)) {
+			if (this._providerReload.value) {
+				input.updateModel(model);
+				this._providerReload.clear();
+				this._providerReloadState = undefined;
+			}
+			return;
+		}
+
+		this._chatWithUnregisteredProvider = undefined;
+		this._providerReload.clear();
+		const cts = new CancellationTokenSource();
+		const store = new DisposableStore();
+		this._providerReload.value = store;
+		store.add(toDisposable(() => cts.dispose(true)));
+		const state = this._providerReloadState?.input === input ? this._providerReloadState : {
+			input,
+			viewState: this.widget.getViewState(),
+			inputState: this.widget.getInputState(),
+			intendedModel: model?.inputModel.intendedModel,
+		};
+		this._providerReloadState = state;
+		const { viewState, inputState, intendedModel } = state;
+		const released = model ? new Promise<void>(resolve => {
+			store.add(Event.once(Event.filter(this.chatService.onDidDisposeSession, event =>
+				event.reason === 'disposed' && event.sessionResources.some(disposed => isEqual(disposed, resource))))(() => resolve()));
+			store.add(cts.token.onCancellationRequested(() => resolve()));
+		}) : Promise.resolve();
+		input.releaseModel();
+		try {
+			await released;
+			if (cts.token.isCancellationRequested || this.input !== input) {
+				return;
+			}
+			this.showLoadingInChatWidget(nls.localize('chatEditor.loadingSession', "Loading..."));
+			store.add(toDisposable(() => this.hideLoadingInChatWidget()));
+			const resolved = await raceCancellationError(input.resolve(cts.token), cts.token);
+			if (!resolved || cts.token.isCancellationRequested || this.input !== input) {
+				return;
+			}
+			if (intendedModel) {
+				resolved.model.inputModel.setIntendedModel(intendedModel);
+			}
+			resolved.model.inputModel.setState({ ...inputState, permissionLevel: resolved.model.inputModel.state.get()?.permissionLevel });
+			this.updateModel(resolved.model);
+			this.widget.restoreViewState(viewState);
+		} catch (error) {
+			if (!isCancellationError(error)) {
+				throw error;
+			}
+		} finally {
+			if (this._providerReload.value === store) {
+				this._providerReload.clear();
+				this._providerReloadState = undefined;
+			}
+		}
 	}
 
 	private async clear(resolvedSessionType?: IResolvedNewChatSessionType) {
@@ -175,6 +267,8 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 	}
 
 	override clearInput(): void {
+		this._providerReload.clear();
+		this._providerReloadState = undefined;
 		super.clearInput();
 		this.widget.setModel(undefined);
 		// Clear the bound-resource attribute while the rebind is in flight so
@@ -251,7 +345,7 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 		}
 
 		try {
-			const editorModel = await raceCancellationError(input.resolve(), token);
+			const editorModel = await raceCancellationError(input.resolve(token), token);
 
 			if (!editorModel) {
 				throw new Error(`Failed to get model for chat editor. resource: ${input.sessionResource}`);

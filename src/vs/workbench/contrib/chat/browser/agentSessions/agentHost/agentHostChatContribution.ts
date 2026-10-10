@@ -3,15 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { PolicyUnavailableAgentHostContentProvider } from './agentHostPolicyUnavailableSession.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
-import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { mark } from '../../../../../../base/common/performance.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
-import { affectsAgentHostProviderPreference, IAgentHostService, protectedResourcesRequireGitHubCopilotSignIn, shouldSurfaceLocalAgentHostProvider, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
+import { affectsAgentHostProviderPreference, getPolicyUnavailableLocalAgentHostProviders, IAgentHostService, protectedResourcesRequireGitHubCopilotSignIn, shouldSurfaceLocalAgentHostProvider, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { AGENT_HOST_SCHEME, LOCAL_AGENT_HOST_AUTHORITY } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { type ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -78,6 +79,9 @@ async function waitForLocalAgentHostActivation(accessor: ServicesAccessor, sessi
 	}
 
 	while (true) {
+		if (getPolicyUnavailableLocalAgentHostProviders(configurationService, environmentService.isSessionsWindow).includes(provider)) {
+			return true;
+		}
 		const rootState = agentHostService.rootState.value;
 		if (rootState instanceof Error) {
 			return false;
@@ -117,6 +121,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	static readonly ID = 'workbench.contrib.agentHostContribution';
 
 	private readonly _agentRegistrations = this._register(new DisposableMap<AgentProvider, DisposableStore>());
+	private readonly _historyRegistrations = this._register(new DisposableMap<AgentProvider, IDisposable>());
 	/** Model providers keyed by agent provider, for pushing model updates. */
 	private readonly _modelProviders = new Map<AgentProvider, AgentHostLanguageModelProvider>();
 
@@ -163,7 +168,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 				this._initialize();
 				this._enable();
 				const current = this._agentHostService.rootState.value;
-				if (wasInitialized && current && !(current instanceof Error)) {
+				if (wasInitialized) {
 					this._handleRootStateChange(current);
 				}
 			} else {
@@ -173,6 +178,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 				this._enablementStore.clear();
 				this._agentHostService.setAuthenticationPending(false);
 				this._agentRegistrations.clearAndDisposeAll();
+				this._historyRegistrations.clearAndDisposeAll();
 				this._modelProviders.clear();
 			}
 		}));
@@ -193,18 +199,14 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 
 		// Process initial root state if already available
 		const initialRootState = this._agentHostService.rootState.value;
-		if (initialRootState && !(initialRootState instanceof Error)) {
-			this._handleRootStateChange(initialRootState);
-		}
+		this._handleRootStateChange(initialRootState);
 
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (!affectsAgentHostProviderPreference(e, this._isSessionsWindow)) {
 				return;
 			}
 			const current = this._agentHostService.rootState.value;
-			if (current && !(current instanceof Error)) {
-				this._handleRootStateChange(current);
-			}
+			this._handleRootStateChange(current);
 		}));
 	}
 
@@ -255,19 +257,33 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		return shouldSurfaceLocalAgentHostProvider(provider, this._configurationService, this._isSessionsWindow);
 	}
 
-	private _handleRootStateChange(rootState: RootState): void {
+	private _handleRootStateChange(rootState: RootState | Error | undefined): void {
 		if (!this._agentHostEnablementService.enabled.get()) {
 			return;
 		}
-		const allowed = rootState.agents.filter(a => this._shouldRegisterAgent(a.provider));
-		const incoming = new Set(allowed.map(a => a.provider));
+		const allowed = rootState && !(rootState instanceof Error) ? rootState.agents.filter(a => this._shouldRegisterAgent(a.provider)) : undefined;
+		const incoming = allowed ? new Set(allowed.map(a => a.provider)) : undefined;
 
-		// Remove agents that are no longer present OR no longer allowed
 		for (const [provider] of this._agentRegistrations) {
-			if (!incoming.has(provider)) {
+			if (!this._shouldRegisterAgent(provider) || incoming?.has(provider) === false) {
 				this._agentRegistrations.deleteAndDispose(provider);
 				this._modelProviders.delete(provider);
 			}
+		}
+
+		const unavailable = new Set(getPolicyUnavailableLocalAgentHostProviders(this._configurationService, this._isSessionsWindow));
+		for (const [provider] of this._historyRegistrations) {
+			if (!unavailable.has(provider)) {
+				this._historyRegistrations.deleteAndDispose(provider);
+			}
+		}
+		for (const provider of unavailable) {
+			if (!this._historyRegistrations.has(provider)) {
+				this._historyRegistrations.set(provider, this._chatSessionsService.registerChatSessionContentProvider(`agent-host-${provider}`, new PolicyUnavailableAgentHostContentProvider()));
+			}
+		}
+		if (!allowed) {
+			return;
 		}
 
 		// Authenticate using protectedResources from agent info. Only auth the
