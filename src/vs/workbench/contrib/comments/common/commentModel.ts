@@ -94,7 +94,7 @@ export class ResourceWithCommentThreads {
 	get lastUpdatedAt() {
 		if (this._lastUpdatedAt === undefined) {
 			let updatedAt = '';
-			// Return result without cahcing as we expect data to arrive later
+			// Return result without caching as we expect data to arrive later
 			if (!this.commentThreads.length) {
 				return updatedAt;
 			}
