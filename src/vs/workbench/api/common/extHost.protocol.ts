@@ -198,6 +198,11 @@ export interface AuthenticationGetSessionOptions extends Dto<IAuthenticationProv
 	clearSessionPreference?: boolean;
 	createIfNone?: boolean | AuthenticationInteractiveOptions;
 	forceNewSession?: boolean | AuthenticationInteractiveOptions;
+	/**
+	 * Accounts menu text for a quiet sign-in or access request.
+	 * Stripped before the request is forwarded to an authentication provider.
+	 */
+	accountsMenuLabel?: string;
 }
 export interface IRegisterAuthenticationProviderDetails {
 	id: string;

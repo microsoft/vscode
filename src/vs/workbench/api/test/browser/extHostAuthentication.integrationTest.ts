@@ -298,6 +298,13 @@ suite('ExtHostAuthentication', () => {
 				.map(item => item.command.id);
 		}
 
+		function getRequestTitles(providerId: string, group: string): string[] {
+			return MenuRegistry.getMenuItems(MenuId.AccountsContext)
+				.filter(isIMenuItem)
+				.filter(item => item.group === group && item.command.id.startsWith(providerId))
+				.map(item => typeof item.command.title === 'string' ? item.command.title : item.command.title.value);
+		}
+
 		async function runRequest(commandId: string): Promise<void> {
 			const command = CommandsRegistry.getCommand(commandId);
 			assert.ok(command);
@@ -662,6 +669,64 @@ suite('ExtHostAuthentication', () => {
 			}, {
 				createdResources: [context.resource, 'https://resource.example/b'],
 				pending: []
+			});
+		});
+
+		test('uses accountsMenuLabel for separate Accounts menu entries', async () => {
+			const provider = disposables.add(new ContextAuthProvider());
+			registerProvider('context-provider', provider);
+
+			await extHostAuthentication.getSession(extensionDescription, 'context-provider', ['read'], { accountsMenuLabel: 'Authorize Production' });
+			await extHostAuthentication.getSession(extensionDescription, 'context-provider', ['read'], { accountsMenuLabel: 'Authorize Lab' });
+
+			const requests = getRequests('context-provider', '2_signInRequests');
+			assert.deepStrictEqual(getRequestTitles('context-provider', '2_signInRequests'), [
+				'Authorize Production (1)',
+				'Authorize Lab (1)'
+			]);
+			assert.ok(provider.requests.every(request => !Object.hasOwn(request.options, 'accountsMenuLabel')));
+
+			await runRequest(requests[0]);
+
+			const created = provider.requests.filter(request => request.operation === 'create');
+			assert.deepStrictEqual({
+				created: created.length,
+				sentLabel: created.some(request => Object.hasOwn(request.options, 'accountsMenuLabel')),
+				pending: getRequestTitles('context-provider', '2_signInRequests')
+			}, {
+				created: 1,
+				sentLabel: false,
+				pending: ['Authorize Lab (1)']
+			});
+		});
+
+		test('uses the extension name when accountsMenuLabel is blank', async () => {
+			const provider = disposables.add(new ContextAuthProvider());
+			registerProvider('context-provider', provider);
+
+			await extHostAuthentication.getSession(extensionDescription, 'context-provider', ['read'], { accountsMenuLabel: '   ' });
+			await extHostAuthentication.getSession(extensionDescription, 'context-provider', ['read'], {});
+
+			assert.deepStrictEqual(getRequestTitles('context-provider', '2_signInRequests'), [
+				'Sign in with context-provider to use Null Extension Description (1)'
+			]);
+		});
+
+		test('uses accountsMenuLabel for separate access requests', async () => {
+			const provider = disposables.add(new ContextAuthProvider());
+			await provider.createSession(['read'], {});
+			provider.requests.length = 0;
+			registerProvider('context-provider', provider, true);
+
+			await extHostAuthentication.getSession(extensionDescription, 'context-provider', ['read'], { accountsMenuLabel: 'Allow Production' });
+			await extHostAuthentication.getSession(extensionDescription, 'context-provider', ['read'], { accountsMenuLabel: 'Allow Lab' });
+
+			assert.deepStrictEqual({
+				titles: getRequestTitles('context-provider', '3_accessRequests'),
+				sentLabel: provider.requests.some(request => Object.hasOwn(request.options, 'accountsMenuLabel'))
+			}, {
+				titles: ['Allow Production (1)', 'Allow Lab (1)'],
+				sentLabel: false
 			});
 		});
 

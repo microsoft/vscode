@@ -17949,6 +17949,23 @@ declare module 'vscode' {
 		 * The account that you would like to get a session for. This is passed down to the Authentication Provider to be used for creating the correct session.
 		 */
 		account?: AuthenticationSessionAccountInformation;
+
+		/**
+		 * A custom label for the Accounts menu entry created by a quiet sign-in or access request.
+		 *
+		 * When {@link AuthenticationGetSessionOptions.createIfNone createIfNone} is `false` and no usable session is available,
+		 * VS Code adds an entry to the Accounts menu. By default that entry is named after the extension, so several requests
+		 * from one extension look the same. Set this to text that distinguishes them, for example one label per account.
+		 *
+		 * The label is shown with a trailing `(1)`, which marks the entry as contributing to the Accounts badge.
+		 * Each distinct label is its own menu entry. Signing in from one entry does not remove an entry that uses a different label.
+		 * The label is not passed to the authentication provider and does not select the account. Pass {@link account} or other
+		 * session options when the provider needs to tell the accounts apart.
+		 *
+		 * This does not change the modal dialog used when `createIfNone` or `forceNewSession` is set. Use
+		 * {@link AuthenticationGetSessionPresentationOptions.detail detail} for that message.
+		 */
+		accountsMenuLabel?: string;
 	}
 
 	/**
