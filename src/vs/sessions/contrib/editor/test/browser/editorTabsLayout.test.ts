@@ -328,12 +328,18 @@ suite('Sessions - Editor tabs trailing layout', () => {
 		for (const style of ['legacy', 'pill', 'connected']) {
 			root.classList.toggle('modern-ui-tabs', style !== 'legacy');
 			root.classList.toggle('modern-ui-connected-editor-tabs', style === 'connected');
+			const beforeMeasurement = partOptions;
+			partOptions = { ...partOptions, wrapTabs: false };
+			control.updateOptions(beforeMeasurement, partOptions);
 			await layout(2000);
 			const strip = title.querySelector<HTMLElement>('.tabs-and-actions-container')!;
 			const tabs = strip.querySelector<HTMLElement>('.tabs-container')!;
 			const last = tabs.querySelector<HTMLElement>('.tab.last-tab')!;
 			const toolbar = strip.querySelector<HTMLElement>('.editor-toolbars')!;
 			const width = Math.ceil(last.offsetWidth + toolbar.offsetWidth / 2);
+			const afterMeasurement = partOptions;
+			partOptions = { ...partOptions, wrapTabs: true };
+			control.updateOptions(afterMeasurement, partOptions);
 			await layout(width);
 			results.push({
 				style, width,
