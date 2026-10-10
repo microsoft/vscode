@@ -578,6 +578,43 @@ suite('TerminalLinkParsing', () => {
 			}
 		});
 
+		suite('() and [] in paths (#212109)', () => {
+			function onlyPath(text: string, index: number): IParsedLink[] {
+				return [{ path: { index, text }, prefix: undefined, suffix: undefined }];
+			}
+
+			for (const os of [OperatingSystem.Linux, OperatingSystem.Macintosh]) {
+				test(`should keep balanced brackets inside a path ${osLabel[os]}`, () => {
+					// Next.js route groups and dynamic segments
+					deepStrictEqual(detectLinks('./src/(hello)/[world]/file.tsx', os), onlyPath('./src/(hello)/[world]/file.tsx', 0));
+					deepStrictEqual(detectLinks('app/(marketing)/about/page.tsx', os), onlyPath('app/(marketing)/about/page.tsx', 0));
+					deepStrictEqual(detectLinks('echo "./src/(hello)/file.tsx"', os), onlyPath('./src/(hello)/file.tsx', 6));
+					deepStrictEqual(detectLinks('/foo/(a)(b)/bar', os), onlyPath('/foo/(a)(b)/bar', 0));
+				});
+				test(`should allow a relative path to start with a bracketed segment ${osLabel[os]}`, () => {
+					deepStrictEqual(detectLinks('(group)/page.tsx', os), onlyPath('(group)/page.tsx', 0));
+					deepStrictEqual(detectLinks('[slug]/page.tsx', os), onlyPath('[slug]/page.tsx', 0));
+					deepStrictEqual(detectLinks('[test]/(test)/file.txt', os), onlyPath('[test]/(test)/file.txt', 0));
+				});
+				test(`should not take in unbalanced or surrounding parentheses ${osLabel[os]}`, () => {
+					deepStrictEqual(detectLinks('(./foo/bar)', os), onlyPath('./foo/bar', 1));
+					deepStrictEqual(detectLinks('foo(./foo/bar)', os), onlyPath('./foo/bar', 4));
+					deepStrictEqual(detectLinks('./foo/bar)', os), onlyPath('./foo/bar', 0));
+					deepStrictEqual(detectLinks('(see /foo/bar)', os), onlyPath('/foo/bar', 5));
+				});
+			}
+
+			test('should keep balanced brackets inside a path [Windows]', () => {
+				deepStrictEqual(detectLinks('.\\src\\(hello)\\[world]\\file.tsx', OperatingSystem.Windows), onlyPath('.\\src\\(hello)\\[world]\\file.tsx', 0));
+				deepStrictEqual(detectLinks('C:\\app\\(marketing)\\page.tsx', OperatingSystem.Windows), onlyPath('C:\\app\\(marketing)\\page.tsx', 0));
+				deepStrictEqual(detectLinks('(group)\\page.tsx', OperatingSystem.Windows), onlyPath('(group)\\page.tsx', 0));
+			});
+			test('should not take in unbalanced or surrounding parentheses [Windows]', () => {
+				deepStrictEqual(detectLinks('(C:\\foo\\bar)', OperatingSystem.Windows), onlyPath('C:\\foo\\bar', 1));
+				deepStrictEqual(detectLinks('foo(.\\foo\\bar)', OperatingSystem.Windows), onlyPath('.\\foo\\bar', 4));
+			});
+		});
+
 		suite('query strings', () => {
 			for (const os of operatingSystems) {
 				test(`should exclude query strings from link paths ${osLabel[os]}`, () => {
