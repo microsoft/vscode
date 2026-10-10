@@ -546,6 +546,16 @@ export class Grid<T extends IView = IView> extends Disposable {
 	}
 
 	/**
+	 * Grow a view towards the given direction by an amount in CSS pixels.
+	 * A negative amount shrinks that edge. Outer boundaries are left unchanged.
+	 */
+	resizeViewInDirection(view: T, direction: Direction, amount: number): void {
+		const orientation = direction === Direction.Left || direction === Direction.Right ? Orientation.HORIZONTAL : Orientation.VERTICAL;
+		const before = direction === Direction.Left || direction === Direction.Up;
+		this.gridview.resizeViewInDirection(this.getViewLocation(view), orientation, before, amount);
+	}
+
+	/**
 	 * Returns whether all other {@link IView views} are at their minimum size.
 	 *
 	 * @param view The reference {@link IView view}.
