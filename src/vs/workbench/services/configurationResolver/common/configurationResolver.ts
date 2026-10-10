@@ -47,6 +47,17 @@ export interface IConfigurationResolverService {
 	 * and resolveWithInteractionReplace will have contributed variables resolved.
 	 */
 	contributeVariable(variable: string, resolution: () => Promise<string | undefined>): void;
+
+	/**
+	 * Resolves static variables in a single setting string value.
+	 * Only non-interactive variables are substituted: `${env:NAME}`, `${userHome}`,
+	 * `${workspaceFolder}`, `${workspaceFolderBasename}`, `${pathSeparator}`, and
+	 * `${config:section}`. Command and input variables are intentionally left unchanged.
+	 * If a variable cannot be resolved it is left as-is rather than throwing.
+	 *
+	 * Intended for settings declared with `supportsVariableSubstitution: true`.
+	 */
+	resolveSettingValue(folder: IWorkspaceFolderData | undefined, value: string): Promise<string>;
 }
 
 interface PromptStringInputInfo {
