@@ -58,6 +58,7 @@ export interface IRelaxedTextModelCreationOptions {
 	defaultEOL?: DefaultEndOfLine;
 	isForSimpleWidget?: boolean;
 	largeFileOptimizations?: boolean;
+	largeFileSizeLimit?: number;
 	bracketColorizationOptions?: BracketPairColorizationOptions;
 }
 
@@ -72,6 +73,7 @@ function resolveOptions(_options: IRelaxedTextModelCreationOptions): ITextModelC
 		defaultEOL: (typeof _options.defaultEOL === 'undefined' ? defaultOptions.defaultEOL : _options.defaultEOL),
 		isForSimpleWidget: (typeof _options.isForSimpleWidget === 'undefined' ? defaultOptions.isForSimpleWidget : _options.isForSimpleWidget),
 		largeFileOptimizations: (typeof _options.largeFileOptimizations === 'undefined' ? defaultOptions.largeFileOptimizations : _options.largeFileOptimizations),
+		largeFileSizeLimit: (typeof _options.largeFileSizeLimit === 'undefined' ? defaultOptions.largeFileSizeLimit : _options.largeFileSizeLimit),
 		bracketPairColorizationOptions: (typeof _options.bracketColorizationOptions === 'undefined' ? defaultOptions.bracketPairColorizationOptions : _options.bracketColorizationOptions),
 	};
 }
