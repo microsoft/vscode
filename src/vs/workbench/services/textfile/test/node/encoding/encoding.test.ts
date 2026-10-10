@@ -209,12 +209,20 @@ suite('Encoding', () => {
 		assert.strictEqual(mimes.encoding, 'windows1252');
 	});
 
+	test('autoGuessEncoding (CP949)', async function () {
+		// jschardet reports Korean as CP949, which is euckr in iconv-lite.
+		// "한국어 텍스트입니다. 반갑습니다." in CP949
+		const buffer = VSBuffer.wrap(Buffer.from('c7d1b1b9beee20c5d8bdbac6aec0d4b4cfb4d92e20b9ddb0a9bdc0b4cfb4d92e', 'hex'));
+		const mimes = await encoding.detectEncodingFromBuffer({ buffer, bytesRead: buffer.byteLength }, true);
+		assert.strictEqual(mimes.encoding, 'euckr');
+	});
+
 	test('autoGuessEncoding (candidateGuessEncodings - ShiftJIS)', async function () {
 		// This file is determined to be windows1252 unless candidateDetectEncoding is set.
 		const file = FileAccess.asFileUri('vs/workbench/services/textfile/test/node/encoding/fixtures/some.shiftjis.1.txt').fsPath;
 		const buffer = await readExactlyByFile(file, 512 * 8);
-		const mimes = await encoding.detectEncodingFromBuffer(buffer, true, ['utf8', 'shiftjis', 'eucjp']);
-		assert.strictEqual(mimes.encoding, 'shiftjis');
+		assert.strictEqual((await encoding.detectEncodingFromBuffer(buffer, true)).encoding, 'windows1252');
+		assert.strictEqual((await encoding.detectEncodingFromBuffer(buffer, true, ['utf8', 'shiftjis', 'eucjp'])).encoding, 'shiftjis');
 	});
 
 	suite('autoGuessEncoding (candidate fallback)', () => {
