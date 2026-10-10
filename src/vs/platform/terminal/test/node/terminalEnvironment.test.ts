@@ -13,7 +13,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { ITerminalProcessOptions } from '../../common/terminal.js';
-import { getShellIntegrationInjection, IShellIntegrationConfigInjection, type IShellIntegrationInjectionFailure, sanitizeEnvForLogging } from '../../node/terminalEnvironment.js';
+import { getShellIntegrationInjection, IShellIntegrationConfigInjection, resolveUserZdotdir, type IShellIntegrationInjectionFailure, sanitizeEnvForLogging } from '../../node/terminalEnvironment.js';
 import { getWindowsBuildNumberSync } from '../../../../base/node/windowsVersion.js';
 
 const enabledProcessOptions: ITerminalProcessOptions = { shellIntegration: { enabled: true, suggestEnabled: false, nonce: '' }, windowsUseConptyDll: false, environmentVariableCollections: undefined, workspaceFolder: undefined, isScreenReaderOptimized: false };
@@ -198,6 +198,12 @@ suite('platform - terminalEnvironment', async () => {
 							deepStrictEqual(result1?.newArgs, ['-i']);
 							assertIsEnabled(result1);
 						});
+						test('when ZDOTDIR is the previously injected directory (#337392)', async () => {
+							const zdotdir = join(realpathSync(tmpdir()), `${username}-vscode-zsh`);
+							const result = await getShellIntegrationInjection({ executable: 'zsh', args: [] }, enabledProcessOptions, { ZDOTDIR: zdotdir }, logService, productService, true) as IShellIntegrationConfigInjection;
+							// The injected ZDOTDIR must not be mistaken for the user's own one
+							assertIsEnabled(result);
+						});
 					});
 				});
 			});
@@ -257,6 +263,21 @@ suite('platform - terminalEnvironment', async () => {
 				});
 			});
 		}
+
+		suite('resolveUserZdotdir', () => {
+			const injectedZdotdir = '/tmp/user-vscode-zsh';
+			test('when the environment already carries the previously injected ZDOTDIR (#337392)', () => {
+				// A revived terminal's env still contains the ZDOTDIR injected on first launch;
+				// it must fall back to the home directory instead of pointing at the injected dir.
+				strictEqual(resolveUserZdotdir({ ZDOTDIR: injectedZdotdir }, injectedZdotdir), homedir());
+			});
+			test('when the user has a custom ZDOTDIR different from the injected one', () => {
+				strictEqual(resolveUserZdotdir({ ZDOTDIR: '/custom/zsh/dotdir' }, injectedZdotdir), '/custom/zsh/dotdir');
+			});
+			test('when the environment is undefined', () => {
+				strictEqual(resolveUserZdotdir(undefined, injectedZdotdir), homedir());
+			});
+		});
 
 		suite('custom shell integration nonce', async () => {
 			test('should fail for unsupported shell but nonce should still be available', async () => {

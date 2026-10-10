@@ -44,6 +44,16 @@ export interface IShellIntegrationInjectionFailure {
 }
 
 /**
+ * Computes the user's own ZDOTDIR so the injected shell integration rc files can source the
+ * user's real .zshrc. A revived terminal's environment still carries the ZDOTDIR that was
+ * injected on first launch, which must not be mistaken for the user's own value (#337392).
+ */
+export function resolveUserZdotdir(env: ITerminalEnvironment | undefined, zdotdir: string): string {
+	const userZdotdir = env?.ZDOTDIR;
+	return userZdotdir && userZdotdir !== zdotdir ? userZdotdir : os.homedir() ?? `~`;
+}
+
+/**
  * For a given shell launch config, returns arguments to replace and an optional environment to
  * mixin to the SLC's environment to enable shell integration. This must be run within the context
  * that creates the process to ensure accuracy. Returns undefined if shell integration cannot be
@@ -250,8 +260,7 @@ export async function getShellIntegrationInjection(
 				}
 			}
 			envMixin['ZDOTDIR'] = zdotdir;
-			const userZdotdir = env?.ZDOTDIR ?? os.homedir() ?? `~`;
-			envMixin['USER_ZDOTDIR'] = userZdotdir;
+			envMixin['USER_ZDOTDIR'] = resolveUserZdotdir(env, zdotdir);
 			const filesToCopy: IShellIntegrationConfigInjection['filesToCopy'] = [];
 			filesToCopy.push({
 				source: path.join(shellIntegrationScriptRoot, 'shellIntegration-rc.zsh'),
