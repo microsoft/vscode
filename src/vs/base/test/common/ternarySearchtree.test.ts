@@ -347,6 +347,40 @@ suite('Ternary Search Tree', () => {
 		// assertTernarySearchTree(trie, ['bar', 3]);
 	});
 
+	test('TernarySearchTree - deleteSuperstr preserves siblings', function () {
+		const trie = TernarySearchTree.forStrings<number>();
+		trie.set('d', 1);
+		trie.set('e', 2);
+		trie.deleteSuperstr('d');
+
+		assert.deepStrictEqual(trie.get('e'), 2);
+		assert.deepStrictEqual(trie.get('d'), 1);
+		assertTstDfs(trie, ['d', 1], ['e', 2]);
+
+		{
+			// siblings on both sides and an inorder successor that has its own mid chain
+			const trie2 = TernarySearchTree.forStrings<number>();
+			trie2.set('abx', 1);
+			trie2.set('aaa', 2);
+			trie2.set('aca', 3);
+			trie2.set('ac', 9);
+			trie2.deleteSuperstr('ab');
+
+			assertTstDfs(trie2, ['aaa', 2], ['ac', 9], ['aca', 3]);
+		}
+	});
+
+	test('TernarySearchTree - deleteSuperstr keeps exact key with falsy value', function () {
+		const trie = TernarySearchTree.forStrings<number>();
+		trie.set('foo', 0);
+		trie.set('foobar', 1);
+		trie.deleteSuperstr('foo');
+
+		assert.strictEqual(trie.get('foo'), 0);
+		assert.strictEqual(trie.get('foobar'), undefined);
+		assertTstDfs(trie, ['foo', 0]);
+	});
+
 	test('TernarySearchTree (PathSegments) - basics', function () {
 		const trie = new TernarySearchTree<string, number>(new PathIterator());
 
@@ -949,10 +983,25 @@ suite('Ternary Search Tree', () => {
 		map.set('config.foo.flip.flop', 3);
 		map.set('config.boo', 4);
 		map.deleteSuperstr('config.foo');
+		// config.boo sorts next to config.foo, it is not a superstr of it
 		assertTstDfs(map,
 			['boo', 4],
+			['config.boo', 4],
 			['config.foo', 2],
 		);
+	});
+
+	test('TernarySearchTree (ConfigKeySegments) - deleteSuperstr preserves siblings', function () {
+		const map = TernarySearchTree.forConfigKeys<number>();
+		map.set('config.editor.fontSize', 1);
+		map.set('config.editor.formatOnSave', 2);
+		map.set('config.files.autoSave', 3);
+		map.deleteSuperstr('config.editor');
+
+		assert.deepStrictEqual(map.get('config.files.autoSave'), 3);
+		assert.deepStrictEqual(map.get('config.editor.fontSize'), undefined);
+		assert.deepStrictEqual(map.get('config.editor.formatOnSave'), undefined);
+		assertTstDfs(map, ['config.files.autoSave', 3]);
 	});
 
 	test('TST, fill', function () {
