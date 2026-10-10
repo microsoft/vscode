@@ -1496,7 +1496,7 @@ suite('MultiEditorTabsControl', () => {
 						const rowStart = index === 0 || tabs[index - 1].offsetTop !== tab.offsetTop;
 						const upper = tab.classList.contains('connected-tab-upper-row');
 						const active = index === activeIndex;
-						const radius = '4px';
+						const radius = active && !upper ? '5px' : '4px';
 						const roundLeft = !rowStart || upper || !active;
 						const topLeftRadius = roundLeft ? radius : '0px';
 						const context = { compact, wrapTabs, activeIndex, index };
@@ -2313,7 +2313,7 @@ suite('MultiEditorTabsControl', () => {
 			}
 			root.classList.remove(theme);
 		}
-		assert.deepStrictEqual(results, results.map(result => ({ ...result, contentHeight: result.pillHeight, sameCapHeight: true, defaultContentHeight: result.pillHeight, samePaintedTop: true, stableHitbox: true, stableClose: true, roundedCap: '4px', shoulderRadius: '7px', peerRadius: '4px', openJoin: true })));
+		assert.deepStrictEqual(results, results.map(result => ({ ...result, contentHeight: result.pillHeight, sameCapHeight: true, defaultContentHeight: result.pillHeight, samePaintedTop: true, stableHitbox: true, stableClose: true, roundedCap: '5px', shoulderRadius: '7px', peerRadius: '4px', openJoin: true })));
 	});
 
 	test('Connected cap and shoulder curvature stays the same when compact tabs wrap', async () => {
@@ -2351,7 +2351,7 @@ suite('MultiEditorTabsControl', () => {
 			}
 			root.classList.remove(theme);
 		}
-		assert.deepStrictEqual(results, results.map(result => ({ ...result, actualWrapping: result.wrapTabs, attachedCap: true, curves: ['4px', '4px', '7px'], inactiveCorners: ['4px'], shoulderBaseline: 0 })));
+		assert.deepStrictEqual(results, results.map(result => ({ ...result, actualWrapping: result.wrapTabs, attachedCap: true, curves: ['5px', '5px', '7px'], inactiveCorners: ['4px'], shoulderBaseline: 0 })));
 	});
 
 	test('selecting a bottom Connected tab preserves content height in both layout densities', async () => {
@@ -2420,7 +2420,7 @@ suite('MultiEditorTabsControl', () => {
 						topRow: tab.classList.contains('connected-tab-top-row'),
 						capTop: getTabStrokeStyle(tab).borderTopColor,
 						topInset: Math.abs((fill.getBoundingClientRect().top - tab.getBoundingClientRect().top) / zoom - 2) < 1 / 64,
-						roundedTop: mainWindow.getComputedStyle(edge).borderTopRightRadius === '4px' && mainWindow.getComputedStyle(fill).borderTopRightRadius === '4px',
+						roundedTop: mainWindow.getComputedStyle(edge).borderTopRightRadius === '5px' && mainWindow.getComputedStyle(fill).borderTopRightRadius === '5px',
 						peerInset: Math.round((peer.getBoundingClientRect().top - tab.getBoundingClientRect().top) / zoom),
 						edgeTopAligns: Math.abs(edge.getBoundingClientRect().top - fill.getBoundingClientRect().top) < 1 / 64,
 						peerHeight: Math.round(peer.getBoundingClientRect().height / zoom),
@@ -2991,8 +2991,8 @@ suite('MultiEditorTabsControl', () => {
 		}, {
 			clippedHover: { hovered: true, background: 'rgb(101, 67, 33)' },
 			clippedHoverReset: { hovered: false, background: 'rgb(51, 51, 51)' },
-			clippedLeft: { edge: true, clipped: true, fillOffset: '', edgeOffset: ['0px', '0px'], inset: 0, stationaryParent: true, ownCapTop: true, edgeOverlay: ['none', 'block', '8', '4px', '4px', 'border-box', '1px', '1px', 'rgb(51, 51, 51)'] },
-			multiSelected: { clipping: '0px', edge: 'block', radius: '0px 4px 0px 0px', connectedClass: true },
+			clippedLeft: { edge: true, clipped: true, fillOffset: '', edgeOffset: ['0px', '0px'], inset: 0, stationaryParent: true, ownCapTop: true, edgeOverlay: ['none', 'block', '8', '5px', '5px', 'border-box', '1px', '1px', 'rgb(51, 51, 51)'] },
+			multiSelected: { clipping: '0px', edge: 'block', radius: '0px 5px 0px 0px', connectedClass: true },
 			singleSelected: { clipping: '0px', connectedClass: true },
 			terminalOutline: { right: '1px', rightShoulder: '""', rightMask: 'none' },
 			normalOutline: { left: '1px', right: '1px', leftShoulder: '""', rightShoulder: '""', edge: 'block', overflowEdge: 'none', masks: ['none', 'none'] },
@@ -3013,7 +3013,7 @@ suite('MultiEditorTabsControl', () => {
 					{ right: '0px', inset: 0 },
 					{ right: '0px', inset: 0 },
 				],
-				edgeOverlay: ['""', 'block', '8', '9px', '0px', 'border-box', '0px', '0px', 'rgb(255, 255, 255)'],
+				edgeOverlay: ['""', 'block', '8', '10px', '0px', 'border-box', '0px', '0px', 'rgb(255, 255, 255)'],
 				previousTabOverflow: '',
 				ownCapTop: true,
 			},
