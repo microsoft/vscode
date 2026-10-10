@@ -246,7 +246,10 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 			container.classList.toggle('hidden', getActions().length === 0);
 		};
 		updateVisibility();
-		this._register(menu.onDidChange(updateVisibility));
+		this._register(menu.onDidChange(() => {
+			updateVisibility();
+			this.groupView.relayout();
+		}));
 
 		return container;
 	}
@@ -402,7 +405,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		this.updateEditorLayoutActionsToolbar();
 	}
 
-	private updateEditorLayoutActionsToolbar(): void {
+	protected updateEditorLayoutActionsToolbar(): void {
 		if (
 			!this.editorActionsEnabled ||
 			!this.editorLayoutActionsToolbarContainer ||

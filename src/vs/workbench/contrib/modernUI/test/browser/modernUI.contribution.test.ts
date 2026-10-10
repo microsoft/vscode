@@ -2645,15 +2645,18 @@ suite('ModernUIContribution', () => {
 				style.textContent = generateColorThemeCSS(theme, '.monaco-workbench', themingRegistry.getThemingParticipants(), TestEnvironmentService).code;
 				action.focus();
 				const highContrast = themeId.startsWith('hc-');
-				assert.deepStrictEqual({
-					strip: [row, stickyMask, addTab].map(element => targetWindow.getComputedStyle(element).backgroundColor),
-					fill: targetWindow.getComputedStyle(fill).backgroundColor,
-					actionMask: highContrast ? targetWindow.getComputedStyle(actions).backgroundColor : undefined,
-				}, {
-					strip: [expected, expected, expected],
-					fill: highContrast ? 'rgba(0, 0, 0, 0)' : expected,
-					actionMask: highContrast ? 'rgba(0, 0, 0, 0)' : undefined,
-				}, `${themeId}, ${strip}`);
+				for (const wrapped of [false, true]) {
+					row.classList.toggle('wrapping', wrapped);
+					assert.deepStrictEqual({
+						strip: [row, stickyMask, addTab].map(element => targetWindow.getComputedStyle(element).backgroundColor),
+						fill: targetWindow.getComputedStyle(fill).backgroundColor,
+						actionMask: highContrast ? targetWindow.getComputedStyle(actions).backgroundColor : undefined,
+					}, {
+						strip: [expected, expected, expected],
+						fill: highContrast ? 'rgba(0, 0, 0, 0)' : expected,
+						actionMask: highContrast ? 'rgba(0, 0, 0, 0)' : undefined,
+					}, `${themeId}, ${strip}, wrapped: ${wrapped}`);
+				}
 			}
 		}
 	});

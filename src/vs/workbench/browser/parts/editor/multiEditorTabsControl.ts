@@ -33,7 +33,7 @@ import { ResourcesDropHandler, DraggedEditorIdentifier, DraggedEditorGroupIdenti
 import { Color } from '../../../../base/common/color.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { MergeGroupMode, IMergeGroupOptions } from '../../../services/editor/common/editorGroupsService.js';
-import { addDisposableListener, EventType, EventHelper, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode, DragAndDropObserver, isMouseEvent, getWindow, ModifierKeyEmitter, $, isHTMLElement } from '../../../../base/browser/dom.js';
+import { addDisposableListener, EventType, EventHelper, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode, DragAndDropObserver, isMouseEvent, getWindow, ModifierKeyEmitter, $, isHTMLElement, getTotalWidth, getContentWidth } from '../../../../base/browser/dom.js';
 import { localize } from '../../../../nls.js';
 import { CONNECTED_EDITOR_TABS_SELECTOR, IEditorGroupMenuIds, IEditorGroupsView, EditorServiceImpl, IEditorGroupView, IInternalEditorOpenOptions, IEditorPartsView, prepareMoveCopyEditors } from './editor.js';
 import { CloseEditorTabAction, CloseOtherEditorTabsInGroupAction, UnpinEditorAction } from './editorActions.js';
@@ -109,6 +109,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 	private titleContainer: HTMLElement | undefined;
 	private tabsAndActionsContainer: HTMLElement | undefined;
+	private editorToolbarsContainer: HTMLElement | undefined;
 	private stickyTabsBackground: HTMLElement | undefined;
 	private tabsContainer: HTMLElement | undefined;
 	private tabsScrollbar: ScrollableElement | undefined;
@@ -293,7 +294,9 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		}
 
 		// Create Editor Toolbar
-		this.createEditorActionsToolBar(this.tabsAndActionsContainer, ['editor-actions']);
+		this.editorToolbarsContainer = $('.editor-toolbars');
+		this.tabsAndActionsContainer.appendChild(this.editorToolbarsContainer);
+		this.createEditorActionsToolBar(this.editorToolbarsContainer, ['editor-actions']);
 
 		// Set tabs control visibility
 		this.updateTabsControlVisibility();
@@ -635,6 +638,11 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 		// Changing the actions in the toolbar can have an impact on the size of the
 		// tab container, so we need to layout the tabs to make sure the active is visible
+		this.layout(this.dimensions);
+	}
+
+	protected override updateEditorLayoutActionsToolbar(): void {
+		super.updateEditorLayoutActionsToolbar();
 		this.layout(this.dimensions);
 	}
 
@@ -2080,8 +2088,10 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		const upperTabBar = this.parent.classList.contains('two-tab-bars') && topTabBar;
 		this.tabsAndActionsContainer?.classList.toggle('connected-tab-upper-bar', connected && upperTabBar);
 		this.forEachTab((_editor, index, tab) => {
+			tab.classList.toggle('last-tab', index === this.tabsModel.count - 1);
 			tab.classList.toggle('connected-tab-last', connected && index === this.tabsModel.count - 1);
 		});
+		this.tabsAndActionsContainer?.classList.toggle('has-add-tab', Boolean(this.addTabContainer && !this.addTabContainer.classList.contains('hidden')));
 		if (connected && upperTabBar) {
 			this.forEachTab((_editor, _index, tab) => tab.classList.add('connected-tab-upper-row'));
 		}
@@ -2112,7 +2122,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			}
 		}
 		const top = this.getTabAtIndex(0)?.offsetTop;
-		const bottom = this.getLastTab()?.offsetTop;
+		const bottom = tabsWrapMultiLine && this.addTabContainer && !this.addTabContainer.classList.contains('hidden') ? this.addTabContainer.offsetTop : this.getLastTab()?.offsetTop;
 		this.forEachTab((_editor, _index, tab) => {
 			tab.classList.toggle('connected-tab-upper-row', connected && (upperTabBar || tab.offsetTop !== bottom));
 			tab.classList.toggle('connected-tab-top-row', connected && topTabBar && tab.offsetTop === top);
@@ -2188,10 +2198,9 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	}
 
 	private doLayoutTabsWrapping(dimensions: IEditorTitleControlDimensions, forceTabsWrapMultiLine?: boolean): boolean {
-		const [tabsAndActionsContainer, tabsContainer, editorToolbarContainer, tabsScrollbar] = assertReturnsAllDefined(this.tabsAndActionsContainer, this.tabsContainer, this.editorActionsToolbarContainer, this.tabsScrollbar);
+		const [tabsAndActionsContainer, tabsContainer, editorToolbarsContainer, tabsScrollbar] = assertReturnsAllDefined(this.tabsAndActionsContainer, this.tabsContainer, this.editorToolbarsContainer, this.tabsScrollbar);
 
-		const layoutActionsContainer = this.editorLayoutActionsToolbarContainer;
-		const editorToolbarWidth = () => editorToolbarContainer.offsetWidth + (layoutActionsContainer?.offsetWidth ?? 0);
+		const editorToolbarWidth = () => editorToolbarsContainer.offsetWidth;
 
 		// Handle wrapping tabs according to setting:
 		// - enabled: only add class if tabs wrap and don't exceed available dimensions
@@ -2210,7 +2219,6 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			// positioned editor actions container when tabs wrap. The margin needs to
 			// be the width of the editor actions container to avoid screen cheese.
 			tabsContainer.style.setProperty('--last-tab-margin-right', tabsWrapMultiLine ? `${editorToolbarWidth()}px` : '0');
-			tabsAndActionsContainer.style.setProperty('--last-tab-layout-actions-width', `${layoutActionsContainer?.offsetWidth ?? 0}px`);
 
 			// Remove old css classes that are not needed anymore
 			for (const tab of tabsContainer.children) {
@@ -2226,13 +2234,19 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		else if (this.groupsView.partOptions.wrapTabs) {
 			const visibleTabsWidth = tabsContainer.offsetWidth;
 			const allTabsWidth = tabsContainer.scrollWidth;
-			const lastTabFitsWrapped = () => {
+			const tabsFitWrapped = () => {
 				const lastTab = this.getLastTab();
 				if (!lastTab) {
 					return true; // no tab always fits
 				}
 
-				const lastTabOverlapWithToolbarWidth = lastTab.offsetWidth + editorToolbarWidth() - dimensions.available.width;
+				const lastItem = this.addTabContainer && !this.addTabContainer.classList.contains('hidden') ? this.addTabContainer : lastTab;
+				let requiredWidth = getTotalWidth(lastItem) + (tabsWrapMultiLine ? 0 : editorToolbarWidth());
+				this.forEachTab((_editor, _index, tab) => {
+					requiredWidth = Math.max(requiredWidth, getTotalWidth(tab));
+				});
+				const availableWidth = tabsWrapMultiLine ? Math.min(tabsContainer.offsetWidth, getContentWidth(tabsAndActionsContainer), dimensions.available.width) : dimensions.available.width;
+				const lastTabOverlapWithToolbarWidth = requiredWidth - availableWidth;
 				if (lastTabOverlapWithToolbarWidth > 1) {
 					// Allow for slight rounding errors related to zooming here
 					// https://github.com/microsoft/vscode/issues/116385
@@ -2247,11 +2261,11 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			// accordingly based on the number of actions. The margin is important to
 			// properly position the last tab apart from the actions
 			//
-			// We already check here if the last tab would fit when wrapped given the
+			// We already check here if the tabs would fit when wrapped given the
 			// editor toolbar will also show right next to it. This ensures we are not
 			// enabling wrapping only to disable it again in the code below (this fixes
 			// flickering issue https://github.com/microsoft/vscode/issues/115050)
-			if (tabsWrapMultiLine || (allTabsWidth > visibleTabsWidth && lastTabFitsWrapped())) {
+			if (tabsWrapMultiLine || (allTabsWidth > visibleTabsWidth && tabsFitWrapped())) {
 				updateTabsWrapping(true);
 			}
 
@@ -2260,7 +2274,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				if (
 					(tabsAndActionsContainer.offsetHeight > dimensions.available.height) ||				// if the complete wrapped title exceeds available height
 					(allTabsWidth === visibleTabsWidth && tabsContainer.offsetHeight === this.tabHeight) ||	// if wrapping is not needed anymore
-					(!lastTabFitsWrapped())																	// if last tab does not fit anymore
+					(!tabsFitWrapped())																		// if a tab or the trailing controls do not fit anymore
 				) {
 					updateTabsWrapping(false);
 				}

@@ -20,6 +20,7 @@ const secondaryMenu = MenuId.for('sessions.fixture.editorHeaderSecondary');
 const layoutMenu = MenuId.for('sessions.fixture.editorHeaderLayout');
 const addTabMenu = MenuId.for('sessions.fixture.editorHeaderAddTab');
 const emptyMenu = MenuId.for('sessions.fixture.editorHeaderEmpty');
+const contextualMenu = MenuId.for('sessions.fixture.editorTabsContextual');
 const primaryAction = {
 	id: 'sessions.fixture.editorHeaderAction',
 	title: localize2('sessions.fixture.editorHeaderAction', "Header Action"),
@@ -82,6 +83,23 @@ MenuRegistry.appendMenuItem(addTabMenu, {
 	command: addFileTabAction,
 	group: 'navigation',
 });
+MenuRegistry.appendMenuItem(contextualMenu, { command: primaryAction, group: 'navigation' });
+MenuRegistry.appendMenuItem(contextualMenu, { command: secondaryAction, group: 'secondary' });
+
+function renderWrappedActions(ctx: ComponentFixtureContext, tabHeight: 'default' | 'compact' = 'default', pinnedTabsOnSeparateRow = false, width = 300): void {
+	ctx.container.classList.add('agent-sessions-workbench', 'dock-detail-panel');
+	renderEditorTabsFixture(ctx, {
+		modernUI: true,
+		width,
+		useModernUITabs: true,
+		partOptions: { wrapTabs: true, tabHeight, pinnedTabsOnSeparateRow, pinnedTabSizing: 'normal', tabSizing: 'fixed', tabSizingFixedMinWidth: 120, tabSizingFixedMaxWidth: 120 },
+		headerMenuIds: { editorActions: contextualMenu, tabsBarAddTab: addTabMenu },
+		layoutActionsMenu: layoutMenu,
+		editors: Array.from({ length: 5 }, (_, index) => ({
+			resource: URI.file(`/project/file${index}.ts`), pinned: true, active: index === 4, sticky: pinnedTabsOnSeparateRow && index < 2,
+		})),
+	});
+}
 
 function renderHeader(ctx: ComponentFixtureContext, breadcrumbs: boolean, primaryAction: boolean, secondaryAction = false, layoutActions = false, showTabs: 'multiple' | 'single' | 'none' = 'multiple', addTab = false, tabHeight: 'default' | 'compact' = 'default', headerWidth?: number, reserveHeaderSpace = false): void {
 	ctx.container.classList.add('agent-sessions-workbench', 'dock-detail-panel');
@@ -122,6 +140,24 @@ function renderConnectedCard(ctx: ComponentFixtureContext, secondTabActive = fal
 }
 
 export default defineThemedFixtureGroup({ path: 'sessions/editorHeader/' }, {
+	WrappedEditorActions: defineComponentFixture({
+		render: ctx => renderWrappedActions(ctx),
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['Add Tab, contextual editor actions, and layout actions have separate unobscured hit targets on the final wrapped row.'],
+	}),
+	CompactWrappedEditorActions: defineComponentFixture({
+		render: ctx => renderWrappedActions(ctx, 'compact'),
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+	}),
+	PinnedWrappedEditorActions: defineComponentFixture({
+		render: ctx => renderWrappedActions(ctx, 'default', true),
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+	}),
+	ControlsOnlyLastRow: defineComponentFixture({
+		render: ctx => renderWrappedActions(ctx, 'compact', false, 180),
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['When only Add Tab and the editor toolbars occupy the final row, every editor tab above is a freestanding pill, including the selected last editor. No active cap crosses the control row.'],
+	}),
 	ConnectedChangesCard: defineComponentFixture({
 		render: ctx => renderConnectedCard(ctx),
 		additionalThemes: ['visualStudioDark', 'darkHighContrast', 'lightHighContrast'],
