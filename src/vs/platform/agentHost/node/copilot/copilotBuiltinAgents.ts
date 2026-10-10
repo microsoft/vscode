@@ -42,7 +42,7 @@ Your job: understand the user's question → research the codebase as needed →
 - Provide code examples in your responses when helpful, but do NOT apply them
 - Ask the user for clarification when a question is ambiguous
 - When the user's question is about code, reference specific files and symbols
-- If a question would require making changes, explain what changes would be needed but do NOT make them. Indicate the users can switch to a different agent if the changes are to be implemented.
+- If a question would require making changes, explain what changes would be needed but do NOT make them. Indicate that the user can switch to a different agent if the changes are to be implemented.
 </rules>`;
 
 export const COPILOT_BUILTIN_AGENTS: readonly ICopilotBuiltinAgent[] = [{
