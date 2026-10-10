@@ -31,12 +31,15 @@ export const IEditorResolverService = createDecorator<IEditorResolverService>('e
 export type EditorAssociation = {
 	readonly viewType: string;
 	readonly filenamePattern?: string;
+	readonly language?: string;
 };
 
 export type EditorAssociations = readonly EditorAssociation[];
 
 export const editorsAssociationsSettingId = 'workbench.editorAssociations';
 export const diffEditorsAssociationsSettingId = 'workbench.diffEditorAssociations';
+export const editorLanguageAssociationsSettingId = 'workbench.editorLanguageAssociations';
+export const diffEditorLanguageAssociationsSettingId = 'workbench.diffEditorLanguageAssociations';
 export const hiddenEditorTypesSettingId = 'workbench.editor.hiddenEditorTypes';
 
 /**
@@ -162,6 +165,11 @@ export type RegisteredEditorOptions = {
 	 * If omitted we assume you can open everything
 	 */
 	canSupportResource?: (resource: URI) => boolean;
+
+	/**
+	 * The language ID that this editor registration targets.
+	 */
+	language?: string;
 };
 
 export interface IEditorResolverServiceGetEditorsOptions {
@@ -197,15 +205,17 @@ export type EditorMatchRule = {
 	readonly editor: RegisteredEditorInfo;
 	readonly priority: RegisteredEditorPriority;
 	readonly associationPattern: string;
+	readonly language?: string;
 } & (
 		| { readonly source: EditorMatchRuleSource.UserAssociation; readonly association: EditorAssociation }
-		| { readonly source: EditorMatchRuleSource.EditorRegistration; readonly globPattern: string | glob.IRelativePattern }
+		| { readonly source: EditorMatchRuleSource.EditorRegistration; readonly globPattern: string | glob.IRelativePattern; readonly language?: string }
 		| { readonly source: EditorMatchRuleSource.Fallback }
 	);
 
 export function isUnconfiguredUniversalOptionalEditorMatch(rule: EditorMatchRule): boolean {
 	return rule.source === EditorMatchRuleSource.EditorRegistration
 		&& rule.globPattern === '*'
+		&& !rule.language
 		&& rule.priority === RegisteredEditorPriority.option;
 }
 
@@ -349,6 +359,26 @@ export interface IEditorResolverService {
 	 * is updated instead of the general editor association (`workbench.editorAssociations`).
 	 */
 	setDefaultEditor(resource: URI, editorID: string, forDiffEditor?: boolean): void;
+
+	/**
+	 * Sets an editor as the default for a language, removing a redundant association when restoring
+	 * the natural default supplied by editor registrations or the Text Editor fallback.
+	 * @param languageId The language ID whose editor default is changing.
+	 * @param editorID The ID of the editor to make the default.
+	 * @param forDiffEditor When `true`, the diff editor language association (`workbench.diffEditorLanguageAssociations`)
+	 * is updated instead of the general editor language association (`workbench.editorLanguageAssociations`).
+	 */
+	setDefaultLanguageEditor(languageId: string, editorID: string, forDiffEditor?: boolean): void;
+
+	/**
+	 * Given a resource returns its effective language ID, if any.
+	 */
+	getEffectiveLanguageId(resource: URI): string | undefined;
+
+	/**
+	 * Given a resource returns its effective language ID and display name, if any.
+	 */
+	getEffectiveLanguage?(resource: URI): { readonly id: string; readonly name: string } | undefined;
 
 	/**
 	 * Emitted when an editor is registered or unregistered.

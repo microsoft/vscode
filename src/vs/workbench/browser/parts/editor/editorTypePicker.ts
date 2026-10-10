@@ -131,6 +131,27 @@ export function createEditorTypeActions(
 
 	const actions: IAction[] = [...reopenActions, new Separator(), setDefaultSubmenu];
 
+	const languageInfo = editorResolverService.getEffectiveLanguage?.(available.resource);
+	if (languageInfo) {
+		const setDefaultLanguageActions: IAction[] = available.editors.map(editor => toAction({
+			id: `setDefaultLanguage.${editor.id}`,
+			label: labelWithSource(editor),
+			checked: editor.id === defaultRule.editor.id,
+			run: () => {
+				editorResolverService.setDefaultLanguageEditor(languageInfo.id, editor.id, available.isDiffEditor);
+				return commandService.executeCommand(REOPEN_ACTIVE_EDITOR_WITH_COMMAND_ID, editor.id);
+			}
+		}));
+		const setDefaultLanguageSubmenu = new SubmenuAction(
+			'editorType.setDefaultLanguage',
+			available.isDiffEditor
+				? localize('editorType.setDefaultLanguageDiff', "Set Default (Diff Only) for '{0}'", languageInfo.name)
+				: localize('editorType.setDefaultLanguage', "Set Default for '{0}'", languageInfo.name),
+			setDefaultLanguageActions
+		);
+		actions.push(setDefaultLanguageSubmenu);
+	}
+
 	// For diffs, offer to open either side as a standalone editor.
 	if (available.isDiffEditor) {
 		actions.push(new Separator());
