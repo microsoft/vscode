@@ -64,6 +64,11 @@ export const ContextTierConfigKey = 'contextTier';
  */
 export const AutoTierConfigKey = 'tier';
 
+const catalogInstallationFeatureFlags = {
+	CATALOG_SEARCH: true,
+	AGENT_FINDER_SKILL_INSTALL: true,
+} as const;
+
 /**
  * Every reasoning-effort tier that the runtime may advertise via a model's
  * `supportedReasoningEfforts`. This is intentionally broader than the SDK's
@@ -726,6 +731,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			managedSettings: { permissions: this._managedSettingsService.permissions },
 			enableManagedSettings: true,
 			featureFlags: {
+				...catalogInstallationFeatureFlags,
 				CONNECTORS: copilotConnectorsEnabled,
 				TGREP: false,
 				CONTENT_EXCLUSION: true,
@@ -1028,6 +1034,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		// The runtime defaults CONNECTORS on, so the VS Code rollout gate must explicitly disable it.
 		const featureFlags = {
 			AUTO_APPROVAL: true,
+			...catalogInstallationFeatureFlags,
 			CONNECTORS: copilotConnectorsEnabled,
 			TGREP: tgrepEnabled,
 			CONTENT_EXCLUSION: true,
