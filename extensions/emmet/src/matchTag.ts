@@ -8,7 +8,34 @@ import { validate, getHtmlFlatNode, offsetRangeToSelection } from './util';
 import { getRootNode } from './parseDocument';
 import { HtmlNode as HtmlFlatNode } from 'EmmetFlatNode';
 
-export function matchTag() {
+function getUpdatedSelections(document: vscode.TextDocument, rootNode: HtmlFlatNode, position: vscode.Position): vscode.Selection | undefined {
+	const offset = document.offsetAt(position);
+	const currentNode = getHtmlFlatNode(document.getText(), rootNode, offset, true);
+	if (!currentNode) {
+		return;
+	}
+
+	// If no opening/closing tag or cursor is between open and close tag, then no-op
+	if (!currentNode.open
+		|| !currentNode.close
+		|| (offset > currentNode.open.end && offset < currentNode.close.start)) {
+		return;
+	}
+
+	// Place cursor inside the close tag if cursor is inside the open tag, else place it inside the open tag
+	const finalOffset = (offset <= currentNode.open.end) ? currentNode.close.start + 2 : currentNode.start + 1;
+	return offsetRangeToSelection(document, finalOffset, finalOffset);
+}
+
+
+/**
+ * This function implements the "Match Tag" feature in VSCode's HTML editing. When the user triggers it
+ * (usually via a keybinding or command), it jumps your cursor from an opening HTML tag to its corresponding closing tag,
+ * or vice versa.
+ * In short: It’s the logic behind "jump to matching tag."
+ * @returns {void} Void - Updates editor selections in place.
+ */
+export function matchTag(): void {
 	if (!validate(false) || !vscode.window.activeTextEditor) {
 		return;
 	}
@@ -31,23 +58,4 @@ export function matchTag() {
 		editor.selections = updatedSelections;
 		editor.revealRange(editor.selections[updatedSelections.length - 1]);
 	}
-}
-
-function getUpdatedSelections(document: vscode.TextDocument, rootNode: HtmlFlatNode, position: vscode.Position): vscode.Selection | undefined {
-	const offset = document.offsetAt(position);
-	const currentNode = getHtmlFlatNode(document.getText(), rootNode, offset, true);
-	if (!currentNode) {
-		return;
-	}
-
-	// If no opening/closing tag or cursor is between open and close tag, then no-op
-	if (!currentNode.open
-		|| !currentNode.close
-		|| (offset > currentNode.open.end && offset < currentNode.close.start)) {
-		return;
-	}
-
-	// Place cursor inside the close tag if cursor is inside the open tag, else place it inside the open tag
-	const finalOffset = (offset <= currentNode.open.end) ? currentNode.close.start + 2 : currentNode.start + 1;
-	return offsetRangeToSelection(document, finalOffset, finalOffset);
 }
