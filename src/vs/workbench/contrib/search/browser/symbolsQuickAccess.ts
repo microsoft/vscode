@@ -105,15 +105,23 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 		// Split between symbol and container query
 		let symbolQuery: IPreparedQuery;
 		let containerQuery: IPreparedQuery | undefined;
-		if (query.values && query.values.length > 1) {
+		let providerQuery: string;
+		const namespaceSeparatorIndex = query.original.lastIndexOf('::');
+		if (namespaceSeparatorIndex > 0 && namespaceSeparatorIndex < query.original.length - 2) {
+			containerQuery = prepareQuery(query.original.slice(0, namespaceSeparatorIndex).replaceAll('::', ' '));
+			symbolQuery = prepareQuery(query.original.slice(namespaceSeparatorIndex + 2));
+			providerQuery = query.original;
+		} else if (query.values && query.values.length > 1) {
 			symbolQuery = pieceToQuery(query.values[0]); 		  // symbol: only match on first part
 			containerQuery = pieceToQuery(query.values.slice(1)); // container: match on all but first parts
+			providerQuery = symbolQuery.original;
 		} else {
 			symbolQuery = query;
+			providerQuery = symbolQuery.original;
 		}
 
 		// Run the workspace symbol query
-		const workspaceSymbols = await getWorkspaceSymbols(symbolQuery.original, token);
+		const workspaceSymbols = await getWorkspaceSymbols(providerQuery, token);
 		if (token.isCancellationRequested) {
 			return [];
 		}
