@@ -13,6 +13,7 @@ import morphdom from 'morphdom';
 import type { MarkdownPreviewChangeIndicator, MarkdownPreviewInnerChange, MarkdownPreviewLineChanges, ToWebviewMessage } from '../types/previewMessaging';
 import { isOfScheme, Schemes } from '../src/util/schemes';
 import { DiffScrollSyncManager } from './diffScrollSync';
+import { updateSourceLineAttributes } from '../src/util/sourceLineMap';
 
 let scrollDisabledCount = 0;
 let scrollDisabledTimer: number | undefined;
@@ -353,6 +354,8 @@ window.addEventListener('message', async event => {
 				}
 			}
 
+			// Diff decorations are not source content and should not affect DOM reconciliation.
+			clearLineChanges();
 			if (data.source !== documentResource) {
 				documentResource = data.source;
 				const newBody = newContent.querySelector('.markdown-body')!;
@@ -374,20 +377,7 @@ window.addEventListener('message', async event => {
 					onBeforeElUpdated: (fromEl: Element, toEl: Element) => {
 						if (areNodesEqual(fromEl, toEl)) {
 							// areEqual doesn't look at `data-line` so copy those over manually
-							const fromLines = fromEl.querySelectorAll('[data-line]');
-							const toLines = toEl.querySelectorAll('[data-line]');
-							if (fromLines.length !== toLines.length) {
-								console.log('unexpected line number change');
-							}
-
-							for (let i = 0; i < fromLines.length; ++i) {
-								const fromChild = fromLines[i];
-								const toChild = toLines[i];
-								if (toChild) {
-									fromChild.setAttribute('data-line', toChild.getAttribute('data-line')!);
-								}
-							}
-
+							updateSourceLineAttributes(fromEl, toEl);
 							return false;
 						}
 
@@ -419,7 +409,7 @@ window.addEventListener('message', async event => {
 	}
 }, false);
 
-function applyLineChanges(lineChanges: MarkdownPreviewLineChanges | undefined): void {
+function clearLineChanges(): void {
 	for (const element of document.querySelectorAll('.code-line-diff-added, .code-line-diff-deleted, .code-line-diff-modified')) {
 		element.classList.remove('code-line-diff', 'code-line-diff-added', 'code-line-diff-deleted', 'code-line-diff-modified');
 	}
@@ -433,7 +423,10 @@ function applyLineChanges(lineChanges: MarkdownPreviewLineChanges | undefined): 
 	for (const element of document.querySelectorAll('.diff-modification-gutter')) {
 		element.remove();
 	}
+}
 
+function applyLineChanges(lineChanges: MarkdownPreviewLineChanges | undefined): void {
+	clearLineChanges();
 	markChangedLines(lineChanges?.added, 'code-line-diff-added');
 	markChangedLines(lineChanges?.deleted, 'code-line-diff-deleted');
 
@@ -446,12 +439,14 @@ function markChangedLines(lines: readonly number[] | undefined, className: strin
 		return;
 	}
 
+	let lastMarkedElement: HTMLElement | undefined;
 	for (const line of lines) {
 		const { previous, next } = getElementsForSourceLine(line, documentVersion);
 		const lineElement = previous.line >= 0 ? previous : next;
 		const element = lineElement?.codeElement || lineElement?.element;
-		if (element) {
+		if (element && element !== lastMarkedElement) {
 			element.classList.add('code-line-diff', className);
+			lastMarkedElement = element;
 		}
 	}
 }
