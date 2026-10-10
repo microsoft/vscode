@@ -17,6 +17,7 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { UriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentityService.js';
 import { TestFileService } from '../../../../test/common/workbenchTestServices.js';
 import { getResourceToLoad, loadLocalResource, WebviewResourceResponse } from '../../browser/resourceLoading.js';
+import { asWebviewUri, normalizeWebviewExtensionId } from '../../common/webview.js';
 
 suite('Webview Resource Loading - getResourceToLoad', () => {
 	const disposableStore = ensureNoDisposablesAreLeakedInTestSuite();
@@ -356,10 +357,48 @@ suite('Webview Resource Loading - getResourceToLoad', () => {
 			assert.strictEqual(result?.toString(), resource.toString());
 		});
 
+		test('Returns resource equal to one root when it is contained by another root', () => {
+			const roots = [
+				URI.file('/home/user/project/subdir'),
+				URI.file('/home/user/project')
+			];
+			const resource = URI.file('/home/user/project/subdir');
+			const result = getResourceToLoad(resource, roots, uriIdentityService);
+			assert.strictEqual(result?.toString(), resource.toString());
+		});
+
 		test('handles empty roots array', () => {
 			const resource = URI.file('/home/user/project/file.txt');
 			const result = getResourceToLoad(resource, [], uriIdentityService);
 			assert.strictEqual(result, undefined);
 		});
+	});
+});
+
+suite('Webview Resource Loading - direct Electron routes', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('normalizes and validates extension identifiers', () => {
+		assert.strictEqual(normalizeWebviewExtensionId('Publisher.Extension-Name'), 'publisher.extension-name');
+		assert.strictEqual(normalizeWebviewExtensionId('missingPublisher'), undefined);
+		assert.strictEqual(normalizeWebviewExtensionId('publisher.extension/other'), undefined);
+	});
+
+	test('constructs readable instance routes and preserves URI components', () => {
+		const result = asWebviewUri(
+			URI.from({ scheme: 'test-provider', authority: 'remote+host', path: '/目录/a file.css', query: 'v=1', fragment: 'rule' }),
+			undefined,
+			{ extensionId: 'Publisher.Extension', webviewId: 'instance id' },
+		);
+		assert.strictEqual(result.scheme, Schemas.vscodeWebview);
+		assert.strictEqual(result.authority, 'publisher.extension');
+		assert.strictEqual(result.path, '/instance id/_vscode/resource/test-provider+remote-002bhost/目录/a file.css');
+		assert.strictEqual(result.query, 'v=1');
+		assert.strictEqual(result.fragment, 'rule');
+	});
+
+	test('leaves network resources unchanged', () => {
+		const resource = URI.parse('https://example.com/image.png?q=1#fragment');
+		assert.strictEqual(asWebviewUri(resource, undefined, { extensionId: 'publisher.extension', webviewId: 'instance' }), resource);
 	});
 });

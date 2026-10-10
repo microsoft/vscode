@@ -15,7 +15,8 @@
     "documentSyntaxHighlighting",
     "externalUriOpener",
     "linkPresentation",
-    "textEditorDiffInformation"
+    "textEditorDiffInformation",
+    "webviewNoServiceWorker"
   ],
   "engines": {
     "vscode": "^1.70.0"
