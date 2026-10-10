@@ -3,13 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import assert from 'assert';
 import { suite, test } from 'vitest';
-import type { NotebookCell, NotebookDocument, TextDocument } from 'vscode';
+import type { Event, NotebookCell, NotebookDocument, NotebookDocumentChangeEvent, TextDocument } from 'vscode';
 import { ILogger, ILogService } from '../../../../platform/log/common/logService';
 import { TestWorkspaceService } from '../../../../platform/test/node/testWorkspaceService';
 import { IWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { StringSHA1 } from '../../../../util/vs/base/common/hash';
+import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { NotebookCellKind, Uri } from '../../../../vscodeTypes';
 import { LinkifiedPart, LinkifyLocationAnchor } from '../../common/linkifiedText';
 import { NotebookCellLinkifier } from '../../vscode-node/notebookCellLinkifier';
@@ -139,5 +141,87 @@ suite('Notebook Cell Linkifier', () => {
 				`), nor markdown, language=Python`
 			]
 		);
+	});
+
+	for (const remainingNotebookCount of [0, 1]) {
+		test(`Should remove closed notebook tracking with ${remainingNotebookCount} notebooks remaining`, async () => {
+			const cellUri = Uri.parse('vscode-notebook-cell:/test/notebook.ipynb#cell1');
+			const notebook = createMockNotebookDocument([createMockNotebookCell(cellUri, 0)]);
+			const notebooks = [notebook, ...Array.from({ length: remainingNotebookCount }, () => createMockNotebookDocument([]))];
+			const store = new DisposableStore();
+			try {
+				const workspaceService = store.add(new TestWorkspaceService([], [], notebooks));
+				const linkifier = store.add(new NotebookCellLinkifier(workspaceService, mockLogger));
+				const tracking = linkifier as unknown as {
+					notebookCellIds: WeakMap<NotebookDocument, Set<string>>;
+					cells: Map<string, WeakRef<NotebookCell>>;
+				};
+				await linkifier.linkify(`Cell Id ${generateCellId(cellUri)}`, { requestId: undefined, references: [] }, CancellationToken.None);
+				assert.strictEqual(tracking.notebookCellIds.has(notebook), true);
+
+				notebooks.shift();
+				workspaceService.didCloseNotebookDocumentEmitter.fire(notebook);
+
+				assert.deepStrictEqual({
+					tracksClosedNotebook: tracking.notebookCellIds.has(notebook),
+					cellCount: tracking.cells.size,
+				}, {
+					tracksClosedNotebook: false,
+					cellCount: 0,
+				});
+			} finally {
+				store.dispose();
+			}
+		});
+	}
+
+	test('Should only subscribe to notebook events once per instance', async () => {
+		const cellUri = Uri.parse('vscode-notebook-cell:/test/notebook.ipynb#cell1');
+		const cell = createMockNotebookCell(cellUri, 0);
+		const notebook = createMockNotebookDocument([cell]);
+		const cellId = generateCellId(cellUri);
+
+		const createCountingEvent = <T>() => {
+			let listenerCount = 0;
+			const event = ((listener: (e: T) => unknown) => {
+				listenerCount++;
+				return {
+					dispose: () => {
+						listenerCount--;
+					}
+				};
+			}) as Event<T>;
+			return {
+				event,
+				get listenerCount() {
+					return listenerCount;
+				}
+			};
+		};
+
+		const openNotebookEvent = createCountingEvent<NotebookDocument>();
+		const closeNotebookEvent = createCountingEvent<NotebookDocument>();
+		const changeNotebookEvent = createCountingEvent<NotebookDocumentChangeEvent>();
+
+		const workspaceService = {
+			notebookDocuments: [notebook],
+			onDidOpenNotebookDocument: openNotebookEvent.event,
+			onDidCloseNotebookDocument: closeNotebookEvent.event,
+			onDidChangeNotebookDocument: changeNotebookEvent.event,
+		} as unknown as IWorkspaceService;
+
+		const linkifier = new NotebookCellLinkifier(workspaceService, mockLogger);
+		await linkifier.linkify(`Cell Id ${cellId}`, { requestId: undefined, references: [] }, CancellationToken.None);
+		await linkifier.linkify(`Cell Id ${cellId}`, { requestId: undefined, references: [] }, CancellationToken.None);
+
+		assert.strictEqual(openNotebookEvent.listenerCount, 1);
+		assert.strictEqual(closeNotebookEvent.listenerCount, 1);
+		assert.strictEqual(changeNotebookEvent.listenerCount, 1);
+
+		linkifier.dispose();
+
+		assert.strictEqual(openNotebookEvent.listenerCount, 0);
+		assert.strictEqual(closeNotebookEvent.listenerCount, 0);
+		assert.strictEqual(changeNotebookEvent.listenerCount, 0);
 	});
 });
