@@ -69,6 +69,7 @@ const posixShellTypeMap = new Map<string, PosixShellType>([
 ]);
 
 const generalShellTypeMap = new Map<string, GeneralShellType>([
+	['abacusai', GeneralShellType.AbacusAI],
 	['claude', GeneralShellType.Claude],
 	['codex', GeneralShellType.Codex],
 	['commandcode', GeneralShellType.CommandCode],
