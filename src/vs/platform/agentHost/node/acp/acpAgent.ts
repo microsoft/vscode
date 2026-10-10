@@ -8,7 +8,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../base/common/observable.js';
+import { observableValue, type IObservable, type ISettableObservable } from '../../../../base/common/observable.js';
 import { basename, dirname, isAbsolute, join, relative, resolve as resolvePath, sep } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -91,8 +91,14 @@ export class AcpAgent extends Disposable implements IAgent {
 	readonly id: string;
 	readonly agentHostCapabilities = { workspaceConversion: false } as const;
 
-	private readonly _models = observableValue<readonly IAgentModelInfo[]>(this, []);
-	readonly models = this._models;
+	/**
+	 * ACP reports models per session (the `model` config option of `session/new`),
+	 * so until the first session exists only the agent's own default is offered.
+	 * Creating a throwaway session to learn them would leave empty sessions in
+	 * agents that persist them.
+	 */
+	private readonly _models: ISettableObservable<readonly IAgentModelInfo[]>;
+	readonly models: IObservable<readonly IAgentModelInfo[]>;
 
 	private readonly _onDidChatProgress = this._register(new Emitter<AgentSignal>());
 	readonly onDidChatProgress = this._onDidChatProgress.event;
@@ -116,6 +122,8 @@ export class AcpAgent extends Disposable implements IAgent {
 	) {
 		super();
 		this.id = acpProviderId(_config);
+		this._models = observableValue<readonly IAgentModelInfo[]>(this, [defaultModel(this.id)]);
+		this.models = this._models;
 	}
 
 	getDescriptor(): IAgentDescriptor {
@@ -335,7 +343,8 @@ export class AcpAgent extends Disposable implements IAgent {
 	private async _changeModel(chat: URI, model: ModelSelection): Promise<void> {
 		const state = this._requireChat(chat);
 		const option = state.configOptions.find(o => o.category === 'model');
-		if (!option || option.currentValue === model.id) {
+		if (!option || option.currentValue === model.id || !modelsFromConfigOptions(this.id, [option]).some(m => m.id === model.id)) {
+			// The agent default, or a model this session does not offer: keep the agent's choice.
 			return;
 		}
 		const connection = await this._ensureBound(state);
@@ -356,7 +365,7 @@ export class AcpAgent extends Disposable implements IAgent {
 			state.configOptions = setup.configOptions;
 			const models = modelsFromConfigOptions(this.id, setup.configOptions);
 			if (models.length) {
-				this._models.set(models, undefined);
+				this._models.set([defaultModel(this.id), ...models], undefined);
 			}
 		}
 	}
@@ -582,6 +591,13 @@ function attachmentsToContent(attachments: readonly MessageAttachment[] | undefi
 		}
 	}
 	return blocks;
+}
+
+/** Model id meaning "whatever the agent is configured to use". */
+export const ACP_DEFAULT_MODEL_ID = 'default';
+
+function defaultModel(provider: string): IAgentModelInfo {
+	return { provider, id: ACP_DEFAULT_MODEL_ID, name: 'Agent Default', supportsVision: false };
 }
 
 export function modelsFromConfigOptions(provider: string, options: readonly IAcpSessionConfigOption[]): IAgentModelInfo[] {

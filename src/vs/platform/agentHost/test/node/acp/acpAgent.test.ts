@@ -70,12 +70,17 @@ suite('AcpAgent', () => {
 		assert.deepStrictEqual(agent.getDescriptor(), { provider: 'acp-qwen', displayName: 'Qwen Code', description: 'Qwen Code (Agent Client Protocol)' });
 	});
 
+	test('offers the agent default model before any session exists', () => {
+		assert.deepStrictEqual(agent.models.get().map(m => [m.provider, m.id]), [['acp-qwen', 'default']]);
+		assert.strictEqual(launches, 0);
+	});
+
 	test('creates a native session in the working directory and publishes models', async () => {
 		const result = await createChat();
 		assert.deepStrictEqual(agentProcess.received.map(m => m.method), ['initialize', 'session/new']);
 		assert.deepStrictEqual(agentProcess.received[1].params, { cwd: workspace, mcpServers: [] });
 		assert.deepStrictEqual(JSON.parse(result!.providerData!), { sessionId: 'native-1', cwd: workspace });
-		assert.deepStrictEqual(agent.models.get().map(m => m.id), ['qwen3-coder', 'qwen3-max']);
+		assert.deepStrictEqual(agent.models.get().map(m => m.id), ['default', 'qwen3-coder', 'qwen3-max']);
 		assert.strictEqual(launches, 1);
 	});
 
@@ -161,6 +166,10 @@ suite('AcpAgent', () => {
 		await createChat();
 		await agent.chats.changeModel(chat, { id: 'qwen3-max' }, session);
 		assert.deepStrictEqual(agentProcess.received.at(-1), { method: 'session/set_config_option', params: { sessionId: 'native-1', configId: 'model', value: 'qwen3-max' } });
+		const sent = agentProcess.received.length;
+		await agent.chats.changeModel(chat, { id: 'default' }, session);
+		await agent.chats.changeModel(chat, { id: 'unknown-model' }, session);
+		assert.strictEqual(agentProcess.received.length, sent);
 	});
 
 	test('explains authentication errors with the agent auth methods', async () => {
