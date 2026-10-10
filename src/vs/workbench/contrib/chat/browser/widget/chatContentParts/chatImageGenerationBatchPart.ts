@@ -41,6 +41,7 @@ export function getImageGenerationBatch(content: readonly (IChatRendererContent 
 	const tools = content.filter((part): part is ImageTool =>
 		(part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized')
 		&& !part.subAgentInvocationId && !(part.kind === 'toolInvocation' && part.otherClientToolCall)
+		&& !IChatToolInvocation.isStreaming(part)
 		&& !IChatToolInvocation.isEffectivelyHidden(part) && isImageGenerationToolInvocation(part));
 	return tools.length > 1 ? tools : [];
 }

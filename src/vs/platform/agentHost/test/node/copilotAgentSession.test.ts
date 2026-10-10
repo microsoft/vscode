@@ -13478,6 +13478,113 @@ Use the attached image as context.
 			}), [message.content, 'image-1', 'Image generation completed.']);
 		});
 
+		for (const approved of [false, true]) {
+			test(`image tool start stays non-executing before the SDK requests permission (approved=${approved})`, async () => {
+				const { session, runtime, mockSession, signals, waitForSignal } = await createAgentSession(disposables);
+				const turnId = 'turn-image-permission';
+				const toolCallId = 'image-permission';
+				session.resetTurnState(turnId);
+				mockSession.fire('tool.execution_start', {
+					toolCallId, toolName: 'image_generation', arguments: { prompt: 'Draw a puppy' },
+				});
+				const startState = reduceTurnSignals(signals, turnId).activeTurn?.responseParts[0];
+				const ready = () => getActions(signals).filter(action => action.type === ActionType.ChatToolCallReady);
+				const readyBeforePermission = ready().length;
+				const permission = runtime.handlePermissionRequest({ kind: 'custom-tool', toolCallId, toolName: 'image_generation' });
+				const pending = await waitForSignal(signal => signal.kind === 'pending_confirmation' && signal.state.toolCallId === toolCallId);
+				const readyWhileConfirming = ready().length;
+				session.respondToPermissionRequest(toolCallId, approved);
+				const result = await permission;
+				if (approved) {
+					mockSession.fire('tool.execution_progress', {
+						toolCallId, progressMessage: 'Generating image',
+						structuredContent: { imageGeneration: { requestedModel: { id: 'image-model' } } },
+					});
+				}
+				mockSession.fire('tool.execution_complete', {
+					toolCallId, success: approved,
+					...(approved ? { result: { content: 'Image generated.' } } : { error: { message: 'Image generation cancelled' } }),
+				});
+				assert.deepStrictEqual({
+					startStatus: startState?.kind === ResponsePartKind.ToolCall ? startState.toolCall.status : undefined,
+					readyBeforePermission,
+					readyWhileConfirming,
+					pending: pending.kind === 'pending_confirmation' ? { toolCallId: pending.state.toolCallId, status: pending.state.status } : undefined,
+					result: result.kind,
+					readyAfterPermission: ready().length,
+				}, {
+					startStatus: ToolCallStatus.Streaming,
+					readyBeforePermission: 0,
+					readyWhileConfirming: 0,
+					pending: { toolCallId, status: ToolCallStatus.PendingConfirmation },
+					result: approved ? 'approve-once' : 'reject',
+					readyAfterPermission: 0,
+				});
+			});
+		}
+
+		test('auto-approved image tools become running on image progress, not SDK tool start', async () => {
+			const { session, mockSession, signals } = await createAgentSession(disposables);
+			const turnId = 'turn-image-automatic';
+			const toolCallId = 'image-automatic';
+			session.resetTurnState(turnId);
+			const status = () => {
+				const part = reduceTurnSignals(signals, turnId).activeTurn?.responseParts[0];
+				return part?.kind === ResponsePartKind.ToolCall ? part.toolCall.status : undefined;
+			};
+			mockSession.fire('tool.execution_start', {
+				toolCallId, toolName: 'image_generation', arguments: { prompt: 'Draw a puppy' },
+			});
+			const statuses = [status()];
+			mockSession.fire('tool.execution_progress', { toolCallId, progressMessage: 'Checking availability' });
+			statuses.push(status());
+			const imageGeneration = { requestedModel: { id: 'image-model', name: 'Image Model' } };
+			for (let index = 0; index < 2; index++) {
+				mockSession.fire('tool.execution_progress', {
+					toolCallId, progressMessage: 'Generating image', structuredContent: { imageGeneration },
+				});
+				statuses.push(status());
+			}
+			mockSession.fire('tool.execution_complete', {
+				toolCallId, success: true, result: { content: 'Image generated.' },
+			});
+			statuses.push(status());
+			const ready = getActions(signals).filter(action => action.type === ActionType.ChatToolCallReady);
+			assert.deepStrictEqual({
+				statuses,
+				ready: ready.map(action => ({ confirmed: action.confirmed, input: action.toolInput, imageGeneration: readImageGenerationToolMetadata(action) })),
+			}, {
+				statuses: [ToolCallStatus.Streaming, ToolCallStatus.Streaming, ToolCallStatus.Running, ToolCallStatus.Running, ToolCallStatus.Completed],
+				ready: [{ confirmed: ToolCallConfirmationReason.NotNeeded, input: JSON.stringify({ prompt: 'Draw a puppy' }, null, 2), imageGeneration }],
+			});
+		});
+
+		for (const success of [false, true]) {
+			test(`image tools without progress still publish a terminal result (success=${success})`, async () => {
+				const { session, mockSession, signals } = await createAgentSession(disposables);
+				const turnId = 'turn-image-without-progress';
+				const toolCallId = 'image-without-progress';
+				session.resetTurnState(turnId);
+				mockSession.fire('tool.execution_start', { toolCallId, toolName: 'image_generation' });
+				const beforeCompletion = getActions(signals).map(action => action.type);
+				mockSession.fire('tool.execution_complete', {
+					toolCallId, success,
+					...(success ? { result: { content: 'Image generated.' } } : { error: { message: 'Image generation failed' } }),
+				});
+				const completed = reduceTurnSignals(signals, turnId).activeTurn?.responseParts[0];
+				assert.deepStrictEqual({
+					beforeCompletion,
+					actions: getActions(signals).map(action => action.type),
+					completed: completed?.kind === ResponsePartKind.ToolCall && completed.toolCall.status === ToolCallStatus.Completed
+						? completed.toolCall.success : undefined,
+				}, {
+					beforeCompletion: [ActionType.ChatToolCallStart],
+					actions: [ActionType.ChatToolCallStart, ActionType.ChatToolCallReady, ActionType.ChatToolCallComplete],
+					completed: success,
+				});
+			});
+		}
+
 		test('tool completion preserves generated image bytes without advertising opaque resource links', async () => {
 			const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables);
 			session.resetTurnState('turn-image');

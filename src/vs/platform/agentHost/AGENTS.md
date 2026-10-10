@@ -99,6 +99,8 @@ Agents do **not** maintain the chat catalog, persist membership, know whether a 
 
 Copilot's runtime-owned `image_generation` tool maps ordinary SDK start, progress, and completion events into existing AHP tool-call actions. Codex's `imageGeneration` items map to `image_gen.imagegen` and use the same renderer. The final revised Codex prompt is published before completion; unavailable prompts remain absent in both live and restored results.
 
+Native Copilot image tool start can precede permission checks. Keep the call in AHP `streaming` until the permission flow takes ownership or structured image progress establishes execution; completion also settles calls from runtimes that omit progress.
+
 Copilot's optional `structuredContent.imageGeneration.requestedModel` maps to `_meta["vscode.imageGeneration"]`, validated by [agentImageGenerationMeta.ts](common/meta/agentImageGenerationMeta.ts). This identifies the requested image engine, not the conversation model or a confirmed serving model. Hosts without this metadata retain generic image labels.
 
 Availability, authorization, and durable tool history remain provider-owned. Inline images use AHP embedded-resource content; resource links must resolve through the host's `resourceRead`. An opaque SDK asset ID alone is not a readable AHP resource.
