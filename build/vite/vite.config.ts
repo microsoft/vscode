@@ -10,6 +10,24 @@ import { statSync } from 'fs';
 import { pathToFileURL } from 'url';
 import { rollupEsmUrlPlugin } from '@vscode/rollup-plugin-esm-url';
 
+function devserverRedirect(): Plugin {
+	return {
+		name: 'devserver-redirect',
+		configureServer(server) {
+			server.middlewares.use('/', (req, res, next) => {
+				if (req.url !== '/') {
+					return next();
+				}
+
+				res.writeHead(302, {
+					location: '/build/vite/'
+				});
+				res.end();
+			});
+		}
+	};
+}
+
 function injectBuiltinExtensionsPlugin(): Plugin {
 	let builtinExtensionsCache: unknown[] | null = null;
 
@@ -164,6 +182,7 @@ export default defineConfig({
 	base: './',
 	plugins: [
 		rollupEsmUrlPlugin({}),
+		devserverRedirect(),
 		injectBuiltinExtensionsPlugin(),
 		createHotClassSupport(),
 		componentExplorer({
