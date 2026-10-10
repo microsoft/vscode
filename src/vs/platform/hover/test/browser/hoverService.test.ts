@@ -329,6 +329,25 @@ suite('HoverService', () => {
 			hover.dispose();
 		});
 
+		test('should place a left hover below its target when neither side has room', () => {
+			const documentWidth = mainWindow.document.documentElement.clientWidth;
+			const target = createTarget();
+			target.getBoundingClientRect = () => new DOMRect(documentWidth - 150, 100, 100, 20);
+			const hover = showHover('Hover wider than either side', target, {
+				position: { hoverPosition: HoverPosition.LEFT },
+				appearance: { showPointer: true }
+			});
+			const hoverWidget = asHoverWidget(hover);
+			const pointer = hoverWidget.domNode.parentElement?.querySelector<HTMLElement>('.workbench-hover-pointer');
+			assert.ok(pointer);
+			Object.defineProperty(hoverWidget.domNode, 'clientWidth', { configurable: true, value: documentWidth });
+
+			hoverWidget.layout();
+
+			assert.deepStrictEqual(['top', 'bottom', 'left', 'right'].filter(side => pointer.classList.contains(side)), ['top']);
+			hover.dispose();
+		});
+
 		test('should constrain scrollable content without clipping hover actions', () => {
 			const hover = showHover('Scrollable hover', undefined, {
 				appearance: { maxHeightRatio: 0.25 },
