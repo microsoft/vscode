@@ -5,6 +5,7 @@
 
 import { beforeEach, describe, expect, suite, test, vi } from 'vitest';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
+import { isLinux } from '../../../../util/vs/base/common/platform';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { IAuthenticationService } from '../../../authentication/common/authentication';
 import { ICAPIClientService } from '../../../endpoint/common/capiClient';
@@ -189,7 +190,7 @@ suite('RemoteContentExclusion', () => {
 			expect(result).toBe(false);
 		});
 
-		test('should be case-insensitive when matching paths', async () => {
+		test.skipIf(isLinux)('should be case-insensitive when matching paths on a case-insensitive file system', async () => {
 			// Setup: Cache a repository with lowercase path
 			const repoRoot = '/workspace/myrepo';
 			mockGitService.setRepositoryFetchUrls({
@@ -207,6 +208,23 @@ suite('RemoteContentExclusion', () => {
 
 			// Should still be 1 because the path matching is case-insensitive
 			expect(mockGitService.getRepositoryFetchUrlsCallCount).toBe(1);
+		});
+
+		test.skipIf(!isLinux)('keeps repositories whose roots differ only in case apart on a case-sensitive file system', async () => {
+			const remotes = new Map([['/workspace/Repo', 'https://github.com/org/excluded.git'], ['/workspace/repo', 'https://github.com/org/open.git']]);
+			mockGitService.getRepositoryFetchUrls = vi.fn().mockImplementation((uri: URI) => {
+				const root = [...remotes.keys()].find(candidate => uri.path.startsWith(candidate + '/') || uri.path === candidate);
+				return Promise.resolve(root ? { rootUri: URI.file(root), remoteFetchUrls: [remotes.get(root)!] } : undefined);
+			});
+			mockCAPIClientService.setResponder(repos => rulesResponse(new Map([['https://github.com/org/excluded.git', { paths: ['*'] }]]), repos));
+
+			// Loaded last, the open repo would overwrite the excluded one if their roots shared a cache entry.
+			await remoteContentExclusion.loadRepos([URI.file('/workspace/Repo'), URI.file('/workspace/repo')]);
+
+			expect({
+				excluded: await remoteContentExclusion.isIgnored(URI.file('/workspace/Repo/index.ts'), CancellationToken.None),
+				open: await remoteContentExclusion.isIgnored(URI.file('/workspace/repo/index.ts'), CancellationToken.None)
+			}).toEqual({ excluded: true, open: false });
 		});
 
 		test('should clear cache entry when repository is closed', async () => {
@@ -268,6 +286,33 @@ suite('RemoteContentExclusion', () => {
 
 			// Both should use the cache, so no additional calls
 			expect(mockGitService.getRepositoryFetchUrlsCallCount).toBe(0);
+		});
+	});
+
+	describe('asMinimatchPatterns', () => {
+		test('returns only organization rules, not the rules of individual repositories', async () => {
+			const parent = '/workspace/parent';
+			const nested = '/workspace/parent/libs/excluded';
+			routeToRepos([parent, nested]);
+			// A workspace-wide glob would apply repository rules to every other repository too.
+			mockCAPIClientService.setResponder(repos => rulesResponse(new Map<string, MockExclusionRules>([
+				[NON_GIT_FILE_KEY, { paths: ['**/*.pem'] }],
+				[remoteFor(parent), { paths: ['**/*.env'] }],
+				[remoteFor(nested), { paths: ['*'] }]
+			]), repos));
+
+			await remoteContentExclusion.loadRepos([URI.file(parent), URI.file(nested)]);
+
+			expect(await remoteContentExclusion.asMinimatchPatterns()).toEqual(['**/*.pem']);
+		});
+
+		test('returns nothing when only repositories have rules', async () => {
+			routeToRepos(['/workspace/repo-a']);
+			respondWithRules({ '/workspace/repo-a': { paths: ['*'] } });
+
+			await remoteContentExclusion.loadRepos([URI.file('/workspace/repo-a')]);
+
+			expect(await remoteContentExclusion.asMinimatchPatterns()).toEqual([]);
 		});
 	});
 
@@ -587,27 +632,51 @@ suite('RemoteContentExclusion', () => {
 	});
 
 	describe('rule scoping', () => {
-		test('matches fetched globs against every file rather than only their own repository', async () => {
+		test('applies a repository glob only to files in that repository', async () => {
 			routeToRepos(['/workspace/repo-a', '/workspace/repo-b']);
 			respondWithRules({ '/workspace/repo-a': { paths: ['**/secret.ts'] } });
 
-			// Rules compile into one flattened matcher list, so a sibling repo is over-blocked rather
-			// than under-blocked. Pinned because that safe direction is what makes it acceptable.
 			expect({
 				excludedRepo: await remoteContentExclusion.isIgnored(URI.file('/workspace/repo-a/secret.ts'), CancellationToken.None),
 				siblingRepo: await remoteContentExclusion.isIgnored(URI.file('/workspace/repo-b/secret.ts'), CancellationToken.None)
-			}).toEqual({ excludedRepo: true, siblingRepo: true });
+			}).toEqual({ excludedRepo: true, siblingRepo: false });
+		});
+
+		test('does not let a fully excluded nested repository block its parent or other repositories', async () => {
+			const parent = '/workspace/parent';
+			const excluded = '/workspace/parent/libs/excluded';
+			const otherNested = '/workspace/parent/libs/other';
+			const sibling = '/workspace/sibling';
+			routeToRepos([parent, excluded, otherNested, sibling]);
+			respondWithRules({ [excluded]: { paths: ['*'] } });
+
+			// Evaluated after the excluded repo's rules are cached, so leaking rules would show up.
+			const excludedRoot = await remoteContentExclusion.isIgnored(URI.file(`${excluded}/index.ts`), CancellationToken.None);
+			const excludedDeep = await remoteContentExclusion.isIgnored(URI.file(`${excluded}/src/deep/file.ts`), CancellationToken.None);
+
+			expect({
+				excludedRoot,
+				excludedDeep,
+				parent: await remoteContentExclusion.isIgnored(URI.file(`${parent}/src/app.ts`), CancellationToken.None),
+				otherNested: await remoteContentExclusion.isIgnored(URI.file(`${otherNested}/index.ts`), CancellationToken.None),
+				sibling: await remoteContentExclusion.isIgnored(URI.file(`${sibling}/index.ts`), CancellationToken.None)
+			}).toEqual({ excludedRoot: true, excludedDeep: true, parent: false, otherNested: false, sibling: false });
 		});
 
 		test('applies organization rules to files inside and outside a repository', async () => {
-			routeToRepos(['/workspace/repo-a']);
+			routeToRepos(['/workspace/repo-a', '/workspace/repo-b']);
 			// Rules that are not scoped to a repository come back under the non-git pseudo repo.
-			mockCAPIClientService.setResponder(repos => rulesResponse(new Map([[NON_GIT_FILE_KEY, { paths: ['**/*.pem'] }]]), repos));
+			// repo-a also has its own rules, which must not displace the organization rules.
+			mockCAPIClientService.setResponder(repos => rulesResponse(new Map<string, MockExclusionRules>([
+				[NON_GIT_FILE_KEY, { paths: ['**/*.pem'] }],
+				[remoteFor('/workspace/repo-a'), { paths: ['**/*.env'] }]
+			]), repos));
 
 			expect({
-				inRepo: await remoteContentExclusion.isIgnored(URI.file('/workspace/repo-a/key.pem'), CancellationToken.None),
+				inRepoWithRules: await remoteContentExclusion.isIgnored(URI.file('/workspace/repo-a/key.pem'), CancellationToken.None),
+				inRepoWithoutRules: await remoteContentExclusion.isIgnored(URI.file('/workspace/repo-b/key.pem'), CancellationToken.None),
 				outsideRepo: await remoteContentExclusion.isIgnored(URI.file('/elsewhere/key.pem'), CancellationToken.None)
-			}).toEqual({ inRepo: true, outsideRepo: true });
+			}).toEqual({ inRepoWithRules: true, inRepoWithoutRules: true, outsideRepo: true });
 		});
 
 		test('applies organization content rules to files inside a repository', async () => {
