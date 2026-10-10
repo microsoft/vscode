@@ -449,6 +449,9 @@ interface ResourceTemplate {
 	element: HTMLElement;
 	name: HTMLElement;
 	fileLabel: IResourceLabel;
+	lineChangesContainer: HTMLElement;
+	insertionsLabel: HTMLElement;
+	deletionsLabel: HTMLElement;
 	decorationIcon: HTMLElement;
 	actionBar: WorkbenchToolBar;
 	actionBarMenu: IMenu | undefined;
@@ -521,11 +524,15 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 			actionRunner: this.actionRunner
 		}, this.menuService, this.contextKeyService, this.contextMenuService, this.keybindingService, this.commandService, this.telemetryService);
 
+		const lineChangesContainer = append(element, $('.line-changes'));
+		const insertionsLabel = append(lineChangesContainer, $('.insertions'));
+		const deletionsLabel = append(lineChangesContainer, $('.deletions'));
+
 		const decorationIcon = append(element, $('.decoration-icon'));
 		const actionBarMenuListener = new MutableDisposable<IDisposable>();
 		const disposables = combinedDisposable(actionBar, fileLabel, actionBarMenuListener);
 
-		return { element, name, fileLabel, decorationIcon, actionBar, actionBarMenu: undefined, actionBarMenuListener, elementDisposables: new DisposableStore(), disposables };
+		return { element, name, fileLabel, lineChangesContainer, insertionsLabel, deletionsLabel, decorationIcon, actionBar, actionBarMenu: undefined, actionBarMenuListener, elementDisposables: new DisposableStore(), disposables };
 	}
 
 	renderElement(node: ITreeNode<ISCMResource, FuzzyScore | LabelFuzzyScore> | ITreeNode<ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>, FuzzyScore | LabelFuzzyScore>, index: number, template: ResourceTemplate): void {
@@ -573,6 +580,11 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 		template.elementDisposables.add(toDisposable(() => this.renderedResources.delete(template)));
 
 		template.element.setAttribute('data-tooltip', tooltip);
+
+		const lineChanges = ResourceTree.isResourceNode(resourceOrFolder)
+			? resourceOrFolder.element?.decorations.lineChanges
+			: resourceOrFolder.decorations.lineChanges;
+		this.renderLineChanges(template, lineChanges);
 	}
 
 	disposeElement(resource: ITreeNode<ISCMResource, FuzzyScore | LabelFuzzyScore> | ITreeNode<IResourceNode<ISCMResource, ISCMResourceGroup>, FuzzyScore | LabelFuzzyScore>, index: number, template: ResourceTemplate): void {
@@ -601,6 +613,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 		template.element.classList.remove('faded');
 		template.decorationIcon.style.display = 'none';
 		template.decorationIcon.style.backgroundImage = '';
+		this.renderLineChanges(template, undefined);
 
 		template.element.setAttribute('data-tooltip', '');
 	}
@@ -662,6 +675,21 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 			template.decorationIcon.style.backgroundImage = '';
 			template.decorationIcon.title = '';
 		}
+	}
+
+	private renderLineChanges(template: ResourceTemplate, lineChanges: ISCMResource['decorations']['lineChanges']): void {
+		if (!lineChanges || (!lineChanges.insertions && !lineChanges.deletions)) {
+			template.insertionsLabel.textContent = '';
+			template.deletionsLabel.textContent = '';
+			template.lineChangesContainer.classList.remove('visible');
+			template.lineChangesContainer.title = '';
+			return;
+		}
+
+		template.insertionsLabel.textContent = lineChanges.insertions > 0 ? `+${lineChanges.insertions}` : '';
+		template.deletionsLabel.textContent = lineChanges.deletions > 0 ? `-${lineChanges.deletions}` : '';
+		template.lineChangesContainer.classList.add('visible');
+		template.lineChangesContainer.title = localize('scmResourceLineChangesTooltip', "{0} additions, {1} deletions", lineChanges.insertions, lineChanges.deletions);
 	}
 
 	dispose(): void {
@@ -905,6 +933,11 @@ export class SCMAccessibilityProvider implements IListAccessibilityProvider<Tree
 
 			if (element.decorations.tooltip) {
 				result.push(element.decorations.tooltip);
+			}
+
+			const lineChanges = element.decorations.lineChanges;
+			if (lineChanges && (lineChanges.insertions > 0 || lineChanges.deletions > 0)) {
+				result.push(localize('scmResourceLineChangesAriaLabel', "{0} additions, {1} deletions", lineChanges.insertions, lineChanges.deletions));
 			}
 
 			const path = this.labelService.getUriLabel(dirname(element.sourceUri), { relative: true, noPrefix: true });
