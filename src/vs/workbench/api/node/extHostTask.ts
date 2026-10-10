@@ -83,7 +83,7 @@ export class ExtHostTask extends ExtHostTaskBase {
 			// in the provided custom execution map that is cleaned up after the
 			// task is executed.
 			if (CustomExecutionDTO.is(dto.execution)) {
-				await this.addCustomExecution(dto, task, false);
+				await this.addCustomExecution(dto, task);
 			}
 			// Always get the task execution first to prevent timing issues when retrieving it later
 			const execution = await this.getTaskExecution(await this._proxy.$getTaskExecution(dto), task);
@@ -110,7 +110,7 @@ export class ExtHostTask extends ExtHostTaskBase {
 						// The ID is calculated on the main thread task side, so, let's call into it here.
 						// We need the task id's pre-computed for custom task executions because when OnDidStartTask
 						// is invoked, we have to be able to map it back to our data.
-						taskIdPromises.push(this.addCustomExecution(taskDTO, task, true));
+						taskIdPromises.push(this.addCustomExecution(taskDTO, task, handler));
 					}
 				}
 			}
