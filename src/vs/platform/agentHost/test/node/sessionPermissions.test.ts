@@ -333,6 +333,18 @@ suite('SessionPermissionManager', () => {
 		assert.deepStrictEqual([inside, outside], [ToolCallConfirmationReason.NotNeeded, undefined]);
 	});
 
+	test('requires confirmation for writes through a dangling symlink', async () => {
+		symlinkSync(join(outsideDir, 'missing'), join(workDir, 'dangling-link'), directoryLinkType);
+
+		const results = [
+			await permissions.getAutoApproval(writeEvent(join(workDir, 'dangling-link')), sessionUri),
+			await permissions.getAutoApproval(writeEvent(join(workDir, 'dangling-link', 'note.txt')), sessionUri),
+			await permissions.getAutoApproval(shellEvent('echo hi > dangling-link', 'bash'), sessionUri),
+		];
+
+		assert.deepStrictEqual(results, [undefined, undefined, undefined]);
+	});
+
 	test('requires confirmation for home-directory dotfiles', async () => {
 		const homeSession = URI.from({ scheme: 'copilot', path: '/home' }).toString();
 		manager.createSession(makeSummary(homeSession, URI.file(homedir()).toString()));
