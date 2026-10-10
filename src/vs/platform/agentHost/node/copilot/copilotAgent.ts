@@ -8344,6 +8344,7 @@ class ActiveClient extends Disposable {
 
 	/** Chats with authoritative membership; unknown chats are treated separately from "no contributors". */
 	private readonly _knownChats = new Set<string>();
+	private readonly _releasedChatsByClient = new Map<string, Set<string>>();
 
 	constructor(
 		private readonly _sessionUri: URI,
@@ -8363,6 +8364,10 @@ class ActiveClient extends Disposable {
 	/** Adds `chat` to `clientId`'s membership and reports whether membership grew. */
 	addClientChat(clientId: string, chat: URI): boolean {
 		const chatKey = chat.toString();
+		const released = this._releasedChatsByClient.get(clientId);
+		if (released?.delete(chatKey) && released.size === 0) {
+			this._releasedChatsByClient.delete(clientId);
+		}
 		const chats = this._chatsByClient.get(clientId);
 		if (chats?.has(chatKey)) {
 			return false;
@@ -8379,6 +8384,12 @@ class ActiveClient extends Disposable {
 	/** Removes `chat` from `clientId` and reports whether that client now has no chats left. */
 	removeClientChat(clientId: string, chat: URI): boolean {
 		const chatKey = chat.toString();
+		let released = this._releasedChatsByClient.get(clientId);
+		if (!released) {
+			released = new Set<string>();
+			this._releasedChatsByClient.set(clientId, released);
+		}
+		released.add(chatKey);
 		const chats = this._chatsByClient.get(clientId);
 		if (!chats?.has(chatKey)) {
 			return false;
@@ -8387,7 +8398,6 @@ class ActiveClient extends Disposable {
 		if (chats.size === 0) {
 			this._chatsByClient.delete(clientId);
 		}
-		this._reindexKnownChats();
 		return !this._chatsByClient.has(clientId);
 	}
 
@@ -8398,6 +8408,13 @@ class ActiveClient extends Disposable {
 				this.removeClient(clientId);
 			}
 		}
+		this._knownChats.delete(chat.toString());
+		for (const [clientId, released] of this._releasedChatsByClient) {
+			released.delete(chat.toString());
+			if (released.size === 0) {
+				this._releasedChatsByClient.delete(clientId);
+			}
+		}
 	}
 
 	/** The exact chats `clientId` contributes to, as last published by the host. */
@@ -8405,9 +8422,10 @@ class ActiveClient extends Disposable {
 		return [...(this._chatsByClient.get(clientId) ?? [])];
 	}
 
-	/** Unknown chats are temporarily in scope for every client until the host publishes exact membership. */
+	/** Unknown chats remain in scope unless this client was explicitly released. */
 	contributesTo(clientId: string, chatKey: string): boolean {
-		return !this._knownChats.has(chatKey) || this._chatsByClient.get(clientId)?.has(chatKey) === true;
+		return !this._releasedChatsByClient.get(clientId)?.has(chatKey)
+			&& (!this._knownChats.has(chatKey) || this._chatsByClient.get(clientId)?.has(chatKey) === true);
 	}
 
 	/** Chat-scoped tool union; duplicate names keep the first contributor's definition. */
@@ -8428,15 +8446,6 @@ class ActiveClient extends Disposable {
 		return result;
 	}
 
-	private _reindexKnownChats(): void {
-		this._knownChats.clear();
-		for (const chats of this._chatsByClient.values()) {
-			for (const chatKey of chats) {
-				this._knownChats.add(chatKey);
-			}
-		}
-	}
-
 	/** Get (or lazily create) the stable handle for `clientId`. */
 	getOrCreateHandle(clientId: string, displayName: string | undefined): CopilotActiveClientHandle {
 		let handle = this._handles.get(clientId);
@@ -8452,7 +8461,7 @@ class ActiveClient extends Disposable {
 		this._handles.delete(clientId);
 		this.toolSet.delete(clientId);
 		this._chatsByClient.delete(clientId);
-		this._reindexKnownChats();
+		this._releasedChatsByClient.delete(clientId);
 		this.pluginController.removeClient(clientId);
 	}
 

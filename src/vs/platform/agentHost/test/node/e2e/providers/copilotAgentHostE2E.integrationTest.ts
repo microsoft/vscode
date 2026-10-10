@@ -565,45 +565,54 @@ suite('Agent Host E2E — Copilot (Copilot-specific)', function () {
 		});
 		const turnId = 'turn-client-tool-disconnect';
 		const chatUri = buildDefaultChatUri(sessionUri);
-		dispatchTurn(client, sessionUri, turnId, 'Call the get_magic_word tool and then report whether it succeeded.', 2);
+		assert.ok(lease);
+		const observer = await lease.connectClient();
+		try {
+			await observer.call('initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'copilot-client-tool-disconnect-observer' });
+			await observer.call('subscribe', { channel: chatUri });
+			dispatchTurn(client, sessionUri, turnId, 'Call the get_magic_word tool and then report whether it succeeded.', 2);
 
-		const toolStart = await client.waitForNotification(n => {
-			if (!isActionNotification(n, 'chat/toolCallStart')) {
-				return false;
-			}
-			const envelope = getActionEnvelope(n);
-			const action = envelope.action as ChatToolCallStartAction;
-			return envelope.channel === chatUri && action.turnId === turnId && action.toolName === 'get_magic_word';
-		}, 90_000);
-		const toolCallId = (getActionEnvelope(toolStart).action as ChatToolCallStartAction).toolCallId;
+			const toolStart = await client.waitForNotification(n => {
+				if (!isActionNotification(n, 'chat/toolCallStart')) {
+					return false;
+				}
+				const envelope = getActionEnvelope(n);
+				const action = envelope.action as ChatToolCallStartAction;
+				return envelope.channel === chatUri && action.turnId === turnId && action.toolName === 'get_magic_word';
+			}, 90_000);
+			const toolCallId = (getActionEnvelope(toolStart).action as ChatToolCallStartAction).toolCallId;
 
-		client.notify('unsubscribe', { channel: sessionUri });
+			client.notify('unsubscribe', { channel: chatUri });
+			client.notify('unsubscribe', { channel: sessionUri });
 
-		const failedCompletion = await client.waitForNotification(n => {
-			if (!isActionNotification(n, 'chat/toolCallComplete')) {
-				return false;
-			}
-			const envelope = getActionEnvelope(n);
-			const action = envelope.action as ChatToolCallCompleteAction;
-			return envelope.channel === chatUri && action.turnId === turnId && action.toolCallId === toolCallId && !action.result.success;
-		}, 30_000);
-		const failedCompletionSeq = getActionEnvelope(failedCompletion).serverSeq;
+			const failedCompletion = await observer.waitForNotification(n => {
+				if (!isActionNotification(n, 'chat/toolCallComplete')) {
+					return false;
+				}
+				const envelope = getActionEnvelope(n);
+				const action = envelope.action as ChatToolCallCompleteAction;
+				return envelope.channel === chatUri && action.turnId === turnId && action.toolCallId === toolCallId && !action.result.success;
+			}, 30_000);
+			const failedCompletionSeq = getActionEnvelope(failedCompletion).serverSeq;
 
-		await client.waitForNotification(n =>
-			isActionNotification(n, 'chat/turnComplete')
-			&& getActionEnvelope(n).channel === chatUri
-			&& (getActionEnvelope(n).action as { turnId: string }).turnId === turnId,
-			90_000);
+			await observer.waitForNotification(n =>
+				isActionNotification(n, 'chat/turnComplete')
+				&& getActionEnvelope(n).channel === chatUri
+				&& (getActionEnvelope(n).action as { turnId: string }).turnId === turnId,
+				90_000);
 
-		const staleReady = client.receivedNotifications(n => {
-			if (!isActionNotification(n, 'chat/toolCallReady')) {
-				return false;
-			}
-			const envelope = getActionEnvelope(n);
-			const action = envelope.action as ChatToolCallReadyAction;
-			return envelope.channel === chatUri && envelope.serverSeq > failedCompletionSeq && action.turnId === turnId && action.toolCallId === toolCallId;
-		});
-		assert.deepStrictEqual(staleReady, []);
+			const staleReady = observer.receivedNotifications(n => {
+				if (!isActionNotification(n, 'chat/toolCallReady')) {
+					return false;
+				}
+				const envelope = getActionEnvelope(n);
+				const action = envelope.action as ChatToolCallReadyAction;
+				return envelope.channel === chatUri && envelope.serverSeq > failedCompletionSeq && action.turnId === turnId && action.toolCallId === toolCallId;
+			});
+			assert.deepStrictEqual(staleReady, []);
+		} finally {
+			observer.close();
+		}
 	});
 
 	test('client tool result confirmation is required before the provider continues', async function () {

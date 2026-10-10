@@ -19481,6 +19481,128 @@ suite('CopilotAgent', () => {
 			}
 		});
 
+		test('removing the sole contributor keeps a released chat out of scope until restored', async () => {
+			const agent = createTestAgent(disposables);
+			try {
+				const session = AgentSession.uri('copilotcli', 'membership-release');
+				const main = defaultChatUri(session);
+				const peer = URI.parse(buildChatUri(session, 'peer'));
+				agent.getOrCreateActiveClient(main, session, { clientId: 'client-A' }).tools = [toolA];
+				agent.getOrCreateActiveClient(peer, session, { clientId: 'client-A' });
+				const active = membership(agent, session);
+				agent.removeActiveClient(peer, session, 'client-A');
+				const released = {
+					reachesPeer: active.contributesTo('client-A', peer.toString()),
+					peerTools: active.toolsForChat(peer.toString()).map(tool => tool.name),
+					mainTools: active.toolsForChat(main.toString()).map(tool => tool.name),
+				};
+				agent.getOrCreateActiveClient(peer, session, { clientId: 'client-A' }).tools = [toolA];
+
+				assert.deepStrictEqual({ released, restored: active.toolsForChat(peer.toString()).map(tool => tool.name) }, {
+					released: { reachesPeer: false, peerTools: [], mainTools: ['tool_a'] },
+					restored: ['tool_a'],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('future client tools fail after exact chat release and recover after resubscription', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const { agent, instantiationService } = createTestAgentContext(disposables, { environmentServiceRegistration: 'native', sessionDataService });
+			const actions: (SessionAction | ChatAction)[] = [];
+			disposables.add(agent.onDidChatProgress(signal => {
+				if (signal.kind === 'action') {
+					actions.push(signal.action);
+				}
+			}));
+			const session = AgentSession.uri('copilotcli', 'test-session-1');
+			const main = defaultChatUri(session);
+			const peer = URI.parse(buildChatUri(session, 'peer'));
+			agent.getOrCreateActiveClient(main, session, { clientId: 'client-A' }).tools = [toolA];
+			agent.getOrCreateActiveClient(peer, session, { clientId: 'client-A' });
+			const mockSession = new MockCopilotSession();
+			const runtime = disposables.add(createAgentSessionThroughAgent(agent, instantiationService, {
+				mockSession,
+				snapshot: { tools: [toolA], plugins: [], mcpServers: {} },
+			}).session);
+			try {
+				await runtime.initializeSession();
+				runtime.resetTurnState('turn-1', 'client-A');
+				agent.removeActiveClient(main, session, 'client-A');
+				mockSession.emit({ type: 'tool.execution_start', data: { toolCallId: 'released', toolName: toolA.name, arguments: {} } } as SessionEventPayload<'tool.execution_start'>);
+				const failure = actions.find(action => action.type === ActionType.ChatToolCallComplete);
+				agent.getOrCreateActiveClient(main, session, { clientId: 'client-A' }).tools = [toolA];
+				mockSession.emit({ type: 'tool.execution_start', data: { toolCallId: 'restored', toolName: toolA.name, arguments: {} } } as SessionEventPayload<'tool.execution_start'>);
+				const restored = actions.find(action => action.type === ActionType.ChatToolCallStart && action.toolCallId === 'restored');
+
+				assert.deepStrictEqual({
+					failed: failure?.type === ActionType.ChatToolCallComplete ? failure.result.success : undefined,
+					restoredOwner: restored?.type === ActionType.ChatToolCallStart ? restored.contributor : undefined,
+				}, {
+					failed: false,
+					restoredOwner: { kind: ToolCallContributorKind.Client, clientId: 'client-A' },
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('early release affects only its client while other clients retain unknown-chat fallback', async () => {
+			const agent = createTestAgent(disposables);
+			try {
+				const session = AgentSession.uri('copilotcli', 'membership-early-release-two-clients');
+				const main = defaultChatUri(session);
+				const peer = URI.parse(buildChatUri(session, 'peer-new'));
+				agent.getOrCreateActiveClient(main, session, { clientId: 'client-A' }).tools = [toolA];
+				agent.getOrCreateActiveClient(main, session, { clientId: 'client-B' }).tools = [toolB];
+				const active = membership(agent, session);
+				agent.removeActiveClient(peer, session, 'client-A');
+				const released = {
+					reachesA: active.contributesTo('client-A', peer.toString()),
+					reachesB: active.contributesTo('client-B', peer.toString()),
+					peerTools: active.toolsForChat(peer.toString()).map(tool => tool.name),
+					mainTools: active.toolsForChat(main.toString()).map(tool => tool.name),
+				};
+				agent.getOrCreateActiveClient(peer, session, { clientId: 'client-B' });
+				agent.getOrCreateActiveClient(peer, session, { clientId: 'client-A' });
+
+				assert.deepStrictEqual({ released, restored: active.toolsForChat(peer.toString()).map(tool => tool.name) }, {
+					released: { reachesA: false, reachesB: true, peerTools: ['tool_b'], mainTools: ['tool_a', 'tool_b'] },
+					restored: ['tool_a', 'tool_b'],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('release before membership fan-out prevents fallback to sibling client tools until restored', async () => {
+			const agent = createTestAgent(disposables);
+			try {
+				const session = AgentSession.uri('copilotcli', 'membership-early-release');
+				const main = defaultChatUri(session);
+				const peer = URI.parse(buildChatUri(session, 'peer-new'));
+				agent.getOrCreateActiveClient(main, session, { clientId: 'client-A' }).tools = [toolA];
+				const active = membership(agent, session);
+				const beforeRelease = active.toolsForChat(peer.toString()).map(tool => tool.name);
+				agent.removeActiveClient(peer, session, 'client-A');
+				const released = {
+					reachesPeer: active.contributesTo('client-A', peer.toString()),
+					peerTools: active.toolsForChat(peer.toString()).map(tool => tool.name),
+					mainTools: active.toolsForChat(main.toString()).map(tool => tool.name),
+				};
+				agent.getOrCreateActiveClient(peer, session, { clientId: 'client-A' });
+
+				assert.deepStrictEqual({ beforeRelease, released, restored: active.toolsForChat(peer.toString()).map(tool => tool.name) }, {
+					beforeRelease: ['tool_a'],
+					released: { reachesPeer: false, peerTools: [], mainTools: ['tool_a'] },
+					restored: ['tool_a'],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
 		test('a chat the host has published no membership for yet keeps every client in scope', async () => {
 			// A peer chat's SDK runtime is provisioned before the host's
 			// follow-up fan-out reaches the provider. A client tool call issued
