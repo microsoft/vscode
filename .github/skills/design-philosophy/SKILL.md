@@ -140,6 +140,8 @@ How rounded - and how raised - a surface is *means something*: it tells you wher
 
 Equivalent elements must look equivalent, because they pull from the same named scale. When two similar things differ, that difference should *mean* something; accidental drift is the enemy. This is why every size, radius, weight, and color is a **named token with a role**, not a literal - the literal is only ever a stand-in for the token it lands on.
 
+**Composition heuristic — one relationship, one owner** *(candidate; validate before treating as settled)*. Start by expressing each visual relationship once in the lowest component contract that understands all participating elements. Ownership is responsibility for the relationship, not the DOM node that receives a CSS property: the owner may use `gap`, padding, or a targeted child margin. Typically an icon source owns intrinsic content, a renderer owns semantic size and fitting, a control owns relationships among its internal parts, and a parent composition owns relationships between controls, but the composition determines the boundary. Primitive content should not impose context-dependent external spacing on unknown neighbors; recurring consumer compensation usually signals that the relationship is owned at the wrong layer. This is a derived heuristic, not settled canonical doctrine: treat it as a review starting point rather than a mechanical prohibition, and validate the boundary against the actual composition and against counterexamples such as shared controls that already own their internal relationships. See [Composition Ownership](../ux-css-layout/SKILL.md#composition-ownership) for diagnostic patterns and CSS mechanisms.
+
 *Carried out by:* every move below - they *are* the shared scales. See especially [design tokens](#design-tokens), [the spacing ramp](#spacing-ramp), [the type ramp](#type-ramp), [icon sizes](#icon-sizes), [one stroke](#one-stroke).
 
 > **Worked example - two mismatched dialogs**
@@ -208,8 +210,8 @@ Pills (radius ≈ half the height) are **fully round** (`--vscode-cornerRadius-c
 <a id="spacing-ramp"></a>
 ### The spacing ramp - on-scale or off-scale
 
-Padding, margin, and gap come from the **spacing ramp** (0, 2, 4, 6, 8, 10, 12, 16, 20, 24, 28, 32, 36, 40).
-- **Decision rule:** a value either lands *on* the ramp or it doesn't. Off-scale values (3, 5, 7, 14, 26…) break the rhythm; snap to the nearest step, ties rounding up. Report rhythm bugs as *"this is off the spacing ramp,"* not *"add a couple of pixels."*
+Padding, margin, and gap come from the spacing ramp registered in [`baseSizes.ts`](../../../src/vs/platform/theme/common/sizes/baseSizes.ts).
+- **Decision rule:** select an intentional registered step rather than an arbitrary value. Use the design-token validator for current nearest-step guidance, and report rhythm bugs as *"this is off the spacing ramp,"* not *"add a couple of pixels."*
 - **Serves:** *Room to breathe* (2), *Sameness signals sameness* (6).
 
 <a id="type-ramp"></a>
@@ -279,6 +281,7 @@ Lead with the **role / tier / ramp**, not the number - then name the principle s
 | "font-weight 500 here" | "**500 is off the ramp** - snap to `semiBold` (600)" | 6 · Sameness |
 | "shrink this icon a touch" | "this icon should be the **compact (12px) size + `*Compact` glyph**" | 4 · One thing leads |
 | "this icon is 14px" | "codicons are **16 or 12 only** - pick base or compact" | 6 · Sameness |
+| "add margin to the icon and label" | "as a **candidate heuristic**, start by asking whether the lowest composition that understands both elements should own the relationship" | 6 · Sameness |
 | "this ordinary border is too thick" | "standard borders are **one stroke (1px)** - this should/shouldn't have one; preserve thicker focus/semantic strokes" | 1 · Quiet at rest |
 | "change this grey hex" | "this is the **wrong theme token** / it **vanishes in light/HC**" | 6 · Sameness |
 | "the command center has a box around it" | "chrome should be **quiet at rest, reveal on hover**" | 1 · Quiet at rest |
