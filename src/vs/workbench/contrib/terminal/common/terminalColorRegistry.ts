@@ -63,7 +63,7 @@ export const TERMINAL_FIND_MATCH_BACKGROUND_COLOR = registerColor('terminal.find
 	light: editorFindMatch,
 	// Use regular selection background in high contrast with a thick border
 	hcDark: null,
-	hcLight: '#0F4A85'
+	hcLight: '#0F4A8566'
 }, nls.localize('terminal.findMatchBackground', 'Color of the current search match in the terminal. The color must not be opaque so as not to hide underlying terminal content.'), true);
 export const TERMINAL_HOVER_HIGHLIGHT_BACKGROUND_COLOR = registerColor('terminal.hoverHighlightBackground', transparent(editorHoverHighlight, 0.5), nls.localize('terminal.hoverHighlightBackground', 'Highlight below the word for which a hover is shown. The color must not be opaque so as not to hide underlying decorations.'));
 export const TERMINAL_FIND_MATCH_BORDER_COLOR = registerColor('terminal.findMatchBorder', {
