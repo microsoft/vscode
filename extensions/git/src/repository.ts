@@ -2785,9 +2785,9 @@ export class Repository implements Disposable {
 						resolve(new Set<string>(this.parseIgnoreCheck(data)));
 					} else {
 						if (/ is in submodule /.test(stderr)) {
-							reject(new GitError({ stdout: data, stderr, exitCode, gitErrorCode: GitErrorCodes.IsInSubmodule }));
+							reject(new GitError({ message: 'Failed to execute git', stdout: data, stderr, exitCode, gitErrorCode: GitErrorCodes.IsInSubmodule, gitCommand: 'check-ignore' }));
 						} else {
-							reject(new GitError({ stdout: data, stderr, exitCode }));
+							reject(new GitError({ message: 'Failed to execute git', stdout: data, stderr, exitCode, gitCommand: 'check-ignore' }));
 						}
 					}
 				};
