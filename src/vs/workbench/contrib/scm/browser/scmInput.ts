@@ -366,6 +366,7 @@ export class SCMInputWidget {
 	private readonly inputEditor: CodeEditorWidget;
 	private readonly inputEditorOptions: SCMInputWidgetEditorOptions;
 	private toolbarContainer: HTMLElement;
+	private lineLengthContainer: HTMLElement;
 	private toolbar: SCMInputWidgetToolbar;
 	private readonly disposables = new DisposableStore();
 
@@ -533,6 +534,7 @@ export class SCMInputWidget {
 
 		// Save model
 		this.model = { input, textModel };
+		this.renderLineLength();
 	}
 
 	get selections(): Selection[] | null {
@@ -579,6 +581,8 @@ export class SCMInputWidget {
 	) {
 		this.element = append(container, $('.scm-editor'));
 		this.editorContainer = append(this.element, $('.scm-editor-container'));
+		this.lineLengthContainer = append(this.editorContainer, $('.scm-editor-line-length'));
+		this.lineLengthContainer.classList.add('hidden');
 		this.toolbarContainer = append(this.element, $('.scm-editor-toolbar'));
 
 		this.contextKeyService = this.disposables.add(contextKeyService.createScoped(this.element));
@@ -652,12 +656,15 @@ export class SCMInputWidget {
 			const viewPosition = viewModel.coordinatesConverter.convertModelPositionToViewPosition(position);
 			firstLineKey.set(viewPosition.lineNumber === 1 && viewPosition.column === 1);
 			lastLineKey.set(viewPosition.lineNumber === lastLineNumber && viewPosition.column === lastLineCol);
+			this.renderLineLength();
 		}));
+		this.disposables.add(this.inputEditor.onDidChangeModelContent(() => this.renderLineLength()));
 		this.disposables.add(this.inputEditor.onDidScrollChange(e => {
 			this.toolbarContainer.classList.toggle('scroll-decoration', e.scrollTop > 0);
 		}));
 
 		Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.showInputActionButton'))(() => this.layout(), this, this.disposables);
+		Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.showInputLineLength'))(() => this.renderLineLength(), this, this.disposables);
 
 		this.onDidChangeContentHeight = Event.signal(Event.filter(this.inputEditor.onDidContentSizeChange, e => e.contentHeightChanged, this.disposables));
 
@@ -694,10 +701,44 @@ export class SCMInputWidget {
 		return clamp(this.inputEditor.getContentHeight(), editorMinHeight, editorMaxHeight);
 	}
 
+	private renderLineLength(): void {
+		const enabled = this.configurationService.getValue<boolean>('scm.showInputLineLength') === true;
+		const position = enabled && this.model ? this.inputEditor.getPosition() : undefined;
+
+		const wasHidden = this.lineLengthContainer.classList.contains('hidden');
+
+		if (position) {
+			// Track the 50/72 convention: report the length of the line the cursor is on.
+			this.lineLengthContainer.textContent = String(this.inputEditor.getModel()?.getLineLength(position.lineNumber) ?? 0);
+			this.lineLengthContainer.classList.remove('hidden');
+		} else {
+			this.lineLengthContainer.textContent = '';
+			this.lineLengthContainer.classList.add('hidden');
+		}
+
+		if (wasHidden === this.lineLengthContainer.classList.contains('hidden')) {
+			return;
+		}
+
+		// The visible counter reserves editor width; re-layout so input text is
+		// never rendered beneath it.
+		this.layout();
+	}
+
+	private getLineLengthReservedWidth(): number {
+		if (this.lineLengthContainer.classList.contains('hidden')) {
+			return 0;
+		}
+
+		// Reserve the counter's own width plus its `right` offset.
+		return this.lineLengthContainer.offsetWidth + 4;
+	}
+
 	layout(): void {
 		const editorHeight = this.getContentHeight();
 		const toolbarWidth = this.getToolbarWidth();
-		const dimension = new Dimension(this.element.clientWidth - toolbarWidth, editorHeight);
+		const lineLengthWidth = this.getLineLengthReservedWidth();
+		const dimension = new Dimension(this.element.clientWidth - toolbarWidth - lineLengthWidth, editorHeight);
 
 		if (dimension.width < 0) {
 			this.lastLayoutWasTrash = true;
