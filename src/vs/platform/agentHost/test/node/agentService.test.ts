@@ -2810,7 +2810,21 @@ suite('AgentService (node dispatcher)', () => {
 				calls.push(['open', session.toString(), chat.toString(), resolved.resource.toString(), resolved.configurationResource.toString(), request]);
 			};
 			registerTestAgentProvider(service, provider);
-			service.restoreSession = async session => { calls.push(['restore', session.toString()]); };
+			const stateManager = getStateManager(service);
+			service.restoreSession = async session => {
+				calls.push(['restore', session.toString()]);
+				if (!stateManager.getSessionState(session.toString())) {
+					const now = new Date().toISOString();
+					stateManager.restoreSession({
+						resource: session.toString(),
+						provider: provider.id,
+						title: 'Canvas session',
+						status: SessionStatus.Idle,
+						createdAt: now,
+						modifiedAt: now,
+					}, []);
+				}
+			};
 			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService());
 			const session = AgentSession.uri('copilot', 'canvas-session');
 			const chat = URI.parse(buildDefaultChatUri(session.toString()));
@@ -2846,6 +2860,47 @@ suite('AgentService (node dispatcher)', () => {
 					}],
 				],
 			});
+		});
+
+		test('rejects a foreign canvas chat before resolving it', async () => {
+			let providerCalls = 0;
+			const provider: IAgent = copilotAgent;
+			provider.listSessionCanvases = async () => {
+				providerCalls++;
+				return [];
+			};
+			registerTestAgentProvider(service, provider);
+			const stateManager = getStateManager(service);
+			const now = new Date().toISOString();
+			const requestedSession = AgentSession.uri('copilot', 'canvas-requested-session');
+			const owningSession = AgentSession.uri('copilot', 'canvas-owning-session');
+			for (const session of [requestedSession, owningSession]) {
+				stateManager.restoreSession({
+					resource: session.toString(),
+					provider: provider.id,
+					title: 'Canvas session',
+					status: SessionStatus.Idle,
+					createdAt: now,
+					modifiedAt: now,
+				}, []);
+			}
+			const foreignChat = URI.parse(buildChatUri(owningSession, 'peer'));
+			let resolverCalls = 0;
+			stateManager.registerRestoredChatSummary(owningSession.toString(), foreignChat.toString(), {
+				resolver: async () => {
+					resolverCalls++;
+					return { turns: [] };
+				},
+			});
+			service.restoreSession = async () => { };
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService());
+
+			await assert.rejects(
+				managementService.listSessionCanvases(requestedSession, foreignChat),
+				/outside session/,
+			);
+
+			assert.deepStrictEqual({ resolverCalls, providerCalls }, { resolverCalls: 0, providerCalls: 0 });
 		});
 
 		test('maps progress events to protocol actions via onDidAction', async () => {

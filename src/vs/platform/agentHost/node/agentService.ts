@@ -5359,6 +5359,10 @@ export class AgentService extends Disposable implements IAgentService {
 
 	private async _restoreSessionCanvasChat(session: URI, chat: URI): Promise<void> {
 		await this.restoreSession(session);
+		const ownsChat = this._stateManager.getSessionState(session.toString())?.chats.some(candidate => isEqual(URI.parse(candidate.resource), chat)) === true;
+		if (!ownsChat) {
+			throw new Error(`Canvas operation targeted a chat outside session '${session.toString()}'.`);
+		}
 		await this._stateManager.resolveChatState(chat.toString());
 	}
 
