@@ -921,7 +921,8 @@ suite('Editor Contrib - Line Operations', () => {
 				helloWorld();`.replace(/^\s+/gm, ''),
 				`'JavaScript'`,
 				'parseHTML4String',
-				'_accessor: ServicesAccessor'
+				'_accessor: ServicesAccessor',
+				'hello-this-is-kebab-case'
 			], {}, (editor) => {
 				const model = editor.getModel()!;
 				const uppercaseAction = new UpperCaseAction();
@@ -1046,6 +1047,11 @@ suite('Editor Contrib - Line Operations', () => {
 				executeAction(snakecaseAction, editor);
 				assert.strictEqual(model.getLineContent(20), '_accessor: services_accessor');
 				assertSelection(editor, new Selection(20, 1, 20, 29));
+
+				editor.setSelection(new Selection(21, 1, 21, 25));
+				executeAction(snakecaseAction, editor);
+				assert.strictEqual(model.getLineContent(21), 'hello_this_is_kebab_case');
+				assertSelection(editor, new Selection(21, 1, 21, 25));
 			}
 		);
 
