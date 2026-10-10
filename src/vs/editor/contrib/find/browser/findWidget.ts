@@ -45,6 +45,7 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IHistory } from '../../../../base/common/history.js';
 import { HoverStyle, type IHoverLifecycleOptions } from '../../../../base/browser/ui/hover/hover.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { StickyScrollController } from '../../stickyScroll/browser/stickyScrollController.js';
 
 const findCollapsedIcon = registerIcon('find-collapsed', Codicon.chevronRight, nls.localize('findCollapsedIcon', 'Icon to indicate that the editor find widget is collapsed.'));
 const findExpandedIcon = registerIcon('find-expanded', Codicon.chevronDown, nls.localize('findExpandedIcon', 'Icon to indicate that the editor find widget is expanded.'));
@@ -80,6 +81,8 @@ export const NLS_NO_RESULTS = nls.localize('label.noResults', "No results");
 const FIND_WIDGET_INITIAL_WIDTH = 419;
 const PART_WIDTH = 275;
 const FIND_INPUT_AREA_WIDTH = PART_WIDTH - 54;
+/** Matches `.monaco-editor .find-widget { margin-top: 4px; }` in findWidget.css */
+const FIND_WIDGET_BASE_MARGIN_TOP = 4;
 
 let MAX_MATCHES_COUNT_WIDTH = 69;
 // let FIND_ALL_CONTROLS_WIDTH = 17/** Find Input margin-left */ + (MAX_MATCHES_COUNT_WIDTH + 3 + 1) /** Match Results */ + 23 /** Button */ * 4 + 2/** sash */;
@@ -304,6 +307,23 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 				this._layoutViewZone();
 			}, 0);
 		}));
+
+		// Keep the find widget below sticky scroll so it does not obscure the sticky scope labels
+		// when the editor is narrow (see #316851).
+		const stickyScrollController = StickyScrollController.get(this._codeEditor);
+		if (stickyScrollController) {
+			this._register(stickyScrollController.onDidChangeStickyScrollHeight(() => this._updateStickyScrollOffset()));
+		}
+		this._updateStickyScrollOffset();
+	}
+
+	private _updateStickyScrollOffset(): void {
+		const stickyScrollController = StickyScrollController.get(this._codeEditor);
+		const stickyHeight = stickyScrollController?.stickyScrollWidgetHeight ?? 0;
+		this._domNode.style.marginTop = `${stickyHeight + FIND_WIDGET_BASE_MARGIN_TOP}px`;
+		if (this._isVisible) {
+			this._codeEditor.layoutOverlayWidget(this);
+		}
 	}
 
 	// ----- IOverlayWidget API
@@ -557,6 +577,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 
 		if (!this._isVisible) {
 			this._isVisible = true;
+			this._updateStickyScrollOffset();
 
 			const selection = this._codeEditor.getSelection();
 
