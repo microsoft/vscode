@@ -2272,10 +2272,6 @@ export class AutomationsWorkspacePicker extends WorkspacePicker {
 		return false;
 	}
 
-	protected override _shouldPersistSelection(): boolean {
-		return false;
-	}
-
 	protected override _buildItems(): IActionListItem<IWorkspacePickerItem>[] {
 		const configuration = this.cloudConfiguration.get();
 		const items = super._buildItems().map(item => {

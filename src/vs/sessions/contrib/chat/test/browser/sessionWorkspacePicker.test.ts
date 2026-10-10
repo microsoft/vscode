@@ -4688,6 +4688,7 @@ suite('AutomationsWorkspacePicker', () => {
 		providersService.setProviders([provider]);
 		await timeout(0);
 		const seededTarget = picker.selectedFolderUri?.toString();
+		const recentsUnchanged = originalRecents === storage.get(STORAGE_KEY_RECENT_WORKSPACES, StorageScope.PROFILE);
 		await picker.select('No workspace');
 		const quickChat = model.isQuickChat;
 		await picker.select('local/project');
@@ -4697,7 +4698,7 @@ suite('AutomationsWorkspacePicker', () => {
 			quickChat,
 			selectedFolder: model.folderUri?.toString(),
 			isQuickChat: model.isQuickChat,
-			recentsUnchanged: originalRecents === storage.get(STORAGE_KEY_RECENT_WORKSPACES, StorageScope.PROFILE),
+			recentsUnchanged,
 		}, {
 			seededTarget: cloudUri.toString(),
 			quickChat: true,
@@ -4783,18 +4784,17 @@ suite('AutomationsWorkspacePicker', () => {
 		});
 	});
 
-	test('user workspace selections do not update recent workspaces', async () => {
+	test('user workspace selections update recent workspaces like the new-session picker', async () => {
 		const providersService = disposables.add(new MockSessionsProvidersService());
 		const provider = createMockProvider('local-1');
 		const originalFolder = URI.file('/local/original');
 		const proposedFolder = URI.file('/local/proposed');
-		const storage = disposables.add(new TestStorageService());
+		const storage: IStorageService = disposables.add(new TestStorageService());
 		seedStorage(storage, [
 			{ uri: originalFolder, providerId: provider.id, checked: true },
 			{ uri: proposedFolder, providerId: provider.id, checked: false },
 		]);
 		providersService.setProviders([provider]);
-		const before = storage.get(STORAGE_KEY_RECENT_WORKSPACES, StorageScope.PROFILE);
 		const picker = createTestPicker(
 			disposables,
 			providersService,
@@ -4813,12 +4813,63 @@ suite('AutomationsWorkspacePicker', () => {
 
 		assert.deepStrictEqual({
 			selected: picker.selectedFolderUri?.toString(),
-			storageUnchanged: storage.get(STORAGE_KEY_RECENT_WORKSPACES, StorageScope.PROFILE) === before,
+			stored: storage.getObject<{ uri: URI; providerId: string; checked: boolean }[]>(STORAGE_KEY_RECENT_WORKSPACES, StorageScope.PROFILE, [])
+				.map(entry => ({ ...entry, uri: entry.uri.toString() })),
 		}, {
 			selected: proposedFolder.toString(),
-			storageUnchanged: true,
+			stored: [
+				{ uri: proposedFolder.toString(), providerId: provider.id, checked: true },
+				{ uri: originalFolder.toString(), providerId: provider.id, checked: false },
+			],
 		});
 	});
+
+	for (const outcome of ['accepted', 'cancelled', 'declined'] as const) {
+		test(`records only accepted folder browsing (${outcome}) in new-session history`, async () => {
+			const providersService = disposables.add(new MockSessionsProvidersService());
+			const provider = { ...createMockProvider('local-1'), supportsLocalWorkspaces: true };
+			providersService.setProviders([provider]);
+			const originalFolder = URI.file('/local/original');
+			const initialFolder = URI.file('/local/initial');
+			const browsedFolder = URI.file('/local/browsed');
+			const storage: IStorageService = disposables.add(new TestStorageService());
+			seedStorage(storage, [{ uri: originalFolder, providerId: provider.id, checked: true }]);
+			const before = storage.get(STORAGE_KEY_RECENT_WORKSPACES, StorageScope.PROFILE);
+			const picker = createTestPicker(
+				disposables, providersService, storage, undefined, TestAutomationsWorkspacePicker,
+				{ showOpenDialog: async () => outcome === 'cancelled' ? undefined : [browsedFolder] },
+				undefined, undefined,
+				{
+					restoreFromSessions: false,
+					canRestoreWorkspace: () => false,
+					canSelectWorkspace: async () => outcome !== 'declined',
+				},
+			);
+			assert.ok(picker instanceof TestAutomationsWorkspacePicker);
+			picker.setSelectedWorkspace(initialFolder, { fireEvent: false, persist: false });
+			const initializationUnchanged = storage.get(STORAGE_KEY_RECENT_WORKSPACES, StorageScope.PROFILE) === before;
+
+			await picker.select('Select...');
+			const selectedFolder = picker.selectedFolderUri;
+			const restoredPicker = createTestPicker(disposables, providersService, storage);
+
+			assert.deepStrictEqual({
+				initializationUnchanged,
+				selectedFolder: selectedFolder?.toString(),
+				restoredSelection: restoredPicker.selectedFolderUri?.toString(),
+				stored: storage.getObject<{ uri: URI; providerId: string; checked: boolean }[]>(STORAGE_KEY_RECENT_WORKSPACES, StorageScope.PROFILE, [])
+					.map(entry => ({ ...entry, uri: entry.uri.toString() })),
+			}, {
+				initializationUnchanged: true,
+				selectedFolder: (outcome === 'accepted' ? browsedFolder : initialFolder).toString(),
+				restoredSelection: (outcome === 'accepted' ? browsedFolder : originalFolder).toString(),
+				stored: [
+					...(outcome === 'accepted' ? [{ uri: browsedFolder.toString(), providerId: provider.id, checked: true }] : []),
+					{ uri: originalFolder.toString(), providerId: provider.id, checked: outcome !== 'accepted' },
+				],
+			});
+		});
+	}
 
 	test('keeps the previous workspace when trust is declined', async () => {
 		const providersService = disposables.add(new MockSessionsProvidersService());
