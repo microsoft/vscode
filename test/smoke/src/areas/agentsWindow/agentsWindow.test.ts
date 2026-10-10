@@ -830,6 +830,12 @@ function setupAgentHostSuite(logger: Logger, config: {
 				'chat.agentHost.copilotSdk.logLevel': 'trace',
 				// These suites exercise Agent Host and sandbox behavior, not Auto routing.
 				'chat.defaultModel': AGENT_HOST_MODEL,
+				// Pin worktree isolation for new sessions. The network-proxy
+				// harness validates a Kerberos-authenticated CONNECT that is
+				// only produced when a session runs in an isolated worktree, so
+				// the suite must not depend on the `sessions.useWorktree`
+				// product default (which can change, as it did in #340312).
+				'sessions.useWorktree': true,
 				...config.settings,
 				...remoteFixture?.settings,
 			}, null, 2);
