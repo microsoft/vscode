@@ -289,7 +289,7 @@ CommandsRegistry.registerCommand(PICK_REPOSITORY_COMMAND_ID, async (accessor: Se
 				throw new Error('The repository search command did not return repository names');
 			}
 			return repositories;
-		}, options);
+		}, options ?? undefined);
 	} finally {
 		store.dispose();
 	}
