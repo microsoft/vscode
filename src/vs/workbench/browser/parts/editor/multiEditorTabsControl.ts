@@ -2565,7 +2565,12 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	}
 
 	private get visible(): boolean {
-		return this.tabsModel.count > 0;
+		return this.tabsModel.count > 0 || this.isAddTabControlVisible;
+	}
+
+	protected override onDidChangeAddTabControlVisibility(): void {
+		this.updateTabsControlVisibility();
+		super.onDidChangeAddTabControlVisibility();
 	}
 
 	private getTabAndIndex(editor: EditorInput): [HTMLElement, number /* index */] | undefined {

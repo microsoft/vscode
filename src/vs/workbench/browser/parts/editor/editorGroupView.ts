@@ -126,6 +126,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	private readonly titleContainer: HTMLElement;
 	private readonly titleControl: EditorTitleControl;
+	private readonly watermark: EditorGroupWatermark;
 
 	private readonly progressBar: ProgressBar;
 
@@ -204,9 +205,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			// Container context menu
 			this.createContainerContextMenu();
 
-			// Watermark & shortcuts
-			this._register(this.instantiationService.createInstance(EditorGroupWatermark, this.element));
-
 			// Progress bar
 			this.progressBar = this._register(new ProgressBar(this.element, defaultProgressBarStyles));
 			this.progressBar.hide();
@@ -227,6 +225,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 			// Title control
 			this.titleControl = this._register(this.scopedInstantiationService.createInstance(EditorTitleControl, this.titleContainer, this.editorPartsView, this.groupsView, this, this.model, options?.menuIds, options?.showHeader === true, options?.reserveHeaderSpace, options?.useModernUITabs === true));
+
+			// Watermark & shortcuts
+			this.watermark = this._register(this.instantiationService.createInstance(EditorGroupWatermark, this.element));
 
 			// Editor container
 			this.editorContainer = $('.editor-container');
@@ -2240,6 +2241,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			container: new Dimension(width, height),
 			available: new Dimension(width, height - this.editorPane.minimumHeight)
 		}, contentWidth);
+		this.watermark.element.style.height = this.titleContainer.classList.contains('has-visible-add-tab-control') ? `${Math.max(0, height - titleControlSize.height)}px` : '';
 
 		// Update progress bar location
 		this.progressBar.getContainer().style.top = `${Math.max(this.titleHeight.offset - 2, 0)}px`;

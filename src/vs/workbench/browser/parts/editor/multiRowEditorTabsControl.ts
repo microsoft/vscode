@@ -37,8 +37,9 @@ export class MultiRowEditorControl extends Disposable implements IEditorTabsCont
 
 		const stickyModel = this._register(new StickyEditorGroupModel(this.model));
 		const unstickyModel = this._register(new UnstickyEditorGroupModel(this.model));
+		const stickyMenuIds = this.menuIds?.tabsBarAddTab ? { ...this.menuIds, tabsBarAddTab: undefined } : this.menuIds;
 
-		this.stickyEditorTabsControl = this._register(this.instantiationService.createInstance(MultiEditorTabsControl, this.parent, editorPartsView, this.groupsView, this.groupView, stickyModel, this.menuIds, this.breadcrumbsInHeader, this.useModernUITabs));
+		this.stickyEditorTabsControl = this._register(this.instantiationService.createInstance(MultiEditorTabsControl, this.parent, editorPartsView, this.groupsView, this.groupView, stickyModel, stickyMenuIds, this.breadcrumbsInHeader, this.useModernUITabs));
 		this.unstickyEditorTabsControl = this._register(this.instantiationService.createInstance(MultiEditorTabsControl, this.parent, editorPartsView, this.groupsView, this.groupView, unstickyModel, this.menuIds, this.breadcrumbsInHeader, this.useModernUITabs));
 
 		this.handleTabBarsStateChange();

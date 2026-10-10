@@ -74,6 +74,8 @@ export class EditorGroupWatermark extends Disposable {
 	private static readonly SETTINGS_KEY = 'workbench.tips.enabled';
 	private static readonly MINIMUM_ENTRIES = 3;
 
+	readonly element: HTMLElement;
+
 	private readonly cachedWhen: { [when: string]: boolean };
 
 	private readonly shortcuts: HTMLElement;
@@ -108,7 +110,8 @@ export class EditorGroupWatermark extends Disposable {
 			])
 		]);
 
-		append(container, elements.root);
+		this.element = elements.root;
+		append(container, this.element);
 		this.shortcuts = elements.shortcuts;
 		this.toolbarContainer = elements.toolbarContainer;
 
