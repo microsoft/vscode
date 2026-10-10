@@ -122,7 +122,7 @@ import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
 import { AgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
 import type { IAgentHostCopilotSkuClassification, IAgentHostCopilotSkuTelemetry } from './agentHostTelemetryReporter.js';
-import { AgentHostArtifactToolsConfigKey, AgentHostEditTelemetryEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostSessionCatalogEnabledConfigKey, AgentHostShowExternalSessionsConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
+import { AgentHostArtifactToolsConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostEditTelemetryEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostSessionCatalogEnabledConfigKey, AgentHostShowExternalSessionsConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { supersedeTitleGenerationStrategyForLegacyUpdate } from '../common/titleGenerationConfiguration.js';
 import { IAgentHostChangesetService, CHANGESET_DB_METADATA_KEYS, CHANGES_SUMMARY_METADATA_KEYS, getChatChangesSummaryMetadataKey, META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
 import { GIT_DB_METADATA_KEYS, IAgentHostGitStateService, META_GIT_DATA_STATE, META_GIT_STATE, META_GITHUB_DATA_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
@@ -5340,19 +5340,38 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	async listSessionCanvases(session: URI, chat: URI): Promise<readonly IAgentCanvasInfo[]> {
+		this._assertCanvasesEnabled();
+		await this._restoreSessionCanvasChat(session, chat);
 		const provider = this._providerService.getProviderForSession(session);
 		if (!provider?.listSessionCanvases) {
 			throw new Error(`Canvas inventory is unavailable for session '${session.toString()}'.`);
 		}
-		return provider.listSessionCanvases(session, chat);
+		return provider.listSessionCanvases(session, chat, this._chatContext(session, chat));
 	}
 
 	async openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest, chat: URI): Promise<void> {
+		this._assertCanvasesEnabled();
+		await this._restoreSessionCanvasChat(session, chat);
 		const provider = this._providerService.getProviderForSession(session);
 		if (!provider?.openSessionCanvas) {
 			throw new Error(`Opening canvases is unavailable for session '${session.toString()}'.`);
 		}
-		await provider.openSessionCanvas(session, request, chat);
+		await provider.openSessionCanvas(session, request, chat, this._chatContext(session, chat));
+	}
+
+	private _assertCanvasesEnabled(): void {
+		if (this._configurationService.getRootValue(platformRootSchema, AgentHostCanvasesEnabledConfigKey) !== true) {
+			throw new Error('Canvases are disabled.');
+		}
+	}
+
+	private async _restoreSessionCanvasChat(session: URI, chat: URI): Promise<void> {
+		await this.restoreSession(session);
+		const ownsChat = this._stateManager.getSessionState(session.toString())?.chats.some(candidate => isEqual(URI.parse(candidate.resource), chat)) === true;
+		if (!ownsChat) {
+			throw new Error(`Canvas operation targeted a chat outside session '${session.toString()}'.`);
+		}
+		await this._stateManager.resolveChatState(chat.toString());
 	}
 
 	async installPlugin(providerId: AgentProvider, request: IAgentPluginInstallRequest): Promise<void> {

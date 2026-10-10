@@ -55,7 +55,7 @@ import { RecordingAgentSdkDownloader } from './testAgentSdkDownloader.js';
 import { IAgentHostSessionOpenTelemetry } from '../../node/agentHostSessionOpenTelemetry.js';
 import { CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, COPILOT_HYDRA_FUSION_MODEL_ID } from '../../common/copilotCliConfig.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
-import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, AgentHostSystemProxyEnabledConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, AgentHostSystemProxyEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { toClientPluginMcpDefaultCwdsMeta, toClientPluginStandaloneMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
@@ -897,6 +897,9 @@ interface ICredentialUpdateSession {
 class MockCopilotSession {
 	readonly historyEvents: SessionEvent[] = [];
 	readonly openCanvases: CopilotSession['openCanvases'] = [];
+	readonly extensions: Awaited<ReturnType<CopilotSession['rpc']['extensions']['list']>>['extensions'] = [];
+	readonly canvases: Awaited<ReturnType<CopilotSession['rpc']['canvas']['list']>>['canvases'] = [];
+	readonly canvasOpenCalls: Parameters<CopilotSession['rpc']['canvas']['open']>[0][] = [];
 	readonly mcpStartCalls: string[] = [];
 	readonly mcpStopCalls: string[] = [];
 	mcpStartGate: Promise<void> | undefined;
@@ -936,10 +939,18 @@ class MockCopilotSession {
 			releaseInterest: async () => ({ success: true }),
 		},
 		extensions: {
-			list: async () => ({ extensions: [] }),
+			list: async () => ({ extensions: this.extensions }),
 		},
 		canvas: {
-			list: async () => ({ canvases: [] }),
+			list: async () => ({ canvases: this.canvases }),
+			open: async (params: Parameters<CopilotSession['rpc']['canvas']['open']>[0]) => {
+				this.canvasOpenCalls.push(params);
+				return {
+					instanceId: params.instanceId,
+					extensionId: params.extensionId ?? 'project:preview',
+					canvasId: params.canvasId,
+				};
+			},
 		},
 		options: {
 			update: async () => ({ success: true }),
@@ -5963,14 +5974,17 @@ suite('CopilotAgent', () => {
 		});
 
 		suite('exact-chat working-directory conversion', () => {
-			async function createFixture(multiRoot = false) {
+			async function createFixture(multiRoot = false, canvasesEnabled = false) {
 				const root = await fs.mkdtemp('./.agent-session-cwd-');
 				const previous = URI.file(join(process.cwd(), root, 'previous'));
 				const next = URI.file(join(process.cwd(), root, 'next'));
 				const secondary = URI.file(join(process.cwd(), root, 'secondary'));
 				await Promise.all([fs.mkdir(previous.fsPath), fs.mkdir(next.fsPath), fs.mkdir(secondary.fsPath)]);
 				const sessionDirectories = multiRoot ? [previous, secondary] : [previous];
-				const rootConfig = { [AgentHostCopilotMultiRootEnabledConfigKey]: multiRoot };
+				const rootConfig = {
+					[AgentHostCopilotMultiRootEnabledConfigKey]: multiRoot,
+					[AgentHostCanvasesEnabledConfigKey]: canvasesEnabled,
+				};
 				const session = AgentSession.uri('copilotcli', 'session-wide');
 				const chats = [defaultChatUri(session), URI.parse(buildChatUri(session, 'live-peer')), URI.parse(buildChatUri(session, 'cold-peer'))];
 				const resources = [session, ...chats.slice(1)];
@@ -6052,6 +6066,72 @@ suite('CopilotAgent', () => {
 					},
 				};
 			}
+
+			test('canvas operations resume a cold exact chat without sending a message', async () => {
+				const fixture = await createFixture(false, true);
+				let restored: CopilotAgent | undefined;
+				try {
+					const { session, chats, resources, sdkSessions, previous } = fixture;
+					sdkSessions[2].extensions.push({
+						id: 'project:preview',
+						name: 'Preview extension',
+						source: 'project',
+						status: 'running',
+					});
+					sdkSessions[2].canvases.push({
+						canvasId: 'preview',
+						extensionId: 'project:preview',
+						extensionName: 'Preview extension',
+						displayName: 'Preview',
+						description: 'Preview generated content.',
+					});
+					restored = await fixture.restore();
+					const context = exactChatContext(session, chats[2], resources[2]);
+					const foreignSession = AgentSession.uri('copilotcli', 'foreign-canvas-session');
+
+					await assert.rejects(
+						restored.listSessionCanvases(foreignSession, chats[2], exactChatContext(foreignSession, chats[2], resources[2])),
+						/outside session/,
+					);
+
+					const canvases = await restored.listSessionCanvases(session, chats[2], context);
+					await restored.openSessionCanvas(session, {
+						canvasId: 'preview',
+						extensionId: 'project:preview',
+						instanceId: 'project-preview',
+					}, chats[2], context);
+
+					assert.deepStrictEqual({
+						canvases,
+						resumed: fixture.resumed.filter(resume => resume.id === 'cold-sdk'),
+						openCalls: sdkSessions[2].canvasOpenCalls,
+						sends: fixture.sends(),
+					}, {
+						canvases: [{
+							canvasId: 'preview',
+							extensionId: 'project:preview',
+							extensionSource: 'project',
+							extensionName: 'Preview extension',
+							displayName: 'Preview',
+							description: 'Preview generated content.',
+							requiresInput: false,
+							actionCount: 0,
+						}],
+						resumed: [{ id: 'cold-sdk', directory: previous.fsPath }],
+						openCalls: [{
+							canvasId: 'preview',
+							extensionId: 'project:preview',
+							instanceId: 'project-preview',
+						}],
+						sends: 0,
+					});
+				} finally {
+					if (restored) {
+						await disposeAgent(restored);
+					}
+					await fixture.dispose();
+				}
+			});
 
 			for (const exclusive of [false, true]) {
 				test(`restores host aggregate roots from real Copilot metadata after a main move (exclusive: ${exclusive})`, async () => {
@@ -14567,6 +14647,99 @@ suite('CopilotAgent', () => {
 				assert.strictEqual(clientCreateCalls, 0, 'client.createSession should not be called for provisional sessions');
 				assert.strictEqual(worktreeCalls, 0, 'no worktree should be created for provisional sessions');
 			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('canvas inventory does not materialize a provisional session', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([]);
+			let clientCreateCalls = 0;
+			client.createSession = async () => { clientCreateCalls++; throw new Error('SDK not expected'); };
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				const result = await provisionSession(agent, {
+					session: AgentSession.uri('copilotcli', 'prov-canvas-list'),
+					workingDirectories: [URI.file('/workspace')],
+				});
+				const chat = defaultChatUri(result.session);
+
+				await assert.rejects(
+					agent.listSessionCanvases(result.session, chat, exactChatContext(result.session, chat, result.session)),
+					/requires an initialized Copilot chat/,
+				);
+
+				assert.strictEqual(clientCreateCalls, 0);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('canvas inventory resumes an addressed peer while the parent session remains provisional', async () => {
+			const root = await fs.mkdtemp(`${os.tmpdir()}/agent-provisional-peer-canvas-`);
+			const workingDirectory = URI.file(root);
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const sdk = new MockCopilotSession('peer-sdk-id');
+			sdk.extensions.push({
+				id: 'project:preview',
+				name: 'Preview extension',
+				source: 'project',
+				status: 'running',
+			});
+			sdk.canvases.push({
+				canvasId: 'preview',
+				extensionId: 'project:preview',
+				extensionName: 'Preview extension',
+				displayName: 'Preview',
+				description: 'Preview generated content.',
+			});
+			const client = new TestCopilotClient([sdkSession(sdk.sessionId, workingDirectory.fsPath)]);
+			const resumed: string[] = [];
+			let clientCreateCalls = 0;
+			client.createSession = async () => {
+				clientCreateCalls++;
+				throw new Error('SDK create not expected');
+			};
+			client.resumeSession = async id => {
+				resumed.push(id);
+				return sdk as unknown as CopilotSession;
+			};
+			const { agent } = createTestAgentContext(disposables, {
+				sessionDataService,
+				copilotClient: client,
+				useRealResumePath: true,
+				rootConfig: { [AgentHostCanvasesEnabledConfigKey]: true },
+			});
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+				const session = AgentSession.uri('copilotcli', 'provisional-parent-canvas-peer');
+				const peer = URI.parse(buildChatUri(session, 'peer-a'));
+				await provisionSession(agent, { session, workingDirectories: [workingDirectory] });
+				await agent.materializeChat(peer, exactChatContext(session, peer), JSON.stringify({ sdkSessionId: sdk.sessionId }));
+
+				const canvases = await agent.listSessionCanvases(session, peer, exactChatContext(session, peer));
+
+				assert.deepStrictEqual({
+					canvases,
+					resumed,
+					clientCreateCalls,
+				}, {
+					canvases: [{
+						canvasId: 'preview',
+						extensionId: 'project:preview',
+						extensionSource: 'project',
+						extensionName: 'Preview extension',
+						displayName: 'Preview',
+						description: 'Preview generated content.',
+						requiresInput: false,
+						actionCount: 0,
+					}],
+					resumed: ['peer-sdk-id'],
+					clientCreateCalls: 0,
+				});
+			} finally {
+				await fs.rm(root, { recursive: true, force: true });
 				await disposeAgent(agent);
 			}
 		});
