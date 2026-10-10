@@ -27,7 +27,7 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { OS } from '../../../../base/common/platform.js';
 import { IEditorPane } from '../../../common/editor.js';
-import { launchSchemaId } from '../../../services/configuration/common/configuration.js';
+import { launchSchemaId, resolveConfigurationResource } from '../../../services/configuration/common/configuration.js';
 import { ACTIVE_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IHistoryService } from '../../../services/history/common/history.js';
@@ -655,7 +655,9 @@ class Launch extends AbstractLaunch implements ILaunch {
 	}
 
 	async openConfigFile({ preserveFocus, type, suppressInitialConfigs }: { preserveFocus: boolean; type?: string; suppressInitialConfigs?: boolean }, token?: CancellationToken): Promise<{ editor: IEditorPane | null; created: boolean }> {
-		const resource = this.uri;
+		// Prefer an existing `launch.jsonc` sibling over creating an empty `launch.json` that
+		// would otherwise take precedence over it and hide the user's existing configurations.
+		const resource = await resolveConfigurationResource(this.uri, this.fileService);
 		let created = false;
 		let content = '';
 		try {

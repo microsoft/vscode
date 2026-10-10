@@ -113,19 +113,19 @@
         "url": "vscode://schemas/argv"
       },
       {
-        "fileMatch": "/.vscode/settings.json",
+        "fileMatch": ["/.vscode/settings.json", "/.vscode/settings.jsonc"],
         "url": "vscode://schemas/settings/folder"
       },
       {
-        "fileMatch": "/.vscode/launch.json",
+        "fileMatch": ["/.vscode/launch.json", "/.vscode/launch.jsonc"],
         "url": "vscode://schemas/launch"
       },
       {
-        "fileMatch": "/.vscode/tasks.json",
+        "fileMatch": ["/.vscode/tasks.json", "/.vscode/tasks.jsonc"],
         "url": "vscode://schemas/tasks"
       },
       {
-        "fileMatch": "/.vscode/mcp.json",
+        "fileMatch": ["/.vscode/mcp.json", "/.vscode/mcp.jsonc"],
         "url": "vscode://schemas/mcp"
       },
       {
@@ -161,7 +161,7 @@
         "url": "vscode://schemas/global-snippets"
       },
       {
-        "fileMatch": "/.vscode/extensions.json",
+        "fileMatch": ["/.vscode/extensions.json", "/.vscode/extensions.jsonc"],
         "url": "vscode://schemas/extensions"
       },
       {
