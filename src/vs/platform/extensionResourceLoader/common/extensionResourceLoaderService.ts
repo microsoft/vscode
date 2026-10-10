@@ -14,6 +14,7 @@ import { IConfigurationService } from '../../configuration/common/configuration.
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { AbstractExtensionResourceLoaderService, IExtensionResourceLoaderService } from './extensionResourceLoader.js';
 import { IExtensionGalleryManifestService } from '../../extensionManagement/common/extensionGalleryManifest.js';
+import { IExtensionGalleryAuthorizationService } from '../../extensionManagement/common/extensionGalleryAuthorization.js';
 import { ILogService } from '../../log/common/log.js';
 
 export class ExtensionResourceLoaderService extends AbstractExtensionResourceLoaderService {
@@ -25,15 +26,16 @@ export class ExtensionResourceLoaderService extends AbstractExtensionResourceLoa
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IExtensionGalleryManifestService extensionGalleryManifestService: IExtensionGalleryManifestService,
+		@IExtensionGalleryAuthorizationService extensionGalleryAuthorizationService: IExtensionGalleryAuthorizationService,
 		@IRequestService private readonly _requestService: IRequestService,
 		@ILogService logService: ILogService,
 	) {
-		super(fileService, storageService, productService, environmentService, configurationService, extensionGalleryManifestService, logService);
+		super(fileService, storageService, productService, environmentService, configurationService, extensionGalleryManifestService, extensionGalleryAuthorizationService, logService);
 	}
 
 	async readExtensionResource(uri: URI): Promise<string> {
 		if (await this.isExtensionGalleryResource(uri)) {
-			const headers = await this.getExtensionGalleryRequestHeaders();
+			const headers = await this.getExtensionGalleryRequestHeaders(uri);
 			const requestContext = await this._requestService.request({ url: uri.toString(), headers, callSite: 'extensionResourceLoader.readExtensionResource' }, CancellationToken.None);
 			return (await asTextOrError(requestContext)) || '';
 		}

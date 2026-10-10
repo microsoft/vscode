@@ -97,6 +97,8 @@ import { McpGatewayService } from '../../platform/mcp/node/mcpGatewayService.js'
 import { McpGatewayChannel } from '../../platform/mcp/node/mcpGatewayChannel.js';
 import { IExtensionGalleryManifestService } from '../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { ExtensionGalleryManifestIPCService } from '../../platform/extensionManagement/common/extensionGalleryManifestServiceIpc.js';
+import { IExtensionGalleryAuthorizationService } from '../../platform/extensionManagement/common/extensionGalleryAuthorization.js';
+import { ExtensionGalleryAuthorizationIPCService } from '../../platform/extensionManagement/common/extensionGalleryAuthorizationServiceIpc.js';
 import { IAllowedMcpServersService, IMcpGalleryService, IMcpManagementService } from '../../platform/mcp/common/mcpManagement.js';
 import { McpManagementService } from '../../platform/mcp/node/mcpManagementService.js';
 import { McpGalleryService } from '../../platform/mcp/common/mcpGalleryService.js';
@@ -214,6 +216,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 		services.set(IServerTelemetryService, ServerNullTelemetryService);
 	}
 
+	services.set(IExtensionGalleryAuthorizationService, disposables.add(new ExtensionGalleryAuthorizationIPCService(socketServer)));
 	services.set(IExtensionGalleryManifestService, new ExtensionGalleryManifestIPCService(socketServer, logService, productService));
 	services.set(IMcpGalleryManifestService, new McpGalleryManifestIPCService(socketServer));
 	services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryServiceWithNoStorageService));

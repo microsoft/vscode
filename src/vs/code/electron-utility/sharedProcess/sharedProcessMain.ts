@@ -137,6 +137,8 @@ import { DefaultExtensionsInitializer } from './contrib/defaultExtensionsInitial
 import { AllowedExtensionsService } from '../../../platform/extensionManagement/common/allowedExtensionsService.js';
 import { IExtensionGalleryManifestService } from '../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { ExtensionGalleryManifestIPCService } from '../../../platform/extensionManagement/common/extensionGalleryManifestServiceIpc.js';
+import { IExtensionGalleryAuthorizationService } from '../../../platform/extensionManagement/common/extensionGalleryAuthorization.js';
+import { ExtensionGalleryAuthorizationIPCService } from '../../../platform/extensionManagement/common/extensionGalleryAuthorizationServiceIpc.js';
 import { ISharedWebContentExtractorService } from '../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { SharedWebContentExtractorService } from '../../../platform/webContentExtractor/node/sharedWebContentExtractorService.js';
 import { McpManagementService } from '../../../platform/mcp/node/mcpManagementService.js';
@@ -380,6 +382,7 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		services.set(IMcpManagementService, new SyncDescriptor(McpManagementService, undefined, true));
 
 		// Extension Gallery
+		services.set(IExtensionGalleryAuthorizationService, this._register(new ExtensionGalleryAuthorizationIPCService(this.server)));
 		services.set(IExtensionGalleryManifestService, new ExtensionGalleryManifestIPCService(this.server, logService, productService));
 		services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService, undefined, true));
 
