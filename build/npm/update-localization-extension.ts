@@ -57,11 +57,11 @@ function update(options: Options) {
 		throw new Error('No directory found at ' + idOrPath);
 	}
 	const packageJSON = JSON.parse(fs.readFileSync(path.join(locExtFolder, 'package.json')).toString()) as PackageJson;
-	const contributes = packageJSON['contributes'];
+	const contributes = packageJSON.contributes;
 	if (!contributes) {
 		throw new Error('The extension must define a "localizations" contribution in the "package.json"');
 	}
-	const localizations = contributes['localizations'];
+	const localizations = contributes.localizations;
 	if (!localizations) {
 		throw new Error('The extension must define a "localizations" contribution of type array in the "package.json"');
 	}
