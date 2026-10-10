@@ -48,16 +48,22 @@ suite('OpenerValidatorContributions', () => {
 		const accepted = createValidator(false, true);
 		const cancelled = createValidator(false, undefined);
 		const notFromWorkspace = createValidator(false, undefined);
+		const commandsDisabled = createValidator(false, undefined);
+		const commandNotAllowlisted = createValidator(false, undefined);
 
 		assert.deepStrictEqual({
-			trusted: await trusted.validator.validateLink('command:workbench.action.openSettings?%22security.workspace.trust.enabled%22', { fromWorkspace: true }),
+			trusted: await trusted.validator.validateLink('command:workbench.action.openSettings?%22security.workspace.trust.enabled%22', { fromWorkspace: true, allowCommands: true }),
 			trustedRequestCount: trusted.getTrustRequestCount(),
-			accepted: await accepted.validator.validateLink('command:workbench.action.openSettings?%22security.workspace.trust.enabled%22', { fromWorkspace: true }),
+			accepted: await accepted.validator.validateLink('command:workbench.action.openSettings?%22security.workspace.trust.enabled%22', { fromWorkspace: true, allowCommands: true }),
 			acceptedRequestCount: accepted.getTrustRequestCount(),
-			cancelled: await cancelled.validator.validateLink('command:workbench.action.openSettings?%22security.workspace.trust.enabled%22', { fromWorkspace: true }),
+			cancelled: await cancelled.validator.validateLink('command:workbench.action.openSettings?%22security.workspace.trust.enabled%22', { fromWorkspace: true, allowCommands: true }),
 			cancelledRequestCount: cancelled.getTrustRequestCount(),
 			notFromWorkspace: await notFromWorkspace.validator.validateLink('command:workbench.action.openSettings?%22security.workspace.trust.enabled%22'),
 			notFromWorkspaceRequestCount: notFromWorkspace.getTrustRequestCount(),
+			commandsDisabled: await commandsDisabled.validator.validateLink('command:workbench.action.openSettings?%22security.workspace.trust.enabled%22', { fromWorkspace: true, allowCommands: false }),
+			commandsDisabledRequestCount: commandsDisabled.getTrustRequestCount(),
+			commandNotAllowlisted: await commandNotAllowlisted.validator.validateLink('command:workbench.action.openSettings?%22security.workspace.trust.enabled%22', { fromWorkspace: true, allowCommands: ['workbench.action.closeWindow'] }),
+			commandNotAllowlistedRequestCount: commandNotAllowlisted.getTrustRequestCount(),
 		}, {
 			trusted: true,
 			trustedRequestCount: 0,
@@ -67,6 +73,10 @@ suite('OpenerValidatorContributions', () => {
 			cancelledRequestCount: 1,
 			notFromWorkspace: true,
 			notFromWorkspaceRequestCount: 0,
+			commandsDisabled: true,
+			commandsDisabledRequestCount: 0,
+			commandNotAllowlisted: true,
+			commandNotAllowlistedRequestCount: 0,
 		});
 	});
 });

@@ -46,7 +46,9 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 	async validateLink(resource: URI | string, openOptions?: OpenOptions): Promise<boolean> {
 		const resourceUri = typeof resource === 'string' ? URI.parse(resource) : resource;
 
-		if (matchesScheme(resourceUri, Schemas.command) && !this._workspaceTrustService.isWorkspaceTrusted()) {
+		if (matchesScheme(resourceUri, Schemas.command)
+			&& !this._workspaceTrustService.isWorkspaceTrusted()
+			&& (openOptions?.allowCommands === true || (Array.isArray(openOptions?.allowCommands) && openOptions.allowCommands.includes(resourceUri.path)))) {
 			let message: string | undefined;
 			if (openOptions?.fromWorkspace) {
 				message = localize('commandWorkspaceTrust', "Running a command from a link requires trusting this workspace.");
