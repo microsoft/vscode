@@ -50,11 +50,11 @@ export class ManagePluginsAction extends Action2 {
 }
 
 interface IInstallFromSourceActionOptions {
-	/** When `true`, do not reveal the installed plugin in the Extensions viewlet after install. */
+	/** When `true`, do not reveal the installed plugin in Chat Customizations after install. */
 	readonly skipReveal?: boolean;
 }
 
-class InstallFromSourceAction extends Action2 {
+export class InstallFromSourceAction extends Action2 {
 	static readonly ID = 'workbench.action.chat.installPluginFromSource';
 
 	constructor() {
@@ -81,7 +81,7 @@ class InstallFromSourceAction extends Action2 {
 	async run(accessor: ServicesAccessor, options?: IInstallFromSourceActionOptions): Promise<boolean> {
 		const quickInputService = accessor.get(IQuickInputService);
 		const pluginInstallService = accessor.get(IPluginInstallService);
-		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
+		const commandService = accessor.get(ICommandService);
 		const fileDialogService = accessor.get(IFileDialogService);
 
 		const store = new DisposableStore();
@@ -129,10 +129,10 @@ class InstallFromSourceAction extends Action2 {
 				} else {
 					installed = true;
 					if (!options?.skipReveal) {
-						const ref = parseMarketplaceReference(source);
-						if (ref) {
-							extensionsWorkbenchService.openSearch(`@agentPlugins ${ref.displayLabel}`);
-						}
+						await commandService.executeCommand(AICustomizationManagementCommands.OpenEditor, {
+							section: AICustomizationManagementSection.Plugins,
+							revealUri: result.matchedPlugin?.uri,
+						});
 					}
 					store.dispose();
 				}

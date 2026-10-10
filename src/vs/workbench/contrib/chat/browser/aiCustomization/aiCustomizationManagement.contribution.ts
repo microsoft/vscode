@@ -36,7 +36,7 @@ import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../services/agentHost/comm
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IWorkbenchExtensionManagementService } from '../../../../services/extensionManagement/common/extensionManagement.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { AICustomizationSources, getCustomizationMigrationHintDismissedStorageKey, IAICustomizationMarketplaceOpenTarget, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
+import { AICustomizationManagementSection, AICustomizationSources, getCustomizationMigrationHintDismissedStorageKey, IAICustomizationMarketplaceOpenTarget, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
@@ -849,7 +849,11 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 				} else if (section && pane instanceof AICustomizationManagementEditor) {
 					pane.selectSectionById(section);
 					if (revealUri) {
-						await pane.revealCustomizationByUri(revealUri);
+						if (section === AICustomizationManagementSection.Plugins) {
+							await pane.revealInstalledCustomization({ section, uri: revealUri });
+						} else {
+							await pane.revealCustomizationByUri(revealUri);
+						}
 					}
 				}
 			}
