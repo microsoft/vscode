@@ -215,6 +215,12 @@
             "scope": "resource",
             "default": true,
             "description": "%config.showAvatar%"
+          },
+          "github.openPROnCreate": {
+            "type": "boolean",
+            "scope": "resource",
+            "default": true,
+            "description": "%config.openPROnCreate%"
           }
         }
       }
