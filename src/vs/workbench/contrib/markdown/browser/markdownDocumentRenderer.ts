@@ -69,8 +69,11 @@ table {
 	border-collapse: collapse;
 }
 
-th {
+th:not([align]) {
 	text-align: left;
+}
+
+th {
 	border-bottom: 1px solid;
 }
 
