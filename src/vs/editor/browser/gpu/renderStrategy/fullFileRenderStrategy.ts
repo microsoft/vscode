@@ -82,6 +82,7 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 
 	private _scrollOffsetBindBuffer: GPUBuffer;
 	private _scrollOffsetValueBuffer: Float32Array;
+	private _scrollInitialized = false;
 	private _bigNumbersDelta = 0;
 
 	private readonly _queuedBufferUpdates: [QueuedBufferEvent[], QueuedBufferEvent[]] = [[], []];
@@ -179,6 +180,7 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 		this._scrollOffsetValueBuffer[0] = (e?.scrollLeft ?? this._context.viewLayout.getCurrentScrollLeft()) * dpr;
 		this._scrollOffsetValueBuffer[1] = ((e?.scrollTop ?? this._context.viewLayout.getCurrentScrollTop()) - this._bigNumbersDelta) * dpr;
 		this._device.queue.writeBuffer(this._scrollOffsetBindBuffer, 0, this._scrollOffsetValueBuffer as Float32Array<ArrayBuffer>);
+		this._scrollInitialized = true;
 		return true;
 	}
 
@@ -276,12 +278,15 @@ export class FullFileRenderStrategy extends BaseRenderStrategy {
 		const dpr = getActiveWindow().devicePixelRatio;
 		let contentSegmenter: IContentSegmenter;
 
-		if (this._bigNumbersDelta !== viewportData.bigNumbersDelta) {
+		const scrollOriginChanged = this._bigNumbersDelta !== viewportData.bigNumbersDelta;
+		if (scrollOriginChanged) {
 			this._bigNumbersDelta = viewportData.bigNumbersDelta;
 			this._invalidateAllLines();
 			this._queueBufferUpdate(new ViewLineMappingChangedEvent());
 		}
-		this.onScrollChanged();
+		if (!this._scrollInitialized || scrollOriginChanged) {
+			this.onScrollChanged();
+		}
 
 		// Update cell data
 		const cellBuffer = new Float32Array(this._cellValueBuffers[this._activeDoubleBufferIndex]);
