@@ -202,6 +202,22 @@ suite('Paths', () => {
 		assert.strictEqual(res.path, '/foo/bar:abb');
 		assert.strictEqual(res.line, undefined);
 		assert.strictEqual(res.column, undefined);
+
+		// segments `Number()` would coerce (hex, exponential, ...) must stay part of the path, not line/column
+		res = extpath.parseLineAndColumnAware('/foo/report:0x10');
+		assert.strictEqual(res.path, '/foo/report:0x10');
+		assert.strictEqual(res.line, undefined);
+		assert.strictEqual(res.column, undefined);
+
+		res = extpath.parseLineAndColumnAware('/foo/report:0x10:33');
+		assert.strictEqual(res.path, '/foo/report:0x10');
+		assert.strictEqual(res.line, 33);
+		assert.strictEqual(res.column, 1);
+
+		res = extpath.parseLineAndColumnAware('/foo/bar:1e3');
+		assert.strictEqual(res.path, '/foo/bar:1e3');
+		assert.strictEqual(res.line, undefined);
+		assert.strictEqual(res.column, undefined);
 	});
 
 	test('randomPath', () => {
