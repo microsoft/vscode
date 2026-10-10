@@ -22,7 +22,7 @@ export function isInCodespaces(): boolean {
 const PR_TEMPLATE_FILES = [
 	{ dir: '.', files: ['pull_request_template.md', 'PULL_REQUEST_TEMPLATE.md'] },
 	{ dir: 'docs', files: ['pull_request_template.md', 'PULL_REQUEST_TEMPLATE.md'] },
-	{ dir: '.github', files: ['PULL_REQUEST_TEMPLATE.md', 'PULL_REQUEST_TEMPLATE.md'] }
+	{ dir: '.github', files: ['pull_request_template.md', 'PULL_REQUEST_TEMPLATE.md'] }
 ];
 
 const PR_TEMPLATE_DIRECTORY_NAMES = [
