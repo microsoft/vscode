@@ -80,6 +80,7 @@ export interface ITestRunProfile {
 	label: string;
 	group: TestRunProfileBitset;
 	isDefault: boolean;
+	priority?: number;
 	tag: string | null;
 	hasConfigurationHandler: boolean;
 	supportsContinuousRun: boolean;
