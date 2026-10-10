@@ -1210,14 +1210,18 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			return;
 		}
 		const viewModel = this._modelData.viewModel;
-		const startPosition = viewModel.getSelection().getStartPosition();
+		const selection = viewModel.getSelection();
+		const startPosition = selection.getStartPosition();
+		const endLineContent = viewModel.model.getLineContent(selection.endLineNumber);
 		viewModel.paste(text, pasteOnNewLine, multicursorText, source, isBlock);
 		const endPosition = viewModel.getSelection().getStartPosition();
 		if (source === 'keyboard') {
 			this._onDidPaste.fire({
 				clipboardEvent,
 				range: new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column),
-				languageId: mode
+				languageId: mode,
+				endLineWasUnchanged: !isBlock && text.endsWith('\n')
+					&& viewModel.model.getLineContent(endPosition.lineNumber) === endLineContent
 			});
 		}
 	}
