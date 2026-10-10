@@ -352,8 +352,13 @@ __vsc_command_output_start() {
 	if [[ -z "${__vsc_first_prompt-}" ]]; then
 		builtin return
 	fi
-	builtin printf '\e]633;E;%s;%s\a' "$(__vsc_escape_value "${__vsc_current_command}")" $__vsc_nonce
-	builtin printf '\e]633;C\a'
+	# Write to /dev/tty to avoid the sequences being captured by the command's
+	# stdout/stderr redirections. In bash the DEBUG trap fires after the shell
+	# has already applied the command's redirections, so a plain printf would
+	# write into the user's redirect target (e.g. a file) instead of the
+	# terminal.
+	builtin printf '\e]633;E;%s;%s\a' "$(__vsc_escape_value "${__vsc_current_command}")" $__vsc_nonce > /dev/tty
+	builtin printf '\e]633;C\a' > /dev/tty
 }
 
 __vsc_continuation_start() {
