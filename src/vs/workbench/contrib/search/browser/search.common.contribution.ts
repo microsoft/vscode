@@ -49,7 +49,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 		'search.useIgnoreFiles': {
 			type: 'boolean',
-			markdownDescription: nls.localize('useIgnoreFiles', "Controls whether to use `.gitignore` and `.ignore` files when searching for files."),
+			markdownDescription: nls.localize('useIgnoreFiles', "Controls whether to use `.ignore`, `.rgignore`, and ignore files contributed by enabled extensions when searching for files."),
 			default: true,
 			scope: ConfigurationScope.RESOURCE
 		},
@@ -61,7 +61,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 		'search.useParentIgnoreFiles': {
 			type: 'boolean',
-			markdownDescription: nls.localize('useParentIgnoreFiles', "Controls whether to use `.gitignore` and `.ignore` files in parent directories when searching for files. Requires {0} to be enabled.", '`#search.useIgnoreFiles#`'),
+			markdownDescription: nls.localize('useParentIgnoreFiles', "Controls whether to use `.ignore`, `.rgignore`, and contributed ignore files in parent directories when searching for files. Requires {0} to be enabled.", '`#search.useIgnoreFiles#`'),
 			default: false,
 			scope: ConfigurationScope.RESOURCE
 		},

@@ -81,7 +81,7 @@ declare module 'vscode' {
 			followSymlinks: boolean;
 
 			/**
-			 * Which file locations we should look for ignore (.gitignore or .ignore) files to respect.
+			 * Which file locations we should look for ignore files to respect.
 			 */
 			useIgnoreFiles: {
 				/**
@@ -89,14 +89,19 @@ declare module 'vscode' {
 				 */
 				local: boolean;
 				/**
-				* Use ignore files at the parent directory. If set, `local` in {@link TextSearchProviderFolderOptions.useIgnoreFiles} should also be `true`.
-				*/
+				 * Use ignore files at the parent directory. If set, `local` in {@link TextSearchProviderFolderOptions.useIgnoreFiles} should also be `true`.
+				 */
 				parent: boolean;
 				/**
 				 * Use global ignore files. If set, `local` in {@link TextSearchProviderFolderOptions.useIgnoreFiles} should also be `true`.
 				 */
 				global: boolean;
 			};
+
+			/**
+			 * Names of gitignore-compatible files to respect when {@link TextSearchProviderFolderOptions.useIgnoreFiles local ignore files} are enabled.
+			 */
+			ignoreFileNames?: string[];
 
 			/**
 			 * Interpret files using this encoding.

@@ -149,7 +149,7 @@ export interface TextSearchProviderFolderOptions {
 	followSymlinks: boolean;
 
 	/**
-	 * Which file locations we should look for ignore (.gitignore or .ignore) files to respect.
+	 * Which file locations we should look for ignore files to respect.
 	 */
 	useIgnoreFiles: {
 		/**
@@ -165,6 +165,11 @@ export interface TextSearchProviderFolderOptions {
 		 */
 		global: boolean;
 	};
+
+	/**
+	 * Names of gitignore-compatible files to respect when {@link TextSearchProviderFolderOptions.useIgnoreFiles local ignore files} are enabled.
+	 */
+	ignoreFileNames?: string[];
 
 	/**
 	 * Interpret files using this encoding.
@@ -253,7 +258,7 @@ export interface FileSearchProviderFolderOptions {
 	followSymlinks: boolean;
 
 	/**
-	 * Which file locations we should look for ignore (.gitignore or .ignore) files to respect.
+	 * Which file locations we should look for ignore files to respect.
 	 */
 	useIgnoreFiles: {
 		/**
@@ -269,6 +274,11 @@ export interface FileSearchProviderFolderOptions {
 		 */
 		global: boolean;
 	};
+
+	/**
+	 * Names of gitignore-compatible files to respect when {@link FileSearchProviderFolderOptions.useIgnoreFiles local ignore files} are enabled.
+	 */
+	ignoreFileNames?: string[];
 }
 
 /**
