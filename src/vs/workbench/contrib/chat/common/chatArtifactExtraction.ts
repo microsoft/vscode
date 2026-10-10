@@ -131,6 +131,7 @@ export function extractArtifactsFromResponse(
 		artifacts.push({
 			label: image.name,
 			fileName: image.name,
+			generatedImageMimeType: image.mimeType,
 			uri: image.uri.toString(),
 			toolCallId: image.toolCallId,
 			dataPartIndex: image.index,

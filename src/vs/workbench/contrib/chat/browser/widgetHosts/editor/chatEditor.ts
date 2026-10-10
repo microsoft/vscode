@@ -119,6 +119,7 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 					autoScroll: mode => mode !== ChatModeKind.Ask,
 					readOnlyBannerAtTop: true,
 					renderFollowups: true,
+					renderArtifactsWidget: false,
 					supportsFileReferences: true,
 					clear: resolvedSessionType => this.clear(resolvedSessionType),
 					enableFind: true,

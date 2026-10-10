@@ -799,6 +799,9 @@ class AbstractResponse implements IResponse {
 	}
 
 	private getToolInvocationText(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): { text: string; isBlock?: boolean } {
+		if (IChatToolInvocation.isStreaming(toolInvocation) && IChatToolInvocation.isImageGeneration(toolInvocation)) {
+			return { text: '' };
+		}
 		const getTerminalDisplayInput = (terminalData: ReturnType<typeof migrateLegacyTerminalToolSpecificData>) => terminalData.presentationOverrides?.commandLine
 			?? terminalData.commandLine.forDisplay
 			?? terminalData.commandLine.userEdited
