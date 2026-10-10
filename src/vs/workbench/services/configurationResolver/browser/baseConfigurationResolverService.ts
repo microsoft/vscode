@@ -340,8 +340,11 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 						missingAttribute('command');
 					}
 					return this.userInputAccessQueue.queue(() => this.commandService.executeCommand<string>(info.command, info.args)).then(result => {
-						if (typeof result === 'string' || Types.isUndefinedOrNull(result)) {
+						if (typeof result === 'string') {
 							return { value: result, input: info };
+						}
+						if (Types.isUndefinedOrNull(result)) {
+							return undefined;
 						}
 						throw new VariableError(VariableKind.Input, localize('inputVariable.command.noStringType', "Cannot substitute input variable '{0}' because command '{1}' did not return a result of type string.", variable, info.command));
 					});
