@@ -22,13 +22,26 @@ on:
       smoke_tests:
         type: boolean
         default: true
+      agent_host_e2e_tests:
+        type: boolean
+        default: false
+      skip:
+        type: boolean
+        default: false
+      # Only jobs that need the 1ES image (WSL2 for the Electron smoke tests) or
+      # its 8 vCPUs should use the 1ES pool; every 1ES job is followed by a reimage.
+      self_hosted:
+        type: boolean
+        default: false
 
 jobs:
   windows-test:
     name: ${{ inputs.job_name }}
-    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-windows-2022-x64, "JobId=windows-test-${{ inputs.job_name }}-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}" ]
+    # The job-level condition keeps the "Windows / <job_name>" check name when skipped
+    if: ${{ !inputs.skip }}
+    runs-on: ${{ inputs.self_hosted && fromJSON(format('["self-hosted", "1ES.Pool=1es-vscode-oss-windows-2022-x64", "JobId=windows-test-{0}-{1}-{2}-{3}"]', inputs.job_name, github.run_id, github.run_number, github.run_attempt)) || 'windows-2022' }}
     env:
-      ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}${{ (inputs.unit_tests && !inputs.integration_tests && '-unit') || (!inputs.unit_tests && !inputs.integration_tests && inputs.smoke_tests && '-smoke') || '' }}
+      ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}${{ (inputs.agent_host_e2e_tests && '-agent-host-e2e') || (inputs.unit_tests && !inputs.integration_tests && '-unit') || (!inputs.unit_tests && !inputs.integration_tests && inputs.smoke_tests && '-smoke') || '' }}
       NPM_ARCH: x64
       VSCODE_ARCH: x64
       VSCODE_SKIP_PRELAUNCH: '1'
@@ -63,13 +76,6 @@ jobs:
         env:
           WSL_KERNEL_CACHE_PATH: ${{ github.workspace }}\.build\wsl-kernel-cache\wsl_update_x64.msi
           WSL_KERNEL_CACHE_RESULT: ${{ steps.wsl-kernel-cache.outputs.cache-hit }}
-
-      - name: Detect Agent Host E2E changes
-        if: ${{ inputs.electron_tests && inputs.integration_tests }}
-        id: agent-host-e2e-changes
-        uses: ./.github/actions/detect-agent-host-e2e-changes
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -227,7 +233,7 @@ jobs:
           }
 
       - name: Diagnostics before integration test runs
-        if: ${{ inputs.integration_tests && always() }}
+        if: ${{ (inputs.integration_tests || inputs.agent_host_e2e_tests) && always() }}
         shell: pwsh
         run: .\build\azure-pipelines\win32\listprocesses.bat
         continue-on-error: true
@@ -238,7 +244,16 @@ jobs:
         shell: pwsh
         run: .\scripts\test-integration.bat --tfs "Integration Tests"
         env:
-          VSCODE_SKIP_AGENT_HOST_E2E: ${{ steps.agent-host-e2e-changes.outputs.affected == 'false' && '1' || '0' }}
+          # Agent Host E2E tests run in their own job (agent_host_e2e_tests)
+          VSCODE_SKIP_AGENT_HOST_E2E: '1'
+          VSCODE_SKIP_PRELAUNCH: '1'
+
+      - name: 🧪 Run Agent Host E2E tests
+        if: ${{ inputs.agent_host_e2e_tests }}
+        timeout-minutes: 30
+        shell: pwsh
+        run: node .\test\integration\agentHost\runner.ts --tfs "Agent Host E2E Tests"
+        env:
           VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: 🧪 Run integration tests (Browser, Chromium)
@@ -256,7 +271,7 @@ jobs:
           VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: Diagnostics after integration test runs
-        if: ${{ inputs.integration_tests && always() }}
+        if: ${{ (inputs.integration_tests || inputs.agent_host_e2e_tests) && always() }}
         shell: pwsh
         run: .\build\azure-pipelines\win32\listprocesses.bat
         continue-on-error: true

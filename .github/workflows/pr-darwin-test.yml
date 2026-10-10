@@ -22,13 +22,21 @@ on:
       smoke_tests:
         type: boolean
         default: true
+      agent_host_e2e_tests:
+        type: boolean
+        default: false
+      skip:
+        type: boolean
+        default: false
 
 jobs:
   macOS-test:
     name: ${{ inputs.job_name }}
+    # The job-level condition keeps the "macOS / <job_name>" check name when skipped
+    if: ${{ !inputs.skip }}
     runs-on: macos-26-xlarge
     env:
-      ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}${{ (inputs.unit_tests && !inputs.integration_tests && '-unit') || (!inputs.unit_tests && !inputs.integration_tests && inputs.smoke_tests && '-smoke') || '' }}
+      ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}${{ (inputs.agent_host_e2e_tests && '-agent-host-e2e') || (inputs.unit_tests && !inputs.integration_tests && '-unit') || (!inputs.unit_tests && !inputs.integration_tests && inputs.smoke_tests && '-smoke') || '' }}
       NPM_ARCH: arm64
       VSCODE_ARCH: arm64
       VSCODE_SKIP_PRELAUNCH: '1'
@@ -37,13 +45,6 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           lfs: true
-
-      - name: Detect Agent Host E2E changes
-        if: ${{ inputs.electron_tests && inputs.integration_tests }}
-        id: agent-host-e2e-changes
-        uses: ./.github/actions/detect-agent-host-e2e-changes
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -189,7 +190,15 @@ jobs:
         timeout-minutes: 20
         run: ./scripts/test-integration.sh --tfs "Integration Tests"
         env:
-          VSCODE_SKIP_AGENT_HOST_E2E: ${{ steps.agent-host-e2e-changes.outputs.affected == 'false' && '1' || '0' }}
+          # Agent Host E2E tests run in their own job (agent_host_e2e_tests)
+          VSCODE_SKIP_AGENT_HOST_E2E: '1'
+          VSCODE_SKIP_PRELAUNCH: '1'
+
+      - name: 🧪 Run Agent Host E2E tests
+        if: ${{ inputs.agent_host_e2e_tests }}
+        timeout-minutes: 20
+        run: node ./test/integration/agentHost/runner.ts --tfs "Agent Host E2E Tests"
+        env:
           VSCODE_SKIP_PRELAUNCH: '1'
 
       - name: 🧪 Run integration tests (Browser, Webkit)
