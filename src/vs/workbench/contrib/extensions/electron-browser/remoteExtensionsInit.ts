@@ -75,7 +75,7 @@ export class InstallRemoteExtensionsContribution implements IWorkbenchContributi
 		}
 
 		await Promise.allSettled(extensionsToInstall.map(ext => {
-			this.extensionsWorkbenchService.installInServer(ext, this.extensionManagementServerService.remoteExtensionManagementServer!, { donotIncludePackAndDependencies: true });
+			return this.extensionsWorkbenchService.installInServer(ext, this.extensionManagementServerService.remoteExtensionManagementServer!, { donotIncludePackAndDependencies: true });
 		}));
 	}
 
@@ -227,7 +227,7 @@ class RemoteExtensionsInitializer extends AbstractExtensionsInitializer {
 			await Promise.allSettled(extensionsToInstall.map(async e => {
 				const manifest = await this.extensionGalleryService.getManifest(e, CancellationToken.None);
 				if (manifest && this.extensionManifestPropertiesService.canExecuteOnWorkspace(manifest)) {
-					const syncedExtension = remoteExtensions.find(e => areSameExtensions(e.identifier, e.identifier));
+					const syncedExtension = remoteExtensions.find(remoteExtension => areSameExtensions(remoteExtension.identifier, e.identifier));
 					await this.extensionManagementService.installFromGallery(e, { installPreReleaseVersion: syncedExtension?.preRelease, donotIncludePackAndDependencies: true, context: { [EXTENSION_INSTALL_SKIP_PUBLISHER_TRUST_CONTEXT]: true } });
 				}
 			}));
