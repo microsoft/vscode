@@ -19,6 +19,15 @@
 	height: 100%;
 }
 
+.session-grid-leaf {
+	box-sizing: border-box;
+}
+
+.session-grid.session-grid-has-gaps .session-grid-leaf {
+	border-color: var(--vscode-agents-background);
+	border-style: solid;
+}
+
 .monaco-workbench .part.sessionspart > .title,
 .monaco-workbench .part.sessionspart > .content {
 	position: relative;

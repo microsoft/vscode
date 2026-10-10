@@ -8071,6 +8071,31 @@ suite('AgentHostChatContribution', () => {
 			await turnPromise;
 		}));
 
+		test('plan-review rejection dispatches a decline without selecting an implementation action', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const { turnPromise, collected, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			const request: ChatInputRequestWithPlanReview = {
+				id: 'plan-reject',
+				planReview: {
+					title: 'Review Plan', content: 'Plan', canProvideFeedback: true, answerQuestionId: 'action',
+					actions: [{ id: 'interactive', label: 'Implement Plan', default: true }],
+				},
+			};
+			fire({ type: ActionType.ChatInputRequested, request } as ChatAction);
+			await timeout(10);
+			const review = collected.flat().find(part => part.kind === 'planReview') as ChatPlanReviewData;
+			agentHostService.dispatchedActions.length = 0;
+			review.completion.complete({ rejected: true });
+			await timeout(10);
+			assert.deepStrictEqual(agentHostService.dispatchedActions.find(d => d.action.type === ActionType.ChatInputCompleted)?.action, {
+				type: ActionType.ChatInputCompleted,
+				requestId: 'plan-reject',
+				response: ChatInputResponseKind.Decline,
+			});
+			fire({ type: ActionType.ChatTurnComplete, turnId, endedAt: '2025-01-01T00:00:00.000Z' } as ChatAction);
+			await turnPromise;
+		}));
+
 		test('plan-review feedback dispatches accepted text answer for revision', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 			const { turnPromise, collected, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);

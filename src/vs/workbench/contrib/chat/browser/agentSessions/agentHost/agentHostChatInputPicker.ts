@@ -51,7 +51,7 @@ import { IWorkspaceContextService } from '../../../../../../platform/workspace/c
 import type { IChatWidget } from '../../chat.js';
 import { ChatConfiguration, ChatPermissionLevel, isChatPermissionLevel } from '../../../common/constants.js';
 import { SessionType } from '../../../common/chatSessionsService.js';
-import { isAutoApprovePolicyRestricted, isAutoApproveValuePolicyRestricted, normalizeSessionConfigValue } from '../../../common/agentHostConfigPolicy.js';
+import { disableGlobalAutoApproveForPermissionSelection, isAutoApprovePolicyRestricted, isAutoApproveValuePolicyRestricted, normalizeSessionConfigValue } from '../../../common/agentHostConfigPolicy.js';
 import { maybeConfirmElevatedPermissionLevel } from '../../../common/chatPermissionWarnings.js';
 import { getChatSessionType, isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { withChatInputPickerMotion } from '../../widget/input/chatInputPickerActionItem.js';
@@ -1185,6 +1185,9 @@ export class AgentHostChatInputPicker extends Disposable {
 				: approval ? writeSessionApprovalLevel(approval, approvalValue)
 					: normalizeSessionConfigValue(ctx.key, value, isAutoApprovePolicyRestricted(this._configurationService, ctx.configSchema));
 		validateSessionConfigWrite(ctx.configSchema, ctx.values, ctx.key, normalizedValue, isUntitledChatSession(sessionResource));
+		if (property === SessionConfigKey.AutoApprove && !this._generic && isChatPermissionLevel(value)) {
+			await disableGlobalAutoApproveForPermissionSelection(this._configurationService, value);
+		}
 		const partial = { [ctx.key]: normalizedValue };
 		const nextConfig = filterSessionConfigValues(ctx.configSchema, { ...this._readCurrentValues(), ...partial });
 

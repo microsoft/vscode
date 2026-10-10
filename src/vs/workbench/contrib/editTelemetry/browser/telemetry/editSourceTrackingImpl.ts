@@ -27,8 +27,8 @@ import { AgentHostEditAttributionDeferredError, AgentHostEditAttributionUnknownO
 const FOCUS_CORRELATION_DRAIN_TIMEOUT = 1_000;
 
 function getDetailsGroupingKey(source: TextModelEditSource, sourceKey = source.toKey(1)): string {
-	return source.props.$origin === 'agentHost' && source.props.$$chatSessionId !== undefined
-		? JSON.stringify([sourceKey, source.props.$$sessionId, source.props.$$chatSessionId])
+	return source.props.$origin === 'agentHost' && (source.props.$$agentSessionId !== undefined || source.props.$$chatSessionId !== undefined)
+		? JSON.stringify([sourceKey, source.props.$$agentSessionId, source.props.$$sessionId, source.props.$$chatSessionId])
 		: sourceKey;
 }
 
@@ -316,6 +316,7 @@ class TrackedDocumentInfo extends Disposable {
 				languageId: this._doc.document.languageId.get(),
 				statsUuid: statsUuid,
 				conversationId: repr.props.$$sessionId,
+				...(repr.props.$$agentSessionId !== undefined ? { agentSessionId: repr.props.$$agentSessionId } : {}),
 				...(repr.props.$$chatSessionId !== undefined ? { chatSessionId: repr.props.$$chatSessionId } : {}),
 				requestId: repr.props.$$requestId,
 				origin: repr.props.$origin,

@@ -19,6 +19,8 @@ export interface IDevContainerAgentHostWorkspaceConfig {
 	readonly name: string;
 	/** Whether this explicit connection may restart a container stopped after its sessions became idle. */
 	readonly resume?: boolean;
+	/** Configure the container to permit nested terminal sandboxing. */
+	readonly sandboxEnabled?: boolean;
 }
 
 export type IDevContainerAgentHostConfig = IDevContainerAgentHostWorkspaceConfig | (Omit<IDevContainerAgentHostWorkspaceConfig, 'workspaceFolder'> & IDevContainerSampleSource);
@@ -32,12 +34,20 @@ export interface IDevContainerAgentHostConnectResult {
 	/** Native source workspace path on the parent host, when reported by the launcher. */
 	readonly hostWorkspaceFolder?: string;
 	readonly repository?: IDevContainerRepository;
+	/** Whether the actual container has the Docker options needed for nested sandboxing. */
+	readonly sandboxSupported?: boolean;
 }
 
 /** One chunk of output from a Dev Container CLI process. */
 export interface IDevContainerAgentHostOutput {
 	readonly connectionId: string;
 	readonly data: string;
+}
+
+/** Docker sandbox prerequisites observed during an attempted connection, including failed startup. */
+export interface IDevContainerAgentHostSandboxSupport {
+	readonly connectionId: string;
+	readonly supported: boolean;
 }
 
 export const IDevContainerAgentHostMainService = createDecorator<IDevContainerAgentHostMainService>('devContainerAgentHostMainService');
@@ -49,6 +59,7 @@ export interface IDevContainerAgentHostMainService extends IRelayChannel {
 	readonly onDidCloseConnection: Event<string>;
 	/** Streaming stdout and stderr from Dev Container CLI processes. */
 	readonly onDidOutput: Event<IDevContainerAgentHostOutput>;
+	readonly onDidChangeSandboxSupport?: Event<IDevContainerAgentHostSandboxSupport>;
 
 	/** Whether Docker can be resolved from the user's shell environment. */
 	isDockerAvailable(): Promise<boolean>;

@@ -13,6 +13,7 @@ import { DevContainerSample, getDevContainerSampleFolder, getDevContainerSampleU
 import { prepareOwnerOnlyDirectory } from './localAgentHostMetadata.js';
 import { shellEscape } from './sshRemoteAgentHostHelpers.js';
 import { devContainerServerCacheMount } from './devContainerServerCache.js';
+import { devContainerSandboxRunArgs } from './devContainerSandbox.js';
 
 interface ICommandResult {
 	readonly stdout: string;
@@ -93,7 +94,7 @@ function checked(result: ICommandResult, operation: string): string {
 	return result.stdout;
 }
 
-export async function prepareDevContainerSample(sample: DevContainerSample, cacheDirectory: string, commands: ISampleCommands): Promise<IPreparedDevContainerSample> {
+export async function prepareDevContainerSample(sample: DevContainerSample, cacheDirectory: string, commands: ISampleCommands, sandboxEnabled = false): Promise<IPreparedDevContainerSample> {
 	await prepareOwnerOnlyDirectory(cacheDirectory);
 	const sourcePath = join(cacheDirectory, 'source.json');
 	let sourceContent: string | undefined;
@@ -137,6 +138,7 @@ export async function prepareDevContainerSample(sample: DevContainerSample, cach
 		workspaceFolder: workspace,
 		workspaceMount: `type=volume,source=${repository.volumeName},target=/workspaces`,
 		updateRemoteUserUID: false,
+		...(sandboxEnabled ? { runArgs: devContainerSandboxRunArgs } : {}),
 	}));
 	await writeConfig(config);
 	const cliArgs = ['--override-config', configPath, ...getDevContainerSampleLabels(repository).flatMap(label => ['--id-label', label])];

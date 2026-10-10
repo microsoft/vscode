@@ -455,6 +455,23 @@ export const AgentHostByokModelsEnabledConfigKey = 'byokModelsEnabled';
 export const AgentHostByokModelsEnabledDefault = true;
 
 /**
+ * Root config key mirrored from `chat.utilitySmallModel`: a `${vendor}/${id}`
+ * model that overrides the default model for host utility flows such as title
+ * and pull request generation. Empty uses the default behavior.
+ */
+export const AgentHostUtilitySmallModelConfigKey = 'utilitySmallModel';
+
+/**
+ * Root config key mirrored from `chat.byokUtilityModelDefault`: the default
+ * utility model when the chat's selected main agent model is BYOK.
+ */
+export const AgentHostByokUtilityModelDefaultConfigKey = 'byokUtilityModelDefault';
+
+/** Values of {@link AgentHostByokUtilityModelDefaultConfigKey}; keep in sync with `BYOKUtilityModelDefault` in the chat contribution. */
+export const AgentHostByokUtilityModelDefaults = ['none', 'mainAgent', 'copilot'] as const;
+export type AgentHostByokUtilityModelDefault = typeof AgentHostByokUtilityModelDefaults[number];
+
+/**
  * Root config key forwarded from the renderer carrying the experiment-aware
  * value of `chat.agentHost.codexAgent.enabled`. The host registers the Codex
  * provider when this is `true`; disabling requires an agent host restart.
@@ -521,6 +538,9 @@ export const AgentHostGitHubMcpServerEnabledConfigKey = 'githubMcpServerEnabled'
 
 /** Root config key forwarded from the renderer for cached MCP tool routing. */
 export const AgentHostMcpToolRoutingEnabledConfigKey = 'mcpToolRoutingEnabled';
+
+/** Host-persisted server identities explicitly approved for MCP sampling in all sessions. */
+export const AgentHostMcpSamplingAllowedServersConfigKey = 'mcpSamplingAllowedServers';
 
 /** Root config key forwarded from the renderer for Copilot connector discovery. */
 export const AgentHostMcpConnectorsEnabledConfigKey = 'mcpConnectorsEnabled';
@@ -859,6 +879,24 @@ export const platformRootSchema = createSchema({
 		description: localize('agentHost.config.byokModelsEnabled.description', "Whether extension-provided BYOK models are enabled."),
 		default: AgentHostByokModelsEnabledDefault,
 	}),
+	[AgentHostUtilitySmallModelConfigKey]: schemaProperty<string>({
+		type: 'string',
+		title: localize('agentHost.config.utilitySmallModel.title', "Utility Model"),
+		description: localize('agentHost.config.utilitySmallModel.description', "The `vendor/id` of a BYOK model that overrides the default model for utility flows such as title and pull request generation. Empty uses the default behavior."),
+		default: '',
+	}),
+	[AgentHostByokUtilityModelDefaultConfigKey]: schemaProperty<AgentHostByokUtilityModelDefault>({
+		type: 'string',
+		title: localize('agentHost.config.byokUtilityModelDefault.title', "BYOK Utility Model Default"),
+		description: localize('agentHost.config.byokUtilityModelDefault.description', "The default model for utility flows when the chat's selected main agent model is a BYOK model. A configured utility model takes precedence."),
+		enum: [...AgentHostByokUtilityModelDefaults],
+		enumDescriptions: [
+			localize('agentHost.config.byokUtilityModelDefault.none', "Do not use a default utility model."),
+			localize('agentHost.config.byokUtilityModelDefault.mainAgent', "Use the selected BYOK main agent model."),
+			localize('agentHost.config.byokUtilityModelDefault.copilot', "Use the default GitHub Copilot utility model."),
+		],
+		default: 'copilot',
+	}),
 	[AgentHostCodexEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.codexAgentEnabled.title', "Codex Agent"),
@@ -920,6 +958,13 @@ export const platformRootSchema = createSchema({
 		title: localize('agentHost.config.mcpToolRoutingEnabled.title', "MCP Tool Routing"),
 		description: localize('agentHost.config.mcpToolRoutingEnabled.description', "Whether Copilot agent sessions use cached MCP tool metadata for routing."),
 		default: false,
+	}),
+	[AgentHostMcpSamplingAllowedServersConfigKey]: schemaProperty<string[]>({
+		type: 'array',
+		title: localize('agentHost.config.mcpSamplingAllowedServers.title', "MCP Sampling Allowed Servers"),
+		description: localize('agentHost.config.mcpSamplingAllowedServers.description', "MCP server identities whose sampling requests are automatically approved in all sessions on this agent host. Approvals include known configuration and source identity, or the exact server name when no other identity is available. Remove an entry to require confirmation again. This does not approve its tool calls."),
+		items: { type: 'string', title: localize('agentHost.config.mcpSamplingAllowedServers.item', "MCP Server Identity") },
+		default: [],
 	}),
 	[AgentHostActiveAgentTitleGenerationConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',

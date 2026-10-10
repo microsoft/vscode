@@ -95,9 +95,9 @@ export class CopilotMcpToolRoutingCache {
 	}
 }
 
-export function getMcpRoutingCacheKey(server: ICopilotMcpRoutingServer): string {
+export function getMcpRoutingCacheKey(server: ICopilotMcpRoutingServer, source?: string): string {
 	return createHash('sha256')
-		.update(stableStringify([server.serverName, server.configuration]), 'utf8')
+		.update(stableStringify(source === undefined ? [server.serverName, server.configuration] : [server.serverName, server.configuration, source]), 'utf8')
 		.digest('hex');
 }
 

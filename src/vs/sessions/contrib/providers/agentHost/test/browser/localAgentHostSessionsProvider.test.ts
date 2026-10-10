@@ -21,7 +21,7 @@ import { extUriIgnorePathCase, isEqual } from '../../../../../../base/common/res
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { AgentSession, CODEX_AGENT_PROVIDER_ID, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agent.js';
+import { AgentSession, CODEX_AGENT_PROVIDER_ID, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agent.js';
 import { agentSdkSetupStatusKey } from '../../../../../../platform/agentHost/common/agentSdkSetup.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { AgentHostCodexAgentEnabledSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -43,6 +43,7 @@ import { toRemoteSessionMessageMetadata, withRemoteSessionOrigin } from '../../.
 import { USE_WORKTREE_SETTING } from '../../../../../common/sessionConfig.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { AgentSandboxSettingId } from '../../../../../../platform/sandbox/common/settings.js';
 import { IDialogService, IFileDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -165,11 +166,21 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	public deletedDetachedWorktrees: string[] = [];
 	public removedArtifacts: { session: URI; artifactId: string }[] = [];
 	public importedSessions: URI[] = [];
+	public canvasDefinitions: readonly IAgentCanvasInfo[] = [];
+	public canvasListRequests: { session: URI; chat: URI }[] = [];
+	public canvasOpenRequests: { session: URI; chat: URI; request: IAgentCanvasOpenRequest }[] = [];
 	override async importSession(session: URI): Promise<void> {
 		this.importedSessions.push(session);
 	}
 	override async removeSessionArtifact(session: URI, artifactId: string): Promise<void> {
 		this.removedArtifacts.push({ session, artifactId });
+	}
+	override async listSessionCanvases(session: URI, chat: URI): Promise<readonly IAgentCanvasInfo[]> {
+		this.canvasListRequests.push({ session, chat });
+		return this.canvasDefinitions;
+	}
+	override async openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest, chat: URI): Promise<void> {
+		this.canvasOpenRequests.push({ session, chat, request });
 	}
 	get rootStateListenerCount(): number { return this._rootStateListenerCount; }
 
@@ -1148,11 +1159,18 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const chatState: ChatState = { ...summary, turns: [], canvases: [{ resource }] };
 		agentHost.setChatState(chat, chatState);
 		activeSession.set(upcastPartial<IActiveSession>({ ...session, activeChat: session.mainChat }), undefined);
-		disposables.add(autorun(reader => session.mainChat.read(reader).canvases?.read(reader)));
+		let canvasPublicationCount = 0;
+		disposables.add(autorun(reader => {
+			session.mainChat.read(reader).canvases?.read(reader);
+			canvasPublicationCount++;
+		}));
 		const read = () => session.mainChat.get().canvases?.get()?.map(canvas => ({
 			resource: canvas.resource.toString(), instanceId: canvas.instanceId, source: canvas.source?.toString(),
 		}));
 		const pending = read();
+		const publicationsBeforeRegistryRepublish = canvasPublicationCount;
+		agentHost.setChatState(chat, { ...chatState, canvases: [{ resource }] });
+		const registryRepublishCount = canvasPublicationCount - publicationsBeforeRegistryRepublish;
 		const canvas: CanvasState = { instanceId: 'preview', extensionId: 'example:provider', canvasId: 'preview', url: 'https://example.test/preview' };
 		agentHost.setCanvasState(resource, canvas);
 		const ready = read();
@@ -1166,12 +1184,13 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 		assert.deepStrictEqual({
 			supportsCanvases: session.capabilities.get().supportsCanvases,
-			pending, ready, updated, unavailable, unsupported, removed: read(),
+			pending, registryRepublishCount, ready, updated, unavailable, unsupported, removed: read(),
 			subscribes: agentHost.sessionSubscribeCounts.get(resource),
 			unsubscribes: agentHost.sessionUnsubscribeCounts.get(resource),
 		}, {
 			supportsCanvases: true,
 			pending: [{ resource, instanceId: undefined, source: undefined }],
+			registryRepublishCount: 1,
 			ready: [{ resource, instanceId: 'preview', source: canvas.url }],
 			updated: [{ resource, instanceId: 'preview', source: 'https://example.test/replaced' }],
 			unavailable: [{ resource, instanceId: undefined, source: undefined }],
@@ -3544,6 +3563,82 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
+	test('canvas operations target the focused host-supplied backend chat URI', async () => {
+		agentHost.addSession(createSession('chat-canvas-route', { summary: 'Canvas Route' }));
+		const provider = createProvider(disposables, agentHost);
+		await timeout(0);
+		const session = provider.getSessions().find(candidate => candidate.title.get() === 'Canvas Route');
+		assert.ok(session);
+		const backendSession = AgentSession.uri('copilotcli', 'backend-canvas-route').toString();
+		const defaultBackend = buildDefaultChatUri(backendSession);
+		const peerBackend = buildChatUri(backendSession, 'peer-1');
+		const state: SessionState = {
+			provider: 'copilotcli',
+			title: 'Canvas Route',
+			status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready,
+			activeClients: [],
+			chats: [
+				{ resource: defaultBackend, title: 'Default', status: ProtocolSessionStatus.Idle, modifiedAt: '2025-01-01T00:00:00.000Z' } satisfies ChatSummary,
+				{ resource: peerBackend, title: 'Peer', status: ProtocolSessionStatus.Idle, modifiedAt: '2025-01-01T00:00:00.000Z' } satisfies ChatSummary,
+			],
+			defaultChat: defaultBackend,
+		};
+		provider.getSessionConfig(session.sessionId);
+		agentHost.setSessionState('chat-canvas-route', 'copilotcli', state);
+		const peer = session.chats.get().find(chat => chat.resource.fragment === 'peer-1');
+		assert.ok(peer);
+		agentHost.canvasDefinitions = [{
+			canvasId: 'preview',
+			extensionId: 'project:preview',
+			extensionSource: 'project',
+			displayName: 'Preview',
+			description: 'Preview.',
+			requiresInput: false,
+			actionCount: 0,
+		}];
+
+		const canvases = await provider.listCanvases(session.sessionId, peer.resource);
+		await provider.openCanvas(session.sessionId, peer.resource, canvases[0], 'project-preview');
+
+		assert.deepStrictEqual({
+			canvases,
+			backendChat: provider.getBackendChatResource(peer.resource)?.toString(),
+			list: agentHost.canvasListRequests.map(request => ({
+				session: request.session.toString(),
+				chat: request.chat.toString(),
+			})),
+			open: agentHost.canvasOpenRequests.map(({ session, chat, request }) => ({
+				session: session.toString(),
+				chat: chat.toString(),
+				request,
+			})),
+		}, {
+			canvases: [{
+				canvasId: 'preview',
+				extensionId: 'project:preview',
+				extensionSource: 'project',
+				displayName: 'Preview',
+				description: 'Preview.',
+				requiresInput: false,
+			}],
+			backendChat: peerBackend,
+			list: [{
+				session: AgentSession.uri('copilotcli', 'chat-canvas-route').toString(),
+				chat: peerBackend,
+			}],
+			open: [{
+				session: AgentSession.uri('copilotcli', 'chat-canvas-route').toString(),
+				chat: peerBackend,
+				request: {
+					canvasId: 'preview',
+					extensionId: 'project:preview',
+					instanceId: 'project-preview',
+				},
+			}],
+		});
+	});
+
 	test('getCustomAgents returns no agents when the session has no SessionState', () => {
 		const provider = createProvider(disposables, agentHost);
 
@@ -5072,6 +5167,80 @@ suite('LocalAgentHostSessionsProvider', () => {
 		);
 		assert.strictEqual(connectCalls, 0);
 	});
+
+	for (const isolation of ['folder', 'worktree']) {
+		test(`uses sandbox support only for the actual Dev Container target (${isolation})`, async () => {
+			agentHost.resolveSessionConfigResult = { schema: createVSCodeSessionConfigSchema(), values: { isolation } };
+			const queried: string[] = [];
+			const provider = createProvider(disposables, agentHost, undefined, {
+				configurationService: new TestConfigurationService({ [DevContainerWorktreeEnabledSettingId]: true }),
+				devContainerAgentHostService: new class extends mock<IDevContainerAgentHostService>() {
+					override async isAvailable(): Promise<boolean> { return true; }
+					override getSandboxSupported(workspace: URI): boolean {
+						queried.push(workspace.toString());
+						return false;
+					}
+				}(),
+			});
+			const workspace = URI.file('/sandbox-target');
+			const session = provider.createNewSession(workspace, provider.sessionTypes[0].id);
+			await waitForSessionConfig(provider, session.sessionId, config => !!config?.schema.properties[SessionConfigKey.Isolation] && provider.isDevContainerAvailable(session.sessionId));
+			provider.setDevContainerEnabled(session.sessionId, true);
+			await provider.setSessionConfigValue(session.sessionId, SessionConfigKey.Isolation, isolation);
+			await provider.whenSessionConfigResolved(session.sessionId, CancellationToken.None);
+			assert.deepStrictEqual({ support: provider.getDevContainerSandboxSupported(session.sessionId), queried }, {
+				support: isolation === 'folder' ? false : undefined,
+				queried: isolation === 'folder' ? [workspace.toString()] : [],
+			});
+		});
+	}
+
+	test('sample drafts retain their source sandbox support when isolation is set to worktree', async () => {
+		const provider = createProvider(disposables, agentHost, undefined, {
+			configurationService: new TestConfigurationService({
+				[DevContainerWorktreeEnabledSettingId]: true,
+				[DevContainerSamplesEnabledSettingId]: true,
+				[DevContainerAgentHostEnabledSettingId]: true,
+				[RemoteAgentHostsEnabledSettingId]: true,
+			}),
+			devContainerAgentHostService: new class extends mock<IDevContainerAgentHostService>() {
+				override async isAvailable(): Promise<boolean> { return true; }
+				override getSandboxSupported(): boolean { return false; }
+			}(),
+		});
+		const session = provider.createNewSession(devContainerSampleUri(devContainerSamples[0]), provider.sessionTypes[0].id);
+		await waitForSessionConfig(provider, session.sessionId, config => !!config?.schema.properties[SessionConfigKey.Isolation] && provider.isDevContainerAvailable(session.sessionId));
+		await provider.setSessionConfigValue(session.sessionId, SessionConfigKey.Isolation, 'worktree');
+		await provider.whenSessionConfigResolved(session.sessionId, CancellationToken.None);
+		assert.strictEqual(provider.getDevContainerSandboxSupported(session.sessionId), false);
+	});
+
+	for (const scenario of [
+		{ global: 'on', choice: 'default', expected: true },
+		{ global: 'off', choice: 'default', expected: false },
+		{ global: 'on', choice: 'off', expected: false },
+		{ global: 'off', choice: 'on', expected: true },
+	]) {
+		test(`passes the effective sandbox choice to Dev Container startup (${scenario.global}, ${scenario.choice})`, async () => {
+			let options: { readonly sandboxEnabled: boolean } | undefined;
+			const provider = createProvider(disposables, agentHost, undefined, {
+				configurationService: new TestConfigurationService({ [AgentSandboxSettingId.AgentSandboxEnabled]: scenario.global }),
+				devContainerAgentHostService: new class extends mock<IDevContainerAgentHostService>() {
+					override async isAvailable(): Promise<boolean> { return true; }
+					override async connect(_workspace: URI, _token: CancellationToken, requested?: { readonly sandboxEnabled: boolean }): Promise<never> {
+						options = requested;
+						throw new Error('Stopped after startup request');
+					}
+				}(),
+			});
+			const session = provider.createNewSession(URI.file('/sandbox-project'), provider.sessionTypes[0].id);
+			await waitForSessionConfig(provider, session.sessionId, config => !!config?.schema.properties[SessionConfigKey.SandboxEnabled] && provider.isDevContainerAvailable(session.sessionId));
+			provider.setDevContainerEnabled(session.sessionId, true);
+			await provider.setSessionConfigValue(session.sessionId, SessionConfigKey.SandboxEnabled, scenario.choice);
+			await assert.rejects(provider.prepareNewSession(session.sessionId, CancellationToken.None, 'hello'), /Stopped after startup request/);
+			assert.deepStrictEqual(options, { sandboxEnabled: scenario.expected });
+		});
+	}
 
 	test('Dev Container preparation links to the workspace log and supports cancellation without committing the draft', async () => {
 		const connecting = new DeferredPromise<void>();
