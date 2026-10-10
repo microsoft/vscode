@@ -40,7 +40,7 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { AgentChatMigrationDeferred, AgentSession, AgentWorkingDirectoryChangedError, GITHUB_COPILOT_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, type IAgent, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agent.js';
 import { IConnectionTrackerService } from '../../common/agentService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
-import { AgentHostActiveAgentTitleGenerationConfigKey, platformRootSchema, AgentHostDeferredTitleGenerationConfigKey, AgentHostTitleGenerationConfigKey, AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey, AgentHostArtifactToolsConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostSessionCatalogEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey } from '../../common/agentHostSchema.js';
+import { AgentHostActiveAgentTitleGenerationConfigKey, platformRootSchema, AgentHostDeferredTitleGenerationConfigKey, AgentHostTitleGenerationConfigKey, AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey, AgentHostArtifactToolsConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostSessionCatalogEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey } from '../../common/agentHostSchema.js';
 import { resolveTitleGenerationStrategy } from '../../common/titleGenerationConfiguration.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { buildCanvasUri } from '../../common/canvasUri.js';
@@ -2810,6 +2810,7 @@ suite('AgentService (node dispatcher)', () => {
 				calls.push(['open', session.toString(), chat.toString(), resolved.resource.toString(), resolved.configurationResource.toString(), request]);
 			};
 			registerTestAgentProvider(service, provider);
+			getConfigurationService(service).updateRootConfig({ [AgentHostCanvasesEnabledConfigKey]: true });
 			const stateManager = getStateManager(service);
 			service.restoreSession = async session => {
 				calls.push(['restore', session.toString()]);
@@ -2870,6 +2871,7 @@ suite('AgentService (node dispatcher)', () => {
 				return [];
 			};
 			registerTestAgentProvider(service, provider);
+			getConfigurationService(service).updateRootConfig({ [AgentHostCanvasesEnabledConfigKey]: true });
 			const stateManager = getStateManager(service);
 			const now = new Date().toISOString();
 			const requestedSession = AgentSession.uri('copilot', 'canvas-requested-session');
@@ -2901,6 +2903,45 @@ suite('AgentService (node dispatcher)', () => {
 			);
 
 			assert.deepStrictEqual({ resolverCalls, providerCalls }, { resolverCalls: 0, providerCalls: 0 });
+		});
+
+		test('rejects disabled canvas requests before restoring a cold chat', async () => {
+			let providerCalls = 0;
+			const provider: IAgent = copilotAgent;
+			provider.listSessionCanvases = async () => {
+				providerCalls++;
+				return [];
+			};
+			registerTestAgentProvider(service, provider);
+			const stateManager = getStateManager(service);
+			const now = new Date().toISOString();
+			const session = AgentSession.uri('copilot', 'canvas-disabled-session');
+			stateManager.restoreSession({
+				resource: session.toString(),
+				provider: provider.id,
+				title: 'Canvas session',
+				status: SessionStatus.Idle,
+				createdAt: now,
+				modifiedAt: now,
+			}, []);
+			const chat = URI.parse(buildChatUri(session, 'peer'));
+			let resolverCalls = 0;
+			stateManager.registerRestoredChatSummary(session.toString(), chat.toString(), {
+				resolver: async () => {
+					resolverCalls++;
+					return { turns: [] };
+				},
+			});
+			let restoreCalls = 0;
+			service.restoreSession = async () => { restoreCalls++; };
+			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService());
+
+			await assert.rejects(
+				managementService.listSessionCanvases(session, chat),
+				/Canvases are disabled/,
+			);
+
+			assert.deepStrictEqual({ restoreCalls, resolverCalls, providerCalls }, { restoreCalls: 0, resolverCalls: 0, providerCalls: 0 });
 		});
 
 		test('maps progress events to protocol actions via onDidAction', async () => {
