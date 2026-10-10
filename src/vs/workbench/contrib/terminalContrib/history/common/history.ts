@@ -256,6 +256,12 @@ export async function fetchBashHistory(accessor: ServicesAccessor): Promise<IShe
 	let currentCommand: string | undefined = undefined;
 	let wrapChar: string | undefined = undefined;
 	for (let i = 0; i < fileLines.length; i++) {
+		// When HISTTIMEFORMAT is set, bash prepends each command in the history
+		// file with a timestamp line in the format `#<unix_epoch>`. Skip these
+		// lines so they are not treated as commands.
+		if (currentCommand === undefined && /^#\d+$/.test(fileLines[i])) {
+			continue;
+		}
 		currentLine = fileLines[i];
 		if (currentCommand === undefined) {
 			currentCommand = currentLine;
