@@ -18,9 +18,19 @@ export interface IMarkerDecorationsService {
 
 	readonly onDidChangeMarker: Event<ITextModel>;
 
+	/**
+	 * Fires when a model starts or stops exceeding the marker decoration limit.
+	 */
+	readonly onDidChangeDecorationLimitExceeded: Event<ITextModel>;
+
 	getMarker(uri: URI, decoration: IModelDecoration): IMarker | null;
 
 	getLiveMarkers(uri: URI): [Range, IMarker][];
+
+	/**
+	 * Returns the applied marker decoration limit when it is exceeded, or undefined otherwise.
+	 */
+	getExceededDecorationLimit(uri: URI): number | undefined;
 
 	addMarkerSuppression(uri: URI, range: Range): IDisposable;
 }

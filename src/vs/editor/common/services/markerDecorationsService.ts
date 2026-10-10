@@ -28,6 +28,9 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 	private readonly _onDidChangeMarker = this._register(new Emitter<ITextModel>());
 	readonly onDidChangeMarker: Event<ITextModel> = this._onDidChangeMarker.event;
 
+	private readonly _onDidChangeDecorationLimitExceeded = this._register(new Emitter<ITextModel>());
+	readonly onDidChangeDecorationLimitExceeded: Event<ITextModel> = this._onDidChangeDecorationLimitExceeded.event;
+
 	private readonly _suppressedRanges = new ResourceMap<Set<Range>>();
 
 	private readonly _markerDecorations = new ResourceMap<MarkerDecorations>();
@@ -57,6 +60,10 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 	getLiveMarkers(uri: URI): [Range, IMarker][] {
 		const markerDecorations = this._markerDecorations.get(uri);
 		return markerDecorations ? markerDecorations.getMarkers() : [];
+	}
+
+	getExceededDecorationLimit(uri: URI): number | undefined {
+		return this._markerDecorations.get(uri)?.markerLimitExceeded ?? undefined;
 	}
 
 	addMarkerSuppression(uri: URI, range: Range): IDisposable {
@@ -112,8 +119,11 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 	}
 
 	private _updateDecorations(markerDecorations: MarkerDecorations): void {
-		// Limit to the first 500 errors/warnings
-		let markers = this._markerService.read({ resource: markerDecorations.model.uri, take: 500 });
+		let markers = this._markerService.read({ resource: markerDecorations.model.uri, take: MarkerDecorations.MAX_MARKER_DECORATIONS_LIMIT + 1 });
+		const limitExceeded = markers.length > MarkerDecorations.MAX_MARKER_DECORATIONS_LIMIT;
+		if (limitExceeded) {
+			markers = markers.slice(0, MarkerDecorations.MAX_MARKER_DECORATIONS_LIMIT);
+		}
 
 		// filter markers from suppressed ranges
 		const suppressedRanges = this._suppressedRanges.get(markerDecorations.model.uri);
@@ -126,12 +136,26 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 		if (markerDecorations.update(markers)) {
 			this._onDidChangeMarker.fire(markerDecorations.model);
 		}
+		if (markerDecorations.updateExceededLimit(limitExceeded)) {
+			this._onDidChangeDecorationLimitExceeded.fire(markerDecorations.model);
+		}
 	}
 }
 
 class MarkerDecorations extends Disposable {
 
+	public static readonly MAX_MARKER_DECORATIONS_LIMIT = 5000;
+
 	private readonly _map = new BidirectionalMap<IMarker, /*decoration id*/string>();
+
+	private _limitExceeded: boolean = false;
+
+	/**
+	 * Return the maximum number of marker decorations allowed if the limit has been exceeded, otherwise undefined.
+	 */
+	public get markerLimitExceeded(): number | undefined {
+		return this._limitExceeded ? MarkerDecorations.MAX_MARKER_DECORATIONS_LIMIT : undefined;
+	}
 
 	constructor(
 		readonly model: ITextModel
@@ -169,6 +193,14 @@ class MarkerDecorations extends Disposable {
 		for (let index = 0; index < ids.length; index++) {
 			this._map.set(added[index], ids[index]);
 		}
+		return true;
+	}
+
+	public updateExceededLimit(exceededLimit: boolean): boolean {
+		if (this._limitExceeded === exceededLimit) {
+			return false;
+		}
+		this._limitExceeded = exceededLimit;
 		return true;
 	}
 
