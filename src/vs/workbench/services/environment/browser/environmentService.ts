@@ -42,11 +42,14 @@ export interface IBrowserWorkbenchEnvironmentService extends IWorkbenchEnvironme
 	 * Gets whether a resolver extension is expected for the environment.
 	 */
 	readonly expectsResolverExtension: boolean;
+
 }
 
 export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvironmentService {
 
 	declare readonly _serviceBrand: undefined;
+
+	readonly isCustomUserDataDir = false;
 
 	@memoize
 	get remoteAuthority(): string | undefined { return this.options.remoteAuthority; }
