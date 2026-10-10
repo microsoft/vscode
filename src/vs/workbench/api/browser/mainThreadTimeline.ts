@@ -5,6 +5,7 @@
 
 import { Emitter } from '../../../base/common/event.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
+import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../../platform/log/common/log.js';
 import { MainContext, MainThreadTimelineShape, ExtHostTimelineShape, ExtHostContext } from '../common/extHost.protocol.js';
@@ -13,15 +14,16 @@ import { TimelineChangeEvent, TimelineOptions, TimelineProviderDescriptor, ITime
 import { revive } from '../../../base/common/marshalling.js';
 
 @extHostNamedCustomer(MainContext.MainThreadTimeline)
-export class MainThreadTimeline implements MainThreadTimelineShape {
+export class MainThreadTimeline extends Disposable implements MainThreadTimelineShape {
 	private readonly _proxy: ExtHostTimelineShape;
-	private readonly _providerEmitters = new Map<string, Emitter<TimelineChangeEvent>>();
+	private readonly _providerEmitters = this._register(new DisposableMap<string, Emitter<TimelineChangeEvent>>());
 
 	constructor(
 		context: IExtHostContext,
 		@ILogService private readonly logService: ILogService,
 		@ITimelineService private readonly _timelineService: ITimelineService
 	) {
+		super();
 		this._proxy = context.getProxy(ExtHostContext.ExtHostTimeline);
 	}
 
@@ -44,8 +46,7 @@ export class MainThreadTimeline implements MainThreadTimelineShape {
 				return revive<Timeline>(await proxy.$getTimeline(provider.id, uri, options, token));
 			},
 			dispose() {
-				emitters.delete(provider.id);
-				onDidChange?.dispose();
+				emitters.deleteAndDispose(provider.id);
 			}
 		});
 	}
@@ -54,6 +55,7 @@ export class MainThreadTimeline implements MainThreadTimelineShape {
 		this.logService.trace(`MainThreadTimeline#unregisterTimelineProvider: id=${id}`);
 
 		this._timelineService.unregisterTimelineProvider(id);
+		this._providerEmitters.deleteAndDispose(id);
 	}
 
 	$emitTimelineChangeEvent(e: TimelineChangeEvent): void {
@@ -63,7 +65,10 @@ export class MainThreadTimeline implements MainThreadTimelineShape {
 		emitter?.fire(e);
 	}
 
-	dispose(): void {
-		// noop
+	override dispose(): void {
+		for (const id of this._providerEmitters.keys()) {
+			this.$unregisterTimelineProvider(id);
+		}
+		super.dispose();
 	}
 }
