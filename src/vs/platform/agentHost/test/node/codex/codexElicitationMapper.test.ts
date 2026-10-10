@@ -58,6 +58,20 @@ suite('codexElicitationMapper', () => {
 		});
 	});
 
+	test('user verification cannot be fulfilled by accepting an ordinary input request', () => {
+		const params: McpServerElicitationRequestParams = {
+			threadId: 't1', turnId: 'turn-1', serverName: 'srv', mode: 'openai/userVerification', _meta: null,
+			title: 'Verify', description: 'Verify your identity', challenge: 'verification-challenge',
+		};
+		assert.deepStrictEqual({
+			request: buildElicitationRequest('req-3', params),
+			response: elicitationResponseFromAnswers(params, ChatInputResponseKind.Accept, undefined),
+		}, {
+			request: undefined,
+			response: { action: 'decline', content: null, _meta: null },
+		});
+	});
+
 	test('elicitationResponseFromAnswers maps decline/cancel/accept', () => {
 		const accepted: Record<string, ChatInputAnswer> = {
 			name: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Text, value: 'Ada' } },

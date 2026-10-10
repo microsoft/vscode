@@ -4,6 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as l10n from '@vscode/l10n';
+import { safeIntl } from '../../../util/vs/base/common/date';
+import { language } from '../../../util/vs/base/common/platform';
+
+const integerCreditsFormatter = safeIntl.NumberFormat(language, { maximumFractionDigits: 0 });
+const fractionalCreditsFormatter = safeIntl.NumberFormat(language, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
 /**
  * Structured model info for building display details.
@@ -26,11 +31,13 @@ export function formatModelDetails(modelName: string, multiplier: number | undef
 }
 
 /**
- * Formats model details with credit usage for display.
+ * Formats model details with locale-aware credit usage for display.
  * Returns a localized string like "Model Name • 5 credits" or "Model Name • 1 credit".
  */
 export function formatModelDetailsWithCredits(modelName: string, creditsUsed: number): string {
-	const formatted = creditsUsed % 1 === 0 ? creditsUsed.toString() : creditsUsed.toFixed(1);
+	const formatted = creditsUsed % 1 === 0
+		? integerCreditsFormatter.value.format(creditsUsed === 0 ? 0 : creditsUsed)
+		: fractionalCreditsFormatter.value.format(Number(creditsUsed.toFixed(1)));
 	return creditsUsed === 1
 		? l10n.t('{0} \u2022 {1} credit', modelName, formatted)
 		: l10n.t('{0} \u2022 {1} credits', modelName, formatted);

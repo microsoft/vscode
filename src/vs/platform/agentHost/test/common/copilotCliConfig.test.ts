@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { CopilotCliConfigKey, copilotCliConfigSchema, normalizeModelFamilyAlias, normalizeToolSearchDeferThreshold, resolveModelCapabilityOverrideField, type CopilotCliModelCapabilityOverrides } from '../../common/copilotCliConfig.js';
+import { CopilotCliConfigKey, copilotCliConfigSchema, normalizeModelFamilyAlias, normalizeSkillCharBudget, normalizeToolSearchDeferThreshold, resolveModelCapabilityOverrideField, type CopilotCliModelCapabilityOverrides } from '../../common/copilotCliConfig.js';
 import { reasoningEffortLevels } from '../../common/reasoningEffort.js';
 
 suite('copilotCliConfig', () => {
@@ -24,6 +24,17 @@ suite('copilotCliConfig', () => {
 			[5.9, 0, -1, Number.NaN, Number.POSITIVE_INFINITY, undefined].map(normalizeToolSearchDeferThreshold),
 			[5, 0, 1, 1, 1, 1]
 		);
+	});
+
+	test('normalizeSkillCharBudget floors valid values and defaults invalid values', () => {
+		assert.deepStrictEqual(
+			[15_000.9, 1, 0.5, 0, -1, Number.NaN, Number.POSITIVE_INFINITY, undefined].map(normalizeSkillCharBudget),
+			[15_000, 1, 30_000, 30_000, 30_000, 30_000, 30_000, 30_000]
+		);
+	});
+
+	test('skill character budget schema defaults to 30000', () => {
+		assert.strictEqual(copilotCliConfigSchema.definition[CopilotCliConfigKey.SkillCharBudget].protocol.default, 30_000);
 	});
 
 	test('per-model reasoning effort schema uses the canonical effort levels', () => {

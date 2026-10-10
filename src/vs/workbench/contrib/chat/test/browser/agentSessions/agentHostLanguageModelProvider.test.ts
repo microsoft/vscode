@@ -9,7 +9,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { PolicyState, SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ILanguageModelChatMetadata } from '../../../common/languageModels.js';
 import { AgentHostLanguageModelProvider } from '../../../browser/agentSessions/agentHost/agentHostLanguageModelProvider.js';
 
@@ -23,6 +23,51 @@ suite('AgentHostLanguageModelProvider', () => {
 	function createProvider(): AgentHostLanguageModelProvider {
 		return store.add(new AgentHostLanguageModelProvider('agent-host-copilotcli', 'copilotcli'));
 	}
+
+	test('retains cloud-service models omitted from the host catalog across root updates', async () => {
+		const provider = createProvider();
+		provider.updateAdditionalModels([
+			{ ...makeModel('claude-sonnet-4.6'), configSchema: { type: 'object', properties: { reasoningEffort: { type: 'string', title: 'Effort', enum: ['low', 'high'] } } } },
+			makeModel('disabled'),
+		]);
+		provider.updateModels([makeModel('auto'), { ...makeModel('disabled'), policyState: PolicyState.Disabled }]);
+		const first = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+		provider.updateModels([makeModel('auto'), makeModel('host-only'), { ...makeModel('disabled'), policyState: PolicyState.Disabled }]);
+		const updated = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+		provider.updateAdditionalModels([]);
+		const cleared = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+		assert.deepStrictEqual({
+			first: first.map(model => model.metadata.id),
+			efforts: first[1].metadata.configurationSchema?.properties?.reasoningEffort.enum,
+			updated: updated.map(model => model.metadata.id),
+			cleared: cleared.map(model => model.metadata.id),
+		}, {
+			first: ['auto', 'claude-sonnet-4.6'], efforts: ['low', 'high'],
+			updated: ['auto', 'host-only', 'claude-sonnet-4.6'], cleared: ['auto', 'host-only'],
+		});
+	});
+
+	test('groups native autoTier without inventing a default or losing fast', async () => {
+		const provider = createProvider();
+		provider.updateModels([{
+			...makeModel('auto'),
+			configSchema: {
+				type: 'object', properties: {
+					autoTier: { type: 'string', title: 'Auto tier', enum: ['default', 'efficiency', 'balance', 'intelligence', 'fast'] },
+					contextTier: { type: 'string', title: 'Context', enum: ['default', 'long_context'] },
+				}
+			},
+		}]);
+		const [model] = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+		const properties = model.metadata.configurationSchema!.properties!;
+		assert.deepStrictEqual({
+			tier: { group: properties.autoTier.group, values: properties.autoTier.enum, default: properties.autoTier.default },
+			context: properties.contextTier.group,
+		}, {
+			tier: { group: 'navigation', values: ['default', 'efficiency', 'balance', 'intelligence', 'fast'], default: undefined },
+			context: 'tokens',
+		});
+	});
 
 	test('groups the Auto routing-profile picker where thinking level renders for other models', async () => {
 		const provider = createProvider();
@@ -138,7 +183,7 @@ suite('AgentHostLanguageModelProvider', () => {
 		);
 	});
 
-	test('renders the auto-mode discount as the Auto model detail (and a tooltip)', async () => {
+	test('renders the auto-mode discount as the Auto model detail, leaving it out of the tooltip', async () => {
 		const provider = createProvider();
 		provider.updateModels([makeModel('auto', { discountPercent: 10 }), makeModel('gpt-5')]);
 
@@ -147,12 +192,14 @@ suite('AgentHostLanguageModelProvider', () => {
 		const concrete = infos.find(m => m.metadata.id === 'gpt-5');
 
 		assert.strictEqual(auto?.metadata.detail, '10% discount');
-		assert.ok(auto?.metadata.tooltip?.includes('10% discount'), 'Auto tooltip should mention the discount');
-		assert.ok(auto?.metadata.tooltip?.includes('Learn More'), 'Auto tooltip should include the Learn More link');
+		assert.strictEqual(auto?.metadata.autoModelDiscountPercent, 10);
+		// The picker describes the discount from `autoModelDiscountPercent`, alongside Auto's tiers.
+		assert.strictEqual(auto?.metadata.tooltip, ILanguageModelChatMetadata.getAutoModelDescription());
 
 		// Concrete models get neither the discount detail nor the Auto tooltip.
 		assert.strictEqual(concrete?.metadata.detail, undefined);
 		assert.strictEqual(concrete?.metadata.tooltip, undefined);
+		assert.strictEqual(concrete?.metadata.autoModelDiscountPercent, undefined);
 	});
 
 	test('shows the Auto tooltip but no detail when there is no positive discount', async () => {
@@ -162,6 +209,7 @@ suite('AgentHostLanguageModelProvider', () => {
 		provider.updateModels([makeModel('auto')]);
 		let auto = (await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None)).find(m => m.metadata.id === 'auto');
 		assert.strictEqual(auto?.metadata.detail, undefined, 'absent discount → no detail');
+		assert.strictEqual(auto?.metadata.autoModelDiscountPercent, undefined);
 		assert.ok(auto?.metadata.tooltip && auto.metadata.tooltip.length > 0, 'Auto still has a tooltip');
 		assert.ok(!auto?.metadata.tooltip?.includes('discount'), 'no discount → tooltip omits the discount sentence');
 
@@ -169,6 +217,18 @@ suite('AgentHostLanguageModelProvider', () => {
 		provider.updateModels([makeModel('auto', { discountPercent: 0 })]);
 		auto = (await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None)).find(m => m.metadata.id === 'auto');
 		assert.strictEqual(auto?.metadata.detail, undefined, 'discountPercent 0 → no detail');
+		assert.strictEqual(auto?.metadata.autoModelDiscountPercent, undefined);
+	});
+
+	test('tags HydraFusion as a research preview and describes its routing', async () => {
+		const provider = createProvider();
+		provider.updateModels([makeModel('hydrafusion'), makeModel('gpt-5')]);
+
+		const infos = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+		assert.deepStrictEqual(infos.map(m => [m.metadata.id, m.metadata.detail, m.metadata.tooltip]), [
+			['hydrafusion', 'Research preview', 'HydraFusion routes the first eligible turn and may use multiple models. Premium usage varies with the selected route.'],
+			['gpt-5', undefined, undefined],
+		]);
 	});
 
 	test('carries picker category, price category, and promo from model metadata', async () => {
@@ -240,7 +300,7 @@ suite('AgentHostLanguageModelProvider', () => {
 	});
 
 	/** A catalogue stub standing in for the workbench's CAPI-backed Copilot models. */
-	function catalogue(models: readonly { id: string; maxInputTokens?: number; maxOutputTokens?: number; multiplierNumeric?: number; category?: string; contextSizes?: number[]; vendor?: string }[]) {
+	function catalogue(models: readonly { id: string; maxInputTokens?: number; maxOutputTokens?: number; maxContextWindowTokens?: number; multiplierNumeric?: number; category?: string; contextSizes?: number[]; vendor?: string }[]) {
 		const onDidChange = store.add(new Emitter<string>());
 		const byIdentifier = new Map<string, ILanguageModelChatMetadata>(models.map(model => [
 			`catalogue:${model.vendor ?? 'copilot'}:${model.id}`,
@@ -250,6 +310,7 @@ suite('AgentHostLanguageModelProvider', () => {
 				vendor: model.vendor ?? 'copilot',
 				maxInputTokens: model.maxInputTokens,
 				maxOutputTokens: model.maxOutputTokens,
+				maxContextWindowTokens: model.maxContextWindowTokens,
 				multiplierNumeric: model.multiplierNumeric,
 				category: model.category,
 				...(model.contextSizes ? {
@@ -317,15 +378,15 @@ suite('AgentHostLanguageModelProvider', () => {
 
 	test('fills token counts and pricing from the catalogue, but never over the host', async () => {
 		const { catalogue: known } = catalogue([
-			{ id: 'claude-opus-5', maxInputTokens: 264_000, maxOutputTokens: 64_000, multiplierNumeric: 5, category: 'powerful' },
-			{ id: 'host-wins', maxInputTokens: 111, multiplierNumeric: 9, category: 'lightweight' },
+			{ id: 'claude-opus-5', maxInputTokens: 264_000, maxOutputTokens: 64_000, maxContextWindowTokens: 300_000, multiplierNumeric: 5, category: 'powerful' },
+			{ id: 'host-wins', maxInputTokens: 111, maxContextWindowTokens: 1000, multiplierNumeric: 9, category: 'lightweight' },
 			// A model reached over a direct third-party transport must not take Copilot's prices.
 			{ id: 'claude-opus-5', vendor: 'anthropic', maxInputTokens: 999, multiplierNumeric: 42 },
 		]);
 		const provider = store.add(new AgentHostLanguageModelProvider('agent-host-copilot', 'copilot', known));
 		provider.updateModels([
 			{ ...makeModel('claude-opus-5'), provider: 'copilot' },
-			{ ...makeModel('host-wins'), provider: 'copilot', maxPromptTokens: 222, _meta: { multiplierNumeric: 1, category: 'versatile' } },
+			{ ...makeModel('host-wins'), provider: 'copilot', maxPromptTokens: 222, maxContextWindow: 250, _meta: { multiplierNumeric: 1, category: 'versatile' } },
 			{ ...makeModel('claude-opus-5'), provider: 'anthropic', _meta: { modelGroupId: 'anthropic' } },
 		]);
 
@@ -335,13 +396,14 @@ suite('AgentHostLanguageModelProvider', () => {
 				group: info.metadata.modelGroup?.id,
 				maxInputTokens: info.metadata.maxInputTokens,
 				maxOutputTokens: info.metadata.maxOutputTokens,
+				maxContextWindowTokens: info.metadata.maxContextWindowTokens,
 				multiplierNumeric: info.metadata.multiplierNumeric,
 				category: info.metadata.category,
 			})),
 			[
-				{ group: 'copilot', maxInputTokens: 264_000, maxOutputTokens: 64_000, multiplierNumeric: 5, category: 'powerful' },
-				{ group: 'copilot', maxInputTokens: 222, maxOutputTokens: 0, multiplierNumeric: 1, category: 'versatile' },
-				{ group: 'anthropic', maxInputTokens: 0, maxOutputTokens: 0, multiplierNumeric: undefined, category: undefined },
+				{ group: 'copilot', maxInputTokens: 264_000, maxOutputTokens: 64_000, maxContextWindowTokens: 300_000, multiplierNumeric: 5, category: 'powerful' },
+				{ group: 'copilot', maxInputTokens: 222, maxOutputTokens: 0, maxContextWindowTokens: 250, multiplierNumeric: 1, category: 'versatile' },
+				{ group: 'anthropic', maxInputTokens: 0, maxOutputTokens: 0, maxContextWindowTokens: undefined, multiplierNumeric: undefined, category: undefined },
 			]
 		);
 	});
@@ -366,6 +428,36 @@ suite('AgentHostLanguageModelProvider', () => {
 			// Every catalogue change republishes: a price refresh that leaves ids and windows
 			// untouched still has to reach the picker.
 			{ afterOwnVendor: 0, afterCatalogue: 1, afterSecondCatalogueChange: 2 }
+		);
+	});
+
+	test('derives missing input limits from the host window without overriding explicit limits', async () => {
+		const { catalogue: known } = catalogue([
+			{ id: 'total-window', maxInputTokens: 200_000, maxOutputTokens: 8_000 },
+		]);
+		const provider = store.add(new AgentHostLanguageModelProvider('agent-host-copilot', 'agent-host-copilot', known));
+		provider.updateModels([
+			{ ...makeModel('total-window'), provider: 'copilot', maxContextWindow: 108_000 },
+			{ ...makeModel('explicit-limits'), maxContextWindow: 108_000, maxPromptTokens: 50_000, maxOutputTokens: 8_000 },
+			{ ...makeModel('zero-input'), maxContextWindow: 108_000, maxPromptTokens: 0, maxOutputTokens: 8_000 },
+			{ ...makeModel('zero-window'), maxContextWindow: 0 },
+			makeModel('unknown-window'),
+		]);
+
+		const infos = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+		assert.deepStrictEqual(
+			infos.map(info => ({
+				id: info.metadata.id,
+				maxInputTokens: info.metadata.maxInputTokens,
+				maxOutputTokens: info.metadata.maxOutputTokens,
+			})),
+			[
+				{ id: 'total-window', maxInputTokens: 100_000, maxOutputTokens: 8_000 },
+				{ id: 'explicit-limits', maxInputTokens: 50_000, maxOutputTokens: 8_000 },
+				{ id: 'zero-input', maxInputTokens: 0, maxOutputTokens: 8_000 },
+				{ id: 'zero-window', maxInputTokens: 0, maxOutputTokens: 0 },
+				{ id: 'unknown-window', maxInputTokens: 0, maxOutputTokens: 0 },
+			]
 		);
 	});
 

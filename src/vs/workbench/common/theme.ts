@@ -105,7 +105,9 @@ export const TAB_BORDER = registerColor('tab.border', {
 	light: '#F3F3F3',
 	hcDark: contrastBorder,
 	hcLight: contrastBorder,
-}, localize('tabBorder', "Border to separate tabs from each other. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+}, localize('tabBorder', "Border around tabs. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+
+export const TAB_DIVIDER = registerColor('tab.divider', TAB_BORDER, localize('tabDivider', "Color of dividers between editor tabs."));
 
 export const TAB_LAST_PINNED_BORDER = registerColor('tab.lastPinnedBorder', {
 	dark: treeIndentGuidesStroke,
@@ -222,6 +224,8 @@ export const EDITOR_GROUP_HEADER_TABS_BACKGROUND = registerColor('editorGroupHea
 	hcDark: null,
 	hcLight: null
 }, localize('tabsContainerBackground', "Background color of the editor group title header when tabs are enabled. Editor groups are the containers of editors."));
+
+export const EDITOR_GROUP_HEADER_CONNECTED_TABS_BACKGROUND = registerColor('editorGroupHeader.connectedTabsBackground', EDITOR_GROUP_HEADER_TABS_BACKGROUND, localize('connectedTabsContainerBackground', "Background color of connected tabs in editor group title headers. Editor groups are the containers of editors."));
 
 export const EDITOR_GROUP_HEADER_TABS_BORDER = registerColor('editorGroupHeader.tabsBorder', null, localize('tabsContainerBorder', "Border color of the editor group title header when tabs are enabled. Editor groups are the containers of editors."));
 

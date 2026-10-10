@@ -184,6 +184,23 @@ export enum EditorOpenSource {
 	USER
 }
 
+/**
+ * An editor column or symbolic placement relative to the active editor.
+ */
+export enum ViewColumn {
+	Active = -1,
+	Beside = -2,
+	One = 1,
+	Two = 2,
+	Three = 3,
+	Four = 4,
+	Five = 5,
+	Six = 6,
+	Seven = 7,
+	Eight = 8,
+	Nine = 9
+}
+
 export interface IEditorOptions {
 
 	/**
@@ -392,6 +409,11 @@ export interface IModalEditorOptions {
 	 * for editors that provide their own header chrome.
 	 */
 	readonly compactHeader?: boolean;
+
+	/**
+	 * Whether the modal editor can be moved into an editor area.
+	 */
+	readonly canMoveToEditorArea?: boolean;
 }
 
 /**
@@ -404,6 +426,10 @@ export interface IModalEditorOptionsProvider {
 
 export function isModalEditorOptionsProvider(obj: unknown): obj is IModalEditorOptionsProvider {
 	return !!obj && typeof (obj as IModalEditorOptionsProvider).getModalEditorOptions === 'function';
+}
+
+export function canMoveModalEditorToEditorArea(obj: unknown): boolean {
+	return !isModalEditorOptionsProvider(obj) || obj.getModalEditorOptions()?.canMoveToEditorArea !== false;
 }
 
 /**

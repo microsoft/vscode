@@ -14,7 +14,8 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
+import { IMcpServerConfiguration, McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
+import { toCopilotMcpServerConfiguration } from '../../../mcp/common/mcpCopilotConfiguration.js';
 import { toSdkInstructionDirectories, toSdkMcpServers, toSdkCustomAgents, toSdkSessionCustomAgents, toSdkSkillDirectories, parsedPluginsEqual, toSdkHooks, type IPluginAgentsForSdk } from '../../node/copilot/copilotPluginConverters.js';
 import { PluginFormat, type IMcpServerDefinition, type INamedPluginResource, type IParsedHookGroup, type IParsedPlugin, type IParsedSkill } from '../../../agentPlugins/common/pluginParsers.js';
 import { CustomizationType, McpServerStatus, type HookCustomization, type McpServerCustomization, type SkillCustomization } from '../../common/state/protocol/state.js';
@@ -45,6 +46,18 @@ suite('copilotPluginConverters', () => {
 	// ---- toSdkMcpServers ------------------------------------------------
 
 	suite('toSdkMcpServers', () => {
+
+		test('matches persistent Copilot configuration conversion', () => {
+			const configurations: IMcpServerConfiguration[] = [
+				{ type: McpServerType.LOCAL, command: 'node', args: ['server.js'], cwd: '/workspace', env: { PORT: 3000, OMIT: null, TOKEN: '$TOKEN' } },
+				{ type: McpServerType.REMOTE, url: 'https://example.com/mcp', headers: { Authorization: '$TOKEN' }, oauth: { clientId: 'client' } },
+				{ type: McpServerType.REMOTE, transport: 'sse', url: 'https://example.com/sse' },
+			];
+			const defs = configurations.map((configuration, index): IMcpServerDefinition => ({
+				name: String(index), uri: URI.file('/plugin'), configuration, customization: stubMcpCustomization(String(index)),
+			}));
+			assert.deepStrictEqual(toSdkMcpServers(defs), Object.fromEntries(defs.map(def => [def.name, toCopilotMcpServerConfiguration(def.configuration)])));
+		});
 
 		test('converts local server definitions', () => {
 			const defs: IMcpServerDefinition[] = [{

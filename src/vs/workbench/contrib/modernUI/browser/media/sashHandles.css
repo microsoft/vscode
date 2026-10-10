@@ -11,9 +11,9 @@
  * the next begins. Sashes are invisible until hovered, so the resize boundary
  * is hard to find. This module gives every inter-panel sash a persistent,
  * low-contrast grip — three small dots — so users can see where parts meet and
- * where to grab to resize. The grip is suppressed for sashes within a part
- * (editor splits, tree/view resizers) so only the boundaries between top-level
- * parts are marked. On hover/active the grip fades out in favour of the
+ * where to grab to resize. The grip is suppressed for modal editors and sashes
+ * within a part (editor splits, tree/view resizers) so only the boundaries
+ * between top-level parts are marked. On hover/active the grip fades out in favour of the
  * existing full-length highlight (see base sash.css), so behaviour while
  * dragging is unchanged.
  *
@@ -70,9 +70,9 @@
 	content: none;
 }
 
-/* Only mark boundaries between top-level parts. Sashes inside a part (editor
- * splits, tree/view resizers) live within `.part`, so suppress their grip. */
-.modern-ui .part .monaco-sash::after {
+/* Keep grips on top-level part boundaries, not modal frames or nested resizers. */
+.modern-ui .part .monaco-sash::after,
+.modern-ui .monaco-modal-editor-block .monaco-sash::after {
 	content: none;
 }
 

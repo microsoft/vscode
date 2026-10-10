@@ -14,6 +14,7 @@ use crate::util::errors::{
 use crate::util::input::prompt_placeholder;
 use futures::future::BoxFuture;
 use futures::{FutureExt, TryFutureExt};
+use http::header::{HeaderName, HeaderValue};
 use http::StatusCode;
 use rand::prelude::IteratorRandom;
 use regex::Regex;
@@ -30,12 +31,73 @@ use tunnels::contracts::{
 	TUNNEL_ACCESS_SCOPES_CONNECT, TUNNEL_PROTOCOL_AUTO,
 };
 use tunnels::management::{
-	new_tunnel_management, HttpError, TunnelLocator, TunnelManagementClient, TunnelRequestOptions,
-	NO_REQUEST_OPTIONS,
+	new_tunnel_management, HttpError, TunnelClientBuilder, TunnelLocator, TunnelManagementClient,
+	TunnelRequestOptions, NO_REQUEST_OPTIONS,
 };
 
 static TUNNEL_COUNT_LIMIT_NAME: &str = "TunnelsPerUserPerLocation";
 static TUNNEL_PORT_PROTOCOL_CONFLICT_DETAIL: &str = "The tunnel port protocol cannot be changed.";
+static TUNNEL_SESSION_ID: LazyLock<uuid::Uuid> = LazyLock::new(uuid::Uuid::new_v4);
+
+fn tunnel_correlation_id(
+	log: &log::Logger,
+	name: &str,
+	value: Result<String, std::env::VarError>,
+	fallback: uuid::Uuid,
+) -> HeaderValue {
+	let fallback = HeaderValue::from_str(&fallback.to_string()).unwrap();
+	match value {
+		Ok(value) if !value.is_empty() => match HeaderValue::from_str(&value) {
+			Ok(id) => id,
+			Err(error) => {
+				warning!(log, "Invalid {}: {}", name, error);
+				fallback
+			}
+		},
+		Ok(_) => {
+			warning!(log, "Invalid {}: empty correlation ID", name);
+			fallback
+		}
+		Err(std::env::VarError::NotPresent) => fallback,
+		Err(error) => {
+			warning!(log, "Invalid {}: {}", name, error);
+			fallback
+		}
+	}
+}
+
+fn tunnel_management_client(log: &log::Logger) -> TunnelClientBuilder {
+	let session_id = tunnel_correlation_id(
+		log,
+		"VSCODE_TUNNEL_SESSION_ID",
+		std::env::var("VSCODE_TUNNEL_SESSION_ID"),
+		*TUNNEL_SESSION_ID,
+	);
+	let operation_id = tunnel_correlation_id(
+		log,
+		"VSCODE_TUNNEL_OPERATION_ID",
+		std::env::var("VSCODE_TUNNEL_OPERATION_ID"),
+		uuid::Uuid::new_v4(),
+	);
+	let mut client = new_tunnel_management(&TUNNEL_SERVICE_USER_AGENT);
+	client.additional_headers(vec![
+		(
+			HeaderName::from_static("x-tunnels-vscode-session-id"),
+			session_id,
+		),
+		(
+			HeaderName::from_static("x-tunnels-vscode-client-operation-id"),
+			operation_id,
+		),
+	]);
+	client.additional_headers_provider(|| {
+		vec![(
+			HeaderName::from_static("x-tunnels-vscode-client-request-id"),
+			HeaderValue::from_str(&uuid::Uuid::new_v4().to_string()).unwrap(),
+		)]
+	});
+	client
+}
 
 #[allow(dead_code)]
 mod tunnel_flags {
@@ -329,7 +391,7 @@ impl DevTunnels {
 		auth: auth::Auth,
 		paths: &LauncherPaths,
 	) -> DevTunnels {
-		let mut client = new_tunnel_management(&TUNNEL_SERVICE_USER_AGENT);
+		let mut client = tunnel_management_client(log);
 		client.authorization_provider(auth.clone());
 
 		DevTunnels {
@@ -347,7 +409,7 @@ impl DevTunnels {
 		auth: auth::Auth,
 		paths: &LauncherPaths,
 	) -> DevTunnels {
-		let mut client = new_tunnel_management(&TUNNEL_SERVICE_USER_AGENT);
+		let mut client = tunnel_management_client(log);
 		client.authorization_provider(auth.clone());
 
 		DevTunnels {
@@ -1327,6 +1389,59 @@ fn tunnel_has_host_connection(tunnel: &Tunnel) -> bool {
 #[cfg(test)]
 mod test {
 	use super::*;
+
+	#[test]
+	fn test_tunnel_correlation_preserves_telemetry_session_id() {
+		let session_id = "7c86e247-3438-4f26-959d-061b3299f4de1791567000000";
+		assert_eq!(
+			tunnel_correlation_id(
+				&log::Logger::test(),
+				"VSCODE_TUNNEL_SESSION_ID",
+				Ok(session_id.to_string()),
+				uuid::Uuid::new_v4(),
+			),
+			HeaderValue::from_static(session_id),
+		);
+	}
+
+	#[test]
+	fn test_tunnel_correlation_rejects_invalid_header_values() {
+		let fallback = uuid::Uuid::new_v4();
+		for value in ["", "session\r\ninjected-header: value"] {
+			assert_eq!(
+				tunnel_correlation_id(
+					&log::Logger::test(),
+					"VSCODE_TUNNEL_SESSION_ID",
+					Ok(value.to_string()),
+					fallback,
+				),
+				HeaderValue::from_str(&fallback.to_string()).unwrap(),
+			);
+		}
+	}
+
+	#[test]
+	fn test_tunnel_request_correlation() {
+		let client: TunnelManagementClient = tunnel_management_client(&log::Logger::test()).into();
+		let first = client.request_headers();
+		let second = client.request_headers();
+		assert_eq!(
+			first
+				.iter()
+				.map(|(name, _)| name.as_str())
+				.collect::<Vec<_>>(),
+			vec![
+				"x-tunnels-vscode-session-id",
+				"x-tunnels-vscode-client-operation-id",
+				"x-tunnels-vscode-client-request-id",
+			]
+		);
+		for (_, value) in &first {
+			assert!(uuid::Uuid::parse_str(value.to_str().unwrap()).is_ok());
+		}
+		assert_eq!(&first[..2], &second[..2]);
+		assert_ne!(first[2].1, second[2].1);
+	}
 
 	#[test]
 	fn test_clean_hostname_for_tunnel() {
