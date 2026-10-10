@@ -9,7 +9,7 @@ import { Command, commands, Disposable, MessageOptions, Position, QuickPickItem,
 import TelemetryReporter from '@vscode/extension-telemetry';
 import type { CommitOptions, RemoteSourcePublisher, Remote, Branch, Ref } from './api/git';
 import { ForcePushMode, GitErrorCodes, RefType, Status } from './api/git.constants';
-import { Git, GitError, Repository as GitRepository, Stash, Worktree } from './git';
+import { Git, GitError, Repository as GitRepository, Stash, Worktree, parsePushRejectionReasons } from './git';
 import { Model } from './model';
 import { GitResourceGroup, Repository, Resource, ResourceGroupType } from './repository';
 import { DiffEditorSelectionHunkToolbarContext, LineChange, applyLineChanges, getIndexDiffInformation, getModifiedRange, getWorkingTreeDiffInformation, intersectDiffWithRange, invertLineChange, toLineChanges, toLineRanges, compareLineChanges } from './staging';
@@ -5598,9 +5598,19 @@ export class CommandCenter {
 					case GitErrorCodes.DirtyWorkTree:
 						message = l10n.t('Please clean your repository working tree before checkout.');
 						break;
-					case GitErrorCodes.PushRejected:
-						message = l10n.t('Can\'t push refs to remote. Try running "Pull" first to integrate your changes.');
+					case GitErrorCodes.PushRejected: {
+						const reasons = [...new Set(parsePushRejectionReasons(err.stderr || ''))];
+
+						if (reasons.length > 0) {
+							message = getSafeNotificationMessage(
+								l10n.t('Can\'t push refs to remote. The remote rejected the push: {0}', reasons.join(', ')),
+								l10n.t('Can\'t push refs to remote. The remote rejected the push.'),
+							);
+						} else {
+							message = l10n.t('Can\'t push refs to remote. Try running "Pull" first to integrate your changes.');
+						}
 						break;
+					}
 					case GitErrorCodes.ForcePushWithLeaseRejected:
 					case GitErrorCodes.ForcePushWithLeaseIfIncludesRejected:
 						message = l10n.t('Can\'t force push refs to remote. The tip of the remote-tracking branch has been updated since the last checkout. Try running "Pull" first to pull the latest changes from the remote branch first.');
