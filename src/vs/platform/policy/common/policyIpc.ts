@@ -8,7 +8,7 @@ import { Event } from '../../../base/common/event.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { PolicyName } from '../../../base/common/policy.js';
 import { IChannel, IServerChannel } from '../../../base/parts/ipc/common/ipc.js';
-import { AbstractPolicyService, IPolicyService, PolicyDefinition, PolicyValue } from './policy.js';
+import { AbstractPolicyService, IPolicyService, PolicyDefinition, PolicyValue, toSerializablePolicyDefinition } from './policy.js';
 
 
 export class PolicyChannel implements IServerChannel {
@@ -72,7 +72,8 @@ export class PolicyChannelClient extends AbstractPolicyService implements IPolic
 	}
 
 	protected async _updatePolicyDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<void> {
-		const result = await this.channel.call<{ [name: PolicyName]: PolicyValue }>('updatePolicyDefinitions', policyDefinitions);
+		const serializablePolicyDefinitions = Object.fromEntries(Object.entries(policyDefinitions).map(([name, definition]) => [name, toSerializablePolicyDefinition(definition)]));
+		const result = await this.channel.call<{ [name: PolicyName]: PolicyValue }>('updatePolicyDefinitions', serializablePolicyDefinitions);
 		for (const name in result) {
 			this.policies.set(name, result[name]);
 		}
