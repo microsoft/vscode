@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Uri, env, l10n, workspace } from 'vscode';
+import { Disposable, Uri, authentication, env, l10n, workspace } from 'vscode';
 import { RemoteSourceProvider, RemoteSource, RemoteSourceAction } from './typings/git-base.js';
 import { getOctokit } from './auth.js';
 import { Octokit } from '@octokit/rest';
@@ -29,13 +29,26 @@ function asRemoteSource(raw: RemoteSourceResponse): RemoteSource {
 	};
 }
 
-export class GithubRemoteSourceProvider implements RemoteSourceProvider {
+export class GithubRemoteSourceProvider implements RemoteSourceProvider, Disposable {
 
 	readonly name = 'GitHub';
 	readonly icon = 'github';
 	readonly supportsQuery = true;
 
+	private readonly disposables: Disposable[] = [];
 	private userReposCache: RemoteSource[] = [];
+
+	constructor() {
+		this.disposables.push(authentication.onDidChangeSessions(e => {
+			if (e.provider.id === 'github') {
+				this.userReposCache = [];
+			}
+		}));
+	}
+
+	dispose(): void {
+		this.disposables.forEach(d => d.dispose());
+	}
 
 	async getRemoteSources(query?: string): Promise<RemoteSource[]> {
 		const octokit = await getOctokit();
