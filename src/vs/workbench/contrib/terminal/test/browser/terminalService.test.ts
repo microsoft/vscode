@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { fail, strictEqual } from 'assert';
+import { deepStrictEqual, fail, strictEqual } from 'assert';
+import { DeferredPromise, disposableTimeout } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -193,6 +194,40 @@ suite('Workbench - TerminalService', () => {
 				dispose: () => onExitEmitter.fire(undefined)
 			} satisfies Partial<ITerminalInstance> as unknown as ITerminalInstance);
 		});
+		test('should settle when the process already exited before disposal', async () => {
+			// A failed task terminal is kept alive after its process exits, so disposing it fires onDisposed but never onExit again.
+			const onDisposedEmitter = store.add(new Emitter<ITerminalInstance>());
+			let disposeCount = 0;
+			const instance = {
+				target: TerminalLocation.Panel,
+				hasChildProcesses: false,
+				exitCode: 1,
+				isDisposed: false,
+				onExit: onExitEmitter.event,
+				onDisposed: onDisposedEmitter.event,
+				dispose: () => {
+					disposeCount++;
+					onDisposedEmitter.fire(instance);
+				}
+			} satisfies Partial<ITerminalInstance> as unknown as ITerminalInstance;
+
+			deepStrictEqual({
+				result: await settleWithin(terminalService.safeDisposeTerminal(instance)),
+				disposeCount
+			}, { result: 'settled', disposeCount: 1 });
+		});
+		test('should settle without waiting when the instance is already disposed', async () => {
+			// Disposing an already disposed instance is a no-op, so no exit or dispose event fires.
+			const instance = {
+				target: TerminalLocation.Panel,
+				hasChildProcesses: false,
+				isDisposed: true,
+				onExit: onExitEmitter.event,
+				dispose: () => { }
+			} satisfies Partial<ITerminalInstance> as unknown as ITerminalInstance;
+
+			strictEqual(await settleWithin(terminalService.safeDisposeTerminal(instance)), 'settled');
+		});
 	});
 
 	suite('persistent title and icon updates', () => {
@@ -237,6 +272,23 @@ async function setConfirmOnKill(configurationService: TestConfigurationService, 
 		affectsConfiguration: () => true,
 		affectedKeys: ['terminal.integrated.confirmOnKill']
 	} as unknown as IConfigurationChangeEvent);
+}
+
+/**
+ * Resolves to `'settled'` when the promise resolves within the grace period, otherwise `'pending'`.
+ * Used to assert that a promise settles rather than relying on a mocha timeout.
+ */
+async function settleWithin(promise: Promise<void>): Promise<'settled' | 'pending'> {
+	const onGracePeriodElapsed = new DeferredPromise<'pending'>();
+	const gracePeriod = disposableTimeout(() => onGracePeriodElapsed.complete('pending'), 250);
+	try {
+		return await Promise.race([
+			promise.then(() => 'settled' as const),
+			onGracePeriodElapsed.p
+		]);
+	} finally {
+		gracePeriod.dispose();
+	}
 }
 
 class TestPersistentTerminalBackend implements Partial<ITerminalBackend> {
