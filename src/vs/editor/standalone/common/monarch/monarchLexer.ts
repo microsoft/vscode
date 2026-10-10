@@ -439,14 +439,19 @@ export class MonarchTokenizer extends Disposable implements languages.ITokenizat
 		}));
 	}
 
-	public getLoadStatus(): ILoadStatus {
+	public getLoadStatus(visited: Set<string> = new Set<string>()): ILoadStatus {
+		if (visited.has(this._languageId)) {
+			return { loaded: true };
+		}
+		visited.add(this._languageId);
+
 		const promises: Thenable<any>[] = [];
 		for (const nestedLanguageId in this._embeddedLanguages) {
 			const tokenizationSupport = languages.TokenizationRegistry.get(nestedLanguageId);
 			if (tokenizationSupport) {
 				// The nested language is already loaded
 				if (tokenizationSupport instanceof MonarchTokenizer) {
-					const nestedModeStatus = tokenizationSupport.getLoadStatus();
+					const nestedModeStatus = tokenizationSupport.getLoadStatus(visited);
 					if (nestedModeStatus.loaded === false) {
 						promises.push(nestedModeStatus.promise);
 					}
