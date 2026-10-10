@@ -163,6 +163,7 @@
 		flex-direction: row;
 
 		.agent-sessions-container {
+			height: 100%;
 			border-right: 1px solid var(--vscode-panel-border);
 		}
 	}
@@ -171,6 +172,7 @@
 		flex-direction: row-reverse;
 
 		.agent-sessions-container {
+			height: 100%;
 			border-left: 1px solid var(--vscode-panel-border);
 		}
 	}
