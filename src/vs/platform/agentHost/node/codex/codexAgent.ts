@@ -3724,7 +3724,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			if (this._subagentsByThreadId.has(childThreadId)) {
 				continue;
 			}
-			const subSession = this._createSubagentSession(session, childThreadId);
+			const subSession = this._createSubagentSession(session, childThreadId, model);
 			this._subagentsByThreadId.set(childThreadId, {
 				parentSessionId: session.sessionId,
 				toolCallId: entry.toolCallId,
@@ -3753,7 +3753,18 @@ export class CodexAgent extends Disposable implements IAgent {
 	 * fresh map/turn state and approval registry so the child's events don't
 	 * collide with the parent's.
 	 */
-	private _createSubagentSession(parent: ICodexSession, childThreadId: string): ICodexSession {
+	private _createSubagentSession(parent: ICodexSession, childThreadId: string, childModelId?: string): ICodexSession {
+		let model = parent.model;
+		if (childModelId) {
+			// An explicit child model is a bare id from Codex. Carry the parent's effective provider, but do not inherit the parent model's config as the child's settings.
+			let modelProvider = CODEX_COPILOT_MODEL_PROVIDER;
+			if (parent.materializedModelProvider !== undefined) {
+				modelProvider = parent.materializedModelProvider;
+			} else if (parent.model) {
+				modelProvider = parseCodexModelSelection(parent.model).modelProvider;
+			}
+			model = { id: toCodexModelSelectionId(modelProvider, childModelId) };
+		}
 		const clientToolSet = new ActiveClientToolSet();
 		return {
 			sessionId: parent.sessionId,
@@ -3785,7 +3796,7 @@ export class CodexAgent extends Disposable implements IAgent {
 			materializedModelProvider: parent.materializedModelProvider,
 			hasNativeHistory: parent.hasNativeHistory,
 			firstTurnSent: true,
-			model: parent.model,
+			model,
 			agent: parent.agent,
 			customizationDirectory: undefined,
 			currentTurnId: undefined,
