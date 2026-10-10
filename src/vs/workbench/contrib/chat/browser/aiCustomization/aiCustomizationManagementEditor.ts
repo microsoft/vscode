@@ -3653,10 +3653,19 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 	/**
 	 * Reveals and selects the item backed by `uri` in the current section,
-	 * retrying while the list loads. MCP servers and plugins have no
-	 * URI-addressable rows, so selecting their section is the whole reveal.
+	 * retrying while the list loads.
 	 */
 	public async revealCustomizationByUri(uri: URI): Promise<void> {
+		if (this.selectedSection === AICustomizationManagementSection.Plugins) {
+			for (let attempt = 0; attempt < 10; attempt++) {
+				const revealed = await this.pluginListWidget?.revealAndSelectItemByUri(uri);
+				if (revealed) {
+					return;
+				}
+				await timeout(100);
+			}
+			return;
+		}
 		if (!this.isPromptsSection(this.selectedSection)) {
 			return;
 		}
@@ -3674,16 +3683,14 @@ export class AICustomizationManagementEditor extends EditorPane {
 	public async revealInstalledCustomization(target: IInstalledCustomizationTarget): Promise<void> {
 		this.selectSection(target.section);
 		await this.listWidgetSectionLoad;
-		if (this.isPromptsSection(target.section) && target.uri) {
+		if (target.uri && (this.isPromptsSection(target.section) || target.section === AICustomizationManagementSection.Plugins)) {
 			await this.revealCustomizationByUri(target.uri);
 			return;
 		}
 		for (let attempt = 0; attempt < 10; attempt++) {
-			const revealed = target.section === AICustomizationManagementSection.Plugins && target.uri
-				? await this.pluginListWidget?.revealAndSelectItemByUri(target.uri)
-				: target.section === AICustomizationManagementSection.McpServers
-					? this.mcpListWidget?.revealAndSelectServer(target.mcpServerId, target.name, target.mcpConnectorName)
-					: true;
+			const revealed = target.section === AICustomizationManagementSection.McpServers
+				? this.mcpListWidget?.revealAndSelectServer(target.mcpServerId, target.name, target.mcpConnectorName)
+				: true;
 			if (revealed !== false) {
 				return;
 			}

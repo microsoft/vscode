@@ -129,9 +129,10 @@ export class InstallFromSourceAction extends Action2 {
 				} else {
 					installed = true;
 					if (!options?.skipReveal) {
+						const revealUri = result.installedUri ?? (result.matchedPlugin ? pluginInstallService.getPluginInstallUri(result.matchedPlugin) : undefined);
 						await commandService.executeCommand(AICustomizationManagementCommands.OpenEditor, {
 							section: AICustomizationManagementSection.Plugins,
-							revealUri: result.matchedPlugin?.uri,
+							revealUri,
 						});
 					}
 					store.dispose();
