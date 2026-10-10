@@ -169,7 +169,7 @@ suite('AcpAgent', () => {
 
 	test('explains authentication errors with the agent auth methods', async () => {
 		agentProcess.handlers.set('initialize', () => ({ protocolVersion: 1, authMethods: [{ id: 'login', name: 'Login', description: 'Run `opencode auth login`' }] }));
-		agentProcess.handlers.set('session/new', () => { throw { code: -32000, message: 'Authentication required' }; });
+		agentProcess.handlers.set('session/new', () => { throw Object.assign(new Error('Authentication required'), { code: -32000 }); });
 		await assert.rejects(createChat(), /Qwen Code needs you to sign in: Run `opencode auth login`/);
 	});
 

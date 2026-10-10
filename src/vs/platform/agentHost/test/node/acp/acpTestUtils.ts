@@ -8,7 +8,14 @@ import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import type { IAcpTransport } from '../../../node/acp/acpClient.js';
 
-type RequestHandler = (params: any, agent: FakeAcpAgentProcess) => unknown | Promise<unknown>;
+/** Params of a client request, loosely typed for scripted handlers. */
+export interface IFakeRequestParams {
+	readonly [key: string]: unknown;
+	readonly sessionId: string;
+	readonly value: string;
+}
+
+type RequestHandler = (params: IFakeRequestParams, agent: FakeAcpAgentProcess) => unknown | Promise<unknown>;
 
 /**
  * In-memory ACP agent process. Answers client requests with scripted
@@ -54,7 +61,7 @@ export class FakeAcpAgentProcess {
 	}
 
 	/** Resolves with the params of the oldest unclaimed client message with `method`, waiting if none arrived yet. */
-	nextMessage(method: string): Promise<any> {
+	nextMessage(method: string): Promise<unknown> {
 		const index = this._unclaimed.findIndex(m => m.method === method);
 		if (index >= 0) {
 			return Promise.resolve(this._unclaimed.splice(index, 1)[0].params);
@@ -69,7 +76,7 @@ export class FakeAcpAgentProcess {
 	}
 
 	/** Sends a request to the client and resolves with its result (or the error envelope). */
-	request(method: string, params: unknown): Promise<any> {
+	request(method: string, params: unknown): Promise<unknown> {
 		const id = `agent-${this._nextId++}`;
 		const deferred = new DeferredPromise<unknown>();
 		this._pendingClientReplies.set(id, deferred);
@@ -135,7 +142,7 @@ export class FakeAcpAgentProcess {
 			return;
 		}
 		try {
-			this._write({ jsonrpc: '2.0', id: msg.id, result: (await handler(msg.params, this)) ?? null });
+			this._write({ jsonrpc: '2.0', id: msg.id, result: (await handler(msg.params as IFakeRequestParams, this)) ?? null });
 		} catch (error) {
 			const err = error as { code?: number; message?: string };
 			this._write({ jsonrpc: '2.0', id: msg.id, error: { code: err.code ?? -32603, message: err.message ?? String(error) } });

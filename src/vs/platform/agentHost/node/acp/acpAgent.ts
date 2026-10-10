@@ -9,6 +9,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { observableValue, type IObservable, type ISettableObservable } from '../../../../base/common/observable.js';
 import { basename } from '../../../../base/common/path.js';
+import { hasKey } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ILogService } from '../../../log/common/log.js';
@@ -550,7 +551,7 @@ export function modelsFromConfigOptions(provider: string, options: readonly IAcp
 	const option = options.find(o => o.category === 'model' && o.type === 'select');
 	const models: IAgentModelInfo[] = [];
 	for (const entry of option?.options ?? []) {
-		const choices = 'options' in entry ? entry.options : [entry];
+		const choices = hasKey(entry, { options: true }) ? entry.options : [entry];
 		for (const choice of choices) {
 			models.push({ provider, id: choice.value, name: choice.name, supportsVision: false });
 		}
