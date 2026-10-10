@@ -308,7 +308,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 			this.initializeShowRefreshAction();
 		});
 
-		this.treeViewDnd = this.instantiationService.createInstance(CustomTreeViewDragAndDrop, this.id);
+		this.treeViewDnd = this._register(this.instantiationService.createInstance(CustomTreeViewDragAndDrop, this.id));
 		if (this._dragAndDropController) {
 			this.treeViewDnd.controller = this._dragAndDropController;
 		}

@@ -136,9 +136,11 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 	public async $disposeTree(treeViewId: string): Promise<void> {
 		const viewer = this.getTreeView(treeViewId);
 		if (viewer) {
+			viewer.dragAndDropController = undefined;
 			viewer.dataProvider = undefined;
 		}
 
+		this._dndControllers.delete(treeViewId);
 		this._dataProviders.deleteAndDispose(treeViewId);
 	}
 
@@ -218,6 +220,7 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		for (const dataprovider of this._dataProviders) {
 			const treeView = this.getTreeView(dataprovider[0]);
 			if (treeView) {
+				treeView.dragAndDropController = undefined;
 				treeView.dataProvider = undefined;
 			}
 		}
