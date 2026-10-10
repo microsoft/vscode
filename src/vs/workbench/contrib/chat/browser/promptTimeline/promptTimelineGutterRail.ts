@@ -11,7 +11,7 @@ import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 import { MIN_HOST_WIDTH } from './promptTimelineLayout.js';
-import { PromptDiffStat, PromptFileDiff, PromptTick, IPromptScrollLayout } from './promptTimelineModel.js';
+import { PromptDiffStat, PromptFileDiff, PromptTick, IPromptScrollLayout, promptTickEquals } from './promptTimelineModel.js';
 import { IPromptReviewFileEvent, IPromptTimelineRail } from './promptTimelineRail.js';
 import './media/promptTimeline.css';
 
@@ -409,7 +409,9 @@ export class PromptTimelineGutterRail extends Disposable implements IPromptTimel
 			const focusedCell = this._isLiveCell(doc.activeElement) ? doc.activeElement : undefined;
 			// Only the stats changed (streaming edits); update them in place so focus/hover are kept.
 			for (let i = 0; i < ticks.length; i++) {
-				this._renderRow(this._rows[i], ticks[i]);
+				if (!promptTickEquals(this._rows[i].tick, ticks[i])) {
+					this._renderRow(this._rows[i], ticks[i]);
+				}
 			}
 			// A prompt whose first edit just landed gains a diff button; re-apply the tab stops so it
 			// joins the roving order (and so a stop never lands on one that went away).
