@@ -2411,6 +2411,9 @@ export class McpListWidget extends Disposable {
 		this.visible = visible;
 		if (visible) {
 			this.updateMcpServerCompatibilityScope();
+			if (this.mcpAccessEnabled) {
+				this.activateMcpCollections();
+			}
 			void this.refresh();
 			if (this.isConnectorsEnabled()) {
 				void this.refreshConnectors();
@@ -2458,6 +2461,12 @@ export class McpListWidget extends Disposable {
 		}
 	}
 
+	private activateMcpCollections(): void {
+		void this.mcpService.activateCollections().catch(error => {
+			this.notificationService.error(localize('mcpCollectionActivationFailed', "Unable to load MCP servers: {0}", getErrorMessage(error)));
+		});
+	}
+
 	private updateAccessState(): void {
 		const inspect = this.configurationService.inspect<string>(mcpAccessConfig);
 		const value = inspect.value ?? inspect.defaultValue;
@@ -2498,7 +2507,9 @@ export class McpListWidget extends Disposable {
 				});
 			}
 		} else if (accessChanged && this.visible) {
-			if (this.searchQuery.trim() && !this.isGalleryDiscoveryEnabled()) {
+			this.activateMcpCollections();
+			if (this.searchQuery.trim() &&
+				!this.isGalleryDiscoveryEnabled()) {
 				void this.queryMcpSearch();
 			} else {
 				void this.refresh();
