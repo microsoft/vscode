@@ -1610,6 +1610,11 @@ export class SettingsEditor2 extends EditorPane {
 
 		resolvedSettingsRoot.children!.push(await createTocTreeForExtensionSettings(this.extensionService, extensionSettingsGroups, filter));
 
+		// Bail out if disposed while awaiting above; disposed services throw.
+		if (this._store.isDisposed) {
+			return;
+		}
+
 		resolvedSettingsRoot.children!.unshift(getCommonlyUsedData(groups));
 
 		if (toggleData && setAdditionalGroups) {
@@ -1930,6 +1935,11 @@ export class SettingsEditor2 extends EditorPane {
 			await this.onConfigUpdate();
 		}
 
+		// Bail out if disposed while awaiting above; disposed services throw.
+		if (this._store.isDisposed) {
+			return;
+		}
+
 		this.settingsTargetsWidget.updateLanguageFilterIndicators(this.viewState.languageFilter);
 
 		if (query && query !== '@') {
@@ -2148,8 +2158,8 @@ export class SettingsEditor2 extends EditorPane {
 		const result = await this._searchPreferencesModel(this.defaultSettingsEditorModel, searchProvider, token);
 		stopWatch.stop();
 
-		if (token.isCancellationRequested) {
-			// Handle cancellation like this because cancellation is lost inside the search provider due to async/await
+		if (token.isCancellationRequested || this._store.isDisposed) {
+			// Handle cancellation like this because cancellation is lost inside the search provider due to async/await.
 			return null;
 		}
 
