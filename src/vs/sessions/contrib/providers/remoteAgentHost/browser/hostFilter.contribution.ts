@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Emitter } from '../../../../../base/common/event.js';
 import { localize2 } from '../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
@@ -15,7 +15,6 @@ import { IsAuxiliaryWindowContext } from '../../../../../workbench/common/contex
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { IsNewChatSessionContext, IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
 import { Menus } from '../../../../browser/menus.js';
-import { IAgentHostFilterService } from '../../../../services/agentHostFilter/common/agentHostFilter.js';
 import { HostFilterActionViewItem } from './hostFilterActionViewItem.js';
 import { MobileHostFilterActionViewItem } from './mobileHostFilterActionViewItem.js';
 
@@ -79,12 +78,11 @@ registerAction2(class PickAgentHostFilterAction extends Action2 {
 	}
 });
 
-class AgentHostFilterContribution extends Disposable implements IWorkbenchContribution {
+export class AgentHostFilterContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'sessions.contrib.agentHostFilter';
 
 	constructor(
-		@IAgentHostFilterService filterService: IAgentHostFilterService,
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 	) {
 		super();
@@ -93,25 +91,23 @@ class AgentHostFilterContribution extends Disposable implements IWorkbenchContri
 		// this contribution registered. Without this, toolbars that
 		// already cached the default `MenuEntryActionViewItem` (which
 		// renders the action's title "Select Agent Host" with no icon)
-		// stay stale until the host list or discovery state changes.
-		// `onDidChangeDiscovering` covers the steady-state case once
-		// discovery starts/finishes; `registered` covers the cold-start
-		// race.
+		// need to pick up the custom view item once. Host and discovery
+		// updates are handled in-place by the view items; refreshing the
+		// toolbar for those updates disposes an open host picker.
 		const registered = this._register(new Emitter<void>());
-		const refreshSignal = Event.any(filterService.onDidChange, filterService.onDidChangeDiscovering, registered.event);
 
 		this._register(actionViewItemService.register(
 			Menus.SidebarAgentHost,
 			PICK_HOST_FILTER_ID,
 			(action, _options, instaService) => instaService.createInstance(HostFilterActionViewItem, action, 'sidebar'),
-			refreshSignal,
+			registered.event,
 		));
 
 		this._register(actionViewItemService.register(
 			Menus.MobileTitleBarCenter,
 			PICK_HOST_FILTER_ID,
 			(action, _options, instaService) => instaService.createInstance(MobileHostFilterActionViewItem, action),
-			refreshSignal,
+			registered.event,
 		));
 
 		// Fire the one-shot signal asynchronously so any toolbars that

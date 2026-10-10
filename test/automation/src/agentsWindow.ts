@@ -4,19 +4,46 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Code } from './code';
+import { acceptToolConfirmationIfPresent } from './chat';
+import { closeModelConfigDetails, IModelConfigSection, openModelConfigDetails, readModelConfigSections, selectModelConfigDetailsOption } from './modelConfigPicker';
 import { QuickAccess } from './quickaccess';
 
 const AGENTS_WORKBENCH = '.agent-sessions-workbench';
 const NEW_SESSION_VIEW = '.sessions-chat-widget .new-chat-widget-container';
 const SESSION_TYPE_PICKER = '.sessions-chat-session-type-picker .action-label';
 const SESSION_TYPE_PICKER_VISIBLE = `${SESSION_TYPE_PICKER}:not(.hidden)`;
+const WORKSPACE_PICKER = `${NEW_SESSION_VIEW} .sessions-workspace-picker-trigger > .action-label`;
+const WORKSPACE_PICKER_ROW = '.action-widget .sessions-new-chat-picker-list .monaco-list-row.action';
+const WORKSPACE_PICKER_DEV_CONTAINER_ROW = `${WORKSPACE_PICKER_ROW}:has(.action-list-submenu-indicator.has-submenu):not([aria-label="Remote"]):not([aria-label="Chat"])`;
+const WORKSPACE_PICKER_SUBMENU_ROW = '.action-list-submenu-panel .monaco-list-row.action';
 const NEW_CHAT_EDITOR = `${NEW_SESSION_VIEW} .sessions-chat-editor .monaco-editor[role="code"]`;
 const SEND_BUTTON_ENABLED = `${NEW_SESSION_VIEW} .sessions-chat-send-button .monaco-button:not(.disabled)`;
 const ACTIVE_SESSION = `${AGENTS_WORKBENCH} .session-view.is-active`;
 const ACTIVE_SESSION_INPUT_EDITOR = `${ACTIVE_SESSION} .interactive-session .interactive-input-part .monaco-editor[role="code"]`;
-const ACTIVE_SESSION_SEND_BUTTON_ENABLED = `${ACTIVE_SESSION} .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled) > .action-label.codicon-newline`;
+const ACTIVE_SESSION_SEND_BUTTON_ENABLED = `${ACTIVE_SESSION} .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled) > .action-label.codicon-arrow-up-compact`;
+const ACTIVE_SESSION_STOP_BUTTON_ENABLED = `${ACTIVE_SESSION} .interactive-session .chat-execute-toolbar .action-item:not(.disabled) > .action-label.codicon-stop-circle`;
 const RESPONSE = `${AGENTS_WORKBENCH} .interactive-item-container.interactive-response`;
 const SESSION_LIST_ROW = `${AGENTS_WORKBENCH} .sessions-list-control .monaco-list-row`;
+
+// The Agents Window active session input reuses the workbench `ChatInputPart`,
+// so its model picker renders the same `.model-picker-name` / `.model-picker-config`
+// buttons as the panel chat (see `test/automation/src/chat.ts`). Scope to the
+// active session view so we never touch the new-session homepage's picker.
+const ACTIVE_SESSION_MODEL_PICKER_NAME = `${ACTIVE_SESSION} .interactive-input-part .model-picker-name`;
+const ACTIVE_SESSION_MODEL_PICKER_CONFIG = `${ACTIVE_SESSION} .interactive-input-part .model-picker-config`;
+// The action widget popup (model list / config dropdown) is rendered at the
+// document body, not inside the chat view, so these selectors are unscoped.
+const ACTION_WIDGET = '.action-widget';
+const ACTION_WIDGET_ROW = '.action-widget .monaco-list-row.action';
+
+// Context-usage gauge in the active session's secondary toolbar. The inline
+// widget only renders a percentage; the absolute context-window denominator
+// lives in the click-through details popup (rendered in a body-level hover).
+const ACTIVE_SESSION_CONTEXT_USAGE = `${ACTIVE_SESSION} .chat-context-usage-widget`;
+const CONTEXT_USAGE_DETAILS = '.chat-context-usage-details';
+// The token-count label is the unclassed `<span>` in `.quota-label` (the
+// sibling `span.quota-value` holds the percentage).
+const CONTEXT_USAGE_TOKEN_LABEL = `${CONTEXT_USAGE_DETAILS} .quota-label span:not(.quota-value)`;
 
 export class AgentsWindow {
 
@@ -87,6 +114,249 @@ export class AgentsWindow {
 		await this.code.waitForElement(SESSION_TYPE_PICKER_VISIBLE, undefined, retryCount);
 	}
 
+	async waitForActiveSessionView(timeoutMs: number = 30_000): Promise<void> {
+		const retryCount = Math.ceil(timeoutMs / 100);
+		await this.code.waitForElement(NEW_SESSION_VIEW, result => !result, retryCount);
+		await this.code.waitForElement(ACTIVE_SESSION_INPUT_EDITOR, undefined, retryCount);
+	}
+
+	async waitForSessionPreparation(prompt: string): Promise<void> {
+		const page = this.code.driver.currentPage;
+		const progress = page.locator(`${ACTIVE_SESSION} .interactive-response .progress-container`).filter({ has: page.getByRole('button', { name: 'Show Log', exact: true }) });
+		await page.locator(`${ACTIVE_SESSION} .interactive-response`).getByText('Starting Dev Container', { exact: false }).waitFor({ state: 'visible', timeout: 30_000 });
+		await page.locator(`${ACTIVE_SESSION} .interactive-request .rendered-markdown`).getByText(prompt, { exact: true }).waitFor({ state: 'visible' });
+		await progress.getByRole('button', { name: 'Show Log', exact: true }).waitFor({ state: 'visible' });
+		if (await progress.locator('.xterm-screen').count()) {
+			throw new Error('Startup logs must remain in the output channel, not the transcript');
+		}
+		await page.locator(NEW_SESSION_VIEW).waitFor({ state: 'hidden' });
+		await page.locator(ACTIVE_SESSION_INPUT_EDITOR).waitFor({ state: 'visible' });
+		await page.locator(ACTIVE_SESSION_STOP_BUTTON_ENABLED).waitFor({ state: 'visible' });
+		await page.locator(`${ACTIVE_SESSION} .chat-input-toolbar[inert]`).waitFor({ state: 'visible' });
+		await page.locator(`${ACTIVE_SESSION} .chat-attachments-container[inert]`).waitFor({ state: 'attached' });
+		await page.waitForFunction(selector => !!document.querySelector(selector)?.closest('[inert]'), ACTIVE_SESSION_INPUT_EDITOR);
+		await page.locator(ACTIVE_SESSION_SEND_BUTTON_ENABLED).waitFor({ state: 'hidden' });
+	}
+
+	async showSessionPreparationLog(): Promise<void> {
+		const page = this.code.driver.currentPage;
+		await page.locator(`${ACTIVE_SESSION} .interactive-response`).getByRole('button', { name: 'Show Log', exact: true }).click();
+		await page.locator('.output-view .monaco-editor').waitFor({ state: 'visible' });
+		await this.code.waitForTextContent('.output-view .view-lines', undefined, text => /Starting Dev Container|Dev Containers|Start:/.test(text.replace(/\u00a0/g, ' ')));
+		await this.quickaccess.runCommand('workbench.action.closePanel');
+	}
+
+	async verifyInputEnabledAfterPreparation(): Promise<void> {
+		const page = this.code.driver.currentPage;
+		await page.waitForFunction(selector => {
+			const editor = document.querySelector(selector);
+			return editor && !editor.closest('[inert]') && !editor.classList.contains('readonly');
+		}, ACTIVE_SESSION_INPUT_EDITOR);
+		await page.locator(`${ACTIVE_SESSION} .chat-input-toolbar:not([inert])`).waitFor({ state: 'visible' });
+		await this.code.waitAndClick(ACTIVE_SESSION_INPUT_EDITOR);
+		await this.code.waitForTypeInEditor(this.activeSessionInputSelector, 'Follow-up after preparation');
+		await page.keyboard.press(process.platform === 'darwin' ? 'Meta+a' : 'Control+a');
+		await page.keyboard.press('Backspace');
+		await this.code.waitForTextContent(`${ACTIVE_SESSION_INPUT_EDITOR} .view-lines`, '', text => text.trim() === '');
+	}
+
+	async cancelSessionPreparation(originalPrompt: string): Promise<void> {
+		await this.code.waitAndClick(ACTIVE_SESSION_STOP_BUTTON_ENABLED);
+		await this.waitForNewSessionView();
+		await this.code.waitForTextContent(`${NEW_CHAT_EDITOR} .view-lines`, undefined, text => text.replace(/\u00a0/g, ' ') === originalPrompt);
+	}
+
+	async retrySessionPreparation(): Promise<void> {
+		await this.code.driver.currentPage.locator(SEND_BUTTON_ENABLED).click();
+		await this.code.driver.currentPage.locator(NEW_SESSION_VIEW).waitFor({ state: 'hidden' });
+	}
+
+	async connectSSHHost(options: { name: string; host: string; port: number; username: string; password: string; fingerprint: string }, workspacePath: string): Promise<void> {
+		const page = this.code.driver.currentPage;
+		await this.fillQuickInputAfterCommand('workbench.action.sessions.connectViaSSH', 'Connect via SSH', `${options.username}@${options.host}:${options.port}`, 120_000);
+		const authPicker = page.locator('.quick-input-widget:visible').filter({
+			has: page.locator('.quick-input-title', { hasText: 'Authentication Method' }),
+		});
+		await authPicker.getByText('Password', { exact: true }).waitFor();
+		// Draft initialization can move focus back to the composer while authentication is open.
+		await page.locator(NEW_CHAT_EDITOR).click();
+		await authPicker.getByText('Password', { exact: true }).click();
+		await this.fillQuickInput('SSH Password', options.password);
+		await this.fillQuickInput('Name Remote', options.name);
+		const trustDialog = page.locator('.monaco-dialog-box').filter({ hasText: 'The authenticity of host' });
+		await trustDialog.getByText(options.fingerprint, { exact: false }).waitFor({ timeout: 30_000 });
+		await trustDialog.getByRole('button', { name: 'Connect', exact: true }).click();
+		await this.selectRemoteFolder(options.name, workspacePath);
+	}
+
+	async connectTunnelHost(name: string, workspacePath: string): Promise<void> {
+		const page = this.code.driver.currentPage;
+		await this.quickaccess.runCommand('workbench.action.sessions.connectViaTunnel', { keepOpen: true });
+		await page.locator('.quick-input-widget:visible .quick-input-list .monaco-list-row').filter({
+			has: page.getByText(name, { exact: true }),
+		}).click({ timeout: 120_000 });
+		await this.selectRemoteFolder(name, workspacePath);
+	}
+
+	async connectWSLHost(distro: string, workspacePath: string): Promise<void> {
+		const page = this.code.driver.currentPage;
+		this.code.logger.log(`[agentsWindow] WSL connection: executing Connect via WSL for ${distro}`);
+		const distroPicker = page.locator('.quick-input-widget:visible').filter({ has: page.locator('.quick-input-title', { hasText: 'Connect via WSL' }) });
+		const folderPicker = page.locator('.quick-input-widget:visible').filter({ has: page.locator('.quick-input-title', { hasText: `Select Folder on ${distro}` }) });
+		await this.waitForQuickInputAfterCommand('workbench.action.sessions.connectViaWSL', () => distroPicker.or(folderPicker).first(), 120_000);
+		this.code.logger.log('[agentsWindow] WSL connection: command selected; distribution or folder picker opened');
+		if (await distroPicker.isVisible()) {
+			this.code.logger.log(`[agentsWindow] WSL connection: selecting distribution ${distro}`);
+			await distroPicker.locator('.quick-input-list .monaco-list-row').filter({
+				has: page.getByText(distro, { exact: true }),
+			}).click({ timeout: 30_000 });
+		}
+		this.code.logger.log(`[agentsWindow] WSL connection: selecting folder on ${distro}`);
+		await this.selectRemoteFolder(distro, workspacePath);
+		this.code.logger.log('[agentsWindow] WSL connection: folder selected');
+	}
+
+	async getRemoteConnectionDiagnostics(): Promise<string> {
+		return JSON.stringify(await this.code.driver.currentPage.evaluate(() => {
+			const activeElement = document.activeElement;
+			return {
+				windowFocused: document.hasFocus(),
+				activeElement: activeElement ? { tag: activeElement.tagName, id: activeElement.id, className: activeElement.getAttribute('class')?.slice(0, 500) } : undefined,
+				quickInputs: Array.from(document.querySelectorAll('.quick-input-widget')).filter(element => element.checkVisibility()).slice(0, 5).map(element => ({
+					title: element.querySelector('.quick-input-title')?.textContent?.slice(0, 500),
+					value: element.querySelector('input')?.value.slice(0, 500),
+					focusedRow: element.querySelector('.monaco-list-row.focused')?.textContent?.slice(0, 500),
+					rows: Array.from(element.querySelectorAll('.monaco-list-row')).slice(0, 10).map(row => row.textContent?.slice(0, 500)),
+				})),
+				notifications: Array.from(document.querySelectorAll('.notification-list-item')).slice(-10).map(element => ({
+					message: element.querySelector('.notification-list-item-message')?.textContent?.slice(0, 2000),
+					source: element.querySelector('.notification-list-item-source')?.textContent?.slice(0, 500),
+				})),
+				dialogs: Array.from(document.querySelectorAll('.monaco-dialog-box')).filter(element => element.checkVisibility()).slice(0, 5).map(element => element.textContent?.slice(0, 2000)),
+			};
+		}));
+	}
+
+	private async fillQuickInput(title: string, value: string): Promise<void> {
+		const page = this.code.driver.currentPage;
+		const widget = page.locator('.quick-input-widget:visible').filter({ has: page.locator('.quick-input-title', { hasText: title }) });
+		const input = widget.locator('.quick-input-box input');
+		await input.fill(value, { timeout: 30_000 });
+		await input.press('Enter');
+	}
+
+	private async fillQuickInputAfterCommand(commandId: string, title: string, value: string, timeoutMs: number): Promise<void> {
+		let lastError: unknown;
+		for (let attempt = 0; attempt < 2; attempt++) {
+			await this.quickaccess.runCommand(commandId, { keepOpen: true });
+			const page = this.code.driver.currentPage;
+			const widget = page.locator('.quick-input-widget:visible').filter({ has: page.locator('.quick-input-title', { hasText: title }) });
+			try {
+				await widget.waitFor({ timeout: timeoutMs });
+				const input = widget.locator('.quick-input-box input');
+				await input.fill(value, { timeout: timeoutMs });
+				await input.press('Enter');
+				return;
+			} catch (error) {
+				lastError = error;
+			}
+		}
+		throw lastError instanceof Error ? lastError : new Error(`Timed out waiting for quick input "${title}" after running ${commandId}`);
+	}
+
+	private async waitForQuickInputAfterCommand(commandId: string, getWidget: () => { waitFor: (options: { timeout: number }) => Promise<unknown> }, timeoutMs: number): Promise<void> {
+		let lastError: unknown;
+		for (let attempt = 0; attempt < 2; attempt++) {
+			await this.quickaccess.runCommand(commandId, { keepOpen: true });
+			const widget = getWidget();
+			try {
+				await widget.waitFor({ timeout: timeoutMs });
+				return;
+			} catch (error) {
+				lastError = error;
+			}
+		}
+		throw lastError instanceof Error ? lastError : new Error(`Timed out waiting for quick input after running ${commandId}`);
+	}
+
+	private async selectRemoteFolder(hostName: string, workspacePath: string): Promise<void> {
+		const page = this.code.driver.currentPage;
+		const widget = page.locator('.quick-input-widget:visible').filter({
+			has: page.locator('.quick-input-title', { hasText: `Select Folder on ${hostName}` }),
+		});
+		const input = widget.locator('.quick-input-box input');
+		await widget.locator('.quick-input-list .monaco-list-row').first().waitFor({ timeout: 30_000 });
+		await input.fill(workspacePath.replace(/\\/g, '/') + '/', { timeout: 120_000 });
+		await widget.getByText('.devcontainer', { exact: true }).waitFor({ timeout: 30_000 });
+		await widget.locator('.quick-input-progress[aria-hidden="true"]').waitFor({ state: 'attached', timeout: 30_000 });
+		await input.press('Enter');
+		await widget.waitFor({ state: 'hidden', timeout: 30_000 });
+		await page.locator(WORKSPACE_PICKER).filter({ hasText: hostName }).waitFor({ timeout: 30_000 });
+	}
+
+	async selectDevContainer(workspaceLabel?: string): Promise<void> {
+		const page = this.code.driver.currentPage;
+		const picker = page.locator(WORKSPACE_PICKER).first();
+		const devContainerRow = page.locator(WORKSPACE_PICKER_SUBMENU_ROW, { hasText: 'Use Dev Container' }).first();
+		const recentDevContainerRow = page.locator(WORKSPACE_PICKER_ROW).filter({
+			has: page.locator('.title', { hasText: / Dev Container$/ }),
+		}).first();
+		const deadline = Date.now() + 120_000;
+		let lastError: unknown;
+
+		while (Date.now() < deadline) {
+			if (await picker.getAttribute('aria-expanded') === 'true') {
+				await page.keyboard.press('Escape');
+			}
+			try {
+				await picker.click();
+				if (workspaceLabel) {
+					const remoteRow = page.locator('.action-widget .sessions-new-chat-picker-list .monaco-list-row.action[aria-label="Remote"]');
+					if (await remoteRow.isVisible()) {
+						await remoteRow.locator('.action-list-submenu-indicator.has-submenu').click();
+					}
+				}
+				const workspaceRow = workspaceLabel
+					? page.locator('.action-widget .monaco-list-row.action, .action-list-submenu-panel .monaco-list-row.action').filter({ has: page.getByText(workspaceLabel, { exact: true }) }).first()
+					: page.locator(WORKSPACE_PICKER_DEV_CONTAINER_ROW).first();
+				try {
+					await workspaceRow.waitFor({ state: 'visible', timeout: 5_000 });
+					await workspaceRow.locator('.action-list-submenu-indicator.has-submenu').click();
+					await devContainerRow.waitFor({ state: 'visible', timeout: 5_000 });
+					await devContainerRow.click();
+				} catch (error) {
+					if (workspaceLabel || !await recentDevContainerRow.isVisible()) {
+						throw error;
+					}
+					await recentDevContainerRow.click();
+				}
+				await page.waitForFunction(
+					selector => document.querySelector(selector)?.textContent?.includes('Dev Container') === true,
+					WORKSPACE_PICKER,
+					{ timeout: 15_000 },
+				);
+				return;
+			} catch (error) {
+				lastError = error;
+				if (await picker.getAttribute('aria-expanded') === 'true') {
+					await page.keyboard.press('Escape');
+				}
+				await new Promise(resolve => setTimeout(resolve, 500));
+			}
+		}
+		throw new Error(`Timed out selecting Use Dev Container from the workspace picker. Last error: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
+	}
+
+	private async isSessionTypeSelected(label: string): Promise<boolean> {
+		const picker = this.code.driver.currentPage.locator(SESSION_TYPE_PICKER_VISIBLE).first();
+		return ((await picker.textContent()) ?? '').trim().toLowerCase() === label.trim().toLowerCase();
+	}
+
+	private async isSessionTypePickerDisabled(): Promise<boolean> {
+		const picker = this.code.driver.currentPage.locator(SESSION_TYPE_PICKER_VISIBLE).first();
+		return await picker.getAttribute('aria-disabled') === 'true';
+	}
+
 	/**
 	 * Returns whether the given session type appears in the new-session picker.
 	 *
@@ -104,11 +374,24 @@ export class AgentsWindow {
 	async isSessionTypeAvailable(label: string, timeoutMs: number = 30_000): Promise<boolean> {
 		await this.code.waitForElement(SESSION_TYPE_PICKER_VISIBLE);
 
+		if (await this.isSessionTypeSelected(label)) {
+			return true;
+		}
+
 		const itemSel = `.action-widget .monaco-list-row`;
 		const needle = label.toLowerCase();
+		const isEnabledAction = (el: { className: string }) => el.className.includes('action') && !el.className.includes('option-disabled');
+		const actionLabelMatches = (el: { textContent: string; attributes: Record<string, string> }) => {
+			const ariaLabel = (el.attributes['aria-label'] ?? '').trim().toLowerCase();
+			return ariaLabel === needle || ariaLabel.startsWith(`${needle}, `) || (!ariaLabel && (el.textContent ?? '').trim().toLowerCase() === needle);
+		};
 		const deadline = Date.now() + timeoutMs;
 
 		while (Date.now() < deadline) {
+			if (await this.isSessionTypeSelected(label)) {
+				return true;
+			}
+
 			// (Re-)open the dropdown so its rows reflect the current provider set.
 			await this.code.waitAndClick(SESSION_TYPE_PICKER_VISIBLE);
 
@@ -116,8 +399,7 @@ export class AgentsWindow {
 			const openDeadline = Math.min(deadline, Date.now() + 2_000);
 			while (Date.now() < openDeadline) {
 				const items = await this.code.getElements(itemSel, /* recursive */ true);
-				const labels = (items ?? []).map(i => (i.textContent ?? '').trim());
-				if (labels.some(t => t.toLowerCase().includes(needle))) {
+				if ((items ?? []).some(item => isEnabledAction(item) && actionLabelMatches(item))) {
 					found = true;
 					break;
 				}
@@ -145,15 +427,56 @@ export class AgentsWindow {
 	 * The picker trigger is the `.action-label` inside
 	 * `.sessions-chat-session-type-picker`. Clicking it opens the action
 	 * widget popup; we then locate the matching `.monaco-list-row` by its
-	 * text content and click it. The dropdown is async-populated, so we
-	 * wait for at least the requested label to appear before committing.
+	 * text content and click it. When `options.providerLabel` is provided,
+	 * rows are scoped to that provider header when headers are present so
+	 * duplicate labels (for example two "Copilot" rows) pick the intended
+	 * provider. The dropdown is async-populated, so we wait for at least
+	 * the requested label to appear before committing.
 	 */
-	async selectSessionType(label: string): Promise<void> {
+	async selectSessionType(label: string, options?: { providerLabel?: string }): Promise<void> {
 		await this.code.waitForElement(SESSION_TYPE_PICKER_VISIBLE);
+
+		if (await this.isSessionTypeSelected(label) && (!options?.providerLabel || await this.isSessionTypePickerDisabled())) {
+			return;
+		}
 
 		const itemSel = `.action-widget .monaco-list-row`;
 		const maxAttempts = 3;
 		const needle = label.toLowerCase();
+		const providerNeedle = options?.providerLabel?.trim().toLowerCase();
+		const isActionRow = (el: { className: string }) => el.className.includes('action');
+		const isEnabledActionRow = (el: { className: string }) => isActionRow(el) && !el.className.includes('option-disabled');
+		const rowText = (el: { textContent: string }) => (el.textContent ?? '').trim().toLowerCase();
+		const actionLabelMatches = (el: { textContent: string; attributes: Record<string, string> }) => {
+			const ariaLabel = (el.attributes['aria-label'] ?? '').trim().toLowerCase();
+			return ariaLabel === needle || ariaLabel.startsWith(`${needle}, `) || (!ariaLabel && rowText(el) === needle);
+		};
+		type IPickerRow = { className: string; textContent: string; attributes: Record<string, string> };
+		const findMatchingActionIndex = (items: readonly IPickerRow[]): number => {
+			if (!providerNeedle) {
+				return items.findIndex(el => isEnabledActionRow(el) && actionLabelMatches(el));
+			}
+
+			const hasAnyProviderHeaders = items.some(el => !isActionRow(el) && rowText(el).length > 0);
+			const providerHeaderIndex = items.findIndex(el => !isActionRow(el) && rowText(el) === providerNeedle);
+			if (providerHeaderIndex >= 0) {
+				for (let i = providerHeaderIndex + 1; i < items.length; i++) {
+					const row = items[i];
+					if (!isActionRow(row)) {
+						if (rowText(row).length > 0) {
+							break;
+						}
+						continue;
+					}
+					if (isEnabledActionRow(row) && actionLabelMatches(row)) {
+						return i;
+					}
+				}
+				return -1;
+			}
+
+			return hasAnyProviderHeaders ? -1 : items.findIndex(el => isEnabledActionRow(el) && actionLabelMatches(el));
+		};
 
 		// The picker click can silently do nothing if the active session
 		// isn't fully initialized yet, and the dropdown is async-populated:
@@ -163,12 +486,16 @@ export class AgentsWindow {
 		// appears, instead of just waiting for "any item".
 		let lastSeen: string[] = [];
 		outer: for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+			if (await this.isSessionTypeSelected(label) && (!providerNeedle || await this.isSessionTypePickerDisabled())) {
+				return;
+			}
+
 			await this.code.waitAndClick(SESSION_TYPE_PICKER_VISIBLE);
 			const deadline = Date.now() + 10_000;
 			while (Date.now() < deadline) {
 				const items = await this.code.getElements(itemSel, /* recursive */ true);
 				lastSeen = (items ?? []).map(i => (i.textContent ?? '').trim());
-				if (lastSeen.some(t => t.toLowerCase().includes(needle))) {
+				if (findMatchingActionIndex(items ?? []) >= 0 || (!providerNeedle && (items ?? []).some(item => !isActionRow(item) && rowText(item) === needle))) {
 					break outer;
 				}
 				await new Promise(r => setTimeout(r, 250));
@@ -180,19 +507,17 @@ export class AgentsWindow {
 		}
 
 		const items = await this.code.waitForElements(itemSel, /* recursive */ true);
-		const isActionRow = (el: { className: string }) => el.className.includes('action');
-		const rowText = (el: { textContent: string }) => (el.textContent ?? '').trim().toLowerCase();
 
-		// Prefer an actionable row whose label matches directly (e.g. a
+		// Prefer an enabled actionable row whose label matches exactly (e.g. a
 		// session type label like "Claude" or "Copilot CLI").
-		let matchIndex = items.findIndex(el => isActionRow(el) && rowText(el).includes(needle));
+		let matchIndex = findMatchingActionIndex(items);
 		// Otherwise treat the label as a provider section header (e.g. "Local
 		// Agent Host"): headers are non-clickable rows rendered above their
 		// session types, so select the first actionable row beneath the header.
-		if (matchIndex < 0) {
-			const headerIndex = items.findIndex(el => !isActionRow(el) && rowText(el).includes(needle));
+		if (matchIndex < 0 && !providerNeedle) {
+			const headerIndex = items.findIndex(el => !isActionRow(el) && rowText(el) === needle);
 			if (headerIndex >= 0) {
-				matchIndex = items.findIndex((el, index) => index > headerIndex && isActionRow(el));
+				matchIndex = items.findIndex((el, index) => index > headerIndex && isEnabledActionRow(el));
 			}
 		}
 		if (matchIndex < 0) {
@@ -362,23 +687,45 @@ export class AgentsWindow {
 		let lastActiveTexts: string[] = [];
 		while (Date.now() < deadline) {
 			const rows = await this.code.getElements(SESSION_LIST_ROW, /* recursive */ true);
-			lastTexts = (rows ?? []).map(r => (r.textContent ?? '').trim());
-			const matchIndex = lastTexts.findIndex(t => !t.includes(workingStatus) && rowNeedles.some(n => t.toLowerCase().includes(n)));
-			if (matchIndex < 0) {
+			const renderedRows = rows ?? [];
+			lastTexts = renderedRows.map(r => (r.textContent ?? '').trim());
+			const renderedIndex = lastTexts.findIndex(t => !t.includes(workingStatus) && rowNeedles.some(n => t.toLowerCase().includes(n)));
+			if (renderedIndex < 0) {
 				await new Promise(r => setTimeout(r, 250));
 				continue;
 			}
 
+			// The list is virtualized, so a row's position among rendered DOM
+			// elements may differ from its absolute tree index.
+			const dataIndex = renderedRows[renderedIndex].attributes['data-index'];
+			if (dataIndex === undefined) {
+				throw new Error(`Matched session list row at rendered index ${renderedIndex} has no data-index attribute.`);
+			}
 			const summary = lastTexts.map((t, i) => `[${i}] ${JSON.stringify(t.slice(0, 120))}`).join('\n');
-			console.log(`[agentsWindow] activateSessionByLabel(${JSON.stringify(rowMatches)}) clicking index ${matchIndex}; all rows:\n${summary}`);
-			await this.code.waitAndClick(`${SESSION_LIST_ROW}[data-index="${matchIndex}"]`);
-			await this.code.waitForElement(ACTIVE_SESSION_INPUT_EDITOR, undefined, retryCount);
+			const rowSelector = `${SESSION_LIST_ROW}[data-index="${dataIndex}"]`;
+			console.log(`[agentsWindow] activateSessionByLabel(${JSON.stringify(rowMatches)}) clicking data-index ${dataIndex} (rendered index ${renderedIndex}); all rows:\n${summary}`);
+			try {
+				// data-index is assigned by the virtualized list and can change as
+				// sessions are inserted or retitled. Do not poll a stale selector:
+				// if the row moves before this short click completes, re-read the
+				// list and resolve its current index on the next outer iteration.
+				const rowText = await this.code.waitForTextContent(rowSelector, undefined, text => rowNeedles.some(n => text.toLowerCase().includes(n)), 20);
+				if (rowText.includes(workingStatus)) {
+					continue;
+				}
+				await this.code.driver.robustClick(`${rowSelector} .session-main`);
+				await this.code.waitForElement(ACTIVE_SESSION_INPUT_EDITOR, undefined, 20);
+			} catch {
+				await new Promise(r => setTimeout(r, 250));
+				continue;
+			}
 
 			// Wait until the active session view's chat widget actually shows a
 			// response matching `responseLabel`. A bare `is-active` check is not
 			// enough because the workbench may auto-create a fresh untitled
 			// session and route it into the active slot between row-render and click.
-			while (Date.now() < deadline) {
+			const activationDeadline = Math.min(deadline, Date.now() + 2_000);
+			while (Date.now() < activationDeadline) {
 				const responses = await this.code.getElements(activeResponseSelector, /* recursive */ true);
 				lastActiveTexts = (responses ?? []).map(el => (el.textContent ?? '').trim());
 				if (lastActiveTexts.some(t => t.toLowerCase().includes(responseNeedle))) {
@@ -386,13 +733,15 @@ export class AgentsWindow {
 				}
 				await new Promise(r => setTimeout(r, 250));
 			}
-			const activeSummary = lastActiveTexts.length
-				? lastActiveTexts.map((t, i) => `  [${i}] ${JSON.stringify(t.slice(0, 120))}`).join('\n')
-				: '  (no response bubbles in active session view)';
-			throw new Error(`Activated row index ${matchIndex} but the active session view never rendered a response containing "${responseLabel ?? rowMatches[0]}". Active view responses:\n${activeSummary}`);
+			// The index may have been recycled for another row while the click was
+			// dispatched. Re-resolve the desired row instead of failing immediately.
+			await new Promise(r => setTimeout(r, 250));
 		}
 		const summary = lastTexts.map((t, i) => `  [${i}] ${JSON.stringify(t.slice(0, 120))}`).join('\n');
-		throw new Error(`Timed out waiting for a settled session list row containing any of ${JSON.stringify(rowMatches)} (without "${workingStatus}"). Last-seen rows:\n${summary}`);
+		const activeSummary = lastActiveTexts.length
+			? lastActiveTexts.map((t, i) => `  [${i}] ${JSON.stringify(t.slice(0, 120))}`).join('\n')
+			: '  (no response bubbles in active session view)';
+		throw new Error(`Timed out activating a settled session list row containing any of ${JSON.stringify(rowMatches)} (without "${workingStatus}"). Last-seen rows:\n${summary}\nActive view responses:\n${activeSummary}`);
 	}
 
 	/**
@@ -408,7 +757,7 @@ export class AgentsWindow {
 	 * well after the content is on screen, so requiring `:not(.chat-response-loading)`
 	 * causes false-negative timeouts.
 	 */
-	async waitForAssistantText(predicate: RegExp | string, timeoutMs: number = 60_000): Promise<string> {
+	async waitForAssistantText(predicate: RegExp | string, timeoutMs: number = 60_000, options?: { acceptToolConfirmations?: boolean }): Promise<string> {
 		const retryCount = Math.ceil(timeoutMs / 100);
 		await this.code.waitForElement(RESPONSE, undefined, retryCount);
 
@@ -417,6 +766,12 @@ export class AgentsWindow {
 		const deadline = Date.now() + timeoutMs;
 		let lastTexts: string[] = [];
 		while (Date.now() < deadline) {
+			// When requested, accept any pending terminal tool confirmation so
+			// the agentic loop can proceed. No-op for sessions that
+			// auto-approve their shell commands.
+			if (options?.acceptToolConfirmations) {
+				await acceptToolConfirmationIfPresent(this.code);
+			}
 			// Look in BOTH the active session view and the broader workbench
 			// scope. The Agents Window can auto-swap the active slot to a
 			// fresh untitled session immediately after a follow-up commits,
@@ -514,6 +869,200 @@ export class AgentsWindow {
 		const elapsed = Date.now() - start;
 		if (elapsed < fallbackQuietMs) {
 			await new Promise(r => setTimeout(r, fallbackQuietMs - elapsed));
+		}
+	}
+
+	/**
+	 * Open the model picker in the active session input and select the model
+	 * whose displayed name contains `modelName`. Clicks the model-picker name
+	 * button to open the popup, types the name to narrow the list (a model may
+	 * otherwise be hidden in a collapsed "Other Models" section), clicks the
+	 * matching row, then waits for the popup to dismiss.
+	 *
+	 * The model list is populated asynchronously after the session activates, so
+	 * the row can be absent the first time the picker opens. A stale open picker
+	 * never gains new rows, so we re-open it on each attempt (dismissing with
+	 * Escape in between) and poll until the row appears or `timeoutMs` elapses —
+	 * mirroring {@link selectSessionType}.
+	 *
+	 * Mirrors {@link Chat.selectModel} but scoped to the Agents Window's active
+	 * session view rather than the panel chat.
+	 */
+	async selectModel(modelName: string, timeoutMs: number = 60_000): Promise<void> {
+		const page = this.code.driver.currentPage;
+		const row = page.locator(ACTION_WIDGET_ROW, { hasText: modelName }).first();
+		const deadline = Date.now() + timeoutMs;
+		let lastError: unknown;
+
+		while (Date.now() < deadline) {
+			try {
+				await page.locator(`${ACTIVE_SESSION_MODEL_PICKER_NAME}:visible`).first().click();
+				await this.code.waitForElement(ACTION_WIDGET);
+				// The picker opens with a focused filter input. Type the model name
+				// to narrow the list.
+				await page.keyboard.type(modelName);
+				await row.waitFor({ state: 'visible', timeout: 5_000 });
+				await row.click();
+				// Match the accessible name because narrow inputs collapse the picker to an icon-only button.
+				await page.locator(`${ACTIVE_SESSION_MODEL_PICKER_NAME}[aria-label*="${modelName}"]:visible`)
+					.first()
+					.waitFor({ state: 'visible', timeout: 15_000 });
+				return;
+			} catch (error) {
+				lastError = error;
+				// Dismiss the (possibly empty) dropdown so the next attempt re-opens a
+				// freshly-populated one.
+				try {
+					await page.keyboard.press('Escape');
+				} catch { /* dropdown already gone */ }
+				await new Promise(r => setTimeout(r, 500));
+			}
+		}
+		throw new Error(`Timed out selecting model "${modelName}" in the active session model picker. Last error: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
+	}
+
+	/**
+	 * Open the selected model's details page, which holds its configuration
+	 * (Thinking Effort / Context Size), by clicking the active session model
+	 * picker's configuration readout. The readout is only visible when the
+	 * selected model advertises configurable options, so this waits for it before
+	 * clicking.
+	 */
+	async openModelConfig(timeoutMs: number = 30_000): Promise<void> {
+		const page = this.code.driver.currentPage;
+
+		// A context-usage details hover from a prior `readContextUsageTokenLabel`
+		// can linger as a body-level overlay over the model-config readout; a forced
+		// click would then land on the popup instead of opening the picker. Park the
+		// pointer away and wait for the overlay to detach before clicking.
+		await this.dismissContextUsageDetails();
+
+		await openModelConfigDetails(page, page.locator(`${ACTIVE_SESSION_MODEL_PICKER_CONFIG}:visible`).first(), timeoutMs);
+	}
+
+	/**
+	 * Select the option labelled `label` on the open model details page, then wait
+	 * until the configuration readout shows it, which confirms the underlying async
+	 * configuration write resolved.
+	 */
+	async selectModelConfigOption(label: string, timeoutMs: number = 30_000): Promise<void> {
+		await selectModelConfigDetailsOption(this.code.driver.currentPage, ACTIVE_SESSION_MODEL_PICKER_CONFIG, label, remaining => this.openModelConfig(remaining), timeoutMs);
+	}
+
+	/**
+	 * Dismiss the open model details page.
+	 */
+	async closeModelConfig(): Promise<void> {
+		await closeModelConfigDetails(this.code.driver.currentPage, ACTIVE_SESSION_MODEL_PICKER_CONFIG);
+	}
+
+	/**
+	 * Return the active session's model-configuration readout label (the combined
+	 * "Effort · Context" summary, e.g. "High · 1M").
+	 *
+	 * The label is (re-)rendered when the selected model and its configuration
+	 * resolve, so this polls until it carries text rather than returning an empty
+	 * intermediate state.
+	 *
+	 * Mirrors {@link Chat.getModelConfigLabel} but scoped to the Agents Window's
+	 * active session view rather than the panel chat.
+	 */
+	async getModelConfigLabel(timeoutMs: number = 15_000): Promise<string> {
+		const page = this.code.driver.currentPage;
+		const button = page.locator(`${ACTIVE_SESSION_MODEL_PICKER_CONFIG}:visible`).first();
+		await button.waitFor({ state: 'visible', timeout: timeoutMs });
+		const deadline = Date.now() + timeoutMs;
+		let label = '';
+		while (Date.now() < deadline) {
+			label = ((await button.textContent()) ?? '').trim();
+			if (label) {
+				break;
+			}
+			await new Promise(r => setTimeout(r, 100));
+		}
+		return label;
+	}
+
+	/**
+	 * Return each setting of the open model details page and its options. Call
+	 * after {@link openModelConfig}.
+	 */
+	async getModelConfigSections(): Promise<IModelConfigSection[]> {
+		return readModelConfigSections(this.code.driver.currentPage);
+	}
+
+	/**
+	 * Open the context-usage details popup for the active session and return the
+	 * full "{used} / {total} tokens" label text. The inline gauge only renders a
+	 * percentage; the absolute context-window denominator lives in the details
+	 * hover (a body-level overlay).
+	 *
+	 * Reads via a *hover* rather than a click on purpose: clicking the gauge opens
+	 * a sticky, focus-trapping details hover that Escape cannot close and that
+	 * then overlaps — and wedges — the model-config button on the next operation.
+	 * The delayed (mouse) hover shows the same details and auto-hides once the
+	 * pointer leaves the gauge. The gauge stays hidden until a response carrying
+	 * token usage has rendered, so this waits for it first, then retries the
+	 * hover + read since the delayed hover can occasionally need a second attempt.
+	 * Moves the pointer off the gauge before returning so nothing lingers.
+	 */
+	async readContextUsageTokenLabel(timeoutMs: number = 30_000): Promise<string> {
+		const page = this.code.driver.currentPage;
+		const widget = page.locator(`${ACTIVE_SESSION_CONTEXT_USAGE}:visible`).first();
+		await widget.waitFor({ state: 'visible', timeout: timeoutMs });
+		const label = page.locator(CONTEXT_USAGE_TOKEN_LABEL).first();
+		const deadline = Date.now() + timeoutMs;
+		let lastError: unknown;
+		while (Date.now() < deadline) {
+			try {
+				// Trigger the gauge's delayed (non-sticky) hover with a raw pointer
+				// move to its center. A normal hover() waits on Playwright
+				// actionability — the gauge expands on hover and its progress arc
+				// animates, so the stability check can hang for the full timeout and
+				// eat the whole deadline (defeating this retry loop). Moving the
+				// pointer away first guarantees a fresh mouse-enter that (re-)opens
+				// the hover on every attempt.
+				const box = await widget.boundingBox();
+				if (!box) {
+					throw new Error('context-usage gauge has no bounding box');
+				}
+				await page.mouse.move(0, 0);
+				await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+				await label.waitFor({ state: 'visible', timeout: 5_000 });
+				const text = (await label.textContent()) ?? '';
+				// Move the pointer off the gauge so the non-sticky hover auto-hides
+				// and leaves no overlay to intercept later clicks.
+				await this.dismissContextUsageDetails();
+				return text.trim();
+			} catch (error) {
+				lastError = error;
+				await this.dismissContextUsageDetails();
+				await new Promise(r => setTimeout(r, 500));
+			}
+		}
+		throw new Error(`Timed out reading the context-usage details token label. Last error: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
+	}
+
+	/**
+	 * Dismiss the context-usage details hover by moving the pointer off the gauge
+	 * and waiting for the overlay to fully detach. The details popup is shown as a
+	 * hover anchored to the context-usage gauge; the read path uses a non-sticky
+	 * hover that hides once the pointer leaves, so parking the pointer away from
+	 * every widget dismisses it (Escape does not close it). Best-effort: if it
+	 * never detaches within the budget, the caller proceeds regardless.
+	 */
+	private async dismissContextUsageDetails(timeoutMs: number = 5_000): Promise<void> {
+		const page = this.code.driver.currentPage;
+		const details = page.locator(CONTEXT_USAGE_DETAILS);
+		const deadline = Date.now() + timeoutMs;
+		while (Date.now() < deadline) {
+			// Park the pointer away from the gauge (and every other widget) so the
+			// hover hides and cannot be re-triggered by a lingering cursor.
+			try { await page.mouse.move(0, 0); } catch { /* no page */ }
+			if (await details.count() === 0) {
+				return;
+			}
+			await new Promise(r => setTimeout(r, 150));
 		}
 	}
 }

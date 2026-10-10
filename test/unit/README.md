@@ -6,7 +6,7 @@
 
 All unit tests are run inside a Electron renderer environment which access to DOM and Nodejs api. This is the closest to the environment in which VS Code itself ships. Notes:
 
-- use the `--debug` to see an electron window with dev tools which allows for debugging
+- use the `--dev` to see an electron window with dev tools which allows for debugging
 - to run only a subset of tests use the `--run` or `--glob` options
 - use `npm run watch` to automatically compile changes
 
@@ -28,6 +28,12 @@ Unit tests from layers `common` and `browser` are run inside `chromium`, `webkit
 ## Run (with node)
 
     npm run test-node -- --run src/vs/editor/test/browser/controller/cursor.test.ts
+
+The default test timeout is 5 seconds locally and 30 seconds in CI, matching the Electron runner. CI is detected through `BUILD_ARTIFACTSTAGINGDIRECTORY` or `GITHUB_WORKSPACE`.
+
+Use `--timeout <ms>` (or `-t <ms>`) to override the default, or `--timeout 0` to disable timeouts. Explicit suite and test timeouts still take precedence.
+
+    npm run test-node -- --timeout 10000 --run src/vs/base/test/common/async.test.ts
 
 ## Coverage
 

@@ -14,8 +14,8 @@ import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessions
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISession, toSessionId } from '../../../../services/sessions/common/session.js';
 import {
-	AbstractAgentHostConfigFileSystemProvider,
-	AbstractAgentHostConfigSchemaRegistrar,
+	AbstractMultiProviderAgentHostConfigSchemaRegistrar,
+	AbstractSessionsAgentHostConfigFileSystemProvider,
 	AgentHostConfigPropertyFilter,
 	buildAgentHostConfigJsonSchema,
 	IAgentHostConfigLike,
@@ -118,7 +118,7 @@ export function buildSessionSettingsJsonSchema(config: ResolveSessionConfigResul
  * Filesystem provider serving synthetic JSONC documents that represent the
  * session-mutable config values of agent-host sessions.
  */
-export class AgentSessionSettingsFileSystemProvider extends AbstractAgentHostConfigFileSystemProvider<ISessionSettingsContext> {
+export class AgentSessionSettingsFileSystemProvider extends AbstractSessionsAgentHostConfigFileSystemProvider<ISessionSettingsContext> {
 
 	protected readonly _schemeLabel = AGENT_SESSION_SETTINGS_SCHEME;
 	protected readonly _traceTag = 'AgentSessionSettings';
@@ -151,7 +151,7 @@ export class AgentSessionSettingsFileSystemProvider extends AbstractAgentHostCon
 	protected _ensureSchemaRegistered(provider: IAgentHostSessionsProvider, ctx: ISessionSettingsContext): void {
 		const session = provider.getSessions().find(s => s.sessionId === ctx.sessionId);
 		if (session) {
-			this._schemaRegistrar.ensureRegistered(provider, session);
+			this._schemaRegistrar.ensureRegistered(session);
 		}
 	}
 
@@ -176,7 +176,7 @@ export class AgentSessionSettingsFileSystemProvider extends AbstractAgentHostCon
  * Keeps per-session JSON schemas registered so editors of the synthetic
  * `agent-session-settings://…` files get completions, hover, and validation.
  */
-export class AgentSessionSettingsSchemaRegistrar extends AbstractAgentHostConfigSchemaRegistrar<ISession> {
+export class AgentSessionSettingsSchemaRegistrar extends AbstractMultiProviderAgentHostConfigSchemaRegistrar<ISession> {
 
 	protected _propertyFilter(): AgentHostConfigPropertyFilter {
 		return sessionSettingsPropertyFilter;
@@ -195,8 +195,9 @@ export class AgentSessionSettingsSchemaRegistrar extends AbstractAgentHostConfig
 		return `vscode://schemas/agent-session-settings/${session.providerId}/${session.resource.scheme}/${session.resource.path}.jsonc`;
 	}
 
-	protected _getConfig(provider: IAgentHostSessionsProvider, session: ISession): IAgentHostConfigLike | undefined {
-		return provider.getSessionConfig(session.sessionId);
+	protected _getConfig(session: ISession): IAgentHostConfigLike | undefined {
+		const provider = this._sessionsProvidersService.getProvider<IAgentHostSessionsProvider>(session.providerId);
+		return provider?.getSessionConfig(session.sessionId);
 	}
 
 	protected _targetsForProvider(provider: IAgentHostSessionsProvider): readonly ISession[] {

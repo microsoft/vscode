@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
-import { IOnboardingScenario, OnboardingOutcome } from './onboardingScenario.js';
+import { IOnboardingRunResult, IOnboardingScenario } from './onboardingScenario.js';
 
 /**
  * Context handed to a presentation for a single scenario run. Exposes only what
@@ -16,11 +16,19 @@ export interface IOnboardingRunContext {
 	readonly targetWindow: Window;
 
 	/**
+	 * Reports that the presentation rendered its first visible element. Called at most once per run.
+	 */
+	readonly onDidShow?: () => void;
+
+	/**
 	 * Fires when the engine wants the presentation to abort the current run
 	 * (e.g. the application is shutting down). The presentation should resolve
-	 * its `run` promise with {@link OnboardingOutcome.Aborted}.
+	 * its `run` promise with an aborted result.
 	 */
 	readonly onAbort: Event<void>;
+
+	/** Limits owner-marked target resolution to one prepared UI instance. */
+	readonly targetScope?: string;
 }
 
 /**
@@ -34,11 +42,11 @@ export interface IOnboardingPresentation {
 	readonly kind: string;
 
 	/**
-	 * Render the scenario and resolve with the outcome once the user (or the
+	 * Render the scenario and resolve with the result once the user (or the
 	 * engine) ends the run. Implementations must clean up all UI/listeners
 	 * regardless of how the run ends.
 	 */
-	run(scenario: IOnboardingScenario, context: IOnboardingRunContext): Promise<OnboardingOutcome>;
+	run(scenario: IOnboardingScenario, context: IOnboardingRunContext): Promise<IOnboardingRunResult>;
 }
 
 /**
@@ -49,11 +57,15 @@ export interface IOnboardingPresentationRegistry {
 	register(presentation: IOnboardingPresentation): IDisposable;
 	/** Look up a presentation by kind. */
 	get(kind: string): IOnboardingPresentation | undefined;
+	readonly onDidChange: Event<void>;
 }
 
 class OnboardingPresentationRegistry implements IOnboardingPresentationRegistry {
 
 	private readonly _presentations = new Map<string, IOnboardingPresentation>();
+
+	private readonly _onDidChange = new Emitter<void>();
+	readonly onDidChange = this._onDidChange.event;
 
 	register(presentation: IOnboardingPresentation): IDisposable {
 		const kind = presentation.kind;
@@ -61,10 +73,12 @@ class OnboardingPresentationRegistry implements IOnboardingPresentationRegistry 
 			throw new Error(`An onboarding presentation with kind '${kind}' is already registered.`);
 		}
 		this._presentations.set(kind, presentation);
+		this._onDidChange.fire();
 		return {
 			dispose: () => {
 				if (this._presentations.get(kind) === presentation) {
 					this._presentations.delete(kind);
+					this._onDidChange.fire();
 				}
 			}
 		};

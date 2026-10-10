@@ -4,17 +4,33 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { bufferToStream, VSBuffer } from '../../../../base/common/buffer.js';
+import { bufferToStream, streamToBuffer, VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
+import { Event } from '../../../../base/common/event.js';
 import { IRequestContext, IRequestOptions } from '../../../../base/parts/request/common/request.js';
-import { NullLogService } from '../../../log/common/log.js';
+import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AbstractRequestService, AuthInfo, Credentials, IRequestCompleteEvent, NO_FETCH_TELEMETRY } from '../../common/request.js';
+import { RequestChannel, RequestChannelClient } from '../../common/requestIpc.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+
+class TestLogService extends NullLogService {
+	readonly traces: string[] = [];
+	readonly errors: (string | Error)[] = [];
+
+	override trace(message: string, ...args: unknown[]): void {
+		this.traces.push([message, ...args].join(' '));
+	}
+
+	override error(error: string | Error, ..._args: unknown[]): void {
+		this.errors.push(error);
+	}
+}
 
 class TestRequestService extends AbstractRequestService {
 
-	constructor(private readonly handler: (options: IRequestOptions) => Promise<IRequestContext>) {
-		super(new NullLogService());
+	constructor(private readonly handler: (options: IRequestOptions) => Promise<IRequestContext>, logService: ILogService = new NullLogService()) {
+		super(logService);
 	}
 
 	async request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
@@ -87,6 +103,24 @@ suite('AbstractRequestService', () => {
 		assert.strictEqual(events.length, 0);
 	});
 
+	test('logs cancellation at trace level', async () => {
+		const logService = new TestLogService();
+		const service = store.add(new TestRequestService(() => Promise.reject(new CancellationError()), logService));
+
+		await assert.rejects(
+			() => service.request({ url: 'http://test', callSite: 'test.cancelled' }, CancellationToken.None),
+			error => isCancellationError(error),
+		);
+
+		assert.deepStrictEqual({
+			cancelledTraces: logService.traces.filter(message => message.includes(' - cancelled')).length,
+			errors: logService.errors,
+		}, {
+			cancelledTraces: 1,
+			errors: [],
+		});
+	});
+
 	test('onDidCompleteRequest fires for each request', async () => {
 		const service = store.add(new TestRequestService(() => Promise.resolve(makeResponse(200))));
 
@@ -98,4 +132,24 @@ suite('AbstractRequestService', () => {
 
 		assert.deepStrictEqual(events.map(e => e.callSite), ['first', 'second']);
 	});
+
+	for (const timings of [undefined, { responseHeadersMs: 30, responseBodyMs: 70, decodedBodyBytes: 0 }]) {
+		test(`request IPC preserves optional diagnostics (${timings !== undefined})`, async () => {
+			let diagnosticId: string | undefined;
+			const service = store.add(new TestRequestService(async options => {
+				diagnosticId = options.diagnosticId;
+				return { ...makeResponse(200), timings };
+			}));
+			const channel = new RequestChannel(service);
+			const client = new RequestChannelClient({
+				listen: () => Event.None,
+				call: (command, args, token) => channel.call(undefined, command, args, token),
+			});
+			const result = await client.request({ url: 'https://example.test', callSite: 'test.ipc', diagnosticId: 'local-test' }, CancellationToken.None);
+
+			assert.deepStrictEqual({
+				diagnosticId, timings: result.timings, body: (await streamToBuffer(result.stream)).toString(),
+			}, { diagnosticId: 'local-test', timings, body: '' });
+		});
+	}
 });

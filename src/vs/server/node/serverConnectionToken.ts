@@ -6,7 +6,6 @@
 import * as cookie from 'cookie';
 import * as fs from 'fs';
 import type * as http from 'http';
-import * as url from 'url';
 import * as path from '../../base/common/path.js';
 import { generateUuid } from '../../base/common/uuid.js';
 import { connectionTokenCookieName, connectionTokenQueryName } from '../../base/common/network.js';
@@ -67,7 +66,7 @@ export async function parseServerConnectionToken(args: ServerParsedArgs, default
 
 		let rawConnectionToken: string;
 		try {
-			rawConnectionToken = fs.readFileSync(connectionTokenFile).toString().replace(/\r?\n$/, '');
+			rawConnectionToken = (await fs.promises.readFile(connectionTokenFile, 'utf8')).replace(/\r?\n$/, '');
 		} catch (e) {
 			return new ServerConnectionTokenParseError(`Unable to read the connection token file at '${connectionTokenFile}'.`);
 		}
@@ -120,9 +119,10 @@ export async function determineServerConnectionToken(args: ServerParsedArgs): Pr
 	return parseServerConnectionToken(args, readOrGenerateConnectionToken);
 }
 
-export function requestHasValidConnectionToken(connectionToken: ServerConnectionToken, req: http.IncomingMessage, parsedUrl: url.UrlWithParsedQuery) {
+export function requestHasValidConnectionToken(connectionToken: ServerConnectionToken, req: Pick<http.IncomingMessage, 'headers'>, searchParams: URLSearchParams) {
 	// First check if there is a valid query parameter
-	if (connectionToken.validate(parsedUrl.query[connectionTokenQueryName])) {
+	const queryTokens = searchParams.getAll(connectionTokenQueryName);
+	if (connectionToken.validate(queryTokens.length > 1 ? queryTokens : queryTokens[0])) {
 		return true;
 	}
 

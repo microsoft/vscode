@@ -39,7 +39,7 @@ function calculatePackageDeps(binaryPath: string, arch: DebianArchString, chromi
 	if (result.status !== 0) {
 		throw new Error('Cannot retrieve dpkg-shlibdeps. Stderr:\n' + result.stderr);
 	}
-	const cmd = [dpkgShlibdepsScriptLocation, '--ignore-weak-undefined'];
+	const cmd = [dpkgShlibdepsScriptLocation, '--ignore-weak-undefined', '--ignore-missing-info'];
 	switch (arch) {
 		case 'amd64':
 			cmd.push(`-l${chromiumSysroot}/usr/lib/x86_64-linux-gnu`,
@@ -61,6 +61,7 @@ function calculatePackageDeps(binaryPath: string, arch: DebianArchString, chromi
 			break;
 	}
 	cmd.push(`-l${chromiumSysroot}/usr/lib`);
+	cmd.push(`-l${path.dirname(path.resolve(binaryPath))}`);
 	cmd.push(`-L${vscodeSysroot}/debian/libxkbfile1/DEBIAN/shlibs`);
 	cmd.push('-O', '-e', path.resolve(binaryPath));
 

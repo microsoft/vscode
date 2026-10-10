@@ -4,9 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as child_process from 'child_process';
+import { ensureElectronTypes } from './electronTypes.ts';
 import { root, isUpToDate, forceInstallMessage } from './installStateHash.ts';
+import { finishCloudSandbox } from './cloudSandbox.ts';
 
 if (!process.argv.includes('--force') && isUpToDate()) {
+	// Mirror postinstall.ts, which restores the
+	// Electron typings even when dependencies are
+	// up to date.
+	await ensureElectronTypes();
+	finishCloudSandbox();
+
 	console.log(`\x1b[32mAll dependencies up to date.\x1b[0m ${forceInstallMessage}`);
 	process.exit(0);
 }

@@ -55,6 +55,7 @@ export class ContextMenuHandler {
 			canRelayout: false,
 			anchorAlignment: delegate.anchorAlignment,
 			anchorAxisAlignment: delegate.anchorAxisAlignment,
+			closeAnimation: delegate.closeAnimation,
 			layer: delegate.layer,
 			render: (container) => {
 				this.lastContainer = container;
@@ -145,7 +146,7 @@ export class ContextMenuHandler {
 
 				this.lastContainer = null;
 			}
-		}, shadowRootElement, !!shadowRootElement);
+		}, shadowRootElement, !!shadowRootElement, delegate.useWindowContainerForShadowRoot);
 	}
 
 	private onActionRun(e: IRunEvent, logTelemetry: boolean): void {

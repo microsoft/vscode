@@ -276,6 +276,9 @@ export async function showToolsPicker(
 				}
 			}
 			for (const toolSet of toolsService.getToolSetsForModel(model)) {
+				if (toolSet.hiddenInToolsPicker) {
+					continue;
+				}
 				defaultEntries.set(toolSet, false);
 			}
 			toolsEntries = defaultEntries;
@@ -368,6 +371,7 @@ export async function showToolsPicker(
 					ordinal: BucketOrdinal.Mcp,
 					id: key,
 					label: source.serverLabel || source.label,
+					description: source.serverLabel && source.serverLabel !== source.label ? source.label : undefined,
 					checked: undefined,
 					collapsed,
 					children,
@@ -434,6 +438,9 @@ export async function showToolsPicker(
 		};
 
 		for (const toolSet of toolsService.getToolSetsForModel(model)) {
+			if (toolSet.hiddenInToolsPicker) {
+				continue;
+			}
 			if (!toolsEntries.has(toolSet.id)) {
 				continue;
 			}

@@ -16,7 +16,7 @@ import type { ServerNotificationMap } from '../messages.js';
  *
  * Formatted as a [SemVer](https://semver.org) `MAJOR.MINOR.PATCH` string.
  */
-export const PROTOCOL_VERSION = '0.5.0';
+export const PROTOCOL_VERSION = '1.1.0';
 
 /**
  * Every protocol version a client built from this source tree is willing
@@ -24,10 +24,9 @@ export const PROTOCOL_VERSION = '0.5.0';
  * first** so a server picking the first acceptable entry honors the
  * client's preference (see [versioning](../../docs/specification/versioning.md)).
  *
- * The first entry MUST equal {@link PROTOCOL_VERSION} — the version
- * "new code speaks" is by definition the most preferred one. Older
- * versions may be appended if a client retains the ability to fall back
- * to them; today only one version is advertised.
+ * These are released compatibility baselines, independent of the current
+ * development {@link PROTOCOL_VERSION}. Hosts accept client-offered versions
+ * in the caret-compatible range of either baseline.
  *
  * Every generated client (Rust, Kotlin, Swift) re-exports this constant
  * verbatim. The TypeScript client consumes it directly. The per-client
@@ -35,9 +34,8 @@ export const PROTOCOL_VERSION = '0.5.0';
  * `scripts/verify-release-metadata.ts`.
  */
 export const SUPPORTED_PROTOCOL_VERSIONS: readonly string[] = Object.freeze([
-	'0.5.0',
-	'0.4.0',
-	'0.3.0',
+	'1.0.0',
+	'0.9.0',
 ]);
 
 // ─── SemVer Comparison ───────────────────────────────────────────────────────
@@ -50,11 +48,35 @@ export const SUPPORTED_PROTOCOL_VERSIONS: readonly string[] = Object.freeze([
  * Throws if `version` is not a well-formed `MAJOR.MINOR.PATCH` string.
  */
 function parseSemver(version: string): readonly [number, number, number] {
-	const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(version);
-	if (!match) {
+	const match = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.exec(version);
+	if (!match || match[0] !== version) {
 		throw new Error(`Invalid protocol version: ${version}`);
 	}
-	return [Number(match[1]), Number(match[2]), Number(match[3])] as const;
+	const parts = [Number(match[1]), Number(match[2]), Number(match[3])] as const;
+	return parts;
+}
+
+/**
+ * Selects the highest client-offered version in a supported caret range.
+ * Returns undefined when none match; the host must send UnsupportedProtocolVersion
+ * with SUPPORTED_PROTOCOL_VERSIONS and close the connection. Malformed versions throw.
+ */
+export function negotiateProtocolVersion(offered: readonly string[]): string | undefined {
+	let selected: string | undefined;
+	for (const version of offered) {
+		const [major, minor, patch] = parseSemver(version);
+		const compatible = SUPPORTED_PROTOCOL_VERSIONS.some(baseline => {
+			const [baseMajor, baseMinor, basePatch] = parseSemver(baseline);
+			return major === baseMajor
+				&& (major > 0 || minor === baseMinor)
+				&& (major > 0 || minor > 0 || patch === basePatch)
+				&& compareProtocolVersions(version, baseline) >= 0;
+		});
+		if (compatible && (selected === undefined || compareProtocolVersions(version, selected) > 0)) {
+			selected = version;
+		}
+	}
+	return selected;
 }
 
 /**
@@ -85,18 +107,25 @@ export const ACTION_INTRODUCED_IN: { readonly [K in StateAction['type']]: string
 	[ActionType.SessionChatAdded]: '0.4.0',
 	[ActionType.SessionChatRemoved]: '0.4.0',
 	[ActionType.SessionChatUpdated]: '0.4.0',
+	[ActionType.SessionChatsReordered]: '0.9.0',
 	[ActionType.SessionDefaultChatChanged]: '0.4.0',
 	[ActionType.SessionTitleChanged]: '0.1.0',
-	[ActionType.SessionModelChanged]: '0.1.0',
-	[ActionType.SessionAgentChanged]: '0.2.0',
 	[ActionType.SessionServerToolsChanged]: '0.1.0',
-	[ActionType.SessionActiveClientChanged]: '0.1.0',
-	[ActionType.SessionActiveClientToolsChanged]: '0.1.0',
+	[ActionType.SessionActiveClientSet]: '0.5.0',
+	[ActionType.SessionActiveClientRemoved]: '0.5.0',
+	[ActionType.SessionWorkingDirectorySet]: '0.7.0',
+	[ActionType.SessionWorkingDirectoryRemoved]: '0.7.0',
+	[ActionType.SessionWorkingDirectoryReplaced]: '0.8.0',
+	[ActionType.SessionInputNeededSet]: '0.5.1',
+	[ActionType.SessionInputNeededRemoved]: '0.5.1',
 	[ActionType.SessionCustomizationsChanged]: '0.1.0',
 	[ActionType.SessionCustomizationToggled]: '0.1.0',
 	[ActionType.SessionCustomizationUpdated]: '0.1.0',
 	[ActionType.SessionCustomizationRemoved]: '0.2.0',
 	[ActionType.SessionMcpServerStateChanged]: '0.3.0',
+	[ActionType.SessionMcpServerStartRequested]: '0.5.2',
+	[ActionType.SessionMcpServerStopRequested]: '0.5.2',
+	[ActionType.SessionMcpServerBackgroundRequested]: '0.9.0',
 	[ActionType.SessionIsReadChanged]: '0.1.0',
 	[ActionType.SessionIsArchivedChanged]: '0.1.0',
 	[ActionType.SessionActivityChanged]: '0.1.0',
@@ -113,30 +142,47 @@ export const ACTION_INTRODUCED_IN: { readonly [K in StateAction['type']]: string
 	[ActionType.ChatToolCallComplete]: '0.4.0',
 	[ActionType.ChatToolCallResultConfirmed]: '0.4.0',
 	[ActionType.ChatToolCallContentChanged]: '0.4.0',
+	[ActionType.ChatToolCallAuthRequired]: '0.6.0',
+	[ActionType.ChatToolCallAuthResolved]: '0.6.0',
 	[ActionType.ChatTurnComplete]: '0.4.0',
 	[ActionType.ChatTurnCancelled]: '0.4.0',
 	[ActionType.ChatError]: '0.4.0',
+	[ActionType.ChatTurnResume]: '0.9.0',
+	[ActionType.ChatActivityChanged]: '0.5.0',
+	[ActionType.ChatBackgroundWorkSet]: '0.9.0',
+	[ActionType.ChatBackgroundWorkRemoved]: '0.9.0',
+	[ActionType.ChatMovableChanged]: '0.9.0',
+	[ActionType.ChatChangesetsChanged]: '0.9.0',
+	[ActionType.ChatCanvasesChanged]: '0.10.0',
+	[ActionType.CanvasStateChanged]: '0.10.0',
+	[ActionType.ChatWorkingDirectorySet]: '0.7.0',
+	[ActionType.ChatWorkingDirectoryRemoved]: '0.7.0',
 	[ActionType.ChatUsage]: '0.4.0',
 	[ActionType.ChatReasoning]: '0.4.0',
 	[ActionType.ChatPendingMessageSet]: '0.4.0',
 	[ActionType.ChatPendingMessageRemoved]: '0.4.0',
 	[ActionType.ChatQueuedMessagesReordered]: '0.4.0',
+	[ActionType.ChatDraftChanged]: '0.5.0',
+	[ActionType.ChatIsReadChanged]: '0.9.0',
+	[ActionType.ChatIsArchivedChanged]: '0.9.0',
 	[ActionType.ChatInputRequested]: '0.4.0',
 	[ActionType.ChatInputAnswerChanged]: '0.4.0',
 	[ActionType.ChatInputCompleted]: '0.4.0',
 	[ActionType.ChatTruncated]: '0.4.0',
+	[ActionType.ChatTurnsLoaded]: '0.5.1',
 	[ActionType.ChangesetStatusChanged]: '0.2.0',
 	[ActionType.ChangesetFileSet]: '0.2.0',
 	[ActionType.ChangesetFileRemoved]: '0.2.0',
+	[ActionType.ChangesetFilesReviewChanged]: '0.6.0',
 	[ActionType.ChangesetContentChanged]: '0.4.0',
 	[ActionType.ChangesetOperationsChanged]: '0.2.0',
 	[ActionType.ChangesetOperationStatusChanged]: '0.3.0',
 	[ActionType.ChangesetCleared]: '0.2.0',
-	[ActionType.AnnotationsSet]: '0.3.0',
+	[ActionType.AnnotationsSet]: '0.4.0',
 	[ActionType.AnnotationsUpdated]: '0.4.0',
-	[ActionType.AnnotationsRemoved]: '0.3.0',
-	[ActionType.AnnotationsEntrySet]: '0.3.0',
-	[ActionType.AnnotationsEntryRemoved]: '0.3.0',
+	[ActionType.AnnotationsRemoved]: '0.4.0',
+	[ActionType.AnnotationsEntrySet]: '0.4.0',
+	[ActionType.AnnotationsEntryRemoved]: '0.4.0',
 	[ActionType.RootTerminalsChanged]: '0.1.0',
 	[ActionType.RootConfigChanged]: '0.1.0',
 	[ActionType.TerminalData]: '0.1.0',
@@ -151,6 +197,15 @@ export const ACTION_INTRODUCED_IN: { readonly [K in StateAction['type']]: string
 	[ActionType.TerminalCommandExecuted]: '0.1.0',
 	[ActionType.TerminalCommandFinished]: '0.1.0',
 	[ActionType.ResourceWatchChanged]: '0.2.0',
+	[ActionType.AutomationCreateRequested]: '0.8.0',
+	[ActionType.AutomationUpdateRequested]: '0.8.0',
+	[ActionType.AutomationSet]: '0.8.0',
+	[ActionType.AutomationRemoved]: '0.8.0',
+	[ActionType.AutomationRunLifecycleChanged]: '0.8.0',
+	[ActionType.AutomationRunSessionSet]: '0.8.0',
+	[ActionType.AutomationRunSessionRemoved]: '0.8.0',
+	[ActionType.AutomationRunPrimarySessionChanged]: '0.8.0',
+	[ActionType.AutomationRunCancelRequested]: '0.8.0',
 };
 
 /**
@@ -181,6 +236,7 @@ export const NOTIFICATION_INTRODUCED_IN: { readonly [K in ProtocolNotificationMe
 	'root/sessionAdded': '0.1.0',
 	'root/sessionRemoved': '0.1.0',
 	'root/sessionSummaryChanged': '0.1.0',
+	'root/progress': '0.5.0',
 	'auth/required': '0.1.0',
 	'otlp/exportLogs': '0.2.0',
 	'otlp/exportTraces': '0.2.0',

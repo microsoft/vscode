@@ -7,7 +7,7 @@ import type { CancellationToken } from 'vscode';
 import { ILogService, LogLevel } from '../../log/common/logService';
 import { ITelemetryService } from '../../telemetry/common/telemetry';
 import { TelemetryData } from '../../telemetry/common/telemetryData';
-import { RawThinkingDelta, ThinkingDelta } from '../../thinking/common/thinking';
+import { RawThinkingDelta, ThinkingDataInMessage, ThinkingDelta } from '../../thinking/common/thinking';
 import { extractThinkingDeltaFromChoice, } from '../../thinking/common/thinkingUtils';
 import { FinishedCallback, getRequestId, ICodeVulnerabilityAnnotation, ICopilotBeginToolCall, ICopilotConfirmation, ICopilotError, ICopilotFunctionCall, ICopilotReference, ICopilotToolCall, ICopilotToolCallStreamUpdate, IIPCodeCitation, isCodeCitationAnnotation, isCopilotAnnotation, RequestId } from '../common/fetch';
 import { DestroyableStream, Response } from '../common/fetcherService';
@@ -15,8 +15,7 @@ import { APIErrorResponse, APIJsonData, APIUsage, ChoiceLogProbs, FilterReason, 
 
 /** Gathers together many chunks of a single completion choice. */
 class APIJsonDataStreaming {
-
-	constructor(public readonly model: string) { }
+	constructor(public readonly model: string, public readonly reasoning: ThinkingDataInMessage = {}) { }
 
 	get text(): readonly string[] {
 		return this._text;
@@ -219,6 +218,8 @@ export class SSEProcessor {
 	 * solution and should not process incoming tokens further.
 	 */
 	private readonly solutions: Record<number, APIJsonDataStreaming | null> = {};
+	/** Reasoning metadata can arrive after the corresponding solution has finished. */
+	private readonly reasoningByChoice: Record<number, ThinkingDataInMessage> = {};
 
 	private readonly completedFunctionCallIdxs: Map<number /* index */, 'function' | 'tool'> = new Map();
 	private readonly functionCalls: Record<string, APIJsonDataStreaming | null> = {};
@@ -426,8 +427,23 @@ export class SSEProcessor {
 					// Once we observe any thinking text or an id in this batch, keep the flag true
 					thinkingFound ||= !!(thinkingDelta?.text || thinkingDelta?.id);
 
+					const reasoning = this.reasoningByChoice[choice.index] ??= {};
+					for (const field of ['reasoning_text', 'reasoning_content', 'reasoning', 'cot_summary'] as const) {
+						if (choice.message?.[field] !== undefined) {
+							reasoning[field] = choice.message[field];
+						} else if (choice.delta?.[field] !== undefined) {
+							reasoning[field] = (reasoning[field] ?? '') + choice.delta[field];
+						}
+					}
+					for (const field of ['reasoning_opaque', 'cot_id'] as const) {
+						const value = choice.message?.[field] ?? choice.delta?.[field];
+						if (value !== undefined) {
+							reasoning[field] = value;
+						}
+					}
+
 					if (!(choice.index in this.solutions)) {
-						this.solutions[choice.index] = new APIJsonDataStreaming(json.model);
+						this.solutions[choice.index] = new APIJsonDataStreaming(json.model, reasoning);
 					}
 
 					const solution = this.solutions[choice.index];
@@ -470,7 +486,7 @@ export class SSEProcessor {
 					};
 
 					let handled = true;
-					if (choice.delta?.tool_calls) {
+					if (choice.delta?.tool_calls?.length) {
 						const hadExistingToolCalls = this.toolCalls.hasToolCalls();
 						if (!hadExistingToolCalls) {
 							const firstToolCall = choice.delta.tool_calls.at(0);

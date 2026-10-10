@@ -1,0 +1,158 @@
+parameters:
+  - name: VSCODE_TEST_UNIT
+    type: boolean
+  - name: VSCODE_TEST_INTEGRATION
+    type: boolean
+  - name: VSCODE_TEST_SMOKE
+    type: boolean
+  - name: iterations
+    type: object
+
+jobs:
+  - template: ../common/product-smoke-flaky-build.yml@self
+    parameters:
+      jobName: macOSSmokeFlakyBuild
+      displayName: macOS Build (shared)
+      platform: macos
+      arch: arm64
+      archiveExt: tar.gz
+      artifactPrefix: smoke-flaky-darwin-arm64
+      testIntegration: ${{ parameters.VSCODE_TEST_INTEGRATION }}
+      testSmoke: ${{ parameters.VSCODE_TEST_SMOKE }}
+      compileSteps:
+        - template: ./steps/product-build-darwin-compile.yml@self
+          parameters:
+            VSCODE_ARCH: arm64
+            VSCODE_CIBUILD: true
+            VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL: true
+      archiveWorkspaceSteps:
+        - script: |
+            set -e
+            mkdir -p $(Build.ArtifactStagingDirectory)
+            tar -czf $(Build.ArtifactStagingDirectory)/repo.tar.gz --exclude=.git -C $(Build.SourcesDirectory) .
+          displayName: Archive built workspace for reuse by test jobs
+      archiveAppSteps:
+        - script: tar -czf $(Build.ArtifactStagingDirectory)/app.tar.gz -C $(Agent.BuildDirectory) VSCode-darwin-arm64
+          displayName: Archive packaged app for reuse by test jobs
+      archiveServerSteps:
+        - script: tar -czf $(Build.ArtifactStagingDirectory)/server.tar.gz -C $(Agent.BuildDirectory) vscode-server-darwin-arm64
+          displayName: Archive packaged server for reuse by test jobs
+
+  - ${{ if eq(parameters.VSCODE_TEST_UNIT, true) }}:
+    - template: ../common/product-smoke-flaky-test.yml@self
+      parameters:
+        jobName: macOSSmokeFlakyUnit
+        buildJobName: macOSSmokeFlakyBuild
+        displayName: macOS Unit Tests
+        platform: macos
+        arch: arm64
+        testName: unit
+        artifactPrefix: smoke-flaky-darwin-arm64
+        artifacts:
+          - name: repo
+            displayName: Download built workspace
+        keyVaultDisplayName: "Azure Key Vault: Get GitHub token"
+        extractArtifactSteps:
+          - script: |
+              set -e
+              mkdir -p $(Build.SourcesDirectory)
+              tar -xzf $(Pipeline.Workspace)/smoke-flaky-darwin-arm64-repo/repo.tar.gz -C $(Build.SourcesDirectory)
+            displayName: Extract built workspace
+        testSteps:
+          - ${{ each i in parameters.iterations }}:
+            - script: ./scripts/test.sh --build --tfs "Unit Tests"
+              env:
+                VSCODE_SKIP_PRELAUNCH: '1'
+              displayName: "🧪 Unit test iteration ${{ i }}/${{ length(parameters.iterations) }} (Electron)"
+              continueOnError: true
+              timeoutInMinutes: 15
+          - ${{ each i in parameters.iterations }}:
+            - script: |
+                set -e
+                mkdir -p .build/crashes
+                npm run test-node -- --build
+              displayName: "🧪 Unit test iteration ${{ i }}/${{ length(parameters.iterations) }} (node.js)"
+              continueOnError: true
+              timeoutInMinutes: 15
+
+  - ${{ if eq(parameters.VSCODE_TEST_INTEGRATION, true) }}:
+    - template: ../common/product-smoke-flaky-test.yml@self
+      parameters:
+        jobName: macOSSmokeFlakyIntegration
+        buildJobName: macOSSmokeFlakyBuild
+        displayName: macOS Integration Tests
+        platform: macos
+        arch: arm64
+        testName: integration
+        artifactPrefix: smoke-flaky-darwin-arm64
+        artifacts:
+          - name: repo
+            displayName: Download built workspace
+          - name: app
+            displayName: Download packaged app
+          - name: server
+            displayName: Download packaged server
+        keyVaultDisplayName: "Azure Key Vault: Get GitHub token"
+        extractArtifactSteps:
+          - script: |
+              set -e
+              mkdir -p $(Build.SourcesDirectory)
+              tar -xzf $(Pipeline.Workspace)/smoke-flaky-darwin-arm64-repo/repo.tar.gz -C $(Build.SourcesDirectory)
+              tar -xzf $(Pipeline.Workspace)/smoke-flaky-darwin-arm64-app/app.tar.gz -C $(Agent.BuildDirectory)
+              tar -xzf $(Pipeline.Workspace)/smoke-flaky-darwin-arm64-server/server.tar.gz -C $(Agent.BuildDirectory)
+            displayName: Extract built workspace, app and server
+        testSteps:
+          - ${{ each i in parameters.iterations }}:
+            - script: |
+                set -e
+                APP_ROOT="$(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)"
+                APP_NAME="`ls $APP_ROOT | head -n 1`"
+                ProductJsonPath=$(find "$APP_ROOT" -name "product.json" -type f | head -n 1)
+                BINARY_NAME=$(jq -r '.nameShort' "$ProductJsonPath")
+                INTEGRATION_TEST_ELECTRON_PATH="$APP_ROOT/$APP_NAME/Contents/MacOS/$BINARY_NAME" \
+                ./scripts/test-integration.sh --build --tfs "Integration Tests"
+              env:
+                VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-darwin-$(VSCODE_ARCH)
+                VSCODE_SKIP_PRELAUNCH: '1'
+              displayName: "🧪 Integration test iteration ${{ i }}/${{ length(parameters.iterations) }} (Electron)"
+              continueOnError: true
+              timeoutInMinutes: 20
+
+  - ${{ if eq(parameters.VSCODE_TEST_SMOKE, true) }}:
+    - template: ../common/product-smoke-flaky-test.yml@self
+      parameters:
+        jobName: macOSSmokeFlakySmoke
+        buildJobName: macOSSmokeFlakyBuild
+        displayName: macOS Smoke Tests
+        platform: macos
+        arch: arm64
+        testName: smoke
+        artifactPrefix: smoke-flaky-darwin-arm64
+        artifacts:
+          - name: repo
+            displayName: Download built workspace
+          - name: app
+            displayName: Download packaged app
+        keyVaultDisplayName: "Azure Key Vault: Get GitHub token"
+        extractArtifactSteps:
+          - script: |
+              set -e
+              mkdir -p $(Build.SourcesDirectory)
+              tar -xzf $(Pipeline.Workspace)/smoke-flaky-darwin-arm64-repo/repo.tar.gz -C $(Build.SourcesDirectory)
+              tar -xzf $(Pipeline.Workspace)/smoke-flaky-darwin-arm64-app/app.tar.gz -C $(Agent.BuildDirectory)
+            displayName: Extract built workspace and app
+        testSteps:
+          - ${{ each i in parameters.iterations }}:
+            - script: |
+                set -e
+                APP_ROOT=$(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
+                APP_NAME="`ls $APP_ROOT | head -n 1`"
+                status=0
+                npm run smoketest-no-compile -- --tracing --build "$APP_ROOT/$APP_NAME" || status=$?
+                if [ $status -ne 0 ] && [ -d .build/logs/smoke-tests-electron ]; then
+                  mv .build/logs/smoke-tests-electron ".build/logs/failed-iteration-${{ i }}"
+                fi
+                exit $status
+              displayName: "🧪 Smoke test iteration ${{ i }}/${{ length(parameters.iterations) }} (Electron)"
+              continueOnError: true
+              timeoutInMinutes: 20

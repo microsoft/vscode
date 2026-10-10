@@ -27,7 +27,9 @@ import { ChatConfiguration } from '../../common/constants.js';
 import { ChatMemoryFileResource } from '../../common/chatArtifactExtraction.js';
 import { IChatArtifact, IChatArtifactsService, IArtifactSourceGroup, ArtifactSource } from '../../common/tools/chatArtifactsService.js';
 import { IChatImageCarouselService } from '../chatImageCarouselService.js';
-import { getEditorOverrideForChatResource } from './chatContentParts/chatInlineAnchorWidget.js';
+import { saveChatArtifact } from '../chatArtifactPillSource.js';
+import { getEditorOverrideForChatResource } from './chatEditorAssociations.js';
+import { ChatInputStackSlot, setChatInputStackSlot } from './input/chatInputStack.js';
 
 const ARTIFACT_TYPE_ICONS: Record<string, ThemeIcon> = {
 	devServer: Codicon.globe,
@@ -69,6 +71,8 @@ function isLeafNode(element: ArtifactTreeElement): element is IArtifactLeafNode 
 
 export class ChatArtifactsWidget extends Disposable {
 	readonly domNode: HTMLElement;
+	private _slot: HTMLElement | undefined;
+	private _visible = false;
 
 	private readonly _sessionResource = observableValue<URI | undefined>(this, undefined);
 	private readonly _isCollapsed = observableValue(this, false);
@@ -122,7 +126,7 @@ export class ChatArtifactsWidget extends Disposable {
 			dom.clearNode(this.domNode);
 
 			if (!artifacts) {
-				this.domNode.style.display = 'none';
+				this._setVisible(false);
 				return;
 			}
 
@@ -188,10 +192,10 @@ export class ChatArtifactsWidget extends Disposable {
 			store.add(autorun(reader => {
 				const data = this._treeData.read(reader);
 				if (!data) {
-					this.domNode.style.display = 'none';
+					this._setVisible(false);
 					return;
 				}
-				this.domNode.style.display = '';
+				this._setVisible(true);
 
 				titleElement.textContent = data.totalCount === 1
 					? localize('chat.artifacts.one', "1 Artifact")
@@ -208,12 +212,26 @@ export class ChatArtifactsWidget extends Disposable {
 		this._sessionResource.set(sessionResource, undefined);
 	}
 
+	/** Add the list to its slot in the chat input stack. */
+	attachTo(slot: HTMLElement): void {
+		this._slot = slot;
+		slot.appendChild(this.domNode);
+		setChatInputStackSlot(slot, this._visible ? ChatInputStackSlot.Docked : ChatInputStackSlot.Empty);
+	}
+
+	/** Show or hide the list, and report the same to the stack. */
+	private _setVisible(visible: boolean): void {
+		this._visible = visible;
+		this.domNode.style.display = visible ? '' : 'none';
+		setChatInputStackSlot(this._slot, visible ? ChatInputStackSlot.Docked : ChatInputStackSlot.Empty);
+	}
+
 	private async _openGroupInCarousel(group: IArtifactGroupNode): Promise<void> {
 		// Open the first artifact in the group — the carousel service will collect
 		// all images from the chat widget session automatically.
 		const first = group.artifacts[0];
 		if (first?.uri) {
-			await this._chatImageCarouselService.openCarouselAtResource(URI.parse(first.uri));
+			await this._chatImageCarouselService.openCarouselAtResource(URI.parse(first.uri), undefined, { sessionResource: this._sessionResource.get() });
 		}
 	}
 
@@ -236,7 +254,7 @@ export class ChatArtifactsWidget extends Disposable {
 
 	private async _openScreenshotInCarousel(clicked: IChatArtifact): Promise<void> {
 		if (clicked.uri) {
-			await this._chatImageCarouselService.openCarouselAtResource(URI.parse(clicked.uri));
+			await this._chatImageCarouselService.openCarouselAtResource(URI.parse(clicked.uri), undefined, { sessionResource: this._sessionResource.get() });
 		}
 	}
 
@@ -273,20 +291,7 @@ export class ChatArtifactsWidget extends Disposable {
 	}
 
 	private async _saveArtifact(artifact: IChatArtifact): Promise<void> {
-		const sourceUri = URI.parse(artifact.uri);
-		const defaultFileName = sourceUri.path.split('/').pop() ?? artifact.label;
-		const defaultPath = await this._fileDialogService.defaultFilePath();
-		const defaultUri = URI.joinPath(defaultPath, defaultFileName);
-
-		const targetUri = await this._fileDialogService.showSaveDialog({
-			defaultUri,
-			title: localize('chat.artifacts.saveDialog.title', "Save Artifact"),
-		});
-
-		if (targetUri) {
-			const content = await this._fileService.readFile(sourceUri);
-			await this._fileService.writeFile(targetUri, content.value);
-		}
+		await saveChatArtifact(artifact, this._fileService, this._fileDialogService);
 	}
 }
 
@@ -459,7 +464,7 @@ class ChatArtifactGroupRenderer implements ITreeRenderer<ArtifactTreeElement, vo
 			templateData.actionBar.push(toAction({
 				id: 'chatArtifacts.clearSource',
 				label: localize('chat.artifacts.clearSource', "Clear"),
-				class: ThemeIcon.asClassName(Codicon.close),
+				class: ThemeIcon.asClassName(Codicon.closeSmall),
 				run: () => clearFn(),
 			}), { icon: true, label: false });
 		}
@@ -525,7 +530,7 @@ class ChatArtifactLeafRenderer implements ITreeRenderer<ArtifactTreeElement, voi
 			actions.push(toAction({
 				id: 'chatArtifacts.clearSource',
 				label: localize('chat.artifacts.clearSource', "Clear"),
-				class: ThemeIcon.asClassName(Codicon.close),
+				class: ThemeIcon.asClassName(Codicon.closeSmall),
 				run: () => clearFn(),
 			}));
 		}

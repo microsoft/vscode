@@ -14,6 +14,8 @@ import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { IConfigurationService } from '../../../configuration/common/configurationService';
 import { ICAPIClientService } from '../../../endpoint/common/capiClient';
 import { NullTelemetryService } from '../../../telemetry/common/nullTelemetryService';
+import { ITelemetryService } from '../../../telemetry/common/telemetry';
+import { SpyingTelemetryService } from '../../../telemetry/node/spyingTelemetryService';
 import { TestLogService } from '../../../testing/common/testLogService';
 import { HeadersImpl, WebSocketConnection } from '../../common/fetcherService';
 import { CAPIWebSocketErrorEvent, ChatWebSocketManager, isCAPIWebSocketError } from '../chatWebSocketManager';
@@ -60,6 +62,7 @@ describe('ChatWebSocketManager', () => {
 	let disposables: DisposableStore;
 	let ws: FakeWebSocket;
 	let manager: ChatWebSocketManager;
+	const connectionKey = { conversationId: 'conv-1', modelId: 'test-model' };
 
 	beforeEach(() => {
 		disposables = new DisposableStore();
@@ -70,15 +73,15 @@ describe('ChatWebSocketManager', () => {
 		disposables.dispose();
 	});
 
-	async function getConnection(headers: Record<string, string> = {}) {
+	async function getConnection(headers: Record<string, string> = {}, telemetryService: ITelemetryService = new NullTelemetryService()) {
 		manager = new ChatWebSocketManager(
 			new TestLogService(),
 			createFakeCAPIClientService(ws),
-			new NullTelemetryService(),
+			telemetryService,
 			{ getConfig: () => undefined } as unknown as IConfigurationService,
 		);
 		disposables.add(manager);
-		const connection = manager.getOrCreateConnection('conv-1', headers, 'req-conn');
+		const connection = manager.getOrCreateConnection(connectionKey, headers, 'req-conn');
 		const connectPromise = connection.connect();
 		// Defer open event to allow connect() to attach listeners first
 		await Promise.resolve();
@@ -94,9 +97,9 @@ describe('ChatWebSocketManager', () => {
 			const connection = await getConnection();
 
 			// Request a connection for a new turn — should return the same object
-			const connection2 = manager.getOrCreateConnection('conv-1', {}, 'req-conn-2');
+			const connection2 = manager.getOrCreateConnection(connectionKey, {}, 'req-conn-2');
 			expect(connection2).toBe(connection);
-			expect(manager.hasActiveConnection('conv-1')).toBe(true);
+			expect(manager.hasActiveConnection(connectionKey)).toBe(true);
 		});
 
 		it('creates a new connection when the previous one is closed', async () => {
@@ -104,19 +107,59 @@ describe('ChatWebSocketManager', () => {
 			connection.dispose();
 
 			// Same manager, new getOrCreateConnection call should replace the disposed one
-			const connection2 = manager.getOrCreateConnection('conv-1', {}, 'req-conn-2');
+			const connection2 = manager.getOrCreateConnection(connectionKey, {}, 'req-conn-2');
 			expect(connection2).not.toBe(connection);
+		});
+
+		it('creates a new connection when the model changes', async () => {
+			const connection = await getConnection();
+			expect(manager.hasActiveConnection({ ...connectionKey, modelId: 'other-model' })).toBe(false);
+			const connection2 = manager.getOrCreateConnection({ ...connectionKey, modelId: 'other-model' }, {}, 'req-conn-2');
+
+			expect(connection2).not.toBe(connection);
+			expect(connection.isOpen).toBe(false);
+		});
+
+		it('uses independent connections for parallel scopes', async () => {
+			const connection = await getConnection();
+			const connection2 = manager.getOrCreateConnection({ ...connectionKey, connectionId: 'subagent-1' }, {}, 'req-conn-2');
+
+			expect(connection2).not.toBe(connection);
+			expect(connection.isOpen).toBe(true);
 		});
 
 		it('hasActiveConnection returns true regardless of current turnId', async () => {
 			await getConnection(); // connected on turn-1
-			expect(manager.hasActiveConnection('conv-1')).toBe(true);
+			expect(manager.hasActiveConnection(connectionKey)).toBe(true);
 		});
 
 		it('hasActiveConnection returns false after connection is disposed', async () => {
 			const connection = await getConnection();
 			connection.dispose();
-			expect(manager.hasActiveConnection('conv-1')).toBe(false);
+			expect(manager.hasActiveConnection(connectionKey)).toBe(false);
+		});
+	});
+
+	describe('cancellation', () => {
+		it('closes the connection when the active request is cancelled', async () => {
+			const connection = await getConnection();
+			const cts = disposables.add(new CancellationTokenSource());
+			const handle = connection.sendRequest(
+				{ model: 'test-model', messages: [], stream: true },
+				{ userInitiated: true, turnId: 'turn-1', requestId: 'req-1', model: 'test-model', countTokens: () => Promise.resolve(0), tokenCountMax: 4096, modelMaxPromptTokens: 128000 },
+				cts.token,
+			);
+			handle.firstEvent.catch(() => { });
+			handle.done.catch(() => { });
+			expect(manager.hasActiveConnection(connectionKey)).toBe(false);
+
+			cts.cancel();
+
+			await expect(handle.done).rejects.toThrow();
+			expect(connection.isOpen).toBe(false);
+			expect(manager.hasActiveConnection(connectionKey)).toBe(false);
+			expect(ws.readyState).toBe(ws.CLOSED);
+			expect(manager.getOrCreateConnection(connectionKey, {}, 'req-conn-2')).not.toBe(connection);
 		});
 	});
 
@@ -403,6 +446,79 @@ describe('ChatWebSocketManager', () => {
 			await handle2.done;
 
 			expect(connection.statefulMarker).toBe('resp-2');
+		});
+	});
+
+	describe('X-GitHub-Copilot-Request-Te message envelope', () => {
+		it('captures the raw value per turn from the envelope headers and reports it on websocket.requestOutcome', async () => {
+			const telemetryService = new SpyingTelemetryService();
+			const connection = await getConnection({}, telemetryService);
+			const turnEnvelopes: (Record<string, string> | undefined)[] = [
+				{ 'X-GitHub-Copilot-Request-Te': ' TRUE ' },
+				{ 'x-github-copilot-request-te': 'false' },
+				undefined,
+			];
+			const handleValues: (string | undefined)[] = [];
+			for (const [index, headers] of turnEnvelopes.entries()) {
+				const cts = disposables.add(new CancellationTokenSource());
+				const handle = connection.sendRequest(
+					{ model: 'test-model', messages: [], stream: true },
+					{ userInitiated: true, turnId: `turn-${index}`, requestId: `req-${index}`, model: 'test-model', countTokens: () => Promise.resolve(0), tokenCountMax: 4096, modelMaxPromptTokens: 128000 },
+					cts.token,
+				);
+				ws.simulateMessage(JSON.stringify({ type: 'response.created', response: { id: `resp-${index}` }, ...(headers ? { headers } : {}) }));
+				ws.simulateMessage(completedEvent);
+				await handle.done;
+				handleValues.push(handle.gitHubCopilotRequestTe);
+			}
+
+			const outcomes = telemetryService.getEvents().telemetryServiceEvents
+				.filter(e => e.eventName === 'websocket.requestOutcome')
+				.map(e => {
+					const properties = e.properties as Record<string, string>;
+					return [properties.requestId, 'gitHubCopilotRequestTe' in properties ? properties.gitHubCopilotRequestTe : '<absent>'];
+				});
+			expect({ handleValues, outcomes }).toEqual({
+				handleValues: [' TRUE ', 'false', undefined],
+				outcomes: [['req-0', ' TRUE '], ['req-1', 'false'], ['req-2', '<absent>']],
+			});
+		});
+
+		it('keeps the turn value when a later CAPI error frame lacks it, and omits it when the turn fails on its first frame', async () => {
+			const telemetryService = new SpyingTelemetryService();
+			const connection = await getConnection({}, telemetryService);
+			// CAPI error frames carry only the request/session ids in their envelope.
+			const errorFrame = JSON.stringify({ type: 'error', error: { code: 'rate_limited', message: 'Rate limited' }, headers: { 'X-Copilot-Service-Request-Id': 'svc-1', 'X-Copilot-WebSocket-Session-Id': 'session-1' } });
+			const turns = [
+				[JSON.stringify({ type: 'response.created', response: { id: 'resp-0' }, headers: { 'X-Copilot-Service-Request-Id': 'svc-0', 'X-Copilot-WebSocket-Session-Id': 'session-1', 'X-GitHub-Copilot-Request-Te': 'true' } }), errorFrame],
+				[errorFrame],
+			];
+			const handleValues: (string | undefined)[] = [];
+			for (const [index, frames] of turns.entries()) {
+				const cts = disposables.add(new CancellationTokenSource());
+				const handle = connection.sendRequest(
+					{ model: 'test-model', messages: [], stream: true },
+					{ userInitiated: true, turnId: `turn-${index}`, requestId: `req-${index}`, model: 'test-model', countTokens: () => Promise.resolve(0), tokenCountMax: 4096, modelMaxPromptTokens: 128000 },
+					cts.token,
+				);
+				const donePromise = handle.done.catch(() => { });
+				for (const frame of frames) {
+					ws.simulateMessage(frame);
+				}
+				await donePromise;
+				handleValues.push(handle.gitHubCopilotRequestTe);
+			}
+
+			const outcomes = telemetryService.getEvents().telemetryServiceEvents
+				.filter(e => e.eventName === 'websocket.requestOutcome')
+				.map(e => {
+					const properties = e.properties as Record<string, string>;
+					return [properties.requestId, properties.requestOutcome, 'gitHubCopilotRequestTe' in properties ? properties.gitHubCopilotRequestTe : '<absent>'];
+				});
+			expect({ handleValues, outcomes }).toEqual({
+				handleValues: ['true', undefined],
+				outcomes: [['req-0', 'error_response', 'true'], ['req-1', 'error_response', '<absent>']],
+			});
 		});
 	});
 

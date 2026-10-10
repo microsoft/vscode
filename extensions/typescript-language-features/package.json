@@ -20,23 +20,8 @@
       "description": "%virtualWorkspaces%"
     },
     "untrustedWorkspaces": {
-      "supported": "limited",
-      "description": "%workspaceTrust%",
-      "restrictedConfigurations": [
-        "typescript.tsdk",
-        "js/ts.tsdk.path",
-        "typescript.tsserver.pluginPaths",
-        "js/ts.tsserver.pluginPaths",
-        "typescript.npm",
-        "js/ts.tsserver.npm.path",
-        "typescript.tsserver.nodePath",
-        "js/ts.tsserver.node.path",
-        "js/ts.tsserver.diagnosticDir",
-        "js/ts.tsserver.heapProfile",
-        "js/ts.preferences.autoImportSpecifierExcludeRegexes",
-        "typescript.preferences.autoImportSpecifierExcludeRegexes",
-        "javascript.preferences.autoImportSpecifierExcludeRegexes"
-      ]
+      "supported": false,
+      "description": "%workspaceTrust%"
     }
   },
   "engines": {
@@ -65,10 +50,10 @@
     "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.mjs compile-extension:typescript-language-features",
     "compile-web": "npm-run-all2 -lp bundle-web typecheck-web",
     "bundle-web": "node ./esbuild.browser.mts",
-    "typecheck-web": "tsgo --project ./tsconfig.browser.json --noEmit",
+    "typecheck-web": "node ../../node_modules/@typescript/native/lib/tsc.js --project ./tsconfig.browser.json --noEmit",
     "watch-web": "npm-run-all2 -lp watch-bundle-web watch-typecheck-web",
     "watch-bundle-web": "node ./esbuild.browser.mts --watch",
-    "watch-typecheck-web": "tsgo --project ./tsconfig.browser.json --noEmit --watch"
+    "watch-typecheck-web": "node ../../node_modules/@typescript/native/lib/tsc.js --project ./tsconfig.browser.json --noEmit --watch"
   },
   "activationEvents": [
     "onLanguage:javascript",

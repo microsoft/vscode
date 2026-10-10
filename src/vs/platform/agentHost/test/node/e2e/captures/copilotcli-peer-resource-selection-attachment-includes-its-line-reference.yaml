@@ -1,0 +1,21 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: |-
+            <ide_selection>
+            The user has the following text selected in their IDE. This may or may not be related to their request.
+            File: peer-selection.txt (line 2)
+            ```
+            second
+            ```
+            </ide_selection>
+
+            Reply exactly "selection".
+    response:
+      content: selection
+      stopReason: end_turn

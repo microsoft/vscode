@@ -6,6 +6,7 @@
 import { Codicon } from '../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
+import { Schemas } from '../../../base/common/network.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { localize } from '../../../nls.js';
 
@@ -51,6 +52,28 @@ export const enum PermissionCategory {
 	Notifications = 'notifications',
 	Sensors = 'sensors',
 	Clipboard = 'clipboard',
+	Devices = 'devices',
+}
+
+/**
+ * The kinds of hardware-device chooser flows the {@link PermissionCategory.Devices}
+ * category gates. Each maps to a distinct Electron device-selection event but is
+ * surfaced to the user through one unified request/selection flow.
+ */
+export type BrowserDeviceType = 'usb' | 'serial' | 'hid' | 'bluetooth';
+
+/**
+ * A single hardware device offered to the user during a device-chooser flow.
+ * Only plain, user-presentable data crosses the IPC boundary; the opaque
+ * `deviceId` is echoed back verbatim to select the device.
+ */
+export interface IBrowserDeviceCandidate {
+	/** Opaque, device-type-specific identifier echoed back to select the device. */
+	readonly deviceId: string;
+	/** Primary, user-facing label (e.g. product name). */
+	readonly label: string;
+	/** Optional secondary detail (e.g. manufacturer or vendor:product ids). */
+	readonly detail?: string;
 }
 
 /**
@@ -76,7 +99,7 @@ export const PERMISSION_CATEGORY_DESCRIPTORS: Readonly<Record<PermissionCategory
 	[PermissionCategory.Location]: {
 		category: PermissionCategory.Location,
 		label: localize('browserPermission.location.label', "Location"),
-		description: localize('browserPermission.location.description', "Access this device's geographic location."),
+		description: localize('browserPermission.location.description', "Access this device's geographic location"),
 		icon: Codicon.location,
 		permissions: ['geolocation', 'geolocation-approximate'],
 		defaultState: 'ask',
@@ -84,7 +107,7 @@ export const PERMISSION_CATEGORY_DESCRIPTORS: Readonly<Record<PermissionCategory
 	[PermissionCategory.Camera]: {
 		category: PermissionCategory.Camera,
 		label: localize('browserPermission.camera.label', "Camera"),
-		description: localize('browserPermission.camera.description', "Capture video from cameras."),
+		description: localize('browserPermission.camera.description', "Capture video from cameras"),
 		icon: Codicon.deviceCamera,
 		// `media` is shared with Microphone; disambiguated via mediaType/mediaTypes.
 		permissions: ['media'],
@@ -93,7 +116,7 @@ export const PERMISSION_CATEGORY_DESCRIPTORS: Readonly<Record<PermissionCategory
 	[PermissionCategory.Microphone]: {
 		category: PermissionCategory.Microphone,
 		label: localize('browserPermission.microphone.label', "Microphone"),
-		description: localize('browserPermission.microphone.description', "Capture audio from microphones."),
+		description: localize('browserPermission.microphone.description', "Capture audio from microphones"),
 		icon: Codicon.mic,
 		permissions: ['media'],
 		defaultState: 'ask',
@@ -101,7 +124,7 @@ export const PERMISSION_CATEGORY_DESCRIPTORS: Readonly<Record<PermissionCategory
 	[PermissionCategory.Sensors]: {
 		category: PermissionCategory.Sensors,
 		label: localize('browserPermission.sensors.label', "Sensors"),
-		description: localize('browserPermission.sensors.description', "Read motion and environmental sensors."),
+		description: localize('browserPermission.sensors.description', "Read motion and environmental sensors"),
 		icon: Codicon.pulse,
 		permissions: ['sensors'],
 		defaultState: 'allow',
@@ -109,7 +132,7 @@ export const PERMISSION_CATEGORY_DESCRIPTORS: Readonly<Record<PermissionCategory
 	[PermissionCategory.Clipboard]: {
 		category: PermissionCategory.Clipboard,
 		label: localize('browserPermission.clipboard.label', "Clipboard"),
-		description: localize('browserPermission.clipboard.description', "Read from and write to the system clipboard."),
+		description: localize('browserPermission.clipboard.description', "Read from and write to the system clipboard"),
 		icon: Codicon.clippy,
 		permissions: ['clipboard-read'],
 		defaultState: 'ask',
@@ -117,10 +140,21 @@ export const PERMISSION_CATEGORY_DESCRIPTORS: Readonly<Record<PermissionCategory
 	[PermissionCategory.Notifications]: {
 		category: PermissionCategory.Notifications,
 		label: localize('browserPermission.notifications.label', "Notifications"),
-		description: localize('browserPermission.notifications.description', "Display desktop notifications."),
+		description: localize('browserPermission.notifications.description', "Display desktop notifications"),
 		icon: Codicon.bell,
 		permissions: ['notifications'],
 		defaultState: 'ask',
+	},
+	[PermissionCategory.Devices]: {
+		category: PermissionCategory.Devices,
+		label: localize('browserPermission.devices.label', "Devices"),
+		description: localize('browserPermission.devices.description', "Request access to USB, serial, HID, and Bluetooth devices"),
+		icon: Codicon.plug,
+		// Each device kind has its own native chooser; this decision only gates
+		// whether that chooser is allowed to surface. Bluetooth has no Electron
+		// permission string (it is gated in the chooser handler directly).
+		permissions: ['usb', 'serial', 'hid'],
+		defaultState: 'allow',
 	},
 	/**
 	 * Permissions not listed here are either always allowed (see
@@ -138,8 +172,6 @@ export const PERMISSION_CATEGORY_DESCRIPTORS: Readonly<Record<PermissionCategory
 	 *   - Storage Access (`storage-access`, `top-level-storage-access`)
 	 *
 	 * Not currently implemented (in approximate order of 'might want')
-	 *   - USB, Serial, HID, Bluetooth (`usb`, `serial`, `hid`)
-	 *   - Local Network Access (`local-network-access`, `local-network`, `loopback-network`)
 	 *   - Screen Capture, Captured Surface Control (`display-capture`, `captured-surface-control`)
 	 *   - File Writing (`fileSystem`)
 	 *   - Open External (`openExternal`)
@@ -156,10 +188,18 @@ export const PERMISSION_CATEGORY_DESCRIPTORS: Readonly<Record<PermissionCategory
 
 /**
  * Raw Electron permission strings that are granted unconditionally, with no
- * recorded state and no management control. These are low-risk capabilities
- * that Chrome itself also always grants automatically.
+ * recorded state and no management control.
  */
 export const ALWAYS_ALLOWED_PERMISSIONS: ReadonlySet<string> = new Set([
+	// Electron disables LocalNetworkAccessChecks, so local and loopback network
+	// access is already allowed. Report that effective state to permissions.query()
+	// too: a false denial breaks sites that check first, such as Okta FastPass.
+	// https://github.com/electron/electron/issues/48655
+	'local-network-access',
+	'local-network',
+	'loopback-network',
+
+	// These are low-risk capabilities that Chrome itself also always grants automatically.
 	'pointerLock',
 	'keyboardLock',
 	'fullscreen',
@@ -234,13 +274,8 @@ function resolveMediaCategories(mediaKinds?: ReadonlyArray<'video' | 'audio'>): 
 }
 
 /**
- * Normalize a full URL down to a stable permission key.
- *
- * For URLs with a real origin (http/https/etc.) this returns the origin
- * (scheme + host + port), e.g. "https://example.com:8443". Host-less URLs such
- * as `file:` have no meaningful origin, so they key off the scheme and full
- * path instead (query and fragment removed), e.g. "file:///home/user/page.html".
- * Falls back to the trimmed raw input if it cannot be parsed.
+ * Normalize a URL to a stable origin key, retaining the full URL for files without query or fragment.
+ * Opaque origins have no key; unparseable inputs fall back to their trimmed value.
  */
 export function toOriginKey(url: string | undefined | null): string {
 	// Trim first so leading/trailing whitespace doesn't push otherwise valid
@@ -254,13 +289,12 @@ export function toOriginKey(url: string | undefined | null): string {
 	}
 	try {
 		const parsed = new URL(trimmed);
-		// Host-less schemes such as file: have no meaningful origin (it is
-		// reported as "null" in Node but "file://" in Chromium), so key off the
-		// scheme and full path instead -- query and fragment are dropped.
-		if (!parsed.host) {
-			return `${parsed.protocol}//${parsed.pathname}`;
+		if (parsed.protocol === `${Schemas.file}:`) {
+			parsed.search = '';
+			parsed.hash = '';
+			return parsed.href;
 		}
-		return parsed.origin;
+		return parsed.origin === 'null' ? '' : parsed.origin;
 	} catch {
 		return trimmed;
 	}

@@ -29,8 +29,8 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { IEditorGroupView, IEditorPartsView } from './editor.js';
 import { EditorPart } from './editorPart.js';
 import { GroupDirection, GroupsOrder, IModalEditorPart, GroupActivationReason } from '../../../services/editor/common/editorGroupsService.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { EditorPartModalContext, EditorPartModalMaximizedContext, EditorPartModalNavigationContext, EditorPartModalSidebarContext, EditorPartModalSidebarVisibleContext } from '../../../common/contextkeys.js';
+import { IEditorService, USE_MODAL_EDITOR_SETTING, UseModalEditorMode } from '../../../services/editor/common/editorService.js';
+import { EditorPartModalCanMoveToEditorAreaContext, EditorPartModalContext, EditorPartModalMaximizedContext, EditorPartModalNavigationContext, EditorPartModalSidebarContext, EditorPartModalSidebarVisibleContext } from '../../../common/contextkeys.js';
 import { EditorResourceAccessor, IEditorCommandsContext, SideBySideEditor, Verbosity } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { ResourceLabel } from '../../labels.js';
@@ -40,7 +40,7 @@ import { mainWindow } from '../../../../base/browser/window.js';
 import { localize } from '../../../../nls.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { CLOSE_MODAL_EDITOR_COMMAND_ID, MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID, MOVE_MODAL_EDITOR_TO_WINDOW_COMMAND_ID, NAVIGATE_MODAL_EDITOR_NEXT_COMMAND_ID, NAVIGATE_MODAL_EDITOR_PREVIOUS_COMMAND_ID, TOGGLE_MODAL_EDITOR_MAXIMIZED_COMMAND_ID, TOGGLE_MODAL_EDITOR_SIDEBAR_COMMAND_ID } from './editorCommands.js';
-import { IModalEditorNavigation, IModalEditorPartOptions, IModalEditorSidebar, isModalEditorOptionsProvider } from '../../../../platform/editor/common/editor.js';
+import { canMoveModalEditorToEditorArea, IModalEditorNavigation, IModalEditorPartOptions, IModalEditorSidebar, isModalEditorOptionsProvider } from '../../../../platform/editor/common/editor.js';
 
 const MODAL_MIN_WIDTH = 400;
 const MODAL_MIN_HEIGHT = 300;
@@ -115,8 +115,6 @@ const defaultModalEditorAllowableCommands = new Set([
 	TOGGLE_MODAL_EDITOR_SIDEBAR_COMMAND_ID,
 ]);
 
-const USE_MODAL_EDITOR_SETTING = 'workbench.editor.useModal';
-
 export interface ICreateModalEditorPartResult {
 	readonly part: ModalEditorPartImpl;
 	readonly instantiationService: IInstantiationService;
@@ -168,6 +166,7 @@ export class ModalEditorPart {
 		// closing the modal on `Escape` work regardless of which area has focus
 		// (e.g. the sidebar changes tree).
 		const modalContextKeyService = disposables.add(this.contextKeyService.createScoped(modalElement));
+		const canMoveToEditorAreaContext = EditorPartModalCanMoveToEditorAreaContext.bindTo(modalContextKeyService);
 
 		disposables.add(addDisposableListener(modalElement, EventType.MOUSE_DOWN, e => {
 			if (e.target === modalElement) {
@@ -178,10 +177,10 @@ export class ModalEditorPart {
 			}
 		}));
 
-		let useModalMode = this.configurationService.getValue<string>(USE_MODAL_EDITOR_SETTING);
+		let useModalMode = this.configurationService.getValue<UseModalEditorMode>(USE_MODAL_EDITOR_SETTING);
 		disposables.add(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(USE_MODAL_EDITOR_SETTING)) {
-				useModalMode = this.configurationService.getValue<string>(USE_MODAL_EDITOR_SETTING);
+				useModalMode = this.configurationService.getValue<UseModalEditorMode>(USE_MODAL_EDITOR_SETTING);
 			}
 		}));
 
@@ -295,6 +294,30 @@ export class ModalEditorPart {
 		editorPart.create(editorPartContainer);
 
 		disposables.add(Event.once(editorPart.onWillClose)(() => disposables.dispose()));
+		const pendingBubbleCloseEvents = new WeakSet<KeyboardEvent>();
+		disposables.add(addDisposableListener(mainWindow, EventType.KEY_DOWN, e => pendingBubbleCloseEvents.delete(e)));
+		// Capture close keybindings before focused controls can stop propagation.
+		disposables.add(addDisposableListener(modalElement, EventType.KEY_DOWN, e => {
+			const event = new StandardKeyboardEvent(e);
+			const resolved = this.keybindingService.softDispatch(event, event.target);
+			if (resolved.kind === ResultKind.KbFound && resolved.commandId === CLOSE_MODAL_EDITOR_COMMAND_ID) {
+				if (resolved.isBubble) {
+					pendingBubbleCloseEvents.add(e);
+					// Dispatch after target delivery only when propagation did not reach the window.
+					queueMicrotask(() => {
+						if (pendingBubbleCloseEvents.delete(e)) {
+							this.keybindingService.dispatchEvent(event, event.target);
+						}
+					});
+					return;
+				}
+				const shouldPreventDefault = this.keybindingService.dispatchEvent(event, event.target);
+				event.stopPropagation();
+				if (shouldPreventDefault) {
+					event.preventDefault();
+				}
+			}
+		}, true));
 		disposables.add(Event.runAndSubscribe(editorPart.onDidChangeNavigation, ((navigation: IModalEditorNavigation | undefined) => {
 			if (navigation && navigation.total > 1) {
 				show(navigationContainer);
@@ -724,6 +747,7 @@ export class ModalEditorPart {
 			const activeEditor = editorPart.activeGroup.activeEditor;
 			const editorModalOptions = isModalEditorOptionsProvider(activeEditor) ? activeEditor.getModalEditorOptions() : undefined;
 			modalElement.classList.toggle('compact-header', !!editorModalOptions?.compactHeader);
+			canMoveToEditorAreaContext.set(canMoveModalEditorToEditorArea(activeEditor));
 			layoutModal();
 		}));
 
@@ -851,8 +875,6 @@ interface IPosition {
 
 class ModalEditorPartImpl extends EditorPart implements IModalEditorPart {
 
-	private static COUNTER = 1;
-
 	private readonly _onWillClose = this._register(new Emitter<void>());
 	readonly onWillClose = this._onWillClose.event;
 
@@ -914,8 +936,8 @@ class ModalEditorPartImpl extends EditorPart implements IModalEditorPart {
 		@IHostService hostService: IHostService,
 		@IContextKeyService private readonly modalContextKeyService: IContextKeyService,
 	) {
-		const id = ModalEditorPartImpl.COUNTER++;
-		super(editorPartsView, `workbench.parts.modalEditor.${id}`, localize('modalEditorPart', "Modal Editor Area"), windowId, instantiationService, themeService, configurationService, storageService, layoutService, hostService, modalContextKeyService);
+		// Keep a stable component ID so recreating the modal does not grow the global memento cache.
+		super(editorPartsView, 'workbench.parts.modalEditor', localize('modalEditorPart', "Modal Editor Area"), windowId, instantiationService, themeService, configurationService, storageService, layoutService, hostService, modalContextKeyService);
 
 		this._maximized = options?.maximized ?? false;
 		this._size = options?.size;
@@ -948,7 +970,7 @@ class ModalEditorPartImpl extends EditorPart implements IModalEditorPart {
 	}
 
 	enforceModalPartOptions(): void {
-		const useModalForAll = this.configurationService.getValue<string>(USE_MODAL_EDITOR_SETTING) === 'all';
+		const useModalForAll = this.configurationService.getValue<UseModalEditorMode>(USE_MODAL_EDITOR_SETTING) === 'all';
 		const editorCount = this.groups.reduce((count, group) => count + group.count, 0);
 		const showTabs = useModalForAll && editorCount > 1 ? 'multiple' : 'none';
 

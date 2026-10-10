@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, Mock, vi } from 'vitest';
 import { Embedding, EmbeddingType, IEmbeddingsComputer } from '../../../../../platform/embeddings/common/embeddingsComputer';
 import { ILogService } from '../../../../../platform/log/common/logService';
 import { ITestingServicesAccessor } from '../../../../../platform/test/node/services';
+import { IGithubAvailableEmbeddingTypesService } from '../../../../../platform/workspaceChunkSearch/common/githubAvailableEmbeddingTypes';
 import { CancellationToken } from '../../../../../util/vs/base/common/cancellation';
 import { IInstantiationService } from '../../../../../util/vs/platform/instantiation/common/instantiation';
 import { createExtensionUnitTestingServices } from '../../../../test/node/services';
@@ -17,9 +18,10 @@ class TestToolEmbeddingsComputer extends ToolEmbeddingsComputer {
 		private readonly _testCache: Map<string, Embedding>,
 		@IEmbeddingsComputer embeddingsComputer: IEmbeddingsComputer,
 		@ILogService logService: ILogService,
+		@IGithubAvailableEmbeddingTypesService availableEmbeddingTypesService: IGithubAvailableEmbeddingTypesService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
-		super(embeddingsComputer, logService, instantiationService);
+		super(embeddingsComputer, logService, availableEmbeddingTypesService, instantiationService);
 	}
 	protected override getCaches(instantiationService: IInstantiationService) {
 		return {

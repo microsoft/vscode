@@ -26,7 +26,7 @@ import { IInstantiationService } from '../../../../util/vs/platform/instantiatio
 import { ensureNodePtyShim } from './nodePtyShim';
 import { ensureRipgrepShim } from './ripgrepShim';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
-import { formatTokenCount, getModelCapabilitiesDescription, getReasoningEffortDescription, normalizeTokenPrices } from '../../../conversation/common/languageModelAccess';
+import { formatTokenCount, getAutoModelDescription, getModelCapabilitiesDescription, getReasoningEffortDescription, normalizeTokenPrices, pickDefaultReasoningEffort } from '../../../conversation/common/languageModelAccess';
 
 export const COPILOT_CLI_REASONING_EFFORT_PROPERTY = 'reasoningEffort';
 const COPILOT_CLI_MODEL_MEMENTO_KEY = 'github.copilot.cli.sessionModel';
@@ -60,6 +60,7 @@ export interface CopilotCLIModelInfo {
 	readonly supportsReasoningEffort?: boolean;
 	readonly defaultReasoningEffort?: string;
 	readonly supportedReasoningEfforts?: string[];
+	readonly warningText?: Record<string, string>;
 }
 
 export interface ICopilotCLIModels {
@@ -223,7 +224,6 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 	}
 
 	private _buildModelInfos(models: CopilotCLIModelInfo[]): vscode.LanguageModelChatInformation[] {
-		const isReasoningEffortEnabled = this.configurationService.getConfig(ConfigKey.Advanced.CLIThinkingEffortEnabled);
 		const isAutoModelEnabled = this.configurationService.getConfig(ConfigKey.Advanced.CLIAutoModelEnabled);
 		const modelsInfo: vscode.LanguageModelChatInformation[] = models.map((model, index) => {
 			const multiplier = model.multiplier === undefined ? undefined : `${model.multiplier}x`;
@@ -234,6 +234,7 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 				version: '',
 				maxInputTokens: model.maxInputTokens ?? model.maxContextWindowTokens,
 				maxOutputTokens: model.maxOutputTokens ?? 0,
+				maxContextWindowTokens: model.maxContextWindowTokens,
 				pricing: multiplier,
 				priceCategory: model.priceCategory,
 				inputCost: model.inputCost,
@@ -246,12 +247,13 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 				longContextCacheWriteCost: model.longContextCacheWriteCost,
 				multiplierNumeric: model.multiplier,
 				isUserSelectable: true,
-				...buildConfigurationSchema(model, isReasoningEffortEnabled),
+				...buildConfigurationSchema(model),
 				capabilities: {
 					imageInput: model.supportsVision,
 					toolCalling: true
 				},
 				targetChatSessionType: 'copilotcli',
+				warningText: model.warningText,
 				isDefault: !isAutoModelEnabled && index === 0 ? true : undefined,
 			};
 			const tooltip = getModelCapabilitiesDescription(modelInfo) ?? '';
@@ -271,11 +273,12 @@ function buildAutoModel(defaultModel?: CopilotCLIModelInfo): vscode.LanguageMode
 	return {
 		id: 'auto',
 		name: 'Auto',
-		tooltip: l10n.t('Auto selects the best model based on your request complexity and model performance.'),
+		tooltip: getAutoModelDescription(),
 		family: defaultModel?.id ?? '',
 		version: '',
 		maxInputTokens: defaultModel?.maxInputTokens ?? defaultModel?.maxContextWindowTokens ?? 0,
 		maxOutputTokens: defaultModel?.maxOutputTokens ?? 0,
+		maxContextWindowTokens: defaultModel?.maxContextWindowTokens,
 		isUserSelectable: true,
 		capabilities: {
 			imageInput: defaultModel?.supportsVision,
@@ -288,24 +291,24 @@ function buildAutoModel(defaultModel?: CopilotCLIModelInfo): vscode.LanguageMode
 
 export const COPILOT_CLI_CONTEXT_SIZE_PROPERTY = 'contextSize';
 
-function buildConfigurationSchema(modelInfo: CopilotCLIModelInfo, isReasoningEffortEnabled: boolean): { configurationSchema?: vscode.LanguageModelConfigurationSchema } {
+function buildConfigurationSchema(modelInfo: CopilotCLIModelInfo): { configurationSchema?: vscode.LanguageModelConfigurationSchema } {
 	const properties: Record<string, NonNullable<vscode.LanguageModelConfigurationSchema['properties']>[string]> = {};
 
 	// Reasoning effort config
-	if (isReasoningEffortEnabled) {
-		const effortLevels = modelInfo.supportedReasoningEfforts ?? [];
-		if (effortLevels.length > 0) {
-			const defaultEffort = modelInfo.defaultReasoningEffort;
-			properties[COPILOT_CLI_REASONING_EFFORT_PROPERTY] = {
-				type: 'string',
-				title: l10n.t('Thinking Effort'),
-				enum: effortLevels,
-				enumItemLabels: effortLevels.map(level => level.charAt(0).toUpperCase() + level.slice(1)),
-				enumDescriptions: effortLevels.map(getReasoningEffortDescription),
-				default: defaultEffort,
-				group: 'navigation',
-			};
-		}
+	const effortLevels = modelInfo.supportedReasoningEfforts ?? [];
+	if (effortLevels.length > 0) {
+		const defaultEffort = modelInfo.defaultReasoningEffort && effortLevels.includes(modelInfo.defaultReasoningEffort)
+			? modelInfo.defaultReasoningEffort
+			: pickDefaultReasoningEffort(effortLevels, modelInfo.id);
+		properties[COPILOT_CLI_REASONING_EFFORT_PROPERTY] = {
+			type: 'string',
+			title: l10n.t('Thinking Effort'),
+			enum: effortLevels,
+			enumItemLabels: effortLevels.map(level => level.charAt(0).toUpperCase() + level.slice(1)),
+			enumDescriptions: effortLevels.map(getReasoningEffortDescription),
+			default: defaultEffort,
+			group: 'navigation',
+		};
 	}
 
 	// Context size config — only when CAPI provides a default context max,
@@ -313,6 +316,7 @@ function buildConfigurationSchema(modelInfo: CopilotCLIModelInfo, isReasoningEff
 	const defaultContextMax = modelInfo.defaultContextMax;
 	const fullMax = modelInfo.maxInputTokens ?? modelInfo.maxContextWindowTokens;
 	if (defaultContextMax && defaultContextMax < fullMax) {
+		// Offer both sizes; default to the full window when long context is free, else the smaller tier.
 		const hasLongContextSurcharge = modelInfo.longContextInputCost !== undefined
 			|| modelInfo.longContextOutputCost !== undefined;
 		properties[COPILOT_CLI_CONTEXT_SIZE_PROPERTY] = {
@@ -322,11 +326,9 @@ function buildConfigurationSchema(modelInfo: CopilotCLIModelInfo, isReasoningEff
 			enumItemLabels: [formatTokenCount(defaultContextMax), formatTokenCount(fullMax)],
 			enumDescriptions: [
 				l10n.t('Default'),
-				hasLongContextSurcharge
-					? l10n.t('Longer sessions')
-					: l10n.t('Longer sessions without compaction'),
+				l10n.t('Longer sessions'),
 			],
-			default: defaultContextMax,
+			default: hasLongContextSurcharge ? defaultContextMax : fullMax,
 			group: 'tokens',
 		};
 	}
@@ -573,13 +575,6 @@ export class CopilotCLISDK implements ICopilotCLISDK {
 		try {
 			// Ensure the node-pty and ripgrep shims exist before importing the SDK (required for CLI sessions)
 			await this._ensureShimsPromise;
-			// The SDK's sandbox auto-detection looks for `mxc-bin/<arch>/wxc-exec.exe` (and the
-			// Linux/macOS equivalents) under `MXC_BIN_DIR`. VS Code core ships the MXC
-			// sandbox binaries at `<appRoot>/node_modules/@microsoft/mxc-sdk/bin/<arch>/`, so
-			// point `MXC_BIN_DIR` there. The @github/copilot package's own `mxc-bin/` is excluded
-			// from the product build (see build/.moduleignore).
-			process.env['MXC_BIN_DIR'] = path.join(this.envService.appRoot, 'node_modules', '@microsoft', 'mxc-sdk', 'bin');
-
 			// On Linux the MXC bubblewrap sandbox backend does not forward a PTY into
 			// the container, so the CLI's default PTY-backed interactive shell can
 			// never start bash under the sandbox: the inner shell sees a non-tty
@@ -701,13 +696,19 @@ export function isEnabledForCopilotCLI(customization: { sessionTypes?: readonly 
 
 /**
  * Maps a user-selected numeric context size to the SDK's context tier.
- * Returns `'long_context'` when the selected size exceeds the default context
- * max, `'default'` when it is within the default tier, or `undefined` when
- * no context size was provided or the model has no tiered pricing.
+ * With an explicit selection, `'long_context'` when it exceeds the default max, else `'default'`.
+ * With no selection, `'long_context'` for free long-context models (larger window, no surcharge), else `undefined`.
  */
 export function resolveContextTier(contextSize: unknown, modelInfo: CopilotCLIModelInfo | undefined): 'default' | 'long_context' | undefined {
-	if (typeof contextSize !== 'number' || !modelInfo?.defaultContextMax) {
+	if (!modelInfo?.defaultContextMax) {
 		return undefined;
+	}
+	if (typeof contextSize !== 'number') {
+		// No selection: free long context uses the full window; surcharged models stay on the SDK default tier.
+		const fullMax = modelInfo.maxInputTokens ?? modelInfo.maxContextWindowTokens;
+		const hasLongContextSurcharge = modelInfo.longContextInputCost !== undefined
+			|| modelInfo.longContextOutputCost !== undefined;
+		return modelInfo.defaultContextMax < fullMax && !hasLongContextSurcharge ? 'long_context' : undefined;
 	}
 	return contextSize > modelInfo.defaultContextMax ? 'long_context' : 'default';
 }

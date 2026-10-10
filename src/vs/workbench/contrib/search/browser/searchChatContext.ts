@@ -36,6 +36,8 @@ import { SymbolKinds } from '../../../../editor/common/languages.js';
 import { isSupportedChatFileScheme } from '../../chat/common/constants.js';
 import { IChatWidget } from '../../chat/browser/chat.js';
 
+export const MAX_CHAT_FILE_COMPLETION_RESULTS = 100;
+
 export class SearchChatContextContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contributions.searchChatContextContribution';
@@ -234,7 +236,8 @@ export async function searchFilesAndFolders(
 	token: CancellationToken | undefined,
 	cacheKey: string | undefined,
 	configurationService: IConfigurationService,
-	searchService: ISearchService
+	searchService: ISearchService,
+	maxResults?: number
 ): Promise<{ folders: URI[]; files: URI[] }> {
 	const segmentMatchPattern = fuzzyMatch ? fuzzyMatchingGlobPattern(pattern) : continousMatchingGlobPattern(pattern);
 
@@ -250,6 +253,7 @@ export async function searchFilesAndFolders(
 		excludePattern: searchExcludePattern,
 		sortByScore: true,
 		ignoreGlobCase: true,
+		maxResults,
 	};
 
 	let searchResult: ISearchComplete | undefined;

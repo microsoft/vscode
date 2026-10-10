@@ -12,8 +12,9 @@ import { areSameExtensions, BetterMergeId, getExtensionDependencies, isMalicious
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
-import { ExtensionType, IExtension, isAuthenticationProviderExtension, isLanguagePackExtension, isResolverExtension } from '../../../../platform/extensions/common/extensions.js';
+import { ExtensionType, IExtension, IExtensionManifest, isAuthenticationProviderExtension, isLanguagePackExtension, isResolverExtension } from '../../../../platform/extensions/common/extensions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ChatAIDisabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { StorageManager } from '../../../../platform/extensionManagement/common/extensionEnablementService.js';
 import { webWorkerExtHostConfig, WebWorkerExtHostConfigValue } from '../../extensions/common/extensions.js';
@@ -21,6 +22,7 @@ import { IUserDataSyncAccountService } from '../../../../platform/userDataSync/c
 import { IUserDataSyncEnablementService } from '../../../../platform/userDataSync/common/userDataSync.js';
 import { ILifecycleService, LifecyclePhase } from '../../lifecycle/common/lifecycle.js';
 import { INotificationService, NotificationPriority, Severity } from '../../../../platform/notification/common/notification.js';
+import { NotificationTelemetryId, NotificationActionTelemetryId } from '../../../../platform/notification/common/notificationTelemetry.js';
 import { IHostService } from '../../host/browser/host.js';
 import { IExtensionBisectService } from './extensionBisect.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
@@ -34,6 +36,7 @@ import { Delayer } from '../../../../base/common/async.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { ChatEntitlementService, IChatEntitlementService } from '../../chat/common/chatEntitlementService.js';
+import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 
 const SOURCE = 'IWorkbenchExtensionEnablementService';
 
@@ -73,6 +76,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
+		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 		@IUserDataSyncAccountService private readonly userDataSyncAccountService: IUserDataSyncAccountService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@INotificationService private readonly notificationService: INotificationService,
@@ -137,9 +141,11 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		if (this.allUserExtensionsDisabled) {
 			this.lifecycleService.when(LifecyclePhase.Eventually).then(() => {
 				this.notificationService.prompt(Severity.Info, localize('extensionsDisabled', "All installed extensions are temporarily disabled."), [{
+					telemetryId: NotificationActionTelemetryId.Reload,
 					label: localize('Reload', "Reload and Enable Extensions"),
 					run: () => hostService.reload({ disableExtensions: false })
 				}], {
+					telemetry: NotificationTelemetryId.ExtensionsDisabled,
 					sticky: true,
 					priority: NotificationPriority.URGENT
 				});
@@ -168,10 +174,10 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 				// User has used chat features before
 				if (this._isDisabledGlobally({ id: this._chatExtensionId })) {
 					// User had specifically disabled the chat extension to disable AI features
-					if (this.configurationService.getValue('chat.disableAIFeatures') !== true) {
+					if (this.configurationService.getValue(ChatAIDisabledSettingId) !== true) {
 						// Honor that choice by disabling AI features
 						this.logService.debug('Disabling AI features because builtin chat extension is disabled');
-						this.configurationService.updateValue('chat.disableAIFeatures', true)
+						this.configurationService.updateValue(ChatAIDisabledSettingId, true)
 							.catch(err => this.logService.error('Failed to update chat.disableAIFeatures setting during builtin chat extension enablement migration', err));
 					}
 				}
@@ -231,14 +237,31 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		}
 	}
 
+	private isDefaultOrSettingsSyncAuthProviderExtension(manifest: IExtensionManifest): boolean {
+		if (!isAuthenticationProviderExtension(manifest)) {
+			return false;
+		}
+
+		const defaultAccountAuthProvider = this.defaultAccountService.getDefaultAccountAuthenticationProvider();
+		if (manifest.contributes!.authentication!.some(a => a.id === defaultAccountAuthProvider.id)) {
+			return true;
+		}
+
+		if (this.userDataSyncEnablementService.isEnabled() && this.userDataSyncAccountService.account &&
+			manifest.contributes!.authentication!.some(a => a.id === this.userDataSyncAccountService.account!.authenticationProviderId)) {
+			return true;
+		}
+
+		return false;
+	}
+
 	private throwErrorIfCannotChangeEnablement(extension: IExtension, donotCheckDependencies?: boolean): void {
 		if (isLanguagePackExtension(extension.manifest)) {
 			throw new Error(localize('cannot disable language pack extension', "Cannot change enablement of {0} extension because it contributes language packs.", extension.manifest.displayName || extension.identifier.id));
 		}
 
-		if (this.userDataSyncEnablementService.isEnabled() && this.userDataSyncAccountService.account &&
-			isAuthenticationProviderExtension(extension.manifest) && extension.manifest.contributes!.authentication!.some(a => a.id === this.userDataSyncAccountService.account!.authenticationProviderId)) {
-			throw new Error(localize('cannot disable auth extension', "Cannot change enablement {0} extension because Settings Sync depends on it.", extension.manifest.displayName || extension.identifier.id));
+		if (this.isDefaultOrSettingsSyncAuthProviderExtension(extension.manifest)) {
+			throw new Error(localize('cannot disable settings sync auth extension', "Cannot change enablement of {0} extension because Settings Sync depends on it.", extension.manifest.displayName || extension.identifier.id));
 		}
 
 		if (this._isEnabledInEnv(extension)) {
@@ -280,8 +303,9 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		if (!this.hasWorkspace) {
 			throw new Error(localize('noWorkspace', "No workspace."));
 		}
-		if (isAuthenticationProviderExtension(extension.manifest)) {
-			throw new Error(localize('cannot disable auth extension in workspace', "Cannot change enablement of {0} extension in workspace because it contributes authentication providers", extension.manifest.displayName || extension.identifier.id));
+
+		if (this.isDefaultOrSettingsSyncAuthProviderExtension(extension.manifest)) {
+			throw new Error(localize('cannot disable settings sync auth extension in workspace', "Cannot change enablement of {0} extension in workspace because Settings Sync depends on it.", extension.manifest.displayName || extension.identifier.id));
 		}
 	}
 
@@ -653,21 +677,11 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 			return false;
 		}
 
-		// Built-in extensions are enabled in sessions window except the chat extension and extensions that contribute not supported features.
-		if (extension.isBuiltin) {
-			if (extension.identifier.id.toLowerCase() === this._chatExtensionId) {
-				return false;
-			}
-
-			const contributes = extension.manifest.contributes;
-			if (contributes?.debuggers || contributes?.views || contributes?.viewsContainers || contributes?.walkthroughs) {
-				return true;
-			}
-
+		if (extension.isBuiltin && extension.identifier.id.toLowerCase() === this._chatExtensionId) {
 			return false;
 		}
 
-		return !this.extensionManifestPropertiesService.canExecuteOnSessionsWindow(extension.manifest);
+		return !this.extensionManifestPropertiesService.canExecuteOnSessionsWindow(extension.manifest, extension.isBuiltin);
 	}
 
 	private _enableExtension(identifier: IExtensionIdentifier): Promise<boolean> {

@@ -23,6 +23,7 @@ import { extUriBiasedIgnorePathCase } from '../../../../base/common/resources.js
 import { URI } from '../../../../base/common/uri.js';
 import { addUNCHostToAllowlist } from '../../../../base/node/unc.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { TestParcelWatcher } from './parcelWatcher.test.js';
 
 // this suite has shown flaky runs in Azure pipelines where
@@ -76,7 +77,7 @@ suite.skip('File Watcher (node.js)', function () {
 		// here. for example, on macOS the tmp dir is potentially a
 		// symlink in some of the root folders, which is a rather
 		// unrealisic case for the file watcher.
-		testDir = URI.file(getRandomTestPath(fs.realpathSync(tmpdir()), 'vsctests', 'filewatcher')).fsPath;
+		testDir = URI.file(getRandomTestPath(fs.realpathSync.native(tmpdir()), 'vsctests', 'filewatcher')).fsPath;
 
 		const sourceDir = FileAccess.asFileUri('vs/platform/files/test/node/fixtures/service').fsPath;
 
@@ -289,6 +290,13 @@ suite.skip('File Watcher (node.js)', function () {
 		changeFuture = awaitEvent(watcher, filePath, FileChangeType.DELETED);
 		await Promises.rename(filePath, `${filePath}-moved`);
 		await changeFuture;
+	});
+
+	test('folder child matching watched folder basename', async function () {
+		const folderPath = join(testDir, 'deep');
+		await watcher.watch([{ path: folderPath, excludes: [], recursive: false }]);
+
+		await basicCrudTest(join(folderPath, basename(folderPath)));
 	});
 
 	test('atomic writes (folder watch)', async function () {
@@ -596,16 +604,59 @@ suite.skip('File Watcher (node.js)', function () {
 		assert.strictEqual(instance.failed, true);
 	});
 
-	(isMacintosh || isWindows /* macOS: does not seem to report deletes on folders | Windows: reports on('error') event only */ ? test.skip : test)('deleting watched path emits watcher fail and delete event when correlated (folder watch)', async function () {
+	(isMacintosh /* macOS: does not seem to report deletes on folders */ ? test.skip : test)('deleting watched path emits watcher fail and delete event when correlated (folder watch)', async function () {
 		const folderPath = join(testDir, 'deep');
 
 		await watcher.watch([{ path: folderPath, excludes: [], recursive: false, correlationId: 1 }]);
 
+		const instance = Array.from(watcher.watchers)[0].instance;
 		const onDidWatchFail = Event.toPromise(watcher.onWatchFail);
 		const changeFuture = awaitEvent(watcher, folderPath, FileChangeType.DELETED, 1);
 		Promises.rm(folderPath, RimRafMode.UNLINK);
 		await onDidWatchFail;
 		await changeFuture;
+		assert.strictEqual(instance.failed, true);
+	});
+
+	(isWindows ? test : test.skip)('recreating a deleted watched folder stops the stale watcher and reattaches', async function () {
+		const folderPath = join(testDir, 'recreated');
+		await fs.promises.mkdir(folderPath);
+
+		const testDisposables = new DisposableStore();
+		watcher.setVerboseLogging(true);
+		let rawEventCount = 0;
+		testDisposables.add(watcher.onDidLogMessage(event => {
+			if (event.message.includes('[raw]')) {
+				rawEventCount++;
+			}
+		}));
+
+		try {
+			await watcher.watch([{ path: folderPath, excludes: [], recursive: false, correlationId: 1 }]);
+
+			const instance = Array.from(watcher.watchers)[0].instance;
+			const rawEventCountsStable: boolean[] = [];
+			for (let i = 0; i < 3; i++) {
+				const reattached = Event.toPromise(Event.filter(watcher.onDidLogMessage, event => event.message.includes('Started watching')));
+				await Promises.rm(folderPath, RimRafMode.UNLINK);
+				await fs.promises.mkdir(folderPath);
+				await reattached;
+				const rawEventCountAfterReattach = rawEventCount;
+				await timeout(200);
+				rawEventCountsStable.push(rawEventCount === rawEventCountAfterReattach);
+				await basicCrudTest(join(folderPath, `newFile-${i}.txt`), undefined, 1);
+			}
+
+			assert.deepStrictEqual({
+				failed: instance.failed,
+				rawEventCountsStable,
+			}, {
+				failed: false,
+				rawEventCountsStable: [true, true, true],
+			});
+		} finally {
+			testDisposables.dispose();
+		}
 	});
 
 	test('watch requests support suspend/resume (file, does not exist in beginning)', async function () {

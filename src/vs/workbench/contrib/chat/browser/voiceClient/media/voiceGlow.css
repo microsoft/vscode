@@ -1,0 +1,264 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/*
+ * Voice Mode ambient glow.
+ *
+ * One treatment — `.voice-glow-rim`, an interior rim built from a perimeter of
+ * soft blobs, masked into a hairline ring plus a wider inner wash and a blurred
+ * bloom — mounted as an absolutely-positioned overlay "slot" on the chat input
+ * box (see `voiceGlowController.ts`). It takes two moods:
+ *
+ * - `.voice-glow-rim-cool` — the user is listening,
+ * - `.voice-glow-rim-warm` — the agent is speaking.
+ * - `.voice-glow-rim-warning` — a voice request needs confirmation.
+ *
+ * Both are audio-reactive. Every other voice state renders nothing, so the light
+ * means "someone is talking" rather than "voice is on".
+ *
+ * Everything animated is a CSS custom property driven from JS, so the layers are
+ * painted from one shared animation frame rather than a dozen CSS animations.
+ *
+ * High-contrast themes opt out of the whole soft-light language at the bottom of
+ * this file: gradients and blur can't carry a guaranteed contrast ratio, so the
+ * two states become solid lines instead.
+ */
+
+.voice-glow-slot {
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+	opacity: 0;
+	/* Follows the target's corners: the slot is a child of the box it lights, so
+		inheriting keeps the two in step without measuring anything in script. */
+	border-radius: inherit;
+	will-change: opacity;
+}
+
+/*
+ * The glow paints above the (opaque) voice transcript overlay, which would
+ * otherwise hide it. That also puts it above the input's own controls, whose
+ * send button sits right in the band the rim's inner wash and the border's inset
+ * glow bleed into — so lift the toolbars back on top. Their background is
+ * transparent, so the glow still reads through them.
+ */
+.voice-active .chat-input-toolbars,
+.voice-active .sessions-chat-toolbar {
+	position: relative;
+	z-index: 12;
+}
+
+/*
+ * Inline variant: a rim mounted directly over a single control (the dictation
+ * microphone) rather than cross-faded between voice states. It is visible as
+ * soon as it is mounted, and sits behind the control's own glyph so the icon
+ * stays crisp.
+ *
+ * A control is far smaller than an input box, and the rim's softness does not
+ * survive being scaled down with it: below a few pixels a blur reads as a hard
+ * edge rather than as light, and a 1px ring that is barely 1% of an input's
+ * height is 5% of a button's, so it drowns out everything behind it. The ring
+ * therefore thins, and the inner wash is held back as a share of the box rather
+ * than an absolute distance.
+ */
+.voice-glow-slot-inline {
+	opacity: 1;
+	z-index: 0;
+	--vg-ring-width: 0.6px;
+	--vg-inner-fade: 42%;
+}
+
+/* --- Rim ------------------------------------------------------------------ */
+
+.voice-glow-rim {
+	/* Motion, driven per frame from JS. */
+	--vg-w1: 1;
+	--vg-h1: 1;
+	--vg-w2: 1;
+	--vg-h2: 1;
+	--vg-w3: 1;
+	--vg-h3: 1;
+	--vg-x1: 0px;
+	--vg-y1: 0px;
+	--vg-x2: 0px;
+	--vg-y2: 0px;
+	--vg-x3: 0px;
+	--vg-y3: 0px;
+	--vg-breath: 1;
+	--vg-op-tl: 1;
+	--vg-op-tr: 1;
+	--vg-op-bl: 1;
+	--vg-op-br: 1;
+	/* Color + intensity, driven from the theme accent and the audio level. */
+	--vg-hue: 212;
+	--vg-sat: 90%;
+	--vg-light: 66%;
+	--vg-strength: 1;
+	/*
+	 * Scales the whole rim to the box it lights. The blob sizes below are absolute
+	 * so the light keeps a constant physical softness across inputs of different
+	 * widths; a much smaller host (a mic button) has to shrink them to match, or
+	 * a single blob swamps the whole element.
+	 */
+	--vg-size: 1;
+	--vg-blob-scale: var(--vg-size);
+	--vg-ring-width: 1px;
+	/* How far in from the edge the inner wash fades out. */
+	--vg-inner-fade: calc(28px * var(--vg-size));
+	overflow: hidden;
+	isolation: isolate;
+}
+
+/*
+ * One perimeter of blobs shared by all three rim layers. Each blob belongs to one
+ * of three size/drift regions (so they breathe out of step) and one quadrant (so
+ * their opacity swells out of step), and carries a small hue offset so the rim
+ * reads as a living wash rather than one flat color.
+ */
+.voice-glow-rim::after,
+.voice-glow-rim::before,
+.voice-glow-rim > .voice-glow-rim-bloom {
+	background:
+		radial-gradient(ellipse calc(72px * var(--vg-w1) * var(--vg-blob-scale)) calc(40px * var(--vg-h1) * var(--vg-breath) * var(--vg-blob-scale)) at calc(31% + var(--vg-x1)) calc(-7% + var(--vg-y1)), hsl(calc(var(--vg-hue) - 14) var(--vg-sat) var(--vg-light) / calc(var(--vg-op-tl) * var(--vg-strength))), transparent),
+		radial-gradient(ellipse calc(60px * var(--vg-w2) * var(--vg-blob-scale)) calc(35px * var(--vg-h2) * var(--vg-breath) * var(--vg-blob-scale)) at calc(12% + var(--vg-x2)) calc(-5% + var(--vg-y2)), hsl(calc(var(--vg-hue) + 8) var(--vg-sat) var(--vg-light) / calc(var(--vg-op-tl) * var(--vg-strength))), transparent),
+		radial-gradient(ellipse calc(40px * var(--vg-w3) * var(--vg-blob-scale)) calc(70px * var(--vg-h3) * var(--vg-breath) * var(--vg-blob-scale)) at calc(2% + var(--vg-x3)) calc(68% + var(--vg-y3)), hsl(calc(var(--vg-hue) - 6) var(--vg-sat) var(--vg-light) / calc(var(--vg-op-bl) * var(--vg-strength))), transparent),
+		radial-gradient(ellipse calc(20px * var(--vg-w1) * var(--vg-blob-scale)) calc(35px * var(--vg-h1) * var(--vg-breath) * var(--vg-blob-scale)) at calc(2% + var(--vg-x1)) calc(68% + var(--vg-y1)), hsl(calc(var(--vg-hue) + 16) var(--vg-sat) var(--vg-light) / calc(var(--vg-op-bl) * var(--vg-strength))), transparent),
+		radial-gradient(ellipse calc(180px * var(--vg-w2) * var(--vg-blob-scale)) calc(32px * var(--vg-h2) * var(--vg-breath) * var(--vg-blob-scale)) at calc(74% + var(--vg-x2)) calc(100% + var(--vg-y2)), hsl(calc(var(--vg-hue) + 20) var(--vg-sat) var(--vg-light) / calc(var(--vg-op-br) * var(--vg-strength))), transparent),
+		radial-gradient(ellipse calc(85px * var(--vg-w3) * var(--vg-blob-scale)) calc(26px * var(--vg-h3) * var(--vg-breath) * var(--vg-blob-scale)) at calc(55% + var(--vg-x3)) calc(100% + var(--vg-y3)), hsl(calc(var(--vg-hue) + 2) var(--vg-sat) var(--vg-light) / calc(var(--vg-op-br) * var(--vg-strength))), transparent),
+		radial-gradient(ellipse calc(74px * var(--vg-w1) * var(--vg-blob-scale)) calc(32px * var(--vg-h1) * var(--vg-breath) * var(--vg-blob-scale)) at calc(94% + var(--vg-x1)) calc(0% + var(--vg-y1)), hsl(calc(var(--vg-hue) + 12) var(--vg-sat) var(--vg-light) / calc(var(--vg-op-tr) * var(--vg-strength))), transparent),
+		radial-gradient(ellipse calc(26px * var(--vg-w2) * var(--vg-blob-scale)) calc(42px * var(--vg-h2) * var(--vg-breath) * var(--vg-blob-scale)) at calc(100% + var(--vg-x2)) calc(27% + var(--vg-y2)), hsl(calc(var(--vg-hue) - 10) var(--vg-sat) var(--vg-light) / calc(var(--vg-op-tr) * var(--vg-strength))), transparent),
+		radial-gradient(ellipse calc(52px * var(--vg-w3) * var(--vg-blob-scale)) calc(48px * var(--vg-h3) * var(--vg-breath) * var(--vg-blob-scale)) at calc(100% + var(--vg-x3)) calc(27% + var(--vg-y3)), hsl(calc(var(--vg-hue) + 18) var(--vg-sat) var(--vg-light) / calc(var(--vg-op-tr) * var(--vg-strength))), transparent);
+}
+
+/* The hairline ring itself: the blob wash clipped to the border. */
+.voice-glow-rim::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	border-radius: inherit;
+	padding: var(--vg-ring-width);
+	-webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+	-webkit-mask-composite: xor;
+	mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+	mask-composite: exclude;
+	pointer-events: none;
+	z-index: 2;
+	opacity: var(--vg-ring-opacity, 1);
+}
+
+/*
+ * The wider inner wash. Faded out towards the middle of the box so the light
+ * stays on the perimeter and never washes over the text being typed.
+ */
+.voice-glow-rim::before {
+	content: '';
+	position: absolute;
+	inset: 0;
+	border-radius: inherit;
+	--vg-blob-scale: calc(0.72 * var(--vg-size));
+	-webkit-mask-image:
+		linear-gradient(#fff, transparent var(--vg-inner-fade), transparent calc(100% - var(--vg-inner-fade)), #fff),
+		linear-gradient(to right, #fff, transparent var(--vg-inner-fade), transparent calc(100% - var(--vg-inner-fade)), #fff);
+	-webkit-mask-composite: source-over;
+	mask-image:
+		linear-gradient(#fff, transparent var(--vg-inner-fade), transparent calc(100% - var(--vg-inner-fade)), #fff),
+		linear-gradient(to right, #fff, transparent var(--vg-inner-fade), transparent calc(100% - var(--vg-inner-fade)), #fff);
+	mask-composite: add;
+	pointer-events: none;
+	z-index: 1;
+	opacity: var(--vg-inner-opacity, 0.44);
+}
+
+/* The soft bloom riding on top of the ring, blurred so the edge reads as light. */
+.voice-glow-rim > .voice-glow-rim-bloom {
+	position: absolute;
+	inset: 0;
+	border-radius: inherit;
+	padding: var(--vg-ring-width);
+	--vg-blob-scale: calc(1.22 * var(--vg-size));
+	/* Floored: a sub-pixel blur reads as a hard edge, not as light. Above button
+		sizes the scaled value wins, so an input box is unaffected. */
+	filter: blur(max(4px, calc(8px * var(--vg-size))));
+	-webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+	-webkit-mask-composite: xor;
+	mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+	mask-composite: exclude;
+	pointer-events: none;
+	z-index: 3;
+	opacity: var(--vg-bloom-opacity, 0.66);
+}
+
+/* Corner accents, so the rounded corners catch the light like a real edge. They
+	ride at the inner wash's weight — at full strength they read as smudges. */
+.voice-glow-rim > .voice-glow-rim-corners {
+	position: absolute;
+	inset: 0;
+	border-radius: inherit;
+	pointer-events: none;
+	z-index: 1;
+	opacity: var(--vg-inner-opacity, 0.44);
+	background:
+		radial-gradient(ellipse calc(60px * var(--vg-size)) calc(60px * var(--vg-size)) at 0% 0%, rgb(255 255 255 / calc(var(--vg-corner-alpha, 0.18) * var(--vg-op-tl))), transparent 70%),
+		radial-gradient(ellipse calc(60px * var(--vg-size)) calc(60px * var(--vg-size)) at 100% 0%, rgb(255 255 255 / calc(var(--vg-corner-alpha, 0.18) * var(--vg-op-tr))), transparent 70%),
+		radial-gradient(ellipse calc(60px * var(--vg-size)) calc(60px * var(--vg-size)) at 0% 100%, rgb(255 255 255 / calc(var(--vg-corner-alpha, 0.18) * var(--vg-op-bl))), transparent 70%),
+		radial-gradient(ellipse calc(60px * var(--vg-size)) calc(60px * var(--vg-size)) at 100% 100%, rgb(255 255 255 / calc(var(--vg-corner-alpha, 0.18) * var(--vg-op-br))), transparent 70%);
+}
+
+/* On light backgrounds the corner catch has to be a shadow, not a highlight. */
+.vs .voice-glow-rim > .voice-glow-rim-corners,
+.hc-light .voice-glow-rim > .voice-glow-rim-corners {
+	background:
+		radial-gradient(ellipse calc(60px * var(--vg-size)) calc(60px * var(--vg-size)) at 0% 0%, rgb(0 0 0 / calc(var(--vg-corner-alpha, 0.08) * var(--vg-op-tl))), transparent 70%),
+		radial-gradient(ellipse calc(60px * var(--vg-size)) calc(60px * var(--vg-size)) at 100% 0%, rgb(0 0 0 / calc(var(--vg-corner-alpha, 0.08) * var(--vg-op-tr))), transparent 70%),
+		radial-gradient(ellipse calc(60px * var(--vg-size)) calc(60px * var(--vg-size)) at 0% 100%, rgb(0 0 0 / calc(var(--vg-corner-alpha, 0.08) * var(--vg-op-bl))), transparent 70%),
+		radial-gradient(ellipse calc(60px * var(--vg-size)) calc(60px * var(--vg-size)) at 100% 100%, rgb(0 0 0 / calc(var(--vg-corner-alpha, 0.08) * var(--vg-op-br))), transparent 70%);
+}
+
+/* --- High contrast --------------------------------------------------------- */
+
+/*
+ * Soft light is the wrong language here: a blurred, semi-transparent gradient
+ * can't guarantee a contrast ratio, and the whole effect reads as smudge at high
+ * contrast. So the two states collapse to a solid line — blue for the user,
+ * purple for the agent. Motion goes too: the line is either there or it isn't.
+ */
+.hc-black .voice-glow-rim::before,
+.hc-black .voice-glow-rim::after,
+.hc-black .voice-glow-rim > *,
+.hc-light .voice-glow-rim::before,
+.hc-light .voice-glow-rim::after,
+.hc-light .voice-glow-rim > * {
+	display: none;
+}
+
+.hc-black .voice-glow-rim-cool,
+.hc-black .voice-glow-rim-warm,
+.hc-black .voice-glow-rim-warning,
+.hc-light .voice-glow-rim-cool,
+.hc-light .voice-glow-rim-warm,
+.hc-light .voice-glow-rim-warning {
+	border: var(--vscode-strokeThickness) solid;
+}
+
+.hc-black .voice-glow-rim-cool {
+	border-color: var(--vscode-charts-blue, #3794ff);
+}
+
+.hc-black .voice-glow-rim-warm {
+	border-color: var(--vscode-charts-purple, #b180d7);
+}
+
+.hc-light .voice-glow-rim-cool {
+	border-color: var(--vscode-charts-blue, #0f4a85);
+}
+
+.hc-light .voice-glow-rim-warm {
+	border-color: var(--vscode-charts-purple, #5c2d91);
+}
+
+.hc-black .voice-glow-rim-warning,
+.hc-light .voice-glow-rim-warning {
+	border-color: var(--vscode-charts-orange, #f0883e);
+}

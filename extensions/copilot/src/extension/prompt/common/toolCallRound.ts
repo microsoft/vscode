@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { FetchSuccess } from '../../../platform/chat/common/commonTypes';
 import { OpenAIContextManagementResponse } from '../../../platform/networking/common/openai';
-import { isEncryptedThinkingDelta, ThinkingData, ThinkingDelta } from '../../../platform/thinking/common/thinking';
+import { isEncryptedThinkingDelta, ThinkingData, ThinkingDelta, ThinkingOriginApi } from '../../../platform/thinking/common/thinking';
 import { generateUuid } from '../../../util/vs/base/common/uuid';
 import { IToolCall, IToolCallRound } from './intents';
 
@@ -18,6 +18,7 @@ export class ToolCallRound implements IToolCallRound {
 	public summary: string | undefined;
 	public phase?: string;
 	public modelId?: string;
+	public originApi?: ThinkingOriginApi;
 
 	/**
 	 * Creates a ToolCallRound from an existing IToolCallRound object.
@@ -33,10 +34,12 @@ export class ToolCallRound implements IToolCallRound {
 			params.thinking,
 			params.timestamp,
 			params.compaction,
+			params.statefulMarkerSummarizedAtRoundId,
 		);
 		round.summary = params.summary;
 		round.phase = params.phase;
 		round.modelId = params.modelId;
+		round.originApi = params.originApi;
 		return round;
 	}
 
@@ -58,11 +61,52 @@ export class ToolCallRound implements IToolCallRound {
 		public readonly thinking?: ThinkingData,
 		public readonly timestamp: number = Date.now(),
 		public readonly compaction?: OpenAIContextManagementResponse,
+		public readonly statefulMarkerSummarizedAtRoundId?: string,
 	) { }
 
 	private static generateID(): string {
 		return generateUuid();
 	}
+}
+
+/**
+ * Raw CAPI `X-GitHub-Copilot-Request-Te` value of the model call that produced each round. Kept off
+ * the round object so it is never persisted with chat history; it is used only for telemetry.
+ */
+const gitHubCopilotRequestTeByRound = new WeakMap<IToolCallRound, string>();
+
+/**
+ * Associates the `X-GitHub-Copilot-Request-Te` value of the model call that produced `round`.
+ */
+export function setGitHubCopilotRequestTeForRound<T extends IToolCallRound>(round: T, gitHubCopilotRequestTe: string | undefined): T {
+	if (gitHubCopilotRequestTe !== undefined) {
+		gitHubCopilotRequestTeByRound.set(round, gitHubCopilotRequestTe);
+	}
+	return round;
+}
+
+/**
+ * Returns the `X-GitHub-Copilot-Request-Te` value of the model call that produced `round`, if known.
+ */
+export function getGitHubCopilotRequestTeForRound(round: IToolCallRound): string | undefined {
+	return gitHubCopilotRequestTeByRound.get(round);
+}
+
+/**
+ * Returns the `X-GitHub-Copilot-Request-Te` value of the model call whose round emitted the given
+ * tool call, or `undefined` when that round can't be identified. Searches newest-first because
+ * tool call ids may be reused across rounds and only the latest round's calls are invoked.
+ */
+export function getGitHubCopilotRequestTeForToolCall(toolCallRounds: readonly IToolCallRound[] | undefined, chatStreamToolCallId: string | undefined): string | undefined {
+	if (!toolCallRounds || !chatStreamToolCallId) {
+		return undefined;
+	}
+	for (let i = toolCallRounds.length - 1; i >= 0; i--) {
+		if (toolCallRounds[i].toolCalls.some(toolCall => toolCall.id.split('__vscode')[0] === chatStreamToolCallId)) {
+			return getGitHubCopilotRequestTeForRound(toolCallRounds[i]);
+		}
+	}
+	return undefined;
 }
 
 export class ThinkingDataItem implements ThinkingData {
@@ -114,7 +158,8 @@ export class ThinkingDataItem implements ThinkingData {
 				}
 			}
 		}
-		if (delta.metadata) {
+		// A completion marker must not overwrite the saved reasoning signature.
+		if (delta.metadata && delta.metadata.vscode_reasoning_done !== true) {
 			this.metadata = delta.metadata;
 		}
 	}

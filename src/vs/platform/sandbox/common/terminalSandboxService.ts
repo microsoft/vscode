@@ -32,6 +32,7 @@ export interface ITerminalSandboxPrerequisiteCheckResult {
 	sandboxConfigPath: string | undefined;
 	failedCheck: TerminalSandboxPrerequisiteCheck | undefined;
 	missingDependencies?: string[];
+	canInstallMissingDependencies?: boolean;
 	remediations?: readonly TerminalSandboxPreCheckRemediation[];
 	detail?: string;
 }
@@ -121,6 +122,7 @@ export interface ITerminalSandboxService {
 	getSandboxConfigPath(forceRefresh?: boolean, precheckInputs?: ITerminalSandboxPrecheckInputs): Promise<string | undefined>;
 	getTempDir(): URI | undefined;
 	setNeedsForceUpdateConfigFile(): void;
+	/** Returns canonical allow/deny patterns, or a deny-all policy if a configured pattern cannot be normalized. */
 	getResolvedNetworkDomains(): ITerminalSandboxResolvedNetworkDomains;
 	getMissingSandboxDependencies(): Promise<string[]>;
 	installMissingSandboxDependencies(missingDependencies: string[], sessionResource: URI | undefined, token: CancellationToken, options: ISandboxDependencyInstallOptions): Promise<ISandboxDependencyInstallResult>;

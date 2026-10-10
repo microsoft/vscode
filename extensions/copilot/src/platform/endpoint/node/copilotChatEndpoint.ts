@@ -30,7 +30,7 @@ export class CopilotChatEndpoint extends ChatEndpoint {
 		@IFetcherService fetcherService: IFetcherService,
 		@IEnvService envService: IEnvService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IAuthenticationService authService: IAuthenticationService,
+		@IAuthenticationService private readonly _copilotAuthService: IAuthenticationService,
 		@IChatMLFetcher chatMLFetcher: IChatMLFetcher,
 		@ITokenizerProvider tokenizerProvider: ITokenizerProvider,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -50,6 +50,11 @@ export class CopilotChatEndpoint extends ChatEndpoint {
 			chatWebSocketService,
 			logService
 		);
+	}
+
+	// Tool search relies on Metis embeddings, which are unavailable to anonymous users.
+	public override get supportsToolSearch(): boolean | undefined {
+		return super.supportsToolSearch && !this._copilotAuthService.copilotToken?.isNoAuthUser;
 	}
 
 	protected override getCompletionsCallback(): RawMessageConversionCallback | undefined {
@@ -75,7 +80,17 @@ export class CopilotUtilitySmallChatEndpoint {
 	static readonly capiFamily: string = CHAT_MODEL.GPT4OMINI;
 
 	static async resolve(modelFetcher: IModelMetadataFetcher, instantiationService: IInstantiationService): Promise<IChatEndpoint> {
-		const modelMetadata = await modelFetcher.getChatModelFromCapiFamily(CopilotUtilitySmallChatEndpoint.capiFamily);
+		let modelMetadata: IChatModelInformation;
+		try {
+			modelMetadata = await modelFetcher.getChatModelFromCapiFamily(CopilotUtilitySmallChatEndpoint.capiFamily);
+		} catch {
+			// The small family is selected client-side and may be absent from a
+			// given user's CAPI `/models` response (plan/region/rollout differences,
+			// or a server-side rename/removal). Fall back to the API-marked base
+			// utility model rather than letting the lookup throw through every
+			// `copilot-utility-small` caller.
+			modelMetadata = await modelFetcher.getCopilotUtilityModel();
+		}
 		return instantiationService.createInstance(CopilotChatEndpoint, modelMetadata);
 	}
 }

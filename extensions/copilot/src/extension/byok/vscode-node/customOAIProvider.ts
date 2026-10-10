@@ -53,8 +53,11 @@ export interface CustomOAIModelProviderConfig extends LanguageModelChatConfigura
 interface _CustomOAIModelConfig {
 	name: string;
 	url: string;
-	maxInputTokens: number;
+	/** Optional when {@link contextWindow} is set; then derived as `contextWindow - maxOutputTokens`. */
+	maxInputTokens?: number;
 	maxOutputTokens: number;
+	/** The model's full context window (input + output) in tokens, e.g. 1000000 for a 1M model. */
+	contextWindow?: number;
 	toolCalling: boolean;
 	vision: boolean;
 	thinking?: boolean;
@@ -63,7 +66,7 @@ interface _CustomOAIModelConfig {
 	requestHeaders?: Record<string, string>;
 	zeroDataRetentionEnabled?: boolean;
 	supportsReasoningEffort?: string[];
-	reasoningEffortFormat?: 'chat-completions' | 'responses';
+	reasoningEffortFormat?: 'chat-completions' | 'responses' | 'messages';
 }
 
 export interface CustomOAIModelConfig extends _CustomOAIModelConfig {
@@ -138,6 +141,7 @@ export abstract class AbstractCustomOAIBYOKModelProvider extends AbstractOpenAIC
 		const modelCapabilities = {
 			maxInputTokens: model.maxInputTokens,
 			maxOutputTokens: model.maxOutputTokens,
+			contextWindow: modelConfiguration?.contextWindow,
 			toolCalling: !!model.capabilities?.toolCalling || false,
 			vision: !!model.capabilities?.imageInput || false,
 			name: model.name,

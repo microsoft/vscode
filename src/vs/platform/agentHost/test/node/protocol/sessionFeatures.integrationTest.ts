@@ -6,22 +6,23 @@
 import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
 import { SubscribeResult } from '../../../common/state/protocol/commands.js';
-import type { IModelChangedAction, IResponsePartAction, SessionAddedParams, ITitleChangedAction } from '../../../common/state/sessionActions.js';
-import { PROTOCOL_VERSION } from '../../../common/state/protocol/version/registry.js';
+import { ActionType, type IResponsePartAction, type ITurnStartedAction, type ITitleChangedAction } from '../../../common/state/sessionActions.js';
 import type { ListSessionsResult } from '../../../common/state/sessionProtocol.js';
-import { MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, type ISessionWithDefaultChat } from '../../../common/state/sessionState.js';
+import { buildChatUri, MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, SessionStatus, type ChatState, type ISessionWithDefaultChat } from '../../../common/state/sessionState.js';
 import { MOCK_AUTO_TITLE } from '../mockAgent.js';
 import {
 	createAndSubscribeSession,
+	defaultChatChannel,
 	dispatchTurnStarted,
 	fetchSessionWithChat,
+	getAgentHostE2ETestTimeout,
 	getActionEnvelope,
 	isActionNotification,
 	IServerHandle,
-	nextSessionUri,
 	startServer,
+	stopServer,
 	TestProtocolClient,
-} from './testHelpers.js';
+} from '../serverIntegrationTestHelpers.js';
 
 suite('Protocol WebSocket — Session Features', function () {
 
@@ -29,12 +30,13 @@ suite('Protocol WebSocket — Session Features', function () {
 	let client: TestProtocolClient;
 
 	suiteSetup(async function () {
-		this.timeout(15_000);
-		server = await startServer();
+		this.timeout(getAgentHostE2ETestTimeout(15_000, 60_000));
+		server = await startServer({ env: { VSCODE_AGENT_HOST_MOCK_MULTIPLE_CHATS: '1' } });
 	});
 
-	suiteTeardown(function () {
-		server.process.kill();
+	suiteTeardown(async function () {
+		this.timeout(getAgentHostE2ETestTimeout(20_000, 50_000));
+		await stopServer(server);
 	});
 
 	setup(async function () {
@@ -69,7 +71,7 @@ suite('Protocol WebSocket — Session Features', function () {
 
 		const snapshot = await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
 		const state = snapshot.snapshot!.state as ISessionWithDefaultChat;
-		assert.strictEqual(state.summary.title, 'My Custom Title');
+		assert.strictEqual(state.title, 'My Custom Title');
 	});
 
 	test('agent-generated titleChanged is broadcast', async function () {
@@ -94,7 +96,7 @@ suite('Protocol WebSocket — Session Features', function () {
 
 		const snapshot = await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
 		const state = snapshot.snapshot!.state as ISessionWithDefaultChat;
-		assert.strictEqual(state.summary.title, MOCK_AUTO_TITLE);
+		assert.strictEqual(state.title, MOCK_AUTO_TITLE);
 	});
 
 	test('first turn immediately sets title to user message', async function () {
@@ -104,7 +106,7 @@ suite('Protocol WebSocket — Session Features', function () {
 
 		// Verify the session starts with the default placeholder title
 		const before = await client.call<SubscribeResult>('subscribe', { channel: sessionUri });
-		assert.strictEqual((before.snapshot!.state as ISessionWithDefaultChat).summary.title, '');
+		assert.strictEqual((before.snapshot!.state as ISessionWithDefaultChat).title, '');
 
 		// Send first turn — side effects should dispatch an immediate titleChanged
 		// with the user's message text before the agent produces its own title.
@@ -136,7 +138,13 @@ suite('Protocol WebSocket — Session Features', function () {
 			},
 		});
 
-		await client.waitForNotification(n => isActionNotification(n, 'session/titleChanged'));
+		await client.waitForNotification(n => {
+			if (!isActionNotification(n, 'session/titleChanged')) {
+				return false;
+			}
+			const action = getActionEnvelope(n).action as ITitleChangedAction;
+			return action.title === 'Persisted Title';
+		});
 
 		// Poll listSessions until the persisted title appears (async DB write)
 		let session: { title: string } | undefined;
@@ -152,49 +160,108 @@ suite('Protocol WebSocket — Session Features', function () {
 		assert.strictEqual(session.title, 'Persisted Title');
 	});
 
-	// ---- Session model --------------------------------------------------------
-
-	test('session model flows through create, subscribe, listSessions, and modelChanged', async function () {
+	test('chat archive action rejects the default chat without changing state', async function () {
 		this.timeout(10_000);
 
-		await client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-model-summary' });
-
-		const sessionUri = nextSessionUri();
-		await client.call('createSession', { channel: sessionUri, provider: 'mock', model: { id: 'mock-model' } });
-
-		const addedNotif = await client.waitForNotification(n =>
-			n.method === 'root/sessionAdded'
-		);
-		const addedSession = addedNotif.params as SessionAddedParams;
-		assert.deepStrictEqual(addedSession.summary.model, { id: 'mock-model' });
-		const createdSessionUri = addedSession.summary.resource;
-
-		const initialSnapshot = await client.call<SubscribeResult>('subscribe', { channel: createdSessionUri });
-		const initialState = initialSnapshot.snapshot!.state as ISessionWithDefaultChat;
-		assert.deepStrictEqual(initialState.summary.model, { id: 'mock-model' });
-
-		const initialList = await client.call<ListSessionsResult>('listSessions', { channel: ROOT_STATE_URI });
-		assert.deepStrictEqual(initialList.items.find(s => s.resource === createdSessionUri)?.model, { id: 'mock-model' });
-
+		const sessionUri = await createAndSubscribeSession(client, 'test-default-chat-archive');
+		const channel = defaultChatChannel(sessionUri);
 		client.notify('dispatchAction', {
-			channel: createdSessionUri,
+			channel,
 			clientSeq: 1,
 			action: {
-				type: 'session/modelChanged',
-				model: { id: 'mock-model-2' },
+				type: ActionType.ChatIsArchivedChanged,
+				isArchived: true,
 			},
 		});
 
-		const modelNotif = await client.waitForNotification(n => isActionNotification(n, 'session/modelChanged'));
-		const modelAction = getActionEnvelope(modelNotif).action as IModelChangedAction;
-		assert.deepStrictEqual(modelAction.model, { id: 'mock-model-2' });
+		const notification = await client.waitForNotification(n => isActionNotification(n, ActionType.ChatIsArchivedChanged));
+		const envelope = getActionEnvelope(notification);
+		const state = await fetchSessionWithChat(client, sessionUri);
 
-		const updatedSnapshot = await client.call<SubscribeResult>('subscribe', { channel: createdSessionUri });
-		const updatedState = updatedSnapshot.snapshot!.state as ISessionWithDefaultChat;
-		assert.deepStrictEqual(updatedState.summary.model, { id: 'mock-model-2' });
+		assert.deepStrictEqual({
+			rejectionReason: envelope.rejectionReason,
+			chatArchived: (state.status & SessionStatus.IsArchived) !== 0,
+		}, {
+			rejectionReason: 'Only a known independently manageable non-default chat can be archived.',
+			chatArchived: false,
+		});
+	});
 
-		const updatedList = await client.call<ListSessionsResult>('listSessions', { channel: ROOT_STATE_URI });
-		assert.deepStrictEqual(updatedList.items.find(s => s.resource === createdSessionUri)?.model, { id: 'mock-model-2' });
+	test('chat archive action independently archives and restores a peer chat', async function () {
+		this.timeout(10_000);
+
+		const sessionUri = await createAndSubscribeSession(client, 'test-peer-chat-archive');
+		const peerChat = buildChatUri(sessionUri, 'peer-chat-archive');
+		await client.call('createChat', { channel: sessionUri, chat: peerChat, title: 'Peer Chat' });
+		await client.call<SubscribeResult>('subscribe', { channel: peerChat });
+		client.clearReceived();
+
+		client.notify('dispatchAction', {
+			channel: peerChat,
+			clientSeq: 1,
+			action: {
+				type: ActionType.ChatIsArchivedChanged,
+				isArchived: true,
+			},
+		});
+		const archiveNotification = await client.waitForNotification(n => isActionNotification(n, ActionType.ChatIsArchivedChanged));
+		const archivedPeer = await client.call<SubscribeResult>('subscribe', { channel: peerChat });
+		const archivedParent = await fetchSessionWithChat(client, sessionUri);
+		const archivedDefaultChat = await client.call<SubscribeResult>('subscribe', { channel: defaultChatChannel(sessionUri) });
+
+		client.notify('dispatchAction', {
+			channel: peerChat,
+			clientSeq: 2,
+			action: {
+				type: ActionType.ChatIsArchivedChanged,
+				isArchived: false,
+			},
+		});
+		const restoreNotification = await client.waitForNotification(n => isActionNotification(n, ActionType.ChatIsArchivedChanged));
+		const restoredPeer = await client.call<SubscribeResult>('subscribe', { channel: peerChat });
+
+		assert.deepStrictEqual({
+			archiveRejection: getActionEnvelope(archiveNotification).rejectionReason,
+			peerArchived: (((archivedPeer.snapshot?.state as ChatState).status ?? 0) & SessionStatus.IsArchived) !== 0,
+			parentArchived: (archivedParent.status & SessionStatus.IsArchived) !== 0,
+			defaultChatArchived: ((((archivedDefaultChat.snapshot?.state as ChatState).status ?? 0) & SessionStatus.IsArchived) !== 0),
+			restoreRejection: getActionEnvelope(restoreNotification).rejectionReason,
+			peerRestored: (((restoredPeer.snapshot?.state as ChatState).status ?? 0) & SessionStatus.IsArchived) === 0,
+		}, {
+			archiveRejection: undefined,
+			peerArchived: true,
+			parentArchived: false,
+			defaultChatArchived: false,
+			restoreRejection: undefined,
+			peerRestored: true,
+		});
+	});
+
+	// ---- Session model --------------------------------------------------------
+
+	test('message model flows through turn dispatch and subscribe', async function () {
+		this.timeout(10_000);
+
+		const sessionUri = await createAndSubscribeSession(client, 'test-message-model');
+		client.dispatch({
+			channel: defaultChatChannel(sessionUri),
+			clientSeq: 1,
+			action: {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-model',
+				startedAt: new Date().toISOString(),
+				message: { text: 'hello', origin: { kind: MessageKind.User }, model: { id: 'mock-model' } },
+			},
+		});
+
+		const turnStartedNotif = await client.waitForNotification(n => isActionNotification(n, 'chat/turnStarted'));
+		const turnStartedAction = getActionEnvelope(turnStartedNotif).action as ITurnStartedAction;
+		assert.deepStrictEqual(turnStartedAction.message.model, { id: 'mock-model' });
+
+		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete'));
+
+		const state = await fetchSessionWithChat(client, sessionUri);
+		assert.deepStrictEqual(state.turns.at(-1)?.message.model, { id: 'mock-model' });
 	});
 
 	// ---- Reasoning events ------------------------------------------------------
@@ -247,7 +314,7 @@ suite('Protocol WebSocket — Session Features', function () {
 
 		// Queue a message when the session is idle — server should immediately consume it
 		client.notify('dispatchAction', {
-			channel: sessionUri,
+			channel: defaultChatChannel(sessionUri),
 			clientSeq: 1,
 			action: {
 				type: 'chat/pendingMessageSet',
@@ -283,7 +350,7 @@ suite('Protocol WebSocket — Session Features', function () {
 
 		// Queue a message while the turn is in progress
 		client.notify('dispatchAction', {
-			channel: sessionUri,
+			channel: defaultChatChannel(sessionUri),
 			clientSeq: 2,
 			action: {
 				type: 'chat/pendingMessageSet',
@@ -329,7 +396,7 @@ suite('Protocol WebSocket — Session Features', function () {
 
 		// Set a steering message while the turn is in progress
 		client.notify('dispatchAction', {
-			channel: sessionUri,
+			channel: defaultChatChannel(sessionUri),
 			clientSeq: 2,
 			action: {
 				type: 'chat/pendingMessageSet',
@@ -378,7 +445,7 @@ suite('Protocol WebSocket — Session Features', function () {
 
 		// Truncate: keep only turn-t1
 		client.notify('dispatchAction', {
-			channel: sessionUri,
+			channel: defaultChatChannel(sessionUri),
 			clientSeq: 3,
 			action: { type: 'chat/truncated', turnId: 'turn-t1' },
 		});
@@ -402,7 +469,7 @@ suite('Protocol WebSocket — Session Features', function () {
 
 		// Truncate all (no turnId)
 		client.notify('dispatchAction', {
-			channel: sessionUri,
+			channel: defaultChatChannel(sessionUri),
 			clientSeq: 2,
 			action: { type: 'chat/truncated' },
 		});
@@ -429,7 +496,7 @@ suite('Protocol WebSocket — Session Features', function () {
 
 		// Truncate to turn-tr1
 		client.notify('dispatchAction', {
-			channel: sessionUri,
+			channel: defaultChatChannel(sessionUri),
 			clientSeq: 3,
 			action: { type: 'chat/truncated', turnId: 'turn-tr1' },
 		});
@@ -446,79 +513,4 @@ suite('Protocol WebSocket — Session Features', function () {
 		assert.strictEqual(state.turns[1].id, 'turn-tr3');
 	});
 
-	// ---- Fork -----------------------------------------------------------------
-
-	test('fork creates a new session with source history', async function () {
-		this.timeout(15_000);
-
-		const sessionUri = await createAndSubscribeSession(client, 'test-fork');
-
-		// Create two turns
-		dispatchTurnStarted(client, sessionUri, 'turn-f1', 'hello', 1);
-		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete') && (getActionEnvelope(n).action as { turnId: string }).turnId === 'turn-f1');
-
-		client.clearReceived();
-		dispatchTurnStarted(client, sessionUri, 'turn-f2', 'hello', 2);
-		await client.waitForNotification(n => isActionNotification(n, 'chat/turnComplete') && (getActionEnvelope(n).action as { turnId: string }).turnId === 'turn-f2');
-
-		client.clearReceived();
-
-		// Fork at turn-f1 (keep turns up to and including turn-f1)
-		const forkedSessionUri = nextSessionUri();
-		await client.call('createSession', {
-			channel: forkedSessionUri,
-			provider: 'mock',
-			fork: { session: sessionUri, turnId: 'turn-f1' },
-		});
-
-		const addedNotif = await client.waitForNotification(n =>
-			n.method === 'root/sessionAdded'
-		);
-		const addedSession = addedNotif.params as SessionAddedParams;
-
-		// Subscribe — forked session should have 1 turn
-		const state = await fetchSessionWithChat(client, addedSession.summary.resource);
-		assert.strictEqual(state.lifecycle, 'ready');
-		assert.strictEqual(state.turns.length, 1, 'forked session should have 1 turn');
-
-		// Source session should be unaffected
-		const sourceState = await fetchSessionWithChat(client, sessionUri);
-		assert.strictEqual(sourceState.turns.length, 2);
-	});
-
-	test('fork with invalid turn ID returns error', async function () {
-		this.timeout(10_000);
-
-		const sessionUri = await createAndSubscribeSession(client, 'test-fork-invalid');
-
-		let gotError = false;
-		try {
-			await client.call('createSession', {
-				channel: nextSessionUri(),
-				provider: 'mock',
-				fork: { session: sessionUri, turnId: 'nonexistent-turn' },
-			});
-		} catch {
-			gotError = true;
-		}
-		assert.ok(gotError, 'should get error for invalid fork turn ID');
-	});
-
-	test('fork with invalid source session returns error', async function () {
-		this.timeout(10_000);
-
-		await client.call('initialize', { channel: ROOT_STATE_URI, protocolVersions: [PROTOCOL_VERSION], clientId: 'test-fork-no-source' });
-
-		let gotError = false;
-		try {
-			await client.call('createSession', {
-				channel: nextSessionUri(),
-				provider: 'mock',
-				fork: { session: 'mock://nonexistent-session', turnId: 'turn-1' },
-			});
-		} catch {
-			gotError = true;
-		}
-		assert.ok(gotError, 'should get error for invalid fork source session');
-	});
 });

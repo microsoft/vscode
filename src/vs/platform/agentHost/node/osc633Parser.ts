@@ -73,6 +73,16 @@ export interface IOsc633ParseResult {
 }
 
 /**
+ * A single segment of parsed PTY data: either a run of cleaned output data or
+ * an OSC 633 event. Segments are emitted in stream order so that output which
+ * arrives before an event (e.g. a `CommandFinished` marker) can be attributed
+ * to the command before the event is handled — see {@link Osc633Parser.parseSegments}.
+ */
+export type Osc633ParseSegment =
+	| { readonly kind: 'data'; readonly data: string }
+	| { readonly kind: 'event'; readonly event: Osc633Event };
+
+/**
  * Decode escaped values in OSC 633 messages.
  * Handles `\\` -> `\` and `\xAB` -> character with code 0xAB.
  */
@@ -154,14 +164,59 @@ export class Osc633Parser {
 	/**
 	 * Parse a chunk of PTY data.
 	 * Returns cleaned data (all OSC 633 sequences removed) and extracted events.
+	 *
+	 * This is a convenience view over {@link parseSegments} that concatenates the
+	 * cleaned-data segments and collects the events. Callers that need to know
+	 * whether a run of output arrived before or after an event (for correct
+	 * command-output attribution) should use {@link parseSegments} instead.
 	 */
 	parse(data: string): IOsc633ParseResult {
 		const events: Osc633Event[] = [];
+		let cleanedData = '';
+		for (const segment of this.parseSegments(data)) {
+			if (segment.kind === 'data') {
+				cleanedData += segment.data;
+			} else {
+				events.push(segment.event);
+			}
+		}
+		return { cleanedData, events };
+	}
+
+	/**
+	 * Parse a chunk of PTY data into an ordered list of segments, preserving the
+	 * relative order of cleaned output data and OSC 633 events as they appear in
+	 * the stream. Handles partial sequences that span multiple chunks.
+	 *
+	 * Preserving order matters because a single PTY read frequently contains a
+	 * command's output immediately followed by its `CommandFinished` marker;
+	 * consumers must append that output to the command before handling the
+	 * finished event, otherwise the output is lost from the command result.
+	 */
+	parseSegments(data: string): Osc633ParseSegment[] {
+		const segments: Osc633ParseSegment[] = [];
+		let pending = '';
+
+		const appendData = (value: string): void => {
+			pending += value;
+		};
+		const flushData = (): void => {
+			if (pending.length > 0) {
+				segments.push({ kind: 'data', data: pending });
+				pending = '';
+			}
+		};
+		const emitEvent = (event: Osc633Event): void => {
+			flushData();
+			segments.push({ kind: 'event', event });
+		};
+
 		if (!this._inOsc && data.indexOf(OSC_START) === -1) {
-			return { cleanedData: data, events };
+			appendData(data);
+			flushData();
+			return segments;
 		}
 
-		let cleaned = '';
 		let i = 0;
 
 		while (i < data.length) {
@@ -175,14 +230,14 @@ export class Osc633Parser {
 						this._inOsc = false;
 						const payload = this._pendingOsc;
 						this._pendingOsc = '';
-						this._handleOscPayload(payload, events, { value: cleaned, append(s: string) { cleaned = s; } }, ST);
+						this._handleOscPayload(payload, emitEvent, appendData, ST);
 						continue;
 					}
 					// ESC was not followed by \, malformed: complete the OSC anyway.
 					this._inOsc = false;
 					const payload = this._pendingOsc;
 					this._pendingOsc = '';
-					this._handleOscPayload(payload, events, { value: cleaned, append(s: string) { cleaned = s; } });
+					this._handleOscPayload(payload, emitEvent, appendData);
 					continue;
 				}
 
@@ -193,7 +248,7 @@ export class Osc633Parser {
 					this._inOsc = false;
 					const payload = this._pendingOsc;
 					this._pendingOsc = '';
-					this._handleOscPayload(payload, events, { value: cleaned, append(s: string) { cleaned = s; } }, result.terminator);
+					this._handleOscPayload(payload, emitEvent, appendData, result.terminator);
 				} else if (result.pendingEsc) {
 					this._pendingEscInOsc = true;
 				}
@@ -204,13 +259,13 @@ export class Osc633Parser {
 			// Look for the next ESC ] which starts an OSC sequence
 			const escIdx = data.indexOf(OSC_START, i);
 			if (escIdx === -1) {
-				cleaned += data.substring(i);
+				appendData(data.substring(i));
 				i = data.length;
 				continue;
 			}
 
 			// Copy everything before the OSC start to cleaned output.
-			cleaned += data.substring(i, escIdx);
+			appendData(data.substring(i, escIdx));
 
 			// Start of OSC: check if it's 633.
 			i = escIdx + 2; // skip past ESC ]
@@ -225,14 +280,15 @@ export class Osc633Parser {
 				const payload = this._pendingOsc;
 				this._pendingOsc = '';
 				// If it's a 633 sequence, extract event; otherwise put it back in cleaned.
-				this._handleOscPayload(payload, events, { value: cleaned, append(s: string) { cleaned = s; } }, result.terminator);
+				this._handleOscPayload(payload, emitEvent, appendData, result.terminator);
 			} else if (result.pendingEsc) {
 				this._pendingEscInOsc = true;
 			}
 			// If not complete, we're at end of data and _pendingOsc is buffered.
 		}
 
-		return { cleanedData: cleaned, events };
+		flushData();
+		return segments;
 	}
 
 	/**
@@ -268,27 +324,25 @@ export class Osc633Parser {
 
 	/**
 	 * Process a complete OSC payload. If it's a 633; sequence, extract the
-	 * event. Otherwise, reconstruct the original bytes and pass them through
-	 * to cleaned output.
+	 * event via {@link emitEvent}. Otherwise, reconstruct the original bytes and
+	 * pass them through to the cleaned output via {@link appendData}.
 	 */
 	private _handleOscPayload(
 		payload: string,
-		events: Osc633Event[],
-		cleanedRef: { value: string; append(s: string): void } | undefined,
+		emitEvent: (event: Osc633Event) => void,
+		appendData: (data: string) => void,
 		terminator = BEL,
 	): void {
 		if (payload.startsWith('633;')) {
 			const oscContent = payload.substring(4); // strip "633;"
 			const event = parseOsc633Payload(oscContent);
 			if (event) {
-				events.push(event);
+				emitEvent(event);
 			}
 			// 633 sequences are always stripped from output
 		} else {
 			// Non-633 OSC: put back the original bytes.
-			if (cleanedRef) {
-				cleanedRef.append(cleanedRef.value + OSC_START + payload + terminator);
-			}
+			appendData(OSC_START + payload + terminator);
 		}
 	}
 }

@@ -418,7 +418,6 @@ describe('replace_string_in_file - applyEdit', () => {
 			expect(result.updatedFile).toContain('line3');
 		});
 	});
-
 	// Similarity-based matching strategy tests
 	describe('similarity matching', () => {
 		test('matches highly similar content with minor differences', async () => {
@@ -749,14 +748,24 @@ describe('makeUriConfirmationChecker', async () => {
 		expect(result).toBe(ConfirmationCheckResult.Sensitive); // Sensitive
 	});
 
-	test('always checks .vscode/*.json files', async () => {
+	test('always checks sensitive configuration files', async () => {
 		const workspaceFolder = URI.file('/workspace');
 		workspaceService = new TestWorkspaceService([workspaceFolder], []);
 
+		await configService.setNonExtensionConfig('chat.tools.edits.autoApprove', {
+			'**/.mcp.json': true,
+			'**/.npmrc': true,
+		});
+
 		const checker = makeUriConfirmationChecker(configService, workspaceService.getWorkspaceFolder.bind(workspaceService), customInstructionsService);
-		const settingsFile = URI.file('/workspace/.vscode/settings.json');
-		const result = await checker(settingsFile);
-		expect(result).toBe(ConfirmationCheckResult.Sensitive); // Sensitive - always requires confirmation
+		const files = [
+			URI.file('/workspace/.mcp.json'),
+			URI.file('/workspace/.npmrc'),
+			URI.file('/workspace/packages/nested/.npmrc'),
+			URI.file('/workspace/.vscode/settings.json'),
+		];
+		const results = await Promise.all(files.map(file => checker(file)));
+		expect(results).toEqual(files.map(() => ConfirmationCheckResult.Sensitive));
 	});
 
 	test('pattern precedence - later patterns override earlier ones', async () => {
@@ -1111,5 +1120,36 @@ describe('makeUriConfirmationChecker', async () => {
 			const target = URI.file(path.join(workspaceDir, 'assets', 'newdir', 'pwned.desktop'));
 			expect(await checker(target)).toBe(ConfirmationCheckResult.OutsideWorkspace);
 		});
+	});
+});
+
+describe('agent definition files require confirmation', () => {
+	let configService: InMemoryConfigurationService;
+	let workspaceService: TestWorkspaceService;
+	let customInstructionsService: MockCustomInstructionsService;
+
+	beforeEach(() => {
+		configService = new InMemoryConfigurationService(new DefaultsOnlyConfigurationService());
+		workspaceService = new TestWorkspaceService([URI.file('/workspace')], []);
+		customInstructionsService = new MockCustomInstructionsService();
+	});
+
+	test('requires confirmation for files in agent folders', async () => {
+		const checker = makeUriConfirmationChecker(configService, workspaceService.getWorkspaceFolder.bind(workspaceService), customInstructionsService);
+		const files = [
+			'/workspace/.github/agents/dev-helper.md',
+			'/workspace/.github/agents/dev-helper.agent.md',
+			'/workspace/.claude/agents/reviewer.md',
+			'/workspace/.github/agents/nested/deep.md',
+		];
+		for (const file of files) {
+			expect(await checker(URI.file(file))).toBe(ConfirmationCheckResult.Sensitive);
+		}
+	});
+
+	test('does not require confirmation for similarly-named files outside agent folders', async () => {
+		const checker = makeUriConfirmationChecker(configService, workspaceService.getWorkspaceFolder.bind(workspaceService), customInstructionsService);
+		expect(await checker(URI.file('/workspace/src/agents/agent.md'))).toBe(ConfirmationCheckResult.NoConfirmation);
+		expect(await checker(URI.file('/workspace/.github/workflows/ci.md'))).toBe(ConfirmationCheckResult.NoConfirmation);
 	});
 });

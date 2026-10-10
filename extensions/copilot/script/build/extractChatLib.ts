@@ -891,7 +891,7 @@ class ChatLibExtractor {
 
 		try {
 			// Change to the chat-lib directory and run TypeScript compiler
-			const { stdout, stderr } = await execAsync('npx tsc --noEmit', {
+			const { stdout, stderr } = await execAsync('npx tsc6 --noEmit', {
 				cwd: CHAT_LIB_DIR,
 				timeout: 60000 // 60 second timeout
 			});

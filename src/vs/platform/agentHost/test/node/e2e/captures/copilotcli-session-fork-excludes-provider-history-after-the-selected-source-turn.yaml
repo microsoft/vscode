@@ -1,0 +1,38 @@
+version: 1
+dialect: anthropic
+exchanges:
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember FORK_FIRST. Reply exactly "ready".
+    response:
+      content: ready
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember FORK_FIRST. Reply exactly "ready".
+        - role: assistant
+          content: ready
+        - role: user
+          content: Now remember FORK_LATER too. Reply exactly "ready".
+    response:
+      content: ready
+      stopReason: end_turn
+  - request:
+      model: claude-sonnet-5
+      system: ${system}
+      messages:
+        - role: user
+          content: Remember FORK_FIRST. Reply exactly "ready".
+        - role: assistant
+          content: ready
+        - role: user
+          content: Reply exactly "bounded" if you remember FORK_FIRST but not FORK_LATER.
+    response:
+      content: bounded
+      stopReason: end_turn

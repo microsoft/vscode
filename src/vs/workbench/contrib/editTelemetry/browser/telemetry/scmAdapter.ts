@@ -20,7 +20,7 @@ export class ScmAdapter {
 		this._reposChangedSignal = observableSignalFromEvent(this, Event.any(this._scmService.onDidAddRepository, this._scmService.onDidRemoveRepository));
 	}
 
-	public getRepo(uri: URI, reader: IReader | undefined): ScmRepoAdapter | undefined {
+	public getRepo(uri: URI, reader: IReader | undefined): IScmRepoAdapter | undefined {
 		this._reposChangedSignal.read(reader);
 		const repo = this._scmService.getRepository(uri);
 		if (!repo) {
@@ -30,7 +30,13 @@ export class ScmAdapter {
 	}
 }
 
-export class ScmRepoAdapter {
+export interface IScmRepoAdapter {
+	readonly headBranchNameObs: IObservable<string | undefined>;
+	readonly headCommitHashObs: IObservable<string | undefined>;
+	isIgnored(uri: URI): Promise<boolean>;
+}
+
+export class ScmRepoAdapter implements IScmRepoAdapter {
 	public readonly headBranchNameObs: IObservable<string | undefined> = derived(reader => this._repo.provider.historyProvider.read(reader)?.historyItemRef.read(reader)?.name);
 	public readonly headCommitHashObs: IObservable<string | undefined> = derived(reader => this._repo.provider.historyProvider.read(reader)?.historyItemRef.read(reader)?.revision);
 

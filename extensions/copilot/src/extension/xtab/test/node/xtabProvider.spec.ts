@@ -10,11 +10,13 @@ import { ChatFetchResponseType, RESPONSE_CONTAINED_NO_CHOICES } from '../../../.
 import { StreamingMockChatMLFetcher } from '../../../../platform/chat/test/common/streamingMockChatMLFetcher';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
 import { InMemoryConfigurationService } from '../../../../platform/configuration/test/common/inMemoryConfigurationService';
+import { IEndpointProvider } from '../../../../platform/endpoint/common/endpointProvider';
+import { MockEndpoint } from '../../../../platform/endpoint/test/node/mockEndpoint';
 import { DocumentId } from '../../../../platform/inlineEdits/common/dataTypes/documentId';
 import { Edits } from '../../../../platform/inlineEdits/common/dataTypes/edit';
 import { ImportChanges } from '../../../../platform/inlineEdits/common/dataTypes/importFilteringOptions';
 import { LanguageId } from '../../../../platform/inlineEdits/common/dataTypes/languageId';
-import { DEFAULT_OPTIONS, EarlyDivergenceCancellationMode, LanguageContextLanguages, LintOptionShowCode, LintOptionWarning, ModelConfiguration, PatchModelPrediction, PromptingStrategy, ResponseFormat } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
+import { AggressivenessLevel, DEFAULT_OPTIONS, EarlyDivergenceCancellationMode, LanguageContextLanguages, LintOptionShowCode, LintOptionWarning, ModelConfiguration, PatchModelPrediction, PromptingStrategy, ResponseFormat } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { InlineEditRequestLogContext } from '../../../../platform/inlineEdits/common/inlineEditLogContext';
 import { IInlineEditsModelService } from '../../../../platform/inlineEdits/common/inlineEditsModelService';
 import { NoNextEditReason, StatelessNextEditDocument, StatelessNextEditRequest, StreamedEdit, WithStatelessProviderTelemetry } from '../../../../platform/inlineEdits/common/statelessNextEditProvider';
@@ -29,7 +31,10 @@ import { createTextDocumentData } from '../../../../util/common/test/shims/textD
 import { DeferredPromise } from '../../../../util/vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from '../../../../util/vs/base/common/cancellation';
 import { Emitter, Event } from '../../../../util/vs/base/common/event';
+import { constObservable } from '../../../../util/vs/base/common/observable';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
+import { Schemas } from '../../../../util/vs/base/common/network';
+import { isWindows } from '../../../../util/vs/base/common/platform';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { LineEdit, LineReplacement } from '../../../../util/vs/editor/common/core/edits/lineEdit';
 import { StringEdit, StringReplacement } from '../../../../util/vs/editor/common/core/edits/stringEdit';
@@ -38,10 +43,12 @@ import { LineRange } from '../../../../util/vs/editor/common/core/ranges/lineRan
 import { OffsetRange } from '../../../../util/vs/editor/common/core/ranges/offsetRange';
 import { StringText } from '../../../../util/vs/editor/common/core/text/abstractText';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
+import { SyncDescriptor } from '../../../../util/vs/platform/instantiation/common/descriptors';
 import { DelaySession } from '../../../inlineEdits/common/delay';
 import { createExtensionUnitTestingServices } from '../../../test/node/services';
 import { N_LINES_AS_CONTEXT } from '../../common/promptCrafting';
 import { nes41Miniv3SystemPrompt, simplifiedPrompt, systemPromptTemplate, unifiedModelSystemPrompt, xtab275SystemPrompt } from '../../common/systemMessages';
+import { PromptTags } from '../../common/tags';
 import { CurrentDocument } from '../../common/xtabCurrentDocument';
 import {
 	computeAreaAroundEditWindowLinesRange,
@@ -102,6 +109,7 @@ class MockInlineEditsModelService implements IInlineEditsModelService {
 	declare readonly _serviceBrand: undefined;
 	readonly modelInfo = undefined;
 	readonly onModelListUpdated: Event<void> = new Emitter<void>().event;
+	readonly supportsUnifiedCompletions = constObservable<boolean | undefined>(undefined);
 
 	private _selectedConfig: ModelConfiguration = {
 		modelName: 'test-model',
@@ -136,6 +144,32 @@ class MockInlineEditsModelService implements IInlineEditsModelService {
 	}
 }
 
+class MockXtabEndpointProvider implements IEndpointProvider {
+	declare readonly _serviceBrand: undefined;
+	readonly onDidModelsRefresh = Event.None;
+	private readonly endpoint: MockEndpoint;
+
+	constructor(@IInstantiationService instaService: IInstantiationService) {
+		this.endpoint = instaService.createInstance(MockEndpoint, 'test-model');
+	}
+
+	async getAllCompletionModels() {
+		return [];
+	}
+
+	async getAllChatEndpoints() {
+		return [this.endpoint];
+	}
+
+	async getChatEndpoint() {
+		return this.endpoint;
+	}
+
+	async getEmbeddingsEndpoint(): Promise<never> {
+		throw new Error('Embeddings are not used by XtabProvider tests');
+	}
+}
+
 // ============================================================================
 // pickSystemPrompt
 // ============================================================================
@@ -166,6 +200,8 @@ describe('pickSystemPrompt', () => {
 		PromptingStrategy.PatchBased01,
 		PromptingStrategy.PatchBased02,
 		PromptingStrategy.PatchBased02WithRecentLineNumbers,
+		PromptingStrategy.PatchBased02Unified,
+		PromptingStrategy.PatchBased02UnifiedEagerness,
 		PromptingStrategy.PatchBased02WithoutRecentLineNumbers,
 		PromptingStrategy.Xtab275,
 		PromptingStrategy.XtabAggressiveness,
@@ -269,6 +305,18 @@ describe('overrideModelConfig', () => {
 		expect(result.pagedClipping).toEqual(base.pagedClipping);
 		expect(result.recentlyViewedDocuments).toEqual(base.recentlyViewedDocuments);
 		expect(result.diffHistory).toEqual(base.diffHistory);
+	});
+
+	it('propagates the eagerness prompt from model configuration', () => {
+		const result = overrideModelConfig(makeBaseModelConfig(), {
+			modelName: 'four-in-one-model',
+			promptingStrategy: PromptingStrategy.PatchBased02UnifiedEagerness,
+			eagernessPrompt: 'aggressionHighLow',
+			includeTagsInCurrentFile: false,
+			lintOptions: undefined,
+		});
+
+		expect(result.eagernessPrompt).toBe('aggressionHighLow');
 	});
 
 	it('merges lintOptions when overridingConfig has lintOptions', () => {
@@ -521,6 +569,59 @@ describe('getPredictionContents', () => {
 		expect(result.endsWith(':')).toBe(true);
 	});
 
+	it.skipIf(!isWindows)('preserves spaces in a workspace-relative Windows path', () => {
+		const lines = ['def my_function'];
+		const text = new StringText(lines.join('\n'));
+		const workspaceRoot = URI.file('C:\\workspace');
+		const doc = new StatelessNextEditDocument(
+			DocumentId.create(URI.file('C:\\workspace\\space folder\\test.py').toString()),
+			workspaceRoot,
+			LanguageId.create('python'),
+			lines,
+			LineEdit.empty,
+			text,
+			new Edits(StringEdit, []),
+		);
+
+		expect(call(lines, ResponseFormat.CustomDiffPatch, { doc })).toBe('space folder/test.py:');
+	});
+
+	it.skipIf(!isWindows)('normalizes the drive letter for a file-backed notebook cell', () => {
+		const lines = ['print("hello")'];
+		const text = new StringText(lines.join('\n'));
+		const workspaceRoot = URI.file('C:\\workspace');
+		const cellUri = URI.file('C:\\workspace\\notebook.ipynb').with({ scheme: Schemas.vscodeNotebookCell, fragment: 'ch000001' });
+		const doc = new StatelessNextEditDocument(
+			DocumentId.create(cellUri.toString()),
+			workspaceRoot,
+			LanguageId.create('python'),
+			lines,
+			LineEdit.empty,
+			text,
+			new Edits(StringEdit, []),
+		);
+
+		expect(call(lines, ResponseFormat.CustomDiffPatch, { doc })).toBe('notebook.ipynb#ch000001:');
+	});
+
+	it.skipIf(!isWindows)('preserves path casing for a virtual notebook cell', () => {
+		const lines = ['print("hello")'];
+		const text = new StringText(lines.join('\n'));
+		const workspaceRoot = URI.from({ scheme: 'test-notebook', path: '/repo' });
+		const cellUri = URI.from({ scheme: Schemas.vscodeNotebookCell, path: '/Repo/notebook.ipynb', fragment: 'ch000001' });
+		const doc = new StatelessNextEditDocument(
+			DocumentId.create(cellUri.toString()),
+			workspaceRoot,
+			LanguageId.create('python'),
+			lines,
+			LineEdit.empty,
+			text,
+			new Edits(StringEdit, []),
+		);
+
+		expect(call(lines, ResponseFormat.CustomDiffPatch, { doc })).toBe('/Repo/notebook.ipynb#ch000001:');
+	});
+
 	it('returns correct content for CustomDiffPatch without workspace root', () => {
 		const result = call(editWindowLines, ResponseFormat.CustomDiffPatch);
 		expect(result.endsWith(':')).toBe(true);
@@ -751,7 +852,7 @@ describe('XtabProvider integration', () => {
 			beforeText,
 			[doc],
 			0,
-			[{ docId, kind: 'visibleRanges', visibleRanges: [new OffsetRange(0, 100)], documentContent: doc.documentAfterEdits }],
+			[{ docId, kind: 'visibleRanges', ordinal: 0, visibleRanges: [new OffsetRange(0, 100)], documentContent: doc.documentAfterEdits }],
 			new DeferredPromise<Result<unknown, NoNextEditReason>>(),
 			opts?.expandedEditWindowNLines,
 			opts?.isSpeculative ?? false,
@@ -759,6 +860,7 @@ describe('XtabProvider integration', () => {
 			undefined,
 			undefined,
 			Date.now(),
+			[],
 		);
 	}
 
@@ -830,6 +932,7 @@ describe('XtabProvider integration', () => {
 				new DeferredPromise<Result<unknown, NoNextEditReason>>(), undefined,
 				false, // isSpeculative
 				createLogContext(), undefined, undefined, Date.now(),
+				[],
 			);
 
 			const gen = provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None);
@@ -854,10 +957,11 @@ describe('XtabProvider integration', () => {
 
 			const request = new StatelessNextEditRequest(
 				'req-1', 'opp-1', text, [doc], 0,
-				[{ docId: doc.id, kind: 'visibleRanges', visibleRanges: [new OffsetRange(0, 50)], documentContent: text }],
+				[{ docId: doc.id, kind: 'visibleRanges', ordinal: 0, visibleRanges: [new OffsetRange(0, 50)], documentContent: text }],
 				new DeferredPromise<Result<unknown, NoNextEditReason>>(), undefined,
 				false, // isSpeculative
 				createLogContext(), undefined, undefined, Date.now(),
+				[],
 			);
 
 			const gen = provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None);
@@ -1046,6 +1150,40 @@ describe('XtabProvider integration', () => {
 			expect(getMessageText(systemMessage!)).toBe(xtab275SystemPrompt);
 		});
 
+		it('applies configured aggressiveness only to aggressiveness strategies', async () => {
+			const lines = ['const x = 1;', 'const y = 2;'];
+			const captureUserPrompt = async (promptingStrategy: PromptingStrategy, aggressivenessLevel: AggressivenessLevel) => {
+				mockModelService.setSelectedConfig({ promptingStrategy });
+				await configService.setConfig(ConfigKey.TeamInternal.InlineEditsXtabAggressivenessLevel, aggressivenessLevel);
+				streamingFetcher.setStreamingLines(lines);
+
+				const gen = createProvider().provideNextEdit(createRequestWithEdit(lines, { insertionOffset: 3, insertedText: 'a' }), createMockLogger(), createLogContext(), CancellationToken.None);
+				await AsyncIterUtils.drainUntilReturn(gen);
+
+				const messages = streamingFetcher.capturedOptions.at(-1)?.messages;
+				const userMessage = messages?.find(message => message.role === Raw.ChatRole.User);
+				expect(userMessage).toBeDefined();
+				return getMessageText(userMessage!);
+			};
+
+			const nonAggressiveLow = await captureUserPrompt(PromptingStrategy.Xtab275, AggressivenessLevel.Low);
+			const nonAggressiveHigh = await captureUserPrompt(PromptingStrategy.Xtab275, AggressivenessLevel.High);
+			const aggressiveLow = await captureUserPrompt(PromptingStrategy.XtabAggressiveness, AggressivenessLevel.Low);
+			const aggressiveHigh = await captureUserPrompt(PromptingStrategy.XtabAggressiveness, AggressivenessLevel.High);
+
+			expect({
+				nonAggressivePromptsMatch: nonAggressiveLow === nonAggressiveHigh,
+				nonAggressivePromptHasLevel: nonAggressiveLow.includes('<|aggressive|>'),
+				aggressiveLowHasLevel: aggressiveLow.includes('<|aggressive|>low<|/aggressive|>'),
+				aggressiveHighHasLevel: aggressiveHigh.includes('<|aggressive|>high<|/aggressive|>'),
+			}).toEqual({
+				nonAggressivePromptsMatch: true,
+				nonAggressivePromptHasLevel: false,
+				aggressiveLowHasLevel: true,
+				aggressiveHighHasLevel: true,
+			});
+		});
+
 		it('retries with default model after NotFound response', async () => {
 			const provider = createProvider();
 
@@ -1137,6 +1275,69 @@ describe('XtabProvider integration', () => {
 	// ========================================================================
 	// Group 4: Filter Pipeline
 	// ========================================================================
+
+	describe('global budget', () => {
+
+		/** Drives the provider once and returns the captured user-message text. */
+		async function captureUserPrompt(provider: XtabProvider, request: StatelessNextEditRequest): Promise<string> {
+			streamingFetcher.setStreamingLines(['x']);
+			const capturesBefore = streamingFetcher.capturedOptions.length;
+			const gen = provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None);
+			await AsyncIterUtils.drainUntilReturn(gen);
+			// Guard against silently comparing a stale capture: the run must have fetched.
+			expect(streamingFetcher.capturedOptions.length).toBeGreaterThan(capturesBefore);
+			const messages = streamingFetcher.capturedOptions.at(-1)?.messages;
+			const userMessage = messages?.find(m => m.role === Raw.ChatRole.User);
+			expect(userMessage).toBeDefined();
+			return getMessageText(userMessage!);
+		}
+
+		/** Number of lines in the `<|current_file_content|>` region of the prompt. */
+		function currentFileRegionLineCount(prompt: string): number {
+			const start = prompt.indexOf(PromptTags.CURRENT_FILE.start);
+			const end = prompt.indexOf(PromptTags.CURRENT_FILE.end);
+			expect(start).toBeGreaterThanOrEqual(0);
+			expect(end).toBeGreaterThan(start);
+			return prompt.slice(start, end).split('\n').length;
+		}
+
+		const bigFile = Array.from({ length: 400 }, (_, i) => `const value${i} = ${i};`);
+
+		// Under a global budget the current file is clipped LAST, so it absorbs whatever
+		// budget the cascade parts leave unused. With the (here empty) cascade the
+		// current file therefore reuses essentially the whole pool and keeps strictly
+		// MORE of the file than the legacy path, which caps it at its own
+		// currentFile.maxTokens (1500) and trims the tail.
+		it('absorbs leftover cascade budget so it keeps more of the current file than the legacy cap', async () => {
+			const legacy = await captureUserPrompt(createProvider(), createRequestWithEdit(bigFile, { insertionOffset: 3, insertedText: 'a' }));
+
+			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsXtabGlobalBudget, '{}');
+			const enabledAtDefault = await captureUserPrompt(createProvider(), createRequestWithEdit(bigFile, { insertionOffset: 3, insertedText: 'a' }));
+
+			// Legacy caps the current file at 2000 tokens → the tail is trimmed.
+			expect(legacy).not.toContain('const value399 = 399;');
+			// Clip-last lets the current file reuse the whole pool → the entire file fits.
+			expect(enabledAtDefault).toContain('const value399 = 399;');
+			expect(currentFileRegionLineCount(legacy)).toBeLessThan(currentFileRegionLineCount(enabledAtDefault));
+		});
+
+		// New behavior: because the current file is sized to its share PLUS the cascade
+		// leftover (≈ the whole pool when the cascade is empty), a larger total budget
+		// keeps more of the file. A small pool still trims the tail; a generous pool
+		// fits the entire file.
+		it('keeps more of the current file as the total budget grows', async () => {
+			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsXtabGlobalBudget, JSON.stringify({ totalTokens: 2000 }));
+			const smallBudget = await captureUserPrompt(createProvider(), createRequestWithEdit(bigFile, { insertionOffset: 3, insertedText: 'a' }));
+
+			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsXtabGlobalBudget, JSON.stringify({ totalTokens: 8000 }));
+			const wideBudget = await captureUserPrompt(createProvider(), createRequestWithEdit(bigFile, { insertionOffset: 3, insertedText: 'a' }));
+
+			// Small pool trims the tail; wide pool fits the whole file.
+			expect(smallBudget).not.toContain('const value399 = 399;');
+			expect(wideBudget).toContain('const value399 = 399;');
+			expect(currentFileRegionLineCount(smallBudget)).toBeLessThan(currentFileRegionLineCount(wideBudget));
+		});
+	});
 
 	describe('filter pipeline', () => {
 		it('filters out import-only changes', async () => {
@@ -1347,6 +1548,29 @@ describe('XtabProvider integration', () => {
 
 			expect(edits.length).toBe(0);
 			expect(finalReason.v).toBeInstanceOf(NoNextEditReason.NoSuggestions);
+		});
+
+		it('CustomDiffPatch clamps tagged content range to the source document', async () => {
+			const provider = createProvider();
+			mockModelService.setSelectedConfig({
+				promptingStrategy: PromptingStrategy.PatchBased02,
+				includeTagsInCurrentFile: true,
+			});
+
+			const lines = Array.from({ length: 30 }, (_, i) => `line ${i}`);
+			const request = createRequestWithEdit(lines, { insertionOffset: 3, insertedText: 'e' });
+			streamingFetcher.setStreamingLines([]);
+
+			const gen = provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None);
+			const { edits, finalReason } = await collectEdits(gen);
+
+			expect({
+				editCount: edits.length,
+				finalReason: finalReason.v.constructor.name,
+			}).toEqual({
+				editCount: 0,
+				finalReason: NoNextEditReason.NoSuggestions.name,
+			});
 		});
 
 		it('UnifiedWithXml INSERT yields insertion edit at cursor line', async () => {
@@ -1890,6 +2114,30 @@ describe('XtabProvider integration', () => {
 	// ========================================================================
 
 	describe('debounce behavior', () => {
+		it('does not change timing for a non-aggressiveness strategy when user eagerness is default', async () => {
+			mockModelService.setSelectedConfig({ promptingStrategy: PromptingStrategy.Xtab275 });
+			const setBaseDebounceTime = vi.spyOn(DelaySession.prototype, 'setBaseDebounceTime');
+			const setExpectedTotalTime = vi.spyOn(DelaySession.prototype, 'setExpectedTotalTime');
+
+			try {
+				const lines = ['const x = 1;', 'const y = 2;'];
+				streamingFetcher.setStreamingLines(lines);
+				const gen = createProvider().provideNextEdit(createRequestWithEdit(lines, { insertionOffset: 3, insertedText: 'a' }), createMockLogger(), createLogContext(), CancellationToken.None);
+				await AsyncIterUtils.drainUntilReturn(gen);
+
+				expect({
+					setBaseDebounceTimeCalls: setBaseDebounceTime.mock.calls.length,
+					setExpectedTotalTimeCalls: setExpectedTotalTime.mock.calls.length,
+				}).toEqual({
+					setBaseDebounceTimeCalls: 0,
+					setExpectedTotalTimeCalls: 0,
+				});
+			} finally {
+				setBaseDebounceTime.mockRestore();
+				setExpectedTotalTime.mockRestore();
+			}
+		});
+
 		it('debounce is skipped in simulation tests', async () => {
 			// Override the simulation test context to indicate we're in sim tests
 			const testingServiceCollection = createExtensionUnitTestingServices(disposables);
@@ -1910,10 +2158,11 @@ describe('XtabProvider integration', () => {
 			const beforeText = new StringText(doc.documentBeforeEdits.value);
 			const request = new StatelessNextEditRequest(
 				'req-sim', 'opp-sim', beforeText, [doc], 0,
-				[{ docId: doc.id, kind: 'visibleRanges', visibleRanges: [new OffsetRange(0, 100)], documentContent: doc.documentAfterEdits }],
+				[{ docId: doc.id, kind: 'visibleRanges', ordinal: 0, visibleRanges: [new OffsetRange(0, 100)], documentContent: doc.documentAfterEdits }],
 				new DeferredPromise<Result<unknown, NoNextEditReason>>(), undefined,
 				false, // isSpeculative
 				createLogContext(), undefined, undefined, Date.now(),
+				[],
 			);
 
 			// Response with a change
@@ -2088,6 +2337,34 @@ describe('XtabProvider integration', () => {
 	// ========================================================================
 
 	describe('prompt construction', () => {
+		it.each([
+			{ useMaxTokens: undefined, usePrediction: false, expected: {} },
+			{ useMaxTokens: true, usePrediction: false, expected: {} },
+			{ useMaxTokens: false, usePrediction: false, expected: { max_tokens: undefined } },
+			{ useMaxTokens: true, usePrediction: true, expected: {} },
+			{ useMaxTokens: false, usePrediction: true, expected: {} },
+		])('applies useMaxTokens=$useMaxTokens only with prediction disabled ($usePrediction)', async ({ useMaxTokens, usePrediction, expected }) => {
+			const services = createExtensionUnitTestingServices(disposables);
+			services.set(IInlineEditsModelService, mockModelService);
+			services.set(IChatMLFetcher, streamingFetcher);
+			services.define(IEndpointProvider, new SyncDescriptor(MockXtabEndpointProvider));
+			const accessor = disposables.add(services.createTestingAccessor());
+			const configuration = accessor.get(IConfigurationService);
+			await configuration.setConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderUsePrediction, usePrediction);
+			if (useMaxTokens !== undefined) {
+				await configuration.setConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderUseMaxTokens, useMaxTokens);
+			}
+			const provider = accessor.get(IInstantiationService).createInstance(XtabProvider);
+			const lines = ['const x = 1;'];
+			streamingFetcher.setStreamingLines(lines);
+			const request = createRequestWithEdit(lines, { insertionOffset: 3, insertedText: 'a' });
+			await AsyncIterUtils.drainUntilReturn(provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None));
+			const options = streamingFetcher.capturedOptions[0].requestOptions!;
+			expect({
+				...('max_tokens' in options ? { max_tokens: options.max_tokens } : {}),
+			}).toEqual(expected);
+		});
+
 		it('system prompt matches the configured prompting strategy', async () => {
 			const strategies: [PromptingStrategy, string][] = [
 				[PromptingStrategy.UnifiedModel, unifiedModelSystemPrompt],
@@ -2200,6 +2477,7 @@ describe('XtabProvider integration', () => {
 				base.recordingBookmark,
 				base.recording,
 				base.providerRequestStartDateTime,
+				base.xtabRejectedEditHistory,
 			);
 		}
 

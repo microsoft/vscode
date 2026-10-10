@@ -1,0 +1,12 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.quick-input-list-icon.sessions-pull-request-open {
+	color: var(--vscode-charts-green);
+}
+
+.quick-input-list-icon.sessions-pull-request-draft {
+	color: var(--vscode-descriptionForeground);
+}

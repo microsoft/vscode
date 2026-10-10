@@ -1,0 +1,80 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-request-origin {
+	align-self: flex-end;
+	box-sizing: border-box;
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size20);
+	max-width: 90%;
+	width: fit-content;
+	margin-block-end: var(--vscode-spacing-size20);
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-size120);
+	background-color: var(--vscode-chat-requestBubbleBackground);
+	border-radius: var(--vscode-cornerRadius-large);
+	color: var(--vscode-descriptionForeground);
+	cursor: pointer;
+	touch-action: manipulation;
+}
+
+.chat-request-origin.hidden {
+	display: none;
+}
+
+.chat-request-origin.has-no-quote {
+	padding-block: var(--vscode-spacing-size40);
+}
+
+.chat-request-origin.delegation {
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size40);
+	background-color: transparent;
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.chat-request-origin:hover {
+	background-color: var(--vscode-chat-requestBubbleHoverBackground);
+}
+
+.hc-black .chat-request-origin,
+.hc-light .chat-request-origin {
+	border: var(--vscode-strokeThickness) dotted var(--vscode-focusBorder);
+}
+
+.chat-request-origin:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-spacing-size20);
+}
+
+.chat-request-origin-header {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size40);
+	min-width: 0;
+	font-size: var(--vscode-fontSize-label2);
+	font-weight: var(--vscode-fontWeight-regular);
+}
+
+.chat-request-origin-icon {
+	flex: 0 0 auto;
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.chat-request-origin-title {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.chat-request-origin-quote {
+	display: -webkit-box;
+	overflow: hidden;
+	font-size: var(--vscode-fontSize-label3);
+	font-weight: var(--vscode-fontWeight-regular);
+	line-clamp: 2;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+	word-break: break-word;
+}

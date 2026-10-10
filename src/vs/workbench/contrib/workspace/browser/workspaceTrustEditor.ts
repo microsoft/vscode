@@ -341,14 +341,18 @@ class WorkspaceTrustedUrisTable extends Disposable {
 	}
 
 	async delete(item: ITrustedUriItem) {
-		this.table.focusNext();
-		await this.workspaceTrustManagementService.setUrisTrust([item.uri], false);
-
-		if (this.table.getFocus().length === 0) {
-			this.table.focusLast();
+		const index = this.table.indexOf(item);
+		if (index < this.table.length - 1) {
+			this.table.setFocus([index + 1]);
+		} else if (index > 0) {
+			this.table.setFocus([index - 1]);
+		} else {
+			this.table.setFocus([]);
 		}
-		this._onDelete.fire(item);
 		this.table.domFocus();
+
+		await this.workspaceTrustManagementService.setUrisTrust([item.uri], false);
+		this._onDelete.fire(item);
 	}
 
 	async edit(item: ITrustedUriItem, usePickerIfPossible?: boolean) {
@@ -842,6 +846,13 @@ export class WorkspaceTrustEditor extends EditorPane {
 	private readonly rerenderDisposables: DisposableStore = this._register(new DisposableStore());
 	@debounce(100)
 	private async render() {
+		// The debounced render can fire after the editor pane (and its scoped
+		// instantiation service) has been disposed. Bail out so we never call
+		// createInstance on a disposed InstantiationService.
+		if (this._store.isDisposed) {
+			return;
+		}
+
 		if (this.rendering) {
 			return;
 		}

@@ -1,0 +1,12 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5.3-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Reply exactly "PEER_OK".
+    response:
+      content: PEER_OK
+      stopReason: end_turn

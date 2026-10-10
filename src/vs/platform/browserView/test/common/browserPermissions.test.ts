@@ -10,6 +10,7 @@ import {
 	ISerializedBrowserPermissionsSnapshot,
 	PermissionCategory,
 	electronPermissionToCategories,
+	isAlwaysAllowedPermission,
 	toOriginKey,
 } from '../../common/browserPermissions.js';
 
@@ -42,6 +43,8 @@ suite('BrowserPermissionStore', () => {
 		// (e.g. Sensors) default to 'allow'.
 		assert.strictEqual(store.isAllowed('https://a.com', PermissionCategory.Location), false);
 		assert.strictEqual(store.isAllowed('https://a.com', PermissionCategory.Sensors), true);
+		// Devices default to 'allow' (the chooser itself is the consent gesture).
+		assert.strictEqual(store.isAllowed('https://a.com', PermissionCategory.Devices), true);
 
 		store.set('https://a.com', PermissionCategory.Location, 'allow');
 		store.set('https://a.com', PermissionCategory.Sensors, 'deny');
@@ -118,12 +121,31 @@ suite('electronPermissionToCategories', () => {
 		assert.deepStrictEqual(electronPermissionToCategories('geolocation'), [PermissionCategory.Location]);
 		assert.deepStrictEqual(electronPermissionToCategories('notifications'), [PermissionCategory.Notifications]);
 		assert.deepStrictEqual(electronPermissionToCategories('sensors'), [PermissionCategory.Sensors]);
+		// USB, Serial, and HID all map to the single Devices category.
+		assert.deepStrictEqual(electronPermissionToCategories('usb'), [PermissionCategory.Devices]);
+		assert.deepStrictEqual(electronPermissionToCategories('serial'), [PermissionCategory.Devices]);
+		assert.deepStrictEqual(electronPermissionToCategories('hid'), [PermissionCategory.Devices]);
 		assert.deepStrictEqual(electronPermissionToCategories('unrecognized'), []);
 
 		// `media` resolves from hints, defaulting to both when none are given.
 		assert.deepStrictEqual(electronPermissionToCategories('media'), [PermissionCategory.Camera, PermissionCategory.Microphone]);
 		assert.deepStrictEqual(electronPermissionToCategories('media', ['video']), [PermissionCategory.Camera]);
 		assert.deepStrictEqual(electronPermissionToCategories('media', ['audio']), [PermissionCategory.Microphone]);
+	});
+});
+
+suite('isAlwaysAllowedPermission', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('allows legacy and split local network permissions', () => {
+		const permissions = ['local-network-access', 'local-network', 'loopback-network'];
+		assert.deepStrictEqual(permissions.map(isAlwaysAllowedPermission), [true, true, true]);
+	});
+
+	test('does not bypass managed or unrecognized permissions', () => {
+		const permissions = ['geolocation', 'media', 'unrecognized'];
+		assert.deepStrictEqual(permissions.map(isAlwaysAllowedPermission), [false, false, false]);
 	});
 });
 
@@ -145,5 +167,27 @@ suite('toOriginKey', () => {
 		// Opaque origins reported as the literal "null" have no real host.
 		assert.strictEqual(toOriginKey('null'), '');
 		assert.strictEqual(toOriginKey('   '), '');
+	});
+
+	test('returns stable keys for file, inherited and opaque origins', () => {
+		const cases: [string, string][] = [
+			['https://example.com:443/path?query#fragment', 'https://example.com'],
+			['file:///home/user/page.html?query#fragment', 'file:///home/user/page.html'],
+			['file://server/share/page.html?query#fragment', 'file://server/share/page.html'],
+			['blob:https://example.com/id', 'https://example.com'],
+			['about:blank', ''],
+			['about://blank', ''],
+			['about:srcdoc', ''],
+			['data:text/html,hello', ''],
+			['blob:null/id', ''],
+			['custom://host/path', ''],
+			['null', ''],
+			['', ''],
+		];
+
+		assert.deepStrictEqual(cases.map(([url]) => {
+			const key = toOriginKey(url);
+			return [key, toOriginKey(key)];
+		}), cases.map(([, key]) => [key, key]));
 	});
 });

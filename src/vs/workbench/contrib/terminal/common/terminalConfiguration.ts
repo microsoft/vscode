@@ -136,7 +136,7 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 		description: localize('terminal.integrated.tabs.focusMode', "Controls whether focusing the terminal of a tab happens on double or single click.")
 	},
 	[TerminalSettingId.TabsAllowAgentCliTitle]: {
-		description: localize('terminal.integrated.tabs.allowAgentCliTitle', "Controls whether agentic CLIs (such as Claude Code, Codex, GitHub Copilot CLI, and Gemini CLI) are allowed to set the terminal tab title via escape sequences. When disabled, the configured tab title template is used instead."),
+		description: localize('terminal.integrated.tabs.allowAgentCliTitle', "Controls whether agentic CLIs (such as Claude Code, Codex, Command Code, GitHub Copilot CLI, and Gemini CLI) are allowed to set the terminal tab title via escape sequences. When disabled, the configured tab title template is used instead."),
 		type: 'boolean',
 		default: true,
 	},
@@ -179,6 +179,18 @@ const terminalConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 	[TerminalSettingId.FontFamily]: {
 		markdownDescription: localize('terminal.integrated.fontFamily', "Controls the font family of the terminal. Defaults to {0}'s value.", '`#editor.fontFamily#`'),
 		type: 'string',
+	},
+	[TerminalSettingId.FontRendering]: {
+		markdownDescription: localize('terminal.integrated.fontRendering', "Controls how terminal text is antialiased on high-DPI displays."),
+		type: 'string',
+		enum: ['inherit', 'grayscale'],
+		markdownEnumDescriptions: [
+			localize('terminal.integrated.fontRendering.inherit', "Follow {0}.", '`#workbench.fontAliasing#`'),
+			localize('terminal.integrated.fontRendering.grayscale', "Use grayscale antialiasing, which can make text look sharper. With GPU acceleration, this may require **Developer: Reload Window** to take effect.")
+		],
+		default: 'inherit',
+		tags: ['experimental', 'advanced'],
+		included: isMacintosh
 	},
 	[TerminalSettingId.FontLigaturesEnabled]: {
 		markdownDescription: localize('terminal.integrated.fontLigatures.enabled', "Controls whether font ligatures are enabled in the terminal. Ligatures will only work if the configured {0} supports them.", `\`#${TerminalSettingId.FontFamily}#\``),
@@ -714,47 +726,6 @@ export async function registerTerminalConfiguration(getFontSnippets: () => Promi
 
 Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMigration)
 	.registerConfigurationMigrations([{
-		key: TerminalContribSettingId.DeprecatedAgentSandboxEnabled,
-		migrateFn: (value: unknown, valueAccessor) => {
-			// The deprecated key `chat.agent.sandbox` is now also a namespace prefix
-			// for new settings such as `chat.agent.sandbox.enabled` and
-			// `chat.agent.sandbox.fileSystem.mac`. As a result, inspecting the
-			// deprecated key may return an object representing the namespace tree
-			// (e.g. `{ fileSystem: { mac: {...} } }`) even when the user never set
-			// the original boolean setting. Only migrate when the value is actually
-			// the original boolean type and skip writing back undefined to avoid
-			// clobbering the new sub-settings.
-			if (typeof value !== 'boolean') {
-				return [];
-			}
-			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];
-			if (valueAccessor(TerminalContribSettingId.AgentSandboxEnabled) === undefined) {
-				configurationKeyValuePairs.push([TerminalContribSettingId.AgentSandboxEnabled, { value: value ? 'on' : 'off' }]);
-			}
-			configurationKeyValuePairs.push([TerminalContribSettingId.DeprecatedAgentSandboxEnabled, { value: undefined }]);
-			return configurationKeyValuePairs;
-		}
-	}, {
-		key: TerminalContribSettingId.DeprecatedAgentSandboxLinuxFileSystem,
-		migrateFn: (value: { denyRead?: string[]; allowWrite?: string[]; denyWrite?: string[] }, valueAccessor) => {
-			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];
-			if (value !== undefined && valueAccessor(TerminalContribSettingId.AgentSandboxLinuxFileSystem) === undefined) {
-				configurationKeyValuePairs.push([TerminalContribSettingId.AgentSandboxLinuxFileSystem, { value }]);
-			}
-			configurationKeyValuePairs.push([TerminalContribSettingId.DeprecatedAgentSandboxLinuxFileSystem, { value: undefined }]);
-			return configurationKeyValuePairs;
-		}
-	}, {
-		key: TerminalContribSettingId.DeprecatedAgentSandboxMacFileSystem,
-		migrateFn: (value: { denyRead?: string[]; allowWrite?: string[]; denyWrite?: string[] }, valueAccessor) => {
-			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];
-			if (value !== undefined && valueAccessor(TerminalContribSettingId.AgentSandboxMacFileSystem) === undefined) {
-				configurationKeyValuePairs.push([TerminalContribSettingId.AgentSandboxMacFileSystem, { value }]);
-			}
-			configurationKeyValuePairs.push([TerminalContribSettingId.DeprecatedAgentSandboxMacFileSystem, { value: undefined }]);
-			return configurationKeyValuePairs;
-		}
-	}, {
 		key: TerminalSettingId.EnableBell,
 		migrateFn: (enableBell, accessor) => {
 			const configurationKeyValuePairs: ConfigurationKeyValuePairs = [];

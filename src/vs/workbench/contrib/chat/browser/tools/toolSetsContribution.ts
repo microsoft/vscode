@@ -24,7 +24,7 @@ import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { ILifecycleService, LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.js';
 import { IUserDataProfileService } from '../../../../services/userDataProfile/common/userDataProfile.js';
-import { CHAT_CATEGORY, CHAT_CONFIG_MENU_ID } from '../actions/chatActions.js';
+import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { ILanguageModelToolsService, IToolData, IToolSet, isToolSet, ToolAndToolSetEnablementMap, ToolDataSource } from '../../common/tools/languageModelToolsService.js';
 import { IRawToolSetContribution } from '../../common/tools/languageModelToolsContribution.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
@@ -306,7 +306,8 @@ export class UserToolSetsContributions extends Disposable implements IWorkbenchC
 						{
 							// toolReferenceName: value.referenceName,
 							icon: value.icon ? ThemeIcon.fromId(value.icon) : undefined,
-							description: value.description
+							description: value.description,
+							deprecated: true,
 						}
 					);
 
@@ -445,12 +446,6 @@ export class ConfigureToolSets extends Action2 {
 			f1: true,
 			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.Tools.toolsCount.greater(0)),
 			menu: [{
-				id: CHAT_CONFIG_MENU_ID,
-				when: ContextKeyExpr.equals('view', ChatViewId),
-				order: 11,
-				group: '2_level'
-			},
-			{
 				id: MenuId.ViewTitle,
 				when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
 				order: 11,

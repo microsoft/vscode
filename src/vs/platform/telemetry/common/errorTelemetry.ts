@@ -34,8 +34,13 @@ type ListenerLeakDiagFragment = {
 	listenerCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Number of listeners on the emitter when the leak was detected.' };
 };
 
-type UnhandledErrorEvent = ErrorEvent & ListenerLeakDiagEvent;
-type UnhandledErrorClassification = ErrorEventFragment & ListenerLeakDiagFragment;
+type UnhandledErrorEvent = ErrorEvent & ListenerLeakDiagEvent & {
+	copilotSku?: string;
+};
+
+type UnhandledErrorClassification = ErrorEventFragment & ListenerLeakDiagFragment & {
+	copilotSku?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The raw Copilot entitlement SKU for the authenticated GitHub account.' };
+};
 
 export interface ErrorEvent {
 	callstack: string;

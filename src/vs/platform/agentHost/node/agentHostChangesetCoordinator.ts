@@ -5,21 +5,21 @@
 
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
-import { IAgentSessionMetadata } from '../common/agentService.js';
-import {
-	ChangesetKind,
-	parseChangesetUri,
-} from '../common/changesetUri.js';
-import { ISessionGitState } from '../common/state/sessionState.js';
-import { IAgentConfigurationService } from './agentConfigurationService.js';
+import { IAgentSessionMetadata } from '../common/agent.js';
+import { buildBranchChangesetUri, buildSessionChangesetUri, ChangesetKind, parseChangesetUri } from '../common/changesetUri.js';
 import { ChangesetFileMonitorCoordinator } from './agentHostChangesetFileMonitorCoordinator.js';
-import { IAgentHostFileMonitorService } from './agentHostFileMonitorService.js';
-import { IAgentHostGitService } from '../common/agentHostGitService.js';
-import { AgentHostStateManager } from './agentHostStateManager.js';
-import { ILogService } from '../../log/common/log.js';
+import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostChangesetService, META_CHANGESET_BRANCH, META_CHANGESET_SESSION, META_LEGACY_DIFFS } from '../common/agentHostChangesetService.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
+import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
+import { IInstantiationService } from '../../instantiation/common/instantiation.js';
+import { isAnyAgentMergeEnabled } from '../common/agentMerge.js';
+import { getWorkingDirectoryKey } from '../common/agentHostWorkingDirectories.js';
+import { buildDefaultChatUri, isAhpChatChannel, parseChatUri, parseSubagentSessionUri, type SessionConfigState } from '../common/state/sessionState.js';
+import { ActionType } from '../common/state/sessionActions.js';
+import { getSummaryChangesetKind } from './agentHostChangesetSummary.js';
+import { resolveBranchChangesetScopeForOwner, resolveBranchChangesetScopeForSource } from './agentHostBranchChangesetScope.js';
 
 /**
  * Raw metadata blob values for the session DB, batch-read by the caller.
@@ -38,7 +38,7 @@ export type IChangesetSessionMetadata = Record<string, string | undefined>;
  *
  * Owns only URI routing and forwards lifecycle signals. Subscription state is
  * recorded in the shared changeset subscription service. All computation,
- * working-directory gating, and the deferred-refresh state machine live in
+ * working-directory gating, and materialization refreshes live in
  * {@link IAgentHostChangesetService}.
  *
  * No per-session controllers — the cross-cutting concerns (listSessions
@@ -47,36 +47,58 @@ export type IChangesetSessionMetadata = Record<string, string | undefined>;
  */
 export class AgentHostChangesetCoordinator extends Disposable {
 	private readonly _changesetFileMonitor: ChangesetFileMonitorCoordinator;
+	private readonly _branchSummaryResources = new Map<string, Map<string, { resource: string; owner: string }>>();
+	private readonly _pendingChangesetSubscriptions = new Set<string>();
 
 	constructor(
-		private readonly _stateManager: AgentHostStateManager,
+		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@IAgentHostChangesetOperationService private readonly _changesetOperationService: IAgentHostChangesetOperationService,
 		@IAgentHostChangesetService private readonly _changesets: IAgentHostChangesetService,
 		@IAgentHostChangesetSubscriptionService private readonly _changesetSubscriptions: IAgentHostChangesetSubscriptionService,
-		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
-		@IAgentHostFileMonitorService fileMonitorService: IAgentHostFileMonitorService,
-		@IAgentHostGitService gitService: IAgentHostGitService,
-		@ILogService private readonly _logService: ILogService,
+		@IAgentHostGitStateService private readonly _gitStateService: IAgentHostGitStateService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
-		this._changesetFileMonitor = this._register(new ChangesetFileMonitorCoordinator(this._stateManager, this._changesets, this._configurationService, fileMonitorService, gitService, this._logService));
+
+		this._changesetFileMonitor = this._register(instantiationService.createInstance(ChangesetFileMonitorCoordinator));
+		this._register(this._gitStateService.onDidRefreshSessionGitState(sessionStr => this.onDidRunSessionGitStateRefresh(sessionStr)));
+		this._register(this._gitStateService.onDidChangeSessionGitHubState(sessionStr => this._changesetOperationService.scheduleRelatedOperationsUpdate(sessionStr)));
+		this._register(this._stateManager.onDidChangeSessionWorkingDirectories(({ session }) => this.onDidChangeSessionWorkingDirectories(session)));
+		this._register(this._stateManager.onDidChangeSessionConfig(event => this.onDidChangeSessionConfig(event.session, event.previous, event.current)));
+		this._register(this._stateManager.onDidEmitEnvelope(envelope => {
+			if (envelope.action.type === ActionType.SessionChatRemoved) {
+				this._onChatRemoved(envelope.channel, envelope.action.chat);
+			}
+		}));
 	}
 
 	// ---- Lifecycle hooks ----------------------------------------------------
 
 	/**
-	 * Called at session create time. Registers the static changeset URIs
-	 * on the state manager so client subscriptions resolve to a
-	 * `status: computing` snapshot before the first compute pass.
-	 *
-	 * The catalogue summary (`summary.changesets`) is seeded synchronously
-	 * by `_buildInitialSummary` in {@link AgentService} via
-	 * {@link buildDefaultChangesetCatalogue}; this method only registers
-	 * the backing per-changeset state. Both halves run before
-	 * `SessionReady` is dispatched.
+	 * Seeds the default chat's create-time catalogue and registers its backing
+	 * changeset state before `SessionReady` is dispatched.
 	 */
 	onSessionCreated(sessionStr: string): void {
+		this._changesets.refreshChangesetCatalog(sessionStr);
 		this._changesets.registerStaticChangesets(sessionStr);
+		this.onChatAvailable(buildDefaultChatUri(sessionStr));
+	}
+
+	/** Seeds the catalogue and static repository changesets for an available chat state. */
+	onChatAvailable(chat: string): void {
+		if (!this._stateManager.getChatState(chat)) {
+			return;
+		}
+		this._changesets.refreshChangesetCatalog(chat);
+		this._changesets.registerStaticChangesets(chat);
+		this._changesets.ensureChatChangesSummary(chat);
+		void this._gitStateService.refreshSessionGitState(chat);
+		const session = parseChatUri(chat)?.session;
+		if (session
+			&& this._changesetSubscriptions.getSessionSubscriptions(session).has(session)
+			&& getSummaryChangesetKind(this._stateManager.getSessionState(session)?.config?.values) === ChangesetKind.Branch) {
+			this._reconcileBranchSummaryResources(session);
+		}
 	}
 
 	/**
@@ -87,58 +109,107 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	 * keys.
 	 */
 	onSessionRestored(sessionStr: string, metadata: IChangesetSessionMetadata): void {
+		this._changesets.refreshChangesetCatalog(sessionStr);
 		this._changesets.registerStaticChangesets(sessionStr);
+		this.onChatAvailable(buildDefaultChatUri(sessionStr));
 		this._changesets.restorePersistedStaticChangesets(sessionStr, {
 			branchRaw: metadata[META_CHANGESET_BRANCH],
 			sessionRaw: metadata[META_CHANGESET_SESSION],
 			legacyRaw: metadata[META_LEGACY_DIFFS],
 		});
-		// `addSubscriber`'s 0→1 trigger may have fired before the session
-		// state existed; now that `summary.workingDirectory` is populated,
-		// drain the deferred refresh.
+		// Recompute the current subscriptions now that the restored working
+		// directory is available.
 		this._changesets.onWorkingDirectoryAvailable(sessionStr);
 		this._changesetFileMonitor.onSessionRestored(sessionStr);
 	}
 
+	/** Refreshes the catalogue and summary interest after replacing the previous config during restore. */
+	onSessionConfigRestored(sessionStr: string, previous: SessionConfigState | undefined): void {
+		this._refreshChangesetCatalogs(sessionStr);
+		this._refreshSummarySource(sessionStr, previous);
+	}
+
 	/**
 	 * Called when a provisional session is materialized (working directory
-	 * becomes known). Drains any static changeset refresh that was deferred
-	 * because the working directory was not yet known.
+	 * becomes known). Recomputes every current changeset subscription.
 	 */
 	onSessionMaterialized(sessionStr: string): void {
+		this._refreshChangesetCatalogs(sessionStr);
 		this._changesets.onWorkingDirectoryAvailable(sessionStr);
+
 		this._changesetFileMonitor.onSessionMaterialized(sessionStr);
 	}
 
-	/**
-	 * Called after `_meta.git` is attached or updated. Git state can provide
-	 * the base branch used by Branch Changes and fresh uncommitted counts, so
-	 * refresh both static changesets once the session has a working directory.
-	 */
-	onSessionGitStateChanged(sessionStr: string, gitState: ISessionGitState): void {
-		// Git state can provide the base branch used by Branch Changes and
-		// fresh uncommitted counts; recompute every changeset currently
-		// subscribed for the session (the service reads the exposed
-		// subscription list).
-		this._changesets.recomputeSubscribedChangesets(sessionStr);
-
-		// Update the operations for all subscribed changesets
-		this._changesetOperationService.updateOperations(sessionStr, undefined, gitState);
+	/** Refreshes the chat catalogues after the session becomes ready. */
+	onSessionReady(sessionStr: string): void {
+		this._refreshChangesetCatalogs(sessionStr);
 	}
 
-	/**
-	 * Called when a session is disposed. Forgets any pending refresh
-	 * queued for that session.
-	 */
 	onSessionDisposed(sessionStr: string): void {
-		this._changesets.onSessionDisposed(sessionStr);
+		for (const resource of this._pendingChangesetSubscriptions) {
+			if (parseChangesetUri(resource)?.sessionUri === sessionStr) {
+				this._pendingChangesetSubscriptions.delete(resource);
+			}
+		}
+		this._changesets.onChangesetOwnerRemoved?.(sessionStr);
+		for (const owner of new Set([...this._branchSummaryResources.get(sessionStr)?.values() ?? []].map(resource => resource.owner))) {
+			this._changesets.onChangesetOwnerRemoved?.(owner);
+		}
+		this._clearBranchSummaryResources(sessionStr, false);
 		this._changesetFileMonitor.onSessionDisposed(sessionStr);
-
 		this._changesetSubscriptions.clearSessionSubscriptions(sessionStr);
+		for (const chat of this._stateManager.getSessionState(sessionStr)?.chats ?? []) {
+			this._changesets.onChangesetOwnerRemoved?.(chat.resource);
+			this._changesetFileMonitor.onSessionDisposed(chat.resource);
+			this._changesetSubscriptions.clearSessionSubscriptions(chat.resource);
+		}
 	}
 
 	onSessionTurnActiveChanged(sessionStr: string, active: boolean): void {
 		this._changesetFileMonitor.onSessionTurnActiveChanged(sessionStr, active);
+
+		// Advertised operations are disabled while a turn is active so the
+		// working tree / branch state can't be mutated mid-request; recompute
+		// them whenever the active-turn state flips.
+		this._changesetOperationService.updateOperations(sessionStr);
+		for (const chat of this._stateManager.getSessionState(sessionStr)?.chats ?? []) {
+			this._changesetFileMonitor.onSessionTurnActiveChanged(chat.resource, active);
+		}
+	}
+
+	private onDidChangeSessionConfig(session: string, previous: SessionConfigState | undefined, current: SessionConfigState | undefined): void {
+		this._refreshSummarySource(session, previous);
+		const sessionFolder = this._stateManager.getSessionSummary(session)?.workingDirectories?.[0];
+		const sessionFolderKey = sessionFolder ? getWorkingDirectoryKey(sessionFolder) : undefined;
+		const wasEnabled = isAnyAgentMergeEnabled(previous?.values, sessionFolderKey);
+		const isEnabled = isAnyAgentMergeEnabled(current?.values, sessionFolderKey);
+		if (wasEnabled !== isEnabled) {
+			this._refreshChangesetCatalogs(session);
+		}
+	}
+
+	private _refreshChangesetCatalogs(session: string): void {
+		this._changesets.refreshChangesetCatalog(session);
+		for (const chat of this._stateManager.getSessionState(session)?.chats ?? []) {
+			this._changesets.refreshChangesetCatalog(chat.resource);
+		}
+	}
+
+	private _refreshSummarySource(session: string, previous: SessionConfigState | undefined): void {
+		const kind = getSummaryChangesetKind(this._stateManager.getSessionState(session)?.config?.values);
+		if (kind !== getSummaryChangesetKind(previous?.values)) {
+			for (const { resource } of this._branchSummaryResources.get(session)?.values() ?? []) {
+				this._changesetOperationService.updateOperations(session, resource);
+			}
+			this._changesetOperationService.updateOperations(session, buildSessionChangesetUri(session));
+			if (kind === ChangesetKind.Branch) {
+				this._reconcileBranchSummaryResources(session);
+			} else {
+				this._clearBranchSummaryResources(session);
+				this._changesets.recomputeSubscribedChangesets(session);
+				this._changesetFileMonitor.trackSessionChanges(session, session);
+			}
+		}
 	}
 
 	// ---- Subscription hooks -------------------------------------------------
@@ -146,7 +217,7 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	/**
 	 * Called on every `addSubscriber` 0→1 transition. When `resource` is a
 	 * static changeset URI, triggers the first git-diff refresh (the
-	 * changeset service self-defers it when the working directory is not yet
+	 * changeset service skips it when the working directory is not yet
 	 * known).
 	 *
 	 * Both {@link AgentService.subscribe} and the handshake fast-path
@@ -156,49 +227,179 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	onFirstSubscriber(resource: URI): void {
 		const resourceStr = resource.toString();
 		const parsed = parseChangesetUri(resourceStr);
+		if (parsed && parsed.ownerUri !== parsed.sessionUri && !this._stateManager.getSessionState(parsed.sessionUri)
+			&& (parsed.kind === ChangesetKind.Branch || parsed.kind === ChangesetKind.Uncommitted || parsed.kind === ChangesetKind.Turn || parsed.kind === ChangesetKind.Session)) {
+			this._pendingChangesetSubscriptions.add(resourceStr);
+		}
+
+		if (!parsed && isAhpChatChannel(resourceStr)) {
+			this.onChatAvailable(resourceStr);
+			return;
+		}
+
+		if (!parsed && this._stateManager.getSessionState(resourceStr)) {
+			this.ensureSessionSubscription(resourceStr);
+			return;
+		}
 
 		if (parsed?.kind === ChangesetKind.Branch) {
-			this._addSubscription(parsed.sessionUri, resourceStr);
-			this._changesets.refreshBranchChangeset(parsed.sessionUri);
-			this._changesetOperationService.updateOperations(parsed.sessionUri, resourceStr);
-			this._changesetFileMonitor.trackSessionChanges(resourceStr, parsed.sessionUri);
+			this._addSubscription(parsed.ownerUri, resourceStr);
+			this._changesets.refreshBranchChangeset(parsed.ownerUri);
+			this._trackBranchChangeset(resourceStr, parsed.ownerUri);
 			return;
 		}
+
 		if (parsed?.kind === ChangesetKind.Uncommitted) {
-			this._addSubscription(parsed.sessionUri, resourceStr);
-			void this._changesets.computeUncommittedChangeset(parsed.sessionUri);
-			this._changesetOperationService.updateOperations(parsed.sessionUri, resourceStr);
-			this._changesetFileMonitor.trackSessionChanges(resourceStr, parsed.sessionUri);
+			this._addSubscription(parsed.ownerUri, resourceStr);
+			if (this._stateManager.getSessionState(parsed.sessionUri)) {
+				void this._changesets.computeUncommittedChangeset(parsed.ownerUri);
+			}
+			this._changesetFileMonitor.trackSessionChanges(resourceStr, parsed.ownerUri);
 			return;
 		}
+
 		if (parsed?.kind === ChangesetKind.Session) {
-			this._addSubscription(parsed.sessionUri, resourceStr);
-			this._changesets.refreshSessionChangeset(parsed.sessionUri);
-			this._changesetOperationService.updateOperations(parsed.sessionUri, resourceStr);
-			this._changesetFileMonitor.trackSessionChanges(resourceStr, parsed.sessionUri);
+			this._addSubscription(parsed.ownerUri, resourceStr);
+			this._changesets.refreshSessionChangeset(parsed.ownerUri);
+			// Chat-scoped Session Changes come only from tracked edits, which external file changes do not affect.
+			if (!isAhpChatChannel(parsed.ownerUri)) {
+				this._changesetFileMonitor.trackSessionChanges(resourceStr, parsed.ownerUri);
+			}
 			return;
 		}
+
 		if (parsed?.kind === ChangesetKind.Turn && parsed.turnId !== undefined) {
-			// Track the new subscriber so the service's per-turn recompute
-			// gating starts including this turn. The initial snapshot is
-			// already produced by `tryHandleSubscribe → computeTurnChangeset`;
-			// subsequent deltas flow from `onToolCallEditsApplied` /
-			// `onTurnComplete` once we've added this turn id here.
-			this._addSubscription(parsed.sessionUri, resourceStr);
+			this._addSubscription(parsed.ownerUri, resourceStr);
+			if (this._stateManager.getSessionState(parsed.sessionUri)) {
+				void this._changesets.computeTurnChangeset(parsed.ownerUri, parsed.turnId, 'fileEditTracker');
+			}
 			return;
 		}
-		if (!parsed && this._stateManager.getSessionState(resourceStr)) {
-			// Plain session-URI subscription (Agents Window list / detail
-			// observing the session). Track the session URI itself as a
-			// subscription marker so a later git-state change /
-			// materialization recompute (driven from the exposed
-			// subscription list) re-refreshes the static changesets, then
-			// refresh both now so the catalogue chip doesn't show a stale
-			// value just because no turn has run since process start.
-			this._addSubscription(resourceStr, resourceStr);
-			this._changesets.refreshBranchChangeset(resourceStr);
-			this._changesets.refreshSessionChangeset(resourceStr);
-			this._changesetFileMonitor.trackSessionChanges(resourceStr, resourceStr);
+	}
+
+	/** Installs implicit summary interest once state exists, including after a concurrent cold restore. */
+	ensureSessionSubscription(session: string): void {
+		if (
+			!this._stateManager.getSessionState(session) ||
+			this._changesetSubscriptions.getSessionSubscriptions(session).has(session)
+		) {
+			return;
+		}
+
+		this._addSubscription(session, session);
+		const kind = getSummaryChangesetKind(this._stateManager.getSessionState(session)?.config?.values);
+		if (kind === ChangesetKind.Branch) {
+			this._reconcileBranchSummaryResources(session);
+		} else {
+			this._changesets.refreshSessionChangeset(session);
+			this._changesetFileMonitor.trackSessionChanges(session, session);
+		}
+	}
+
+	private _ensureBranchSummarySubscription(owner: string): string | undefined {
+		const changesets = isAhpChatChannel(owner)
+			? this._stateManager.getChatState(owner)?.changesets
+			: this._stateManager.getSessionState(owner)?.changesets;
+		const entry = changesets?.find(candidate => parseChangesetUri(candidate.uriTemplate)?.kind === ChangesetKind.Branch);
+		const resource = entry?.uriTemplate ?? buildBranchChangesetUri(resolveBranchChangesetScopeForSource(this._stateManager, owner).ownerUri);
+		const parsed = resource ? parseChangesetUri(resource) : undefined;
+		if (!resource || !parsed) {
+			return undefined;
+		}
+
+		const session = parseChatUri(owner)?.session ?? owner;
+		let resourcesBySource = this._branchSummaryResources.get(session);
+		if (!resourcesBySource) {
+			resourcesBySource = new Map();
+			this._branchSummaryResources.set(session, resourcesBySource);
+		}
+		const previous = resourcesBySource.get(owner);
+		resourcesBySource.set(owner, { resource, owner: parsed.ownerUri });
+		if (previous && previous.resource !== resource) {
+			this._releaseBranchSummaryResource(previous);
+		}
+		this._changesetOperationService.updateOperations(session, resource);
+		this._changesets.refreshBranchChangeset(parsed.ownerUri);
+		this._trackBranchChangeset(resource, parsed.ownerUri);
+		return resource;
+	}
+
+	private _trackBranchChangeset(resource: string, owner: string): void {
+		const source = resolveBranchChangesetScopeForOwner(this._stateManager, owner)?.sourceUri;
+		if (source) {
+			this._changesetFileMonitor.trackSessionChanges(resource, owner, source);
+		}
+	}
+
+	private _reconcileBranchSummaryResources(session: string): void {
+		const defaultChat = buildDefaultChatUri(session);
+		const desiredSources = new Set([
+			defaultChat,
+			...this._stateManager.getSessionState(session)?.chats
+				.map(chat => chat.resource)
+				.filter(candidate => candidate !== defaultChat) ?? [],
+		]);
+		for (const source of desiredSources) {
+			this._ensureBranchSummarySubscription(source);
+		}
+
+		const resourcesBySource = this._branchSummaryResources.get(session);
+		if (!resourcesBySource) {
+			return;
+		}
+		for (const [source, resource] of [...resourcesBySource]) {
+			if (desiredSources.has(source)) {
+				continue;
+			}
+			resourcesBySource.delete(source);
+			this._releaseBranchSummaryResource(resource);
+		}
+		if (resourcesBySource.size === 0) {
+			this._branchSummaryResources.delete(session);
+		}
+	}
+
+	private _releaseBranchSummaryResource({ resource, owner }: { resource: string; owner: string }, cancelPending = true): void {
+		if (this._hasBranchSummaryResource(resource)) {
+			return;
+		}
+		if (!this._changesetSubscriptions.getSessionSubscriptions(owner).has(resource)) {
+			if (cancelPending) {
+				this._changesets.onChangesetOwnerRemoved?.(owner);
+			}
+			this._changesetFileMonitor.untrackSessionChanges(resource);
+		}
+	}
+
+	private _hasBranchSummaryResource(resource: string): boolean {
+		return [...this._branchSummaryResources.values()].some(resources =>
+			[...resources.values()].some(candidate => candidate.resource === resource)
+		);
+	}
+
+	private _onChatRemoved(session: string, chat: string): void {
+		for (const resource of this._pendingChangesetSubscriptions) {
+			if (parseChangesetUri(resource)?.ownerUri === chat) {
+				this._pendingChangesetSubscriptions.delete(resource);
+			}
+		}
+		this._changesetFileMonitor.onSessionDisposed(chat);
+		this._changesetSubscriptions.clearSessionSubscriptions(chat);
+		this._changesets.onChangesetOwnerRemoved?.(chat);
+		if (this._changesetSubscriptions.getSessionSubscriptions(session).has(session)
+			&& getSummaryChangesetKind(this._stateManager.getSessionState(session)?.config?.values) === ChangesetKind.Branch) {
+			this._reconcileBranchSummaryResources(session);
+		}
+	}
+
+	private _clearBranchSummaryResources(session: string, cancelPending = true): void {
+		const resources = this._branchSummaryResources.get(session);
+		if (!resources) {
+			return;
+		}
+		this._branchSummaryResources.delete(session);
+		for (const resource of resources.values()) {
+			this._releaseBranchSummaryResource(resource, cancelPending);
 		}
 	}
 
@@ -212,27 +413,31 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	onLastSubscriber(resource: URI): void {
 		const resourceStr = resource.toString();
 		const parsed = parseChangesetUri(resourceStr);
+		this._pendingChangesetSubscriptions.delete(resourceStr);
 		if (parsed?.kind === ChangesetKind.Branch) {
-			this._removeSubscription(parsed.sessionUri, resourceStr);
-			this._changesetFileMonitor.untrackSessionChanges(resourceStr);
+			this._removeSubscription(parsed.ownerUri, resourceStr);
+			if (!this._hasBranchSummaryResource(resourceStr)) {
+				this._changesetFileMonitor.untrackSessionChanges(resourceStr);
+			}
 			return;
 		}
 		if (parsed?.kind === ChangesetKind.Uncommitted) {
-			this._removeSubscription(parsed.sessionUri, resourceStr);
+			this._removeSubscription(parsed.ownerUri, resourceStr);
 			this._changesetFileMonitor.untrackSessionChanges(resourceStr);
 			return;
 		}
 		if (parsed?.kind === ChangesetKind.Session) {
-			this._removeSubscription(parsed.sessionUri, resourceStr);
+			this._removeSubscription(parsed.ownerUri, resourceStr);
 			this._changesetFileMonitor.untrackSessionChanges(resourceStr);
 			return;
 		}
 		if (parsed?.kind === ChangesetKind.Turn && parsed.turnId !== undefined) {
-			this._removeSubscription(parsed.sessionUri, resourceStr);
+			this._removeSubscription(parsed.ownerUri, resourceStr);
 			return;
 		}
 		if (!parsed) {
 			this._removeSubscription(resourceStr, resourceStr);
+			this._clearBranchSummaryResources(resourceStr);
 			this._changesetFileMonitor.untrackSessionChanges(resourceStr);
 		}
 	}
@@ -241,9 +446,8 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	 * Restores the parent session when `resource` is a changeset URI and the
 	 * parent session is not already live. Non-changeset URIs are ignored.
 	 *
-	 * This is intentionally narrower than {@link tryHandleSubscribe}: it does
-	 * not compute per-turn / compare changesets and does not register static
-	 * changesets. It exists for the AgentService subscribe path where
+	 * Also starts deferred first-subscriber changeset refreshes after cold restore.
+	 * It exists for the AgentService subscribe path where
 	 * `addSubscriber` may have already created a placeholder changeset snapshot
 	 * before the parent session restore had a chance to apply persisted diffs.
 	 */
@@ -258,6 +462,27 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		}
 		if (!this._stateManager.getSessionState(parsed.sessionUri)) {
 			await restoreSession(URI.parse(parsed.sessionUri));
+		}
+		if (this._pendingChangesetSubscriptions.delete(resourceStr)
+			&& this._changesetSubscriptions.getSessionSubscriptions(parsed.ownerUri).has(resourceStr)) {
+			switch (parsed.kind) {
+				case ChangesetKind.Branch:
+					this._changesets.refreshBranchChangeset(parsed.ownerUri);
+					this._trackBranchChangeset(resourceStr, parsed.ownerUri);
+					break;
+				case ChangesetKind.Session:
+					this._changesets.refreshSessionChangeset(parsed.ownerUri);
+					break;
+				case ChangesetKind.Uncommitted:
+					void this._changesets.computeUncommittedChangeset(parsed.ownerUri);
+					this._changesetFileMonitor.onSessionRestored(parsed.ownerUri);
+					break;
+				case ChangesetKind.Turn:
+					if (parsed.turnId !== undefined) {
+						void this._changesets.computeTurnChangeset(parsed.ownerUri, parsed.turnId, 'fileEditTracker');
+					}
+					break;
+			}
 		}
 	}
 
@@ -287,21 +512,27 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		}
 		await this.restoreSessionIfChangesetSubscription(resource, restoreSession);
 		if (parsed.kind === ChangesetKind.Turn && parsed.turnId) {
-			await this._changesets.computeTurnChangeset(parsed.sessionUri, parsed.turnId);
-			this._changesetOperationService.updateOperations(parsed.sessionUri, resourceStr);
+			if (!this._stateManager.getChangesetState(resourceStr)) {
+				void this._changesets.computeTurnChangeset(parsed.ownerUri, parsed.turnId, 'fileEditTracker');
+			}
 		} else if (parsed.kind === ChangesetKind.Compare && parsed.originalTurnId && parsed.modifiedTurnId) {
 			// Compare-turns is computed once on subscribe. Both turns are
 			// typically historical so the snapshot doesn't need to track
 			// live edits; `onFirstSubscriber` / `onLastSubscriber` do not
 			// need to participate.
-			await this._changesets.computeCompareTurnsChangeset(parsed.sessionUri, parsed.originalTurnId, parsed.modifiedTurnId);
+			await this._changesets.computeCompareTurnsChangeset(parsed.ownerUri, parsed.originalTurnId, parsed.modifiedTurnId);
+		} else if (parsed.kind === ChangesetKind.Session && isAhpChatChannel(parsed.ownerUri)) {
+			// Chat-scoped Session Changes are not part of the chat's static
+			// changesets; register the subscribed resource so it can be served
+			// before its first computation publishes files.
+			this._stateManager.registerChangeset(resourceStr);
 		} else {
 			// Static changesets are seeded by `onSessionRestored` /
 			// `onSessionCreated`. Re-register defensively in case the
 			// session was created in this process before the coordinator
 			// existed. The uncommitted refresh itself is fired from
 			// {@link onFirstSubscriber} on the 0→1 path.
-			this._changesets.registerStaticChangesets(parsed.sessionUri);
+			this._changesets.registerStaticChangesets(parsed.ownerUri);
 		}
 		return true;
 	}
@@ -335,5 +566,118 @@ export class AgentHostChangesetCoordinator extends Disposable {
 	decorateListEntry(entry: IAgentSessionMetadata, metadata: IChangesetSessionMetadata): IAgentSessionMetadata {
 		const changes = this._changesets.computeListEntryChanges(entry.session.toString(), metadata);
 		return changes ? { ...entry, changes } : entry;
+	}
+
+	// ---- Git state  events -------------------------------------------------
+
+	/**
+	 * Called when a session's Git state is refreshed.
+	 */
+	private onDidRunSessionGitStateRefresh(sessionStr: string): void {
+		const branchOwners = new Set<string>();
+		// Session Git refreshes can complete after SessionReady, so refresh the
+		// chat catalogues that own the selectable changesets.
+		if (isAhpChatChannel(sessionStr)) {
+			this._changesets.refreshChangesetCatalog(sessionStr);
+			const branchResource = this._stateManager.getChatState(sessionStr)?.changesets
+				?.find(changeset => parseChangesetUri(changeset.uriTemplate)?.kind === ChangesetKind.Branch)?.uriTemplate;
+			branchOwners.add(parseChangesetUri(branchResource ?? '')?.ownerUri ?? resolveBranchChangesetScopeForSource(this._stateManager, sessionStr).ownerUri);
+			const session = parseChatUri(sessionStr)?.session;
+			if (session
+				&& this._changesetSubscriptions.getSessionSubscriptions(session).has(session)
+				&& getSummaryChangesetKind(this._stateManager.getSessionState(session)?.config?.values) === ChangesetKind.Branch) {
+				this._reconcileBranchSummaryResources(session);
+			}
+		} else {
+			this._refreshChangesetCatalogs(sessionStr);
+			for (const source of [
+				buildDefaultChatUri(sessionStr),
+				...this._stateManager.getSessionState(sessionStr)?.chats.map(chat => chat.resource) ?? [],
+			]) {
+				branchOwners.add(resolveBranchChangesetScopeForSource(this._stateManager, source).ownerUri);
+			}
+			if (this._changesetSubscriptions.getSessionSubscriptions(sessionStr).has(sessionStr)
+				&& getSummaryChangesetKind(this._stateManager.getSessionState(sessionStr)?.config?.values) === ChangesetKind.Branch) {
+				this._reconcileBranchSummaryResources(sessionStr);
+			}
+		}
+		for (const owner of branchOwners) {
+			if (this._changesetSubscriptions.getSessionSubscriptions(owner).size > 0) {
+				this._changesets.recomputeSubscribedChangesets(owner);
+			}
+		}
+
+		// Git state has been refreshed so we need to recompute every
+		// changeset currently subscribed for the session (the service
+		// reads the exposed subscription list).
+		this._changesets.recomputeSubscribedChangesets(sessionStr);
+	}
+
+	/**
+	 * Called when a session's effective working-directory set changes (a root
+	 * was added or removed, e.g. in the Editor Window). Multi-root suppression
+	 * of `turn` / `compare-turns` operations depends on this set, so recompute
+	 * operations for every subscribed changeset: `getOperations` re-applies the
+	 * guard, so those changesets drop to empty when the session becomes
+	 * multi-root and regain their operations when it returns to single-root.
+	 *
+	 * Subagent sessions inherit the parent's working directories
+	 * (`getEffectiveWorkingDirectories`), so a parent change flips their
+	 * multi-root state too. Refresh their operations as well, keeping the
+	 * advertised operations consistent with the invoke-time suppression (which
+	 * already uses the inherited set). `updateOperations` only dispatches for
+	 * subscribed changesets, so refreshing subagents without subscriptions is a
+	 * no-op.
+	 *
+	 * The changed set also determines which repository roots are watched for
+	 * external edits, so re-attach the file monitor for the session (and its
+	 * inheriting subagents) — otherwise a folder added or removed mid-session
+	 * would not start/stop being watched until an unrelated lifecycle event.
+	 */
+	private onDidChangeSessionWorkingDirectories(sessionStr: string): void {
+		this._changesetFileMonitor.onSessionWorkingDirectoriesChanged(sessionStr);
+		if (isAhpChatChannel(sessionStr)) {
+			this._changesetOperationService.scheduleRelatedOperationsUpdate(sessionStr);
+			this._changesets.refreshChangesetCatalog(sessionStr);
+			this._changesets.recomputeSubscribedChangesets(sessionStr);
+			this._changesets.refreshChatChangesSummary(sessionStr);
+			void this._gitStateService.refreshSessionGitState(sessionStr);
+			const session = parseChatUri(sessionStr)?.session;
+			if (session && this._changesetSubscriptions.getSessionSubscriptions(session).has(session)) {
+				if (getSummaryChangesetKind(this._stateManager.getSessionState(session)?.config?.values) === ChangesetKind.Branch) {
+					this._reconcileBranchSummaryResources(session);
+				} else {
+					this._changesets.refreshSessionChangeset(session);
+				}
+			}
+			return;
+		}
+		this._changesetOperationService.scheduleRelatedOperationsUpdate(sessionStr);
+		if (this._changesetSubscriptions.getSessionSubscriptions(sessionStr).has(sessionStr)
+			&& getSummaryChangesetKind(this._stateManager.getSessionState(sessionStr)?.config?.values) === ChangesetKind.Branch) {
+			for (const chat of this._getChatsAffectedBySessionWorkingDirectoryChange(sessionStr)) {
+				this._ensureBranchSummarySubscription(chat.resource);
+			}
+		} else {
+			this._changesets.recomputeSubscribedChangesets(sessionStr);
+		}
+		for (const chat of this._getChatsAffectedBySessionWorkingDirectoryChange(sessionStr)) {
+			this._changesetOperationService.scheduleRelatedOperationsUpdate(chat.resource);
+			this._changesetFileMonitor.onSessionWorkingDirectoriesChanged(chat.resource);
+			this._changesets.recomputeSubscribedChangesets(chat.resource);
+			this._changesets.refreshChatChangesSummary(chat.resource);
+			void this._gitStateService.refreshSessionGitState(chat.resource);
+		}
+		for (const candidate of this._stateManager.getSessionUris()) {
+			if (parseSubagentSessionUri(candidate)?.parentSession.toString() === sessionStr) {
+				this._changesetOperationService.scheduleRelatedOperationsUpdate(candidate);
+				this._changesetFileMonitor.onSessionWorkingDirectoriesChanged(candidate);
+			}
+		}
+	}
+
+	private _getChatsAffectedBySessionWorkingDirectoryChange(session: string) {
+		return this._stateManager.getSessionState(session)?.chats
+			.filter(chat => this._stateManager.getChatState(chat.resource)?.workingDirectories === undefined) ?? [];
 	}
 }

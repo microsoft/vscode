@@ -165,7 +165,7 @@ export class ChatDebugDetailPanel extends Disposable {
 
 		const closeButton = this.detailDisposables.add(new Button(header, { ariaLabel: localize('chatDebug.closeDetail', "Close"), title: localize('chatDebug.closeDetail', "Close") }));
 		closeButton.element.classList.add('chat-debug-detail-button');
-		closeButton.icon = Codicon.close;
+		closeButton.icon = Codicon.closeSmall;
 		this.detailDisposables.add(closeButton.onDidClick(() => {
 			this.hide();
 		}));

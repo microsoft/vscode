@@ -1,0 +1,12 @@
+version: 1
+dialect: responses
+exchanges:
+  - request:
+      model: gpt-5-codex
+      system: ${system}
+      messages:
+        - role: user
+          content: Say exactly "ok"
+    response:
+      content: ok
+      stopReason: end_turn

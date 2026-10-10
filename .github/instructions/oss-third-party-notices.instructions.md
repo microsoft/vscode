@@ -1,10 +1,12 @@
 ---
-applyTo: 'build/azure-pipelines/oss/**'
+applyTo: 'build/azure-pipelines/{oss/**,common/downloadNotice.ts,{win32,linux,darwin}/steps/product-build-*-compile.yml}'
 ---
 
 # VS Code OSS Third-Party-Notices pipeline
 
-This directory contains the thin VS Code-specific layer around Component Governance (CG) for producing OSS third-party notices. The goal is to replace the legacy custom OSS tool with CG plus a gap-filling scanner, so release owners do not need to babysit `ThirdPartyNotices.txt` every release. The generated output should be at least as good as the legacy tool: CG provides the base NOTICE, the local scanner fills known CG gaps, and human-authored overrides cover the small set that automation cannot safely resolve.
+This directory contains the thin VS Code-specific layer around Component Governance (CG) for producing OSS third-party notices. It replaces the legacy custom OSS tool with CG plus a gap-filling scanner, so release owners do not need to babysit `ThirdPartyNotices.txt` every release. The generated output should be at least as good as the legacy tool: CG provides the base NOTICE, the local scanner fills known CG gaps, and human-authored overrides cover the small set that automation cannot safely resolve.
+
+The pipeline has two halves: **generation** (this `oss/` directory — CG + scanner + merge, producing the `notice_output` artifact) and **application** (the cutover that swaps the merged notice into the shipped product — see "Applying the NOTICE (cutover)" below).
 
 ## Architecture
 
@@ -14,7 +16,7 @@ The product-quality pipeline in `build/azure-pipelines/product-quality-checks.ym
 2. `scan-licenses.ts` scans local sources CG misses and writes `ThirdPartyNotices.extensions.txt`, plus sibling index files used by the merge step.
 3. `merge-notices.ts` merges the CG output and scanner output, then applies `cglicenses.json` overrides through `apply-overrides.ts`.
 4. `check-pr-dependencies.ts` is used by `pr-oss-check.yml` as a PR-time gate. It blocks dependency additions that have no license source.
-5. If CG is down or `notice@0` emits an empty/non-trivial failure output, the pipeline substitutes the last good `ThirdPartyNotices.generated.txt` artifact from the same branch, then from `main`. Only the CG portion is cached; local scanning and overrides still run fresh against the current commit.
+5. If CG is down or `notice@0` emits an empty/non-trivial failure output, the pipeline substitutes the last good `ThirdPartyNotices.generated.txt` artifact. On `main` and `release/*`, fallback checks the same branch, then `main`; other branches use only `main`. Only the CG portion is cached; local scanning and overrides still run fresh against the current commit.
 
 Final merge output is uploaded as `ThirdPartyNotices.new.txt` in the `notice_output` artifact.
 
@@ -24,7 +26,7 @@ In `product-quality-checks.yml`:
 
 1. Component Detection runs with `ComponentGovernanceComponentDetection@0`.
 2. `notice@0` writes `$(Build.SourcesDirectory)/ThirdPartyNotices.generated.txt` and is `continueOnError: true`.
-3. The cache fallback checks whether the CG file exists and is larger than 1 KB. If not, it downloads the latest `notice_output` artifact for the current branch, then `main`, and copies the cached `ThirdPartyNotices.generated.txt` into place.
+3. The cache fallback checks whether the CG file exists and is larger than 1 KB. If not, `DownloadBuildArtifacts@1` uses `latestFromBranch` with the `cg-notice-baseline` build tag and the branch order above. Scanner-only CI builds remain untagged and cannot hide a usable baseline. The apply step still validates the downloaded CG file and preserves its provenance.
 4. TypeScript compiles the OSS scripts into `.oss-build-out`:
    - `apply-overrides.ts`
    - `scan-licenses.ts`
@@ -33,6 +35,55 @@ In `product-quality-checks.yml`:
 5. `scan-licenses.js` runs with `--repo`, `--cg`, and `--output`.
 6. `merge-notices.js` runs with `--cg`, `--extensions`, `--cglicenses`, and `--output`.
 7. The generated CG file, scanner file, final merged file, and optional cache metadata are uploaded under `notice_output`.
+
+### Cache eligibility and rollout
+
+Only non-CI builds on `main` and `release/*` can produce tagged baselines. Other branches still generate and upload their NOTICE artifacts, but skip tag updates, readback, and same-branch cache lookup.
+
+Before replacing an eligible baseline, the publisher clears this build's tag (30-second limit); failure stops replacement. After merged NOTICE and sourcemap uploads, a one-minute readback lets `common/tagNoticeBaseline.ts` verify that the CG base (>1 KB) and nonempty provenance match the staged files before re-tagging. This prevents continued upload failures from advertising incomplete baselines.
+
+Fresh and carried-forward baselines qualify; carry-forward preserves original provenance. Scanner-only output stays untagged. Errors remain visible and nonfatal under `continueOnError`. The tag does not certify freshness or license completeness; no cache age limit is enforced.
+
+Bootstrap with a successful tagged producer or an explicitly approved, verified historical `main`/`release/*` build. Untagged builds are excluded; until seeded, generation failures follow the existing no-cache path.
+
+## Applying the NOTICE (cutover)
+
+Generation (above) produces the merged `ThirdPartyNotices.new.txt` in the `notice_output` artifact. **Application** is the cutover that makes that file the one VS Code actually ships, replacing the legacy mixin notice.
+
+Consumer script: `build/azure-pipelines/common/downloadNotice.ts` (read its header comment for the full design rationale).
+
+How it works, per desktop platform compile template (`build/azure-pipelines/{win32,linux,darwin}/steps/product-build-*-compile.yml`):
+
+1. **Pull CG NOTICE (background)** — at compile start, `deemon --detach` launches `downloadNotice.ts` as a detached poller. It polls the parallel Quality stage's `notice_output` artifact while compilation runs, so the wait overlaps work already happening.
+2. **Apply CG NOTICE** — right before gulp packages the app, `deemon --attach` blocks on that poller. It downloads, extracts, validates the merged notice, and **overwrites the repo-root `ThirdPartyNotices.txt`**. `build/gulpfile.vscode.ts` then packages whatever file is at that path → the CG notice ships.
+
+Only the 7 desktop targets that bundle a notice run these steps (win32 x64/arm64, darwin universal, linux x64/arm64/armhf). REH/server/web/alpine are unaffected.
+
+### Fallback chain (never fail the build)
+
+`downloadNotice.ts` is **non-fatal — it always exits 0.** A notice problem must never break packaging. The outcomes, in order:
+
+1. **CG fresh** — the `notice_output` artifact is present and valid → overwrite with it.
+2. **Cached CG** — if CG generation failed upstream, the Quality stage substitutes the last good `ThirdPartyNotices.generated.txt` using the branch order above before the artifact is published — so the consumer still gets a CG notice.
+3. **Legacy** — if no usable artifact is available, the legacy mixin notice that `mixin-quality.ts` already laid down is left in place. `mixin-quality.ts` is deliberately left untouched (it's a shared chokepoint used by 8+ pipelines), which is what guarantees we never ship with *no* notice.
+
+The accept-gate validates the *extracted content* (file present AND non-trivial) inside the poll loop — it does not trust the artifact listing alone. A mid-upload miss re-polls rather than falling back, which prevents a "mixed notice" race where one platform ships legacy while its siblings ship CG.
+
+### Rollback lever
+
+A queue-time checkbox **"Use legacy OSS Notice"** (parameter `VSCODE_USE_LEGACY_OSS_NOTICE`, default `false`) is the instant rollback. When checked, it derives `VSCODE_OVERWRITE_TPN=false`, and `downloadNotice.ts` skips the overwrite so the legacy notice ships — no code change or redeploy needed.
+
+> ⚠️ `downloadNotice.ts` normalizes the flag with `.trim().toLowerCase()` before comparing, so YAML casing (`true`/`false` vs `True`/`False`) can't break the rollback lever. The pipeline still derives `VSCODE_OVERWRITE_TPN` as a lowercase string literal (`'true'`/`'false'`) for clarity. See the comment in `product-build-variables.yml`.
+
+### Diagnosing a build
+
+`downloadNotice.ts` logs three greppable markers so a build log answers "did the cutover work?":
+
+- `[notice-cutover] RESULT=fresh` — overwrote from `notice_output` (the happy path).
+- `[notice-cutover] RESULT=fallback` — artifact missing → kept the legacy notice.
+- `[notice-cutover] RESULT=disabled` — feature flag off → kept the legacy notice.
+
+To confirm a shipped artifact carries the CG notice, the root `resources/app/ThirdPartyNotices.txt` should be the large CG-merged file (multi-MB) rather than the ~3 MB legacy notice. Validate *intra-build* parity — all platforms in one build should produce a byte-identical notice (same SHA-256) — rather than checking against a fixed byte count, since CG's exact output size varies run-to-run.
 
 ## Script reference
 

@@ -10,7 +10,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { AUTO_APPROVE_DONT_SHOW_AGAIN_KEY, AUTOPILOT_DONT_SHOW_AGAIN_KEY } from './chatPermissionStorageKeys.js';
+import { ASSISTED_APPROVAL_DONT_SHOW_AGAIN_KEY, AUTO_APPROVE_DONT_SHOW_AGAIN_KEY, AUTOPILOT_DONT_SHOW_AGAIN_KEY } from './chatPermissionStorageKeys.js';
 import { ChatConfiguration, ChatPermissionLevel } from './constants.js';
 
 /**
@@ -30,6 +30,9 @@ function dontShowAgainKey(level: ChatPermissionLevel): string | undefined {
 	}
 	if (level === ChatPermissionLevel.AutoApprove) {
 		return AUTO_APPROVE_DONT_SHOW_AGAIN_KEY;
+	}
+	if (level === ChatPermissionLevel.Assisted) {
+		return ASSISTED_APPROVAL_DONT_SHOW_AGAIN_KEY;
 	}
 	return undefined;
 }
@@ -52,8 +55,9 @@ export function resetShownWarnings(): void {
  * not warned again when stepping between them (e.g. Autopilot → Bypass).
  */
 const ELEVATION_RANK: ReadonlyMap<ChatPermissionLevel, number> = new Map([
-	[ChatPermissionLevel.AutoApprove, 1],
-	[ChatPermissionLevel.Autopilot, 1],
+	[ChatPermissionLevel.Assisted, 1],
+	[ChatPermissionLevel.AutoApprove, 2],
+	[ChatPermissionLevel.Autopilot, 2],
 ]);
 
 export function hasShownElevatedWarning(level: ChatPermissionLevel, storageService: IStorageService): boolean {
@@ -85,8 +89,16 @@ interface IElevatedWarningCopy {
 	readonly detail: string;
 }
 
-function getElevatedWarningCopy(level: ChatPermissionLevel, defaultSettingKey: string): IElevatedWarningCopy | undefined {
+function getElevatedWarningCopy(level: ChatPermissionLevel, defaultSettingKey: string, levelLabel?: string): IElevatedWarningCopy | undefined {
 	switch (level) {
+		case ChatPermissionLevel.Assisted:
+			levelLabel ??= localize('permissions.assisted', "Auto Approvals");
+			return {
+				title: localize('permissions.assisted.warning.title', "Enable {0}?", levelLabel),
+				confirm: localize('permissions.assisted.warning.confirm', "Enable"),
+				icon: Codicon.sparkle,
+				detail: localize('permissions.assisted.warning.detail', "{0} uses model recommendations to approve tool calls. Copilot will still ask when the model requires approval, excludes the request from automatic approval, or cannot make a recommendation.\n\nTo make this the starting permission level for new sessions, change the [{1}](command:workbench.action.openSettings?%5B%22{1}%22%5D) setting.", levelLabel, defaultSettingKey),
+			};
 		case ChatPermissionLevel.Autopilot:
 			return {
 				title: localize('permissions.autopilot.warning.title', "Enable Autopilot?"),
@@ -95,11 +107,12 @@ function getElevatedWarningCopy(level: ChatPermissionLevel, defaultSettingKey: s
 				detail: localize('permissions.autopilot.warning.detail', "Autopilot will auto-approve all tool calls and continue working autonomously until the task is complete. This includes terminal commands, file edits, and external tool calls. The agent will make decisions on your behalf without asking for confirmation.\n\nYou can stop the agent at any time by clicking the stop button. This applies to the current session only.\n\nTo make this the starting permission level for new sessions, change the [{0}](command:workbench.action.openSettings?%5B%22{0}%22%5D) setting.", defaultSettingKey),
 			};
 		case ChatPermissionLevel.AutoApprove:
+			levelLabel ??= localize('permissions.autoApprove', "Bypass Approvals");
 			return {
-				title: localize('permissions.autoApprove.warning.title', "Enable Bypass Approvals?"),
+				title: localize('permissions.autoApprove.warning.title', "Enable {0}?", levelLabel),
 				confirm: localize('permissions.autoApprove.warning.confirm', "Enable"),
 				icon: Codicon.warning,
-				detail: localize('permissions.autoApprove.warning.detail', "Bypass Approvals will auto-approve all tool calls without asking for confirmation. This includes file edits, terminal commands, and external tool calls.\n\nTo make this the starting permission level for new sessions, change the [{0}](command:workbench.action.openSettings?%5B%22{0}%22%5D) setting.", defaultSettingKey),
+				detail: localize('permissions.autoApprove.warning.detail', "{0} will auto-approve all tool calls without asking for confirmation. This includes file edits, terminal commands, and external tool calls.\n\nTo make this the starting permission level for new sessions, change the [{1}](command:workbench.action.openSettings?%5B%22{1}%22%5D) setting.", levelLabel, defaultSettingKey),
 			};
 		default:
 			return undefined;
@@ -130,14 +143,14 @@ export async function maybeConfirmElevatedPermissionLevel(
 	level: ChatPermissionLevel,
 	dialogService: IDialogService,
 	storageService: IStorageService,
-	options?: { readonly defaultSettingKey?: string },
+	options?: { readonly defaultSettingKey?: string; readonly levelLabel?: string },
 ): Promise<boolean> {
 	const key = dontShowAgainKey(level);
 	if (!key || hasShownElevatedWarning(level, storageService)) {
 		return true;
 	}
 
-	const copy = getElevatedWarningCopy(level, options?.defaultSettingKey ?? ChatConfiguration.DefaultPermissionLevel);
+	const copy = getElevatedWarningCopy(level, options?.defaultSettingKey ?? ChatConfiguration.DefaultPermissionLevel, options?.levelLabel);
 	if (!copy) {
 		return true;
 	}

@@ -148,9 +148,8 @@ export function raceCancellablePromises<T>(cancellablePromises: (CancelablePromi
 			}
 		});
 	};
-	promise.finally(() => {
-		promise.cancel();
-	});
+	const cancel = () => promise.cancel();
+	promise.then(cancel, cancel);
 	return promise;
 }
 
@@ -265,8 +264,8 @@ export class Throttler implements IDisposable {
 					return result;
 				};
 
-				this.queuedPromise = new Promise(resolve => {
-					this.activePromise!.then(onComplete, onComplete).then(resolve);
+				this.queuedPromise = new Promise((resolve, reject) => {
+					this.activePromise!.then(onComplete, onComplete).then(resolve, reject);
 				});
 			}
 
@@ -290,6 +289,7 @@ export class Throttler implements IDisposable {
 
 	dispose(): void {
 		this.cancellationTokenSource.cancel();
+		this.queuedPromiseFactory = null;
 	}
 }
 
@@ -299,6 +299,39 @@ export class Sequencer {
 
 	queue<T>(promiseTask: ITask<Promise<T>>): Promise<T> {
 		return this.current = this.current.then(() => promiseTask(), () => promiseTask());
+	}
+}
+
+/**
+ * A {@link Throttler} per key. Calls for the same key coalesce (only the most
+ * recently queued task runs after the active one settles); calls for different
+ * keys are independent. Idle keys are cleaned up automatically.
+ */
+export class ThrottlerByKey<TKey> implements IDisposable {
+
+	private readonly throttlers = new Map<TKey, { throttler: Throttler; count: number }>();
+
+	queue<T>(key: TKey, task: ITask<Promise<T>>): Promise<T> {
+		let entry = this.throttlers.get(key);
+		if (!entry) {
+			entry = { throttler: new Throttler(), count: 0 };
+			this.throttlers.set(key, entry);
+		}
+
+		entry.count++;
+		return entry.throttler.queue(task).finally(() => {
+			if (--entry!.count === 0) {
+				entry!.throttler.dispose();
+				this.throttlers.delete(key);
+			}
+		});
+	}
+
+	dispose(): void {
+		for (const { throttler } of this.throttlers.values()) {
+			throttler.dispose();
+		}
+		this.throttlers.clear();
 	}
 }
 
@@ -407,19 +440,21 @@ export class Delayer<T> implements IDisposable {
 		this.cancelTimeout();
 
 		if (!this.completionPromise) {
-			this.completionPromise = new Promise((resolve, reject) => {
+			const completionPromise: Promise<any> = new Promise((resolve, reject) => {
 				this.doResolve = resolve;
 				this.doReject = reject;
 			}).then(() => {
+				if (this.completionPromise !== completionPromise) {
+					// canceled after the delay elapsed, possibly followed by a new trigger
+					throw new CancellationError();
+				}
 				this.completionPromise = null;
 				this.doResolve = null;
-				if (this.task) {
-					const task = this.task;
-					this.task = null;
-					return task();
-				}
-				return undefined;
+				const task = this.task!;
+				this.task = null;
+				return task();
 			});
+			this.completionPromise = completionPromise;
 		}
 
 		const fn = () => {
@@ -438,6 +473,7 @@ export class Delayer<T> implements IDisposable {
 
 	cancel(): void {
 		this.cancelTimeout();
+		this.task = null;
 
 		if (this.completionPromise) {
 			this.doReject?.(new CancellationError());
@@ -2096,9 +2132,11 @@ export class AsyncIterableObject<T> implements AsyncIterable<T> {
 			} catch (err) {
 				this.reject(err);
 			} finally {
-				writer.emitOne = undefined!;
-				writer.emitMany = undefined!;
-				writer.reject = undefined!;
+				// The executor has settled; emitting afterwards must be a no-op per the
+				// documented "no effect after resolve()/reject()" contract (see emitOne).
+				writer.emitOne = () => { };
+				writer.emitMany = () => { };
+				writer.reject = () => { };
 			}
 		});
 	}

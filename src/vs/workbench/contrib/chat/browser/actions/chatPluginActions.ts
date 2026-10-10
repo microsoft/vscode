@@ -4,24 +4,32 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
-import { IQuickInputService, IQuickPickItem } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputButton, IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
 import { ChatConfiguration } from '../../common/constants.js';
+import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
 import { IAgentPluginRepositoryService } from '../../common/plugins/agentPluginRepositoryService.js';
 import { IPluginInstallService } from '../../common/plugins/pluginInstallService.js';
 import { type IMarketplaceReference, MarketplaceReferenceKind, parseMarketplaceReference, parseMarketplaceReferences, readConfiguredMarketplaces } from '../../common/plugins/pluginMarketplaceService.js';
+import { getStrictKnownMarketplaces, isMarketplaceReferenceAllowed } from '../../common/plugins/strictKnownMarketplaces.js';
 import { InstalledAgentPluginsViewId } from '../chat.js';
-import { CHAT_CATEGORY, CHAT_CONFIG_MENU_ID } from './chatActions.js';
+import { isAgentFinderPublicFeedAvailable } from '../aiCustomization/customizationMarketplaceConfiguration.js';
+import { getPluginCustomizationMarketplaceNavigationSourceId } from '../aiCustomization/pluginCustomizationMarketplaceProvider.js';
+import { CHAT_CATEGORY } from './chatActions.js';
 
 export class ManagePluginsAction extends Action2 {
 	static readonly ID = 'workbench.action.chat.managePlugins';
@@ -32,10 +40,6 @@ export class ManagePluginsAction extends Action2 {
 			title: localize2('plugins', 'Plugins'),
 			category: CHAT_CATEGORY,
 			precondition: ChatContextKeys.enabled,
-			menu: [{
-				id: CHAT_CONFIG_MENU_ID,
-				group: '2_plugins',
-			}],
 			f1: true
 		});
 	}
@@ -43,6 +47,11 @@ export class ManagePluginsAction extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		accessor.get(IExtensionsWorkbenchService).openSearch('@agentPlugins ');
 	}
+}
+
+interface IInstallFromSourceActionOptions {
+	/** When `true`, do not reveal the installed plugin in the Extensions viewlet after install. */
+	readonly skipReveal?: boolean;
 }
 
 class InstallFromSourceAction extends Action2 {
@@ -69,30 +78,27 @@ class InstallFromSourceAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
+	async run(accessor: ServicesAccessor, options?: IInstallFromSourceActionOptions): Promise<boolean> {
 		const quickInputService = accessor.get(IQuickInputService);
 		const pluginInstallService = accessor.get(IPluginInstallService);
 		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
+		const fileDialogService = accessor.get(IFileDialogService);
 
 		const store = new DisposableStore();
 		const inputBox = store.add(quickInputService.createInputBox());
-		inputBox.placeholder = localize('pluginSourcePlaceholder', "owner/repo or git clone URL");
-		inputBox.prompt = localize('pluginSourcePrompt', "Enter a GitHub repository or git URL to install a plugin from");
+		const pickFolderButton: IQuickInputButton = {
+			iconClass: ThemeIcon.asClassName(Codicon.folder),
+			tooltip: localize('pickPluginFolder', "Pick Folder"),
+		};
+		inputBox.placeholder = localize('pluginSourcePlaceholder', "owner/repo, git URL, or local folder path");
+		inputBox.prompt = localize('pluginSourcePrompt', "Enter a GitHub repository, git URL, or local folder path to install a plugin from");
+		inputBox.buttons = [pickFolderButton];
 		inputBox.ignoreFocusOut = true;
 		inputBox.show();
 
-		store.add(inputBox.onDidChangeValue(() => {
-			inputBox.validationMessage = undefined;
-		}));
-
 		let installing = false;
-		store.add(inputBox.onDidHide(() => {
-			if (!installing) {
-				store.dispose();
-			}
-		}));
-
-		store.add(inputBox.onDidAccept(async () => {
+		let installed = false;
+		const submit = async () => {
 			const source = inputBox.value.trim();
 			if (!source) {
 				return;
@@ -113,7 +119,7 @@ class InstallFromSourceAction extends Action2 {
 				// Hide the input box so it doesn't conflict with trust/progress dialogs.
 				inputBox.hide();
 
-				const result = await pluginInstallService.installPluginFromValidatedSource(source);
+				const result = await pluginInstallService.installPluginFromSource(source);
 				if (!result.success) {
 					if (result.message) {
 						// Re-open with the error so the user can correct their input.
@@ -121,12 +127,22 @@ class InstallFromSourceAction extends Action2 {
 					}
 					inputBox.show();
 				} else {
-					const ref = parseMarketplaceReference(source);
-					if (ref) {
-						extensionsWorkbenchService.openSearch(`@agentPlugins ${ref.displayLabel}`);
+					installed = true;
+					if (!options?.skipReveal) {
+						const ref = parseMarketplaceReference(source);
+						if (ref) {
+							extensionsWorkbenchService.openSearch(`@agentPlugins ${ref.displayLabel}`);
+						}
 					}
 					store.dispose();
 				}
+			} catch (e) {
+				// An unexpected failure (e.g. cancelled trust prompt) would otherwise
+				// leave the hidden input box and awaited promise stuck. Re-show it with
+				// the error so the user can retry or cancel.
+				const detail = e instanceof Error ? e.message : String(e);
+				inputBox.validationMessage = localize('installFromSourceFailed', "Failed to install plugin: {0}", detail);
+				inputBox.show();
 			} finally {
 				installing = false;
 				if (!store.isDisposed) {
@@ -134,17 +150,52 @@ class InstallFromSourceAction extends Action2 {
 					inputBox.enabled = true;
 				}
 			}
+		};
+		store.add(inputBox.onDidChangeValue(() => {
+			inputBox.validationMessage = undefined;
 		}));
+		store.add(inputBox.onDidTriggerButton(async button => {
+			if (button !== pickFolderButton || installing) {
+				return;
+			}
+
+			const folder = (await fileDialogService.showOpenDialog({
+				title: localize('pickPluginFolderTitle', "Select Plugin Folder"),
+				openLabel: localize('selectPluginFolder', "Select Folder"),
+				canSelectFiles: false,
+				canSelectFolders: true,
+				canSelectMany: false,
+				availableFileSystems: [Schemas.file],
+			}))?.[0];
+			if (folder) {
+				inputBox.value = folder.fsPath;
+				await submit();
+			}
+		}));
+		return new Promise<boolean>(resolve => {
+			store.add(toDisposable(() => resolve(installed)));
+
+			store.add(inputBox.onDidHide(() => {
+				if (!installing) {
+					store.dispose();
+				}
+			}));
+
+			store.add(inputBox.onDidAccept(submit));
+		});
 	}
 }
 
 interface IMarketplaceQuickPickItem extends IQuickPickItem {
-	readonly reference: IMarketplaceReference;
+	readonly kind: 'add' | 'marketplace';
+	readonly reference?: IMarketplaceReference;
 	readonly managedByPolicy: boolean;
 }
 
-class ManagePluginMarketplacesAction extends Action2 {
-	static readonly ID = 'workbench.action.chat.managePluginMarketplaces';
+export const MANAGE_PLUGIN_MARKETPLACES_COMMAND_ID = 'workbench.action.chat.managePluginMarketplaces';
+
+export class ManagePluginMarketplacesAction extends Action2 {
+	static readonly ID = MANAGE_PLUGIN_MARKETPLACES_COMMAND_ID;
 
 	constructor() {
 		super({
@@ -171,85 +222,170 @@ class ManagePluginMarketplacesAction extends Action2 {
 		const quickInputService = accessor.get(IQuickInputService);
 		const configurationService = accessor.get(IConfigurationService);
 		const pluginRepositoryService = accessor.get(IAgentPluginRepositoryService);
-		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
 		const commandService = accessor.get(ICommandService);
 		const fileService = accessor.get(IFileService);
 		const notificationService = accessor.get(INotificationService);
+		const customizationHarnessService = accessor.get(ICustomizationHarnessService);
 
-		const { userValues, extraValues, effectiveValues } = readConfiguredMarketplaces(configurationService);
-		const refs = parseMarketplaceReferences(effectiveValues);
-		const policyCanonicalIds = new Set(parseMarketplaceReferences(extraValues).map(r => r.canonicalId));
+		while (true) {
+			const { extraValues, effectiveValues } = readConfiguredMarketplaces(configurationService);
+			const refs = parseMarketplaceReferences(effectiveValues);
+			const strictMarketplaces = getStrictKnownMarketplaces(configurationService.getValue(ChatConfiguration.StrictMarketplaces));
+			const policyCanonicalIds = new Set(parseMarketplaceReferences(extraValues).map(reference => reference.canonicalId));
+			const defaultCanonicalIds = new Set(parseMarketplaceReferences(
+				configurationService.inspect<readonly unknown[]>(ChatConfiguration.PluginMarketplaces)?.defaultValue ?? []
+			).map(reference => reference.canonicalId));
+			const items: QuickPickInput<IMarketplaceQuickPickItem>[] = [{
+				id: 'addMarketplace',
+				label: localize('addMarketplace', "{0} Add Marketplace...", '$(add)'),
+				ariaLabel: localize('addMarketplaceAriaLabel', "Add Marketplace"),
+				detail: localize('addMarketplaceDetail', "Add a GitHub repository, Git repository URL, or local repository URI"),
+				alwaysShow: true,
+				kind: 'add',
+				managedByPolicy: false,
+			}];
+			if (refs.length > 0) {
+				items.push({ type: 'separator', label: localize('configuredMarketplaces', "Configured Marketplaces") });
+				items.push(...refs.map(reference => {
+					const allowed = isMarketplaceReferenceAllowed(strictMarketplaces, reference);
+					const descriptions = [
+						defaultCanonicalIds.has(reference.canonicalId) ? localize('defaultMarketplace', "Default") : undefined,
+						policyCanonicalIds.has(reference.canonicalId) ? localize('managedMarketplace', "Managed by Organization") : undefined,
+						!allowed ? localize('disabledMarketplace', "Disabled by Organization") : undefined,
+					].filter((description): description is string => description !== undefined);
+					return {
+						id: reference.canonicalId,
+						label: reference.displayLabel,
+						description: descriptions.join(', ') || undefined,
+						detail: reference.kind === MarketplaceReferenceKind.LocalFileUri
+							? localize('localMarketplaceDetail', "Local repository: {0}", reference.displayLabel)
+							: reference.cloneUrl,
+						kind: 'marketplace' as const,
+						reference,
+						managedByPolicy: policyCanonicalIds.has(reference.canonicalId),
+						disabled: !allowed,
+						pickable: allowed,
+					};
+				}));
+			}
 
-		if (refs.length === 0) {
-			quickInputService.pick([], { placeHolder: localize('noMarketplaces', "No plugin marketplaces configured") });
-			return;
-		}
-
-		// Step 1: pick a marketplace
-		const items: IMarketplaceQuickPickItem[] = refs.map(ref => ({
-			label: ref.displayLabel,
-			description: ref.kind === MarketplaceReferenceKind.LocalFileUri
-				? localize('localMarketplace', "Local")
-				: policyCanonicalIds.has(ref.canonicalId)
-					? localize('managedMarketplace', "{0} (managed by enterprise policy)", ref.cloneUrl)
-					: ref.cloneUrl,
-			reference: ref,
-			managedByPolicy: policyCanonicalIds.has(ref.canonicalId),
-		}));
-
-		const selected = await quickInputService.pick(items, {
-			placeHolder: localize('selectMarketplace', "Select a plugin marketplace"),
-		});
-
-		if (!selected) {
-			return;
-		}
-
-		const ref = selected.reference;
-
-		// Step 2: pick an action for the selected marketplace
-		const actionItems: IQuickPickItem[] = [
-			{ id: 'showPlugins', label: localize('showPlugins', "Show Plugins") },
-		];
-
-		// "Open Folder" only for cloned/local repos
-		const repoUri = pluginRepositoryService.getRepositoryUri(ref);
-		const repoExists = await fileService.exists(repoUri);
-		if (repoExists) {
-			actionItems.push({ id: 'openDirectory', label: localize('openMarketplaceDirectory', "Open Folder") });
-		}
-
-		actionItems.push({ id: 'removeMarketplace', label: localize('removeMarketplace', "Remove Marketplace") });
-
-		const action = await quickInputService.pick(actionItems, {
-			placeHolder: localize('selectMarketplaceAction', "Select an action for '{0}'", ref.displayLabel),
-		});
-
-		if (!action) {
-			return;
-		}
-
-		switch (action.id) {
-			case 'showPlugins':
-				extensionsWorkbenchService.openSearch(`@agentPlugins ${ref.displayLabel}`);
-				break;
-			case 'openDirectory':
-				await commandService.executeCommand('revealFileInOS', repoUri);
-				break;
-			case 'removeMarketplace': {
-				if (selected.managedByPolicy) {
-					notificationService.notify({
-						severity: Severity.Warning,
-						message: localize('removeManagedMarketplace', "Enterprise policy manages '{0}', so it can't be removed here.", ref.displayLabel),
-					});
+			const selected = await quickInputService.pick(items, {
+				title: localize('managePluginMarketplacesQuickPick', "Manage Plugin Marketplaces"),
+				placeHolder: refs.length === 0
+					? localize('noMarketplaces', "No plugin marketplaces configured")
+					: localize('selectMarketplace', "Select a plugin marketplace"),
+				prompt: localize('marketplaceTrustPrompt', "Only add marketplaces you trust."),
+				matchOnDescription: true,
+				matchOnDetail: true,
+			});
+			if (!selected) {
+				return;
+			}
+			if (selected.kind === 'add') {
+				const added = await this.addMarketplace(quickInputService, configurationService, notificationService);
+				if (!added) {
 					return;
 				}
+				continue;
+			}
 
-				const updated = userValues.filter(v => typeof v === 'string' && v.trim() !== ref.rawValue);
-				await configurationService.updateValue(ChatConfiguration.PluginMarketplaces, updated);
-				break;
+			const ref = selected.reference;
+			if (!ref) {
+				return;
+			}
+			const actionItems: IQuickPickItem[] = [];
+			actionItems.push({ id: 'showPlugins', label: localize('showPlugins', "Show Plugins") });
+			const repoUri = pluginRepositoryService.getRepositoryUri(ref);
+			if (await fileService.exists(repoUri)) {
+				actionItems.push({ id: 'openDirectory', label: localize('openMarketplaceDirectory', "Open Folder") });
+			}
+			if (!selected.managedByPolicy) {
+				actionItems.push({ id: 'removeMarketplace', label: localize('removeMarketplace', "Remove Marketplace") });
+			}
+			if (actionItems.length === 0) {
+				return;
+			}
+
+			const action = await quickInputService.pick(actionItems, {
+				title: localize('managePluginMarketplace', "Manage Plugin Marketplace"),
+				placeHolder: localize('selectMarketplaceAction', "Select an action for '{0}'", ref.displayLabel),
+			});
+			if (!action) {
+				return;
+			}
+			switch (action.id) {
+				case 'showPlugins': {
+					const githubFeedAvailable = isAgentFinderPublicFeedAvailable(
+						configurationService,
+						!!customizationHarnessService.getActiveDescriptor().marketplaceSearchProvider,
+					);
+					await commandService.executeCommand(
+						AICustomizationManagementCommands.OpenMarketplace,
+						{
+							section: AICustomizationManagementSection.Plugins,
+							sourceId: getPluginCustomizationMarketplaceNavigationSourceId(configurationService, ref, githubFeedAvailable),
+						},
+					);
+					return;
+				}
+				case 'openDirectory':
+					await commandService.executeCommand('revealFileInOS', repoUri);
+					return;
+				case 'removeMarketplace': {
+					const { userValues } = readConfiguredMarketplaces(configurationService);
+					const updated = userValues.filter(value => typeof value === 'string' && parseMarketplaceReference(value)?.canonicalId !== ref.canonicalId);
+					await configurationService.updateValue(ChatConfiguration.PluginMarketplaces, updated);
+					break;
+				}
 			}
 		}
+	}
+
+	private async addMarketplace(
+		quickInputService: IQuickInputService,
+		configurationService: IConfigurationService,
+		notificationService: INotificationService,
+	): Promise<boolean> {
+		const value = await quickInputService.input({
+			title: localize('addPluginMarketplace', "Add Plugin Marketplace"),
+			placeHolder: localize('pluginMarketplaceSourcePlaceholder', "owner/repo, Git URL, or local repository URI"),
+			prompt: localize('marketplaceTrustPrompt', "Only add marketplaces you trust."),
+			ignoreFocusLost: true,
+			validateInput: async input => this.getMarketplaceInputError(input, configurationService),
+		});
+		if (value === undefined) {
+			return false;
+		}
+
+		const validationError = this.getMarketplaceInputError(value, configurationService);
+		if (validationError) {
+			notificationService.notify({ severity: Severity.Warning, message: validationError });
+			return false;
+		}
+
+		const reference = parseMarketplaceReference(value);
+		if (!reference) {
+			return false;
+		}
+		const { userValues } = readConfiguredMarketplaces(configurationService);
+		const updated = [
+			...userValues.filter((entry): entry is string => typeof entry === 'string'),
+			reference.rawValue,
+		];
+		await configurationService.updateValue(ChatConfiguration.PluginMarketplaces, updated);
+		return true;
+	}
+
+	private getMarketplaceInputError(value: string, configurationService: IConfigurationService): string | undefined {
+		const reference = parseMarketplaceReference(value);
+		if (!reference) {
+			return localize('invalidMarketplaceSource', "Enter a GitHub repository, Git repository URL, or local repository URI.");
+		}
+		const configured = parseMarketplaceReferences(readConfiguredMarketplaces(configurationService).effectiveValues);
+		if (configured.some(candidate => candidate.canonicalId === reference.canonicalId)) {
+			return localize('marketplaceAlreadyConfigured', "This marketplace is already configured.");
+		}
+		return undefined;
 	}
 }
 

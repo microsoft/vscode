@@ -75,6 +75,21 @@ export const ConfigKey = {
 	UseSplitContextPrompt: 'internal.useSplitContextPrompt',
 };
 
+/**
+ * Settings that must only be read from user (global) scope, ignoring workspace/folder values.
+ * Prevents workspace-level override attacks via malicious .vscode/settings.json.
+ */
+export const userScopeOnlyKeys = new Set<ConfigKeyType>([
+	ConfigKey.DebugOverrideCapiUrl,
+	ConfigKey.DebugOverrideCapiUrlLegacy,
+	ConfigKey.DebugTestOverrideCapiUrl,
+	ConfigKey.DebugTestOverrideCapiUrlLegacy,
+	ConfigKey.DebugOverrideProxyUrl,
+	ConfigKey.DebugOverrideProxyUrlLegacy,
+	ConfigKey.DebugTestOverrideProxyUrl,
+	ConfigKey.DebugTestOverrideProxyUrlLegacy,
+]);
+
 export type ConfigKeyType = string;
 
 // How to determine where to terminate the completion to the current block.

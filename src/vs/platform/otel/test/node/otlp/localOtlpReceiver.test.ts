@@ -167,6 +167,52 @@ suite('platform/otel - localOtlpHttpReceiver', () => {
 		}
 	});
 
+	test('transforms the body before forwarding and local decoding', async () => {
+		let forwarded: Buffer | undefined;
+		let decoded: IDecodeResult | undefined;
+		const receiver = await startLocalOtlpHttpReceiver(
+			{
+				transformBody: body => Buffer.from(body.toString('utf8').replace('invoke_agent copilotcli', 'transformed span')),
+				onSpans: result => { decoded = result; },
+				onForward: body => { forwarded = body; },
+			},
+			logService,
+		);
+		try {
+			const res = await send(receiver.port, { contentType: 'application/json', body: JSON.stringify(validRequestBody()) });
+			strictEqual(res.statusCode, 200);
+			ok(forwarded?.toString('utf8').includes('transformed span'));
+			strictEqual(decoded?.spans[0].name, 'transformed span');
+		} finally {
+			receiver.dispose();
+		}
+	});
+
+	test('rejects transform failures without forwarding, decoding, or logging the unredacted body', async () => {
+		const raw = JSON.stringify(validRequestBody());
+		const warnings: string[] = [];
+		let forwarded = false;
+		let decoded = false;
+		const receiver = await startLocalOtlpHttpReceiver({
+			transformBody: body => { throw new Error(body.toString('utf8')); },
+			onSpans: () => { decoded = true; },
+			onForward: () => { forwarded = true; },
+		}, new class extends NullLogService {
+			override warn(message: string): void { warnings.push(message); }
+		});
+		try {
+			const res = await send(receiver.port, { contentType: 'application/json', body: raw });
+			strictEqual(res.statusCode, 400);
+			strictEqual(forwarded, false);
+			strictEqual(decoded, false);
+			strictEqual(warnings.length, 1);
+			ok(!warnings[0].includes(raw));
+			ok(!res.body.includes(raw));
+		} finally {
+			receiver.dispose();
+		}
+	});
+
 	test('still responds 200 even if onForward throws', async () => {
 		const receiver = await startLocalOtlpHttpReceiver(
 			{
