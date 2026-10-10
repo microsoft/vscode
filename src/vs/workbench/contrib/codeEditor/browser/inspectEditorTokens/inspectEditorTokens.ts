@@ -152,6 +152,7 @@ interface IDecodedMetadata {
 	strikethrough: boolean | undefined;
 	foreground: string | undefined;
 	background: string | undefined;
+	fontFamily: string | undefined;
 }
 
 function renderTokenText(tokenText: string): string {
@@ -328,7 +329,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 				));
 			}
 			if (semanticTokenInfo.metadata) {
-				const properties: (keyof TokenStyleData)[] = ['foreground', 'bold', 'italic', 'underline', 'strikethrough'];
+				const properties: (keyof TokenStyleData)[] = ['foreground', 'fontFamily', 'bold', 'italic', 'underline', 'strikethrough'];
 				const propertiesByDefValue: { [rule: string]: string[] } = {};
 				const allDefValues = new Array<[Array<HTMLElement | string>, string]>(); // remember the order
 				// first collect to detect when the same rule is used for multiple properties
@@ -513,7 +514,8 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 			underline: (fontStyle & FontStyle.Underline) ? true : undefined,
 			strikethrough: (fontStyle & FontStyle.Strikethrough) ? true : undefined,
 			foreground: colorMap[foreground],
-			background: colorMap[background]
+			background: colorMap[background],
+			fontFamily: undefined
 		};
 	}
 
@@ -637,7 +639,8 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 						underline: tokenStyle?.underline,
 						strikethrough: tokenStyle?.strikethrough,
 						foreground: colorMap[tokenStyle?.foreground || ColorId.None],
-						background: undefined
+						background: undefined,
+						fontFamily: tokenStyle.fontFamily
 					};
 				}
 

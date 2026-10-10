@@ -7,6 +7,7 @@ import { Range } from './core/range.js';
 import { StandardTokenType } from './encodedTokenAttributes.js';
 import { LineTokens } from './tokens/lineTokens.js';
 import { SparseMultilineTokens } from './tokens/sparseMultilineTokens.js';
+import { IFontTokenOption } from './textModelEvents.js';
 
 /**
  * Provides tokenization related functionality of the text model.
@@ -18,13 +19,13 @@ export interface ITokenizationTextModelPart {
 	 * Replaces all semantic tokens with the provided `tokens`.
 	 * @internal
 	 */
-	setSemanticTokens(tokens: SparseMultilineTokens[] | null, isComplete: boolean): void;
+	setSemanticTokens(tokens: SparseMultilineTokens[] | null, isComplete: boolean, fontTokens?: SparseMultilineTokens[] | null, fontTokenMap?: readonly IFontTokenOption[]): void;
 
 	/**
 	 * Merges the provided semantic tokens into existing semantic tokens.
 	 * @internal
 	 */
-	setPartialSemanticTokens(range: Range, tokens: SparseMultilineTokens[] | null): void;
+	setPartialSemanticTokens(range: Range, tokens: SparseMultilineTokens[] | null, fontTokens?: SparseMultilineTokens[] | null, fontTokenMap?: readonly IFontTokenOption[]): void;
 
 	/**
 	 * @internal

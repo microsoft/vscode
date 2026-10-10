@@ -173,7 +173,8 @@ export class ViewportSemanticTokensContribution extends Disposable implements IE
 			}
 			const { provider, tokens: result } = r;
 			const styling = this._semanticTokensStylingService.getStyling(provider);
-			model.tokenization.setPartialSemanticTokens(range, toMultilineTokens2(result, styling, model.getLanguageId()));
+			const styled = toMultilineTokens2(result, styling, model.getLanguageId());
+			model.tokenization.setPartialSemanticTokens(range, styled.tokens, styled.fontTokens, styled.fontTokenMap);
 		}).then(() => this._removeOutstandingRequest(request), () => this._removeOutstandingRequest(request));
 		return request;
 	}

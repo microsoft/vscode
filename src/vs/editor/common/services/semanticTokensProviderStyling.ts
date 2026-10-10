@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { SemanticTokensLegend, SemanticTokens } from '../languages.js';
-import { FontStyle, MetadataConsts, TokenMetadata } from '../encodedTokenAttributes.js';
-import { IThemeService } from '../../../platform/theme/common/themeService.js';
+import { FontStyle, MetadataConsts } from '../encodedTokenAttributes.js';
+import { IFontTokenOptions, IThemeService } from '../../../platform/theme/common/themeService.js';
 import { ILogService, LogLevel } from '../../../platform/log/common/log.js';
 import { SparseMultilineTokens } from '../tokens/sparseMultilineTokens.js';
 import { ILanguageService } from '../languages/language.js';
@@ -33,76 +33,97 @@ export class SemanticTokensProviderStyling {
 		this._hashTable = new HashTable();
 	}
 
-	public getMetadata(tokenTypeIndex: number, tokenModifierSet: number, languageId: string): number {
+	private _getEntry(tokenTypeIndex: number, tokenModifierSet: number, languageId: string): HashTableEntry {
 		const encodedLanguageId = this._languageService.languageIdCodec.encodeLanguageId(languageId);
-		const entry = this._hashTable.get(tokenTypeIndex, tokenModifierSet, encodedLanguageId);
-		let metadata: number;
-		if (entry) {
-			metadata = entry.metadata;
-			if (ENABLE_TRACE && this._logService.getLevel() === LogLevel.Trace) {
-				this._logService.trace(`SemanticTokensProviderStyling [CACHED] ${tokenTypeIndex} / ${tokenModifierSet}: foreground ${TokenMetadata.getForeground(metadata)}, fontStyle ${TokenMetadata.getFontStyle(metadata).toString(2)}`);
-			}
-		} else {
-			let tokenType = this._legend.tokenTypes[tokenTypeIndex];
-			const tokenModifiers: string[] = [];
-			if (tokenType) {
-				let modifierSet = tokenModifierSet;
-				for (let modifierIndex = 0; modifierSet > 0 && modifierIndex < this._legend.tokenModifiers.length; modifierIndex++) {
-					if (modifierSet & 1) {
-						tokenModifiers.push(this._legend.tokenModifiers[modifierIndex]);
-					}
-					modifierSet = modifierSet >> 1;
-				}
-				if (ENABLE_TRACE && modifierSet > 0 && this._logService.getLevel() === LogLevel.Trace) {
-					this._logService.trace(`SemanticTokensProviderStyling: unknown token modifier index: ${tokenModifierSet.toString(2)} for legend: ${JSON.stringify(this._legend.tokenModifiers)}`);
-					tokenModifiers.push('not-in-legend');
-				}
-
-				const tokenStyle = this._themeService.getColorTheme().getTokenStyleMetadata(tokenType, tokenModifiers, languageId);
-				if (typeof tokenStyle === 'undefined') {
-					metadata = SemanticTokensProviderStylingConstants.NO_STYLING;
-				} else {
-					metadata = 0;
-					if (typeof tokenStyle.italic !== 'undefined') {
-						const italicBit = (tokenStyle.italic ? FontStyle.Italic : 0) << MetadataConsts.FONT_STYLE_OFFSET;
-						metadata |= italicBit | MetadataConsts.SEMANTIC_USE_ITALIC;
-					}
-					if (typeof tokenStyle.bold !== 'undefined') {
-						const boldBit = (tokenStyle.bold ? FontStyle.Bold : 0) << MetadataConsts.FONT_STYLE_OFFSET;
-						metadata |= boldBit | MetadataConsts.SEMANTIC_USE_BOLD;
-					}
-					if (typeof tokenStyle.underline !== 'undefined') {
-						const underlineBit = (tokenStyle.underline ? FontStyle.Underline : 0) << MetadataConsts.FONT_STYLE_OFFSET;
-						metadata |= underlineBit | MetadataConsts.SEMANTIC_USE_UNDERLINE;
-					}
-					if (typeof tokenStyle.strikethrough !== 'undefined') {
-						const strikethroughBit = (tokenStyle.strikethrough ? FontStyle.Strikethrough : 0) << MetadataConsts.FONT_STYLE_OFFSET;
-						metadata |= strikethroughBit | MetadataConsts.SEMANTIC_USE_STRIKETHROUGH;
-					}
-					if (tokenStyle.foreground) {
-						const foregroundBits = (tokenStyle.foreground) << MetadataConsts.FOREGROUND_OFFSET;
-						metadata |= foregroundBits | MetadataConsts.SEMANTIC_USE_FOREGROUND;
-					}
-					if (metadata === 0) {
-						// Nothing!
-						metadata = SemanticTokensProviderStylingConstants.NO_STYLING;
-					}
-				}
-			} else {
-				if (ENABLE_TRACE && this._logService.getLevel() === LogLevel.Trace) {
-					this._logService.trace(`SemanticTokensProviderStyling: unknown token type index: ${tokenTypeIndex} for legend: ${JSON.stringify(this._legend.tokenTypes)}`);
-				}
-				metadata = SemanticTokensProviderStylingConstants.NO_STYLING;
-				tokenType = 'not-in-legend';
-			}
-			this._hashTable.add(tokenTypeIndex, tokenModifierSet, encodedLanguageId, metadata);
-
-			if (ENABLE_TRACE && this._logService.getLevel() === LogLevel.Trace) {
-				this._logService.trace(`SemanticTokensProviderStyling ${tokenTypeIndex} (${tokenType}) / ${tokenModifierSet} (${tokenModifiers.join(' ')}): foreground ${TokenMetadata.getForeground(metadata)}, fontStyle ${TokenMetadata.getFontStyle(metadata).toString(2)}`);
-			}
+		const existing = this._hashTable.get(tokenTypeIndex, tokenModifierSet, encodedLanguageId);
+		if (existing) {
+			return existing;
 		}
 
-		return metadata;
+		let metadata: number;
+		let fontTokenId = 0;
+		let tokenType = this._legend.tokenTypes[tokenTypeIndex];
+		const tokenModifiers: string[] = [];
+		if (tokenType) {
+			let modifierSet = tokenModifierSet;
+			for (let modifierIndex = 0; modifierSet > 0 && modifierIndex < this._legend.tokenModifiers.length; modifierIndex++) {
+				if (modifierSet & 1) {
+					tokenModifiers.push(this._legend.tokenModifiers[modifierIndex]);
+				}
+				modifierSet = modifierSet >> 1;
+			}
+			if (ENABLE_TRACE && modifierSet > 0 && this._logService.getLevel() === LogLevel.Trace) {
+				this._logService.trace(`SemanticTokensProviderStyling: unknown token modifier index: ${tokenModifierSet.toString(2)} for legend: ${JSON.stringify(this._legend.tokenModifiers)}`);
+				tokenModifiers.push('not-in-legend');
+			}
+
+			const tokenStyle = this._themeService.getColorTheme().getTokenStyleMetadata(tokenType, tokenModifiers, languageId);
+			if (typeof tokenStyle === 'undefined') {
+				metadata = SemanticTokensProviderStylingConstants.NO_STYLING;
+			} else {
+				metadata = 0;
+				if (typeof tokenStyle.italic !== 'undefined') {
+					const italicBit = (tokenStyle.italic ? FontStyle.Italic : 0) << MetadataConsts.FONT_STYLE_OFFSET;
+					metadata |= italicBit | MetadataConsts.SEMANTIC_USE_ITALIC;
+				}
+				if (typeof tokenStyle.bold !== 'undefined') {
+					const boldBit = (tokenStyle.bold ? FontStyle.Bold : 0) << MetadataConsts.FONT_STYLE_OFFSET;
+					metadata |= boldBit | MetadataConsts.SEMANTIC_USE_BOLD;
+				}
+				if (typeof tokenStyle.underline !== 'undefined') {
+					const underlineBit = (tokenStyle.underline ? FontStyle.Underline : 0) << MetadataConsts.FONT_STYLE_OFFSET;
+					metadata |= underlineBit | MetadataConsts.SEMANTIC_USE_UNDERLINE;
+				}
+				if (typeof tokenStyle.strikethrough !== 'undefined') {
+					const strikethroughBit = (tokenStyle.strikethrough ? FontStyle.Strikethrough : 0) << MetadataConsts.FONT_STYLE_OFFSET;
+					metadata |= strikethroughBit | MetadataConsts.SEMANTIC_USE_STRIKETHROUGH;
+				}
+				if (tokenStyle.foreground) {
+					const foregroundBits = (tokenStyle.foreground) << MetadataConsts.FOREGROUND_OFFSET;
+					metadata |= foregroundBits | MetadataConsts.SEMANTIC_USE_FOREGROUND;
+				}
+				if (tokenStyle.fontFamily) {
+					const fontToken = { fontFamily: tokenStyle.fontFamily };
+					fontTokenId = this._findFontTokenId(fontToken);
+				}
+				if (metadata === 0) {
+					metadata = SemanticTokensProviderStylingConstants.NO_STYLING;
+				}
+			}
+		} else {
+			if (ENABLE_TRACE && this._logService.getLevel() === LogLevel.Trace) {
+				this._logService.trace(`SemanticTokensProviderStyling: unknown token type index: ${tokenTypeIndex} for legend: ${JSON.stringify(this._legend.tokenTypes)}`);
+			}
+			metadata = SemanticTokensProviderStylingConstants.NO_STYLING;
+			tokenType = 'not-in-legend';
+		}
+
+		const entry = new HashTableEntry(tokenTypeIndex, tokenModifierSet, encodedLanguageId, metadata, fontTokenId);
+		this._hashTable.add(entry);
+		return entry;
+	}
+
+	private _findFontTokenId(fontToken: IFontTokenOptions): number {
+		const map = this._themeService.getColorTheme().tokenFontMap ?? [];
+		for (let i = 1; i < map.length; i++) {
+			const candidate = map[i];
+			if (candidate && candidate.fontFamily === fontToken.fontFamily && candidate.fontSizeMultiplier === fontToken.fontSizeMultiplier && candidate.lineHeightMultiplier === fontToken.lineHeightMultiplier) {
+				return i;
+			}
+		}
+		return 0;
+	}
+
+	public getMetadata(tokenTypeIndex: number, tokenModifierSet: number, languageId: string): number {
+		return this._getEntry(tokenTypeIndex, tokenModifierSet, languageId).metadata;
+	}
+
+	public getFontToken(tokenTypeIndex: number, tokenModifierSet: number, languageId: string): number {
+		return this._getEntry(tokenTypeIndex, tokenModifierSet, languageId).fontTokenId;
+	}
+
+	public getTokenFontMap(): IFontTokenOptions[] {
+		return this._themeService.getColorTheme().tokenFontMap ?? [];
 	}
 
 	public warnOverlappingSemanticTokens(lineNumber: number, startColumn: number): void {
@@ -149,11 +170,18 @@ const enum SemanticColoringConstants {
 	DesiredMaxAreas = 1024,
 }
 
-export function toMultilineTokens2(tokens: SemanticTokens, styling: SemanticTokensProviderStyling, languageId: string): SparseMultilineTokens[] {
+export interface SemanticTokensResult {
+	tokens: SparseMultilineTokens[];
+	fontTokens: SparseMultilineTokens[];
+	fontTokenMap: readonly IFontTokenOptions[];
+}
+
+export function toMultilineTokens2(tokens: SemanticTokens, styling: SemanticTokensProviderStyling, languageId: string): SemanticTokensResult {
 	const srcData = tokens.data;
 	const tokenCount = (tokens.data.length / 5) | 0;
 	const tokensPerArea = Math.max(Math.ceil(tokenCount / SemanticColoringConstants.DesiredMaxAreas), SemanticColoringConstants.DesiredTokensPerArea);
 	const result: SparseMultilineTokens[] = [];
+	const fontResult: SparseMultilineTokens[] = [];
 
 	let tokenIndex = 0;
 	let lastLineNumber = 1;
@@ -185,6 +213,9 @@ export function toMultilineTokens2(tokens: SemanticTokens, styling: SemanticToke
 		let destData = new Uint32Array((tokenEndIndex - tokenStartIndex) * 4);
 		let destOffset = 0;
 		let areaLine = 0;
+		let fontDestData = new Uint32Array((tokenEndIndex - tokenStartIndex) * 4);
+		let fontDestOffset = 0;
+		let fontAreaLine = 0;
 		let prevLineNumber = 0;
 		let prevEndCharacter = 0;
 		while (tokenIndex < tokenEndIndex) {
@@ -208,6 +239,18 @@ export function toMultilineTokens2(tokens: SemanticTokens, styling: SemanticToke
 				styling.warnOverlappingSemanticTokens(lineNumber, startCharacter + 1);
 			} else {
 				const metadata = styling.getMetadata(tokenTypeIndex, tokenModifierSet, languageId);
+				const fontTokenId = styling.getFontToken(tokenTypeIndex, tokenModifierSet, languageId);
+
+				if (fontTokenId !== 0) {
+					if (fontAreaLine === 0) {
+						fontAreaLine = lineNumber;
+					}
+					fontDestData[fontDestOffset] = lineNumber - fontAreaLine;
+					fontDestData[fontDestOffset + 1] = startCharacter;
+					fontDestData[fontDestOffset + 2] = endCharacter;
+					fontDestData[fontDestOffset + 3] = fontTokenId;
+					fontDestOffset += 4;
+				}
 
 				if (metadata !== SemanticTokensProviderStylingConstants.NO_STYLING) {
 					if (areaLine === 0) {
@@ -232,12 +275,15 @@ export function toMultilineTokens2(tokens: SemanticTokens, styling: SemanticToke
 		if (destOffset !== destData.length) {
 			destData = destData.subarray(0, destOffset);
 		}
+		if (fontDestOffset !== fontDestData.length) {
+			fontDestData = fontDestData.subarray(0, fontDestOffset);
+		}
 
-		const tokens = SparseMultilineTokens.create(areaLine, destData);
-		result.push(tokens);
+		result.push(SparseMultilineTokens.create(areaLine, destData));
+		fontResult.push(SparseMultilineTokens.create(fontAreaLine, fontDestData));
 	}
 
-	return result;
+	return { tokens: result, fontTokens: fontResult, fontTokenMap: styling.getTokenFontMap() };
 }
 
 class HashTableEntry {
@@ -245,13 +291,15 @@ class HashTableEntry {
 	public readonly tokenModifierSet: number;
 	public readonly languageId: number;
 	public readonly metadata: number;
+	public readonly fontTokenId: number;
 	public next: HashTableEntry | null;
 
-	constructor(tokenTypeIndex: number, tokenModifierSet: number, languageId: number, metadata: number) {
+	constructor(tokenTypeIndex: number, tokenModifierSet: number, languageId: number, metadata: number, fontTokenId: number) {
 		this.tokenTypeIndex = tokenTypeIndex;
 		this.tokenModifierSet = tokenModifierSet;
 		this.languageId = languageId;
 		this.metadata = metadata;
+		this.fontTokenId = fontTokenId;
 		this.next = null;
 	}
 }
@@ -303,7 +351,7 @@ class HashTable {
 		return null;
 	}
 
-	public add(tokenTypeIndex: number, tokenModifierSet: number, languageId: number, metadata: number): void {
+	public add(element: HashTableEntry): void {
 		this._elementsCount++;
 		if (this._growCount !== 0 && this._elementsCount >= this._growCount) {
 			// expand!
@@ -325,7 +373,7 @@ class HashTable {
 				}
 			}
 		}
-		this._add(new HashTableEntry(tokenTypeIndex, tokenModifierSet, languageId, metadata));
+		this._add(element);
 	}
 
 	private _add(element: HashTableEntry): void {
