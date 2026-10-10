@@ -8,7 +8,7 @@ import { Position } from '../../core/position.js';
 import { Range } from '../../core/range.js';
 import { FindMatch, ITextSnapshot, SearchData } from '../../model.js';
 import { NodeColor, SENTINEL, TreeNode, fixInsert, leftest, rbDelete, righttest, updateTreeMetadata } from './rbTreeBase.js';
-import { Searcher, createFindMatch, isValidMatch } from '../textModelSearch.js';
+import { Searcher, createFindMatch, findSimpleMatchesInLine } from '../textModelSearch.js';
 
 // const lfRegex = new RegExp(/\r\n|\r|\n/g);
 const AverageBufferSize = 65535;
@@ -810,22 +810,8 @@ export class PieceTreeBase {
 	}
 
 	private _findMatchesInLine(searchData: SearchData, searcher: Searcher, text: string, lineNumber: number, deltaOffset: number, resultLen: number, result: FindMatch[], captureMatches: boolean, limitResultCount: number): number {
-		const wordSeparators = searchData.wordSeparators;
 		if (!captureMatches && searchData.simpleSearch) {
-			const searchString = searchData.simpleSearch;
-			const searchStringLen = searchString.length;
-			const textLength = text.length;
-
-			let lastMatchIndex = -searchStringLen;
-			while ((lastMatchIndex = text.indexOf(searchString, lastMatchIndex + searchStringLen)) !== -1) {
-				if (!wordSeparators || isValidMatch(wordSeparators, text, textLength, lastMatchIndex, searchStringLen)) {
-					result[resultLen++] = new FindMatch(new Range(lineNumber, lastMatchIndex + 1 + deltaOffset, lineNumber, lastMatchIndex + 1 + searchStringLen + deltaOffset), null);
-					if (resultLen >= limitResultCount) {
-						return resultLen;
-					}
-				}
-			}
-			return resultLen;
+			return findSimpleMatchesInLine(searchData.wordSeparators, searchData.simpleSearch, text, lineNumber, deltaOffset, resultLen, result, limitResultCount);
 		}
 
 		let m: RegExpExecArray | null;
