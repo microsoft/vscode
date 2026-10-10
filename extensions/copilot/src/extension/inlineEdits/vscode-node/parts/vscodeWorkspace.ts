@@ -351,6 +351,14 @@ export class VSCodeWorkspace extends ObservableWorkspace implements IDisposable 
 	 * Returns undefined for documents that are not tracked (e.g. filtered out).
 	*/
 	public getDocumentByTextDocument(doc: TextDocument, reader?: IReader): IVSCodeObservableDocument | undefined {
+		if (this._store.isDisposed) {
+			// The provider registered with VS Code core can be invoked after this
+			// workspace has been torn down (e.g. an in-flight completion request
+			// resolves after the inline edits feature is disabled). A disposed
+			// workspace tracks no documents, so returning undefined is the correct
+			// contract here rather than asserting.
+			return undefined;
+		}
 		this._store.assertNotDisposed();
 
 		const internalDoc = this._getInternalDocument(doc.uri, reader);
