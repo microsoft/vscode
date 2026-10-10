@@ -19,8 +19,20 @@ import {
 	editorErrorForeground, registerColor, transparent,
 	lighten
 } from '../../../../platform/theme/common/colorRegistry.js';
+import { clamp } from '../../../../base/common/numbers.js';
 
 export const IQuickDiffService = createDecorator<IQuickDiffService>('quickDiff');
+
+export const scmDiffDecorationsGutterWidthDefault = 3;
+export const scmDiffDecorationsGutterWidthMin = 1;
+export const scmDiffDecorationsGutterWidthMax = 10;
+
+export function clampDiffDecorationsGutterWidth(width: number): number {
+	if (typeof width !== 'number' || isNaN(width) || width < scmDiffDecorationsGutterWidthMin) {
+		return scmDiffDecorationsGutterWidthDefault;
+	}
+	return clamp(width, scmDiffDecorationsGutterWidthMin, scmDiffDecorationsGutterWidthMax);
+}
 
 const editorGutterModifiedBackground = registerColor('editorGutter.modifiedBackground', {
 	dark: '#1B81A8', light: '#2090D3', hcDark: '#1B81A8', hcLight: '#2090D3'
