@@ -221,10 +221,19 @@ export class TaskApiBackend implements CloudAgentBackend {
 		// active workspace's repositories, so always use the global user-scoped list there.
 		if (isAgentWorkspace || !repoIds || repoIds.length === 0) {
 			// The global `agents/tasks` endpoint is already scoped to the authenticated user, so
-			// no creator filter is needed here.
-			const response = await this._taskApiClient.listTasks(listOpts);
-			for (const task of response.tasks) {
-				tasksWithRepo.push({ task, repo: undefined });
+			// no creator filter is needed here. Match the repo-scoped branch below and degrade
+			// gracefully on a transient Task API failure (e.g. HTTP 500): log, route the error
+			// through structured instrumentation, and return no sessions instead of letting the
+			// rejection escape as an unhandled error.
+			try {
+				const response = await this._taskApiClient.listTasks(listOpts);
+				for (const task of response.tasks) {
+					tasksWithRepo.push({ task, repo: undefined });
+				}
+			} catch (e: unknown) {
+				this._logService.warn(`Failed to fetch global cloud task list: ${e}`);
+				this._instrumentation.operationFailed('fetchSessionList', e);
+				return [];
 			}
 		} else {
 			// The repo-scoped endpoint returns every collaborator's tasks by default. Scope it to
