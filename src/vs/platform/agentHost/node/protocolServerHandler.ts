@@ -1200,24 +1200,22 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 
 	/** Releases active-client and tool ownership not retained by another live connection's subscriptions. */
 	private _reconcileActiveClientSubscriptions(client: IConnectedClient): void {
-		const record = this._clients.get(client.clientId);
-		const resubscribed = new Set<string>();
-		for (const connection of record?.state === 'active' ? record.connections : [client]) {
-			for (const sub of connection.subscriptions.values()) {
-				if (sub.kind === ChannelKind.State) {
-					resubscribed.add(sub.uri);
-				}
-			}
-		}
 		for (const session of this._stateManager.getSessionUris()) {
 			const state = this._stateManager.getSessionState(session);
-			if (state) {
-				for (const chat of state.chats) {
-					if (!resubscribed.has(session) && !resubscribed.has(chat.resource)
-						&& (this._isActiveClient(state, client.clientId) || this._hasPendingClientToolCall(this._stateManager.getSessionState(chat.resource), client.clientId))) {
-						this._releaseActiveClientForSession(session, client.clientId, chat.resource);
-					}
-				}
+			if (!state) {
+				continue;
+			}
+			if (this._hasActiveSubscriptionToSession(client, session)) {
+				continue;
+			}
+			const ownsPendingToolCall = state.chats.some(chat =>
+				this._hasPendingClientToolCall(this._stateManager.getSessionState(chat.resource), client.clientId));
+			const requiresRelease = this._isActiveClient(state, client.clientId) || ownsPendingToolCall;
+			if (!requiresRelease) {
+				continue;
+			}
+			for (const chat of state.chats) {
+				this._releaseActiveClientForSession(session, client.clientId, chat.resource);
 			}
 		}
 	}
@@ -1471,6 +1469,21 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		for (const other of record.connections) {
 			if (other !== client && other.subscriptions.has(uri)) {
 				return true;
+			}
+		}
+		return false;
+	}
+
+	private _hasActiveSubscriptionToSession(client: IConnectedClient, session: string): boolean {
+		const record = this._clients.get(client.clientId);
+		for (const connection of record?.state === 'active' ? record.connections : [client]) {
+			for (const subscription of connection.subscriptions.values()) {
+				if (subscription.kind === ChannelKind.State
+					&& subscription.active
+					&& (subscription.uri === session
+						|| parseChatUri(subscription.uri)?.session === session)) {
+					return true;
+				}
 			}
 		}
 		return false;
@@ -3068,14 +3081,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			if (!sub.active) {
 				return;
 			}
-			if (isAhpChatChannel(sub.uri)) {
-				this._releaseActiveClientForSession(parseRequiredSessionUriFromChatUri(sub.uri), client.clientId, sub.uri);
-			} else {
-				const state = this._stateManager.getSessionState(sub.uri);
-				for (const chat of state?.chats ?? []) {
-					this._releaseActiveClientForSession(sub.uri, client.clientId, chat.resource);
-				}
-			}
+			this._reconcileActiveClientSubscriptions(client);
 		} else if (sub.kind === ChannelKind.ResourceWatch) {
 			this._agentService.onResourceWatchUnsubscribed(sub.uri);
 		}
