@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { platformSessionSchema } from '../../common/agentHostSchema.js';
+import type { SessionConfigState } from '../../common/state/sessionState.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { fromMissionControlConfigProperty, fromMissionControlConfigValues, missionControlSessionConfigAdapter, toMissionControlConfigValues, toMissionControlSessionConfig } from '../../node/missionControl/missionControlSessionConfig.js';
@@ -161,6 +162,56 @@ suite('Mission Control session config', () => {
 			values: { target: 'worktree', baseBranch: 'main', branch: 'new-feature' },
 		};
 		assert.strictEqual(toMissionControlSessionConfig(config), config);
+	});
+
+	test('translates values only for the schema axes that were renamed', () => {
+		const genericIsolation = { type: 'string' as const, title: 'Isolation' };
+		const branch = { type: 'string' as const, title: 'Branch', enumDynamic: true };
+		const approval = platformSessionSchema.definition.autoApprove.protocol;
+		const configs: SessionConfigState[] = [
+			{
+				schema: { type: 'object', properties: { isolation: genericIsolation, branch } },
+				values: { isolation: 'folder', branch: 'main' },
+			},
+			{
+				schema: {
+					type: 'object',
+					properties: {
+						autoApprove: approval,
+						target: { type: 'string', title: 'Target', enum: ['workspace', 'worktree'] },
+						baseBranch: branch,
+						branch: { type: 'string', title: 'New Branch' },
+					},
+				},
+				values: { autoApprove: 'default', target: 'worktree', baseBranch: 'main', branch: 'new-feature' },
+			},
+			{
+				schema: { type: 'object', properties: { isolation: { ...genericIsolation, enum: ['folder', 'worktree'] }, branch: { type: 'string', title: 'Branch' } } },
+				values: { isolation: 'folder', branch: 'feature' },
+			},
+		];
+		assert.deepStrictEqual(configs.map(toMissionControlSessionConfig), [
+			{
+				schema: { type: 'object', properties: { isolation: genericIsolation, baseBranch: branch } },
+				values: { isolation: 'folder', baseBranch: 'main' },
+			},
+			{
+				schema: {
+					type: 'object',
+					properties: {
+						approvalMode: { ...approval, enum: ['manual', 'assisted', 'allow-all'], default: 'manual' },
+						target: configs[1].schema.properties.target,
+						baseBranch: branch,
+						branch: { type: 'string', title: 'New Branch' },
+					},
+				},
+				values: { approvalMode: 'manual', target: 'worktree', baseBranch: 'main', branch: 'new-feature' },
+			},
+			{
+				schema: { type: 'object', properties: { target: { ...genericIsolation, enum: ['workspace', 'worktree'] }, branch: { type: 'string', title: 'Branch' } } },
+				values: { target: 'workspace', branch: 'feature' },
+			},
+		]);
 	});
 
 	test('translates partial updates and completion properties without adding missing preferences', () => {

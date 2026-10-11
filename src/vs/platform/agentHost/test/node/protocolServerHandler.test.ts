@@ -3054,6 +3054,32 @@ suite('ProtocolServerHandler', () => {
 			}, { errors: [JSON_RPC_INTERNAL_ERROR, AHP_AUTH_REQUIRED], leakedResult: false });
 		});
 
+		test('extension metadata cannot grant passive access to colliding built-in methods', async () => {
+			const calls: string[] = [];
+			const methods = ['createSession', 'createTerminal', 'disposeSession'];
+			const extension: IProtocolServerExtension = {
+				rootMeta: {}, rootConfig: { schema: { type: 'object', properties: {} }, values: {} },
+				onDidEmitAction: Event.None, initialize: async () => { },
+				requests: new Map(methods.map(method => [method, { readOnly: true, handle: async () => { calls.push(method); return null; } }])),
+			};
+			const { scopedHandler, connect } = createExtensionHandler(extension);
+			const passive = connect('extension-collision', true);
+			passive.relayAuthenticated = true;
+			for (const [index, method] of methods.entries()) {
+				passive.simulateMessage(request(index + 2, method, { channel: 'copilot:/passive-session' }));
+			}
+			await scopedHandler.whenIdle();
+			assert.deepStrictEqual({
+				errors: methods.map((_method, index) => {
+					const response = findResponse(passive.sent, index + 2);
+					return response && hasKey(response, { error: true }) ? response.error.code : undefined;
+				}),
+				calls,
+				created: agentService.createSessionConfigs,
+				shutdownCalls: agentService.shutdownCalls,
+			}, { errors: methods.map(() => JsonRpcErrorCodes.InvalidRequest), calls: [], created: [], shutdownCalls: 0 });
+		});
+
 		test('keeps projected contribution actions listener-owned in live broadcasts and reconnect replay', async () => {
 			const changes = disposables.add(new Emitter<ActionEnvelope>());
 			const extension: IProtocolServerExtension = {

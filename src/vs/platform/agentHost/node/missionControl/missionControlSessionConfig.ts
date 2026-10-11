@@ -39,20 +39,27 @@ export function fromMissionControlConfigProperty(property: string): string {
 }
 
 /** Translates native configuration to the Copilot Host vocabulary. */
-export function toMissionControlConfigValues(values: Record<string, unknown>): Record<string, unknown> {
-	const hasApproval = Object.hasOwn(values, SessionConfigKey.AutoApprove);
-	const hasIsolation = Object.hasOwn(values, SessionConfigKey.Isolation);
-	const hasBranch = Object.hasOwn(values, SessionConfigKey.Branch);
+export function toMissionControlConfigValues(values: Record<string, unknown>, renamed?: ReadonlyMap<string, string>): Record<string, unknown> {
+	const hasApproval = (!renamed || renamed.has(SessionConfigKey.AutoApprove)) && Object.hasOwn(values, SessionConfigKey.AutoApprove);
+	const hasIsolation = (!renamed || renamed.has(SessionConfigKey.Isolation)) && Object.hasOwn(values, SessionConfigKey.Isolation);
+	const hasBranch = (!renamed || renamed.has(SessionConfigKey.Branch)) && Object.hasOwn(values, SessionConfigKey.Branch);
 	if (!hasApproval && !hasIsolation && !hasBranch) {
 		return values;
 	}
-	const { [SessionConfigKey.AutoApprove]: autoApprove, [SessionConfigKey.Isolation]: isolation, [SessionConfigKey.Branch]: branch, ...rest } = values;
-	return {
-		...rest,
-		...(hasApproval ? { [approvalModeKey]: toApprovalMode(autoApprove) } : {}),
-		...(hasIsolation ? { [targetKey]: toTarget(isolation) } : {}),
-		...(hasBranch ? { [baseBranchKey]: branch } : {}),
-	};
+	const result = { ...values };
+	if (hasApproval) {
+		delete result[SessionConfigKey.AutoApprove];
+		result[approvalModeKey] = toApprovalMode(values[SessionConfigKey.AutoApprove]);
+	}
+	if (hasIsolation) {
+		delete result[SessionConfigKey.Isolation];
+		result[targetKey] = toTarget(values[SessionConfigKey.Isolation]);
+	}
+	if (hasBranch) {
+		delete result[SessionConfigKey.Branch];
+		result[baseBranchKey] = values[SessionConfigKey.Branch];
+	}
+	return result;
 }
 
 export function fromMissionControlConfigValues(values: Record<string, unknown>): Record<string, unknown>;
@@ -145,6 +152,6 @@ export function toMissionControlSessionConfig(config: SessionConfigState): Sessi
 			properties,
 			...(config.schema.required ? { required: config.schema.required.map(key => renamed.get(key) ?? key) } : {}),
 		},
-		values: toMissionControlConfigValues(config.values),
+		values: toMissionControlConfigValues(config.values, renamed),
 	};
 }
