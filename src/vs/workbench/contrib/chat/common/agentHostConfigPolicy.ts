@@ -39,6 +39,13 @@ export function isAutoApproveValuePolicyRestricted(value: unknown, policyRestric
 	return policyRestricted && value !== ChatPermissionLevel.Default;
 }
 
+/** Disables the global override when the user explicitly selects a lower session permission. */
+export async function disableGlobalAutoApproveForPermissionSelection(configurationService: IConfigurationService, level: ChatPermissionLevel): Promise<void> {
+	if (level !== ChatPermissionLevel.AutoApprove && configurationService.getValue<boolean>(ChatConfiguration.GlobalAutoApprove) === true) {
+		await configurationService.updateValue(ChatConfiguration.GlobalAutoApprove, false);
+	}
+}
+
 export function normalizeSessionConfigValue(property: string, value: string, policyRestricted: boolean): string;
 export function normalizeSessionConfigValue(property: string, value: unknown, policyRestricted: boolean): unknown;
 export function normalizeSessionConfigValue(property: string, value: unknown, policyRestricted: boolean): unknown {

@@ -39,7 +39,7 @@ import { AgentHostAllowSignedOutWhenUsableSettingId, AgentHostMcpToolRoutingEnab
 import { AgentHostCanvasCollection } from '../../../../canvases/common/agentHostCanvas.js';
 import { ICanvasContext, ICanvasOwner, isCanvasOwner } from '../../../../canvases/common/canvas.js';
 import { CanvasReference } from '../../../../../../platform/agentHost/common/state/protocol/channels-canvas/state.js';
-import { agentHostAuthority, LOCAL_AGENT_HOST_AUTHORITY } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { agentHostAuthority, fromAgentHostUri, LOCAL_AGENT_HOST_AUTHORITY } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { isCopilotAgentHostProvider, isCopilotAgentHostSessionType } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { isCustomizationEnabled } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
 import { findDeepestContainingWorkingDirectory } from '../../../../../../platform/agentHost/common/agentHostWorkingDirectories.js';
@@ -3320,7 +3320,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// actions. The host applies the selection carried by the message before
 		// sending the turn to the agent backend.
 		const selectedModel = this._createModelSelection(request.userSelectedModelId, request.modelConfiguration);
-		const requestedAgentUri = request.modeInstructions?.uri?.toString();
+		const requestedAgentUri = request.modeInstructions?.uri ? fromAgentHostUri(request.modeInstructions.uri).toString() : undefined;
 
 		// If the chat model has fewer previous requests than the protocol has
 		// turns, a checkpoint was restored or a message was edited. Dispatch

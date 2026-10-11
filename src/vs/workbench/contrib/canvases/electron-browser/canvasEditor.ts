@@ -331,7 +331,7 @@ export class CanvasEditor extends EditorPane {
 		const help = [
 			localize('canvas.help.overview', "This canvas is a private page owned by its conversation. Its content is available while that conversation is shown."),
 			localize('canvas.help.navigation', "Tab moves through page controls. Use <keybinding:workbench.action.focusNextPart> to leave the page."),
-			localize('canvas.help.close', "Closing the tab hides this canvas. Ask the agent to reopen it, or use its canvas pill or title in Add Tab in the Agents Window while it remains available."),
+			localize('canvas.help.close', "Closing the tab hides this canvas. Use the Add Tab menu in the editor toolbar, then Canvas, to open any available canvas or reopen a hidden canvas."),
 		].join('\n\n');
 		this.semanticText = localize('canvas.reading', "Reading accessible canvas content…");
 		return new AccessibleContentProvider(

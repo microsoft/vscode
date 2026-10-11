@@ -205,7 +205,7 @@ const RELAYED_MODELS = [
 	createModel('claude-sonnet-5', 'Claude Sonnet 5', { vendor: 'agent-host-copilotcli', isBYOK: true, modelGroupId: 'copilot', category: 'powerful' }),
 	createModel('llama-3-70b', 'Llama 3 70B', { vendor: 'agent-host-copilotcli', isBYOK: true, modelGroupId: 'ollama' }),
 ];
-/** The research preview the Copilot agent host adds when enabled, listed right below Auto. */
+/** The research preview the Copilot agent host adds when enabled, offered as Auto's last tier. */
 const HYDRA_FUSION_MODEL: ILanguageModelChatMetadataAndIdentifier = (() => {
 	const model = createModel('hydrafusion', 'HydraFusion', { vendor: 'agent-host-copilotcli', isBYOK: true, modelGroupId: 'copilot', detail: 'Research preview' });
 	return { ...model, metadata: { ...model.metadata, tooltip: 'HydraFusion routes the first eligible turn and may use multiple models. Premium usage varies with the selected route.' } };
@@ -616,14 +616,9 @@ export default defineThemedFixtureGroup({ path: 'chat/input/tabbedModelPicker' }
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		render: context => renderPicker(context, { anchored: true, selectedModelId: AUTO_MODEL.identifier }),
 	}),
-	PickerAutoMode: defineComponentFixture({
-		render: context => renderPicker(context, { anchored: true, motionReduced: false }),
-	}),
-	PickerAutoModeReducedMotion: defineComponentFixture({
-		render: context => {
-			context.container.classList.add('monaco-reduce-motion');
-			return renderPicker(context, { anchored: true, motionReduced: true });
-		},
+	PickerAutoDetails: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderPicker(context, { selectedModelId: AUTO_MODEL.identifier, openDetailsFor: 'Auto' }),
 	}),
 	Picker: defineComponentFixture({ render: context => renderPicker(context, { models: COPILOT_ONLY_MODELS }) }),
 	PickerWithAddedModels: defineComponentFixture({ render: context => renderPicker(context) }),
@@ -670,10 +665,10 @@ export default defineThemedFixtureGroup({ path: 'chat/input/tabbedModelPicker' }
 		}),
 	}),
 	PickerWithAutoSelected: defineComponentFixture({ render: context => renderPicker(context, { models: COPILOT_ONLY_MODELS, selectedModelId: 'copilot/auto' }) }),
-	PickerAutoModeOtherProvider: defineComponentFixture({
+	PickerAutoSelectedOtherProvider: defineComponentFixture({
 		render: context => renderPicker(context, { selectedModelId: AUTO_MODEL.identifier, initialTabLabel: 'Ollama' }),
 	}),
-	PickerAutoModeWithManyProviders: defineComponentFixture({
+	PickerAutoSelectedWithManyProviders: defineComponentFixture({
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
 		render: context => renderPicker(context, { models: [...ALL_MODELS, ...OPENAI_MODELS, ...ANTHROPIC_MODELS, ...GOOGLE_MODELS], selectedModelId: AUTO_MODEL.identifier }),
 	}),
@@ -704,12 +699,19 @@ export default defineThemedFixtureGroup({ path: 'chat/input/tabbedModelPicker' }
 	PickerWithHydraFusion: defineComponentFixture({
 		render: context => renderPicker(context, { models: [...RELAYED_MODELS, HYDRA_FUSION_MODEL], selectedModelId: 'agent-host-copilotcli/gpt-5-5', entitlement: ChatEntitlement.Pro }),
 	}),
-	PickerAutoModeWithHydraFusion: defineComponentFixture({
+	/** HydraFusion as Auto's last tier, before it is chosen. */
+	PickerAutoDetailsWithHydraFusion: defineComponentFixture({
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		render: context => renderPicker(context, { models: [...RELAYED_MODELS, HYDRA_FUSION_MODEL], selectedModelId: 'agent-host-copilotcli/auto', entitlement: ChatEntitlement.Pro }),
+		render: context => renderPicker(context, { models: [...RELAYED_MODELS, HYDRA_FUSION_MODEL], selectedModelId: 'agent-host-copilotcli/auto', entitlement: ChatEntitlement.Pro, openDetailsFor: 'Auto' }),
 	}),
+	/** Auto stands for its HydraFusion tier in the list. */
 	PickerHydraFusionSelected: defineComponentFixture({
 		render: context => renderPicker(context, { models: [...RELAYED_MODELS, HYDRA_FUSION_MODEL], selectedModelId: HYDRA_FUSION_MODEL.identifier, entitlement: ChatEntitlement.Pro }),
+	}),
+	/** The research preview description appears once HydraFusion is chosen. */
+	PickerHydraFusionSelectedDetails: defineComponentFixture({
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: context => renderPicker(context, { models: [...RELAYED_MODELS, HYDRA_FUSION_MODEL], selectedModelId: HYDRA_FUSION_MODEL.identifier, entitlement: ChatEntitlement.Pro, openDetailsFor: 'Auto' }),
 	}),
 	PickerHydraFusionNeedsUpdate: defineComponentFixture({
 		render: context => renderPicker(context, {
