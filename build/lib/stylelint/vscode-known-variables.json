@@ -579,7 +579,6 @@
 		"--vscode-modernEditorTab-hoverBackground",
 		"--vscode-modernEditorTab-hoverForeground",
 		"--vscode-modernEditorTab-inactiveBackground",
-		"--vscode-modernEditorTab-inactiveForeground",
 		"--vscode-modernEditorTab-selectedActionBackground",
 		"--vscode-modernTab-activeBackground",
 		"--vscode-modernTab-activeForeground",
