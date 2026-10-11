@@ -33,6 +33,7 @@ import { ByteSize, FileOperationResult, IFileService, toFileOperationResult } fr
 import { createDecorator, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
+import { NotificationActionTelemetryId, withNotificationActionTelemetry } from '../../../../../platform/notification/common/notificationTelemetry.js';
 import { IProgress, IProgressService, IProgressStep, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
@@ -82,6 +83,12 @@ export interface IAgentHostDebugLogsExport {
 export interface IAgentHostDebugLogsExportOptions {
 	readonly token: CancellationToken;
 	readonly progress: IProgress<IProgressStep>;
+	/** The destination swap must finish or roll back before cancellation can dismiss progress. */
+	readonly onWillCommit?: () => void;
+}
+
+interface IAgentHostDebugLogsSaveResult {
+	readonly hostSaveError: string | undefined;
 }
 
 /**
@@ -101,7 +108,7 @@ export interface IAgentHostDebugLogsExportService {
 	readonly _serviceBrand: undefined;
 	readonly hostArtifactKind: AgentHostDebugLogsArtifactKind;
 	selectDestination(exportName: string): Promise<URI | undefined>;
-	save(destination: URI, files: readonly IAgentHostDebugLogFile[], hostArtifact: IAgentHostDebugLogsHostArtifact | undefined, options?: IAgentHostDebugLogsExportOptions): Promise<void>;
+	save(destination: URI, files: readonly IAgentHostDebugLogFile[], hostArtifact: IAgentHostDebugLogsHostArtifact | undefined, options?: IAgentHostDebugLogsExportOptions): Promise<IAgentHostDebugLogsSaveResult | void>;
 }
 
 export class BrowserAgentHostDebugLogsExportService implements IAgentHostDebugLogsExportService {
@@ -128,13 +135,13 @@ export class BrowserAgentHostDebugLogsExportService implements IAgentHostDebugLo
 		return folders?.[0] ? joinPath(folders[0], exportName) : undefined;
 	}
 
-	async save(destination: URI, files: readonly IAgentHostDebugLogFile[], hostArtifact: IAgentHostDebugLogsHostArtifact | undefined, options?: IAgentHostDebugLogsExportOptions): Promise<void> {
+	async save(destination: URI, files: readonly IAgentHostDebugLogFile[], hostArtifact: IAgentHostDebugLogsHostArtifact | undefined, options?: IAgentHostDebugLogsExportOptions): Promise<IAgentHostDebugLogsSaveResult> {
 		const staging = joinPath(dirname(destination), `.agent-host-debug-logs-${generateUuid()}`);
 		try {
 			throwIfExportCancelled(options?.token ?? CancellationToken.None);
-			await exportFilesToLocalFolder(staging, files, hostArtifact, this.fileService, this.logService, options);
-			throwIfExportCancelled(options?.token ?? CancellationToken.None);
-			await this.fileService.move(staging, destination, true);
+			const result = await exportFilesToLocalFolder(staging, files, hostArtifact, this.fileService, this.logService, options);
+			await commitAgentHostDebugLogsExport(staging, destination, this.fileService, this.logService, options);
+			return result;
 		} finally {
 			try {
 				if (await this.fileService.exists(staging)) {
@@ -143,6 +150,44 @@ export class BrowserAgentHostDebugLogsExportService implements IAgentHostDebugLo
 			} catch (error) {
 				this.logService.warn('[ExportAgentHostDebugLogs] Failed to remove incomplete folder export', error);
 			}
+		}
+	}
+}
+
+/** Replaces an export without deleting its previous contents before the new export has been installed. */
+export async function commitAgentHostDebugLogsExport(
+	staging: URI,
+	destination: URI,
+	fileService: IFileService,
+	logService: ILogService,
+	options?: IAgentHostDebugLogsExportOptions,
+): Promise<void> {
+	const backup = joinPath(dirname(destination), `.agent-host-debug-logs-backup-${generateUuid()}`);
+	const hasDestination = await fileService.exists(destination);
+	throwIfExportCancelled(options?.token ?? CancellationToken.None);
+	options?.onWillCommit?.();
+	options?.progress.report({ message: localize('exportDebugLogs.commitProgress', "Finishing export (cannot cancel)...") });
+	try {
+		if (hasDestination) {
+			await fileService.move(destination, backup, false);
+		}
+		await fileService.move(staging, destination, false);
+	} catch (error) {
+		if (hasDestination && await fileService.exists(backup)) {
+			try {
+				await fileService.move(backup, destination, false);
+			} catch (rollbackError) {
+				logService.error('[ExportAgentHostDebugLogs] Failed to restore previous export', rollbackError);
+				throw new Error(localize('exportDebugLogs.rollbackError', "Failed to save debug logs: {0}. The previous export could not be restored and is preserved at {1}: {2}", getErrorMessage(error), backup.toString(true), getErrorMessage(rollbackError)));
+			}
+		}
+		throw error;
+	}
+	if (hasDestination) {
+		try {
+			await fileService.del(backup, { recursive: true });
+		} catch (error) {
+			logService.warn(`[ExportAgentHostDebugLogs] Failed to remove export backup '${backup.toString()}'`, error);
 		}
 	}
 }
@@ -523,7 +568,16 @@ export async function exportAgentHostDebugLogs(
 	const logService = accessor.get(ILogService);
 	const progressService = accessor.get(IProgressService);
 	let hostArtifact: IAgentHostDebugLogsArtifact | undefined;
-	const cancellation = new CancellationTokenSource();
+	let committing = false;
+	const disposables = new DisposableStore();
+	const cancellation = disposables.add(new CancellationTokenSource());
+	const cancelAction = disposables.add(new Action('cancelAgentHostDebugLogs', localize('exportDebugLogs.cancel', "Cancel"), undefined, true, () => {
+		if (!committing) {
+			cancellation.cancel();
+		}
+		return Promise.resolve();
+	}));
+	withNotificationActionTelemetry(cancelAction, NotificationActionTelemetryId.ProgressCancel);
 	const deleteHostArtifact = async (artifact: IAgentHostDebugLogsArtifact) => {
 		try {
 			await fileService.del(artifact.resource, { recursive: artifact.kind === 'directory' });
@@ -536,10 +590,17 @@ export async function exportAgentHostDebugLogs(
 		await progressService.withProgress({
 			location: ProgressLocation.Notification,
 			title: localize('exportDebugLogs.progress', "Exporting Agent Host debug logs"),
-			cancellable: true,
+			primaryActions: [cancelAction],
 			delay: 500,
 		}, async progress => {
-			const options = { token: cancellation.token, progress };
+			const options: IAgentHostDebugLogsExportOptions = {
+				token: cancellation.token,
+				progress,
+				onWillCommit: () => {
+					committing = true;
+					cancelAction.enabled = false;
+				},
+			};
 			try {
 				const [collectionResult, destinationResult] = await prepareAgentHostDebugLogsExport(
 					() => raceCancellationError(exportService.selectDestination(exportName).then(destination => {
@@ -576,10 +637,12 @@ export async function exportAgentHostDebugLogs(
 					return;
 				}
 				try {
-					await raceCancellationError(exportService.save(destination, collectionResult.value.files, collectionResult.value.hostArtifact, options), options.token);
+					const saveResult = await raceCancellationError(exportService.save(destination, collectionResult.value.files, collectionResult.value.hostArtifact, options), options.token);
 					throwIfExportCancelled(options.token);
 					if (collectionResult.value.hostCollectionError) {
 						notificationService.warn(localize('exportDebugLogs.partialExport', "Only VS Code logs were exported. Agent Host logs could not be collected: {0}", collectionResult.value.hostCollectionError));
+					} else if (saveResult?.hostSaveError) {
+						notificationService.warn(localize('exportDebugLogs.partialSave', "Agent Host logs were not fully exported: {0}", saveResult.hostSaveError));
 					}
 					notifyAgentHostDebugLogsExported(notificationService, clipboardService, chatEntitlementService.isInternal, destination);
 				} catch (error) {
@@ -601,13 +664,13 @@ export async function exportAgentHostDebugLogs(
 					}), options.token);
 				}
 			}
-		}, () => cancellation.cancel());
+		});
 	} catch (error) {
 		if (!isCancellationError(error)) {
 			notificationService.error(localize('exportDebugLogs.error', "Failed to export debug logs: {0}", getErrorMessage(error)));
 		}
 	} finally {
-		cancellation.dispose();
+		disposables.dispose();
 	}
 }
 
@@ -690,9 +753,10 @@ async function exportFilesToLocalFolder(
 	fileService: IFileService,
 	logService: ILogService,
 	options?: IAgentHostDebugLogsExportOptions,
-): Promise<void> {
+): Promise<IAgentHostDebugLogsSaveResult> {
 	await fileService.createFolder(exportFolder);
 	const copiedHostPaths = new Set<string>();
+	let hostSaveError: string | undefined;
 	if (hostArtifact) {
 		try {
 			if (hostArtifact.artifact.kind !== 'directory') {
@@ -707,6 +771,7 @@ async function exportFilesToLocalFolder(
 				throw error;
 			}
 			logService.warn(`[ExportAgentHostDebugLogs] Failed to save Agent Host logs: ${error instanceof Error ? error.message : String(error)}; saving client-owned logs only`);
+			hostSaveError = getErrorMessage(error);
 		}
 	}
 	for (const file of files) {
@@ -733,6 +798,7 @@ async function exportFilesToLocalFolder(
 			await fileService.writeFile(target, source.value);
 		}
 	}
+	return { hostSaveError };
 }
 
 async function copyHostArtifactDirectory(

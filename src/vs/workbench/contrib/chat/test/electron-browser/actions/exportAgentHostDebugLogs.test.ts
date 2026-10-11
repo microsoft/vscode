@@ -30,9 +30,9 @@ import { NativeAgentHostDebugLogsExportService } from '../../../electron-browser
 suite('NativeAgentHostDebugLogsExportService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function setupService(nativeHost: INativeHostService) {
+	function setupService(nativeHost: INativeHostService, provider = new InMemoryFileSystemProvider()) {
 		const fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+		disposables.add(fileService.registerProvider(Schemas.file, disposables.add(provider)));
 		const instantiation = disposables.add(new TestInstantiationService());
 		instantiation.stub(IFileService, fileService);
 		instantiation.stub(INativeHostService, nativeHost);
@@ -128,5 +128,29 @@ suite('NativeAgentHostDebugLogsExportService', () => {
 			exportFiles: (await fileService.resolve(URI.file('/exports'))).children?.map(child => child.name),
 			temporaryFiles: (await fileService.resolve(URI.file('/tmp'))).children?.map(child => child.name),
 		}, { cancelled: true, existing: 'existing', exportFiles: ['logs.zip'], temporaryFiles: [] });
+	});
+
+	test('restores the previous ZIP when the final rename fails and removes staging', async () => {
+		const zipProgress = disposables.add(new Emitter<INativeZipProgress>());
+		const provider = new class extends InMemoryFileSystemProvider {
+			override async rename(from: URI, to: URI, options: { overwrite: boolean }): Promise<void> {
+				if (from.path.includes('.agent-host-debug-logs-') && from.path.endsWith('.zip')) {
+					throw new Error('Install failed');
+				}
+				await super.rename(from, to, options);
+			}
+		}();
+		const { service, fileService } = setupService(upcastPartial<INativeHostService>({
+			onDidProgressZipFile: zipProgress.event,
+			cancelZipFile: async () => { },
+			createZipFile: async target => { await fileService.writeFile(target, VSBuffer.fromString('new ZIP')); },
+		}), provider);
+		const destination = URI.file('/exports/logs.zip');
+		await fileService.writeFile(destination, VSBuffer.fromString('previous ZIP'));
+		await assert.rejects(service.save(destination, [], undefined), /Install failed/);
+		assert.deepStrictEqual({
+			files: (await fileService.resolve(URI.file('/exports'))).children?.map(child => child.name),
+			previous: (await fileService.readFile(destination)).value.toString(),
+		}, { files: ['logs.zip'], previous: 'previous ZIP' });
 	});
 });

@@ -21,6 +21,8 @@ The final line gives the temporary extraction path. Work from that folder and de
 
 Desktop ZIP exports keep host-owned logs compressed inside `host-logs.zip`, alongside the client-owned logs and sidecars. If that entry is present, run the same extractor on `<extracted-folder>/host-logs.zip` and inspect both extraction folders. The host archive contains `events.jsonl`, provider logs, Agent Host process logs, and Mission Control transport logs. Folder exports place these files directly in the export folder.
 
+Exports remain cancellable while collecting and saving logs. The final destination swap disables Cancel until it finishes or restores the previous export. If restoration fails, the error identifies the backup holding the previous export. Partial host-log collection or copying produces a warning alongside the saved client logs.
+
 Files are collected best-effort, so a valid bundle may contain only some of these:
 
 ```text

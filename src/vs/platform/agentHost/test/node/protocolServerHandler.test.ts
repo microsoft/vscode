@@ -546,6 +546,7 @@ suite('ProtocolServerHandler', () => {
 				'vscode.ahpSessionUris': true,
 				'vscode.detachedWorktrees': true,
 				'vscode.autonomousAutomations': true,
+				'vscode.debugLogsCancellation': true,
 				'vscode.getAgentHostSessionStateFile.chat': true,
 				'vscode.removeSessionArtifact': true,
 				'vscode.importSession': true,

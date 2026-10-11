@@ -41,10 +41,10 @@ import { TestNotificationService } from '../../../../../platform/notification/te
 import { IPathService } from '../../../../../platform/path/common/pathService.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { TestPathService } from '../../../../test/browser/workbenchTestServices.js';
-import { BrowserAgentHostDebugLogsExportService, collectAgentHostDebugLogs, collectRotatedLogFiles, createHostArtifactStream, exportAgentHostDebugLogs, findOutputChannelLogFiles, getAgentHostDebugLogsExportName, IAgentHostDebugLogsExportService, notifyAgentHostDebugLogsExported, prepareAgentHostDebugLogsExport, resolveAgentHostDebugLogsChat, toActiveAgentHostSession } from '../../browser/actions/exportAgentHostDebugLogsAction.js';
+import { BrowserAgentHostDebugLogsExportService, collectAgentHostDebugLogs, collectRotatedLogFiles, commitAgentHostDebugLogsExport, createHostArtifactStream, exportAgentHostDebugLogs, findOutputChannelLogFiles, getAgentHostDebugLogsExportName, IAgentHostDebugLogsExportService, notifyAgentHostDebugLogsExported, prepareAgentHostDebugLogsExport, resolveAgentHostDebugLogsChat, toActiveAgentHostSession } from '../../browser/actions/exportAgentHostDebugLogsAction.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { MISSION_CONTROL_AHP_LOG_ID } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
-import { IProgressService } from '../../../../../platform/progress/common/progress.js';
+import { IProgressNotificationOptions, IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 
 function artifactOfSize(size: number): IAgentHostDebugLogsArtifact {
@@ -150,12 +150,22 @@ suite('exportAgentHostDebugLogs progress', () => {
 
 	function setupExport(collection: () => Promise<IAgentHostDebugLogsArtifact>) {
 		const instantiation = disposables.add(new TestInstantiationService());
-		const notificationService = new TestNotificationService();
+		const notifications: INotification[] = [];
+		const notificationService = new class extends TestNotificationService {
+			override notify(notification: INotification) {
+				notifications.push(notification);
+				for (const action of notification.actions?.primary ?? []) {
+					if (isDisposable(action)) {
+						disposables.add(action);
+					}
+				}
+				return super.notify(notification);
+			}
+		};
 		const removed = new DeferredPromise<void>();
 		const cancelHost: string[] = [];
-		let cancel: (() => void) | undefined;
+		let cancel: IProgressNotificationOptions['primaryActions'];
 		let active = false;
-		let cancellable: boolean | string | undefined;
 		const messages: string[] = [];
 		instantiation.stub(IAgentHostConnectionsService, {
 			ambientConnection: upcastPartial<IAgentConnection>({
@@ -178,9 +188,9 @@ suite('exportAgentHostDebugLogs progress', () => {
 		instantiation.stub(IClipboardService, new TestClipboardService());
 		instantiation.stub(IChatEntitlementService, { isInternal: false });
 		instantiation.stub(IProgressService, upcastPartial<IProgressService>({
-			withProgress: async (options, task, onDidCancel) => {
-				cancellable = options.cancellable;
-				cancel = onDidCancel;
+			withProgress: async (options, task) => {
+				const notificationOptions: IProgressNotificationOptions = { ...options, location: ProgressLocation.Notification };
+				cancel = notificationOptions.primaryActions;
 				active = true;
 				try {
 					return await task({
@@ -195,7 +205,7 @@ suite('exportAgentHostDebugLogs progress', () => {
 				}
 			},
 		}));
-		return { instantiation, removed, cancelHost, notificationService, messages, cancel: () => cancel?.(), isActive: () => active, isCancellable: () => cancellable };
+		return { instantiation, removed, cancelHost, notifications, messages, cancel: () => cancel?.[0]?.run(), isActive: () => active, isCancellable: () => cancel?.[0]?.enabled };
 	}
 
 	test('cancels pending host collection immediately and cleans a late artifact', async () => {
@@ -213,12 +223,13 @@ suite('exportAgentHostDebugLogs progress', () => {
 		});
 		const exported = context.instantiation.invokeFunction(accessor => exportAgentHostDebugLogs(accessor, undefined));
 		await started.p;
+		const cancellable = context.isCancellable();
 		context.cancel();
 		await exported;
 		collection.complete(artifactOfSize(10));
 		await context.removed.p;
 		assert.deepStrictEqual({
-			cancellable: context.isCancellable(), active: context.isActive(),
+			cancellable, active: context.isActive(),
 			cancelledHost: context.cancelHost.length, saved,
 		}, { cancellable: true, active: false, cancelledHost: 1, saved: false });
 	});
@@ -254,16 +265,6 @@ suite('exportAgentHostDebugLogs progress', () => {
 				options?.progress.report({ message: 'Saving archive' });
 			},
 		});
-		context.instantiation.stub(INotificationService, new class extends TestNotificationService {
-			override notify(notification: INotification) {
-				for (const action of notification.actions?.primary ?? []) {
-					if (isDisposable(action)) {
-						disposables.add(action);
-					}
-				}
-				return super.notify(notification);
-			}
-		});
 		await context.instantiation.invokeFunction(accessor => exportAgentHostDebugLogs(accessor, undefined));
 		assert.deepStrictEqual({
 			progressActiveDuringSave,
@@ -271,6 +272,101 @@ suite('exportAgentHostDebugLogs progress', () => {
 			active: context.isActive(),
 		}, { progressActiveDuringSave: true, lastMessage: 'Cleaning up temporary logs...', active: false });
 	});
+
+	test('awaits the non-cancellable destination commit instead of reporting late cancellation', async () => {
+		const context = setupExport(async () => artifactOfSize(10));
+		const committing = new DeferredPromise<void>();
+		const finish = new DeferredPromise<void>();
+		context.instantiation.stub(IAgentHostDebugLogsExportService, {
+			hostArtifactKind: 'archive',
+			selectDestination: async () => URI.file('/exports/logs.zip'),
+			save: async (_destination, _files, _artifact, options) => {
+				options?.onWillCommit?.();
+				committing.complete();
+				await finish.p;
+			},
+		});
+		const exported = context.instantiation.invokeFunction(accessor => exportAgentHostDebugLogs(accessor, undefined));
+		await committing.p;
+		assert.strictEqual(context.isCancellable(), false);
+		context.cancel();
+		await Promise.resolve();
+		assert.strictEqual(context.isActive(), true);
+		finish.complete();
+		await exported;
+		assert.deepStrictEqual({
+			active: context.isActive(),
+			successNotifications: context.notifications.filter(notification => notification.actions?.primary?.length).length,
+		}, { active: false, successNotifications: 1 });
+	});
+
+	test('warns when folder saving returns a partial host export', async () => {
+		const context = setupExport(async () => artifactOfSize(10));
+		context.instantiation.stub(IAgentHostDebugLogsExportService, {
+			hostArtifactKind: 'directory',
+			selectDestination: async () => URI.file('/exports/logs'),
+			save: async () => ({ hostSaveError: 'Remote log read failed' }),
+		});
+		await context.instantiation.invokeFunction(accessor => exportAgentHostDebugLogs(accessor, undefined));
+		assert.strictEqual(context.notifications[0].message, 'Agent Host logs were not fully exported: Remote log read failed');
+	});
+});
+
+suite('commitAgentHostDebugLogsExport', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const directory of [false, true]) {
+		for (const failure of ['none', 'install', 'rollback']) {
+			test(`${directory ? 'folder' : 'ZIP'} commit preserves the previous export on ${failure} failure`, async () => {
+				const logService = new NullLogService();
+				const destination = URI.file('/exports/logs');
+				const staging = URI.file('/exports/staging');
+				const fileService = disposables.add(new FileService(logService));
+				const cancellation = disposables.add(new CancellationTokenSource());
+				let committing = false;
+				const provider = disposables.add(new class extends InMemoryFileSystemProvider {
+					override async rename(from: URI, to: URI, options: { overwrite: boolean }): Promise<void> {
+						if (from.path === staging.path) {
+							assert.strictEqual(committing, true);
+							cancellation.cancel();
+							if (failure !== 'none') {
+								throw new Error('Install failed');
+							}
+						} else if (from.path.includes('backup') && failure === 'rollback') {
+							throw new Error('Restore failed');
+						}
+						await super.rename(from, to, options);
+					}
+				}());
+				disposables.add(fileService.registerProvider(Schemas.file, provider));
+				const previous = directory ? URI.joinPath(destination, 'previous.log') : destination;
+				const next = directory ? URI.joinPath(staging, 'next.log') : staging;
+				await fileService.writeFile(previous, VSBuffer.fromString('previous'));
+				await fileService.writeFile(next, VSBuffer.fromString('next'));
+				const committed = commitAgentHostDebugLogsExport(staging, destination, fileService, logService, {
+					token: cancellation.token, progress: { report: () => { } },
+					onWillCommit: () => { committing = true; },
+				});
+				if (failure === 'none') {
+					await committed;
+					const installed = directory ? URI.joinPath(destination, 'next.log') : destination;
+					assert.deepStrictEqual({
+						contents: (await fileService.readFile(installed)).value.toString(),
+						files: (await fileService.resolve(URI.file('/exports'))).children?.map(child => child.name),
+					}, { contents: 'next', files: ['logs'] });
+				} else if (failure === 'install') {
+					await assert.rejects(committed, /Install failed/);
+					assert.strictEqual((await fileService.readFile(previous)).value.toString(), 'previous');
+					assert.ok(!(await fileService.resolve(URI.file('/exports'))).children?.some(child => child.name.includes('backup')));
+				} else {
+					await assert.rejects(committed, /previous export could not be restored and is preserved at/);
+					const backup = (await fileService.resolve(URI.file('/exports'))).children?.find(child => child.name.includes('backup'));
+					assert.ok(backup);
+					assert.strictEqual((await fileService.readFile(directory ? URI.joinPath(backup.resource, 'previous.log') : backup.resource)).value.toString(), 'previous');
+				}
+			});
+		}
+	}
 });
 
 suite('BrowserAgentHostDebugLogsExportService', () => {
@@ -356,6 +452,27 @@ suite('BrowserAgentHostDebugLogsExportService', () => {
 			fallbackDestination: URI.joinPath(fallbackDirectory, 'fallback-export').toString(),
 			preferredHomeCalls: 1,
 			statUris: [configuredDirectory.toString(), missingDirectory.toString()],
+		});
+
+		test('returns partial-export status when a remote directory-artifact read fails', async () => {
+			const logService = new NullLogService();
+			const fileService = disposables.add(new FileService(logService));
+			disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+			const instantiation = disposables.add(new TestInstantiationService());
+			instantiation.stub(IFileService, fileService);
+			instantiation.stub(ILogService, logService);
+			instantiation.stub(IConfigurationService, new TestConfigurationService());
+			instantiation.stub(IFileDialogService, upcastPartial<IFileDialogService>({}));
+			const service = instantiation.createInstance(BrowserAgentHostDebugLogsExportService);
+			const destination = URI.file('/exports/logs');
+			const result = await service.save(destination, [{ path: 'client.log', contents: 'client', size: 6 }], {
+				artifact: { ...artifactOfSize(10), kind: 'directory' },
+				readChunk: async () => { throw new Error('Remote log read failed'); },
+			});
+			assert.deepStrictEqual({
+				result,
+				clientLog: (await fileService.readFile(URI.joinPath(destination, 'client.log'))).value.toString(),
+			}, { result: { hostSaveError: 'Remote log read failed' }, clientLog: 'client' });
 		});
 	});
 });

@@ -21,7 +21,7 @@ import { ByteSize, IFileService } from '../../../../../platform/files/common/fil
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INativeHostService, type INativeZipFile } from '../../../../../platform/native/common/native.js';
-import { createHostArtifactStream, IAgentHostDebugLogFile, IAgentHostDebugLogsExportService, resolveAgentHostDebugLogsExportDirectory, type IAgentHostDebugLogsExportOptions, type IAgentHostDebugLogsHostArtifact } from '../../browser/actions/exportAgentHostDebugLogsAction.js';
+import { commitAgentHostDebugLogsExport, createHostArtifactStream, IAgentHostDebugLogFile, IAgentHostDebugLogsExportService, resolveAgentHostDebugLogsExportDirectory, type IAgentHostDebugLogsExportOptions, type IAgentHostDebugLogsHostArtifact } from '../../browser/actions/exportAgentHostDebugLogsAction.js';
 
 export class NativeAgentHostDebugLogsExportService implements IAgentHostDebugLogsExportService {
 	declare readonly _serviceBrand: undefined;
@@ -114,8 +114,7 @@ export class NativeAgentHostDebugLogsExportService implements IAgentHostDebugLog
 			} finally {
 				creatingZip = false;
 			}
-			checkCancellation();
-			await this.fileService.move(temporaryExport, destination, true);
+			await commitAgentHostDebugLogsExport(temporaryExport, destination, this.fileService, this.logService, options);
 			this.logService.info(`[ExportAgentHostDebugLogs] Created final ZIP in ${watch.elapsed()}ms`);
 		} finally {
 			cancellation.cancel();
