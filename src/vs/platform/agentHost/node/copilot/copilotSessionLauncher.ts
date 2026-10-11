@@ -515,7 +515,16 @@ function resolveConfiguredAutoTierOverride(model: ModelSelection | undefined, co
 		return undefined;
 	}
 	logService.info(`[Copilot:${sessionId}] Applying Auto "Optimize for" override '${tier}'`);
-	return tier;
+	return toEnsembleTier(tier, configurationService, logService, sessionId);
+}
+
+/** Ensemble offers no Efficiency, so it runs as Ensemble's default instead. */
+function toEnsembleTier(tier: AutoModeTier, configurationService: Pick<IAgentConfigurationService, 'getRootValue'>, logService: ILogService, sessionId: string): AutoModeTier {
+	if (tier !== 'efficiency' || configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.Ensemble) !== true) {
+		return tier;
+	}
+	logService.info(`[Copilot:${sessionId}] Using Ensemble's '${defaultAutoModeTier}' in place of Auto "Optimize for" '${tier}'`);
+	return defaultAutoModeTier;
 }
 
 /** Resolves the shared override first, then the picker preference. */
@@ -528,12 +537,8 @@ export function resolveCopilotAutoTier(model: ModelSelection | undefined, config
 	if (tier === undefined) {
 		return undefined;
 	}
-	if (tier === 'efficiency' && configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.Ensemble) === true) {
-		logService.info(`[Copilot:${sessionId}] Using Ensemble's '${defaultAutoModeTier}' in place of Auto "Optimize for" preference '${tier}'`);
-		return defaultAutoModeTier;
-	}
 	logService.info(`[Copilot:${sessionId}] Using Auto "Optimize for" preference '${tier}'`);
-	return tier;
+	return toEnsembleTier(tier, configurationService, logService, sessionId);
 }
 
 /**

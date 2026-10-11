@@ -20,5 +20,6 @@ export function withAgentModelEnsembleMeta(meta: Record<string, unknown> | undef
 
 export function readAgentModelEnsembleMeta(model: IAgentModelInfo | SessionModelInfo): IAgentModelEnsembleMeta | undefined {
 	const value = model._meta?.[VSCODE_ENSEMBLE_META_KEY];
-	return isObject(value) ? { intelligenceUsesHydraFusion: (value as { intelligenceUsesHydraFusion?: unknown }).intelligenceUsesHydraFusion === true } : undefined;
+	const intelligenceUsesHydraFusion = isObject(value) ? (value as { intelligenceUsesHydraFusion?: unknown }).intelligenceUsesHydraFusion : undefined;
+	return typeof intelligenceUsesHydraFusion === 'boolean' ? { intelligenceUsesHydraFusion } : undefined;
 }

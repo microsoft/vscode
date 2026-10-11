@@ -105,12 +105,19 @@ export class AgentHostCopilotCliSettingsContribution extends Disposable implemen
 			{
 				key: CopilotCliConfigKey.Ensemble,
 				computeValue: () => this._isEnsembleEnabled(),
-				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, AgentHostEnsembleEnabledSettingId),
+				registerTriggers: (store, push) => {
+					this._pushOnSettingChange(store, push, AgentHostEnsembleEnabledSettingId);
+					store.add(this._defaultAccountService.onDidChangePolicyData(push));
+				},
 			},
 			{
 				key: CopilotCliConfigKey.EnsembleIntelligenceUsesHydraFusion,
-				computeValue: () => this._configurationService.getValue<boolean>(AgentHostEnsembleIntelligenceUsesHydraFusionSettingId) === true,
-				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, AgentHostEnsembleIntelligenceUsesHydraFusionSettingId),
+				computeValue: () => this._defaultAccountService.policyData?.chat_preview_features_enabled !== false
+					&& this._configurationService.getValue<boolean>(AgentHostEnsembleIntelligenceUsesHydraFusionSettingId) === true,
+				registerTriggers: (store, push) => {
+					this._pushOnSettingChange(store, push, AgentHostEnsembleIntelligenceUsesHydraFusionSettingId);
+					store.add(this._defaultAccountService.onDidChangePolicyData(push));
+				},
 			},
 			{
 				key: CopilotCliConfigKey.Memory,
@@ -183,7 +190,8 @@ export class AgentHostCopilotCliSettingsContribution extends Disposable implemen
 	}
 
 	private _isEnsembleEnabled(): boolean {
-		return this._configurationService.getValue<boolean>(AgentHostEnsembleEnabledSettingId) === true;
+		return this._defaultAccountService.policyData?.chat_preview_features_enabled !== false
+			&& this._configurationService.getValue<boolean>(AgentHostEnsembleEnabledSettingId) === true;
 	}
 
 	private _pushOnSettingChange(store: DisposableStore, push: () => void, settingId: string): void {

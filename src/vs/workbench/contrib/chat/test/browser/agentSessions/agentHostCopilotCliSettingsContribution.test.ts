@@ -299,8 +299,8 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 			[CopilotCliConfigKey.Ensemble]: fullSchema[CopilotCliConfigKey.Ensemble],
 			[CopilotCliConfigKey.EnsembleIntelligenceUsesHydraFusion]: fullSchema[CopilotCliConfigKey.EnsembleIntelligenceUsesHydraFusion],
 		};
-		const forwarded = async (settings: Record<string, unknown>) => {
-			const { agentHostService } = setup(disposables, settings);
+		const forwarded = async (settings: Record<string, unknown>, previewFeaturesEnabled = true) => {
+			const { agentHostService } = setup(disposables, settings, { chat_preview_features_enabled: previewFeaturesEnabled });
 			agentHostService.setRootState(makeRootStateWithSchema(ensembleSchema));
 			await flush();
 			const config: Record<string, unknown> = Object.assign({}, ...agentHostService.dispatchedActions.map(a => (a.action as IRootConfigChangedAction).config));
@@ -310,10 +310,12 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 			off: await forwarded({}),
 			ensemble: await forwarded({ [AgentHostEnsembleEnabledSettingId]: true }),
 			routing: await forwarded({ [AgentHostEnsembleEnabledSettingId]: true, [AgentHostEnsembleIntelligenceUsesHydraFusionSettingId]: true }),
+			previewFeaturesDisabled: await forwarded({ [AgentHostEnsembleEnabledSettingId]: true, [AgentHostEnsembleIntelligenceUsesHydraFusionSettingId]: true }, false),
 		}, {
 			off: 'false/false',
 			ensemble: 'true/false',
 			routing: 'true/true',
+			previewFeaturesDisabled: 'false/false',
 		});
 	});
 

@@ -210,18 +210,22 @@ suite('AgentHostLanguageModelProvider', () => {
 			{ ...makeModel('gpt-5', withAgentModelEnsembleMeta(undefined, { intelligenceUsesHydraFusion: true })) },
 		]);
 		const infos = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
-		const plainHost = createProvider();
-		plainHost.updateModels([makeModel('auto')]);
-		const plain = (await plainHost.provideLanguageModelChatInfo(undefined, CancellationToken.None))[0];
+		const ensembleOf = async (meta?: Record<string, unknown>) => {
+			const host = createProvider();
+			host.updateModels([makeModel('auto', meta)]);
+			return (await host.provideLanguageModelChatInfo(undefined, CancellationToken.None))[0].metadata.autoModelEnsemble;
+		};
 		assert.deepStrictEqual({
 			models: infos.map(m => ({ name: m.metadata.name, ensemble: m.metadata.autoModelEnsemble, tooltip: m.metadata.tooltip })),
-			plain: plain.metadata.autoModelEnsemble,
+			plain: await ensembleOf(),
+			malformed: [await ensembleOf({ 'vscode.chat.ensemble': {} }), await ensembleOf({ 'vscode.chat.ensemble': { intelligenceUsesHydraFusion: 'true' } })],
 		}, {
 			models: [
 				{ name: 'Ensemble', ensemble: { intelligenceUsesHydraFusion: true }, tooltip: ILanguageModelChatMetadata.getAutoModelDescription(true) },
 				{ name: 'gpt-5', ensemble: undefined, tooltip: undefined },
 			],
 			plain: undefined,
+			malformed: [undefined, undefined],
 		});
 	});
 
