@@ -435,29 +435,37 @@ suite('ModelPickerTelemetry', () => {
 		result.hide();
 	});
 
-	test('the input shows a HydraFusion tier as Ensemble with that tier, and opening on an Ensemble reports its routing trigger', () => {
+	test('the input shows a HydraFusion tier as Ensemble with that tier, and opening on an Ensemble that can route Intelligence reports its trigger', () => {
 		const ensemble = { ...autoModel, metadata: { ...autoModel.metadata, name: 'Ensemble', autoModelEnsemble: { intelligenceUsesHydraFusion: true } } };
+		const hydraFusion = createModel('hydrafusion', { name: 'HydraFusion', modelGroup: { id: 'copilotcli' } });
 		const max = createModel('hydrafusion-max', { name: 'HydraFusion Max', modelGroup: { id: 'copilotcli' } });
 		const triggers = (picker: ReturnType<typeof createPicker>) => picker.events.flatMap(event => event.name === 'experimentTrigger' ? [(event.data as IStringDictionary<unknown>).treatmentName] : []);
-		const plain = createPicker(max, undefined, [autoModel, max, model]);
-		const result = createPicker(max, undefined, [ensemble, max, model]);
+		const plain = createPicker(max, undefined, [autoModel, hydraFusion, max, model]);
+		const withoutHydraFusion = createPicker(max, undefined, [ensemble, max, model]);
+		const result = createPicker(max, undefined, [ensemble, hydraFusion, max, model]);
 		result.picker.render(result.container);
 		assert.deepStrictEqual({
 			input: Array.from(result.container.querySelectorAll('.chat-input-picker-label'), label => label.textContent),
 			ensembleTriggers: triggers(result),
+			withoutHydraFusionTriggers: triggers(withoutHydraFusion),
 			autoTriggers: triggers(plain),
 		}, {
 			input: ['Ensemble', 'Max'],
 			ensembleTriggers: ['config.chat.copilot.ensemble.intelligenceUsesHydraFusion'],
+			withoutHydraFusionTriggers: [],
 			autoTriggers: [],
 		});
 	});
 
-	test('a chat that chose HydraFusion moves to Ensemble\'s Intelligence unless Ensemble routes Intelligence there', async () => {
+	test('a chat moves between HydraFusion and Ensemble\'s Intelligence as Ensemble routes Intelligence', async () => {
 		const hydraFusion = createModel('hydrafusion', { name: 'HydraFusion', modelGroup: { id: 'copilotcli' } });
-		const open = async (intelligenceUsesHydraFusion: boolean) => {
+		const open = async (intelligenceUsesHydraFusion: boolean, selected: 'hydraFusion' | 'ensembleIntelligence') => {
 			const ensemble = { ...autoModel, metadata: { ...autoModel.metadata, name: 'Ensemble', autoModelEnsemble: { intelligenceUsesHydraFusion } } };
-			const result = createPicker(hydraFusion, undefined, [ensemble, hydraFusion, model]);
+			const result = createPicker(selected === 'hydraFusion' ? hydraFusion : model, undefined, [ensemble, hydraFusion, model]);
+			if (selected === 'ensembleIntelligence') {
+				result.configurations.set(ensemble.identifier, { tier: 'intelligence' });
+				result.picker.setSelectedModel(ensemble);
+			}
 			await timeout(0);
 			return {
 				selected: result.picker.selectedModel?.identifier,
@@ -465,10 +473,17 @@ suite('ModelPickerTelemetry', () => {
 				triggers: result.events.flatMap(event => event.name === 'experimentTrigger' ? [(event.data as IStringDictionary<unknown>).treatmentName] : []),
 			};
 		};
-		const trigger = 'config.chat.copilot.ensemble.intelligenceUsesHydraFusion';
-		assert.deepStrictEqual({ notRouted: await open(false), routed: await open(true) }, {
-			notRouted: { selected: autoModel.identifier, tier: 'intelligence', triggers: [trigger] },
-			routed: { selected: 'copilot/hydrafusion', tier: undefined, triggers: [trigger] },
+		const triggers = ['config.chat.copilot.ensemble.intelligenceUsesHydraFusion'];
+		assert.deepStrictEqual({
+			hydraFusionNotRouted: await open(false, 'hydraFusion'),
+			hydraFusionRouted: await open(true, 'hydraFusion'),
+			ensembleIntelligenceRouted: await open(true, 'ensembleIntelligence'),
+			ensembleIntelligenceNotRouted: await open(false, 'ensembleIntelligence'),
+		}, {
+			hydraFusionNotRouted: { selected: autoModel.identifier, tier: 'intelligence', triggers },
+			hydraFusionRouted: { selected: hydraFusion.identifier, tier: undefined, triggers },
+			ensembleIntelligenceRouted: { selected: hydraFusion.identifier, tier: 'intelligence', triggers },
+			ensembleIntelligenceNotRouted: { selected: autoModel.identifier, tier: 'intelligence', triggers },
 		});
 	});
 

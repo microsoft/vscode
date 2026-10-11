@@ -275,31 +275,50 @@ export class ModelPickerWidget extends Disposable {
 	}
 
 	private _normalizeSelectedModel(model: ILanguageModelChatMetadataAndIdentifier | undefined): ILanguageModelChatMetadataAndIdentifier | undefined {
-		if (!model || !isHydraFusionModel(model) || isUserProvidedModel(model, this._languageModelsService)) {
+		if (!model || isUserProvidedModel(model, this._languageModelsService)) {
 			return model;
 		}
 		const models = this._delegate.getModels();
-		const auto = models.find(model => isAutoModel(model) && !isUserProvidedModel(model, this._languageModelsService));
-		if (isHydraFusionUpgradeOnly(this._entitlementService.entitlement)) {
-			return auto
+		if (isHydraFusionModel(model) && isHydraFusionUpgradeOnly(this._entitlementService.entitlement)) {
+			return models.find(model => isAutoModel(model) && !isUserProvidedModel(model, this._languageModelsService))
 				?? models.find(model => !isHydraFusionModel(model) || isUserProvidedModel(model, this._languageModelsService))
 				?? model;
 		}
-		const ensemble = auto?.metadata.autoModelEnsemble;
-		if (!auto || !ensemble || model.metadata.id !== COPILOT_HYDRA_FUSION_MODEL_ID) {
+		return this._normalizeEnsembleIntelligence(model, models);
+	}
+
+	/** Ensemble's Intelligence is HydraFusion when it routes there and its own tier otherwise, so a chat on the other moves. */
+	private _normalizeEnsembleIntelligence(model: ILanguageModelChatMetadataAndIdentifier, models: readonly ILanguageModelChatMetadataAndIdentifier[]): ILanguageModelChatMetadataAndIdentifier {
+		const routing = this._getEnsembleRouting(models);
+		if (!routing) {
+			return model;
+		}
+		const { ensemble, hydraFusion } = routing;
+		const configurationAccess = this._delegate.modelConfiguration ?? this._languageModelsService;
+		const tier = getModelConfigProperty(ensemble, configurationAccess, MODEL_CONFIG_GROUP_EFFORT);
+		const onHydraFusion = model.identifier === hydraFusion.identifier;
+		if (!tier?.schema.enum?.includes('intelligence') || (!onHydraFusion && (model.identifier !== ensemble.identifier || tier.value !== 'intelligence'))) {
 			return model;
 		}
 		logSettingExperimentTrigger(this._telemetryService, AgentHostEnsembleIntelligenceUsesHydraFusionSettingId);
-		if (ensemble.intelligenceUsesHydraFusion) {
-			return model;
+		if (ensemble.metadata.autoModelEnsemble?.intelligenceUsesHydraFusion) {
+			return hydraFusion;
 		}
-		// Ensemble only offers HydraFusion as its Intelligence, so a chat that chose it before moves there.
-		const configurationAccess = this._delegate.modelConfiguration ?? this._languageModelsService;
-		const tier = getModelConfigProperty(auto, configurationAccess, MODEL_CONFIG_GROUP_EFFORT);
-		if (tier?.schema.enum?.includes('intelligence')) {
-			setModelConfigValues(auto, configurationAccess, { [tier.key]: 'intelligence' }).catch(onUnexpectedError);
+		if (onHydraFusion) {
+			setModelConfigValues(ensemble, configurationAccess, { [tier.key]: 'intelligence' }).catch(onUnexpectedError);
+			return ensemble;
 		}
-		return auto;
+		return model;
+	}
+
+	/** Ensemble and the HydraFusion its Intelligence can route to, when routing it there can make a difference. */
+	private _getEnsembleRouting(models: readonly ILanguageModelChatMetadataAndIdentifier[]): { readonly ensemble: ILanguageModelChatMetadataAndIdentifier; readonly hydraFusion: ILanguageModelChatMetadataAndIdentifier } | undefined {
+		if (isHydraFusionUpgradeOnly(this._entitlementService.entitlement)) {
+			return undefined;
+		}
+		const ensemble = models.find(model => model.metadata.autoModelEnsemble && !isUserProvidedModel(model, this._languageModelsService));
+		const hydraFusion = models.find(model => model.metadata.id === COPILOT_HYDRA_FUSION_MODEL_ID && isHydraFusionModel(model) && !isUserProvidedModel(model, this._languageModelsService));
+		return ensemble && hydraFusion ? { ensemble, hydraFusion } : undefined;
 	}
 
 	private _getEnsembleTier(model: ILanguageModelChatMetadataAndIdentifier): { readonly ensemble: ILanguageModelChatMetadataAndIdentifier; readonly label: string } | undefined {
@@ -565,8 +584,7 @@ export class ModelPickerWidget extends Disposable {
 		});
 		trigger?.setAttribute('aria-expanded', 'true');
 		this._domNode?.classList.add('model-picker-active');
-		// Intelligence's routing only differs inside the picker.
-		if (context.models.some(model => model.metadata.autoModelEnsemble && !isUserProvidedModel(model, this._languageModelsService))) {
+		if (this._getEnsembleRouting(context.models)) {
 			logSettingExperimentTrigger(this._telemetryService, AgentHostEnsembleIntelligenceUsesHydraFusionSettingId);
 		}
 		picker.show(anchor, context, detailsModelId, focusConfiguration, this._contextViewLayer, options);
