@@ -9,7 +9,8 @@ import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../../nls.js';
 import { readAgentModelNoticesMeta } from '../../../../../../platform/agentHost/common/agentModelNotices.js';
-import { COPILOT_HYDRA_FUSION_MODEL_ID } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { isCopilotHydraFusionModelId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { COPILOT_CLI_AGENT_PROVIDER_ID } from '../../../../../../platform/agentHost/common/agent.js';
 import { ConfigSchema, SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { readAgentModelPricingMeta } from '../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
@@ -186,10 +187,10 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 				description: ILanguageModelChatMetadata.getAutoModelDescription(),
 			};
 		}
-		if (model.id === COPILOT_HYDRA_FUSION_MODEL_ID) {
+		if (model.provider === COPILOT_CLI_AGENT_PROVIDER_ID && isCopilotHydraFusionModelId(model.id)) {
 			return {
 				detail: localize('agentHost.hydraFusion.researchPreview', "Research preview"),
-				description: localize('agentHost.hydraFusion.description', "HydraFusion routes the first eligible turn and may use multiple models. Premium usage varies with the selected route."),
+				description: localize('agentHost.hydraFusion.routingDescription', "{0} routes the first eligible turn and may use multiple models. Premium usage varies with the selected route.", model.name),
 			};
 		}
 		return {};

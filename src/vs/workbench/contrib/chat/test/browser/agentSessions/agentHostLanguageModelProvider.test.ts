@@ -220,14 +220,21 @@ suite('AgentHostLanguageModelProvider', () => {
 		assert.strictEqual(auto?.metadata.autoModelDiscountPercent, undefined);
 	});
 
-	test('tags HydraFusion as a research preview and describes its routing', async () => {
+	test('tags HydraFusion models as research previews and describes their routing', async () => {
 		const provider = createProvider();
-		provider.updateModels([makeModel('hydrafusion'), makeModel('gpt-5')]);
+		provider.updateModels([
+			{ ...makeModel('hydrafusion'), name: 'HydraFusion' },
+			{ ...makeModel('hydrafusion-max'), name: 'HydraFusion Max' },
+			{ ...makeModel('gpt-5') },
+			{ ...makeModel('hydrafusion-max'), provider: 'claude', name: 'Other' },
+		]);
 
 		const infos = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
 		assert.deepStrictEqual(infos.map(m => [m.metadata.id, m.metadata.detail, m.metadata.tooltip]), [
 			['hydrafusion', 'Research preview', 'HydraFusion routes the first eligible turn and may use multiple models. Premium usage varies with the selected route.'],
+			['hydrafusion-max', 'Research preview', 'HydraFusion Max routes the first eligible turn and may use multiple models. Premium usage varies with the selected route.'],
 			['gpt-5', undefined, undefined],
+			['hydrafusion-max', undefined, undefined],
 		]);
 	});
 

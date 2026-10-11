@@ -148,7 +148,7 @@ suite('Model picker destinations', () => {
 	});
 
 	test('a model with its own row, such as HydraFusion, is left out of every destination', () => {
-		const hydraFusion = createModel('hydrafusion', 'HydraFusion', { vendor: 'agent-host-copilotcli', isBYOK: true, modelGroupId: 'copilot' });
+		const hydraFusion = createModel('hydrafusion', 'HydraFusion', { vendor: 'agent-host-copilotcli', isBYOK: true, modelGroupId: 'copilotcli' });
 		const hasOwnRow = (model: ILanguageModelChatMetadataAndIdentifier) => model === auto || model === hydraFusion;
 		const summarizeWithOwnRows = (models: readonly ILanguageModelChatMetadataAndIdentifier[]) =>
 			buildModelPickerDestinations(models, service, [], hasOwnRow).map(destination => ({ id: destination.id, models: destination.models.map(model => model.metadata.name) }));
@@ -794,7 +794,7 @@ suite('Model picker destinations', () => {
 			unresolved: getModelConfigSummary(unresolved, createConfigurationAccess()),
 			stale: getModelConfigSummary(model, createConfigurationAccess({ reasoningEffort: 'removed', contextSize: NaN })),
 			auto: getModelConfigSummary(createModel('auto', 'Auto'), createConfigurationAccess()),
-			hydra: getModelConfigSummary(createModel('hydrafusion', 'HydraFusion'), createConfigurationAccess()),
+			hydra: getModelConfigSummary(createModel('hydrafusion', 'HydraFusion', { modelGroupId: 'copilotcli' }), createConfigurationAccess()),
 			missing: getModelConfigSummary(undefined, createConfigurationAccess()),
 		}, { unresolved: undefined, stale: undefined, auto: undefined, hydra: undefined, missing: undefined });
 	});
