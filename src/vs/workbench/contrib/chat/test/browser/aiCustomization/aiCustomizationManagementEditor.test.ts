@@ -150,6 +150,28 @@ suite('aiCustomizationManagementEditor', () => {
 		});
 	});
 
+	test('retries revealing a plugin by URI until plugin list widget finds the item', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const pluginUri = URI.file('/plugins/security');
+		const attempts: URI[] = [];
+		const editor = {
+			selectedSection: AICustomizationManagementSection.Plugins,
+			pluginListWidget: {
+				revealAndSelectItemByUri: async (uri: URI) => {
+					attempts.push(uri);
+					return attempts.length >= 2;
+				},
+			},
+		};
+		const revealCustomizationByUri = Reflect.get(AICustomizationManagementEditor.prototype, 'revealCustomizationByUri') as (
+			this: typeof editor,
+			uri: URI,
+		) => Promise<void>;
+
+		await revealCustomizationByUri.call(editor, pluginUri);
+		assert.strictEqual(attempts.length, 2);
+		assert.deepStrictEqual(attempts, [pluginUri, pluginUri]);
+	}));
+
 	test('marks an MCP detail migratable from the authoritative candidate', () => {
 		const editor = createTestEditor();
 		const sourceUri = URI.file('/workspace/.vscode/mcp.json');
