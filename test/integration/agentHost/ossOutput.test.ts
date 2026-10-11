@@ -18,6 +18,7 @@ const output: {
 	testReport(text: string, module: number, iteration: number, storage: string): Promise<Record<string, unknown>>;
 	collect(root: string, cache: string, failed: boolean): Promise<Record<string, unknown>[]>;
 	runProbe(root: string, args: string[], publish: (record: Record<string, unknown>) => void): Promise<{ status: number; verified: boolean }>;
+	safeDiagnosticContext(value: unknown): Record<string, unknown>;
 } = require('./ossOutput.ts');
 const root = path.resolve(__dirname, '../../..');
 const privateValue = 'PRIVATE-OUTPUT-MUST-STAY-LOCAL';
@@ -145,7 +146,7 @@ test('actual wrapper full-collector empty success emits safe ZeroExecution gate 
 			assert.deepEqual(result, { status: status || 2, verified: status !== 0 });
 			if (status === 0) {
 				assert.ok(!fs.existsSync(path.join(directory, '.build/oss-public')));
-				assert.deepEqual(visible, [{ kind: 'privacy-gate', gate: 'output-privacy', errorClass: 'ZeroExecution', originalStatus: 0, result: 'failed' }]);
+				assert.deepEqual(visible, [{ kind: 'privacy-gate', gate: 'output-privacy', errorClass: 'ZeroExecution', originalStatus: 0, result: 'failed', context: { stage: 'report-matrix', check: 'coverage', module: 0, iteration: 1, storage: 'tmpfs' } }]);
 			} else {
 				assert.equal((await output.collect(directory, cache, true)).filter(record => record.kind === 'tests').length, 23);
 				assert.ok(fs.existsSync(path.join(directory, '.build/oss-public/evidence.jsonl')));
@@ -191,7 +192,7 @@ test('real local unexpected private IPC fields block both publication boundaries
 			assert.deepEqual(result, { status: status || 2, verified: false });
 			assert.ok(!fs.existsSync(path.join(directory, '.build/oss-public')));
 			assert.ok(!JSON.stringify(visible).includes(privateValue));
-			assert.deepEqual(visible, [{ kind: 'privacy-gate', gate: 'output-privacy', errorClass: 'UnsupportedProducer', originalStatus: status, result: 'failed' }]);
+			assert.deepEqual(visible, [{ kind: 'privacy-gate', gate: 'output-privacy', errorClass: 'UnsupportedProducer', originalStatus: status, result: 'failed', context: { stage: 'ipc', check: 'schema' } }]);
 			assert.ok(fs.readFileSync(path.join(directory, '.build/logs/oss-probe-output.log'), 'utf8').includes(privateValue));
 		} finally {
 			fs.rmSync(directory, { recursive: true, force: true });
@@ -219,6 +220,156 @@ test('actual wrapper CLI stdout/stderr and GitHub output receipt cannot expose r
 			assert.ok(!result.stdout.includes(privateValue) && !result.stderr.includes(privateValue));
 			assert.equal(fs.readFileSync(receipt, 'utf8'), invalid ? '' : 'privacy_verified=true\n');
 			assert.equal(fs.existsSync(path.join(directory, '.build/oss-public/evidence.jsonl')), !invalid);
+		} finally {
+			fs.rmSync(directory, { recursive: true, force: true });
+		}
+	}
+});
+
+test('fixed diagnostic contexts survive real CLI producer rejection without private keys, values, parser errors or filenames', () => {
+	const cases: { stage: string; check: string; module?: number; iteration?: number; storage?: string; prepare(directory: string): void }[] = [
+		{ stage: 'unexpected-entry', check: 'schema', prepare: directory => fs.writeFileSync(path.join(directory, `.build/logs/integration-tests/${privateValue}.json`), JSON.stringify({ [privateValue]: privateValue })) },
+		{
+			stage: 'registration', check: 'schema', module: 3, prepare: directory => {
+				const file = path.join(directory, '.build/logs/integration-tests/copilotAgentHostE2E.json');
+				const value = JSON.parse(fs.readFileSync(file, 'utf8'));
+				value[privateValue] = privateValue;
+				fs.writeFileSync(file, JSON.stringify(value));
+			}
+		},
+		...['headers', 'libcxx', 'nativeAssets'].map(key => ({
+			stage: key === 'headers' ? 'native-headers' : key === 'libcxx' ? 'native-libcxx' : 'native-assets', check: 'scope',
+			prepare: (directory: string) => {
+				const file = path.join(directory, '.build/logs/integration-tests/oss-native-inputs.json');
+				const value = JSON.parse(fs.readFileSync(file, 'utf8'));
+				value[key] = { [`/private/${privateValue}`]: 'a'.repeat(64) };
+				fs.writeFileSync(file, JSON.stringify(value));
+			},
+		})),
+		{
+			stage: 'source-hash', check: 'identity', prepare: directory => {
+				const file = path.join(directory, '.build/logs/integration-tests/oss-source-inputs.json');
+				const value = JSON.parse(fs.readFileSync(file, 'utf8'));
+				value['package.json'] = 'b'.repeat(64);
+				fs.writeFileSync(file, JSON.stringify(value));
+			}
+		},
+		{ stage: 'fixtures', check: 'scope', prepare: directory => fs.writeFileSync(path.join(directory, '.build/logs/integration-tests/oss-fixtures-before.json'), JSON.stringify({ [`/private/${privateValue}`]: 'a'.repeat(64) })) },
+		...['process', 'cwd', 'fd'].map(kind => ({
+			stage: `observer-${kind}`, check: kind === 'cwd' || kind === 'fd' ? 'scope' : 'schema',
+			prepare: (directory: string) => {
+				const process = { pid: 31, ppid: 30, startTicks: '123', fds: kind === 'fd' ? [{ fd: '7', link: `/private/${privateValue}` }] : [], ...(kind === 'cwd' ? { cwd: `/private/${privateValue}` } : {}), ...(kind === 'process' ? { [privateValue]: privateValue } : {}) };
+				fs.writeFileSync(path.join(directory, '.build/logs/integration-tests/oss-holders-31.jsonl'), JSON.stringify({ timestamp: '2026-10-11T22:00:00.000Z', phase: 'before-workload', process }) + '\n');
+			},
+		})),
+		{ stage: 'fuser', check: 'schema', prepare: directory => fs.writeFileSync(path.join(directory, '.build/logs/integration-tests/oss-holders-31.jsonl'), JSON.stringify({ timestamp: '2026-10-11T22:00:00.000Z', phase: 'control-fuser', root: true, childPid: 32, status: 0, stdout: privateValue, stderr: privateValue }) + '\n') },
+		{
+			stage: 'read-file-safety', check: 'scope', module: 3, prepare: directory => {
+				const file = path.join(directory, '.build/logs/integration-tests/copilotAgentHostE2E.json');
+				fs.unlinkSync(file);
+				fs.symlinkSync(path.join(directory, privateValue), file);
+			}
+		},
+		{
+			stage: 'read-file-safety', check: 'io', prepare: directory => {
+				fs.mkdirSync(path.join(directory, '.build/logs/oss-test-reports'), { recursive: true });
+				fs.writeFileSync(path.join(directory, '.build/logs/oss-test-reports/test-results'), privateValue);
+			}
+		},
+		{ stage: 'storage-event', check: 'schema', prepare: directory => fs.writeFileSync(path.join(directory, '.build/logs/oss-storage-events.jsonl'), JSON.stringify({ kind: privateValue, status: 0 }) + '\n') },
+		{
+			stage: 'output-write', check: 'io', prepare: directory => {
+				const evidence = process.env.AGENT_HOST_OSS_NATIVE_EVIDENCE!;
+				fs.copyFileSync(path.join(evidence, 'oss-registration-only.json'), path.join(directory, '.build/logs/integration-tests/oss-registration-only.json'));
+			}
+		},
+		{
+			stage: 'report-parse', check: 'parse', module: 0, iteration: 1, storage: 'tmpfs', prepare: directory => {
+				const reports = path.join(directory, '.build/logs/oss-test-reports/test-results');
+				fs.mkdirSync(reports, { recursive: true });
+				fs.writeFileSync(path.join(reports, 'linux-x64-oss-holder-probe-1-conformance-tmpfs-results.xml'), `<${privateValue}`);
+			}
+		},
+		{
+			stage: 'report-counts', check: 'counts', module: 0, iteration: 1, storage: 'tmpfs', prepare: directory => {
+				const [report] = matrix(directory, false);
+				fs.writeFileSync(report, fs.readFileSync(report, 'utf8').replace('tests="1"', 'tests="2"'));
+			}
+		},
+	];
+	for (const failure of cases) {
+		for (const status of [0, 19]) {
+			const directory = fixture();
+			try {
+				const cache = nativeFixture(directory);
+				fs.copyFileSync(path.join(__dirname, 'ossOutput.ts'), path.join(directory, 'test/integration/agentHost/ossOutput.ts'));
+				failure.prepare(directory);
+				if (failure.stage === 'storage-event') {
+					matrix(directory, false);
+				}
+				script(directory, `${failure.stage === 'output-write' ? `require('node:fs').mkdirSync(${JSON.stringify(path.join(directory, '.build/oss-public'))});` : ''} console.error('${privateValue}'); process.exitCode = ${status};\n`);
+				const receipt = path.join(directory, 'github-output-control');
+				fs.writeFileSync(receipt, '');
+				const result = spawnSync(process.execPath, [path.join(directory, 'test/integration/agentHost/ossOutput.ts')], { encoding: 'utf8', env: { ...process.env, GITHUB_OUTPUT: receipt, AGENT_HOST_OSS_FRESH_CACHE: cache } });
+				assert.equal(result.status, status || 2);
+				assert.equal(result.stderr, '');
+				assert.ok(!result.stdout.includes(privateValue));
+				const safe = JSON.parse(result.stdout);
+				const { prepare: _prepare, ...expected } = failure;
+				assert.deepEqual(safe.context, expected);
+				assert.equal(safe.originalStatus, status);
+				assert.equal(fs.readFileSync(receipt, 'utf8'), '');
+				assert.ok(!fs.existsSync(path.join(directory, '.build/oss-public/evidence.jsonl')));
+			} finally {
+				fs.rmSync(directory, { recursive: true, force: true });
+			}
+		}
+	}
+});
+
+test('unknown diagnostic enum fields and hostile assertion origin cannot cross final context/IPC publication guard', async () => {
+	for (const value of [
+		{ stage: privateValue, check: 'schema' }, { stage: 'native', check: privateValue },
+		{ stage: 'native', check: 'schema', [privateValue]: privateValue },
+		{ stage: 'registration', check: 'schema', module: 6 },
+		{ stage: 'report-matrix', check: 'coverage', module: 0, iteration: 3, storage: 'tmpfs' },
+		{ stage: 'report-matrix', check: 'coverage', module: 0, iteration: 1, storage: privateValue },
+	]) {
+		assert.deepEqual(output.safeDiagnosticContext(value), { stage: 'capture', check: 'context' });
+	}
+	for (const status of [0, 23]) {
+		const directory = fixture();
+		try {
+			fs.writeFileSync(path.join(directory, 'test/package.json'), '{"type":"commonjs"}');
+			script(directory, `
+				const error = new (require('node:assert').AssertionError)({message:'${privateValue}',actual:'${privateValue}',expected:'${privateValue}'});
+				error.context = {stage:'${privateValue}',check:'${privateValue}'};
+				process.send(error);
+				process.exitCode = ${status};
+			`);
+			const visible: object[] = [];
+			assert.deepEqual(await output.runProbe(directory, [], record => visible.push(record)), { status: status || 2, verified: false });
+			assert.ok(!JSON.stringify(visible).includes(privateValue));
+			assert.deepEqual(visible, [{ kind: 'privacy-gate', gate: 'output-privacy', errorClass: 'UnsupportedProducer', originalStatus: status, result: 'failed', context: { stage: 'ipc', check: 'schema' } }]);
+		} finally {
+			fs.rmSync(directory, { recursive: true, force: true });
+		}
+	}
+});
+
+test('final GitHub receipt filesystem failure emits only fixed context and preserves an already failed original status', () => {
+	for (const status of [0, 29]) {
+		const directory = fixture();
+		try {
+			const cache = nativeFixture(directory);
+			const evidence = process.env.AGENT_HOST_OSS_NATIVE_EVIDENCE!;
+			fs.copyFileSync(path.join(evidence, 'oss-registration-only.json'), path.join(directory, '.build/logs/integration-tests/oss-registration-only.json'));
+			fs.copyFileSync(path.join(__dirname, 'ossOutput.ts'), path.join(directory, 'test/integration/agentHost/ossOutput.ts'));
+			script(directory, `process.exitCode = ${status};\n`);
+			const result = spawnSync(process.execPath, [path.join(directory, 'test/integration/agentHost/ossOutput.ts')], { encoding: 'utf8', env: { ...process.env, AGENT_HOST_OSS_FRESH_CACHE: cache, GITHUB_OUTPUT: path.join(directory, privateValue, 'missing-receipt') } });
+			assert.equal(result.status, status || 2);
+			assert.ok(!result.stdout.includes(privateValue) && !result.stderr.includes(privateValue));
+			assert.deepEqual(JSON.parse(result.stderr), { gate: 'output-privacy', errorClass: 'CaptureFailure', result: 'failed', context: { stage: 'output-write', check: 'io' } });
 		} finally {
 			fs.rmSync(directory, { recursive: true, force: true });
 		}
@@ -352,7 +503,7 @@ test('failed-unmount receipt without its actual fuser result cannot enable publi
 		script(directory, 'process.exitCode = 1;\n');
 		const visible: object[] = [];
 		assert.deepEqual(await output.runProbe(directory, [], record => visible.push(record)), { status: 1, verified: false });
-		assert.deepEqual(visible, [{ kind: 'privacy-gate', gate: 'output-privacy', errorClass: 'MissingUnmountFuser', originalStatus: 1, result: 'failed' }]);
+		assert.deepEqual(visible, [{ kind: 'privacy-gate', gate: 'output-privacy', errorClass: 'MissingUnmountFuser', originalStatus: 1, result: 'failed', context: { stage: 'storage-event', check: 'coverage' } }]);
 		assert.ok(!fs.existsSync(path.join(directory, '.build/oss-public')));
 	} finally {
 		fs.rmSync(directory, { recursive: true, force: true });

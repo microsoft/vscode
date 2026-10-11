@@ -43,14 +43,40 @@ const diskLifecycleTitles = [
 	'detached worktree safety: deletion recovers when the checkout was already removed externally',
 ];
 type RecordValue = Record<string, unknown>;
+const diagnosticStages = ['unexpected-entry', 'registration', 'native', 'native-headers', 'native-libcxx', 'native-assets', 'source-hash', 'fixtures', 'observer', 'observer-process', 'observer-cwd', 'observer-fd', 'fuser', 'report-parse', 'report-counts', 'report-matrix', 'storage-event', 'read-file-safety', 'ipc', 'output-write', 'capture'] as const;
+const diagnosticChecks = ['schema', 'parse', 'counts', 'identity', 'scope', 'coverage', 'io', 'context'] as const;
+interface DiagnosticContext {
+	stage: typeof diagnosticStages[number];
+	check: typeof diagnosticChecks[number];
+	module?: number;
+	iteration?: number;
+	storage?: 'tmpfs' | 'disk';
+}
+let diagnostic: DiagnosticContext = { stage: 'capture', check: 'io' };
 
 class PrivacyError extends Error {
 	readonly errorClass: string;
+	readonly context: DiagnosticContext;
 
 	constructor(errorClass = 'UnsupportedProducer') {
 		super('Unsupported temporary diagnostic producer');
 		this.errorClass = errorClass;
+		this.context = { ...diagnostic };
 	}
+}
+
+function safeDiagnosticContext(value: unknown): DiagnosticContext {
+	if (value && typeof value === 'object' && !Array.isArray(value)) {
+		const context = value as RecordValue;
+		if (Object.keys(context).every(key => ['stage', 'check', 'module', 'iteration', 'storage'].includes(key))
+			&& diagnosticStages.some(stage => stage === context.stage) && diagnosticChecks.some(check => check === context.check)
+			&& (context.module === undefined || (typeof context.module === 'number' && Number.isInteger(context.module) && context.module >= 0 && context.module < 6))
+			&& (context.iteration === undefined || context.iteration === 1 || context.iteration === 2)
+			&& (context.storage === undefined || context.storage === 'tmpfs' || context.storage === 'disk')) {
+			return { stage: context.stage as DiagnosticContext['stage'], check: context.check as DiagnosticContext['check'], ...(context.module === undefined ? {} : { module: context.module }), ...(context.iteration === undefined ? {} : { iteration: context.iteration }), ...(context.storage === undefined ? {} : { storage: context.storage }) };
+		}
+	}
+	return { stage: 'capture', check: 'context' };
 }
 
 function requireSafe(value: unknown, errorClass?: string): asserts value {
@@ -92,6 +118,7 @@ function signal(value: unknown): unknown {
 }
 
 function phase(value: unknown): RecordValue {
+	diagnostic = { stage: 'ipc', check: 'schema' };
 	const input = object(value, ['gate', 'result'], ['status', 'signal', 'errorClass']);
 	requireSafe(typeof input.gate === 'string' && gates.includes(input.gate) && typeof input.result === 'string' && ['started', 'passed', 'failed'].includes(input.result));
 	if (Object.hasOwn(input, 'status')) {
@@ -107,6 +134,7 @@ function phase(value: unknown): RecordValue {
 }
 
 function registration(value: unknown, index: number): RecordValue {
+	diagnostic = { stage: 'registration', check: 'schema', module: index };
 	const input = object(value, ['module', 'total', 'suites']);
 	requireSafe(input.module === `src/vs/platform/agentHost/test/node/e2e/${modules[index]}.integrationTest.ts` && Array.isArray(input.suites));
 	const suites = input.suites.map(value => {
@@ -115,7 +143,9 @@ function registration(value: unknown, index: number): RecordValue {
 		return { suite: titles.indexOf(suite.title), tests: count(suite.tests) };
 	});
 	const allowedSuites = [[0, 1], [0, 2], [0, 3, 4], [0, 5, 6], [0, 7, 8], [0, 9, 10, 11]][index];
+	diagnostic = { stage: 'registration', check: 'identity', module: index };
 	requireSafe(suites.every(suite => allowedSuites.includes(suite.suite)) && new Set(suites.map(suite => suite.suite)).size === suites.length && suites.some(suite => suite.suite === allowedSuites[1] && suite.tests > 0));
+	diagnostic = { stage: 'registration', check: 'counts', module: index };
 	requireSafe(count(input.total) > 0 && suites.reduce((sum, suite) => sum + suite.tests, 0) === input.total);
 	return { kind: 'registration', module: index, total: input.total, suites };
 }
@@ -124,13 +154,16 @@ function inventory(value: unknown, roots: string[]): { files: number; sha256: st
 	requireSafe(value && typeof value === 'object' && !Array.isArray(value));
 	const input = value as RecordValue;
 	for (const [file, value] of Object.entries(input)) {
+		diagnostic = { ...diagnostic, check: 'scope' };
 		requireSafe(roots.some(root => file.startsWith(root + path.sep)) && path.normalize(file) === file);
+		diagnostic = { ...diagnostic, check: 'identity' };
 		hash(value);
 	}
 	return { files: Object.keys(input).length, sha256: digest(JSON.stringify(Object.entries(input).sort(([a], [b]) => a.localeCompare(b)))) };
 }
 
 function native(value: unknown, root: string, cache: string): RecordValue {
+	diagnostic = { stage: 'native', check: 'schema' };
 	const input = object(value, ['kernel', 'architecture', 'versions', 'packageIntegrity', 'nodeModulesCacheKey', 'electronZipExpectedSha256', 'executableSha256', 'typesSha256', 'headers', 'libcxx', 'nativeAssets']);
 	requireSafe(typeof input.kernel === 'string' && input.architecture === 'x86_64' && input.nodeModulesCacheKey === 'fresh-uncached-oss-linux-x64');
 	const expectedVersions: Record<string, string> = { '@github/copilot-sdk': '1.0.18-preview.5', '@github/copilot-sdk-linux-x64': '1.0.18-preview.5', '@anthropic-ai/claude-agent-sdk': '0.3.281', '@anthropic-ai/claude-agent-sdk-linux-x64': '0.3.281', '@openai/codex': '0.157.0', '@openai/codex-linux-x64': '0.157.0-linux-x64', '@vscode/sqlite3': '5.1.12-vscode', 'node-pty': '1.2.0-beta.15' };
@@ -138,20 +171,28 @@ function native(value: unknown, root: string, cache: string): RecordValue {
 	requireSafe(Object.entries(versions).every(([name, value]) => value === expectedVersions[name]));
 	const integrities = object(input.packageIntegrity, Object.keys(versions));
 	requireSafe(Object.values(integrities).every(value => typeof value === 'string' && /^sha512-[A-Za-z0-9+/=]+$/.test(value)));
+	const executableSha256 = hash(input.executableSha256);
+	const typesSha256 = hash(input.typesSha256);
+	const zipExpectedSha256 = hash(input.electronZipExpectedSha256);
+	diagnostic = { stage: 'native-headers', check: 'schema' };
+	const headers = inventory(input.headers, [path.join(cache, 'node-gyp', '43.7.7', 'include/node')]);
+	diagnostic = { stage: 'native-libcxx', check: 'schema' };
+	const libcxx = inventory(input.libcxx, ['.build/libcxx-objects', '.build/libcxx_headers/include', '.build/libcxxabi_headers/include'].map(directory => path.join(root, directory)));
+	diagnostic = { stage: 'native-assets', check: 'schema' };
+	const nativeAssets = inventory(input.nativeAssets, [path.join(root, 'node_modules/@github/copilot-sdk-linux-x64/prebuilds/linux-x64')]);
 	return {
 		kind: 'native-inputs', architecture: 'x86_64',
-		executableSha256: hash(input.executableSha256), typesSha256: hash(input.typesSha256), zipExpectedSha256: hash(input.electronZipExpectedSha256),
-		headers: inventory(input.headers, [path.join(cache, 'node-gyp', '43.7.7', 'include/node')]),
-		libcxx: inventory(input.libcxx, ['.build/libcxx-objects', '.build/libcxx_headers/include', '.build/libcxxabi_headers/include'].map(directory => path.join(root, directory))),
-		nativeAssets: inventory(input.nativeAssets, [path.join(root, 'node_modules/@github/copilot-sdk-linux-x64/prebuilds/linux-x64')]),
+		executableSha256, typesSha256, zipExpectedSha256, headers, libcxx, nativeAssets,
 	};
 }
 
 function holder(value: unknown): RecordValue {
+	diagnostic = { stage: 'observer', check: 'schema' };
 	const input = object(value, ['timestamp', 'phase'], ['process', 'exitedPid', 'unavailable', 'processCount', 'scopedHolders', 'root', 'childPid', 'status', 'stdout', 'stderr', 'workloadPid', 'code', 'signal']);
 	requireSafe(typeof input.timestamp === 'string' && new Date(input.timestamp).toISOString() === input.timestamp);
 	const time = input.timestamp;
 	if (input.phase === 'control-fuser') {
+		diagnostic = { stage: 'fuser', check: 'schema' };
 		object(input, ['timestamp', 'phase', 'root', 'childPid', 'status', 'stdout', 'stderr']);
 		requireSafe(typeof input.root === 'boolean' && typeof input.stdout === 'string' && typeof input.stderr === 'string');
 		const identifiers = input.stdout.trim().split(/\s+/);
@@ -168,22 +209,30 @@ function holder(value: unknown): RecordValue {
 	}
 	requireSafe(typeof input.phase === 'string' && ['control-held', 'control-released', 'before-workload', 'during-workload', 'after-workload'].includes(input.phase));
 	if (Object.hasOwn(input, 'process')) {
+		diagnostic = { stage: 'observer-process', check: 'schema' };
 		object(input, ['timestamp', 'phase', 'process']);
 		const identity = object(input.process, ['pid', 'ppid', 'startTicks', 'fds'], ['executable', 'cwd']);
 		requireSafe(typeof identity.startTicks === 'string' && /^\d{1,20}$/.test(identity.startTicks) && Array.isArray(identity.fds));
 		const scoped = (value: unknown) => {
+			diagnostic = { ...diagnostic, check: 'scope' };
 			requireSafe(typeof value === 'string' && /^\/tmp\/agent-host-e2e-tmpfs\.[A-Za-z0-9]+(?:\/|$)/.test(value) && path.normalize(value) === value);
 			return digest(value);
 		};
 		const fds = identity.fds.map(value => {
+			diagnostic = { stage: 'observer-fd', check: 'schema' };
 			const fd = object(value, ['fd', 'link']);
 			requireSafe(typeof fd.fd === 'string' && /^\d+$/.test(fd.fd));
 			return { fd: count(Number(fd.fd)), linkSha256: scoped(fd.link) };
 		});
+		diagnostic = { stage: 'observer-process', check: 'identity' };
 		requireSafe(identity.executable === undefined || (typeof identity.executable === 'string' && identity.executable.startsWith('/')));
 		const executable = identity.executable === undefined ? undefined : path.basename(identity.executable as string);
 		const executableKind = executable && ['node', 'electron', 'code-oss', 'copilot-runtime', 'git', 'claude', 'codex', 'python3', 'bash', 'sh'].includes(executable) ? executable : 'unclassified';
-		return { kind: 'process', phase: input.phase, time, pid: pid(identity.pid), ppid: count(identity.ppid), startTicks: identity.startTicks, executableKind, executableSha256: identity.executable === undefined ? null : digest(identity.executable as string), cwdSha256: identity.cwd === undefined ? null : scoped(identity.cwd), fds };
+		const processPid = pid(identity.pid);
+		const parentPid = count(identity.ppid);
+		diagnostic = { stage: 'observer-cwd', check: 'scope' };
+		const cwdSha256 = identity.cwd === undefined ? null : scoped(identity.cwd);
+		return { kind: 'process', phase: input.phase, time, pid: processPid, ppid: parentPid, startTicks: identity.startTicks, executableKind, executableSha256: identity.executable === undefined ? null : digest(identity.executable as string), cwdSha256, fds };
 	}
 	if (Object.hasOwn(input, 'exitedPid')) {
 		object(input, ['timestamp', 'phase', 'exitedPid']);
@@ -197,9 +246,14 @@ function holder(value: unknown): RecordValue {
 }
 
 async function testReport(text: string, module: number, iteration: number, storage: string): Promise<RecordValue> {
+	diagnostic = { stage: 'report-parse', check: 'identity' };
 	requireSafe(module >= 0 && module < 6 && [1, 2].includes(iteration) && ['tmpfs', 'disk'].includes(storage));
+	const context: DiagnosticContext = { stage: 'report-parse', check: 'parse', module, iteration, storage: storage === 'tmpfs' ? 'tmpfs' : 'disk' };
+	diagnostic = context;
 	requireSafe(!/<!DOCTYPE|<!ENTITY/i.test(text));
-	const parsed = object(await xml.parseStringPromise(text), ['testsuites']);
+	const parsedValue: unknown = await xml.parseStringPromise(text);
+	diagnostic = { ...context, check: 'schema' };
+	const parsed = object(parsedValue, ['testsuites']);
 	const report = object(parsed.testsuites, ['$'], ['testsuite']);
 	const attributes = object(report.$, ['name', 'time', 'tests', 'failures'], ['skipped']);
 	const numeric = (value: unknown) => { requireSafe(typeof value === 'string' && /^\d+$/.test(value)); return count(Number(value)); };
@@ -236,25 +290,35 @@ async function testReport(text: string, module: number, iteration: number, stora
 			}
 			tests.push({ id: digest(attributes.classname + '\0' + attributes.name), status });
 		}
+		diagnostic = { ...context, stage: 'report-counts', check: 'counts' };
 		requireSafe(numeric(suiteAttributes.failures) === suiteFailed && (suiteAttributes.skipped === undefined ? 0 : numeric(suiteAttributes.skipped)) === suitePending, 'ReportCounts');
+		diagnostic = { ...context, check: 'schema' };
 	}
 	const failed = numeric(attributes.failures);
 	const pending = attributes.skipped === undefined ? 0 : numeric(attributes.skipped);
 	const passed = tests.filter(test => test.status === 'passed').length;
 	const emittedPending = tests.filter(test => test.status === 'pending').length;
+	diagnostic = { ...context, stage: 'report-counts', check: 'counts' };
 	requireSafe(numeric(attributes.tests) === declared && tests.filter(test => test.status === 'failed').length === failed && pending >= emittedPending && passed + pending <= declared && completed + pending <= declared + failed && new Set(tests.map(test => test.id)).size === tests.length, 'ReportCounts');
 	return { kind: 'tests', module, iteration, storage, declared, completed, lifecycleCompleted, passed, failed, pending, tests };
 }
 
 function readFile(file: string): string {
+	const context = diagnostic;
+	diagnostic = { ...context, stage: 'read-file-safety', check: 'io' };
 	const stat = fs.lstatSync(file);
+	diagnostic = { ...context, stage: 'read-file-safety', check: 'scope' };
 	requireSafe(stat.isFile() && !stat.isSymbolicLink() && stat.nlink === 1 && fs.realpathSync(file) === path.resolve(file));
-	return fs.readFileSync(file, 'utf8');
+	diagnostic = { ...context, stage: 'read-file-safety', check: 'io' };
+	const text = fs.readFileSync(file, 'utf8');
+	diagnostic = context;
+	return text;
 }
 
 async function collect(root: string, cache: string, failed: boolean): Promise<RecordValue[]> {
 	const records: RecordValue[] = [];
 	const directory = path.join(root, '.build/logs/integration-tests');
+	diagnostic = { stage: 'read-file-safety', check: 'io' };
 	const names = fs.existsSync(directory) ? fs.readdirSync(directory) : [];
 	const known = [...modules.map(module => path.basename(module) + '.json'), 'oss-source-inputs.json', 'oss-native-inputs.json', 'oss-fixtures-before.json', 'oss-fixtures-after.json', 'oss-iteration-1.json', 'oss-iteration-2.json', 'oss-registration-only.json'];
 	for (const name of names) {
@@ -263,15 +327,22 @@ async function collect(root: string, cache: string, failed: boolean): Promise<Re
 		}
 		const file = path.join(directory, name);
 		if (/^oss-holders-\d+\.jsonl$/.test(name)) {
+			diagnostic = { stage: 'observer', check: 'identity' };
 			const observerPid = pid(Number(name.slice('oss-holders-'.length, -'.jsonl'.length)));
 			for (const line of readFile(file).split('\n').filter(Boolean)) {
+				diagnostic = { stage: 'observer', check: 'parse' };
 				records.push({ observerPid, ...holder(JSON.parse(line)) });
 			}
 			continue;
 		}
+		diagnostic = { stage: 'unexpected-entry', check: 'schema' };
 		requireSafe(known.includes(name));
-		const input: unknown = JSON.parse(readFile(file));
 		const module = known.indexOf(name);
+		const context: DiagnosticContext = module < modules.length ? { stage: 'registration', check: 'parse', module }
+			: { stage: name === 'oss-native-inputs.json' ? 'native' : name === 'oss-source-inputs.json' ? 'source-hash' : name.startsWith('oss-fixtures-') ? 'fixtures' : name.startsWith('oss-iteration-') ? 'report-matrix' : 'registration', check: 'parse' };
+		diagnostic = context;
+		const input: unknown = JSON.parse(readFile(file));
+		diagnostic = { ...context, check: 'schema' };
 		if (module < modules.length) {
 			records.push(registration(input, module));
 		} else if (name === 'oss-native-inputs.json') {
@@ -279,12 +350,15 @@ async function collect(root: string, cache: string, failed: boolean): Promise<Re
 		} else if (name === 'oss-source-inputs.json') {
 			const source = object(input, sourcePaths);
 			for (const file of sourcePaths) {
+				diagnostic = { stage: 'source-hash', check: 'identity' };
 				requireSafe(hash(source[file]) === digest(readFile(path.join(root, file))));
 			}
 			records.push({ kind: 'source-inputs', files: sourcePaths.length, sha256: digest(JSON.stringify(source)) });
 		} else if (name.startsWith('oss-fixtures-')) {
+			diagnostic = { stage: 'fixtures', check: 'schema' };
 			records.push({ kind: name === 'oss-fixtures-before.json' ? 'fixtures-before' : 'fixtures-after', ...inventory(input, [path.join(root, 'src/vs/platform/agentHost/test/node/e2e/captures')]) });
 		} else if (name.startsWith('oss-iteration-')) {
+			diagnostic = { stage: 'report-matrix', check: 'counts' };
 			const iteration = object(input, ['iteration', 'status']);
 			requireSafe(iteration.iteration === Number(name.slice('oss-iteration-'.length, -'.json'.length)));
 			records.push({ kind: 'iteration', iteration: iteration.iteration, status: count(iteration.status) });
@@ -294,23 +368,30 @@ async function collect(root: string, cache: string, failed: boolean): Promise<Re
 			records.push({ kind: 'registration-only', modules: 6, negativeControl: 'ENOENT' });
 		}
 	}
+	diagnostic = { stage: 'report-matrix', check: 'coverage' };
 	requireSafe(failed || (modules.every((_module, index) => records.some(record => record.kind === 'registration' && record.module === index)) && records.some(record => record.kind === 'native-inputs') && records.some(record => record.kind === 'source-inputs')));
 	const reports = path.join(root, '.build/logs/oss-test-reports/test-results');
+	diagnostic = { stage: 'read-file-safety', check: 'io' };
 	const reportNames = fs.existsSync(reports) ? fs.readdirSync(reports) : [];
 	const labels = ['conformance', 'claude', 'codex', 'copilot', 'copilot-otel', 'copilot-managed-settings'];
 	for (const name of reportNames) {
 		const match = /^linux-x64-oss-holder-probe-([12])-(conformance|claude|codex|copilot|copilot-otel|copilot-managed-settings)-(tmpfs|disk)-results\.xml$/.exec(name);
+		diagnostic = { stage: 'unexpected-entry', check: 'schema' };
 		requireSafe(match);
+		diagnostic = { stage: 'report-parse', check: 'parse', module: labels.indexOf(match[2]), iteration: Number(match[1]), storage: match[3] === 'tmpfs' ? 'tmpfs' : 'disk' };
 		records.push(await testReport(readFile(path.join(reports, name)), labels.indexOf(match[2]), Number(match[1]), match[3]));
 	}
+	diagnostic = { stage: 'report-matrix', check: 'coverage' };
 	if (!failed && records.some(record => record.kind === 'registration-only')) {
 		requireSafe(!records.some(record => record.kind === 'iteration' || record.kind === 'tests'), 'ReportMatrix');
 	} else if (!failed) {
 		const reports = records.filter(record => record.kind === 'tests');
 		for (const iteration of [1, 2]) {
+			diagnostic = { stage: 'report-matrix', check: 'coverage', iteration };
 			requireSafe(records.some(record => record.kind === 'iteration' && record.iteration === iteration && record.status === 0), 'ReportMatrix');
 			for (let module = 0; module < modules.length; module++) {
 				for (const storage of ['tmpfs', 'disk']) {
+					diagnostic = { stage: 'report-matrix', check: 'coverage', module, iteration, storage: storage === 'tmpfs' ? 'tmpfs' : 'disk' };
 					const matches = reports.filter(record => record.module === module && record.iteration === iteration && record.storage === storage);
 					requireSafe(matches.length === 1, 'ReportMatrix');
 					requireSafe(matches[0].failed === 0, 'FailedReport');
@@ -325,10 +406,13 @@ async function collect(root: string, cache: string, failed: boolean): Promise<Re
 	}
 	const storageEvents = path.join(root, '.build/logs/oss-storage-events.jsonl');
 	if (fs.existsSync(storageEvents)) {
+		diagnostic = { stage: 'storage-event', check: 'parse' };
 		let sequence = 0;
 		let awaitingFuser = false;
 		for (const line of readFile(storageEvents).split('\n').filter(Boolean)) {
+			diagnostic = { stage: 'storage-event', check: 'parse' };
 			const event = object(JSON.parse(line), ['kind', 'status'], ['shellPid', 'rawFile']);
+			diagnostic = { stage: 'storage-event', check: 'schema' };
 			requireSafe(count(event.status) <= 255);
 			sequence++;
 			if (event.kind === 'unmount') {
@@ -337,15 +421,20 @@ async function collect(root: string, cache: string, failed: boolean): Promise<Re
 				awaitingFuser = event.status !== 0;
 				records.push({ kind: 'unmount', status: event.status, sequence });
 			} else {
+				if (event.kind === 'unmount-fuser') {
+					diagnostic = { stage: 'fuser', check: 'schema' };
+				}
 				object(event, ['kind', 'status', 'shellPid', 'rawFile']);
 				requireSafe(event.kind === 'unmount-fuser' && typeof event.rawFile === 'string' && /^oss-storage-events\.jsonl\.fuser\.[A-Za-z0-9]{6}$/.test(event.rawFile));
 				requireSafe(records.at(-1)?.kind === 'unmount' && records.at(-1)?.status !== 0);
 				const identifiers = readFile(path.join(path.dirname(storageEvents), event.rawFile)).trim().split(/\s+/).filter(Boolean);
+				diagnostic = { stage: 'fuser', check: 'schema' };
 				requireSafe(identifiers.every(value => value === 'kernel' || /^\d+$/.test(value)));
 				const holderPids = [...new Set(identifiers.filter(value => value !== 'kernel').map(value => pid(Number(value))))].sort((a, b) => a - b);
 				records.push({ kind: 'unmount-fuser', sequence, shellPid: pid(event.shellPid), status: event.status, holderPids });
 				awaitingFuser = false;
 			}
+			diagnostic = { stage: 'storage-event', check: 'coverage' };
 		}
 		requireSafe(!awaitingFuser, 'MissingUnmountFuser');
 	}
@@ -353,6 +442,7 @@ async function collect(root: string, cache: string, failed: boolean): Promise<Re
 }
 
 async function runProbe(root: string, args: string[], publish: (record: RecordValue) => void): Promise<{ status: number; verified: boolean }> {
+	diagnostic = { stage: 'capture', check: 'io' };
 	const build = path.join(root, '.build');
 	requireSafe(fs.realpathSync(root) === path.resolve(root));
 	if (!fs.existsSync(build)) {
@@ -389,29 +479,33 @@ async function runProbe(root: string, args: string[], publish: (record: RecordVa
 	}
 	const status = code ?? 1;
 	try {
+		diagnostic = { stage: 'ipc', check: 'schema' };
 		requireSafe(!rejected);
 		const records = await collect(root, process.env.AGENT_HOST_OSS_FRESH_CACHE || '', status !== 0);
+		diagnostic = { stage: 'output-write', check: 'io' };
 		requireSafe(!fs.existsSync(output));
 		fs.mkdirSync(output, { mode: 0o700 });
 		fs.writeFileSync(path.join(output, 'evidence.jsonl'), [...events, ...records, { kind: 'completion', originalStatus: status, result: status === 0 ? 'passed' : 'failed' }].map(record => JSON.stringify(record)).join('\n') + '\n', { flag: 'wx', mode: 0o600 });
 		publish({ kind: 'completion', originalStatus: status, result: status === 0 ? 'passed' : 'failed', privacy: 'verified' });
 		return { status, verified: true };
 	} catch (error) {
-		publish({ kind: 'privacy-gate', gate: 'output-privacy', errorClass: error instanceof PrivacyError ? error.errorClass : 'UnsupportedProducer', originalStatus: status, result: 'failed' });
+		const errorClass = error instanceof PrivacyError && ['UnsupportedProducer', 'ReportCounts', 'ReportMatrix', 'FailedReport', 'ZeroExecution', 'MissingLifecycle', 'MissingUnmountFuser'].includes(error.errorClass) ? error.errorClass : 'UnsupportedProducer';
+		publish({ kind: 'privacy-gate', gate: 'output-privacy', errorClass, originalStatus: status, result: 'failed', context: safeDiagnosticContext(error instanceof PrivacyError ? error.context : diagnostic) });
 		return { status: status || 2, verified: false };
 	}
 }
 
-module.exports = { phase, registration, holder, testReport, collect, runProbe };
+module.exports = { phase, registration, holder, testReport, collect, runProbe, safeDiagnosticContext };
 
 if (require.main === module) {
 	runProbe(path.resolve(__dirname, '../../..'), process.argv.slice(2), record => console.log(JSON.stringify(record))).then(result => {
+		process.exitCode = result.status;
 		if (result.verified && process.env.GITHUB_OUTPUT) {
+			diagnostic = { stage: 'output-write', check: 'io' };
 			fs.appendFileSync(process.env.GITHUB_OUTPUT, 'privacy_verified=true\n');
 		}
-		process.exitCode = result.status;
-	}, () => {
-		console.error(JSON.stringify({ gate: 'output-privacy', errorClass: 'CaptureFailure', result: 'failed' }));
-		process.exitCode = 2;
+	}).catch(() => {
+		console.error(JSON.stringify({ gate: 'output-privacy', errorClass: 'CaptureFailure', result: 'failed', context: safeDiagnosticContext(diagnostic) }));
+		process.exitCode = process.exitCode || 2;
 	});
 }
