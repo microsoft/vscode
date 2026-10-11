@@ -9,7 +9,7 @@ import { isObject } from '../../../../../../base/common/types.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { getGlobalConfigurationValue } from '../../../../../../platform/agentHost/common/agentHostConfigurationSync.js';
-import { AgentHostCopilotLocalMemoryEnabledSettingId, AgentHostCopilotMemoryEnabledSettingId, AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostHydraFusionEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, CopilotSearchSubagentEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, CopilotStabilityOrderedPromptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotAutoModeTierOverrideSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotClaudeDefaultReasoningEffortSettingId, CopilotCliConfigKey, CopilotLocalIndexEnabledSettingId, CopilotTgrepEnabledSettingId, normalizeToolSearchDeferThreshold, type AgentHostHydraFusionSettingValue, type CopilotCliModelCapabilityOverrides, type CopilotSdkLogLevelSetting } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { AgentHostCopilotLocalMemoryEnabledSettingId, AgentHostCopilotMemoryEnabledSettingId, AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostEnsembleEnabledSettingId, AgentHostEnsembleIntelligenceUsesHydraFusionSettingId, AgentHostHydraFusionEnabledSettingId, AgentHostOpus48PromptEnabledSettingId, CopilotSearchSubagentEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, CopilotStabilityOrderedPromptEnabledSettingId, AgentHostToolSearchDeferThresholdSettingId, AgentHostToolSearchEnabledSettingId, CopilotAutoModeTierOverrideSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotClaudeDefaultReasoningEffortSettingId, CopilotCliConfigKey, CopilotLocalIndexEnabledSettingId, CopilotTgrepEnabledSettingId, normalizeToolSearchDeferThreshold, type AgentHostHydraFusionSettingValue, type CopilotCliModelCapabilityOverrides, type CopilotSdkLogLevelSetting } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IWorkbenchContribution } from '../../../../../../workbench/common/contributions.js';
@@ -91,11 +91,26 @@ export class AgentHostCopilotCliSettingsContribution extends Disposable implemen
 			},
 			{
 				key: CopilotCliConfigKey.HydraFusionV2,
-				computeValue: () => this._getHydraFusionSettingValue() === 'v2',
+				// Ensemble's Max needs HydraFusion v2.
+				computeValue: () => {
+					const hydraFusion = this._getHydraFusionSettingValue();
+					return hydraFusion === 'v2' || (hydraFusion === true && this._isEnsembleEnabled());
+				},
 				registerTriggers: (store, push) => {
 					this._pushOnSettingChange(store, push, AgentHostHydraFusionEnabledSettingId);
+					this._pushOnSettingChange(store, push, AgentHostEnsembleEnabledSettingId);
 					store.add(this._defaultAccountService.onDidChangePolicyData(push));
 				},
+			},
+			{
+				key: CopilotCliConfigKey.Ensemble,
+				computeValue: () => this._isEnsembleEnabled(),
+				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, AgentHostEnsembleEnabledSettingId),
+			},
+			{
+				key: CopilotCliConfigKey.EnsembleIntelligenceUsesHydraFusion,
+				computeValue: () => this._configurationService.getValue<boolean>(AgentHostEnsembleIntelligenceUsesHydraFusionSettingId) === true,
+				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, AgentHostEnsembleIntelligenceUsesHydraFusionSettingId),
 			},
 			{
 				key: CopilotCliConfigKey.Memory,
@@ -165,6 +180,10 @@ export class AgentHostCopilotCliSettingsContribution extends Disposable implemen
 		}
 		const value = this._configurationService.getValue<AgentHostHydraFusionSettingValue>(AgentHostHydraFusionEnabledSettingId);
 		return value === true || value === 'v2' ? value : false;
+	}
+
+	private _isEnsembleEnabled(): boolean {
+		return this._configurationService.getValue<boolean>(AgentHostEnsembleEnabledSettingId) === true;
 	}
 
 	private _pushOnSettingChange(store: DisposableStore, push: () => void, settingId: string): void {

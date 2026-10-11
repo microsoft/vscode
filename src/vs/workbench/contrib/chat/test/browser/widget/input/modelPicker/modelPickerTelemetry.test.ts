@@ -243,7 +243,7 @@ suite('ModelPickerTelemetry', () => {
 						delete normalized.chatSessionId;
 					}
 				}
-				if (name !== 'chat.modelPickerInteraction') {
+				if (name !== 'chat.modelPickerInteraction' && name !== 'experimentTrigger') {
 					assert.strictEqual(normalized.provider, 'copilotcli');
 					delete normalized.provider;
 				}
@@ -433,6 +433,24 @@ suite('ModelPickerTelemetry', () => {
 
 		assert.strictEqual(result.contextViewLayer, 1);
 		result.hide();
+	});
+
+	test('the input shows a HydraFusion tier as Ensemble with that tier, and opening on an Ensemble reports its routing trigger', () => {
+		const ensemble = { ...autoModel, metadata: { ...autoModel.metadata, name: 'Ensemble', autoModelEnsemble: true } };
+		const max = createModel('hydrafusion-max', { name: 'HydraFusion Max', modelGroup: { id: 'copilotcli' } });
+		const triggers = (picker: ReturnType<typeof createPicker>) => picker.events.flatMap(event => event.name === 'experimentTrigger' ? [(event.data as IStringDictionary<unknown>).treatmentName] : []);
+		const plain = createPicker(max, undefined, [autoModel, max, model]);
+		const result = createPicker(max, undefined, [ensemble, max, model]);
+		result.picker.render(result.container);
+		assert.deepStrictEqual({
+			input: Array.from(result.container.querySelectorAll('.chat-input-picker-label'), label => label.textContent),
+			ensembleTriggers: triggers(result),
+			autoTriggers: triggers(plain),
+		}, {
+			input: ['Ensemble', 'Max'],
+			ensembleTriggers: ['config.chat.copilot.ensemble.intelligenceUsesHydraFusion'],
+			autoTriggers: [],
+		});
 	});
 
 	test('the input readout opens details directly and restores the invoking control', () => {

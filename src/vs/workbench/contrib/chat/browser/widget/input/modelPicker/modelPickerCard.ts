@@ -72,6 +72,9 @@ export interface IModelCardOptions {
  */
 export interface IModelCardRoutingAlternative {
 	readonly model: ILanguageModelChatMetadataAndIdentifier;
+	readonly label?: string;
+	/** The tier this alternative takes the place of; otherwise it follows the tiers. */
+	readonly replacesTier?: unknown;
 	/** Shown below the tiers while the alternative is chosen. */
 	readonly description: string;
 	/** Describes the routing feature in the option's hover. */
@@ -83,7 +86,8 @@ export interface IModelCardRoutingAlternative {
 
 function routingAlternativesEqual(a: readonly IModelCardRoutingAlternative[] | undefined, b: readonly IModelCardRoutingAlternative[] | undefined): boolean {
 	return (a?.length ?? 0) === (b?.length ?? 0)
-		&& (a ?? []).every((alternative, index) => alternative.model === b?.[index].model && alternative.selected === b[index].selected);
+		&& (a ?? []).every((alternative, index) => alternative.model === b?.[index].model && alternative.selected === b[index].selected
+			&& alternative.label === b[index].label && alternative.replacesTier === b[index].replacesTier);
 }
 
 /**
@@ -242,7 +246,7 @@ export class ModelCard extends DisposableStore {
 		}
 		// Without tiers to sit below, Auto's discount follows its description.
 		if (isAuto && !effort && metadata.autoModelDiscountPercent !== undefined) {
-			this._renderDescription(ILanguageModelChatMetadata.getAutoModelDiscountDescription(metadata.autoModelDiscountPercent));
+			this._renderDescription(ILanguageModelChatMetadata.getAutoModelDiscountDescription(metadata.autoModelDiscountPercent, undefined, metadata.autoModelEnsemble));
 		}
 
 		if (!isAuto) {
@@ -402,27 +406,37 @@ export class ModelCard extends DisposableStore {
 		const isAuto = isAutoModel(this._options.model);
 		const alternatives = isAuto && group === MODEL_CONFIG_GROUP_EFFORT ? this._options.routingAlternatives ?? [] : [];
 		const selectedAlternative = alternatives.find(alternative => alternative.selected);
-		const items: IRadioOptionItem[] = choices.map(({ label, description, checked, readOnly }) => ({
-			text: label,
-			tooltip: description,
-			ariaLabel: description ? localize('chat.modelPicker.optionDescription', "{0}, {1}", label, description) : label,
-			isActive: checked && !selectedAlternative,
-			disabled: readOnly,
-		}));
-		for (const [index, alternative] of alternatives.entries()) {
-			const label = alternative.model.metadata.name;
-			items.push({
+		const replaces = (alternative: IModelCardRoutingAlternative, choice: typeof choices[number]) => alternative.replacesTier !== undefined && alternative.replacesTier === choice.value;
+		const entries: { readonly choice?: typeof choices[number]; readonly alternative?: IModelCardRoutingAlternative }[] = [
+			...choices.map(choice => ({ choice, alternative: alternatives.find(alternative => replaces(alternative, choice)) })),
+			...alternatives.filter(alternative => !choices.some(choice => replaces(alternative, choice))).map(alternative => ({ alternative })),
+		];
+		const followingAlternatives = entries.length - choices.length;
+		const items = entries.map(({ choice, alternative }, index): IRadioOptionItem => {
+			if (!alternative) {
+				const { label, description, checked, readOnly } = choice!;
+				return {
+					text: label,
+					tooltip: description,
+					ariaLabel: description ? localize('chat.modelPicker.optionDescription', "{0}, {1}", label, description) : label,
+					isActive: checked && !selectedAlternative,
+					disabled: readOnly,
+				};
+			}
+			const label = alternative.label ?? choice?.label ?? alternative.model.metadata.name;
+			return {
 				text: label,
 				tooltip: alternative.tooltip ?? alternative.description,
 				ariaLabel: alternative.tooltip
 					? localize('chat.modelPicker.alternativeDescription', "{0}, {1} {2}", label, alternative.description, alternative.tooltip)
 					: localize('chat.modelPicker.optionDescription', "{0}, {1}", label, alternative.description),
-				isActive: alternative.selected,
-				disabled: false,
+				// A tier saved before its alternative took its place still shows as that tier.
+				isActive: alternative.selected || (!!choice?.checked && !selectedAlternative),
+				disabled: !!choice?.readOnly,
 				// More than one alternative won't fit beside the tiers, so they start a row of their own.
-				startsRow: index === 0 && alternatives.length > 1,
-			});
-		}
+				startsRow: index === choices.length && followingAlternatives > 1,
+			};
+		});
 		const section = this._renderSection(title);
 		const control = this._contentDisposables.add(new Radio({
 			ariaLabel: title,
@@ -433,6 +447,7 @@ export class ModelCard extends DisposableStore {
 		}));
 		const alternativeDescriptions = new Map<IModelCardRoutingAlternative, HTMLElement>();
 		const discountPercent = isAuto && group === MODEL_CONFIG_GROUP_EFFORT ? this._options.model.metadata.autoModelDiscountPercent : undefined;
+		const ensemble = this._options.model.metadata.autoModelEnsemble;
 		let discountDescription: HTMLElement | undefined;
 		let discountTierLabel: string | undefined;
 		const discountStore = this._contentDisposables.add(new MutableDisposable<DisposableStore>());
@@ -447,7 +462,7 @@ export class ModelCard extends DisposableStore {
 				return;
 			}
 			const store = new DisposableStore();
-			const next = renderModelDescription(ILanguageModelChatMetadata.getAutoModelDiscountDescription(discountPercent, tierLabel), this._options.openerService, store).element;
+			const next = renderModelDescription(ILanguageModelChatMetadata.getAutoModelDiscountDescription(discountPercent, tierLabel, ensemble), this._options.openerService, store).element;
 			next.classList.add('chat-model-card-description', 'chat-model-card-discount-description');
 			next.hidden = hidden;
 			if (discountDescription) {
@@ -461,8 +476,7 @@ export class ModelCard extends DisposableStore {
 		};
 		const onDidChoose = isAuto ? control.onDidActivate : control.onDidSelect;
 		this._contentDisposables.add(onDidChoose(index => {
-			const choice = index < choices.length ? choices[index] : undefined;
-			const alternative = choice ? undefined : alternatives[index - choices.length];
+			const { choice, alternative } = entries[index] ?? {};
 			if (alternative) {
 				this._selectVariant(alternative.model, control).catch(onUnexpectedError);
 			} else if (choice) {
@@ -471,7 +485,7 @@ export class ModelCard extends DisposableStore {
 			for (const [candidate, element] of alternativeDescriptions) {
 				element.hidden = candidate !== alternative;
 			}
-			if (choice) {
+			if (choice && !alternative) {
 				renderDiscountDescription(choice.label, false);
 			} else if (discountDescription) {
 				discountDescription.hidden = true;

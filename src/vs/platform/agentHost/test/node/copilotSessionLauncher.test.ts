@@ -2029,6 +2029,24 @@ suite('getCopilotAutoTier', () => {
 			['efficiency', undefined, undefined, 'intelligence', 'balance', 'efficiency', undefined]
 		);
 	});
+
+	test('resolves a saved Efficiency preference to Balance under Ensemble', () => {
+		const log = new NullLogService();
+		const configOf = (ensemble: boolean): Pick<IAgentConfigurationService, 'getRootValue'> => ({
+			getRootValue: (schema, key) => {
+				const value = copilotCliConfigSchema.values({ ensemble })[key];
+				return schema.validate(key, value) ? value : undefined;
+			},
+		});
+		assert.deepStrictEqual(
+			[
+				resolveCopilotAutoTier({ id: 'auto', config: { tier: 'efficiency' } }, configOf(true), log, 's1'),
+				resolveCopilotAutoTier({ id: 'auto', config: { tier: 'intelligence' } }, configOf(true), log, 's1'),
+				resolveCopilotAutoTier({ id: 'auto', config: { tier: 'efficiency' } }, configOf(false), log, 's1'),
+			],
+			['balance', 'intelligence', 'efficiency']
+		);
+	});
 });
 
 /**

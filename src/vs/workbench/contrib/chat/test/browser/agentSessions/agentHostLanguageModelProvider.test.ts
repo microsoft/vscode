@@ -10,6 +10,7 @@ import { Emitter } from '../../../../../../base/common/event.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { PolicyState, SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { withAgentModelEnsembleMeta } from '../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
 import { ILanguageModelChatMetadata } from '../../../common/languageModels.js';
 import { AgentHostLanguageModelProvider } from '../../../browser/agentSessions/agentHost/agentHostLanguageModelProvider.js';
 
@@ -200,6 +201,28 @@ suite('AgentHostLanguageModelProvider', () => {
 		assert.strictEqual(concrete?.metadata.detail, undefined);
 		assert.strictEqual(concrete?.metadata.tooltip, undefined);
 		assert.strictEqual(concrete?.metadata.autoModelDiscountPercent, undefined);
+	});
+
+	test('presents Auto as Ensemble only when its host marks it so', async () => {
+		const provider = createProvider();
+		provider.updateModels([
+			{ ...makeModel('auto', withAgentModelEnsembleMeta({ discountPercent: 10 })), name: 'Ensemble' },
+			{ ...makeModel('gpt-5', withAgentModelEnsembleMeta(undefined)) },
+		]);
+		const infos = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+		const plainHost = createProvider();
+		plainHost.updateModels([makeModel('auto')]);
+		const plain = (await plainHost.provideLanguageModelChatInfo(undefined, CancellationToken.None))[0];
+		assert.deepStrictEqual({
+			models: infos.map(m => ({ name: m.metadata.name, ensemble: m.metadata.autoModelEnsemble, tooltip: m.metadata.tooltip })),
+			plain: plain.metadata.autoModelEnsemble,
+		}, {
+			models: [
+				{ name: 'Ensemble', ensemble: true, tooltip: ILanguageModelChatMetadata.getAutoModelDescription(true) },
+				{ name: 'gpt-5', ensemble: undefined, tooltip: undefined },
+			],
+			plain: undefined,
+		});
 	});
 
 	test('shows the Auto tooltip but no detail when there is no positive discount', async () => {

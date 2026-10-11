@@ -85,6 +85,28 @@ function createHydraFusionModel(): ILanguageModelChatMetadataAndIdentifier {
 	return { ...hydra, metadata: { ...hydra.metadata, name: 'HydraFusion', modelGroup: { id: 'copilotcli' }, detail: 'Research preview', tooltip: 'HydraFusion routes the first eligible turn and may use multiple models. Premium usage varies with the selected route.' } };
 }
 
+function createEnsembleModel(): ILanguageModelChatMetadataAndIdentifier {
+	const auto = createAutoModel();
+	return {
+		...auto,
+		metadata: {
+			...auto.metadata,
+			name: 'Ensemble',
+			autoModelEnsemble: true,
+			configurationSchema: {
+				properties: {
+					tier: {
+						type: 'string', group: 'navigation', title: 'Optimize for',
+						enum: ['balance', 'intelligence'],
+						enumItemLabels: ['Balance', 'Intelligence'],
+						default: 'balance',
+					},
+				}
+			},
+		},
+	};
+}
+
 function createHydraFusionMaxModel(): ILanguageModelChatMetadataAndIdentifier {
 	const max = model('hydrafusion-max', false);
 	return { ...max, metadata: { ...max.metadata, name: 'HydraFusion Max', modelGroup: { id: 'copilotcli' }, detail: 'Research preview' } };
@@ -808,6 +830,35 @@ suite('TabbedModelPicker', () => {
 		const result = createPicker({ models: [...models, createAutoModel(), createHydraFusionModel(), other], selectedModelId: models[0].identifier });
 		openDetails(result.popup, 'Auto');
 		assert.deepStrictEqual(autoTiers(result.popup), ['Efficiency', 'Balance', 'Intelligence', 'HydraFusion']);
+	});
+
+	test('Ensemble offers Balance, Intelligence, and Max, with Intelligence using HydraFusion only when the host offers it', async () => {
+		const max = createHydraFusionMaxModel();
+		const choose = async (withHydraFusion: boolean, option: string) => {
+			const ensemble = createEnsembleModel();
+			const result = createPicker({ models: [...models, ensemble, ...(withHydraFusion ? [createHydraFusionModel()] : []), max], selectedModelId: models[0].identifier });
+			const readout = () => Array.from(result.popup.querySelectorAll('.chat-model-picker-model'))
+				.find(row => row.querySelector('.title')?.textContent === 'Ensemble')?.querySelector('.action-label')?.textContent;
+			openDetails(result.popup, 'Ensemble');
+			const tiers = autoTiers(result.popup);
+			chooseOption(result.popup, option);
+			await timeout(0);
+			const discount = Array.from(result.popup.querySelectorAll<HTMLElement>('.chat-model-card-discount-description')).find(element => !element.hidden)?.textContent;
+			goBack(result.popup);
+			return { tiers, discount, readout: readout(), selections: result.selections, tier: result.values.get(ensemble.identifier)?.tier };
+		};
+		assert.deepStrictEqual({
+			intelligence: await choose(true, 'Intelligence'),
+			max: await choose(true, 'Max'),
+			intelligenceWithoutHydraFusion: await choose(false, 'Intelligence'),
+		}, {
+			intelligence: { tiers: ['Balance', 'Intelligence', 'Max'], discount: undefined, readout: 'Intelligence', selections: ['copilot/hydrafusion'], tier: undefined },
+			max: { tiers: ['Balance', 'Intelligence', 'Max'], discount: undefined, readout: 'Max', selections: ['copilot/hydrafusion-max'], tier: undefined },
+			intelligenceWithoutHydraFusion: {
+				tiers: ['Balance', 'Intelligence', 'Max'], discount: 'Models routed via Ensemble Intelligence receive a 10% discount.',
+				readout: 'Intelligence', selections: ['copilot/auto'], tier: 'intelligence',
+			},
+		});
 	});
 
 	test('rapid tier edits save in order and report the actual previous values', async () => {

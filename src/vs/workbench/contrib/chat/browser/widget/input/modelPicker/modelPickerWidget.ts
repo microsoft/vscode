@@ -25,6 +25,8 @@ import { ICommandService } from '../../../../../../../platform/commands/common/c
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../../../../platform/product/common/productService.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
+import { logSettingExperimentTrigger } from '../../../../../../../platform/telemetry/common/experimentTrigger.js';
+import { AgentHostEnsembleIntelligenceUsesHydraFusionSettingId } from '../../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../../platform/storage/common/storage.js';
 import { COPILOT_VENDOR_ID, getLanguageModelProviderDisplayName, IModelControlEntry, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, isUserProvidedModel } from '../../../../common/languageModels.js';
 import { getLanguageModelDisplayNameWithSubscriptionSource } from '../../../../common/languageModelSourcePresentation.js';
@@ -45,7 +47,7 @@ import { ITabbedModelPickerContext, TabbedModelPicker } from './modelPickerTabbe
 import { IModelPickerOpenTrigger, ModelPickerTelemetrySession } from './modelPickerTelemetry.js';
 import { whenModelConfigValuesSaved } from './modelPickerModelConfig.js';
 import { IModelPickerProviderPlaceholder } from './modelPickerTabs.js';
-import { getModelPickerUnavailableReason, isAutoModel, isHydraFusionModel, isHydraFusionUpgradeOnly, ModelPickerUnavailableReason, modelPickerRequiresSetup, shouldShowCacheBreakHint as computeShouldShowCacheBreakHint } from './modelPickerPresentation.js';
+import { getEnsembleTierLabel, getModelPickerUnavailableReason, isAutoModel, isHydraFusionModel, isHydraFusionUpgradeOnly, ModelPickerUnavailableReason, modelPickerRequiresSetup, shouldShowCacheBreakHint as computeShouldShowCacheBreakHint } from './modelPickerPresentation.js';
 
 /** Trusted caller options for opening a searchable picker without toggling it closed. */
 export interface IModelPickerOpenOptions {
@@ -282,6 +284,15 @@ export class ModelPickerWidget extends Disposable {
 		return models.find(model => isAutoModel(model) && !isUserProvidedModel(model, this._languageModelsService))
 			?? models.find(model => !isHydraFusionModel(model) || isUserProvidedModel(model, this._languageModelsService))
 			?? model;
+	}
+
+	private _getEnsembleTier(model: ILanguageModelChatMetadataAndIdentifier): { readonly ensemble: ILanguageModelChatMetadataAndIdentifier; readonly label: string } | undefined {
+		if (!isHydraFusionModel(model) || isUserProvidedModel(model, this._languageModelsService)) {
+			return undefined;
+		}
+		const ensemble = this._delegate.getModels().find(candidate => candidate.metadata.autoModelEnsemble && !isUserProvidedModel(candidate, this._languageModelsService));
+		const label = getEnsembleTierLabel(ensemble?.metadata, model.metadata.id);
+		return ensemble && label ? { ensemble, label } : undefined;
 	}
 
 	setEnabled(enabled: boolean): void {
@@ -538,6 +549,10 @@ export class ModelPickerWidget extends Disposable {
 		});
 		trigger?.setAttribute('aria-expanded', 'true');
 		this._domNode?.classList.add('model-picker-active');
+		// Intelligence's routing only differs inside the picker.
+		if (context.models.some(model => model.metadata.autoModelEnsemble && !isUserProvidedModel(model, this._languageModelsService))) {
+			logSettingExperimentTrigger(this._telemetryService, AgentHostEnsembleIntelligenceUsesHydraFusionSettingId);
+		}
 		picker.show(anchor, context, detailsModelId, focusConfiguration, this._contextViewLayer, options);
 		if (!picker.isVisible) {
 			// Nothing to show, e.g. every model was filtered out, so the open ends here.
@@ -680,8 +695,10 @@ export class ModelPickerWidget extends Disposable {
 		}
 
 		const workflow = this._delegate.workflow?.summary.get();
-		const name = workflow ?? (this._selectedModel
-			? getLanguageModelDisplayNameWithSubscriptionSource(this._selectedModel)
+		const ensembleTier = !workflow && this._selectedModel ? this._getEnsembleTier(this._selectedModel) : undefined;
+		const shownModel = ensembleTier?.ensemble ?? this._selectedModel;
+		const name = workflow ?? (shownModel
+			? getLanguageModelDisplayNameWithSubscriptionSource(shownModel)
 			: undefined);
 
 		const { reason, activating, genericNoModels, noModels: noModelsAvailable } = this._availability();
@@ -691,10 +708,10 @@ export class ModelPickerWidget extends Disposable {
 
 		// --- Name section ---
 		const nameChildren: (HTMLElement | string)[] = [];
-		const modelIcon = workflow ? Codicon.layers : this._selectedModel
+		const modelIcon = workflow ? Codicon.layers : shownModel
 			? (this._delegate.getPresentationOptions().showModelIcon
-				? getCompactModelPickerIcon(this._selectedModel)
-				: this._selectedModel.metadata.statusIcon ? getCompactCodicon(this._selectedModel.metadata.statusIcon) : undefined)
+				? getCompactModelPickerIcon(shownModel)
+				: shownModel.metadata.statusIcon ? getCompactCodicon(shownModel.metadata.statusIcon) : undefined)
 			: undefined;
 		const compact = this._compact?.get() ?? false;
 		const minimal = this._minimal?.get() ?? false;
@@ -723,7 +740,7 @@ export class ModelPickerWidget extends Disposable {
 
 		if (this._configButton) {
 			this._configButton.setAttribute('aria-haspopup', 'dialog');
-			renderModelConfigurationButton(this._configButton, this._selectedModel, this._delegate.modelConfiguration ?? this._languageModelsService, !!workflow || minimal || compact || noModelsAvailable);
+			renderModelConfigurationButton(this._configButton, shownModel, this._delegate.modelConfiguration ?? this._languageModelsService, !!workflow || minimal || compact || noModelsAvailable, ensembleTier?.label);
 		}
 		const configVisible = !!this._configButton && this._configButton.style.display !== 'none';
 		this._domNode.classList.toggle('has-config', configVisible);

@@ -12,7 +12,7 @@ import { readAgentModelNoticesMeta } from '../../../../../../platform/agentHost/
 import { isCopilotHydraFusionModelId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { COPILOT_CLI_AGENT_PROVIDER_ID } from '../../../../../../platform/agentHost/common/agent.js';
 import { ConfigSchema, SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { readAgentModelPricingMeta } from '../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
+import { readAgentModelEnsembleMeta, readAgentModelPricingMeta } from '../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
 import { readAgentModelByokIdentifier } from '../../../../../../platform/agentHost/common/agentModelByokMeta.js';
 import { readAgentModelGroupId, readAgentModelSourceId } from '../../../../../../platform/agentHost/common/agentModelSource.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel } from '../../../../../../platform/agentHost/common/reasoningEffort.js';
@@ -136,6 +136,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 						...(tooltip !== undefined && { tooltip }),
 						...(detail !== undefined && { detail }),
 						...(isAuto && hasDiscount && { autoModelDiscountPercent: discountPercent }),
+						...(isAuto && readAgentModelEnsembleMeta(m) && { autoModelEnsemble: true }),
 						maxInputTokens,
 						maxOutputTokens,
 						maxContextWindowTokens: m.maxContextWindow ?? known?.maxContextWindowTokens,
@@ -184,7 +185,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 			return {
 				detail: discountPercent !== undefined ? localize('agentHost.auto.discount', "{0}% discount", discountPercent) : undefined,
 				// The discount is carried by `autoModelDiscountPercent` and described by the picker.
-				description: ILanguageModelChatMetadata.getAutoModelDescription(),
+				description: ILanguageModelChatMetadata.getAutoModelDescription(readAgentModelEnsembleMeta(model)),
 			};
 		}
 		if (model.provider === COPILOT_CLI_AGENT_PROVIDER_ID && isCopilotHydraFusionModelId(model.id)) {
