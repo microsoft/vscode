@@ -71,13 +71,13 @@ export function splitGlobAware(pattern: string, splitChar: string): string[] {
 	const segments: string[] = [];
 
 	let inBraces = 0;
-	let inBrackets = 0;
+	let inBrackets = false;
 
 	let curVal = '';
 	for (const char of pattern) {
 		switch (char) {
 			case splitChar:
-				if (inBraces === 0 && inBrackets === 0) {
+				if (inBraces === 0 && !inBrackets) {
 					segments.push(curVal);
 					curVal = '';
 
@@ -85,20 +85,20 @@ export function splitGlobAware(pattern: string, splitChar: string): string[] {
 				}
 				break;
 			case '{':
-				inBraces++;
+				if (!inBrackets) {
+					inBraces++;
+				}
 				break;
 			case '}':
-				if (inBraces > 0) {
+				if (!inBrackets && inBraces > 0) {
 					inBraces--;
 				}
 				break;
 			case '[':
-				inBrackets++;
+				inBrackets = true;
 				break;
 			case ']':
-				if (inBrackets > 0) {
-					inBrackets--;
-				}
+				inBrackets = false;
 				break;
 		}
 
@@ -150,6 +150,8 @@ function parseRegExp(pattern: string): string {
 				// States
 				let braceDepth = 0;
 				let braceVal = '';
+				let inBracketsInBraces = false;
+				let bracketValInBraces = '';
 
 				let inBrackets = false;
 				let bracketVal = '';
@@ -158,9 +160,26 @@ function parseRegExp(pattern: string): string {
 
 					// Support brace expansion
 					if (braceDepth > 0) {
-						if (char === '{') {
+						if (inBracketsInBraces && (char !== ']' || !bracketValInBraces)) {
+							bracketValInBraces += char;
+							braceVal += char;
+							continue;
+						}
+
+						if (char === '[') {
+							inBracketsInBraces = true;
+							bracketValInBraces = '';
+							braceVal += '[';
+							continue;
+						} else if (char === ']') {
+							inBracketsInBraces = false;
+							bracketValInBraces = '';
+							braceVal += ']';
+							continue;
+						} else if (char === '{') {
 							braceDepth++;
 							braceVal += '{';
+							continue;
 						} else if (char === '}') {
 							braceDepth--;
 							if (braceDepth === 0) {
@@ -171,13 +190,16 @@ function parseRegExp(pattern: string): string {
 
 								regEx += braceRegExp;
 								braceVal = '';
+								inBracketsInBraces = false;
+								bracketValInBraces = '';
 							} else {
 								braceVal += '}';
 							}
+							continue;
 						} else {
 							braceVal += char;
+							continue;
 						}
-						continue;
 					}
 
 					// Support brackets

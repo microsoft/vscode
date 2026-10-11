@@ -501,6 +501,33 @@ suite('Glob', () => {
 		assertGlobMatch(p, 'bar.x');
 		assertGlobMatch(p, 'baz');
 		assertNoGlobMatch(p, 'bar.9');
+
+		p = '{foo,[{]}';
+		assertGlobMatch(p, 'foo');
+		assertGlobMatch(p, '{');
+		assertNoGlobMatch(p, 'bar');
+
+		p = '{foo,[}]}';
+		assertGlobMatch(p, 'foo');
+		assertGlobMatch(p, '}');
+		assertNoGlobMatch(p, 'bar');
+
+		p = '{foo,[[]}';
+		assertGlobMatch(p, 'foo');
+		assertGlobMatch(p, '[');
+		assertNoGlobMatch(p, 'bar');
+
+		p = '{foo,[]]}';
+		assertGlobMatch(p, 'foo');
+		assertGlobMatch(p, ']');
+		assertNoGlobMatch(p, 'bar');
+
+		p = '{foo,[][!]}';
+		assertGlobMatch(p, 'foo');
+		assertGlobMatch(p, '[');
+		assertGlobMatch(p, ']');
+		assertGlobMatch(p, '!');
+		assertNoGlobMatch(p, 'bar');
 	});
 
 	test('expression support (single)', function () {
@@ -749,6 +776,12 @@ suite('Glob', () => {
 		assert.deepStrictEqual(glob.splitGlobAware('foo,{bar,{baz,qux},quux},corge', ','), ['foo', '{bar,{baz,qux},quux}', 'corge']);
 		assert.deepStrictEqual(glob.splitGlobAware('{foo,bar},{baz,{qux,quux}}', ','), ['{foo,bar}', '{baz,{qux,quux}}']);
 		assert.deepStrictEqual(glob.splitGlobAware('{[foo,bar],[baz,qux]}', ','), ['{[foo,bar],[baz,qux]}']);
+
+		assert.deepStrictEqual(glob.splitGlobAware('[[],foo', ','), ['[[]', 'foo']);
+		assert.deepStrictEqual(glob.splitGlobAware('[[]/child', '/'), ['[[]', 'child']);
+		assert.deepStrictEqual(glob.splitGlobAware('[{],foo', ','), ['[{]', 'foo']);
+		assert.deepStrictEqual(glob.splitGlobAware('[}],foo', ','), ['[}]', 'foo']);
+		assert.deepStrictEqual(glob.splitGlobAware('{foo,[{]}', ','), ['{foo,[{]}']);
 	});
 
 	test('expression with disabled glob', function () {
