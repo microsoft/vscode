@@ -68,8 +68,6 @@ suite('built-in skills', () => {
 			path.join(copilotRoot, 'assets', 'prompts', 'skills', 'migrate-customizations', 'SKILL.md'),
 			'utf-8',
 		);
-		expect(skill).not.toContain('report_customization_migration');
-
 		expect({
 			contributions,
 			requiredContent: [
@@ -79,10 +77,10 @@ suite('built-in skills', () => {
 				'Agent Customizations > Migrations',
 				'Do not ask the user to manually reconstruct or paste the missing context',
 				'./references/migration-techniques.md',
-				'migration-log.md',
-				'restore.md',
+				'VS Code created and verified a private recovery bundle',
+				'When using `ask_user`, keep the question short and write it as a single sentence',
 				'pull request',
-				'migration-results.json',
+				'report_customization_migration',
 			].filter(anchor => skill.includes(anchor)),
 		}).toEqual({
 			contributions: [{
@@ -96,10 +94,10 @@ suite('built-in skills', () => {
 				'Agent Customizations > Migrations',
 				'Do not ask the user to manually reconstruct or paste the missing context',
 				'./references/migration-techniques.md',
-				'migration-log.md',
-				'restore.md',
+				'VS Code created and verified a private recovery bundle',
+				'When using `ask_user`, keep the question short and write it as a single sentence',
 				'pull request',
-				'migration-results.json',
+				'report_customization_migration',
 			],
 		});
 	});

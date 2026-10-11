@@ -69,6 +69,7 @@ import { AICustomizationManagementEditor } from './aiCustomizationManagementEdit
 import { AICustomizationManagementEditorInput } from './aiCustomizationManagementEditorInput.js';
 import './customizationMarketplace.contribution.js';
 import './customizationMigrationAccessibility.js';
+import { CustomizationMigrationResultToolContribution } from './customizationMigrationResultTool.js';
 
 //#region Telemetry
 
@@ -913,6 +914,11 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 registerWorkbenchContribution2(
 	AICustomizationManagementActionsContribution.ID,
 	AICustomizationManagementActionsContribution,
+	WorkbenchPhase.AfterRestored
+);
+registerWorkbenchContribution2(
+	CustomizationMigrationResultToolContribution.ID,
+	CustomizationMigrationResultToolContribution,
 	WorkbenchPhase.AfterRestored
 );
 

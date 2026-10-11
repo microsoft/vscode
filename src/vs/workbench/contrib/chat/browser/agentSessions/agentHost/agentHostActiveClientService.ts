@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce } from '../../../../../../base/common/arrays.js';
+import { coalesce, distinct } from '../../../../../../base/common/arrays.js';
 import { DeferredPromise, Delayer } from '../../../../../../base/common/async.js';
 import { onUnexpectedError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
@@ -11,7 +11,7 @@ import { hash } from '../../../../../../base/common/hash.js';
 import { Disposable, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../../base/common/map.js';
 import { equals } from '../../../../../../base/common/objects.js';
-import { autorun, derived, IObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, ISettableObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { type IExtUri } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { isCopilotAgentHostSessionType, isRemoteAgentHostSessionType } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
@@ -77,6 +77,10 @@ export interface IAgentHostActiveClientService {
 	getOrigin(syncedUri: URI): ISyncedCustomizationOrigin | undefined;
 	areScopeRootsEqual(first: readonly URI[] | undefined, second: readonly URI[]): boolean;
 	isBundledMcpServer(pluginUri: string, serverName: string): boolean;
+	setSessionTools(sessionResource: URI, toolIds: readonly string[]): void;
+	moveSessionTools(source: URI, target: URI): void;
+	clearSessionTools(sessionResource: URI): void;
+	observeSessionTools(sessionResource: URI): IObservable<readonly ToolDefinition[]>;
 }
 
 /** Owns the customization bundle and resolution lifecycle for one working-directory scope. */
@@ -281,6 +285,8 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 	private readonly _allToolSetsObs: IObservable<Iterable<IToolSet>>;
 	private readonly _semanticSearchEnabled: IObservable<boolean>;
 	private readonly _clientToolsByType = new Map<string, IObservable<readonly ToolDefinition[]>>();
+	private readonly _sessionTools = new ResourceMap<ISettableObservable<readonly ToolDefinition[]>>();
+	private readonly _sessionToolAliases = new ResourceMap<readonly URI[]>();
 	private readonly _scopes = new Map<string, AgentCustomizationScope>();
 	private readonly _mcpServerSupportScopes = new Map<string, AgentHostMcpServerSupportScope>();
 	private readonly _syncProviders = new Map<string, AgentCustomizationSyncProvider>();
@@ -373,6 +379,61 @@ export class AgentHostActiveClientService extends Disposable implements IAgentHo
 
 	isBundledMcpServer(pluginUri: string, serverName: string): boolean {
 		return Iterable.some([...this._scopes.values()], scope => scope.isBundledMcpServer(pluginUri, serverName));
+	}
+
+	setSessionTools(sessionResource: URI, toolIds: readonly string[]): void {
+		const tools = coalesce(toolIds.map(toolId => {
+			const tool = this._toolsService.getTool(toolId);
+			if (!tool) {
+				throw new Error(`Cannot expose unregistered tool ${toolId} to session ${sessionResource.toString()}.`);
+			}
+			return toolDataToDefinition(tool);
+		}));
+		for (const resource of this._sessionToolAliases.get(sessionResource) ?? [sessionResource]) {
+			this._getSessionTools(resource).set(tools, undefined);
+		}
+	}
+
+	moveSessionTools(source: URI, target: URI): void {
+		if (this._uriIdentityService.extUri.isEqual(source, target)) {
+			return;
+		}
+		const sourceTools = this._sessionTools.get(source);
+		if (!sourceTools) {
+			return;
+		}
+		const resources = distinct(
+			[
+				...(this._sessionToolAliases.get(source) ?? [source]),
+				...(this._sessionToolAliases.get(target) ?? [target]),
+			],
+			resource => this._uriIdentityService.extUri.getComparisonKey(resource),
+		);
+		for (const resource of resources) {
+			this._sessionToolAliases.set(resource, resources);
+			this._getSessionTools(resource).set(sourceTools.get(), undefined);
+		}
+	}
+
+	clearSessionTools(sessionResource: URI): void {
+		for (const resource of this._sessionToolAliases.get(sessionResource) ?? [sessionResource]) {
+			this._sessionTools.get(resource)?.set([], undefined);
+			this._sessionTools.delete(resource);
+			this._sessionToolAliases.delete(resource);
+		}
+	}
+
+	observeSessionTools(sessionResource: URI): IObservable<readonly ToolDefinition[]> {
+		return this._getSessionTools(sessionResource);
+	}
+
+	private _getSessionTools(sessionResource: URI): ISettableObservable<readonly ToolDefinition[]> {
+		let tools = this._sessionTools.get(sessionResource);
+		if (!tools) {
+			tools = observableValue(this, []);
+			this._sessionTools.set(sessionResource, tools);
+		}
+		return tools;
 	}
 
 	private _getClientTools(sessionType: string): IObservable<readonly ToolDefinition[]> {
