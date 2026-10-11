@@ -6090,7 +6090,8 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private _isHydraFusionEnabled(): boolean {
-		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusion) === true;
+		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.Ensemble) === true
+			|| this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusion) === true;
 	}
 
 	/**
