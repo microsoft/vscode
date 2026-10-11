@@ -6853,6 +6853,34 @@ suite('ProtocolServerHandler', () => {
 		transport.simulateClose();
 	});
 
+	test('malformed nested session subscription does not interrupt active-client reconciliation', async () => {
+		const malformedChat = 'ahp-chat://malformed';
+		stateManager.createSession(makeSessionSummary());
+		stateManager.dispatchServerAction(sessionUri, {
+			type: ActionType.SessionActiveClientSet,
+			activeClient: {
+				clientId: 'client-tools',
+				tools: [{ name: 'runTask', description: 'Runs a task' }]
+			},
+		});
+		startPendingClientToolCall(defaultChatUri, 'client-tools');
+
+		const transport = connectClient('client-tools', [sessionUri, malformedChat]);
+		await handler.whenIdle();
+		transport.simulateMessage(notification('unsubscribe', { channel: sessionUri }));
+
+		const part = stateManager.getSessionState(defaultChatUri)?.activeTurn?.responseParts[0];
+		assert.deepStrictEqual({
+			activeClients: stateManager.getSessionState(sessionUri)?.activeClients,
+			toolCallStatus: part?.kind === ResponsePartKind.ToolCall ? part.toolCall.status : undefined,
+		}, {
+			activeClients: [],
+			toolCallStatus: ToolCallStatus.Completed,
+		});
+
+		transport.simulateClose();
+	});
+
 	test('reconnect without resubscription removes the active client and fails its owned tool calls', async () => {
 		stateManager.createSession(makeSessionSummary());
 		stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
