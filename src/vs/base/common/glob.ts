@@ -70,14 +70,14 @@ export function splitGlobAware(pattern: string, splitChar: string): string[] {
 
 	const segments: string[] = [];
 
-	let inBraces = false;
-	let inBrackets = false;
+	let inBraces = 0;
+	let inBrackets = 0;
 
 	let curVal = '';
 	for (const char of pattern) {
 		switch (char) {
 			case splitChar:
-				if (!inBraces && !inBrackets) {
+				if (inBraces === 0 && inBrackets === 0) {
 					segments.push(curVal);
 					curVal = '';
 
@@ -85,16 +85,20 @@ export function splitGlobAware(pattern: string, splitChar: string): string[] {
 				}
 				break;
 			case '{':
-				inBraces = true;
+				inBraces++;
 				break;
 			case '}':
-				inBraces = false;
+				if (inBraces > 0) {
+					inBraces--;
+				}
 				break;
 			case '[':
-				inBrackets = true;
+				inBrackets++;
 				break;
 			case ']':
-				inBrackets = false;
+				if (inBrackets > 0) {
+					inBrackets--;
+				}
 				break;
 		}
 
@@ -144,7 +148,7 @@ function parseRegExp(pattern: string): string {
 			else {
 
 				// States
-				let inBraces = false;
+				let braceDepth = 0;
 				let braceVal = '';
 
 				let inBrackets = false;
@@ -153,8 +157,26 @@ function parseRegExp(pattern: string): string {
 				for (const char of segment) {
 
 					// Support brace expansion
-					if (char !== '}' && inBraces) {
-						braceVal += char;
+					if (braceDepth > 0) {
+						if (char === '{') {
+							braceDepth++;
+							braceVal += '{';
+						} else if (char === '}') {
+							braceDepth--;
+							if (braceDepth === 0) {
+								const choices = splitGlobAware(braceVal, ',');
+
+								// Converts {foo,bar} => [foo|bar]
+								const braceRegExp = `(?:${choices.map(choice => parseRegExp(choice)).join('|')})`;
+
+								regEx += braceRegExp;
+								braceVal = '';
+							} else {
+								braceVal += '}';
+							}
+						} else {
+							braceVal += char;
+						}
 						continue;
 					}
 
@@ -189,26 +211,12 @@ function parseRegExp(pattern: string): string {
 
 					switch (char) {
 						case '{':
-							inBraces = true;
+							braceDepth = 1;
 							continue;
 
 						case '[':
 							inBrackets = true;
 							continue;
-
-						case '}': {
-							const choices = splitGlobAware(braceVal, ',');
-
-							// Converts {foo,bar} => [foo|bar]
-							const braceRegExp = `(?:${choices.map(choice => parseRegExp(choice)).join('|')})`;
-
-							regEx += braceRegExp;
-
-							inBraces = false;
-							braceVal = '';
-
-							break;
-						}
 
 						case ']': {
 							regEx += ('[' + bracketVal + ']');

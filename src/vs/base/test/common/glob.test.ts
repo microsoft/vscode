@@ -467,6 +467,40 @@ suite('Glob', () => {
 		assertNoGlobMatch(p, 'prefix/bar.5');
 		assertNoGlobMatch(p, 'prefix/foo.f');
 		assertGlobMatch(p, 'prefix/foo.js');
+
+		p = '{a,{b,c}}';
+		assertGlobMatch(p, 'a');
+		assertGlobMatch(p, 'b');
+		assertGlobMatch(p, 'c');
+		assertNoGlobMatch(p, 'd');
+
+		p = '{a,{b,c},d}';
+		assertGlobMatch(p, 'a');
+		assertGlobMatch(p, 'b');
+		assertGlobMatch(p, 'c');
+		assertGlobMatch(p, 'd');
+		assertNoGlobMatch(p, 'e');
+
+		p = '{a,{b,{c,d},e},f}';
+		assertGlobMatch(p, 'a');
+		assertGlobMatch(p, 'b');
+		assertGlobMatch(p, 'c');
+		assertGlobMatch(p, 'd');
+		assertGlobMatch(p, 'e');
+		assertGlobMatch(p, 'f');
+		assertNoGlobMatch(p, 'g');
+
+		p = '{**/*.{ts,js},**/*.json}';
+		assertGlobMatch(p, 'foo.ts');
+		assertGlobMatch(p, 'foo.js');
+		assertGlobMatch(p, 'foo.json');
+		assertNoGlobMatch(p, 'foo.txt');
+
+		p = '{foo.[0-9],{bar.[a-z],baz}}';
+		assertGlobMatch(p, 'foo.5');
+		assertGlobMatch(p, 'bar.x');
+		assertGlobMatch(p, 'baz');
+		assertNoGlobMatch(p, 'bar.9');
 	});
 
 	test('expression support (single)', function () {
@@ -710,6 +744,11 @@ suite('Glob', () => {
 		assert.deepStrictEqual(glob.splitGlobAware('[foo,bar]', ','), ['[foo,bar]']);
 		assert.deepStrictEqual(glob.splitGlobAware('foo,bar,[foo,bar]', ','), ['foo', 'bar', '[foo,bar]']);
 		assert.deepStrictEqual(glob.splitGlobAware('[foo,bar],foo,bar,[foo,bar]', ','), ['[foo,bar]', 'foo', 'bar', '[foo,bar]']);
+
+		assert.deepStrictEqual(glob.splitGlobAware('{foo,{bar,baz}}', ','), ['{foo,{bar,baz}}']);
+		assert.deepStrictEqual(glob.splitGlobAware('foo,{bar,{baz,qux},quux},corge', ','), ['foo', '{bar,{baz,qux},quux}', 'corge']);
+		assert.deepStrictEqual(glob.splitGlobAware('{foo,bar},{baz,{qux,quux}}', ','), ['{foo,bar}', '{baz,{qux,quux}}']);
+		assert.deepStrictEqual(glob.splitGlobAware('{[foo,bar],[baz,qux]}', ','), ['{[foo,bar],[baz,qux]}']);
 	});
 
 	test('expression with disabled glob', function () {
