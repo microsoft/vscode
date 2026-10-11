@@ -16,6 +16,6 @@ export function getAgentHostTestProfile(value = process.env['AGENT_HOST_TEST_PRO
 }
 
 /** Registers full-profile coverage without changing its title, fixture identity, or capability gates. */
-export function fullOnlyTest(title: string, run: Mocha.Func | Mocha.AsyncFunc, enabled = true): Mocha.Test {
+export function fullOnlyTest(title: string, run: (this: Mocha.Context) => void | PromiseLike<void>, enabled = true): Mocha.Test {
 	return (getAgentHostTestProfile() === 'full' && enabled ? test : test.skip)(title, run);
 }
