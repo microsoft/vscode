@@ -184,6 +184,18 @@
         "enablement": "!operationInProgress"
       },
       {
+        "command": "git.acceptMergeCurrentFile",
+        "title": "%command.acceptMergeCurrentFile%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.acceptMergeIncomingFile",
+        "title": "%command.acceptMergeIncomingFile%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
         "command": "git.stageAll",
         "title": "%command.stageAll%",
         "category": "Git",
@@ -1222,6 +1234,14 @@
       "commandPalette": [
         {
           "command": "git.continueInLocalClone",
+          "when": "false"
+        },
+        {
+          "command": "git.acceptMergeCurrentFile",
+          "when": "false"
+        },
+        {
+          "command": "git.acceptMergeIncomingFile",
           "when": "false"
         },
         {
@@ -2434,6 +2454,16 @@
         }
       ],
       "scm/resourceState/context": [
+        {
+          "command": "git.acceptMergeCurrentFile",
+          "when": "scmProvider == git && scmResourceGroup == merge",
+          "group": "1_modification"
+        },
+        {
+          "command": "git.acceptMergeIncomingFile",
+          "when": "scmProvider == git && scmResourceGroup == merge",
+          "group": "1_modification"
+        },
         {
           "command": "git.stage",
           "when": "scmProvider == git && scmResourceGroup == merge",
@@ -4049,6 +4079,12 @@
           "default": false,
           "markdownDescription": "%config.mergeEditor%",
           "scope": "window"
+        },
+        "git.detectWholeFileMergeConflicts": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%config.detectWholeFileMergeConflicts%",
+          "scope": "resource"
         },
         "git.optimisticUpdate": {
           "type": "boolean",
