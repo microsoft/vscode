@@ -21,7 +21,7 @@ import { AgentHostClientState, AgentHostProtocolClient } from '../../../../../pl
 import { editorWindowAgentHostClientInfo } from '../../../../../platform/agentHost/common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind } from '../../../../../platform/agentHost/common/agentHostTelemetry.js';
 import { agentHostAuthority, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
-import type { IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
+import type { IAgentHostDebugLogsArtifact, IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
 import type { IClientTransport } from '../../../../../platform/agentHost/common/state/sessionTransport.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
@@ -342,5 +342,50 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 			workingDirectory: directorySets[index]?.[0],
 			workingDirectories: directorySets[index],
 		})));
+	});
+
+	test('forwards debug-log collection progress tokens and cancellation to the remote bridge', async () => {
+		const remoteAgentService = new DeferredRemoteAgentService(disposables.add(new TestRemoteAgentConnection({
+			call: <T>() => Promise.resolve(undefined as T),
+			listen: () => Event.None,
+		})));
+		const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection(
+			[IRemoteAgentService, remoteAgentService],
+			[IRemoteAuthorityResolverService, upcastPartial<IRemoteAuthorityResolverService>({})],
+			[IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(false), managedSandboxEnforced: constObservable(false) }],
+			[ILogService, new NullLogService()],
+			[IWorkbenchEnvironmentService, { isSessionsWindow: false }],
+			[ILabelService, upcastPartial<ILabelService>({ registerFormatter: () => Disposable.None })],
+			[IAgentHostFileSystemService, {
+				_serviceBrand: undefined,
+				registerAuthority: () => Disposable.None,
+				ensureSyncedCustomizationProvider: () => { },
+			}],
+		)));
+		const artifact: IAgentHostDebugLogsArtifact = {
+			kind: 'archive', resource: URI.parse('vscode-agent-host://remote/tmp/logs.zip'),
+			providerLogsIncluded: true, size: 10, uncompressedSize: 20, entries: [{ path: 'events.jsonl', size: 20 }],
+		};
+		const calls: { session?: string; chat?: string; progressToken: string | undefined }[] = [];
+		instantiationService.stubInstance(AgentHostProtocolClient, {
+			onDidClose: Event.None,
+			onDidChangeConnectionState: Event.None,
+			collectDebugLogs: async (session, _kind, chat, progressToken) => {
+				calls.push({ session: session?.toString(), chat: chat?.toString(), progressToken });
+				return artifact;
+			},
+			cancelDebugLogs: async progressToken => { calls.push({ progressToken }); },
+			dispose: () => { },
+		});
+		instantiationService.set(IInstantiationService, instantiationService);
+		const service = disposables.add(instantiationService.createInstance(EditorRemoteAgentHostServiceClient));
+		const session = URI.parse('custom-session://host/session');
+		const chat = URI.parse('custom-chat://host/chat');
+		const result = await service.collectDebugLogs(session, 'archive', chat, 'export-progress');
+		await service.cancelDebugLogs('export-progress');
+		assert.deepStrictEqual({ calls, result }, {
+			calls: [{ session: session.toString(), chat: chat.toString(), progressToken: 'export-progress' }, { progressToken: 'export-progress' }],
+			result: artifact,
+		});
 	});
 });
