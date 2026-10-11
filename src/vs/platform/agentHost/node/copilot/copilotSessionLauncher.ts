@@ -23,7 +23,7 @@ import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js
 import { reasoningEffortLevels, type ReasoningEffortLevel } from '../../common/reasoningEffort.js';
 import { getSessionSandboxConfig } from '../sessionSandbox.js';
 import { projectCopilotSandboxPolicy } from './copilotSandboxPolicy.js';
-import { autoModeTiers, isAutoModeTier, normalizeAutoModeTier, type AutoModeTier } from '../../common/autoModeTiers.js';
+import { autoModeTiers, defaultAutoModeTier, isAutoModeTier, normalizeAutoModeTier, type AutoModeTier } from '../../common/autoModeTiers.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
 import type { ModelSelection, ToolDefinition } from '../../common/state/protocol/state.js';
 import { ContextSizeConfigKey } from '../../common/agentModelConfiguration.js';
@@ -515,7 +515,16 @@ function resolveConfiguredAutoTierOverride(model: ModelSelection | undefined, co
 		return undefined;
 	}
 	logService.info(`[Copilot:${sessionId}] Applying Auto "Optimize for" override '${tier}'`);
-	return tier;
+	return toEnsembleTier(tier, configurationService, logService, sessionId);
+}
+
+/** Ensemble offers no Efficiency, so it runs as Ensemble's default instead. */
+function toEnsembleTier(tier: AutoModeTier, configurationService: Pick<IAgentConfigurationService, 'getRootValue'>, logService: ILogService, sessionId: string): AutoModeTier {
+	if (tier !== 'efficiency' || configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.Ensemble) !== true) {
+		return tier;
+	}
+	logService.info(`[Copilot:${sessionId}] Using Ensemble's '${defaultAutoModeTier}' in place of Auto "Optimize for" '${tier}'`);
+	return defaultAutoModeTier;
 }
 
 /** Resolves the shared override first, then the picker preference. */
@@ -529,7 +538,7 @@ export function resolveCopilotAutoTier(model: ModelSelection | undefined, config
 		return undefined;
 	}
 	logService.info(`[Copilot:${sessionId}] Using Auto "Optimize for" preference '${tier}'`);
-	return tier;
+	return toEnsembleTier(tier, configurationService, logService, sessionId);
 }
 
 /**

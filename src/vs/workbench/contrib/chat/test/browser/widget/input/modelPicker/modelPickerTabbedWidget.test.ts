@@ -82,7 +82,34 @@ function createAutoModel(): ILanguageModelChatMetadataAndIdentifier {
 
 function createHydraFusionModel(): ILanguageModelChatMetadataAndIdentifier {
 	const hydra = model('hydrafusion', false);
-	return { ...hydra, metadata: { ...hydra.metadata, name: 'HydraFusion', detail: 'Research preview', tooltip: 'HydraFusion routes the first eligible turn and may use multiple models. Premium usage varies with the selected route.' } };
+	return { ...hydra, metadata: { ...hydra.metadata, name: 'HydraFusion', modelGroup: { id: 'copilotcli' }, detail: 'Research preview', tooltip: 'HydraFusion routes the first eligible turn and may use multiple models. Premium usage varies with the selected route.' } };
+}
+
+function createEnsembleModel(intelligenceUsesHydraFusion = true): ILanguageModelChatMetadataAndIdentifier {
+	const auto = createAutoModel();
+	return {
+		...auto,
+		metadata: {
+			...auto.metadata,
+			name: 'Ensemble',
+			autoModelEnsemble: { intelligenceUsesHydraFusion },
+			configurationSchema: {
+				properties: {
+					tier: {
+						type: 'string', group: 'navigation', title: 'Optimize for',
+						enum: ['balance', 'intelligence'],
+						enumItemLabels: ['Balance', 'Intelligence'],
+						default: 'balance',
+					},
+				}
+			},
+		},
+	};
+}
+
+function createHydraFusionMaxModel(): ILanguageModelChatMetadataAndIdentifier {
+	const max = model('hydrafusion-max', false);
+	return { ...max, metadata: { ...max.metadata, name: 'HydraFusion Max', modelGroup: { id: 'copilotcli' }, detail: 'Research preview' } };
 }
 
 suite('TabbedModelPicker', () => {
@@ -776,6 +803,68 @@ suite('TabbedModelPicker', () => {
 		result.picker.show(result.anchor, { ...result.context, selectedModelId: result.selections.at(-1) ?? result.context.selectedModelId });
 	}
 
+	test('HydraFusion Max follows HydraFusion among Auto\'s tiers and Auto stands for it once chosen', async () => {
+		const auto = createAutoModel();
+		const hydra = createHydraFusionModel();
+		const max = createHydraFusionMaxModel();
+		const result = createPicker({ models: [...models, auto, hydra, max], selectedModelId: models[0].identifier });
+		const autoReadout = () => Array.from(result.popup.querySelectorAll('.chat-model-picker-model'))
+			.find(row => row.querySelector('.title')?.textContent === 'Auto')?.querySelector('.action-label')?.textContent;
+		const rows = listRows(result.popup);
+		openDetails(result.popup, 'Auto');
+		chooseOption(result.popup, 'HydraFusion Max');
+		await timeout(0);
+		const chosenModel = result.popup.querySelector('.tabbed-action-list-details .chat-model-card-name')?.textContent;
+		goBack(result.popup);
+		assert.deepStrictEqual({ rows, chosenModel, readout: autoReadout(), selections: result.selections }, {
+			rows: ['Auto', '--', 'First', 'Fixed', 'Second'],
+			chosenModel: 'Auto',
+			readout: 'HydraFusion Max',
+			selections: [max.identifier],
+		});
+	});
+
+	test('another provider\'s model with a HydraFusion id is not one of Auto\'s tiers', () => {
+		const otherBase = createHydraFusionMaxModel();
+		const other = { ...otherBase, identifier: 'claude/hydrafusion-max', metadata: { ...otherBase.metadata, name: 'Other Max', modelGroup: { id: 'claude' } } };
+		const result = createPicker({ models: [...models, createAutoModel(), createHydraFusionModel(), other], selectedModelId: models[0].identifier });
+		openDetails(result.popup, 'Auto');
+		assert.deepStrictEqual(autoTiers(result.popup), ['Efficiency', 'Balance', 'Intelligence', 'HydraFusion']);
+	});
+
+	test('Ensemble offers Balance, Intelligence, and Max, with Intelligence using HydraFusion only when routed there and available', async () => {
+		const max = createHydraFusionMaxModel();
+		const choose = async (option: string, intelligenceUsesHydraFusion: boolean, withHydraFusion = true) => {
+			const ensemble = createEnsembleModel(intelligenceUsesHydraFusion);
+			const result = createPicker({ models: [...models, ensemble, ...(withHydraFusion ? [createHydraFusionModel()] : []), max], selectedModelId: models[0].identifier });
+			const readout = () => Array.from(result.popup.querySelectorAll('.chat-model-picker-model'))
+				.find(row => row.querySelector('.title')?.textContent === 'Ensemble')?.querySelector('.action-label')?.textContent;
+			const rows = listRows(result.popup);
+			openDetails(result.popup, 'Ensemble');
+			const tiers = autoTiers(result.popup);
+			chooseOption(result.popup, option);
+			await timeout(0);
+			const discount = Array.from(result.popup.querySelectorAll<HTMLElement>('.chat-model-card-discount-description')).find(element => !element.hidden)?.textContent;
+			goBack(result.popup);
+			return { rows, tiers, discount, readout: readout(), selections: result.selections, tier: result.values.get(ensemble.identifier)?.tier };
+		};
+		const ensembleIntelligence = {
+			rows: ['Ensemble', '--', 'First', 'Fixed', 'Second'], tiers: ['Balance', 'Intelligence', 'Max'], discount: 'Models routed via Ensemble Intelligence receive a 10% discount.',
+			readout: 'Intelligence', selections: ['copilot/auto'], tier: 'intelligence',
+		};
+		assert.deepStrictEqual({
+			intelligence: await choose('Intelligence', true),
+			max: await choose('Max', true),
+			intelligenceNotRouted: await choose('Intelligence', false),
+			intelligenceWithoutHydraFusion: await choose('Intelligence', true, false),
+		}, {
+			intelligence: { rows: ['Ensemble', '--', 'First', 'Fixed', 'Second'], tiers: ['Balance', 'Intelligence', 'Max'], discount: undefined, readout: 'Intelligence', selections: ['copilot/hydrafusion'], tier: undefined },
+			max: { rows: ['Ensemble', '--', 'First', 'Fixed', 'Second'], tiers: ['Balance', 'Intelligence', 'Max'], discount: undefined, readout: 'Max', selections: ['copilot/hydrafusion-max'], tier: undefined },
+			intelligenceNotRouted: ensembleIntelligence,
+			intelligenceWithoutHydraFusion: ensembleIntelligence,
+		});
+	});
+
 	test('rapid tier edits save in order and report the actual previous values', async () => {
 		const auto = createAutoModel();
 		const pending = new DeferredPromise<void>();
@@ -935,14 +1024,16 @@ suite('TabbedModelPicker', () => {
 		test(`${ChatEntitlement[entitlement]} plans show HydraFusion as an unavailable upgrade instead of a tier`, () => {
 			const auto = createAutoModel();
 			const hydra = createHydraFusionModel();
+			// Listed first, so the upsell must not take its name.
+			const max = createHydraFusionMaxModel();
 			const result = createPicker({
-				models: [auto, hydra, ...models],
+				models: [auto, max, hydra, ...models],
 				selectedModelId: auto.identifier,
 				entitlement,
 				showUnavailable: false,
 				controlModels: {},
 			});
-			result.picker.refresh([auto, hydra, ...models]);
+			result.picker.refresh([auto, max, hydra, ...models]);
 			const unavailableHydra = element(result.popup, '.chat-model-picker-unavailable');
 			unavailableHydra.click();
 			const state = {

@@ -2029,6 +2029,26 @@ suite('getCopilotAutoTier', () => {
 			['efficiency', undefined, undefined, 'intelligence', 'balance', 'efficiency', undefined]
 		);
 	});
+
+	test('resolves an Efficiency preference or override to Balance under Ensemble', () => {
+		const log = new NullLogService();
+		const configOf = (ensemble: boolean, autoModeTierOverride?: string): Pick<IAgentConfigurationService, 'getRootValue'> => ({
+			getRootValue: (schema, key) => {
+				const value = copilotCliConfigSchema.values({ ensemble, autoModeTierOverride })[key];
+				return schema.validate(key, value) ? value : undefined;
+			},
+		});
+		assert.deepStrictEqual(
+			[
+				resolveCopilotAutoTier({ id: 'auto', config: { tier: 'efficiency' } }, configOf(true), log, 's1'),
+				resolveCopilotAutoTier({ id: 'auto', config: { tier: 'intelligence' } }, configOf(true), log, 's1'),
+				resolveCopilotAutoTier({ id: 'auto', config: { tier: 'efficiency' } }, configOf(false), log, 's1'),
+				resolveCopilotAutoTier({ id: 'auto' }, configOf(true, 'efficiency'), log, 's1'),
+				resolveCopilotAutoTier({ id: 'auto' }, configOf(false, 'efficiency'), log, 's1'),
+			],
+			['balance', 'intelligence', 'efficiency', 'balance', 'efficiency']
+		);
+	});
 });
 
 /**

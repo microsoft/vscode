@@ -111,9 +111,15 @@ export function getModelConfigProperty(
 		if (schema.group !== group || !schema.enum?.length) {
 			continue;
 		}
-		return { key, value: Object.hasOwn(currentConfig, key) ? currentConfig[key] : schema.default, schema };
+		const saved = Object.hasOwn(currentConfig, key) && (key !== 'tier' || isOfferedAutoTier(schema, currentConfig[key]));
+		return { key, value: saved ? currentConfig[key] : schema.default, schema };
 	}
 	return undefined;
+}
+
+/** Counts the legacy `fast` tier, which still shows as Automatic beside Efficiency. */
+function isOfferedAutoTier(schema: IModelConfigPropertySchema, value: unknown): boolean {
+	return !!schema.enum?.includes(value) || (value === 'fast' && !!schema.enum?.includes('efficiency'));
 }
 
 /** The label an enum value is shown with, falling back to a formatted raw value. */
