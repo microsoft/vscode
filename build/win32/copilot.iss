@@ -896,6 +896,9 @@ function CopilotAddText(const Page: TWizardPage; var Top: Integer; const Left: I
 begin
   Result := TNewStaticText.Create(Page);
   Result.Parent := Page.Surface;
+  // Screen readers follow the window order, and each new control is placed above the ones before it. Moving it to the
+  // bottom keeps the window order the same as the order on the page. CopilotAddOption and CopilotAddFooter do the same.
+  Result.SendToBack;
   Result.Left := Left;
   Result.Top := Top;
   Result.Width := Page.SurfaceWidth - Left;
@@ -909,6 +912,7 @@ function CopilotAddOption(const Page: TWizardPage; var Top: Integer; const Capti
 begin
   Result := TNewRadioButton.Create(Page);
   Result.Parent := Page.Surface;
+  Result.SendToBack;
   Result.Left := 0;
   Result.Top := Top;
   Result.Width := Page.SurfaceWidth;
@@ -937,6 +941,7 @@ begin
 
   Link := TNewLinkLabel.Create(Page);
   Link.Parent := Page.Surface;
+  Link.SendToBack;
   // Link labels aren't tab stops by default, which leaves the link out of keyboard navigation.
   Link.TabStop := True;
   Link.AutoSize := False;
