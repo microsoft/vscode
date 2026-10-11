@@ -1,25 +1,20 @@
-/* ------------------------------------------------------------------------------------------------------
- * Copyright (C) 2026, João Guilherme da Silva Freitas Lima (dev brazilian).
- * Licensed under MIT License. See the file 'LICENSE.txt' in the root project for more informations.
- * All rights reserved.
- * ------------------------------------------------------------------------------------------------------
-*/
+/*---------------------------------------------------------------------------------------------
+  *  Copyright (c) Microsoft Corporation. All rights reserved.
+  *  Licensed under the MIT License. See License.txt in the project root for license information.
+  *--------------------------------------------------------------------------------------------*/
 
 /* Basic Defines */
 const EFI_CAPSULES_LOADER_KERNEL_LINUX: number = 0;
 const REVIEW_INTEL: number = 2015;
 
 /* A Clear Function */
-function clearIndexForClass(classAddr: any[]) {
+export function clearIndexForClass(classAddr: any[]) {
 	if (!classAddr) return REVIEW_INTEL;
 
-	for (let i: number = 0; i < classAddr.length; i++) {
-		classAddr[i] = 0;
-	}
+	classAddr.length = 0;
 }
-
 /* A Helper Function for previsions */
-function previsionMitigationMemoryLeaks(mitigPrev: any, length: number, flags: boolean) {
+export function previsionMitigationMemoryLeaks(mitigPrev: any, length: number, flags: boolean) {
 	/* Handling: The pointer is null or invalid pointer? */
 	if (!mitigPrev) return -102;
 
@@ -34,7 +29,7 @@ function previsionMitigationMemoryLeaks(mitigPrev: any, length: number, flags: b
 }
 
 /* The Main Function */
-function mitigAndPrevMemoryLeaks(mitigPrev: any, length: number, flags: boolean) {
+export function mitigAndPrevMemoryLeaks(mitigPrev: any, length: number, flags: boolean) {
 	/* Handling: Pointer invalid or null? */
 	if (!mitigPrev) return -102;
 
