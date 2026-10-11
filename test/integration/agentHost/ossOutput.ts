@@ -30,17 +30,32 @@ const titles = [
 const gates = ['historical-oss-source', 'native-inputs', 'native-electron-sqlite-pty-abi', ...modules.map(module => `register:${module}`), 'real-native-procfs-calibration', 'strict-split-iteration:1', 'strict-split-iteration:2', 'registration-no-receipt-control', 'owned-cleanup'];
 const errorClasses = ['Error', 'AssertionError', 'SyntaxError', 'ENOENT', 'EACCES', 'EEXIST', 'EIO', 'ENOSPC'];
 const sourcePaths = ['package.json', 'package-lock.json', 'product.json', '.npmrc', '.nvmrc', 'remote/.npmrc', 'test/package.json', 'test/unit/electron/index.js', 'test/unit/electron/renderer.js', 'test/unit/electron/renderer.html', 'test/unit/electron/preload.js', 'build/package-lock.json', 'build/checksums/electron.txt', 'build/checksums/nodejs.txt', 'build/npm/electronTypes.ts', 'build/npm/preinstall.ts', 'build/linux/libcxx-fetcher.ts', 'build/npm/gyp/custom-headers/v8config.h', 'build/npm/gyp/custom-headers/v8-source-location.h'];
+const diskLifecycleTitles = [
+	'session metadata history and provider context survive a host restart',
+	'archiving a never-restored session survives a host restart',
+	'a created automation survives an agent host restart',
+	'automation lifecycle: cancelled request deduplication survives a restart',
+	'automation lifecycle: an unavailable model produces a durable failed run',
+	'regression coverage: cold resume retains ordered user and assistant context',
+	'regression coverage: identical prompts remain separate completed turns after resume',
+	'detached worktree safety: archive commits local edits and restores them on unarchive',
+	'detached worktree safety: archived handles remain restorable after a host restart',
+	'detached worktree safety: deletion recovers when the checkout was already removed externally',
+];
 type RecordValue = Record<string, unknown>;
 
 class PrivacyError extends Error {
-	constructor() {
+	readonly errorClass: string;
+
+	constructor(errorClass = 'UnsupportedProducer') {
 		super('Unsupported temporary diagnostic producer');
+		this.errorClass = errorClass;
 	}
 }
 
-function requireSafe(value: unknown): asserts value {
+function requireSafe(value: unknown, errorClass?: string): asserts value {
 	if (!value) {
-		throw new PrivacyError();
+		throw new PrivacyError(errorClass);
 	}
 }
 
@@ -189,21 +204,46 @@ async function testReport(text: string, module: number, iteration: number, stora
 	const attributes = object(report.$, ['name', 'time', 'tests', 'failures'], ['skipped']);
 	const numeric = (value: unknown) => { requireSafe(typeof value === 'string' && /^\d+$/.test(value)); return count(Number(value)); };
 	const tests: { id: string; status: string }[] = [];
+	let declared = 0;
+	let completed = 0;
+	let lifecycleCompleted = 0;
 	requireSafe(report.testsuite === undefined || Array.isArray(report.testsuite));
 	for (const value of report.testsuite as unknown[] ?? []) {
 		const suite = object(value, ['$'], ['testcase', 'properties', 'system-out', 'system-err']);
-		object(suite.$, ['name', 'timestamp', 'tests', 'time', 'failures'], ['skipped']);
+		const suiteAttributes = object(suite.$, ['name', 'timestamp', 'tests', 'time', 'failures'], ['skipped']);
+		declared += numeric(suiteAttributes.tests);
+		let suiteFailed = 0;
+		let suitePending = 0;
 		requireSafe(suite.testcase === undefined || Array.isArray(suite.testcase));
 		for (const value of suite.testcase as unknown[] ?? []) {
 			const test = object(value, ['$'], ['failure', 'skipped', 'system-out', 'system-err']);
 			const attributes = object(test.$, ['name', 'time', 'classname']);
 			requireSafe(typeof attributes.name === 'string' && typeof attributes.classname === 'string');
-			tests.push({ id: digest(attributes.classname + '\0' + attributes.name), status: Object.hasOwn(test, 'failure') ? 'failed' : Object.hasOwn(test, 'skipped') ? 'pending' : 'passed' });
+			requireSafe(!(Object.hasOwn(test, 'failure') && Object.hasOwn(test, 'skipped')));
+			const status = Object.hasOwn(test, 'failure') ? 'failed' : Object.hasOwn(test, 'skipped') ? 'pending' : 'passed';
+			if (status === 'failed') {
+				suiteFailed++;
+			}
+			if (status === 'pending') {
+				suitePending++;
+			} else {
+				if (!attributes.name.startsWith(titles[0] + ' ')) {
+					completed++;
+				}
+				if (diskLifecycleTitles.includes(attributes.classname)) {
+					lifecycleCompleted++;
+				}
+			}
+			tests.push({ id: digest(attributes.classname + '\0' + attributes.name), status });
 		}
+		requireSafe(numeric(suiteAttributes.failures) === suiteFailed && (suiteAttributes.skipped === undefined ? 0 : numeric(suiteAttributes.skipped)) === suitePending, 'ReportCounts');
 	}
 	const failed = numeric(attributes.failures);
-	requireSafe(tests.filter(test => test.status === 'failed').length === failed);
-	return { kind: 'tests', module, iteration, storage, passed: tests.filter(test => test.status === 'passed').length, failed, pending: attributes.skipped === undefined ? 0 : numeric(attributes.skipped), tests };
+	const pending = attributes.skipped === undefined ? 0 : numeric(attributes.skipped);
+	const passed = tests.filter(test => test.status === 'passed').length;
+	const emittedPending = tests.filter(test => test.status === 'pending').length;
+	requireSafe(numeric(attributes.tests) === declared && tests.filter(test => test.status === 'failed').length === failed && pending >= emittedPending && passed + pending <= declared && completed + pending <= declared + failed && new Set(tests.map(test => test.id)).size === tests.length, 'ReportCounts');
+	return { kind: 'tests', module, iteration, storage, declared, completed, lifecycleCompleted, passed, failed, pending, tests };
 }
 
 function readFile(file: string): string {
@@ -263,17 +303,51 @@ async function collect(root: string, cache: string, failed: boolean): Promise<Re
 		requireSafe(match);
 		records.push(await testReport(readFile(path.join(reports, name)), labels.indexOf(match[2]), Number(match[1]), match[3]));
 	}
-	if (!failed && !records.some(record => record.kind === 'registration-only')) {
-		requireSafe(records.filter(record => record.kind === 'iteration' && record.status === 0).length === 2);
-		requireSafe(records.filter(record => record.kind === 'tests').length === 24);
+	if (!failed && records.some(record => record.kind === 'registration-only')) {
+		requireSafe(!records.some(record => record.kind === 'iteration' || record.kind === 'tests'), 'ReportMatrix');
+	} else if (!failed) {
+		const reports = records.filter(record => record.kind === 'tests');
+		for (const iteration of [1, 2]) {
+			requireSafe(records.some(record => record.kind === 'iteration' && record.iteration === iteration && record.status === 0), 'ReportMatrix');
+			for (let module = 0; module < modules.length; module++) {
+				for (const storage of ['tmpfs', 'disk']) {
+					const matches = reports.filter(record => record.module === module && record.iteration === iteration && record.storage === storage);
+					requireSafe(matches.length === 1, 'ReportMatrix');
+					requireSafe(matches[0].failed === 0, 'FailedReport');
+					if (storage === 'tmpfs') {
+						requireSafe(count(matches[0].completed) > 0, 'ZeroExecution');
+					} else if (module < 4) {
+						requireSafe(count(matches[0].lifecycleCompleted) > 0, 'MissingLifecycle');
+					}
+				}
+			}
+		}
 	}
 	const storageEvents = path.join(root, '.build/logs/oss-storage-events.jsonl');
 	if (fs.existsSync(storageEvents)) {
+		let sequence = 0;
+		let awaitingFuser = false;
 		for (const line of readFile(storageEvents).split('\n').filter(Boolean)) {
-			const event = object(JSON.parse(line), ['kind', 'status']);
-			requireSafe(event.kind === 'unmount' && count(event.status) <= 255);
-			records.push({ kind: 'unmount', status: event.status });
+			const event = object(JSON.parse(line), ['kind', 'status'], ['shellPid', 'rawFile']);
+			requireSafe(count(event.status) <= 255);
+			sequence++;
+			if (event.kind === 'unmount') {
+				object(event, ['kind', 'status']);
+				requireSafe(!awaitingFuser, 'MissingUnmountFuser');
+				awaitingFuser = event.status !== 0;
+				records.push({ kind: 'unmount', status: event.status, sequence });
+			} else {
+				object(event, ['kind', 'status', 'shellPid', 'rawFile']);
+				requireSafe(event.kind === 'unmount-fuser' && typeof event.rawFile === 'string' && /^oss-storage-events\.jsonl\.fuser\.[A-Za-z0-9]{6}$/.test(event.rawFile));
+				requireSafe(records.at(-1)?.kind === 'unmount' && records.at(-1)?.status !== 0);
+				const identifiers = readFile(path.join(path.dirname(storageEvents), event.rawFile)).trim().split(/\s+/).filter(Boolean);
+				requireSafe(identifiers.every(value => value === 'kernel' || /^\d+$/.test(value)));
+				const holderPids = [...new Set(identifiers.filter(value => value !== 'kernel').map(value => pid(Number(value))))].sort((a, b) => a - b);
+				records.push({ kind: 'unmount-fuser', sequence, shellPid: pid(event.shellPid), status: event.status, holderPids });
+				awaitingFuser = false;
+			}
 		}
+		requireSafe(!awaitingFuser, 'MissingUnmountFuser');
 	}
 	return records;
 }
@@ -322,8 +396,8 @@ async function runProbe(root: string, args: string[], publish: (record: RecordVa
 		fs.writeFileSync(path.join(output, 'evidence.jsonl'), [...events, ...records, { kind: 'completion', originalStatus: status, result: status === 0 ? 'passed' : 'failed' }].map(record => JSON.stringify(record)).join('\n') + '\n', { flag: 'wx', mode: 0o600 });
 		publish({ kind: 'completion', originalStatus: status, result: status === 0 ? 'passed' : 'failed', privacy: 'verified' });
 		return { status, verified: true };
-	} catch {
-		publish({ kind: 'privacy-gate', gate: 'output-privacy', errorClass: 'UnsupportedProducer', originalStatus: status, result: 'failed' });
+	} catch (error) {
+		publish({ kind: 'privacy-gate', gate: 'output-privacy', errorClass: error instanceof PrivacyError ? error.errorClass : 'UnsupportedProducer', originalStatus: status, result: 'failed' });
 		return { status: status || 2, verified: false };
 	}
 }

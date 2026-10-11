@@ -34,6 +34,128 @@ function script(directory: string, source: string): void {
 	fs.writeFileSync(path.join(directory, 'test/integration/agentHost/ossProbe.ts'), source, { flag: 'wx' });
 }
 
+function nativeFixture(directory: string): string {
+	const evidence = process.env.AGENT_HOST_OSS_NATIVE_EVIDENCE;
+	assert.ok(evidence, 'Supply the retained public-native input and registration evidence directory');
+	const logs = path.join(directory, '.build/logs/integration-tests');
+	const source: Record<string, string> = JSON.parse(fs.readFileSync(path.join(evidence, 'oss-source-inputs.json'), 'utf8'));
+	for (const file of Object.keys(source)) {
+		fs.mkdirSync(path.dirname(path.join(directory, file)), { recursive: true });
+		fs.copyFileSync(path.join(root, file), path.join(directory, file));
+	}
+	fs.writeFileSync(path.join(logs, 'oss-source-inputs.json'), JSON.stringify(source));
+	for (const name of ['agentHostConformance', 'claudeAgentHostE2E', 'codexAgentHostE2E', 'copilotAgentHostE2E', 'copilotOtelAgentHostE2E', 'copilotManagedSettingsAgentHostE2E']) {
+		fs.copyFileSync(path.join(evidence, name + '.json'), path.join(logs, name + '.json'));
+	}
+	const native: Record<string, unknown> = JSON.parse(fs.readFileSync(path.join(evidence, 'oss-native-inputs.json'), 'utf8'));
+	const originalRoot = Object.keys(native.nativeAssets as Record<string, string>)[0].split('/node_modules/')[0];
+	const originalCache = Object.keys(native.headers as Record<string, string>)[0].split('/node-gyp/')[0];
+	const cache = path.join(directory, 'cache-control');
+	native.headers = Object.fromEntries(Object.entries(native.headers as Record<string, string>).map(([file, hash]) => [file.replace(originalCache, cache), hash]));
+	for (const key of ['libcxx', 'nativeAssets']) {
+		native[key] = Object.fromEntries(Object.entries(native[key] as Record<string, string>).map(([file, hash]) => [file.replace(originalRoot, directory), hash]));
+	}
+	fs.writeFileSync(path.join(logs, 'oss-native-inputs.json'), JSON.stringify(native));
+	return cache;
+}
+
+function matrix(directory: string, empty: boolean): string[] {
+	const reports = path.join(directory, '.build/logs/oss-test-reports/test-results');
+	fs.mkdirSync(reports, { recursive: true });
+	const names: string[] = [];
+	for (const iteration of [1, 2]) {
+		fs.writeFileSync(path.join(directory, `.build/logs/integration-tests/oss-iteration-${iteration}.json`), JSON.stringify({ iteration, status: 0 }));
+		for (const storage of ['tmpfs', 'disk']) {
+			for (const [module, label] of ['conformance', 'claude', 'codex', 'copilot', 'copilot-otel', 'copilot-managed-settings'].entries()) {
+				const cases = empty || storage === 'disk' && module >= 4 ? 0 : 1;
+				const name = path.join(reports, `linux-x64-oss-holder-probe-${iteration}-${label}-${storage}-results.xml`);
+				const title = storage === 'disk' ? 'session metadata history and provider context survive a host restart' : 'local completed test';
+				fs.writeFileSync(name, `<?xml version="1.0"?><testsuites name="Local" time="0" tests="${cases}" failures="0"><testsuite name="Suite" timestamp="2026-10-11T22:00:00" tests="${cases}" time="0" failures="0">${cases ? `<testcase name="Suite ${title}" classname="${title}" time="0"/>` : ''}</testsuite></testsuites>`);
+				names.push(name);
+			}
+		}
+	}
+	return names;
+}
+
+test('full collector rejects all24 zero-case reports despite two success iteration statuses', async () => {
+	const directory = fixture();
+	try {
+		const cache = nativeFixture(directory);
+		matrix(directory, true);
+		await assert.rejects(output.collect(directory, cache, false));
+	} finally {
+		fs.rmSync(directory, { recursive: true, force: true });
+	}
+});
+
+test('full collector accepts actual module/iteration/storage matrix, allows unsupported disk zero counts and rejects failed, missing or unrelated lifecycle reports on child0', async () => {
+	const directory = fixture();
+	try {
+		const cache = nativeFixture(directory);
+		const reports = matrix(directory, false);
+		const records = await output.collect(directory, cache, false);
+		assert.equal(records.filter(record => record.kind === 'tests').length, 24);
+		const original = fs.readFileSync(reports[0], 'utf8');
+		fs.writeFileSync(reports[0], original.replace('tests="1"', 'tests="2"'));
+		await assert.rejects(output.collect(directory, cache, false), /Unsupported temporary diagnostic producer/);
+		fs.writeFileSync(reports[0], original.replace('failures="0"', 'failures="1"'));
+		await assert.rejects(output.collect(directory, cache, false));
+		fs.writeFileSync(reports[0], original.replace('failures="0"', 'failures="1"').replace('failures="0"', 'failures="1"').replace('time="0"/>', `time="0"><failure message="${privateValue}">${privateValue}</failure></testcase>`));
+		await assert.rejects(output.collect(directory, cache, false));
+		const partial = await output.collect(directory, cache, true);
+		assert.ok(partial.some(record => record.kind === 'tests' && record.failed === 1));
+		assert.ok(!JSON.stringify(partial).includes(privateValue));
+		fs.writeFileSync(reports[0], original);
+		const diskOriginal = fs.readFileSync(reports[6], 'utf8');
+		fs.writeFileSync(reports[6], diskOriginal.replaceAll('session metadata history and provider context survive a host restart', 'unrelated case'));
+		await assert.rejects(output.collect(directory, cache, false));
+		fs.writeFileSync(reports[6], diskOriginal);
+		fs.writeFileSync(reports[6], diskOriginal.replaceAll('tests="1"', 'tests="0"').replace(/<testcase[^>]*\/>/, ''));
+		await assert.rejects(output.collect(directory, cache, false));
+		fs.writeFileSync(reports[6], diskOriginal);
+		fs.writeFileSync(reports[0], original.replace('tests="1" failures="0"', 'tests="1" failures="0" skipped="1"').replace(/<testcase[^>]*\/>/, ''));
+		await assert.rejects(output.collect(directory, cache, false), 'Pending-only execution cannot satisfy tmpfs completed coverage');
+		fs.writeFileSync(reports[0], original.replace('Suite local completed test', 'Tests are using suiteSetup and setup correctly bootstrap').replace('classname="local completed test"', 'classname="bootstrap"'));
+		await assert.rejects(output.collect(directory, cache, false), 'Bootstrap check alone cannot satisfy Agent Host execution');
+		fs.writeFileSync(reports[0], original);
+		fs.unlinkSync(reports[0]);
+		await assert.rejects(output.collect(directory, cache, false));
+		assert.equal((await output.collect(directory, cache, true)).filter(record => record.kind === 'tests').length, 23);
+	} finally {
+		fs.rmSync(directory, { recursive: true, force: true });
+	}
+});
+
+test('actual wrapper full-collector empty success emits safe ZeroExecution gate without verified output; failed partial matrix retains original exit', async () => {
+	for (const status of [0, 17]) {
+		const directory = fixture();
+		try {
+			const cache = nativeFixture(directory);
+			const reports = matrix(directory, true);
+			if (status !== 0) {
+				fs.unlinkSync(reports[0]);
+			}
+			const nativeSource = JSON.parse(fs.readFileSync(path.join(directory, '.build/logs/integration-tests/oss-native-inputs.json'), 'utf8'));
+			nativeSource.headers = {};
+			fs.writeFileSync(path.join(directory, '.build/logs/integration-tests/oss-native-inputs.json'), JSON.stringify(nativeSource));
+			script(directory, `process.exitCode = ${status};\n`);
+			const visible: Record<string, unknown>[] = [];
+			const result = await output.runProbe(directory, [], record => visible.push(record));
+			assert.deepEqual(result, { status: status || 2, verified: status !== 0 });
+			if (status === 0) {
+				assert.ok(!fs.existsSync(path.join(directory, '.build/oss-public')));
+				assert.deepEqual(visible, [{ kind: 'privacy-gate', gate: 'output-privacy', errorClass: 'ZeroExecution', originalStatus: 0, result: 'failed' }]);
+			} else {
+				assert.equal((await output.collect(directory, cache, true)).filter(record => record.kind === 'tests').length, 23);
+				assert.ok(fs.existsSync(path.join(directory, '.build/oss-public/evidence.jsonl')));
+			}
+		} finally {
+			fs.rmSync(directory, { recursive: true, force: true });
+		}
+	}
+});
+
 test('real local raw SDK/host tail and assertion stdout/stderr are quarantined, never streamed or uploaded; original failure7 survives', async () => {
 	const directory = fixture();
 	try {
@@ -154,7 +276,7 @@ test('actual cleanup source retains normal failure status and writes only struct
 				assert.equal(result.status, unmountStatus === 0 ? 3 : 1);
 				assert.equal(fs.existsSync(receipt), temporary);
 				if (temporary) {
-					assert.deepEqual(JSON.parse(fs.readFileSync(receipt, 'utf8')), { kind: 'unmount', status: unmountStatus });
+					assert.deepEqual(JSON.parse(fs.readFileSync(receipt, 'utf8').split('\n')[0]), { kind: 'unmount', status: unmountStatus });
 				}
 				if (unmountStatus !== 0) {
 					assert.ok(result.stderr.includes(privateValue), 'Original fuser diagnostic remains available to the quarantined process channel');
@@ -166,33 +288,84 @@ test('actual cleanup source retains normal failure status and writes only struct
 	}
 });
 
+test('actual failed cleanup fuser stdout reaches the real collector once with PIDs/status while private stderr stays local; unsupported stdout blocks verified upload', async () => {
+	const directory = fixture();
+	try {
+		const cleanupSource = fs.readFileSync(path.join(__dirname, 'tmpfs.sh'), 'utf8');
+		const cleanup = cleanupSource.slice(cleanupSource.indexOf('cleanup() {'), cleanupSource.indexOf('trap cleanup EXIT'));
+		for (const unsupported of [false, true]) {
+			const attempt = path.join(directory, unsupported ? 'unsupported' : 'safe');
+			fs.mkdirSync(path.join(attempt, 'test/integration/agentHost'), { recursive: true });
+			fs.writeFileSync(path.join(attempt, 'test/package.json'), '{"type":"commonjs"}');
+			const receipt = path.join(attempt, '.build/logs/oss-storage-events.jsonl');
+			const controlled = `
+				set -euo pipefail
+				TEST_TMPDIR="${attempt}"
+				MOUNTED=true
+				sudo() {
+					if [[ "$2" == umount ]]; then return 32; fi
+					echo invoked >> "${attempt}/fuser-invocations"
+					printf '${unsupported ? privateValue : 'kernel 712 919 712'}\\n'
+					echo '${privateValue}' >&2
+					return 4
+				}
+				rmdir() { return 0; }
+				${cleanup}
+				trap cleanup EXIT
+				exit 3
+			`;
+			script(attempt, `
+				const {spawnSync} = require('node:child_process');
+				const result = spawnSync('bash', ['-c', ${JSON.stringify(controlled)}], {stdio:'inherit',env:{...process.env,AGENT_HOST_OSS_STORAGE_EVENTS:${JSON.stringify(receipt)}}});
+				process.exitCode = result.status;
+			`);
+			const visible: object[] = [];
+			const result = await output.runProbe(attempt, [], record => visible.push(record));
+			assert.equal(result.status, 1, 'Original unmount failure remains fatal regardless of fuser outcome');
+			assert.equal(fs.readFileSync(path.join(attempt, 'fuser-invocations'), 'utf8'), 'invoked\n');
+			assert.equal(result.verified, !unsupported);
+			assert.ok(!JSON.stringify(visible).includes(privateValue));
+			const quarantined = fs.readFileSync(path.join(attempt, '.build/logs/oss-probe-output.log'), 'utf8');
+			assert.ok(quarantined.includes(privateValue));
+			if (!unsupported) {
+				const publicFile = fs.readFileSync(path.join(attempt, '.build/oss-public/evidence.jsonl'), 'utf8');
+				const records = publicFile.trim().split('\n').map(line => JSON.parse(line));
+				const fuser = records.find(record => record.kind === 'unmount-fuser');
+				assert.deepEqual({ sequence: fuser.sequence, status: fuser.status, holderPids: fuser.holderPids }, { sequence: 2, status: 4, holderPids: [712, 919] });
+				assert.ok(Number.isInteger(fuser.shellPid) && fuser.shellPid > 0);
+				assert.ok(!publicFile.includes(privateValue) && !publicFile.includes(attempt));
+			} else {
+				assert.ok(!fs.existsSync(path.join(attempt, '.build/oss-public')));
+				assert.ok(fs.readdirSync(path.join(attempt, '.build/logs')).some(file => file.startsWith('oss-storage-events.jsonl.fuser.')));
+			}
+		}
+	} finally {
+		fs.rmSync(directory, { recursive: true, force: true });
+	}
+});
+
+test('failed-unmount receipt without its actual fuser result cannot enable publication', async () => {
+	const directory = fixture();
+	try {
+		fs.writeFileSync(path.join(directory, '.build/logs/oss-storage-events.jsonl'), '{"kind":"unmount","status":32}\n');
+		await assert.rejects(output.collect(directory, '', true));
+		script(directory, 'process.exitCode = 1;\n');
+		const visible: object[] = [];
+		assert.deepEqual(await output.runProbe(directory, [], record => visible.push(record)), { status: 1, verified: false });
+		assert.deepEqual(visible, [{ kind: 'privacy-gate', gate: 'output-privacy', errorClass: 'MissingUnmountFuser', originalStatus: 1, result: 'failed' }]);
+		assert.ok(!fs.existsSync(path.join(directory, '.build/oss-public')));
+	} finally {
+		fs.rmSync(directory, { recursive: true, force: true });
+	}
+});
+
 test('known native registration/hash receipts are projected safely and reject extra payload fields', async () => {
 	const evidence = process.env.AGENT_HOST_OSS_NATIVE_EVIDENCE;
 	assert.ok(evidence, 'Supply the retained public-native input and registration evidence directory');
 	const directory = fixture();
 	try {
 		const logs = path.join(directory, '.build/logs/integration-tests');
-		const source: Record<string, string> = JSON.parse(fs.readFileSync(path.join(evidence, 'oss-source-inputs.json'), 'utf8'));
-		for (const file of Object.keys(source)) {
-			fs.mkdirSync(path.dirname(path.join(directory, file)), { recursive: true });
-			fs.copyFileSync(path.join(root, file), path.join(directory, file));
-		}
-		fs.writeFileSync(path.join(logs, 'oss-source-inputs.json'), JSON.stringify(source));
-		const receiptNames = ['agentHostConformance', 'claudeAgentHostE2E', 'codexAgentHostE2E', 'copilotAgentHostE2E', 'copilotOtelAgentHostE2E', 'copilotManagedSettingsAgentHostE2E'];
-		for (const name of receiptNames) {
-			fs.copyFileSync(path.join(evidence, name + '.json'), path.join(logs, name + '.json'));
-		}
-		const native: Record<string, unknown> = JSON.parse(fs.readFileSync(path.join(evidence, 'oss-native-inputs.json'), 'utf8'));
-		const originalAssets = native.nativeAssets as Record<string, string>;
-		const originalRoot = Object.keys(originalAssets)[0].split('/node_modules/')[0];
-		const originalHeaders = native.headers as Record<string, string>;
-		const originalCache = Object.keys(originalHeaders)[0].split('/node-gyp/')[0];
-		const cache = path.join(directory, 'cache-control');
-		native.headers = Object.fromEntries(Object.entries(originalHeaders).map(([file, hash]) => [file.replace(originalCache, cache), hash]));
-		for (const key of ['libcxx', 'nativeAssets']) {
-			native[key] = Object.fromEntries(Object.entries(native[key] as Record<string, string>).map(([file, hash]) => [file.replace(originalRoot, directory), hash]));
-		}
-		fs.writeFileSync(path.join(logs, 'oss-native-inputs.json'), JSON.stringify(native));
+		const cache = nativeFixture(directory);
 		fs.copyFileSync(path.join(evidence, 'oss-registration-only.json'), path.join(logs, 'oss-registration-only.json'));
 		const records = await output.collect(directory, cache, false);
 		assert.equal(records.filter(record => record.kind === 'registration').length, 6);

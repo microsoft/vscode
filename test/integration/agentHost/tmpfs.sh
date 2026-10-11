@@ -27,11 +27,19 @@ cleanup() {
 			fi
 			echo "Failed to unmount Agent Host test tmpfs: $TEST_TMPDIR" >&2
 			echo "Agent Host tmpfs mount holders (PID, command, and access type):" >&2
-			if sudo -n timeout --signal=KILL 10s fuser -vm "$TEST_TMPDIR" >&2; then
+			local diagnostic_output=/dev/stderr
+			if [[ -n "${AGENT_HOST_OSS_STORAGE_EVENTS:-}" ]]; then
+				diagnostic_output=$(mktemp "${AGENT_HOST_OSS_STORAGE_EVENTS}.fuser.XXXXXX")
+			fi
+			local diagnostic_status=0
+			if sudo -n timeout --signal=KILL 10s fuser -vm "$TEST_TMPDIR" > "$diagnostic_output"; then
 				:
 			else
-				local diagnostic_status=$?
+				diagnostic_status=$?
 				echo "Agent Host tmpfs holder diagnostics exited with status $diagnostic_status; the unmount failure remains fatal." >&2
+			fi
+			if [[ -n "${AGENT_HOST_OSS_STORAGE_EVENTS:-}" ]]; then
+				printf '{"kind":"unmount-fuser","status":%d,"shellPid":%d,"rawFile":"%s"}\n' "$diagnostic_status" "$$" "${diagnostic_output##*/}" >> "$AGENT_HOST_OSS_STORAGE_EVENTS"
 			fi
 			exit 1
 		fi
