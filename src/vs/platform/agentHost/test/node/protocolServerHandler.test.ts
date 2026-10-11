@@ -476,6 +476,31 @@ suite('ProtocolServerHandler', () => {
 		};
 	}
 
+	function startPendingClientToolCall(chat: string, clientId: string): void {
+		stateManager.dispatchServerAction(chat, {
+			type: ActionType.ChatTurnStarted,
+			turnId: 'turn-1',
+			startedAt: '2025-01-01T00:00:00.000Z',
+			message: { text: 'run it', origin: { kind: MessageKind.User } },
+		});
+		stateManager.dispatchServerAction(chat, {
+			type: ActionType.ChatToolCallStart,
+			turnId: 'turn-1',
+			toolCallId: 'tool-1',
+			toolName: 'runTask',
+			displayName: 'Run Task',
+			contributor: { kind: ToolCallContributorKind.Client, clientId },
+		});
+		stateManager.dispatchServerAction(chat, {
+			type: ActionType.ChatToolCallReady,
+			turnId: 'turn-1',
+			toolCallId: 'tool-1',
+			invocationMessage: 'Run Task',
+			toolInput: '{}',
+			confirmed: ToolCallConfirmationReason.NotNeeded,
+		});
+	}
+
 	function connectClient(clientId: string, initialSubscriptions?: readonly string[], clientInfo?: Implementation, meta?: Record<string, unknown>, transportKind = AgentHostTransportKind.Unknown): MockProtocolTransport {
 		const transport = new MockProtocolTransport(transportKind);
 		server.simulateConnection(transport);
@@ -6732,6 +6757,97 @@ suite('ProtocolServerHandler', () => {
 			status: ToolCallStatus.Completed,
 			success: false,
 			error: 'Client client-tools disconnected before completing Run Task',
+		});
+
+		transport.simulateClose();
+	});
+
+	const retainedSubscriptionCases: readonly {
+		readonly name: string;
+		readonly subscriptions: (peerChat: string, siblingChat: string) => readonly string[];
+		readonly unsubscribe: (peerChat: string) => string;
+	}[] = [
+			{
+				name: 'parent session subscription',
+				subscriptions: peerChat => [sessionUri, peerChat],
+				unsubscribe: (peerChat: string) => peerChat,
+			},
+			{
+				name: 'sibling nested session subscription',
+				subscriptions: (peerChat, siblingChat) => [peerChat, siblingChat],
+				unsubscribe: (peerChat: string) => peerChat,
+			},
+			{
+				name: 'nested session subscription',
+				subscriptions: peerChat => [sessionUri, peerChat],
+				unsubscribe: () => sessionUri,
+			},
+		];
+	for (const { name, subscriptions, unsubscribe } of retainedSubscriptionCases) {
+		test(`unsubscribe retains active client and pending tool calls with a remaining ${name}`, async () => {
+			const peerChat = buildChatUri(sessionUri, 'peer');
+			const siblingChat = buildChatUri(sessionUri, 'sibling');
+			stateManager.createSession(makeSessionSummary());
+			stateManager.addChat(sessionUri, peerChat);
+			stateManager.addChat(sessionUri, siblingChat);
+			stateManager.dispatchServerAction(sessionUri, {
+				type: ActionType.SessionActiveClientSet,
+				activeClient: {
+					clientId: 'client-tools',
+					tools: [{ name: 'runTask', description: 'Runs a task' }]
+				},
+			});
+			startPendingClientToolCall(peerChat, 'client-tools');
+
+			const transport = connectClient('client-tools', subscriptions(peerChat, siblingChat));
+			await handler.whenIdle();
+			transport.simulateMessage(notification('unsubscribe', { channel: unsubscribe(peerChat) }));
+
+			const part = stateManager.getSessionState(peerChat)?.activeTurn?.responseParts[0];
+			assert.deepStrictEqual({
+				activeClients: stateManager.getSessionState(sessionUri)?.activeClients.map(client => client.clientId),
+				toolCallStatus: part?.kind === ResponsePartKind.ToolCall ? part.toolCall.status : undefined,
+			}, {
+				activeClients: ['client-tools'],
+				toolCallStatus: ToolCallStatus.Running,
+			});
+
+			transport.simulateClose();
+		});
+	}
+
+	test('unsubscribe from the last nested session removes the active client and fails owned tool calls', async () => {
+		const peerChat = buildChatUri(sessionUri, 'peer');
+		stateManager.createSession(makeSessionSummary());
+		stateManager.addChat(sessionUri, peerChat);
+		stateManager.dispatchServerAction(sessionUri, {
+			type: ActionType.SessionActiveClientSet,
+			activeClient: {
+				clientId: 'client-tools',
+				tools: [{ name: 'runTask', description: 'Runs a task' }]
+			},
+		});
+		startPendingClientToolCall(peerChat, 'client-tools');
+
+		const transport = connectClient('client-tools', [peerChat]);
+		await handler.whenIdle();
+		transport.simulateMessage(notification('unsubscribe', { channel: peerChat }));
+
+		const part = stateManager.getSessionState(peerChat)?.activeTurn?.responseParts[0];
+		assert.deepStrictEqual({
+			activeClients: stateManager.getSessionState(sessionUri)?.activeClients,
+			toolCall: part?.kind === ResponsePartKind.ToolCall ? {
+				status: part.toolCall.status,
+				success: part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.success : undefined,
+				error: part.toolCall.status === ToolCallStatus.Completed ? part.toolCall.error?.message : undefined,
+			} : undefined,
+		}, {
+			activeClients: [],
+			toolCall: {
+				status: ToolCallStatus.Completed,
+				success: false,
+				error: 'Client client-tools disconnected before completing Run Task',
+			},
 		});
 
 		transport.simulateClose();
