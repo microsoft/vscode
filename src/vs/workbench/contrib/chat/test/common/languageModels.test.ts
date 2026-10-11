@@ -883,7 +883,7 @@ suite('LanguageModels - Model Change Events', function () {
 	test('does not notify twice when the vendor descriptor is disposed before its provider', async function () {
 		const registrations = disposables.add(new DisposableStore());
 		registrations.add(toDisposable(() => languageModelsService.deltaLanguageModelChatProviderDescriptors([], [
-			{ vendor: 'test-vendor', displayName: 'Test Vendor' }
+			{ vendor: 'test-vendor', displayName: 'Test Vendor', configuration: undefined, managementCommand: undefined, when: undefined }
 		])));
 		const emitter = disposables.add(new Emitter<void>());
 		registrations.add(languageModelsService.registerLanguageModelProvider('test-vendor', {
@@ -922,7 +922,7 @@ suite('LanguageModels - Model Change Events', function () {
 			sendChatRequest: async () => { throw new Error(); },
 			provideTokenCount: async () => 0
 		}));
-		const descriptor = { vendor: 'test-vendor', displayName: 'Test Vendor' };
+		const descriptor = { vendor: 'test-vendor', displayName: 'Test Vendor', configuration: undefined, managementCommand: undefined, when: undefined };
 		languageModelsService.deltaLanguageModelChatProviderDescriptors([], [descriptor]);
 		languageModelsService.deltaLanguageModelChatProviderDescriptors([descriptor], []);
 		disposables.add(languageModelsService.registerLanguageModelProvider('test-vendor', {
