@@ -23,13 +23,19 @@ import { IChatRequestOrigin } from './chatRequestOrigin.js';
 import { IChatProgress, IChatResponseErrorDetails, IChatSessionTiming } from './chatService/chatService.js';
 import { ChatAgentLocation } from './constants.js';
 import { Target } from './promptSyntax/promptTypes.js';
+import type { ICanvasContext } from '../../canvases/common/canvas.js';
+import type { IChatSessionHistoryStatus } from '../../../../platform/chat/common/chatSessionHistory.js';
 
 export const enum ChatSessionsExtensions {
 	AsyncActivation = 'workbench.contrib.chatSessions.asyncActivation'
 }
 
 export interface IAsyncChatSessionActivationContribution {
+	/** Higher priorities activate first. Defaults to 0, with registration order breaking ties. */
+	readonly priority?: number;
 	matchSessionType(sessionType: string): boolean;
+	/** Optional owner lifetime, captured before activation; cancellation also ends provider-registration waits. */
+	getActivationToken?(sessionType: string): CancellationToken;
 	waitForActivation(accessor: ServicesAccessor, sessionType: string): Promise<boolean>;
 }
 
@@ -49,7 +55,9 @@ class AsyncChatSessionActivationRegistry implements IAsyncChatSessionActivationR
 	}
 
 	getActivators(sessionType: string): readonly IAsyncChatSessionActivationContribution[] {
-		return Array.from(this._contributions).filter(contribution => contribution.matchSessionType(sessionType));
+		return Array.from(this._contributions)
+			.filter(contribution => contribution.matchSessionType(sessionType))
+			.sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
 	}
 }
 
@@ -350,6 +358,15 @@ export type IChatSessionHistoryItem = {
 
 export type IChatSessionRequestHistoryItem = Extract<IChatSessionHistoryItem, { type: 'request' }>;
 
+/** Excludes model and usage decoration when comparing recorded and live transcript content. */
+export function getChatSessionHistoryContent(history: readonly IChatSessionHistoryItem[]): readonly IChatSessionHistoryItem[] {
+	return history.map(item => item.type === 'request' ? { ...item, modelId: undefined } : {
+		...item,
+		details: undefined,
+		parts: item.parts.filter(part => part.kind !== 'usage' && part.kind !== 'autoModeResolution'),
+	});
+}
+
 export interface IChatSessionServerRequest {
 	readonly metadata?: Record<string, unknown>;
 	/**
@@ -456,7 +473,8 @@ export interface IChatSession extends IDisposable {
 	 * Unchanged turns must not resurrect locally removed requests.
 	 */
 	readonly onDidChangeHistory?: Event<readonly IChatSessionHistoryItem[]>;
-
+	/** Updates model and usage decoration in place for otherwise unchanged turns with stable request IDs. */
+	readonly preserveHistoryItemIdentity?: boolean;
 
 	readonly options?: ReadonlyChatSessionOptionsMap;
 
@@ -467,6 +485,8 @@ export interface IChatSession extends IDisposable {
 	readonly isReadOnly?: IObservable<boolean>;
 	/** Temporarily prevents sending while keeping the draft visible and editable. */
 	readonly isInputBlocked?: IObservable<boolean>;
+	readonly historyStatus?: IObservable<IChatSessionHistoryStatus | undefined>;
+	readonly canvasContext?: IObservable<ICanvasContext | undefined>;
 	/** Recheck a temporary input restriction without sending a message. */
 	readonly retryInput?: () => Promise<void>;
 	readonly interruptActiveResponseCallback?: () => Promise<boolean>;
@@ -514,6 +534,7 @@ export interface IChatSession extends IDisposable {
 }
 
 export interface IChatSessionContentProvider {
+	/** Each returned session is independently disposable and must be released by its caller. */
 	provideChatSessionContent(sessionResource: URI, token: CancellationToken): Promise<IChatSession>;
 
 	/** Updates provider-owned metadata for a session. */

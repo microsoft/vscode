@@ -40,7 +40,7 @@ import { AgentHostClientConnectionService, IAgentHostClientConnectionService } f
 import { AgentHostSessionTitleController, IAgentHostSessionTitleController } from './agentHostSessionTitleController.js';
 import { AgentHostLocalTurns, IAgentHostLocalTurns } from './agentHostLocalTurns.js';
 import { IAgentHostGitHubService } from './agentHostGitHubService.js';
-import { ICopilotApiService } from './shared/copilotApiService.js';
+import { IAgentHostUtilityModelService } from './agentHostUtilityModelService.js';
 import { AgentHostStartupMarks, IAgentHostStartupPerformance } from './agentHostStartupPerformance.js';
 
 export interface ICreateAgentHostRuntimeOptions {
@@ -172,24 +172,20 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 		});
 		instantiationService = new InstantiationService(services, /*strict*/ true);
 		const gitHubService = instantiationService.invokeFunction(accessor => accessor.get(IAgentHostGitHubService));
-		const copilotApiService = instantiationService.invokeFunction(accessor => accessor.get(ICopilotApiService));
+		const utilityModelService = instantiationService.invokeFunction(accessor => accessor.get(IAgentHostUtilityModelService));
 		services.set(IAgentHostSessionTitleController, infrastructure.add(instantiationService.createInstance(AgentHostSessionTitleController, foundation.stateManager, {
 			sessionDataService,
 			queueCatalogSync: (session, metadataOverrides) => foundation.callbackAdapter.value.queueCatalogSync(session, metadataOverrides),
 			persistMetadata: (resource, values) => foundation.callbackAdapter.value.persistMetadata(resource, values),
 			readNormalizedChat: (session, chat) => foundation.callbackAdapter.value.readNormalizedChat(session, chat),
 			persistSurfacedSessionTitle: (session, title) => foundation.callbackAdapter.value.persistSurfacedSessionTitle(session, title),
-			getGitHubCopilotToken: () => {
-				const resource = foundation.gitHubEndpointService.getCopilotResource();
-				return foundation.authenticationService.getAuthToken({ resource: resource.resource, scopes: resource.scopes_supported });
-			},
 			getGitHubToken: () => {
 				const resource = foundation.gitHubEndpointService.getRepoResource();
 				return foundation.authenticationService.getAuthToken({ resource: resource.resource, scopes: resource.scopes_supported });
 			},
 			getGitHubHost: () => foundation.gitHubEndpointService.getEnterpriseHost() ?? 'github.com',
 			gitHubService,
-			copilotApiService,
+			utilityModelService,
 			getInitialTitleGenerationStrategy: () => {
 				const configurationService = foundation.configurationService;
 				return resolveTitleGenerationStrategy(

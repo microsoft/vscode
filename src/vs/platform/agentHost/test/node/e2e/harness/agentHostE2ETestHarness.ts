@@ -544,6 +544,7 @@ export interface IDrivenTurnResult {
 
 export interface IDriveTurnOptions {
 	expectUnread?: boolean;
+	approveToolCall?: (action: ChatToolCallReadyAction) => boolean;
 }
 
 export async function driveTurnToCompletion(c: TestProtocolClient, session: string, turnId: string, text: string, clientSeq: number, options?: IDriveTurnOptions): Promise<IDrivenTurnResult> {
@@ -633,8 +634,9 @@ async function driveTurn(c: TestProtocolClient, chat: string, turnId: string, cl
 						type: ActionType.ChatToolCallConfirmed,
 						turnId,
 						toolCallId: action.toolCallId,
-						approved: true,
-						confirmed: ToolCallConfirmationReason.UserAction,
+						...(options?.approveToolCall?.(action) === false
+							? { approved: false, reason: ToolCallCancellationReason.Denied } as const
+							: { approved: true, confirmed: ToolCallConfirmationReason.UserAction } as const),
 					},
 				});
 			}

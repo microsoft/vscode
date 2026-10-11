@@ -10,6 +10,7 @@ import { constObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
+import { IManagedSettingsService, NullManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { Configuration, ConfigurationModel } from '../../../../../platform/configuration/common/configurationModels.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -64,6 +65,24 @@ suite('ChatConfiguration defaults', () => {
 		} satisfies IChatSessionsExtensionPoint)));
 		return service;
 	}
+
+	test('permission rules require Copilot even with explicit Local, virtual workspaces, or an unavailable host', () => {
+		const configuration = new TestConfigurationService();
+		const sessions = createChatSessionsService();
+		const storage = disposables.add(new TestStorageService());
+		storeUserSelectedSessionType(storage, localChatSessionType);
+		const results = [localWorkspace, createWorkspace(URI.parse('virtual:/workspace'))].flatMap(workspace =>
+			[true, false].map(enabled => ({
+				computed: getComputedDefaultSessionType(configuration, sessions, workspace, enabled, false, true),
+				explicit: getDefaultNewChatSessionType(configuration, sessions, storage, workspace, enabled, { explicitOverride: localChatSessionType }, false, true),
+				remembered: getDefaultNewChatSessionType(configuration, sessions, storage, workspace, enabled, undefined, false, true),
+				usable: isNewChatSessionTypeUsable(localChatSessionType, configuration, sessions, workspace, enabled, false, true),
+				visible: isVisibleEditorChatSessionType(localChatSessionType, configuration, sessions, workspace, false, enabled, true),
+			})));
+		assert.deepStrictEqual(results, Array.from({ length: 4 }, () => ({
+			computed: SessionType.AgentHostCopilot, explicit: SessionType.AgentHostCopilot, remembered: SessionType.AgentHostCopilot, usable: false, visible: false,
+		})));
+	});
 
 	suite('enterprise policy diagnostics preserve existing rollout selection', () => {
 		const legacyRequirements = [
@@ -318,6 +337,7 @@ suite('ChatConfiguration defaults', () => {
 		options?: IDefaultNewChatSessionTypeOptions,
 	) {
 		const accessor = disposables.add(new TestInstantiationService());
+		accessor.set(IManagedSettingsService, new NullManagedSettingsService());
 		accessor.set(IConfigurationService, configurationService);
 		accessor.set(IChatSessionsService, chatSessionsService);
 		accessor.set(IStorageService, storageService);
@@ -335,6 +355,7 @@ suite('ChatConfiguration defaults', () => {
 		options?: IDefaultNewChatSessionTypeOptions,
 	) {
 		const accessor = disposables.add(new TestInstantiationService());
+		accessor.set(IManagedSettingsService, new NullManagedSettingsService());
 		accessor.set(IConfigurationService, configurationService);
 		accessor.set(IChatSessionsService, chatSessionsService);
 		accessor.set(IStorageService, storageService);

@@ -18,7 +18,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { FileAccess } from '../../../../../base/common/network.js';
-import { autorun, IObservable, ISettableObservable, observableFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, ISettableObservable, observableFromEvent, observableSignalFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -31,8 +31,9 @@ import { CHAT_PET_DEFAULT_SCALE, ChatPetVariant, IChatPetService } from '../chat
 import { CHAT_PET_CHANGE_COLOR_COMMAND_ID, ChatPetColor, getChatPetBodyColor, getChatPetColoredSprite, getChatPetColorVariant, getChatPetEyeColor, setChatPetImageSource } from '../chatPetColors.js';
 import { drawChatPetComposite, drawChatPetEyeAccessory, getChatPetAccessoryImageSource, hasChatPetAccessoryImageDimensions, hasChatPetBodyImageDimensions, IChatPetAccessoryImageSource, IChatPetFixedOrientationDecoration } from './chatPetAccessoryRenderer.js';
 import { getChatPetAccessoryRigFrame, getChatPetReducedMotionRigFrame } from './chatPetAccessoryRig.js';
+import { isImageGenerationToolInProgress } from './chatContentParts/toolInvocationParts/chatToolPartUtilities.js';
 
-export type ChatPetState = 'idle' | 'sleep' | 'waking' | 'typing' | 'rendering' | 'achievementUnlocked' | 'buttonPress' | 'complete' | 'love' | 'clapping' | 'jump' | 'cool' | 'yapping' | 'yappingMouthOpen' | 'sing' | 'speechless' | 'worry' | 'dizzy' | 'falling' | 'wallImpact' | 'splat' | 'onTheRun' | 'searching' | 'searchingDown';
+export type ChatPetState = 'idle' | 'sleep' | 'waking' | 'typing' | 'rendering' | 'painting' | 'achievementUnlocked' | 'buttonPress' | 'complete' | 'love' | 'clapping' | 'jump' | 'cool' | 'yapping' | 'yappingMouthOpen' | 'sing' | 'speechless' | 'worry' | 'dizzy' | 'falling' | 'wallImpact' | 'splat' | 'onTheRun' | 'searching' | 'searchingDown';
 export type ChatPetClickInteraction = Extract<ChatPetState, 'buttonPress' | 'complete' | 'love' | 'cool' | 'yapping' | 'sing' | 'speechless' | 'worry'>;
 
 export interface IChatPetWidgetHost {
@@ -124,6 +125,7 @@ const CHAT_PET_DISPLAY_SIZE = 48;
 const CHAT_PET_SOURCE_SIZE = 96;
 const CHAT_PET_SLEEP_SOURCE_WIDTH = 120;
 const CHAT_PET_TYPING_SOURCE_WIDTH = 168;
+const CHAT_PET_PAINTING_SOURCE_WIDTH = 192;
 const CHAT_PET_BUTTON_PRESS_SOURCE_WIDTH = 160;
 const CHAT_PET_SING_SOURCE_WIDTH = 164;
 const CHAT_PET_SING_SOURCE_HEIGHT = 124;
@@ -135,6 +137,7 @@ const CHAT_PET_SCALE_STEP = 0.2;
 const CHAT_PET_SPEECH_BUBBLE_RIGHT_OVERHANG = 20;
 const CHAT_PET_SLEEP_RIGHT_OVERHANG = (CHAT_PET_SLEEP_SOURCE_WIDTH - CHAT_PET_SOURCE_SIZE) / 2;
 const CHAT_PET_TYPING_RIGHT_OVERHANG = (CHAT_PET_TYPING_SOURCE_WIDTH - CHAT_PET_SOURCE_SIZE) / 2;
+const CHAT_PET_PAINTING_RIGHT_OVERHANG = (CHAT_PET_PAINTING_SOURCE_WIDTH - CHAT_PET_SOURCE_SIZE) / 2;
 const CHAT_PET_BUTTON_PRESS_RIGHT_OVERHANG = (CHAT_PET_BUTTON_PRESS_SOURCE_WIDTH - CHAT_PET_SOURCE_SIZE) / 2;
 const CHAT_PET_SING_RIGHT_OVERHANG = (CHAT_PET_SING_SOURCE_WIDTH - CHAT_PET_SOURCE_SIZE) / 2;
 
@@ -142,6 +145,7 @@ const IDLE_FRAME_DURATIONS = Array.from({ length: 50 }, () => 40);
 const SLEEP_FRAME_DURATIONS = Array.from({ length: 8 }, () => 300);
 const WAKE_FRAME_DURATIONS = [160, 100, 80, 90, 90, 90, 100, 170];
 const TYPING_FRAME_DURATIONS = [320, 480];
+const PAINTING_FRAME_DURATIONS = [240, 160, 180, 220, 180, 160, 240, 320];
 const BUTTON_PRESS_FRAME_DURATIONS = [500, 300, 350, 250, 450, 1_000];
 const FALLING_FRAME_DURATIONS = [120, 80, 80, 120, 80, 80];
 const JUMP_FRAME_DURATIONS = [70, 80, 90, 160, 100, 100];
@@ -272,11 +276,11 @@ const speechSpriteSources = new Map<ChatPetVariant, ChatPetSpriteSources>();
 const respawnSpriteSources = new Map<ChatPetVariant, ChatPetSpriteSources>();
 
 export function doesChatPetStateTrackCursor(state: ChatPetState | undefined): boolean {
-	return state !== undefined && state !== 'sleep' && state !== 'waking' && state !== 'typing' && state !== 'buttonPress' && state !== 'complete' && state !== 'jump' && state !== 'love' && state !== 'cool' && state !== 'yappingMouthOpen' && state !== 'sing' && state !== 'speechless' && state !== 'worry' && state !== 'dizzy' && state !== 'falling' && state !== 'wallImpact' && state !== 'splat' && state !== 'onTheRun' && state !== 'searching' && state !== 'searchingDown';
+	return state !== undefined && state !== 'sleep' && state !== 'waking' && state !== 'typing' && state !== 'painting' && state !== 'buttonPress' && state !== 'complete' && state !== 'jump' && state !== 'love' && state !== 'cool' && state !== 'yappingMouthOpen' && state !== 'sing' && state !== 'speechless' && state !== 'worry' && state !== 'dizzy' && state !== 'falling' && state !== 'wallImpact' && state !== 'splat' && state !== 'onTheRun' && state !== 'searching' && state !== 'searchingDown';
 }
 
 export function doesChatPetStateBlink(state: ChatPetState | undefined, frameIndex?: number): boolean {
-	return (state === 'typing' || state === 'buttonPress' || state === 'love')
+	return (state === 'typing' || state === 'painting' || state === 'buttonPress' || state === 'love')
 		&& (state !== 'buttonPress' || frameIndex !== BUTTON_PRESS_FRAME_DURATIONS.length - 1);
 }
 
@@ -311,6 +315,8 @@ export function getChatPetSpriteName(state: ChatPetState, quality: string | unde
 			return `buddy-waking-${variant}`;
 		case 'typing':
 			return `buddy-typing-${variant}`;
+		case 'painting':
+			return `buddy-painting-${variant}`;
 		case 'rendering':
 		case 'achievementUnlocked':
 			return `buddy-rendering-${variant}`;
@@ -333,6 +339,8 @@ export function getChatPetFrameDurations(state: ChatPetState): readonly number[]
 			return WAKE_FRAME_DURATIONS;
 		case 'typing':
 			return TYPING_FRAME_DURATIONS;
+		case 'painting':
+			return PAINTING_FRAME_DURATIONS;
 		case 'buttonPress':
 			return BUTTON_PRESS_FRAME_DURATIONS;
 		case 'falling':
@@ -421,6 +429,7 @@ export function getChatPetSpriteSources(variant: ChatPetVariant): Record<ChatPet
 			waking: createSpriteSources(getChatPetSpriteName('waking', variant), 'waking', false, CHAT_PET_SLEEP_SOURCE_WIDTH),
 			typing: createStateSpriteSources('typing'),
 			rendering: createStateSpriteSources('rendering'),
+			painting: createSpriteSources(getChatPetSpriteName('painting', variant), 'painting', false, CHAT_PET_PAINTING_SOURCE_WIDTH),
 			achievementUnlocked: createStateSpriteSources('achievementUnlocked'),
 			buttonPress: createStateSpriteSources('buttonPress'),
 			complete: createStateSpriteSources('complete'),
@@ -517,12 +526,12 @@ export function isChatPetImageSource(image: Pick<HTMLImageElement, 'getAttribute
 	return image.getAttribute('src') === source;
 }
 
-export function getChatPetBaseState(hasActiveRequest: boolean, needsInput: boolean, confirmationAttentionExpired: boolean, hasInput: boolean, idleExpired: boolean): ChatPetState {
+export function getChatPetBaseState(hasActiveRequest: boolean, needsInput: boolean, confirmationAttentionExpired: boolean, hasInput: boolean, idleExpired: boolean, isGeneratingImage = false): ChatPetState {
 	if (needsInput) {
 		return confirmationAttentionExpired ? 'idle' : 'clapping';
 	}
 	if (hasActiveRequest) {
-		return 'rendering';
+		return isGeneratingImage ? 'painting' : 'rendering';
 	}
 	if (idleExpired) {
 		return 'sleep';
@@ -1136,11 +1145,13 @@ export function getChatPetWideSpriteHorizontalOffset(state: ChatPetState | undef
 		? CHAT_PET_SLEEP_RIGHT_OVERHANG
 		: state === 'typing'
 			? CHAT_PET_TYPING_RIGHT_OVERHANG
-			: state === 'buttonPress'
-				? CHAT_PET_BUTTON_PRESS_RIGHT_OVERHANG
-				: state === 'sing'
-					? CHAT_PET_SING_RIGHT_OVERHANG
-					: 0;
+			: state === 'painting'
+				? CHAT_PET_PAINTING_RIGHT_OVERHANG
+				: state === 'buttonPress'
+					? CHAT_PET_BUTTON_PRESS_RIGHT_OVERHANG
+					: state === 'sing'
+						? CHAT_PET_SING_RIGHT_OVERHANG
+						: 0;
 	if (overhang === 0) {
 		return 0;
 	}
@@ -1229,6 +1240,24 @@ export class ChatPetWidget extends Disposable {
 	private dragBounds: HTMLElement;
 	private movementBounds: HTMLElement;
 	private readonly _host: ISettableObservable<IChatPetWidgetHost>;
+	private readonly _isGeneratingImage = derived(this, reader => {
+		const model = this._host.read(reader).model.read(reader);
+		if (!model?.hasActiveRequest.read(reader)) {
+			return false;
+		}
+		const response = model.lastRequestObs.read(reader)?.response;
+		if (!response) {
+			return false;
+		}
+		observableSignalFromEvent(this, response.onDidChange).read(reader);
+		return response.response.value.some(part => {
+			if (part.kind !== 'toolInvocation') {
+				return false;
+			}
+			part.toolSpecificDataKind.read(reader);
+			return isImageGenerationToolInProgress(part, part.state.read(reader));
+		});
+	});
 	private readonly _hostLayoutDisposables = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _hostTransition = observableValue<ChatPetHostTransition | undefined>(this, undefined);
 	private readonly _hostPositionScheduler: dom.AnimationFrameScheduler;
@@ -1660,11 +1689,12 @@ export class ChatPetWidget extends Disposable {
 				this._confirmationAttentionScheduler.schedule();
 			}
 			const hasActiveRequest = chatModel?.hasActiveRequest.read(reader) ?? false;
+			const isGeneratingImage = enabled && this._isGeneratingImage.read(reader);
 			const inputHasContent = currentHost.hasInput.read(reader);
 			this._busy = hasActiveRequest || needsInput;
 			let idleExpired = this._idleExpired.read(reader);
 			let transientState = this._transientState.read(reader);
-			this._button.setAriaLabel(this._getAriaLabel(onTheRun, transientState === 'achievementUnlocked'));
+			this._button.setAriaLabel(this._getAriaLabel(onTheRun, transientState === 'achievementUnlocked', isGeneratingImage && !needsInput));
 			const isDragging = this._isDragging.read(reader);
 			const hostTransition = this._hostTransition.read(reader);
 
@@ -1740,7 +1770,7 @@ export class ChatPetWidget extends Disposable {
 				this._idleScheduler.schedule();
 			}
 
-			const baseState = getChatPetBaseState(hasActiveRequest, needsInput, confirmationAttentionExpired, inputHasContent, idleExpired);
+			const baseState = getChatPetBaseState(hasActiveRequest, needsInput, confirmationAttentionExpired, inputHasContent, idleExpired, isGeneratingImage);
 			if (isChatPetYapState(transientState) && baseState !== 'idle') {
 				transientState = undefined;
 				this._transientState.set(undefined, undefined);
@@ -2601,12 +2631,15 @@ export class ChatPetWidget extends Disposable {
 			: localize('chatPet.movedRight', "VS Code pet moved right"));
 	}
 
-	private _getAriaLabel(onTheRun: boolean, achievementUnlocked: boolean): string {
-		return achievementUnlocked
-			? localize('chatPet.openAchievements', "Open pet achievements. A new achievement is unlocked.")
-			: onTheRun
-				? localize('chatPet.restore', "Bring back the VS Code pet")
-				: localize('chatPet.interact', "Interact with the VS Code pet. Drag it around the chat, or flick it toward either side to throw it. While it is falling, catch it with the pointer to bounce it; while it is airborne, press Enter or Space to bounce it. Use the left and right arrow keys to make it hop, or hold Shift to throw it toward a wall. Use the context menu to put it on the run.");
+	private _getAriaLabel(onTheRun: boolean, achievementUnlocked: boolean, isGeneratingImage = false): string {
+		if (achievementUnlocked) {
+			return localize('chatPet.openAchievements', "Open pet achievements. A new achievement is unlocked.");
+		}
+		if (onTheRun) {
+			return localize('chatPet.restore', "Bring back the VS Code pet");
+		}
+		const label = localize('chatPet.interact', "Interact with the VS Code pet. Drag it around the chat, or flick it toward either side to throw it. While it is falling, catch it with the pointer to bounce it; while it is airborne, press Enter or Space to bounce it. Use the left and right arrow keys to make it hop, or hold Shift to throw it toward a wall. Use the context menu to put it on the run.");
+		return isGeneratingImage ? localize('chatPet.painting', "Painting an image. {0}", label) : label;
 	}
 
 	private _getCurrentLeft(): number {

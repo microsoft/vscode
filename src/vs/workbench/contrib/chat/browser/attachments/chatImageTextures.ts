@@ -42,6 +42,7 @@ export class RevealPace {
 
 	/** Real milliseconds at which each step of the transition is reached. */
 	private readonly realTimes = new Float64Array(RevealPace.steps + 1);
+	private readonly skippedDuration: number;
 
 	/** Real milliseconds that the whole transition takes. */
 	readonly duration: number;
@@ -49,7 +50,12 @@ export class RevealPace {
 	constructor(
 		/** Virtual milliseconds that the transition takes at normal speed. */
 		readonly length: number,
+		/** Omit the prefix without changing the remaining transition's speed curve. */
+		private readonly startAt = 0,
 	) {
+		if (!Number.isFinite(startAt) || startAt < 0 || startAt > length) {
+			throw new RangeError('The image reveal start must be within its timeline.');
+		}
 		const startScale = 0.5;
 		const endScale = 1;
 		let real = 0;
@@ -58,18 +64,22 @@ export class RevealPace {
 			real += startScale * (endScale / startScale) ** smoothstep(0, 1, (step - 0.5) / RevealPace.steps) * length / RevealPace.steps;
 			this.realTimes[step] = real;
 		}
-		this.duration = real;
+		const startStep = startAt === 0 ? 0 : startAt / length * RevealPace.steps;
+		const index = Math.min(Math.floor(startStep), RevealPace.steps - 1);
+		this.skippedDuration = this.realTimes[index] + (this.realTimes[index + 1] - this.realTimes[index]) * (startStep - index);
+		this.duration = real - this.skippedDuration;
 	}
 
 	/** Returns the virtual milliseconds of the transition that have passed after `real` milliseconds. */
 	virtualAt(real: number): number {
 		const times = this.realTimes;
 		if (real <= 0) {
-			return 0;
+			return this.startAt;
 		}
 		if (real >= this.duration) {
 			return this.length;
 		}
+		real += this.skippedDuration;
 		let low = 0;
 		let high = times.length - 1;
 		while (high - low > 1) {
@@ -94,24 +104,6 @@ export function stageAt(time: number, times: ArrayLike<number>): number {
 		stage++;
 	}
 	return stage;
-}
-
-/**
- * A monotone cubic from 0 to 1 whose slopes at either end come as close to the requested ones as
- * monotony allows, for steering a moving wave between two speeds without it backing up.
- */
-function steer(value: number, startSlope: number, endSlope: number): number {
-	let start = Math.max(0, startSlope);
-	let end = Math.max(0, endSlope);
-	const norm = Math.hypot(start, end);
-	if (norm > 3) {
-		start *= 3 / norm;
-		end *= 3 / norm;
-	}
-	const amount = clamp01(value);
-	const squared = amount * amount;
-	const cubed = squared * amount;
-	return (cubed - 2 * squared + amount) * start + (3 * squared - 2 * cubed) + (cubed - squared) * end;
 }
 
 /** A comet-like wave sweeping a band from left to right, in CSS pixels. */
@@ -429,8 +421,7 @@ export interface ITextureRevealOptions {
 	readonly fromWidth: number;
 	/** Height of the loading indicator that the frame grows from, in CSS pixels. */
 	readonly fromHeight: number;
-	/** Whether this surface's own loading band was showing, so that the reveal carries its wave on. */
-	readonly continuing: boolean;
+	readonly timing: ITextureRevealTiming;
 	/** Real milliseconds the reveal takes. */
 	readonly duration: number;
 	readonly onFrame: (frame: ITextureFrame) => void;
@@ -439,26 +430,16 @@ export interface ITextureRevealOptions {
 /** A texture reveal in progress. */
 export interface ITextureReveal {
 	readonly options: ITextureRevealOptions;
-	/** How the reveal's real time maps to the transition's virtual time. */
-	readonly pace: RevealPace;
-	/** The virtual loading time when the reveal began, so that a continuing wave keeps its phase. */
-	readonly loadingTime: number;
 	/** A keyframe-less animation whose time is the reveal's clock, so that the reveal can be paused and sought. */
 	readonly clock: Animation;
 }
 
-/**
- * Returns the loading wave of a reveal, sped up or slowed down so that it leaves the band `until`
- * virtual milliseconds into the reveal while moving at `endSpeed` sweeps per millisecond, the speed
- * of the sweep that follows it. Returns undefined when there is no wave left to show.
- */
-export function steerLoadingWave(reveal: ITextureReveal, width: number, time: number, until: number, endSpeed: number): ILoadingWave | undefined {
-	const sweeps = reveal.loadingTime / wavePeriod;
-	const seed = Math.floor(sweeps);
-	const start = sweeps - seed;
-	if (!reveal.options.continuing || time >= until) {
-		return undefined;
-	}
-	const remaining = 1 - start;
-	return placeWave(start + remaining * steer(time / until, until / wavePeriod / remaining, until * endSpeed / remaining), width, seed);
+/** One timeline for resizing and revealing the image, omitting the remaining loading sweep. */
+export interface ITextureRevealTiming {
+	/** How the reveal's real time maps to the transition's virtual time. */
+	readonly pace: RevealPace;
+	/** The virtual loading time when the reveal began, so that a continuing wave keeps its phase. */
+	readonly loadingTime: number;
+	/** Virtual milliseconds until the last loading wave's wake has left the band. */
+	readonly loadingEnd: number;
 }

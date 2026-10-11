@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isGpt56Model } from './modelIdentifiers.js';
+import { isAutoModel, isGpt56Model } from './modelIdentifiers.js';
 import { COPILOT_HYDRA_FUSION_MODEL_ID } from '../../common/copilotCliConfig.js';
 import type { IToolSearchCandidate } from '../../common/meta/agentToolCallMeta.js';
 import { SEMANTIC_SEARCH_TOOL_NAME } from '../../common/semanticSearchConstants.js';
@@ -52,6 +52,9 @@ export function searchToolsWithoutClient(query: string, candidates: readonly ITo
 export function agentHostModelSupportsToolSearch(modelId: string | undefined): boolean {
 	if (!modelId) {
 		return false;
+	}
+	if (isAutoModel(modelId)) {
+		return true;
 	}
 	const id = modelId.toLowerCase();
 	const normalizedId = id.replace(/\./g, '-');

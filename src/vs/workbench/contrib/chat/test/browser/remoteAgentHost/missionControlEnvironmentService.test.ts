@@ -42,7 +42,7 @@ suite('Mission Control inventory', () => {
 		const sentimentChanged = store.add(new Emitter<void>());
 		const configuration = new TestConfigurationService({ [RemoteAgentHostsEnabledSettingId]: true });
 		store.add(configuration.onDidChangeConfigurationEmitter);
-		const calls = { lists: 0, lookups: [] as string[], connects: [] as ICloudSandboxConnectOptions[], disconnects: [] as string[] };
+		const calls = { lists: 0, lookups: [] as string[], connects: [] as ICloudSandboxConnectOptions[], disconnects: [] as string[], waits: [] as string[] };
 		const events: { eventName: string; data: ITelemetryData | undefined }[] = [];
 		let account: string | undefined = initialAccount;
 		let hidden = false;
@@ -51,8 +51,17 @@ suite('Mission Control inventory', () => {
 		let listed = new DeferredPromise<void>();
 		let environment: Promise<ICloudSandboxEnvironment> = Promise.resolve({ id: 'remote', status: 'online' });
 		let connecting: Promise<void> = Promise.resolve();
+		let recovering: Promise<void> = Promise.resolve();
 		let connectionStatus: RemoteAgentHostConnectionStatus | undefined;
 		instantiation.stub(IRemoteAgentHostService, new class extends mock<IRemoteAgentHostService>() {
+			override async waitForConnection(address: string) {
+				calls.waits.push(address);
+				await recovering;
+				return new class extends mock<IRemoteAgentHostConnectionInfo>() {
+					override readonly address = address;
+					override readonly status = RemoteAgentHostConnectionStatus.connected;
+				}();
+			}
 			override get connections() {
 				const status = connectionStatus;
 				return status ? [new class extends mock<IRemoteAgentHostConnectionInfo>() {
@@ -98,6 +107,7 @@ suite('Mission Control inventory', () => {
 			setList: (result: Promise<readonly IMissionControlEnvironment[]>) => { list = result; listed = new DeferredPromise<void>(); return listed.p; },
 			setEnvironment: (result: Promise<ICloudSandboxEnvironment>) => { environment = result; },
 			setConnecting: (result: Promise<void>) => { connecting = result; },
+			setRecovering: (result: Promise<void>) => { recovering = result; },
 			changeAccount: (value: string | undefined) => { account = value; accountChanged.fire(value); },
 			disableAI: () => { hidden = true; sentimentChanged.fire(); },
 			setOwn: (id: string) => { own = id; },
@@ -132,7 +142,7 @@ suite('Mission Control inventory', () => {
 		await service.refresh(CancellationToken.None);
 		assert.deepStrictEqual({ hosts: service.hosts.get(), calls }, {
 			hosts: [{ ...host('remote'), displayName: undefined }],
-			calls: { lists: 1, lookups: [], connects: [], disconnects: [] },
+			calls: { lists: 1, lookups: [], connects: [], disconnects: [], waits: [] },
 		});
 	});
 
@@ -170,7 +180,7 @@ suite('Mission Control inventory', () => {
 			cached: [{ ...host('remote'), displayName: 'Work Machine' }],
 			refreshed: [{ ...host('remote', 'Remote name'), displayName: 'Work Machine' }],
 			restored: [{ ...host('remote', 'Remote name'), displayName: undefined }],
-			calls: { lists: 1, lookups: [], connects: [], disconnects: [] }, separateProfile: [],
+			calls: { lists: 1, lookups: [], connects: [], disconnects: [], waits: [] }, separateProfile: [],
 			storedFields: ['id', 'kind', 'name', 'status'],
 		});
 	});
@@ -434,22 +444,69 @@ suite('Mission Control inventory', () => {
 		await service.connect('remote', CancellationToken.None);
 		assert.deepStrictEqual({ hosts: service.hosts.get().map(host => host.id), calls }, {
 			hosts: ['remote'], calls: {
-				lists: 1, lookups: ['remote', 'remote'], disconnects: ['remote'],
+				lists: 1, lookups: ['remote', 'remote'], disconnects: ['remote'], waits: [],
 				connects: [0, 1].map(() => ({ environmentId: 'remote', name: 'Machine', environmentKind: 'user-local' })),
 			},
 		});
 	});
 
 	for (const status of [RemoteAgentHostConnectionStatus.connecting, RemoteAgentHostConnectionStatus.reconnecting, RemoteAgentHostConnectionStatus.connected]) {
-		test(`explicit connect ${status.kind === 'connected' ? 'reuses a healthy relay' : `replaces a ${status.kind} relay instead of reporting stale reuse as success`}`, async () => {
+		test(`explicit connect ${status.kind === 'connected' ? 'reuses a healthy relay' : `joins a ${status.kind} relay`}`, async () => {
 			const { service, calls, setConnectionStatus } = fixture();
 			await service.refresh(CancellationToken.None);
 			setConnectionStatus(status);
 			await service.connect('remote', CancellationToken.None);
 			assert.deepStrictEqual({
-				lookups: calls.lookups, disconnects: calls.disconnects, connects: calls.connects.length,
-			}, { lookups: ['remote'], disconnects: status.kind === 'connected' ? [] : ['remote'], connects: 1 });
+				lookups: calls.lookups, disconnects: calls.disconnects, connects: calls.connects.length, waits: calls.waits,
+			}, { lookups: [], disconnects: [], connects: 0, waits: status.kind === 'connected' ? [] : ['cloudsandbox:remote'] });
 		});
+	}
+
+	test('concurrent connection requests share admission and one caller can cancel its wait', async () => {
+		const { service, calls, setConnecting } = fixture();
+		await service.refresh(CancellationToken.None);
+		const relay = new DeferredPromise<void>();
+		setConnecting(relay.p);
+		const first = service.connect('remote', CancellationToken.None);
+		while (!calls.connects.length) {
+			await Promise.resolve();
+		}
+		const cancellation = store.add(new CancellationTokenSource());
+		const cancelled = assert.rejects(service.connect('remote', cancellation.token), CancellationError);
+		const second = service.connect('remote', CancellationToken.None);
+		cancellation.cancel();
+		await cancelled;
+		await relay.complete();
+		await Promise.all([first, second]);
+		assert.deepStrictEqual({ lookups: calls.lookups, connects: calls.connects.length, disconnects: calls.disconnects }, {
+			lookups: ['remote'], connects: 1, disconnects: [],
+		});
+	});
+
+	for (const failure of ['cancelled', 'timed out', 'failed'] as const) {
+		test(`a ${failure} wait does not disconnect background recovery`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { service, calls, setConnectionStatus, setRecovering } = fixture();
+			await service.refresh(CancellationToken.None);
+			setConnectionStatus(RemoteAgentHostConnectionStatus.reconnecting);
+			const recovery = new DeferredPromise<void>();
+			setRecovering(recovery.p);
+			const cancellation = store.add(new CancellationTokenSource());
+			const connecting = service.connect('remote', cancellation.token);
+			const rejected = assert.rejects(connecting, failure === 'cancelled' ? CancellationError : new RegExp(failure));
+			await timeout(0);
+			if (failure === 'cancelled') {
+				cancellation.cancel();
+			} else if (failure === 'timed out') {
+				await timeout(60_000);
+			} else {
+				await recovery.error(new Error('Recovery failed'));
+			}
+			await rejected;
+			await recovery.complete();
+			assert.deepStrictEqual({ waits: calls.waits, connects: calls.connects, disconnects: calls.disconnects }, {
+				waits: ['cloudsandbox:remote'], connects: [], disconnects: [],
+			});
+		}));
 	}
 
 	test('disconnect cancels an in-flight relay connection without removing its host', async () => {

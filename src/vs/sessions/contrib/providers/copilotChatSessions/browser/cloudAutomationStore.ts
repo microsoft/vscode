@@ -492,7 +492,7 @@ export function cloudAutomationTriggers(schedule: IAutomationSchedule): Readonly
 		return { interval: { types: ['hourly'] } };
 	}
 	const minute = schedule.scheduleMinute;
-	if (schedule.timeZone !== 'UTC' || schedule.interval === 'custom' || !Number.isInteger(schedule.scheduleHour) || schedule.scheduleHour < 0 || schedule.scheduleHour > 23
+	if (schedule.timeZone !== 'UTC' || (schedule.interval !== 'daily' && schedule.interval !== 'weekly') || !Number.isInteger(schedule.scheduleHour) || schedule.scheduleHour < 0 || schedule.scheduleHour > 23
 		|| (minute !== 0 && minute !== 15 && minute !== 30 && minute !== 45) || !Number.isInteger(schedule.scheduleDay) || schedule.scheduleDay < 0 || schedule.scheduleDay > 6) {
 		throw new Error(localize('cloudAutomations.invalidSchedule', "Choose a daily or weekly UTC schedule with minutes 00, 15, 30, or 45."));
 	}

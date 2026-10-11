@@ -30,17 +30,20 @@ export const DevContainerRelayMessageNotification = 'vscode/devContainers/relayM
 export const DevContainerRelayCloseNotification = 'vscode/devContainers/relayClose';
 export const DevContainerCloseConnectionNotification = 'vscode/devContainers/closeConnection';
 export const DevContainerOutputNotification = 'vscode/devContainers/output';
+export const DevContainerSandboxSupportNotification = 'vscode/devContainers/sandboxSupport';
 
 export const devContainerConnectionParamsValidator = vObj({ connectionId: vString() });
-export const devContainerConnectParamsValidator = vObj({ connectionId: vString(), workspaceFolder: vString(), name: vString(), resume: vOptionalProp(vBoolean()) });
+export const devContainerConnectParamsValidator = vObj({ connectionId: vString(), workspaceFolder: vString(), name: vString(), resume: vOptionalProp(vBoolean()), sandboxEnabled: vOptionalProp(vBoolean()) });
 export const devContainerWorkspaceParamsValidator = vObj({ workspaceFolder: vString() });
 export const devContainerRelayMessageValidator = vObj({ connectionId: vString(), data: vString() });
+export const devContainerSandboxSupportValidator = vObj({ connectionId: vString(), supported: vBoolean() });
 export const devContainerConnectResultValidator = vObj({
 	connectionId: vString(),
 	address: vString(),
 	name: vString(),
 	remoteWorkspaceFolder: vString(),
 	hostWorkspaceFolder: vOptionalProp(vString()),
+	sandboxSupported: vOptionalProp(vBoolean()),
 });
 
 export const CollectAgentHostDebugLogsExtensionMethod = 'vscode/collectAgentHostDebugLogs';
@@ -54,6 +57,7 @@ export const SetAgentHostDetachedWorktreeArchivedExtensionMethod = 'vscode/setAg
 export const RequestAgentHostWorkspaceTrustExtensionMethod = 'vscode/requestWorkspaceTrust';
 export const RequestAgentHostMcpAuthenticationExtensionMethod = 'vscode/requestMcpAuthentication';
 export const RemoveSessionArtifactExtensionMethod = 'vscode/removeSessionArtifact';
+export const StopBackgroundWorkExtensionMethod = 'vscode/stopBackgroundWork';
 export const ImportSessionExtensionMethod = 'vscode/importSession';
 export const ReportAgentHostFirstResponseExtensionMethod = 'vscode/reportAgentHostFirstResponse';
 export const ReportChatUserInteractionExtensionMethod = 'vscode/reportChatUserInteraction';
@@ -118,6 +122,12 @@ export const removeSessionArtifactParamsValidator = vObj({
 	artifactId: vString(),
 });
 
+/** Stops a chat's background work entry that the host marked stoppable in its `_meta`. */
+export const stopBackgroundWorkParamsValidator = vObj({
+	chat: vString(),
+	id: vString(),
+});
+
 export const importSessionParamsValidator = vObj({ session: vString() });
 
 export interface IAgentHostExtensionCommandMap {
@@ -133,6 +143,11 @@ export interface IAgentHostExtensionCommandMap {
 	[RemoveSessionArtifactExtensionMethod]: {
 		params: ValidatorType<typeof removeSessionArtifactParamsValidator>;
 		result: void;
+	};
+	[StopBackgroundWorkExtensionMethod]: {
+		params: ValidatorType<typeof stopBackgroundWorkParamsValidator>;
+		/** `stopped` is false when the work had already finished or the host no longer tracks it. */
+		result: { stopped: boolean };
 	};
 	'shutdown': { params: undefined; result: void };
 	'getNetworkDiagnosticsInfo': { params: undefined; result: IAgentHostNetworkDiagnosticsInfo };
@@ -178,6 +193,7 @@ export interface IAgentHostExtensionNotificationMap {
 	[DevContainerRelayCloseNotification]: ValidatorType<typeof devContainerConnectionParamsValidator>;
 	[DevContainerCloseConnectionNotification]: ValidatorType<typeof devContainerConnectionParamsValidator>;
 	[DevContainerOutputNotification]: ValidatorType<typeof devContainerRelayMessageValidator>;
+	[DevContainerSandboxSupportNotification]: ValidatorType<typeof devContainerSandboxSupportValidator>;
 }
 
 export interface IAgentHostWorkspaceTrustRequest {

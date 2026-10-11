@@ -9,7 +9,6 @@ import { VSBuffer, bufferToStream } from '../../../../base/common/buffer.js';
 import { Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { agentFinderMcpRegistryManifest, getAgentFinderMcpServerUrl } from '../../../agentFinder/common/agentFinderMcpRegistry.js';
 import { IFileService } from '../../../files/common/files.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { IRequestContext, IRequestOptions } from '../../../../base/parts/request/common/request.js';
@@ -20,9 +19,14 @@ import { McpGalleryService, UnsupportedMcpGalleryPackageError } from '../../comm
 
 const SERVERS_URL = 'https://registry.test/servers';
 const NAMED_TEMPLATE = 'https://registry.test/servers/{name}';
+const DIRECT_MANIFEST: IMcpGalleryManifest = { version: 'v0.1', url: SERVERS_URL, resources: [] };
 
 function serverUrl(name: string): string {
 	return `https://registry.test/servers/${name}`;
+}
+
+function versionedServerUrl(name: string, version: string): string {
+	return `${SERVERS_URL}/${encodeURIComponent(name)}/versions/${encodeURIComponent(version)}`;
 }
 
 function serverDocumentData(name: string, registryTypes: readonly string[], remotes?: readonly { type: string; url: string; variables?: Record<string, IMcpServerInput> }[]) {
@@ -433,12 +437,12 @@ suite('McpGalleryService - getMcpServer validation', () => {
 		});
 	});
 
-	test('resolves a pinned GitHub Feed version with the supported package parser rather than the configured registry', async () => {
+	test('resolves a pinned registry version with the supported package parser', async () => {
 		const name = 'io.github.owner/server';
 		const requestService = new StatusRequestService(200, JSON.stringify(serverDocumentData(name, ['npm'])));
 		const service = createService(requestService);
-		const url = getAgentFinderMcpServerUrl(name, '1.0.0');
-		const server = await service.getMcpServer(url, agentFinderMcpRegistryManifest);
+		const url = versionedServerUrl(name, '1.0.0');
+		const server = await service.getMcpServer(url, DIRECT_MANIFEST);
 		assert.deepStrictEqual({
 			name: server?.name,
 			version: server?.version,
@@ -450,15 +454,15 @@ suite('McpGalleryService - getMcpServer validation', () => {
 		});
 	});
 
-	test('bounds versioned feed MCP records without truncating an allowed response', async () => {
+	test('bounds versioned MCP records without truncating an allowed response', async () => {
 		const name = 'io.github.owner/server';
-		const url = getAgentFinderMcpServerUrl(name, '1.0.0');
+		const url = versionedServerUrl(name, '1.0.0');
 		const document = JSON.stringify(serverDocumentData(name, ['npm']));
 		const size = 5 * 1024 * 1024;
 		const allowed = createService(new StatusRequestService(200, document.padEnd(size, ' ')));
 		const oversized = createService(new StatusRequestService(200, document.padEnd(size + 1, ' ')));
-		const server = await allowed.getMcpServer(url, agentFinderMcpRegistryManifest);
-		await assert.rejects(oversized.getMcpServer(url, agentFinderMcpRegistryManifest), /response is too large/);
+		const server = await allowed.getMcpServer(url, DIRECT_MANIFEST);
+		await assert.rejects(oversized.getMcpServer(url, DIRECT_MANIFEST), /response is too large/);
 		assert.strictEqual(server?.name, name);
 	});
 
