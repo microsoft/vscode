@@ -235,11 +235,13 @@ suite('Mission Control native provider inventory', () => {
 			assert.deepStrictEqual({
 				addresses: created.map(entry => entry.provider.remoteAddress),
 				statuses: created.map(entry => entry.provider.connectionStatus.get().kind),
+				pickerVisibility: created.map(entry => entry.options.isVisibleInEnvironmentPicker?.get()),
 				connects: actions.filter(action => action.startsWith('connect:')),
 				discoveries: actions.filter(action => action === 'discover').length,
 			}, {
 				addresses: ['cloudsandbox:online', 'cloudsandbox:offline'],
 				statuses: [connects ? 'connected' : 'disconnected', 'disconnected'],
+				pickerVisibility: [true, false],
 				connects: connects ? ['connect:online'] : [],
 				discoveries: 1,
 			});
@@ -381,6 +383,23 @@ suite('Mission Control native provider inventory', () => {
 		assert.deepStrictEqual({ online, offline, duplicates, renamed: description.get() }, {
 			online: 'Online', offline: 'Offline', duplicates: ['Online', 'Online'], renamed: 'Online',
 		});
+	});
+
+	test('updates picker visibility with inventory availability without recreating the provider', () => {
+		const { hosts, created } = fixture();
+		const host: IMissionControlHost = { id: 'environment', name: 'Machine', kind: 'user-local', status: 'offline' };
+		hosts.set([host], undefined);
+		const original = created[0].provider;
+		const visibility = created[0].options.isVisibleInEnvironmentPicker!;
+		const states = [visibility.get()];
+		hosts.set([{ ...host, status: 'online' }], undefined);
+		states.push(visibility.get());
+		hosts.set([host], undefined);
+		states.push(visibility.get());
+		assert.deepStrictEqual({
+			states, providers: created.length, disposed: original.disposed,
+			retained: created[0].options.retainSessionsOnDisconnect,
+		}, { states: [false, true, false], providers: 1, disposed: false, retained: true });
 	});
 
 	test('registers disconnected native hosts before AHP, preserves them across rename and disconnect, and withdraws deleted hosts', async () => {

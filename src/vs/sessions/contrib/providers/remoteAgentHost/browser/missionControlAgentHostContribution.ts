@@ -244,6 +244,7 @@ export class MissionControlAgentHostContribution extends EntryDrivenProviderCont
 			sessionCacheKey: `missionControl.userLocalSessions.v1.${encodeURIComponent(this._profileService.currentProfile.id)}.${encodeURIComponent(account)}.${id}`,
 			retainSessionsOnDisconnect: true,
 			readOnlyWhenDisconnected: true,
+			isVisibleInEnvironmentPicker: derived(this, reader => this._inventory.hosts.read(reader).some(host => host.id === id && host.status === 'online')),
 			disconnectLabel: localize('missionControl.disconnectHost', "Disconnect"),
 			hostDescription: derived(this, reader => {
 				const hosts = this._inventory.hosts.read(reader);

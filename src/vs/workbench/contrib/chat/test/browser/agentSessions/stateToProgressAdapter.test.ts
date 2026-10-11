@@ -20,7 +20,7 @@ import { buildOpenSessionLinkUri, parseOpenSessionLinkChatId, parseOpenSessionLi
 import { toAgentMergeMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentMergeMessageMeta.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, AgentSystemNotificationWorkspaceKind, toAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
 import { toAgentWorkspaceContinuationMessageMeta } from '../../../../../../platform/agentHost/common/meta/agentWorkspaceContinuationMeta.js';
-import { McpAuthRequiredReason } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ConfirmationOptionKind, McpAuthRequiredReason } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { createAgentHostResourceUriMapper, fromAgentHostUri, toAgentHostContentUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { buildSubagentChatUri, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, createErrorResponsePart, MessageAttachmentKind, MessageKind, ToolCallContributorKind, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, readUsageInfoMeta, withMessageHiddenFromTranscript, withMessageRequestHiddenFromTranscript, withMessageSystemInitiatedLabel, type ActiveTurn, type ICompletedToolCall, type ToolCallPendingConfirmationState, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason, type Message, type ToolResultContent } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ChatTranscriptContextAttachmentDisplayKind, IChatRequestTranscriptContextVariableEntry, toChatTranscriptContextAttachmentMeta } from '../../../common/attachments/chatVariableEntries.js';
@@ -2083,6 +2083,37 @@ suite('stateToProgressAdapter', () => {
 
 	suite('toolCallStateToInvocation', () => {
 		const nativeToolMeta = { 'vscode.toolInputContract': 'copilot-cli-v1' };
+
+		test('live sampling uses standard tool confirmation with server-scoped options', () => {
+			const options = [
+				{ id: 'allow-once', label: 'Allow Once', kind: ConfirmationOptionKind.Approve },
+				{ id: 'allow-sampling-always', label: 'Always Allow for This Server', kind: ConfirmationOptionKind.Approve, group: 1 },
+				{ id: 'skip', label: 'Skip', kind: ConfirmationOptionKind.Deny, group: 2 },
+			];
+			const invocation = toolCallStateToInvocation({
+				toolCallId: 'sampling-1', toolName: 'mcp_sampling', displayName: 'MCP Sampling',
+				status: ToolCallStatus.PendingConfirmation,
+				confirmationTitle: 'Allow Sampling from test-server?',
+				invocationMessage: 'MCP server test-server wants to sample a model.',
+				toolInput: '{"messages":[],"maxTokens":100}',
+				options,
+			});
+			const state = invocation.state.get();
+			assert.deepStrictEqual({
+				kind: invocation.kind,
+				state: state.type,
+				confirmation: state.type === IChatToolInvocation.StateKind.WaitingForConfirmation ? state.confirmationMessages : undefined,
+			}, {
+				kind: 'toolInvocation',
+				state: IChatToolInvocation.StateKind.WaitingForConfirmation,
+				confirmation: {
+					title: 'Allow Sampling from test-server?',
+					message: 'MCP server test-server wants to sample a model.',
+					approvalReason: undefined,
+					customOptions: options,
+				},
+			});
+		});
 
 		test('plain and structured search and fetch inputs retain the host-authored labels', () => {
 			const cases = [

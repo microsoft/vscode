@@ -25,6 +25,7 @@ import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js
 import { IAgentHostReviewService } from '../common/agentHostReviewService.js';
 import { IAgentHostSubscriptionService } from '../common/agentHostSubscriptionService.js';
 import { CopilotApiService, ICopilotApiService } from './shared/copilotApiService.js';
+import { AgentHostUtilityModelService, IAgentHostUtilityModelService } from './agentHostUtilityModelService.js';
 import { AgentHostFileMonitorService, IAgentHostFileMonitorService } from './agentHostFileMonitorService.js';
 import { AgentHostGitService } from './agentHostGitService.js';
 import { AgentPluginManager } from './agentPluginManager.js';
@@ -145,6 +146,7 @@ export function registerAgentHostHostServices(services: ServiceCollection, input
 	services.set(IClaudeProxyService, new SyncDescriptor(ClaudeProxyService));
 	services.set(ICodexProxyService, new SyncDescriptor(CodexProxyService, [undefined]));
 	services.set(IAgentHostOTelService, new SyncDescriptor(AgentHostOTelService, [{ fetchFn: inputs.fetchFn }]));
+	services.set(IAgentHostUtilityModelService, new SyncDescriptor(AgentHostUtilityModelService, [inputs.byok.kind === 'renderer']));
 	services.set(
 		IByokLmProxyService,
 		inputs.byok.kind === 'renderer' ? new SyncDescriptor(ByokLmProxyService) : new NullByokLmProxyService(),

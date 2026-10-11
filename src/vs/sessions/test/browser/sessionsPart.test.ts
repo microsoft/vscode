@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { EventType } from '../../../base/browser/dom.js';
+import { mainWindow } from '../../../base/browser/window.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { SessionsPart } from '../../browser/parts/sessionsPart.js';
 import { SessionHarnessPickerVisibleContext, SessionIsolationPickerVisibleContext, SessionWorkspacePickerVisibleContext } from '../../common/contextkeys.js';
@@ -34,7 +35,7 @@ suite('Sessions - Sessions Part', () => {
 
 	const activateCodicon = Reflect.get(SessionsPart.prototype, 'activateCodicon') as (this: ICodiconActivationTestHarness, element: HTMLElement) => void;
 
-	test('session separators stay subtle at rest and preserve contrast borders across theme changes', () => {
+	test('session gaps omit separators while compact density preserves themed separators', () => {
 		const colors = { [agentsPanelBorder]: '#ff0000', [agentsCardBorder]: '#00ff00' };
 		const themes = [
 			new TestColorTheme(colors, ColorScheme.DARK),
@@ -48,7 +49,49 @@ suite('Sessions - Sessions Part', () => {
 		const themeService = new TestThemeService(themes[0]);
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		instantiationService.stub(IThemeService, themeService);
-		const { part, container } = createSessionsPartTestHarness(store, false, { instantiationService });
+		let compact = false;
+		const { part, container } = createSessionsPartTestHarness(store, false, { instantiationService, compactLayout: () => compact });
+		const first = createTestActiveSession('first');
+		const second = createTestActiveSession('second');
+		part.updateVisibleSessions([first, second], first);
+		part.layout(1202, 802, 0, 0);
+		const splitView = container.querySelector<HTMLElement>('.session-grid .monaco-split-view2');
+		assert.ok(splitView);
+		const getStyles = () => ({
+			separator: splitView.classList.contains('separator-border'),
+			separatorColor: splitView.style.getPropertyValue('--separator-border'),
+			cardBorder: container.style.getPropertyValue('--part-border-color'),
+		});
+		const gapped = [getStyles()];
+		for (const theme of themes.slice(1)) {
+			themeService.setTheme(theme);
+			gapped.push(getStyles());
+		}
+		themeService.setTheme(themes[0]);
+		compact = true;
+		part.layout(1202, 802, 0, 0);
+		const compactStyles = getStyles();
+		assert.deepStrictEqual({ gapped, compact: compactStyles }, {
+			gapped: themes.map(() => ({ separator: false, separatorColor: '', cardBorder: '#00ff00' })),
+			compact: { separator: true, separatorColor: 'rgba(255, 0, 0, 0.5)', cardBorder: '#00ff00' },
+		});
+	});
+
+	test('compact session separators preserve contrast borders across theme changes', () => {
+		const colors = { [agentsPanelBorder]: '#ff0000', [agentsCardBorder]: '#00ff00' };
+		const themes = [
+			new TestColorTheme(colors, ColorScheme.DARK),
+			new TestColorTheme({ ...colors, [contrastBorder]: '#ffffff' }, ColorScheme.HIGH_CONTRAST_DARK),
+			new TestColorTheme({ ...colors, [contrastBorder]: '#000000' }, ColorScheme.HIGH_CONTRAST_LIGHT),
+			new TestColorTheme(colors, ColorScheme.LIGHT),
+			new TestColorTheme({ ...colors, [contrastBorder]: '#0000ff' }, ColorScheme.DARK),
+			new TestColorTheme({ ...colors, [agentsPanelBorder]: '#ff000080' }, ColorScheme.LIGHT),
+			new TestColorTheme({ [agentsCardBorder]: '#00ff00' }, ColorScheme.DARK),
+		];
+		const themeService = new TestThemeService(themes[0]);
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		instantiationService.stub(IThemeService, themeService);
+		const { part, container } = createSessionsPartTestHarness(store, false, { instantiationService, compactLayout: () => true });
 		const first = createTestActiveSession('first');
 		const second = createTestActiveSession('second');
 		part.updateVisibleSessions([first, second], first);
@@ -74,6 +117,78 @@ suite('Sessions - Sessions Part', () => {
 			{ separator: true, separatorColor: 'rgba(255, 0, 0, 0.25)', cardBorder: '#00ff00' },
 			{ separator: false, separatorColor: '', cardBorder: '#00ff00' },
 		]);
+	});
+
+	test('uses floating-panel gaps only in default desktop density', () => {
+		let compact = false;
+		const { part, container } = createSessionsPartTestHarness(store, false, { compactLayout: () => compact });
+		const first = createTestActiveSession('first');
+		const second = createTestActiveSession('second');
+		part.updateVisibleSessions([first, second], first);
+		const snapshot = () => ({
+			hasGaps: container.querySelector('.session-grid')?.classList.contains('session-grid-has-gaps'),
+			insets: [...container.querySelectorAll<HTMLElement>('.session-grid-leaf')].map(leaf => [
+				leaf.style.borderTopWidth,
+				leaf.style.borderRightWidth,
+				leaf.style.borderBottomWidth,
+				leaf.style.borderLeftWidth,
+			]),
+		});
+
+		part.layout(1202, 802, 0, 0);
+		const defaultDensity = snapshot();
+		compact = true;
+		part.layout(1202, 802, 0, 0);
+		const compactDensity = snapshot();
+
+		assert.deepStrictEqual({ defaultDensity, compactDensity }, {
+			defaultDensity: {
+				hasGaps: true,
+				insets: [
+					['0px', '2px', '0px', '0px'],
+					['0px', '0px', '0px', '2px'],
+				],
+			},
+			compactDensity: {
+				hasGaps: false,
+				insets: [
+					['0px', '0px', '0px', '0px'],
+					['0px', '0px', '0px', '0px'],
+				],
+			},
+		});
+	});
+
+	test('keeps custom backgrounds visible within gapped session panels', () => {
+		const { part, container } = createSessionsPartTestHarness(store, false, { chatBackground: { kind: 'codicons' } });
+		container.style.setProperty('--vscode-agents-background', '#123456');
+		const first = createTestActiveSession('first');
+		const second = createTestActiveSession('second');
+		part.updateVisibleSessions([first, second], first);
+
+		part.layout(1202, 802, 0, 0);
+
+		const leaves = [...container.querySelectorAll<HTMLElement>('.session-grid-leaf')];
+		const sessionView = container.querySelector<HTMLElement>('.session-view');
+		const background = container.querySelector<HTMLElement>('.sessions-chat-background');
+		assert.ok(sessionView);
+		assert.ok(background);
+		assert.deepStrictEqual({
+			hasBackground: container.classList.contains('has-chat-background'),
+			backgroundHidden: background.hidden,
+			leafBackgrounds: leaves.map(leaf => mainWindow.getComputedStyle(leaf).backgroundColor),
+			gutters: leaves.map(leaf => {
+				const style = mainWindow.getComputedStyle(leaf);
+				return `${style.borderLeftWidth} ${style.borderRightWidth} ${style.borderStyle} ${style.borderColor}`;
+			}),
+			sessionBackground: mainWindow.getComputedStyle(sessionView).backgroundColor,
+		}, {
+			hasBackground: true,
+			backgroundHidden: false,
+			leafBackgrounds: ['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0)'],
+			gutters: ['0px 2px solid rgb(18, 52, 86)', '2px 0px solid rgb(18, 52, 86)'],
+			sessionBackground: 'rgba(0, 0, 0, 0)',
+		});
 	});
 
 	function assertActivation(eventFactory: () => Event): void {
@@ -146,7 +261,7 @@ suite('Sessions - Sessions Part', () => {
 		}
 		part.layout(1402, 902, 0, 0);
 		part.layout(1402, 902, 0, 0);
-		assert.deepStrictEqual(observations, [['700px', '700px'], ['700px', '700px']]);
+		assert.deepStrictEqual(observations, [['698px', '698px'], ['698px', '698px']]);
 	});
 
 	for (const maximized of [false, true]) {

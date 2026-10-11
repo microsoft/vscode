@@ -134,6 +134,21 @@ suite('AgentHostSandboxNotification', () => {
 		assert.deepStrictEqual(snapshots, [0, 1, 0]);
 	});
 
+	test('shows repeated reasons once while preserving distinct reasons and stable notification updates', () => {
+		const subscription = store.add(new TestSubscription());
+		subscription.setValue(['Install iptables.', 'Install iptables.', 'Install bubblewrap.']);
+		const service = new NotificationService();
+		store.add(new AgentHostSandboxNotification(resource, subscription, service));
+		subscription.setValue(['Install iptables.', 'Install bubblewrap.', 'Install iptables.', 'Install iptables.']);
+		assert.deepStrictEqual({
+			description: [...service.notifications.values()][0].description,
+			updates: service.updates,
+		}, {
+			description: new MarkdownString('Install&nbsp;iptables.\\\nInstall&nbsp;bubblewrap.'),
+			updates: 1,
+		});
+	});
+
 	test('disposal removes only this session notification and stops tracking', () => {
 		const subscription = store.add(new TestSubscription());
 		subscription.setValue(['Unsupported.']);

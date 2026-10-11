@@ -3114,7 +3114,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.renderChatSuggestNextWidget();
 		this.updateChatInputContext();
 		this.input.renderChatTodoListWidget(this.viewModel.sessionResource);
-		this.input.renderArtifactsWidget(this.viewModel.sessionResource);
+		if (this.viewOptions.renderArtifactsWidget !== false) {
+			this.input.renderArtifactsWidget(this.viewModel.sessionResource);
+		}
 	}
 
 	setLoading(isLoading: boolean): void {

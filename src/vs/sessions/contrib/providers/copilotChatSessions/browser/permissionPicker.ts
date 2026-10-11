@@ -88,6 +88,8 @@ export interface IPermissionPickerDelegate {
 	readonly getSandboxToggleProvider?: () => string | undefined;
 	readonly sandboxEnabled?: IObservable<boolean | undefined>;
 	readonly sandboxConfirmedEnabled?: IObservable<boolean | undefined>;
+	readonly sandboxDevContainer?: IObservable<boolean>;
+	readonly sandboxDevContainerSupported?: IObservable<boolean | undefined>;
 	setSandboxEnabled?(enabled: boolean): void;
 	readonly managedSandboxEnforced?: IObservable<boolean>;
 	readonly managedSandboxAllowsBypass?: IObservable<boolean>;
@@ -254,6 +256,8 @@ export class PermissionPicker extends Disposable {
 			this._delegate.managedSandboxEnforced?.read(reader);
 			this._delegate.sandboxEnabled?.read(reader);
 			this._delegate.sandboxConfirmedEnabled?.read(reader);
+			this._delegate.sandboxDevContainer?.read(reader);
+			this._delegate.sandboxDevContainerSupported?.read(reader);
 			this._delegate.sandboxToggleSettingId?.read(reader);
 			(this._delegate.managedSandboxAllowsBypass ?? this.agentHostEnablementService.managedSandboxAllowsBypass).read(reader);
 			this._updateTriggerLabel(trigger);
@@ -283,10 +287,12 @@ export class PermissionPicker extends Disposable {
 
 	get presentation(): IModePickerPermissions {
 		const level = this._delegate.currentPermissionLevel?.get() ?? this._currentLevel;
+		const sandboxed = this._delegate.isSandboxToggleApplicable?.() === true && this._isSandboxingEnabled();
+		const label = this._getPermissionLevelMeta(level).label;
 		return {
-			label: this._getPermissionLevelMeta(level).label,
+			label,
 			level,
-			sandboxed: this._delegate.isSandboxToggleApplicable?.() === true && this._isSandboxingEnabled(),
+			sandboxed,
 		};
 	}
 
@@ -356,7 +362,7 @@ export class PermissionPicker extends Disposable {
 				},
 				label: sandboxToggle.label,
 				standaloneToggle: sandboxToggle,
-				...(disabled ? { hover: { content: localize('permissions.policyDescription', "Disabled by enterprise policy") } } : {}),
+				...(disabled || this._delegate.sandboxDevContainer?.get() ? { hover: { content: sandboxToggle.title } } : {}),
 				disabled,
 			});
 		}
@@ -448,6 +454,8 @@ export class PermissionPicker extends Disposable {
 			this._delegate.managedSandboxEnforced?.read(reader);
 			this._delegate.sandboxEnabled?.read(reader);
 			this._delegate.sandboxConfirmedEnabled?.read(reader);
+			this._delegate.sandboxDevContainer?.read(reader);
+			this._delegate.sandboxDevContainerSupported?.read(reader);
 			this._sandboxDefaultChanged.read(reader);
 			(this._delegate.managedSandboxAllowsBypass ?? this.agentHostEnablementService.managedSandboxAllowsBypass).read(reader);
 			const standaloneToggle = this._getSandboxStandaloneToggle();
@@ -458,9 +466,11 @@ export class PermissionPicker extends Disposable {
 			const disabled = standaloneToggle?.disabled === true;
 			this.actionWidgetService.updateItems(items.map(item => item.standaloneToggle ? {
 				...item,
+				label: standaloneToggle?.label ?? item.label,
+				item: item.item && standaloneToggle ? { ...item.item, label: standaloneToggle.label } : item.item,
 				standaloneToggle,
 				disabled,
-				hover: disabled ? { content: localize('permissions.policyDescription', "Disabled by enterprise policy") } : undefined,
+				hover: standaloneToggle && (disabled || this._delegate.sandboxDevContainer?.read(reader)) ? { content: standaloneToggle.title } : undefined,
 			} : item));
 		}));
 		return disposables;
@@ -552,7 +562,8 @@ export class PermissionPicker extends Disposable {
 	}
 
 	private _isSandboxingEnabled(): boolean {
-		return getAgentHostSandboxToggleState(this._readSandboxToggleState())?.checked ?? false;
+		return this._delegate.sandboxDevContainerSupported?.get() !== false
+			&& (getAgentHostSandboxToggleState(this._readSandboxToggleState())?.checked ?? false);
 	}
 
 	private _readSandboxToggleState() {
@@ -564,6 +575,8 @@ export class PermissionPicker extends Disposable {
 			globalEnabled: settingId !== undefined && isAgentSandboxEnabledValue(this.configurationService.getValue<AgentSandboxEnabledSettingValue>(settingId)),
 			managedEnabled: this._delegate.managedSandboxEnforced?.get() === true,
 			allowsBypass: (this._delegate.managedSandboxAllowsBypass ?? this.agentHostEnablementService.managedSandboxAllowsBypass).get(),
+			devContainer: this._delegate.sandboxDevContainer?.get(),
+			devContainerSandboxSupported: this._delegate.sandboxDevContainerSupported?.get(),
 		};
 	}
 

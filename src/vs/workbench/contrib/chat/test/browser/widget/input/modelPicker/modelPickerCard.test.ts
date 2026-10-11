@@ -12,6 +12,7 @@ import { Color, RGBA } from '../../../../../../../../base/common/color.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../../../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../../base/test/common/utils.js';
 import { NullOpenerService } from '../../../../../../../../platform/opener/test/common/nullOpenerService.js';
@@ -50,6 +51,8 @@ function createAutoModel(): ILanguageModelChatMetadataAndIdentifier {
 			id: 'auto',
 			name: 'Auto',
 			detail: '10% discount',
+			autoModelDiscountPercent: 10,
+			tooltip: ILanguageModelChatMetadata.getAutoModelDescription(),
 			configurationSchema: {
 				properties: {
 					tier: {
@@ -151,6 +154,36 @@ suite('ModelCard', () => {
 		return Array.from(card.element.querySelectorAll('[role="radio"][aria-checked="true"]'), option => option.textContent ?? '');
 	}
 
+	for (const [tier, label] of [['efficiency', 'Efficiency'], ['balance', 'Balance'], ['intelligence', 'Intelligence']]) {
+		test(`Auto's ${tier} tier explains its discount below the picker without repeating it above`, () => {
+			const { card } = createCard({ tier }, { model: createAutoModel() });
+			const description = element(card.element, '.chat-model-card-discount-description');
+			const control = element(card.element, '.monaco-custom-radio');
+			assert.deepStrictEqual({
+				above: card.element.querySelector(':scope > .chat-model-card-description')?.textContent,
+				below: description.textContent,
+				hidden: description.hidden,
+				afterControl: !!(control.compareDocumentPosition(description) & Node.DOCUMENT_POSITION_FOLLOWING),
+				badge: card.headerElement.querySelector('.chat-model-card-badge')?.textContent,
+			}, {
+				above: 'Auto routes based on your task and real-time system health and model performance. Learn More',
+				below: `Models routed via Auto ${label} receive a 10% discount.`,
+				hidden: false,
+				afterControl: true,
+				badge: '10% discount',
+			});
+		});
+	}
+
+	test('Auto without tiers explains its discount below its description', () => {
+		const auto = createAutoModel();
+		const { card } = createCard({}, { model: { ...auto, metadata: { ...auto.metadata, configurationSchema: undefined } } });
+		assert.deepStrictEqual(Array.from(card.element.querySelectorAll(':scope > .chat-model-card-description'), description => description.textContent), [
+			'Auto routes based on your task and real-time system health and model performance. Learn More',
+			'Models routed via auto receive a 10% discount.',
+		]);
+	});
+
 	for (const activation of ['pointer', 'Enter', 'Space'] as const) {
 		for (const [index, tier] of [[0, 'efficiency'], [1, 'balance']] as const) {
 			test(`Auto details accept the ${tier} tier via ${activation}, including its current value`, async () => {
@@ -195,6 +228,56 @@ suite('ModelCard', () => {
 		await timeout(0);
 		assert.deepStrictEqual({ focused, writes: result.writes, selectedModels: result.selectedModels, selected: selectedOptions(result.card) }, {
 			focused: [2, 0, 2, 1], writes: [], selectedModels: [], selected: ['Balance'],
+		});
+	});
+
+	test('Auto details end with a routing alternative that is selected and described rather than saved', async () => {
+		const hydraFusion = { ...createModel({ id: 'hydrafusion', name: 'HydraFusion', detail: 'Research preview', configurationSchema: undefined }), identifier: 'copilot/hydrafusion' };
+		const alternative = (selected: boolean): IModelCardOptions['routingAlternative'] => ({
+			model: hydraFusion,
+			description: 'HydraFusion is a research preview.',
+			tooltip: 'It picks a workflow per task, using one or more models to draft, review, or escalate.',
+			learnMoreUrl: URI.parse('https://example.com/hydrafusion'),
+			selected,
+		});
+		const result = createCard({ tier: 'balance' }, { model: createAutoModel(), routingAlternative: alternative(false) });
+		const choices = () => Array.from(result.card.element.querySelectorAll<HTMLElement>('[role="radio"]'));
+		const description = () => {
+			const element = result.card.element.querySelector<HTMLElement>('.chat-model-card-alternative-description');
+			return element && !element.hidden ? element.textContent : undefined;
+		};
+		const initial = { options: choices().map(choice => choice.textContent), selected: selectedOptions(result.card), description: description() };
+		choices()[3].focus();
+		choices()[3].click();
+		const onClick = description();
+		await timeout(0);
+		// The picker marks the alternative selected once it accepts the choice.
+		result.update({ routingAlternative: alternative(true) });
+		const chosen = {
+			selected: selectedOptions(result.card),
+			description: description(),
+			ariaLabel: choices()[3].getAttribute('aria-label'),
+			focused: document.activeElement?.textContent,
+			badge: result.card.headerElement.querySelector('.chat-model-card-badge')?.textContent,
+		};
+		choices()[0].click();
+		const onTier = description();
+		await timeout(0);
+		const restoredBadge = result.card.headerElement.querySelector('.chat-model-card-badge')?.textContent;
+		assert.deepStrictEqual({ initial, onClick, chosen, onTier, restoredBadge, writes: result.writes, selectedModels: result.selectedModels }, {
+			initial: { options: ['Efficiency', 'Balance', 'Intelligence', 'HydraFusion'], selected: ['Balance'], description: undefined },
+			onClick: 'HydraFusion is a research preview. Learn more',
+			chosen: {
+				selected: ['HydraFusion'],
+				description: 'HydraFusion is a research preview. Learn more',
+				ariaLabel: 'HydraFusion, HydraFusion is a research preview. It picks a workflow per task, using one or more models to draft, review, or escalate.',
+				focused: 'HydraFusion',
+				badge: 'Research preview',
+			},
+			onTier: undefined,
+			restoredBadge: '10% discount',
+			writes: [{ tier: 'efficiency' }],
+			selectedModels: ['copilot/hydrafusion', 'copilot/auto'],
 		});
 	});
 

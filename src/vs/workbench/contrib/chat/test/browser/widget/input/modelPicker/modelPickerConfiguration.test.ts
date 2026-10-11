@@ -186,11 +186,11 @@ suite('ModelPickerConfiguration', () => {
 		});
 	});
 
-	test('the Auto readout describes routing options rather than Details', () => {
+	test('the Auto readout opens its Details like any model', () => {
 		assert.deepStrictEqual(render(createTierModel()), {
 			visible: true,
 			label: 'Balance',
-			ariaLabel: 'Auto options, Optimize for: Balance',
+			ariaLabel: 'Auto details, Optimize for: Balance',
 		});
 	});
 
@@ -198,7 +198,7 @@ suite('ModelPickerConfiguration', () => {
 		assert.deepStrictEqual(render(createTierModel(), { tier: 'max' }), {
 			visible: true,
 			label: 'Intelligence',
-			ariaLabel: 'Auto options, Optimize for: Intelligence',
+			ariaLabel: 'Auto details, Optimize for: Intelligence',
 		});
 	});
 

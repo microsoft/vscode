@@ -134,6 +134,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 						family: m.id,
 						...(tooltip !== undefined && { tooltip }),
 						...(detail !== undefined && { detail }),
+						...(isAuto && hasDiscount && { autoModelDiscountPercent: discountPercent }),
 						maxInputTokens,
 						maxOutputTokens,
 						maxContextWindowTokens: m.maxContextWindow ?? known?.maxContextWindowTokens,
@@ -181,7 +182,8 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 		if (model.id === AUTO_RAW_MODEL_ID) {
 			return {
 				detail: discountPercent !== undefined ? localize('agentHost.auto.discount', "{0}% discount", discountPercent) : undefined,
-				description: ILanguageModelChatMetadata.getAutoModelDescription(discountPercent),
+				// The discount is carried by `autoModelDiscountPercent` and described by the picker.
+				description: ILanguageModelChatMetadata.getAutoModelDescription(),
 			};
 		}
 		if (model.id === COPILOT_HYDRA_FUSION_MODEL_ID) {

@@ -47,6 +47,7 @@ export interface IModelPickerDelegate {
 	 * Returns `undefined` when no session is active.
 	 */
 	getChatSessionId?(): string | undefined;
+	getAgentSessionId?(): string | undefined;
 	getProvider?(): string | undefined;
 	/**
 	 * The session type (harness) the picker selects models for. Used to scope

@@ -366,12 +366,13 @@ export class AutomationDialogService implements IAutomationDialogService {
 					titlebar.setAttribute('aria-hidden', 'true');
 					titlebar.textContent = title;
 
-					const description = DOM.append(container, $('.automation-description'));
+					const scrollable = DOM.append(container, $('.automation-dialog-scrollable'));
+					const description = DOM.append(scrollable, $('.automation-description'));
 					description.textContent = isEdit
 						? localize('automation.dialog.editDescription', "Update the schedule, prompt, or run target for this automation.")
 						: localize('automation.dialog.createDescription', "Define a prompt that will run on a schedule against the selected target.");
 
-					const formPane = DOM.append(container, $('.automation-form-pane'));
+					const formPane = DOM.append(scrollable, $('.automation-form-pane'));
 					const form = DOM.append(formPane, $('.automation-form'));
 					const handle = renderForm(form, state, disposables, validation, () => revalidate(), this.instantiationService, this.contextKeyService, this.contextViewService, this.configurationService, this.layoutService, this.logService, this.sessionsManagementService, this.workspaceTrustRequestService, initial?.prompt ?? '', initialTarget, initialSessionConfiguration, allowedProviders, providerId => this.automationService.getProviderConfiguration?.(providerId), isEdit, { service: this.automationService, hoverService: this.hoverService, existingId: existing?.id }, error => this.notificationService.error(error), this.quickInputService);
 					disposables.add(autorun(reader => {

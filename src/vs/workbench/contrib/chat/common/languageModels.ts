@@ -255,6 +255,13 @@ export interface ILanguageModelChatMetadata {
 	readonly version: string;
 	readonly tooltip?: string;
 	readonly detail?: string;
+	/**
+	 * Auto's advertised discount, as a whole-number percentage. Set only by the agent host's
+	 * Auto model, whose {@link tooltip} then omits the discount so the picker can describe it
+	 * alongside Auto's routing tiers. Extension-provided Auto models describe their discount
+	 * in {@link tooltip} instead.
+	 */
+	readonly autoModelDiscountPercent?: number;
 	readonly multiplierNumeric?: number;
 	readonly isBYOK?: boolean;
 	readonly pricing?: string;
@@ -421,20 +428,25 @@ export namespace ILanguageModelChatMetadata {
 
 	/**
 	 * Builds the shared description shown for the Auto model, rendered as Markdown
-	 * (it contains a "Learn More" link). The discount sentence is only included
-	 * when a positive discount is provided.
-	 *
-	 * @param discountPercent Whole-number percentage (e.g. `10` for 10%). When
-	 * omitted or not positive, the discount sentence is left out entirely.
+	 * (it contains a "Learn More" link). The discount is described separately by
+	 * {@link getAutoModelDiscountDescription}.
 	 */
-	export function getAutoModelDescription(discountPercent?: number): string {
+	export function getAutoModelDescription(): string {
 		const base = localize('autoModel.description', "Auto routes based on your task and real-time system health and model performance.");
 		const learnMore = localize('autoModel.learnMore', "[Learn More]({0})", autoModelSelectionDocsUrl);
-		if (typeof discountPercent === 'number' && discountPercent > 0) {
-			const discount = localize('autoModel.discount', "Models routed via auto receive a {0}% discount.", discountPercent);
-			return `${base} ${discount} ${learnMore}`;
-		}
 		return `${base} ${learnMore}`;
+	}
+
+	/**
+	 * Describes Auto's discount, naming the tier it applies to when known.
+	 *
+	 * @param discountPercent Whole-number percentage (e.g. `10` for 10%).
+	 * @param tierLabel The label of Auto's selected tier, e.g. "Efficiency".
+	 */
+	export function getAutoModelDiscountDescription(discountPercent: number, tierLabel?: string): string {
+		return tierLabel
+			? localize('autoModel.tierDiscount', "Models routed via Auto {0} receive a {1}% discount.", tierLabel, discountPercent)
+			: localize('autoModel.discount', "Models routed via auto receive a {0}% discount.", discountPercent);
 	}
 
 	/**
