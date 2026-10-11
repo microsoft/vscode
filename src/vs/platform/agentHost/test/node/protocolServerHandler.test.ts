@@ -26,12 +26,13 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { mock } from '../../../../base/test/common/mock.js';
+import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { FileType } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
-import { type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
+import { type IAgent, type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentService } from '../../common/agentService.js';
 import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, RemoveSessionArtifactExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, StopBackgroundWorkExtensionMethod, supportsAgentHostArtifactRemoval, supportsAgentHostDevContainers, type IAgentHostMcpAuthenticationRequest } from '../../common/agentHostExtensionProtocol.js';
 import { ChatSourceKind, CompletionsParams, CompletionsResult, ContentEncoding, CreateTerminalParams, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult, ResourceType } from '../../common/state/protocol/commands.js';
@@ -45,13 +46,16 @@ import { ChatInputResponseKind, SessionInputRequestKind, TerminalClaimKind } fro
 import type { ChatInputRequestWithPlanReview } from '../../common/agentHostPlanReview.js';
 import type { SessionAddedParams, SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
 import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
-import { ProtocolServerHandler } from '../../node/protocolServerHandler.js';
+import { ProtocolServerHandler, type IProtocolServerConfig, type IProtocolServerExtension } from '../../node/protocolServerHandler.js';
 import { MissionControlEnvironment } from '../../node/missionControl/missionControlEnvironment.js';
 import { MissionControlAuthentication, MissionControlSealing, sealMissionControlCredential } from '../../node/missionControl/missionControlAuthentication.js';
 import { MissionControlProjects } from '../../node/missionControl/missionControlProjects.js';
+import { MissionControlCopilotExtension } from '../../node/missionControl/missionControlCopilotExtension.js';
+import { missionControlSessionConfigAdapter } from '../../node/missionControl/missionControlSessionConfig.js';
+import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import type { IMissionControlSocket } from '../../node/missionControl/missionControlProtocolServer.js';
 import { CompositeProtocolServer } from '../../node/compositeProtocolServer.js';
-import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostFileSystemProvider, agentHostUri, type IRemoteFilesystemConnection } from '../../common/agentHostFileSystemProvider.js';
 import { agentsWindowAgentHostClientInfo, editorWindowAgentHostClientInfo, AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, type IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
@@ -2953,6 +2957,155 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
+	suite('listener extensions', () => {
+		function createExtensionHandler(extension: IProtocolServerExtension, config: IProtocolServerConfig = {}) {
+			const relay = disposables.add(new MockProtocolServer());
+			const scopedHandler = disposables.add(new ProtocolServerHandler(
+				agentService, stateManager, relay, { ...config, allowExtensionMethods: false, extension },
+				disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+			));
+			const connect = (clientId: string, passive: boolean) => {
+				const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, clientId, passive));
+				transport.relayAuthenticated = false;
+				transport.relayAuthenticate = async params => { transport.relayAuthenticated = true; return params; };
+				relay.simulateConnection(transport);
+				transport.simulateMessage(request(1, 'initialize', { clientId, protocolVersions: [PROTOCOL_VERSION], initialSubscriptions: [ROOT_STATE_URI] }));
+				return transport;
+			};
+			return { relay, scopedHandler, connect };
+		}
+
+		test('uses contribution-defined methods, capabilities and passive permissions', async () => {
+			let initializations = 0;
+			const calls: string[] = [];
+			const extension: IProtocolServerExtension = {
+				rootMeta: { 'example.catalogue': { available: true } },
+				rootConfig: { schema: { type: 'object', properties: {} }, values: { example: { entries: ['public-entry'] } } },
+				onDidEmitAction: Event.None,
+				initialize: async () => { initializations++; },
+				requests: new Map([
+					['example/list', { readOnly: true, handle: async () => { calls.push('list'); return ['public-entry']; } }],
+					['example/write', { readOnly: false, handle: async () => { calls.push('write'); return null; } }],
+					['example/readSession', { readOnly: true, requiresChannel: true, handle: async () => { calls.push('session'); return 'session-result'; } }],
+				]),
+			};
+			stateManager.createSession(makeSessionSummary());
+			const { relay, scopedHandler, connect } = createExtensionHandler(extension);
+			const active = connect('extension-active', false);
+			active.simulateMessage(request(2, 'example/list', {}));
+			active.simulateMessage(request(3, 'authenticate', { resource: 'https://api.github.com', token: 'test-token' }));
+			await scopedHandler.whenIdle();
+			active.simulateMessage(request(4, 'subscribe', { channel: ROOT_STATE_URI }));
+			active.simulateMessage(request(5, 'example/write', {}));
+			active.simulateMessage(request(6, 'example/unknown', {}));
+			const passive = connect('extension-passive', true);
+			passive.simulateMessage(request(2, 'authenticate', { resource: 'https://api.github.com', token: 'test-token' }));
+			await scopedHandler.whenIdle();
+			passive.simulateMessage(request(3, 'example/list', {}));
+			passive.simulateMessage(request(4, 'example/write', {}));
+			passive.simulateMessage(request(5, 'example/readSession', {}));
+			passive.simulateMessage(request(6, 'example/readSession', { channel: sessionUri }));
+			const local = disposables.add(new MockProtocolTransport());
+			relay.simulateConnection(local);
+			local.simulateMessage(request(1, 'initialize', { clientId: 'extension-local', protocolVersions: [PROTOCOL_VERSION] }));
+			local.simulateMessage(request(2, 'example/list', {}));
+			await scopedHandler.whenIdle();
+			const response = (transport: MockProtocolTransport, id: number) => {
+				const message = findResponse(transport.sent, id);
+				return message && hasKey(message, { error: true }) ? message.error.code : message && hasKey(message, { result: true }) ? message.result : undefined;
+			};
+			const preauth = response(active, 1) as InitializeResult;
+			const subscribed = response(active, 4) as SubscribeResult;
+			assert.deepStrictEqual({
+				initializations, calls,
+				preauth: preauth.snapshots?.find(snapshot => snapshot.resource === ROOT_STATE_URI)?.state,
+				rootConfig: (subscribed.snapshot?.state as RootState).config,
+				responses: [response(active, 2), response(active, 5), response(active, 6), ...[3, 4, 5, 6].map(id => response(passive, id)), response(local, 2)],
+			}, {
+				initializations: 2, calls: ['write', 'list', 'session'],
+				preauth: { agents: [], _meta: extension.rootMeta },
+				rootConfig: extension.rootConfig,
+				responses: [AHP_AUTH_REQUIRED, null, JsonRpcErrorCodes.MethodNotFound, ['public-entry'], JsonRpcErrorCodes.InvalidRequest, JsonRpcErrorCodes.InvalidParams, 'session-result', JsonRpcErrorCodes.MethodNotFound],
+			});
+		});
+
+		test('rechecks authorization after awaited extension work and surfaces initialization failures', async () => {
+			const pending = new DeferredPromise<string>();
+			const extension: IProtocolServerExtension = {
+				rootMeta: {}, rootConfig: { schema: { type: 'object', properties: {} }, values: {} }, onDidEmitAction: Event.None,
+				initialize: async () => { throw new Error('Catalogue unavailable'); },
+				requests: new Map([['example/delayed', { readOnly: true, handle: () => pending.p }]]),
+			};
+			const { scopedHandler, connect } = createExtensionHandler(extension);
+			const transport = connect('extension-expiry', false);
+			transport.simulateMessage(request(2, 'authenticate', { resource: 'https://api.github.com', token: 'test-token' }));
+			await scopedHandler.whenIdle();
+			transport.simulateMessage(request(3, 'example/delayed', {}));
+			transport.relayAuthenticated = false;
+			await pending.complete('private-result');
+			await scopedHandler.whenIdle();
+			assert.deepStrictEqual({
+				errors: [2, 3].map(id => {
+					const response = findResponse(transport.sent, id);
+					return response && hasKey(response, { error: true }) ? response.error.code : undefined;
+				}),
+				leakedResult: JSON.stringify(transport.sent).includes('private-result'),
+			}, { errors: [JSON_RPC_INTERNAL_ERROR, AHP_AUTH_REQUIRED], leakedResult: false });
+		});
+
+		test('keeps projected contribution actions listener-owned in live broadcasts and reconnect replay', async () => {
+			const changes = disposables.add(new Emitter<ActionEnvelope>());
+			const extension: IProtocolServerExtension = {
+				rootMeta: {}, rootConfig: { schema: { type: 'object', properties: {} }, values: {} },
+				onDidEmitAction: changes.event, initialize: async () => { }, requests: new Map(),
+			};
+			stateManager.createSession(makeSessionSummary());
+			stateManager.setSessionConfig(sessionUri, { schema: platformSessionSchema.toProtocol(), values: { autoApprove: 'default' } });
+			const { relay, scopedHandler, connect } = createExtensionHandler(extension, {
+				sessionConfigAdapter: missionControlSessionConfigAdapter, advertisedModelProviders: ['copilotcli'],
+			});
+			const transport = connect('extension-projection', false);
+			transport.relayAuthenticated = true;
+			transport.simulateMessage(request(2, 'subscribe', { channel: sessionUri }));
+			const local = disposables.add(new MockProtocolTransport());
+			relay.simulateConnection(local);
+			local.simulateMessage(request(1, 'initialize', { clientId: 'extension-native', protocolVersions: [PROTOCOL_VERSION], initialSubscriptions: [ROOT_STATE_URI, sessionUri] }));
+			await scopedHandler.whenIdle();
+			transport.sent.length = 0;
+			local.sent.length = 0;
+			const agents: AgentInfo[] = ['copilotcli', 'other'].map(provider => ({
+				provider, displayName: provider, description: provider, models: [{ provider, id: 'model', name: 'Model' }],
+			}));
+			const emit = () => {
+				changes.fire(stateManager.createServerActionEnvelope(sessionUri, { type: ActionType.SessionConfigChanged, config: { autoApprove: 'assisted' } }));
+				changes.fire(stateManager.createServerActionEnvelope(ROOT_STATE_URI, { type: ActionType.RootAgentsChanged, agents }));
+			};
+			emit();
+			const live = findNotifications(transport.sent, 'action').map(message => (message.params as ActionEnvelope).action);
+			transport.simulateClose();
+			const lastSeen = stateManager.serverSeq;
+			emit();
+			const reconnected = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'extension-projection', false));
+			reconnected.relayAuthenticated = true;
+			relay.simulateConnection(reconnected);
+			reconnected.simulateMessage(request(3, 'reconnect', { clientId: 'extension-projection', lastSeenServerSeq: lastSeen, subscriptions: [ROOT_STATE_URI, sessionUri] }));
+			await scopedHandler.whenIdle();
+			const response = findResponse(reconnected.sent, 3);
+			const replay = response && hasKey(response, { result: true }) ? response.result as ReconnectResult : undefined;
+			const projected = [
+				{ type: ActionType.SessionConfigChanged, config: { approvalMode: 'assisted' } },
+				{ type: ActionType.RootAgentsChanged, agents: [agents[0], { ...agents[1], models: [] }] },
+			];
+			assert.deepStrictEqual({
+				live,
+				replay: replay?.type === 'replay' ? replay.actions.map(envelope => envelope.action) : replay?.type,
+				localActions: findNotifications(local.sent, 'action'),
+				nativeConfig: stateManager.getSessionState(sessionUri)?.config?.values,
+			}, { live: projected, replay: projected, localActions: [], nativeConfig: { autoApprove: 'default' } });
+		});
+	});
+
 	test('MC Copilot extensions expose only owned project configuration and enforce authentication and passive access', async () => {
 		const calls: string[] = [];
 		const project = { id: 'opaque-project-id', name: 'repo', path: '/home/testuser/owner/repo', origin: 'cloned', git: true, status: 'cloning' };
@@ -2969,13 +3122,24 @@ suite('ProtocolServerHandler', () => {
 				return undefined;
 			}
 		}();
+		const instantiation = disposables.add(new TestInstantiationService());
+		const provider = new class extends mock<IAgent>() {
+			override async getSessionPlan() {
+				calls.push('extensions/getPlan');
+				return { plan: { exists: false, content: null, path: null }, todos: [], dependencies: [] };
+			}
+		}();
+		instantiation.stub(IAgentHostProviderService, new class extends mock<IAgentHostProviderService>() {
+			override getProviderForSession() { return provider; }
+		}());
+		instantiation.stub(IAgentHostStateManager, stateManager);
+		const extension = instantiation.createInstance(MissionControlCopilotExtension, projects);
 		stateManager.createSession(makeSessionSummary());
 		const relay = disposables.add(new MockProtocolServer());
 		const scopedHandler = disposables.add(new ProtocolServerHandler(
 			agentService, stateManager, relay,
 			{
-				allowExtensionMethods: false, copilotProjects: projects,
-				copilotSessionRequest: async method => { calls.push(method); return { plan: { exists: false, content: null, path: null }, todos: [], dependencies: [] }; },
+				allowExtensionMethods: false, extension,
 			},
 			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
 			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
@@ -3050,10 +3214,22 @@ suite('ProtocolServerHandler', () => {
 	});
 
 	suite('Mission Control session configuration', () => {
+		function sessionSchema() {
+			const schema = platformSessionSchema.toProtocol();
+			return {
+				...schema,
+				properties: {
+					...schema.properties,
+					isolation: { type: 'string' as const, title: 'Isolation', enum: ['folder', 'worktree'], default: 'worktree', sessionMutable: false },
+					branch: { type: 'string' as const, title: 'Branch', enum: ['main'], default: 'main', enumDynamic: true, sessionMutable: false },
+				},
+			};
+		}
+
 		function createRelay() {
 			const relay = disposables.add(new MockProtocolServer());
 			const scopedHandler = disposables.add(new ProtocolServerHandler(
-				agentService, stateManager, relay, { copilotSessionConfig: true },
+				agentService, stateManager, relay, { sessionConfigAdapter: missionControlSessionConfigAdapter },
 				disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
 				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
 			));
@@ -3076,24 +3252,29 @@ suite('ProtocolServerHandler', () => {
 
 		setup(() => {
 			stateManager.createSession(makeSessionSummary());
-			stateManager.setSessionConfig(sessionUri, { schema: platformSessionSchema.toProtocol(), values: { autoApprove: 'default', mode: 'plan' } });
+			stateManager.setSessionConfig(sessionUri, { schema: sessionSchema(), values: { autoApprove: 'default', mode: 'plan', isolation: 'worktree', branch: 'main' } });
 		});
 
 		test('resolves the complete Copilot Host axes and translates creation and completion inputs', async () => {
 			const configs: (Record<string, unknown> | undefined)[] = [];
 			const resolve = sinon.stub(agentService, 'resolveSessionConfig').callsFake(async params => {
 				configs.push(params.config);
-				return { schema: platformSessionSchema.toProtocol(), values: { autoApprove: 'default', mode: 'interactive', ...params.config } };
+				return { schema: sessionSchema(), values: { autoApprove: 'default', mode: 'interactive', ...params.config } };
 			});
 			const completions = sinon.stub(agentService, 'sessionConfigCompletions').resolves({ items: [] });
 			disposables.add(toDisposable(() => { resolve.restore(); completions.restore(); }));
 			const { scopedHandler, transport } = createRelay();
 			const native = connectClient('native-config');
-			const config = { approvalMode: 'assisted', mode: 'plan' };
+			const config = { approvalMode: 'assisted', mode: 'plan', target: 'workspace', baseBranch: 'release/mobile' };
+			const nativeConfig = { autoApprove: 'assisted', mode: 'plan', isolation: 'folder', branch: 'release/mobile' };
+			const localConfig = { autoApprove: 'default', mode: 'plan', isolation: 'worktree', branch: 'main' };
 			transport.simulateMessage(request(2, 'resolveSessionConfig', { provider: 'copilotcli', config }));
 			transport.simulateMessage(request(3, 'createSession', { channel: 'copilot:/mc-config-created', provider: 'copilotcli', config }));
 			transport.simulateMessage(request(4, 'sessionConfigCompletions', { provider: 'copilotcli', config, property: 'approvalMode' }));
-			native.simulateMessage(request(2, 'resolveSessionConfig', { provider: 'copilotcli', config: { autoApprove: 'default', mode: 'plan' } }));
+			transport.simulateMessage(request(5, 'sessionConfigCompletions', { provider: 'copilotcli', config, property: 'baseBranch', query: 'release' }));
+			transport.simulateMessage(request(6, 'createSession', { channel: 'copilot:/mc-worktree-created', provider: 'copilotcli', config: { target: 'worktree', baseBranch: 'release/isolated' } }));
+			transport.simulateMessage(request(7, 'createSession', { channel: 'copilot:/mc-legacy-created', provider: 'copilotcli', config: { isolation: 'folder', branch: 'main' } }));
+			native.simulateMessage(request(2, 'resolveSessionConfig', { provider: 'copilotcli', config: localConfig }));
 			await Promise.all([scopedHandler.whenIdle(), handler.whenIdle()]);
 			const wire = result<ResolveSessionConfigResult>(transport, 2);
 			const local = result<ResolveSessionConfigResult>(native, 2);
@@ -3104,19 +3285,27 @@ suite('ProtocolServerHandler', () => {
 				mode: wire.schema.properties.mode,
 				values: wire.values,
 				nativeKey: wire.schema.properties.autoApprove,
+				target: wire.schema.properties.target,
+				baseBranch: wire.schema.properties.baseBranch,
+				nativeWorkspaceKeys: [wire.schema.properties.isolation, wire.schema.properties.branch],
 				received: configs,
-				created: agentService.createSessionConfigs.at(-1)?.config,
+				created: agentService.createSessionConfigs.map(session => session?.config),
 				completion: completions.firstCall.args[0],
+				branchCompletion: completions.secondCall.args[0],
 				localValues: local.values,
 				localSchema: local.schema,
 			}, {
 				approvalEnum: ['manual', 'assisted', 'allow-all'], approvalDefault: 'manual', mutable: true,
 				mode: platformSessionSchema.definition.mode.protocol,
 				values: config, nativeKey: undefined,
-				received: [{ autoApprove: 'assisted', mode: 'plan' }, { autoApprove: 'default', mode: 'plan' }],
-				created: { autoApprove: 'assisted', mode: 'plan' },
-				completion: { provider: 'copilotcli', workingDirectory: undefined, config: { autoApprove: 'assisted', mode: 'plan' }, property: 'autoApprove', query: undefined },
-				localValues: { autoApprove: 'default', mode: 'plan' }, localSchema: platformSessionSchema.toProtocol(),
+				target: { ...sessionSchema().properties.isolation, enum: ['workspace', 'worktree'] },
+				baseBranch: sessionSchema().properties.branch,
+				nativeWorkspaceKeys: [undefined, undefined],
+				received: [nativeConfig, localConfig],
+				created: [nativeConfig, { isolation: 'worktree', branch: 'release/isolated' }, { isolation: 'folder', branch: 'main' }],
+				completion: { provider: 'copilotcli', workingDirectory: undefined, config: nativeConfig, property: 'autoApprove', query: undefined },
+				branchCompletion: { provider: 'copilotcli', workingDirectory: undefined, config: nativeConfig, property: 'branch', query: 'release' },
+				localValues: localConfig, localSchema: sessionSchema(),
 			});
 		});
 
@@ -3136,7 +3325,7 @@ suite('ProtocolServerHandler', () => {
 			const localChanges = findNotifications(local.sent, 'action').map(message => (message.params as ActionEnvelope).action);
 			transport.simulateClose();
 			const lastSeen = stateManager.serverSeq;
-			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionConfigChanged, config: { autoApprove: 'assisted', mode: 'plan' } });
+			stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionConfigChanged, config: { autoApprove: 'assisted', mode: 'plan', branch: 'release/mobile' } });
 			const replayTransport = connect();
 			replayTransport.simulateMessage(request(4, 'reconnect', { clientId: 'mc-config', lastSeenServerSeq: lastSeen, subscriptions: [sessionUri] }));
 			await scopedHandler.whenIdle();
@@ -3152,20 +3341,24 @@ suite('ProtocolServerHandler', () => {
 				subscribe: subscribed.config?.values,
 				approvalEnum: subscribed.config?.schema.properties.approvalMode.enum,
 				modeEnum: subscribed.config?.schema.properties.mode.enum,
+				targetEnum: subscribed.config?.schema.properties.target.enum,
+				baseBranch: subscribed.config?.schema.properties.baseBranch,
 				changes, localChanges,
 				replay: replay.type === 'replay' ? replay.actions.map(envelope => envelope.action) : replay.type,
 				refreshed: refreshedState?.config?.values,
 				nativeState: stateManager.getSessionState(sessionUri)?.config?.values,
 			}, {
-				initial: { approvalMode: 'manual', mode: 'plan' },
-				subscribe: { approvalMode: 'manual', mode: 'plan' },
+				initial: { approvalMode: 'manual', mode: 'plan', target: 'worktree', baseBranch: 'main' },
+				subscribe: { approvalMode: 'manual', mode: 'plan', target: 'worktree', baseBranch: 'main' },
 				approvalEnum: ['manual', 'assisted', 'allow-all'],
 				modeEnum: ['interactive', 'plan', 'autopilot'],
+				targetEnum: ['workspace', 'worktree'],
+				baseBranch: sessionSchema().properties.branch,
 				changes: [{ type: ActionType.SessionConfigChanged, config: { approvalMode: 'allow-all', mode: 'autopilot' } }],
 				localChanges: [{ type: ActionType.SessionConfigChanged, config: { autoApprove: 'autoApprove', mode: 'autopilot' } }],
-				replay: [{ type: ActionType.SessionConfigChanged, config: { approvalMode: 'assisted', mode: 'plan' } }],
-				refreshed: { approvalMode: 'assisted', mode: 'plan' },
-				nativeState: { autoApprove: 'assisted', mode: 'plan' },
+				replay: [{ type: ActionType.SessionConfigChanged, config: { approvalMode: 'assisted', mode: 'plan', baseBranch: 'release/mobile' } }],
+				refreshed: { approvalMode: 'assisted', mode: 'plan', target: 'worktree', baseBranch: 'release/mobile' },
+				nativeState: { autoApprove: 'assisted', mode: 'plan', isolation: 'worktree', branch: 'release/mobile' },
 			});
 		});
 
@@ -3188,7 +3381,32 @@ suite('ProtocolServerHandler', () => {
 			}, {
 				errors: [JsonRpcErrorCodes.InvalidParams, JsonRpcErrorCodes.InvalidParams],
 				rejections: [{ reason: 'approvalMode and autoApprove must select the same approval behavior', config: { approvalMode: 'manual', autoApprove: 'autoApprove' } }],
-				created: [], dispatched: [], values: { autoApprove: 'default', mode: 'plan' },
+				created: [], dispatched: [], values: { autoApprove: 'default', mode: 'plan', isolation: 'worktree', branch: 'main' },
+			});
+		});
+
+		test('rejects invalid workspace preferences at resolution, creation, completions and dispatch', async () => {
+			const { scopedHandler, transport } = createRelay();
+			transport.simulateMessage(request(2, 'resolveSessionConfig', { config: { target: 'folder' } }));
+			transport.simulateMessage(request(3, 'createSession', { channel: 'copilot:/invalid-workspace-config', config: { baseBranch: true } }));
+			transport.simulateMessage(request(4, 'sessionConfigCompletions', { property: 'baseBranch', config: { baseBranch: 'main', branch: 'release' } }));
+			const config = { target: 'workspace', isolation: 'worktree' };
+			transport.simulateMessage(request(5, 'dispatchAction', { channel: sessionUri, clientSeq: 1, action: { type: ActionType.SessionConfigChanged, config } }));
+			await scopedHandler.whenIdle();
+			const rejections = findNotifications(transport.sent, 'action').map(message => message.params as ActionEnvelope);
+			assert.deepStrictEqual({
+				errors: [2, 3, 4].map(id => {
+					const response = findResponse(transport.sent, id);
+					return response && hasKey(response, { error: true }) ? response.error.code : undefined;
+				}),
+				rejections: rejections.map(envelope => ({ reason: envelope.rejectionReason, config: envelope.action.type === ActionType.SessionConfigChanged ? envelope.action.config : undefined })),
+				created: agentService.createSessionConfigs,
+				dispatched: agentService.handledActions,
+				values: stateManager.getSessionState(sessionUri)?.config?.values,
+			}, {
+				errors: Array(3).fill(JsonRpcErrorCodes.InvalidParams),
+				rejections: [{ reason: 'target and isolation must select the same workspace isolation', config }],
+				created: [], dispatched: [], values: { autoApprove: 'default', mode: 'plan', isolation: 'worktree', branch: 'main' },
 			});
 		});
 	});
