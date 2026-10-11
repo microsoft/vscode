@@ -86,6 +86,7 @@ export class FileBackedInstalledPluginsStore extends Disposable {
 	private readonly _installed = observableValue<readonly IStoredInstalledPlugin[]>('file/installed.json', []);
 	private readonly _fileUri: URI;
 	private readonly _writeDelayer: ThrottledDelayer<void>;
+	private readonly _reloadScheduler: RunOnceScheduler;
 	private _suppressFileWatch = false;
 	private _initialized = false;
 
@@ -102,6 +103,7 @@ export class FileBackedInstalledPluginsStore extends Disposable {
 		super();
 		this._fileUri = joinPath(_agentPluginsHome, INSTALLED_JSON_FILENAME);
 		this._writeDelayer = this._register(new ThrottledDelayer<void>(100));
+		this._reloadScheduler = this._register(new RunOnceScheduler(() => this._onFileChanged(), 100));
 		void this._initialize();
 	}
 
@@ -115,14 +117,9 @@ export class FileBackedInstalledPluginsStore extends Disposable {
 
 	private async _initialize(): Promise<void> {
 		try {
-			let read = await this._readFromFile();
-			if (read !== undefined) {
-				if (read.needsMigration && !await this._writeToFile(read.entries, { mtime: read.content.mtime, etag: read.content.etag })) {
-					read = await this._readFromFile();
-				}
-				if (read) {
-					this._setValue(read.entries, undefined, false);
-				}
+			const entries = await this._readAndMigrateFromFile();
+			if (entries !== undefined) {
+				this._setValue(entries, undefined, false);
 			} else {
 				// No installed.json yet — attempt migration from legacy storage.
 				await this._migrateFromStorage();
@@ -136,6 +133,20 @@ export class FileBackedInstalledPluginsStore extends Disposable {
 	}
 
 	// --- File I/O ----------------------------------------------------------------
+
+	private async _readAndMigrateFromFile(): Promise<readonly IStoredInstalledPlugin[] | undefined> {
+		let read = await this._readFromFile();
+		if (read?.needsMigration) {
+			const result = await this._writeToFile(read.entries, { mtime: read.content.mtime, etag: read.content.etag });
+			if (result !== 'success') {
+				read = await this._readFromFile();
+				if (result === 'conflict' && read?.needsMigration && !this._store.isDisposed) {
+					this._reloadScheduler.schedule();
+				}
+			}
+		}
+		return read?.entries;
+	}
 
 	private async _readFromFile(): Promise<{ entries: readonly IStoredInstalledPlugin[]; needsMigration: boolean; content: IFileContent } | undefined> {
 		try {
@@ -186,7 +197,7 @@ export class FileBackedInstalledPluginsStore extends Disposable {
 		});
 	}
 
-	private async _writeToFile(plugins: readonly IStoredInstalledPlugin[] = this.get(), options?: IWriteFileOptions): Promise<boolean> {
+	private async _writeToFile(plugins: readonly IStoredInstalledPlugin[] = this.get(), options?: IWriteFileOptions): Promise<'success' | 'conflict' | 'error'> {
 		const entries: IInstalledJsonEntry[] = plugins.map(e => ({
 			pluginUri: e.pluginUri.toString(),
 			relativePath: extUriBiasedIgnorePathCase.isEqualOrParent(e.pluginUri, this._agentPluginsHome) ? extUriBiasedIgnorePathCase.relativePath(this._agentPluginsHome, e.pluginUri) : undefined,
@@ -205,14 +216,14 @@ export class FileBackedInstalledPluginsStore extends Disposable {
 			const content = JSON.stringify(data, undefined, '\t');
 			await this._fileService.createFolder(this._agentPluginsHome);
 			await this._fileService.writeFile(this._fileUri, VSBuffer.fromString(content), options);
-			return true;
+			return 'success';
 		} catch (error) {
 			if (toFileOperationResult(error) === FileOperationResult.FILE_MODIFIED_SINCE) {
 				this._logService.info('[FileBackedInstalledPluginsStore] installed.json changed during migration; reloading');
-			} else {
-				this._logService.error('[FileBackedInstalledPluginsStore] Failed to write installed.json', error);
+				return 'conflict';
 			}
-			return false;
+			this._logService.error('[FileBackedInstalledPluginsStore] Failed to write installed.json', error);
+			return 'error';
 		} finally {
 			this._suppressFileWatch = false;
 		}
@@ -228,21 +239,20 @@ export class FileBackedInstalledPluginsStore extends Disposable {
 		const watcher = this._fileService.createWatcher(dir, { recursive: false, excludes: [] });
 		this._register(watcher);
 
-		const scheduler = this._register(new RunOnceScheduler(() => this._onFileChanged(), 100));
 		this._register(watcher.onDidChange(e => {
 			if (!this._suppressFileWatch && e.affects(this._fileUri)) {
-				scheduler.schedule();
+				this._reloadScheduler.schedule();
 			}
 		}));
 	}
 
 	private async _onFileChanged(): Promise<void> {
-		const read = await this._readFromFile();
-		if (read !== undefined) {
+		const entries = await this._readAndMigrateFromFile();
+		if (entries !== undefined) {
 			// Suppress file write for externally triggered updates.
 			this._suppressFileWatch = true;
 			try {
-				this._setValue(read.entries, undefined, false);
+				this._setValue(entries, undefined, false);
 			} finally {
 				this._suppressFileWatch = false;
 			}
@@ -292,8 +302,8 @@ export class FileBackedInstalledPluginsStore extends Disposable {
 
 			// Set in memory and persist to file before removing legacy keys.
 			this._setValue(migrated, undefined, false);
-			const didPersist = await this._writeToFile();
-			if (!didPersist) {
+			const result = await this._writeToFile();
+			if (result !== 'success') {
 				return;
 			}
 

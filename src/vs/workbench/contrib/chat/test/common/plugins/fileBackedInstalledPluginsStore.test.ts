@@ -374,39 +374,99 @@ suite('FileBackedInstalledPluginsStore', () => {
 		onDidChange.fire(new FileChangesEvent([{ resource: installedJson, type: FileChangeType.ADDED }], false));
 		await waitFor(() => pluginsStore.get().length === 1);
 
-		assert.deepStrictEqual(pluginsStore.get().map(entry => ({ ...entry, pluginUri: entry.pluginUri.toString(), enablementUri: entry.enablementUri?.toString() })), [{
+		const entry = {
 			pluginUri: URI.joinPath(agentPluginsHome, relativePath).toString(),
 			enablementUri: URI.file('/previous/data/agent-plugins/' + relativePath).toString(),
 			marketplace: 'org/repo',
 			name: 'added',
-		}]);
+		};
+		assert.deepStrictEqual({
+			plugins: pluginsStore.get().map(entry => ({ ...entry, pluginUri: entry.pluginUri.toString(), enablementUri: entry.enablementUri?.toString() })),
+			file: JSON.parse(fileService.getFile(installedJson)!),
+		}, {
+			plugins: [entry],
+			file: { version: 1, installed: [{ ...entry, relativePath }] },
+		});
 	});
 
-	test('does not overwrite a concurrent external install during legacy migration', async () => {
+	for (const onStartup of [true, false]) {
+		test(`migrates concurrent external installs ${onStartup ? 'on startup' : 'after a file change'}`, async () => {
+			const agentPluginsHome = URI.file('/portable/data/agent-plugins');
+			const installedJson = URI.joinPath(agentPluginsHome, 'installed.json');
+			const entries = ['first', 'external', 'another'].map(name => ({
+				pluginUri: URI.joinPath(agentPluginsHome, name).toString(),
+				marketplace: 'org/repo',
+				name,
+			}));
+			const onDidChange = store.add(new Emitter<FileChangesEvent>());
+			const fileService = new class extends TestFileService {
+				writes = 0;
+				override async writeFile(resource: URI, content: VSBuffer, options?: IWriteFileOptions): Promise<unknown> {
+					if (++this.writes <= 2) {
+						this.setFile(installedJson, JSON.stringify({ version: 1, installed: entries.slice(0, this.writes + 1) }));
+					}
+					return super.writeFile(resource, content, options);
+				}
+			}(false, onDidChange.event);
+			const initialContent = JSON.stringify({ version: 1, installed: [entries[0]] });
+			if (onStartup) {
+				fileService.setFile(installedJson, initialContent);
+			}
+			const pluginsStore = createPluginsStore(agentPluginsHome, fileService);
+			await waitFor(() => fileService.isWatching);
+			if (!onStartup) {
+				fileService.setFile(installedJson, initialContent);
+				onDidChange.fire(new FileChangesEvent([{ resource: installedJson, type: FileChangeType.ADDED }], false));
+			}
+			await waitFor(() => !!fileService.getFile(installedJson)?.includes('"relativePath"'));
+			const persisted = JSON.parse(fileService.getFile(installedJson)!);
+
+			const relocatedHome = URI.file('/relocated/data/agent-plugins');
+			fileService.setFile(URI.joinPath(relocatedHome, 'installed.json'), fileService.getFile(installedJson)!);
+			const relocatedStore = createPluginsStore(relocatedHome, fileService);
+			await waitFor(() => relocatedStore.get().length === entries.length);
+
+			assert.deepStrictEqual({
+				file: persisted,
+				plugins: pluginsStore.get().map(entry => entry.name),
+				relocated: relocatedStore.get().map(entry => entry.pluginUri.toString()),
+			}, {
+				file: { version: 1, installed: entries.map(entry => ({ ...entry, relativePath: entry.name })) },
+				plugins: entries.map(entry => entry.name),
+				relocated: entries.map(entry => URI.joinPath(relocatedHome, entry.name).toString()),
+			});
+		});
+	}
+
+	test('does not repeatedly retry migration after a write error', async () => {
 		const agentPluginsHome = URI.file('/portable/data/agent-plugins');
 		const installedJson = URI.joinPath(agentPluginsHome, 'installed.json');
-		const entries = ['first', 'external'].map(name => ({
-			pluginUri: URI.joinPath(agentPluginsHome, name).toString(),
+		const entry = {
+			pluginUri: URI.joinPath(agentPluginsHome, 'plugin').toString(),
 			marketplace: 'org/repo',
-			name,
-		}));
-		const externalContent = JSON.stringify({ version: 1, installed: entries });
+			name: 'plugin',
+		};
+		const content = JSON.stringify({ version: 1, installed: [entry] });
 		const fileService = new class extends TestFileService {
+			writes = 0;
 			override async writeFile(resource: URI, content: VSBuffer, options?: IWriteFileOptions): Promise<unknown> {
-				this.setFile(installedJson, externalContent);
+				this.writes++;
 				return super.writeFile(resource, content, options);
 			}
-		}();
-		fileService.setFile(installedJson, JSON.stringify({ version: 1, installed: [entries[0]] }));
+		}(true);
+		fileService.setFile(installedJson, content);
 		const pluginsStore = createPluginsStore(agentPluginsHome, fileService);
 		await waitFor(() => fileService.isWatching);
+		await timeout(250);
 
 		assert.deepStrictEqual({
+			writes: fileService.writes,
 			file: fileService.getFile(installedJson),
 			plugins: pluginsStore.get().map(entry => entry.name),
 		}, {
-			file: externalContent,
-			plugins: ['first', 'external'],
+			writes: 1,
+			file: content,
+			plugins: ['plugin'],
 		});
 	});
 
