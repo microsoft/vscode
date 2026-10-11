@@ -23,6 +23,7 @@ export interface IFigSpecSuggestionsResult {
 	showFiles: boolean;
 	showDirectories: boolean;
 	fileExtensions?: string[];
+	fileNames?: string[];
 	hasCurrentArg: boolean;
 	items: vscode.TerminalCompletionItem[];
 }
@@ -109,6 +110,7 @@ export async function getFigSuggestions(
 				result.showFiles ||= completionItemResult.showFiles;
 				result.showDirectories ||= completionItemResult.showDirectories;
 				result.fileExtensions ||= completionItemResult.fileExtensions;
+				result.fileNames ||= completionItemResult.fileNames;
 				if (completionItemResult.items) {
 					result.items = result.items.concat(completionItemResult.items);
 				}
@@ -131,6 +133,7 @@ async function getFigSpecSuggestions(
 	let showFiles = false;
 	let showDirectories = false;
 	let fileExtensions: string[] | undefined;
+	let fileNames: string[] | undefined;
 
 	const command = getCommand(terminalContext.commandLine, {}, terminalContext.cursorIndex);
 	if (!command || !shellIntegrationCwd) {
@@ -156,12 +159,14 @@ async function getFigSpecSuggestions(
 		showFiles = completionItemResult.showFiles;
 		showDirectories = completionItemResult.showDirectories;
 		fileExtensions = completionItemResult.fileExtensions;
+		fileNames = completionItemResult.fileNames;
 	}
 
 	return {
 		showFiles: showFiles,
 		showDirectories: showDirectories,
 		fileExtensions,
+		fileNames,
 		hasCurrentArg: !!parsedArguments.currentArg,
 		items,
 	};
@@ -178,10 +183,11 @@ export async function collectCompletionItemResult(
 	env: Record<string, string>,
 	items: vscode.TerminalCompletionItem[],
 	executeExternals: IFigExecuteExternals
-): Promise<{ showFiles: boolean; showDirectories: boolean; fileExtensions: string[] | undefined } | undefined> {
+): Promise<{ showFiles: boolean; showDirectories: boolean; fileExtensions: string[] | undefined; fileNames: string[] | undefined } | undefined> {
 	let showFiles = false;
 	let showDirectories = false;
 	let fileExtensions: string[] | undefined;
+	let fileNames: string[] | undefined;
 
 	const addSuggestions = async (specArgs: SpecArg[] | Record<string, SpecArg> | undefined, kind: vscode.TerminalCompletionItemKind, parsedArguments?: ArgumentParserResult) => {
 		if (kind === vscode.TerminalCompletionItemKind.Argument && parsedArguments?.currentArg?.generators) {
@@ -225,6 +231,7 @@ export async function collectCompletionItemResult(
 						showFiles = true;
 						showDirectories = true;
 						fileExtensions = item._internal?.fileExtensions as string[] | undefined;
+						fileNames = item._internal?.fileNames as string[] | undefined;
 					}
 					if (item.type === 'folder') {
 						showDirectories = true;
@@ -344,7 +351,7 @@ export async function collectCompletionItemResult(
 		await addSuggestions(parsedArguments.completionObj.persistentOptions, vscode.TerminalCompletionItemKind.Flag, parsedArguments);
 	}
 
-	return { showFiles, showDirectories, fileExtensions };
+	return { showFiles, showDirectories, fileExtensions, fileNames };
 }
 
 function convertEnvRecordToArray(env: Record<string, string>): EnvironmentVariable[] {

@@ -6,7 +6,7 @@
 import type { ChatRequestModeInstructions, TextDocument } from 'vscode';
 import { ChatLocation } from '../../../platform/chat/common/commonTypes';
 import { TextDocumentSnapshot } from '../../../platform/editing/common/textDocumentSnapshot';
-import { ITelemetryService, TelemetryProperties } from '../../../platform/telemetry/common/telemetry';
+import { ITelemetryService, multiplexProperties, TelemetryProperties } from '../../../platform/telemetry/common/telemetry';
 import { TelemetryData } from '../../../platform/telemetry/common/telemetryData';
 import { generateUuid } from '../../../util/vs/base/common/uuid';
 import { Conversation } from '../common/conversation';
@@ -174,7 +174,10 @@ export function sendOffTopicMessageTelemetry(
 	);
 }
 
-/** Create new telemetry data based on baseTelemetryData and send `conversation.message` event  */
+/**
+ * Returns standard message telemetry synchronously and sends restricted message text asynchronously,
+ * using the shared chunk format to preserve text beyond the per-property limit.
+ */
 export function sendConversationalMessageTelemetry(
 	telemetryService: ITelemetryService,
 	document: TextDocumentSnapshot | undefined,
@@ -203,8 +206,15 @@ export function sendConversationalMessageTelemetry(
 	const prefix = telemetryPrefixForLocation(location);
 
 	telemetryService.sendGHTelemetryEvent(`${prefix}.message`, standardTelemetryData.raw.properties, standardTelemetryData.raw.measurements);
-	telemetryService.sendEnhancedGHTelemetryEvent(`${prefix}.messageText`, enhancedTelemetryLogger.raw.properties, enhancedTelemetryLogger.raw.measurements);
-	telemetryService.sendInternalMSFTTelemetryEvent(`${prefix}.messageText`, enhancedTelemetryLogger.raw.properties, enhancedTelemetryLogger.raw.measurements);
+	void (async () => {
+		try {
+			const properties = await multiplexProperties(enhancedTelemetryLogger.raw.properties);
+			telemetryService.sendEnhancedGHTelemetryEvent(`${prefix}.messageText`, properties, enhancedTelemetryLogger.raw.measurements);
+			telemetryService.sendInternalMSFTTelemetryEvent(`${prefix}.messageText`, properties, enhancedTelemetryLogger.raw.measurements);
+		} catch (error) {
+			telemetryService.sendGHTelemetryException(error, 'sendConversationalMessageTelemetry');
+		}
+	})();
 
 	return standardTelemetryData.raw;
 }

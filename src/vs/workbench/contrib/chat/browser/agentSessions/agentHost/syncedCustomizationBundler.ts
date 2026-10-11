@@ -11,13 +11,13 @@ import { equals } from '../../../../../../base/common/objects.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { basename, dirname, extUri } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { hash } from '../../../../../../base/common/hash.js';
+import { hash, hashAsync } from '../../../../../../base/common/hash.js';
 import { IFileService, IFileStatWithPartialMetadata } from '../../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IMcpServerConfiguration } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { AICustomizationSource } from '../../../common/aiCustomizationWorkspaceService.js';
-import { toClientPluginMcpDefaultCwdsMeta, type ClientPluginMcpDefaultCwds } from '../../../../../../platform/agentHost/common/meta/clientPluginCustomizationMeta.js';
+import { toClientPluginMcpDefaultCwdsMeta, toClientPluginStandaloneMeta, type ClientPluginMcpDefaultCwds } from '../../../../../../platform/agentHost/common/meta/clientPluginCustomizationMeta.js';
 import { withCustomizationEnablement } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
 import { customizationId, type ClientPluginCustomization } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { CustomizationEnablementKind, CustomizationType, type CustomizationEnablement, type URI as ProtocolURI } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -35,6 +35,13 @@ const bundleSequencer = new SequencerByKey<string>();
 const MANIFEST_CONTENT = JSON.stringify({
 	name: DISPLAY_NAME,
 	description: 'Customization data synced from VS Code',
+}, null, '\t');
+
+const STANDALONE_DISPLAY_NAME = 'VS Code Standalone Customizations';
+
+const STANDALONE_MANIFEST_CONTENT = JSON.stringify({
+	name: STANDALONE_DISPLAY_NAME,
+	description: 'Standalone customizations synced from VS Code',
 }, null, '\t');
 
 /**
@@ -163,6 +170,16 @@ export interface ISyncableMcpServer {
 	readonly enablement: readonly CustomizationEnablement[];
 }
 
+export interface ISyncedCustomizationBundlerOptions {
+	/**
+	 * Bundles standalone customizations: user and workspace skills and agents,
+	 * and the MCP servers that VS Code forwards. The bundle is marked so that a
+	 * host does not deliver its contents as plugin-provided, which lets the
+	 * runtime apply `strictPluginOnlyCustomization` to them.
+	 */
+	readonly standalone?: boolean;
+}
+
 interface IBundleResult {
 	readonly ref: ClientPluginCustomization;
 }
@@ -186,13 +203,18 @@ interface IBundleResult {
  * skills/         ← skill directories
  * ```
  *
- * The bundler computes a metadata-based nonce so the agent host can
+ * The bundler computes a content-based nonce so the agent host can
  * skip re-loading when nothing has changed.
+ *
+ * A standalone bundler ({@link ISyncedCustomizationBundlerOptions.standalone})
+ * carries standalone customizations separately from other synced content, so
+ * the host can keep them out of plugin delivery.
  */
 export class SyncedCustomizationBundler extends Disposable {
 
 	private readonly _fileOperationLimiter = this._register(new DrainingFileOperationLimiter());
 	private readonly _authority: string;
+	private readonly _standalone: boolean;
 	private _lastNonce: string | undefined;
 	private _lastRef: IBundleResult | undefined;
 	private _isDisposed = false;
@@ -201,12 +223,14 @@ export class SyncedCustomizationBundler extends Disposable {
 
 	constructor(
 		authority: string,
+		options: ISyncedCustomizationBundlerOptions | undefined,
 		@IFileService private readonly _fileService: IFileService,
 		@IAgentHostFileSystemService agentHostFileSystemService: IAgentHostFileSystemService,
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 		this._authority = authority;
+		this._standalone = options?.standalone === true;
 		agentHostFileSystemService.ensureSyncedCustomizationProvider();
 	}
 
@@ -235,7 +259,7 @@ export class SyncedCustomizationBundler extends Disposable {
 	 * filesystem.
 	 *
 	 * Overwrites any previous bundle content. Returns a {@link ClientPluginCustomization}
-	 * pointing at the virtual plugin directory with a metadata-based nonce.
+	 * pointing at the virtual plugin directory with a content-based nonce.
 	 *
 	 * @returns The bundle result, or `undefined` if there is nothing to sync.
 	 */
@@ -258,13 +282,13 @@ export class SyncedCustomizationBundler extends Disposable {
 			return undefined;
 		}
 
-		const entries: { sourceUri: URI; destUri: URI; hashPart: string }[] = [];
+		const entries: { sourceUri: URI; destUri: URI; hashKey: string }[] = [];
 		const originByDest = new ResourceMap<ISyncedCustomizationOrigin>();
-		const addEntry = (file: ISyncableFile, source: IFileStatWithPartialMetadata, destUri: URI, hashKey: string): void => {
-			entries.push({ sourceUri: source.resource, destUri, hashPart: `${hashKey}:${source.mtime}:${source.size}` });
+		const addEntry = (file: ISyncableFile, sourceUri: URI, destUri: URI, hashKey: string): void => {
+			entries.push({ sourceUri, destUri, hashKey });
 			if (file.source !== undefined) {
 				originByDest.set(destUri, {
-					uri: source.resource,
+					uri: sourceUri,
 					source: file.source,
 					extensionId: file.extensionId,
 					pluginUri: file.pluginUri,
@@ -282,8 +306,7 @@ export class SyncedCustomizationBundler extends Disposable {
 			if (file.type === PromptsType.skill && fileName.toLowerCase() === 'skill.md') {
 				const skillRoot = dirname(file.uri);
 				const skillDirName = basename(skillRoot);
-				const entrypoint = await this._queueFileOperation(() => this._fileService.stat(file.uri));
-				addEntry(file, entrypoint, URI.joinPath(this._rootUri, dir, skillDirName, fileName), `${dir}/${skillDirName}/${fileName}`);
+				addEntry(file, file.uri, URI.joinPath(this._rootUri, dir, skillDirName, fileName), `${dir}/${skillDirName}/${fileName}`);
 				for (const source of await collectDirectoryFiles(this._fileService, this._logService, skillRoot, skillRoot, operation => this._queueFileOperation(operation))) {
 					if (extUri.isEqual(source.resource, file.uri)) {
 						continue;
@@ -294,14 +317,13 @@ export class SyncedCustomizationBundler extends Disposable {
 					}
 					addEntry(
 						file,
-						source,
+						source.resource,
 						URI.joinPath(this._rootUri, dir, skillDirName, relativePath),
 						`${dir}/${skillDirName}/${relativePath}`,
 					);
 				}
 			} else {
-				const source = await this._queueFileOperation(() => this._fileService.stat(file.uri));
-				addEntry(file, source, URI.joinPath(this._rootUri, dir, fileName), `${dir}/${fileName}`);
+				addEntry(file, file.uri, URI.joinPath(this._rootUri, dir, fileName), `${dir}/${fileName}`);
 			}
 		}));
 		this._throwIfDisposed();
@@ -326,39 +348,32 @@ export class SyncedCustomizationBundler extends Disposable {
 			mcpContent = JSON.stringify({ mcpServers: servers }, null, '\t');
 		}
 
-		const hashParts = entries.map(e => e.hashPart);
-		if (mcpContent !== undefined) {
-			hashParts.push(`.mcp.json:${mcpContent}`);
-		}
-		if (mcpDefaultCwds !== undefined) {
-			hashParts.push(`mcpDefaultCwds:${JSON.stringify(toClientPluginMcpDefaultCwdsMeta(mcpDefaultCwds))}`);
-		}
-
-		// Stable nonce: sort so file ordering doesn't matter.
-		hashParts.sort();
-		const nonce = String(hash(hashParts.join('\n')));
-		this._throwIfDisposed();
-
-		// Nothing changed since the last successful bundle — reuse it and skip
-		// reading file contents and rewriting the in-memory plugin tree.
-		if (nonce === this._lastNonce && this._lastRef) {
-			this._originByDest = originByDest;
-			if (mcpServers.length > 0 && !equals(childEnablement, this._lastRef.ref.childEnablement)) {
-				return {
-					ref: {
-						...this._lastRef.ref,
-						childEnablement,
-					},
-				};
-			}
-			return this._lastRef;
-		}
-
+		// Same-size edits can preserve mtime, so metadata cannot replace a content check.
 		const fileContents = await Promise.all(entries.map(async entry => ({
 			destUri: entry.destUri,
+			hashKey: entry.hashKey,
 			content: (await this._queueFileOperation(() => this._fileService.readFile(entry.sourceUri))).value,
 		})));
 		this._throwIfDisposed();
+
+		const contentHashParts = await Promise.all(fileContents.map(async entry => `${entry.hashKey}:${await hashAsync(entry.content)}`));
+		if (mcpContent !== undefined) {
+			contentHashParts.push(`.mcp.json:${mcpContent}`);
+		}
+		if (mcpDefaultCwds !== undefined) {
+			contentHashParts.push(`mcpDefaultCwds:${JSON.stringify(toClientPluginMcpDefaultCwdsMeta(mcpDefaultCwds))}`);
+		}
+		contentHashParts.sort();
+		const nonce = String(hash(contentHashParts.join('\n')));
+		this._throwIfDisposed();
+
+		if (nonce === this._lastNonce && this._lastRef) {
+			return this._reuseLastBundle(this._lastRef, originByDest, childEnablement, mcpServers.length > 0);
+		}
+
+		this._lastNonce = undefined;
+		this._lastRef = undefined;
+		this._originByDest.clear();
 
 		// Delete the previous tree for this authority, preserving other authorities
 		try {
@@ -370,7 +385,7 @@ export class SyncedCustomizationBundler extends Disposable {
 		// Write the manifest
 		this._throwIfDisposed();
 		const manifestUri = URI.joinPath(this._rootUri, '.plugin', 'plugin.json');
-		await this._fileService.writeFile(manifestUri, VSBuffer.fromString(MANIFEST_CONTENT));
+		await this._fileService.writeFile(manifestUri, VSBuffer.fromString(this._standalone ? STANDALONE_MANIFEST_CONTENT : MANIFEST_CONTENT));
 
 		// Write each source file into the correct plugin directory.
 		for (const entry of fileContents) {
@@ -396,9 +411,9 @@ export class SyncedCustomizationBundler extends Disposable {
 				type: CustomizationType.Plugin,
 				id: customizationId(rootUriString),
 				uri: rootUriString,
-				name: DISPLAY_NAME,
+				name: this._standalone ? STANDALONE_DISPLAY_NAME : DISPLAY_NAME,
 				nonce,
-				_meta: mcpDefaultCwds ? toClientPluginMcpDefaultCwdsMeta(mcpDefaultCwds) : undefined,
+				_meta: this._toMeta(mcpDefaultCwds),
 				enablement: withCustomizationEnablement(undefined, CustomizationEnablementKind.Global, {
 					kind: CustomizationEnablementKind.Global,
 					enabled: true,
@@ -408,6 +423,30 @@ export class SyncedCustomizationBundler extends Disposable {
 		};
 		this._lastRef = result;
 		return result;
+	}
+
+	private _toMeta(mcpDefaultCwds: ClientPluginMcpDefaultCwds | undefined): Record<string, unknown> | undefined {
+		if (!this._standalone && !mcpDefaultCwds) {
+			return undefined;
+		}
+		return {
+			...(this._standalone ? toClientPluginStandaloneMeta() : {}),
+			...(mcpDefaultCwds ? toClientPluginMcpDefaultCwdsMeta(mcpDefaultCwds) : {}),
+		};
+	}
+
+	private _reuseLastBundle(lastRef: IBundleResult, originByDest: ResourceMap<ISyncedCustomizationOrigin>, childEnablement: Record<string, CustomizationEnablement[]>, hasMcpServers: boolean): IBundleResult {
+		this._originByDest = originByDest;
+		if (hasMcpServers && !equals(childEnablement, lastRef.ref.childEnablement)) {
+			this._lastRef = {
+				ref: {
+					...lastRef.ref,
+					childEnablement,
+				},
+			};
+			return this._lastRef;
+		}
+		return lastRef;
 	}
 
 	/**
@@ -429,6 +468,16 @@ export class SyncedCustomizationBundler extends Disposable {
 	 */
 	getOrigin(syncedUri: URI): ISyncedCustomizationOrigin | undefined {
 		return this._originByDest.get(syncedUri);
+	}
+
+	/** Finds the bundled URI for a source file in the most recent bundle. */
+	getSyncedUri(sourceUri: URI): URI | undefined {
+		for (const [destination, origin] of this._originByDest) {
+			if (extUri.isEqual(origin.uri, sourceUri)) {
+				return destination;
+			}
+		}
+		return undefined;
 	}
 
 	override dispose(): void {

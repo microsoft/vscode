@@ -25,6 +25,14 @@ When run **with `--suite`**, only the matching extension host test suites are ru
 
 ## Options
 
+### `--build` - Run against build output
+
+Selects the `out-build/` directory instead of `out/` for node.js integration tests and the shared VS Code modules used by the standalone JSON suite. This does not compile either output tree; the JSON extension tests still require `compile-extension:json-language-features-client` to generate `client/out/`.
+
+```bash
+./scripts/test-integration.sh --suite json --build
+```
+
 ### `--run <file>` - Run tests from a specific file
 
 Accepts a **source file path** (starting with `src/`). Works identically to `scripts/test.sh --run`.
@@ -53,7 +61,9 @@ Filters which **test cases** run by matching against their test titles (e.g. `de
 
 Runs only the extension host test suites whose name matches the pattern. Supports comma-separated values and shell glob patterns (on macOS/Linux). Node.js integration tests are skipped.
 
-Available suite names: `api-folder`, `api-workspace`, `colorize`, `terminal-suggest`, `typescript`, `markdown`, `emmet`, `git`, `git-base`, `ipynb`, `notebook-renderers`, `configuration-editing`, `github-authentication`, `css`, `html`.
+Available suite names: `api-folder`, `api-workspace`, `colorize`, `terminal-suggest`, `typescript`, `markdown`, `emmet`, `git`, `git-base`, `ipynb`, `notebook-renderers`, `configuration-editing`, `github-authentication`, `copilot`, `css`, `html`, `json`.
+
+The `css`, `html`, and `json` suites are standalone extension tests that run in Electron's Node.js mode without opening a workbench. They share the same suite selection and grep filtering as extension host tests.
 
 ```bash
 # Run only Git extension tests

@@ -39,6 +39,7 @@ function makeClaudePermissionModeConfig(): ResolveSessionConfigResult {
 					title: 'Approvals',
 					description: '',
 					type: 'string',
+					sessionMutable: true,
 					enum: ['default', 'acceptEdits', 'plan', 'auto', 'bypassPermissions'],
 					enumLabels: ['Ask Before Edits', 'Edit Automatically', 'Plan Mode', 'Auto Mode', 'Bypass Permissions'],
 					enumDescriptions: [
@@ -55,13 +56,17 @@ function makeClaudePermissionModeConfig(): ResolveSessionConfigResult {
 	} as ResolveSessionConfigResult;
 }
 
-class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChangeSessionConfig' | 'getSessionConfig' | 'setSessionConfigValue' | 'isSessionConfigResolving'> {
+class FakeProvider implements Pick<IAgentHostSessionsProvider, 'id' | 'onDidChangeSessionConfig' | 'getSessionConfig' | 'getCreateSessionConfig' | 'setSessionConfigValue' | 'isSessionConfigResolving'> {
 	readonly id = PROVIDER_ID;
 	readonly onDidChangeSessionConfig: Event<string> = Event.None;
 	readonly setCalls: Array<[string, string, unknown]> = [];
 
 	getSessionConfig(_sessionId: string): ResolveSessionConfigResult {
 		return makeClaudePermissionModeConfig();
+	}
+
+	getCreateSessionConfig(_sessionId: string): undefined {
+		return undefined;
 	}
 
 	isSessionConfigResolving(_sessionId: string) {

@@ -40,7 +40,7 @@ import { DiffEditorEditors } from './components/diffEditorEditors.js';
 import { DiffEditorSash, SashLayout } from './components/diffEditorSash.js';
 import { DiffEditorViewZones } from './components/diffEditorViewZones/diffEditorViewZones.js';
 import { DelegatingEditor } from './delegatingEditorImpl.js';
-import { DiffEditorOptions } from './diffEditorOptions.js';
+import { DiffEditorOptions, DiffEditorVariant } from './diffEditorOptions.js';
 import { DiffEditorViewModel, DiffMapping, DiffState } from './diffEditorViewModel.js';
 import { DiffEditorGutter } from './features/gutterFeature.js';
 import { HideUnchangedRegionsFeature } from './features/hideUnchangedRegionsFeature.js';
@@ -51,6 +51,8 @@ import './style.css';
 import { CSSStyle, ObservableElementSizeObserver, RefCounted, applyStyle, applyViewZones, translatePosition } from './utils.js';
 
 export interface IDiffCodeEditorWidgetOptions {
+	/** Controls the presentation of unchanged-region disclosures. */
+	variant?: DiffEditorVariant;
 	originalEditor?: ICodeEditorWidgetOptions;
 	modifiedEditor?: ICodeEditorWidgetOptions;
 	runWithOriginalEditorScrollAnchor?: (anchorLineNumber: number, update: () => void) => void;
@@ -343,7 +345,8 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 				readHotReloadableExport(HideUnchangedRegionsFeature, reader),
 				this._editors, this._diffModel, this._options,
 				codeEditorWidgetOptions.runWithOriginalEditorScrollAnchor,
-				codeEditorWidgetOptions.runWithModifiedEditorScrollAnchor
+				codeEditorWidgetOptions.runWithModifiedEditorScrollAnchor,
+				codeEditorWidgetOptions.variant ?? 'default',
 			)
 		).recomputeInitiallyAndOnChange(this._store);
 

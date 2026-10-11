@@ -12,7 +12,6 @@
  */
 
 import assert from 'assert';
-import { mkdtempSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -22,13 +21,14 @@ import type { SessionSummaryChangedParams } from '../../../../common/state/proto
 import type { OtlpExportLogsParams } from '../../../../common/state/protocol/channels-otlp/notifications.js';
 import type { IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult } from '../../../../common/agentService.js';
 import { ActionType, type StateAction } from '../../../../common/state/sessionActions.js';
-import { TerminalClaimKind } from '../../../../common/state/protocol/state.js';
-import { buildChatUri, buildDefaultChatUri, MessageKind, ROOT_STATE_URI, SessionStatus, type ChatState, type SessionState, type Turn } from '../../../../common/state/sessionState.js';
+import { SessionInputRequestKind, TerminalClaimKind } from '../../../../common/state/protocol/state.js';
+import { buildChatUri, buildDefaultChatUri, MessageKind, ROOT_STATE_URI, SessionStatus, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, type ChatState, type SessionState, type Turn } from '../../../../common/state/sessionState.js';
 import { createRealSession, dispatchTurn, resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
 import { PROTOCOL_VERSION } from '../../../../common/state/protocol/version/registry.js';
 import { AhpErrorCodes, JsonRpcErrorCodes } from '../../../../common/state/sessionProtocol.js';
 import { getActionEnvelope, isActionNotification, type TestProtocolClient } from '../../serverIntegrationTestHelpers.js';
 import { conformanceTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
 
 export function defineProtocolContractTests(context: IAgentHostE2ETestContext): void {
 	const { config, createdSessions, tempDirs } = context;
@@ -56,7 +56,7 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 	}
 
 	async function createSession(prefix: string): Promise<{ sessionUri: string; workspace: string }> {
-		const workspace = mkdtempSync(join(tmpdir(), `ahp-${prefix}-`));
+		const workspace = createTestDirectory(join(tmpdir(), `ahp-${prefix}-`));
 		tempDirs.push(workspace);
 		const sessionUri = await createRealSession(context.client, config, `${prefix}-${config.provider}`, createdSessions, URI.file(workspace));
 		return { sessionUri, workspace };
@@ -957,7 +957,7 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 
 	conformanceTest(context, 'reconnect excludes actions from channels the client did not restore', async function () {
 		const firstSession = await createSession('reconnect-filter-first');
-		const secondWorkspace = mkdtempSync(join(tmpdir(), 'ahp-reconnect-filter-second-'));
+		const secondWorkspace = createTestDirectory(join(tmpdir(), 'ahp-reconnect-filter-second-'));
 		tempDirs.push(secondWorkspace);
 		const secondSessionUri = URI.from({ scheme: config.scheme, path: `/${generateUuid()}` }).toString();
 		await context.client.call('createSession', {
@@ -1047,6 +1047,9 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 				? result.actions.map(action => ({ channel: action.channel, type: action.action.type }))
 				: result.type, [
 				{ channel: sessionUri, type: ActionType.SessionTitleChanged },
+				// Renaming a single-chat session also retitles its default chat, so the
+				// session channel carries the resulting chat update too.
+				{ channel: sessionUri, type: ActionType.SessionChatUpdated },
 				{ channel: chatUri, type: ActionType.ChatDraftChanged },
 			]);
 		} finally {
@@ -1211,7 +1214,7 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 	});
 
 	conformanceTest(context, 'createSession seeds a matching active client into session state', async function () {
-		const workspace = mkdtempSync(join(tmpdir(), 'ahp-active-client-create-'));
+		const workspace = createTestDirectory(join(tmpdir(), 'ahp-active-client-create-'));
 		tempDirs.push(workspace);
 		const clientId = `active-client-create-${config.provider}`;
 		const client = await context.connectClient();
@@ -1309,6 +1312,66 @@ export function defineProtocolContractTests(context: IAgentHostE2ETestContext): 
 		const state = subscribed.snapshot!.state as ChatState;
 
 		assert.strictEqual(state.draft?.text, 'changed while unsubscribed');
+	});
+
+	conformanceTest(context, 'a client cannot dispatch a server-only session action', async function () {
+		const victimClientId = `server-action-victim-${config.provider}`;
+		const attacker = await initializeAdditionalClient('server-action-attacker');
+		const workspace = createTestDirectory(join(tmpdir(), 'ahp-server-action-'));
+		tempDirs.push(workspace);
+
+		try {
+			const sessionUri = await createRealSession(context.client, config, victimClientId, createdSessions, URI.file(workspace));
+			await attacker.call<SubscribeResult>('subscribe', { channel: sessionUri });
+			attacker.clearReceived();
+
+			const seq = nextClientSeq();
+			attacker.dispatch({
+				channel: sessionUri,
+				clientSeq: seq,
+				action: {
+					type: ActionType.SessionInputNeededSet,
+					request: {
+						id: 'forged-client-tool-request',
+						kind: SessionInputRequestKind.ToolClientExecution,
+						chat: buildDefaultChatUri(sessionUri),
+						turnId: 'turn-1',
+						clientId: victimClientId,
+						toolCall: {
+							toolCallId: 'tool-call-1',
+							toolName: 'readFile',
+							displayName: 'Read File',
+							contributor: { kind: ToolCallContributorKind.Client, clientId: victimClientId },
+							status: ToolCallStatus.Running,
+							invocationMessage: 'Reading file',
+							confirmed: ToolCallConfirmationReason.NotNeeded,
+							toolInput: '{"filePath":"/victim/secret.txt"}',
+						},
+					},
+				},
+			});
+
+			const rejected = await attacker.waitForNotification(n =>
+				isActionNotification(n, ActionType.SessionInputNeededSet)
+				&& getActionEnvelope(n).channel === sessionUri
+				&& getActionEnvelope(n).origin?.clientSeq === seq,
+				30_000,
+			);
+			const envelope = getActionEnvelope(rejected);
+			const state = (await attacker.call<SubscribeResult>('subscribe', { channel: sessionUri })).snapshot!.state as SessionState;
+
+			assert.deepStrictEqual({
+				hasRejectionReason: typeof envelope.rejectionReason === 'string' && envelope.rejectionReason.length > 0,
+				origin: envelope.origin,
+				inputNeeded: state.inputNeeded,
+			}, {
+				hasRejectionReason: true,
+				origin: { clientId: `server-action-attacker-${config.provider}`, clientSeq: seq },
+				inputNeeded: undefined,
+			});
+		} finally {
+			attacker.close();
+		}
 	});
 
 	// The protocol declares working-directory mutation on both the session and

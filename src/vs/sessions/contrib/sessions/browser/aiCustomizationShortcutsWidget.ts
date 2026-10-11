@@ -17,11 +17,13 @@ import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/a
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
-import { IMcpService } from '../../../../workbench/contrib/mcp/common/mcpTypes.js';
 import { IAICustomizationItemsModel } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
 import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
-import { CUSTOMIZATION_ITEMS } from './customizationsToolbar.contribution.js';
+import { readTotalCustomizationCount } from './customizationsToolbar.contribution.js';
 import { Menus } from '../../../browser/menus.js';
+import { IAICustomizationMcpServerCountService } from './customizationMcpServerCount.js';
+import { ILanguageModelToolsService } from '../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
+import { IAgentHostToolSetEnablementService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
 const $ = DOM.$;
 const CUSTOMIZATIONS_VERTICAL_PADDING = 6;
 const CUSTOMIZATIONS_COLLAPSED_STORAGE_KEY = 'agentSessions.customizationsShortcuts.collapsed';
@@ -65,10 +67,12 @@ export class AICustomizationShortcutsWidget extends Disposable {
 		container: HTMLElement,
 		options: IAICustomizationShortcutsWidgetOptions | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IMcpService private readonly mcpService: IMcpService,
+		@IAICustomizationMcpServerCountService private readonly mcpServerCountService: IAICustomizationMcpServerCountService,
 		@IAICustomizationItemsModel private readonly itemsModel: IAICustomizationItemsModel,
 		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
 		@IStorageService private readonly storageService: IStorageService,
+		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
+		@IAgentHostToolSetEnablementService private readonly toolEnablementService: IAgentHostToolSetEnablementService,
 	) {
 		super();
 
@@ -104,25 +108,14 @@ export class AICustomizationShortcutsWidget extends Disposable {
 	}
 
 	private _totalCount() {
-		return derived(reader => {
-			this.harnessService.activeHarness.read(reader);
-			this.harnessService.availableHarnesses.read(reader);
-			const hidden = new Set(this.harnessService.getActiveDescriptor().hiddenSections ?? []);
-			let total = 0;
-			for (const config of CUSTOMIZATION_ITEMS) {
-				if (config.section && hidden.has(config.section)) {
-					continue;
-				}
-				if (config.modelSection) {
-					total += this.itemsModel.getCount(config.modelSection).read(reader);
-				} else if (config.isMcp) {
-					total += this.mcpService.servers.read(reader).length;
-				} else if (config.isPlugins) {
-					total += this.itemsModel.getPluginCount().read(reader);
-				}
-			}
-			return total;
-		});
+		return derived(reader => readTotalCustomizationCount(
+			reader,
+			this.itemsModel,
+			this.mcpServerCountService,
+			this.toolsService,
+			this.toolEnablementService,
+			this.harnessService,
+		));
 	}
 
 	private _render(parent: HTMLElement, options: IAICustomizationShortcutsWidgetOptions | undefined): void {
@@ -254,5 +247,9 @@ export class AICustomizationShortcutsWidget extends Disposable {
 			return;
 		}
 		this._toolbar?.focus();
+	}
+
+	hasFocus(): boolean {
+		return !!this._wrapper && DOM.isAncestorOfActiveElement(this._wrapper);
 	}
 }

@@ -9,6 +9,7 @@ import { IReference } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -20,9 +21,12 @@ import { IAgentConnection } from '../../../../../../platform/agentHost/common/ag
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
-import { IAgentSession } from '../../../browser/agentSessions/agentSessionsModel.js';
+import { AgentSessionsModel, IAgentSession } from '../../../browser/agentSessions/agentSessionsModel.js';
 import { openSession, openSessionByResource, ISessionOpenerParticipant, sessionOpenerRegistry } from '../../../browser/agentSessions/agentSessionsOpener.js';
 import { IAgentSessionsService } from '../../../browser/agentSessions/agentSessionsService.js';
+import { ChatSessionsService } from '../../../browser/chatSessions/chatSessions.contribution.js';
+import { IChatSessionsService } from '../../../common/chatSessionsService.js';
+import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 
 suite('AgentSessionsOpener', () => {
 
@@ -191,4 +195,115 @@ suite('AgentSessionsOpener', () => {
 
 		assert.strictEqual(handledSession?.resource.toString(), twin.toString());
 	});
+
+	test('reports a migrated session refresh failure without swallowing it', async () => {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		const events: { name: string; data: unknown }[] = [];
+		const error = new Error('refresh failed');
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(ITelemetryService, new class extends mock<ITelemetryService>() {
+			override publicLog2(): void { }
+			override publicLogError2<E, C>(name: string, data?: E): void {
+				events.push({ name, data });
+			}
+		});
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({ [ChatConfiguration.MigrateLegacyCopilotCliSessions]: true }));
+		instantiationService.stub(IProgressService, upcastPartial<IProgressService>({ withProgress: (_options, task) => task({ report() { } }) }));
+		instantiationService.stub(IAgentHostConnectionsService, upcastPartial<IAgentHostConnectionsService>({
+			ambientConnection: new class extends mock<IAgentConnection>() {
+				override getSubscription<T>(): IReference<IAgentSubscription<T>> {
+					return { object: upcastPartial<IAgentSubscription<T>>({ value: {} as T }), dispose() { } };
+				}
+			},
+		}));
+		instantiationService.stub(IAgentSessionsService, upcastPartial<IAgentSessionsService>({
+			getSession: () => undefined,
+			model: upcastPartial<IAgentSessionsService['model']>({ resolve: async () => { throw error; } }),
+		}));
+		await assert.rejects(instantiationService.invokeFunction(openSessionByResource, URI.parse('copilotcli:/sess-abc')), error);
+		assert.deepStrictEqual(events, [{
+			name: 'agentHost.legacyCopilotCliMigrationOpen',
+			data: {
+				source: 'open', surfaced: false, reason: 'resolveFailed',
+				migrationSessionId: '6a27283bcdda2b8d8ca87884c1ae452dcded34fc',
+				errorCode: undefined, errorMessage: 'refresh failed',
+			},
+		}]);
+	});
+
+	for (const failure of ['refresh', 'items'] as const) {
+		test(`reports an isolated controller ${failure} failure and still opens the legacy session`, () => runWithFakedTimers({}, async () => {
+			const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
+			const events: { name: string; data: unknown }[] = [];
+			const error = Object.assign(new Error(`${failure} failed for agent-host-copilotcli:/sess-abc`), { code: 'EIO' });
+			instantiationService.stub(ILogService, new NullLogService());
+			instantiationService.stub(ITelemetryService, new class extends mock<ITelemetryService>() {
+				override publicLog2(): void { }
+				override publicLogError2<E, C>(name: string, data?: E): void {
+					events.push({ name, data });
+				}
+			});
+			instantiationService.stub(IConfigurationService, new TestConfigurationService({ [ChatConfiguration.MigrateLegacyCopilotCliSessions]: true }));
+			instantiationService.stub(IProgressService, upcastPartial<IProgressService>({ withProgress: (_options, task) => task({ report() { } }) }));
+			instantiationService.stub(IAgentHostConnectionsService, upcastPartial<IAgentHostConnectionsService>({
+				ambientConnection: new class extends mock<IAgentConnection>() {
+					override getSubscription<T>(): IReference<IAgentSubscription<T>> {
+						return { object: upcastPartial<IAgentSubscription<T>>({ value: {} as T }), dispose() { } };
+					}
+				},
+			}));
+			const chatSessionsService = disposables.add(instantiationService.createInstance(ChatSessionsService));
+			instantiationService.stub(IChatSessionsService, chatSessionsService);
+			const provider = 'agent-host-copilotcli';
+			disposables.add(chatSessionsService.registerChatSessionContribution({ type: provider, name: provider, displayName: provider, description: '' }));
+			let refreshCount = 0;
+			disposables.add(chatSessionsService.registerChatSessionItemController(provider, {
+				onDidChangeChatSessionItems: Event.None,
+				get items() {
+					if (refreshCount > 1 && failure === 'items') {
+						throw error;
+					}
+					return [];
+				},
+				async refresh() {
+					if (++refreshCount > 1 && failure === 'refresh') {
+						throw error;
+					}
+				},
+			}));
+			const model = disposables.add(instantiationService.createInstance(AgentSessionsModel));
+			const legacy = URI.parse('copilotcli:/sess-abc');
+			const legacySession = upcastPartial<IAgentSession>({ resource: legacy });
+			instantiationService.stub(IAgentSessionsService, upcastPartial<IAgentSessionsService>({
+				model,
+				getSession: resource => resource.toString() === legacy.toString() ? legacySession : model.getSession(resource),
+			}));
+			let opened: URI | undefined;
+			disposables.add(sessionOpenerRegistry.registerParticipant({
+				handleOpenSession: async (_accessor, session) => {
+					opened = session.resource;
+					return true;
+				},
+			}));
+
+			await instantiationService.invokeFunction(openSessionByResource, legacy);
+			const coalescedErrors: unknown[] = [];
+			await Promise.all([
+				model.resolve(provider, error => coalescedErrors.push(error)),
+				model.resolve(provider),
+			]);
+
+			assert.deepStrictEqual({ opened, refreshCount, coalescedErrors, events }, {
+				opened: legacy, refreshCount: 3, coalescedErrors: [error],
+				events: [{
+					name: 'agentHost.legacyCopilotCliMigrationOpen',
+					data: {
+						source: 'open', surfaced: false, reason: 'resolveFailed',
+						migrationSessionId: '6a27283bcdda2b8d8ca87884c1ae452dcded34fc',
+						errorCode: 'EIO', errorMessage: `${failure} failed for [REDACTED: session]`,
+					},
+				}],
+			});
+		}));
+	}
 });

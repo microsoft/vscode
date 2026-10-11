@@ -15,16 +15,16 @@ import { AnchorPosition } from '../../../../../../base/common/layout.js';
 import { DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../../nls.js';
 import { ActionListItemKind, IActionListItem, IActionListOptions } from '../../../../../../platform/actionWidget/browser/actionList.js';
-import { KNOWN_AUTO_APPROVE_VALUES } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
+import { getSessionApprovalProperty, getSessionModeProperty } from '../../../../../../platform/agentHost/common/sessionConfigProperties.js';
 import { SessionConfigPropertySchema } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { TerminalContribSettingId } from '../../../../terminal/terminalContribExports.js';
 import { ChatConfiguration, ChatPermissionLevel } from '../../../common/constants.js';
 import { getCompactCodicon } from '../../chatIcons.js';
+import { renderChatInputPickerSplit } from '../../widget/input/chatInputPickerActionItem.js';
 
 export const AGENT_HOST_PERMISSIONS_SETTINGS_QUERY = `@id:${[
 	ChatConfiguration.DefaultConfiguration,
 	ChatConfiguration.DefaultPermissionLevel,
-	ChatConfiguration.AssistedPermissionsEnabled,
 	ChatConfiguration.GlobalAutoApprove,
 	ChatConfiguration.AutoApproveEdits,
 	ChatConfiguration.AutoApprovedUrls,
@@ -36,7 +36,6 @@ export const AGENT_HOST_PERMISSIONS_SETTINGS_QUERY = `@id:${[
 	TerminalContribSettingId.IgnoreDefaultAutoApproveRules,
 	TerminalContribSettingId.BlockDetectedFileWrites,
 	'chat.agent.sandbox.*',
-	'chat.agentHost.sdkSandbox.*',
 ].join(',')}`;
 
 export interface IModePickerPermissions {
@@ -54,9 +53,16 @@ const MODE_SECTION_ID = 'agentHostModePicker.mode';
 const PERMISSIONS_SECTION_ID = 'agentHostModePicker.permissions';
 export const MODE_PERMISSIONS_PICKER_OPEN_ATTRIBUTE = 'data-mode-permissions-picker-open';
 
+export function getPermissionLevelBadge(level: string): { readonly badge?: string; readonly className?: string } {
+	return level === ChatPermissionLevel.Assisted ? {
+		badge: localize('agentHostModePicker.experimental', "Experimental"),
+		className: 'agent-host-assisted-permissions',
+	} : {};
+}
+
 export function getModePermissionsPickerOptions(openPermissions = false, initialFocusItemId?: string): IActionListOptions {
 	return {
-		minWidth: 260,
+		minWidth: 300,
 		anchorPosition: AnchorPosition.ABOVE,
 		useFullHeight: true,
 		widgetClassName: 'agent-host-mode-permissions-popup',
@@ -116,33 +122,23 @@ export function renderModePickerTrigger(
 	previous?: IModePickerTrigger,
 ): IModePickerTrigger {
 	const store = new DisposableStore();
-	const modeButton = previous?.modeButton ?? dom.$('a.agent-host-mode-picker-button.agent-host-mode-button');
+	const { primaryButton: modeButton, secondaryButton: permissionsButton } = renderChatInputPickerSplit(trigger, previous?.modeButton, previous?.permissionsButton);
+	modeButton.classList.add('agent-host-mode-picker-button', 'agent-host-mode-button');
+	permissionsButton.classList.add('agent-host-mode-picker-button', 'agent-host-permissions-button');
 	const icon = mode.icon ? renderIcon(getCompactCodicon(mode.icon)) : undefined;
 	if (icon) {
 		icon.ariaHidden = 'true';
 	}
 	dom.reset(modeButton, ...(icon ? [icon] : []), dom.$(`span.${mode.labelClassName}`, undefined, mode.label));
-	const permissionsButton = previous?.permissionsButton ?? dom.$('a.agent-host-mode-picker-button.agent-host-permissions-button');
 	dom.clearNode(permissionsButton);
 	renderModePickerPermissions(permissionsButton, permissions);
-	if (modeButton.parentElement !== trigger || permissionsButton.parentElement !== trigger) {
-		dom.reset(trigger, modeButton, permissionsButton);
-	}
 	trigger.classList.add('agent-host-mode-permissions-trigger');
-	trigger.role = 'group';
-	trigger.tabIndex = -1;
-	trigger.removeAttribute('aria-haspopup');
-	trigger.removeAttribute('aria-expanded');
 	modeButton.ariaLabel = localize('agentHostModePicker.modeButton', "Pick Mode, {0}", mode.label);
 	permissionsButton.ariaLabel = permissions.sandboxed
 		? localize('agentHostModePicker.permissionsButtonSandboxed', "Pick Permissions, {0}, terminal sandboxed", permissions.label)
 		: localize('agentHostModePicker.permissionsButton', "Pick Permissions, {0}", permissions.label);
 	for (const button of [modeButton, permissionsButton]) {
-		button.role = 'button';
-		button.tabIndex = trigger.ariaDisabled === 'true' ? -1 : 0;
-		button.ariaDisabled = trigger.ariaDisabled;
 		button.ariaHasPopup = 'menu';
-		button.ariaExpanded ??= 'false';
 		store.add(Gesture.addTarget(button));
 		const open = () => {
 			if (trigger.ariaDisabled !== 'true') {
@@ -166,20 +162,18 @@ export function renderModePickerTrigger(
 }
 
 export function isWellKnownAutoApproveSchema(schema: SessionConfigPropertySchema): boolean {
-	return schema.type === 'string'
-		&& Array.isArray(schema.enum)
-		&& schema.enum.includes('default')
-		&& schema.enum.every(value => typeof value === 'string' && KNOWN_AUTO_APPROVE_VALUES.has(value));
+	return !!getSessionApprovalProperty({ type: 'object', properties: { autoApprove: schema } });
 }
 
 export function isWellKnownModeSchema(schema: SessionConfigPropertySchema): boolean {
-	return schema.type === 'string' && Array.isArray(schema.enum) && schema.enum.includes('interactive');
+	return !!getSessionModeProperty({ type: 'object', properties: { mode: schema } });
 }
 
 export function shouldCombineModeAndPermissions(enabled: boolean, isCopilot: boolean, modeSchema: SessionConfigPropertySchema | undefined, permissionSchema: SessionConfigPropertySchema | undefined): boolean {
 	return enabled && isCopilot
 		&& !!modeSchema && !modeSchema.readOnly && !modeSchema.enumDynamic && isWellKnownModeSchema(modeSchema)
-		&& !!permissionSchema && !permissionSchema.readOnly && !permissionSchema.enumDynamic && isWellKnownAutoApproveSchema(permissionSchema);
+		&& !!permissionSchema && !permissionSchema.readOnly && !permissionSchema.enumDynamic
+		&& !!getSessionApprovalProperty({ type: 'object', properties: { [permissionSchema.enum?.includes('manual') ? 'approvalMode' : 'autoApprove']: permissionSchema } });
 }
 
 export function renderModePickerPermissions(trigger: HTMLElement, permissions: IModePickerPermissions): void {
@@ -203,7 +197,7 @@ export function getModePickerAriaLabel(mode: string, permissions: IModePickerPer
 }
 
 export function getModePickerAccessibilityHelp(): string {
-	return localize('agentHostModePicker.accessibilityHelp', "When the experimental combined picker is enabled for a Copilot Agent Host session, Tab reaches separate Mode and Permissions buttons. Press Enter or Space on Mode to open the picker with Agent Mode expanded, or on Permissions to open it with Permissions expanded. Each section header shows its current selection, and the opened section initially focuses that selection. Press Enter or Space on a section header to expand or collapse it, or use Right Arrow to expand and Left Arrow to collapse. Hover or keyboard navigation moves the single row highlight without changing the selection until you activate a choice. Focus the Permissions header and press Tab to reach Configure Permissions, which opens the related settings. Use Up and Down Arrow to navigate and Enter to select a mode, permission level, or terminal sandboxing. Escape closes the picker and returns focus to the button that opened it.");
+	return localize('agentHostModePicker.accessibilityHelp', "When the experimental combined picker is enabled for a Copilot Agent Host session, Tab reaches separate Mode and Permissions buttons. Press Enter or Space on Mode to open the picker with Agent Mode expanded, or on Permissions to open it with Permissions expanded. Each section header shows its current selection, and the opened section initially focuses that selection. Press Enter or Space on a section header to expand or collapse it, or use Right Arrow to expand and Left Arrow to collapse. Hover or keyboard navigation moves the single row highlight without changing the selection until you activate a choice. Focus the Permissions header and press Tab to reach Configure Permissions, which opens the related settings. Use Up and Down Arrow to navigate and Enter to select a mode, permission level, or terminal sandboxing. Assisted permissions is experimental and evaluates risk before running tools. Enterprise policy can disable Assisted permissions and Allow all. When the session's host requires terminal sandboxing, its sandbox toggle is checked and disabled. If your organization permits bypassing, a supported outside-sandbox permission prompt can offer Allow in this Session. After that action succeeds, you can use the toggle to enable sandboxing again. This restriction applies only to that session. Escape closes the picker and returns focus to the button that opened it.");
 }
 
 function getPermissionLevelStyle(level: ChatPermissionLevel): string | undefined {

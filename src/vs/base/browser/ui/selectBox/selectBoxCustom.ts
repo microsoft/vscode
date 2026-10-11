@@ -516,7 +516,8 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 			onHide: () => {
 				this.selectDropDownContainer.classList.remove('visible');
 			},
-			anchorPosition: this._dropDownPosition
+			anchorPosition: this._dropDownPosition,
+			layer: this.selectBoxOptions.contextViewLayer,
 		}, this.selectBoxOptions.optionsAsChildren ? this.container : undefined);
 
 		// Hide so we can relay out
@@ -530,7 +531,8 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 			onHide: () => {
 				this.selectDropDownContainer.classList.remove('visible');
 			},
-			anchorPosition: this._dropDownPosition
+			anchorPosition: this._dropDownPosition,
+			layer: this.selectBoxOptions.contextViewLayer,
 		}, this.selectBoxOptions.optionsAsChildren ? this.container : undefined);
 
 		this._isVisible = true;
@@ -627,7 +629,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 			// Get initial list height and determine space above and below
 			this.selectList.getHTMLElement().style.height = '';
 			this.selectList.layout();
-			let listHeight = this.selectList.contentHeight;
+			let listHeight = Math.min(this.selectList.contentHeight, (this.selectBoxOptions.maxVisibleOptions ?? Infinity) * SELECT_OPTION_HEIGHT);
 
 			if (this._hasDetails && this._cachedMaxDetailsHeight === undefined) {
 				this._cachedMaxDetailsHeight = this.measureMaxDetailsHeight();
@@ -655,12 +657,15 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 					return false;
 				}
 
-				// Determine if we have to flip up
+				// Fall back to the other side when the preferred side cannot show enough options.
 				// Always show complete list items - never more than Max available vertical height
-				if (maxVisibleOptionsBelow < SelectBoxList.DEFAULT_MINIMUM_VISIBLE_OPTIONS
-					&& maxVisibleOptionsAbove > maxVisibleOptionsBelow
-					&& this.selectList.length > maxVisibleOptionsBelow
-				) {
+				const preferAbove = this.selectBoxOptions.anchorPosition === AnchorPosition.ABOVE;
+				const preferredVisibleOptions = preferAbove ? maxVisibleOptionsAbove : maxVisibleOptionsBelow;
+				const otherVisibleOptions = preferAbove ? maxVisibleOptionsBelow : maxVisibleOptionsAbove;
+				const flip = preferredVisibleOptions < SelectBoxList.DEFAULT_MINIMUM_VISIBLE_OPTIONS
+					&& otherVisibleOptions > preferredVisibleOptions
+					&& Math.min(this.selectList.length, this.selectBoxOptions.maxVisibleOptions ?? Infinity) > preferredVisibleOptions;
+				if (preferAbove ? !flip : flip) {
 					this._dropDownPosition = AnchorPosition.ABOVE;
 					this.selectDropDownListContainer.remove();
 					this.selectionDetailsPane.remove();
@@ -715,6 +720,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 			}
 
 			// Set adjusted list height and relayout
+			this.selectList.getHTMLElement().style.height = `${listHeight}px`;
 			this.selectList.layout(listHeight);
 			this.selectList.domFocus();
 
@@ -732,7 +738,6 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 
 			if (this._hasDetails) {
 				// Leave the selectDropDownContainer to size itself according to children (list + details) - #57447
-				this.selectList.getHTMLElement().style.height = `${listHeight}px`;
 				this.selectDropDownContainer.style.height = '';
 			} else {
 				this.selectDropDownContainer.style.height = `${listHeight}px`;

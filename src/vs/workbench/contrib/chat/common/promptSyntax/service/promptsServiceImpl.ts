@@ -375,15 +375,22 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	public async listPromptFiles(type: PromptsType, token: CancellationToken): Promise<readonly IPromptPath[]> {
-		let listPromise = this.cachedFileLocations[type];
-		if (!listPromise) {
-			listPromise = this.computeListPromptFiles(type, token);
-			if (!this.fileLocatorEvents[type]) {
-				return listPromise;
+		const cached = this.cachedFileLocations[type];
+		if (cached) {
+			return cached;
+		}
+		// Drop the entry if the computation fails (e.g. it was cancelled), otherwise a
+		// cancelled scan would stay cached as a permanent empty result.
+		const listPromise: Promise<readonly IPromptPath[]> = this.computeListPromptFiles(type, token).catch(err => {
+			if (this.cachedFileLocations[type] === listPromise) {
+				this.cachedFileLocations[type] = undefined;
 			}
-			this.cachedFileLocations[type] = listPromise;
+			throw err;
+		});
+		if (!this.fileLocatorEvents[type]) {
 			return listPromise;
 		}
+		this.cachedFileLocations[type] = listPromise;
 		return listPromise;
 	}
 
@@ -396,6 +403,11 @@ export class PromptsService extends Disposable implements IPromptsService {
 			this._pluginPromptFilesByType.get(type) ?? [],
 			this.getBuiltinPromptFiles(type, token),
 		]);
+
+		// Extension providers stop early on cancellation without throwing.
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
 
 		return prompts.flat();
 	}
@@ -782,7 +794,10 @@ export class PromptsService extends Disposable implements IPromptsService {
 					const hookWorkspaceFolder = this.workspaceService.getWorkspaceFolder(uri) ?? defaultFolder;
 					const workspaceRootUri = hookWorkspaceFolder?.uri;
 					const target = getTarget(PromptsType.agent, ast.header ?? promptPath.uri);
-					hooks = parseSubagentHooksFromYaml(hooksRaw, workspaceRootUri, userHome, target);
+					const plugin = promptPath.storage === PromptsStorage.plugin && promptPath.pluginUri
+						? this.agentPluginService.plugins.get().find(candidate => isEqual(candidate.uri, promptPath.pluginUri))
+						: undefined;
+					hooks = parseSubagentHooksFromYaml(hooksRaw, workspaceRootUri, userHome, target, plugin);
 				}
 				const extra = {
 					sessionTypes: promptPath.sessionTypes,

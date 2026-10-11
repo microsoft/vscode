@@ -10,6 +10,7 @@ rounds:
             origin:
               kind: user
       - method: subscribe
+      - method: subscribe
     serverToClient:
       - channel: ${chat_0}
         action:
@@ -28,10 +29,7 @@ rounds:
           type: session/ready
       - channel: ${chat_0}
         action:
-          type: chat/toolCallStart
-          turnId: ${turn_0}
-          toolCallId: ${toolCall_0}
-          toolName: task
+          type: chat/changesetsChanged
       - channel: ${chat_0}
         action:
           type: chat/toolCallComplete
@@ -45,16 +43,7 @@ rounds:
           turnId: ${turn_0}
           part:
             kind: markdown
-            content: Waiting for the background subagent to finish before continuing.
-      - channel: ${chat_0}
-        action:
-          type: chat/toolCallStart
-          turnId: ${turn_0}
-          toolCallId: ${toolCall_1}
-          toolName: read_agent
-      - channel: ${session_0}
-        action:
-          type: session/chatAdded
+            content: Waiting for the background subagent to complete.
       - channel: ${chat_0}
         action:
           type: chat/toolCallComplete
@@ -71,8 +60,9 @@ rounds:
             content: PARENT_INITIAL_DONE
       - channel: ${chat_0}
         action:
-          type: chat/turnComplete
-          turnId: ${turn_0}
+          type: chat/isReadChanged
+      - responseTo: subscribe
+        result: success
       - responseTo: subscribe
         result: success
   - clientToServer:
@@ -96,23 +86,11 @@ rounds:
               kind: user
       - channel: ${chat_0}
         action:
-          type: chat/toolCallStart
-          turnId: ${turn_1}
-          toolCallId: ${toolCall_2}
-          toolName: write_agent
-      - channel: ${chat_0}
-        action:
           type: chat/toolCallComplete
           turnId: ${turn_1}
           toolCallId: ${toolCall_2}
           result:
             success: true
-      - channel: ${chat_0}
-        action:
-          type: chat/toolCallStart
-          turnId: ${turn_1}
-          toolCallId: ${toolCall_3}
-          toolName: read_agent
       - channel: ${chat_1}
         action:
           type: chat/turnStarted
@@ -128,10 +106,6 @@ rounds:
           part:
             kind: markdown
             content: CHILD_FOLLOWUP_ONE_DONE
-      - channel: ${chat_1}
-        action:
-          type: chat/turnComplete
-          turnId: ${turn_2}
       - channel: ${chat_0}
         action:
           type: chat/toolCallComplete
@@ -148,8 +122,7 @@ rounds:
             content: PARENT_FOLLOWUP_ONE_DONE
       - channel: ${chat_0}
         action:
-          type: chat/turnComplete
-          turnId: ${turn_1}
+          type: chat/isReadChanged
       - responseTo: subscribe
         result: success
   - clientToServer:
@@ -173,23 +146,11 @@ rounds:
               kind: user
       - channel: ${chat_0}
         action:
-          type: chat/toolCallStart
-          turnId: ${turn_3}
-          toolCallId: ${toolCall_4}
-          toolName: write_agent
-      - channel: ${chat_0}
-        action:
           type: chat/toolCallComplete
           turnId: ${turn_3}
           toolCallId: ${toolCall_4}
           result:
             success: true
-      - channel: ${chat_0}
-        action:
-          type: chat/toolCallStart
-          turnId: ${turn_3}
-          toolCallId: ${toolCall_5}
-          toolName: read_agent
       - channel: ${chat_1}
         action:
           type: chat/turnStarted
@@ -205,10 +166,6 @@ rounds:
           part:
             kind: markdown
             content: CHILD_FOLLOWUP_TWO_DONE
-      - channel: ${chat_1}
-        action:
-          type: chat/turnComplete
-          turnId: ${turn_4}
       - channel: ${chat_0}
         action:
           type: chat/toolCallComplete
@@ -225,7 +182,6 @@ rounds:
             content: PARENT_FOLLOWUP_TWO_DONE
       - channel: ${chat_0}
         action:
-          type: chat/turnComplete
-          turnId: ${turn_3}
+          type: chat/isReadChanged
       - responseTo: subscribe
         result: success

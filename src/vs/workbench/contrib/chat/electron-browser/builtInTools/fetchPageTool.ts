@@ -23,6 +23,8 @@ import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, ITo
 import { InternalFetchWebPageToolId } from '../../common/tools/builtinTools/tools.js';
 import { IAgentNetworkFilterService } from '../../../../../platform/networkFilter/common/networkFilterService.js';
 import { WorkingDirectory } from '../../common/workingDirectory.js';
+import { isURLSafeForTrust } from '../../../../../platform/url/common/trustedDomains.js';
+import { normalizeURLPathSeparators } from '../../../../../platform/url/common/urlGlob.js';
 
 export const FetchWebPageToolData: IToolData = {
 	id: InternalFetchWebPageToolId,
@@ -297,10 +299,11 @@ export class FetchWebPageTool implements IToolImpl {
 			try {
 				const uriObj = URI.parse(url);
 				if (uriObj.scheme === 'http' || uriObj.scheme === 'https') {
-					if (!this._agentNetworkFilterService.isUriAllowed(uriObj)) {
+					const webUri = isURLSafeForTrust(uriObj) ? normalizeURLPathSeparators(uriObj) : uriObj;
+					if (!this._agentNetworkFilterService.isUriAllowed(webUri)) {
 						blockedUris.add(url);
 					} else {
-						webUris.set(url, uriObj);
+						webUris.set(url, webUri);
 					}
 				} else {
 					// Normalize `..` so the confirmation-gating workspace check and the eventual read agree on one path.
@@ -396,7 +399,8 @@ function collectReferencedResources(messages: readonly string[]): ResourceSet {
 			try {
 				// Strict parsing rejects scheme-less tokens, so only genuine `scheme:…`
 				// tokens (http, https, file, …) are treated as references.
-				resources.add(URI.parse(token, true));
+				const uri = URI.parse(token, true);
+				resources.add(isURLSafeForTrust(uri) ? normalizeURLPathSeparators(uri) : uri);
 			} catch {
 				// Scheme-like but not a valid URI; ignore.
 			}
@@ -404,4 +408,3 @@ function collectReferencedResources(messages: readonly string[]): ResourceSet {
 	}
 	return resources;
 }
-

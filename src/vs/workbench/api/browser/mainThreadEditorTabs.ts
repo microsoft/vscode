@@ -45,8 +45,8 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 	private readonly _groupLookup: Map<number, IEditorTabGroupDto> = new Map();
 	// Lookup table for finding tab by id
 	private readonly _tabInfoLookup: Map<string, TabInfo> = new Map();
-	// Tracks the currently open MultiDiffEditorInputs to listen to resource changes
-	private readonly _multiDiffEditorInputListeners: DisposableMap<MultiDiffEditorInput> = new DisposableMap();
+	// Tracks resource-change listeners for currently open multi-diff tabs
+	private readonly _multiDiffEditorInputListeners: DisposableMap<string> = new DisposableMap();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -309,7 +309,7 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 		this._tabInfoLookup.set(tabId, { group, editorInput, tab: tabObject });
 
 		if (editorInput instanceof MultiDiffEditorInput) {
-			this._multiDiffEditorInputListeners.set(editorInput, Event.fromObservableLight(editorInput.resources)(() => {
+			this._multiDiffEditorInputListeners.set(tabId, Event.fromObservableLight(editorInput.resources)(() => {
 				const tabInfo = this._tabInfoLookup.get(tabId);
 				if (!tabInfo) {
 					return;
@@ -357,11 +357,8 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 		}
 
 		// Update lookup
-		this._tabInfoLookup.delete(removedTab[0]?.id ?? '');
-
-		if (removedTab[0]?.input instanceof MultiDiffEditorInput) {
-			this._multiDiffEditorInputListeners.deleteAndDispose(removedTab[0]?.input);
-		}
+		this._tabInfoLookup.delete(removedTab[0].id);
+		this._multiDiffEditorInputListeners.deleteAndDispose(removedTab[0].id);
 
 		this._proxy.$acceptTabOperation({
 			groupId,

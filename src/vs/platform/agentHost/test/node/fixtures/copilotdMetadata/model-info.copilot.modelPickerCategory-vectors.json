@@ -1,0 +1,198 @@
+{
+  "$comment": "Conformance vectors for the `copilot.modelPickerCategory` key on SessionModelInfo._meta. See ../model-info.md for the prose spec and ./README.md for the harness contract.",
+  "key": "copilot.modelPickerCategory",
+  "carrier": "SessionModelInfo._meta",
+  "tests": [
+    {
+      "name": "set: stamps the category onto a model with no _meta",
+      "op": "set",
+      "input": {
+        "model": {
+          "id": "gpt-5.4",
+          "provider": "copilot",
+          "name": "GPT-5.4"
+        },
+        "category": "powerful"
+      },
+      "expected": {
+        "model": {
+          "id": "gpt-5.4",
+          "provider": "copilot",
+          "name": "GPT-5.4",
+          "_meta": { "copilot.modelPickerCategory": "powerful" }
+        }
+      }
+    },
+    {
+      "name": "set: preserves other model metadata",
+      "op": "set",
+      "input": {
+        "model": {
+          "id": "gpt-5.4",
+          "provider": "copilot",
+          "name": "GPT-5.4",
+          "_meta": { "copilot.unrelated": true }
+        },
+        "category": "powerful"
+      },
+      "expected": {
+        "model": {
+          "id": "gpt-5.4",
+          "provider": "copilot",
+          "name": "GPT-5.4",
+          "_meta": {
+            "copilot.unrelated": true,
+            "copilot.modelPickerCategory": "powerful"
+          }
+        }
+      }
+    },
+    {
+      "name": "projectFromSdk: Lightweight → 'lightweight'",
+      "op": "projectFromSdk",
+      "input": { "sdkCategory": "Lightweight" },
+      "expected": { "wireValue": "lightweight" }
+    },
+    {
+      "name": "projectFromSdk: Versatile → 'versatile'",
+      "op": "projectFromSdk",
+      "input": { "sdkCategory": "Versatile" },
+      "expected": { "wireValue": "versatile" }
+    },
+    {
+      "name": "projectFromSdk: Powerful → 'powerful'",
+      "op": "projectFromSdk",
+      "input": { "sdkCategory": "Powerful" },
+      "expected": { "wireValue": "powerful" }
+    },
+    {
+      "name": "projectFromSdk: Unknown → absent (no key, no _meta envelope)",
+      "op": "projectFromSdk",
+      "input": { "sdkCategory": "Unknown" },
+      "expected": { "wireValue": null }
+    },
+    {
+      "name": "projectFromSdk: absent SDK field → absent (no key, no _meta envelope)",
+      "op": "projectFromSdk",
+      "input": { "sdkCategory": null },
+      "expected": { "wireValue": null }
+    },
+    {
+      "name": "extract: returns the value when present and in the enum",
+      "op": "extract",
+      "input": {
+        "model": {
+          "id": "gpt-5.4",
+          "provider": "copilot",
+          "name": "GPT-5.4",
+          "_meta": { "copilot.modelPickerCategory": "powerful" }
+        }
+      },
+      "expected": { "category": "powerful" }
+    },
+    {
+      "name": "extract: returns null when _meta is absent",
+      "op": "extract",
+      "input": {
+        "model": {
+          "id": "spartan",
+          "provider": "copilot",
+          "name": "Spartan"
+        }
+      },
+      "expected": { "category": null }
+    },
+    {
+      "name": "extract: returns null when key is absent",
+      "op": "extract",
+      "input": {
+        "model": {
+          "id": "gpt-5.4",
+          "provider": "copilot",
+          "name": "GPT-5.4",
+          "_meta": { "copilot.unrelated": "ignored" }
+        }
+      },
+      "expected": { "category": null }
+    },
+    {
+      "name": "extract: returns null when value is the empty string",
+      "op": "extract",
+      "input": {
+        "model": {
+          "id": "gpt-5.4",
+          "provider": "copilot",
+          "name": "GPT-5.4",
+          "_meta": { "copilot.modelPickerCategory": "" }
+        }
+      },
+      "expected": { "category": null }
+    },
+    {
+      "name": "extract: returns null when value is outside the closed enum",
+      "$comment": "Readers MUST NOT pass unknown enum values through to picker UIs — see model-info.md.",
+      "op": "extract",
+      "input": {
+        "model": {
+          "id": "gpt-5.4",
+          "provider": "copilot",
+          "name": "GPT-5.4",
+          "_meta": { "copilot.modelPickerCategory": "experimental" }
+        }
+      },
+      "expected": { "category": null }
+    },
+    {
+      "name": "extract: returns null when value is not a string",
+      "op": "extract",
+      "input": {
+        "model": {
+          "id": "gpt-5.4",
+          "provider": "copilot",
+          "name": "GPT-5.4",
+          "_meta": { "copilot.modelPickerCategory": 42 }
+        }
+      },
+      "expected": { "category": null }
+    },
+    {
+      "name": "wireShape: a model with a known category serializes to the flat key",
+      "$comment": "Pins the migration from the legacy nested-object shape to the flat-dotted shape.",
+      "op": "wireShape",
+      "input": {
+        "model": {
+          "id": "gpt-5.4",
+          "name": "GPT-5.4",
+          "sdkCategory": "Powerful"
+        }
+      },
+      "expected": {
+        "json": {
+          "id": "gpt-5.4",
+          "provider": "copilot",
+          "name": "GPT-5.4",
+          "_meta": { "copilot.modelPickerCategory": "powerful" }
+        }
+      }
+    },
+    {
+      "name": "wireShape: a model with no category serializes without _meta",
+      "$comment": "Pins the 'don't ship an empty {} envelope' rule.",
+      "op": "wireShape",
+      "input": {
+        "model": {
+          "id": "spartan",
+          "name": "Spartan",
+          "sdkCategory": null
+        }
+      },
+      "expected": {
+        "json": {
+          "id": "spartan",
+          "provider": "copilot",
+          "name": "Spartan"
+        }
+      }
+    }
+  ]
+}

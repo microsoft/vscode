@@ -10,6 +10,7 @@ import { observableValue } from '../../../../../base/common/observable.js';
 import { isEqual, joinPath } from '../../../../../base/common/resources.js';
 import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
+import { McpServerType } from '../../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { parseWorkspaceRootMcpConfiguration, WORKSPACE_ROOT_MCP_COLLECTION_ID_PREFIX, WORKSPACE_ROOT_MCP_CONFIG_FILE } from '../../../../../platform/mcp/common/mcpWorkspaceConfiguration.js';
 import { StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
@@ -90,6 +91,10 @@ export class WorkspaceDotMcpDiscovery extends Disposable implements IMcpDiscover
 				if (defs) {
 					for (const d of defs) {
 						d.roots = [folder.uri];
+						// Expand the `${VAR}` references written when servers are migrated from `.vscode/mcp.json`.
+						// Keep the raw URL, since `URI` normalization would encode the references.
+						const server = servers[d.label];
+						d.environmentVariableExpansion = server?.type === McpServerType.REMOTE ? { url: server.url } : {};
 					}
 					definitions = defs;
 				}

@@ -53,6 +53,14 @@ export class InlineEditsModelService extends Disposable implements IInlineEditsM
 		lintOptions: undefined,
 	};
 
+	private static readonly COPILOT_NES_LYSITHEA_24: ModelConfigurationWithSource = {
+		modelName: 'copilot-nes-lysithea-24',
+		promptingStrategy: PromptingStrategy.Xtab275,
+		includeTagsInCurrentFile: false,
+		source: ModelSource.HardCodedDefault,
+		lintOptions: undefined,
+	};
+
 	private static readonly COPILOT_NES_OCT: ModelConfigurationWithSource = {
 		modelName: 'copilot-nes-oct',
 		promptingStrategy: PromptingStrategy.Xtab275,
@@ -331,13 +339,16 @@ export class InlineEditsModelService extends Disposable implements IInlineEditsM
 		}
 
 		// otherwise, use built-in defaults
-		if (copilotToken?.isFcv1()) {
-			return InlineEditsModelService.COPILOT_NES_XTAB_MODEL;
-		} else if (copilotToken?.isFreeUser || copilotToken?.isNoAuthUser) {
-			return InlineEditsModelService.COPILOT_NES_CALLISTO;
-		} else {
+		if (copilotToken === undefined) {
 			return InlineEditsModelService.COPILOT_NES_OCT;
 		}
+		if (copilotToken.isFcv1()) {
+			return InlineEditsModelService.COPILOT_NES_XTAB_MODEL;
+		}
+		if (copilotToken.isFreeUser || copilotToken.isNoAuthUser) {
+			return InlineEditsModelService.COPILOT_NES_CALLISTO;
+		}
+		return InlineEditsModelService.COPILOT_NES_LYSITHEA_24;
 	}
 
 	private _pickModel({

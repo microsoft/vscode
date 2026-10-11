@@ -7,17 +7,24 @@ import { disposableTimeout, Queue, raceCancellationError } from '../../../base/c
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
-import { IGitHubService } from '../../github/common/githubService.js';
-import { GitHubWorkflowJob, GitHubWorkflowRerunOptions, GitHubWorkflowRun } from '../../github/common/githubPullRequestMutationService.js';
+import { IGitHubClient } from '../../github/common/githubService.js';
+import { GitHubWorkflowJob, GitHubWorkflowRerunOptions, GitHubWorkflowRun, PullRequestReplyAndResolveResult } from '../../github/common/githubPullRequestMutationService.js';
 import { PullRequestCheck, PullRequestRef, PullRequestSnapshot } from '../../github/common/githubPullRequestService.js';
 import { GitHubRequestError } from '../../github/common/githubTransport.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentMergeAction, AgentMergeConfiguration, classifyAgentMergeRequiredChecks, isAgentMergeFeedbackAuthor } from '../common/agentMerge.js';
+import { AgentMergeAction, AgentMergeConfiguration, AgentMergeSessionOverrides, classifyAgentMergeRequiredChecks, isAgentMergeFeedbackAuthor, readAgentMergeFolderState } from '../common/agentMerge.js';
+import { IAgentConfigurationService } from './agentConfigurationService.js';
+import { resolveGitHubStateFolder } from './agentHostBranchChangesetScope.js';
+import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { AgentMergeCIEvidence, AgentMergeCIEvidenceStore, agentMergeCIResponseBytes, ciEvidenceMetadata, ciFailureExcerpt, ciJsonBytes, readCIRange, readCITail, searchCIEvidence } from './agentMergeCIEvidence.js';
+import { getAgentMergeConfiguration } from './agentMergeConfiguration.js';
 import { AgentMergeCIRequest, IAgentMergeToolAccessor, parseAgentMergeCIRequest } from './shared/agentMergeServerTools.js';
 
 export interface IAgentMergeTurnContext {
+	readonly client: IGitHubClient;
 	readonly session: string;
+	readonly chat: string;
+	readonly folderKey: string;
 	readonly turnId: string;
 	readonly ref: PullRequestRef;
 	readonly headSha: string;
@@ -26,6 +33,8 @@ export interface IAgentMergeTurnContext {
 	readonly snapshot: PullRequestSnapshot;
 	readonly signal: AbortSignal;
 	readonly commentWatermark: string;
+	/** Keeps turn completion waiting for an in-flight reply's publication outcome. */
+	readonly trackReviewReply: (reply: Promise<PullRequestReplyAndResolveResult>) => void;
 	readonly deferredCheckIds: ReadonlySet<string>;
 	/** Keeps rerun authorization stable when diagnostics are suppressed mid-turn. */
 	readonly initialDeferredCheckIds: ReadonlySet<string>;
@@ -41,9 +50,11 @@ export class AgentMergeTools extends Disposable implements IAgentMergeToolAccess
 
 	constructor(
 		private readonly _isFeatureEnabled: () => boolean,
-		private readonly _getTurnContext: (session: string) => IAgentMergeTurnContext | undefined,
-		@IGitHubService private readonly _gitHubService: IGitHubService,
+		private readonly _getTurnContext: (chat: string) => IAgentMergeTurnContext | undefined,
+		private readonly _setEnabled: (chat: string, enabled: boolean, overrides?: AgentMergeSessionOverrides) => Promise<void>,
 		@ILogService private readonly _logService: ILogService,
+		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
+		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 	) {
 		super();
 		this._register(toDisposable(() => this._abort.abort(new Error('Agent Merge tools disposed.'))));
@@ -51,6 +62,24 @@ export class AgentMergeTools extends Disposable implements IAgentMergeToolAccess
 
 	isEnabled(): boolean {
 		return this._isFeatureEnabled();
+	}
+
+	async setEnabled(chat: string, enabled: boolean, overrides?: AgentMergeSessionOverrides): Promise<string> {
+		await this._setEnabled(chat, enabled, overrides);
+		const folder = resolveGitHubStateFolder(this._stateManager, chat);
+		const sessionFolderKey = resolveGitHubStateFolder(this._stateManager, folder.sessionUri).folderKey;
+		const updated = folder.folderKey === undefined ? undefined : readAgentMergeFolderState(this._configurationService.getSessionConfigValues(folder.sessionUri), folder.folderKey, sessionFolderKey);
+		if (!updated) {
+			throw new Error('Agent Merge configuration is unavailable after the update.');
+		}
+		const configuration = getAgentMergeConfiguration(this._configurationService, updated.overrides);
+		this._logService.info(`[AgentMergeTools] Updated folder configuration: session=${folder.sessionUri}, folder=${folder.folderKey}, enabled=${updated.enabled}, mergePullRequest=${configuration.mergePullRequest}`);
+		return JSON.stringify({
+			enabled: updated.enabled,
+			configuration,
+			monitoring: !updated.enabled ? 'disabled' : !updated.target ? 'pending' : updated.target.pullRequestUrl ? 'bound' : 'waitingForPullRequest',
+			...(updated.enabled && updated.target ? { target: { branchName: updated.target.branchName, pullRequestUrl: updated.target.pullRequestUrl } } : {}),
+		});
 	}
 
 	async readFailedCI(session: string, input: AgentMergeCIRequest = {}): Promise<string> {
@@ -95,7 +124,7 @@ export class AgentMergeTools extends Disposable implements IAgentMergeToolAccess
 			const cancellation = lifetime.add(new CancellationTokenSource());
 			lifetime.add(Event.once(Event.fromDOMEventEmitter(context.signal, 'abort'))(() => cancellation.cancel()));
 			context.signal.throwIfAborted();
-			const subscription = lifetime.add(this._gitHubService.pullRequests.subscribePullRequest(context.ref, { core: true, priority: 'interactive' }));
+			const subscription = lifetime.add(context.client.pullRequests.subscribePullRequest(context.ref, { core: true, priority: 'interactive' }));
 			await subscription.refresh('core', cancellation.token, { authoritative: true });
 			const core = subscription.resource.snapshot.get().core;
 			if (core.status !== 'ready' || !core.complete || core.value?.headSha !== context.headSha || core.value.state !== 'open') {
@@ -109,7 +138,7 @@ export class AgentMergeTools extends Disposable implements IAgentMergeToolAccess
 
 	private _assertCurrentCIContext(context: IAgentMergeTurnContext): void {
 		context.signal.throwIfAborted();
-		const current = this._requireTurnAction(context.session, 'fixCI');
+		const current = this._requireTurnAction(context.chat, 'fixCI');
 		if (ciScope(current) !== ciScope(context) || !current.configuration.fixCI) {
 			throw new Error('The CI diagnostic authorization changed during this read.');
 		}
@@ -117,7 +146,7 @@ export class AgentMergeTools extends Disposable implements IAgentMergeToolAccess
 
 	private async _ciRuns(context: IAgentMergeTurnContext): Promise<readonly GitHubWorkflowRun[]> {
 		const ids = new Set(failedRequiredChecks(context).map(workflowRunId));
-		const runs = await this._gitHubService.mutations.listWorkflowRuns(context.ref, context.headSha, context.signal);
+		const runs = await context.client.mutations.listWorkflowRuns(context.ref, context.headSha, context.signal);
 		this._assertCurrentCIContext(context);
 		return runs.filter(run => ids.has(run.id) && run.headSha === context.headSha);
 	}
@@ -126,7 +155,7 @@ export class AgentMergeTools extends Disposable implements IAgentMergeToolAccess
 		if (run.runAttemptKnown === false || !Number.isSafeInteger(run.runAttempt) || run.runAttempt < 1) {
 			return [];
 		}
-		const jobs = await this._gitHubService.mutations.listWorkflowJobs(context.ref, run.id, context.signal, run.runAttempt);
+		const jobs = await context.client.mutations.listWorkflowJobs(context.ref, run.id, context.signal, run.runAttempt);
 		this._assertCurrentCIContext(context);
 		return jobs.filter(job => job.runId === run.id && isFailedConclusion(job.conclusion)
 			&& !context.deferredCheckIds.has(job.checkRunId ?? job.id)
@@ -196,7 +225,7 @@ export class AgentMergeTools extends Disposable implements IAgentMergeToolAccess
 			let evidenceId: string | undefined;
 			if (index < checks.length) {
 				const check = checks[index];
-				const annotations = check.type === 'checkRun' ? await this._gitHubService.mutations.listCheckAnnotations(context.ref, check.id, context.signal) : [];
+				const annotations = check.type === 'checkRun' ? await context.client.mutations.listCheckAnnotations(context.ref, check.id, context.signal) : [];
 				const shown = annotations.slice(0, 3).map(annotation => ({
 					path: ciText(annotation.path, 150), startLine: annotation.startLine, endLine: annotation.endLine,
 					level: ciText(annotation.level, 40), message: ciText(annotation.message, 300), title: ciText(annotation.title, 100),
@@ -222,7 +251,7 @@ export class AgentMergeTools extends Disposable implements IAgentMergeToolAccess
 						break;
 					}
 					try {
-						const log = await this._gitHubService.mutations.downloadWorkflowJobLog(context.ref, job.id, context.signal);
+						const log = await context.client.mutations.downloadWorkflowJobLog(context.ref, job.id, context.signal);
 						this._assertCurrentCIContext(context);
 						entry = this._evidence.tryAdd(scope, run.runAttempt, job, log, context.signal, retainedEvidence);
 						if (!entry) {
@@ -293,14 +322,24 @@ export class AgentMergeTools extends Disposable implements IAgentMergeToolAccess
 			? `${body}\n\n> [!NOTE]\n> Automated reply by VS Code Agent Merge.`
 			: body;
 		this._logService.info(`[AgentMergeTools] Replying to authorized review thread: session=${session}, turn=${context.turnId}, resolve=${resolve}, attribution=${context.configuration.replyAttribution}`);
-		const result = await this._gitHubService.mutations.replyAndResolveThread(context.ref, {
+		const reply = context.client.mutations.replyAndResolveThread(context.ref, {
 			operationId: `agent-merge:${context.turnId}:${threadId}`,
 			threadId,
 			body: attributedBody,
 			resolve,
 		}, context.signal);
+		context.trackReviewReply(reply);
+		const result = await reply;
 		this._logService.info(`[AgentMergeTools] Review thread reply completed: session=${session}, turn=${context.turnId}, replyOutcome=${result.reply.outcome}, resolved=${result.resolved}`);
-		return JSON.stringify({ reply: result.reply.outcome, resolved: result.resolved, resolveError: result.resolveError });
+		const message = result.reply.outcome === 'pending'
+			? 'The reply was saved to a pending GitHub review and is not published. Agent Merge will stop monitoring this folder after the current turn. Resuming requires the user to explicitly re-enable Agent Merge.'
+			: result.reply.outcome === 'indeterminate'
+				? 'Could not confirm whether the reply was published.'
+				: undefined;
+		return JSON.stringify({
+			reply: result.reply.outcome, resolved: result.resolved, resolveError: result.resolveError,
+			...(message ? { message: `${message} The thread was not resolved. Do not retry the reply or submit, discard, or replace the user's pending review. Ask the user how to proceed.` } : {}),
+		});
 	}
 
 	async rerunFailedWorkflow(session: string, runId: string, failedJobsOnly: boolean): Promise<string> {
@@ -309,7 +348,7 @@ export class AgentMergeTools extends Disposable implements IAgentMergeToolAccess
 		if (failedChecks.length === 0) {
 			throw new Error('The workflow run is not associated with a failed required check in this Agent Merge turn.');
 		}
-		const runs = await this._gitHubService.mutations.listWorkflowRuns(context.ref, context.headSha, context.signal);
+		const runs = await context.client.mutations.listWorkflowRuns(context.ref, context.headSha, context.signal);
 		const run = runs.find(candidate => candidate.id === runId && candidate.headSha === context.headSha);
 		if (!run) {
 			throw new Error('The workflow run is no longer available for this pull request head.');
@@ -336,7 +375,7 @@ export class AgentMergeTools extends Disposable implements IAgentMergeToolAccess
 			});
 		}
 		this._logService.info(`[AgentMergeTools] Rerunning failed workflow: session=${session}, turn=${context.turnId}, failedJobsOnly=${failedJobsOnly}, currentAttempt=${run.runAttempt}`);
-		const result = await this._gitHubService.mutations.rerunWorkflow(context.ref, options, context.signal);
+		const result = await context.client.mutations.rerunWorkflow(context.ref, options, context.signal);
 		this._logService.info(`[AgentMergeTools] Workflow rerun requested: session=${session}, turn=${context.turnId}, outcome=${result.outcome}`);
 		return JSON.stringify({ outcome: result.outcome, run: result.value });
 	}

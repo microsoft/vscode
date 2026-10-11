@@ -410,6 +410,10 @@ export class TimelinePane extends ViewPane {
 	private onProvidersChanged(e: TimelineProvidersChangeEvent) {
 		if (e.removed) {
 			for (const source of e.removed) {
+				const pendingRequest = this.pendingRequests.get(source);
+				this.pendingRequests.delete(source);
+				pendingRequest?.request.tokenSource.cancel();
+				pendingRequest?.dispose();
 				this.timelinesBySource.delete(source);
 			}
 
@@ -620,7 +624,11 @@ export class TimelinePane extends ViewPane {
 		const disposables = new DisposableStore();
 		this.pendingRequests.set(source, { request: newRequest, dispose: () => disposables.dispose() });
 		disposables.add(tokenSource);
-		disposables.add(tokenSource.token.onCancellationRequested(() => this.pendingRequests.delete(source)));
+		disposables.add(tokenSource.token.onCancellationRequested(() => {
+			if (this.pendingRequests.get(source)?.request === newRequest) {
+				this.pendingRequests.delete(source);
+			}
+		}));
 
 		this.handleRequest(newRequest);
 
@@ -650,11 +658,13 @@ export class TimelinePane extends ViewPane {
 			// Ignore
 		}
 
-		// If the request was cancelled then it was already deleted from the pendingRequests map
-		if (!request.tokenSource.token.isCancellationRequested) {
-			this.pendingRequests.get(request.source)?.dispose();
-			this.pendingRequests.delete(request.source);
+		// Ignore cancelled or replaced requests, including results from removed providers.
+		const pendingRequest = this.pendingRequests.get(request.source);
+		if (pendingRequest?.request !== request) {
+			return;
 		}
+		this.pendingRequests.delete(request.source);
+		pendingRequest.dispose();
 
 		if (response === undefined || request.uri !== this.uri) {
 			if (this.pendingRequests.size === 0 && this._pendingRefresh) {
