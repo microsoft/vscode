@@ -430,7 +430,7 @@ export class TabbedModelPicker extends Disposable {
 	 */
 	private _hydraFusionModels(context: ITabbedModelPickerContext): ILanguageModelChatMetadataAndIdentifier[] {
 		return [...COPILOT_HYDRA_FUSION_MODEL_NAMES.keys()]
-			.map(id => context.models.find(model => model.metadata.id === id && !isUserProvidedModel(model, this._languageModelsService) && !requiresNewerVSCode(model, context.controlModels, context.unavailableContext.currentVSCodeVersion)))
+			.map(id => context.models.find(model => model.metadata.id === id && isHydraFusionModel(model) && !isUserProvidedModel(model, this._languageModelsService) && !requiresNewerVSCode(model, context.controlModels, context.unavailableContext.currentVSCodeVersion)))
 			.filter((model): model is ILanguageModelChatMetadataAndIdentifier => !!model);
 	}
 

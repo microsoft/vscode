@@ -23,7 +23,7 @@ import { getToolKind as getProtocolToolKind } from '../../../../../../platform/a
 import { copilotCliToolInputContract, readToolCallMeta, readToolCallPresentation, type IAgentToolOutputChunk } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
 import { readImageGenerationToolMetadata } from '../../../../../../platform/agentHost/common/meta/agentImageGenerationMeta.js';
 import { readAttachmentDetail } from '../../../../../../platform/agentHost/common/meta/attachmentMeta.js';
-import { COPILOT_HYDRA_FUSION_MODEL_ID, isCopilotHydraFusionModelId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { COPILOT_HYDRA_FUSION_MODEL_ID } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { getChatErrorDetailsFromMeta, IChatErrorContext } from '../../../common/chatErrorMessages.js';
 import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../common/aiCustomizationWorkspaceService.js';
 import { AGENT_HOST_SCHEME, createAgentHostResourceUriMapper, type IAgentHostResourceUriMapper, toAgentHostContentUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
@@ -779,6 +779,8 @@ export interface TurnModelLookup {
 	toModelDisplayName?(rawModelId: string): string | undefined;
 	/** Resolves response details, optionally naming an orchestration model without rewriting billed usage. */
 	toResponseDetails(rawModelId: string | undefined, usage: UsageInfo | undefined, responseModelId?: string): string | undefined;
+	/** Whether a raw AHP model id names this provider's fusion routing model. */
+	isFusionModel?(rawModelId: string | undefined): boolean;
 	/** Returns the Auto model routing part carried by this usage report, if any. */
 	toAutoModeResolution?(usage: UsageInfo | undefined): IChatAutoModeResolutionPart | undefined;
 	/**
@@ -803,8 +805,9 @@ export interface ITurnResponseModel {
 
 /** Fusion is the response-level model; constituent models remain in phase pills and usage. */
 export function turnToResponseDetails(turn: Turn | ActiveTurn | undefined, lookup?: TurnModelLookup): string | undefined {
+	const isFusionModel = (modelId: string | undefined) => lookup?.isFusionModel?.(modelId) ?? false;
 	const selectedModelId = turn?.message.model?.id;
-	let isFusion = isCopilotHydraFusionModelId(selectedModelId);
+	let isFusion = isFusionModel(selectedModelId);
 	// Turns selected as Auto, or restored without a model, learn which fusion model ran from its progress.
 	let reportedModelId: string | undefined;
 	for (const part of turn?.responseParts ?? []) {
@@ -814,11 +817,11 @@ export function turnToResponseDetails(turn: Turn | ActiveTurn | undefined, looku
 			const meta = readAgentSystemNotificationMeta(part);
 			if (meta.kind === AgentSystemNotificationKind.FusionProgress) {
 				isFusion = true;
-				reportedModelId ??= isCopilotHydraFusionModelId(meta.fusionModel) ? meta.fusionModel : undefined;
+				reportedModelId ??= isFusionModel(meta.fusionModel) ? meta.fusionModel : undefined;
 			}
 		}
 	}
-	const fusionModelId = reportedModelId ?? (isCopilotHydraFusionModelId(selectedModelId) ? selectedModelId : COPILOT_HYDRA_FUSION_MODEL_ID);
+	const fusionModelId = reportedModelId ?? (isFusionModel(selectedModelId) ? selectedModelId : COPILOT_HYDRA_FUSION_MODEL_ID);
 	return lookup?.toResponseDetails(turn?.usage?.model, turn?.usage, isFusion ? fusionModelId : undefined);
 }
 

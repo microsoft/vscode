@@ -82,12 +82,12 @@ function createAutoModel(): ILanguageModelChatMetadataAndIdentifier {
 
 function createHydraFusionModel(): ILanguageModelChatMetadataAndIdentifier {
 	const hydra = model('hydrafusion', false);
-	return { ...hydra, metadata: { ...hydra.metadata, name: 'HydraFusion', detail: 'Research preview', tooltip: 'HydraFusion routes the first eligible turn and may use multiple models. Premium usage varies with the selected route.' } };
+	return { ...hydra, metadata: { ...hydra.metadata, name: 'HydraFusion', modelGroup: { id: 'copilotcli' }, detail: 'Research preview', tooltip: 'HydraFusion routes the first eligible turn and may use multiple models. Premium usage varies with the selected route.' } };
 }
 
 function createHydraFusionMaxModel(): ILanguageModelChatMetadataAndIdentifier {
 	const max = model('hydrafusion-max', false);
-	return { ...max, metadata: { ...max.metadata, name: 'HydraFusion Max', detail: 'Research preview' } };
+	return { ...max, metadata: { ...max.metadata, name: 'HydraFusion Max', modelGroup: { id: 'copilotcli' }, detail: 'Research preview' } };
 }
 
 suite('TabbedModelPicker', () => {
@@ -800,6 +800,14 @@ suite('TabbedModelPicker', () => {
 			readout: 'HydraFusion Max',
 			selections: [max.identifier],
 		});
+	});
+
+	test('another provider\'s model with a HydraFusion id is not one of Auto\'s tiers', () => {
+		const otherBase = createHydraFusionMaxModel();
+		const other = { ...otherBase, identifier: 'claude/hydrafusion-max', metadata: { ...otherBase.metadata, name: 'Other Max', modelGroup: { id: 'claude' } } };
+		const result = createPicker({ models: [...models, createAutoModel(), createHydraFusionModel(), other], selectedModelId: models[0].identifier });
+		openDetails(result.popup, 'Auto');
+		assert.deepStrictEqual(autoTiers(result.popup), ['Efficiency', 'Balance', 'Intelligence', 'HydraFusion']);
 	});
 
 	test('rapid tier edits save in order and report the actual previous values', async () => {

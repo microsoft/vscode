@@ -6,6 +6,7 @@
 import { localize } from '../../../../../../../nls.js';
 import { IStringDictionary } from '../../../../../../../base/common/collections.js';
 import { COPILOT_HYDRA_FUSION_MODEL_ID, isCopilotHydraFusionModelId } from '../../../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { COPILOT_CLI_AGENT_PROVIDER_ID } from '../../../../../../../platform/agentHost/common/agent.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry, isAutoLanguageModel, isUserProvidedModel } from '../../../../common/languageModels.js';
 import { ChatEntitlement } from '../../../../../../services/chat/common/chatEntitlementService.js';
 
@@ -13,9 +14,9 @@ export function isAutoModel(model: ILanguageModelChatMetadataAndIdentifier): boo
 	return isAutoLanguageModel(model);
 }
 
-/** Whether the model is a HydraFusion research preview (HydraFusion or HydraFusion Max), which the picker offers among Auto's tiers. */
+/** Whether the model is a Copilot CLI HydraFusion research preview (HydraFusion or HydraFusion Max), which the picker offers among Auto's tiers. */
 export function isHydraFusionModel(model: ILanguageModelChatMetadataAndIdentifier): boolean {
-	return isCopilotHydraFusionModelId(model.metadata.id);
+	return model.metadata.modelGroup?.id === COPILOT_CLI_AGENT_PROVIDER_ID && isCopilotHydraFusionModelId(model.metadata.id);
 }
 
 /** Whether the plan offers built-in HydraFusion only as an upgrade, never as a choice. */
@@ -42,7 +43,7 @@ export function filterModelPickerControlModelsForEntitlement(
 	}
 	const hydraFusion = controlModels[COPILOT_HYDRA_FUSION_MODEL_ID];
 	// One upsell stands for every HydraFusion model, so it takes the base model's name.
-	const liveHydraFusion = models.find(model => model.metadata.id === COPILOT_HYDRA_FUSION_MODEL_ID && !isUserProvidedModel(model, languageModelsService));
+	const liveHydraFusion = models.find(model => model.metadata.id === COPILOT_HYDRA_FUSION_MODEL_ID && isHydraFusionModel(model) && !isUserProvidedModel(model, languageModelsService));
 	if (!liveHydraFusion) {
 		if (!hydraFusion) {
 			return controlModels;

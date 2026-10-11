@@ -245,8 +245,8 @@ suite('ModelCard', () => {
 	});
 
 	test('Auto details end with routing alternatives that are selected and described rather than saved', async () => {
-		const hydraFusion = { ...createModel({ id: 'hydrafusion', name: 'HydraFusion', detail: 'Research preview', configurationSchema: undefined }), identifier: 'copilot/hydrafusion' };
-		const hydraFusionMax = { ...createModel({ id: 'hydrafusion-max', name: 'HydraFusion Max', detail: 'Research preview', configurationSchema: undefined }), identifier: 'copilot/hydrafusion-max' };
+		const hydraFusion = { ...createModel({ id: 'hydrafusion', name: 'HydraFusion', modelGroup: { id: 'copilotcli' }, detail: 'Research preview', configurationSchema: undefined }), identifier: 'copilot/hydrafusion' };
+		const hydraFusionMax = { ...createModel({ id: 'hydrafusion-max', name: 'HydraFusion Max', modelGroup: { id: 'copilotcli' }, detail: 'Research preview', configurationSchema: undefined }), identifier: 'copilot/hydrafusion-max' };
 		const alternatives = (selected?: ILanguageModelChatMetadataAndIdentifier): IModelCardOptions['routingAlternatives'] => [hydraFusion, hydraFusionMax].map(model => ({
 			model,
 			description: `${model.metadata.name} is a research preview.`,
@@ -988,7 +988,7 @@ suite('ModelCard', () => {
 	test('routing models retain their descriptive badge without advertising a fixed context window', () => {
 		const result = createCard({}, {
 			model: createModel({
-				id: 'hydrafusion', name: 'HydraFusion', detail: 'Research preview',
+				id: 'hydrafusion', name: 'HydraFusion', modelGroup: { id: 'copilotcli' }, detail: 'Research preview',
 				configurationSchema: undefined, maxContextWindowTokens: 200000,
 			})
 		});
