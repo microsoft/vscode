@@ -83,18 +83,18 @@ export class AgentHostCopilotCliSettingsContribution extends Disposable implemen
 			},
 			{
 				key: CopilotCliConfigKey.HydraFusion,
-				computeValue: () => this._getHydraFusionSettingValue() !== false,
+				computeValue: () => this._isEnsembleEnabled() || this._getHydraFusionSettingValue() !== false,
 				registerTriggers: (store, push) => {
 					this._pushOnSettingChange(store, push, AgentHostHydraFusionEnabledSettingId);
+					this._pushOnSettingChange(store, push, AgentHostEnsembleEnabledSettingId);
 					store.add(this._defaultAccountService.onDidChangePolicyData(push));
 				},
 			},
 			{
 				key: CopilotCliConfigKey.HydraFusionV2,
-				// Ensemble's Max needs HydraFusion v2.
 				computeValue: () => {
 					const hydraFusion = this._getHydraFusionSettingValue();
-					return hydraFusion === 'v2' || (hydraFusion === true && this._isEnsembleEnabled());
+					return hydraFusion === 'v2' || this._isEnsembleEnabled();
 				},
 				registerTriggers: (store, push) => {
 					this._pushOnSettingChange(store, push, AgentHostHydraFusionEnabledSettingId);

@@ -9162,7 +9162,7 @@ suite('CopilotAgent', () => {
 			});
 		});
 
-		test('under Ensemble, offers runtime-listed HydraFusion models only as their settings enable', async () => {
+		test('under Ensemble, offers runtime-listed HydraFusion models even when HydraFusion is otherwise disabled', async () => {
 			const published = async (rootConfig: Record<string, unknown>) => {
 				const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }, { id: 'hydrafusion', name: 'HydraFusion' }, { id: 'hydrafusion-max', name: 'HydraFusion Max' }]);
 				const { agent } = createTestAgentContext(disposables, { copilotClient: client, rootConfig: { [CopilotCliConfigKey.Ensemble]: true, ...rootConfig } });
@@ -9178,10 +9178,12 @@ suite('CopilotAgent', () => {
 				off: await published({}),
 				v1: await published({ [CopilotCliConfigKey.HydraFusion]: true }),
 				v2: await published({ [CopilotCliConfigKey.HydraFusion]: true, [CopilotCliConfigKey.HydraFusionV2]: true }),
+				disabled: await published({ [CopilotCliConfigKey.HydraFusion]: false, [CopilotCliConfigKey.HydraFusionV2]: false }),
 			}, {
-				off: ['auto'],
-				v1: ['auto', 'hydrafusion'],
+				off: ['auto', 'hydrafusion', 'hydrafusion-max'],
+				v1: ['auto', 'hydrafusion', 'hydrafusion-max'],
 				v2: ['auto', 'hydrafusion', 'hydrafusion-max'],
+				disabled: ['auto', 'hydrafusion', 'hydrafusion-max'],
 			});
 		});
 
