@@ -401,8 +401,9 @@ jobs:
 
       - name: Verify native OSS inputs and run holder probe
         if: ${{ inputs.holder_probe }}
+        id: oss-output
         timeout-minutes: 30
-        run: node test/integration/agentHost/ossProbe.ts${{ inputs.holder_registration_only && ' --registration-only' || '' }}
+        run: node test/integration/agentHost/ossOutput.ts${{ inputs.holder_registration_only && ' --registration-only' || '' }}
         env:
           DISPLAY: ":10"
           VSCODE_SKIP_PRELAUNCH: '1'
@@ -502,7 +503,7 @@ jobs:
 
       - name: Publish Crash Reports
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        if: failure()
+        if: ${{ failure() && !inputs.holder_probe }}
         continue-on-error: true
         with:
           name: ${{ format('crash-dump-linux-{0}-{1}-{2}', env.VSCODE_ARCH, env.ARTIFACT_NAME, github.run_attempt) }}
@@ -513,7 +514,7 @@ jobs:
       # (if any), we need the compiled native modules too
       - name: Publish Node Modules
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        if: failure()
+        if: ${{ failure() && !inputs.holder_probe }}
         continue-on-error: true
         with:
           name: ${{ format('node-modules-linux-{0}-{1}-{2}', env.VSCODE_ARCH, env.ARTIFACT_NAME, github.run_attempt) }}
@@ -522,9 +523,9 @@ jobs:
 
       - name: Publish Log Files
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        if: always()
+        if: ${{ always() && (!inputs.holder_probe || steps.oss-output.outputs.privacy_verified == 'true') }}
         continue-on-error: true
         with:
           name: ${{ format('logs-linux-{0}-{1}-{2}', env.VSCODE_ARCH, env.ARTIFACT_NAME, github.run_attempt) }}
-          path: .build/logs
+          path: ${{ inputs.holder_probe && '.build/oss-public/evidence.jsonl' || '.build/logs' }}
           if-no-files-found: ignore

@@ -16,7 +16,15 @@ cleanup() {
 	local status=$?
 	trap - EXIT
 	if [[ "$MOUNTED" == true ]]; then
-		if ! sudo -n umount -- "$TEST_TMPDIR"; then
+		if sudo -n umount -- "$TEST_TMPDIR"; then
+			if [[ -n "${AGENT_HOST_OSS_STORAGE_EVENTS:-}" ]]; then
+				printf '{"kind":"unmount","status":0}\n' >> "$AGENT_HOST_OSS_STORAGE_EVENTS"
+			fi
+		else
+			local unmount_status=$?
+			if [[ -n "${AGENT_HOST_OSS_STORAGE_EVENTS:-}" ]]; then
+				printf '{"kind":"unmount","status":%d}\n' "$unmount_status" >> "$AGENT_HOST_OSS_STORAGE_EVENTS"
+			fi
 			echo "Failed to unmount Agent Host test tmpfs: $TEST_TMPDIR" >&2
 			echo "Agent Host tmpfs mount holders (PID, command, and access type):" >&2
 			if sudo -n timeout --signal=KILL 10s fuser -vm "$TEST_TMPDIR" >&2; then

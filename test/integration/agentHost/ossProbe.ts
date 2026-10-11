@@ -27,13 +27,24 @@ const entrypoints = [
 	{ file: 'providers/copilotManagedSettingsAgentHostE2E', title: 'Agent Host E2E \u2014 Copilot managed-settings diagnostics' },
 ];
 
+let activeGate = 'historical-oss-source';
+
+function reportPhase(gate: string, result: string, status?: number, signal?: NodeJS.Signals | null, errorClass?: string): void {
+	if (process.send) {
+		process.send({ gate, result, ...(status === undefined ? {} : { status }), ...(signal === undefined ? {} : { signal }), ...(errorClass === undefined ? {} : { errorClass }) });
+	}
+}
+
 function run(gate: string, command: string, args: readonly string[], env: NodeJS.ProcessEnv = process.env): number {
+	activeGate = gate;
+	reportPhase(gate, 'started');
 	console.log(JSON.stringify({ gate, result: 'started' }));
 	const result = spawnSync(command, args, { cwd: root, env, stdio: 'inherit' });
 	if (result.error) {
 		throw result.error;
 	}
 	const status = result.status ?? 1;
+	reportPhase(gate, status === 0 ? 'passed' : 'failed', status, result.signal);
 	console.log(JSON.stringify({ gate, result: status === 0 ? 'passed' : 'failed', status, signal: result.signal }));
 	return status;
 }
@@ -177,6 +188,8 @@ function main(): void {
 	if (process.argv[2] === '--source-only' || process.argv[2] === '--fresh-source-only') {
 		return;
 	}
+	activeGate = 'native-inputs';
+	reportPhase(activeGate, 'started');
 	verifyNative();
 	const registrationValidator: {
 		readRegistrationReceipt(output: string, module: string, title: string): { module: string; total: number; suites: { title: string; tests: number }[] };
@@ -240,6 +253,7 @@ function main(): void {
 				}
 			}
 		} finally {
+			activeGate = 'owned-cleanup';
 			const after = hashes(directory);
 			fs.writeFileSync(path.join(logs, 'oss-fixtures-after.json'), JSON.stringify(after));
 			assert.deepEqual(after, before, 'Strict replay must not change fixtures');
@@ -254,4 +268,12 @@ function main(): void {
 	}
 }
 
-main();
+try {
+	main();
+} catch (error) {
+	const code = error instanceof Error ? (error as NodeJS.ErrnoException).code : undefined;
+	const errorClass = error instanceof assert.AssertionError ? 'AssertionError' : error instanceof SyntaxError ? 'SyntaxError' : code && ['ENOENT', 'EACCES', 'EEXIST', 'EIO', 'ENOSPC'].includes(code) ? code : 'Error';
+	reportPhase(activeGate, 'failed', 1, undefined, errorClass);
+	console.error(error);
+	process.exitCode = 1;
+}

@@ -43,9 +43,9 @@ test('reusable recipe keeps normal behavior and isolates probe cache and 50/30-m
 	assert.equal(normal?.run, './scripts/test-integration.sh --tfs "Integration Tests"');
 	const probe = job.steps!.find(step => step.name === 'Verify native OSS inputs and run holder probe');
 	assert.equal(probe?.if, '${{ inputs.holder_probe }}');
-	assert.equal(probe?.run, 'node test/integration/agentHost/ossProbe.ts${{ inputs.holder_registration_only && \' --registration-only\' || \'\' }}');
+	assert.equal(probe?.run, 'node test/integration/agentHost/ossOutput.ts${{ inputs.holder_registration_only && \' --registration-only\' || \'\' }}');
 	const raw = fs.readFileSync(path.join(root, '.github/workflows/pr-linux-test.yml'), 'utf8');
-	assert.ok(raw.includes('timeout-minutes: 30\n        run: node test/integration/agentHost/ossProbe.ts'));
+	assert.ok(raw.includes('timeout-minutes: 30\n        run: node test/integration/agentHost/ossOutput.ts'));
 	for (const name of ['Restore node_modules cache', 'Restore built-in extensions cache', 'Setup Electron', 'Prepare built-in extensions cache key', 'Download built-in extensions', 'Transpile client and extensions', 'Compile extensions for integration tests & smoke tests']) {
 		assert.ok(job.steps!.find(step => step.name === name)?.if?.includes('!inputs.holder_probe'), `Probe must not restore cache through ${name}`);
 	}
@@ -72,6 +72,9 @@ test('holder_probe false preserves every original normal step, command, environm
 			return undefined;
 		}
 		let result = condition.replace(/^\$\{\{\s*|\s*\}\}$/g, '').replace(/ && !inputs\.holder_probe/g, '').trim();
+		if (result === 'always() && (!inputs.holder_probe || steps.oss-output.outputs.privacy_verified == \'true\')') {
+			return 'always()';
+		}
 		if (result === '!inputs.holder_probe') {
 			return undefined;
 		}
@@ -83,6 +86,9 @@ test('holder_probe false preserves every original normal step, command, environm
 	job.steps = job.steps!.filter(step => step.if !== '${{ inputs.holder_probe }}');
 	for (const workflow of [candidate, original]) {
 		for (const step of workflow.jobs['linux-test'].steps!) {
+			if (step.name === 'Publish Log Files' && step.with?.path === '${{ inputs.holder_probe && \'.build/oss-public/evidence.jsonl\' || \'.build/logs\' }}') {
+				step.with.path = '.build/logs';
+			}
 			const condition = normalize(step.if);
 			if (condition) {
 				step.if = condition;
