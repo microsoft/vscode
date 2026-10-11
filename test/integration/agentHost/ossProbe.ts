@@ -85,11 +85,18 @@ function verifyNative(): void {
 	assert.equal(os.machine(), 'x86_64');
 	assert.ok(!fs.existsSync('/run/rosetta'));
 	assert.ok(!fs.lstatSync(path.join(root, 'node_modules')).isSymbolicLink(), 'Never use shared or symlinked dependencies');
+	assert.ok(!fs.existsSync(path.join(root, '.build/node_modules_cache')), 'No dependency-cache archive may be restored for this round');
+	const freshCache = process.env.AGENT_HOST_OSS_FRESH_CACHE;
+	assert.ok(freshCache && process.env.RUNNER_TEMP && process.env.GITHUB_RUN_ID && process.env.GITHUB_RUN_ATTEMPT, 'Require the owned per-run cache receipt');
+	const expectedCache = path.join(process.env.RUNNER_TEMP, `oss-holder-${process.env.GITHUB_RUN_ID}-${process.env.GITHUB_RUN_ATTEMPT}`);
+	assert.equal(fs.realpathSync(freshCache), fs.realpathSync(expectedCache));
+	assert.equal(process.env.XDG_CACHE_HOME, freshCache);
+	assert.equal(process.env.npm_config_cache, path.join(freshCache, 'npm'));
 	for (const key of Object.keys(process.env)) {
 		assert.ok(!/(?:electron_)(?:mirror|nightly_?mirror|custom_?dir|custom_?filename|custom_?version)$/i.test(key) || !process.env[key], `Unexpected asset override: ${key}`);
 	}
 	const lock: { packages: Record<string, { version: string; integrity: string }> } = JSON.parse(fs.readFileSync(path.join(root, 'package-lock.json'), 'utf8'));
-	assert.ok(process.env.NODE_MODULES_CACHE_KEY?.startsWith('tmpfs-holder-oss-node-modules-linux-'), 'Dependency cache must use the separate reviewed OSS namespace');
+	assert.equal(process.env.NODE_MODULES_CACHE_KEY, 'fresh-uncached-oss-linux-x64');
 	const versions: Record<string, string> = { '@github/copilot-sdk': '1.0.18-preview.5', '@github/copilot-sdk-linux-x64': '1.0.18-preview.5', '@anthropic-ai/claude-agent-sdk': '0.3.281', '@anthropic-ai/claude-agent-sdk-linux-x64': '0.3.281', '@openai/codex': '0.157.0', '@openai/codex-linux-x64': '0.157.0-linux-x64', '@vscode/sqlite3': '5.1.12-vscode', 'node-pty': '1.2.0-beta.15' };
 	const packageIntegrity: Record<string, string> = {};
 	for (const [name, version] of Object.entries(versions)) {
@@ -135,8 +142,13 @@ function verifyNative(): void {
 
 function main(): void {
 	fs.mkdirSync(logs, { recursive: true });
+	if (process.argv[2] === '--fresh-source-only') {
+		for (const directory of ['node_modules', 'build/node_modules', 'remote/node_modules', '.build/node_modules_cache', '.build/electron', '.build/typings']) {
+			assert.ok(!fs.existsSync(path.join(root, directory)), `Fresh worker input must not preexist: ${directory}`);
+		}
+	}
 	const source = verifySource();
-	if (process.argv[2] === '--source-only') {
+	if (process.argv[2] === '--source-only' || process.argv[2] === '--fresh-source-only') {
 		return;
 	}
 	verifyNative();

@@ -56,7 +56,15 @@ jobs:
 
       - name: Verify historical OSS source inputs
         if: ${{ inputs.holder_probe }}
-        run: node test/integration/agentHost/ossProbe.ts --source-only
+        run: |
+          set -e
+          CACHE="$RUNNER_TEMP/oss-holder-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          mkdir "$CACHE"
+          echo "XDG_CACHE_HOME=$CACHE" >> "$GITHUB_ENV"
+          echo "npm_config_cache=$CACHE/npm" >> "$GITHUB_ENV"
+          echo "AGENT_HOST_OSS_FRESH_CACHE=$CACHE" >> "$GITHUB_ENV"
+          echo "NODE_MODULES_CACHE_KEY=fresh-uncached-oss-linux-x64" >> "$GITHUB_ENV"
+          node test/integration/agentHost/ossProbe.ts --fresh-source-only
 
       - name: Setup system services
         run: |
@@ -81,10 +89,11 @@ jobs:
           sudo service xvfb start
 
       - name: Restore node_modules cache
+        if: ${{ !inputs.holder_probe }}
         id: cache-node-modules
         uses: ./.github/actions/restore-node-modules
         with:
-          key-prefix: ${{ inputs.holder_probe && 'tmpfs-holder-oss-node-modules-linux' || 'node_modules-linux' }}
+          key-prefix: node_modules-linux
           key-args: "linux ${{ env.VSCODE_ARCH }} $(node -p process.arch)"
 
       - name: Install build dependencies
@@ -133,6 +142,7 @@ jobs:
         run: node build/azure-pipelines/common/computeBuiltInDepsCacheKey.ts > .build/builtindepshash
 
       - name: Restore built-in extensions cache
+        if: ${{ !inputs.holder_probe }}
         id: cache-builtin-extensions
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -269,10 +279,16 @@ jobs:
         run: npm run gulp transpile-client-esbuild transpile-extensions
 
       - name: Setup Electron
-        if: ${{ inputs.electron_tests || inputs.remote_tests }}
+        if: ${{ (inputs.electron_tests || inputs.remote_tests) && !inputs.holder_probe }}
         uses: ./.github/actions/setup-electron
         with:
           arch: ${{ env.VSCODE_ARCH }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Prepare public Electron without cache restore
+        if: ${{ inputs.holder_probe }}
+        run: npm run electron -- x64
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

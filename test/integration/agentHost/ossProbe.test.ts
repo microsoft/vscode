@@ -44,7 +44,11 @@ test('reusable recipe keeps normal behavior and isolates probe cache and 50/30-m
 	assert.equal(probe?.run, 'node test/integration/agentHost/ossProbe.ts');
 	const raw = fs.readFileSync(path.join(root, '.github/workflows/pr-linux-test.yml'), 'utf8');
 	assert.ok(raw.includes('timeout-minutes: 30\n        run: node test/integration/agentHost/ossProbe.ts'));
-	assert.ok(raw.includes('\'tmpfs-holder-oss-node-modules-linux\''));
+	for (const name of ['Restore node_modules cache', 'Restore built-in extensions cache', 'Setup Electron']) {
+		assert.ok(job.steps!.find(step => step.name === name)?.if?.includes('!inputs.holder_probe'), `Probe must not restore cache through ${name}`);
+	}
+	assert.equal(job.steps!.find(step => step.name === 'Prepare public Electron without cache restore')?.run, 'npm run electron -- x64');
+	assert.ok(raw.includes('NODE_MODULES_CACHE_KEY=fresh-uncached-oss-linux-x64'));
 	assert.ok(!/download-distro|mixin-quality|downloadCopilotVsix|product-build-linux-ci/.test(raw));
 });
 
@@ -56,6 +60,12 @@ test('historical source input gate succeeds without reading or mutating shared n
 	assert.equal(source.manifest['build/checksums/electron.txt'], 'db0d5b3a22eec49beeb718942448022ad9448c100d7bb09c1ade01cd9ccffb3b');
 	assert.ok(source.manifest['build/npm/electronTypes.ts']);
 	assert.ok(source.manifest['build/linux/libcxx-fetcher.ts']);
+});
+
+test('fresh-worker gate rejects inherited dependencies before any build or workload', () => {
+	const result = spawnSync(process.execPath, [path.join(__dirname, 'ossProbe.ts'), '--fresh-source-only'], { cwd: root, encoding: 'utf8' });
+	assert.equal(result.status, 1);
+	assert.ok(result.stderr.includes('Fresh worker input must not preexist: node_modules'));
 });
 
 test('reviewed public archive and checksum manifests remain internally consistent with historical OSS', () => {
