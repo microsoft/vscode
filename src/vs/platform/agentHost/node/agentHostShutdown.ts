@@ -42,11 +42,13 @@ export async function flushAgentHostPersistenceBeforeShutdown(
 	timeoutMs: number,
 	logService: Pick<ILogService, 'error' | 'warn'>,
 ): Promise<void> {
-	try {
-		await raceTimeout(Promise.all(flushes), timeoutMs, () => {
-			logService.warn('[AgentHostServer] Timed out waiting for persistence writes to flush; exiting anyway.');
-		});
-	} catch (error) {
-		logService.error('[AgentHostServer] Failed to flush persistence writes during shutdown; exiting anyway.', error);
-	}
+	await raceTimeout(Promise.all(flushes.map(async flush => {
+		try {
+			await flush;
+		} catch (error) {
+			logService.error('[AgentHostServer] Failed to flush persistence writes during shutdown; exiting anyway.', error);
+		}
+	})), timeoutMs, () => {
+		logService.warn('[AgentHostServer] Timed out waiting for persistence writes to flush; exiting anyway.');
+	});
 }

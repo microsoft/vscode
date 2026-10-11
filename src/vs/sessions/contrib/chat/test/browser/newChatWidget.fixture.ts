@@ -27,7 +27,6 @@ import { ExtensionIdentifier } from '../../../../../platform/extensions/common/e
 import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { TABBED_MODEL_PICKER_SETTING_ID } from '../../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerWidget.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
@@ -308,7 +307,6 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		[NEW_SESSION_WELCOME_PHRASES_SETTING]: welcomePhrases,
 		[NEW_SESSION_WELCOME_MESSAGES_SETTING]: welcomePhrases ? { mode: 'replace', phrases: ['Let\'s ship something'] } : undefined,
 		[ChatConfiguration.ExperimentalModePermissionsPicker]: withControlPickers,
-		[TABBED_MODEL_PICKER_SETTING_ID]: experimentalComposerLayout && withConfiguredModel,
 		[UNIFIED_WORKSPACE_PICKER_SETTING]: unifiedWorkspacePicker,
 		[EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING]: experimentalComposerLayout,
 		[COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING]: collapsedSessionOptionsShowIcons,
@@ -517,9 +515,6 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		},
 	});
 	await instantiationService.get(IConfigurationService).updateValue(COMPARE_AGENTS_ENABLED_SETTING, true);
-	if (openComparisonSetup) {
-		await instantiationService.get(IConfigurationService).updateValue(TABBED_MODEL_PICKER_SETTING_ID, true);
-	}
 
 	container.style.width = `${width}px`;
 	container.style.height = `${height}px`;
@@ -1418,8 +1413,6 @@ function createFixtureProvider(workspace: ISessionWorkspace, sessionTypes: reado
 
 		override getModelPickerOptions() {
 			return {
-				useGroupedModelPicker: true,
-				showFeatured: false,
 				showUnavailableFeatured: false,
 				showManageModelsAction: false,
 				showAutoModel: !models.length || models.some(model => model.metadata.id === 'auto'),

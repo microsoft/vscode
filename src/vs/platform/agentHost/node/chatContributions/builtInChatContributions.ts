@@ -14,6 +14,7 @@ import { ChatSurfaceContribution } from './chatSurface/chatSurfaceContribution.j
 import { CheckpointAndChangesetContribution } from './checkpointAndChangeset/checkpointAndChangesetContribution.js';
 import { ExternalSessionAdoptionContribution } from './externalSessionAdoption/externalSessionAdoptionContribution.js';
 import { GitHubReferencesContribution } from './githubReferences/githubReferencesContribution.js';
+import { GitRepositoryRootsContribution } from './gitRepositoryRoots/gitRepositoryRootsContribution.js';
 import { LocalCommandContribution } from './localCommand/localCommandContribution.js';
 import { MarkdownPlanRichLinksContribution } from './markdownPlanRichLinks/markdownPlanRichLinksContribution.js';
 import { MarkUnreadContribution } from './markUnread/markUnreadContribution.js';
@@ -42,6 +43,7 @@ export function registerBuiltInChatContributions(
 	registrations.add(contributions.registerContribution(LocalCommandContribution));
 	registrations.add(contributions.registerContribution(ExternalSessionAdoptionContribution));
 	registrations.add(contributions.registerContribution(TurnAdmissionContribution));
+	registrations.add(contributions.registerContribution(GitRepositoryRootsContribution));
 	registrations.add(contributions.registerContribution(ChatInputContribution));
 	registrations.add(contributions.registerContribution(PullRequestChatContribution));
 	registrations.add(contributions.registerContribution(TurnDelegationContribution));

@@ -27,6 +27,8 @@ export const enum AgentSystemNotificationKind {
 	ResponseRoundEnded = 'responseRoundEnded',
 	/** More tools were enabled than a bring-your-own-key model accepts, so some were not sent to it. */
 	ByokToolLimitExceeded = 'byokToolLimitExceeded',
+	/** Plugins required by the organization could not be checked or prepared; the turn continues without them. */
+	ManagedPluginPreparationFailure = 'managedPluginPreparationFailure',
 }
 
 export const enum AgentSystemNotificationWorkspaceKind {
@@ -55,6 +57,7 @@ const knownKinds: ReadonlySet<string> = new Set<string>([
 	AgentSystemNotificationKind.AgentMergePullRequestMerged,
 	AgentSystemNotificationKind.ResponseRoundEnded,
 	AgentSystemNotificationKind.ByokToolLimitExceeded,
+	AgentSystemNotificationKind.ManagedPluginPreparationFailure,
 ]);
 
 interface IHasSystemNotificationMeta {

@@ -5,8 +5,10 @@
 
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable } from '../../../../../base/common/observable.js';
+import { IObservable, IReader } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { DesktopOwnerCompositionStore } from './desktopOwnerCompositionStore.js';
 
 /**
  * Shared controller state that desktop layout strategies read/coordinate
@@ -26,6 +28,12 @@ export interface IDesktopLayoutContext {
 	readonly activeSessionResourceObs: IObservable<URI | undefined>;
 	hasSavedWorkingSet(sessionResource: URI): boolean;
 	completeChangesEditorTransition(): void;
+	chatLayoutActive(reader?: IReader): boolean;
+	chatLayoutSuspended(reader?: IReader): boolean;
+	readonly sharedChatLayout: boolean;
+	ownerKeyFor(session: IActiveSession, reader?: IReader): URI | undefined;
+	compositionKeyFor(session: IActiveSession, reader?: IReader): URI | undefined;
+	readonly compositionStore: DesktopOwnerCompositionStore;
 }
 
 /**

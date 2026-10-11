@@ -6,6 +6,7 @@
 import { Sequencer } from '../../../base/common/async.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { LRUCache } from '../../../base/common/map.js';
+import type { IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ISessionFileDiff, ISessionGitState } from './state/sessionState.js';
@@ -219,6 +220,12 @@ export interface IAddWorktreeOptions {
 	readonly onProgress?: (progress: IWorktreeFileProgress) => void;
 }
 
+/** A remote a repository fetches from. */
+export interface IGitRemote {
+	readonly name: string;
+	readonly url: string;
+}
+
 export interface IAgentHostGitService {
 	readonly _serviceBrand: undefined;
 	getCurrentBranch(workingDirectory: URI): Promise<string | undefined>;
@@ -228,7 +235,10 @@ export interface IAgentHostGitService {
 	getRefs(workingDirectory: URI, query?: IRefQuery): Promise<GitRef[]>;
 	getBranches(workingDirectory: URI, query?: IRefQuery): Promise<Branch[]>;
 	getBranch(workingDirectory: URI, name: string): Promise<Branch | undefined>;
-	getRepositoryRoot(workingDirectory: URI): Promise<URI | undefined>;
+	/** Observes exact probe results or a known ancestor root; undefined is unresolved, false is a confirmed non-repository. */
+	hasGitRoot(workingDirectory: URI): IObservable<boolean | undefined>;
+	/** Caches roots and confirmed non-repositories; refreshIfNone retries only cached non-repositories. */
+	getRepositoryRoot(workingDirectory: URI, options?: { readonly refreshIfNone?: boolean }): Promise<URI | undefined>;
 	/** Returns worktree roots in Git's porcelain order, with the primary worktree first. */
 	getWorktreeRoots(workingDirectory: URI): Promise<URI[]>;
 	/**
@@ -312,8 +322,8 @@ export interface IAgentHostGitService {
 	 */
 	hasUpstream(workingDirectory: URI, branchName: string): Promise<boolean>;
 
-	/** Fetches the selected remote branch into its remote-tracking ref without changing the working tree. */
-	fetch(workingDirectory: URI, branch: IRemoteBranch): Promise<void>;
+	/** Fetches the selected remote branch without changing the working tree; defaults to a five-second timeout. */
+	fetch(workingDirectory: URI, branch: IRemoteBranch, options?: { readonly timeout?: number }): Promise<void>;
 
 	/**
 	 * Fetches the latest changes from the remote (`origin` unless
@@ -342,6 +352,8 @@ export interface IAgentHostGitService {
 	getSessionGitState(workingDirectory: URI, baseBranchName?: string): Promise<ISessionGitState | undefined>;
 	/** Returns fetch remote URLs with the preferred remote, then `origin`, first. */
 	getFetchRemoteUrls(workingDirectory: URI, preferredRemote?: string): Promise<readonly string[] | undefined>;
+	/** Returns the repository's fetch remotes in `git remote -v` order. */
+	getFetchRemotes(workingDirectory: URI): Promise<readonly IGitRemote[] | undefined>;
 	/** Returns repo-relative untracked file paths. */
 	getUntrackedPaths(workingDirectory: URI): Promise<readonly string[] | undefined>;
 

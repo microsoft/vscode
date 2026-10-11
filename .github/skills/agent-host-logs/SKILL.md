@@ -32,6 +32,7 @@ vscode-logs/Window/renderer.log
 vscode-logs/Window/renderer.1.log
 vscode-logs/Shared/sharedprocess.log
 ahp/*.jsonl
+ahp/mission-control/*.jsonl
 copilot-logs/*.log
 remote-agenthost.log
 ```
@@ -50,6 +51,7 @@ Window/client <-> AHP <-> Agent Host process <-> Copilot SDK
 | `usage.jsonl` | Client-captured token/credit usage, one record per model call (`turnId`, model, input/output/cache tokens, cumulative `totalNanoAiu`). The SDK's `assistant.usage` event is ephemeral and never reaches `events.jsonl`, so this is the only per-call usage record. Present only when agent-host debug logging was on. |
 | `customizations.json` | Snapshot of the skills/hooks/agents/MCP servers loaded for the session. The SDK's `session.*_loaded` events are ephemeral, so this is the only record of what was actually active. Present only when agent-host debug logging was on. |
 | `ahp/*.jsonl` | AHP traffic for a client connection. `_ahpLog.dir` is `c2s` or `s2c`; `_ahpLog.ts` is the wire timestamp. Use this to see requests, responses, subscriptions, actions, notifications, and client-visible ordering. |
+| `ahp/mission-control/*.jsonl` | Host-side traffic for incoming Mission Control clients, including authentication failures before a session is selected. `_ahpLog.transport` is `mission-control`; `connectionId` combines the client ID and connection generation. Host exports include up to ten most recently modified files, including rotated segments, within the remaining 1,000-entry artifact budget, even for a session-specific export. These logs can contain traffic for other shared sessions. |
 | `agenthost*.log` | Local or server Agent Host process behavior: startup, auth, sessions, provider events, tools, Git/worktrees, and host-side errors. Numbered files are older rotated segments. |
 | `copilot-logs/*.log` | Copilot SDK process logs that mention the selected session ID. A process log may contain other sessions too. |
 | `vscode-logs/Window/*` | Current and rotated files from the Window log group, including renderer/client behavior, network activity, views, and other window-owned logs. |
@@ -82,6 +84,8 @@ Follow `Preparing SDK session` and the paired `SDK resumeSession started` / `set
 
 - `events.jsonl`, Copilot SDK logs, and AHP timestamps are normally UTC. The plain `.log` files may use local machine time; remote logs may use another timezone.
 - An AHP log is connection-scoped and can contain multiple sessions. A Copilot SDK process log can also contain multiple sessions.
+- Mission Control lane traffic is logged independently of the desktop client's `chat.agentHost.ahpJsonlLoggingEnabled` setting. Authentication request tokens are redacted, but other session content remains sensitive.
+- Mission Control history is retained across connection generations within ten files and 750 MiB per host log directory. A directory export keeps client-local fallback candidates until the host copy succeeds; if the host artifact is unavailable, Mission Control logs appear under `ahp/` instead.
 - AHP files rotate as `.jsonl`, `.1.jsonl`, `.2.jsonl`, and so on. Use `_ahpLog.ts` to reconstruct order.
 - A `subscribe` result can contain a full snapshot; its contents did not necessarily change at subscription time.
 - `_ahpLog.truncated: true` means large values were omitted from that log record.

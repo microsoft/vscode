@@ -109,7 +109,32 @@ suite('NativeManagedSettingsService', () => {
 		assert.deepStrictEqual({ before, during, after }, { before: server, during: { [key]: false }, after: server });
 	});
 
+	test('watches all current runtime permission controls before configuration policies register', async () => {
+		const expected = {
+			'permissions.model': { type: 'string' },
+			'permissions.disableBypassPermissionsMode': { type: 'string' },
+			'permissions.disableAssistedPermissionsMode': { type: 'boolean' },
+			'permissions.defaultMode': { type: 'string' },
+			'permissions.ask': { type: 'string' },
+			'permissions.allow': { type: 'string' },
+			'permissions.deny': { type: 'string' },
+			'permissions.limitTo': { type: 'string' },
+		};
+		let watched = {};
+		const service = disposables.add(new NativeManagedSettingsService(new NullLogService(), 'com.github.copilot', undefined, (_name, policies, callback) => {
+			watched = Object.fromEntries(Object.entries(policies).filter(([key]) => key.startsWith('permissions.')));
+			callback({ 'permissions.disableAssistedPermissionsMode': false, 'permissions.defaultMode': 'manual' });
+			return Disposable.None;
+		}));
+		await service.initialize();
+		await service.updatePolicyDefinitions({});
+		assert.deepStrictEqual({ watched, values: service.managedSettings }, {
+			watched: expected, values: { 'permissions.disableAssistedPermissionsMode': false, 'permissions.defaultMode': 'manual' },
+		});
+	});
+
 	test('clears stale watcher values when managed-settings definitions are removed', async () => {
+		const removableKey = 'test.removableSetting';
 		let onDidChange: ((update: Record<string, PolicyValue | undefined>) => void) | undefined;
 		let disposeCount = 0;
 		const watcherFactory: NativePolicyWatcherFactory = (_productName, _policies, callback) => {
@@ -123,12 +148,12 @@ suite('NativeManagedSettingsService', () => {
 			[policyName]: {
 				type: 'boolean',
 				managedSettings: {
-					[COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: { type: 'string' },
+					[removableKey]: { type: 'string' },
 				}
 			}
 		});
 
-		onDidChange?.({ [COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY]: 'disable' });
+		onDidChange?.({ [removableKey]: 'value' });
 		await service.updatePolicyDefinitions({});
 
 		assert.deepStrictEqual({ managedSettings: service.managedSettings, disposeCount }, { managedSettings: {}, disposeCount: 1 });

@@ -20,6 +20,7 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService, NotificationPriority, Severity } from '../../../../platform/notification/common/notification.js';
+import { NotificationTelemetryId } from '../../../../platform/notification/common/notificationTelemetry.js';
 import { IProfileAnalysisWorkerService } from '../../../../platform/profiling/electron-browser/profileAnalysisWorkerService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
@@ -240,7 +241,7 @@ export class ExtensionsAutoProfiler implements IWorkbenchContribution {
 			},
 				action
 			],
-			{ priority: NotificationPriority.SILENT }
+			{ priority: NotificationPriority.SILENT, telemetry: NotificationTelemetryId.ExtensionHostUnresponsive }
 		);
 	}
 }

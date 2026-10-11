@@ -33,6 +33,11 @@ export interface IMcpHostDelegate {
 	waitForInitialProviderPromises(): Promise<void>;
 	canStart(collectionDefinition: McpCollectionDefinition, serverDefinition: McpServerDefinition): boolean;
 	substituteVariables(serverDefinition: McpServerDefinition, launch: McpServerLaunch): Promise<McpServerLaunch>;
+	/**
+	 * Applies the definition's {@link McpServerDefinition.environmentVariableExpansion} to
+	 * the launch, using the environment of the host that will run or connect to the server.
+	 */
+	expandEnvironmentVariables(serverDefinition: McpServerDefinition, launch: McpServerLaunch): Promise<McpServerLaunch>;
 	start(collectionDefinition: McpCollectionDefinition, serverDefinition: McpServerDefinition, resolvedLaunch: McpServerLaunch, options?: { errorOnUserInteraction?: boolean }): IMcpMessageTransport;
 }
 

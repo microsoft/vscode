@@ -16,6 +16,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { devContainerSamples, devContainerSampleUri, findDevContainerSample, getDevContainerSampleUrl } from '../../common/devContainerSamples.js';
 import { getDevContainerSampleLabels, getDevContainerSampleVolumeName, parseDevContainerSampleConfiguration, prepareDevContainerSample } from '../../node/devContainerSamples.js';
+import { devContainerSandboxRunArgs } from '../../node/devContainerSandbox.js';
 
 suite('Dev Container samples', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -168,6 +169,27 @@ suite('Dev Container samples', () => {
 				updateRemoteUserUID: false,
 			},
 		});
+	});
+
+	test('keeps sandbox Docker options in the generated sample config through lifecycle setup', async () => {
+		const config = { image: 'sample-image', postCreateCommand: 'npm install' };
+		const configurations: object[] = [];
+		await prepareDevContainerSample(sample, cacheDirectory, {
+			onContainerStarted: () => { },
+			readSource: async () => ({ commitSha: commit, content: JSON.stringify(config) }),
+			docker: async args => ({
+				stdout: args[0] === 'volume'
+					? args[1] === 'ls' ? getDevContainerSampleVolumeName(sample, []) : JSON.stringify({ 'vsch.local.repository': repositoryPath })
+					: args.includes('cat') ? JSON.stringify(config) : '',
+				stderr: '', code: 0,
+			}),
+			devcontainer: async () => {
+				configurations.push(JSON.parse(await readFile(join(cacheDirectory, 'devcontainer.json'), 'utf8')));
+				return { stdout: JSON.stringify({ outcome: 'success', containerId: 'container', remoteUser: 'vscode', remoteWorkspaceFolder: `/workspaces/${folder}` }), stderr: '', code: 0 };
+			},
+		}, true);
+		const expected = { ...config, workspaceFolder: `/workspaces/${folder}`, workspaceMount: `type=volume,source=${getDevContainerSampleVolumeName(sample, [])},target=/workspaces`, updateRemoteUserUID: false, runArgs: devContainerSandboxRunArgs };
+		assert.deepStrictEqual(configurations, [expected, expected]);
 	});
 
 	test('unsupported configuration fails before creating a volume or container', async () => {

@@ -901,8 +901,8 @@ export async function applyCreateSessionTool(accessor: ISessionServerToolAccesso
 	const currentSession = source ? currentSessionUri(source.toString()) : undefined;
 	const supportsChatWorkingDirectories = currentSession === undefined || accessor.supportsChatWorkingDirectories(currentSession);
 	const sessions = await getCreateSessionCatalog(accessor, rawArgs, supportsChatWorkingDirectories);
-	const currentProvider = currentSession ? AgentSession.provider(currentSession) : undefined;
 	const defaults = source ? accessor.getCreationDefaults(source) : undefined;
+	const currentProvider = defaults?.provider ?? (currentSession ? (await accessor.getSession(currentSession))?.provider ?? AgentSession.provider(currentSession) : undefined);
 	const args = getCreateSessionArgs(rawArgs, sessions, accessor.getModels(), currentProvider, supportsChatWorkingDirectories);
 	if (args.relationship === 'currentSession') {
 		if (!currentSession) {
@@ -1071,14 +1071,14 @@ export function getCreateChatArgs(rawArgs: unknown, sessions: readonly IAgentSes
 	} else {
 		throw new Error(`Invalid ${SessionServerToolName.CreateChat} input: no session provided and the current session could not be determined.`);
 	}
-	const model = resolveModel(modelName, models, AgentSession.provider(session));
+	const model = resolveModel(modelName, models, sessions.find(candidate => isEqual(candidate.session, session))?.provider ?? AgentSession.provider(session));
 	return { session, prompt, ...(title !== undefined ? { title } : {}), ...(model !== undefined ? { model } : {}) };
 }
 
 async function createChat(accessor: ISessionServerToolAccessor, args: IResolvedCreateChatArgs, source?: URI, sourceTurnId?: string, onChatAllocated?: (chat: URI) => Promise<void>): Promise<ICreateChatResult> {
 	const currentSession = source ? currentSessionUri(source.toString()) : undefined;
 	const defaults = source ? accessor.getCreationDefaults(source) : undefined;
-	const targetProvider = AgentSession.provider(args.session);
+	const targetProvider = (await accessor.getSession(args.session))?.provider ?? AgentSession.provider(args.session);
 	const model = args.model !== undefined ? { id: args.model.id } : targetProvider === defaults?.provider ? defaults?.model : undefined;
 	const chatId = generateUuid();
 	const chat = URI.parse(buildChatUri(args.session.toString(), chatId));
@@ -1856,7 +1856,21 @@ export function createSessionServerToolGroup(accessor?: ISessionServerToolAccess
 					? { ...definition, description: createSessionWithSharedWorkspaceDescription, inputSchema: createSessionWithSharedWorkspaceInputSchema }
 					: definition;
 			}
-			if (definition.name !== SessionServerToolName.RenameChat || accessor?.getAutomaticTitleGenerationStrategy(sessionUri) !== 'deferred') {
+			if (definition.name !== SessionServerToolName.RenameChat) {
+				return definition;
+			}
+			const titleGenerationStrategy = accessor?.getAutomaticTitleGenerationStrategy(sessionUri);
+			// Active-agent naming reminds the agent to rename on its first turn, so skip the tool-search round-trip.
+			if (titleGenerationStrategy === 'activeAgent') {
+				return { ...definition, deferLoading: false };
+			}
+			if (titleGenerationStrategy === 'agentReview') {
+				return {
+					...definition,
+					description: 'Rename one specific chat when the user explicitly asks to rename it, or when the host reminds you that its automatically generated title is inaccurate or no longer reflects the user\'s goal. Automatic naming is handled by the host; do not call this tool to name a fresh chat, and leave an accurate title unchanged. Renaming the default chat also names its owning session, while peer-chat titles remain independent. Use a short, human-friendly chat name in sentence case (1-4 words). Pass an `agent-host-session://` session or chat link to target another chat, or omit `chat` to rename the chat in which this tool is running. Every invocation replaces the current title.',
+				};
+			}
+			if (titleGenerationStrategy !== 'deferred') {
 				return definition;
 			}
 			const { automatic: _automatic, ...properties } = renameChatInputSchema.properties ?? {};

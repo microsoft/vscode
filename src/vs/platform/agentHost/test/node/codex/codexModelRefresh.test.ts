@@ -6,13 +6,14 @@
 import type { CCAModel } from '@vscode/copilot-api';
 import assert from 'assert';
 import { IAgentHostStartupPerformance, NullAgentHostStartupPerformance } from '../../../node/agentHostStartupPerformance.js';
-import { DeferredPromise } from '../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
-import type { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { waitForState } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/index.js';
 import { INativeEnvironmentService } from '../../../../../platform/environment/common/environment.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
@@ -1723,6 +1724,33 @@ suite('CodexAgent — agent SDK setup channel', () => {
 
 		assert.strictEqual(readSetup(ctx)?.download, 'notDownloaded');
 	});
+
+	test('observing a fresh chat does not download the SDK', () => runWithFakedTimers({}, async () => {
+		const store = disposables.add(new DisposableStore());
+		const sdkDownloader = createNotDownloaded();
+		let downloads = 0;
+		sdkDownloader.loadSdkRootResult = async () => {
+			downloads++;
+			throw new Error('Unexpected SDK download');
+		};
+		const models = [{ id: 'copilot-model', name: 'Copilot Model', model_picker_enabled: true, supported_endpoints: ['/responses'], vendor: 'OpenAI' }] as CCAModel[];
+		const { agent } = createAgentContext(store, async () => models, {}, sdkDownloader);
+		try {
+			await agent.authenticate(agent.getProtectedResources()[0].resource, 'token');
+			const session = AgentSession.uri('codex', 'fresh-chat');
+			const chat = URI.parse(buildDefaultChatUri(session));
+			await agent.chats.createChat(chat, { resource: session, configurationResource: session }, {
+				workingDirectories: [URI.file('/workspace')],
+				deferBacking: true,
+			});
+			store.add(agent.watchChatHistory(chat));
+			await timeout(6000);
+
+			assert.strictEqual(downloads, 0);
+		} finally {
+			store.dispose();
+		}
+	}));
 
 	test('an explicit download fetches the SDK, holds progress interest for the fetch, and ends at `ready`', async () => {
 		const sdkDownloader = createNotDownloaded();

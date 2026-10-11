@@ -1043,7 +1043,7 @@ export function getMenuWidgetCSS(style: IMenuStyles, isForShadowDom: boolean): s
 	const frostedGlassWorkbenchSelector = '.monaco-workbench.modern-ui-frosted-glass:not(.hc-black):not(.hc-light)';
 	const frostedGlassMenuSelector = `${isForShadowDom ? `:host-context(${frostedGlassWorkbenchSelector})` : frostedGlassWorkbenchSelector} .monaco-menu-container`;
 	const frostedGlassMotionWorkbenchSelector = `${frostedGlassWorkbenchSelector}.monaco-enable-motion`;
-	const frostedGlassMotionMenuSelector = `${isForShadowDom ? `:host-context(${frostedGlassMotionWorkbenchSelector})` : frostedGlassMotionWorkbenchSelector} .monaco-menu-container`;
+	const frostedGlassMotionMenuSelector = `${isForShadowDom ? `:host-context(${frostedGlassMotionWorkbenchSelector})` : frostedGlassMotionWorkbenchSelector} .monaco-menu-container:not(.monaco-submenu)`;
 	let result = /* css */`
 .monaco-menu {
 	font-size: 13px;
@@ -1266,11 +1266,14 @@ ${formatRule(Codicon.menuSubmenu)}
 	${CONTEXT_VIEW_MENU_MOTION_SHADOW_VARIABLE}: ${menuShadow};
 	outline: 0;
 	border: none;
-	animation: fadeIn 0.083s linear;
 	-webkit-app-region: no-drag;
 	box-shadow: var(${CONTEXT_VIEW_MENU_MOTION_SHADOW_VARIABLE});
 	border-radius: var(--vscode-cornerRadius-large);
 	overflow: hidden;
+}
+
+.context-view.monaco-menu-container:not(.monaco-submenu) {
+	animation: fadeIn 0.083s linear;
 }
 
 @supports (backdrop-filter: blur(12px)) and (background-color: color-mix(in srgb, black 92%, transparent)) {

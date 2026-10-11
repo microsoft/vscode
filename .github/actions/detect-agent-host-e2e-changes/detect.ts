@@ -38,8 +38,6 @@ const exactPaths = new Set([
 	'package.json',
 	'package-lock.json',
 	'product.json',
-	'scripts/test-agent-host-e2e.ts',
-	'scripts/test-agent-host-e2e-child.ps1',
 	'scripts/test-integration.sh',
 	'scripts/test-integration.bat',
 	'scripts/test.sh',
@@ -56,6 +54,7 @@ const pathPrefixes = [
 	'src/vs/base/',
 	'src/vs/platform/',
 	'test/unit/electron/',
+	'test/integration/agentHost/',
 ];
 
 function affectsAgentHostE2E(path: string): boolean {

@@ -36,8 +36,9 @@ class FailingChangesetOperationService extends Disposable implements IAgentHostC
 			contribution.dispose();
 		});
 	}
-
 	updateOperations(): void { }
+	scheduleRelatedOperationsUpdate(): void { }
+	scheduleOwnerOperationsUpdate(): void { }
 	getOperations() { return []; }
 	async invokeChangesetOperation(): Promise<never> { throw new Error('Not implemented'); }
 }

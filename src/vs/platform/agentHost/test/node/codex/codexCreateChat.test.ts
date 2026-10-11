@@ -172,8 +172,7 @@ interface ICreateAgentOptions {
 }
 
 /**
- * Per-session durable storage, keyed by session URI exactly like the real
- * service. Restore tests depend on this: a runtime's metadata overlay (its
+ * Per-URI isolated storage for the fixture. A runtime's metadata overlay (its
  * codex thread id) is stored under the session URI it was persisted with, so a
  * blob that names the wrong id must not accidentally find someone else's
  * overlay.
@@ -4207,6 +4206,92 @@ suite('CodexAgent chat backing durability', () => {
 		});
 	}
 
+	for (const peerChat of [false, true]) {
+		test(`chat preparation unarchives an externally archived ${peerChat ? 'peer' : 'default'} thread without starting a turn`, async () => {
+			const agent = await createAgent(disposables);
+			const peer = disposables.add(createTestPeer());
+			connect(agent, peer);
+			const session = AgentSession.uri('codex', 'prepare-archived-session');
+			const chat = URI.parse(peerChat ? buildChatUri(session, 'peer') : buildDefaultChatUri(session));
+			const context = { configurationResource: session, resource: chat };
+			await createSessionBackedChat(agent, chat, context, { workingDirectories: [URI.file('/repo')], model: { id: COPILOT_TEST_MODEL } });
+			const entry = agent['_sessions'].get(agent['_sessionIdByChatUri'].get(chat.toString())!)!;
+			entry.threadId = 'archived-thread';
+			entry.needsResume = true;
+			entry.firstTurnSent = true;
+			entry.hasNativeHistory = false;
+			entry.codexTurnIdByHostTurnId.set('prior-host-turn', 'prior-codex-turn');
+			const actions: AgentSignal[] = [];
+			disposables.add(agent.onDidChatProgress(signal => actions.push(signal)));
+			const requests: { method: string; threadId: string | undefined }[] = [];
+			let archived = true;
+			peer.outbound.on('data', (chunk: Buffer) => {
+				const request = JSON.parse(chunk.toString()) as ITestWireRequest;
+				requests.push({ method: request.method, threadId: request.params.threadId });
+				if (request.method === 'thread/resume' && archived) {
+					peer.push({ id: request.id, error: { code: -32600, message: 'session archived-thread is archived. Run `codex unarchive archived-thread` to unarchive it first.' } });
+				} else if (request.method === 'thread/unarchive') {
+					archived = false;
+					peer.push({ id: request.id, result: { thread: { id: entry.threadId } } });
+				} else if (request.method === 'thread/resume') {
+					peer.push({ id: request.id, result: { thread: { id: entry.threadId, cwd: '/repo' }, cwd: '/repo' } });
+				} else {
+					peer.push({ id: request.id, result: { data: [], nextCursor: null } });
+				}
+			});
+
+			const result = await agent.chats.prepareChat!(chat, context);
+			await agent.chats.prepareChat!(chat, context);
+
+			assert.deepStrictEqual({ result, requests, actions, threadId: entry.threadId, needsResume: entry.needsResume, turnMappings: [...entry.codexTurnIdByHostTurnId] }, {
+				result: {},
+				requests: [
+					{ method: 'thread/resume', threadId: 'archived-thread' },
+					{ method: 'thread/unarchive', threadId: 'archived-thread' },
+					{ method: 'thread/resume', threadId: 'archived-thread' },
+					{ method: 'mcpServerStatus/list', threadId: 'archived-thread' },
+				],
+				actions: [], threadId: 'archived-thread', needsResume: false, turnMappings: [['prior-host-turn', 'prior-codex-turn']],
+			});
+		});
+	}
+
+	for (const scenario of [
+		{ name: 'an unrelated invalid request', resumeError: { code: -32600, message: 'session another-thread is archived.' }, methods: ['thread/resume'] },
+		{ name: 'an unrelated error code', resumeError: { code: -32603, message: 'session archived-thread is archived.' }, methods: ['thread/resume'] },
+		{ name: 'a failed unarchive', unarchiveError: { code: -32603, message: 'Unarchive failed' }, methods: ['thread/resume', 'thread/unarchive'] },
+		{ name: 'a failed resume after unarchive', methods: ['thread/resume', 'thread/unarchive', 'thread/resume'] },
+	]) {
+		test(`chat preparation preserves ${scenario.name} for Retry without looping`, async () => {
+			const agent = await createAgent(disposables);
+			const peer = disposables.add(createTestPeer());
+			connect(agent, peer);
+			const session = AgentSession.uri('codex', 'prepare-archive-error');
+			const chat = URI.parse(buildDefaultChatUri(session));
+			const context = { configurationResource: session, resource: chat };
+			await createSessionBackedChat(agent, chat, context, { workingDirectories: [URI.file('/repo')], model: { id: COPILOT_TEST_MODEL } });
+			const entry = agent['_sessions'].get(AgentSession.id(session))!;
+			entry.threadId = 'archived-thread';
+			entry.needsResume = true;
+			entry.firstTurnSent = true;
+			entry.hasNativeHistory = false;
+			const resumeError = scenario.resumeError ?? { code: -32600, message: 'session archived-thread is archived. Run `codex unarchive archived-thread` to unarchive it first.' };
+			const methods: string[] = [];
+			peer.outbound.on('data', (chunk: Buffer) => {
+				const request = JSON.parse(chunk.toString()) as ITestWireRequest;
+				methods.push(request.method);
+				const error = request.method === 'thread/unarchive' ? scenario.unarchiveError : resumeError;
+				peer.push(error ? { id: request.id, error } : { id: request.id, result: { thread: { id: entry.threadId } } });
+			});
+
+			await assert.rejects(agent.chats.prepareChat!(chat, context), { message: (scenario.unarchiveError ?? resumeError).message });
+
+			assert.deepStrictEqual({ methods, threadId: entry.threadId, needsResume: entry.needsResume }, {
+				methods: scenario.methods, threadId: 'archived-thread', needsResume: true,
+			});
+		});
+	}
+
 	test('chat preparation detects a writer lock before sending and retries without starting a turn', async () => {
 		const agent = await createAgent(disposables);
 		const peer = disposables.add(createTestPeer());
@@ -4602,9 +4687,9 @@ suite('CodexAgent chat backing durability', () => {
 		});
 	});
 
-	test('the materialize receipt re-keys the chat backing onto the runtime, so a restored session stays addressable', async () => {
+	['codex', 'ahp-session'].forEach(scheme => test(`the materialize receipt keeps ${scheme} sessions addressable after a cold provider restart`, async () => {
 		const sessionStore = createTestSessionStore();
-		const session = AgentSession.uri('codex', 'host-session');
+		const session = AgentSession.uri(scheme, 'host-session');
 		const chat = URI.parse(buildDefaultChatUri(session));
 		const folder = URI.file('/repo/durable');
 		const first = await createAgent(disposables, { sdkResolvableWithoutDownload: true, sessionStore });
@@ -4680,6 +4765,7 @@ suite('CodexAgent chat backing durability', () => {
 				backingSession: receipt.result?.backingSession?.toString(),
 				restoredThreadId: restored?.threadId,
 				restoredSessionUri: restored?.sessionUri.toString(),
+				restoredConfigurationResource: restored?.configurationResource.toString(),
 				restoredChatChannel: restored?.chatChannel?.toString(),
 				hasAmbientRuntime: second['_sessions'].has('codex-thread'),
 				ambientUnsubscribe: { method: ambientUnsubscribe.method, threadId: ambientUnsubscribe.params.threadId },
@@ -4698,7 +4784,8 @@ suite('CodexAgent chat backing durability', () => {
 				backingSessionId: 'host-session',
 				backingSession: AgentSession.uri('codex', 'codex-thread').toString(),
 				restoredThreadId: 'codex-thread',
-				restoredSessionUri: session.toString(),
+				restoredSessionUri: AgentSession.uri('codex', 'host-session').toString(),
+				restoredConfigurationResource: session.toString(),
 				restoredChatChannel: chat.toString(),
 				hasAmbientRuntime: false,
 				ambientUnsubscribe: { method: 'thread/unsubscribe', threadId: 'codex-thread' },
@@ -4716,7 +4803,7 @@ suite('CodexAgent chat backing durability', () => {
 			firstPeer.dispose();
 			secondPeer?.dispose();
 		}
-	});
+	}));
 
 	test('a restored runtime is addressed by the id its backing names, never by the session that asked for it', async () => {
 		const agent = await createAgent(disposables, { sdkResolvableWithoutDownload: true, sessionStore: createTestSessionStore() });

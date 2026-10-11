@@ -17,7 +17,6 @@
  */
 
 import assert from 'assert';
-import { mkdtempSync } from 'fs';
 import { tmpdir } from 'os';
 import { timeout } from '../../../../../../base/common/async.js';
 import { join } from '../../../../../../base/common/path.js';
@@ -32,6 +31,7 @@ import { buildDefaultChatUri, ROOT_STATE_URI, type AnnotationsState, type String
 import { createRealSession, driveTurnToCompletion, resolveGitHubToken } from '../harness/agentHostE2ETestHarness.js';
 import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import { conformanceTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
 
 /** The subset of `Annotation` these tests assert on. */
 interface IObservedAnnotation {
@@ -59,7 +59,7 @@ export function defineAnnotationsTests(context: IAgentHostE2ETestContext): void 
 	}
 
 	async function createAnnotatedSession(prefix: string): Promise<{ sessionUri: string; annotationsUri: string; resource: string }> {
-		const workspace = mkdtempSync(join(tmpdir(), `ahp-${prefix}-`));
+		const workspace = createTestDirectory(join(tmpdir(), `ahp-${prefix}-`));
 		tempDirs.push(workspace);
 		const sessionUri = await createRealSession(context.client, config, `${prefix}-${config.provider}`, createdSessions, URI.file(workspace));
 		const annotationsUri = buildAnnotationsUri(sessionUri);

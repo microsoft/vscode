@@ -68,6 +68,7 @@ export const enum AgentHostMcpServerSourceKind {
 
 export const enum AgentHostMcpSupportReason {
 	UnsupportedSourceLocation = 'unsupportedSourceLocation',
+	CopilotHomeNotForwarded = 'copilotHomeNotForwarded',
 	RequiresUserInteraction = 'requiresUserInteraction',
 	UnresolvedConfiguration = 'unresolvedConfiguration',
 	LaunchNotRepresentable = 'launchNotRepresentable',
@@ -270,11 +271,13 @@ async function resolveMcpServerForAgentHostDelivery(
 		);
 	}
 
-	// Only the window's own Copilot runtime is known to read the same machine's Copilot-home config.
-	if (source.kind === AgentHostMcpServerSourceKind.CopilotHome
-		&& sessionType === AGENT_HOST_COPILOT_CLI_SESSION_TYPE
-		&& collection?.remoteAuthority === windowRemoteAuthority) {
-		return createResolution(server, definition, source, applicability, AgentHostMcpServerDelivery.RuntimeDiscovered, supported());
+	if (source.kind === AgentHostMcpServerSourceKind.CopilotHome) {
+		// Only the window's own Copilot runtime is known to read the same machine's Copilot-home config.
+		if (sessionType === AGENT_HOST_COPILOT_CLI_SESSION_TYPE && collection?.remoteAuthority === windowRemoteAuthority) {
+			return createResolution(server, definition, source, applicability, AgentHostMcpServerDelivery.RuntimeDiscovered, supported());
+		}
+		// Copilot-home discovery is on by default and its servers may hold literal credentials, so never copy them to another provider or host.
+		return createResolution(server, definition, source, applicability, AgentHostMcpServerDelivery.NotDelivered, unsupported([AgentHostMcpSupportReason.CopilotHomeNotForwarded]));
 	}
 
 	if (collection && McpCollectionDefinition.isWorkspaceDiscovered(collection) && !McpCollectionDefinition.isVscodeMcpJson(collection)) {

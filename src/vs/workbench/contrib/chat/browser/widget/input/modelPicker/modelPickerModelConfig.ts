@@ -72,7 +72,7 @@ export function whenModelConfigValuesSaved(configurationAccess: IModelConfigurat
 	return pending.length ? Promise.allSettled(pending) : undefined;
 }
 
-/** Choice metadata shared by the inline picker, Details, and legacy configuration menu. */
+/** Choice metadata shared by the inline picker and Details. */
 export function getModelConfigChoices(
 	property: IModelConfigProperty,
 	formatLabel?: (value: unknown, enumLabel: string | undefined) => string,

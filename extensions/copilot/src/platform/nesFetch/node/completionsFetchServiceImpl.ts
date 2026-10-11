@@ -11,6 +11,7 @@ import { Codicon } from '../../../util/vs/base/common/codicons';
 import { IDisposable } from '../../../util/vs/base/common/lifecycle';
 import { ThemeIcon } from '../../../util/vs/base/common/themables';
 import { IAuthenticationService } from '../../authentication/common/authentication';
+import { QuotaTokenRefreshRequest } from '../../authentication/common/quotaTokenRefresh';
 import { getRequestId, RequestId } from '../../networking/common/fetch';
 import { FetchOptions, IFetcherService, IHeaders, Response } from '../../networking/common/fetcherService';
 import { IRequestLogger, LoggedRequestKind } from '../../requestLogger/common/requestLogger';
@@ -69,7 +70,8 @@ export class CompletionsFetchService implements ICompletionsFetchService {
 			})
 		};
 
-		const fetchResponse = await this._fetchFromUrl(url, options, ct);
+		const quotaRequest = new QuotaTokenRefreshRequest(JSON.stringify(['completions', url, params.model]), this.authService);
+		const fetchResponse = await this._fetchFromUrl(url, options, ct, quotaRequest);
 
 		if (fetchResponse.isError()) {
 			this._logCompletionsRequest(url, params, requestId, startTimeMs, fetchResponse);
@@ -101,7 +103,7 @@ export class CompletionsFetchService implements ICompletionsFetchService {
 		}
 	}
 
-	protected async _fetchFromUrl(url: string, options: Completions.Internal.FetchOptions, ct: CancellationToken): Promise<Result<FetchResponse, Completions.CompletionsFetchFailure>> {
+	protected async _fetchFromUrl(url: string, options: Completions.Internal.FetchOptions, ct: CancellationToken, quotaRequest: QuotaTokenRefreshRequest): Promise<Result<FetchResponse, Completions.CompletionsFetchFailure>> {
 
 		const fetchAbortCtl = this.fetcherService.makeAbortController();
 
@@ -121,23 +123,15 @@ export class CompletionsFetchService implements ICompletionsFetchService {
 
 			const response = await this.fetcherService.fetch(url, request);
 
-			if (response.status === 200 && this.authService.copilotToken?.isFreeUser && this.authService.copilotToken?.isChatQuotaExceeded) {
-				this.authService.resetCopilotToken();
-			}
-
 			if (response.status !== 200) {
 				if (response.status === 402) {
-					// When we receive a 402, we have exceed the free tier quota
-					// This is stored on the token so let's refresh it
-					if (!this.authService.copilotToken?.isCompletionsQuotaExceeded) {
-						this.authService.resetCopilotToken(response.status);
-						await this.authService.getCopilotToken();
-					}
+					await quotaRequest.onQuotaExceeded(this.authService.copilotToken?.isCompletionsQuotaExceeded ?? false);
 				}
 
 				return Result.error(new Completions.UnsuccessfulResponse(response.status, response.statusText, response.headers, () => response.text().catch(() => '')));
 			}
 
+			quotaRequest.onSuccess();
 			const body = response.body.pipeThrough(new TextDecoderStream());
 
 			const responseStream = streamWithCleanup(body, onCancellationDisposable);

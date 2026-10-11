@@ -8,26 +8,36 @@ import type {
 	ILinkPresentationProvider,
 	LinkPresentation,
 	LinkPresentationKind,
-	LinkPresentationStatusKind,
 } from '@vscode/markdown-editor';
 import { Disposable, observableValue, type ISettableObservable } from '@vscode/observables';
+import type { RichLinkPresentationUpdate, RichLinkSubscriptions, MarkdownEditorHost } from '../src/preview/markdownEditorProtocol';
 
 interface LinkPresentationEntry {
+	readonly href: string;
 	readonly presentation: ISettableObservable<WebviewLinkPresentation | undefined>;
 	references: number;
+	subscriptionId?: string;
 }
 
 type WebviewLinkPresentation = LinkPresentation & { readonly isLoading?: boolean };
 
+const idleCacheDurationMs = 5 * 60_000;
+const idleCacheCapacity = 256;
+
 export class WebviewLinkPresentationProvider extends Disposable implements ILinkPresentationProvider {
 	readonly #entries = new Map<string, LinkPresentationEntry>();
+	readonly #inactive = new Map<string, number>();
+	readonly #subscriptions = new Map<string, LinkPresentationEntry>();
+	readonly #pending = new Set<LinkPresentationEntry>();
 	readonly #rules: readonly { id: string; uriPattern: RegExp; kind: LinkPresentationKind }[];
-	readonly #postMessage: (message: unknown) => void;
+	readonly #host: Pick<MarkdownEditorHost, 'richLinkSubscriptions'>;
 	#syncScheduled = false;
+	#disposed = false;
+	#cacheTimer: ReturnType<typeof setTimeout> | undefined;
 
 	constructor(
 		rules: readonly { id: string; source: string; flags: string; kind: LinkPresentationKind }[],
-		postMessage: (message: unknown) => void,
+		host: Pick<MarkdownEditorHost, 'richLinkSubscriptions'>,
 	) {
 		super();
 		this.#rules = rules.map(rule => ({
@@ -35,18 +45,26 @@ export class WebviewLinkPresentationProvider extends Disposable implements ILink
 			uriPattern: new RegExp(rule.source, rule.flags),
 			kind: rule.kind,
 		}));
-		this.#postMessage = postMessage;
+		this.#host = host;
 	}
 
 	createLinkPresentation(url: string): ILinkPresentation | undefined {
+		if (this.#disposed) {
+			throw new Error('Link presentation provider is disposed');
+		}
 		const rule = this.#rules.find(rule => matchesRule(rule.uriPattern, url));
 		if (!rule) {
 			return undefined;
 		}
 
+		const expiresAt = this.#inactive.get(url);
+		if (expiresAt !== undefined && expiresAt <= Date.now()) {
+			this.#pruneCache();
+		}
 		let entry = this.#entries.get(url);
 		if (!entry) {
 			entry = {
+				href: url,
 				presentation: observableValue(`linkPresentation:${url}`, {
 					kind: rule.kind,
 					isLoading: true,
@@ -55,8 +73,10 @@ export class WebviewLinkPresentationProvider extends Disposable implements ILink
 			};
 			this.#entries.set(url, entry);
 		}
-		entry.references++;
-		this.#scheduleTargetSync();
+		if (entry.references++ === 0) {
+			this.#inactive.delete(url);
+			this.#scheduleSubscriptions(entry);
+		}
 
 		let disposed = false;
 		return {
@@ -66,114 +86,101 @@ export class WebviewLinkPresentationProvider extends Disposable implements ILink
 					return;
 				}
 				disposed = true;
-				this.#release(url, entry);
+				if (--entry.references === 0 && !this.#disposed) {
+					this.#scheduleSubscriptions(entry);
+				}
 			},
 		};
 	}
 
-	handleMessage(message: unknown): boolean {
-		if (!isRecord(message) || message.type !== 'richLinkPresentations' || !Array.isArray(message.presentations)) {
-			return false;
-		}
-		for (const value of message.presentations) {
-			if (!isRecord(value) || typeof value.href !== 'string') {
-				continue;
-			}
-			const entry = this.#entries.get(value.href);
+	updatePresentations(presentations: readonly RichLinkPresentationUpdate[]): void {
+		for (const value of presentations) {
+			const entry = this.#subscriptions.get(value.subscriptionId);
 			if (!entry) {
 				continue;
 			}
-			entry.presentation.set(readLinkPresentation(value.presentation), undefined);
+			entry.presentation.set(value.presentation?.isLoading
+				? { ...entry.presentation.get(), ...value.presentation }
+				: value.presentation, undefined);
 		}
-		return true;
 	}
 
 	override dispose(): void {
+		if (this.#disposed) {
+			return;
+		}
+		this.#disposed = true;
+		if (this.#cacheTimer !== undefined) {
+			clearTimeout(this.#cacheTimer);
+		}
+		if (this.#subscriptions.size) {
+			this.#host.richLinkSubscriptions({ subscribe: [], unsubscribe: [...this.#subscriptions.keys()] });
+		}
+		this.#subscriptions.clear();
+		this.#pending.clear();
+		this.#inactive.clear();
 		this.#entries.clear();
 		super.dispose();
 	}
 
-	#release(url: string, entry: LinkPresentationEntry): void {
-		entry.references--;
-		if (entry.references === 0 && this.#entries.get(url) === entry) {
-			this.#entries.delete(url);
-			this.#scheduleTargetSync();
-		}
-	}
-
-	#scheduleTargetSync(): void {
+	#scheduleSubscriptions(entry: LinkPresentationEntry): void {
+		this.#pending.add(entry);
 		if (this.#syncScheduled) {
 			return;
 		}
 		this.#syncScheduled = true;
 		queueMicrotask(() => {
 			this.#syncScheduled = false;
-			this.#postMessage({ type: 'richLinkTargets', hrefs: [...this.#entries.keys()] });
+			if (this.#disposed) {
+				return;
+			}
+			const subscribe: RichLinkSubscriptions['subscribe'][number][] = [];
+			const unsubscribe: string[] = [];
+			for (const entry of this.#pending) {
+				if (entry.references > 0) {
+					if (!entry.subscriptionId) {
+						entry.subscriptionId = crypto.randomUUID();
+						this.#subscriptions.set(entry.subscriptionId, entry);
+						subscribe.push({ subscriptionId: entry.subscriptionId, href: entry.href });
+					}
+				} else {
+					if (entry.subscriptionId) {
+						unsubscribe.push(entry.subscriptionId);
+						this.#subscriptions.delete(entry.subscriptionId);
+						entry.subscriptionId = undefined;
+					}
+					this.#inactive.set(entry.href, Date.now() + idleCacheDurationMs);
+				}
+			}
+			this.#pending.clear();
+			this.#pruneCache();
+			if (subscribe.length || unsubscribe.length) {
+				this.#host.richLinkSubscriptions({ subscribe, unsubscribe });
+			}
 		});
+	}
+
+	#pruneCache(): void {
+		if (this.#cacheTimer !== undefined) {
+			clearTimeout(this.#cacheTimer);
+			this.#cacheTimer = undefined;
+		}
+		const now = Date.now();
+		for (const [href, expiresAt] of this.#inactive) {
+			if (expiresAt > now && this.#inactive.size <= idleCacheCapacity) {
+				this.#cacheTimer = setTimeout(() => {
+					this.#cacheTimer = undefined;
+					this.#pruneCache();
+				}, expiresAt - now);
+				break;
+			}
+			this.#inactive.delete(href);
+			this.#entries.delete(href);
+		}
 	}
 }
 
 function matchesRule(rule: RegExp, value: string): boolean {
 	rule.lastIndex = 0;
 	return rule.test(value);
-}
-
-function readLinkPresentation(value: unknown): WebviewLinkPresentation | undefined {
-	if (!isRecord(value) || !isLinkPresentationKind(value.kind)) {
-		return undefined;
-	}
-	const title = typeof value.title === 'string' ? value.title : undefined;
-	const detail = typeof value.detail === 'string' ? value.detail : undefined;
-	const reference = typeof value.reference === 'string' ? value.reference : undefined;
-	const tooltip = typeof value.tooltip === 'string' ? value.tooltip : undefined;
-	const ariaLabel = typeof value.ariaLabel === 'string' ? value.ariaLabel : undefined;
-	const status = readStatus(value.status);
-	const secondaryStatus = readStatus(value.secondaryStatus);
-	const isLoading = value.isLoading === true;
-	return {
-		kind: value.kind,
-		...(title ? { title } : {}),
-		...(detail ? { detail } : {}),
-		...(reference ? { reference } : {}),
-		...(status ? { status } : {}),
-		...(secondaryStatus ? { secondaryStatus } : {}),
-		...(tooltip ? { tooltip } : {}),
-		...(ariaLabel ? { ariaLabel } : {}),
-		...(isLoading ? { isLoading: true } : {}),
-	};
-}
-
-function readStatus(value: unknown): LinkPresentation['status'] {
-	return isRecord(value) && isStatusKind(value.kind) && typeof value.label === 'string'
-		? { kind: value.kind, label: value.label }
-		: undefined;
-}
-
-function isLinkPresentationKind(value: unknown): value is LinkPresentationKind {
-	return value === 'resource'
-		|| value === 'issue'
-		|| value === 'pullRequest'
-		|| value === 'commit'
-		|| value === 'file'
-		|| value === 'folder'
-		|| value === 'session'
-		|| value === 'repository'
-		|| value === 'branch';
-}
-
-function isStatusKind(value: unknown): value is LinkPresentationStatusKind {
-	return value === 'neutral'
-		|| value === 'pending'
-		|| value === 'success'
-		|| value === 'warning'
-		|| value === 'error'
-		|| value === 'open'
-		|| value === 'closed'
-		|| value === 'merged'
-		|| value === 'draft'
-		|| value === 'notPlanned';
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === 'object' && value !== null;
 }

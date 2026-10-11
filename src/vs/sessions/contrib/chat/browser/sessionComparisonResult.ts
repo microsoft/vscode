@@ -90,7 +90,7 @@ export class SessionComparisonResult extends Disposable {
 
 	layout(availableWidth: number): void {
 		const centeredContentWidth = Math.min(availableWidth, AGENTS_CENTERED_CONTENT_MAX_WIDTH);
-		this.domNode.style.width = `calc(${availableWidth}px - var(--session-view-content-horizontal-padding, var(--vscode-spacing-size320)) - var(--session-view-content-horizontal-padding, var(--vscode-spacing-size320)))`;
+		this.domNode.style.width = `calc(${availableWidth}px - var(--session-view-content-horizontal-padding, var(--vscode-spacing-size240)) - var(--session-view-content-horizontal-padding, var(--vscode-spacing-size240)))`;
 		this.domNode.style.marginLeft = `${(centeredContentWidth - availableWidth) / 2}px`;
 		this.domNode.style.marginRight = '0';
 	}

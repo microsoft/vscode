@@ -90,6 +90,7 @@ import {
 
 const noopOTelService: IAgentHostOTelService = {
 	_serviceBrand: undefined,
+	enabled: false,
 	diagnosticsEnabled: false,
 	emitTurnTiming: () => { },
 	emitFirstResponse: () => { },

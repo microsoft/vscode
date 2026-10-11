@@ -30,7 +30,7 @@ export class CopilotChatEndpoint extends ChatEndpoint {
 		@IFetcherService fetcherService: IFetcherService,
 		@IEnvService envService: IEnvService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IAuthenticationService authService: IAuthenticationService,
+		@IAuthenticationService private readonly _copilotAuthService: IAuthenticationService,
 		@IChatMLFetcher chatMLFetcher: IChatMLFetcher,
 		@ITokenizerProvider tokenizerProvider: ITokenizerProvider,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -50,6 +50,11 @@ export class CopilotChatEndpoint extends ChatEndpoint {
 			chatWebSocketService,
 			logService
 		);
+	}
+
+	// Tool search relies on Metis embeddings, which are unavailable to anonymous users.
+	public override get supportsToolSearch(): boolean | undefined {
+		return super.supportsToolSearch && !this._copilotAuthService.copilotToken?.isNoAuthUser;
 	}
 
 	protected override getCompletionsCallback(): RawMessageConversionCallback | undefined {

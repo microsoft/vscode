@@ -27,7 +27,7 @@ import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { ThrottlerByKey, SequencerByKey, timeout } from '../../../base/common/async.js';
 import { isCancellationError } from '../../../base/common/errors.js';
-import { SessionConfigKey } from '../common/sessionConfigKeys.js';
+import { getSessionPullRequestUrl, SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { AgentHostPullRequestAssociationResolver } from './agentHostPullRequestAssociationResolver.js';
 import { isSessionChatInFolder, resolveBranchChangesetScopeForSource, resolveGitHubStateFolder, type IGitHubStateFolder } from './agentHostBranchChangesetScope.js';
@@ -843,11 +843,16 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			return gitStateBaseBranch;
 		}
 		const configValues = state?.config?.values;
+		// A pull request session diffs against the pull request's base branch,
+		// recorded in the worktree metadata, rather than the configured branch.
 		const configuredBranch = isSessionFolder && configValues?.[SessionConfigKey.Isolation] === 'worktree'
-			&& configValues[SessionConfigKey.WorktreeCreateNewBranch] !== false
+			&& getSessionPullRequestUrl(configValues) === undefined
 			? configValues[SessionConfigKey.Branch]
 			: undefined;
-		if (typeof configuredBranch === 'string' && configuredBranch.trim()) {
+		// A branch is never its own base: worktrees that checked out their
+		// configured branch directly (pull request sessions created before
+		// `pullRequestUrl` existed) also use the recorded base.
+		if (typeof configuredBranch === 'string' && configuredBranch.trim() && configuredBranch.trim() !== this.getSessionGitState(sessionKey)?.branchName) {
 			return resolveDiffBaseBranchName(configuredBranch.trim(), undefined);
 		}
 

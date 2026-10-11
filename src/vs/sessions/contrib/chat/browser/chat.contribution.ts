@@ -483,11 +483,6 @@ registerAction2(class ManageAgentSessionStorageAction extends Action2 {
 				group: 'manage',
 				order: 0,
 				when: ChatContextKeys.enabled,
-			}, {
-				id: MenuId.SessionItemContextMenu,
-				group: '9_storage',
-				order: 0,
-				when: ChatContextKeys.enabled,
 			}],
 		});
 	}

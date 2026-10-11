@@ -255,6 +255,13 @@ export interface ILanguageModelChatMetadata {
 	readonly version: string;
 	readonly tooltip?: string;
 	readonly detail?: string;
+	/**
+	 * Auto's advertised discount, as a whole-number percentage. Set only by the agent host's
+	 * Auto model, whose {@link tooltip} then omits the discount so the picker can describe it
+	 * alongside Auto's routing tiers. Extension-provided Auto models describe their discount
+	 * in {@link tooltip} instead.
+	 */
+	readonly autoModelDiscountPercent?: number;
 	readonly multiplierNumeric?: number;
 	readonly isBYOK?: boolean;
 	readonly pricing?: string;
@@ -421,20 +428,25 @@ export namespace ILanguageModelChatMetadata {
 
 	/**
 	 * Builds the shared description shown for the Auto model, rendered as Markdown
-	 * (it contains a "Learn More" link). The discount sentence is only included
-	 * when a positive discount is provided.
-	 *
-	 * @param discountPercent Whole-number percentage (e.g. `10` for 10%). When
-	 * omitted or not positive, the discount sentence is left out entirely.
+	 * (it contains a "Learn More" link). The discount is described separately by
+	 * {@link getAutoModelDiscountDescription}.
 	 */
-	export function getAutoModelDescription(discountPercent?: number): string {
+	export function getAutoModelDescription(): string {
 		const base = localize('autoModel.description', "Auto routes based on your task and real-time system health and model performance.");
 		const learnMore = localize('autoModel.learnMore', "[Learn More]({0})", autoModelSelectionDocsUrl);
-		if (typeof discountPercent === 'number' && discountPercent > 0) {
-			const discount = localize('autoModel.discount', "Models routed via auto receive a {0}% discount.", discountPercent);
-			return `${base} ${discount} ${learnMore}`;
-		}
 		return `${base} ${learnMore}`;
+	}
+
+	/**
+	 * Describes Auto's discount, naming the tier it applies to when known.
+	 *
+	 * @param discountPercent Whole-number percentage (e.g. `10` for 10%).
+	 * @param tierLabel The label of Auto's selected tier, e.g. "Efficiency".
+	 */
+	export function getAutoModelDiscountDescription(discountPercent: number, tierLabel?: string): string {
+		return tierLabel
+			? localize('autoModel.tierDiscount', "Models routed via Auto {0} receive a {1}% discount.", tierLabel, discountPercent)
+			: localize('autoModel.discount', "Models routed via auto receive a {0}% discount.", discountPercent);
 	}
 
 	/**
@@ -1646,10 +1658,14 @@ export class LanguageModelsService implements ILanguageModelsService {
 
 		// Find the group from the configuration service (source of truth)
 		const allGroups = this._languageModelsConfigurationService.getLanguageModelsProviderGroups();
+		const isGrouplessModel = this._modelsGroups.get(metadata.vendor)?.some(g => !g.group && g.modelIdentifiers.includes(modelId));
+		const configurationOnlyGroups = isGrouplessModel && !this._vendors.get(metadata.vendor)?.configuration
+			? allGroups.filter(g => g.vendor === metadata.vendor && g.settings?.[metadata.id] !== undefined)
+			: [];
 		let group: ILanguageModelsProviderGroup | undefined;
 
-		// First try to find a group that already has config for this model.
-		group = allGroups.find(g => g.vendor === metadata.vendor && g.settings?.[metadata.id] !== undefined);
+		// Configuration-only groups are read in order, with the last model entry winning.
+		group = configurationOnlyGroups.at(-1) ?? allGroups.find(g => g.vendor === metadata.vendor && g.settings?.[metadata.id] !== undefined);
 
 		// Otherwise find the group that actually *defines* this model. Several
 		// groups can share the same `vendor` (e.g. multiple `customendpoint`
@@ -1684,23 +1700,24 @@ export class LanguageModelsService implements ILanguageModelsService {
 		}
 
 		if (group) {
-			const existingSettings = (group.settings as IStringDictionary<IStringDictionary<unknown>> | undefined) ?? {};
-			let updatedSettings: IStringDictionary<IStringDictionary<unknown>>;
-			if (Object.keys(updatedConfig).length === 0) {
-				updatedSettings = { ...existingSettings };
-				delete updatedSettings[metadata.id];
-			} else {
-				updatedSettings = { ...existingSettings, [metadata.id]: updatedConfig };
-			}
-			const updatedGroup: ILanguageModelsProviderGroup = {
-				...group,
-				settings: Object.keys(updatedSettings).length > 0 ? updatedSettings : undefined
-			};
-			if (!updatedGroup.settings && Object.keys(updatedGroup).filter(k => k !== 'name' && k !== 'vendor' && k !== 'range' && k !== 'modelsRange' && k !== 'settings').length === 0) {
-				// Remove the group entirely if it only had model config
-				await this._languageModelsConfigurationService.removeLanguageModelsProviderGroup(group);
-			} else {
-				await this._languageModelsConfigurationService.updateLanguageModelsProviderGroup(group, updatedGroup);
+			for (const targetGroup of configurationOnlyGroups.length ? configurationOnlyGroups : [group]) {
+				const updatedSettings = { ...targetGroup.settings };
+				// Remove shadowed entries too, so resetting the winner cannot restore an older preference.
+				if (targetGroup !== group || Object.keys(updatedConfig).length === 0) {
+					delete updatedSettings[metadata.id];
+				} else {
+					updatedSettings[metadata.id] = updatedConfig;
+				}
+				const updatedGroup: ILanguageModelsProviderGroup = {
+					...targetGroup,
+					settings: Object.keys(updatedSettings).length > 0 ? updatedSettings : undefined
+				};
+				if (!updatedGroup.settings && Object.keys(updatedGroup).filter(k => k !== 'name' && k !== 'vendor' && k !== 'range' && k !== 'modelsRange' && k !== 'settings').length === 0) {
+					// Remove the group entirely if it only had model config
+					await this._languageModelsConfigurationService.removeLanguageModelsProviderGroup(targetGroup);
+				} else {
+					await this._languageModelsConfigurationService.updateLanguageModelsProviderGroup(targetGroup, updatedGroup);
+				}
 			}
 		} else if (Object.keys(updatedConfig).length > 0) {
 			// Only create a new group if there's non-default config

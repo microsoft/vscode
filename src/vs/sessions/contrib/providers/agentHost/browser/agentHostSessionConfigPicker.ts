@@ -384,11 +384,7 @@ function isRenderableSessionConfigProperty(property: string, schema: SessionConf
 		|| (schema.readOnly && ['effectiveApprovalMode', 'availableApprovalModes', 'effectiveAutoTier'].includes(property))) {
 		return false;
 	}
-	if (
-		property === SessionConfigKey.SandboxEnabled ||
-		property === SessionConfigKey.WorktreeBranchTrack ||
-		property === SessionConfigKey.WorktreeCreateNewBranch
-	) {
+	if (property === SessionConfigKey.SandboxEnabled) {
 		return false;
 	}
 	if (presentation === SessionConfigKey.Isolation && !schema.enum?.includes('worktree')) {

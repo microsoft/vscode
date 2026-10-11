@@ -51,6 +51,17 @@ suite('Session isolation tool', () => {
 		assert.strictEqual(host.requiresConfirmation(main, SessionServerToolName.IsolateSession), true);
 	});
 
+	test('defers the tool behind tool search while keeping the wire definition unchanged', () => {
+		const { stateManager, host, session } = createHarness();
+		assert.deepStrictEqual({
+			deferrals: host.getDefinitionsForSession(session).map(({ name, deferLoading }) => ({ name, deferLoading })),
+			advertisedCarriesDeferral: stateManager.getSessionState(session)?.serverTools?.some(tool => Object.keys(tool).includes('deferLoading')),
+		}, {
+			deferrals: [{ name: SessionServerToolName.IsolateSession, deferLoading: true }],
+			advertisedCarriesDeferral: false,
+		});
+	});
+
 	for (const target of ['main', 'peer'] as const) {
 		test(`requests isolation from an active ${target} turn with no workspace arguments`, () => {
 			const harness = createHarness();

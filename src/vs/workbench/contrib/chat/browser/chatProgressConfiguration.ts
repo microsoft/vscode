@@ -42,7 +42,7 @@ export const chatProgressConfigurationProperties = {
 			localize('chat.progressVerbosity.verbose', "Keep tool calls in expanded, headerless chains without an internal scrolling limit."),
 			localize('chat.progressVerbosity.compact', "Preview tool calls while they run, then collapse each group to a single expandable summary row when the response moves on."),
 		],
-		markdownDescription: localize('chat.experimental.persistentProgressVerbosity', "Control tool call details when {0} is enabled. Compact is the default and collapses tool groups in place when thinking or response text resumes, or the response finishes. Expand a summary to inspect its tool calls. Has no effect when persistent progress is Off. Changes apply immediately.", `\`#${ChatConfiguration.PersistentProgress}#\``),
+		markdownDescription: localize('chat.experimental.persistentProgressVerbosity', "Control tool call details when {0} is enabled. Compact is the default and collapses tool groups in place when thinking or response text resumes, or the response finishes. When Agent Host activity data is available, headers summarize up to three activity groups, prioritizing edits and commands, without language model requests. Remaining activity is counted as other steps. Failed, skipped, denied, and unfinished tool invocations remain explicit, including in the other-steps count. Completed shell invocations count as commands without tracking later background process status. Groups with no recognized activity or outcome use a step count. Expand a summary to inspect all its tool calls. Has no effect when persistent progress is Off. Changes apply immediately.", `\`#${ChatConfiguration.PersistentProgress}#\``),
 		tags: ['experimental'],
 		experiment: { mode: 'auto' },
 	},
