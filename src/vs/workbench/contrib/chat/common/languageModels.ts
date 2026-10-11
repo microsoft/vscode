@@ -262,8 +262,8 @@ export interface ILanguageModelChatMetadata {
 	 * in {@link tooltip} instead.
 	 */
 	readonly autoModelDiscountPercent?: number;
-	/** Whether the agent host presents its Auto model as Ensemble. */
-	readonly autoModelEnsemble?: boolean;
+	/** How the agent host presents its Auto model as Ensemble, when it does. */
+	readonly autoModelEnsemble?: { readonly intelligenceUsesHydraFusion: boolean };
 	readonly multiplierNumeric?: number;
 	readonly isBYOK?: boolean;
 	readonly pricing?: string;

@@ -305,6 +305,22 @@ suite('ModelCard', () => {
 		});
 	});
 
+	test('a tier saved before an alternative took its place describes that tier until the alternative is chosen', () => {
+		const hydraFusion = { ...createModel({ id: 'hydrafusion', name: 'HydraFusion', modelGroup: { id: 'copilotcli' }, configurationSchema: undefined }), identifier: 'copilot/hydrafusion' };
+		const alternative = (selected: boolean): IModelCardOptions['routingAlternatives'] => [{
+			model: hydraFusion, label: 'Intelligence', replacesTier: 'intelligence',
+			description: 'Intelligence uses HydraFusion, a research preview.', tooltip: 'It picks a workflow per task.', selected,
+		}];
+		const result = createCard({ tier: 'intelligence' }, { model: createAutoModel(), routingAlternatives: alternative(false) });
+		const intelligence = () => Array.from(result.card.element.querySelectorAll<HTMLElement>('[role="radio"]')).find(option => option.textContent === 'Intelligence');
+		const saved = { checked: intelligence()?.getAttribute('aria-checked'), label: intelligence()?.getAttribute('aria-label') };
+		result.update({ routingAlternatives: alternative(true) });
+		assert.deepStrictEqual({ saved, chosen: { checked: intelligence()?.getAttribute('aria-checked'), label: intelligence()?.getAttribute('aria-label') } }, {
+			saved: { checked: 'true', label: 'Intelligence, Most capable models' },
+			chosen: { checked: 'true', label: 'Intelligence, Intelligence uses HydraFusion, a research preview. It picks a workflow per task.' },
+		});
+	});
+
 	test('Auto\'s discount names the tier shown as selected while its save is pending', async () => {
 		const pending = new DeferredPromise<void>();
 		const values = { tier: 'balance' };

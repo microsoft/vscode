@@ -28,7 +28,7 @@ export function getEnsembleTierLabel(auto: ILanguageModelChatMetadata | undefine
 		return localize('chat.modelPicker.ensembleMax', "Max");
 	}
 	const intelligence: AutoModeTier = 'intelligence';
-	if (hydraFusionModelId !== COPILOT_HYDRA_FUSION_MODEL_ID) {
+	if (hydraFusionModelId !== COPILOT_HYDRA_FUSION_MODEL_ID || !auto.autoModelEnsemble.intelligenceUsesHydraFusion) {
 		return undefined;
 	}
 	const tier = Object.values(auto.configurationSchema?.properties ?? {}).find(property => property.enum?.includes(intelligence));

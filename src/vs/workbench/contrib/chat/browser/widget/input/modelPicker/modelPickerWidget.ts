@@ -24,9 +24,10 @@ import { IActionListHeaderLink } from '../../../../../../../platform/actionWidge
 import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../../../../platform/product/common/productService.js';
+import { onUnexpectedError } from '../../../../../../../base/common/errors.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { logSettingExperimentTrigger } from '../../../../../../../platform/telemetry/common/experimentTrigger.js';
-import { AgentHostEnsembleIntelligenceUsesHydraFusionSettingId } from '../../../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { AgentHostEnsembleIntelligenceUsesHydraFusionSettingId, COPILOT_HYDRA_FUSION_MODEL_ID } from '../../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../../platform/storage/common/storage.js';
 import { COPILOT_VENDOR_ID, getLanguageModelProviderDisplayName, IModelControlEntry, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, isUserProvidedModel } from '../../../../common/languageModels.js';
 import { getLanguageModelDisplayNameWithSubscriptionSource } from '../../../../common/languageModelSourcePresentation.js';
@@ -45,7 +46,7 @@ import { renderModelConfigurationButton } from './modelPickerConfiguration.js';
 import { getCompactModelPickerIcon } from './modelProviderIcons.js';
 import { ITabbedModelPickerContext, TabbedModelPicker } from './modelPickerTabbedWidget.js';
 import { IModelPickerOpenTrigger, ModelPickerTelemetrySession } from './modelPickerTelemetry.js';
-import { whenModelConfigValuesSaved } from './modelPickerModelConfig.js';
+import { getModelConfigProperty, MODEL_CONFIG_GROUP_EFFORT, setModelConfigValues, whenModelConfigValuesSaved } from './modelPickerModelConfig.js';
 import { IModelPickerProviderPlaceholder } from './modelPickerTabs.js';
 import { getEnsembleTierLabel, getModelPickerUnavailableReason, isAutoModel, isHydraFusionModel, isHydraFusionUpgradeOnly, ModelPickerUnavailableReason, modelPickerRequiresSetup, shouldShowCacheBreakHint as computeShouldShowCacheBreakHint } from './modelPickerPresentation.js';
 
@@ -274,16 +275,31 @@ export class ModelPickerWidget extends Disposable {
 	}
 
 	private _normalizeSelectedModel(model: ILanguageModelChatMetadataAndIdentifier | undefined): ILanguageModelChatMetadataAndIdentifier | undefined {
-		if (!isHydraFusionUpgradeOnly(this._entitlementService.entitlement) ||
-			!model ||
-			!isHydraFusionModel(model) ||
-			isUserProvidedModel(model, this._languageModelsService)) {
+		if (!model || !isHydraFusionModel(model) || isUserProvidedModel(model, this._languageModelsService)) {
 			return model;
 		}
 		const models = this._delegate.getModels();
-		return models.find(model => isAutoModel(model) && !isUserProvidedModel(model, this._languageModelsService))
-			?? models.find(model => !isHydraFusionModel(model) || isUserProvidedModel(model, this._languageModelsService))
-			?? model;
+		const auto = models.find(model => isAutoModel(model) && !isUserProvidedModel(model, this._languageModelsService));
+		if (isHydraFusionUpgradeOnly(this._entitlementService.entitlement)) {
+			return auto
+				?? models.find(model => !isHydraFusionModel(model) || isUserProvidedModel(model, this._languageModelsService))
+				?? model;
+		}
+		const ensemble = auto?.metadata.autoModelEnsemble;
+		if (!auto || !ensemble || model.metadata.id !== COPILOT_HYDRA_FUSION_MODEL_ID) {
+			return model;
+		}
+		logSettingExperimentTrigger(this._telemetryService, AgentHostEnsembleIntelligenceUsesHydraFusionSettingId);
+		if (ensemble.intelligenceUsesHydraFusion) {
+			return model;
+		}
+		// Ensemble only offers HydraFusion as its Intelligence, so a chat that chose it before moves there.
+		const configurationAccess = this._delegate.modelConfiguration ?? this._languageModelsService;
+		const tier = getModelConfigProperty(auto, configurationAccess, MODEL_CONFIG_GROUP_EFFORT);
+		if (tier?.schema.enum?.includes('intelligence')) {
+			setModelConfigValues(auto, configurationAccess, { [tier.key]: 'intelligence' }).catch(onUnexpectedError);
+		}
+		return auto;
 	}
 
 	private _getEnsembleTier(model: ILanguageModelChatMetadataAndIdentifier): { readonly ensemble: ILanguageModelChatMetadataAndIdentifier; readonly label: string } | undefined {

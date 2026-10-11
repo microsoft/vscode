@@ -246,7 +246,7 @@ export class ModelCard extends DisposableStore {
 		}
 		// Without tiers to sit below, Auto's discount follows its description.
 		if (isAuto && !effort && metadata.autoModelDiscountPercent !== undefined) {
-			this._renderDescription(ILanguageModelChatMetadata.getAutoModelDiscountDescription(metadata.autoModelDiscountPercent, undefined, metadata.autoModelEnsemble));
+			this._renderDescription(ILanguageModelChatMetadata.getAutoModelDiscountDescription(metadata.autoModelDiscountPercent, undefined, !!metadata.autoModelEnsemble));
 		}
 
 		if (!isAuto) {
@@ -424,14 +424,24 @@ export class ModelCard extends DisposableStore {
 				};
 			}
 			const label = alternative.label ?? choice?.label ?? alternative.model.metadata.name;
+			// Until the alternative is chosen, a tier saved before it took the tier's place describes that tier.
+			const describesTier = !!choice && !alternative.selected && choice.checked && !selectedAlternative;
+			if (describesTier) {
+				return {
+					text: label,
+					tooltip: choice.description,
+					ariaLabel: choice.description ? localize('chat.modelPicker.optionDescription', "{0}, {1}", label, choice.description) : label,
+					isActive: true,
+					disabled: choice.readOnly,
+				};
+			}
 			return {
 				text: label,
 				tooltip: alternative.tooltip ?? alternative.description,
 				ariaLabel: alternative.tooltip
 					? localize('chat.modelPicker.alternativeDescription', "{0}, {1} {2}", label, alternative.description, alternative.tooltip)
 					: localize('chat.modelPicker.optionDescription', "{0}, {1}", label, alternative.description),
-				// A tier saved before its alternative took its place still shows as that tier.
-				isActive: alternative.selected || (!!choice?.checked && !selectedAlternative),
+				isActive: alternative.selected,
 				disabled: !!choice?.readOnly,
 				// More than one alternative won't fit beside the tiers, so they start a row of their own.
 				startsRow: index === choices.length && followingAlternatives > 1,
@@ -447,7 +457,7 @@ export class ModelCard extends DisposableStore {
 		}));
 		const alternativeDescriptions = new Map<IModelCardRoutingAlternative, HTMLElement>();
 		const discountPercent = isAuto && group === MODEL_CONFIG_GROUP_EFFORT ? this._options.model.metadata.autoModelDiscountPercent : undefined;
-		const ensemble = this._options.model.metadata.autoModelEnsemble;
+		const ensemble = !!this._options.model.metadata.autoModelEnsemble;
 		let discountDescription: HTMLElement | undefined;
 		let discountTierLabel: string | undefined;
 		const discountStore = this._contentDisposables.add(new MutableDisposable<DisposableStore>());

@@ -45,7 +45,7 @@ import { createContextSizeConfigSchemaProperty } from '../../common/agentModelCo
 import { createAgentModelNoticesMeta } from '../../common/agentModelNotices.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { AgentHostConfigKey, agentHostCustomizationConfigSchema, toContainerCustomization } from '../../common/agentHostCustomizationConfig.js';
-import { AgentHostEnsembleEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_NAMES, DEFAULT_COPILOT_RUBBER_DUCK_ENABLED, isCopilotHydraFusionModelId, normalizeModelFamilyAlias, normalizeSkillCharBudget, resolveModelCapabilityOverrideField, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
+import { AgentHostEnsembleEnabledSettingId, CopilotCliConfigKey, CopilotCliVSCodeAssignmentContextKey, copilotCliConfigSchema, COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_NAMES, DEFAULT_COPILOT_RUBBER_DUCK_ENABLED, isCopilotHydraFusionModelId, normalizeModelFamilyAlias, normalizeSkillCharBudget, resolveModelCapabilityOverrideField, type CopilotSdkLogLevelSetting } from '../../common/copilotCliConfig.js';
 import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostGlobalAutoApproveEnabledConfigKey, AgentHostByokModelsEnabledConfigKey, AgentHostMcpConnectorsEnabledConfigKey, AgentHostMcpServersConfigKey, AgentHostGitHubMcpServerEnabledConfigKey, AgentHostCopilotMultiRootEnabledConfigKey, AgentHostSessionSyncEnabledConfigKey, AgentHostSystemProxyEnabledConfigKey, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostProxyConfigKey, agentHostProxyConfigSchema, AutoApproveLevel, SessionMode, migrateLegacyAutopilotConfig, platformRootSchema, platformSessionSchema, type AgentHostMcpServers } from '../../common/agentHostSchema.js';
 import { getCopilotApprovalConfig, getCopilotApprovalPolicy, resolveCopilotManagedSettings } from './copilotApprovalPolicy.js';
 import { buildCopilotBuiltinAgentsContainer, COPILOT_BUILTIN_AGENT_NAMES_BY_URI, CopilotBuiltinAgentsStore } from './copilotBuiltinAgents.js';
@@ -2608,11 +2608,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 */
 	private _publishModels(): void {
 		const ensemble = this._isEnsembleEnabled();
-		const offersHydraFusion = !ensemble || this._isEnsembleIntelligenceUsingHydraFusion();
 		const hydraFusionModels: IAgentModelInfo[] = [];
 		for (const [id, name] of COPILOT_HYDRA_FUSION_MODEL_NAMES) {
 			// The runtime only offers Max with HydraFusion v2.
-			const enabled = id === COPILOT_HYDRA_FUSION_MAX_MODEL_ID ? this._isHydraFusionV2Enabled() : this._isHydraFusionEnabled() && offersHydraFusion;
+			const enabled = id === COPILOT_HYDRA_FUSION_MAX_MODEL_ID ? this._isHydraFusionV2Enabled() : this._isHydraFusionEnabled();
 			if (enabled && !this._capiModels.some(model => model.id === id)) {
 				hydraFusionModels.push({
 					provider: this.id,
@@ -2624,7 +2623,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 		}
 		const capiModels = this._withClaudeDefaultReasoningEffort(this._capiModels)
-			.filter(model => offersHydraFusion || model.id !== COPILOT_HYDRA_FUSION_MODEL_ID)
 			.map(model => ensemble ? this._asEnsemble(model) : model);
 		if (this._capiModels.some(model => isAutoModel(model.id))) {
 			this._reportEnsembleExperimentTrigger();
@@ -2666,7 +2664,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 			...model,
 			name: localize('copilotAgent.ensembleModelName', "Ensemble"),
 			configSchema,
-			_meta: withAgentModelEnsembleMeta(model._meta),
+			// HydraFusion stays published either way, so sessions that already selected it keep working.
+			_meta: withAgentModelEnsembleMeta(model._meta, { intelligenceUsesHydraFusion: this._isEnsembleIntelligenceUsingHydraFusion() }),
 		};
 	}
 

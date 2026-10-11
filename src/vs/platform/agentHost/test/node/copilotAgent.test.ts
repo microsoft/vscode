@@ -9102,7 +9102,7 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('presents Auto as Ensemble, offering HydraFusion for Intelligence only when routed there', async () => {
+		test('presents Auto as Ensemble, keeping HydraFusion published and reporting whether Intelligence routes there', async () => {
 			const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }, { id: 'gpt-5', name: 'GPT-5' }]);
 			const { agent, configurationService } = createTestAgentContext(disposables, {
 				copilotClient: client,
@@ -9110,7 +9110,8 @@ suite('CopilotAgent', () => {
 			});
 			const published = () => agent.models.get().map(model => {
 				const tier = model.configSchema?.properties.tier;
-				return `${model.id}:${model.name}${readAgentModelEnsembleMeta(model) ? ':ensemble' : ''}${tier ? `:${tier.enum?.join('/')}=${tier.default}` : ''}`;
+				const ensemble = readAgentModelEnsembleMeta(model);
+				return `${model.id}:${model.name}${ensemble ? `:ensemble(intelligenceUsesHydraFusion=${ensemble.intelligenceUsesHydraFusion})` : ''}${tier ? `:${tier.enum?.join('/')}=${tier.default}` : ''}`;
 			});
 			try {
 				await agent.authenticate('https://api.github.com', 'token');
@@ -9124,8 +9125,8 @@ suite('CopilotAgent', () => {
 				configurationService.updateRootConfig({ [CopilotCliConfigKey.Ensemble]: false });
 				await agent.refreshModels();
 				assert.deepStrictEqual({ ensemble, routed, auto: published() }, {
-					ensemble: ['auto:Ensemble:ensemble:balance/intelligence=balance', 'gpt-5:GPT-5', 'hydrafusion-max:HydraFusion Max'],
-					routed: ['auto:Ensemble:ensemble:balance/intelligence=balance', 'gpt-5:GPT-5', 'hydrafusion:HydraFusion', 'hydrafusion-max:HydraFusion Max'],
+					ensemble: ['auto:Ensemble:ensemble(intelligenceUsesHydraFusion=false):balance/intelligence=balance', 'gpt-5:GPT-5', 'hydrafusion:HydraFusion', 'hydrafusion-max:HydraFusion Max'],
+					routed: ['auto:Ensemble:ensemble(intelligenceUsesHydraFusion=true):balance/intelligence=balance', 'gpt-5:GPT-5', 'hydrafusion:HydraFusion', 'hydrafusion-max:HydraFusion Max'],
 					auto: ['auto:Auto:efficiency/balance/intelligence=balance', 'gpt-5:GPT-5', 'hydrafusion:HydraFusion', 'hydrafusion-max:HydraFusion Max'],
 				});
 			} finally {

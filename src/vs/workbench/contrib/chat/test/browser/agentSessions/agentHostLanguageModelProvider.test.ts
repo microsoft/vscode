@@ -206,8 +206,8 @@ suite('AgentHostLanguageModelProvider', () => {
 	test('presents Auto as Ensemble only when its host marks it so', async () => {
 		const provider = createProvider();
 		provider.updateModels([
-			{ ...makeModel('auto', withAgentModelEnsembleMeta({ discountPercent: 10 })), name: 'Ensemble' },
-			{ ...makeModel('gpt-5', withAgentModelEnsembleMeta(undefined)) },
+			{ ...makeModel('auto', withAgentModelEnsembleMeta({ discountPercent: 10 }, { intelligenceUsesHydraFusion: true })), name: 'Ensemble' },
+			{ ...makeModel('gpt-5', withAgentModelEnsembleMeta(undefined, { intelligenceUsesHydraFusion: true })) },
 		]);
 		const infos = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
 		const plainHost = createProvider();
@@ -218,7 +218,7 @@ suite('AgentHostLanguageModelProvider', () => {
 			plain: plain.metadata.autoModelEnsemble,
 		}, {
 			models: [
-				{ name: 'Ensemble', ensemble: true, tooltip: ILanguageModelChatMetadata.getAutoModelDescription(true) },
+				{ name: 'Ensemble', ensemble: { intelligenceUsesHydraFusion: true }, tooltip: ILanguageModelChatMetadata.getAutoModelDescription(true) },
 				{ name: 'gpt-5', ensemble: undefined, tooltip: undefined },
 			],
 			plain: undefined,

@@ -3,15 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isObject } from '../../../../../base/common/types.js';
 import type { SessionModelInfo } from '../../state/protocol/state.js';
 import type { IAgentModelInfo } from '../../agent.js';
 
 const VSCODE_ENSEMBLE_META_KEY = 'vscode.chat.ensemble';
 
-export function withAgentModelEnsembleMeta(meta: Record<string, unknown> | undefined): Record<string, unknown> {
-	return { ...meta, [VSCODE_ENSEMBLE_META_KEY]: true };
+/** How the host presents its Auto model as Ensemble. */
+export interface IAgentModelEnsembleMeta {
+	readonly intelligenceUsesHydraFusion: boolean;
 }
 
-export function readAgentModelEnsembleMeta(model: IAgentModelInfo | SessionModelInfo): boolean {
-	return model._meta?.[VSCODE_ENSEMBLE_META_KEY] === true;
+export function withAgentModelEnsembleMeta(meta: Record<string, unknown> | undefined, ensemble: IAgentModelEnsembleMeta): Record<string, unknown> {
+	return { ...meta, [VSCODE_ENSEMBLE_META_KEY]: { intelligenceUsesHydraFusion: ensemble.intelligenceUsesHydraFusion } };
+}
+
+export function readAgentModelEnsembleMeta(model: IAgentModelInfo | SessionModelInfo): IAgentModelEnsembleMeta | undefined {
+	const value = model._meta?.[VSCODE_ENSEMBLE_META_KEY];
+	return isObject(value) ? { intelligenceUsesHydraFusion: (value as { intelligenceUsesHydraFusion?: unknown }).intelligenceUsesHydraFusion === true } : undefined;
 }

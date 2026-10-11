@@ -402,7 +402,9 @@ export class TabbedModelPicker extends Disposable {
 	private _buildDestinations(context: ITabbedModelPickerContext): IModelPickerDestination[] {
 		const autoModel = this._autoModel(context);
 		const hydraFusionModels = this._hydraFusionModels(context);
-		return buildModelPickerDestinations(context.models, this._languageModelsService, context.providerPlaceholders, model => model === autoModel || hydraFusionModels.includes(model), this._hasBuiltInUpsells(context));
+		// Ensemble's HydraFusion is never a row of its own, even when Ensemble does not offer it.
+		const ensembleHydraFusion = (model: ILanguageModelChatMetadataAndIdentifier) => !!autoModel?.metadata.autoModelEnsemble && isHydraFusionModel(model) && !isUserProvidedModel(model, this._languageModelsService);
+		return buildModelPickerDestinations(context.models, this._languageModelsService, context.providerPlaceholders, model => model === autoModel || hydraFusionModels.includes(model) || ensembleHydraFusion(model), this._hasBuiltInUpsells(context));
 	}
 
 	/**
@@ -427,10 +429,13 @@ export class TabbedModelPicker extends Disposable {
 
 	/**
 	 * The HydraFusion routing models this build can run, HydraFusion before HydraFusion Max.
-	 * The host only offers HydraFusion Max with HydraFusion v2.
+	 * The host only offers HydraFusion Max with HydraFusion v2, and Ensemble only offers
+	 * HydraFusion as its Intelligence.
 	 */
 	private _hydraFusionModels(context: ITabbedModelPickerContext): ILanguageModelChatMetadataAndIdentifier[] {
+		const ensemble = this._autoModel(context)?.metadata.autoModelEnsemble;
 		return [...COPILOT_HYDRA_FUSION_MODEL_NAMES.keys()]
+			.filter(id => id !== COPILOT_HYDRA_FUSION_MODEL_ID || !ensemble || ensemble.intelligenceUsesHydraFusion)
 			.map(id => context.models.find(model => model.metadata.id === id && isHydraFusionModel(model) && !isUserProvidedModel(model, this._languageModelsService) && !requiresNewerVSCode(model, context.controlModels, context.unavailableContext.currentVSCodeVersion)))
 			.filter((model): model is ILanguageModelChatMetadataAndIdentifier => !!model);
 	}
