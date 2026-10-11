@@ -61,6 +61,10 @@ export const enum CopilotCliConfigKey {
 	HydraFusion = 'hydraFusion',
 	/** Use HydraFusion v2. Off by default; requires {@link HydraFusion}. */
 	HydraFusionV2 = 'hydraFusionV2',
+	/** Present Auto as Ensemble, with Balance, Intelligence, and Max. Off by default. */
+	Ensemble = 'ensemble',
+	/** With {@link Ensemble}, Ensemble's Intelligence uses HydraFusion. Off by default. */
+	EnsembleIntelligenceUsesHydraFusion = 'ensembleIntelligenceUsesHydraFusion',
 	/** Enable Copilot Memory for Copilot SDK sessions. Off by default. */
 	Memory = 'memory',
 	/** Store Copilot Memory in the repository instead of GitHub's cloud memory service. Off by default; requires {@link Memory}. */
@@ -106,6 +110,8 @@ export const AgentHostHydraFusionEnabledSettingId = 'chat.copilot.hydraFusion.en
 
 /** `true` enables HydraFusion (v1) and `'v2'` enables HydraFusion v2; experiments assign either value. */
 export type AgentHostHydraFusionSettingValue = boolean | 'v2';
+export const AgentHostEnsembleEnabledSettingId = 'chat.copilot.ensemble.enabled';
+export const AgentHostEnsembleIntelligenceUsesHydraFusionSettingId = 'chat.copilot.ensemble.intelligenceUsesHydraFusion';
 
 export const AgentHostCopilotMemoryEnabledSettingId = 'chat.copilot.memory.enabled';
 
@@ -283,6 +289,18 @@ export const copilotCliConfigSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.hydraFusionV2.title', "HydraFusion V2"),
 		description: localize('agentHost.config.hydraFusionV2.description', "When enabled together with HydraFusion, Copilot SDK sessions use HydraFusion v2."),
+		default: false,
+	}),
+	[CopilotCliConfigKey.Ensemble]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.ensemble.title', "Ensemble"),
+		description: localize('agentHost.config.ensemble.description', "When enabled, Auto is presented as Ensemble, optimizing for Balance, Intelligence, or Max."),
+		default: false,
+	}),
+	[CopilotCliConfigKey.EnsembleIntelligenceUsesHydraFusion]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.ensembleIntelligenceUsesHydraFusion.title', "Ensemble Intelligence Uses HydraFusion"),
+		description: localize('agentHost.config.ensembleIntelligenceUsesHydraFusion.description', "When enabled together with Ensemble and HydraFusion, Ensemble's Intelligence uses HydraFusion."),
 		default: false,
 	}),
 	[CopilotCliConfigKey.Memory]: schemaProperty<boolean>({

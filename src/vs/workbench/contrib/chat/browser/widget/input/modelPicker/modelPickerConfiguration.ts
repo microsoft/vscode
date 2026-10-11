@@ -18,8 +18,9 @@ export function renderModelConfigurationButton(
 	model: ILanguageModelChatMetadataAndIdentifier | undefined,
 	configurationAccess: IModelConfigurationAccess,
 	hidden: boolean,
+	tierLabel?: string,
 ): void {
-	const summary = getModelConfigSummary(model, configurationAccess);
+	const summary = tierLabel ?? getModelConfigSummary(model, configurationAccess);
 	const configurable = !!getModelConfigProperty(model, configurationAccess, MODEL_CONFIG_GROUP_EFFORT) || !!getModelConfigProperty(model, configurationAccess, MODEL_CONFIG_GROUP_CONTEXT);
 	if (hidden || !model || (!configurable && !summary)) {
 		button.style.display = 'none';
@@ -29,6 +30,6 @@ export function renderModelConfigurationButton(
 	const label = summary ?? localize('chat.modelPicker.configureLabel', "Configure");
 	dom.reset(button, dom.$('span.chat-input-picker-label', undefined, label));
 	button.style.display = '';
-	const description = getModelConfigDescription(model, configurationAccess) ?? label;
+	const description = (tierLabel ? undefined : getModelConfigDescription(model, configurationAccess)) ?? label;
 	button.ariaLabel = localize('chat.modelPicker.detailsAriaLabel', "{0} details, {1}", model.metadata.name, description);
 }

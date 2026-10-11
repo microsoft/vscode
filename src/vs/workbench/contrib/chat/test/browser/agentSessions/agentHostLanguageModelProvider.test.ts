@@ -10,6 +10,7 @@ import { Emitter } from '../../../../../../base/common/event.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { PolicyState, SessionModelInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { withAgentModelEnsembleMeta } from '../../../../../../platform/agentHost/common/meta/agentModelMeta.js';
 import { ILanguageModelChatMetadata } from '../../../common/languageModels.js';
 import { AgentHostLanguageModelProvider } from '../../../browser/agentSessions/agentHost/agentHostLanguageModelProvider.js';
 
@@ -200,6 +201,32 @@ suite('AgentHostLanguageModelProvider', () => {
 		assert.strictEqual(concrete?.metadata.detail, undefined);
 		assert.strictEqual(concrete?.metadata.tooltip, undefined);
 		assert.strictEqual(concrete?.metadata.autoModelDiscountPercent, undefined);
+	});
+
+	test('presents Auto as Ensemble only when its host marks it so', async () => {
+		const provider = createProvider();
+		provider.updateModels([
+			{ ...makeModel('auto', withAgentModelEnsembleMeta({ discountPercent: 10 }, { intelligenceUsesHydraFusion: true })), name: 'Ensemble' },
+			{ ...makeModel('gpt-5', withAgentModelEnsembleMeta(undefined, { intelligenceUsesHydraFusion: true })) },
+		]);
+		const infos = await provider.provideLanguageModelChatInfo(undefined, CancellationToken.None);
+		const ensembleOf = async (meta?: Record<string, unknown>) => {
+			const host = createProvider();
+			host.updateModels([makeModel('auto', meta)]);
+			return (await host.provideLanguageModelChatInfo(undefined, CancellationToken.None))[0].metadata.autoModelEnsemble;
+		};
+		assert.deepStrictEqual({
+			models: infos.map(m => ({ name: m.metadata.name, ensemble: m.metadata.autoModelEnsemble, tooltip: m.metadata.tooltip })),
+			plain: await ensembleOf(),
+			malformed: [await ensembleOf({ 'vscode.chat.ensemble': {} }), await ensembleOf({ 'vscode.chat.ensemble': { intelligenceUsesHydraFusion: 'true' } })],
+		}, {
+			models: [
+				{ name: 'Ensemble', ensemble: { intelligenceUsesHydraFusion: true }, tooltip: ILanguageModelChatMetadata.getAutoModelDescription(true) },
+				{ name: 'gpt-5', ensemble: undefined, tooltip: undefined },
+			],
+			plain: undefined,
+			malformed: [undefined, undefined],
+		});
 	});
 
 	test('shows the Auto tooltip but no detail when there is no positive discount', async () => {
