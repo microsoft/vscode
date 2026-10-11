@@ -28,8 +28,11 @@ steps:
       VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL: ${{ parameters.VSCODE_SKIP_FOUNDRY_LOCAL_INSTALL }}
       VSCODE_TEST_IDS: ${{ parameters.VSCODE_TEST_IDS }}
 
-  - script: node test/integration/agentHost/publicRuntime.ts --prepare
-    displayName: Select public OSS runtimes for native holder probe
+  - ${{ if and(eq(parameters.VSCODE_CIBUILD, true), eq(parameters.VSCODE_ARCH, 'x64'), containsValue(parameters.VSCODE_TEST_IDS, 'integration-electron')) }}:
+    - script: node test/integration/agentHost/publicRuntime.ts --prepare
+      displayName: Select public OSS runtimes for native holder probe
+      env:
+        AGENT_HOST_E2E_PUBLIC_RUNTIME_PROBE: '1'
 
   # Start pulling the CG-generated NOTICE from the parallel Quality stage
   # in the background (overwrites repo-root ThirdPartyNotices.txt before packaging).

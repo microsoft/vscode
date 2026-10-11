@@ -120,6 +120,7 @@ steps:
             export INTEGRATION_TEST_ELECTRON_PATH="$APP_ROOT/$APP_NAME"
             node test/integration/agentHost/nativeProbe.ts
           env:
+            AGENT_HOST_E2E_PUBLIC_RUNTIME_PROBE: '1'
             VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)
             VSCODE_SKIP_PRELAUNCH: '1'
           displayName: 🧪 Run integration tests (Electron)
