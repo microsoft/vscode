@@ -8,11 +8,12 @@ import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { revive } from '../../../../../base/common/marshalling.js';
 import { IObservable, ITransaction, observableValue } from '../../../../../base/common/observable.js';
-import { isEqual, joinPath } from '../../../../../base/common/resources.js';
+import { extUriBiasedIgnorePathCase, isEqual, joinPath } from '../../../../../base/common/resources.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
+import { FileOperationResult, IFileContent, IFileService, IWriteFileOptions, toFileOperationResult } from '../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
+import type { IAgentPluginEnablementService } from './agentPluginService.js';
 
 const INSTALLED_JSON_FILENAME = 'installed.json';
 const INSTALLED_JSON_VERSION = 1;
@@ -30,7 +31,12 @@ const LEGACY_MARKETPLACE_INDEX_STORAGE_KEY = 'chat.plugins.marketplaces.index.v1
  * marketplace when needed.
  */
 interface IInstalledJsonEntry {
+	/** Absolute URI retained for older readers and plugins outside the agent-plugins directory. */
 	readonly pluginUri: string;
+	/** Path relative to the agent-plugins directory, preferred over pluginUri when present. */
+	readonly relativePath?: string;
+	/** Stable enablement identity retained when pluginUri changes, for every user profile. */
+	readonly enablementUri?: string;
 	readonly marketplace: string;
 	readonly name?: string;
 }
@@ -48,6 +54,7 @@ interface IInstalledJson {
  */
 export interface IStoredInstalledPlugin {
 	readonly pluginUri: URI;
+	readonly enablementUri?: URI;
 	readonly marketplace: string;
 	readonly name?: string;
 }
@@ -58,9 +65,9 @@ export interface IStoredInstalledPlugin {
  * the installed-plugin manifest discoverable by external tools (CLIs,
  * other editors, etc.) without depending on VS Code internals.
  *
- * The on-disk format stores only the plugin URI (as a string), marketplace
- * identifier, and plugin name. Full plugin metadata (description, source
- * descriptor, etc.) is read from marketplace data by the discovery layer -
+ * The on-disk format stores the plugin URI, a relative path for managed
+ * plugins, marketplace identifier, and plugin name. Full plugin metadata
+ * (description, source descriptor, etc.) is read by the discovery layer -
  * keeping a single source of truth.
  *
  * On construction the store:
@@ -90,6 +97,7 @@ export class FileBackedInstalledPluginsStore extends Disposable {
 		private readonly _fileService: IFileService,
 		private readonly _logService: ILogService,
 		private readonly _storageService: IStorageService,
+		private readonly _pluginEnablementService: IAgentPluginEnablementService,
 	) {
 		super();
 		this._fileUri = joinPath(_agentPluginsHome, INSTALLED_JSON_FILENAME);
@@ -107,9 +115,14 @@ export class FileBackedInstalledPluginsStore extends Disposable {
 
 	private async _initialize(): Promise<void> {
 		try {
-			const read = await this._readFromFile();
+			let read = await this._readFromFile();
 			if (read !== undefined) {
-				this._setValue(read, undefined, false);
+				if (read.needsMigration && !await this._writeToFile(read.entries, { mtime: read.content.mtime, etag: read.content.etag })) {
+					read = await this._readFromFile();
+				}
+				if (read) {
+					this._setValue(read.entries, undefined, false);
+				}
 			} else {
 				// No installed.json yet — attempt migration from legacy storage.
 				await this._migrateFromStorage();
@@ -124,7 +137,7 @@ export class FileBackedInstalledPluginsStore extends Disposable {
 
 	// --- File I/O ----------------------------------------------------------------
 
-	private async _readFromFile(): Promise<readonly IStoredInstalledPlugin[] | undefined> {
+	private async _readFromFile(): Promise<{ entries: readonly IStoredInstalledPlugin[]; needsMigration: boolean; content: IFileContent } | undefined> {
 		try {
 			const exists = await this._fileService.exists(this._fileUri);
 			if (!exists) {
@@ -138,15 +151,31 @@ export class FileBackedInstalledPluginsStore extends Disposable {
 				return undefined;
 			}
 
-			// Each entry is { pluginUri, marketplace, name? }.
-			return json.installed
+			let needsMigration = false;
+			const entries = json.installed
 				.filter((entry): entry is IInstalledJsonEntry => typeof entry.pluginUri === 'string' && typeof entry.marketplace === 'string')
-				.map(entry => ({
-					pluginUri: URI.parse(entry.pluginUri),
-					marketplace: entry.marketplace,
-					name: typeof entry.name === 'string' ? entry.name : undefined,
-				}));
-		} catch {
+				.map(entry => {
+					const hasRelativePath = typeof entry.relativePath === 'string';
+					const originalUri = URI.parse(entry.pluginUri);
+					const pluginUri = hasRelativePath ? joinPath(this._agentPluginsHome, entry.relativePath) : originalUri;
+					const relocated = !isEqual(originalUri, pluginUri);
+					const enablementUri = typeof entry.enablementUri === 'string' ? URI.parse(entry.enablementUri) : relocated ? originalUri : undefined;
+					if (relocated || (!hasRelativePath && extUriBiasedIgnorePathCase.isEqualOrParent(pluginUri, this._agentPluginsHome))) {
+						needsMigration = true;
+					}
+					if (enablementUri) {
+						this._pluginEnablementService.copyEnablement(enablementUri, pluginUri);
+					}
+					return {
+						pluginUri,
+						...(enablementUri ? { enablementUri } : {}),
+						marketplace: entry.marketplace,
+						name: typeof entry.name === 'string' ? entry.name : undefined,
+					};
+				});
+			return { entries, needsMigration, content };
+		} catch (error) {
+			this._logService.error('[FileBackedInstalledPluginsStore] Failed to read installed.json', error);
 			return undefined;
 		}
 	}
@@ -157,9 +186,11 @@ export class FileBackedInstalledPluginsStore extends Disposable {
 		});
 	}
 
-	private async _writeToFile(): Promise<boolean> {
-		const entries: IInstalledJsonEntry[] = this.get().map(e => ({
+	private async _writeToFile(plugins: readonly IStoredInstalledPlugin[] = this.get(), options?: IWriteFileOptions): Promise<boolean> {
+		const entries: IInstalledJsonEntry[] = plugins.map(e => ({
 			pluginUri: e.pluginUri.toString(),
+			relativePath: extUriBiasedIgnorePathCase.isEqualOrParent(e.pluginUri, this._agentPluginsHome) ? extUriBiasedIgnorePathCase.relativePath(this._agentPluginsHome, e.pluginUri) : undefined,
+			...(e.enablementUri ? { enablementUri: e.enablementUri.toString() } : {}),
 			marketplace: e.marketplace,
 			...(e.name ? { name: e.name } : {}),
 		}));
@@ -173,10 +204,14 @@ export class FileBackedInstalledPluginsStore extends Disposable {
 			this._suppressFileWatch = true;
 			const content = JSON.stringify(data, undefined, '\t');
 			await this._fileService.createFolder(this._agentPluginsHome);
-			await this._fileService.writeFile(this._fileUri, VSBuffer.fromString(content));
+			await this._fileService.writeFile(this._fileUri, VSBuffer.fromString(content), options);
 			return true;
 		} catch (error) {
-			this._logService.error('[FileBackedInstalledPluginsStore] Failed to write installed.json', error);
+			if (toFileOperationResult(error) === FileOperationResult.FILE_MODIFIED_SINCE) {
+				this._logService.info('[FileBackedInstalledPluginsStore] installed.json changed during migration; reloading');
+			} else {
+				this._logService.error('[FileBackedInstalledPluginsStore] Failed to write installed.json', error);
+			}
 			return false;
 		} finally {
 			this._suppressFileWatch = false;
@@ -207,7 +242,7 @@ export class FileBackedInstalledPluginsStore extends Disposable {
 			// Suppress file write for externally triggered updates.
 			this._suppressFileWatch = true;
 			try {
-				this._setValue(read, undefined, false);
+				this._setValue(read.entries, undefined, false);
 			} finally {
 				this._suppressFileWatch = false;
 			}
@@ -242,8 +277,12 @@ export class FileBackedInstalledPluginsStore extends Disposable {
 			const migrated: IStoredInstalledPlugin[] = (revive(parsed) as { pluginUri: UriComponents; plugin?: { name?: string; marketplaceReference?: { rawValue?: string } } }[]).map(entry => {
 				const uri = URI.revive(entry.pluginUri);
 				const rebased = this._rebasePluginUri(uri);
+				if (rebased) {
+					this._pluginEnablementService.copyEnablement(uri, rebased);
+				}
 				return {
 					pluginUri: rebased ?? uri,
+					...(rebased ? { enablementUri: uri } : {}),
 					marketplace: entry.plugin?.marketplaceReference?.rawValue ?? '',
 					name: entry.plugin?.name,
 				};
@@ -277,9 +316,8 @@ export class FileBackedInstalledPluginsStore extends Disposable {
 		}
 
 		const oldRoot = this._oldCacheRoot;
-		if (!isEqual(uri, oldRoot) && uri.scheme === oldRoot.scheme && uri.path.startsWith(oldRoot.path + '/')) {
-			const relativePart = uri.path.substring(oldRoot.path.length);
-			return uri.with({ path: this._agentPluginsHome.path + relativePart });
+		if (extUriBiasedIgnorePathCase.isEqualOrParent(uri, oldRoot)) {
+			return joinPath(this._agentPluginsHome, extUriBiasedIgnorePathCase.relativePath(oldRoot, uri)!);
 		}
 		return undefined;
 	}

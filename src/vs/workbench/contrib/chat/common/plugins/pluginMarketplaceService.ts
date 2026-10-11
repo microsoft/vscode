@@ -31,6 +31,7 @@ import type { Dto } from '../../../../services/extensions/common/proxyIdentifier
 import { AutoUpdateConfigurationKey, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { ChatConfiguration } from '../constants.js';
 import { IAgentPluginRepositoryService } from './agentPluginRepositoryService.js';
+import { IAgentPluginEnablementService } from './agentPluginService.js';
 import { FileBackedInstalledPluginsStore, IStoredInstalledPlugin } from './fileBackedInstalledPluginsStore.js';
 import { IWorkspacePluginSettingsService } from './workspacePluginSettingsService.js';
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
@@ -385,6 +386,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustService: IWorkspaceTrustManagementService,
 		@IExtensionsWorkbenchService private readonly _extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IMeteredConnectionService private readonly _meteredConnectionService: IMeteredConnectionService,
+		@IAgentPluginEnablementService pluginEnablementService: IAgentPluginEnablementService,
 	) {
 		super();
 
@@ -398,6 +400,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 				_fileService,
 				_logService,
 				_storageService,
+				pluginEnablementService,
 			)
 		);
 
@@ -797,13 +800,14 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 
 	addInstalledPlugin(pluginUri: URI, plugin: IMarketplacePlugin): void {
 		this._pluginMetadata.set(pluginUri.toString(), plugin);
+		const current = this._installedPluginsStore.get();
+		const existing = current.find(e => isEqual(e.pluginUri, pluginUri));
 		const entry: IStoredInstalledPlugin = {
+			...existing,
 			pluginUri,
 			marketplace: plugin.marketplaceReference.rawValue,
 			name: plugin.name,
 		};
-		const current = this._installedPluginsStore.get();
-		const existing = current.find(e => isEqual(e.pluginUri, pluginUri));
 		if (existing) {
 			// Still update to trigger watchers to re-check, something might have happened that we want to know about
 			this._installedPluginsStore.set(current.map(c => c === existing ? entry : c), undefined);

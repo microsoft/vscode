@@ -30,6 +30,7 @@ import { IEnvironmentService } from '../../../../../../platform/environment/comm
 import { AutoUpdateConfigurationValue, IExtensionsWorkbenchService } from '../../../../extensions/common/extensions.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { IAgentPluginRepositoryService } from '../../../common/plugins/agentPluginRepositoryService.js';
+import { IAgentPluginEnablementService } from '../../../common/plugins/agentPluginService.js';
 import { getPluginCacheUri, parseMarketplaceObjectEntry, validatePluginCacheUri } from '../../../common/plugins/marketplaceReference.js';
 import { IMarketplacePlugin, IMarketplaceReference, IPluginSourceDescriptor, MarketplaceReferenceKind, MarketplaceType, PluginMarketplaceService, PluginSourceKind, extraKnownMarketplacesToConfigDict, getPluginSourceLabel, parseMarketplaceReference, parseMarketplaceReferences, parsePluginSource, readConfiguredMarketplaces } from '../../../common/plugins/pluginMarketplaceService.js';
 import { IWorkspacePluginSettingsService } from '../../../common/plugins/workspacePluginSettingsService.js';
@@ -56,8 +57,9 @@ const unmeteredConnectionService: IMeteredConnectionService = {
 	onDidChangeIsConnectionMetered: Event.None,
 };
 
-function stubMeteredConnectionService(instantiationService: TestInstantiationService, service: IMeteredConnectionService = unmeteredConnectionService): void {
+function stubMarketplaceServices(instantiationService: TestInstantiationService, service: IMeteredConnectionService = unmeteredConnectionService): void {
 	instantiationService.stub(IMeteredConnectionService, service);
+	instantiationService.stub(IAgentPluginEnablementService, { copyEnablement: () => { } });
 }
 
 suite('PluginMarketplaceService', () => {
@@ -204,7 +206,7 @@ suite('PluginMarketplaceService', () => {
 			onDidChangeTrust: Event.None,
 		});
 		instantiationService.stub(IExtensionsWorkbenchService, { getAutoUpdateValue: () => 'off' });
-		stubMeteredConnectionService(instantiationService);
+		stubMarketplaceServices(instantiationService);
 
 		const service = store.add(instantiationService.createInstance(PluginMarketplaceService));
 		await service.fetchMarketplacePlugins(CancellationToken.None);
@@ -611,7 +613,7 @@ suite('PluginMarketplaceService - GitHub marketplace refs', () => {
 		instantiationService.stub(IExtensionsWorkbenchService, {
 			getAutoUpdateValue: () => 'on',
 		} as Partial<IExtensionsWorkbenchService> as IExtensionsWorkbenchService);
-		stubMeteredConnectionService(instantiationService);
+		stubMarketplaceServices(instantiationService);
 
 		const service = store.add(instantiationService.createInstance(PluginMarketplaceService));
 		const errors: string[] = [];
@@ -658,7 +660,7 @@ suite('PluginMarketplaceService - GitHub marketplace refs', () => {
 			onDidChangeTrust: Event.None,
 		} as Partial<IWorkspaceTrustManagementService> as IWorkspaceTrustManagementService);
 		instantiationService.stub(IExtensionsWorkbenchService, { getAutoUpdateValue: () => 'on' } as Partial<IExtensionsWorkbenchService> as IExtensionsWorkbenchService);
-		stubMeteredConnectionService(instantiationService);
+		stubMarketplaceServices(instantiationService);
 		const service = store.add(instantiationService.createInstance(PluginMarketplaceService));
 		const errors: string[] = [];
 		const plugins = await service.fetchMarketplacePlugins(CancellationToken.None, undefined, {
@@ -695,7 +697,7 @@ suite('PluginMarketplaceService - GitHub marketplace refs', () => {
 		instantiationService.stub(IExtensionsWorkbenchService, {
 			getAutoUpdateValue: () => 'on',
 		} as Partial<IExtensionsWorkbenchService> as IExtensionsWorkbenchService);
-		stubMeteredConnectionService(instantiationService);
+		stubMarketplaceServices(instantiationService);
 
 		const service = store.add(instantiationService.createInstance(PluginMarketplaceService));
 		const seeded = service.lastFetchedPlugins.get();
@@ -754,7 +756,7 @@ suite('PluginMarketplaceService - Agent Plugin direct install probes', () => {
 		instantiationService.stub(IExtensionsWorkbenchService, {
 			getAutoUpdateValue: () => 'off',
 		} as Partial<IExtensionsWorkbenchService> as IExtensionsWorkbenchService);
-		stubMeteredConnectionService(instantiationService);
+		stubMarketplaceServices(instantiationService);
 		return store.add(instantiationService.createInstance(PluginMarketplaceService));
 	}
 
@@ -836,7 +838,7 @@ suite('PluginMarketplaceService - getMarketplacePluginMetadata', () => {
 		instantiationService.stub(IExtensionsWorkbenchService, {
 			getAutoUpdateValue: () => autoUpdate,
 		} as Partial<IExtensionsWorkbenchService> as IExtensionsWorkbenchService);
-		stubMeteredConnectionService(instantiationService);
+		stubMarketplaceServices(instantiationService);
 
 		return store.add(instantiationService.createInstance(PluginMarketplaceService));
 	}
@@ -943,7 +945,7 @@ suite('PluginMarketplaceService - installed plugins lifecycle', () => {
 		instantiationService.stub(IExtensionsWorkbenchService, {
 			getAutoUpdateValue: () => 'on',
 		} as Partial<IExtensionsWorkbenchService> as IExtensionsWorkbenchService);
-		stubMeteredConnectionService(instantiationService, options?.meteredConnectionService);
+		stubMarketplaceServices(instantiationService, options?.meteredConnectionService);
 
 		return store.add(instantiationService.createInstance(PluginMarketplaceService));
 	}
@@ -1426,12 +1428,12 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 		}
 	}
 
-	function createPluginRepositoryStub(): IAgentPluginRepositoryService {
-		const getRepositoryUri = (marketplace: IMarketplaceReference) => URI.joinPath(CACHE_ROOT, ...marketplace.cacheSegments);
+	function createPluginRepositoryStub(cacheRoot: URI = CACHE_ROOT): IAgentPluginRepositoryService {
+		const getRepositoryUri = (marketplace: IMarketplaceReference) => URI.joinPath(cacheRoot, ...marketplace.cacheSegments);
 		const getPluginSourceInstallUri = (descriptor: IPluginSourceDescriptor) => {
 			if (descriptor.kind === PluginSourceKind.GitHub) {
 				const [owner, repo] = descriptor.repo.split('/');
-				const base = URI.joinPath(CACHE_ROOT, 'github.com', owner, repo);
+				const base = URI.joinPath(cacheRoot, 'github.com', owner, repo);
 				return descriptor.path ? URI.joinPath(base, descriptor.path) : base;
 			}
 			if (descriptor.kind === PluginSourceKind.RelativePath) {
@@ -1441,7 +1443,7 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 			throw new Error(`Unhandled source kind in test stub: ${descriptor.kind}`);
 		};
 		return {
-			agentPluginsHome: CACHE_ROOT,
+			agentPluginsHome: cacheRoot,
 			getRepositoryUri,
 			getPluginInstallUri: (plugin: IMarketplacePlugin) => {
 				if (plugin.sourceDescriptor.kind !== PluginSourceKind.RelativePath) {
@@ -1519,7 +1521,7 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 			onDidChangeTrust: Event.None,
 		});
 		instantiationService.stub(IExtensionsWorkbenchService, { getAutoUpdateValue: () => 'off' });
-		stubMeteredConnectionService(instantiationService);
+		stubMarketplaceServices(instantiationService);
 		const service = store.add(instantiationService.createInstance(PluginMarketplaceService));
 		const plugins = await service.fetchMarketplacePlugins(CancellationToken.None);
 		assert.deepStrictEqual({ requests, plugins: plugins.map(plugin => plugin.name) }, { requests: 1, plugins: ['safe'] });
@@ -1572,7 +1574,7 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 		instantiationService.stub(IExtensionsWorkbenchService, {
 			getAutoUpdateValue: () => 'on',
 		} as Partial<IExtensionsWorkbenchService> as IExtensionsWorkbenchService);
-		stubMeteredConnectionService(instantiationService);
+		stubMarketplaceServices(instantiationService);
 
 		const service = store.add(instantiationService.createInstance(PluginMarketplaceService));
 
@@ -1652,7 +1654,7 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 		instantiationService.stub(IExtensionsWorkbenchService, {
 			getAutoUpdateValue: () => 'on',
 		} as Partial<IExtensionsWorkbenchService> as IExtensionsWorkbenchService);
-		stubMeteredConnectionService(instantiationService);
+		stubMarketplaceServices(instantiationService);
 
 		const service = store.add(instantiationService.createInstance(PluginMarketplaceService));
 		for (let i = 0; i < 50; i++) {
@@ -1717,7 +1719,7 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 		instantiationService.stub(IExtensionsWorkbenchService, {
 			getAutoUpdateValue: () => 'on',
 		} as Partial<IExtensionsWorkbenchService> as IExtensionsWorkbenchService);
-		stubMeteredConnectionService(instantiationService);
+		stubMarketplaceServices(instantiationService);
 
 		const service = store.add(instantiationService.createInstance(PluginMarketplaceService));
 		await timeout(100);
@@ -1725,7 +1727,7 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 		assert.deepStrictEqual(service.installedPlugins.get(), []);
 	});
 
-	test('persists plugin name when a plugin is added so it survives a restart', async () => {
+	test('persists plugin name and relative path so a plugin survives relocation', async () => {
 		// First service writes installed.json, second service (sharing the
 		// same file system + storage) reads it back and must reconstruct
 		// the plugin from its stored name plus marketplace data.
@@ -1737,7 +1739,7 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 		const azurePlugin = makeAzurePlugin(awesomeCopilot);
 		storeMarketplaceCache(storageService, awesomeCopilot, azurePlugin);
 
-		function makeService(): PluginMarketplaceService {
+		function makeService(cacheRoot: URI = CACHE_ROOT): PluginMarketplaceService {
 			const instantiationService = store.add(new TestInstantiationService());
 			instantiationService.stub(IConfigurationService, new TestConfigurationService({
 				[ChatConfiguration.PluginMarketplaces]: ['github/awesome-copilot#marketplace'],
@@ -1745,7 +1747,7 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 			}));
 			instantiationService.stub(IEnvironmentService, { cacheHome: URI.file('/cache') } as Partial<IEnvironmentService> as IEnvironmentService);
 			instantiationService.stub(IFileService, fileService as unknown as IFileService);
-			instantiationService.stub(IAgentPluginRepositoryService, createPluginRepositoryStub());
+			instantiationService.stub(IAgentPluginRepositoryService, createPluginRepositoryStub(cacheRoot));
 			instantiationService.stub(ILogService, new NullLogService());
 			instantiationService.stub(IRequestService, {} as unknown as IRequestService);
 			instantiationService.stub(IStorageService, storageService);
@@ -1760,7 +1762,7 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 			instantiationService.stub(IExtensionsWorkbenchService, {
 				getAutoUpdateValue: () => 'on',
 			} as Partial<IExtensionsWorkbenchService> as IExtensionsWorkbenchService);
-			stubMeteredConnectionService(instantiationService);
+			stubMarketplaceServices(instantiationService);
 			return store.add(instantiationService.createInstance(PluginMarketplaceService));
 		}
 
@@ -1778,13 +1780,14 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 		assert.strictEqual(persisted.installed.length, 1);
 		assert.deepStrictEqual(persisted.installed[0], {
 			pluginUri: azurePluginUri.toString(),
+			relativePath: 'github.com/microsoft/azure-skills/.github/plugins/azure-skills',
 			marketplace: awesomeCopilot.rawValue,
 			name: 'azure',
 		});
 
-		// Second session: restart with shared storage + file system. The
-		// plugin must be reconstructed from installed.json + marketplace data.
-		const second = makeService();
+		const relocatedHome = URI.file('/relocated/data/agent-plugins');
+		fileService.setFile(URI.joinPath(relocatedHome, 'installed.json'), fileService.files.get(installedJson.toString())!);
+		const second = makeService(relocatedHome);
 		for (let i = 0; i < 50; i++) {
 			if (second.installedPlugins.get().length === 1) {
 				break;
@@ -1795,6 +1798,7 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 		assert.strictEqual(installed.length, 1);
 		assert.strictEqual(installed[0].plugin.name, 'azure');
 		assert.strictEqual(installed[0].plugin.sourceDescriptor.kind, PluginSourceKind.GitHub);
+		assert.strictEqual(installed[0].pluginUri.toString(), URI.joinPath(relocatedHome, persisted.installed[0].relativePath).toString());
 	});
 });
 
