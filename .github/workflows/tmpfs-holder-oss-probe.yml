@@ -1,7 +1,9 @@
 name: Temporary native OSS tmpfs holder probe
 
 on:
-  workflow_dispatch:
+  push:
+    branches:
+      - roblou/agents/tmpfs-holder-oss-native-20261011
 
 permissions:
   contents: read

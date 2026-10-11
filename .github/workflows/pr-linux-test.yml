@@ -97,7 +97,7 @@ jobs:
           key-args: "linux ${{ env.VSCODE_ARCH }} $(node -p process.arch)"
 
       - name: Install build dependencies
-        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        if: ${{ steps.cache-node-modules.outputs.cache-hit != 'true' && !inputs.holder_probe }}
         working-directory: build
         run: |
           set -e
@@ -113,8 +113,15 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Install fresh OSS build dependencies for holder probe
+        if: ${{ inputs.holder_probe }}
+        working-directory: build
+        run: npm ci
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Install dependencies
-        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        if: ${{ steps.cache-node-modules.outputs.cache-hit != 'true' && !inputs.holder_probe }}
         run: |
           set -e
 
@@ -135,10 +142,24 @@ jobs:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Install fresh OSS dependencies for holder probe
+        if: ${{ inputs.holder_probe }}
+        run: |
+          set -e
+          source ./build/azure-pipelines/linux/setup-env.sh
+          npm ci
+        env:
+          npm_config_arch: ${{ env.NPM_ARCH }}
+          VSCODE_ARCH: ${{ env.VSCODE_ARCH }}
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Create .build folder
         run: mkdir -p .build
 
       - name: Prepare built-in extensions cache key
+        if: ${{ !inputs.holder_probe }}
         run: node build/azure-pipelines/common/computeBuiltInDepsCacheKey.ts > .build/builtindepshash
 
       - name: Restore built-in extensions cache
@@ -151,7 +172,7 @@ jobs:
           key: "builtin-extensions-${{ hashFiles('.build/builtindepshash') }}"
 
       - name: Download built-in extensions
-        if: steps.cache-builtin-extensions.outputs.cache-hit != 'true'
+        if: ${{ steps.cache-builtin-extensions.outputs.cache-hit != 'true' && !inputs.holder_probe }}
         run: node build/lib/builtInExtensions.ts
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -276,7 +297,12 @@ jobs:
         continue-on-error: true
 
       - name: Transpile client and extensions
+        if: ${{ !inputs.holder_probe }}
         run: npm run gulp transpile-client-esbuild transpile-extensions
+
+      - name: Transpile client for holder probe
+        if: ${{ inputs.holder_probe }}
+        run: npm run gulp transpile-client-esbuild
 
       - name: Setup Electron
         if: ${{ (inputs.electron_tests || inputs.remote_tests) && !inputs.holder_probe }}
@@ -338,7 +364,7 @@ jobs:
           DEBUG: "*browser*"
 
       - name: Compile extensions for integration tests & smoke tests
-        if: ${{ inputs.integration_tests || inputs.smoke_tests }}
+        if: ${{ (inputs.integration_tests || inputs.smoke_tests) && !inputs.holder_probe }}
         run: |
           set -e
           npm run gulp \

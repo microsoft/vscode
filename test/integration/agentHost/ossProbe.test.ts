@@ -12,16 +12,17 @@ const { test }: typeof import('node:test') = require('node:test');
 const yaml: { load(text: string): unknown } = require('js-yaml');
 
 interface IWorkflow {
-	on: { workflow_dispatch?: object; workflow_call?: { inputs: Record<string, { type: string; default?: boolean }> } };
+	on: { push?: { branches: string[] }; workflow_dispatch?: object; workflow_call?: { inputs: Record<string, { type: string; default?: boolean }> } };
 	permissions?: object;
 	jobs: Record<string, { uses?: string; with?: Record<string, string | boolean>; 'runs-on'?: string; 'timeout-minutes'?: string; steps?: { name: string; run?: string; if?: string; with?: Record<string, string> }[] }>;
 }
 
 const root = path.resolve(__dirname, '../../..');
 
-test('one dispatch-only native job reuses the existing OSS workflow without private production edges', () => {
+test('one exact-branch push native job reuses the existing OSS workflow without default-branch registration', () => {
 	const workflow = yaml.load(fs.readFileSync(path.join(root, '.github/workflows/tmpfs-holder-oss-probe.yml'), 'utf8')) as IWorkflow;
-	assert.deepEqual(Object.keys(workflow.on), ['workflow_dispatch']);
+	assert.deepEqual(Object.keys(workflow.on), ['push']);
+	assert.deepEqual(workflow.on.push, { branches: ['roblou/agents/tmpfs-holder-oss-native-20261011'] });
 	assert.deepEqual(Object.keys(workflow.jobs), ['holder']);
 	assert.deepEqual(workflow.jobs.holder, {
 		uses: './.github/workflows/pr-linux-test.yml',
@@ -44,12 +45,51 @@ test('reusable recipe keeps normal behavior and isolates probe cache and 50/30-m
 	assert.equal(probe?.run, 'node test/integration/agentHost/ossProbe.ts');
 	const raw = fs.readFileSync(path.join(root, '.github/workflows/pr-linux-test.yml'), 'utf8');
 	assert.ok(raw.includes('timeout-minutes: 30\n        run: node test/integration/agentHost/ossProbe.ts'));
-	for (const name of ['Restore node_modules cache', 'Restore built-in extensions cache', 'Setup Electron']) {
+	for (const name of ['Restore node_modules cache', 'Restore built-in extensions cache', 'Setup Electron', 'Prepare built-in extensions cache key', 'Download built-in extensions', 'Transpile client and extensions', 'Compile extensions for integration tests & smoke tests']) {
 		assert.ok(job.steps!.find(step => step.name === name)?.if?.includes('!inputs.holder_probe'), `Probe must not restore cache through ${name}`);
 	}
 	assert.equal(job.steps!.find(step => step.name === 'Prepare public Electron without cache restore')?.run, 'npm run electron -- x64');
+	assert.equal(job.steps!.find(step => step.name === 'Transpile client for holder probe')?.run, 'npm run gulp transpile-client-esbuild');
+	assert.equal(job.steps!.find(step => step.name === 'Install fresh OSS build dependencies for holder probe')?.run, 'npm ci');
+	assert.equal(job.steps!.find(step => step.name === 'Install fresh OSS dependencies for holder probe')?.run, 'set -e\nsource ./build/azure-pipelines/linux/setup-env.sh\nnpm ci\n');
 	assert.ok(raw.includes('NODE_MODULES_CACHE_KEY=fresh-uncached-oss-linux-x64'));
 	assert.ok(!/download-distro|mixin-quality|downloadCopilotVsix|product-build-linux-ci/.test(raw));
+});
+
+test('holder_probe false preserves every original normal step, command, environment, action, and effective default timeout', () => {
+	const baselineResult = spawnSync('git', ['-C', root, 'show', '114d61e889475758fd1c3b3fcbdd04e9717940c4:.github/workflows/pr-linux-test.yml'], { encoding: 'utf8' });
+	assert.equal(baselineResult.status, 0, baselineResult.stderr);
+	const original = yaml.load(baselineResult.stdout) as IWorkflow;
+	const candidate = yaml.load(fs.readFileSync(path.join(root, '.github/workflows/pr-linux-test.yml'), 'utf8')) as IWorkflow;
+	delete candidate.on.workflow_call!.inputs.holder_probe;
+	const job = candidate.jobs['linux-test'];
+	job['timeout-minutes'] = '360';
+	original.jobs['linux-test']['timeout-minutes'] = '360';
+	const normalize = (condition: string | undefined): string | undefined => {
+		if (!condition) {
+			return undefined;
+		}
+		let result = condition.replace(/^\$\{\{\s*|\s*\}\}$/g, '').replace(/ && !inputs\.holder_probe/g, '').trim();
+		if (result === '!inputs.holder_probe') {
+			return undefined;
+		}
+		if (result.startsWith('(') && result.endsWith(')')) {
+			result = result.slice(1, -1);
+		}
+		return result;
+	};
+	job.steps = job.steps!.filter(step => step.if !== '${{ inputs.holder_probe }}');
+	for (const workflow of [candidate, original]) {
+		for (const step of workflow.jobs['linux-test'].steps!) {
+			const condition = normalize(step.if);
+			if (condition) {
+				step.if = condition;
+			} else {
+				delete step.if;
+			}
+		}
+	}
+	assert.deepEqual(candidate, original);
 });
 
 test('historical source input gate succeeds without reading or mutating shared node_modules', () => {

@@ -23,7 +23,7 @@ function action(run: IRun, id: number, head: string, now: number): 'complete' | 
 	assert.equal(run.head_sha, head);
 	assert.equal(run.head_branch, 'roblou/agents/tmpfs-holder-oss-native-20261011');
 	assert.equal(run.path, '.github/workflows/tmpfs-holder-oss-probe.yml');
-	assert.equal(run.event, 'workflow_dispatch');
+	assert.equal(run.event, 'push');
 	const queuedAt = Date.parse(run.created_at);
 	assert.ok(Number.isFinite(queuedAt), 'Require the actual original service timestamp');
 	if (run.status === 'completed') {
@@ -36,13 +36,13 @@ function action(run: IRun, id: number, head: string, now: number): 'complete' | 
 
 function selfTest(): void {
 	const head = 'a'.repeat(40);
-	const run: IRun = { id: 42, head_sha: head, head_branch: 'roblou/agents/tmpfs-holder-oss-native-20261011', path: '.github/workflows/tmpfs-holder-oss-probe.yml', event: 'workflow_dispatch', created_at: '2026-10-11T00:00:00Z', status: 'in_progress' };
+	const run: IRun = { id: 42, head_sha: head, head_branch: 'roblou/agents/tmpfs-holder-oss-native-20261011', path: '.github/workflows/tmpfs-holder-oss-probe.yml', event: 'push', created_at: '2026-10-11T00:00:00Z', status: 'in_progress' };
 	const start = Date.parse(run.created_at);
 	assert.equal(action(run, 42, head, start + 55 * 60 * 1000 - 1), 'poll');
 	assert.equal(action(run, 42, head, start + 55 * 60 * 1000), 'cancel');
 	assert.equal(action({ ...run, status: 'completed', updated_at: '2026-10-11T00:59:00Z' }, 42, head, start + 59 * 60 * 1000), 'complete');
 	assert.throws(() => action({ ...run, status: 'completed', updated_at: '2026-10-11T01:01:00Z' }, 42, head, start + 61 * 60 * 1000));
-	for (const changed of [{ id: 43 }, { head_sha: 'b'.repeat(40) }, { head_branch: 'parent' }, { path: 'another.yml' }, { event: 'push' }, { created_at: 'invalid' }]) {
+	for (const changed of [{ id: 43 }, { head_sha: 'b'.repeat(40) }, { head_branch: 'parent' }, { path: 'another.yml' }, { event: 'workflow_dispatch' }, { created_at: 'invalid' }]) {
 		assert.throws(() => action({ ...run, ...changed }, 42, head, start));
 	}
 	assert.throws(() => action(run, 42, head, start + 60 * 60 * 1000));
