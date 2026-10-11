@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equals } from '../../../../base/common/arrays.js';
+import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
@@ -49,6 +52,7 @@ import { showMobileWorkspacePickerSheet, shouldUseMobileWorkspacePickerSheet } f
  * surfaced).
  */
 export class WebWorkspacePicker extends WorkspacePicker {
+	private readonly _mobilePicker = this._register(new MutableDisposable<DisposableStore>());
 
 	constructor(
 		options: IWorkspacePickerOptions,
@@ -114,6 +118,7 @@ export class WebWorkspacePicker extends WorkspacePicker {
 				return;
 			}
 			scopedHost = nextHost;
+			this._mobilePicker.clear();
 			this._onScopedHostChanged();
 		}));
 	}
@@ -134,19 +139,34 @@ export class WebWorkspacePicker extends WorkspacePicker {
 		// phone viewports so a single instance handles both desktop
 		// browsers and rotation across the phone breakpoint.
 		if (!shouldUseMobileWorkspacePickerSheet(this._layoutService)) {
+			this._mobilePicker.clear();
 			super.showPicker(force, trigger, preferredGroup, attachesContext);
 			return;
 		}
 		this._setDirectPickerFilter(preferredGroup, attachesContext);
 		const items = this._buildItems();
-		showMobileWorkspacePickerSheet(
+		const resources = new DisposableStore();
+		this._mobilePicker.value = resources;
+		const cancellation = new CancellationTokenSource();
+		resources.add(toDisposable(() => cancellation.dispose(true)));
+		void showMobileWorkspacePickerSheet(
 			this._layoutService,
 			trigger,
 			items,
 			item => this._dispatchPickerItem(item),
 			this._getAllBrowseActions(),
 			this._useConsolidatedRemoteWorkspaces() && attachesContext !== true,
-		);
+			cancellation.token,
+		).finally(() => {
+			if (this._mobilePicker.value === resources) {
+				this._mobilePicker.clear();
+			}
+		}).catch(onUnexpectedError);
+	}
+
+	protected override _refreshPickerItems(): void {
+		this._mobilePicker?.clear();
+		super._refreshPickerItems();
 	}
 
 	private _onScopedHostChanged(): void {

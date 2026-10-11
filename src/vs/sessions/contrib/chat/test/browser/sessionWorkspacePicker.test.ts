@@ -95,6 +95,7 @@ const MOCK_PROVIDER_PATH_PREFIXES: Record<string, string> = {
 function createMockProvider(id: string, opts?: {
 	connectionStatus?: ISettableObservable<RemoteAgentHostConnectionStatus>;
 	hostDescription?: IAgentHostSessionsProvider['hostDescription'];
+	isVisibleInEnvironmentPicker?: IAgentHostSessionsProvider['isVisibleInEnvironmentPicker'];
 	canRemove?: boolean;
 	browseActions?: readonly ISessionWorkspaceBrowseAction[];
 	supportsWorkspaceSelection?: boolean;
@@ -171,6 +172,7 @@ function createMockProvider(id: string, opts?: {
 			connect: opts.connect,
 			connectionStatus: opts.connectionStatus,
 			hostDescription: opts.hostDescription,
+			isVisibleInEnvironmentPicker: opts.isVisibleInEnvironmentPicker,
 			canRemove: opts.canRemove,
 			onDidReportConnectProgress: opts.onDidReportConnectProgress,
 			remoteAddress: opts.remoteAddress,
@@ -299,6 +301,10 @@ class DispatchingWorkspacePicker extends WorkspacePicker {
 }
 
 class TestWebWorkspacePicker extends WebWorkspacePicker {
+	dispatchItem(item: IWorkspacePickerItem): Promise<boolean> {
+		return this._dispatchPickerItem(item);
+	}
+
 	getItems() {
 		return this._buildItems();
 	}
@@ -362,6 +368,7 @@ function createTestPicker(
 	actionWidgetService?: IActionWidgetService,
 	dialogService: IDialogService = new TestDialogService(),
 	agentHostFilterService?: IAgentHostFilterService,
+	layoutService?: IWorkbenchLayoutService,
 ): WorkspacePicker {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	const storage = storageService ?? disposables.add(new TestStorageService());
@@ -398,7 +405,7 @@ function createTestPicker(
 	instantiationService.stub(IAgentHostFilterService, { isDiscovering: false, rediscover: async () => true });
 	if (agentHostFilterService) {
 		instantiationService.stub(IAgentHostFilterService, agentHostFilterService);
-		instantiationService.stub(IWorkbenchLayoutService, {});
+		instantiationService.stub(IWorkbenchLayoutService, layoutService ?? {});
 	}
 
 	return disposables.add(instantiationService.createInstance(pickerCtor, options ?? {}));
@@ -720,6 +727,148 @@ suite('WorkspacePicker - Connection Status', () => {
 			items: ['supported', 'default', 'Browse Supported', 'Browse Default'],
 			selectedProvider: supported.id,
 		});
+	});
+
+	for (const consolidated of [false, true]) {
+		test(`hides offline Mission Control workspaces, browse actions and management rows in the ${consolidated ? 'unified' : 'tabbed'} picker`, () => {
+			const visibility = observableValue('visibility', false);
+			const sessions: ISession[] = [];
+			const environment = createMockProvider('agenthost-mission-control', {
+				connectionStatus: observableValue('status', RemoteAgentHostConnectionStatus.disconnected),
+				isVisibleInEnvironmentPicker: visibility,
+				hostDescription: constObservable('Online'),
+				remoteAddress: cloudSandboxAddress('environment'),
+				canConnectOnDemand: true,
+				group: SESSION_WORKSPACE_GROUP_REMOTE,
+				browseActions: [makeBrowseAction('agenthost-mission-control', SESSION_WORKSPACE_GROUP_REMOTE, 'Browse Environment')],
+				getSessions: () => sessions,
+			});
+			sessions.push(createMockSession(environment, URI.file('/environment/session'), 1000));
+			const tunnel = createMockProvider('agenthost-remote-1', {
+				connectionStatus: observableValue('tunnelStatus', RemoteAgentHostConnectionStatus.disconnected),
+				remoteAddress: 'tunnel+machine',
+				canConnectOnDemand: true,
+				group: SESSION_WORKSPACE_GROUP_REMOTE,
+				browseActions: [makeBrowseAction('agenthost-remote-1', SESSION_WORKSPACE_GROUP_REMOTE, 'Browse Tunnel')],
+			});
+			providersService.setProviders([environment, tunnel]);
+			const storage = disposables.add(new TestStorageService());
+			seedStorage(storage, [
+				{ uri: URI.file('/environment/recent'), providerId: environment.id, checked: true },
+				{ uri: URI.file('/remote/recent'), providerId: tunnel.id, checked: false },
+			]);
+			const storedRecents = storage.get(STORAGE_KEY_RECENT_WORKSPACES, StorageScope.PROFILE);
+			const picker = createTestablePicker(disposables, providersService, true, { restoreFromSessions: false }, undefined, storage, consolidated);
+			picker.selectTab(SESSION_WORKSPACE_GROUP_REMOTE);
+			const snapshot = () => {
+				const items = picker.getItems();
+				return {
+					workspaces: items.flatMap(item => item.item?.folderUri ? [item.item.providerId] : []),
+					browse: items.filter(item => item.item?.browseActionIndex !== undefined).map(item => item.label),
+					hosts: consolidated
+						? items.find(item => item.label === 'Remote')?.filterItems?.map(item => item.label) ?? []
+						: items.filter(item => item.label?.startsWith('Provider ')).map(item => item.label),
+				};
+			};
+			const states = [snapshot()];
+			visibility.set(true, undefined);
+			states.push(snapshot());
+			visibility.set(false, undefined);
+			states.push(snapshot());
+			const offline = {
+				workspaces: [tunnel.id], browse: ['Browse Tunnel'],
+				hosts: [consolidated ? `Manage ${tunnel.label}` : tunnel.label],
+			};
+			assert.deepStrictEqual({
+				states, retainedSessions: environment.getSessions().length,
+				recentsUnchanged: storage.get(STORAGE_KEY_RECENT_WORKSPACES, StorageScope.PROFILE) === storedRecents,
+			}, {
+				states: [offline, {
+					workspaces: [environment.id, tunnel.id], browse: ['Browse Environment', 'Browse Tunnel'],
+					hosts: [environment, tunnel].map(provider => consolidated ? `Manage ${provider.label}` : provider.label),
+				}, offline],
+				retainedSessions: 1, recentsUnchanged: true,
+			});
+		});
+	}
+
+	test('updates an open workspace picker when environment visibility changes without restarting discovery', () => {
+		const visibility = observableValue('visibility', true);
+		const environment = createMockProvider('agenthost-mission-control', {
+			connectionStatus: observableValue('status', RemoteAgentHostConnectionStatus.disconnected),
+			isVisibleInEnvironmentPicker: visibility,
+			remoteAddress: cloudSandboxAddress('environment'),
+		});
+		providersService.setProviders([environment]);
+		let visible = false;
+		let shows = 0;
+		let discoveries = 0;
+		const updates: string[][] = [];
+		const picker = createTestablePicker(disposables, providersService, true, { restoreFromSessions: false }, undefined, undefined, true, {
+			get isVisible() { return visible; },
+			show: () => { visible = true; shows++; },
+			hide: () => { visible = false; },
+			updateItems: items => { updates.push(items.flatMap(item => item.filterItems?.flatMap(item => item.label ? [item.label] : []) ?? [])); },
+		}, false, {
+			isDiscovering: false,
+			rediscover: async () => { discoveries++; return true; },
+		});
+		picker.showPicker(false, document.createElement('button'));
+		visibility.set(false, undefined);
+		visibility.set(true, undefined);
+		assert.deepStrictEqual({ shows, discoveries, updates }, {
+			shows: 1, discoveries: 1, updates: [[], [`Manage ${environment.label}`]],
+		});
+	});
+
+	test('rejects stale workspace rows and captured browse actions after an environment goes offline', async () => {
+		const visibility = observableValue('visibility', true);
+		let connects = 0;
+		let browses = 0;
+		const folderUri = URI.file('/environment/project');
+		const action = {
+			...makeBrowseAction('agenthost-mission-control', SESSION_WORKSPACE_GROUP_REMOTE, 'Browse Environment'),
+			run: async () => { browses++; return undefined; },
+		};
+		const provider = createMockProvider('agenthost-mission-control', {
+			connectionStatus: observableValue('status', RemoteAgentHostConnectionStatus.disconnected),
+			isVisibleInEnvironmentPicker: visibility,
+			canConnectOnDemand: true,
+			connect: async () => { connects++; },
+			browseActions: [action],
+		});
+		providersService.setProviders([provider]);
+		const picker = createTestPicker(disposables, providersService, undefined, undefined, DispatchingWorkspacePicker,
+			undefined, undefined, undefined, { restoreFromSessions: false }) as DispatchingWorkspacePicker;
+		visibility.set(false, undefined);
+		const selected = await picker.dispatchItem({ folderUri, providerId: provider.id });
+		const browsed = await picker.dispatchItem({ browseAction: action });
+		assert.deepStrictEqual({ selected, browsed, connects, browses, folder: picker.selectedFolderUri }, {
+			selected: false, browsed: false, connects: 0, browses: 0, folder: undefined,
+		});
+	});
+
+	test('rejects a browse result whose environment goes offline while browsing', async () => {
+		const visibility = observableValue('visibility', true);
+		const pending = new DeferredPromise<ISessionWorkspace | undefined>();
+		const started = new DeferredPromise<void>();
+		const provider = createMockProvider('agenthost-mission-control', {
+			connectionStatus: observableValue('status', RemoteAgentHostConnectionStatus.connected),
+			isVisibleInEnvironmentPicker: visibility,
+		});
+		const workspace = provider.resolveWorkspace(URI.file('/environment/project'))!;
+		const action = {
+			...makeBrowseAction(provider.id, SESSION_WORKSPACE_GROUP_REMOTE, 'Browse Environment'),
+			run: async () => { void started.complete(); return pending.p; },
+		};
+		providersService.setProviders([provider]);
+		const picker = createTestPicker(disposables, providersService, undefined, undefined, DispatchingWorkspacePicker,
+			undefined, undefined, undefined, { restoreFromSessions: false }) as DispatchingWorkspacePicker;
+		const selection = picker.dispatchItem({ browseAction: action });
+		await started.p;
+		visibility.set(false, undefined);
+		await pending.complete(workspace);
+		assert.deepStrictEqual({ selected: await selection, folder: picker.selectedFolderUri }, { selected: false, folder: undefined });
 	});
 
 	test('Mission Control rows distinguish host availability from connection status without redundant text', () => {
@@ -5373,6 +5522,56 @@ function hostEntry(providerId: string): IAgentHostFilterEntry {
 
 suite('WebWorkspacePicker - Host scope updates', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const change of ['offline', 'scope', 'dispose'] as const) {
+		test(`dismisses an open mobile workspace picker on ${change}`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			const providersService = disposables.add(new MockSessionsProvidersService());
+			const visibility = observableValue('visibility', true);
+			const provider = createMockProvider('agenthost-mission-control', {
+				connectionStatus: observableValue('status', RemoteAgentHostConnectionStatus.connected),
+				isVisibleInEnvironmentPicker: visibility,
+				group: SESSION_WORKSPACE_GROUP_REMOTE,
+			});
+			providersService.setProviders([provider]);
+			const storage = disposables.add(new TestStorageService());
+			seedStorage(storage, [{ uri: URI.file('/environment/project'), providerId: provider.id, checked: false }]);
+			const changed = disposables.add(new Emitter<void>());
+			let selectedHost: IAgentHostFilterEntry = hostEntry(provider.id);
+			const workbench = document.createElement('div');
+			workbench.classList.add('phone-layout');
+			document.body.appendChild(workbench);
+			disposables.add(toDisposable(() => workbench.remove()));
+			const picker = createTestPicker(
+				disposables, providersService, storage, undefined, TestWebWorkspacePicker,
+				undefined, undefined, undefined, { restoreFromSessions: false },
+				undefined, undefined, undefined, upcastPartial<IAgentHostFilterService>({
+					onDidChange: changed.event,
+					get selectedHost() { return selectedHost; },
+				}), upcastPartial<IWorkbenchLayoutService>({ mainContainer: workbench }),
+			);
+			assert.ok(picker instanceof TestWebWorkspacePicker);
+			const trigger = document.createElement('button');
+			workbench.appendChild(trigger);
+			picker.showPicker(false, trigger);
+			const row = workbench.querySelector<HTMLButtonElement>('.mobile-picker-sheet-item');
+			assert.ok(row);
+			const selectedBefore = picker.selectedFolderUri;
+			if (change === 'offline') {
+				visibility.set(false, undefined);
+			} else if (change === 'scope') {
+				selectedHost = hostEntry('another');
+				changed.fire();
+			} else {
+				picker.dispose();
+			}
+			row.click();
+			await timeout(300);
+			assert.deepStrictEqual({
+				open: !!workbench.querySelector('.mobile-picker-sheet'), expanded: trigger.getAttribute('aria-expanded'),
+				selectionChanged: picker.selectedFolderUri !== selectedBefore,
+			}, { open: false, expanded: 'false', selectionChanged: change === 'scope' });
+		}));
+	}
 
 	test('an empty creation group offers repositories without an environment or extension provider', async () => {
 		const providersService = disposables.add(new MockSessionsProvidersService());

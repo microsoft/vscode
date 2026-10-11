@@ -534,16 +534,7 @@ export class WorkspacePicker extends Disposable {
 			}
 			this._restoreAutomaticSelection();
 			this._syncAttachedContext();
-			const activeTrigger = this._activeTriggerElement;
-			if (activeTrigger && (this.actionWidgetService.isVisible || this._tabbedWidget.isVisible)) {
-				if (this._showTabs()) {
-					this.showPicker(true, activeTrigger, this._directPickerGroup, this._directPickerAttachesContext);
-				} else if (this._tabbedWidget.isVisible) {
-					this._tabbedWidget.refreshActiveList();
-				} else {
-					this.actionWidgetService.updateItems(this._buildItems(), undefined, { preserveHover: true, preserveScrollPosition: true });
-				}
-			}
+			this._refreshPickerItems();
 		}));
 
 		// VS Code's recent-workspace history is loaded asynchronously.
@@ -1161,20 +1152,33 @@ export class WorkspacePicker extends Disposable {
 		const store = new DisposableStore();
 		this._providerSessionTypesWatch.value = store;
 		for (const provider of this.sessionsProvidersService.getProviders()) {
-			store.add(provider.onDidChangeSessionTypes(() => {
-				const activeTrigger = this._activeTriggerElement;
-				if (activeTrigger && (this.actionWidgetService.isVisible || this._tabbedWidget.isVisible)) {
-					if (this._showTabs()) {
-						this.showPicker(true, activeTrigger, this._directPickerGroup, this._directPickerAttachesContext);
-					} else if (this._tabbedWidget.isVisible) {
-						this._tabbedWidget.refreshActiveList();
-					} else {
-						this.actionWidgetService.updateItems(this._buildItems(), undefined, { preserveHover: true, preserveScrollPosition: true });
+			store.add(provider.onDidChangeSessionTypes(() => this._refreshPickerItems()));
+			if (isAgentHostProvider(provider) && provider.isVisibleInEnvironmentPicker) {
+				const visibility = provider.isVisibleInEnvironmentPicker;
+				let initialized = false;
+				store.add(autorun(reader => {
+					visibility.read(reader);
+					if (initialized) {
+						this._refreshPickerItems();
 					}
-				}
-			}));
+					initialized = true;
+				}));
+			}
 			if (isAgentHostProvider(provider) && provider.onDidChangeDevContainerAvailability) {
 				store.add(provider.onDidChangeDevContainerAvailability(() => this._clearDevContainerAvailability(true)));
+			}
+		}
+	}
+
+	protected _refreshPickerItems(): void {
+		const activeTrigger = this._activeTriggerElement;
+		if (activeTrigger && (this.actionWidgetService.isVisible || this._tabbedWidget.isVisible)) {
+			if (this._showTabs()) {
+				this.showPicker(true, activeTrigger, this._directPickerGroup, this._directPickerAttachesContext);
+			} else if (this._tabbedWidget.isVisible) {
+				this._tabbedWidget.refreshActiveList();
+			} else {
+				this.actionWidgetService.updateItems(this._buildItems(), undefined, { preserveHover: true, preserveScrollPosition: true });
 			}
 		}
 	}
@@ -1454,6 +1458,9 @@ export class WorkspacePicker extends Disposable {
 
 		// Let the action-list widget hide before a browse action opens another picker.
 		await Promise.resolve();
+		if (action.providerId && !this._isWorkspaceProviderVisible(action.providerId)) {
+			return undefined;
+		}
 		try {
 			if (action === this._localBrowseAction) {
 				const selection = await this._browseForLocalFolder();
@@ -1487,8 +1494,9 @@ export class WorkspacePicker extends Disposable {
 				return false;
 			}
 		}
-		return !this.options.canSelectWorkspace
+		const canSelect = !this.options.canSelectWorkspace
 			|| await this.options.canSelectWorkspace(folderUri, providerId);
+		return canSelect && (!providerId || this._isWorkspaceProviderVisible(providerId));
 	}
 
 	/**
@@ -1509,7 +1517,9 @@ export class WorkspacePicker extends Disposable {
 	}
 
 	private _isWorkspaceProviderVisible(providerId: string): boolean {
-		return this.sessionsProvidersService.getProvider(providerId)?.supportsWorkspaceSelection !== false;
+		const provider = this.sessionsProvidersService.getProvider(providerId);
+		return provider?.supportsWorkspaceSelection !== false
+			&& (!provider || !isAgentHostProvider(provider) || provider.isVisibleInEnvironmentPicker?.get() !== false);
 	}
 
 	protected _useConsolidatedRemoteWorkspaces(): boolean {
@@ -2226,7 +2236,8 @@ export class WorkspacePicker extends Disposable {
 			return false;
 		}
 		const connectionStatus = provider.connectionStatus.get();
-		return RemoteAgentHostConnectionStatus.isIncompatible(connectionStatus)
+		return provider.isVisibleInEnvironmentPicker?.get() === false
+			|| RemoteAgentHostConnectionStatus.isIncompatible(connectionStatus)
 			|| (!RemoteAgentHostConnectionStatus.isConnected(connectionStatus) && !provider.canConnectOnDemand);
 	}
 
