@@ -487,6 +487,15 @@ suite('ModelPickerTelemetry', () => {
 		});
 	});
 
+	test('normalizing a matching HydraFusion selection does not persist it again', () => {
+		const hydraFusion = createModel('hydrafusion', { name: 'HydraFusion', modelGroup: { id: 'copilotcli' } });
+		const ensemble = { ...autoModel, metadata: { ...autoModel.metadata, name: 'Ensemble', autoModelEnsemble: { intelligenceUsesHydraFusion: true } } };
+		const result = createPicker(hydraFusion, undefined, [ensemble, hydraFusion, model]);
+		result.picker.setSelectedModel({ ...hydraFusion });
+
+		assert.deepStrictEqual(result.programmaticDelegateSelections, []);
+	});
+
 	test('the input readout opens details directly and restores the invoking control', () => {
 		const result = createPicker();
 		result.picker.render(result.container);

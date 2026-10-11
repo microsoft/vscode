@@ -290,7 +290,7 @@ suite('AgentHostCopilotCliSettingsContribution', () => {
 			unknown: 'false/false',
 			v2PreviewFeaturesDisabled: 'false/false',
 			v1WithEnsemble: 'true/true',
-			disabledWithEnsemble: 'false/false',
+			disabledWithEnsemble: 'true/true',
 		});
 	});
 
