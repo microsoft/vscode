@@ -21,9 +21,15 @@ class RootMcpDiscovery extends Disposable {
 	private _definitions: readonly IMcpServerDefinition[] = [];
 	private _signature = '';
 	private _initialized = false;
+	private _pendingRefreshes = 0;
 
 	get definitions(): readonly IMcpServerDefinition[] {
 		return this._definitions;
+	}
+
+	/** Whether no refresh is queued or running. */
+	get isSettled(): boolean {
+		return this._pendingRefreshes === 0;
 	}
 
 	constructor(
@@ -41,24 +47,29 @@ class RootMcpDiscovery extends Disposable {
 	}
 
 	refresh(force = false): Promise<readonly IMcpServerDefinition[]> {
+		this._pendingRefreshes++;
 		return this._sequencer.queue(async () => {
-			if (this._initialized && !force) {
+			try {
+				if (this._initialized && !force) {
+					return this._definitions;
+				}
+				const definitions = await this._scan();
+				const signature = serializeDefinitions(definitions);
+				if (!this._initialized) {
+					this._initialized = true;
+					this._signature = signature;
+					this._definitions = definitions;
+					return definitions;
+				}
+				if (signature !== this._signature) {
+					this._signature = signature;
+					this._definitions = definitions;
+					this._onDidChange.fire();
+				}
 				return this._definitions;
+			} finally {
+				this._pendingRefreshes--;
 			}
-			const definitions = await this._scan();
-			const signature = serializeDefinitions(definitions);
-			if (!this._initialized) {
-				this._initialized = true;
-				this._signature = signature;
-				this._definitions = definitions;
-				return definitions;
-			}
-			if (signature !== this._signature) {
-				this._signature = signature;
-				this._definitions = definitions;
-				this._onDidChange.fire();
-			}
-			return this._definitions;
 		});
 	}
 
@@ -132,9 +143,15 @@ export class SessionMcpDiscovery extends Disposable {
 	private _definitions: readonly IMcpServerDefinition[] = [];
 	private _signature = '';
 	private _initialized = false;
+	private _pendingMerges = 0;
 
 	get definitions(): readonly IMcpServerDefinition[] {
 		return this._definitions;
+	}
+
+	/** Whether no root rescan or definition merge is queued or running. */
+	get isSettled(): boolean {
+		return this._pendingMerges === 0 && this._roots.every(root => root.discovery.isSettled);
 	}
 
 	constructor(
@@ -157,21 +174,26 @@ export class SessionMcpDiscovery extends Disposable {
 	}
 
 	private _refreshFromSnapshots(): Promise<readonly IMcpServerDefinition[]> {
+		this._pendingMerges++;
 		return this._sequencer.queue(async () => {
-			const definitions = this._mergeRootDefinitions();
-			const signature = serializeDefinitions(definitions);
-			if (!this._initialized) {
-				this._initialized = true;
-				this._signature = signature;
-				this._definitions = definitions;
+			try {
+				const definitions = this._mergeRootDefinitions();
+				const signature = serializeDefinitions(definitions);
+				if (!this._initialized) {
+					this._initialized = true;
+					this._signature = signature;
+					this._definitions = definitions;
+					return this._definitions;
+				}
+				if (signature !== this._signature) {
+					this._signature = signature;
+					this._definitions = definitions;
+					this._onDidChange.fire(definitions);
+				}
 				return this._definitions;
+			} finally {
+				this._pendingMerges--;
 			}
-			if (signature !== this._signature) {
-				this._signature = signature;
-				this._definitions = definitions;
-				this._onDidChange.fire(definitions);
-			}
-			return this._definitions;
 		});
 	}
 

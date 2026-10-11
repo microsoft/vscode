@@ -15,8 +15,8 @@ suite('NewChatModelPickerService', () => {
 		const secondInputPickers = new NewChatModelPickerService();
 		const opened: string[] = [];
 
-		disposables.add(firstInputPickers.registerModelPicker({ open: () => opened.push('first'), switchToModel: () => false }));
-		disposables.add(secondInputPickers.registerModelPicker({ open: () => opened.push('second'), switchToModel: () => false }));
+		disposables.add(firstInputPickers.registerModelPicker({ getDomNode: () => undefined, open: () => opened.push('first'), switchToModel: () => false }));
+		disposables.add(secondInputPickers.registerModelPicker({ getDomNode: () => undefined, open: () => opened.push('second'), switchToModel: () => false }));
 
 		firstInputPickers.openModelPicker();
 
@@ -28,6 +28,7 @@ suite('NewChatModelPickerService', () => {
 		const events: string[] = [];
 
 		disposables.add(modelPickers.registerModelPicker({
+			getDomNode: () => undefined,
 			open: () => events.push('desktop-open'),
 			switchToModel: modelIdentifier => {
 				events.push(`switch:${modelIdentifier}`);
@@ -35,6 +36,7 @@ suite('NewChatModelPickerService', () => {
 			},
 		}));
 		disposables.add(modelPickers.registerModelPicker({
+			getDomNode: () => undefined,
 			open: () => events.push('phone-open'),
 			switchToModel: modelIdentifier => {
 				events.push(`phone-switch:${modelIdentifier}`);
@@ -49,6 +51,28 @@ suite('NewChatModelPickerService', () => {
 			switched: true,
 			events: ['phone-switch:vendor/model', 'phone-open'],
 		});
+	});
+
+	test('exposes the active control and falls back when its registration is disposed', () => {
+		const modelPickers = new NewChatModelPickerService();
+		const firstNode = document.createElement('button');
+		const secondNode = document.createElement('button');
+		const first = disposables.add(modelPickers.registerModelPicker({
+			getDomNode: () => firstNode,
+			open: () => { },
+			switchToModel: () => false,
+		}));
+		const second = disposables.add(modelPickers.registerModelPicker({
+			getDomNode: () => secondNode,
+			open: () => { },
+			switchToModel: () => false,
+		}));
+		const newest = modelPickers.activePicker?.getDomNode() === secondNode;
+		second.dispose();
+		const fallback = modelPickers.activePicker?.getDomNode() === firstNode;
+		first.dispose();
+
+		assert.deepStrictEqual({ newest, fallback, active: modelPickers.activePicker }, { newest: true, fallback: true, active: undefined });
 	});
 
 });

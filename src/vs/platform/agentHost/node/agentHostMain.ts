@@ -15,7 +15,7 @@ import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import * as os from 'os';
 import * as inspector from 'inspector';
-import { AgentHostClaudeAgentEnabledEnvVar, AgentHostCodexAgentEnabledEnvVar, AgentHostIpcChannels, IAgentHostInspectInfo, IAgentHostSocketInfo, IConnectionTrackerService, isAgentEnabled } from '../common/agentService.js';
+import { AgentHostClaudeAgentEnabledEnvVar, AgentHostCodexAgentCodexHomeEnvVar, AgentHostCodexAgentEnabledEnvVar, AgentHostIpcChannels, IAgentHostInspectInfo, IAgentHostSocketInfo, IConnectionTrackerService, isAgentEnabled } from '../common/agentService.js';
 import { AgentHostCodexEnabledConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { AgentModelRefreshScheduler, MODEL_REFRESH_INTERVAL_MS } from './agentModelRefreshScheduler.js';
 import { AgentService } from './agentService.js';
@@ -32,6 +32,7 @@ import { IAgentHostProxyResolver } from './agentHostProxyResolver.js';
 import { IAgentSdkDownloader, type IAgentSdkDownloadProgress } from './agentSdkDownloader.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { ProtocolServerHandler } from './protocolServerHandler.js';
+import { MissionControlHost } from './missionControl/missionControlHost.js';
 import { WebSocketProtocolServer } from './webSocketTransport.js';
 import { MessagePortProtocolServer } from './messagePortProtocolServer.js';
 import { cleanupLocalAgentHostEndpointMetadataSync, cleanupLocalAgentHostEndpointSocketSync, createLocalAgentHostEndpointMetadata, prepareLocalAgentHostEndpointMetadataDirectory, prepareLocalAgentHostEndpointSocketDirectory, publishLocalAgentHostEndpointMetadata, type ILocalAgentHostEndpointMetadata } from './localAgentHostMetadata.js';
@@ -59,6 +60,7 @@ import { join } from '../../../base/common/path.js';
 import ErrorTelemetry from '../../telemetry/node/errorTelemetry.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AgentHostLaunchKindEnvVar, readAgentHostLaunchKind, type AgentHostLaunchKind } from '../common/agentHostTelemetry.js';
+import { markNodeCompileCacheReady } from '../../../base/node/nodeCompileCache.js';
 
 // Entry point for the agent host utility process.
 // Sets up IPC, logging, and registers agent providers (Copilot).
@@ -126,7 +128,7 @@ async function startAgentHost(): Promise<void> {
 			loggerService,
 			transientProxyConfiguration: true,
 			hostLaunchKind,
-			providerConfigurations: [createCodexProviderConfiguration(environmentService.userHome)],
+			providerConfigurations: [createCodexProviderConfiguration(environmentService.userHome, process.env[AgentHostCodexAgentCodexHomeEnvVar])],
 			byok: { kind: 'renderer', bridgeRegistry: byokLmBridgeRegistry },
 		});
 		disposables.add(runtime);
@@ -146,7 +148,6 @@ async function startAgentHost(): Promise<void> {
 		fileService = runtimeServices.fileService;
 		proxyResolver = runtimeServices.proxyResolver;
 		stateManager = runtimeServices.stateManager;
-		completionTriggerCharacters = runtimeServices.completions.triggerCharacters;
 		errorTelemetry.value = new ErrorTelemetry(runtimeServices.telemetryService);
 		const agentSdkDownloader = runtimeServices.agentSdkDownloader;
 		const providerService = runtimeServices.providerService;
@@ -154,8 +155,9 @@ async function startAgentHost(): Promise<void> {
 		providerService.registerProvider(instantiationService.createInstance(CopilotAgent));
 		// Claude and Codex providers are gated on two things:
 		//  1. The user-facing enable toggle (`chat.agentHost.<x>Agent.enabled`,
-		//     forwarded as an env var by the starters). Claude defaults to on,
-		//     Codex defaults to off.
+		//     forwarded as an env var by the starters). Claude defaults to on.
+		//     Codex defaults to on outside Stable and off in Stable; if a starter
+		//     does not forward its resolved value, the host fallback is off.
 		//  2. The SDK being reachable. Claude is a devDependency of this repo
 		//     so the bare-import path in `ClaudeAgentSdkService._loadSdk`
 		//     always succeeds in dev; in built products the SDK ships via
@@ -187,6 +189,7 @@ async function startAgentHost(): Promise<void> {
 			registerCodexIfEnabled();
 			disposables.add(agentConfigurationService.onDidRootConfigChange(registerCodexIfEnabled));
 		}
+		completionTriggerCharacters = runtimeServices.completions.triggerCharacters;
 	} catch (err) {
 		logService.error('Failed to create AgentService', err);
 		disposables.dispose();
@@ -445,15 +448,33 @@ async function startAgentHost(): Promise<void> {
 			}
 		},
 	};
-	server.registerChannel(AgentHostIpcChannels.Management, ProxyChannel.fromService(instantiationService.createInstance(
+	const missionControl = protocolIngressDisposables.add(instantiationService.createInstance(MissionControlHost, {
+		hostLaunchKind,
+		clientFileSystemProvider,
+		trackProtocolHandler: handler => {
+			protocolHandlers.push(handler);
+			return toDisposable(() => {
+				protocolHandlers.splice(protocolHandlers.indexOf(handler), 1);
+				handler.dispose();
+			});
+		},
+	}));
+	const management = instantiationService.createInstance(
 		AgentHostManagementService,
 		agentService,
 		connectionTrackerService,
 		async () => {
+			try {
+				await missionControl.environment.configure(undefined);
+			} catch (error) {
+				logService.error('[AgentHost] Failed to unregister Mission Control environment', error);
+			}
 			protocolIngressDisposables.dispose();
 			await Promise.all(protocolHandlers.map(handler => handler.whenIdle()));
 		},
-	), disposables));
+	);
+	management.setMissionControl(missionControl.environment);
+	server.registerChannel(AgentHostIpcChannels.Management, ProxyChannel.fromService(management, disposables));
 	if (!(server instanceof UtilityProcessServer)) {
 		server.registerChannel(AgentHostIpcChannels.ConnectionTracker, ProxyChannel.fromService(connectionTrackerService, disposables));
 	}
@@ -478,10 +499,13 @@ async function startAgentHost(): Promise<void> {
 	// Startup is complete once the last ingress has settled — successfully or
 	// not, since a failed WebSocket server is non-fatal. Deferred maintenance
 	// then runs after a client has also been served its first session listing.
+	let startupOutcome: 'success' | 'error' = 'success';
 	void configuredWebSocketServerStart.catch(err => {
+		startupOutcome = 'error';
 		logService.error('Failed to start WebSocket server', err);
 	}).finally(() => {
-		agentService.markStartupComplete();
+		agentService.markStartupComplete(startupOutcome);
+		markNodeCompileCacheReady(message => logService.info(message));
 	});
 
 	process.once('exit', () => {

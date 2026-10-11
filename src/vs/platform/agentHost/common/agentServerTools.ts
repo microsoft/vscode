@@ -15,6 +15,10 @@ export interface IAgentServerToolDefinition extends ToolDefinition {
 	 * throwaway surfaces do not pay for session-management tooling.
 	 */
 	readonly enabledForEphemeralSessions?: boolean;
+	/** Available to owning chats, but not their native or protocol subagents. */
+	readonly topLevelChatOnly?: boolean;
+	/** Defers the tool behind discovery when supported; `false` keeps it eager. Omit to preserve provider defaults. */
+	readonly deferLoading?: boolean;
 }
 
 /**
@@ -37,10 +41,10 @@ export interface IAgentServerToolHost {
 	readonly definitions: readonly IAgentServerToolDefinition[];
 	/** Server tools eligible for the given session, honoring ephemeral eligibility. */
 	getDefinitionsForSession(sessionUri: URI): readonly IAgentServerToolDefinition[];
-	/** Names of every server tool across the contributed groups. */
+	/** Routable server-tool names, including materialized tools retained by sessions after root settings change. */
 	readonly toolNames: readonly string[];
-	/** Advertises all server tools on the session's `serverTools`. */
-	advertise(sessionUri: URI): void;
+	/** Advertises all server tools on the owning session, accepting a session or chat URI. */
+	advertise(sessionOrChatUri: URI): void;
 	/**
 	 * Whether {@link toolName} can ever prompt for confirmation, independent of
 	 * any session's current state. Providers use this to decide up front which

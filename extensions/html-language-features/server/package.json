@@ -11,11 +11,11 @@
   "main": "./out/node/htmlServerMain",
   "dependencies": {
     "@vscode/l10n": "^0.0.18",
-    "vscode-css-languageservice": "^7.0.0-next.1",
-    "vscode-html-languageservice": "^6.0.0-next.1",
-    "vscode-languageserver": "^10.0.0-next.18",
-    "vscode-languageserver-textdocument": "^1.0.12",
-    "vscode-uri": "^3.1.0"
+    "vscode-css-languageservice": "^7.0.0-next.2",
+    "vscode-html-languageservice": "^6.0.0-next.2",
+    "vscode-languageserver": "^10.1.1",
+    "vscode-languageserver-textdocument": "^1.0.14",
+    "vscode-uri": "^3.2.0"
   },
   "devDependencies": {
     "@types/node": "24.x"

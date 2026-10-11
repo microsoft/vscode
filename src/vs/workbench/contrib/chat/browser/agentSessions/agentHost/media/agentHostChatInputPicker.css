@@ -35,8 +35,9 @@
 .agent-host-chat-input-picker-slot span.action-label {
 	display: inline-flex;
 	align-items: center;
-	height: 16px;
-	padding: 3px 8px;
+	box-sizing: border-box;
+	height: var(--chat-input-control-height);
+	padding: 0 var(--vscode-spacing-size60);
 	border-radius: 4px;
 	color: var(--vscode-icon-foreground);
 }
@@ -104,15 +105,15 @@
 }
 
 .interactive-session .compact-picker .agent-host-chat-input-picker-slot {
-	width: 22px;
-	height: 22px;
+	width: var(--chat-input-control-height);
+	height: var(--chat-input-control-height);
 }
 
 .interactive-session .compact-picker .agent-host-chat-input-picker-slot .action-label {
 	box-sizing: border-box;
-	width: 22px;
-	height: 22px;
-	min-width: 22px;
+	width: var(--chat-input-control-height);
+	height: var(--chat-input-control-height);
+	min-width: var(--chat-input-control-height);
 	padding: 0;
 	justify-content: center;
 }

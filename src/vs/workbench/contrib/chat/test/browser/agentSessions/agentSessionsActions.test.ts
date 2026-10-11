@@ -20,9 +20,12 @@ import { ResolvedKeybindingItem } from '../../../../../../platform/keybinding/co
 import { USLayoutResolvedKeybinding } from '../../../../../../platform/keybinding/common/usLayoutResolvedKeybinding.js';
 import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
+import { IViewsService } from '../../../../../services/views/common/viewsService.js';
 import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
 import { AGENT_SESSION_RENAME_ACTION_ID, AgentSessionProviders } from '../../../browser/agentSessions/agentSessions.js';
-import { RenameAgentSessionAction } from '../../../browser/agentSessions/agentSessionsActions.js';
+import { ArchiveAgentSessionAction, RenameAgentSessionAction } from '../../../browser/agentSessions/agentSessionsActions.js';
+import { IAgentSession } from '../../../browser/agentSessions/agentSessionsModel.js';
+import { IAgentSessionsService } from '../../../browser/agentSessions/agentSessionsService.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
@@ -30,7 +33,7 @@ import { IChatModel } from '../../../common/model/chatModel.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { IChatViewModel } from '../../../common/model/chatViewModel.js';
 
-suite('RenameAgentSessionAction', () => {
+suite('AgentSessionsActions', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const actionRegistration = registerAction2(RenameAgentSessionAction);
 
@@ -95,6 +98,11 @@ suite('RenameAgentSessionAction', () => {
 				[ChatContextKeys.agentSessionType.key, AgentSessionProviders.Local],
 				[ChatContextKeys.hasMultipleAgentSessionsSelected.key, true],
 			]),
+			sessionChild: lookup([
+				[ChatContextKeys.agentSessionsViewerFocused.key, true],
+				[ChatContextKeys.agentSessionType.key, AgentSessionProviders.Local],
+				[ChatContextKeys.isAgentSessionChild.key, true],
+			]),
 			emptyAgentHostEditorInput: lookup([
 				...agentHostChat,
 				[ChatContextKeys.chatSessionSupportsRename.key, false],
@@ -138,6 +146,7 @@ suite('RenameAgentSessionAction', () => {
 			agentHostEditorInput: expectedChatKeybinding,
 			panelInputAfterListMultiSelection: expectedChatKeybinding,
 			sessionsListMultiSelection: null,
+			sessionChild: null,
 			emptyAgentHostEditorInput: null,
 			renameableContributedInput: expectedChatKeybinding,
 			cloudEditorInput: null,
@@ -283,5 +292,25 @@ suite('RenameAgentSessionAction', () => {
 				renames: [{ resource: sessionResource.toString(), title: 'Renamed title' }],
 			},
 		});
+	});
+
+	test('does not archive a parent session from a child chat context', async () => {
+		const store = disposables.add(new DisposableStore());
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IAgentSessionsService, upcastPartial<IAgentSessionsService>({}));
+		instantiationService.stub(IViewsService, upcastPartial<IViewsService>({}));
+
+		let archiveCalls = 0;
+		const parentResource = URI.parse('agent-host-copilot:/session');
+		const child = upcastPartial<IAgentSession>({
+			resource: parentResource.with({ fragment: 'peer' }),
+			parentSession: { resource: parentResource, label: 'Session' },
+			setArchived: () => archiveCalls++,
+		});
+		const action = new ArchiveAgentSessionAction();
+
+		await instantiationService.invokeFunction(accessor => action.run(accessor, child));
+
+		assert.strictEqual(archiveCalls, 0);
 	});
 });

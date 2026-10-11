@@ -6,17 +6,20 @@
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { observableValue } from '../../../../base/common/observable.js';
+import { ISettableObservable, observableValue } from '../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import type { GitHubCredential, GitHubCredentialInvalidation, IGitHubCredentials } from '../../../github/common/githubCredentialService.js';
 import type { PullRequestFragment, PullRequestRef, PullRequestSnapshot, PullRequestSubscription, PullRequestSubscriptionOptions } from '../../../github/common/githubPullRequestService.js';
-import type { IGitHubService } from '../../../github/common/githubService.js';
+import type { IGitHubClient } from '../../../github/common/githubService.js';
+import { createTestGitHubService } from './testGitHubService.js';
 import type { IPullRequestResources } from '../../../github/common/pullRequestResourceService.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { IAgentHostChangesetSubscriptionService } from '../../common/agentHostChangesetSubscriptionService.js';
 import type { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
-import { readSessionGitHubState, SessionStatus, withSessionGitHubState, withSessionGitState, type ISessionGitHubState, type SessionSummary } from '../../common/state/sessionState.js';
+import { buildChatUri, readSessionGitHubState, SessionStatus, withSessionGitHubState, withSessionGitState, type ISessionGitHubState, type ISessionGitState, type SessionSummary } from '../../common/state/sessionState.js';
+import { buildFolderChangesetOwnerUri } from '../../common/changesetUri.js';
+import { getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
@@ -25,9 +28,11 @@ import { AgentHostPullRequestStatusService } from '../../node/agentHostPullReque
 const account = { host: 'api.github.com', accountId: '1' };
 const pullRequestUrl = 'https://github.com/octo/repo/pull/7';
 
+const REPOSITORY = 'file:///repo';
+
 function summary(resource: string): SessionSummary {
 	const now = new Date().toISOString();
-	return { resource, provider: 'copilot', title: 'PR status', status: SessionStatus.Idle, createdAt: now, modifiedAt: now };
+	return { resource, provider: 'copilot', title: 'PR status', status: SessionStatus.Idle, createdAt: now, modifiedAt: now, workingDirectories: [REPOSITORY] };
 }
 
 function snapshot(ref: PullRequestRef, overrides?: { readonly draft?: boolean; readonly headSha?: string }): PullRequestSnapshot {
@@ -42,9 +47,9 @@ function snapshot(ref: PullRequestRef, overrides?: { readonly draft?: boolean; r
 			value: {
 				id: 'PR_1',
 				repositoryNameWithOwner: 'octo/repo',
-				number: 7,
+				number: ref.number,
 				title: 'Title',
-				url: pullRequestUrl,
+				url: `https://github.com/${ref.owner}/${ref.repo}/pull/${ref.number}`,
 				state: 'open',
 				draft: overrides?.draft ?? false,
 				headSha,
@@ -107,7 +112,8 @@ class TestPullRequestResources implements IPullRequestResources {
 	readonly subscribed: PullRequestRef[] = [];
 	readonly subscriptionOptions: PullRequestSubscriptionOptions[] = [];
 	disposedCount = 0;
-	private _snapshot = observableValue<PullRequestSnapshot | undefined>('snapshot', undefined);
+	/** One snapshot per subscription, so pull requests of different folders stay apart. */
+	private readonly _snapshots: ISettableObservable<PullRequestSnapshot | undefined>[] = [];
 	private _nextSubscriptionSnapshot: PullRequestSnapshot | undefined;
 	readonly refreshedFragments: (PullRequestFragment | undefined)[] = [];
 	refreshHandler: (() => Promise<void>) | undefined;
@@ -117,10 +123,11 @@ class TestPullRequestResources implements IPullRequestResources {
 	subscribePullRequest(ref: PullRequestRef, options: PullRequestSubscriptionOptions): PullRequestSubscription {
 		this.subscribed.push(ref);
 		this.subscriptionOptions.push(options);
-		this._snapshot.set(this._nextSubscriptionSnapshot ?? snapshot(ref), undefined);
+		const subscriptionSnapshot = observableValue<PullRequestSnapshot | undefined>('snapshot', this._nextSubscriptionSnapshot ?? snapshot(ref));
+		this._snapshots.push(subscriptionSnapshot);
 		this._nextSubscriptionSnapshot = undefined;
 		return {
-			resource: { ref, snapshot: this._snapshot as never },
+			resource: { ref, snapshot: subscriptionSnapshot as never },
 			update: next => this.subscriptionOptions.push(next),
 			refresh: async fragment => {
 				this.refreshedFragments.push(fragment);
@@ -131,7 +138,13 @@ class TestPullRequestResources implements IPullRequestResources {
 	}
 
 	setSnapshot(value: PullRequestSnapshot): void {
-		this._snapshot.set(value, undefined);
+		for (const subscriptionSnapshot of this._snapshots) {
+			subscriptionSnapshot.set(value, undefined);
+		}
+	}
+
+	setSnapshotAt(index: number, value: PullRequestSnapshot): void {
+		this._snapshots[index]?.set(value, undefined);
 	}
 
 	setNextSubscriptionSnapshot(value: PullRequestSnapshot): void {
@@ -146,22 +159,29 @@ class TestCredentials implements IGitHubCredentials {
 
 	private readonly _onDidInvalidate = new Emitter<GitHubCredentialInvalidation>();
 	readonly onDidInvalidate = this._onDidInvalidate.event;
+	private _controller = new AbortController();
+	lookups = 0;
 
 	/** Resolved by the test so a sync can be suspended mid-flight. */
 	pending: DeferredPromise<void> | undefined;
 
 	async getCredential(): Promise<GitHubCredential> {
+		this.lookups++;
+		const signal = this._controller.signal;
 		if (this.pending) {
 			await this.pending.p;
 		}
-		return { account, token: 'token', generation: 1, signal: new AbortController().signal };
+		return { account, token: 'token', generation: 1, signal };
 	}
 
 	async resolveCredential(): Promise<GitHubCredential> { throw new Error('not implemented'); }
 	handleRequestError(): void { }
 
 	invalidate(reason: GitHubCredentialInvalidation['reason']): void {
-		this._onDidInvalidate.fire({ credential: { account, token: 'token', generation: 1, signal: new AbortController().signal }, reason });
+		const controller = this._controller;
+		this._controller = new AbortController();
+		controller.abort();
+		this._onDidInvalidate.fire({ credential: { account, token: 'token', generation: 1, signal: controller.signal }, reason });
 	}
 
 	dispose(): void { this._onDidInvalidate.dispose(); }
@@ -222,18 +242,22 @@ suite('AgentHostPullRequestStatusService', () => {
 		const credentials = disposables.add(new TestCredentials());
 		const resources = new TestPullRequestResources();
 		const gitHubStates: ISessionGitHubState[] = [];
-		const gitHubService = new class extends mock<IGitHubService>() {
+		const publishedStateKeys: string[] = [];
+		const chatGitStates = new Map<string, ISessionGitState>();
+		const gitHubService = createTestGitHubService(new class extends mock<IGitHubClient>() {
 			override readonly credentials = credentials;
 			override readonly pullRequests = resources;
-		}();
+		}(), Event.signal(Event.filter(credentials.onDidInvalidate, event => event.reason === 'account' || event.reason === 'endpoint')));
 		const gitStateService = new class extends mock<IAgentHostGitStateService>() {
 			override readonly onDidRefreshSessionGitState = Event.None;
 			override readonly onDidChangeSessionGitHubState = Event.None;
+			override readonly getSessionGitState = (key: string) => chatGitStates.get(key);
 			override async setSessionGitHubState(sessionKey: string, state: ISessionGitHubState): Promise<void> {
 				gitHubStates.push(state);
+				publishedStateKeys.push(sessionKey);
 				const currentMeta = stateManager.getSessionState(sessionKey)?._meta;
-				stateManager.setSessionMeta(sessionKey, withSessionGitHubState(currentMeta, {
-					...readSessionGitHubState(currentMeta),
+				stateManager.setSessionMeta(sessionKey, withSessionGitHubState(currentMeta, REPOSITORY, {
+					...readSessionGitHubState(currentMeta, REPOSITORY),
 					...state,
 				}));
 			}
@@ -252,11 +276,81 @@ suite('AgentHostPullRequestStatusService', () => {
 		// shape the watcher is eligible for.
 		stateManager.setSessionMeta(session, withSessionGitHubState(
 			withSessionGitState(undefined, { branchName: 'feature' }),
+			REPOSITORY,
 			{ pullRequestUrls: [pullRequestUrl], pullRequestBranchName: 'feature' },
 		));
 
-		return { service, stateManager, subscriptions, credentials, resources, gitHubStates, session };
+		return { service, stateManager, subscriptions, credentials, resources, gitHubStates, publishedStateKeys, chatGitStates, session };
 	}
+
+	test('watches and reports the pull request of each folder a chat works in', async () => {
+		const { service, stateManager, subscriptions, resources, publishedStateKeys, chatGitStates, session } = createHarness();
+		const otherFolder = 'file:///other';
+		const otherPullRequestUrl = 'https://github.com/octo/tools/pull/9';
+		const peer = buildChatUri(session, 'peer');
+		stateManager.addChat(session, peer, { workingDirectories: [otherFolder] });
+		stateManager.setSessionMeta(session, withSessionGitHubState(stateManager.getSessionState(session)?._meta, otherFolder, {
+			pullRequestUrls: [otherPullRequestUrl],
+			pullRequestBranchName: 'tools-feature',
+		}));
+		chatGitStates.set(peer, { branchName: 'tools-feature' });
+
+		subscriptions.addSubscription(session, session);
+		for (let i = 0; i < 50 && resources.liveSubscriptions < 2; i++) {
+			await pump();
+		}
+		const otherFolderOwner = buildFolderChangesetOwnerUri(session, getWorkingDirectoryScopeId([otherFolder]));
+
+		assert.deepStrictEqual({
+			watched: resources.subscribed.map(ref => `${ref.owner}/${ref.repo}#${ref.number}`),
+			sessionFolder: service.getPullRequestStatus(session)?.url,
+			otherFolderByChat: service.getPullRequestStatus(peer)?.url,
+			otherFolderByOwner: service.getPullRequestStatus(otherFolderOwner)?.url,
+			// Another folder's pull request state is recorded through the chat working in it.
+			publishedStateKeys,
+		}, {
+			watched: ['octo/repo#7', 'octo/tools#9'],
+			sessionFolder: pullRequestUrl,
+			otherFolderByChat: otherPullRequestUrl,
+			otherFolderByOwner: otherPullRequestUrl,
+			publishedStateKeys: [session, peer],
+		});
+	});
+
+	test('refreshes a reused folder watch descriptor when the representative chat changes', async () => {
+		const { service, stateManager, subscriptions, resources, publishedStateKeys, chatGitStates, session } = createHarness();
+		const otherFolder = 'file:///other';
+		const otherPullRequestUrl = 'https://github.com/octo/tools/pull/9';
+		const firstPeer = buildChatUri(session, 'first-peer');
+		const secondPeer = buildChatUri(session, 'second-peer');
+		stateManager.addChat(session, firstPeer, { workingDirectories: [otherFolder] });
+		stateManager.setSessionMeta(session, withSessionGitHubState(stateManager.getSessionState(session)?._meta, otherFolder, {
+			pullRequestUrls: [otherPullRequestUrl],
+			pullRequestBranchName: 'tools-feature',
+		}));
+		chatGitStates.set(firstPeer, { branchName: 'tools-feature' });
+
+		subscriptions.addSubscription(session, session);
+		for (let i = 0; i < 50 && resources.liveSubscriptions < 2; i++) {
+			await pump();
+		}
+		publishedStateKeys.length = 0;
+
+		stateManager.addChat(session, secondPeer, { workingDirectories: [otherFolder] });
+		chatGitStates.set(secondPeer, { branchName: 'tools-feature' });
+		stateManager.removeChat(session, firstPeer);
+		await pump();
+		const toolsSubscription = resources.subscribed.findIndex(ref => ref.owner === 'octo' && ref.repo === 'tools');
+		resources.setSnapshotAt(toolsSubscription, snapshot({ ...account, owner: 'octo', repo: 'tools', number: 9 }, { draft: true }));
+
+		assert.deepStrictEqual({
+			status: service.getPullRequestStatus(secondPeer)?.url,
+			publishedStateKeys,
+		}, {
+			status: otherPullRequestUrl,
+			publishedStateKeys: [secondPeer],
+		});
+	});
 
 	test('watches only while a client is subscribed to the session changes', async () => {
 		const { service, subscriptions, resources, session } = createHarness();
@@ -506,6 +600,7 @@ suite('AgentHostPullRequestStatusService', () => {
 		});
 		stateManager.setSessionMeta(session, withSessionGitHubState(
 			stateManager.getSessionState(session)?._meta,
+			REPOSITORY,
 			{
 				pullRequestUrls: [pullRequestUrl],
 				pullRequestBranchName: 'feature',
@@ -560,6 +655,16 @@ suite('AgentHostPullRequestStatusService', () => {
 			subscribed: 2,
 			disposed: 1,
 			live: 1,
+		});
+	});
+
+	test('retries a credential invalidated before its watch is installed', async () => {
+		const { subscriptions, credentials, resources, session } = createHarness();
+		subscriptions.addSubscription(session, `${session}/changes`);
+		credentials.invalidate('account');
+		await waitForWatch(resources);
+		assert.deepStrictEqual({ lookups: credentials.lookups, subscribed: resources.subscribed.length, live: resources.liveSubscriptions }, {
+			lookups: 2, subscribed: 1, live: 1,
 		});
 	});
 

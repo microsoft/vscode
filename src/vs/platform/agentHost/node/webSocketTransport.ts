@@ -240,11 +240,13 @@ export class WebSocketProtocolServer extends Disposable implements IProtocolServ
 		if (!this._ahpLogOptions) {
 			return undefined;
 		}
+		const connectionId = `agent-host-${++this._connectionCount}-${generateUuid()}`;
 		return this._ahpLogOptions.instantiationService.createInstance(
 			AhpJsonlLogger,
 			{
 				logsHome: this._ahpLogOptions.logsHome,
-				connectionId: `agent-host-${++this._connectionCount}-${generateUuid()}`,
+				logId: connectionId,
+				connectionId,
 				transport: 'websocket',
 			},
 		);

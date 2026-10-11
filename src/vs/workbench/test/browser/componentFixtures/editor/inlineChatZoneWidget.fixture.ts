@@ -55,12 +55,17 @@ import { IChatWidgetHistoryService } from '../../../../contrib/chat/common/widge
 import { IChatLayoutService } from '../../../../contrib/chat/common/widget/chatLayoutService.js';
 import { IAgentSessionsService } from '../../../../contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostConnectionsService } from '../../../../../platform/agentHost/browser/agentHostConnectionsService.js';
+import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { IRemoteAgentHostService, NullRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { RootState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostNewSessionFolderService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IAgentHostCustomizationService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
+import { TestPathService, TestRemoteAgentService } from '../../workbenchTestServices.js';
+import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 import { IWorkspaceContextService, IWorkspace } from '../../../../../platform/workspace/common/workspace.js';
 import { IViewDescriptorService } from '../../../../common/views.js';
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
@@ -157,7 +162,7 @@ MenuRegistry.appendMenuItem(MenuId.ChatExecute, {
 	command: { id: 'workbench.action.chat.submit', title: 'Send', icon: Codicon.newLine },
 });
 
-function renderInlineChatZoneWidget({ container, disposableStore, theme }: ComponentFixtureContext, showTerminationCard: boolean): void {
+function renderInlineChatZoneWidget({ container, disposableStore, theme, focus }: ComponentFixtureContext, showTerminationCard: boolean): void {
 	container.style.width = '600px';
 	container.style.height = '700px';
 	container.style.border = '1px solid var(--vscode-editorWidget-border)';
@@ -169,6 +174,7 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme }: Compo
 			reg.define(IContextKeyService, ContextKeyService);
 			reg.define(IMenuService, MenuService);
 			reg.define(IMarkdownRendererService, MarkdownRendererService);
+			reg.defineInstance(IRemoteAgentService, new TestRemoteAgentService());
 
 			reg.defineInstance(IAccessibleViewService, new class extends mock<IAccessibleViewService>() {
 				declare readonly _serviceBrand: undefined;
@@ -280,12 +286,15 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme }: Compo
 				override getToolSetsForModel() { return []; }
 			}());
 			reg.defineInstance(IAgentSessionsService, new class extends mock<IAgentSessionsService>() {
+				override getSession() { return undefined; }
 				override readonly model = new class extends mock<IAgentSessionsService['model']>() {
 					override readonly onDidChangeSessions = Event.None;
 				}();
 			}());
 			reg.defineInstance(IAgentHostService, new class extends mock<IAgentHostService>() {
 				override readonly onAgentHostStart = Event.None;
+				override readonly onAgentHostExit = Event.None;
+				override readonly onDidNotification = Event.None;
 				override readonly rootState: IAgentSubscription<RootState> = {
 					value: undefined,
 					verifiedValue: undefined,
@@ -294,6 +303,8 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme }: Compo
 					onDidApplyAction: Event.None,
 				};
 			}());
+			reg.defineInstance(IRemoteAgentHostService, new NullRemoteAgentHostService());
+			reg.define(IAgentHostConnectionsService, AgentHostConnectionsService);
 			reg.defineInstance(IAgentHostUntitledProvisionalSessionService, new class extends mock<IAgentHostUntitledProvisionalSessionService>() {
 				override readonly onDidChange = Event.None;
 				override get() { return undefined; }
@@ -388,7 +399,7 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme }: Compo
 			reg.defineInstance(IViewDescriptorService, new class extends mock<IViewDescriptorService>() { override readonly onDidChangeLocation = Event.None; }());
 			reg.defineInstance(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { override readonly onDidChangeWorkspaceFolders = Event.None; override getWorkspace(): IWorkspace { return { id: '', folders: [], configuration: undefined }; } }());
 			reg.defineInstance(IExtensionService, new class extends mock<IExtensionService>() { override readonly onDidChangeExtensions = Event.None; }());
-			reg.defineInstance(IPathService, new class extends mock<IPathService>() { }());
+			reg.defineInstance(IPathService, new TestPathService());
 			reg.defineInstance(IListService, new ListService());
 			reg.defineInstance(INotebookDocumentService, new class extends mock<INotebookDocumentService>() { }());
 			reg.defineInstance(ISCMService, new class extends mock<ISCMService>() {
@@ -431,7 +442,7 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme }: Compo
 	));
 
 	editor.setModel(textModel);
-	editor.focus();
+	focus(editor);
 
 	const zoneWidget = disposableStore.add(instantiationService.createInstance(
 		InlineChatZoneWidget,

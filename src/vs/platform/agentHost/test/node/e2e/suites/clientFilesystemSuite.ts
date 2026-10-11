@@ -20,7 +20,7 @@
  */
 
 import assert from 'assert';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { raceTimeout } from '../../../../../../base/common/async.js';
 import { join } from '../../../../../../base/common/path.js';
@@ -42,12 +42,13 @@ import { CustomizationLoadStatus, CustomizationType, ROOT_STATE_URI } from '../.
 import { createRealSession } from '../harness/agentHostE2ETestHarness.js';
 import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import { conformanceTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
+import { createTestDirectory } from '../harness/testDirectories.js';
 
 export function defineClientFilesystemTests(context: IAgentHostE2ETestContext): void {
 	const { config, createdSessions, tempDirs, isWindows } = context;
 
 	function createWorkspace(prefix: string): string {
-		const workspace = mkdtempSync(join(tmpdir(), prefix));
+		const workspace = createTestDirectory(join(tmpdir(), prefix));
 		tempDirs.push(workspace);
 		return workspace;
 	}

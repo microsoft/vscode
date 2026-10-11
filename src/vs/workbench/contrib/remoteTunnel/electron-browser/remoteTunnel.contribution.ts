@@ -5,6 +5,7 @@
 
 import { toAction } from '../../../../base/common/actions.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { NotificationText } from '../../../../platform/notification/common/notificationMessage.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { ITunnelApplicationConfig } from '../../../../base/common/product.js';
 import { joinPath } from '../../../../base/common/resources.js';
@@ -317,7 +318,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 			await this.progressService.withProgress(
 				{
 					location: ProgressLocation.Window,
-					title: localize({ key: 'initialize.progress.title', comment: ['Only translate \'Looking for remote tunnel\', do not change the format of the rest (markdown link format)'] }, "[Looking for remote tunnel](command:{0})", RemoteTunnelCommandIds.showLog),
+					title: NotificationText.link(localize('initialize.progress.titleLabel', "Looking for remote tunnel"), `command:${RemoteTunnelCommandIds.showLog}`),
 				},
 				doInitialStateDiscovery
 			);
@@ -350,7 +351,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 			const result = await this.progressService.withProgress(
 				{
 					location: ProgressLocation.Notification,
-					title: localize({ key: 'startTunnel.progress.title', comment: ['Only translate \'Starting remote tunnel\', do not change the format of the rest (markdown link format)'] }, "[Starting remote tunnel](command:{0})", RemoteTunnelCommandIds.showLog),
+					title: NotificationText.link(localize('startTunnel.progress.titleLabel', "Starting remote tunnel"), `command:${RemoteTunnelCommandIds.showLog}`),
 				},
 				(progress: IProgress<IProgressStep>) => {
 					return new Promise<ConnectionInfo | undefined>((s, e) => {
@@ -369,13 +370,9 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 									if (status.serviceInstallFailed) {
 										this.notificationService.notify({
 											severity: Severity.Warning,
-											message: localize(
-												{
-													key: 'remoteTunnel.serviceInstallFailed',
-													comment: ['{Locked="](command:{0})"}']
-												},
-												"Installation as a service failed, and we fell back to running the tunnel for this session. See the [error log](command:{0}) for details.",
-												RemoteTunnelCommandIds.showLog,
+											message: NotificationText.format(
+												localize('remoteTunnel.serviceInstallFailedLinked', "Installation as a service failed, and we fell back to running the tunnel for this session. See the {0} for details."),
+												NotificationText.link(localize('remoteTunnel.errorLogLink', "error log"), `command:${RemoteTunnelCommandIds.showLog}`),
 											),
 										});
 									}
@@ -625,20 +622,26 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 				if (connectionInfo) {
 					if (options?.showSuccessNotification !== false) {
 						const remoteExtension = that.serverConfiguration.extension;
+						const configureLabel = localize('progress.turnOn.configureLink', "configure");
+						const turnOffLink = NotificationText.link(localize('progress.turnOn.turnOffLink', "turn off"), `command:${RemoteTunnelCommandIds.turnOff}`);
 						if (connectionInfo.link && connectionInfo.domain) {
 							const linkToOpen = that.getLinkToOpen(connectionInfo.link);
-							const linkToOpenForMarkdown = linkToOpen.toString(false).replace(/\)/g, '%29');
 							notificationService.notify({
 								severity: Severity.Info,
-								message:
+								message: NotificationText.format(
 									localize(
 										{
-											key: 'progress.turnOn.final',
-											comment: ['{0} will be the tunnel name, {1} will the link address to the web UI, {6} an extension name, {7} a link to the extension documentation. [label](command:commandId) is a markdown link. Only translate the label, do not modify the format']
+											key: 'progress.turnOn.finalLinked',
+											comment: ['{0} is a link with the tunnel name, {1} a link to the web UI, {2} a link with an extension name, {3} a configure link, and {4} a turn off link.']
 										},
-										"You can now access this machine anywhere via the secure tunnel [{0}](command:{4}). To connect via a different machine, use the generated [{1}]({2}) link or use the [{6}]({7}) extension in the desktop or web. You can [configure](command:{3}) or [turn off](command:{5}) this access via the VS Code Accounts menu.",
-										connectionInfo.tunnelName, connectionInfo.domain, linkToOpenForMarkdown, RemoteTunnelCommandIds.manage, RemoteTunnelCommandIds.configure, RemoteTunnelCommandIds.turnOff, remoteExtension.friendlyName, 'https://code.visualstudio.com/docs/remote/tunnels'
+										"You can now access this machine anywhere via the secure tunnel {0}. To connect via a different machine, use the generated {1} link or use the {2} extension in the desktop or web. You can {3} or {4} this access via the VS Code Accounts menu."
 									),
+									NotificationText.link(connectionInfo.tunnelName, `command:${RemoteTunnelCommandIds.configure}`),
+									NotificationText.link(connectionInfo.domain, linkToOpen.toString(false)),
+									NotificationText.link(remoteExtension.friendlyName, 'https://code.visualstudio.com/docs/remote/tunnels'),
+									NotificationText.link(configureLabel, `command:${RemoteTunnelCommandIds.manage}`),
+									turnOffLink,
+								),
 								actions: {
 									primary: [
 										toAction({ id: 'copyToClipboard', label: localize('action.copyToClipboard', "Copy Browser Link to Clipboard"), run: () => clipboardService.writeText(linkToOpen.toString(true)) }),
@@ -653,7 +656,10 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 						} else {
 							notificationService.notify({
 								severity: Severity.Info,
-								message: localize('progress.turnOn.final.noLink', "Remote Tunnel Access is enabled for {0}. You can [configure](command:{1}) or [turn off](command:{2}) this access via the VS Code Accounts menu.", connectionInfo.tunnelName, RemoteTunnelCommandIds.configure, RemoteTunnelCommandIds.turnOff),
+								message: NotificationText.format(
+									localize('progress.turnOn.final.noLinkLinked', "Remote Tunnel Access is enabled for {0}. You can {1} or {2} this access via the VS Code Accounts menu."),
+									connectionInfo.tunnelName, NotificationText.link(configureLabel, `command:${RemoteTunnelCommandIds.configure}`), turnOffLink
+								),
 							});
 						}
 					}

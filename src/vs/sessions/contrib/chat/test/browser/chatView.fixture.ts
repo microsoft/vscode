@@ -10,24 +10,30 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { agentMergeEnabledNotice, defaultAgentMergeConfiguration } from '../../../../../platform/agentHost/common/agentMerge.js';
+import { createSessionComparisonJudgePrompt } from '../../../../../platform/agentHost/common/sessionComparisonPrompts.js';
 import { buildAgentMergePrompt } from '../../../../../platform/agentHost/common/agentMergePrompt.js';
 import { AgentSystemNotificationKind, toAgentSystemNotificationMeta } from '../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
+import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
 import { CHAT_INPUT_PILLS_ROW_HEIGHT, ChatPillsRow, ChatPillsWidget } from '../../../../../workbench/browser/chatPills.js';
+import { ForkConversationActionId } from '../../../../../workbench/contrib/chat/browser/actions/chatForkActions.js';
+import { RestoreCheckpointActionId } from '../../../../../workbench/contrib/chat/browser/chatEditing/chatEditingActions.js';
 import { systemNotificationToChatPart } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import type { IChatRequestVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import type { IChatWidgetFixtureOptions } from '../../../../../workbench/test/browser/componentFixtures/chat/chatWidget.fixture.js';
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { activeSessionViewBackground } from '../../../../common/theme.js';
-import { SessionsChatBackgroundRenderer } from '../../../../services/chatBackground/browser/chatBackgroundRenderer.js';
+import { SessionsChatBackgroundRenderer, SessionsChatBackgroundReplica } from '../../../../services/chatBackground/browser/chatBackgroundRenderer.js';
+import { getSessionChatItemHorizontalPadding } from '../../browser/chatView.js';
 
 import '../../../../browser/media/style.css';
+import '../../../../browser/parts/mobile/mobileChatShell.css';
 import '../../../../browser/parts/media/sessionView.css';
 import '../../browser/media/chatView.css';
 
 const fixtureWidth = 800;
 const fixtureHeight = 720;
-const plainContentHorizontalPadding = 64;
-const backgroundContentHorizontalPadding = 88;
+const codiconsBackground = { kind: 'codicons' } as const;
 
 function createChatBackgroundPart(container: HTMLElement, disposableStore: DisposableStore): HTMLElement {
 	const part = dom.append(container, dom.$('.part.sessionspart'));
@@ -36,7 +42,7 @@ function createChatBackgroundPart(container: HTMLElement, disposableStore: Dispo
 	part.style.height = '100%';
 	part.style.backgroundColor = asCssVariable(activeSessionViewBackground);
 	const renderer = disposableStore.add(new SessionsChatBackgroundRenderer(part));
-	renderer.setBackground({ kind: 'codicons' });
+	renderer.setBackground(codiconsBackground);
 	return part;
 }
 
@@ -62,12 +68,42 @@ const assistantResponse = [
 	'The wallpaper remains visible around the response.',
 ].join('\n');
 
-async function renderChatView(context: ComponentFixtureContext, withBackground: boolean, options: IChatWidgetFixtureOptions): Promise<void> {
+const stickyAssistantResponse = [
+	assistantResponse,
+	'## Validation notes',
+	'',
+	'The sticky request must preserve the wallpaper coordinate system while this longer response scrolls beneath it. Transparent image pixels and the spaces between glyphs reveal the session base rather than response text.',
+	'',
+	'### Layout checks',
+	'',
+	'- Keep the full background canvas width.',
+	'- Offset it by the source and sticky bounds.',
+	'- Clip only at the sticky viewport.',
+	'- Keep the request bubble opaque above the decorative layer.',
+	'',
+	'```ts',
+	'const replicaBounds = {',
+	'\tleft: source.left - sticky.left,',
+	'\ttop: source.top - sticky.top,',
+	'\twidth: source.width,',
+	'\theight: source.height,',
+	'};',
+	'```',
+	'',
+	'## Final review',
+	'',
+	'Switch between image, Codicons, and no background without rebuilding the sticky row or changing its keyboard and pointer behavior.',
+].join('\n');
+
+async function renderChatView(context: ComponentFixtureContext, withBackground: boolean, options: IChatWidgetFixtureOptions, phoneLayout = false, experimentalComposerLayout = false): Promise<void> {
 	const { container, disposableStore } = context;
 	const { renderChatWidget } = await import('../../../../../workbench/test/browser/componentFixtures/chat/chatWidget.fixture.js');
-	container.style.width = `${fixtureWidth}px`;
-	container.style.height = `${options.height ?? fixtureHeight}px`;
+	const width = options.width ?? fixtureWidth;
+	const height = options.height ?? fixtureHeight;
+	container.style.width = `${width}px`;
+	container.style.height = `${height}px`;
 	container.classList.add('monaco-workbench', 'agent-sessions-workbench');
+	container.classList.toggle('phone-layout', phoneLayout);
 
 	const part = withBackground
 		? createChatBackgroundPart(container, disposableStore)
@@ -78,13 +114,15 @@ async function renderChatView(context: ComponentFixtureContext, withBackground: 
 	part.style.backgroundColor = asCssVariable(activeSessionViewBackground);
 
 	const chatView = dom.append(part, dom.$('.chat-view'));
+	chatView.classList.toggle('chat-view-chat', experimentalComposerLayout);
+	chatView.classList.toggle('experimental-session-composer', experimentalComposerLayout);
 	chatView.style.setProperty('--session-view-background', asCssVariable(activeSessionViewBackground));
 
 	await renderChatWidget({ ...context, container: chatView }, {
-		width: fixtureWidth,
-		height: fixtureHeight,
+		width,
+		height,
 		listHeight: 430,
-		contentHorizontalPadding: withBackground ? backgroundContentHorizontalPadding : plainContentHorizontalPadding,
+		contentHorizontalPadding: getSessionChatItemHorizontalPadding(withBackground),
 		hostLayoutMode: 'listOnly',
 		persistentContentHeight: CHAT_INPUT_PILLS_ROW_HEIGHT,
 		responseFooterAction: true,
@@ -94,6 +132,39 @@ async function renderChatView(context: ComponentFixtureContext, withBackground: 
 	chatView.style.backgroundColor = 'transparent';
 	const auxiliaryBar = chatView.querySelector<HTMLElement>('.part.auxiliarybar');
 	auxiliaryBar?.classList.remove('auxiliarybar');
+}
+
+async function renderPhoneChatComposer(context: ComponentFixtureContext): Promise<void> {
+	await renderChatView(context, false, {
+		width: 390,
+		height: 760,
+		listHeight: 570,
+		contentHorizontalPadding: 8,
+		hostLayoutMode: 'listOnly',
+		messages: [{
+			user: 'Keep the phone composer controls aligned.',
+			assistant: [{ kind: 'markdown', text: 'The submit arrow now shares the same baseline as the other input actions.' }],
+		}],
+	}, true, false);
+
+	const chatView = context.container.querySelector<HTMLElement>('.chat-view-chat.experimental-session-composer');
+	const secondaryControls = [...context.container.querySelectorAll<HTMLElement>('.chat-responsive-picker-container')]
+		.find(container => container.textContent?.includes('Default permissions'));
+	const submitButton = context.container.querySelector<HTMLElement>('.chat-submit-button');
+	const inputAction = context.container.querySelector<HTMLElement>('.chat-input-toolbar .action-item');
+	const submitBounds = submitButton?.getBoundingClientRect();
+	const inputActionBounds = inputAction?.getBoundingClientRect();
+	if (chatView
+		|| !submitBounds || !inputActionBounds
+		|| Math.abs((submitBounds.top + submitBounds.bottom) / 2 - (inputActionBounds.top + inputActionBounds.bottom) / 2) > 1) {
+		throw new Error('The in-chat phone composer must use the standard phone layout and align its input actions.');
+	}
+	const secondaryBounds = secondaryControls?.getBoundingClientRect();
+	if (!secondaryBounds
+		|| secondaryBounds.top < submitBounds.bottom - 1
+		|| !secondaryControls?.checkVisibility()) {
+		throw new Error('The standard active-chat composer must keep its secondary controls below the input.');
+	}
 }
 
 async function renderAssistantResponse(context: ComponentFixtureContext, withBackground: boolean): Promise<void> {
@@ -119,9 +190,56 @@ async function renderAssistantResponse(context: ComponentFixtureContext, withBac
 			persistentContent.classList.add('chat-persistent-content-visible');
 			row.content.appendChild(pills.element);
 			row.observe(persistentContent);
-			row.observe(pills.element);
+			row.observe(pills.element, () => pills.getPillElements());
 		},
 	});
+}
+
+async function renderStickyBackgroundContinuity(context: ComponentFixtureContext): Promise<void> {
+	let stickyScrollDomNode: HTMLElement | undefined;
+	let scrollToStickyRequest: (() => void) | undefined;
+	await renderChatView(context, true, {
+		height: 560,
+		listHeight: 360,
+		inputVisible: false,
+		stickyScroll: true,
+		messages: [{
+			user: 'Implement sticky background continuity so this long request remains readable while the response scrolls beneath it, without restarting or independently repeating the configured Sessions wallpaper.',
+			assistant: [{ kind: 'markdown', text: stickyAssistantResponse }],
+		}],
+		onRendered: ({ listWidget }) => {
+			stickyScrollDomNode = listWidget.stickyScrollDomNode;
+			scrollToStickyRequest = () => {
+				const maximumScrollTop = listWidget.scrollHeight - listWidget.renderHeight;
+				if (maximumScrollTop <= 0) {
+					throw new Error('Sticky background fixture content does not overflow');
+				}
+				listWidget.scrollTop = Math.min(160, maximumScrollTop);
+			};
+		},
+	});
+
+	if (!stickyScrollDomNode || !scrollToStickyRequest) {
+		throw new Error('Sticky background fixture did not initialize sticky scroll');
+	}
+	const source = context.container.querySelector<HTMLElement>('.part.sessionspart > .sessions-chat-background');
+	if (!source) {
+		throw new Error('Sticky background fixture did not render the source canvas');
+	}
+	const replica = context.disposableStore.add(new SessionsChatBackgroundReplica(source, stickyScrollDomNode));
+	replica.setBackground(codiconsBackground);
+	replica.layout();
+
+	const targetWindow = dom.getWindow(context.container);
+	const nextFrame = () => new Promise<void>(resolve => targetWindow.requestAnimationFrame(() => resolve()));
+	await nextFrame();
+	scrollToStickyRequest();
+	await nextFrame();
+	await nextFrame();
+
+	if (!stickyScrollDomNode.querySelector('.monaco-tree-sticky-row.request')) {
+		throw new Error('Sticky background fixture did not activate the real sticky request row');
+	}
 }
 
 async function renderAgentMergeBackground(context: ComponentFixtureContext): Promise<void> {
@@ -176,7 +294,148 @@ async function renderAgentMergeBackground(context: ComponentFixtureContext): Pro
 	}
 }
 
+async function renderRequestLinkKeyboardFocus(context: ComponentFixtureContext): Promise<void> {
+	await renderChatView(context, false, {
+		height: 320,
+		listHeight: 220,
+		inputVisible: false,
+		messages: [{
+			user: 'Review [microsoft/vscode#334596](https://github.com/microsoft/vscode/issues/334596) before continuing.',
+			assistant: [{ kind: 'markdown', text: 'The request link should have one clear keyboard focus indicator.' }],
+		}],
+	});
+
+	const focusTarget = context.container.querySelector<HTMLAnchorElement>('.interactive-request .chat-markdown-part.rendered-markdown a[data-href]:not(.chat-rich-link)');
+	if (!focusTarget) {
+		throw new Error('Expected a plain request link');
+	}
+	focusTarget.focus();
+	if (!focusTarget.matches(':focus-visible')) {
+		throw new Error('Expected the request link to receive keyboard-visible focus');
+	}
+}
+
+async function renderRequestAttachmentBackground(context: ComponentFixtureContext): Promise<void> {
+	const attachment: IChatRequestVariableEntry = {
+		kind: 'generic',
+		id: 'fixture-feedback',
+		name: 'This does not guarantee an opaque background.',
+		value: 'This does not guarantee an opaque background.',
+		icon: Codicon.comment,
+	};
+	await renderChatView(context, true, {
+		height: 320,
+		listHeight: 300,
+		inputVisible: false,
+		messages: [{
+			user: '/act-on-feedback',
+			variables: [attachment],
+			assistant: [{ kind: 'markdown', text: 'Attachment treatment updated.' }],
+		}],
+	});
+}
+
+async function renderCheckpointControlsBackground(context: ComponentFixtureContext): Promise<void> {
+	await renderChatView(context, true, {
+		height: 360,
+		listHeight: 340,
+		inputVisible: false,
+		checkpointsEnabled: true,
+		menuItems: [
+			{
+				menuId: MenuId.ChatMessageCheckpoint,
+				item: {
+					command: {
+						id: RestoreCheckpointActionId,
+						title: 'Restore Checkpoint',
+						tooltip: 'Restores workspace and chat to this point',
+					},
+					group: 'navigation',
+					order: 2,
+				},
+			},
+			{
+				menuId: MenuId.ChatMessageCheckpoint,
+				item: {
+					command: {
+						id: ForkConversationActionId,
+						title: 'Fork Conversation',
+						tooltip: 'Fork conversation from this point',
+						icon: Codicon.repoForked,
+					},
+					group: 'navigation',
+					order: 3,
+				},
+			},
+		],
+		messages: [{
+			user: 'Continue from this checkpoint.',
+			assistant: [{ kind: 'markdown', text: '2 files changed: +34 -1' }],
+		}],
+	});
+	const checkpoint = context.container.querySelector<HTMLElement>('.checkpoint-container');
+	if (!checkpoint) {
+		throw new Error('Expected checkpoint controls');
+	}
+	checkpoint.classList.add('group-hovered');
+}
+
 export default defineThemedFixtureGroup({ path: 'sessions/chat/view/' }, {
+	ComparisonJudgeInstructions: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['Judge Instructions is a compact collapsed disclosure, with the complete prompt hidden until expanded.'],
+		render: context => renderChatView(context, false, {
+			height: 240, listHeight: 220, inputVisible: false,
+			messages: [{ user: createSessionComparisonJudgePrompt('comparison-id'), assistant: [] }],
+			onRendered: ({ listWidget }) => {
+				listWidget.updateRendererOptions({ firstRequestSummary: 'Judge Instructions' });
+				if (!context.container.querySelector('details.chat-request-disclosure')) {
+					throw new Error('Judge instructions must render as a collapsed disclosure.');
+				}
+			},
+		}),
+	}),
+	ComparisonSynthesisInstructions: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['Synthesis Instructions is a compact collapsed disclosure rather than a full prompt or file attachment.'],
+		render: context => renderChatView(context, false, {
+			height: 240, listHeight: 220, inputVisible: false,
+			messages: [{ user: 'Synthesize the strongest parts of the comparison. Call #readAttemptComparison and inspect the authoritative worktrees.', assistant: [] }],
+			onRendered: ({ listWidget }) => {
+				listWidget.updateRendererOptions({ firstRequestSummary: 'Synthesis Instructions' });
+				if (!context.container.querySelector('details.chat-request-disclosure')) {
+					throw new Error('Synthesis instructions must render as a collapsed disclosure.');
+				}
+			},
+		}),
+	}),
+	PhoneChatComposerSettingsDisabled: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['With neither setting enabled, a phone-sized active chat uses the standard bottom-pinned composer and keeps the send action aligned with the other input actions.'],
+		render: renderPhoneChatComposer,
+	}),
+	PhoneChatComposerUnifiedWorkspacePicker: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['With only the unified workspace picker enabled, a phone-sized active chat keeps the standard bottom-pinned composer because the experimental composer dependency is not enabled.'],
+		render: renderPhoneChatComposer,
+	}),
+	PhoneChatComposerExperimentalComposer: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['Even with both new-session settings enabled, a phone-sized active chat keeps the standard composer with permissions in the secondary toolbar below the input.'],
+		render: renderPhoneChatComposer,
+	}),
+	CheckpointControlsBackground: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['Restore Checkpoint and fork controls each have their own compact opaque surface over the Codicons wallpaper between faded separator lines, with no opaque rectangle behind their toolbar or spacing. Direct hover changes only the hovered control surface.'],
+		render: renderCheckpointControlsBackground,
+	}),
+	RequestAttachmentBackground: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: true },
+		expectedVisualDescriptions: ['A comment attachment pill and its /act-on-feedback request sit on opaque tinted surfaces above a short assistant reply on the Codicons wallpaper; the wallpaper remains visible around the surfaces without showing through them.'],
+		render: renderRequestAttachmentBackground,
+	}),
 	AgentMergeBackground: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: ['A compact conversation on the built-in Codicons wallpaper shows an opaque user message, a short assistant reply, the Agent Merge enablement notice, an opaque Agent Merge request card, and a short final reply. All messages are visible together without scrolling, and the wallpaper remains visible around their surfaces.'],
@@ -191,5 +450,16 @@ export default defineThemedFixtureGroup({ path: 'sessions/chat/view/' }, {
 		labels: { kind: 'screenshot', blocksCi: true },
 		expectedVisualDescriptions: ['The Agents chat without a wallpaper keeps the assistant response unboxed. The heading, Markdown table, code editor, and response footer use the normal transcript alignment, while the user request and composer retain their established surfaces.'],
 		render: context => renderAssistantResponse(context, false),
+	}),
+	RequestLinkKeyboardFocus: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['A plain Markdown link in the Agents chat user request has exactly one solid, unclipped keyboard focus indicator in the themed focus color.'],
+		render: renderRequestLinkKeyboardFocus,
+	}),
+	StickyBackgroundContinuity: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['A real scrolled Agents chat keeps its long user request pinned above a continuous, static layered Codicons canvas. The background stays fixed as the transcript scrolls, and the sticky viewport preserves the same depth, pattern, and alignment. Opaque session color fills the gaps between glyphs, and the request bubble remains opaque above the decorative replica.'],
+		render: renderStickyBackgroundContinuity,
 	}),
 });

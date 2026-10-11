@@ -26,6 +26,7 @@ import { CursorWorkspaceMcpDiscoveryAdapter } from '../common/discovery/workspac
 import { WorkspaceDotMcpDiscovery } from '../common/discovery/workspaceDotMcpDiscovery.js';
 import { McpCommandIds } from '../common/mcpCommandIds.js';
 import { mcpServerSchema } from '../common/mcpConfiguration.js';
+import { IMcpCopilotGlobalConfigurationService, McpCopilotGlobalConfigurationService } from '../common/mcpCopilotGlobalConfigurationService.js';
 import { McpContextKeysController } from '../common/mcpContextKeys.js';
 import { IMcpDevModeDebugging, McpDevModeDebugging } from '../common/mcpDevMode.js';
 import { McpLanguageModelToolContribution } from '../common/mcpLanguageModelToolContribution.js';
@@ -46,14 +47,18 @@ import { McpElicitationService } from './mcpElicitationService.js';
 import { McpLanguageFeatures } from './mcpLanguageFeatures.js';
 import { McpConfigMigrationContribution } from './mcpMigration.js';
 import { McpResourceQuickAccess } from './mcpResourceQuickAccess.js';
+import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { McpServerConfigurationFormAccessibilityHelp } from './mcpServerConfigurationFormAccessibility.js';
 import { McpServerEditor } from './mcpServerEditor.js';
 import { McpServerEditorInput } from './mcpServerEditorInput.js';
 import { MCPContextsInitialisation, McpWorkbenchService } from './mcpWorkbenchService.js';
 
 registerSingleton(IMcpRegistry, McpRegistry, InstantiationType.Delayed);
+registerSingleton(IMcpCopilotGlobalConfigurationService, McpCopilotGlobalConfigurationService, InstantiationType.Delayed);
 registerSingleton(IMcpSandboxService, McpSandboxService, InstantiationType.Delayed);
 registerSingleton(IMcpService, McpService, InstantiationType.Delayed);
 registerSingleton(IMcpWorkbenchService, McpWorkbenchService, InstantiationType.Eager);
+AccessibleViewRegistry.register(new McpServerConfigurationFormAccessibilityHelp());
 registerSingleton(IMcpDevModeDebugging, McpDevModeDebugging, InstantiationType.Delayed);
 registerSingleton(IMcpSamplingService, McpSamplingService, InstantiationType.Delayed);
 registerSingleton(IMcpElicitationService, McpElicitationService, InstantiationType.Delayed);

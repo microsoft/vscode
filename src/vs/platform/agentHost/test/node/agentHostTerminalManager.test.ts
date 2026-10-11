@@ -361,6 +361,39 @@ suite('AgentHostTerminalManager – command detection integration', () => {
 		assert.deepStrictEqual(pty.writes, ['echo first\recho second\r']);
 	});
 
+	test('sets VS Code terminal identity only when requested', async () => {
+		const logService = new NullLogService();
+		const stateManager = disposables.add(new AgentHostStateManager(logService));
+		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
+		const productService = { _serviceBrand: undefined, applicationName: 'vscode', version: '1.2.3-test' } as IProductService;
+
+		async function createTestTerminal(id: string, vscodeTerminalIdentity: boolean | undefined) {
+			const pty = new TestPty();
+			const manager = disposables.add(new TestAgentHostTerminalManager(stateManager, logService, productService, configurationService, pty));
+			const createTerminal = manager.createTerminal({
+				channel: `agenthost-terminal://test/${id}`,
+				claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' },
+				cwd: process.cwd(),
+			}, { shell: '/test/unsupported-shell', vscodeTerminalIdentity });
+			await pty.dataListenerRegistered.p;
+			pty.fireData('prompt');
+			await createTerminal;
+			const env = manager.spawnOptions?.env;
+			return { name: env?.TERM_PROGRAM, version: env?.TERM_PROGRAM_VERSION };
+		}
+
+		const inherited = { name: process.env['TERM_PROGRAM'], version: process.env['TERM_PROGRAM_VERSION'] };
+		assert.deepStrictEqual({
+			requested: await createTestTerminal('vscode-identity', true),
+			notRequested: await createTestTerminal('inherited-identity', undefined),
+			parent: { name: process.env['TERM_PROGRAM'], version: process.env['TERM_PROGRAM_VERSION'] },
+		}, {
+			requested: { name: 'vscode', version: '1.2.3-test' },
+			notRequested: inherited,
+			parent: inherited,
+		});
+	});
+
 	test('sets zsh agent fixups only for session zsh terminals', async () => {
 		const logService = new NullLogService();
 		const stateManager = disposables.add(new AgentHostStateManager(logService));
@@ -930,6 +963,39 @@ suite('AgentHostTerminalManager – output-only terminals', () => {
 		assert.strictEqual(manager.getTerminalState(uri), undefined);
 	});
 
+	test('replaces streamed content with authoritative completed output', () => {
+		const { manager, stateManager } = createManager();
+		const uri = 'agenthost-terminal://shell/copilotNonPtyShells/tc-authoritative';
+		const dispatched: StateAction[] = [];
+		disposables.add(stateManager.onDidEmitEnvelope(envelope => {
+			if (envelope.channel === uri) {
+				dispatched.push(envelope.action);
+			}
+		}));
+		manager.createOutputTerminal(uri, {
+			title: 'Bash',
+			claim: {
+				kind: TerminalClaimKind.Session,
+				session: 'agent-session://copilot/s1',
+				chat: buildDefaultChatUri('agent-session://copilot/s1'),
+			},
+		});
+		manager.appendOutputTerminalData(uri, 'partial output');
+		manager.replaceOutputTerminalData(uri, 'authoritative output');
+
+		assert.deepStrictEqual({
+			content: manager.getTerminalState(uri)?.content,
+			dispatched,
+		}, {
+			content: [{ type: 'unclassified', value: 'authoritative output' }],
+			dispatched: [
+				{ type: ActionType.TerminalData, data: 'partial output' },
+				{ type: ActionType.TerminalCleared },
+				{ type: ActionType.TerminalData, data: 'authoritative output' },
+			],
+		});
+	});
+
 	test('records an output-only terminal exit without an exit code', () => {
 		const { manager, stateManager } = createManager();
 		const uri = 'agenthost-terminal://shell/copilotNonPtyShells/tc-3';
@@ -954,4 +1020,5 @@ suite('AgentHostTerminalManager – output-only terminals', () => {
 			dispatched: [{ type: ActionType.TerminalExited }],
 		});
 	});
+
 });

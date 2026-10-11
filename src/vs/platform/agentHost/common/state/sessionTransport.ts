@@ -14,6 +14,7 @@ import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import type { AgentHostClientConnectionKind, AgentHostTransportKind } from '../agentHostTelemetry.js';
 import type { ProtocolMessage, AhpServerNotification, JsonRpcNotification, JsonRpcParseErrorResponse, JsonRpcResponse, JsonRpcRequest } from './sessionProtocol.js';
+import type { AuthenticateParams } from '../agent.js';
 
 /** Machine-readable reasons a transport cannot be reconnected. */
 export const enum AgentHostTransportFailureReason {
@@ -28,11 +29,30 @@ export class NonReconnectableTransportError extends Error {
 	}
 }
 
+export interface ITransportCloseDetails {
+	readonly code?: number;
+	readonly reason?: string;
+	readonly wasClean?: boolean;
+}
+
 /**
  * A bidirectional transport for protocol messages. Implementations handle
  * serialization, framing, and connection management.
  */
 export interface IProtocolTransport extends IDisposable {
+	/** Trusted lane identity assigned by a relay server, never supplied by AHP. */
+	readonly relayClientId?: string;
+	/** Trusted read-only designation assigned by a relay server. */
+	readonly relayPassive?: boolean;
+	readonly relayHandshakeMeta?: Record<string, unknown>;
+	/** Owner-validated identity for the current relay handshake, independent of transport access. */
+	readonly relayAuthentication?: { readonly authenticated: boolean; readonly resource: string };
+	/** Captures the current credential lifetime for checks after awaited work. */
+	relayCaptureAuthorization?(): () => void;
+	readonly onDidRelayAuthenticationExpire?: Event<void>;
+	relayAuthenticate?(params: AuthenticateParams): Promise<AuthenticateParams>;
+	/** Diagnostic metadata can arrive after onClose has already reported a transport failure. */
+	readonly onDidCloseDetails?: Event<ITransportCloseDetails>;
 	/** Physical transport accepted by the agent host. */
 	readonly transportKind?: AgentHostTransportKind;
 
@@ -41,6 +61,13 @@ export interface IProtocolTransport extends IDisposable {
 
 	/** Fires when a message is received from the remote end. */
 	readonly onMessage: Event<ProtocolMessage>;
+
+	/**
+	 * Fires, possibly throttled, while part of a message is still arriving, so
+	 * liveness checks don't mistake a slow download for silence. Omitted by
+	 * transports that only see whole messages.
+	 */
+	readonly onDidReceiveData?: Event<void>;
 
 	/** Fires when the transport connection closes. */
 	readonly onClose: Event<void>;

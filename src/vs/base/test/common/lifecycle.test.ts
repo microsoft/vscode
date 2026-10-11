@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { Emitter } from '../../common/event.js';
-import { DisposableSet, DisposableStore, dispose, IDisposable, markAsSingleton, ReferenceCollection, thenIfNotDisposed, toDisposable } from '../../common/lifecycle.js';
+import { DisposableSet, DisposableStore, DisposableTracker, dispose, IDisposable, markAsSingleton, ReferenceCollection, thenIfNotDisposed, toDisposable } from '../../common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite, throwIfDisposablesAreLeaked } from './utils.js';
 
 class Disposable implements IDisposable {
@@ -107,6 +107,94 @@ suite('Lifecycle', () => {
 		const setValues = set.values();
 		const setValues2 = dispose(setValues);
 		assert.ok(setValues === setValues2);
+	});
+});
+
+suite('DisposableTracker', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('does not format stacks while tracking, disposing, or excluding singletons', () => {
+		const tracker = new DisposableTracker();
+		const source = new Error();
+		let stackReads = 0;
+		Object.defineProperty(source, 'stack', {
+			get: () => {
+				stackReads++;
+				return 'Error\n    at allocation (test.js:1:1)';
+			},
+		});
+
+		const disposed = new Disposable();
+		const singleton = new Disposable();
+		const child = new Disposable();
+		tracker.trackDisposable(disposed, source);
+		tracker.trackDisposable(disposed, source);
+		tracker.trackDisposable(singleton, source);
+		tracker.trackDisposable(child, source);
+		tracker.setParent(child, singleton);
+		const initiallyTracked = tracker.getTrackedDisposables();
+
+		disposed.dispose();
+		tracker.markAsDisposed(disposed);
+		tracker.markAsSingleton(singleton);
+
+		assert.deepStrictEqual({
+			initiallyTracked,
+			tracked: tracker.getTrackedDisposables(),
+			leaks: tracker.computeLeakingDisposables(),
+			stackReads,
+		}, {
+			initiallyTracked: [disposed, singleton, child],
+			tracked: [],
+			leaks: undefined,
+			stackReads: 0,
+		});
+	});
+
+	test('formats allocation stacks when reporting leaks', () => {
+		const tracker = new DisposableTracker();
+		const source = new Error();
+		let stackReads = 0;
+		Object.defineProperty(source, 'stack', {
+			get: () => {
+				stackReads++;
+				return 'Error\n    at allocation (test.js:1:1)';
+			},
+		});
+		const disposable = new Disposable();
+		tracker.trackDisposable(disposable, source);
+		const readsBeforeReporting = stackReads;
+		const result = tracker.computeLeakingDisposables();
+
+		assert.deepStrictEqual({
+			readsBeforeReporting,
+			formatted: stackReads > 0,
+			leaks: result?.leaks.map(leak => leak.value),
+			hasAllocationSite: result?.details.includes('at allocation (test.js:1:1)'),
+		}, {
+			readsBeforeReporting: 0,
+			formatted: true,
+			leaks: [disposable],
+			hasAllocationSite: true,
+		});
+	});
+
+	test('retains the original allocation site when tracking a disposable again', () => {
+		const tracker = new DisposableTracker();
+		const disposable = new Disposable();
+		function originalAllocationSite(): void {
+			tracker.trackDisposable(disposable);
+		}
+		originalAllocationSite();
+		tracker.trackDisposable(disposable);
+
+		assert.deepStrictEqual({
+			leaks: tracker.getTrackedDisposables(),
+			hasOriginalSite: tracker.computeLeakingDisposables()?.details.includes('originalAllocationSite'),
+		}, {
+			leaks: [disposable],
+			hasOriginalSite: true,
+		});
 	});
 });
 

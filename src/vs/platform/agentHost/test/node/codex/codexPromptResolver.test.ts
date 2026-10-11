@@ -37,6 +37,27 @@ suite('codexPromptResolver', () => {
 		assert.ok(text.includes('look at this'));
 	});
 
+	test('snapshotted Resource image becomes a localImage instead of prompt text', () => {
+		const uri = URI.file('/data/agentSessionData/session/attachments/id/Pasted Image.png');
+		const att: MessageAttachment = {
+			type: MessageAttachmentKind.Resource,
+			label: 'Pasted Image',
+			displayKind: 'image',
+			uri: uri.toString(),
+			_meta: toHostSnapshotAttachmentMeta('image/png'),
+		};
+
+		const resolved = resolveCodexInput('what is in this image?', [att]);
+
+		assert.deepStrictEqual(resolved, {
+			input: [
+				{ type: 'text', text: 'what is in this image?', text_elements: [] },
+				{ type: 'localImage', path: uri.fsPath },
+			],
+			cleanupPaths: [],
+		});
+	});
+
 	test('Resource selection ending at the next line column zero excludes that line', () => {
 		const uri = URI.file('/tmp/foo.txt');
 		const att: MessageAttachment = {

@@ -17,6 +17,7 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import type { IChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { AhpJsonlLogger, getAhpLogByteLength } from '../common/ahpJsonlLogger.js';
 import { AgentHostClientConnectionKind } from '../common/agentHostTelemetry.js';
+import type { IAgentHostIpcConnectionOptions } from '../common/agentService.js';
 import type { AhpServerNotification, JsonRpcResponse, ProtocolMessage } from '../common/state/sessionProtocol.js';
 import type { IClientTransport } from '../common/state/sessionTransport.js';
 import { MALFORMED_FRAMES_FORCE_CLOSE_THRESHOLD, MALFORMED_FRAMES_LOG_CAP } from '../common/transportConstants.js';
@@ -31,7 +32,7 @@ const REDACTED_TOKEN = '<redacted>';
  * Wire shape:
  * - `listen('frame')` → emits each upstream JSON frame as a string.
  * - `listen('close')` → fires when the upstream connection closes.
- * - `call('connect')` → opens the upstream connection; resolves when ready.
+ * - `call('connect', { env, debugEnv }?)` → supplies server-owned launch overrides and opens the upstream connection.
  * - `call('send', frame)` → forwards a JSON frame upstream.
  */
 export class AgentHostIpcChannelTransport extends Disposable implements IClientTransport {
@@ -50,6 +51,7 @@ export class AgentHostIpcChannelTransport extends Disposable implements IClientT
 		private readonly _channel: IChannel,
 		private readonly _ahpLogger?: AhpJsonlLogger,
 		readonly clientConnectionKind = AgentHostClientConnectionKind.Unknown,
+		private readonly _resolveConnectionOptions?: () => Promise<IAgentHostIpcConnectionOptions | undefined>,
 	) {
 		super();
 	}
@@ -62,11 +64,15 @@ export class AgentHostIpcChannelTransport extends Disposable implements IClientT
 		if (this._store.isDisposed) {
 			throw new Error('Transport is disposed');
 		}
+		const options = await this._resolveConnectionOptions?.();
+		if (this._store.isDisposed) {
+			throw new Error('Transport is disposed');
+		}
 		// Subscribe before connecting so we don't miss any frames the upstream
 		// host emits between open and our listener attaching.
 		this._register(this._channel.listen<string>('frame')(text => this._handleFrame(text)));
 		this._register(this._channel.listen<void>('close')(() => this._fireClose()));
-		await this._channel.call('connect');
+		await this._channel.call('connect', options);
 		this._isOpen = true;
 	}
 

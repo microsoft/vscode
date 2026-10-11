@@ -22,6 +22,7 @@ function makeRequest(overrides: {
 		connectionKey: 'ssh:testhost',
 		displayHost: 'testhost',
 		host: 'test.example.com',
+		resolvedHost: 'test.example.com',
 		port: 22,
 		keyType: 'ssh-ed25519',
 		fingerprint: FINGERPRINT,
@@ -50,15 +51,15 @@ suite('sshHostKeyPolicy', () => {
 		assert.deepStrictEqual(
 			{
 				storedMatch: summarize(decideHostKeyTrust(makeRequest(), trusted(FINGERPRINT))),
+				storedMatchWithKnownHostsOtherKeyType: summarize(decideHostKeyTrust(makeRequest({ knownHostsMatch: 'other-key-type' }), trusted(FINGERPRINT))),
 				storedDiffers: summarize(decideHostKeyTrust(makeRequest(), trusted(OTHER_FINGERPRINT))),
-				// A stored entry for a *different* algorithm says nothing about
-				// this key, so it must not suppress the prompt.
 				storedOtherKeyType: summarize(decideHostKeyTrust(makeRequest(), trusted(OTHER_FINGERPRINT, 'ssh-rsa'))),
 			},
 			{
 				storedMatch: 'trust(stored)',
+				storedMatchWithKnownHostsOtherKeyType: 'trust(stored)',
 				storedDiffers: 'deny(mismatch)',
-				storedOtherKeyType: 'prompt(unknown)',
+				storedOtherKeyType: 'deny(mismatch)',
 			});
 	});
 
@@ -71,6 +72,7 @@ suite('sshHostKeyPolicy', () => {
 				mismatch: decide('mismatch'),
 				revoked: decide('revoked'),
 				caOnly: decide('ca-only'),
+				otherKeyType: decide('other-key-type'),
 				unknown: decide('unknown'),
 			},
 			{
@@ -80,6 +82,7 @@ suite('sshHostKeyPolicy', () => {
 				mismatch: 'deny(mismatch)',
 				revoked: 'deny(revoked)',
 				caOnly: 'prompt(ca-only)',
+				otherKeyType: 'prompt(unknown)',
 				unknown: 'prompt(unknown)',
 			});
 	});
@@ -121,8 +124,13 @@ suite('sshHostKeyPolicy', () => {
 				ask: decide('ask'),
 				acceptNewUnknown: decide('accept-new'),
 				yesUnknown: decide('yes'),
+				yesOtherKeyType: decide('yes', 'other-key-type'),
 				no: decide('no'),
 				off: decide('off'),
+				noOtherKeyType: decide('no', 'other-key-type'),
+				offOtherKeyType: decide('off', 'other-key-type'),
+				acceptNewCaOnly: decide('accept-new', 'ca-only'),
+				acceptNewOtherKeyType: decide('accept-new', 'other-key-type'),
 				// The opt-out covers *unknown* keys only. Verified against
 				// OpenSSH 9.9: with StrictHostKeyChecking=no and a changed key
 				// it warns and disables password auth, keyboard-interactive
@@ -133,6 +141,12 @@ suite('sshHostKeyPolicy', () => {
 				noWithStoredMismatch: summarize(decideHostKeyTrust(
 					makeRequest({ strictHostKeyChecking: 'no', knownHostsMatch: 'unknown' }),
 					trusted(OTHER_FINGERPRINT))),
+				noWithStoredOtherKeyType: summarize(decideHostKeyTrust(
+					makeRequest({ strictHostKeyChecking: 'no', knownHostsMatch: 'unknown' }),
+					trusted(OTHER_FINGERPRINT, 'ssh-rsa'))),
+				acceptNewWithStoredOtherKeyType: summarize(decideHostKeyTrust(
+					makeRequest({ strictHostKeyChecking: 'accept-new', knownHostsMatch: 'unknown' }),
+					trusted(OTHER_FINGERPRINT, 'ssh-rsa'))),
 				// accept-new only relaxes *unknown* hosts; a changed key still
 				// hard-fails, matching OpenSSH.
 				acceptNewMismatch: decide('accept-new', 'mismatch'),
@@ -142,11 +156,18 @@ suite('sshHostKeyPolicy', () => {
 				ask: 'prompt(unknown)',
 				acceptNewUnknown: 'trust(strict-accept-new,persist)',
 				yesUnknown: 'deny(strict-yes)',
+				yesOtherKeyType: 'deny(strict-yes)',
 				no: 'trust(strict-disabled)',
 				off: 'trust(strict-disabled)',
+				noOtherKeyType: 'trust(strict-disabled)',
+				offOtherKeyType: 'trust(strict-disabled)',
+				acceptNewCaOnly: 'prompt(ca-only)',
+				acceptNewOtherKeyType: 'deny(mismatch)',
 				noWithMismatch: 'deny(mismatch)',
 				offWithMismatch: 'deny(mismatch)',
 				noWithStoredMismatch: 'deny(mismatch)',
+				noWithStoredOtherKeyType: 'deny(mismatch)',
+				acceptNewWithStoredOtherKeyType: 'deny(mismatch)',
 				acceptNewMismatch: 'deny(mismatch)',
 				acceptNewRevoked: 'deny(revoked)',
 			});

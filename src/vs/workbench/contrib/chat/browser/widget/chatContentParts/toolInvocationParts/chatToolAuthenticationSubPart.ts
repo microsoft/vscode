@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../../../base/common/codicons.js';
+import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { localize } from '../../../../../../../nls.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
-import { IAgentHostCustomizationService } from '../../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
+import { getMcpServerDisplayLabel, IAgentHostCustomizationService } from '../../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { IChatToolInvocation } from '../../../../common/chatService/chatService.js';
 import { IChatWidgetService } from '../../../chat.js';
 import { ChatCustomConfirmationWidget } from '../chatConfirmationWidget.js';
@@ -29,6 +30,8 @@ export class ChatToolAuthenticationSubPart extends BaseChatToolInvocationSubPart
 		if (state.type !== IChatToolInvocation.StateKind.WaitingForAuthentication) {
 			throw new Error('Tool authentication state is missing');
 		}
+		const mcpServer = customizationService.getMcpServers(context.element.sessionResource).find(server => server.id === state.server.id);
+		const serverName = mcpServer ? getMcpServerDisplayLabel(mcpServer) : state.server.name;
 
 		const widget = this._register(instantiationService.createInstance(
 			ChatCustomConfirmationWidget<() => Promise<void>>,
@@ -36,7 +39,7 @@ export class ChatToolAuthenticationSubPart extends BaseChatToolInvocationSubPart
 			{
 				title: localize('chat.toolAuthentication.title', "MCP authentication required"),
 				icon: Codicon.mcp,
-				subtitle: state.server.name,
+				subtitle: serverName,
 				buttons: [
 					{
 						label: localize('chat.toolAuthentication.authenticate', "Authenticate"),
@@ -51,8 +54,16 @@ export class ChatToolAuthenticationSubPart extends BaseChatToolInvocationSubPart
 						},
 						isSecondary: true,
 					},
+					...(mcpServer ? [{
+						label: localize('chat.toolAuthentication.disableForSession', "Disable for This Session"),
+						data: async () => {
+							mcpServer.setEnabled(false);
+							state.cancel();
+						},
+						isSecondary: true,
+					}] : []),
 				],
-				message: localize('chat.toolAuthentication.message', "The MCP server {0} requires authentication to continue this tool call.", state.server.name),
+				message: new MarkdownString().appendText(localize('chat.toolAuthentication.message', "The MCP server {0} requires authentication to continue this tool call.", serverName)),
 				toolbarData: {
 					arg: toolInvocation,
 					partType: 'chatToolAuthentication',

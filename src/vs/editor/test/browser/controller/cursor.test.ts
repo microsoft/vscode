@@ -5389,6 +5389,115 @@ suite('Editor Controller', () => {
 		});
 	});
 
+	test('issue #338693: undo after multi-character autoclose first removes only the auto-closed characters', () => {
+		usingCursor({
+			text: [
+				'begi begi',
+			],
+			languageId: autoClosingLanguageId
+		}, (editor, model, viewModel) => {
+
+			const states: [string, string[]][] = [];
+			const recordState = () => states.push([model.getLineContent(1), viewModel.getSelections().map(s => s.toString())]);
+
+			viewModel.setSelections('test', [new Selection(1, 5, 1, 5), new Selection(1, 10, 1, 10)]);
+			viewModel.type('n', 'keyboard');
+			recordState();
+			editor.runCommand(CoreEditingCommands.Undo, null);
+			recordState();
+			editor.runCommand(CoreEditingCommands.Undo, null);
+			recordState();
+
+			assert.deepStrictEqual(states, [
+				['beginend beginend', ['[1,6 -> 1,6]', '[1,15 -> 1,15]']],
+				['begin begin', ['[1,6 -> 1,6]', '[1,12 -> 1,12]']],
+				['begi begi', ['[1,5 -> 1,5]', '[1,10 -> 1,10]']],
+			]);
+		});
+	});
+
+	test('issue #338693: multi-character autoclose does not insert an orphan close when a listener reentrantly removes the typed character', () => {
+		usingCursor({
+			text: [
+				'begi',
+			],
+			languageId: autoClosingLanguageId
+		}, (editor, model, viewModel) => {
+
+			let isFirst = true;
+			disposables.add(model.onDidChangeContent(() => {
+				if (isFirst) {
+					isFirst = false;
+					model.applyEdits([{ range: new Range(1, 5, 1, 6), text: '' }]);
+				}
+			}));
+
+			viewModel.setSelections('test', [new Selection(1, 5, 1, 5)]);
+			viewModel.type('n', 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'begi');
+		});
+	});
+
+	test('issue #338693: multi-character autoclose does not use stale selections after a reentrant edit', () => {
+		usingCursor({
+			text: [
+				'begi',
+			],
+			languageId: autoClosingLanguageId
+		}, (editor, model, viewModel) => {
+
+			let isFirst = true;
+			disposables.add(model.onDidChangeContent(() => {
+				if (isFirst) {
+					isFirst = false;
+					model.applyEdits([{ range: new Range(1, 1, 1, 1), text: 'begin\n' }]);
+				}
+			}));
+
+			viewModel.setSelections('test', [new Selection(1, 5, 1, 5)]);
+			viewModel.type('n', 'keyboard');
+			assert.strictEqual(model.getValue(), 'begin\nbegin');
+		});
+	});
+
+	test('issue #338693: undo after multi-character autoclose with auto-indentation first removes only the auto-closed characters', () => {
+		const languageId = 'autoClosingWithIndentRulesLanguage';
+		disposables.add(languageService.registerLanguage({ id: languageId }));
+		disposables.add(languageConfigurationService.register(languageId, {
+			autoClosingPairs: [{ open: 'begin', close: 'end' }],
+			indentationRules: {
+				increaseIndentPattern: /^\s*procedure\b/,
+				decreaseIndentPattern: /^\s*begin\b/
+			}
+		}));
+		usingCursor({
+			text: [
+				'\tfoo',
+				'\tbegi',
+			],
+			languageId,
+			editorOpts: { autoIndent: 'full' }
+		}, (editor, model, viewModel) => {
+
+			const states: [string, string[]][] = [];
+			const recordState = () => states.push([model.getLineContent(2), viewModel.getSelections().map(s => s.toString())]);
+
+			viewModel.setSelections('test', [new Selection(2, 6, 2, 6)]);
+			viewModel.type('n', 'keyboard');
+			recordState();
+			editor.runCommand(CoreEditingCommands.Undo, null);
+			recordState();
+			editor.runCommand(CoreEditingCommands.Undo, null);
+			recordState();
+
+			assert.deepStrictEqual(states, [
+				['beginend', ['[2,6 -> 2,6]']],
+				['begin', ['[2,6 -> 2,6]']],
+				['\tbegi', ['[2,6 -> 2,6]']],
+			]);
+		});
+	});
+
 	test('autoClosingPairs - doc comments can be turned off', () => {
 		usingCursor({
 			text: [
@@ -5493,6 +5602,109 @@ suite('Editor Controller', () => {
 			languageId: autoClosingLanguageId
 		}, (editor, model, viewModel) => {
 			assertType(editor, model, viewModel, 1, 12, '"', '"', `does not over type and will not auto close`);
+		});
+	});
+
+	test('issue #6841: Auto closing brackets should balance brackets', () => {
+		const languageId = 'balancedAutoClosingLanguage';
+		disposables.add(languageService.registerLanguage({ id: languageId }));
+		disposables.add(languageConfigurationService.register(languageId, {
+			brackets: [
+				['{', '}'],
+				['[', ']'],
+				['(', ')'],
+			],
+			autoClosingPairs: [
+				{ open: '{', close: '}' },
+				{ open: '[', close: ']' },
+				{ open: '(', close: ')' },
+			],
+		}));
+
+		usingCursor({
+			text: [''],
+			languageId,
+		}, (editor, model, viewModel) => {
+			model.bracketPairs.getBracketsInRange(model.getFullModelRange()).toArray();
+			const testCases = [
+				{ text: '\n}', selection: new Selection(1, 1, 1, 1), type: '{', expected: '{\n}' },
+				{ text: '', selection: new Selection(1, 1, 1, 1), type: '{', expected: '{}' },
+				{ text: '{}', selection: new Selection(1, 2, 1, 2), type: '{', expected: '{{}}' },
+				{ text: '{\n', selection: new Selection(2, 1, 2, 1), type: '{', expected: '{\n{}' },
+				{ text: '\n]', selection: new Selection(1, 1, 1, 1), type: '{', expected: '{}\n]' },
+				{ text: ')\n', selection: new Selection(2, 1, 2, 1), type: '(', expected: ')\n()' },
+				{ text: 'function foo() {\n\n}', selection: new Selection(2, 1, 2, 1), type: '{', expected: 'function foo() {\n{}\n}' },
+				{ text: 'someFunction);', selection: new Selection(1, 13, 1, 13), type: '(', expected: 'someFunction();' },
+				{ text: 'someFunction;', selection: new Selection(1, 13, 1, 13), type: '(', expected: 'someFunction();' },
+				{ text: 'someFunctionsomeParam);', selection: new Selection(1, 13, 1, 13), type: '(', expected: 'someFunction(someParam);' },
+			];
+			const actual = testCases.map(testCase => {
+				model.setValue(testCase.text);
+				viewModel.setSelections('test', [testCase.selection]);
+				viewModel.type(testCase.type, 'keyboard');
+				return model.getValue();
+			});
+			assert.deepStrictEqual(actual, testCases.map(testCase => testCase.expected));
+		});
+
+		usingCursor({
+			text: [
+				'',
+				'}',
+				'',
+			],
+			languageId,
+		}, (editor, model, viewModel) => {
+			model.bracketPairs.getBracketsInRange(model.getFullModelRange()).toArray();
+			viewModel.setSelections('test', [
+				new Selection(1, 1, 1, 1),
+				new Selection(3, 1, 3, 1),
+			]);
+			viewModel.type('{', 'keyboard');
+			assert.strictEqual(model.getValue(), '{\n}\n{');
+		});
+
+		usingCursor({
+			text: [
+				'',
+				')',
+			],
+			languageId,
+			editorOpts: {
+				autoClosingBrackets: 'always',
+			},
+		}, (editor, model, viewModel) => {
+			viewModel.type('(', 'keyboard');
+			assert.strictEqual(model.getValue(), '()\n)');
+		});
+
+		disposables.add(languageConfigurationService.register(autoClosingLanguageId, {
+			brackets: [['{', '}']],
+		}));
+		setupAutoClosingLanguageTokenization();
+		usingCursor({
+			text: [
+				'',
+				'"}"',
+			],
+			languageId: autoClosingLanguageId,
+		}, (editor, model, viewModel) => {
+			viewModel.type('{', 'keyboard');
+			assert.strictEqual(model.getValue(), '{}\n"}"');
+		});
+
+		usingCursor({
+			text: [
+				'',
+				'"}"',
+				'// }',
+			],
+			languageId: autoClosingLanguageId,
+		}, (editor, model, viewModel) => {
+			model.tokenization.forceTokenization(model.getLineCount());
+			model.bracketPairs.getBracketsInRange(model.getFullModelRange()).toArray();
+			viewModel.type('{', 'keyboard');
+			assert.strictEqual(model.getValue(), '{}\n"}"\n// }');
 		});
 	});
 
@@ -5650,6 +5862,41 @@ suite('Editor Controller', () => {
 
 			viewModel.type(')', 'keyboard');
 			assert.strictEqual(model.getLineContent(1), 'x=(())');
+		});
+	});
+
+	test('issue #205598 - retains auto-closed actions created by a reentrant decorations listener', () => {
+		usingCursor({
+			text: [''],
+			languageId: autoClosingLanguageId
+		}, (editor, model) => {
+			const results = [];
+			for (let iteration = 0; iteration < 3; iteration++) {
+				editor.executeEdits('test', [{ range: model.getFullModelRange(), text: '' }], [new Selection(1, 1, 1, 1)]);
+				for (let pair = 0; pair <= iteration; pair++) {
+					editor.trigger('keyboard', 'type', { text: '(' });
+				}
+				let armed = true;
+				const listener = disposables.add(model.onDidChangeDecorations(() => {
+					if (armed) {
+						armed = false;
+						editor.trigger('keyboard', 'type', { text: '(' });
+					}
+				}));
+				editor.setPosition(new Position(1, model.getLineMaxColumn(1)));
+				listener.dispose();
+				editor.trigger('keyboard', 'type', { text: ')' });
+				editor.setPosition(new Position(1, 1));
+				results.push({
+					value: model.getValue(),
+					autoClosedDecorations: model.getAllDecorations().filter(d => d.options.description.startsWith('auto-closed-')).length
+				});
+			}
+			assert.deepStrictEqual(results, [
+				{ value: '()()', autoClosedDecorations: 0 },
+				{ value: '(())()', autoClosedDecorations: 0 },
+				{ value: '((()))()', autoClosedDecorations: 0 }
+			]);
 		});
 	});
 

@@ -7,8 +7,10 @@ import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../../nls.js';
 import { type ProgressParams } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { isAgentHostDebugLogsProgress } from '../../../../../../platform/agentHost/common/meta/agentHostDebugLogsMeta.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IProgressService, IProgressStep, ProgressLocation } from '../../../../../../platform/progress/common/progress.js';
+import { NotificationTelemetryId } from '../../../../../../platform/notification/common/notificationTelemetry.js';
 import { ChatAIDisabledSettingId } from '../../../common/constants.js';
 
 /**
@@ -65,6 +67,9 @@ export class AgentHostDownloadProgress extends Disposable {
 	}
 
 	handleProgress(progress: ProgressParams): void {
+		if (isAgentHostDebugLogsProgress(progress)) {
+			return;
+		}
 		// New AI UI must stay hidden when the user has turned AI features off.
 		if (this._configurationService.getValue<boolean>(ChatAIDisabledSettingId)) {
 			return;
@@ -86,7 +91,7 @@ export class AgentHostDownloadProgress extends Disposable {
 			// First frame for this download: open one long-running notification
 			// progress and drive it via `report` until a terminal frame resolves
 			// `deferred`. `message` is the host-supplied, already-localized title
-			// (e.g. "Downloading Claude agent"); render it verbatim so this stays
+			// (e.g. "Downloading Claude Agent"); render it verbatim so this stays
 			// a generic indicator that makes no assumption about what's downloading.
 			const deferred = new DeferredPromise<void>();
 			let report: ((step: IProgressStep) => void) | undefined;
@@ -94,6 +99,7 @@ export class AgentHostDownloadProgress extends Disposable {
 			this._progressService.withProgress(
 				{
 					location: ProgressLocation.Notification,
+					telemetry: NotificationTelemetryId.AgentHostProgress,
 					title,
 				},
 				p => {

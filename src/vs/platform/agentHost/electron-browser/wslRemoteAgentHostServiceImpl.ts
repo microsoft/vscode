@@ -39,7 +39,7 @@ export const IWSLRelayClientFactory = createDecorator<IWSLRelayClientFactory>('w
 
 export interface IWSLRelayClientFactory {
 	readonly _serviceBrand: undefined;
-	createClient(mainService: IWSLRemoteAgentHostMainService, connectionId: string, address: string, connection: IWSLConnectResult, remoteAgentHostCommand: string | undefined): AgentHostProtocolClient;
+	createClient(mainService: IWSLRemoteAgentHostMainService, connectionId: string, address: string, connection: IWSLConnectResult, remoteAgentHostCommand: string | undefined, onRelayReplaced?: (connectionId: string) => void): AgentHostProtocolClient;
 }
 
 export class WSLRelayClientFactory implements IWSLRelayClientFactory {
@@ -52,19 +52,40 @@ export class WSLRelayClientFactory implements IWSLRelayClientFactory {
 		@ILogService private readonly _logService: ILogService,
 	) { }
 
-	createClient(mainService: IWSLRemoteAgentHostMainService, connectionId: string, address: string, connection: IWSLConnectResult, remoteAgentHostCommand: string | undefined): AgentHostProtocolClient {
+	createClient(mainService: IWSLRemoteAgentHostMainService, connectionId: string, address: string, connection: IWSLConnectResult, remoteAgentHostCommand: string | undefined, onRelayReplaced?: (connectionId: string) => void): AgentHostProtocolClient {
 		const config: IWSLAgentHostConfig = {
 			distro: connection.distro,
 			name: connection.name,
 			remoteAgentHostCommand,
 		};
 		let seedConnection = true;
+		let activeConnectionId = connectionId;
+		let disposed = false;
+		const releasedRelayIds = new Set<string>();
+		const releasingRelayIds = new Map<string, Promise<void>>();
+		const releaseRelay = (relayId: string): Promise<void> => {
+			if (releasedRelayIds.has(relayId)) {
+				return Promise.resolve();
+			}
+			const inFlight = releasingRelayIds.get(relayId);
+			if (inFlight) {
+				return inFlight;
+			}
+			const release = mainService.releaseRelay(relayId).then(
+				() => { releasedRelayIds.add(relayId); },
+				error => this._logService.error('[WSLRelayTransport] Failed to release relay lease', error),
+			).finally(() => releasingRelayIds.delete(relayId));
+			releasingRelayIds.set(relayId, release);
+			return release;
+		};
 		const establish = async () => {
-			// WSL disconnect is distro-scoped, so handles own no teardown; reconnect supersedes stale channels.
 			if (seedConnection) {
-				// The caller owns teardown of the channel established before the protocol client was created.
 				seedConnection = false;
-				return { connectionId };
+				const relayId = activeConnectionId;
+				return {
+					connectionId: relayId,
+					close: () => disposed ? releaseRelay(relayId) : Promise.resolve(),
+				};
 			}
 
 			try {
@@ -72,9 +93,12 @@ export class WSLRelayClientFactory implements IWSLRelayClientFactory {
 				if (!runningDistros.includes(config.distro)) {
 					throw new NonReconnectableTransportError(`WSL distro '${config.distro}' is not running.`, AgentHostTransportFailureReason.HostNotRunning);
 				}
-				const result = await mainService.reconnect(config.distro, config.name, config.remoteAgentHostCommand, false);
+				const result = await mainService.reconnect(config.distro, config.name, config.remoteAgentHostCommand, false, activeConnectionId);
+				activeConnectionId = result.connectionId;
+				onRelayReplaced?.(activeConnectionId);
 				return {
 					connectionId: result.connectionId,
+					close: () => disposed ? releaseRelay(result.connectionId) : Promise.resolve(),
 				};
 			} catch (error) {
 				const [isWSLAvailable, distros] = await Promise.all([
@@ -89,9 +113,9 @@ export class WSLRelayClientFactory implements IWSLRelayClientFactory {
 		};
 		const transportFactory = () => {
 			const ahpLoggingEnabled = !!this._configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId);
-			const createLogger = () => ahpLoggingEnabled ? this._instantiationService.createInstance(
+			const createLogger = (activeConnectionId: string) => ahpLoggingEnabled ? this._instantiationService.createInstance(
 				AhpJsonlLogger,
-				{ logsHome: this._environmentService.logsHome, connectionId, transport: 'wsl' },
+				{ logsHome: this._environmentService.logsHome, logId: address, connectionId: activeConnectionId, transport: 'wsl' },
 			) : undefined;
 			return this._instantiationService.createInstance(
 				ReconnectingRelayTransport,
@@ -103,8 +127,15 @@ export class WSLRelayClientFactory implements IWSLRelayClientFactory {
 				AgentHostClientConnectionKind.WSL,
 			);
 		};
-		return this._instantiationService.createInstance(AgentHostProtocolClient, address, transportFactory, { clientInfo: agentsWindowAgentHostClientInfo });
+		return this._instantiationService.createInstance(AgentHostProtocolClient, address, transportFactory, {
+			clientInfo: agentsWindowAgentHostClientInfo,
+			onDispose: () => {
+				disposed = true;
+				void releaseRelay(activeConnectionId);
+			},
+		});
 	}
+
 }
 
 /**
@@ -144,7 +175,7 @@ class WSLConnectionFactory extends Disposable implements IRemoteAgentHostConnect
 	readonly kind = RemoteAgentHostEntryType.WSL;
 	readonly entries: IObservable<readonly IRemoteAgentHostEntry[]>;
 
-	private readonly _stagedConfigurations = new Map<string, { readonly config: IWSLAgentHostConfig; readonly isInitialConnection: boolean }>();
+	private readonly _stagedConfigurations = new Map<string, IWSLAgentHostConfig>();
 
 	constructor(
 		private readonly _storageService: IStorageService,
@@ -155,7 +186,7 @@ class WSLConnectionFactory extends Disposable implements IRemoteAgentHostConnect
 		private readonly _onDidChangeConnections: () => void,
 		private readonly _onDidReportConnectProgress: (progress: IWSLConnectProgress) => void,
 		private readonly _getRemoteAgentHostCommand: () => string | undefined,
-		private readonly _createTransportDisposable: (connectionId: string, distro: string, handle: WSLAgentHostConnectionHandle) => IDisposable,
+		private readonly _createTransportDisposable: (connectionKey: string, handle: WSLAgentHostConnectionHandle) => IDisposable,
 		private readonly _logService: ILogService,
 	) {
 		super();
@@ -168,19 +199,20 @@ class WSLConnectionFactory extends Disposable implements IRemoteAgentHostConnect
 
 	stageConfiguration(config: IWSLAgentHostConfig): IRemoteAgentHostEntry {
 		const entry = this._createEntry(config.distro, config.name);
-		this._stagedConfigurations.set(getEntryAddress(entry), { config, isInitialConnection: true });
+		this._stagedConfigurations.set(getEntryAddress(entry), config);
 		this._storeEntry(entry);
 		return entry;
 	}
 
 	stageEntry(distro: string, name: string, userInitiated = true): IRemoteAgentHostEntry {
 		const entry = this._createEntry(distro, name);
-		this._stagedConfigurations.set(getEntryAddress(entry), {
-			config: { distro, name, remoteAgentHostCommand: this._getRemoteAgentHostCommand(), userInitiated },
-			isInitialConnection: false,
-		});
+		this._stagedConfigurations.set(getEntryAddress(entry), { distro, name, remoteAgentHostCommand: this._getRemoteAgentHostCommand(), userInitiated });
 		this._storeEntry(entry);
 		return entry;
+	}
+
+	clearStagedConfiguration(address: string): void {
+		this._stagedConfigurations.delete(address);
 	}
 
 	async createConnection(entry: IRemoteAgentHostEntry, options: IRemoteAgentHostConnectOptions): Promise<IRemoteAgentHostCreatedConnection> {
@@ -191,7 +223,7 @@ class WSLConnectionFactory extends Disposable implements IRemoteAgentHostConnect
 		const address = getEntryAddress(entry);
 		let stagedConnection = this._stagedConfigurations.get(address);
 		this._stagedConfigurations.delete(address);
-		let config = stagedConnection?.config ?? {
+		let config = stagedConnection ?? {
 			distro: entry.connection.distro,
 			name: entry.name,
 			remoteAgentHostCommand: this._getRemoteAgentHostCommand(),
@@ -207,7 +239,7 @@ class WSLConnectionFactory extends Disposable implements IRemoteAgentHostConnect
 				}
 				this._stagedConfigurations.delete(address);
 				stagedConnection = userStagedConnection;
-				config = stagedConnection.config;
+				config = stagedConnection;
 				userInitiated = config.userInitiated ?? options.userInitiated;
 			}
 			// A user action may have arrived while the background precondition ran.
@@ -215,14 +247,13 @@ class WSLConnectionFactory extends Disposable implements IRemoteAgentHostConnect
 			if (userStagedConnection) {
 				this._stagedConfigurations.delete(address);
 				stagedConnection = userStagedConnection;
-				config = stagedConnection.config;
+				config = stagedConnection;
 				userInitiated = config.userInitiated ?? options.userInitiated;
 			}
 		}
 
-		const result = stagedConnection?.isInitialConnection
-			? await this._mainService.connect({ ...config, userInitiated })
-			: await this._mainService.reconnect(config.distro, config.name, config.remoteAgentHostCommand, userInitiated);
+		// A fresh protocol client must not attach to a relay that may already be initialized.
+		const result = await this._mainService.connect({ ...config, userInitiated });
 		this._logService.trace(`[WSLRemoteAgentHost] WSL relay established, connectionId=${result.connectionId}`);
 		return this._setupConnection(result, config.remoteAgentHostCommand);
 	}
@@ -268,14 +299,14 @@ class WSLConnectionFactory extends Disposable implements IRemoteAgentHostConnect
 	}
 
 	private _setupConnection(result: IWSLConnectResult, remoteAgentHostCommand: string | undefined): IRemoteAgentHostCreatedConnection {
-		const existing = this._connections.get(result.connectionId);
+		const existing = this._connections.get(result.address);
 		if (existing) {
 			if (this._remoteAgentHostService.getConnection(result.address)) {
 				this._logService.trace(`[WSLRemoteAgentHost] Returning existing connection handle for ${result.address}, connectionId=${result.connectionId}`);
 				return this._createConnection(result, remoteAgentHostCommand, existing);
 			}
 			this._logService.info(`[WSLRemoteAgentHost] Replacing stale connection handle for ${result.address}, connectionId=${result.connectionId}`);
-			this._connections.delete(result.connectionId);
+			this._connections.delete(result.address);
 			existing.fireClose();
 			existing.dispose();
 			this._onDidChangeConnections();
@@ -285,19 +316,20 @@ class WSLConnectionFactory extends Disposable implements IRemoteAgentHostConnect
 			result.distro,
 			result.address,
 			result.name,
-			() => this._mainService.disconnect(result.distro),
+			result.connectionId,
+			connectionId => this._mainService.releaseRelay(connectionId),
 		);
 		try {
-			this._connections.set(result.connectionId, handle);
+			this._connections.set(result.address, handle);
 			this._onDidChangeConnections();
 			return this._createConnection(result, remoteAgentHostCommand, handle);
 		} catch (err) {
-			if (this._connections.get(result.connectionId) === handle) {
-				this._connections.delete(result.connectionId);
+			if (this._connections.get(result.address) === handle) {
+				this._connections.delete(result.address);
 				this._onDidChangeConnections();
 			}
 			handle.dispose();
-			this._mainService.disconnect(result.distro).catch(() => { /* best effort */ });
+			this._mainService.releaseRelay(result.connectionId).catch(() => { /* best effort */ });
 			throw err;
 		}
 	}
@@ -308,15 +340,14 @@ class WSLConnectionFactory extends Disposable implements IRemoteAgentHostConnect
 			message: localize('wslProgressHandshake', "Establishing connection to {0}...", result.name),
 		});
 		const completionObserver = this._observeSuccessfulConnection(result);
-		const transportDisposable = this._createTransportDisposable(result.connectionId, result.distro, handle);
+		const transportDisposable = this._createTransportDisposable(result.address, handle);
 		try {
 			return {
-				connection: this._relayClientFactory.createClient(this._mainService, result.connectionId, result.address, result, remoteAgentHostCommand),
+				connection: this._relayClientFactory.createClient(this._mainService, result.connectionId, result.address, result, remoteAgentHostCommand, connectionId => handle.updateRelayLease(connectionId)),
 				transportDisposable: toDisposable(() => {
 					completionObserver.dispose();
 					transportDisposable.dispose();
 				}),
-				reconnectTransfersTransportOwnership: true,
 			};
 		} catch (err) {
 			completionObserver.dispose();
@@ -360,6 +391,7 @@ export class WSLRemoteAgentHostService extends Disposable implements IWSLRemoteA
 	readonly onDidReportConnectProgress: Event<IWSLConnectProgress>;
 
 	private readonly _connections = new Map<string, WSLAgentHostConnectionHandle>();
+	private readonly _pendingConnections = new Map<string, { readonly promise: Promise<WSLAgentHostConnectionHandle>; readonly userInitiated: boolean }>();
 
 	constructor(
 		@ISharedProcessService sharedProcessService: ISharedProcessService,
@@ -385,16 +417,16 @@ export class WSLRemoteAgentHostService extends Disposable implements IWSLRemoteA
 			() => this._onDidChangeConnections.fire(),
 			progress => this._onDidReportLocalConnectProgress.fire(progress),
 			() => this._getRemoteAgentHostCommand(),
-			(connectionId, distro, handle) => this._createTransportDisposable(connectionId, distro, handle),
+			(connectionKey, handle) => this._createTransportDisposable(connectionKey, handle),
 			this._logService,
 		));
 		this._register(this._remoteAgentHostService.registerConnectionFactory(this._connectionFactory));
 
 		this._register(this._mainService.onDidCloseConnection(connectionId => {
 			this._logService.info(`[WSLRemoteAgentHost] onDidCloseConnection: connectionId=${connectionId}`);
-			const handle = this._connections.get(connectionId);
+			const handle = [...this._connections.values()].find(candidate => candidate.ownsRelayLease(connectionId));
 			if (handle) {
-				this._connections.delete(connectionId);
+				this._connections.delete(handle.localAddress);
 				handle.fireClose();
 				handle.dispose();
 				this._onDidChangeConnections.fire();
@@ -435,12 +467,35 @@ export class WSLRemoteAgentHostService extends Disposable implements IWSLRemoteA
 			throw new Error('Remote agent host connections are not enabled.');
 		}
 
-		const entry = this._connectionFactory.stageConfiguration(this._augmentConfig({ ...config, userInitiated: config.userInitiated ?? true }));
-		const address = getEntryAddress(entry);
-		this._logService.info(`[WSLRemoteAgentHost] Connecting to distro ${config.distro}`);
-		this._remoteAgentHostService.reconnect(address, true);
-		await this._remoteAgentHostService.waitForConnection(address);
-		return this._getConnectionHandle(address);
+		const userInitiated = config.userInitiated ?? true;
+		const address = `${WSL_ADDRESS_PREFIX}${config.distro}`;
+		const existing = this._getReusableConnectionHandle(address);
+		if (existing) {
+			return existing;
+		}
+
+		const pending = this._pendingConnections.get(address);
+		if (pending) {
+			if (userInitiated && !pending.userInitiated) {
+				// The in-flight factory consumes this configuration after its
+				// background running-distro check completes.
+				this._connectionFactory.stageConfiguration(this._augmentConfig({ ...config, userInitiated: true }));
+				this._pendingConnections.set(address, { promise: pending.promise, userInitiated: true });
+				this._remoteAgentHostService.reconnect(address, true);
+			}
+			return pending.promise;
+		}
+
+		const pendingConnection = this._connect(config, address);
+		this._pendingConnections.set(address, { promise: pendingConnection, userInitiated });
+		try {
+			return await pendingConnection;
+		} finally {
+			if (this._pendingConnections.get(address)?.promise === pendingConnection) {
+				this._pendingConnections.delete(address);
+				this._connectionFactory.clearStagedConfiguration(address);
+			}
+		}
 	}
 
 	async disconnect(distro: string): Promise<void> {
@@ -498,21 +553,37 @@ export class WSLRemoteAgentHostService extends Disposable implements IWSLRemoteA
 		return handle;
 	}
 
+	private async _connect(config: IWSLAgentHostConfig, address: string): Promise<WSLAgentHostConnectionHandle> {
+		const userInitiated = config.userInitiated ?? true;
+		this._connectionFactory.stageConfiguration(this._augmentConfig({ ...config, userInitiated }));
+		this._logService.info(`[WSLRemoteAgentHost] Connecting to distro ${config.distro}`);
+		this._remoteAgentHostService.reconnect(address, userInitiated);
+		await this._remoteAgentHostService.waitForConnection(address);
+		return this._getConnectionHandle(address);
+	}
+
+	private _getReusableConnectionHandle(address: string): WSLAgentHostConnectionHandle | undefined {
+		if (!this._remoteAgentHostService.getConnection(address)) {
+			return undefined;
+		}
+		return [...this._connections.values()].find(candidate => candidate.localAddress === address);
+	}
+
 	/**
 	 * Disposable owned by {@link IRemoteAgentHostService} for the lifetime of
-	 * the entry. When the entry is removed (either by the user or by config
-	 * reconciliation), this tears down the renderer-side handle and the
-	 * shared-process WSL relay together so neither is leaked.
+	 * the entry. It tears down only the renderer-side handle: the protocol
+	 * client owns the current shared-process relay lease and releases it when
+	 * that client is finally disposed. Keeping those lifetimes separate avoids
+	 * releasing a superseded relay during an automatic reconnect.
 	 */
-	private _createTransportDisposable(connectionId: string, distro: string, handle: WSLAgentHostConnectionHandle): IDisposable {
+	private _createTransportDisposable(connectionKey: string, handle: WSLAgentHostConnectionHandle): IDisposable {
 		return toDisposable(() => {
-			if (this._connections.get(connectionId) === handle) {
-				this._connections.delete(connectionId);
+			if (this._connections.get(connectionKey) === handle) {
+				this._connections.delete(connectionKey);
 				this._onDidChangeConnections.fire();
 			}
 			handle.fireClose();
 			handle.dispose();
-			this._mainService.disconnect(distro).catch(() => { /* best effort */ });
 		});
 	}
 
@@ -543,13 +614,14 @@ class WSLAgentHostConnectionHandle extends Disposable implements IWSLAgentHostCo
 		readonly distro: string,
 		readonly localAddress: string,
 		readonly name: string,
-		disconnectFn: () => Promise<void>,
+		private _connectionId: string,
+		private readonly _releaseRelay: (connectionId: string) => Promise<void>,
 	) {
 		super();
 
 		this._register(toDisposable(() => {
 			if (!this._closedByMain) {
-				disconnectFn().catch(() => { /* best effort */ });
+				this._releaseRelay(this._connectionId).catch(() => { /* best effort */ });
 			}
 		}));
 	}
@@ -558,5 +630,13 @@ class WSLAgentHostConnectionHandle extends Disposable implements IWSLAgentHostCo
 	fireClose(): void {
 		this._closedByMain = true;
 		this._onDidClose.fire();
+	}
+
+	updateRelayLease(connectionId: string): void {
+		this._connectionId = connectionId;
+	}
+
+	ownsRelayLease(connectionId: string): boolean {
+		return this._connectionId === connectionId;
 	}
 }

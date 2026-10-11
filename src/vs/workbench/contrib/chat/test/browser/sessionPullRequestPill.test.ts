@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { toAction } from '../../../../../base/common/actions.js';
 import { autorun, constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
@@ -105,5 +106,47 @@ suite('SessionPullRequestPillData', () => {
 		const data = createSessionPullRequestPillData(sections, createVisibility(storageService));
 
 		assert.strictEqual(data.getContextMenuActions()[0].checked, true);
+	});
+
+	test('offers copy and removal in dropdown rows or the single visible PR context menu', async () => {
+		const visibility = createVisibility();
+		const removed: string[] = [];
+		const copied: string[] = [];
+		const copyAction = toAction({ id: 'copy', label: 'Copy', run: () => { copied.push('https://github.com/microsoft/vscode/pull/1'); } });
+		const promotedAction = toAction({ id: 'remove', label: 'Remove', run: () => { removed.push('open'); } });
+		const input = observableValue<readonly IChatPullRequestPillSection[]>('pullRequests', [{
+			title: 'Pull Requests',
+			entries: [
+				{ id: 'open', label: 'Open', pullRequestState: 'open', toolbarActions: [copyAction], promotedAction, open: () => { } },
+				{ id: 'closed', label: 'Closed', pullRequestState: 'closed', open: () => { } },
+			],
+		}]);
+		const data = createSessionPullRequestPillData(input, visibility);
+		const read = () => ({
+			toolbars: data.sections.get().flatMap(section => section.entries.map(entry => entry.toolbarActions?.map(action => action.id) ?? [])),
+			contextMenu: data.getContextMenuPrimaryActions().map(action => action.id),
+		});
+		const multiple = read();
+		visibility.setShowAll(false);
+		const singleVisible = read();
+		for (const action of data.getContextMenuPrimaryActions()) {
+			await action.run();
+		}
+		input.set([{ title: 'Pull Requests', entries: [input.get()[0].entries[0]] }], undefined);
+		visibility.setShowAll(true);
+		const singleRemaining = read();
+		input.set([{ title: 'Pull Requests', entries: [{ ...input.get()[0].entries[0], promotedAction: undefined }] }], undefined);
+		const copyOnly = read();
+		input.set([], undefined);
+
+		assert.deepStrictEqual({ multiple, singleVisible, singleRemaining, copyOnly, empty: read(), copied, removed }, {
+			multiple: { toolbars: [['copy', 'remove'], []], contextMenu: [] },
+			singleVisible: { toolbars: [['copy']], contextMenu: ['copy', 'remove'] },
+			singleRemaining: { toolbars: [['copy']], contextMenu: ['copy', 'remove'] },
+			copyOnly: { toolbars: [['copy']], contextMenu: ['copy'] },
+			empty: { toolbars: [], contextMenu: [] },
+			copied: ['https://github.com/microsoft/vscode/pull/1'],
+			removed: ['open'],
+		});
 	});
 });

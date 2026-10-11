@@ -7,12 +7,13 @@ declare module 'vscode' {
 
 	export interface AuthenticationSession {
 		/**
-		 * The access token's remaining lifetime, in seconds, when the authentication provider returns the session.
+		 * The access token's remaining lifetime, in milliseconds, when the authentication provider returns the session.
 		 *
-		 * This corresponds to `expires_in` in an OAuth 2.0 token response. Providers returning
-		 * cached sessions must recompute this value. This is undefined when the authentication
-		 * provider does not know the access token's expiry. When defined, this must be a positive integer.
+		 * This corresponds to `expires_in` in an OAuth 2.0 token response, converted from seconds to
+		 * milliseconds. Providers returning cached sessions must recompute this value. This is undefined
+		 * when the authentication provider does not know the access token's expiry. When defined, this
+		 * must be a positive integer.
 		 */
-		readonly expiresIn?: number;
+		readonly expiresAfter?: number;
 	}
 }

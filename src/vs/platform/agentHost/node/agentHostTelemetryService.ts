@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { hostname, release } from 'os';
-import { Disposable, isDisposable, toDisposable, type DisposableStore } from '../../../base/common/lifecycle.js';
+import { Disposable, isDisposable, toDisposable, type DisposableStore, type IDisposable } from '../../../base/common/lifecycle.js';
 import { joinPath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { getDevDeviceId, getMachineId, getSqmMachineId } from '../../../base/node/id.js';
@@ -24,6 +24,7 @@ import { AgentHostTelemetryLevelConfigKey, agentHostConfigValueToTelemetryLevel 
 import { AgentHostDevDeviceIdEnvKey, AgentHostMachineIdEnvKey, AgentHostSqmIdEnvKey, AgentHostTelemetryLevelEnvKey } from '../common/agentHostTelemetryEnv.js';
 import { AgentHostRestrictedTelemetrySender, IAgentHostRestrictedTelemetry, IAgentHostInternalTelemetryContext, IAgentHostRestrictedTelemetryContext, TelemetryMeasurements, TelemetryProps } from './agentHostRestrictedTelemetry.js';
 import { AgentHostInternalTelemetrySender } from './agentHostMicrosoftTelemetry.js';
+import type { IAgentTelemetryContext } from '../common/agent.js';
 
 export interface IAgentHostTelemetryServiceOptions {
 	readonly environmentService: INativeEnvironmentService;
@@ -40,6 +41,10 @@ export interface IAgentHostTelemetryServiceOptions {
 
 export interface IAgentHostTelemetryService extends ITelemetryService, IAgentHostRestrictedTelemetry {
 	updateTelemetryLevel(telemetryLevel: TelemetryLevel): void;
+	/** Register an account reader with provider-owned lifetime, never process-wide account properties. */
+	registerCopilotTelemetryProvider(provider: string, getContext: () => IAgentTelemetryContext): IDisposable;
+	/** Read the current account for point-in-time events. Delayed events must capture their own account context. */
+	getCopilotTelemetryContext(provider: string): IAgentTelemetryContext | undefined;
 }
 
 export class AgentHostTelemetryService extends Disposable implements IAgentHostTelemetryService {
@@ -56,6 +61,7 @@ export class AgentHostTelemetryService extends Disposable implements IAgentHostT
 
 	/** Whether the machine itself is internal, captured before any account can override it. */
 	private readonly _internalMachine: boolean;
+	private readonly _copilotTelemetryProviders = new Map<string, () => IAgentTelemetryContext>();
 
 	constructor(
 		private readonly _delegate: ITelemetryService,
@@ -67,6 +73,7 @@ export class AgentHostTelemetryService extends Disposable implements IAgentHostT
 		super();
 		this._telemetryLevel = initialTelemetryLevel;
 		this._internalMachine = _delegate.msftInternal === true;
+		this._register(toDisposable(() => this._copilotTelemetryProviders.clear()));
 		if (isDisposable(_delegate)) {
 			this._register(_delegate);
 		}
@@ -208,6 +215,19 @@ export class AgentHostTelemetryService extends Disposable implements IAgentHostT
 		this._restricted?.setCommonProperty(name, value);
 	}
 
+	registerCopilotTelemetryProvider(provider: string, getContext: () => IAgentTelemetryContext): IDisposable {
+		this._copilotTelemetryProviders.set(provider, getContext);
+		return toDisposable(() => {
+			if (this._copilotTelemetryProviders.get(provider) === getContext) {
+				this._copilotTelemetryProviders.delete(provider);
+			}
+		});
+	}
+
+	getCopilotTelemetryContext(provider: string): IAgentTelemetryContext | undefined {
+		return this._copilotTelemetryProviders.get(provider)?.();
+	}
+
 	updateTelemetryLevel(telemetryLevel: TelemetryLevel): void {
 		this._telemetryLevel = Math.min(this._telemetryLevel, telemetryLevel);
 	}
@@ -252,7 +272,7 @@ export async function createAgentHostTelemetryService(options: IAgentHostTelemet
 	const internalTelemetry = verifyMicrosoftInternalDomain(productService.msftInternalDomains ?? []);
 
 	const appenders: ITelemetryAppender[] = [
-		disposables.add(new TelemetryLogAppender('', false, loggerService, environmentService, productService)),
+		disposables.add(new TelemetryLogAppender({ prefix: '', loggerId: 'agentHostTelemetry' }, false, loggerService, environmentService, productService)),
 	];
 	const loggingOnly = isLoggingOnly(productService, environmentService);
 	if (!loggingOnly && productService.aiConfig?.ariaKey) {

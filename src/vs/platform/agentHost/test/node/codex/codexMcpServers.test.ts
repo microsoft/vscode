@@ -20,8 +20,12 @@ suite('codexMcpServers', () => {
 
 	const status = (name: string, tools: Tool[]): CodexMcpServerStatus => ({
 		name,
+		runtimeStatus: null,
 		pluginId: null,
 		serverInfo: null,
+		httpOrigin: null,
+		serverCapabilities: null,
+		toolsError: null,
 		tools: Object.fromEntries(tools.map(t => [t.name, t])),
 		resources: [{ name: `${name}-res`, uri: `mem://${name}/r` }],
 		resourceTemplates: [{ name: `${name}-tpl`, uriTemplate: `mem://${name}/{id}` }],

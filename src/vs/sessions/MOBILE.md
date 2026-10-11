@@ -32,6 +32,8 @@ Desktop side parts do not remain as permanently visible columns. Their content i
 
 The active session and chat remain owned by `ISessionsService`. Mobile navigation must not create a second active-session store.
 
+The Sessions Part projects only the active session onto the phone surface while retaining the desktop split topology, sash allocations, and live views. Crossing the breakpoint in either direction adapts the existing part, regardless of which subclass was selected at startup. Phone dimensions do not overwrite desktop geometry; returning to a non-phone viewport restores that arrangement at the available size. Structural session changes made on phone still update the canonical grid.
+
 ## Mobile part pattern
 
 When a factory selects a mobile subclass, that instance remains alive for the part's lifetime. It checks the current viewport and delegates to desktop behavior after rotating or resizing out of phone layout. A mobile subclass:

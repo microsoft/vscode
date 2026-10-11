@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { mainWindow } from '../../browser/window.js';
 import { fillInIncompleteTokens, renderMarkdown, renderAsPlaintext } from '../../browser/markdownRenderer.js';
 import { IMarkdownString, MarkdownString } from '../../common/htmlContent.js';
+import { toDisposable } from '../../common/lifecycle.js';
 import * as marked from '../../common/marked/marked.js';
 import { parse } from '../../common/marshalling.js';
 import { isWeb } from '../../common/platform.js';
@@ -51,6 +53,16 @@ suite('MarkdownRenderer', () => {
 			const anchor = result.querySelector('a');
 			assert.ok(anchor, 'expected <a> to be preserved when scheme is allowed');
 			assert.strictEqual(anchor!.dataset.href, 'vscode-agent-host://my-host/path/to/foo.ts?_ah%3DeyJzY2hlbWUiOiJmaWxlIn0');
+		});
+
+		test('Only allows inline-block display style on spans', () => {
+			const markdown = new MarkdownString(
+				'<span style="display:inline-block;">allowed</span><span style="display:block;">blocked</span>',
+				{ supportHtml: true },
+			);
+			const result = store.add(renderMarkdown(markdown)).element;
+
+			assert.strictEqual(result.innerHTML, '<p><span style="display:inline-block;">allowed</span><span>blocked</span></p>');
 		});
 
 		test('Transforms parsed link targets without changing labels, titles, or code', () => {
@@ -387,6 +399,97 @@ suite('MarkdownRenderer', () => {
 
 			const blockquote = result.querySelector('blockquote');
 			assert.strictEqual(blockquote?.getAttribute('data-severity'), null, 'Should not have data-severity attribute');
+		});
+	});
+
+	suite('Code block reuse', () => {
+		function createCodeBlock(_language: string, text: string): HTMLElement {
+			const element = mainWindow.document.createElement('pre');
+			element.textContent = text;
+			return element;
+		}
+
+		function normalizedHtml(element: HTMLElement): string {
+			const clone = element.cloneNode(true) as HTMLElement;
+			for (const block of clone.querySelectorAll('[data-code]')) {
+				block.removeAttribute('data-code');
+			}
+			return clone.outerHTML;
+		}
+
+		const first = '```test\nfirst\n```';
+		const second = '```test\nsecond\n```';
+		const quoted = '> ```test\n> first\n> ```';
+		const list = '- First\n\n  ```test\n  first\n  ```\n\n- Second\n\n  ```test\n  second\n  ```';
+
+		for (const { name, before, after } of [
+			{ name: 'appended content in a shared ancestor', before: list, after: `Intro\n\n${list}\n\n  More text\n\n- Last` },
+			{ name: 'changed ancestor attributes', before: `3. Diagram\n\n   \`\`\`test\n   first\n   \`\`\``, after: `1. Diagram\n\n   \`\`\`test\n   first\n   \`\`\`` },
+			{ name: 'changed nesting', before: quoted, after: first },
+			{ name: 'split ancestors', before: list, after: '- First\n\n  ```test\n  first\n  ```\n\nOutside\n\n- Second\n\n  ```test\n  second\n  ```' },
+			{ name: 'reordered code blocks', before: `${first}\n\n${second}`, after: `${second}\n\n${first}` },
+			{ name: 'removed code blocks', before: `${first}\n\n${second}`, after: second },
+			{ name: 'changed code blocks', before: `${first}\n\n${second}`, after: `${first}\n\n\`\`\`test\nchanged\n\`\`\`` },
+		]) {
+			test(`matches a fresh render after ${name}`, () => {
+				const codeBlocks = new Map<string, HTMLElement>();
+				const options = {
+					codeBlockRendererSync: (language: string, text: string) => {
+						let element = codeBlocks.get(text);
+						if (!element) {
+							element = createCodeBlock(language, text);
+							codeBlocks.set(text, element);
+						}
+						return element;
+					},
+				};
+				const initial = store.add(renderMarkdown({ value: before }, options));
+				initial.dispose();
+				const updated = store.add(renderMarkdown({ value: after }, options, initial.element));
+				const fresh = store.add(renderMarkdown({ value: after }, { codeBlockRendererSync: createCodeBlock }));
+				assert.strictEqual(normalizedHtml(updated.element), normalizedHtml(fresh.element));
+			});
+		}
+
+		test('keeps reused code blocks and their ancestors mounted', () => {
+			const codeBlocks: HTMLElement[] = [];
+			const initial = store.add(renderMarkdown({ value: list }, {
+				codeBlockRendererSync: (language, text) => {
+					const element = createCodeBlock(language, text);
+					codeBlocks.push(element);
+					return element;
+				},
+			}));
+			mainWindow.document.body.appendChild(initial.element);
+			store.add(toDisposable(() => initial.element.remove()));
+			const parents = codeBlocks.map(block => block.parentElement);
+			const listElement = initial.element.querySelector('ul');
+			const records: MutationRecord[] = [];
+			const observer = new mainWindow.MutationObserver(mutations => records.push(...mutations));
+			store.add(toDisposable(() => observer.disconnect()));
+			observer.observe(initial.element, { childList: true, subtree: true });
+			initial.dispose();
+
+			store.add(renderMarkdown({ value: `Intro\n\n${list}\n\n  More text` }, {
+				codeBlockRendererSync: (_language, text) => {
+					const block = codeBlocks.find(block => block.textContent === text);
+					assert.ok(block);
+					return block;
+				},
+			}, initial.element));
+
+			const removedNodes = [...records, ...observer.takeRecords()].flatMap(record => Array.from(record.removedNodes));
+			assert.deepStrictEqual({
+				parentsPreserved: codeBlocks.every((block, index) => block.parentElement === parents[index]),
+				listPreserved: initial.element.querySelector('ul') === listElement,
+				blocksConnected: codeBlocks.every(block => block.isConnected),
+				codeBlockDisconnected: removedNodes.some(node => codeBlocks.some(block => node.contains(block))),
+			}, {
+				parentsPreserved: true,
+				listPreserved: true,
+				blocksConnected: true,
+				codeBlockDisconnected: false,
+			});
 		});
 	});
 

@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { withMessageRequestHiddenFromTranscript } from '../../../common/meta/agentMessageMeta.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
-import type { IAgentHostChatContribution, IAgentHostChatContributionContext, IHydrationContext, IIncomingRequest, IncomingRequestDisposition, ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
+import type { IAgentHostChatContribution, IAgentHostChatContributionContext, IHydrationContext, IIncomingRequest, IncomingRequestDisposition, IRestoredChat, ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
 import { parseAgentWorkspaceTransition, AgentSystemNotificationKind, readAgentSystemNotificationMeta, toAgentSystemNotificationMeta } from '../../../common/meta/agentSystemNotificationMeta.js';
 import { toAgentWorkspaceContinuationMessageMeta } from '../../../common/meta/agentWorkspaceContinuationMeta.js';
-import { ResponsePartKind, withMessageRequestHiddenFromTranscript, type Turn } from '../../../common/state/sessionState.js';
+import { ResponsePartKind, type Turn } from '../../../common/state/sessionState.js';
 import { ISessionWorkspaceConversionService } from './sessionWorkspaceConversionService.js';
 
 /** Finalizes requested workspace conversions after a turn and blocks new turns while conversion is pending. */
@@ -29,6 +30,9 @@ export class SessionWorkspaceConversionContribution extends Disposable implement
 			void this._conversionService.updateSessionWorkspace(turn.channel, turn.turnId);
 		} else {
 			this._conversionService.cancel(turn.channel, turn.turnId);
+			if (turn.reason.kind !== 'rejected' && this._conversionService.isPending(turn.channel)) {
+				void this._conversionService.updateSessionWorkspace(turn.channel, turn.turnId);
+			}
 		}
 	}
 
@@ -44,6 +48,11 @@ export class SessionWorkspaceConversionContribution extends Disposable implement
 			},
 			stage: 'validation',
 		};
+	}
+
+	async onHydrateChat(context: IHydrationContext, restored: IRestoredChat): Promise<IRestoredChat> {
+		await this._conversionService.restoreChatIsolation(context.chat);
+		return restored;
 	}
 
 	onHydrateTurns(context: IHydrationContext, turns: readonly Turn[]): readonly Turn[] {

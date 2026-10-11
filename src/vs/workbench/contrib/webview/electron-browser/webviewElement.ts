@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getWindow } from '../../../../base/browser/dom.js';
+import { isAuxiliaryWindow } from '../../../../base/browser/window.js';
 import { Delayer } from '../../../../base/common/async.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { ProxyChannel } from '../../../../base/parts/ipc/common/ipc.js';
@@ -16,7 +18,7 @@ import { INativeHostService } from '../../../../platform/native/common/native.js
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IRemoteAuthorityResolverService } from '../../../../platform/remote/common/remoteAuthorityResolver.js';
 import { ITunnelService } from '../../../../platform/tunnel/common/tunnel.js';
-import { FindInFrameOptions, IWebviewManagerService } from '../../../../platform/webview/common/webviewManagerService.js';
+import { FindInFrameOptions, IWebviewManagerService, WebviewWebContentsId, WebviewWindowId } from '../../../../platform/webview/common/webviewManagerService.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { WebviewThemeDataProvider } from '../browser/themeing.js';
 import { WebviewInitInfo } from '../browser/webview.js';
@@ -86,6 +88,13 @@ export class ElectronWebviewElement extends WebviewElement {
 		return `${Schemas.vscodeWebview}://${iframeId}`;
 	}
 
+	private get findTarget(): WebviewWebContentsId | WebviewWindowId {
+		const targetWindow = getWindow(this.element);
+		return isAuxiliaryWindow(targetWindow)
+			? { webContentsId: targetWindow.vscodeWindowId }
+			: { windowId: this._nativeHostService.windowId };
+	}
+
 	/**
 	 * Webviews expose a stateful find API.
 	 * Successive calls to find will move forward or backward through onFindResults
@@ -103,7 +112,7 @@ export class ElectronWebviewElement extends WebviewElement {
 		} else {
 			// continuing the find, so set findNext to false
 			const options: FindInFrameOptions = { forward: !previous, findNext: false, matchCase: false };
-			this._webviewMainService.findInFrame({ windowId: this._nativeHostService.windowId }, this.id, value, options);
+			this._webviewMainService.findInFrame(this.findTarget, this.id, value, options);
 		}
 	}
 
@@ -121,7 +130,7 @@ export class ElectronWebviewElement extends WebviewElement {
 
 		this._iframeDelayer.trigger(() => {
 			this._findStarted = true;
-			this._webviewMainService.findInFrame({ windowId: this._nativeHostService.windowId }, this.id, value, options);
+			this._webviewMainService.findInFrame(this.findTarget, this.id, value, options);
 		});
 	}
 
@@ -131,7 +140,7 @@ export class ElectronWebviewElement extends WebviewElement {
 		}
 		this._iframeDelayer.cancel();
 		this._findStarted = false;
-		this._webviewMainService.stopFindInFrame({ windowId: this._nativeHostService.windowId }, this.id, {
+		this._webviewMainService.stopFindInFrame(this.findTarget, this.id, {
 			keepSelection
 		});
 		this._onDidStopFind.fire();
