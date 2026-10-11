@@ -7,7 +7,7 @@ import { localize } from '../../../../../../../nls.js';
 import { IStringDictionary } from '../../../../../../../base/common/collections.js';
 import { COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_ID, isCopilotHydraFusionModelId } from '../../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { COPILOT_CLI_AGENT_PROVIDER_ID } from '../../../../../../../platform/agentHost/common/agent.js';
-import { getAutoModeTierLabel, type AutoModeTier } from '../../../../../../../platform/agentHost/common/autoModeTiers.js';
+import { getEnsembleAutoModeTierLabel, type AutoModeTier } from '../../../../../../../platform/agentHost/common/autoModeTiers.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelControlEntry, isAutoLanguageModel, isUserProvidedModel } from '../../../../common/languageModels.js';
 import { ChatEntitlement } from '../../../../../../services/chat/common/chatEntitlementService.js';
 
@@ -32,7 +32,7 @@ export function getEnsembleTierLabel(auto: ILanguageModelChatMetadata | undefine
 		return undefined;
 	}
 	const tier = Object.values(auto.configurationSchema?.properties ?? {}).find(property => property.enum?.includes(intelligence));
-	return tier ? tier.enumItemLabels?.[tier.enum!.indexOf(intelligence)] ?? getAutoModeTierLabel(intelligence) : undefined;
+	return tier ? tier.enumItemLabels?.[tier.enum!.indexOf(intelligence)] ?? getEnsembleAutoModeTierLabel(intelligence) : undefined;
 }
 
 /** Whether the plan offers built-in HydraFusion only as an upgrade, never as a choice. */

@@ -1762,7 +1762,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[AgentHostEnsembleEnabledSettingId]: {
 			type: 'boolean',
-			markdownDescription: nls.localize('chat.copilot.ensemble.enabled', "When enabled, local Copilot Agent Host sessions present Auto as Ensemble, which optimizes for Balance, Intelligence, or Max. Max uses HydraFusion Max, so Ensemble uses HydraFusion v2 unless `#{0}#` is off. Changing this setting can restart the local Copilot runtime.", AgentHostHydraFusionEnabledSettingId),
+			markdownDescription: nls.localize('chat.copilot.ensemble.enabled', "When enabled, local Copilot Agent Host sessions present Auto as Ensemble, which optimizes for Balance, High, or Max. Max uses HydraFusion Max, so Ensemble uses HydraFusion v2 unless `#{0}#` is off. Changing this setting can restart the local Copilot runtime.", AgentHostHydraFusionEnabledSettingId),
 			default: false,
 			experiment: { mode: 'startup' },
 			scope: ConfigurationScope.APPLICATION_MACHINE,
@@ -1770,7 +1770,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[AgentHostEnsembleIntelligenceUsesHydraFusionSettingId]: {
 			type: 'boolean',
-			markdownDescription: nls.localize('chat.copilot.ensemble.intelligenceUsesHydraFusion', "When enabled together with `#{0}#`, Ensemble's Intelligence uses HydraFusion v2. When HydraFusion is unavailable, Intelligence routes like Auto.", AgentHostEnsembleEnabledSettingId),
+			markdownDescription: nls.localize('chat.copilot.ensemble.intelligenceUsesHydraFusion', "When enabled together with `#{0}#`, Ensemble's High tier uses HydraFusion v2. When HydraFusion is unavailable, High routes like Auto's Intelligence.", AgentHostEnsembleEnabledSettingId),
 			default: false,
 			experiment: { mode: 'startup' },
 			scope: ConfigurationScope.APPLICATION_MACHINE,
