@@ -98,7 +98,7 @@ function createEnsembleModel(intelligenceUsesHydraFusion = true): ILanguageModel
 					tier: {
 						type: 'string', group: 'navigation', title: 'Optimize for',
 						enum: ['balance', 'intelligence'],
-						enumItemLabels: ['Balance', 'Intelligence'],
+						enumItemLabels: ['Balance', 'High'],
 						default: 'balance',
 					},
 				}
@@ -832,7 +832,7 @@ suite('TabbedModelPicker', () => {
 		assert.deepStrictEqual(autoTiers(result.popup), ['Efficiency', 'Balance', 'Intelligence', 'HydraFusion']);
 	});
 
-	test('Ensemble offers Balance, Intelligence, and Max, with Intelligence using HydraFusion only when routed there and available', async () => {
+	test('Ensemble offers Balance, High, and Max, with High using HydraFusion only when routed there and available', async () => {
 		const max = createHydraFusionMaxModel();
 		const choose = async (option: string, intelligenceUsesHydraFusion: boolean, withHydraFusion = true) => {
 			const ensemble = createEnsembleModel(intelligenceUsesHydraFusion);
@@ -845,21 +845,33 @@ suite('TabbedModelPicker', () => {
 			chooseOption(result.popup, option);
 			await timeout(0);
 			const discount = Array.from(result.popup.querySelectorAll<HTMLElement>('.chat-model-card-discount-description')).find(element => !element.hidden)?.textContent;
+			const description = Array.from(result.popup.querySelectorAll<HTMLElement>('.chat-model-card-alternative-description')).find(element => !element.hidden)?.textContent;
+			const ariaLabel = result.popup.querySelector('.tabbed-action-list-details [role="radio"][aria-checked="true"]')?.getAttribute('aria-label');
 			goBack(result.popup);
-			return { rows, tiers, discount, readout: readout(), selections: result.selections, tier: result.values.get(ensemble.identifier)?.tier };
+			return { rows, tiers, discount, description, ariaLabel, readout: readout(), selections: result.selections, tier: result.values.get(ensemble.identifier)?.tier };
 		};
 		const ensembleIntelligence = {
-			rows: ['Ensemble', '--', 'First', 'Fixed', 'Second'], tiers: ['Balance', 'Intelligence', 'Max'], discount: 'Models routed via Ensemble Intelligence receive a 10% discount.',
-			readout: 'Intelligence', selections: ['copilot/auto'], tier: 'intelligence',
+			rows: ['Ensemble', '--', 'First', 'Fixed', 'Second'], tiers: ['Balance', 'High', 'Max'], discount: 'Models routed via Ensemble High receive a 10% discount.',
+			description: undefined, ariaLabel: 'High', readout: 'High', selections: ['copilot/auto'], tier: 'intelligence',
 		};
 		assert.deepStrictEqual({
-			intelligence: await choose('Intelligence', true),
+			intelligence: await choose('High', true),
 			max: await choose('Max', true),
-			intelligenceNotRouted: await choose('Intelligence', false),
-			intelligenceWithoutHydraFusion: await choose('Intelligence', true, false),
+			intelligenceNotRouted: await choose('High', false),
+			intelligenceWithoutHydraFusion: await choose('High', true, false),
 		}, {
-			intelligence: { rows: ['Ensemble', '--', 'First', 'Fixed', 'Second'], tiers: ['Balance', 'Intelligence', 'Max'], discount: undefined, readout: 'Intelligence', selections: ['copilot/hydrafusion'], tier: undefined },
-			max: { rows: ['Ensemble', '--', 'First', 'Fixed', 'Second'], tiers: ['Balance', 'Intelligence', 'Max'], discount: undefined, readout: 'Max', selections: ['copilot/hydrafusion-max'], tier: undefined },
+			intelligence: {
+				rows: ['Ensemble', '--', 'First', 'Fixed', 'Second'], tiers: ['Balance', 'High', 'Max'], discount: undefined,
+				description: 'High picks a workflow per task, using one or more models. Learn more',
+				ariaLabel: 'High, High picks a workflow per task, using one or more models.',
+				readout: 'High', selections: ['copilot/hydrafusion'], tier: undefined,
+			},
+			max: {
+				rows: ['Ensemble', '--', 'First', 'Fixed', 'Second'], tiers: ['Balance', 'High', 'Max'], discount: undefined,
+				description: 'Max uses multiple models on every task for the most thorough results. Learn more',
+				ariaLabel: 'Max, Max uses multiple models on every task for the most thorough results.',
+				readout: 'Max', selections: ['copilot/hydrafusion-max'], tier: undefined,
+			},
 			intelligenceNotRouted: ensembleIntelligence,
 			intelligenceWithoutHydraFusion: ensembleIntelligence,
 		});

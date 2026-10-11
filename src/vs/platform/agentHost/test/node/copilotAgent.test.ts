@@ -9111,7 +9111,7 @@ suite('CopilotAgent', () => {
 			const published = () => agent.models.get().map(model => {
 				const tier = model.configSchema?.properties.tier;
 				const ensemble = readAgentModelEnsembleMeta(model);
-				return `${model.id}:${model.name}${ensemble ? `:ensemble(intelligenceUsesHydraFusion=${ensemble.intelligenceUsesHydraFusion})` : ''}${tier ? `:${tier.enum?.join('/')}=${tier.default}` : ''}`;
+				return `${model.id}:${model.name}${ensemble ? `:ensemble(intelligenceUsesHydraFusion=${ensemble.intelligenceUsesHydraFusion})` : ''}${tier ? `:${tier.enum?.join('/')}=${tier.default}:${tier.enumLabels?.join('/')}` : ''}`;
 			});
 			try {
 				await agent.authenticate('https://api.github.com', 'token');
@@ -9125,9 +9125,9 @@ suite('CopilotAgent', () => {
 				configurationService.updateRootConfig({ [CopilotCliConfigKey.Ensemble]: false });
 				await agent.refreshModels();
 				assert.deepStrictEqual({ ensemble, routed, auto: published() }, {
-					ensemble: ['auto:Ensemble:ensemble(intelligenceUsesHydraFusion=false):balance/intelligence=balance', 'gpt-5:GPT-5', 'hydrafusion:HydraFusion', 'hydrafusion-max:HydraFusion Max'],
-					routed: ['auto:Ensemble:ensemble(intelligenceUsesHydraFusion=true):balance/intelligence=balance', 'gpt-5:GPT-5', 'hydrafusion:HydraFusion', 'hydrafusion-max:HydraFusion Max'],
-					auto: ['auto:Auto:efficiency/balance/intelligence=balance', 'gpt-5:GPT-5', 'hydrafusion:HydraFusion', 'hydrafusion-max:HydraFusion Max'],
+					ensemble: ['auto:Ensemble:ensemble(intelligenceUsesHydraFusion=false):balance/intelligence=balance:Balance/High', 'gpt-5:GPT-5', 'hydrafusion:HydraFusion', 'hydrafusion-max:HydraFusion Max'],
+					routed: ['auto:Ensemble:ensemble(intelligenceUsesHydraFusion=true):balance/intelligence=balance:Balance/High', 'gpt-5:GPT-5', 'hydrafusion:HydraFusion', 'hydrafusion-max:HydraFusion Max'],
+					auto: ['auto:Auto:efficiency/balance/intelligence=balance:Efficiency/Balance/Intelligence', 'gpt-5:GPT-5', 'hydrafusion:HydraFusion', 'hydrafusion-max:HydraFusion Max'],
 				});
 			} finally {
 				await disposeAgent(agent);
