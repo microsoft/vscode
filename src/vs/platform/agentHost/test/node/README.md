@@ -12,38 +12,12 @@ Tests that launch a real provider process isolate its home, configuration, logs,
 
 The protocol and E2E folders contain their own running and authoring instructions.
 
-## Peer-chat membership recovery (#339409)
+## Mission Control session configuration
 
-`agentHostPeerChatStore.test.ts` covers a corrupted empty legacy mirror being imported
-into the central catalogue, followed by recovery from surviving legacy chat databases.
-Recovery requires a local Copilot CLI session with a restore-created fragment registration
-and matching peer backing metadata. Other providers, default chats, and unrelated owners
-are not inferred from directory names.
+The Mission Control listener publishes Copilot Host's `approvalMode` vocabulary (`manual`, `assisted`, `allow-all`) in place of VS Code's native `autoApprove` vocabulary (`default`, `assisted`, `autoApprove`). The independent `mode` property advertises `interactive`, `plan`, and `autopilot`. Local clients and persisted configuration keep the native representation; Mission Control requests, snapshots, action echoes, and reconnect replay use the wire representation.
 
-`agentService.test.ts` verifies that listing triggers recovery, removes only verified
-phantom registrations without deleting shared storage, and restores titles and lazy
-transcript loading with the original chat URIs and provider continuation metadata.
-The pre-recovery membership is retained in the parent's `agentHost.peerChatRecovery339409`
-metadata. Existing membership order is preserved; missing peers are appended in
-deterministic storage-name order because their original order is no longer available.
-Recovery does not write chat-local metadata or transcripts. Additional missing peers
-require affirmative parent title/source metadata; explicitly deleted peers, unstamped
-orphan storage, and historical chat URIs owned by another central catalogue are excluded.
-Healthy catalogues are not scavenged. The diagnostic record freezes candidate URIs and
-the source revision, and records completion so subsequent removals are not undone.
-Concurrent catalogue changes take precedence over recovery; interrupted mirror writes
-can be retried without discovering additional candidates.
+`missionControlSessionConfig.test.ts` covers the mapping and schema, and the `Mission Control session configuration` suite in `protocolServerHandler.test.ts` covers both sides of the protocol boundary. Run them with:
 
-Dataset tests cover empty, partial and healthy catalogues, newer continuation metadata,
-deletion and ownership conflicts, interrupted recovery, malformed records, missing
-databases, and the catalogue size boundary. Missing peers are restored as active:
-their previous archive flags cannot be inferred after both membership copies were erased.
-The size boundary is enforced transactionally after excluding foreign-owned candidates.
-Malformed recovery evidence is logged per parent without removing its registrations
-or preventing unrelated sessions from being listed or recovered.
-
-Recovery listing tests enable the central catalogue and seed a valid, stale projection
-containing only the default chat. The first list response must include recovered peers
-without opening the parent or materializing transcripts, including after membership
-recovery has already completed and phantom registrations have been removed. Stale
-recovered projections are refreshed through catalogue synchronization before listing.
+```bash
+./scripts/test.sh --run src/vs/platform/agentHost/test/node/missionControlSessionConfig.test.ts --run src/vs/platform/agentHost/test/node/protocolServerHandler.test.ts --grep "Mission Control session config"
+```

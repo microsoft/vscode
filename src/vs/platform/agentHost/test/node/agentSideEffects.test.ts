@@ -26,13 +26,14 @@ import { AgentSession, AgentSignal, IAgent, resolveAgentHostInstructions, resolv
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { buildDefaultChangesetCatalog } from '../../common/changesetUri.js';
 import { readToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
+import { readCodexSessionModel, withCodexSessionModel } from '../../common/meta/codexSessionModel.js';
 import { toAgentMergeMessageMeta } from '../../common/meta/agentMergeMessageMeta.js';
 import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { RootConfigChangedAction } from '../../common/state/protocol/actions.js';
 import { ChatStateSubscription } from '../../common/state/agentSubscription.js';
-import { ChangesSummary, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, SessionInputRequestKind } from '../../common/state/protocol/state.js';
+import { ChangesSummary, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, ConfirmationOptionKind, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, SessionInputRequestKind } from '../../common/state/protocol/state.js';
 import { ActionType, ActionEnvelope, AuthRequiredReason, type ChatAction, type INotification, type SessionAction } from '../../common/state/sessionActions.js';
 import { buildSubagentChatUri, buildChatUri, buildDefaultChatUri, ChatInteractivity, createErrorResponsePart, CustomizationLoadStatus, MessageAttachmentKind, MessageKind, PendingMessageKind, readUsageInfoMeta, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, customizationId, type ChatInputRequest, type ClientPluginCustomization, type Customization, type ISessionGitHubState, type PluginCustomization, type Turn } from '../../common/state/sessionState.js';
 import { IProductService } from '../../../product/common/productService.js';
@@ -83,6 +84,7 @@ import { applyMcpServerEnablement } from '../../node/shared/mcpCustomizationCont
 import { customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
 import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
+import { createLegacyChatMetadataPersistence } from './chatMetadataTestHelpers.js';
 import { MockAgent } from './mockAgent.js';
 import { TestAgentHostTerminalManager } from './testAgentHostTerminalManager.js';
 import { createTestAgentService, getTestAgentStateManager, registerTestAgentProvider } from './agentServiceTestUtils.js';
@@ -137,6 +139,7 @@ class NoopGitStateService implements IAgentHostGitStateService {
 
 	async refreshSessionGitState(_sessionKey: string, _workingDirectory?: URI): Promise<void> { }
 	getMaterializedWorktreeMeta(_sessionKey: string, _branchName: string): undefined { return undefined; }
+	async setFolderGitState(): Promise<void> { }
 	async resolveSessionBaseBranchName(_sessionKey: string): Promise<string | undefined> { return undefined; }
 	async setSessionGitHubState(_sessionKey: string, _state: ISessionGitHubState): Promise<void> { }
 	async recordSessionMerge(_sessionKey: string, _commit: string): Promise<void> { }
@@ -210,7 +213,7 @@ function createTestSideEffects(
 		fileService?: IFileService;
 		onDidCreateTurnService?: (turnService: IAgentHostTurnService) => void;
 	},
-	_gitService?: IAgentHostGitService,
+	gitService: IAgentHostGitService = createNoopGitService(),
 	telemetryService: ITelemetryService = NullTelemetryService,
 	changesets: IAgentHostChangesetService = new FakeChangesetService(),
 	terminalManager: IAgentHostTerminalManager = disposables.add(new TestAgentHostTerminalManager()),
@@ -226,6 +229,7 @@ function createTestSideEffects(
 		[IAgentHostChangesetService, changesets],
 		[IAgentHostCheckpointService, checkpointService],
 		[IAgentHostGitStateService, options.gitStateService ?? new NoopGitStateService()],
+		[IAgentHostGitService, gitService],
 		[IAgentHostStateManager, stateManager],
 		[IAgentSessionRegistry, disposables.add(new AgentSessionRegistry(disposables.add(new AgentHostDatabase(':memory:'))))],
 		[IFileService, options.fileService ?? contributionFileService],
@@ -236,6 +240,7 @@ function createTestSideEffects(
 		[IAdditionalWorktreeLifecycleService, new AdditionalWorktreeLifecycleService(options.sessionDataService, worktreeIsolation)],
 		[IAgentHostClientConnectionService, disposables.add(new AgentHostClientConnectionService())],
 		[IAgentHostPeerChatPersistenceService, {
+			...createLegacyChatMetadataPersistence(options.sessionDataService),
 			_serviceBrand: undefined,
 			setRead: async () => { },
 			setArchived: async () => { },
@@ -243,8 +248,13 @@ function createTestSideEffects(
 	);
 	services.set(ISessionWorkspaceConversionService, {
 		_serviceBrand: undefined,
-		requestSessionWorkspaceUpdate: () => { },
+		supportsChatIsolation: () => false,
+		canIsolateChat: () => false,
+		requestChatIsolation: () => { },
+		restoreChatIsolation: async () => { },
+		requestSessionWorkspaceUpdate: () => true,
 		isPending: () => false,
+		isConversionTurn: () => false,
 		cancel: () => { },
 		updateSessionWorkspace: async () => { },
 	});
@@ -1996,6 +2006,7 @@ suite('AgentSideEffects', () => {
 				eventName: 'agentHost.userMessageSent',
 				data: {
 					provider: 'mock',
+					isOtelEnabled: false,
 					hostLaunchKind: 'vscode_main_process',
 					initiatorClientId: 'client-agents',
 					initiatorClientType: 'agents_window',
@@ -3777,6 +3788,30 @@ suite('AgentSideEffects', () => {
 	// ---- handleAction: chat/turnStarted model selection --------------------
 
 	suite('handleAction — chat/turnStarted model selection', () => {
+		function createCodexTurnHarness(meta?: Record<string, unknown>) {
+			const codexAgent = new MockAgent('codex');
+			disposables.add(toDisposable(() => codexAgent.dispose()));
+			const session = AgentSession.uri('codex', 'model-session');
+			const defaultChat = buildDefaultChatUri(session);
+			stateManager.createSession({
+				resource: session.toString(),
+				provider: 'codex',
+				title: 'Codex model session',
+				status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(),
+				modifiedAt: new Date().toISOString(),
+				_meta: meta,
+			});
+			stateManager.dispatchServerAction(session.toString(), { type: ActionType.SessionReady });
+			const agents = observableValue<readonly IAgent[]>('codexAgents', [codexAgent]);
+			const effects = createTestSideEffects(disposables, stateManager, {
+				getAgent: () => codexAgent,
+				agents,
+				sessionDataService: createNullSessionDataService(),
+				hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess,
+			}, undefined, disposables.add(new AgentHostTelemetryService(telemetryService)));
+			return { codexAgent, defaultChat, effects, session };
+		}
 
 		test('calls changeModel on the agent before sending the message', async () => {
 			setupSession();
@@ -3867,6 +3902,75 @@ suite('AgentSideEffects', () => {
 				model: call.model,
 				chat: call.chat?.toString(),
 			})), [{ session: sessionUri.toString(), model: { id: 'gpt-5' }, chat: chatChannel }]);
+		});
+
+		test('stamps a successful default-chat Codex model selection before provider send', async () => {
+			const { codexAgent, defaultChat, effects, session } = createCodexTurnHarness();
+			const model = { id: '@provider=openai:gpt-5.6-sol' };
+			codexAgent.chatModel = model;
+			let modelAtSend: string | undefined;
+			const sent = new DeferredPromise<void>();
+			codexAgent.sendMessage = async () => {
+				modelAtSend = readCodexSessionModel(stateManager.getSessionState(session.toString()))?.id;
+				sent.complete();
+			};
+			const action = {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'hello', origin: { kind: MessageKind.User }, model },
+			} as const;
+			stateManager.dispatchServerAction(defaultChat, action);
+			effects.handleAction(defaultChat, action);
+			await sent.p;
+
+			assert.deepStrictEqual({
+				modelAtSend,
+				modelInState: readCodexSessionModel(stateManager.getSessionState(session.toString()))?.id,
+			}, {
+				modelAtSend: model.id,
+				modelInState: model.id,
+			});
+		});
+
+		test('does not stamp a rejected Codex model selection', async () => {
+			const original = { id: '@provider=openai:gpt-5.6-sol' };
+			const { codexAgent, defaultChat, effects, session } = createCodexTurnHarness(withCodexSessionModel(undefined, original));
+			codexAgent.chatModel = { id: '@provider=vscode-proxy:gpt-5.6-sol' };
+			codexAgent.chats.changeModel = async () => { throw new Error('model selection failed'); };
+			const failed = Event.toPromise(Event.filter(stateManager.onDidEmitEnvelope, envelope => envelope.action.type === ActionType.ChatError));
+			const action = {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'hello', origin: { kind: MessageKind.User }, model: codexAgent.chatModel },
+			} as const;
+			stateManager.dispatchServerAction(defaultChat, action);
+			effects.handleAction(defaultChat, action);
+			await failed;
+
+			assert.strictEqual(readCodexSessionModel(stateManager.getSessionState(session.toString()))?.id, original.id);
+		});
+
+		test('does not overwrite the session model from a Codex peer chat', async () => {
+			const original = { id: '@provider=openai:gpt-5.6-sol' };
+			const { codexAgent, effects, session } = createCodexTurnHarness(withCodexSessionModel(undefined, original));
+			const peer = buildChatUri(session.toString(), 'peer-1');
+			stateManager.addChat(session.toString(), peer, { title: 'Peer', origin: { kind: ChatOriginKind.User } });
+			codexAgent.chatModel = { id: '@provider=vscode-proxy:gpt-5.6-sol' };
+			const sent = new DeferredPromise<void>();
+			codexAgent.sendMessage = async () => { sent.complete(); };
+			const action = {
+				type: ActionType.ChatTurnStarted,
+				turnId: 'turn-1',
+				startedAt: '2025-01-01T00:00:00.000Z',
+				message: { text: 'hello', origin: { kind: MessageKind.User }, model: codexAgent.chatModel },
+			} as const;
+			stateManager.dispatchServerAction(peer, action);
+			effects.handleAction(peer, action);
+			await sent.p;
+
+			assert.strictEqual(readCodexSessionModel(stateManager.getSessionState(session.toString()))?.id, original.id);
 		});
 	});
 
@@ -4517,6 +4621,7 @@ suite('AgentSideEffects', () => {
 				eventName: 'agentHost.userMessageSent',
 				data: {
 					provider: 'mock',
+					isOtelEnabled: false,
 					hostLaunchKind: 'vscode_main_process',
 					initiatorClientId: undefined,
 					initiatorClientType: 'unknown',
@@ -5695,11 +5800,14 @@ suite('AgentSideEffects', () => {
 			// under PowerShell's case-insensitive matching. Missing language fails
 			// closed before rule analysis.
 			const cases = [
-				['tc-shell-lang-1', 'powershell'],
-				['tc-shell-lang-2', 'bash'],
-				['tc-shell-lang-3', undefined],
+				['tc-shell-lang-1', 'powershell', false],
+				['tc-shell-lang-2', 'bash', false],
+				['tc-shell-lang-3', undefined, false],
+				['tc-shell-json-1', 'powershell', true],
+				['tc-shell-json-2', 'bash', true],
+				['tc-shell-json-3', undefined, true],
 			] as const;
-			for (const [toolCallId, shellLanguage] of cases) {
+			for (const [toolCallId, shellLanguage, structured] of cases) {
 				agent.fireProgress({
 					kind: 'action', resource: URI.parse(defaultChatUri),
 					action: {
@@ -5713,11 +5821,13 @@ suite('AgentSideEffects', () => {
 					state: {
 						status: ToolCallStatus.PendingConfirmation,
 						toolCallId, toolName: '', displayName: '',
-						invocationMessage: 'Run command', toolInput: 'get-childitem',
+						invocationMessage: 'Run command',
+						toolInput: structured ? JSON.stringify({ command: 'get-childitem', description: 'Inspect the directory' }) : 'get-childitem',
 						confirmationTitle: 'Run in terminal?', edits: undefined,
 					},
 					permissionKind: 'shell', permissionPath: undefined,
 					shellLanguage,
+					shellCommand: structured ? 'get-childitem' : undefined,
 				});
 			}
 
@@ -5730,7 +5840,7 @@ suite('AgentSideEffects', () => {
 				state.activeTurn?.responseParts.map(p => p.kind === ResponsePartKind.ToolCall
 					? [p.toolCall._meta?.['autoApproveBySetting'], p.toolCall._meta?.['autoApproveRuleResolvable']]
 					: undefined),
-				[[true, undefined], [undefined, true], [undefined, undefined]],
+				[[true, undefined], [undefined, true], [undefined, undefined], [true, undefined], [undefined, true], [undefined, undefined]],
 				'powershell auto-approves; bash stays rule-resolvable; missing language is neither');
 		});
 
@@ -8492,6 +8602,52 @@ suite('AgentSideEffects', () => {
 	// ---- Session permissions ------------------------------------------------
 
 	suite('session permissions', () => {
+
+		test('live sampling tool parts route their custom approval without granting ordinary tool permissions', () => {
+			setupSession();
+			startTurn('turn-1', defaultChatUri);
+			disposables.add(sideEffects.registerProgressListener(agent));
+			const responses: Parameters<IAgent['respondToPermissionRequest']>[] = [];
+			agent.respondToPermissionRequest = (...args) => { responses.push(args); };
+			agent.fireProgress({
+				kind: 'action', resource: URI.parse(defaultChatUri),
+				action: {
+					type: ActionType.ChatToolCallStart, turnId: 'turn-1',
+					toolCallId: 'sampling-1', toolName: 'mcp_sampling', displayName: 'MCP Sampling',
+				},
+			});
+			agent.fireProgress({
+				kind: 'action', resource: URI.parse(defaultChatUri),
+				action: {
+					type: ActionType.ChatToolCallReady, turnId: 'turn-1',
+					toolCallId: 'sampling-1', invocationMessage: 'MCP sampling from test-server',
+					confirmationTitle: 'Allow Sampling from test-server?',
+					options: [{ id: 'allow-sampling-always', label: 'Always Allow for This Server', kind: ConfirmationOptionKind.Approve }],
+				},
+			});
+			const part = stateManager.getSessionState(defaultChatUri)?.activeTurn?.responseParts[0];
+			assert.ok(part?.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.PendingConfirmation);
+			assert.deepStrictEqual({
+				status: part.toolCall.status,
+				options: part.toolCall.options,
+				responses,
+			}, {
+				status: ToolCallStatus.PendingConfirmation,
+				options: [{ id: 'allow-sampling-always', label: 'Always Allow for This Server', kind: 'approve' }],
+				responses: [],
+			});
+			sideEffects.handleAction(defaultChatUri, {
+				type: ActionType.ChatToolCallConfirmed, turnId: 'turn-1', toolCallId: 'sampling-1',
+				approved: true, confirmed: ToolCallConfirmationReason.UserAction, selectedOptionId: 'allow-sampling-always',
+			});
+			assert.deepStrictEqual({
+				responses,
+				permissions: stateManager.getSessionState(sessionUri.toString())?.config?.values.permissions,
+			}, {
+				responses: [['sampling-1', true, { selectedOptionId: 'allow-sampling-always', origin: undefined }]],
+				permissions: undefined,
+			});
+		});
 
 		test('tool_ready action includes confirmation options when confirmation is needed', async () => {
 			setupSession();

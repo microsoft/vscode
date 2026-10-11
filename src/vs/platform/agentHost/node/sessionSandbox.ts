@@ -21,6 +21,34 @@ export function getSessionSandboxConfig(configuration: IAgentConfigurationServic
 		...configuration.getRootValue(sandboxConfigSchema, AgentHostSandboxConfigKey.Sandbox),
 		...getSessionSandboxOverrides(configuration, session),
 	};
+	const policy = configuration.getSessionSandboxPolicy(session);
+	const addCurrentWorkingDirectory = SandboxSettingsResolutionHelper.resolveAllowAccess(
+		sandbox[AgentHostSandboxKey.AddCurrentWorkingDirectory],
+		policy?.addCurrentWorkingDirectory,
+	);
+	if (addCurrentWorkingDirectory !== undefined) {
+		sandbox[AgentHostSandboxKey.AddCurrentWorkingDirectory] = addCurrentWorkingDirectory;
+	}
+	if (sandbox.allowedNetworkDomains !== undefined || sandbox.deniedNetworkDomains !== undefined
+		|| policy?.allowedHosts !== undefined || policy?.blockedHosts !== undefined) {
+		const hosts = SandboxSettingsResolutionHelper.resolveNetworkHosts(
+			sandbox.allowedNetworkDomains, sandbox.deniedNetworkDomains,
+			policy?.allowedHosts, policy?.blockedHosts,
+		);
+		sandbox.allowedNetworkDomains = hosts.allowedHosts;
+		sandbox.deniedNetworkDomains = hosts.blockedHosts;
+	}
+	if (sandbox[AgentHostSandboxKey.UserConfiguredPaths] !== undefined || policy?.readwritePaths !== undefined
+		|| policy?.readonlyPaths !== undefined || policy?.deniedPaths !== undefined) {
+		sandbox[AgentHostSandboxKey.UserConfiguredPaths] = SandboxSettingsResolutionHelper.resolveFileSystemPaths(
+			sandbox[AgentHostSandboxKey.UserConfiguredPaths],
+			policy && {
+				readwritePaths: policy.readwritePaths ? [...policy.readwritePaths] : undefined,
+				readonlyPaths: policy.readonlyPaths ? [...policy.readonlyPaths] : undefined,
+				deniedPaths: policy.deniedPaths ? [...policy.deniedPaths] : undefined,
+			},
+		);
+	}
 	const fileSystemKey = platform === 'win32' ? AgentHostSandboxKey.WindowsFileSystem
 		: platform === 'darwin' ? AgentHostSandboxKey.MacFileSystem : AgentHostSandboxKey.LinuxFileSystem;
 	const fileSystem = sandbox[fileSystemKey];

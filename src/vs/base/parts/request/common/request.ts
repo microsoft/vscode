@@ -55,6 +55,17 @@ export interface IRequestOptions {
 	 * Use "NO_FETCH_TELEMETRY" to opt out of request telemetry.
 	 */
 	callSite: string;
+	/** Opts into local timing diagnostics and User Timing marks; never sent to the server. */
+	diagnosticId?: string;
+}
+
+export interface IRequestTimings {
+	/** Client wait until response headers arrive, including connection setup and redirects. */
+	readonly responseHeadersMs: number;
+	/** Time spent consuming the response after receiving headers. */
+	readonly responseBodyMs: number;
+	/** Decompressed response size, not compressed bytes transferred on the wire. */
+	readonly decodedBodyBytes: number;
 }
 
 export interface IRequestContext {
@@ -63,4 +74,6 @@ export interface IRequestContext {
 		statusCode?: number;
 	};
 	stream: VSBufferReadableStream;
+	/** Available for diagnostic requests using the fetch-backed implementation. */
+	timings?: IRequestTimings;
 }

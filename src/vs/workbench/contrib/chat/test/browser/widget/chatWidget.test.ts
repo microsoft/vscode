@@ -10,7 +10,7 @@ import { DeferredPromise, timeout } from '../../../../../../base/common/async.js
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, IObservable, IReader, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mockObject, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -21,6 +21,8 @@ import { IDialogService } from '../../../../../../platform/dialogs/common/dialog
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../../platform/hover/test/browser/nullHoverService.js';
+import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { ILinkDescriptor, ILinkOptions, Link } from '../../../../../../platform/opener/browser/link.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
@@ -29,6 +31,7 @@ import { SaveReason } from '../../../../../common/editor.js';
 import { IEditorService, ISaveAllEditorsOptions, ISaveEditorsResult } from '../../../../../services/editor/common/editorService.js';
 import { TestEditorService } from '../../../../../test/browser/workbenchTestServices.js';
 import { IChatAttachmentResolveService } from '../../../browser/attachments/chatAttachmentResolveService.js';
+import { IChatAttachmentChangeEvent } from '../../../browser/attachments/chatAttachmentModel.js';
 import { IChatSubmitRequestHandlerService } from '../../../browser/chatSubmitRequestHandlerService.js';
 import { IChatTipService } from '../../../browser/chatTipService.js';
 import { ChatUserInteraction, ChatUserInteractionTimingResult, IChatUserInteractionOptions } from '../../../browser/chatUserInteractionTelemetry.js';
@@ -39,6 +42,7 @@ import { IChatAcceptInputOptions, IChatListItemRendererOptions, IChatWidgetViewM
 import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
 import { ChatRequestVariableSet } from '../../../common/attachments/chatVariableEntries.js';
 import { clearChatMarks } from '../../../common/chatPerf.js';
+import { CloudSandboxSessionTrace } from '../../../common/cloudSandboxSessionTrace.js';
 import { ChatRequestQueueKind, ChatSendResult, ChatSendResultSent, IChatSendRequestData, IChatSendRequestOptions, IChatService } from '../../../common/chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
 import { IChatMode } from '../../../common/chatModes.js';
@@ -51,12 +55,245 @@ import { ChatRequestParser } from '../../../common/requestParser/chatRequestPars
 import { ToolAndToolSetEnablementMap } from '../../../common/tools/languageModelToolsService.js';
 import { observePromptTimelineHostWidth } from '../../../browser/promptTimeline/promptTimelineWidgetContrib.js';
 import { ChatContentMarkdownRenderer } from '../../../browser/widget/chatContentMarkdownRenderer.js';
+import { ChatReadOnlyBanner } from '../../../browser/widget/chatReadOnlyBanner.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { createChatUserInteractionTestHarness } from '../chatUserInteractionTestUtils.js';
+import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
+import { SessionType } from '../../../common/chatSessionsService.js';
 
 suite('ChatWidget', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('history failure updates the existing read-only banner without repeating announcements or retaining hovers', () => {
+		let activeHovers = 0;
+		let createdHovers = 0;
+		const instantiation = store.add(new TestInstantiationService());
+		instantiation.stub(IOpenerService, { open: async () => true });
+		instantiation.stub(IHoverService, upcastPartial<IHoverService>({
+			setupDelayedHover: () => {
+				activeHovers++;
+				createdHovers++;
+				return toDisposable(() => activeHovers--);
+			},
+		}));
+		const banner = store.add(instantiation.createInstance(ChatReadOnlyBanner, 'This chat is read-only'));
+		banner.setVisible(true);
+		banner.setMessage('Couldn\'t refresh this conversation. Recent messages may be missing.');
+		const text = banner.domNode.querySelector('.chat-readonly-banner-text')!;
+		const firstNode = text.firstChild;
+		banner.setMessage('Couldn\'t refresh this conversation. Recent messages may be missing.');
+		const updating = { message: text.textContent, sameNode: firstNode === text.firstChild, activeHovers, createdHovers };
+		banner.setMessage(undefined);
+		const restored = text.textContent;
+		banner.dispose();
+		assert.deepStrictEqual({ updating, restored, activeHovers, role: banner.domNode.getAttribute('role') }, {
+			updating: { message: 'Couldn\'t refresh this conversation. Recent messages may be missing.', sameNode: true, activeHovers: 1, createdHovers: 2 },
+			restored: 'This chat is read-only', activeHovers: 0, role: 'status',
+		});
+	});
+
+	test('records the first visible transcript refresh once on the correlated local trace', () => {
+		const messages: string[] = [];
+		const logService = new class extends NullLogService {
+			override info(message: string): void { messages.push(message); }
+		}();
+		const trace = store.add(new CloudSandboxSessionTrace(logService));
+		const resource = URI.parse('test:/private-session');
+		const model = upcastPartial<IChatModel>({ sessionResource: resource });
+		trace.associate(model);
+		const visible = observableValue('visible', false);
+		const widget = Object.assign(Object.create(ChatWidget.prototype), {
+			_visible: visible,
+			_viewModel: upcastPartial<ChatViewModel>({ model, sessionResource: resource, getItems: () => [] }),
+			_pendingFirstRenderSessionResource: resource,
+			_onWillMaybeChangeHeight: store.add(new Emitter<void>()),
+			logService,
+			listWidget: { setVisibleChangeCount: () => { }, refresh: () => { } },
+			renderWelcomeViewContentIfNeeded: () => { },
+			renderFollowups: () => { },
+		}) as { onDidChangeItems(): void };
+		widget.onDidChangeItems();
+		const whileHidden = messages.filter(message => message.includes('event=firstRender')).length;
+		visible.set(true, undefined);
+		widget.onDidChangeItems();
+		widget.onDidChangeItems();
+
+		assert.deepStrictEqual({
+			whileHidden,
+			whenVisible: messages.filter(message => message.includes(`traceId=${trace.id} event=firstRender`)).length,
+			privateData: messages.some(message => message.includes('private-session')),
+		}, { whileHidden: 0, whenVisible: 1, privateData: false });
+	});
+
+	function createRequestToolsWidget() {
+		const sessionA = upcastPartial<ChatViewModel>({ sessionResource: URI.parse('test:/a') });
+		const sessionB = upcastPartial<ChatViewModel>({ sessionResource: URI.parse('test:/b') });
+		const viewModel = observableValue('viewModel', sessionA);
+		const mode = observableValue('mode', upcastPartial<IChatMode>({ id: 'agent' }));
+		const toolsOwner: { widget: ChatWidget | undefined } = { widget: undefined };
+		const tools = observableValue(toolsOwner, { toolA: true });
+		const widgetReference = observableValue<ChatWidget | undefined>('requestToolsWidget', undefined);
+		const widget = Object.assign(Object.create(ChatWidget.prototype), {
+			_store: store.add(new DisposableStore()),
+			_requestToolsWidget: widgetReference,
+			_requestToolsSources: new WeakMap<object, typeof tools>(),
+			_viewModel: sessionA,
+			_viewModelObs: viewModel,
+			inputPartDisposable: { value: {} },
+		}) as ChatWidget;
+		const input = {
+			currentModeObs: mode,
+			currentModeInfo: { kind: ChatModeKind.Agent },
+			selectedToolsModel: { userSelectedTools: tools },
+		};
+		Object.defineProperty(widget, 'input', { value: input, configurable: true });
+		toolsOwner.widget = widget;
+		widgetReference.set(widget, undefined);
+		return { widget, widgetReference, sessionA, sessionB, viewModel, mode, tools, input };
+	}
+
+	function captureReplacedRequestTools(retainRequest: boolean) {
+		const { widget, tools, input } = createRequestToolsWidget();
+		store.add(toDisposable(() => widget.dispose()));
+		const scopedTools = widget.getModeRequestOptions().userSelectedTools!;
+		tools.set({ toolA: false }, undefined);
+		Object.defineProperty(widget, 'input', {
+			value: { ...input, selectedToolsModel: { userSelectedTools: observableValue('replacementTools', { toolA: true }) } },
+		});
+		return {
+			widget,
+			source: new WeakRef(tools),
+			request: new WeakRef(scopedTools),
+			scopedTools: retainRequest ? scopedTools : undefined,
+		};
+	}
+
+	test('request tools preserve their original input source across GC and release it on widget disposal', async function () {
+		if (typeof globalThis.gc !== 'function') {
+			this.skip();
+		}
+		const captured = captureReplacedRequestTools(true);
+		await timeout(0);
+		await globalThis.gc!({ type: 'major', execution: 'async' });
+		const beforeDisposal = {
+			sourceAlive: captured.source.deref() !== undefined,
+			tools: captured.scopedTools!.get(),
+		};
+		captured.widget.dispose();
+		await timeout(0);
+		await globalThis.gc!({ type: 'major', execution: 'async' });
+
+		assert.deepStrictEqual({
+			beforeDisposal,
+			afterDisposal: {
+				source: captured.source.deref(),
+				tools: captured.scopedTools!.get(),
+			},
+		}, {
+			beforeDisposal: { sourceAlive: true, tools: { toolA: false } },
+			afterDisposal: { source: undefined, tools: { toolA: false } },
+		});
+	});
+
+	test('a live widget does not retain the tools source of a collected request', async function () {
+		if (typeof globalThis.gc !== 'function') {
+			this.skip();
+		}
+		const captured = captureReplacedRequestTools(false);
+		await timeout(0);
+		await globalThis.gc!({ type: 'major', execution: 'async' });
+
+		assert.deepStrictEqual({
+			request: captured.request.deref(),
+			source: captured.source.deref(),
+		}, {
+			request: undefined,
+			source: undefined,
+		});
+	});
+
+	for (const observed of [false, true]) {
+		test(`disposal freezes the last tools snapshot (${observed ? 'observed' : 'unobserved'})`, () => {
+			const { widget, tools } = createRequestToolsWidget();
+			const scopedTools = widget.getModeRequestOptions().userSelectedTools!;
+			if (observed) {
+				scopedTools.recomputeInitiallyAndOnChange(store.add(new DisposableStore()));
+			}
+			scopedTools.get();
+			tools.set({ toolA: false }, undefined);
+			widget.dispose();
+			widget.dispose();
+			tools.set({ toolA: true }, undefined);
+
+			assert.deepStrictEqual(scopedTools.get(), { toolA: !observed });
+		});
+
+		test(`request tools release their widget on disposal (${observed ? 'observed' : 'unobserved'})`, () => {
+			const { widget, widgetReference, sessionA, sessionB, viewModel, mode, tools, input } = createRequestToolsWidget();
+			const scopedTools = widget.getModeRequestOptions().userSelectedTools!;
+			if (observed) {
+				scopedTools.recomputeInitiallyAndOnChange(store.add(new DisposableStore()));
+			}
+			const snapshots = [scopedTools.get()];
+			tools.set({ toolA: false }, undefined);
+			snapshots.push(scopedTools.get());
+			viewModel.set(sessionB, undefined);
+			tools.set({ toolA: true }, undefined);
+			snapshots.push(scopedTools.get());
+			mode.set(upcastPartial<IChatMode>({ id: 'ask' }), undefined);
+			viewModel.set(sessionA, undefined);
+			snapshots.push(scopedTools.get());
+			mode.set(upcastPartial<IChatMode>({ id: 'agent' }), undefined);
+			snapshots.push(scopedTools.get());
+			Object.defineProperty(widget, 'input', {
+				value: { ...input, selectedToolsModel: { userSelectedTools: observableValue('otherTools', { toolA: true }) } },
+			});
+			tools.set({ toolA: false }, undefined);
+			snapshots.push(scopedTools.get());
+			widget.dispose();
+			tools.set({ toolA: true }, undefined);
+			snapshots.push(scopedTools.get());
+
+			assert.deepStrictEqual({
+				widgetReleased: widgetReference.get() === undefined,
+				snapshots,
+			}, {
+				widgetReleased: true,
+				snapshots: [
+					{ toolA: true }, { toolA: false }, { toolA: false },
+					{ toolA: false }, { toolA: true }, { toolA: false }, { toolA: false },
+				],
+			});
+		});
+
+		function captureDisposedWidget() {
+			const { widget } = createRequestToolsWidget();
+			const scopedTools = widget.getModeRequestOptions().userSelectedTools!;
+			if (observed) {
+				scopedTools.recomputeInitiallyAndOnChange(store.add(new DisposableStore()));
+			}
+			widget.dispose();
+			return { widget: new WeakRef(widget), scopedTools };
+		}
+
+		test(`request tools allow a disposed widget to be collected (${observed ? 'observed' : 'unobserved'})`, async function () {
+			if (typeof globalThis.gc !== 'function') {
+				this.skip();
+			}
+			const captured = captureDisposedWidget();
+			await timeout(0);
+			await globalThis.gc!({ type: 'major', execution: 'async' });
+
+			assert.deepStrictEqual({
+				widget: captured.widget.deref(),
+				tools: captured.scopedTools.get(),
+			}, {
+				widget: undefined,
+				tools: { toolA: true },
+			});
+		});
+	}
 
 	function createTranscriptProgressWidget() {
 		const container = dom.append(mainWindow.document.body, dom.$('.interactive-session'));
@@ -528,6 +765,7 @@ suite('ChatWidget', () => {
 			currentModeInfo: upcastPartial<ChatInputPart['currentModeInfo']>({}),
 			dnd: upcastPartial<ChatInputPart['dnd']>({ setDisabledOverlay: () => { } }),
 			onDidLoadInputState: Event.None,
+			onDidChangeDraft: Event.None,
 			onDidFocus: onDidFocus.event,
 			onDidAcceptFollowup: Event.None,
 			onDidChangeCurrentChatMode: Event.None,
@@ -988,6 +1226,7 @@ suite('ChatWidget', () => {
 		let rerenders = 0;
 		const widget: ChatWidget = Object.assign(Object.create(ChatWidget.prototype), {
 			_readOnly: false,
+			_draftOnly: observableValue('draftOnly', false),
 			_visible: observableValue('visible', true),
 			_readOnlyContextKey: { set: () => { } },
 			chatSuggestNextWidget: { hide: () => { } },
@@ -1009,6 +1248,339 @@ suite('ChatWidget', () => {
 			rerenders: 3,
 			inputVisibility: [false, true, true],
 		});
+	});
+
+	test('policy read-only banner follows history switches and does not relabel other read-only states', () => {
+		const instantiation = store.add(new TestInstantiationService());
+		instantiation.stub(IHoverService, NullHoverService);
+		instantiation.stub(IOpenerService, { open: async () => true });
+		const banner = store.add(instantiation.createInstance(ChatReadOnlyBanner, 'This chat is read-only'));
+		const container = dom.$('div');
+		container.appendChild(banner.domNode);
+		dom.append(container, dom.$('div'));
+		const policy = observableValue('policy', true);
+		const sessionChanges = store.add(new Emitter<void>());
+		let archivedState = false;
+		let readOnlyUpdates = 0;
+		const local = upcastPartial<IChatModel>({
+			sessionResource: LocalChatSessionUri.forSession('old-local'), hasRequests: true,
+			isReadOnly: constObservable(false), isInputBlocked: policy,
+		});
+		const copilot = upcastPartial<IChatModel>({
+			sessionResource: URI.from({ scheme: SessionType.AgentHostCopilot, path: '/new' }), hasRequests: true,
+			isReadOnly: constObservable(false), isInputBlocked: constObservable(false),
+		});
+		const inline = upcastPartial<IChatModel>({
+			sessionResource: LocalChatSessionUri.forSession('inline'), initialLocation: ChatAgentLocation.EditorInline,
+			hasRequests: true, isReadOnly: constObservable(false), isInputBlocked: constObservable(false),
+		});
+		const archived = upcastPartial<IChatModel>({
+			sessionResource: LocalChatSessionUri.forSession('archived'), hasRequests: true,
+			isReadOnly: constObservable(true), isInputBlocked: constObservable(false),
+		});
+		const selected = observableValue('selected', local);
+		const widget: {
+			observeLocalSessionArchived(model: IChatModel): IObservable<boolean>;
+			updateReadOnlyState(model: IChatModel, archived: boolean, reader: IReader): void;
+			_viewModel: { sessionResource: URI; model: IChatModel };
+		} = Object.assign(Object.create(ChatWidget.prototype), {
+			_readOnly: false, _draftOnly: observableValue('draftOnly', false), _visible: constObservable(false),
+			_readOnlyContextKey: { set: () => { } }, policyRequiresAgentHost: policy, readOnlyBanner: banner,
+			agentSessionsService: {
+				model: { onDidChangeSessions: sessionChanges.event },
+				getSession: () => ({ isArchived: () => archivedState }),
+			},
+			chatSuggestNextWidget: { hide: () => { } }, hasInputFocus: () => false,
+			setInputVisible: () => { }, renderChatSuggestNextWidget: () => { },
+			listWidget: { updateRendererOptions: () => { readOnlyUpdates++; } },
+			inputPartDisposable: { value: { inputUri: URI.parse('vscode-chat-input:policy-banner') } },
+		});
+		store.add(autorun(reader => {
+			const model = selected.read(reader);
+			widget._viewModel = { sessionResource: model.sessionResource, model };
+			const archived = widget.observeLocalSessionArchived(model);
+			reader.store.add(autorun(reader => widget.updateReadOnlyState(model, archived.read(reader), reader)));
+		}));
+		const snapshot = () => ({
+			visible: banner.visible, text: banner.domNode.querySelector('.chat-readonly-banner-text')?.textContent,
+			action: banner.domNode.querySelector('a')?.textContent,
+			atTop: container.firstChild === banner.domNode,
+		});
+		const original = snapshot();
+		const initialUpdates = readOnlyUpdates;
+		sessionChanges.fire();
+		const unrelatedUpdateChangedBanner = readOnlyUpdates !== initialUpdates;
+		selected.set(copilot, undefined);
+		const away = snapshot();
+		selected.set(inline, undefined);
+		const inlineUnderPolicy = snapshot();
+		selected.set(local, undefined);
+		const returned = snapshot();
+		archivedState = true;
+		sessionChanges.fire();
+		const archivedUnderPolicy = snapshot();
+		selected.set(copilot, undefined);
+		const otherProviderWhileArchived = snapshot();
+		selected.set(local, undefined);
+		policy.set(false, undefined);
+		const archivedAfterRemoval = snapshot();
+		archivedState = false;
+		sessionChanges.fire();
+		const removed = snapshot();
+		selected.set(archived, undefined);
+		assert.deepStrictEqual({ original, unrelatedUpdateChangedBanner, away, inlineUnderPolicy, returned, archivedUnderPolicy, otherProviderWhileArchived, archivedAfterRemoval, removed, archived: snapshot() }, {
+			original: { visible: true, text: 'This chat is read-only because your organization requires the new Copilot experience.', action: 'Move to Copilot', atTop: true },
+			unrelatedUpdateChangedBanner: false,
+			away: { visible: false, text: 'This chat is read-only', action: '', atTop: true },
+			inlineUnderPolicy: { visible: false, text: 'This chat is read-only', action: '', atTop: true },
+			returned: original,
+			archivedUnderPolicy: { visible: true, text: 'This chat is read-only', action: '', atTop: true },
+			otherProviderWhileArchived: { visible: false, text: 'This chat is read-only', action: '', atTop: true },
+			archivedAfterRemoval: { visible: false, text: 'This chat is read-only', action: '', atTop: true },
+			removed: { visible: false, text: 'This chat is read-only', action: '', atTop: true },
+			archived: { visible: true, text: 'This chat is read-only', action: '', atTop: true },
+		});
+	});
+
+	test('read-only banner disables its action while it is running', async () => {
+		const instantiation = store.add(new TestInstantiationService());
+		instantiation.stub(IHoverService, NullHoverService);
+		instantiation.stub(IOpenerService, { open: async () => true });
+		const banner = store.add(instantiation.createInstance(ChatReadOnlyBanner, undefined));
+		const pending = new DeferredPromise<void>();
+		let calls = 0;
+		banner.setAction({ label: 'Move to Copilot', run: () => { calls++; return pending.p; } });
+		banner.setVisible(true);
+		const link = banner.domNode.querySelector('a')!;
+		const snapshot = () => ({ calls, disabled: link.getAttribute('aria-disabled'), tabIndex: link.tabIndex });
+		link.click();
+		link.click();
+		const running = snapshot();
+		await pending.complete();
+		const finished = snapshot();
+		link.click();
+		await pending.p;
+		assert.deepStrictEqual({ running, finished, retried: snapshot() }, {
+			running: { calls: 1, disabled: 'true', tabIndex: -1 },
+			finished: { calls: 1, disabled: 'false', tabIndex: 0 },
+			retried: { calls: 2, disabled: 'false', tabIndex: 0 },
+		});
+	});
+
+	function createAutomaticMigrationFixture(options: { location?: ChatAgentLocation; resource?: URI; hasRequests?: boolean } = {}) {
+		const instantiation = store.add(new TestInstantiationService());
+		instantiation.stub(IHoverService, NullHoverService);
+		instantiation.stub(IOpenerService, { open: async () => true });
+		const banner = store.add(instantiation.createInstance(ChatReadOnlyBanner, 'Original chat'));
+		const visible = observableValue('visible', false);
+		const policy = observableValue('policy', false);
+		const archived = observableValue('archived', false);
+		const requestInProgress = observableValue('requestInProgress', false);
+		let hasRequests = options.hasRequests ?? true;
+		const model = upcastPartial<IChatModel>({
+			sessionResource: options.resource ?? LocalChatSessionUri.forSession('automatic-migration'),
+			initialLocation: options.location ?? ChatAgentLocation.Chat,
+			get hasRequests() { return hasRequests; },
+			requestInProgress,
+		});
+		const errors: string[] = [];
+		const widget: { autoMigrateLocalSession(model: IChatModel, archived: IObservable<boolean>): IDisposable } = Object.assign(Object.create(ChatWidget.prototype), {
+			_visible: visible, policyRequiresAgentHost: policy, readOnlyBanner: banner,
+			_viewModel: { model },
+			logService: { error: (message: string) => errors.push(message) },
+			setReadOnly: () => banner.setMessage(),
+		});
+		const observation = store.add(widget.autoMigrateLocalSession(model, archived));
+		return { banner, visible, policy, archived, requestInProgress, errors, observation, setHasRequests: (value: boolean) => { hasRequests = value; } };
+	}
+
+	for (const policyDuringRequest of [false, true]) {
+		test(`automatically migrates a chat that started empty when policy arrives ${policyDuringRequest ? 'during' : 'after'} its request`, async () => {
+			const fixture = createAutomaticMigrationFixture({ hasRequests: false });
+			let calls = 0;
+			fixture.banner.setAction({ label: 'Move to Copilot', run: async () => { calls++; } });
+			fixture.visible.set(true, undefined);
+			fixture.setHasRequests(true);
+			fixture.requestInProgress.set(true, undefined);
+			if (policyDuringRequest) {
+				fixture.policy.set(true, undefined);
+			}
+			await timeout(0);
+			const beforeCompletion = calls;
+			fixture.requestInProgress.set(false, undefined);
+			fixture.policy.set(true, undefined);
+			await timeout(0);
+			const afterCompletion = calls;
+			fixture.requestInProgress.set(true, undefined);
+			fixture.requestInProgress.set(false, undefined);
+			await timeout(0);
+			assert.deepStrictEqual({ beforeCompletion, afterCompletion, finalCalls: calls }, {
+				beforeCompletion: 0, afterCompletion: 1, finalCalls: 1,
+			});
+		});
+	}
+
+	test('automatically migrates displayed Local history once after policy and the active request settle', async () => {
+		const fixture = createAutomaticMigrationFixture();
+		let calls = 0;
+		fixture.banner.setAction({ label: 'Move to Copilot', run: async () => { calls++; } });
+		fixture.policy.set(true, undefined);
+		await timeout(0);
+		const hiddenCalls = calls;
+		fixture.requestInProgress.set(true, undefined);
+		fixture.visible.set(true, undefined);
+		await timeout(0);
+		const activeCalls = calls;
+		fixture.requestInProgress.set(false, undefined);
+		const immediateCalls = calls;
+		await timeout(0);
+		const displayedCalls = calls;
+		fixture.visible.set(false, undefined);
+		fixture.visible.set(true, undefined);
+		fixture.policy.set(false, undefined);
+		fixture.policy.set(true, undefined);
+		await timeout(0);
+		assert.deepStrictEqual({ hiddenCalls, activeCalls, immediateCalls, displayedCalls, finalCalls: calls }, {
+			hiddenCalls: 0, activeCalls: 0, immediateCalls: 0, displayedCalls: 1, finalCalls: 1,
+		});
+	});
+
+	for (const scenario of ['inline', 'terminal', 'empty', 'copilot', 'archived', 'unmanaged'] as const) {
+		test(`does not automatically migrate ${scenario} chats`, async () => {
+			const fixture = createAutomaticMigrationFixture({
+				location: scenario === 'inline' ? ChatAgentLocation.EditorInline : scenario === 'terminal' ? ChatAgentLocation.Terminal : ChatAgentLocation.Chat,
+				resource: scenario === 'copilot' ? URI.from({ scheme: SessionType.AgentHostCopilot, path: '/existing' }) : undefined,
+				hasRequests: scenario !== 'empty',
+			});
+			let calls = 0;
+			fixture.banner.setAction({ label: 'Move to Copilot', run: async () => { calls++; } });
+			fixture.archived.set(scenario === 'archived', undefined);
+			fixture.policy.set(scenario !== 'unmanaged', undefined);
+			fixture.visible.set(true, undefined);
+			await timeout(0);
+			assert.strictEqual(calls, 0);
+		});
+	}
+
+	for (const scenario of ['hidden', 'disposed', 'policy-removed', 'archived'] as const) {
+		test(`cancels scheduled automatic migration when ${scenario}`, async () => {
+			const fixture = createAutomaticMigrationFixture();
+			let calls = 0;
+			fixture.banner.setAction({ label: 'Move to Copilot', run: async () => { calls++; } });
+			fixture.policy.set(true, undefined);
+			fixture.visible.set(true, undefined);
+			if (scenario === 'hidden') {
+				fixture.visible.set(false, undefined);
+			} else if (scenario === 'disposed') {
+				fixture.observation.dispose();
+			} else if (scenario === 'policy-removed') {
+				fixture.policy.set(false, undefined);
+			} else {
+				fixture.archived.set(true, undefined);
+			}
+			await timeout(0);
+			assert.strictEqual(calls, 0);
+		});
+	}
+
+	test('failed automatic migration keeps an enabled manual retry without automatically retrying', async () => {
+		const fixture = createAutomaticMigrationFixture();
+		let calls = 0;
+		fixture.banner.setAction({
+			label: 'Move to Copilot',
+			run: async () => {
+				if (++calls === 1) {
+					throw new Error('Host unavailable');
+				}
+			},
+		});
+		fixture.visible.set(true, undefined);
+		fixture.policy.set(true, undefined);
+		await timeout(0);
+		fixture.visible.set(false, undefined);
+		fixture.visible.set(true, undefined);
+		await timeout(0);
+		const failedCalls = calls;
+		const message = fixture.banner.domNode.querySelector('.chat-readonly-banner-text')?.textContent;
+		const link = fixture.banner.domNode.querySelector('a')!;
+		const disabled = link.getAttribute('aria-disabled');
+		link.click();
+		await timeout(0);
+		assert.deepStrictEqual({ failedCalls, message, disabled, calls, errors: fixture.errors }, {
+			failedCalls: 1,
+			message: 'Couldn\'t move this chat to Copilot. Use Move to Copilot to try again.',
+			disabled: 'false', calls: 2, errors: ['Failed to automatically move Local chat to Copilot'],
+		});
+	});
+
+	test('cancelled automatic migration restores the ordinary banner without reporting an error', async () => {
+		const fixture = createAutomaticMigrationFixture();
+		fixture.banner.setAction({ label: 'Move to Copilot', run: async () => { throw new CancellationError(); } });
+		fixture.visible.set(true, undefined);
+		fixture.policy.set(true, undefined);
+		await timeout(0);
+		assert.deepStrictEqual({ message: fixture.banner.domNode.querySelector('.chat-readonly-banner-text')?.textContent, errors: fixture.errors }, {
+			message: 'Original chat', errors: [],
+		});
+	});
+
+	test('draft input events include IME and exclude focus, restored content, and restored attachments', async () => {
+		const typed = store.add(new Emitter<string>());
+		const pasted = store.add(new Emitter<void>());
+		const compositionEnded = store.add(new Emitter<void>());
+		const focused = store.add(new Emitter<void>());
+		const contentChanged = store.add(new Emitter<void>());
+		const attachments = store.add(new Emitter<IChatAttachmentChangeEvent>());
+		const draftChanged = store.add(new Emitter<void>());
+		let changes = 0;
+		store.add(draftChanged.event(() => changes++));
+		const input: { _isSyncingToOrFromInputModel: boolean; _createDraftChangeListeners(): DisposableStore; restoreAttachments: ChatInputPart['restoreAttachments'] } = Object.assign(Object.create(ChatInputPart.prototype), {
+			_inputEditor: {
+				onDidType: typed.event,
+				onDidPaste: pasted.event,
+				onDidCompositionEnd: compositionEnded.event,
+				onDidFocusEditorText: focused.event,
+				onDidChangeModelContent: contentChanged.event,
+			},
+			_attachmentModel: {
+				onDidChange: attachments.event,
+				clearAndSetContext: (...added: IChatAttachmentChangeEvent['added']) => attachments.fire({ added, deleted: [], updated: [] }),
+			},
+			_onDidChangeDraft: draftChanged,
+			_isSyncingToOrFromInputModel: true,
+		});
+		const listeners = store.add(input._createDraftChangeListeners());
+		const added: IChatAttachmentChangeEvent = {
+			added: [{ kind: 'file', id: 'file', name: 'file', value: URI.file('/file') }], deleted: [], updated: [],
+		};
+		focused.fire();
+		contentChanged.fire();
+		attachments.fire(added);
+		const restored = changes;
+		input._isSyncingToOrFromInputModel = false;
+		await input.restoreAttachments(added.added);
+		const recalled = changes;
+		compositionEnded.fire();
+		const composedWithIme = changes;
+		typed.fire('a');
+		pasted.fire();
+		attachments.fire(added);
+		attachments.fire({ added: [], deleted: ['file'], updated: [] });
+		const composed = changes;
+		listeners.dispose();
+		typed.fire('b');
+		pasted.fire();
+		compositionEnded.fire();
+		attachments.fire(added);
+
+		assert.deepStrictEqual({ restored, recalled, composedWithIme, composed, disposed: changes }, { restored: 0, recalled: 0, composedWithIme: 1, composed: 4, disposed: 4 });
+	});
+
+	test('a visible read-only composer refuses send and queue operations', async () => {
+		const widget: ChatWidget = Object.assign(Object.create(ChatWidget.prototype), { _readOnly: true });
+		const sent = await widget.acceptInput('unsent draft');
+		const queued = await widget.acceptInput('unsent draft', { queue: ChatRequestQueueKind.Queued });
+		assert.deepStrictEqual({ sent, queued }, { sent: undefined, queued: undefined });
 	});
 
 	test('re-lays out embedded editors when chat item padding changes', () => {

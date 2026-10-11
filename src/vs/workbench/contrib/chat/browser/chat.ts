@@ -282,6 +282,8 @@ export interface IChatWidgetViewOptions {
 	/** Show the read-only status banner above the transcript instead of beside the composer. */
 	readOnlyBannerAtTop?: boolean;
 	renderFollowups?: boolean;
+	/** Disable the legacy artifacts list when the host provides an artifacts pill. */
+	renderArtifactsWidget?: boolean;
 	renderStyle?: 'compact' | 'minimal';
 	renderInputToolbarBelowInput?: boolean;
 	/** Whether to create the toolbar backed by {@link MenuId.ChatInputSecondary}. */

@@ -10,6 +10,8 @@ import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { getAgentHostOperatingSystem } from '../../common/agentHostOperatingSystem.js';
 import type { IAgentConnection, IAgentHostNetworkDiagnosticsInfo } from '../../common/agentService.js';
+import type { IAgentSubscription } from '../../common/state/agentSubscription.js';
+import type { RootState } from '../../common/state/sessionState.js';
 
 suite('AgentHostOperatingSystem', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -18,9 +20,12 @@ suite('AgentHostOperatingSystem', () => {
 		return { version: '1.0.0', os, arch: 'x64', proxySettings: {}, proxyEnv: {}, endpoints: [] };
 	}
 
-	function createConnection(getInfo: () => Promise<IAgentHostNetworkDiagnosticsInfo>) {
+	function createConnection(getInfo: () => Promise<IAgentHostNetworkDiagnosticsInfo>, meta?: RootState['_meta']) {
 		return new class extends mock<IAgentConnection>() {
 			override readonly clientId = 'test-client';
+			override readonly rootState = new class extends mock<IAgentSubscription<RootState>>() {
+				override readonly value: RootState = { agents: [], activeSessions: 0, _meta: meta };
+			}();
 			requestCount = 0;
 
 			override async getNetworkDiagnosticsInfo(): Promise<IAgentHostNetworkDiagnosticsInfo> {
@@ -29,6 +34,32 @@ suite('AgentHostOperatingSystem', () => {
 			}
 		}();
 	}
+
+	for (const [platform, expected] of [
+		['windows', OperatingSystem.Windows],
+		['macos', OperatingSystem.Macintosh],
+		['linux', OperatingSystem.Linux],
+	] as const) {
+		test(`uses advertised ${platform} without requiring a diagnostics extension`, async () => {
+			const connection = createConnection(async () => { throw new Error('Method not found: getNetworkDiagnosticsInfo'); }, {
+				'vscode.agentHost.resources': { platform },
+			});
+			assert.deepStrictEqual({
+				os: await getAgentHostOperatingSystem(connection),
+				requestCount: connection.requestCount,
+			}, { os: expected, requestCount: 0 });
+		});
+	}
+
+	test('invalid advertised platform retains the existing diagnostics fallback', async () => {
+		const connection = createConnection(async () => diagnostics('linux'), {
+			'vscode.agentHost.resources': { platform: 'unsupported' },
+		});
+		assert.deepStrictEqual({
+			os: await getAgentHostOperatingSystem(connection),
+			requestCount: connection.requestCount,
+		}, { os: OperatingSystem.Linux, requestCount: 1 });
+	});
 
 	for (const [platform, expected] of [
 		['win32', OperatingSystem.Windows],

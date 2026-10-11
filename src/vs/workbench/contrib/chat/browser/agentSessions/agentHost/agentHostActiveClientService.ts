@@ -83,6 +83,7 @@ export interface IAgentHostActiveClientService {
 class AgentCustomizationScope extends Disposable {
 
 	private readonly _bundler: SyncedCustomizationBundler;
+	private readonly _standaloneBundler: SyncedCustomizationBundler;
 	private readonly _updateDelayer: Delayer<void>;
 	private readonly _customizations = observableValue<readonly ClientPluginCustomization[]>('agentCustomizations', []);
 	private readonly _customAgents = observableValue<readonly AgentCustomization[]>('agentCustomAgents', []);
@@ -126,7 +127,8 @@ class AgentCustomizationScope extends Disposable {
 		@IConfigurationResolverService private readonly _configurationResolverService: IConfigurationResolverService,
 	) {
 		super();
-		this._bundler = this._register(instantiationService.createInstance(SyncedCustomizationBundler, createScopeAuthority(_sessionType, scopeKey)));
+		this._bundler = this._register(instantiationService.createInstance(SyncedCustomizationBundler, createScopeAuthority(_sessionType, scopeKey), undefined));
+		this._standaloneBundler = this._register(instantiationService.createInstance(SyncedCustomizationBundler, createStandaloneScopeAuthority(_sessionType, scopeKey), { standalone: true }));
 		this._updateDelayer = this._register(new Delayer<void>(CUSTOMIZATION_UPDATE_DEBOUNCE_DELAY));
 
 		const updateCustomizations = async () => {
@@ -141,7 +143,7 @@ class AgentCustomizationScope extends Disposable {
 						this._agentPluginService,
 						this._mcpService,
 						this._configurationResolverService,
-						this._bundler,
+						{ synced: this._bundler, standalone: this._standaloneBundler },
 						this._sessionType,
 						this._options,
 						this._roots,
@@ -215,7 +217,7 @@ class AgentCustomizationScope extends Disposable {
 			tools: this.tools,
 			isResolved: this.isResolved,
 			whenResolved: () => this._initialResolution.p,
-			getSyncedUri: sourceUri => this._bundler.getSyncedUri(sourceUri),
+			getSyncedUri: sourceUri => this._bundler.getSyncedUri(sourceUri) ?? this._standaloneBundler.getSyncedUri(sourceUri),
 			activeClient: clientId => this.activeClient(clientId),
 			dispose: () => {
 				if (!released) {
@@ -227,11 +229,11 @@ class AgentCustomizationScope extends Disposable {
 	}
 
 	getOrigin(syncedUri: URI): ISyncedCustomizationOrigin | undefined {
-		return this._bundler.getOrigin(syncedUri);
+		return this._bundler.getOrigin(syncedUri) ?? this._standaloneBundler.getOrigin(syncedUri);
 	}
 
 	isBundledMcpServer(pluginUri: string, serverName: string): boolean {
-		return this._bundler.isBundledMcpServer(pluginUri, serverName);
+		return this._bundler.isBundledMcpServer(pluginUri, serverName) || this._standaloneBundler.isBundledMcpServer(pluginUri, serverName);
 	}
 
 	activeClient(clientId: string): IObservable<SessionActiveClient> {
@@ -482,6 +484,10 @@ function getServiceScopeKey(sessionType: string, scopeKey: string): string {
 
 function createScopeAuthority(sessionType: string, scopeKey: string): string {
 	return `${sessionType}-${hash(scopeKey)}`;
+}
+
+function createStandaloneScopeAuthority(sessionType: string, scopeKey: string): string {
+	return `${createScopeAuthority(sessionType, scopeKey)}-standalone`;
 }
 
 /** Debounce window (ms) used to coalesce bursts of customization change events into a single re-resolution. */

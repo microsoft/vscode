@@ -184,10 +184,29 @@ suite('CopilotCliAgentPluginDiscovery', () => {
 		}
 
 		assert.deepStrictEqual({
-			sources: sources.map(source => source.uri.toString()),
+			sources: sources.map(source => ({
+				uri: source.uri.toString(),
+				installation: source.copilotCliInstallation,
+			})),
 			uninstallCalls,
 		}, {
-			sources: [mainPlugin.toString(), nextPlugin.toString()],
+			sources: [{
+				uri: mainPlugin.toString(),
+				installation: {
+					name: 'spark',
+					marketplace: '',
+					directSourceId: 'b28f37595143df611741ca53f1d7e05eb85b133a1307f8a3a44cb383649d6ab2',
+					source: { kind: 'github', repository: 'owner/repo', ref: 'main', sha: undefined, path: undefined },
+				},
+			}, {
+				uri: nextPlugin.toString(),
+				installation: {
+					name: 'spark',
+					marketplace: '',
+					directSourceId: '94478a45a5d696cd7e18f9bb6752956b0fb9ac1bd21fe5676215c3fdb0071634',
+					source: { kind: 'github', repository: 'owner/repo', ref: 'next', sha: undefined, path: undefined },
+				},
+			}],
 			uninstallCalls: [{
 				provider: 'copilotcli',
 				request: {

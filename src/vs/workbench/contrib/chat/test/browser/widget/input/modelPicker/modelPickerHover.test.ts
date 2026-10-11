@@ -80,7 +80,8 @@ suite('ModelPickerHover', () => {
 	});
 
 	test('HydraFusion presents like Auto: its detail as the badge and its description instead of a category', () => {
-		const model = createModel('hydrafusion', 'HydraFusion');
+		const hydraFusion = createModel('hydrafusion', 'HydraFusion');
+		const model: ILanguageModelChatMetadataAndIdentifier = { ...hydraFusion, metadata: { ...hydraFusion.metadata, modelGroup: { id: 'copilotcli' } } };
 		const opened: { url: string; options: Parameters<IOpenerService['open']>[1] }[] = [];
 		const openerService = upcastPartial<IOpenerService>({
 			open: async (resource, options) => {

@@ -111,6 +111,8 @@ export interface IMarketplacePlugin {
 	readonly sourceDescriptor: IPluginSourceDescriptor;
 	/** Marketplace label shown in UI and plugin provenance. */
 	readonly marketplace: string;
+	/** Marketplace manifest name used by the SDK's `plugin@marketplace` identity. */
+	readonly marketplaceName?: string;
 	/** Canonical reference for clone/update/install location resolution. */
 	readonly marketplaceReference: IMarketplaceReference;
 	/** The type of marketplace this plugin comes from. */
@@ -132,6 +134,7 @@ interface IJsonPluginSource {
 }
 
 interface IMarketplaceJson {
+	readonly name?: string;
 	readonly metadata?: {
 		readonly pluginRoot?: string;
 	};
@@ -946,6 +949,7 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 					source,
 					sourceDescriptor,
 					marketplace: reference.displayLabel,
+					marketplaceName: typeof json.name === 'string' && json.name.trim() ? json.name.trim() : undefined,
 					marketplaceReference: reference,
 					marketplaceType,
 					readmeUri: getMarketplaceReadmeUri(sourceDescriptor, reference, source, repoDir),

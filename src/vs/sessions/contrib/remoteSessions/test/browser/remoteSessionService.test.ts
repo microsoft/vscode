@@ -574,8 +574,7 @@ suite('RemoteSessionService', () => {
 			provider: calls[0].options?.providerId,
 			isolation: calls[0].options?.isolationMode,
 			branch: calls[0].options?.branch,
-			newBranch: calls[0].options?.worktreeCreateNewBranch,
-		}, { workspace: uri, provider: hosts[1].id, isolation: 'worktree', branch: 'main', newBranch: true });
+		}, { workspace: uri, provider: hosts[1].id, isolation: 'worktree', branch: 'main' });
 	});
 
 	test('explicit folder isolation never configures a branch switch', async () => {
@@ -584,8 +583,7 @@ suite('RemoteSessionService', () => {
 		assert.deepStrictEqual({
 			isolation: calls[0].options?.isolationMode,
 			branch: calls[0].options?.branch,
-			newBranch: calls[0].options?.worktreeCreateNewBranch,
-		}, { isolation: 'workspace', branch: undefined, newBranch: false });
+		}, { isolation: 'workspace', branch: undefined });
 	});
 
 	test('workspace trust and inspection failures prevent unattended creation', async () => {

@@ -24,6 +24,7 @@ import { AgentHostTelemetryLevelConfigKey, agentHostConfigValueToTelemetryLevel 
 import { AgentHostDevDeviceIdEnvKey, AgentHostMachineIdEnvKey, AgentHostSqmIdEnvKey, AgentHostTelemetryLevelEnvKey } from '../common/agentHostTelemetryEnv.js';
 import { AgentHostRestrictedTelemetrySender, IAgentHostRestrictedTelemetry, IAgentHostInternalTelemetryContext, IAgentHostRestrictedTelemetryContext, TelemetryMeasurements, TelemetryProps } from './agentHostRestrictedTelemetry.js';
 import { AgentHostInternalTelemetrySender } from './agentHostMicrosoftTelemetry.js';
+import type { IAgentTelemetryContext } from '../common/agent.js';
 
 export interface IAgentHostTelemetryServiceOptions {
 	readonly environmentService: INativeEnvironmentService;
@@ -40,10 +41,10 @@ export interface IAgentHostTelemetryServiceOptions {
 
 export interface IAgentHostTelemetryService extends ITelemetryService, IAgentHostRestrictedTelemetry {
 	updateTelemetryLevel(telemetryLevel: TelemetryLevel): void;
-	/** Register an account reader with provider-owned lifetime, never a process-wide SKU property. */
-	registerCopilotSkuProvider(provider: string, getCopilotSku: () => string | undefined): IDisposable;
+	/** Register an account reader with provider-owned lifetime, never process-wide account properties. */
+	registerCopilotTelemetryProvider(provider: string, getContext: () => IAgentTelemetryContext): IDisposable;
 	/** Read the current account for point-in-time events. Delayed events must capture their own account context. */
-	getCopilotSku(provider: string): string | undefined;
+	getCopilotTelemetryContext(provider: string): IAgentTelemetryContext | undefined;
 }
 
 export class AgentHostTelemetryService extends Disposable implements IAgentHostTelemetryService {
@@ -60,7 +61,7 @@ export class AgentHostTelemetryService extends Disposable implements IAgentHostT
 
 	/** Whether the machine itself is internal, captured before any account can override it. */
 	private readonly _internalMachine: boolean;
-	private readonly _copilotSkuProviders = new Map<string, () => string | undefined>();
+	private readonly _copilotTelemetryProviders = new Map<string, () => IAgentTelemetryContext>();
 
 	constructor(
 		private readonly _delegate: ITelemetryService,
@@ -72,7 +73,7 @@ export class AgentHostTelemetryService extends Disposable implements IAgentHostT
 		super();
 		this._telemetryLevel = initialTelemetryLevel;
 		this._internalMachine = _delegate.msftInternal === true;
-		this._register(toDisposable(() => this._copilotSkuProviders.clear()));
+		this._register(toDisposable(() => this._copilotTelemetryProviders.clear()));
 		if (isDisposable(_delegate)) {
 			this._register(_delegate);
 		}
@@ -214,17 +215,17 @@ export class AgentHostTelemetryService extends Disposable implements IAgentHostT
 		this._restricted?.setCommonProperty(name, value);
 	}
 
-	registerCopilotSkuProvider(provider: string, getCopilotSku: () => string | undefined): IDisposable {
-		this._copilotSkuProviders.set(provider, getCopilotSku);
+	registerCopilotTelemetryProvider(provider: string, getContext: () => IAgentTelemetryContext): IDisposable {
+		this._copilotTelemetryProviders.set(provider, getContext);
 		return toDisposable(() => {
-			if (this._copilotSkuProviders.get(provider) === getCopilotSku) {
-				this._copilotSkuProviders.delete(provider);
+			if (this._copilotTelemetryProviders.get(provider) === getContext) {
+				this._copilotTelemetryProviders.delete(provider);
 			}
 		});
 	}
 
-	getCopilotSku(provider: string): string | undefined {
-		return this._copilotSkuProviders.get(provider)?.();
+	getCopilotTelemetryContext(provider: string): IAgentTelemetryContext | undefined {
+		return this._copilotTelemetryProviders.get(provider)?.();
 	}
 
 	updateTelemetryLevel(telemetryLevel: TelemetryLevel): void {

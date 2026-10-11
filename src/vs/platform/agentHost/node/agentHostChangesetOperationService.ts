@@ -6,7 +6,7 @@
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable, type IDisposable } from '../../../base/common/lifecycle.js';
-import { stableStringify } from '../../../base/common/objects.js';
+import { equals, stableStringify } from '../../../base/common/objects.js';
 import { buildBranchChangesetUri, ChangesetKind, parseChangesetUri, parseFolderChangesetOwnerUri } from '../common/changesetUri.js';
 import { isMultiRootSession } from '../common/agentHostWorkingDirectories.js';
 import { resolveBranchChangesetScopeForOwner, resolveBranchChangesetScopeForSource, resolveChangesetOwnerScope, resolveGitHubStateFolder } from './agentHostBranchChangesetScope.js';
@@ -29,6 +29,9 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 	private readonly _changesetOperationHandlers = new Map<string, IChangesetOperationHandler>();
 	private readonly _inFlightOperations = new Map<string, Promise<InvokeChangesetOperationResult>>();
 	private readonly _operationLanes = new Map<string, Promise<InvokeChangesetOperationResult>>();
+	private readonly _pendingSessionOperationUpdates = new Set<string>();
+	private readonly _pendingOwnerOperationUpdates = new Set<string>();
+	private _operationUpdateScheduled = false;
 
 	constructor(
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
@@ -41,8 +44,14 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 		this._registry = {
 			registerChangesetOperationHandler: (operationId, handler) => this._registerChangesetOperationHandler(operationId, handler),
 			refreshSessionGitState: sessionKey => this._refreshGitState(sessionKey),
-			onDidChangeOperations: sessionKey => this.updateOperations(sessionKey),
+			onDidChangeOperations: sessionKey => this.scheduleRelatedOperationsUpdate(sessionKey),
 		};
+	}
+
+	override dispose(): void {
+		this._pendingSessionOperationUpdates.clear();
+		this._pendingOwnerOperationUpdates.clear();
+		super.dispose();
 	}
 
 	private async _refreshGitState(owner: string): Promise<void> {
@@ -192,6 +201,48 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 		this._updateOwnerOperations(sessionKey, gitState, gitHubState, changeset);
 	}
 
+	scheduleRelatedOperationsUpdate(resourceKey: string): void {
+		this._pendingSessionOperationUpdates.add(resourceKey);
+		this._scheduleOperationUpdates();
+	}
+
+	scheduleOwnerOperationsUpdate(ownerKey: string): void {
+		this._pendingOwnerOperationUpdates.add(ownerKey);
+		this._scheduleOperationUpdates();
+	}
+
+	private _scheduleOperationUpdates(): void {
+		if (this._operationUpdateScheduled) {
+			return;
+		}
+		this._operationUpdateScheduled = true;
+		queueMicrotask(() => this._flushOperationUpdates());
+	}
+
+	private _flushOperationUpdates(): void {
+		if (this._store.isDisposed) {
+			return;
+		}
+		try {
+			while (this._pendingSessionOperationUpdates.size > 0 || this._pendingOwnerOperationUpdates.size > 0) {
+				const sessions = [...this._pendingSessionOperationUpdates];
+				const owners = new Set(this._pendingOwnerOperationUpdates);
+				this._pendingSessionOperationUpdates.clear();
+				this._pendingOwnerOperationUpdates.clear();
+				for (const session of sessions) {
+					for (const owner of this._getOperationOwners(session)) {
+						owners.add(owner);
+					}
+				}
+				for (const owner of owners) {
+					this._updateOwnerOperations(owner);
+				}
+			}
+		} finally {
+			this._operationUpdateScheduled = false;
+		}
+	}
+
 	private _getOperationOwners(sessionKey: string): readonly string[] {
 		if (parseFolderChangesetOwnerUri(sessionKey)) {
 			return [sessionKey];
@@ -238,10 +289,7 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 		for (const changeset of changesets) {
 			const parsed = parseChangesetUri(changeset);
 			if (parsed && this._shouldSuppressOperations(resolveChangesetOwnerScope(this._stateManager, parsed.ownerUri).sourceUri, parsed.kind)) {
-				this._stateManager.dispatchServerAction(changeset, {
-					type: ActionType.ChangesetOperationsChanged,
-					operations: [],
-				});
+				this._dispatchOperationsChanged(changeset, []);
 				continue;
 			}
 			unsuppressed.push(changeset);
@@ -270,12 +318,18 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 				continue;
 			}
 			const operations = this.getOperations(ownerKey, changeset, gitState, gitHubState);
-
-			this._stateManager.dispatchServerAction(changeset, {
-				type: ActionType.ChangesetOperationsChanged,
-				operations: [...operations],
-			});
+			this._dispatchOperationsChanged(changeset, operations);
 		}
+	}
+
+	private _dispatchOperationsChanged(changeset: string, operations: readonly ChangesetOperation[]): void {
+		if (equals(this._stateManager.getChangesetState(changeset)?.operations, operations)) {
+			return;
+		}
+		this._stateManager.dispatchServerAction(changeset, {
+			type: ActionType.ChangesetOperationsChanged,
+			operations: [...operations],
+		});
 	}
 
 	async invokeChangesetOperation(params: InvokeChangesetOperationParams): Promise<InvokeChangesetOperationResult> {

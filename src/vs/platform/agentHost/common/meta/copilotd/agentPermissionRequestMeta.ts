@@ -92,3 +92,8 @@ export function readPermissionRequestMeta(source: IHasPermissionRequestMeta): IA
 	}
 	return readRequest(meta.promptRequest) ?? readRequest(meta.permissionRequest) ?? {};
 }
+
+/** Adds the edit diff consumed by Copilot clients without replacing native AHP edits. */
+export function withPermissionDiff(meta: Record<string, unknown> | undefined, diff: string | undefined): Record<string, unknown> | undefined {
+	return diff ? { ...meta, permissionRequest: { diff } } : meta;
+}

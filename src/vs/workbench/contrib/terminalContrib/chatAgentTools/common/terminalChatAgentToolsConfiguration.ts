@@ -7,9 +7,10 @@ import type { IStringDictionary } from '../../../../../base/common/collections.j
 import type { IJSONSchema } from '../../../../../base/common/jsonSchema.js';
 import { localize } from '../../../../../nls.js';
 import { type IConfigurationPropertySchema } from '../../../../../platform/configuration/common/configurationRegistry.js';
-import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../platform/sandbox/common/settings.js';
+import { AgentSandboxEnabledValue, AgentSandboxSettingId, IAgentSandboxUserConfiguredPaths } from '../../../../../platform/sandbox/common/settings.js';
 import { SandboxSettingsResolutionHelper } from '../../../../../platform/sandbox/common/sandboxSettingsResolutionHelper.js';
-import { COPILOT_SANDBOX_ALLOW_BYPASS_KEY, COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY, COPILOT_SANDBOX_ALLOW_LOCAL_NETWORK_KEY, COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY, COPILOT_SANDBOX_AUTH_GH_KEY, COPILOT_SANDBOX_AUTH_GIT_KEY, COPILOT_SANDBOX_ENABLED_KEY, COPILOT_SANDBOX_LSP_SERVERS_KEY, COPILOT_SANDBOX_MCP_SERVERS_KEY } from '../../../../../platform/policy/common/copilotManagedSettings.js';
+import { COPILOT_SANDBOX_ALLOW_BYPASS_KEY, COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY, COPILOT_SANDBOX_ALLOW_LOCAL_NETWORK_KEY, COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY, COPILOT_SANDBOX_AUTH_GH_KEY, COPILOT_SANDBOX_AUTH_GIT_KEY, COPILOT_SANDBOX_DENIED_PATHS_KEY, COPILOT_SANDBOX_ENABLED_KEY, COPILOT_SANDBOX_LSP_SERVERS_KEY, COPILOT_SANDBOX_MCP_SERVERS_KEY, COPILOT_SANDBOX_READONLY_PATHS_KEY, COPILOT_SANDBOX_READWRITE_PATHS_KEY } from '../../../../../platform/policy/common/copilotManagedSettings.js';
+import { isStringArray } from '../../../../../base/common/types.js';
 import { gitAutoApproveRules } from '../../../../../platform/terminal/common/autoApprove/gitAutoApproveRules.js';
 import { powershellAutoApproveRules } from '../../../../../platform/terminal/common/autoApprove/powershellAutoApproveRules.js';
 import { sortAutoApproveRules } from '../../../../../platform/terminal/common/autoApprove/sortAutoApproveRules.js';
@@ -51,7 +52,6 @@ export const enum TerminalChatAgentToolsSettingId {
 	OutputLocation = 'chat.tools.terminal.outputLocation',
 	AgentSandboxLinuxFileSystem = 'chat.agent.sandbox.fileSystem.linux',
 	AgentSandboxMacFileSystem = 'chat.agent.sandbox.fileSystem.mac',
-	AgentSandboxWindowsFileSystem = 'chat.agent.sandbox.fileSystem.windows',
 	AgentSandboxAdvancedRuntime = 'chat.agent.sandbox.advanced.runtime',
 	PreventShellHistory = 'chat.tools.terminal.preventShellHistory',
 	EnforceTimeoutFromModel = 'chat.tools.terminal.enforceTimeoutFromModel',
@@ -531,7 +531,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		managedSettingsPresentation: read => SandboxSettingsResolutionHelper.resolveEnabled(undefined, read(COPILOT_SANDBOX_ENABLED_KEY) === true),
 		order: 10,
 		keywords: ['Sandbox', 'sandboxing'],
-		markdownDescription: localize('agentSandbox.enabledSetting', "Controls whether agent mode uses sandboxing to restrict what tools can do. When enabled, tools like the terminal are run in a sandboxed environment to limit access to the system."),
+		markdownDescription: localize('agentSandbox.enabledSetting', "Controls whether agent mode uses sandboxing to restrict what tools can do. When enabled, tools like the terminal are run in a sandboxed environment to limit access to the system. The Local harness supports sandboxing on Linux and macOS only. The Copilot Agent Host harness uses the SDK runtime's sandbox, including on supported Windows hosts."),
 		type: 'string',
 		enum: [AgentSandboxEnabledValue.Off, AgentSandboxEnabledValue.On],
 		enumDescriptions: [
@@ -672,6 +672,50 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		restricted: true,
 	},
 	[AgentSandboxSettingId.AgentSandboxUserConfiguredPaths]: {
+		managedSettingsPresentation: (read, localValue) => {
+			const managed: IAgentSandboxUserConfiguredPaths = {};
+			for (const [property, key] of [
+				['readwritePaths', COPILOT_SANDBOX_READWRITE_PATHS_KEY],
+				['readonlyPaths', COPILOT_SANDBOX_READONLY_PATHS_KEY],
+				['deniedPaths', COPILOT_SANDBOX_DENIED_PATHS_KEY],
+			] as const) {
+				const value = read(key);
+				if (value === undefined) {
+					continue;
+				}
+				let paths: unknown = value;
+				if (typeof value === 'string') {
+					try {
+						paths = JSON.parse(value);
+					} catch {
+						console.warn('Failed to parse managed sandbox filesystem paths; ignoring the presentation override.');
+						return undefined;
+					}
+				}
+				if (!isStringArray(paths)) {
+					console.warn('Managed sandbox filesystem paths must be a string array; ignoring the presentation override.');
+					return undefined;
+				}
+				managed[property] = paths;
+			}
+			if (!Object.keys(managed).length) {
+				return undefined;
+			}
+			const local: IAgentSandboxUserConfiguredPaths = {};
+			if (localValue && typeof localValue === 'object') {
+				for (const [property, paths] of Object.entries(localValue)) {
+					if ((property === 'readwritePaths' || property === 'readonlyPaths' || property === 'deniedPaths') && isStringArray(paths)) {
+						local[property] = paths;
+					}
+				}
+			}
+			const resolved = SandboxSettingsResolutionHelper.resolveFileSystemPaths(local, managed);
+			return {
+				readwritePaths: resolved.readwritePaths ?? [],
+				readonlyPaths: resolved.readonlyPaths ?? [],
+				deniedPaths: resolved.deniedPaths ?? [],
+			} satisfies Readonly<Record<string, readonly string[]>>;
+		},
 		order: 65,
 		keywords: ['Sandbox', 'sandboxing'],
 		markdownDescription: localize('agentSandbox.userConfiguredPaths', "Customize file path permissions in the sandbox."),
@@ -783,47 +827,6 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		},
 		tags: ['preview'],
 		restricted: true,
-	},
-	[TerminalChatAgentToolsSettingId.AgentSandboxWindowsFileSystem]: {
-		order: 90,
-		keywords: ['Sandbox', 'sandboxing'],
-		markdownDeprecationMessage: localize('agentSandbox.fileSystem.deprecated', "This setting will be deprecated soon. For the Copilot Agent Host sandbox, use {0} instead.", `\`#${AgentSandboxSettingId.AgentSandboxUserConfiguredPaths}#\``),
-		deprecationMessageShowInSettings: true,
-		markdownDescription: localize('agentSandbox.windowsFileSystemSetting', "Note: this setting is applicable only when {0} is enabled. Controls file system access in sandbox on Windows. Paths do not support glob patterns, only literal paths (ex: C:\\src, C:\\Users\\me\\.ssh, .env).", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``),
-		type: 'object',
-		properties: {
-			denyRead: {
-				type: 'array',
-				description: localize('agentSandbox.windowsFileSystemSetting.denyRead', "Array of paths to deny access. Leave empty to allow reading all paths."),
-				items: { type: 'string' },
-				default: []
-			},
-			allowRead: {
-				type: 'array',
-				description: localize('agentSandbox.windowsFileSystemSetting.allowRead', "Array of additional paths to allow read-only access. Takes precedence over denyRead."),
-				items: { type: 'string' },
-				default: []
-			},
-			allowWrite: {
-				type: 'array',
-				description: localize('agentSandbox.windowsFileSystemSetting.allowWrite', "Array of additional paths to allow read/write access. Leave empty to disallow writes outside the workspace folders, workspace storage folder, and sandbox temp directory."),
-				items: { type: 'string' },
-				default: []
-			}
-		},
-		default: {
-			denyRead: [],
-			allowRead: [],
-			allowWrite: []
-		},
-		tags: ['preview'],
-		restricted: true,
-	},
-	[AgentSandboxSettingId.AgentSandboxWindowsSchemaVersion]: {
-		// Intentionally available only to callers that explicitly set it in settings.json.
-		included: false,
-		restricted: true,
-		type: 'string',
 	},
 	[TerminalChatAgentToolsSettingId.AgentSandboxAdvancedRuntime]: {
 		markdownDescription: localize('agentSandbox.runtimeSetting', "Note: this setting is applicable only when {0} is enabled. Key/value pairs are passed through to the root of the sandbox runtime configuration.", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``),

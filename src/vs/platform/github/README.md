@@ -11,7 +11,7 @@ Reusable GitHub engine and cross-target architecture.
 
 ## Current implementation
 
-[GitHubService](common/githubService.ts) owns shared admission, cooldowns and telemetry. It supplies explicit authorization-scoped clients composing credentials, capabilities, transport, queries, mutations, and PR subscriptions.
+[GitHubService](common/githubService.ts) owns shared admission, cooldowns and telemetry. It supplies explicit authorization-scoped clients composing credentials, capabilities, transport, queries, mutations, PR subscriptions, and Mission Control domains.
 
 - The [workbench binding](../../workbench/services/github/browser/githubService.ts) runs per editor or Agents window. Existing features explicitly acquire a client for the selected default account; other callers can select a specific existing session.
 - The [Agent Host binding](../agentHost/node/agentHostGitHubService.ts) selects its host-owned repository credential resource without an attached workbench. Repository/PR association, creation, merge settings, auto-merge and issue/PR title context use its explicit clients. Copilot discovery and model requests still use the existing [Agent Host Copilot service](../agentHost/node/shared/copilotApiService.ts); migrating them is a separate change.
@@ -26,7 +26,7 @@ The [client inventory](client-inventory.md) maps runtime callers, migration boun
 
 The GitHub engine uses shared [types](common/types.ts), [queue](common/requestQueue.ts), [scheduler](common/scheduler.ts), [backoff](common/backoff.ts), [cooldown state](common/cooldownState.ts), [response readers](common/responseReader.ts) and [operation waiters](common/operationWaiters.ts) with neutral names. These mechanisms do not interpret service-specific payloads. GitHub header/GraphQL policy stays in [GitHubRateLimitCoordinator](common/githubRateLimitCoordinator.ts).
 
-The policy-driven [control transport](common/controlTransport.ts) and explicit-credential bootstrap capability are available for future service migrations; existing Copilot consumers are not wired to them. Copilot extraction and hosting/authentication changes are deferred separately, so this infrastructure refactor does not change the current Copilot runtime.
+Shared schema parsers live in [client/schema.ts](common/client/schema.ts); domain clients compose them to validate API payloads. Strict [HTTP header readers](common/client/headers.ts) validate quota counters and Retry-After feedback. Shared [routing helpers](common/client/routing.ts) encode opaque identifiers, repository paths, and query parameters.
 
 An in-flight operation owns its controller and shared deadline. `OperationWaiters` owns individual callers' waiting, cancellation and result delivery, not network execution. One caller can detach without cancelling peers; the operation owner decides what happens when its last waiter leaves. This also supports service-wide metadata initialization, which is not an HTTP request.
 
@@ -39,6 +39,32 @@ Consumers retain a disposable reference from `acquireClient`. Equivalent grants 
 At most 64 clients are retained across authorization, anonymous and bootstrap contexts. Releasing the last reference cancels only that client's work and disposes its resources; bounded identity-backoff bookkeeping for authorization clients remains for up to five minutes so reacquisition cannot reset repeated-failure backoff. Unused bookkeeping can be evicted for a new client. Grant changes retire only affected session clients; same-session token-only renewals preserve the client, and default-account selection changes do not revoke explicit clients for other accounts. Live server quota and identity-bootstrap cooldowns survive client release/recreation until expiry. A resolved account's core or secondary cooldown also gates subsequent identity bootstrap; a search-only limit does not block identity lookup.
 
 Each workbench/Agent Host binding retains one reference for its selected default/repository client so short-lived consumers reuse identity, ETags and capability observations. Selection changes and binding disposal release that reference. Other explicit clients remain caller-owned.
+
+### Mission Control domains
+
+The acquired account client exposes [automations](common/missionControl/automations.ts), [tasks](common/missionControl/tasks.ts), [environments](common/missionControl/environments.ts), and [missionControlModels](common/missionControl/models.ts). Each operation requires an `AbortSignal`; callers do not supply authentication, transport, or endpoint options:
+
+```ts
+const reference = await service.acquireDefaultAccountClient(signal);
+try {
+	const page = await reference.object.automations.list({ owner: 'dmitrivMS', name: 'myRepo' }, signal);
+	// Use page.data.automations; pagination remains explicit.
+} finally {
+	reference.dispose();
+}
+```
+
+`automations.listTools(signal)` and `automations.listTriggers(signal)` read the authenticated caller's unpaginated catalogs from `/agents/automations/tools` and `/agents/automations/triggers`. They return tool groups and trigger definitions, respectively, preserving field options, labels, permission scopes, and optional run-now support metadata without hard-coding the server's available tools or triggers.
+
+The [Mission Control adapter](common/missionControl/missionControlClient.ts) uses that client's existing credentials and transport. The workbench configures github.com requests through `https://api.githubcopilot.com/agents`, with its integration ID and without the GitHub REST API-version default. `missionControlModels` uses `/agents/swe/models`, not Copilot's general `/models` catalog. Other hosts must explicitly supply approved service endpoints through `GitHubClientOptions.missionControl`; no Copilot endpoint is inferred from an Enterprise REST URL. Without this configuration, only the Mission Control operations reject. Endpoint/header configuration participates in client lease identity.
+
+Ordinary reads reuse account-scoped coalescing and ETag revalidation, including the original success status after a 304. Responses marked `no-store` evict cached bodies and validators, including after a 304. Reads retain the transport's single retry on network or 5xx failures when no server cooldown applies. Task event reads opt out of retries; complete AHP histories reject mismatched frame totals, while raw events remain paginated. Mutations and environment connect/reconnect requests are never replayed or coalesced; environment responses are not cached or shared because they can contain credentials. Mission Control redirects are not followed, and bodyless acknowledgements are not parsed as JSON. Dispatched writes with uncertain outcomes must be reconciled rather than blindly resubmitted.
+
+Mission Control uses a separate cooldown identity keyed by the service host and originating GitHub account. Confirmed 403/429 throttling and 5xx `Retry-After` hints gate queued and subsequent requests; the original failure is surfaced rather than slept and replayed. Confirmed throttling without a usable hint uses a conservative 60-second delay. A successful 202 waking response's `Retry-After` is returned only as a polling hint. Header metadata is optional because browser CORS can hide it.
+
+All domains share existing admission: four active requests overall, two per host and caller, and one per service-host/account pair; retained limits are 256 overall and 64 per account and caller, including cooldown waiters. The caller label is `github.missionControl`. Coalesced reads have at most 64 waiters, and the domains do not add client-acquisition slots. These are runtime-local bounds, not a claim about deployed server quotas. Credential resolution and transport execution retain separate five-minute budgets; responses remain bounded to 16 MiB.
+
+Existing sandbox consumers are not migrated by this wiring.
 
 ### Anonymous public reads
 
@@ -96,7 +122,7 @@ Internal requests carry caller attribution and a deadline. Current transport def
 - At most four active requests, two per host or caller, and one per account. Equal-priority callers share scheduling fairly; parked requests consume no active slot.
 - A five-minute request deadline includes queueing, cooldowns, retries, and body reads. Callers can tighten it; deadlines are rechecked before wire attempts and successful settlement even if timer callbacks are delayed. Responses are capped at 16 MiB; JSON overflow fails explicitly, while bounded downloads report truncation.
 - Equivalent reads share a request with at most 64 waiters and independent cancellation/deadlines; detached waiters are released immediately. Credential invalidation preserves live cooldowns and reclaims inactive account state once they expire.
-- Reads receive at most one transient-failure retry when not rate-limited. Writes are not automatically retried by the transport; mutation services reconcile ambiguous writes, but never a request that timed out before network dispatch.
+- Retryable REST and GraphQL reads share at most one transient-failure retry across fetch and response-body reads when not rate-limited. Body-read failures are classified as network errors; cancellation, deadlines, invalid JSON and oversized responses keep their own classifications and are not retried. Writes are not automatically retried by the transport; mutation services reconcile ambiguous writes, but never a request that timed out before network dispatch.
 - Server cooldowns also gate repeated identity lookups and authenticated download redirects. Download error classification inspects at most an 8 KiB diagnostic prefix, without exposing it in errors or telemetry.
 - Credential resolution has a separate five-minute caller deadline covering token acquisition, identity backoff and shared identity lookup. A caller timing out does not erase server cooldowns or cancel another caller's identity lookup.
 - Long server cooldowns use bounded native timer chunks. Queue drains also expire overdue active requests after wall-clock jumps; rejected unique reads never retain coalescing entries or waiter timers.
@@ -145,19 +171,25 @@ The helper does not promise full Chromium parity: SOCKS4/4a, native NTLM, ordere
 
 This is not a proxy for `IGitHubClient`'s nested functions, resources or disposables. There is no credential provider, token transfer, account selection or authenticated-client IPC in this preparation. Authenticated client/subscription migration requires a separately authorized rollout. Existing workbench engines, standalone hosting and web support remain in place.
 
-Focused offline validation (from the repository root, with `COPILOT_HOME` cleared and an isolated test home):
+### Public repository files
 
-```powershell
-npm run transpile-client
-npm run test-node -- --run src\vs\platform\github\test\common\githubIpc.test.ts --run src\vs\platform\github\test\node\githubTransport.test.ts --run src\vs\platform\github\test\common\githubAnonymousClient.test.ts --run src\vs\platform\github\test\common\responseReader.test.ts
-.\scripts\test.bat --run src\vs\workbench\services\github\test\browser\githubService.test.ts --run src\vs\platform\agentHost\test\node\agentHostBootstrap.test.ts --grep 'Workbench GitHub service|agentHostBootstrap (supplies product|reuses the host fetch|preserves an explicit host fetch)'
-```
+[The anonymous client](common/anonymousClient.ts) exposes `get` and `getFile` directly. Both accept a `signal` of type `GitHubCancellation` (`AbortSignal | CancellationToken`) and anonymous read options. `get` stays confined to JSON reads under `apiBaseUri`. `getFile` resolves `GET /repos/{owner}/{repo}/commits/HEAD`, validates the commit SHA, then downloads `/{owner}/{repo}/{commitSha}/{path}` from `rawBaseUri`. It makes one REST API read and one raw-content download, with no Contents API request or `download_url` lookup.
 
-Network tests use injected fetchers or loopback servers, not live GitHub requests or inference.
+The two operations share one normalized signal and an absolute deadline (five minutes by default). Caller attribution, priority, and deadline apply to both; representation and ETag options apply only to the commit API read. Raw content is returned as UTF-8 text without JSON/base64 parsing, preserving its BOM and whitespace. The existing 1 MiB client byte limit still applies and oversized content fails explicitly. Callers own the anonymous client lease; `getFile` neither acquires another lease nor releases the caller's lease.
+
+Raw downloads use the same host-local fetch, admission queue, bounded body reader, cancellation and deadline handling as other engine traffic, but their quota identity is the raw origin rather than the API origin. A REST quota cooldown does not block a different raw origin; raw throttling is retained independently and does not block the API origin. Every raw request omits credentials, referrers, authorization and API-identification headers. Redirects must stay on the configured raw origin within the pinned repository/commit path.
+
+[The shared cancellation helper](common/cancellation.ts), `toAbortSignal`, passes existing signals and their abort reasons through unchanged. It converts tokens to signals that abort with `CancellationError`, registering the listener in the operation's disposable store. The anonymous client disposes its operation stores on success, failure, or cancellation. The GitHub IPC boundary passes its token directly to `get`; the internal request engine continues to use `AbortSignal`.
+
+`acquireAnonymousClient()` defaults to GitHub.com's API and `https://raw.githubusercontent.com`. Host options may override `rawBaseUri`; it is part of client identity along with `apiBaseUri`. An explicit non-GitHub.com API endpoint must also configure its raw base before using `getFile` (JSON `get` calls still work without it). Raw-host mappings are not guessed for Enterprise deployments. API and raw base URIs must be HTTPS and cannot contain credentials, a query or a fragment.
+
+Dev Container sample preparation leases the default anonymous client from the owning host's local `IGitHubService`, passes its `CancellationToken` directly to `client.getFile` with caller `devContainerSample` and interactive priority, and releases the lease when the read settles. There is no caller-side cancellation adapter or desktop IPC. Its `{ commit, content }` source cache, commit-pinned checkout, volume identities, and clone-before-hooks ordering are unchanged. Cache hits do not acquire a GitHub client or create a token adapter.
+
+Desktop sample reads inherit the shared-process proxy and certificate behavior and its documented Chromium-compatibility limits above. Standalone hosts retain their local `AgentHostProxyResolver.fetch` binding.
 
 ### Telemetry
 
-[Request telemetry](common/githubRequestTelemetry.ts) uses the existing product telemetry service and usage-telemetry controls. Active five-minute windows emit one `githubRequestSummary` with traffic, outcome, rejection and queue counters, plus at most ten reservoir-sampled `githubRequestTiming` events. Disposal flushes completed observations best-effort; idle engines emit nothing.
+[Request telemetry](common/githubRequestTelemetry.ts) uses the existing product telemetry service and usage-telemetry controls. Active ten-minute windows emit one `githubRequestSummary` with traffic, outcome, rejection and queue counters, plus at most ten reservoir-sampled `githubRequestTiming` events. Disposal flushes completed observations best-effort; idle engines emit nothing.
 
 Bindings notify the collector immediately when usage telemetry is disabled, discarding buffered aggregates and invalidating completion handles even if no request or timer callback runs during the opt-out.
 

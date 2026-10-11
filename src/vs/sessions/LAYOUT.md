@@ -4,7 +4,7 @@
 
 ## Scope
 
-The Agents Window uses a Sessions-owned workbench layout optimized for agent work. This specification defines stable part ownership, composition, and presentation modes. Per-session capture and restoration are owned by [LAYOUT_CONTROLLER.md](LAYOUT_CONTROLLER.md).
+The Agents Window uses a Sessions-owned workbench layout optimized for agent work. This specification defines stable part ownership, composition, and presentation modes. Session/chat capture and restoration are owned by [LAYOUT_CONTROLLER.md](LAYOUT_CONTROLLER.md).
 
 Exact dimensions, styling, action placement, and regression behavior belong in code, design tokens, component fixtures, and focused tests.
 
@@ -14,6 +14,19 @@ Startup selects one of two concrete workbenches: `DesktopWorkbench` for every
 non-phone window, and `MobileWorkbench` for mobile web windows below the phone
 breakpoint. `Workbench` contains only their shared layout mechanics and is not
 instantiated directly.
+
+`sessions.experimental.layoutScope` is an experimental window setting
+with modes `session-shared` (default), `chat-shared`, and `chat`. Both enabled modes
+keep ordinary editors and the selected bottom-panel view owned by
+the focused chat. `chat-shared` keeps Editor/Details composition and bottom-panel
+visibility shared across all existing workspace chats in the window;
+`chat` also scopes that visibility to the focused chat. The mode changes
+only after manual reload, without a reload notification. There is no boolean
+compatibility for this unreleased setting. The concrete workbench
+selection remains fixed at startup. If a desktop window enters a runtime phone
+viewport, experimental layout suspends without discarding layout state; returning
+to desktop resumes the focused owner. Terminal behavior is unchanged in all modes.
+Startup phone windows retain the existing mobile behavior.
 
 ```text
 Title bar
@@ -46,6 +59,14 @@ At most one high-priority surface is visible in the main horizontal chain: norma
 
 The desktop presentation may place the Auxiliary Bar inside the Editor's grid node. Consumers must distinguish the actual Editor content area from the shared grid node when interpreting visibility or size.
 
+Part sizes and split geometry remain shared window state in chat-specific mode.
+The layout service exposes side-pane composition capture/restoration separately
+from geometry: restoring a chat's Editor/Details combination or reopening its
+last-open combination must not restore an old width or treat a closed grid node's
+zero width as a user resize.
+
+The desktop Panel supports two profile-scoped alignments. The default justified alignment places it below the Sessions Part and side pane, preserving the original spanning layout. Center alignment places it below the Sessions Part only, allowing the side pane to use the full content height. Switching alignment reparents the existing grid views without changing panel height or side-pane width. The mobile presentation keeps the justified topology.
+
 ## Sessions Part
 
 Each visible session has one Sessions-owned view. The view presents the active chat for that session and scopes commands, menus, and context keys to the represented session.
@@ -65,6 +86,8 @@ The Sessions Part renders that model. It does not create a second active-session
 
 Opening, closing, and directional insertion or movement operate through `ISessionsService`. The part owns the canonical split geometry and user sash sizes, using the shared grid primitive. Maximization and phone presentation project a single live view without changing that geometry. Ordinary structural edits preserve unaffected branches and sizes. Balanced tiling is an explicit arrangement operation over this grid, not a persistent mode or a comparison-specific layout.
 
+The Sessions grid commits leaf container geometry before laying out their descendants through `ISessionGridView`. Explicit layout, structural changes, and presentation transitions finish both phases synchronously, before restoring focus. Allocations delivered directly by the shared grid during a sash gesture share one cancellable animation-frame flush owned by the Sessions grid; they use the latest dimensions and never wait for the gesture to end. Removed views cannot receive pending layout work.
+
 `ISessionsService` persists a versioned geometry snapshot separately from per-session chat state. Saved leaf bindings restore created sessions, the empty composer, active selection, pins, and maximization; untitled provider drafts are not recreated. Legacy ordered-session state remains readable. Restoration projects the saved topology onto available sessions and retains existing views when delayed providers arrive. Explicit navigation or grid interaction supersedes pending restoration.
 
 Session geometry does not determine Editor, Details, or other side-pane visibility policy. That policy remains with the layout controllers.
@@ -76,6 +99,14 @@ All non-phone Agents windows use the desktop detail layout. Phone viewports use 
 The Editor and Auxiliary Bar compose one side pane next to the active session. Editor tabs choose either editor content or a details view while the layout coordinators preserve one coherent visibility model.
 
 The main Editor supports exactly one editor group. Its shared multiple-group capability is disabled, which removes editor split/grid commands, keybindings, menus, and split drop targets; the part also rejects group creation and multi-group layout requests from open-to-side and programmatic paths. The independent chat grid remains supported.
+
+With experimental desktop ownership active, this singleton Editor, Details, and
+bottom Panel project the focused chat's ordinary working set, active editor,
+composition, panel visibility, and selected panel view. Multiple visible
+sessions or chat groups do not create additional editor/detail/panel owners.
+Sidebar visibility and all geometry remain window-owned. Managed tabs remain
+lifecycle-owned and do not reveal hidden panes during restoration. Transient
+Quick Chat side-pane behavior is unchanged.
 
 The durable state and transition catalog lives in [DESKTOP.md](DESKTOP.md). Implementation behavior is covered by the layout-controller and desktop strategy tests.
 
@@ -107,7 +138,7 @@ Part instances and listeners are disposables. Repeatedly created per-session or 
 
 ## Layout-controller boundary
 
-Layout controllers translate session activation into part capture and restoration. They do not own session identity or the visible-session model.
+Layout controllers translate session and focused-chat activation into part capture and restoration. They do not own session/chat identity or the visible-session model. Experimental owner and presentation snapshots guard asynchronous restoration; terminal process ownership remains in the terminal contribution, not in layout records.
 
 Mobile and desktop presentations intentionally use different strategies where their compositions differ. Shared behavior belongs in the base controller; presentation-specific behavior stays in the relevant controller or strategy.
 

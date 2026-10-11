@@ -18,7 +18,9 @@ import { ChatUserInteractionSpanName, chatUserInteractionAttributes, IChatUserIn
 import { IOtlpExportTraceServiceRequest } from '../../../../otel/node/otlp/otlpJsonTypes.js';
 import { OTelSqliteStore } from '../../../../otel/node/sqlite/otelSqliteStore.js';
 import { NullTelemetryService } from '../../../../telemetry/common/telemetryUtils.js';
-import { AgentHostFirstResponseSpanName, AgentHostTimingAttributePrefix, AgentHostTurnTimingSpanName, agentHostTimingAttributes, type IAgentHostFirstResponseDiagnostic, type IAgentHostTurnTimingDiagnostic } from '../../../common/otel/agentHostTiming.js';
+import { AgentHostFirstResponseSpanName, AgentHostTimingAttributePrefix, AgentHostTurnTimingSpanName, AgentHostProviderTimingSpanName, agentHostTimingAttributes, type IAgentHostFirstResponseDiagnostic, type IAgentHostTurnTimingDiagnostic } from '../../../common/otel/agentHostTiming.js';
+import { AgentHostProviderTiming } from '../../../common/agentHostProviderTiming.js';
+import { AgentHostClientConnectionKind } from '../../../common/agentHostTelemetry.js';
 import { buildDefaultChatUri } from '../../../common/state/sessionState.js';
 import { AgentHostClientConnectionService } from '../../../node/agentHostClientConnectionService.js';
 import { AgentHostTelemetryReporter } from '../../../node/agentHostTelemetryReporter.js';
@@ -84,6 +86,18 @@ suite('Agent Host timing OTel', () => {
 		return (await readFile(outfile, 'utf8')).trim().split('\n').map(line => JSON.parse(line));
 	}
 
+	test('exposes resolved enablement independently of diagnostic export support', () => {
+		const cases: { env: NodeJS.ProcessEnv; enabled: boolean }[] = [
+			{ env: {}, enabled: false },
+			{ env: { COPILOT_OTEL_ENABLED: 'false' }, enabled: false },
+			{ env: { COPILOT_OTEL_ENABLED: 'true' }, enabled: true },
+			{ env: { COPILOT_OTEL_DB_SPAN_EXPORTER_ENABLED: 'true' }, enabled: true },
+			{ env: { OTEL_EXPORTER_OTLP_ENDPOINT: 'http://localhost:4318' }, enabled: true },
+			{ env: { COPILOT_OTEL_FILE_EXPORTER_PATH: outfile }, enabled: true },
+		];
+		assert.deepStrictEqual(cases.map(({ env }) => createService(env).enabled), cases.map(({ enabled }) => enabled));
+	});
+
 	test('allowlists diagnostics, preserves zero, and omits unknown or invalid measurements', () => {
 		const attributes = agentHostTimingAttributes({
 			...host, agentSessionId: 'file:///private/workspace', chatId: '../private',
@@ -99,7 +113,10 @@ suite('Agent Host timing OTel', () => {
 
 	test('OTel off emits nothing, independently of content or product telemetry', async () => {
 		const service = createService({ OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT: 'true' });
-		service.emitTurnTiming(host);
+		service.emitTurnTiming({
+			...host,
+			get providerTimings(): never { throw new Error('Disabled export must not inspect provider rows'); },
+		});
 		service.emitFirstResponse(renderer);
 		await service.flush();
 		assert.strictEqual(service.diagnosticsEnabled, false);
@@ -140,6 +157,31 @@ suite('Agent Host timing OTel', () => {
 			{ hasResponseText: false, firstResponseTextMs: undefined, rootToolCallsBeforeFirstText: undefined, rendererRootInvocationOrdinal: 1, totalElapsedMs: 70 },
 			{ hasResponseText: true, firstResponseTextMs: 0, rootToolCallsBeforeFirstText: 0, rendererRootInvocationOrdinal: 1, totalElapsedMs: 70 },
 		]);
+	});
+
+	test('exports optional connection kind without inferring it from the provider', async () => {
+		const service = createService({ COPILOT_OTEL_FILE_EXPORTER_PATH: outfile });
+		const connectionKinds = [
+			undefined,
+			AgentHostClientConnectionKind.Local,
+			AgentHostClientConnectionKind.DirectWebSocket,
+			AgentHostClientConnectionKind.DevTunnel,
+			AgentHostClientConnectionKind.DevContainer,
+			AgentHostClientConnectionKind.SSH,
+			AgentHostClientConnectionKind.WSL,
+			AgentHostClientConnectionKind.RemoteExtensionHost,
+			AgentHostClientConnectionKind.WebPubSub,
+			AgentHostClientConnectionKind.MissionControl,
+			AgentHostClientConnectionKind.Unknown,
+		];
+		for (const connectionKind of connectionKinds) {
+			service.emitFirstResponse({ ...renderer, provider: 'copilot', connectionKind });
+		}
+		await service.flush();
+		assert.deepStrictEqual((await readSpans()).map(span => ({
+			connectionKind: span.attributes[`${prefix}connectionKind`],
+			firstResponseTextMs: span.attributes[`${prefix}firstResponseTextMs`],
+		})), connectionKinds.map(connectionKind => ({ connectionKind, firstResponseTextMs: 60 })));
 	});
 
 	test('exports numeric file metadata with content capture off and without model accounting', async () => {
@@ -271,4 +313,65 @@ suite('Agent Host timing OTel', () => {
 		assert.strictEqual(spans[0].name, 'vscode.agent_host.session');
 		assert.strictEqual(spans[0].attributes[`${prefix}timingSchemaVersion`], 1);
 	});
+
+	for (const db of [false, true]) {
+		test(`batches all turn timing spans into one OTLP request and flushes once (DB: ${db})`, async () => {
+			const payloads: IOtlpExportTraceServiceRequest[] = [];
+			const service = createService({
+				OTEL_EXPORTER_OTLP_ENDPOINT: 'http://localhost:4318',
+				...(db ? { COPILOT_OTEL_DB_SPAN_EXPORTER_ENABLED: 'true' } : {}),
+			}, async (_input, init) => {
+				payloads.push(JSON.parse(Buffer.from(init!.body as ArrayBuffer).toString('utf8')));
+				return new Response('', { status: 200 });
+			});
+			const timing = new AgentHostProviderTiming(() => 0);
+			timing.markMilestone('sdkSend');
+			timing.markMilestone('sdkText');
+			service.emitTurnTiming({ ...host, providerTimings: timing.finish(0) });
+			await service.flush();
+			await service.flush();
+			const spans = payloads.flatMap(payload => payload.resourceSpans!.flatMap(resource => resource.scopeSpans!.flatMap(scope => scope.spans!)));
+			assert.deepStrictEqual({
+				requests: payloads.length,
+				spans: spans.map(span => ({
+					name: span.name,
+					start: span.attributes?.find(attribute => attribute.key === `${prefix}startMs`)?.value,
+				})),
+			}, {
+				requests: 1,
+				spans: [
+					{ name: AgentHostTurnTimingSpanName, start: undefined },
+					{ name: AgentHostProviderTimingSpanName, start: { doubleValue: 0 } },
+					{ name: AgentHostProviderTimingSpanName, start: { doubleValue: 0 } },
+				],
+			});
+		});
+
+		test(`provider timing is exported once with numeric measurements (DB: ${db})`, async () => {
+			const service = createService({
+				COPILOT_OTEL_FILE_EXPORTER_PATH: outfile,
+				...(db ? { COPILOT_OTEL_DB_SPAN_EXPORTER_ENABLED: 'true' } : {}),
+			});
+			const timing = new AgentHostProviderTiming(() => 0);
+			timing.markMilestone('sdkSend');
+			service.emitTurnTiming({ ...host, providerTimings: timing.finish(0) });
+			await service.flush();
+			const spans = await readSpans();
+			assert.deepStrictEqual(spans.map(span => ({
+				name: span.name, turnId: span.attributes[`${prefix}turnId`],
+				kind: span.attributes[`${prefix}kind`], startMs: span.attributes[`${prefix}startMs`],
+			})), [
+				{ name: AgentHostTurnTimingSpanName, turnId: 'request-1', kind: undefined, startMs: undefined },
+				{ name: AgentHostProviderTimingSpanName, turnId: 'request-1', kind: 'milestone', startMs: 0 },
+			]);
+			if (db) {
+				const reader = new OTelSqliteStore(service.getSpansDbPath()!.fsPath);
+				try {
+					assert.deepStrictEqual(spans.map(span => reader.getSpansByTraceId(span.traceId).length), [1, 1]);
+				} finally {
+					reader.close();
+				}
+			}
+		});
+	}
 });

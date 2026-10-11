@@ -14,7 +14,7 @@ import type { ResourceLabelFormatter } from '../../label/common/label.js';
  *
  * The original file path is kept verbatim as the URI path so resource
  * labels, language detection, and path comparisons see a real path. The
- * original scheme, authority, and query are carried in a single
+ * original scheme, authority, query, and content path (when different) are carried in a single
  * url-safe-base64 `_ah` query parameter so any remote resource can be
  * represented without assuming `file://`:
  *
@@ -61,6 +61,8 @@ interface IAgentHostUriMeta {
 	readonly scheme: string;
 	/** Original URI authority, omitted when empty. */
 	readonly authority?: string;
+	/** Original content URI path when the wrapper displays the file's path instead. */
+	readonly path?: string;
 	/** Original URI query, omitted when empty. */
 	readonly query?: string;
 	/**
@@ -69,6 +71,8 @@ interface IAgentHostUriMeta {
 	 * {@link toAgentHostContentUri}.
 	 */
 	readonly contentRef?: true;
+	/** Full file identity, so snapshots for same-path files remain distinct. */
+	readonly fileUri?: string;
 }
 
 /**
@@ -85,43 +89,41 @@ export function toAgentHostUri(originalUri: URI, connectionAuthority: string): U
 }
 
 /**
- * Wraps a protocol `ContentRef` URI, marking it so the filesystem provider
- * reads it with `resourceRead` instead of resolving it as a filesystem entry.
- * Hosts choose their own content URI shapes, so the scheme cannot identify one.
- *
- * A content ref that is already a directly resolvable filesystem URI on the
- * local connection stays unwrapped.
+ * Wraps a `ContentRef` for `resourceRead`, optionally displaying its file's path
+ * while preserving the original content URI. Directly resolvable local filesystem URIs stay unchanged.
  */
-export function toAgentHostContentUri(originalUri: URI, connectionAuthority: string): URI {
-	return wrapAgentHostUri(originalUri, connectionAuthority, true);
+export function toAgentHostContentUri(originalUri: URI, connectionAuthority: string, fileUri?: URI): URI {
+	return wrapAgentHostUri(originalUri, connectionAuthority, true, fileUri);
 }
 
 /**
  * Maps a host-side URI into client space.
  *
- * `options.contentRef` marks a URI read out of a protocol `ContentRef`, so it
- * is wrapped with {@link toAgentHostContentUri} rather than
- * {@link toAgentHostUri}.
+ * Content references use {@link toAgentHostContentUri}, with `fileUri` providing
+ * the file identity for labels and comparisons when available.
  */
-export type AgentHostUriMapper = (uri: URI, options?: { readonly contentRef?: boolean }) => URI;
+export type AgentHostUriMapper = (uri: URI, options?: { readonly contentRef?: boolean; readonly fileUri?: URI }) => URI;
 
-function wrapAgentHostUri(originalUri: URI, connectionAuthority: string, contentRef: boolean): URI {
+function wrapAgentHostUri(originalUri: URI, connectionAuthority: string, contentRef: boolean, fileUri?: URI): URI {
 	if (connectionAuthority === LOCAL_AGENT_HOST_AUTHORITY && (originalUri.scheme === Schemas.file || originalUri.scheme === Schemas.vscodeRemote)) {
 		return originalUri;
 	}
 
+	const path = fileUri?.path ?? originalUri.path;
 	const meta: IAgentHostUriMeta = {
 		scheme: originalUri.scheme,
 		...(originalUri.authority ? { authority: originalUri.authority } : {}),
+		...(path !== originalUri.path ? { path: originalUri.path } : {}),
 		...(originalUri.query ? { query: originalUri.query } : {}),
 		...(contentRef ? { contentRef: true } as const : {}),
+		...(fileUri ? { fileUri: fileUri.toString() } : {}),
 	};
 	const params = new URLSearchParams();
 	params.set(AGENT_HOST_META_PARAM, encodeBase64(VSBuffer.fromString(JSON.stringify(meta)), false, true));
 	return URI.from({
 		scheme: AGENT_HOST_SCHEME,
 		authority: connectionAuthority,
-		path: originalUri.path || '/',
+		path: path || '/',
 		query: params.toString(),
 		fragment: originalUri.fragment,
 	});
@@ -177,7 +179,7 @@ export function fromAgentHostUri(agentHostUri: URI): URI {
 	return URI.from({
 		scheme: meta.scheme,
 		authority: meta.authority || undefined,
-		path: agentHostUri.path,
+		path: typeof meta.path === 'string' ? meta.path : agentHostUri.path,
 		query: meta.query || '',
 		fragment: agentHostUri.fragment,
 	});
