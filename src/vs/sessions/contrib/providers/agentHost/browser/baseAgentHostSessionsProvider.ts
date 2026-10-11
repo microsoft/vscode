@@ -441,7 +441,7 @@ function chatMetadataFromSummary(summary: Pick<SessionSummary, 'chats' | 'defaul
 	return summary.chats?.map(chat => ({
 		chat: URI.parse(chat.resource),
 		summary: chat.title,
-		kind: summary.defaultChat === chat.resource || isDefaultChatUri(chat.resource) ? 'default' : 'peer',
+		kind: (summary.defaultChat !== undefined ? summary.defaultChat === chat.resource : isDefaultChatUri(chat.resource)) ? 'default' : 'peer',
 		origin: chat.origin,
 		...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
 		...(chat.status !== undefined ? {
@@ -8295,8 +8295,12 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				didChange = true;
 			}
 
-			if (changes.chats !== undefined && cached.applyChatMetadata(chatMetadataFromSummary(changes), tx)) {
-				didChange = true;
+			if (changes.chats !== undefined) {
+				// Omitted summary fields retain their cached values, including opaque default chat URIs.
+				const summary = { defaultChat: cached.getBackendChatResource(cached.resource)?.toString(), ...changes };
+				if (cached.applyChatMetadata(chatMetadataFromSummary(summary), tx)) {
+					didChange = true;
+				}
 			}
 
 			const workspaceMetadata: AgentHostSessionSummaryWorkspaceMetadata = {};
