@@ -408,6 +408,17 @@ export function getChatResponsePlaintextParts(item: IChatResponseViewModel, incl
 				}
 				break;
 			}
+			case 'mcpAuthenticationRequired': {
+				const servers = part.isUsed ? [] : part.servers.get();
+				if (servers.length) {
+					const serverNames = servers.map(server => server.name).join(', ');
+					const text = servers.length === 1
+						? localize('mcpAuthenticationRequiredSingle', "The MCP server {0} requires authentication. Use the Authenticate button in the chat response to continue.", serverNames)
+						: localize('mcpAuthenticationRequiredMultiple', "The MCP servers {0} require authentication. Use the Authenticate button in the chat response to continue.", serverNames);
+					contentParts.push({ partIndex, text });
+				}
+				break;
+			}
 			case 'inlineReference': {
 				const ref = part.inlineReference;
 				let text: string;
