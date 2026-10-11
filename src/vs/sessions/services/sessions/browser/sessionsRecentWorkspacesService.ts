@@ -28,6 +28,7 @@ import { WorkspaceHistoryLoadState } from '../../../common/workspaceSelection.js
 const STORAGE_KEY_RECENT_WORKSPACES = 'sessions.recentlyPickedWorkspaces';
 const STORAGE_KEY_NO_WORKSPACE_CHECKED = 'sessions.noWorkspaceChecked';
 const STORAGE_KEY_EXCLUDED_VSCODE_FOLDERS = 'sessions.excludedVSCodeRecentFolders';
+const STORAGE_KEY_DISMISSED_WORKSPACES = 'sessions.dismissedWorkspaces';
 const MAX_RECENT_WORKSPACES = 10;
 const MAX_VSCODE_RECENT_WORKSPACES = 10;
 const MAX_RECENT_WORKSPACE_FILES = 10;
@@ -78,6 +79,7 @@ export interface ISessionsRecentWorkspacesService {
 	readonly _serviceBrand: undefined;
 
 	readonly onDidChangeRecentWorkspaces: Event<void>;
+	readonly onDidRemoveRecentWorkspaces: Event<readonly URI[]>;
 	/** Whether VS Code's recent-folder and workspace-file history has loaded; Agents-owned history is synchronous. */
 	readonly historyLoadState: IObservable<WorkspaceHistoryLoadState>;
 
@@ -98,6 +100,12 @@ export interface ISessionsRecentWorkspacesService {
 	/** Removes `folderUri` from the recent list, wherever it came from (own history or VS Code's recents). */
 	removeRecentWorkspace(folderUri: URI, removeCollapsedWorktrees?: boolean): void;
 
+	/** Whether the workspace was dismissed from the new-session picker, including provider-derived entries. */
+	isWorkspaceDismissed(folderUri: URI): boolean;
+
+	/** Clears dismissal after a session is successfully started from the new-session composer. */
+	restoreDismissedWorkspace(folderUri: URI): void;
+
 	/** Clears the `checked` flag on every recent entry. */
 	clearCheckedWorkspace(): void;
 
@@ -115,6 +123,9 @@ export class SessionsRecentWorkspacesService extends Disposable implements ISess
 
 	private readonly _onDidChangeRecentWorkspaces = this._register(new Emitter<void>());
 	readonly onDidChangeRecentWorkspaces: Event<void> = this._onDidChangeRecentWorkspaces.event;
+
+	private readonly _onDidRemoveRecentWorkspaces = this._register(new Emitter<readonly URI[]>());
+	readonly onDidRemoveRecentWorkspaces: Event<readonly URI[]> = this._onDidRemoveRecentWorkspaces.event;
 
 	private _vsCodeRecentFolders: IVSCodeRecentFolder[] = [];
 	private readonly _historyRefresh = this._register(new MutableDisposable<DisposableStore>());
@@ -137,7 +148,7 @@ export class SessionsRecentWorkspacesService extends Disposable implements ISess
 	}
 
 	getRecentWorkspaces(includeVSCodeRecents = true, collapseWorktrees = false): IRecentWorkspace[] {
-		const storedOwn = this._getStoredRecentWorkspaces();
+		const storedOwn = this._getStoredRecentWorkspaces().map(entry => this._canonicalizeStoredRecentWorkspace(entry));
 		if (!includeVSCodeRecents) {
 			return this._resolveStored(storedOwn, 'agents');
 		}
@@ -168,12 +179,22 @@ export class SessionsRecentWorkspacesService extends Disposable implements ISess
 		return [...this._resolveStored(own, 'agents'), ...vsCode];
 	}
 
+	private _canonicalizeStoredRecentWorkspace(entry: IStoredRecentWorkspace): IStoredRecentWorkspace {
+		const provider = entry.providerId ? this.sessionsProvidersService.getProvider(entry.providerId) : undefined;
+		const canonicalUri = provider?.canonicalizeWorkspaceUri?.(URI.revive(entry.uri));
+		if (!canonicalUri) {
+			return entry;
+		}
+		const source = this._resolveWorkspace(canonicalUri);
+		return source ? { ...entry, uri: source.workspace.uri.toJSON(), providerId: source.providerId } : entry;
+	}
+
 	private _resolveStored(stored: readonly IStoredRecentWorkspace[], source: IRecentWorkspace['source']): IRecentWorkspace[] {
 		const recents: IRecentWorkspace[] = [];
 		for (const entry of stored) {
 			const folderUri = URI.revive(entry.uri);
 			const resolved = this._resolveWorkspace(folderUri, entry.providerId);
-			if (resolved) {
+			if (resolved && !this.isWorkspaceDismissed(resolved.workspace.folders[0]?.root ?? resolved.workspace.uri)) {
 				recents.push({ workspace: resolved.workspace, providerId: resolved.providerId, checked: entry.checked, source });
 			}
 		}
@@ -204,6 +225,9 @@ export class SessionsRecentWorkspacesService extends Disposable implements ISess
 	}
 
 	removeRecentWorkspace(folderUri: URI, removeCollapsedWorktrees = false): void {
+		const dismissed = new Set(this.storageService.getObject<string[]>(STORAGE_KEY_DISMISSED_WORKSPACES, StorageScope.PROFILE, []));
+		dismissed.add(this.uriIdentityService.extUri.getComparisonKey(folderUri));
+		this.storageService.store(STORAGE_KEY_DISMISSED_WORKSPACES, [...dismissed], StorageScope.PROFILE, StorageTarget.MACHINE);
 		const recents = this._getStoredRecentWorkspaces();
 		const matchesRemovedWorkspace = (candidate: URI): boolean => {
 			if (this.uriIdentityService.extUri.isEqual(candidate, folderUri)) {
@@ -213,6 +237,7 @@ export class SessionsRecentWorkspacesService extends Disposable implements ISess
 			return !!repositoryUri && this.uriIdentityService.extUri.isEqual(repositoryUri, folderUri);
 		};
 		const updated = recents.filter(p => !matchesRemovedWorkspace(URI.revive(p.uri)));
+		const storedUris = recents.map(p => URI.revive(p.uri)).filter(matchesRemovedWorkspace);
 		const vsCodeUris = this._vsCodeRecentFolders.map(entry => entry.folderUri).filter(matchesRemovedWorkspace);
 		this._updateExcludedVSCodeFolders([folderUri, ...vsCodeUris], true);
 		this._vsCodeRecentFolders = this._vsCodeRecentFolders.filter(entry => !matchesRemovedWorkspace(entry.folderUri));
@@ -222,6 +247,31 @@ export class SessionsRecentWorkspacesService extends Disposable implements ISess
 			this._onDidChangeRecentWorkspaces.fire();
 		}
 		this.workspacesService.removeRecentlyOpened([folderUri, ...vsCodeUris]);
+		const removedWorkspaces = new Map<string, URI>();
+		for (const uri of [folderUri, ...storedUris, ...vsCodeUris]) {
+			removedWorkspaces.set(this.uriIdentityService.extUri.getComparisonKey(uri), uri);
+		}
+		this._onDidRemoveRecentWorkspaces.fire([...removedWorkspaces.values()]);
+	}
+
+	isWorkspaceDismissed(folderUri: URI): boolean {
+		const dismissed = this.storageService.getObject<string[]>(STORAGE_KEY_DISMISSED_WORKSPACES, StorageScope.PROFILE, []);
+		return dismissed.includes(this.uriIdentityService.extUri.getComparisonKey(folderUri));
+	}
+
+	restoreDismissedWorkspace(folderUri: URI): void {
+		const dismissed = this.storageService.getObject<string[]>(STORAGE_KEY_DISMISSED_WORKSPACES, StorageScope.PROFILE, []);
+		const key = this.uriIdentityService.extUri.getComparisonKey(folderUri);
+		const updated = dismissed.filter(entry => entry !== key);
+		if (updated.length === dismissed.length) {
+			return;
+		}
+		if (updated.length) {
+			this.storageService.store(STORAGE_KEY_DISMISSED_WORKSPACES, updated, StorageScope.PROFILE, StorageTarget.MACHINE);
+		} else {
+			this.storageService.remove(STORAGE_KEY_DISMISSED_WORKSPACES, StorageScope.PROFILE);
+		}
+		this._onDidChangeRecentWorkspaces.fire();
 	}
 
 	clearCheckedWorkspace(): void {

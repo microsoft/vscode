@@ -18,6 +18,7 @@ import { localize } from '../../../nls.js';
  * every level is present.
  */
 export const reasoningEffortLevels = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra'] as const;
+export const ReasoningEffortConfigKey = 'thinkingLevel';
 
 /**
  * Union of every reasoning-effort / thinking-level value surfaced by any

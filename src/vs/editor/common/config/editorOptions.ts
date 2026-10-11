@@ -342,6 +342,11 @@ export interface IEditorOptions {
 	 */
 	wordWrap?: 'off' | 'on' | 'wordWrapColumn' | 'bounded';
 	/**
+	 * Control whether an indicator is rendered at the wrapping column of soft wrapped lines.
+	 * Defaults to false.
+	 */
+	wordWrapIndicator?: boolean;
+	/**
 	 * Override the `wordWrap` setting.
 	 */
 	wordWrapOverride1?: 'off' | 'on' | 'inherit';
@@ -458,7 +463,7 @@ export interface IEditorOptions {
 	 */
 	multiCursorMergeOverlapping?: boolean;
 	/**
-	 * Configure the behaviour when pasting a text with the line count equal to the cursor count.
+	 * Configure the behaviour when pasting text with a line count equal to the cursor count or when pasting column selections into a single cursor.
 	 * Defaults to 'spread'.
 	 */
 	multiCursorPaste?: 'spread' | 'full';
@@ -642,6 +647,11 @@ export interface IEditorOptions {
 	 */
 	selectionHighlightMaxLength?: number;
 	/**
+	 * Controls how occurrences of selected text are matched for occurrence selection and highlighting.
+	 * Defaults to 'findOptions', which uses the Find widget's match case and whole word settings.
+	 */
+	selectedTextMatchMode?: 'findOptions' | 'caseSensitive' | 'caseInsensitive';
+	/**
 	 * Enable semantic occurrences highlight.
 	 * Defaults to 'singleFile'.
 	 * 'off' disables occurrence highlighting
@@ -656,6 +666,11 @@ export interface IEditorOptions {
 	 * Maximum value is 2000
 	 */
 	occurrencesHighlightDelay?: number;
+	/**
+	 * Merge single-document highlights from all matching providers.
+	 * Defaults to false.
+	 */
+	occurrencesHighlightFromAllProviders?: boolean;
 	/**
 	 * Show code lens
 	 * Defaults to true.
@@ -2919,6 +2934,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 		const wordWrap = (wordWrapOverride1 === 'inherit' ? options.get(EditorOption.wordWrap) : wordWrapOverride1);
 
 		const wordWrapColumn = options.get(EditorOption.wordWrapColumn);
+		const wordWrapIndicator = options.get(EditorOption.wordWrapIndicator);
 		const isDominatedByLongLines = env.isDominatedByLongLines;
 
 		const showGlyphMargin = options.get(EditorOption.glyphMargin);
@@ -3006,7 +3022,9 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 
 		if (isViewportWrapping) {
 			// compute the actual wrappingColumn
-			wrappingColumn = Math.max(1, viewportColumn);
+			// (leaving the rightmost column for the word wrap indicator so that it does not overlap
+			// the wrapped text or end up underneath the vertical scrollbar)
+			wrappingColumn = Math.max(1, viewportColumn - (wordWrapIndicator ? 1 : 0));
 			if (wordWrap === 'bounded') {
 				wrappingColumn = Math.min(wrappingColumn, wordWrapColumn);
 			}
@@ -5918,6 +5936,7 @@ export const enum EditorOption {
 	multiCursorLimit,
 	occurrencesHighlight,
 	occurrencesHighlightDelay,
+	occurrencesHighlightFromAllProviders,
 	overtypeCursorStyle,
 	overtypeOnPaste,
 	overviewRulerBorder,
@@ -5951,6 +5970,7 @@ export const enum EditorOption {
 	selectionHighlight,
 	selectionHighlightMaxLength,
 	selectionHighlightMultiline,
+	selectedTextMatchMode,
 	selectOnLineNumbers,
 	showFoldingControls,
 	showUnused,
@@ -5987,6 +6007,7 @@ export const enum EditorOption {
 	inertialScroll,
 	inlayHints,
 	wrapOnEscapedLineFeeds,
+	wordWrapIndicator,
 	// Leave these at the end (because they have dependencies!)
 	effectiveCursorStyle,
 	editorClassName,
@@ -6415,7 +6436,7 @@ export const EditorOptions = {
 		{
 			enumDescriptions: [
 				nls.localize('fullwidthCharacterWidth.font', "Render full-width characters using the width defined by the font."),
-				nls.localize('fullwidthCharacterWidth.twoCells', "Render full-width characters centered in exactly two character cells. Only applies to monospace fonts. Does not apply to multi codepoint full-width characters or to GPU rendering. This has a performance impact on line rendering."),
+				nls.localize('fullwidthCharacterWidth.twoCells', "Render full-width characters centered in exactly two character cells. Only applies to monospace fonts when font ligatures are disabled. Does not apply to multi codepoint full-width characters or to GPU rendering. This has a performance impact on line rendering."),
 			],
 			description: nls.localize('fullwidthCharacterWidth', "Controls the width used to render full-width characters.")
 		}
@@ -6517,10 +6538,10 @@ export const EditorOptions = {
 		['spread', 'full'] as const,
 		{
 			markdownEnumDescriptions: [
-				nls.localize('multiCursorPaste.spread', "Each cursor pastes a single line of the text."),
+				nls.localize('multiCursorPaste.spread', "Each cursor pastes a single line of the text. When pasting column selections into a single cursor, each copied line is pasted on a successive destination line and padded with spaces to form a rectangle."),
 				nls.localize('multiCursorPaste.full', "Each cursor pastes the full text.")
 			],
-			markdownDescription: nls.localize('multiCursorPaste', "Controls pasting when the line count of the pasted text matches the cursor count.")
+			markdownDescription: nls.localize('multiCursorPaste', "Controls pasting when the line count of the pasted text matches the cursor count, or when pasting column selections into a single cursor.")
 		}
 	)),
 	multiCursorLimit: register(new EditorIntOption(
@@ -6548,6 +6569,12 @@ export const EditorOptions = {
 		{
 			description: nls.localize('occurrencesHighlightDelay', "Controls the delay in milliseconds after which occurrences are highlighted."),
 			tags: ['preview']
+		}
+	)),
+	occurrencesHighlightFromAllProviders: register(new EditorBooleanOption(
+		EditorOption.occurrencesHighlightFromAllProviders, 'occurrencesHighlightFromAllProviders', false,
+		{
+			description: nls.localize('occurrencesHighlightFromAllProviders', "Controls whether single-document highlights from all matching providers are merged. When enabled, basic word-based highlighting is only used if no other provider matches.")
 		}
 	)),
 	overtypeOnPaste: register(new EditorBooleanOption(
@@ -6695,6 +6722,19 @@ export const EditorOptions = {
 	selectionHighlightMultiline: register(new EditorBooleanOption(
 		EditorOption.selectionHighlightMultiline, 'selectionHighlightMultiline', false,
 		{ description: nls.localize('selectionHighlightMultiline', "Controls whether the editor should highlight selection matches that span multiple lines.") }
+	)),
+	selectedTextMatchMode: register(new EditorStringEnumOption(
+		EditorOption.selectedTextMatchMode, 'selectedTextMatchMode',
+		'findOptions' as 'findOptions' | 'caseSensitive' | 'caseInsensitive',
+		['findOptions', 'caseSensitive', 'caseInsensitive'] as const,
+		{
+			enumDescriptions: [
+				nls.localize('selectedTextMatchMode.findOptions', "Use the Find widget's match case and whole word settings."),
+				nls.localize('selectedTextMatchMode.caseSensitive', "Match occurrences case-sensitively and independently of the Find widget."),
+				nls.localize('selectedTextMatchMode.caseInsensitive', "Match occurrences case-insensitively and independently of the Find widget."),
+			],
+			markdownDescription: nls.localize('selectedTextMatchMode', "Controls how occurrences of selected text are matched when selecting the next, previous, or all occurrences and when highlighting selection matches. `caseSensitive` and `caseInsensitive` match substrings independently of the Find widget. An empty selection always starts a whole-word, case-sensitive search.")
+		}
 	)),
 	selectOnLineNumbers: register(new EditorBooleanOption(
 		EditorOption.selectOnLineNumbers, 'selectOnLineNumbers', true,
@@ -6863,6 +6903,15 @@ export const EditorOptions = {
 					'- `editor.wordWrapColumn` refers to a different setting and should not be localized.'
 				]
 			}, "Controls how lines should wrap.")
+		}
+	)),
+	wordWrapIndicator: register(new EditorBooleanOption(
+		EditorOption.wordWrapIndicator, 'wordWrapIndicator', false,
+		{
+			markdownDescription: nls.localize({
+				key: 'wordWrapIndicator',
+				comment: []
+			}, "Controls whether an indicator is rendered at the wrapping column of lines that wrap. Only has an effect when `#editor.wordWrap#` is enabled.")
 		}
 	)),
 	wordWrapBreakAfterCharacters: register(new EditorStringOption(

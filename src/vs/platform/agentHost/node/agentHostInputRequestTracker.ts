@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { StopWatch } from '../../../base/common/stopwatch.js';
+import type { AgentSubagentKind, IAgentTelemetryContext } from '../common/agent.js';
 import type { IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { ChatInputRequestPurpose, readChatInputRequestPurpose } from '../common/meta/agentChatInputRequestMeta.js';
 import type { ChatInputCompletedAction } from '../common/state/sessionActions.js';
@@ -29,6 +30,8 @@ export class AgentHostInputRequestTracker {
 		private readonly _reporter: AgentHostTelemetryReporter,
 		private readonly _stopWatchFactory: () => Pick<StopWatch, 'elapsed'> = () => StopWatch.create(true),
 		private readonly _getClientContext: (session: string, turnId: string) => IAgentHostClientTelemetryContext | undefined = () => undefined,
+		private readonly _getTelemetryContext: (session: string, turnId: string) => IAgentTelemetryContext | undefined = () => undefined,
+		private readonly _getSubagentKind: (session: string, turnId: string) => AgentSubagentKind | undefined = () => undefined,
 	) { }
 
 	inputRequested(provider: string, session: string, turnId: string, request: ChatInputRequest): void {
@@ -80,8 +83,10 @@ export class AgentHostInputRequestTracker {
 
 		this._reporter.askQuestionsToolInvoked({
 			clientContext: this._getClientContext(timing.session, timing.turnId),
+			telemetryContext: this._getTelemetryContext(timing.session, timing.turnId),
 			provider: timing.provider,
 			session: timing.session,
+			subagentKind: this._getSubagentKind(timing.session, timing.turnId),
 			requestId: timing.turnId,
 			questionCount: questions.length,
 			answeredCount,

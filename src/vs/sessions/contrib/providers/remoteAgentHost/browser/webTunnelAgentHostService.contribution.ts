@@ -7,7 +7,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { IRemoteAgentHostLocationPreferenceService } from '../../../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
 import { IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { ITunnelAgentHostService, type ICachedTunnel, type ITunnelInfo, type TunnelAutoConnectMode } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
+import { ITunnelAgentHostService, type ICachedTunnel, type ITunnelDiscoveryOptions, type ITunnelInfo, type ITunnelVisibility, type TunnelAutoConnectMode } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
@@ -15,6 +15,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IAuthenticationService } from '../../../../../workbench/services/authentication/common/authentication.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/browser/environmentService.js';
 import { BrowserTunnelAgentHostService } from './browserTunnelAgentHostService.js';
@@ -40,6 +41,7 @@ class BrowserTunnelAgentHostServiceSelector extends Disposable implements ITunne
 		@IStorageService storageService: IStorageService,
 		@IRemoteAgentHostLocationPreferenceService locationPreferenceService: IRemoteAgentHostLocationPreferenceService,
 		@IDialogService dialogService: IDialogService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super();
 		this._delegate = this._register(environmentService.options?.tunnelDiscoveryProvider
@@ -62,11 +64,12 @@ class BrowserTunnelAgentHostServiceSelector extends Disposable implements ITunne
 				storageService,
 				locationPreferenceService,
 				dialogService,
+				telemetryService,
 			));
 		this.onDidChangeTunnels = this._delegate.onDidChangeTunnels;
 	}
 
-	listTunnels(options?: { silent?: boolean }): Promise<ITunnelInfo[]> {
+	listTunnels(options?: ITunnelDiscoveryOptions): Promise<ITunnelInfo[]> {
 		return this._delegate.listTunnels(options);
 	}
 
@@ -82,8 +85,8 @@ class BrowserTunnelAgentHostServiceSelector extends Disposable implements ITunne
 		return this._delegate.canDeleteTunnels;
 	}
 
-	deleteTunnel(tunnel: ITunnelInfo): Promise<void> {
-		return this._delegate.deleteTunnel(tunnel);
+	deleteTunnel(tunnel: ITunnelInfo, authProvider?: 'github' | 'microsoft'): Promise<void> {
+		return this._delegate.deleteTunnel(tunnel, authProvider);
 	}
 
 	disconnect(address: string): Promise<void> {
@@ -104,6 +107,10 @@ class BrowserTunnelAgentHostServiceSelector extends Disposable implements ITunne
 
 	isTunnelDismissed(tunnelId: string): boolean {
 		return this._delegate.isTunnelDismissed(tunnelId);
+	}
+
+	getTunnelVisibility(): ITunnelVisibility {
+		return this._delegate.getTunnelVisibility();
 	}
 
 	dismissTunnel(tunnelId: string): void {

@@ -22,9 +22,8 @@ export type ForkBoundaryResolution =
 /**
  * Resolve the fork boundary from the source thread's ordered turn ids.
  *
- * `thread/fork` copies the full source history; the returned `numTurnsToDrop`
- * is how many trailing turns must be rolled back so the fork ends at (and
- * includes) the requested turn.
+ * The returned boundary identifies the last turn passed to `thread/fork` and
+ * records how many source turns are omitted from the bounded fork.
  *
  * @param sourceTurnIds Codex turn ids of the source thread, in order.
  * @param codexTurnId The resolved codex turn id of the requested fork point.
@@ -54,12 +53,12 @@ export type ForkedTurnIdMapEntry = readonly [hostTurnId: string, codexTurnId: st
  * A later edit/truncate of a copied turn needs to map the workbench's (new)
  * host turn id back to the forked thread's app-server turn id. The kept turns
  * line up by index between the source and the forked thread (the fork copies
- * them in order, then trailing turns are rolled back), so for each kept turn we
+ * them in order through the requested boundary), so for each kept turn we
  * derive its new host id via `turnIdMapping` and pair it with the forked
  * thread's authoritative codex id (which `thread/fork` may have regenerated).
  *
  * @param sourceTurnIds Codex turn ids of the source thread, in order.
- * @param forkedTurnIds Codex turn ids of the forked thread (post-rollback), in order.
+ * @param forkedTurnIds Codex turn ids of the bounded fork, in order.
  * @param keepThroughIndex Index of the last kept turn (inclusive).
  * @param hostTurnIdBySourceCodexId Source session's codex→host turn id map (live sessions only).
  * @param turnIdMapping Old→new host turn id remapping supplied by the fork caller.

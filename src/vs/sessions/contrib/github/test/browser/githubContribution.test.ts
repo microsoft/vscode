@@ -13,12 +13,7 @@ import { constObservable, IObservable, ISettableObservable, observableValue } fr
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
-import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { IPromptChoice, IPromptOptions, Severity } from '../../../../../platform/notification/common/notification.js';
-import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
-import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
 import { GitHubPullRequestModel } from '../../browser/models/githubPullRequestModel.js';
 import { GitHubPullRequestCIModel } from '../../browser/models/githubPullRequestCIModel.js';
 import { GitHubPullRequestReviewThreadsModel } from '../../browser/models/githubPullRequestReviewThreadsModel.js';
@@ -27,11 +22,11 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import '../../../../../workbench/contrib/chat/browser/agentSessionsConfiguration.js';
-import { AUTO_ARCHIVE_MERGED_SESSIONS_AFTER_DAYS_SETTING, AUTO_DELETE_ARCHIVED_MERGED_SESSIONS_AFTER_DAYS_SETTING, GitHubPullRequestPollingContribution } from '../../browser/github.contribution.js';
+import { AUTO_DELETE_MARKED_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING, AUTO_MARK_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING, GitHubPullRequestPollingContribution } from '../../browser/github.contribution.js';
 import { AUTOMATIC_MERGED_SESSION_CLEANUP_SETTINGS_QUERY, AUTOMATIC_MERGED_SESSION_CLEANUP_SETTINGS_TAG } from '../../common/sessionLifecycleSettings.js';
 import { GitHubReferenceList, IGitHubReferenceListEntry } from '../../browser/githubReferenceList.js';
 import { IGitHubService } from '../../browser/githubService.js';
-import { ChatInteractivity, IChat, IGitHubInfo, ISession, ISessionCapabilities, ISessionChangeset, IChatCheckpoints, ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ChatInteractivity, IChat, IGitHubInfo, ISession, ISessionArtifact, ISessionCapabilities, ISessionChangeset, IChatCheckpoints, ISessionFileChange, ISessionWorkspace, SessionArtifactKind, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 
@@ -210,10 +205,6 @@ suite('GitHubPullRequestPollingContribution', () => {
 	let sessionsService: ISessionsService;
 	let gitHubService: TestGitHubService;
 	let activeSession: ISettableObservable<IActiveSession | undefined>;
-	let configurationService: RecordingConfigurationService;
-	let storageService: TestStorageService;
-	let notificationService: RecordingNotificationService;
-	let commandService: ICommandService;
 
 	setup(() => {
 		sessionsManagementService = new TestSessionsManagementService(store);
@@ -222,17 +213,6 @@ suite('GitHubPullRequestPollingContribution', () => {
 			override readonly activeSession = activeSession;
 		};
 		gitHubService = new TestGitHubService();
-		configurationService = new RecordingConfigurationService({
-			[AUTO_ARCHIVE_MERGED_SESSIONS_AFTER_DAYS_SETTING]: 0,
-			[AUTO_DELETE_ARCHIVED_MERGED_SESSIONS_AFTER_DAYS_SETTING]: 0,
-		});
-		storageService = store.add(new TestStorageService());
-		notificationService = new RecordingNotificationService();
-		commandService = new class extends mock<ICommandService>() {
-			override executeCommand(): Promise<undefined> {
-				return Promise.resolve(undefined);
-			}
-		};
 	});
 
 	teardown(() => store.clear());
@@ -242,7 +222,7 @@ suite('GitHubPullRequestPollingContribution', () => {
 	test('tags only the two automatic cleanup settings for the settings query', () => {
 		assert.deepStrictEqual({ query: AUTOMATIC_MERGED_SESSION_CLEANUP_SETTINGS_QUERY, settings: automaticCleanupSettings }, {
 			query: '@tag:agentSessionCleanup',
-			settings: [AUTO_ARCHIVE_MERGED_SESSIONS_AFTER_DAYS_SETTING, AUTO_DELETE_ARCHIVED_MERGED_SESSIONS_AFTER_DAYS_SETTING],
+			settings: [AUTO_DELETE_MARKED_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING, AUTO_MARK_AS_DONE_MERGED_SESSIONS_AFTER_DAYS_SETTING],
 		});
 	});
 
@@ -289,6 +269,69 @@ suite('GitHubPullRequestPollingContribution', () => {
 		const committedSession = sessionsManagementService.addSession('session', makeGitHubInfo(2));
 		sessionsManagementService.fireSessionsChanged({ changed: [committedSession] });
 		sessionsManagementService.fireSessionsChanged({ removed: [provisionalSession] });
+
+		assert.deepStrictEqual(gitHubService.snapshot(), {
+			'owner/repo/1': { startPollingCalls: 1, stopPollingCalls: 1, disposeCalls: 0 },
+			'owner/repo/2': { startPollingCalls: 1, stopPollingCalls: 0, disposeCalls: 0 },
+		});
+	});
+
+	for (const hasWorkspace of [false, true]) {
+		test(`polls recorded PRs across repositories ${hasWorkspace ? 'with' : 'without'} a workspace without duplicating pollers`, () => {
+			const session = sessionsManagementService.addSession('recorded', undefined);
+			if (!hasWorkspace) {
+				session.workspace.set(undefined, undefined);
+			}
+			store.add(createContribution());
+			const entry: ISessionArtifact = {
+				id: 'pr', kind: SessionArtifactKind.PullRequest, label: 'PR', isArtifact: true, isGitHub: true,
+				link: URI.parse('https://github.com/owner/repo/pull/1'),
+			};
+			const foreign: ISessionArtifact = { ...entry, id: 'foreign', link: URI.parse('https://github.com/other/project/pull/2') };
+			session.artifacts.set([entry, { ...entry, id: 'reference', isArtifact: false }, foreign], undefined);
+			const recorded = gitHubService.snapshot();
+			session.artifacts.set([entry, foreign], undefined);
+			const duplicateRemoved = gitHubService.snapshot();
+			session.artifacts.set([foreign], undefined);
+			const removed = gitHubService.snapshot();
+			session.isArchived.set(true, undefined);
+
+			assert.deepStrictEqual({ recorded, duplicateRemoved, removed, archived: gitHubService.snapshot() }, {
+				recorded: {
+					'owner/repo/1': { startPollingCalls: 1, stopPollingCalls: 0, disposeCalls: 0 },
+					'other/project/2': { startPollingCalls: 1, stopPollingCalls: 0, disposeCalls: 0 },
+				},
+				duplicateRemoved: {
+					'owner/repo/1': { startPollingCalls: 1, stopPollingCalls: 0, disposeCalls: 0 },
+					'other/project/2': { startPollingCalls: 1, stopPollingCalls: 0, disposeCalls: 0 },
+				},
+				removed: {
+					'owner/repo/1': { startPollingCalls: 1, stopPollingCalls: 1, disposeCalls: 0 },
+					'other/project/2': { startPollingCalls: 2, stopPollingCalls: 1, disposeCalls: 0 },
+				},
+				archived: {
+					'owner/repo/1': { startPollingCalls: 1, stopPollingCalls: 1, disposeCalls: 0 },
+					'other/project/2': { startPollingCalls: 2, stopPollingCalls: 2, disposeCalls: 0 },
+				},
+			});
+		});
+	}
+
+	test('rebinds polling when only the recorded artifact source is replaced', () => {
+		const session = sessionsManagementService.addSession('recorded', undefined);
+		session.workspace.set(undefined, undefined);
+		const entry: ISessionArtifact = {
+			id: 'pr', kind: SessionArtifactKind.PullRequest, label: 'PR', isArtifact: true, isGitHub: true,
+			link: URI.parse('https://github.com/owner/repo/pull/1'),
+		};
+		session.artifacts.set([entry], undefined);
+		store.add(createContribution());
+		const replacement: ISession = {
+			...session,
+			artifacts: observableValue('replacementArtifacts', [{ ...entry, link: URI.parse('https://github.com/owner/repo/pull/2') }]),
+		};
+		sessionsManagementService.fireSessionsChanged({ changed: [replacement] });
+		sessionsManagementService.fireSessionsChanged({ removed: [session] });
 
 		assert.deepStrictEqual(gitHubService.snapshot(), {
 			'owner/repo/1': { startPollingCalls: 1, stopPollingCalls: 1, disposeCalls: 0 },
@@ -356,13 +399,25 @@ suite('GitHubPullRequestPollingContribution', () => {
 		});
 	});
 
-	test('does not poll CI checks or review threads for draft pull requests', () => {
-		sessionsManagementService.addSession('session', makeGitHubInfo(1));
+	test('refreshes but does not continuously poll CI checks for an inactive draft pull request', () => {
+		const session = sessionsManagementService.addSession('session', makeGitHubInfo(1));
 		store.add(createContribution());
 
+		// Not the active session → CI is refreshed once but not polled on a
+		// timer, and review threads are skipped entirely for drafts.
 		gitHubService.setPullRequestDetails('owner', 'repo', 1, { state: GitHubPullRequestState.Open, isDraft: true, headSha: 'sha1' });
+		assert.deepStrictEqual(gitHubService.statusModelSnapshot(), {
+			ci: { 'owner/repo/1/sha1': { startPollingCalls: 0, refreshCalls: 1 } },
+			reviewThreads: {},
+		});
 
-		assert.deepStrictEqual(gitHubService.statusModelSnapshot(), { ci: {}, reviewThreads: {} });
+		// Becomes the active session → CI is refreshed again immediately and
+		// polling starts.
+		activeSession.set(session as unknown as IActiveSession, undefined);
+		assert.deepStrictEqual(gitHubService.statusModelSnapshot(), {
+			ci: { 'owner/repo/1/sha1': { startPollingCalls: 1, refreshCalls: 2 } },
+			reviewThreads: {},
+		});
 	});
 
 	test('starts polling once an asynchronously resolved PR number appears', () => {
@@ -406,71 +461,11 @@ suite('GitHubPullRequestPollingContribution', () => {
 		});
 	});
 
-	test('prompts once when disabled and an inactive merged-pull-request session is eligible', async () => {
-		const first = sessionsManagementService.addSession('first', makeGitHubInfo(1));
-		first.updatedAt.set(new Date(Date.now() - 16 * 24 * 60 * 60 * 1000), undefined);
-		const second = sessionsManagementService.addSession('second', makeGitHubInfo(2));
-		second.updatedAt.set(new Date(Date.now() - 16 * 24 * 60 * 60 * 1000), undefined);
-		store.add(createContribution());
-
-		gitHubService.setPullRequestDetails('owner', 'repo', 1, { state: GitHubPullRequestState.Merged, isDraft: false, headSha: 'sha1' });
-		gitHubService.setPullRequestDetails('owner', 'repo', 2, { state: GitHubPullRequestState.Merged, isDraft: false, headSha: 'sha2' });
-
-		assert.deepStrictEqual({
-			promptCount: notificationService.prompts.length,
-			choiceLabels: notificationService.prompts[0]?.choices.map(choice => choice.label),
-		}, {
-			promptCount: 1,
-			choiceLabels: ['Turn On Session Cleanup', 'Open Settings'],
-		});
-
-		await notificationService.prompts[0]?.choices[0].run();
-		assert.deepStrictEqual(configurationService.updates, [
-			{ key: AUTO_ARCHIVE_MERGED_SESSIONS_AFTER_DAYS_SETTING, value: 15 },
-			{ key: AUTO_DELETE_ARCHIVED_MERGED_SESSIONS_AFTER_DAYS_SETTING, value: 15 },
-		]);
-	});
-
-	test('does not prompt when either cleanup setting is enabled', async () => {
-		await configurationService.setUserConfiguration(AUTO_DELETE_ARCHIVED_MERGED_SESSIONS_AFTER_DAYS_SETTING, 13);
-		const session = sessionsManagementService.addSession('session', makeGitHubInfo(1));
-		session.updatedAt.set(new Date(Date.now() - 16 * 24 * 60 * 60 * 1000), undefined);
-		store.add(createContribution());
-
-		gitHubService.setPullRequestDetails('owner', 'repo', 1, { state: GitHubPullRequestState.Merged, isDraft: false, headSha: 'sha1' });
-
-		assert.strictEqual(notificationService.prompts.length, 0);
-	});
-
-	test('does not prompt when only a non-designated pull request has merged', () => {
-		const gitHubInfo = makeGitHubInfo(1);
-		const session = sessionsManagementService.addSession('session', {
-			...gitHubInfo,
-			pullRequests: [1, 2].map(number => ({
-				owner: 'owner',
-				repo: 'repo',
-				number,
-				uri: URI.parse(`https://github.com/owner/repo/pull/${number}`),
-			})),
-		});
-		session.updatedAt.set(new Date(Date.now() - 16 * 24 * 60 * 60 * 1000), undefined);
-		store.add(createContribution());
-
-		gitHubService.setPullRequestDetails('owner', 'repo', 1, { state: GitHubPullRequestState.Open, isDraft: false, headSha: 'sha1' });
-		gitHubService.setPullRequestDetails('owner', 'repo', 2, { state: GitHubPullRequestState.Merged, isDraft: false, headSha: 'sha2' });
-
-		assert.strictEqual(notificationService.prompts.length, 0);
-	});
-
 	function createContribution(): GitHubPullRequestPollingContribution {
 		return new GitHubPullRequestPollingContribution(
 			gitHubService,
 			sessionsManagementService,
 			sessionsService,
-			configurationService,
-			storageService,
-			notificationService,
-			commandService,
 			logService,
 		);
 	}
@@ -524,32 +519,15 @@ class TestSessionsManagementService extends mock<ISessionsManagementService>() {
 	}
 }
 
-class RecordingNotificationService extends TestNotificationService {
-
-	readonly prompts: { readonly severity: Severity; readonly message: string; readonly choices: readonly IPromptChoice[]; readonly options: IPromptOptions | undefined }[] = [];
-
-	override prompt(severity: Severity, message: string, choices: IPromptChoice[], options?: IPromptOptions) {
-		this.prompts.push({ severity, message, choices, options });
-		return super.prompt(severity, message, choices, options);
-	}
-}
-
-class RecordingConfigurationService extends TestConfigurationService {
-
-	readonly updates: { readonly key: string; readonly value: unknown }[] = [];
-
-	override updateValue(key: string, value: unknown): Promise<void> {
-		this.updates.push({ key, value });
-		return this.setUserConfiguration(key, value);
-	}
-}
-
 class TestSession implements ISession {
 
 	readonly sessionId: string;
 	readonly resource: URI;
 	readonly providerId = 'test';
 	readonly sessionType = 'test';
+	readonly harness = 'copilot';
+	readonly environment = 'local';
+	readonly application = constObservable({ id: 'vscode', label: 'VS Code' });
 	readonly icon = Codicon.comment;
 	readonly createdAt = new Date(0);
 	readonly title: ReturnType<typeof observableValue<string>>;
@@ -557,6 +535,7 @@ class TestSession implements ISession {
 	readonly status: ReturnType<typeof observableValue<SessionStatus>>;
 	readonly changesets: ReturnType<typeof observableValue<readonly ISessionChangeset[]>>;
 	readonly changes: ReturnType<typeof observableValue<readonly ISessionFileChange[]>>;
+	readonly artifacts = observableValue<readonly ISessionArtifact[]>(this, []);
 	readonly workspace: ReturnType<typeof observableValue<ISessionWorkspace | undefined>>;
 	readonly modelId: ReturnType<typeof observableValue<string | undefined>>;
 	readonly mode: ReturnType<typeof observableValue<{ readonly id: string; readonly kind: string } | undefined>>;
@@ -606,10 +585,12 @@ class TestSession implements ISession {
 		const mainChat: IChat = {
 			resource: this.resource,
 			createdAt: this.createdAt,
+			workspace: this.workspace,
 			title: this.title,
 			updatedAt: this.updatedAt,
 			status: this.status,
 			changes: this.changes,
+			changesets: this.changesets,
 			checkpoints,
 			modelId: this.modelId,
 			modelSource: constObservable(undefined),

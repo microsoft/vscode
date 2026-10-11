@@ -257,7 +257,11 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	let outElement: HTMLElement;
 	if (target) {
 		outElement = target;
-		DOM.reset(target, ...renderedContent.childNodes);
+		if (syncCodeBlocks.some(([, element]) => target.contains(element))) {
+			replaceChildrenPreservingCodeBlocks(target, renderedContent, syncCodeBlocks);
+		} else {
+			DOM.reset(target, ...renderedContent.childNodes);
+		}
 	} else {
 		outElement = renderedContent;
 	}
@@ -284,7 +288,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		const placeholderElements = outElement.querySelectorAll<HTMLDivElement>(`div[data-code]`);
 		for (const placeholderElement of placeholderElements) {
 			const renderedElement = renderedElements.get(placeholderElement.dataset['code'] ?? '');
-			if (renderedElement) {
+			if (renderedElement && (placeholderElement.childNodes.length !== 1 || placeholderElement.firstChild !== renderedElement)) {
 				DOM.reset(placeholderElement, renderedElement);
 			}
 		}
@@ -349,6 +353,90 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 			disposables.dispose();
 		}
 	};
+}
+
+/** Keeps reused code blocks and their matching ancestors connected so embedded iframes do not reload. */
+function replaceChildrenPreservingCodeBlocks(target: HTMLElement, source: HTMLElement, codeBlocks: readonly [string, HTMLElement][]): void {
+	const renderedElements = new Map(codeBlocks);
+	const replacements = new Map<HTMLElement, HTMLElement>();
+	const existingToNew = new Map<HTMLElement, HTMLElement>();
+	const preservedCodeBlocks = new Set<HTMLElement>();
+
+	// eslint-disable-next-line no-restricted-syntax
+	for (const placeholder of source.querySelectorAll<HTMLElement>('div[data-code]')) {
+		const renderedElement = renderedElements.get(placeholder.dataset.code ?? '');
+		if (!renderedElement || !target.contains(renderedElement)) {
+			continue;
+		}
+
+		let existing = renderedElement.parentElement;
+		if (!existing?.hasAttribute('data-code') || existing.childNodes.length !== 1) {
+			continue;
+		}
+
+		let incoming: HTMLElement | null = placeholder;
+		const ancestors: [HTMLElement, HTMLElement][] = [];
+		while (existing && incoming && existing !== target && incoming !== source
+			&& existing.tagName === incoming.tagName
+			&& (!replacements.has(incoming) || replacements.get(incoming) === existing)
+			&& (!existingToNew.has(existing) || existingToNew.get(existing) === incoming)) {
+			ancestors.push([incoming, existing]);
+			existing = existing.parentElement;
+			incoming = incoming.parentElement;
+		}
+
+		if (existing === target && incoming === source) {
+			for (const [newElement, existingElement] of ancestors) {
+				replacements.set(newElement, existingElement);
+				existingToNew.set(existingElement, newElement);
+			}
+			preservedCodeBlocks.add(placeholder);
+		}
+	}
+
+	if (replacements.size === 0) {
+		DOM.reset(target, ...source.childNodes);
+		return;
+	}
+
+	const updateChildren = (parent: HTMLElement, newParent: HTMLElement): void => {
+		const children = Array.from(newParent.childNodes, child => {
+			if (!DOM.isHTMLElement(child)) {
+				return child;
+			}
+			const replacement = replacements.get(child);
+			if (!replacement) {
+				return child;
+			}
+
+			for (const name of replacement.getAttributeNames()) {
+				if (!child.hasAttribute(name)) {
+					replacement.removeAttribute(name);
+				}
+			}
+			DOM.copyAttributes(child, replacement);
+			if (!preservedCodeBlocks.has(child)) {
+				updateChildren(replacement, child);
+			}
+			return replacement;
+		});
+		const retainedChildren = new Set(children);
+		for (const child of Array.from(parent.childNodes)) {
+			if (!retainedChildren.has(child)) {
+				parent.removeChild(child);
+			}
+		}
+		let cursor = parent.firstChild;
+		for (const child of children) {
+			if (cursor === child) {
+				cursor = cursor.nextSibling;
+			} else {
+				parent.insertBefore(child, cursor);
+			}
+		}
+	};
+
+	updateChildren(target, source);
 }
 
 function rewriteRenderedLinks(markdown: IMarkdownString, options: MarkdownRenderOptions, root: HTMLElement) {
@@ -632,7 +720,7 @@ export const allowedMarkdownHtmlAttributes = Object.freeze<Array<string | domSan
 		shouldKeep: (element, data) => {
 			if (element.tagName === 'SPAN') {
 				if (data.attrName === 'style') {
-					return /^(color\:(#[0-9a-fA-F]+|var\(--vscode(-[a-zA-Z0-9]+)+\));)?(background-color\:(#[0-9a-fA-F]+|var\(--vscode(-[a-zA-Z0-9]+)+\));)?(border-radius:[0-9]+px;)?$/.test(data.attrValue);
+					return /^(color\:(#[0-9a-fA-F]+|var\(--vscode(-[a-zA-Z0-9]+)+\));)?(background-color\:(#[0-9a-fA-F]+|var\(--vscode(-[a-zA-Z0-9]+)+\));)?(display\:inline-block;)?(border-radius:[0-9]+px;)?$/.test(data.attrValue);
 				}
 			}
 			return false;

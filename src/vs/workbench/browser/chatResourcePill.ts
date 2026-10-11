@@ -6,14 +6,15 @@
 import { $ } from '../../base/browser/dom.js';
 import { IActionViewItemOptions } from '../../base/browser/ui/actionbar/actionViewItems.js';
 import { Button } from '../../base/browser/ui/button/button.js';
+import type { IManagedHoverContent, IManagedHoverOptions } from '../../base/browser/ui/hover/hover.js';
 import { IAction } from '../../base/common/actions.js';
 import { Codicon } from '../../base/common/codicons.js';
 import { onUnexpectedError } from '../../base/common/errors.js';
 import { IObservable, autorun } from '../../base/common/observable.js';
 import { ThemeIcon } from '../../base/common/themables.js';
 import { localize } from '../../nls.js';
-import { FileKind } from '../../platform/files/common/files.js';
-import { ChatPillActionViewItemBase, type IChatPillEntry } from './chatPills.js';
+import { FileKind, IFileService } from '../../platform/files/common/files.js';
+import { ChatPillActionViewItemBase, getChatPillEntryHoverContents, getChatPillEntryHoverOptions, type IChatPillEntry } from './chatPills.js';
 import { ResourceLabels } from './labels.js';
 
 /**
@@ -24,12 +25,14 @@ export class ChatResourcePillActionViewItem extends ChatPillActionViewItemBase {
 
 	protected override get itemModifierClass(): string { return 'chat-resource-pill'; }
 	protected override get buttonModifierClass(): string { return 'chat-resource-pill-button'; }
+	private readonly _imageHoverContents = new WeakMap<IChatPillEntry, IManagedHoverContent>();
 
 	constructor(
 		action: IAction,
 		options: IActionViewItemOptions,
 		private readonly _entry: IObservable<IChatPillEntry | undefined>,
 		private readonly _resourceLabels: ResourceLabels,
+		@IFileService private readonly _fileService: IFileService,
 	) {
 		super(undefined, action, options);
 	}
@@ -59,6 +62,14 @@ export class ChatResourcePillActionViewItem extends ChatPillActionViewItemBase {
 
 	protected override getAriaLabel(): string | undefined {
 		return this._entry.get()?.ariaLabel ?? super.getAriaLabel();
+	}
+
+	protected override getHoverContents(): IManagedHoverContent {
+		return getChatPillEntryHoverContents(this._entry.get(), this._fileService, this._imageHoverContents) ?? super.getHoverContents();
+	}
+
+	protected override getHoverOptions(): IManagedHoverOptions | undefined {
+		return getChatPillEntryHoverOptions(this._entry.get());
 	}
 
 	protected override onDidClickButton(): void {

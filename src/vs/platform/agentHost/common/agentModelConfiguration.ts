@@ -5,7 +5,7 @@
 
 import { formatTokenCount } from '../../../base/common/numbers.js';
 import { localize } from '../../../nls.js';
-import { hasLongContextSurcharge, type ICAPIModelBilling } from './agentModelPricing.js';
+import { hasLongContextSurcharge, type ICAPIModelBilling } from './meta/agentModelMeta.js';
 import type { ConfigPropertySchema, ModelSelection } from './state/protocol/state.js';
 
 /** Model-configuration key for the selected context-window size, in tokens. */

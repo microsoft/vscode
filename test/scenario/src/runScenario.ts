@@ -94,6 +94,8 @@ export interface Scenario {
 	readonly workspacePath?: string;
 	readonly userSettings?: Record<string, JSONValue>;
 	readonly extraArgs?: string[];
+	/** Environment overrides for the launched application, without changing the runner's HOME. */
+	readonly extraEnv?: Readonly<Record<string, string | undefined>>;
 	/**
 	 * How long to hold on each completed step, in milliseconds.
 	 *
@@ -166,7 +168,8 @@ export async function runScenario(scenario: Scenario): Promise<{ runPath: string
 		scenario.scenarioPath,
 		scenario.workspacePath,
 		scenario.userSettings,
-		scenario.extraArgs
+		scenario.extraArgs,
+		scenario.extraEnv
 	);
 	console.log(`Evidence run: ${runPath}`);
 

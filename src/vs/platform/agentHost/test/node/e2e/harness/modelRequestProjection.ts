@@ -36,6 +36,7 @@
  * an unrelated catalog bump; captures still record it for review.
  */
 
+import { hasKey } from '../../../../../../base/common/types.js';
 import type { IReadableAnthropicRequest } from './capiWireCodec.js';
 import { normalizeShellToolNameForCapture } from './shellToolNames.js';
 
@@ -160,7 +161,7 @@ function projectContent(content: unknown): unknown {
 	if (!Array.isArray(content)) {
 		return projectValue(content);
 	}
-	return content.filter(block => !isReasoningBlock(block)).map(block => {
+	const blocks = content.filter(block => !isReasoningBlock(block)).map(block => {
 		const b = block as { type?: string; text?: string; name?: string; format?: 'custom'; input?: unknown; tool_use_id?: string };
 		switch (b.type) {
 			case 'text':
@@ -173,13 +174,20 @@ function projectContent(content: unknown): unknown {
 				return { type: b.type };
 		}
 	});
+	const [onlyBlock] = blocks;
+	return blocks.length === 1 && onlyBlock.type === 'text' && hasKey(onlyBlock, { text: true }) ? onlyBlock.text : blocks;
 }
 
 /** Projects a readable model request down to its host-authored structure. */
 export function projectModelRequest(request: IReadableAnthropicRequest): IProjectedModelRequest {
 	return {
 		system: request.system,
-		messages: request.messages.map(message => ({ role: message.role, content: projectContent(message.content) })),
+		messages: request.messages
+			.filter(message => !(message.role === 'user'
+				&& typeof message.content === 'string'
+				&& message.content.length > 0
+				&& elideChangeNotices(message.content) === ''))
+			.map(message => ({ role: message.role, content: projectContent(message.content) })),
 	};
 }
 

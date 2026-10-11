@@ -13,6 +13,7 @@ import { assertNever } from '../../../../base/common/assert.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { groupBy } from '../../../../base/common/collections.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { createMarkdownCommandLink, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -47,15 +48,14 @@ import { ActiveEditorContext, RemoteNameContext, ResourceContextKey, WorkbenchSt
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IAuthenticationService } from '../../../services/authentication/common/authentication.js';
 import { IAccountQuery, IAuthenticationQueryService } from '../../../services/authentication/common/authenticationQuery.js';
-import { MCP_CONFIGURATION_KEY, WORKSPACE_STANDALONE_CONFIGURATIONS } from '../../../services/configuration/common/configuration.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IRemoteUserDataProfilesService } from '../../../services/userDataProfile/common/remoteUserDataProfiles.js';
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IChatWidgetService } from '../../chat/browser/chat.js';
-import { IAgentHostCustomizationService } from '../../chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
+import { getMcpServerDisplayLabel, IAgentHostCustomizationService } from '../../chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { setAgentHostPluginEnablement } from '../../chat/browser/agentPluginActions.js';
-import { IAICustomizationWorkspaceService } from '../../chat/common/aiCustomizationWorkspaceService.js';
+import { AICustomizationManagementCommands, AICustomizationManagementSection, IAICustomizationWorkspaceService } from '../../chat/common/aiCustomizationWorkspaceService.js';
 import { IAgentPluginService } from '../../chat/common/plugins/agentPluginService.js';
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { IChatElicitationRequest, IChatToolInvocation } from '../../chat/common/chatService/chatService.js';
@@ -63,14 +63,16 @@ import { ChatAgentLocation, ChatModeKind } from '../../chat/common/constants.js'
 import { ContributionEnablementState, isContributionDisabled } from '../../chat/common/enablement.js';
 import { ILanguageModelsService } from '../../chat/common/languageModels.js';
 import { ILanguageModelToolsService } from '../../chat/common/tools/languageModelToolsService.js';
-import { extensionsFilterSubMenu, IExtensionsWorkbenchService, VIEWLET_ID } from '../../extensions/common/extensions.js';
+import { extensionsFilterSubMenu, IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { TEXT_FILE_EDITOR_ID } from '../../files/common/files.js';
 import { McpCommandIds } from '../common/mcpCommandIds.js';
+import { mcpWorkspaceRootConfig } from '../common/mcpConfiguration.js';
 import { McpContextKeys } from '../common/mcpContextKeys.js';
 import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
-import { HasInstalledMcpServersContext, IMcpSamplingService, IMcpServer, IMcpServerStartOpts, IMcpService, InstalledMcpServersViewId, LazyCollectionState, McpCapability, McpCollectionDefinition, McpConnectionState, McpDefinitionReference, mcpOAuthClientSecretStorageKey, mcpPromptPrefix, McpServerCacheState, McpStartServerInteraction } from '../common/mcpTypes.js';
+import { HasInstalledMcpServersContext, IMcpSamplingService, IMcpServer, IMcpServerStartOpts, IMcpService, LazyCollectionState, McpCapability, McpCollectionDefinition, McpConnectionState, McpDefinitionReference, mcpOAuthClientSecretStorageKey, mcpPromptPrefix, McpServerCacheState, McpStartServerInteraction } from '../common/mcpTypes.js';
 import { startServerAndWaitForLiveTools } from '../common/mcpTypesUtils.js';
 import { McpAddConfigurationCommand, McpInstallFromManifestCommand } from './mcpCommandsAddConfiguration.js';
+import { McpConfigurationDestination } from './mcpConfigurationDestination.js';
 import { McpResourceQuickAccess, McpResourceQuickPick } from './mcpResourceQuickAccess.js';
 import './media/mcpServerAction.css';
 import { openPanelChatAndGetWidget } from './openPanelChatAndGetWidget.js';
@@ -236,7 +238,7 @@ export class ListMcpServerCommand extends Action2 {
 				} satisfies ItemType] : servers.map((server): ItemType => ({
 					id: server.id,
 					server,
-					label: server.name,
+					label: getMcpServerDisplayLabel(server),
 					description: server.enabled
 						? mcpServerStatusToLabel(server.status)
 						: localize('mcp.disabled', 'Disabled'),
@@ -371,9 +373,10 @@ async function runAgentHostMcpServerLifecycleAction(server: IAgentHostMcpServer,
 	} catch (error) {
 		services.logService.error(`Failed to ${action} MCP server '${server.name}'`, error);
 		const message = error instanceof Error ? error.message : String(error);
+		const label = getMcpServerDisplayLabel(server);
 		services.notificationService.error(action === 'start'
-			? localize('mcp.agentHost.startError', "Failed to start MCP server '{0}': {1}", server.name, message)
-			: localize('mcp.agentHost.stopError', "Failed to stop MCP server '{0}': {1}", server.name, message));
+			? localize('mcp.agentHost.startError', "Failed to start MCP server '{0}': {1}", label, message)
+			: localize('mcp.agentHost.stopError', "Failed to stop MCP server '{0}': {1}", label, message));
 	}
 }
 
@@ -544,7 +547,7 @@ export class McpAgentHostServerOptionsCommand extends Action2 {
 		});
 
 		const picked = await quickInputService.pick(items, {
-			placeHolder: server.name,
+			placeHolder: getMcpServerDisplayLabel(server),
 		});
 
 		if (!picked || !hasKey(picked, { action: true })) {
@@ -1145,7 +1148,10 @@ export class AddConfigurationAction extends Action2 {
 			menu: {
 				id: MenuId.EditorContent,
 				when: ContextKeyExpr.and(
-					ContextKeyExpr.regex(ResourceContextKey.Path.key, /\.vscode[/\\]mcp\.json$/),
+					ContextKeyExpr.or(
+						ContextKeyExpr.regex(ResourceContextKey.Path.key, /\.vscode[/\\]mcp\.json$/),
+						ContextKeyExpr.and(ContextKeyExpr.equals(`config.${mcpWorkspaceRootConfig}`, true), ContextKeyExpr.regex(ResourceContextKey.Path.key, /[/\\]\.mcp\.json$/)),
+					),
 					ActiveEditorContext.isEqualTo(TEXT_FILE_EDITOR_ID),
 					ContextKeyExpr.and(ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate()),
 				)
@@ -1153,11 +1159,20 @@ export class AddConfigurationAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, configUri?: string): Promise<void> {
+	async run(accessor: ServicesAccessor, configUri?: URI | string): Promise<void> {
 		const instantiationService = accessor.get(IInstantiationService);
-		const workspaceService = accessor.get(IWorkspaceContextService);
-		const target = configUri ? workspaceService.getWorkspaceFolder(URI.parse(configUri)) : undefined;
-		return instantiationService.createInstance(McpAddConfigurationCommand, target ?? undefined).run();
+		const notificationService = accessor.get(INotificationService);
+		try {
+			const target = configUri === undefined ? undefined : await instantiationService.createInstance(McpConfigurationDestination).getExplicitTarget(configUri);
+			if (configUri !== undefined && target === undefined) {
+				return;
+			}
+			await instantiationService.createInstance(McpAddConfigurationCommand, target).run();
+		} catch (error) {
+			if (!isCancellationError(error)) {
+				notificationService.error(error);
+			}
+		}
 	}
 }
 
@@ -1453,10 +1468,6 @@ export class McpBrowseCommand extends Action2 {
 				group: '1_predefined',
 				order: 1,
 				when: ContextKeyExpr.and(ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate()),
-			}, {
-				id: MenuId.ViewTitle,
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', InstalledMcpServersViewId), ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate()),
-				group: 'navigation',
 			}],
 		});
 	}
@@ -1487,12 +1498,10 @@ export class ShowInstalledMcpServersCommand extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor) {
-		const viewsService = accessor.get(IViewsService);
-		const view = await viewsService.openView(InstalledMcpServersViewId, true);
-		if (!view) {
-			await viewsService.openViewContainer(VIEWLET_ID);
-			await viewsService.openView(InstalledMcpServersViewId, true);
-		}
+		await accessor.get(ICommandService).executeCommand(
+			AICustomizationManagementCommands.OpenEditor,
+			AICustomizationManagementSection.McpServers,
+		);
 	}
 }
 
@@ -1567,10 +1576,14 @@ export class OpenWorkspaceFolderMcpResourceCommand extends Action2 {
 		const workspaceContextService = accessor.get(IWorkspaceContextService);
 		const commandService = accessor.get(ICommandService);
 		const editorService = accessor.get(IEditorService);
+		const instantiationService = accessor.get(IInstantiationService);
 		const workspaceFolders = workspaceContextService.getWorkspace().folders;
 		const workspaceFolder = workspaceFolders.length === 1 ? workspaceFolders[0] : await commandService.executeCommand<IWorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND_ID);
 		if (workspaceFolder) {
-			await editorService.openEditor({ resource: workspaceFolder.toResource(WORKSPACE_STANDALONE_CONFIGURATIONS[MCP_CONFIGURATION_KEY]) });
+			const resource = await instantiationService.createInstance(McpConfigurationDestination).selectForOpen(workspaceFolder);
+			if (resource) {
+				await editorService.openEditor({ resource });
+			}
 		}
 	}
 }

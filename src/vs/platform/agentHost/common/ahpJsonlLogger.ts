@@ -4,12 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { VSBuffer } from '../../../base/common/buffer.js';
+import { Sequencer } from '../../../base/common/async.js';
+import { StringSHA1 } from '../../../base/common/hash.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../base/common/marshallingIds.js';
-import { joinPath } from '../../../base/common/resources.js';
+import { isEqual, joinPath } from '../../../base/common/resources.js';
 import { isUriComponents, URI, UriComponents } from '../../../base/common/uri.js';
-import { IFileService, IFileStatWithMetadata } from '../../files/common/files.js';
+import { FileOperationResult, IFileService, IFileStatWithMetadata, toFileOperationResult } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
+import { AHP_CANVAS_SCHEME } from './canvasUri.js';
 
 export type AhpLogDirection = 'c2s' | 's2c';
 
@@ -25,13 +28,18 @@ interface IAhpLogMeta {
 
 export interface IAhpJsonlLoggerOptions {
 	readonly logsHome: URI;
+	/** Stable identity shared by every transport connection to the same logical host. */
+	readonly logId: string;
 	readonly connectionId: string;
 	readonly transport: string;
 	readonly maxFileSizeBytes?: number;
 	readonly maxFiles?: number;
+	readonly retention?: AhpJsonlLogRetention;
 }
 
 const AHP_LOG_DIR = 'ahp';
+const AHP_LOG_FILE_PREFIX = 'ahp';
+const AHP_LOG_FILE_EXTENSION = '.jsonl';
 const DEFAULT_MAX_FILE_SIZE_BYTES = 75 * 1024 * 1024;
 const DEFAULT_MAX_FILES = 5;
 // Cap the size of any single coalesced writeFile to avoid producing huge
@@ -51,7 +59,48 @@ const MAX_LOG_LINE_LENGTH = 1024 * 1024;
 // When trimming an oversized entry, individual string values are capped to this
 // length. Generous enough to keep messages useful for debugging.
 const MAX_LOGGED_STRING_LENGTH = 16 * 1024;
+const REDACTED_CANVAS_SOURCE = '<redacted canvas source>';
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null;
+}
+
+/** Serializes writes and bounds a logical host's history across connection generations. */
+export class AhpJsonlLogRetention {
+	private readonly _writes = new Sequencer();
+
+	constructor(
+		private readonly _options: { readonly logsHome: URI; readonly logId: string; readonly maxFiles: number; readonly maxSizeBytes: number },
+		@IFileService private readonly _fileService: IFileService,
+		@ILogService private readonly _logService: ILogService,
+	) { }
+
+	run(write: () => Promise<void>, currentResource: () => URI): Promise<void> {
+		return this._writes.queue(async () => {
+			await write();
+			const current = currentResource();
+			const directory = await this._fileService.resolve(joinPath(this._options.logsHome, AHP_LOG_DIR), { resolveMetadata: true });
+			const files = (directory.children ?? [])
+				.filter(file => file.isFile && !file.isSymbolicLink && isAhpLogFileFor(this._options.logId, file.name))
+				.sort((a, b) => Number(isEqual(b.resource, current)) - Number(isEqual(a.resource, current))
+					|| (b.mtime ?? 0) - (a.mtime ?? 0) || b.name.localeCompare(a.name));
+			let count = files.length;
+			let size = files.reduce((sum, file) => sum + (file.size ?? 0), 0);
+			for (const file of files.reverse()) {
+				if (count <= this._options.maxFiles && size <= this._options.maxSizeBytes) {
+					break;
+				}
+				try {
+					await this._fileService.del(file.resource);
+					count--;
+					size -= file.size ?? 0;
+				} catch (error) {
+					this._logService.warn('[AHPLog] Failed to remove retained transport log', file.resource.toString(), error);
+				}
+			}
+		});
+	}
+}
 
 export class AhpJsonlLogger extends Disposable {
 
@@ -76,7 +125,7 @@ export class AhpJsonlLogger extends Disposable {
 		this._directory = joinPath(this._options.logsHome, AHP_LOG_DIR);
 		// Truncate connectionId to avoid filesystem filename length limits (e.g. 255 on ext4/APFS)
 		const safeConnectionId = sanitizeFilePart(this._options.connectionId).slice(0, 64);
-		this._baseName = `ahp-${toFileTimestamp(new Date())}-${safeConnectionId}.jsonl`;
+		this._baseName = `${getAhpLogFilePrefix(this._options.logId)}${toFileTimestamp(new Date())}-${safeConnectionId}${AHP_LOG_FILE_EXTENSION}`;
 		this._maxFileSizeBytes = this._options.maxFileSizeBytes ?? DEFAULT_MAX_FILE_SIZE_BYTES;
 		this._maxFiles = this._options.maxFiles ?? DEFAULT_MAX_FILES;
 		this._currentFile = joinPath(this._directory, this._baseName);
@@ -123,9 +172,11 @@ export class AhpJsonlLogger extends Disposable {
 			return;
 		}
 		this._drainScheduled = true;
-		this._queue = this._queue.then(() => this._drainPending()).catch(error => {
-			this._logService.error('[AHPLog] Failed to write transport log', error);
-		});
+		this._queue = this._queue.then(() => this._options.retention
+			? this._options.retention.run(() => this._drainPending(), () => this._currentFile)
+			: this._drainPending()).catch(error => {
+				this._logService.error('[AHPLog] Failed to write transport log', error);
+			});
 	}
 
 	private async _drainPending(): Promise<void> {
@@ -143,7 +194,7 @@ export class AhpJsonlLogger extends Disposable {
 			this._folderCreated = this._fileService.createFolder(this._directory);
 		}
 		await this._folderCreated;
-		if (this._currentSize === 0) {
+		if (this._currentSize === 0 || this._options.retention) {
 			this._currentSize = await this._getFileSize(this._currentFile);
 		}
 
@@ -195,14 +246,17 @@ export class AhpJsonlLogger extends Disposable {
 		if (segment === 0) {
 			return joinPath(this._directory, this._baseName);
 		}
-		const currentBaseName = this._baseName.slice(0, -'.jsonl'.length);
-		return joinPath(this._directory, `${currentBaseName}.${segment}.jsonl`);
+		const currentBaseName = this._baseName.slice(0, -AHP_LOG_FILE_EXTENSION.length);
+		return joinPath(this._directory, `${currentBaseName}.${segment}${AHP_LOG_FILE_EXTENSION}`);
 	}
 
 	private async _getFileSize(resource: URI): Promise<number> {
 		try {
 			return (await this._fileService.resolve(resource)).size ?? 0;
-		} catch {
+		} catch (error) {
+			if (this._options.retention && (!(error instanceof Error) || toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND)) {
+				throw error;
+			}
 			return 0;
 		}
 	}
@@ -210,6 +264,11 @@ export class AhpJsonlLogger extends Disposable {
 
 export function getAhpLogByteLength(text: string): number {
 	return VSBuffer.fromString(text).byteLength;
+}
+
+/** Tests whether a JSONL filename belongs to the given logical Agent Host connection. */
+export function isAhpLogFileFor(logId: string, name: string): boolean {
+	return name.startsWith(getAhpLogFilePrefix(logId)) && name.endsWith(AHP_LOG_FILE_EXTENSION);
 }
 
 export function stringifyAhpLogEntry(value: unknown): string {
@@ -241,6 +300,21 @@ function stringifyAhpLogEntryTruncated(value: unknown, maxStringLength: number):
  * would otherwise be required to find every URI in a message payload.
  */
 function _ahpReplacer(this: unknown, _key: string, value: unknown): unknown {
+	if (isRecord(value)) {
+		if (value.method === 'authenticate' && isRecord(value.params) && value.params.token !== undefined
+			&& value.params.token !== '<redacted>' && value.params.token !== '[REDACTED]') {
+			return { ...value, params: { ...value.params, token: '<redacted>' } };
+		}
+		if (value.type === 'canvas/stateChanged' && isRecord(value.canvas) && value.canvas.url !== undefined) {
+			return { ...value, canvas: { ...value.canvas, url: REDACTED_CANVAS_SOURCE } };
+		}
+		const isCanvasResource = typeof value.resource === 'string'
+			? value.resource.toLowerCase().startsWith(`${AHP_CANVAS_SCHEME}:`)
+			: URI.isUri(value.resource) && value.resource.scheme === AHP_CANVAS_SCHEME;
+		if (isCanvasResource && isRecord(value.state) && value.state.url !== undefined) {
+			return { ...value, state: { ...value.state, url: REDACTED_CANVAS_SOURCE } };
+		}
+	}
 	if (
 		value
 		&& typeof value === 'object'
@@ -254,6 +328,12 @@ function _ahpReplacer(this: unknown, _key: string, value: unknown): unknown {
 
 function toFileTimestamp(date: Date): string {
 	return date.toISOString().replace(/[:.]/g, '-');
+}
+
+function getAhpLogFilePrefix(logId: string): string {
+	const hash = new StringSHA1();
+	hash.update(logId);
+	return `${AHP_LOG_FILE_PREFIX}-${hash.digest()}-`;
 }
 
 function sanitizeFilePart(value: string): string {

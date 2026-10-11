@@ -35,6 +35,18 @@ export interface IAgentPluginAutomation {
 	readonly blueprint: IAutomationBlueprint;
 }
 
+export type CopilotCliPluginInstallSource =
+	| { readonly kind: 'github'; readonly repository: string; readonly ref?: string; readonly sha?: string; readonly path?: string }
+	| { readonly kind: 'url'; readonly url: string; readonly ref?: string; readonly sha?: string; readonly path?: string }
+	| { readonly kind: 'local'; readonly path: string };
+
+export interface ICopilotCliPluginInstallation {
+	readonly name: string;
+	readonly marketplace: string;
+	readonly directSourceId?: string;
+	readonly source?: CopilotCliPluginInstallSource;
+}
+
 export interface IAgentPlugin {
 	readonly uri: URI;
 	readonly format: PluginFormat;
@@ -43,14 +55,11 @@ export interface IAgentPlugin {
 	/** Version declared by the plugin manifest, falling back to marketplace metadata. */
 	readonly version?: IObservable<string | undefined>;
 	readonly enablement: IObservable<ContributionEnablementState>;
-	/**
-	 * When `true`, the plugin is blocked by enterprise policy. It remains
-	 * visible (shown as disabled) but its contributions are inactive and the
-	 * user cannot re-enable it. Folded into {@link enablement} so all gating
-	 * consumers honor it automatically.
-	 */
+	/** Explicit managed enablement for this plugin. Undefined when policy does not mention it. */
+	readonly policyEnablement?: IObservable<boolean | undefined>;
+	/** Compatibility view for consumers that only distinguish policy-blocked plugins. */
 	readonly policyBlocked?: IObservable<boolean>;
-	/** Removes this plugin from its discovery source (config or installed storage). Undefined for policy-managed plugins that cannot be removed by the user. */
+	/** Removes this plugin from its discovery source (config or installed storage). */
 	remove?(): Promise<boolean>;
 	readonly hooks: IObservable<readonly IAgentPluginHook[]>;
 	readonly commands: IObservable<readonly IAgentPluginCommand[]>;
@@ -61,6 +70,8 @@ export interface IAgentPlugin {
 	readonly automations: IObservable<readonly IAgentPluginAutomation[]>;
 	/** Set when the plugin was installed from a marketplace repository. */
 	readonly fromMarketplace?: IMarketplacePlugin;
+	/** Set when the Copilot SDK owns this plugin installation. */
+	readonly copilotCliInstallation?: ICopilotCliPluginInstallation;
 }
 
 export interface IAgentPluginService {

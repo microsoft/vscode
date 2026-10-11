@@ -14,7 +14,7 @@
 	justify-items: start;
 }
 
-.monaco-animated-counter > div {
+.monaco-animated-counter > span {
 	grid-area: 1 / 1;
 	display: block;
 	will-change: transform, opacity;

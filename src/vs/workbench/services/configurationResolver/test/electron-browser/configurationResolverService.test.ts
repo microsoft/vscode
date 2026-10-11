@@ -859,6 +859,15 @@ class MockPathService implements IPathService {
 	hasValidBasename(resource: URI, arg2?: string | platform.OperatingSystem, name?: string): boolean | Promise<boolean> {
 		throw new Error('Method not implemented.');
 	}
+	getOperatingSystem(_resource: URI): Promise<platform.OperatingSystem | undefined> {
+		throw new Error('Method not implemented.');
+	}
+	getPath(_resource: URI): Promise<IPath | undefined> {
+		throw new Error('Method not implemented.');
+	}
+	registerPathProvider(): IDisposable {
+		return Disposable.None;
+	}
 	resolvedUserHome: URI | undefined;
 }
 

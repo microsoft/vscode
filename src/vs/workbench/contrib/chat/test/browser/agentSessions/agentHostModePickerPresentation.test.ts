@@ -24,7 +24,7 @@ import { MockContextKeyService, MockKeybindingService } from '../../../../../../
 import { ILayoutService } from '../../../../../../platform/layout/browser/layoutService.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { NullOpenerService } from '../../../../../../platform/opener/test/common/nullOpenerService.js';
-import { createModePickerModeItems, createModePickerPermissionsItems, getModePermissionsPickerAccessibilityProvider, getModePermissionsPickerOptions } from '../../../browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
+import { createModePickerModeItems, createModePickerPermissionsItems, getModePermissionsPickerAccessibilityProvider, getModePermissionsPickerOptions, getPermissionLevelBadge } from '../../../browser/agentSessions/agentHost/agentHostModePickerPresentation.js';
 import { ChatPermissionLevel } from '../../../common/constants.js';
 
 suite('Combined mode and permissions picker', () => {
@@ -50,9 +50,14 @@ suite('Combined mode and permissions picker', () => {
 		let closes = 0;
 		let sandboxed = false;
 		const permissionItems: IActionListItem<IAction>[] = [
-			...['Manual permissions', 'Assisted permissions', 'Allow all'].map(label => ({
+			...[
+				{ label: 'Manual permissions', level: ChatPermissionLevel.Default },
+				{ label: 'Assisted permissions', level: ChatPermissionLevel.Assisted },
+				{ label: 'Allow all', level: ChatPermissionLevel.AutoApprove },
+			].map(({ label, level }) => ({
 				kind: ActionListItemKind.Action,
 				label,
+				...getPermissionLevelBadge(level),
 				detail: `${label} description`,
 				hover: { content: `${label} details` },
 				item: toAction({
@@ -132,6 +137,82 @@ suite('Combined mode and permissions picker', () => {
 		row.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
 		row.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
 	}
+
+	test('renders a compact neutral right-aligned Experimental badge and announces it', () => {
+		const { popup } = setup(true);
+		popup.style.setProperty('--vscode-fontSize-label3', '10px');
+		popup.style.setProperty('--vscode-spacing-size160', '16px');
+		popup.style.setProperty('--vscode-spacing-size60', '6px');
+		popup.style.setProperty('--vscode-strokeThickness', '1px');
+		popup.style.setProperty('--vscode-cornerRadius-circle', '9999px');
+		popup.style.setProperty('--vscode-badge-background', '#007acc');
+		popup.style.setProperty('--vscode-foreground', '#cccccc');
+		popup.style.setProperty('--vscode-descriptionForeground', '#999999');
+		const row = getRow(popup, 'Assisted permissions');
+		const title = row.querySelector<HTMLElement>('.title')!;
+		const badge = row.querySelector<HTMLElement>('.action-item-badge')!;
+		const badgeStyle = dom.getWindow(badge).getComputedStyle(badge);
+		const badgeBounds = badge.getBoundingClientRect();
+		const titleBounds = title.getBoundingClientRect();
+		const rowContentRight = row.getBoundingClientRect().right - parseFloat(dom.getWindow(row).getComputedStyle(row).paddingRight);
+		const textRange = document.createRange();
+		textRange.selectNodeContents(badge);
+		const textBounds = textRange.getBoundingClientRect();
+		assert.deepStrictEqual({
+			badge: badge.textContent,
+			afterTitle: title.nextElementSibling === badge,
+			titleFlexGrow: dom.getWindow(title).getComputedStyle(title).flexGrow,
+			fontSize: badgeStyle.fontSize,
+			height: badgeBounds.height,
+			borderRadius: badgeStyle.borderRadius,
+			background: badgeStyle.backgroundColor,
+			color: badgeStyle.color,
+			borderColor: badgeStyle.borderColor,
+			rightAligned: Math.abs(badgeBounds.right - rowContentRight) < 0.5,
+			textCenteredHorizontally: Math.abs(textBounds.left + textBounds.width / 2 - badgeBounds.left - badgeBounds.width / 2) < 0.5,
+			textCenteredVertically: Math.abs(textBounds.top + textBounds.height / 2 - badgeBounds.top - badgeBounds.height / 2) < 0.5,
+			alignedWithTitle: Math.abs(titleBounds.top + titleBounds.height / 2 - badgeBounds.top - badgeBounds.height / 2) < 0.5,
+			ariaLabel: row.ariaLabel,
+		}, {
+			badge: 'Experimental',
+			afterTitle: true,
+			titleFlexGrow: '0',
+			fontSize: '10px',
+			height: 16,
+			borderRadius: '9999px',
+			background: 'color(srgb 0.8 0.8 0.8 / 0.1)',
+			color: 'rgb(153, 153, 153)',
+			borderColor: 'color(srgb 0.8 0.8 0.8 / 0.2)',
+			rightAligned: true,
+			textCenteredHorizontally: true,
+			textCenteredVertically: true,
+			alignedWithTitle: true,
+			ariaLabel: 'Assisted permissions, Experimental, Assisted permissions description, Assisted permissions details',
+		});
+	});
+
+	test('the Experimental badge respects focus and high-contrast colors with a neutral fill', () => {
+		const { service, popup } = setup(true);
+		popup.style.setProperty('--vscode-strokeThickness', '1px');
+		popup.style.setProperty('--vscode-foreground', '#cccccc');
+		popup.style.setProperty('--vscode-contrastBorder', '#ffffff');
+		service.focusItemById('Assisted permissions');
+		const row = getRow(popup, 'Assisted permissions');
+		const badge = row.querySelector<HTMLElement>('.action-item-badge')!;
+		const badgeStyle = dom.getWindow(badge).getComputedStyle(badge);
+
+		assert.deepStrictEqual({
+			background: badgeStyle.backgroundColor,
+			borderWidth: badgeStyle.borderWidth,
+			borderColor: badgeStyle.borderColor,
+			matchesRowColor: badgeStyle.color === dom.getWindow(row).getComputedStyle(row).color,
+		}, {
+			background: 'color(srgb 0.8 0.8 0.8 / 0.1)',
+			borderWidth: '1px',
+			borderColor: 'rgb(255, 255, 255)',
+			matchesRowColor: true,
+		});
+	});
 
 	test('opens the same menu with permissions collapsed or expanded for its originating button', () => {
 		assert.deepStrictEqual([false, true].map(openPermissions => {

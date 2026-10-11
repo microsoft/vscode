@@ -162,6 +162,23 @@ suite('ByokLmBridgeRegistry', () => {
 		reg.dispose();
 	});
 
+	test('republishes changes to independent token limits', () => {
+		const registry = new ByokLmBridgeRegistry();
+		const conn = pushable();
+		store.add(registry.register('client-a', conn.connection));
+		const model = { vendor: 'acme', id: 'model', maxContextWindowTokens: 128000, maxPromptTokens: 32000, maxOutputTokens: 4000 };
+		conn.push([model]);
+		let changes = 0;
+		store.add(registry.onDidChangeModels(() => { changes++; }));
+
+		conn.push([{ ...model, maxPromptTokens: 64000 }]);
+		const updated = { ...model, maxPromptTokens: 64000, maxOutputTokens: 8000 };
+		conn.push([updated]);
+		conn.push([{ ...updated }]);
+
+		assert.deepStrictEqual({ changes, models: registry.getModels() }, { changes: 2, models: [updated] });
+	});
+
 	test('compares reasoning effort metadata structurally', () => {
 		const registry = new ByokLmBridgeRegistry();
 		const conn = pushable();

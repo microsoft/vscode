@@ -11,6 +11,10 @@ import { IThemingParticipant, IThemingRegistry, Extensions as ThemingExtensions 
 import { generateColorThemeCSS } from '../../../services/themes/browser/colorThemeCss.js';
 import { ColorThemeData } from '../../../services/themes/common/colorThemeData.js';
 
+// Register shared product tokens before generating and caching any fixture theme CSS.
+import '../../../common/agentsColors.js';
+import '../../../common/agentsSizes.js';
+
 const themingRegistry = Registry.as<IThemingRegistry>(ThemingExtensions.ThemingContribution);
 const mockEnvironmentService: IEnvironmentService = Object.create(null);
 
@@ -209,13 +213,15 @@ export function getThemeStyleSheet(theme: ColorThemeData): CSSStyleSheet {
 		return cachedStyleSheet;
 	}
 
-	const scopeSelector = '.' + theme.classNames[0];
+	const themeScopeSelector = '.' + theme.classNames.join('.');
+	// Keep matching nested editor theme roots without increasing selector specificity.
+	const scopeSelector = `.${theme.classNames[0]}:where(${themeScopeSelector}, ${themeScopeSelector} *)`;
 	const themingParticipants = themingRegistry.getThemingParticipants();
 	const sheet = new CSSStyleSheet();
 	const css = generateColorThemeCSS(
 		theme,
 		scopeSelector,
-		[createScopedThemingParticipant(scopeSelector, '.monaco-workbench', themingParticipants)],
+		[createScopedThemingParticipant(themeScopeSelector, '.monaco-workbench', themingParticipants)],
 		mockEnvironmentService
 	);
 	sheet.replaceSync(css.code);

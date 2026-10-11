@@ -75,6 +75,7 @@
       confirmation: undefined,
       editedFileEvents: undefined,
       modelId: undefined,
+      modelConfiguration: undefined,
       modeInfo: undefined,
       hiddenFromTranscript: undefined,
       terminalExecutionId: undefined,

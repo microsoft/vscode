@@ -10,7 +10,8 @@ import { NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { isSSHHostKeyDeniedError, SSHAuthMethod, type ISSHAgentHostConfig, type ISSHHostKeyVerificationRequest } from '../../common/sshRemoteAgentHost.js';
+import { isSSHHostKeyDeniedError, SSHAuthMethod, type ISSHAgentHostConfig, type ISSHHostKeyVerificationRequest, type SSHStrictHostKeyChecking } from '../../common/sshRemoteAgentHost.js';
+import { resolveSSHKnownHostsFiles, SSHKnownHostsResolutionError } from '../../node/sshConfigPaths.js';
 import { SSHRemoteAgentHostMainService, type SSHAuthAttempt } from '../../node/sshRemoteAgentHostService.js';
 import { computeHostKeyFingerprint, parseKnownHosts, type IKnownHostsEntry } from '../../node/sshKnownHosts.js';
 
@@ -108,6 +109,17 @@ class HostKeyMockSSHClient {
 
 class HostKeyTestService extends SSHRemoteAgentHostMainService {
 	readonly client = new HostKeyMockSSHClient();
+	resolveFailure: Error | undefined;
+	failResolutionOnCall = 1;
+	private _resolveCalls = 0;
+	useResolvedKnownHosts = false;
+	hostKeyAlias: string | undefined;
+	override async resolveSSHConfig(): ReturnType<SSHRemoteAgentHostMainService['resolveSSHConfig']> {
+		if (++this._resolveCalls >= this.failResolutionOnCall && this.resolveFailure) {
+			throw this.resolveFailure;
+		}
+		return { hostname: 'test.example.com', ...(this.hostKeyAlias ? { hostKeyAlias: this.hostKeyAlias } : {}), user: 'testuser', port: 22, identityFile: [], identityAgent: undefined, forwardAgent: false, userKnownHostsFiles: [], globalKnownHostsFiles: [], strictHostKeyChecking: undefined };
+	}
 	knownHostsContents = '';
 	/** Set to make the known_hosts read throw, exercising the fail-closed path. */
 	knownHostsError: Error | undefined;
@@ -128,14 +140,17 @@ class HostKeyTestService extends SSHRemoteAgentHostMainService {
 		return this.authAttempts;
 	}
 
-	protected override async _readKnownHostsEntries(_host: string): Promise<{ entries: IKnownHostsEntry[]; strictHostKeyChecking: undefined }> {
+	protected override async _readKnownHostsEntries(host: string): Promise<{ entries: IKnownHostsEntry[]; strictHostKeyChecking: SSHStrictHostKeyChecking | undefined; hostKeyAlias: string | undefined }> {
+		if (this.useResolvedKnownHosts) {
+			return super._readKnownHostsEntries(host);
+		}
 		if (this.knownHostsGate) {
 			await this.knownHostsGate;
 		}
 		if (this.knownHostsError) {
 			throw this.knownHostsError;
 		}
-		return { entries: parseKnownHosts(this.knownHostsContents), strictHostKeyChecking: undefined };
+		return { entries: parseKnownHosts(this.knownHostsContents), strictHostKeyChecking: undefined, hostKeyAlias: this.hostKeyAlias };
 	}
 
 	/** Expose the pending-request map so tests can assert nothing is leaked. */
@@ -218,6 +233,7 @@ suite('SSHRemoteAgentHostMainService - host key verification', () => {
 				keyType: requests[0]?.keyType,
 				fingerprint: requests[0]?.fingerprint,
 				host: requests[0]?.host,
+				resolvedHost: requests[0]?.resolvedHost,
 				port: requests[0]?.port,
 				knownHostsMatch: requests[0]?.knownHostsMatch,
 				userInitiated: requests[0]?.userInitiated,
@@ -229,6 +245,7 @@ suite('SSHRemoteAgentHostMainService - host key verification', () => {
 				keyType: 'ssh-ed25519',
 				fingerprint: computeHostKeyFingerprint(HOST_KEY),
 				host: 'test.example.com',
+				resolvedHost: 'test.example.com',
 				port: 22,
 				knownHostsMatch: 'unknown',
 				userInitiated: true,
@@ -257,6 +274,47 @@ suite('SSHRemoteAgentHostMainService - host key verification', () => {
 			});
 	});
 
+	for (const failure of ['ambiguous paths', 'filesystem error'] as const) {
+		for (const failResolutionOnCall of [1, 2]) {
+			test(`rejects ${failure} during ${failResolutionOnCall === 1 ? 'connection setup' : 'host-key verification'} without prompting`, async () => {
+				const service = createService();
+				service.failResolutionOnCall = failResolutionOnCall;
+				service.useResolvedKnownHosts = true;
+				const filesystemError = new Error('Permission denied');
+				service.resolveFailure = await resolveSSHKnownHostsFiles(
+					'userknownhostsfile /keys/known_hosts relative\nstricthostkeychecking yes',
+					async () => {
+						if (failure === 'filesystem error') {
+							throw filesystemError;
+						}
+						return true;
+					},
+				).then(
+					() => assert.fail('Expected known-hosts resolution to fail'),
+					error => {
+						assert.ok(error instanceof SSHKnownHostsResolutionError);
+						return error;
+					},
+				);
+				const { requests, error } = await connectAnswering(service, true, makeConfig({ sshConfigHost: undefined }));
+
+				assert.deepStrictEqual({
+					requests: requests.length,
+					verdict: service.client.verdict,
+					verdictCount: service.client.verdictCount,
+					rejected: failResolutionOnCall === 1 ? error === service.resolveFailure : error instanceof Error,
+					pendingRequests: service.pendingHostKeyRequestCount,
+				}, {
+					requests: 0,
+					verdict: failResolutionOnCall === 1 ? undefined : false,
+					verdictCount: failResolutionOnCall === 1 ? 0 : 1,
+					rejected: true,
+					pendingRequests: 0,
+				});
+			});
+		}
+	}
+
 	test('reports the known_hosts verdict for a matching entry', async () => {
 		const service = createService();
 		service.knownHostsContents = `test.example.com ssh-ed25519 ${HOST_KEY.toString('base64')}`;
@@ -270,6 +328,33 @@ suite('SSHRemoteAgentHostMainService - host key verification', () => {
 		service.knownHostsContents = `test.example.com ssh-ed25519 ${other.toString('base64')}`;
 		const { requests } = await connectAnswering(service, false);
 		assert.strictEqual(requests[0]?.knownHostsMatch, 'mismatch');
+	});
+
+	test('reports when known_hosts holds only another key type', async () => {
+		const service = createService();
+		const other = makeKeyBlob('ssh-rsa', Buffer.alloc(32, 0xbb));
+		service.knownHostsContents = `test.example.com ssh-rsa ${other.toString('base64')}`;
+		const { requests } = await connectAnswering(service, false);
+		assert.strictEqual(requests[0]?.knownHostsMatch, 'other-key-type');
+	});
+
+	test('uses HostKeyAlias for known_hosts matching and verification identity', async () => {
+		const service = createService();
+		service.hostKeyAlias = 'trusted.example';
+		service.knownHostsContents = `trusted.example ssh-ed25519 ${HOST_KEY.toString('base64')}`;
+		const { requests } = await connectAnswering(service, true);
+
+		assert.deepStrictEqual(
+			{
+				host: requests[0]?.host,
+				resolvedHost: requests[0]?.resolvedHost,
+				knownHostsMatch: requests[0]?.knownHostsMatch,
+			},
+			{
+				host: 'trusted.example',
+				resolvedHost: 'test.example.com',
+				knownHostsMatch: 'match',
+			});
 	});
 
 	test('forwards userInitiated so background reconnects can be declined', async () => {
@@ -455,5 +540,20 @@ suite('SSHRemoteAgentHostMainService - host key verification', () => {
 			host: 'test.example.com',
 			keys: [{ keyType: 'ssh-ed25519', fingerprint: computeHostKeyFingerprint(rotated) }],
 		}]);
+	});
+
+	test('uses HostKeyAlias for proven announced host keys', async () => {
+		const service = createService();
+		service.hostKeyAlias = 'trusted.example';
+		const announcements: string[] = [];
+		const store = new DisposableStore();
+		store.add(service.onDidAnnounceHostKeys(announcement => announcements.push(announcement.host)));
+		await connectAnswering(service, true);
+
+		const rotated = makeKeyBlob('ssh-ed25519', Buffer.alloc(32, 0xcc));
+		service.client.announceHostKeys([{ getPublicSSH: () => rotated, type: 'ssh-ed25519' }]);
+		store.dispose();
+
+		assert.deepStrictEqual(announcements, ['trusted.example']);
 	});
 });

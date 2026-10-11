@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CodeWindow } from '../../../../base/browser/window.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -23,6 +25,8 @@ export interface WebviewInputInitInfo {
 }
 
 export class WebviewInput extends EditorInput {
+
+	public async applyOptions(_options: IEditorOptions, _token: CancellationToken): Promise<void> { }
 
 	public static typeId = 'workbench.editors.webviewInput';
 

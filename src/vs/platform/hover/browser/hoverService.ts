@@ -501,6 +501,12 @@ export class HoverService extends Disposable implements IHoverService {
 		this.doHideHover();
 	}
 
+	getStickyHover(targetElement: HTMLElement): IHoverWidget | undefined {
+		return this._hoverStack.find(({ options }) => options.persistence?.sticky && (isHTMLElement(options.target)
+			? options.target === targetElement
+			: options.target.targetElements.includes(targetElement)))?.hover;
+	}
+
 	private doHideHover(): void {
 		// Pop and dispose the topmost hover
 		const length = this._hoverStack.length;
@@ -612,7 +618,6 @@ export class HoverService extends Disposable implements IHoverService {
 			}
 			if (hadHover) {
 				hoverDelegate.onDidHideHover?.();
-				hoverWidget = undefined;
 			}
 		};
 
@@ -710,7 +715,7 @@ export class HoverService extends Disposable implements IHoverService {
 
 		const hover: IManagedHover = {
 			show: focus => {
-				hideHover(false, true); // terminate a ongoing mouse over preparation
+				hideHover(true, true); // terminate an ongoing mouse over preparation and recreate the hover with the requested focus
 				triggerShowHover(0, focus, undefined, focus); // show hover immediately
 			},
 			hide: () => {
