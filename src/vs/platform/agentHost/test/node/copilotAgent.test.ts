@@ -3896,6 +3896,57 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('clearing the shared enterprise endpoint challenges a previously working credential', async () => {
+		const logService = new NullLogService();
+		const stateManager = disposables.add(new AgentHostStateManager(logService));
+		const configuration = disposables.add(new AgentConfigurationService(stateManager, logService));
+		configuration.updateRootConfig({ [AgentHostConfigKey.GithubEnterpriseUri]: 'https://acme.ghe.com' });
+		const endpoints = disposables.add(new AgentHostGitHubEndpointService(configuration, logService));
+		const client = new TestCopilotClient([], [{ id: 'gpt-4o', name: 'GPT-4o' }]);
+		const agent = createTestAgent(disposables, { copilotClient: client, gitHubEndpointService: endpoints });
+		try {
+			await agent.authenticate(endpoints.getCopilotResource().resource, 'enterprise-token');
+			await waitForState(agent.models, models => models.length > 0);
+			const beforeEndpointChange = agent.authenticationRequired.get();
+
+			configuration.updateRootConfig({ [AgentHostConfigKey.GithubEnterpriseUri]: '' });
+			await waitForState(agent.models, models => models.length === 0);
+			const afterEndpointChange = {
+				token: agent['_githubCredentials'].token,
+				requirement: agent.authenticationRequired.get(),
+				models: agent.models.get().map(model => model.id),
+			};
+
+			configuration.updateRootConfig({ [AgentHostConfigKey.GithubEnterpriseUri]: 'https://acme.ghe.com' });
+			await agent.authenticate(endpoints.getCopilotResource().resource, 'enterprise-token');
+			await waitForState(agent.models, models => models.length > 0);
+
+			assert.deepStrictEqual({
+				beforeEndpointChange,
+				afterEndpointChange,
+				afterRestoringEndpoint: {
+					token: agent['_githubCredentials'].token,
+					requirement: agent.authenticationRequired.get(),
+					models: agent.models.get().map(model => model.id),
+				},
+			}, {
+				beforeEndpointChange: undefined,
+				afterEndpointChange: {
+					token: undefined,
+					requirement: { resource: GITHUB_COPILOT_PROTECTED_RESOURCE, reason: AuthRequiredReason.Expired },
+					models: [],
+				},
+				afterRestoringEndpoint: {
+					token: 'enterprise-token',
+					requirement: undefined,
+					models: ['gpt-4o'],
+				},
+			});
+		} finally {
+			await disposeAgent(agent);
+		}
+	});
+
 	test('keeps Codex SKU telemetry independent of concurrent Copilot authentication and clearing', async () => {
 		const copilotDiscoveryStarted = new DeferredPromise<void>();
 		const copilotDiscovery = new DeferredPromise<Response>();

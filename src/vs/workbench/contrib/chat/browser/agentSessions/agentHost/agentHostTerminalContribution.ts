@@ -88,18 +88,12 @@ export class AgentHostTerminalContribution extends Disposable implements IWorkbe
 				},
 			},
 			{
-				// Mirror the connected GitHub Enterprise host to the agent host so its
-				// GitHub resources / CAPI calls target the enterprise instance. Sourced
-				// from the account service — the authoritative "am I signed in to GHE"
-				// state — rather than reading the setting directly. Push `''` (not
-				// `undefined`) for github.com or an unavailable host: the push pipeline skips `undefined`,
-				// which would strand a stale host on the agent host.
 				key: AgentHostConfigKey.GithubEnterpriseUri,
-				computeValue: () => {
+				computeValue: async () => {
+					// Account initialization must not reset another window's shared enterprise endpoint.
+					await this._defaultAccountService.getDefaultAccount();
 					const provider = this._defaultAccountService.getDefaultAccountAuthenticationProvider();
-					// `resolveGitHubUrl('')` yields the GitHub Enterprise base (e.g.
-					// `https://acme.ghe.com/`) when signed in via a GHE provider.
-					return provider.enterprise ? this._defaultAccountService.resolveGitHubUrl('')?.replace(/\/+$/, '') ?? '' : '';
+					return provider.enterprise ? this._defaultAccountService.resolveGitHubUrl('')?.replace(/\/+$/, '') : '';
 				},
 				registerTriggers: (store, push) => {
 					store.add(this._defaultAccountService.onDidChangeDefaultAccount(() => push()));

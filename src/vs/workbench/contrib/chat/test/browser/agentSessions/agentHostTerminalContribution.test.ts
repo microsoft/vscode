@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { OS, OperatingSystem } from '../../../../../../base/common/platform.js';
@@ -136,6 +137,11 @@ class MockDefaultAccountService extends mock<IDefaultAccountService>() {
 
 	public enterprise = false;
 	public gitHubBaseUrl: string | undefined = 'https://github.com';
+	public accountReady: Promise<IDefaultAccount | null> = Promise.resolve(null);
+
+	override getDefaultAccount(): Promise<IDefaultAccount | null> {
+		return this.accountReady;
+	}
 
 	override getDefaultAccountAuthenticationProvider(): IDefaultAccountAuthenticationProvider {
 		return { id: 'github', name: 'GitHub', enterprise: this.enterprise };
@@ -232,12 +238,9 @@ function setup(disposables: DisposableStore, agentHostEnabled: boolean = true, r
 	return { contribution, agentHostService, resolver, profileService, configurationService, defaultAccountService };
 }
 
-/** Wait for any in-flight `_pushDefaultShell` promises to settle. */
+/** Drain asynchronous config computations and their dispatches. */
 async function flush(): Promise<void> {
-	// Two microtask hops: one for the await on getDefaultProfile, one for
-	// the resolve→dispatch sequence.
-	await Promise.resolve();
-	await Promise.resolve();
+	await timeout(0);
 }
 
 // =============================================================================
@@ -562,7 +565,51 @@ suite('AgentHostTerminalContribution', () => {
 		]);
 	});
 
-	test('an unresolved enterprise account does not forward github.com as its enterprise host', async () => {
+	for (const existingHost of [undefined, 'https://acme.ghe.com']) {
+		test(`waits for account initialization before forwarding the enterprise host (${existingHost ?? 'fresh host'})`, async () => {
+			const { agentHostService, defaultAccountService } = setup(disposables);
+			const accountReady = new DeferredPromise<IDefaultAccount | null>();
+			defaultAccountService.accountReady = accountReady.p;
+			const rootState = rootStateWithGithubEnterpriseUriKey();
+			if (existingHost) {
+				rootState.config!.values[AgentHostConfigKey.GithubEnterpriseUri] = existingHost;
+			}
+			agentHostService.setRootState(rootState);
+			await flush();
+			const beforeInitialization = agentHostService.dispatchedActions.map(({ action }) => (action as IRootConfigChangedAction).config);
+
+			defaultAccountService.enterprise = true;
+			defaultAccountService.gitHubBaseUrl = 'https://acme.ghe.com';
+			accountReady.complete(null);
+			await flush();
+
+			assert.deepStrictEqual({
+				beforeInitialization,
+				afterInitialization: agentHostService.dispatchedActions.map(({ action }) => (action as IRootConfigChangedAction).config),
+			}, {
+				beforeInitialization: [],
+				afterInitialization: existingHost ? [] : [{ [AgentHostConfigKey.GithubEnterpriseUri]: 'https://acme.ghe.com' }],
+			});
+		});
+	}
+
+	test('does not forward a pending enterprise host after disposal', async () => {
+		const { contribution, agentHostService, defaultAccountService } = setup(disposables);
+		const accountReady = new DeferredPromise<IDefaultAccount | null>();
+		defaultAccountService.accountReady = accountReady.p;
+		agentHostService.setRootState(rootStateWithGithubEnterpriseUriKey());
+		await flush();
+
+		contribution.dispose();
+		defaultAccountService.enterprise = true;
+		defaultAccountService.gitHubBaseUrl = 'https://acme.ghe.com';
+		accountReady.complete(null);
+		await flush();
+
+		assert.deepStrictEqual(agentHostService.dispatchedActions, []);
+	});
+
+	test('an unresolved enterprise account preserves the shared enterprise host until its server resolves', async () => {
 		const { agentHostService, defaultAccountService } = setup(disposables);
 		defaultAccountService.enterprise = true;
 		defaultAccountService.gitHubBaseUrl = undefined;
@@ -570,10 +617,19 @@ suite('AgentHostTerminalContribution', () => {
 		rootState.config!.values[AgentHostConfigKey.GithubEnterpriseUri] = 'https://previous.ghe.com';
 		agentHostService.setRootState(rootState);
 		await flush();
+		const beforeResolution = agentHostService.dispatchedActions.map(({ action }) => (action as IRootConfigChangedAction).config);
 
-		assert.deepStrictEqual(agentHostService.dispatchedActions.map(({ action }) => (action as IRootConfigChangedAction).config), [
-			{ [AgentHostConfigKey.GithubEnterpriseUri]: '' },
-		]);
+		defaultAccountService.gitHubBaseUrl = 'https://acme.ghe.com';
+		defaultAccountService.fireChange();
+		await flush();
+
+		assert.deepStrictEqual({
+			beforeResolution,
+			afterResolution: agentHostService.dispatchedActions.map(({ action }) => (action as IRootConfigChangedAction).config),
+		}, {
+			beforeResolution: [],
+			afterResolution: [{ [AgentHostConfigKey.GithubEnterpriseUri]: 'https://acme.ghe.com' }],
+		});
 	});
 
 });
