@@ -57,39 +57,15 @@ If one policy controls multiple VS Code settings, one setting owns `policy`; the
 
 ## Agent Host migration readiness
 
-**Developer: Policy Diagnostics** opens with **Agent Host Policy Readiness**,
-showing only currently applied requirements with an identified coverage concern,
-their source, practical impact, and the existing runtime sandbox requirement.
-Unsupported requirements are separated from partial coverage that needs
-verification for the applied source/path. Partial catalog support is not proof
-that the current runtime fails to enforce the value.
+**Developer: Policy Diagnostics** opens with **Agent Host Policy Readiness**, showing only currently applied requirements with an identified coverage concern, their source, practical impact, and the existing runtime sandbox requirement. Unsupported requirements are separated from partial coverage that needs verification for the applied source/path. Partial catalog support is not proof that the current runtime fails to enforce the value.
 
-All findings are **report-only**. They do not change experiment enrollment,
-automatic harness selection, picker visibility, remembered or explicit choices,
-or existing conversations. There is no compatibility holdback, acceptance
-setting/policy, Chat banner, message block, or additional telemetry. Completing
-inventory coverage removes a diagnostic concern, not a routing restriction.
-The bridge, sandbox mandates, and managed-settings freshness gates remain
-independent and continue enforcing their supported requirements.
+All findings are **report-only**. They do not change experiment enrollment, automatic harness selection, picker visibility, remembered or explicit choices, or existing conversations. There is no compatibility holdback, acceptance setting/policy, Chat banner, message block, or additional telemetry. Completing inventory coverage removes a diagnostic concern, not a routing restriction. The bridge, sandbox mandates, and managed-settings freshness gates remain independent and continue enforcing their supported requirements.
 
-Harness selection belongs to its existing controls. `ChatEditorPreferCopilotHarness`
-manages `chat.editor.preferCopilotHarness`, which promotes otherwise-Local new
-chats to Copilot. It is not a hard lock: false does not require Local or prohibit
-explicit/remembered Copilot choices. A hard harness mandate would require a
-separate enforcement contract, not a new reaction to diagnostic uncertainty.
-Remote hosts, Claude, and Codex are outside this inventory's enforcement scope.
+Harness selection belongs to its existing controls. `ChatEditorPreferCopilotHarness` manages `chat.editor.preferCopilotHarness`, which promotes otherwise-Local new chats to Copilot. It is not a hard lock: false does not require Local or prohibit explicit/remembered Copilot choices. A hard harness mandate would require a separate enforcement contract, not a new reaction to diagnostic uncertainty. Remote hosts, Claude, and Codex are outside this inventory's enforcement scope.
 
-Only the non-applied policy inventory is additionally collapsed. Existing account,
-transport, runtime, and authentication sections remain visible in their original
-layout, including their own raw-value disclosures. Unconfigured policies must not
-appear as current gaps. A clean self-check is not an attestation
-of runtime enforcement; user settings and unprojected runtime managed settings
-are outside this check.
+Only the non-applied policy inventory is additionally collapsed. Existing account, transport, runtime, and authentication sections remain visible in their original layout, including their own raw-value disclosures. Unconfigured policies must not appear as current gaps. A clean self-check is not an attestation of runtime enforcement; user settings and unprojected runtime managed settings are outside this check.
 
-Keep the applied-requirement predicates and user-visible impacts in
-`agentHostPolicyReadiness.ts` aligned with the inventory when support changes.
-Do not relabel an accepted rollout gap as enforced: report-only acceptance does
-not establish runtime parity or administrator consent.
+Keep the applied-requirement predicates and user-visible impacts in `agentHostPolicyReadiness.ts` aligned with the inventory when support changes. Do not relabel an accepted rollout gap as enforced: report-only acceptance does not establish runtime parity or administrator consent.
 
 ## Required Procedure
 
