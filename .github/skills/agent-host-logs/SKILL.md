@@ -19,6 +19,8 @@ python3 .github/skills/agent-host-logs/scripts/extract.py "<archive>.zip"
 
 The final line gives the temporary extraction path. Work from that folder and delete only that exact folder when finished.
 
+Desktop ZIP exports keep host-owned logs compressed inside `host-logs.zip`, alongside the client-owned logs and sidecars. If that entry is present, run the same extractor on `<extracted-folder>/host-logs.zip` and inspect both extraction folders. The host archive contains `events.jsonl`, provider logs, Agent Host process logs, and Mission Control transport logs. Folder exports place these files directly in the export folder.
+
 Files are collected best-effort, so a valid bundle may contain only some of these:
 
 ```text
@@ -47,6 +49,7 @@ Window/client <-> AHP <-> Agent Host process <-> Copilot SDK
 
 | Path | What it shows |
 |---|---|
+| `host-logs.zip` | Compressed host-owned portion of a desktop export. Extract it separately to access the host files described below. |
 | `events.jsonl` | Persisted Copilot SDK events for the selected session: turns, messages, tools, permissions, hooks, skills, and subagents. It can cover a much longer period than the other logs. |
 | `usage.jsonl` | Client-captured token/credit usage, one record per model call (`turnId`, model, input/output/cache tokens, cumulative `totalNanoAiu`). The SDK's `assistant.usage` event is ephemeral and never reaches `events.jsonl`, so this is the only per-call usage record. Present only when agent-host debug logging was on. |
 | `customizations.json` | Snapshot of the skills/hooks/agents/MCP servers loaded for the session. The SDK's `session.*_loaded` events are ephemeral, so this is the only record of what was actually active. Present only when agent-host debug logging was on. |

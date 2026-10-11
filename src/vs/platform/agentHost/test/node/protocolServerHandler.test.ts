@@ -343,10 +343,11 @@ class MockAgentService implements IAgentService {
 	async reconcileDetachedWorktrees(scope: string, activeHandles: readonly string[]): Promise<void> {
 		this.reconcileDetachedWorktreesCalls.push({ scope, activeHandles });
 	}
-	async collectDebugLogs(session: URI | undefined, kind: 'archive' | 'directory', chat?: URI) {
+	async collectDebugLogs(session: URI | undefined, kind: 'archive' | 'directory', chat?: URI, _progressToken?: string) {
 		this.collectDebugLogsCalls.push({ session: session?.toString(), chat: chat?.toString(), kind });
 		return { kind, resource: URI.file('/tmp/agent-host-debug.zip'), providerLogsIncluded: true, size: 1024, uncompressedSize: 2048, entries: [{ path: 'agenthost.log', size: 2048 }] };
 	}
+	async cancelDebugLogs(_progressToken: string): Promise<void> { }
 	async authenticate(_params: AuthenticateParams): Promise<AuthenticateResult> { return { authenticated: true }; }
 	async resourceWrite(_params: ResourceWriteParams): Promise<ResourceWriteResult> { return {}; }
 	async resourceList(uri: URI): Promise<ResourceListResult> {
@@ -1197,6 +1198,34 @@ suite('ProtocolServerHandler', () => {
 		});
 	});
 
+	test('only the originating client can cancel a pending debug-log collection', async () => {
+		const owner = connectClient('debug-log-owner');
+		const other = connectClient('debug-log-other');
+		const finished = new DeferredPromise<Awaited<ReturnType<typeof agentService.collectDebugLogs>>>();
+		const cancelled: string[] = [];
+		const collect = sinon.stub(agentService, 'collectDebugLogs').returns(finished.p);
+		sinon.stub(agentService, 'cancelDebugLogs').callsFake(async progressToken => { cancelled.push(progressToken); });
+		const collectionResponse = waitForResponse(owner, 80);
+		owner.simulateMessage(request(80, 'vscode/collectAgentHostDebugLogs', { kind: 'archive', progressToken: 'export-progress' }));
+
+		const denied = waitForResponse(other, 81);
+		other.simulateMessage(request(81, 'vscode/cancelAgentHostDebugLogs', { progressToken: 'export-progress' }));
+		const allowed = waitForResponse(owner, 82);
+		owner.simulateMessage(request(82, 'vscode/cancelAgentHostDebugLogs', { progressToken: 'export-progress' }));
+		assert.deepStrictEqual({
+			denied: await denied,
+			allowed: await allowed,
+			cancelled,
+			progressToken: collect.firstCall.args[3],
+		}, {
+			denied: { jsonrpc: '2.0', id: 81, error: { code: JsonRpcErrorCodes.InvalidParams, message: 'Unknown debug-log collection' } },
+			allowed: { jsonrpc: '2.0', id: 82, result: null },
+			cancelled: ['export-progress'],
+			progressToken: 'export-progress',
+		});
+		finished.complete({ kind: 'archive', resource: URI.file('/tmp/logs.zip'), providerLogsIncluded: true, size: 10, uncompressedSize: 10, entries: [] });
+		await collectionResponse;
+	});
 	test('gets an Agent Host session state file through the extension request', async () => {
 		const transport = connectClient('client-session-state-file');
 		transport.sent.length = 0;
