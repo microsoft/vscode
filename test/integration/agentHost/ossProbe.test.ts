@@ -26,7 +26,7 @@ test('one exact-branch push native job reuses the existing OSS workflow without 
 	assert.deepEqual(Object.keys(workflow.jobs), ['holder']);
 	assert.deepEqual(workflow.jobs.holder, {
 		uses: './.github/workflows/pr-linux-test.yml',
-		with: { job_name: 'Native OSS registration contract verification', electron_tests: true, browser_tests: false, remote_tests: false, unit_tests: false, integration_tests: true, smoke_tests: false, holder_probe: true, holder_registration_only: true },
+		with: { job_name: 'Native OSS registration contract verification', electron_tests: true, browser_tests: false, remote_tests: false, unit_tests: false, integration_tests: true, smoke_tests: false, holder_probe: true, holder_registration_only: false },
 	});
 	assert.deepEqual(workflow.permissions, { contents: 'read', actions: 'read', 'pull-requests': 'read' });
 });

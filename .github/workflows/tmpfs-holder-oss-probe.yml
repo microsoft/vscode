@@ -26,4 +26,4 @@ jobs:
       integration_tests: true
       smoke_tests: false
       holder_probe: true
-      holder_registration_only: true
+      holder_registration_only: false
