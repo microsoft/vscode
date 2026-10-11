@@ -57,6 +57,8 @@ export interface IMobilePickerSheetItem {
 }
 
 export interface IMobilePickerSheetOptions {
+	/** Dismisses the sheet when its owner or picker data becomes unavailable. */
+	readonly cancellationToken?: CancellationToken;
 	/**
 	 * Optional caption shown beneath the title (single-line, muted). Useful
 	 * for explaining what the picker controls (e.g. "Agents are pre-configured
@@ -262,6 +264,9 @@ export function showMobilePickerSheet(
 	items: readonly IMobilePickerSheetItem[],
 	options?: IMobilePickerSheetOptions,
 ): Promise<string | undefined> {
+	if (options?.cancellationToken?.isCancellationRequested) {
+		return Promise.resolve(undefined);
+	}
 	return new Promise<string | undefined>(resolve => {
 		let resolved = false;
 
@@ -281,6 +286,9 @@ export function showMobilePickerSheet(
 			onHeaderAction: actionId => finish(`${MOBILE_PICKER_SHEET_HEADER_ACTION_PREFIX}${actionId}`),
 		});
 		const { sheet, disposables } = shell;
+		if (options?.cancellationToken) {
+			disposables.add(options.cancellationToken.onCancellationRequested(() => finish(undefined)));
+		}
 
 		// -- Optional inline search input ------------------------------
 		// Sits between the title row and the scrollable list. Its value

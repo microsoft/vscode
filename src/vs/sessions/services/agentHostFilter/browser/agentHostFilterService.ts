@@ -77,6 +77,7 @@ export class AgentHostFilterService extends Disposable implements IAgentHostFilt
 	 */
 	private _selectionIsAutomatic = false;
 	private _hosts: readonly IAgentHostFilterEntry[] = [];
+	private _pickerHosts: readonly IAgentHostFilterEntry[] = [];
 
 	/**
 	 * Discovery handlers contributed by host providers (e.g. dev tunnels).
@@ -137,7 +138,7 @@ export class AgentHostFilterService extends Disposable implements IAgentHostFilt
 	}
 
 	get hosts(): readonly IAgentHostFilterEntry[] {
-		return this._hosts;
+		return this._pickerHosts;
 	}
 
 	get isDiscovering(): boolean {
@@ -179,7 +180,7 @@ export class AgentHostFilterService extends Disposable implements IAgentHostFilt
 	}
 
 	setSelectedHostId(hostId: string): void {
-		if (!this._hosts.some(h => h.id === hostId)) {
+		if (!this._pickerHosts.some(h => h.id === hostId)) {
 			return;
 		}
 		// Picking the entry the fallback already landed on still makes it the
@@ -243,8 +244,9 @@ export class AgentHostFilterService extends Disposable implements IAgentHostFilt
 		if (current && (!this._selectionIsAutomatic || current.connectable)) {
 			return { id: current.id, automatic: this._selectionIsAutomatic };
 		}
-		const connectable = this._hosts.find(h => h.connectable);
-		return { id: (connectable ?? current ?? this._hosts[0]).id, automatic: true };
+		const connectable = this._pickerHosts.find(h => h.connectable);
+		const fallback = connectable ?? current ?? this._pickerHosts[0];
+		return { id: fallback?.id, automatic: fallback !== undefined };
 	}
 
 	/**
@@ -308,9 +310,10 @@ export class AgentHostFilterService extends Disposable implements IAgentHostFilt
 				groupEntry(group);
 			}
 
+			const hiddenProviderIds = new Set<string>();
 			for (const provider of providers) {
 				if (provider.isVisibleInEnvironmentPicker?.read(reader) === false) {
-					continue;
+					hiddenProviderIds.add(provider.id);
 				}
 				const status = mapStatus(provider.connectionStatus!.read(reader));
 				const group = provider.hostGroup;
@@ -339,7 +342,6 @@ export class AgentHostFilterService extends Disposable implements IAgentHostFilt
 				&& this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)
 				&& selectedHost.id === this._preferredHostId
 				&& !entries.some(entry => entry.id === selectedHost.id)
-				&& !providers.some(provider => provider.id === selectedHost.id && provider.isVisibleInEnvironmentPicker?.read(reader) === false)
 				&& this._remoteAgentHostService.configuredEntries.some(entry => getEntryAddress(entry) === selectedHost.address)) {
 				// A missing provider does not mean that its configured host was removed.
 				entries.push({
@@ -352,12 +354,15 @@ export class AgentHostFilterService extends Disposable implements IAgentHostFilt
 
 			entries.sort((a, b) => a.order - b.order || a.label.localeCompare(b.label));
 
-			this._applyHosts(entries.map(({ order, ...entry }) => entry));
+			this._applyHosts(entries.map(({ order, ...entry }) => entry), hiddenProviderIds);
 		}));
 	}
 
-	private _applyHosts(hosts: readonly IAgentHostFilterEntry[]): void {
-		const changed = hosts.length !== this._hosts.length
+	private _applyHosts(hosts: readonly IAgentHostFilterEntry[], hiddenProviderIds: ReadonlySet<string>): void {
+		const pickerHosts = hosts.filter(host => !hiddenProviderIds.has(host.id));
+		const changed = pickerHosts.length !== this._pickerHosts.length
+			|| pickerHosts.some((host, i) => host.id !== this._pickerHosts[i].id)
+			|| hosts.length !== this._hosts.length
 			|| hosts.some((h, i) => h.id !== this._hosts[i].id
 				|| h.label !== this._hosts[i].label
 				|| h.description !== this._hosts[i].description
@@ -368,6 +373,7 @@ export class AgentHostFilterService extends Disposable implements IAgentHostFilt
 				|| h.providerIds.some((p, j) => p !== this._hosts[i].providerIds[j]));
 
 		this._hosts = hosts;
+		this._pickerHosts = pickerHosts;
 
 		const validated = isWeb ? this._validate(this._selectedHostId) : { id: undefined, automatic: false };
 		const selectionChanged = validated.id !== this._selectedHostId;

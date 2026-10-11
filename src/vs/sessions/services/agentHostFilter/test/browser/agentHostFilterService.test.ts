@@ -202,7 +202,7 @@ suite('AgentHostFilterService', () => {
 		});
 	});
 
-	test('hides unavailable environments without unregistering them and restores them when online', () => {
+	test('hides unavailable picker targets without changing the selected session scope', () => {
 		const providers = new StubSessionsProvidersService();
 		const tunnel = new StubRemoteProvider('tunnel+machine', 'Dev Tunnel', RemoteAgentHostConnectionStatus.disconnected);
 		const environment = new class extends StubRemoteProvider {
@@ -217,7 +217,11 @@ suite('AgentHostFilterService', () => {
 		}]);
 		const service = createService(providers, undefined, remote);
 		service.setSelectedHostId(environment.id);
-		const snapshot = () => ({ hosts: service.hosts.map(host => host.id), selected: service.selectedHostId });
+		const snapshot = () => ({
+			hosts: service.hosts.map(host => host.id),
+			selected: service.selectedHostId,
+			scope: service.selectedHost?.providerIds,
+		});
 		const states = [snapshot()];
 		environment.isVisibleInEnvironmentPicker.set(false, undefined);
 		states.push(snapshot());
@@ -229,12 +233,27 @@ suite('AgentHostFilterService', () => {
 			states, providers: providers.getProviders().map(provider => provider.id),
 		}, {
 			states: [
-				{ hosts: [tunnel.id, environment.id], selected: environment.id },
-				{ hosts: [tunnel.id], selected: isWeb ? tunnel.id : undefined },
-				{ hosts: [tunnel.id], selected: isWeb ? tunnel.id : undefined },
-				{ hosts: [tunnel.id, environment.id], selected: isWeb ? environment.id : undefined },
+				{ hosts: [tunnel.id, environment.id], selected: environment.id, scope: [environment.id] },
+				{ hosts: [tunnel.id], selected: isWeb ? environment.id : undefined, scope: isWeb ? [environment.id] : undefined },
+				{ hosts: [tunnel.id], selected: isWeb ? environment.id : undefined, scope: isWeb ? [environment.id] : undefined },
+				{ hosts: [tunnel.id, environment.id], selected: isWeb ? environment.id : undefined, scope: isWeb ? [environment.id] : undefined },
 			],
 			providers: [tunnel.id, environment.id],
+		});
+	});
+
+	test('does not automatically select an initially hidden environment', () => {
+		const providers = new StubSessionsProvidersService();
+		const hidden = new class extends StubRemoteProvider {
+			readonly isVisibleInEnvironmentPicker = observableValue(this, false);
+		}('cloudsandbox:environment', 'A Hidden Environment');
+		const tunnel = new StubRemoteProvider('tunnel+machine', 'Dev Tunnel');
+		store.add(providers.registerProvider(upcastPartial<ISessionsProvider>(hidden)));
+		store.add(providers.registerProvider(upcastPartial<ISessionsProvider>(tunnel)));
+		const service = createService(providers);
+		service.setSelectedHostId(hidden.id);
+		assert.deepStrictEqual({ hosts: service.hosts.map(host => host.id), selected: service.selectedHostId }, {
+			hosts: [tunnel.id], selected: isWeb ? tunnel.id : undefined,
 		});
 	});
 
