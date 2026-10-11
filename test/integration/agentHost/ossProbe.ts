@@ -17,7 +17,7 @@ const electronVersion = '43.7.7';
 const electronArchive = '4d0a48398c444258dbcf2f5f83b49ca5bc53583130f354e0c299dad5b22b5271';
 const electronExecutable = '9ecc59968492b5139d37b2de89496832655d2caeae1c7229cecb706006aceb9a';
 const electronTypes = 'd78a11ef458b68672c35957f0252396a1fa19e73a8ca3b9178e2e75cd090453d';
-const manifestFiles = ['package.json', 'package-lock.json', 'product.json', '.npmrc', '.nvmrc', 'remote/.npmrc', 'build/package-lock.json', 'build/checksums/electron.txt', 'build/checksums/nodejs.txt', 'build/npm/electronTypes.ts', 'build/npm/preinstall.ts', 'build/linux/libcxx-fetcher.ts', 'build/npm/gyp/custom-headers/v8config.h', 'build/npm/gyp/custom-headers/v8-source-location.h'];
+const manifestFiles = ['package.json', 'package-lock.json', 'product.json', '.npmrc', '.nvmrc', 'remote/.npmrc', 'test/package.json', 'build/package-lock.json', 'build/checksums/electron.txt', 'build/checksums/nodejs.txt', 'build/npm/electronTypes.ts', 'build/npm/preinstall.ts', 'build/linux/libcxx-fetcher.ts', 'build/npm/gyp/custom-headers/v8config.h', 'build/npm/gyp/custom-headers/v8-source-location.h'];
 const entrypoints = [
 	{ file: 'conformance/agentHostConformance', title: 'Agent Host E2E \u2014 Conformance' },
 	{ file: 'providers/claudeAgentHostE2E', title: 'Agent Host E2E \u2014 Claude' },
@@ -56,17 +56,43 @@ function hashes(directory: string): Record<string, string> {
 	return result;
 }
 
-function verifySource(): Record<string, string> {
+function verifyBaseline(allowFetch: boolean): void {
+	const checkout = spawnSync('git', ['-C', root, 'rev-parse', '--show-toplevel'], { encoding: 'utf8', timeout: 60_000 });
+	if (checkout.status !== 0 || checkout.stdout.trim() !== fs.realpathSync(root)) {
+		console.error(JSON.stringify({ gate: 'git-checkout-root', result: 'failed', reason: 'not-an-owned-checkout', exitCode: checkout.status, signal: checkout.signal }));
+		throw new Error('Source validation requires its own Git checkout; archive/nested-directory context is not accepted');
+	}
+	const object = spawnSync('git', ['-C', root, 'cat-file', '-e', `${baseline}^{commit}`], { timeout: 60_000 });
+	if (object.status === 0) {
+		return;
+	}
+	console.error(JSON.stringify({ gate: 'baseline-git-object', baseline, result: 'unavailable', exitCode: object.status, signal: object.signal, checkoutPackageExists: fs.existsSync(path.join(root, 'package.json')) }));
+	if (!allowFetch) {
+		throw new Error(`Pinned baseline Git object ${baseline} is unavailable; source-file comparison has not started`);
+	}
+	const fetch = spawnSync('git', ['-C', root, 'fetch', '--no-tags', '--depth=1', 'origin', baseline], { timeout: 60_000 });
+	console.log(JSON.stringify({ gate: 'fetch-pinned-baseline', baseline, result: fetch.status === 0 ? 'passed' : 'failed', exitCode: fetch.status, signal: fetch.signal }));
+	if (fetch.status !== 0) {
+		throw new Error('Fetching the exact pinned baseline object failed; no branch substitution or source comparison is allowed');
+	}
+	const fetched = spawnSync('git', ['-C', root, 'rev-parse', '--verify', `${baseline}^{commit}`], { encoding: 'utf8', timeout: 60_000 });
+	assert.equal(fetched.status, 0, 'Fetched baseline commit is unavailable');
+	assert.equal(fetched.stdout.trim(), baseline, 'Fetch must provide the exact immutable baseline commit');
+}
+
+function verifySource(allowFetch: boolean): Record<string, string> {
+	verifyBaseline(allowFetch);
 	assert.ok(!fs.existsSync(path.join(root, '.build/distro')), 'OSS-only probe must not contain distro input or cache');
 	const manifest: Record<string, string> = {};
 	for (const file of manifestFiles) {
 		const expected = spawnSync('git', ['-C', root, 'show', `${baseline}:${file}`]);
-		assert.equal(expected.status, 0, `Missing pinned source input: ${file}`);
+		assert.equal(expected.status, 0, `Pinned baseline commit is present but its file is unavailable: ${file}`);
+		assert.ok(fs.existsSync(path.join(root, file)), `Current checkout file is missing: ${file}`);
 		const actual = fs.readFileSync(path.join(root, file));
-		assert.deepEqual(actual, expected.stdout, `Historical source input changed: ${file}`);
+		assert.ok(actual.equals(expected.stdout), `Historical source input changed: ${file}`);
 		manifest[file] = fileHash(path.join(root, file));
 	}
-	const unchanged = spawnSync('git', ['-C', root, 'diff', '--exit-code', baseline, '--', 'src', 'extensions', 'remote']);
+	const unchanged = spawnSync('git', ['-C', root, 'diff', '--quiet', baseline, '--', 'src', 'extensions', 'remote']);
 	assert.equal(unchanged.status, 0, 'Historical implementation, assertions, captures, and provider dependencies must be unchanged');
 	const product: { applicationName: string; serverApplicationName: string; electronArtifactFeed?: string; nodejsArtifactFeed?: string } = JSON.parse(fs.readFileSync(path.join(root, 'product.json'), 'utf8'));
 	assert.equal(product.applicationName, 'code-oss');
@@ -143,11 +169,11 @@ function verifyNative(): void {
 function main(): void {
 	fs.mkdirSync(logs, { recursive: true });
 	if (process.argv[2] === '--fresh-source-only') {
-		for (const directory of ['node_modules', 'build/node_modules', 'remote/node_modules', '.build/node_modules_cache', '.build/electron', '.build/typings']) {
+		for (const directory of ['node_modules', 'build/node_modules', 'remote/node_modules', '.build/node_modules_cache', '.build/electron', '.build/typings', '.build/libcxx-objects', '.build/libcxx_headers', '.build/libcxxabi_headers', 'out']) {
 			assert.ok(!fs.existsSync(path.join(root, directory)), `Fresh worker input must not preexist: ${directory}`);
 		}
 	}
-	const source = verifySource();
+	const source = verifySource(process.argv[2] === '--fresh-source-only');
 	if (process.argv[2] === '--source-only' || process.argv[2] === '--fresh-source-only') {
 		return;
 	}
