@@ -4402,6 +4402,36 @@ suite('ModernUIContribution', () => {
 		]);
 	});
 
+	test('prefers a customized pill inactive foreground over legacy tab foreground customizations', () => {
+		const theme = ColorThemeData.createUnloadedTheme('vs-dark', { [editorBackground]: '#000000' });
+		theme.setCustomColors({
+			[TAB_ACTIVE_FOREGROUND]: '#FEDCBA',
+			[TAB_INACTIVE_FOREGROUND]: '#123456',
+			[MODERN_EDITOR_TAB_INACTIVE_FOREGROUND]: '#A1B2C3',
+		});
+
+		const style = document.createElement('style');
+		style.textContent = generateColorThemeCSS(theme, '.pill-inactive-foreground-theme', themingRegistry.getThemingParticipants(), TestEnvironmentService).code;
+		document.head.appendChild(style);
+		store.add(toDisposable(() => style.remove()));
+
+		const root = appendElement(document.body, 'pill-inactive-foreground-theme monaco-workbench modern-ui-tabs');
+		store.add(toDisposable(() => root.remove()));
+		const content = appendElement(appendElement(root, 'part editor'), 'content');
+		const labels = [true, false].map(active => {
+			const group = appendElement(content, `editor-group-container${active ? ' active' : ''}`);
+			return createEditorTabLabel(appendElement(appendElement(appendElement(group, 'title'), 'tabs-container'), 'tab'));
+		});
+		const colors = () => labels.map(label => getWindow(root).getComputedStyle(label.name).color);
+		const pill = colors();
+		root.classList.add('modern-ui-connected-editor-tabs');
+
+		assert.deepStrictEqual({ pill, connected: colors() }, {
+			pill: ['rgb(161, 178, 195)', 'rgb(161, 178, 195)'],
+			connected: ['rgb(18, 52, 86)', 'rgb(18, 52, 86)'],
+		});
+	});
+
 	test('derives inactive tab foreground from a legacy active foreground customization', () => {
 		const theme = ColorThemeData.createUnloadedTheme('vs-dark', { [editorBackground]: '#000000' });
 		theme.setCustomColors({ [TAB_ACTIVE_FOREGROUND]: '#FEDCBA' });
