@@ -8983,7 +8983,7 @@ suite('CopilotAgent', () => {
 			});
 		});
 
-		test('publishes HydraFusion when enabled and restarts its runtime when disabled', async () => {
+		test('publishes HydraFusion when enabled, HydraFusion Max only with v2, and restarts the runtime when disabled', async () => {
 			const client = new TestCopilotClient([], [{ id: 'gpt-5', name: 'GPT-5' }]);
 			const { agent, configurationService } = createTestAgentContext(disposables, {
 				copilotClient: client,
@@ -8991,26 +8991,32 @@ suite('CopilotAgent', () => {
 					[CopilotCliConfigKey.HydraFusion]: true,
 				},
 			});
+			const publishedModels = () => agent.models.get().map(model => `${model.id}:${model.name}`);
 			try {
 				await agent.authenticate('https://api.github.com', 'token');
 				await agent.listChatsToMigrate();
 				await agent.refreshModels();
+				const enabled = publishedModels();
 
-				assert.deepStrictEqual({
-					models: agent.models.get().map(model => model.id),
-				}, {
-					models: ['gpt-5', 'hydrafusion'],
-				});
+				configurationService.updateRootConfig({ [CopilotCliConfigKey.HydraFusionV2]: true });
+				await agent.listChatsToMigrate();
+				await agent.refreshModels();
+				const v2 = publishedModels();
 
+				// v2 left on does not keep Max once HydraFusion itself is off.
 				configurationService.updateRootConfig({ [CopilotCliConfigKey.HydraFusion]: false });
 				await agent.listChatsToMigrate();
 				await agent.refreshModels();
 				assert.deepStrictEqual({
-					models: agent.models.get().map(model => model.id),
+					enabled,
+					v2,
+					disabledWithV2: publishedModels(),
 					stopCallCount: client.stopCallCount,
 				}, {
-					models: ['gpt-5'],
-					stopCallCount: 1,
+					enabled: ['gpt-5:GPT-5', 'hydrafusion:HydraFusion'],
+					v2: ['gpt-5:GPT-5', 'hydrafusion:HydraFusion', 'hydrafusion-max:HydraFusion Max'],
+					disabledWithV2: ['gpt-5:GPT-5'],
+					stopCallCount: 2,
 				});
 			} finally {
 				await disposeAgent(agent);

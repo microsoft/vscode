@@ -85,6 +85,11 @@ function createHydraFusionModel(): ILanguageModelChatMetadataAndIdentifier {
 	return { ...hydra, metadata: { ...hydra.metadata, name: 'HydraFusion', detail: 'Research preview', tooltip: 'HydraFusion routes the first eligible turn and may use multiple models. Premium usage varies with the selected route.' } };
 }
 
+function createHydraFusionMaxModel(): ILanguageModelChatMetadataAndIdentifier {
+	const max = model('hydrafusion-max', false);
+	return { ...max, metadata: { ...max.metadata, name: 'HydraFusion Max', detail: 'Research preview' } };
+}
+
 suite('TabbedModelPicker', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const models = [model('First'), model('Second'), model('Fixed', false)];
@@ -776,6 +781,27 @@ suite('TabbedModelPicker', () => {
 		result.picker.show(result.anchor, { ...result.context, selectedModelId: result.selections.at(-1) ?? result.context.selectedModelId });
 	}
 
+	test('HydraFusion Max follows HydraFusion among Auto\'s tiers and Auto stands for it once chosen', async () => {
+		const auto = createAutoModel();
+		const hydra = createHydraFusionModel();
+		const max = createHydraFusionMaxModel();
+		const result = createPicker({ models: [...models, auto, hydra, max], selectedModelId: models[0].identifier });
+		const autoReadout = () => Array.from(result.popup.querySelectorAll('.chat-model-picker-model'))
+			.find(row => row.querySelector('.title')?.textContent === 'Auto')?.querySelector('.action-label')?.textContent;
+		const rows = listRows(result.popup);
+		openDetails(result.popup, 'Auto');
+		chooseOption(result.popup, 'HydraFusion Max');
+		await timeout(0);
+		const chosenModel = result.popup.querySelector('.tabbed-action-list-details .chat-model-card-name')?.textContent;
+		goBack(result.popup);
+		assert.deepStrictEqual({ rows, chosenModel, readout: autoReadout(), selections: result.selections }, {
+			rows: ['Auto', '--', 'First', 'Fixed', 'Second'],
+			chosenModel: 'Auto',
+			readout: 'HydraFusion Max',
+			selections: [max.identifier],
+		});
+	});
+
 	test('rapid tier edits save in order and report the actual previous values', async () => {
 		const auto = createAutoModel();
 		const pending = new DeferredPromise<void>();
@@ -935,14 +961,16 @@ suite('TabbedModelPicker', () => {
 		test(`${ChatEntitlement[entitlement]} plans show HydraFusion as an unavailable upgrade instead of a tier`, () => {
 			const auto = createAutoModel();
 			const hydra = createHydraFusionModel();
+			// Listed first, so the upsell must not take its name.
+			const max = createHydraFusionMaxModel();
 			const result = createPicker({
-				models: [auto, hydra, ...models],
+				models: [auto, max, hydra, ...models],
 				selectedModelId: auto.identifier,
 				entitlement,
 				showUnavailable: false,
 				controlModels: {},
 			});
-			result.picker.refresh([auto, hydra, ...models]);
+			result.picker.refresh([auto, max, hydra, ...models]);
 			const unavailableHydra = element(result.popup, '.chat-model-picker-unavailable');
 			unavailableHydra.click();
 			const state = {

@@ -9,7 +9,19 @@ import { createSchema, schemaProperty } from './agentHostSchema.js';
 import { reasoningEffortLevels } from './reasoningEffort.js';
 
 export const COPILOT_HYDRA_FUSION_MODEL_ID = 'hydrafusion';
-export const COPILOT_HYDRA_FUSION_MODEL_NAME = 'HydraFusion';
+/** The runtime's HydraFusion Max model, which it only offers with HydraFusion v2 (`HYDRAFUSION_PLAN_V2`). */
+export const COPILOT_HYDRA_FUSION_MAX_MODEL_ID = 'hydrafusion-max';
+
+/** The runtime's HydraFusion routing models and their display names, HydraFusion before HydraFusion Max. */
+export const COPILOT_HYDRA_FUSION_MODEL_NAMES: ReadonlyMap<string, string> = new Map([
+	[COPILOT_HYDRA_FUSION_MODEL_ID, 'HydraFusion'],
+	[COPILOT_HYDRA_FUSION_MAX_MODEL_ID, 'HydraFusion Max'],
+]);
+
+/** Whether the model id names one of the runtime's HydraFusion routing models. */
+export function isCopilotHydraFusionModelId(modelId: string | undefined): boolean {
+	return modelId !== undefined && COPILOT_HYDRA_FUSION_MODEL_NAMES.has(modelId);
+}
 
 /**
  * Root-config keys consumed exclusively by the Copilot CLI provider
