@@ -127,7 +127,10 @@ installer, the machine `PATH` for the system installer), in this order:
    set.
 2. An explicit choice wins and is remembered for later updates: the installer
    page (Install now, install on first use, or don't add) or the
-   `/copilotcli=install|onfirstuse|none` switch.
+   `/copilotcli=install|onfirstuse|none` switch. Install now adds the shim
+   folder too, whether or not Copilot CLI installs: Copilot CLI's installer adds
+   its own folder to `PATH`, and the shim keeps `copilot` working, offering to
+   install Copilot CLI again, if Copilot CLI is uninstalled later.
 3. Otherwise `copilot` follows `code`: when the Add to PATH task is selected,
    the shim folder is added too. This applies to silent installs, silent
    reinstalls, background updates, and interactive installs that skip the

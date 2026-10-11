@@ -874,13 +874,11 @@ begin
 
   if CopilotAction = CopilotActionInstall then begin
     Installed := CopilotRunInstall(not WizardSilent());
-    if Installed then
-      CopilotCommandReady := True
-    else begin
-      if not WizardSilent() and not CopilotInstallCancelled then
-        SuppressibleMsgBox(FmtMessage(CustomMessage('CopilotCliInstallFailed'), ['{#NameLong}']), mbInformation, MB_OK, IDOK);
-      CopilotCommandReady := CopilotAddToPath({#EnvironmentRootKey}, '{#EnvironmentKey}', CopilotShimDir());
-    end;
+    if not Installed and not WizardSilent() and not CopilotInstallCancelled then
+      SuppressibleMsgBox(FmtMessage(CustomMessage('CopilotCliInstallFailed'), ['{#NameLong}']), mbInformation, MB_OK, IDOK);
+    // The shim goes on PATH even when Copilot CLI's installer added its own folder: it runs Copilot CLI, and offers to
+    // install it again if Copilot CLI is uninstalled later.
+    CopilotCommandReady := CopilotAddToPath({#EnvironmentRootKey}, '{#EnvironmentKey}', CopilotShimDir()) or Installed;
   end else if CopilotAction = CopilotActionAdd then
     CopilotCommandReady := CopilotAddToPath({#EnvironmentRootKey}, '{#EnvironmentKey}', CopilotShimDir())
   else if CopilotAction = CopilotActionRemove then
