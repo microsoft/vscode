@@ -309,6 +309,9 @@ export class AgentHostFilterService extends Disposable implements IAgentHostFilt
 			}
 
 			for (const provider of providers) {
+				if (provider.isVisibleInEnvironmentPicker?.read(reader) === false) {
+					continue;
+				}
 				const status = mapStatus(provider.connectionStatus!.read(reader));
 				const group = provider.hostGroup;
 				if (!group) {
@@ -336,6 +339,7 @@ export class AgentHostFilterService extends Disposable implements IAgentHostFilt
 				&& this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)
 				&& selectedHost.id === this._preferredHostId
 				&& !entries.some(entry => entry.id === selectedHost.id)
+				&& !providers.some(provider => provider.id === selectedHost.id && provider.isVisibleInEnvironmentPicker?.read(reader) === false)
 				&& this._remoteAgentHostService.configuredEntries.some(entry => getEntryAddress(entry) === selectedHost.address)) {
 				// A missing provider does not mean that its configured host was removed.
 				entries.push({

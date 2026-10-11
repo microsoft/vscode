@@ -1160,19 +1160,27 @@ export class WorkspacePicker extends Disposable {
 	private _watchProviderSessionTypes(): void {
 		const store = new DisposableStore();
 		this._providerSessionTypesWatch.value = store;
-		for (const provider of this.sessionsProvidersService.getProviders()) {
-			store.add(provider.onDidChangeSessionTypes(() => {
-				const activeTrigger = this._activeTriggerElement;
-				if (activeTrigger && (this.actionWidgetService.isVisible || this._tabbedWidget.isVisible)) {
-					if (this._showTabs()) {
-						this.showPicker(true, activeTrigger, this._directPickerGroup, this._directPickerAttachesContext);
-					} else if (this._tabbedWidget.isVisible) {
-						this._tabbedWidget.refreshActiveList();
-					} else {
-						this.actionWidgetService.updateItems(this._buildItems(), undefined, { preserveHover: true, preserveScrollPosition: true });
-					}
+		const refresh = () => {
+			const activeTrigger = this._activeTriggerElement;
+			if (activeTrigger && (this.actionWidgetService.isVisible || this._tabbedWidget.isVisible)) {
+				if (this._showTabs()) {
+					this.showPicker(true, activeTrigger, this._directPickerGroup, this._directPickerAttachesContext);
+				} else if (this._tabbedWidget.isVisible) {
+					this._tabbedWidget.refreshActiveList();
+				} else {
+					this.actionWidgetService.updateItems(this._buildItems(), undefined, { preserveHover: true, preserveScrollPosition: true });
 				}
-			}));
+			}
+		};
+		for (const provider of this.sessionsProvidersService.getProviders()) {
+			store.add(provider.onDidChangeSessionTypes(refresh));
+			if (isAgentHostProvider(provider) && provider.isVisibleInEnvironmentPicker) {
+				const visibility = provider.isVisibleInEnvironmentPicker;
+				store.add(autorun(reader => {
+					visibility.read(reader);
+					refresh();
+				}));
+			}
 			if (isAgentHostProvider(provider) && provider.onDidChangeDevContainerAvailability) {
 				store.add(provider.onDidChangeDevContainerAvailability(() => this._clearDevContainerAvailability(true)));
 			}
@@ -1509,7 +1517,9 @@ export class WorkspacePicker extends Disposable {
 	}
 
 	private _isWorkspaceProviderVisible(providerId: string): boolean {
-		return this.sessionsProvidersService.getProvider(providerId)?.supportsWorkspaceSelection !== false;
+		const provider = this.sessionsProvidersService.getProvider(providerId);
+		return provider?.supportsWorkspaceSelection !== false
+			&& (!provider || !isAgentHostProvider(provider) || provider.isVisibleInEnvironmentPicker?.get() !== false);
 	}
 
 	protected _useConsolidatedRemoteWorkspaces(): boolean {

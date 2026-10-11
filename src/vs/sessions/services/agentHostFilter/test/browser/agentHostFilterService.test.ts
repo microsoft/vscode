@@ -202,6 +202,42 @@ suite('AgentHostFilterService', () => {
 		});
 	});
 
+	test('hides unavailable environments without unregistering them and restores them when online', () => {
+		const providers = new StubSessionsProvidersService();
+		const tunnel = new StubRemoteProvider('tunnel+machine', 'Dev Tunnel', RemoteAgentHostConnectionStatus.disconnected);
+		const environment = new class extends StubRemoteProvider {
+			readonly isVisibleInEnvironmentPicker = observableValue(this, true);
+		}('cloudsandbox:environment', 'GitHub Environment', RemoteAgentHostConnectionStatus.disconnected);
+		store.add(providers.registerProvider(upcastPartial<ISessionsProvider>(tunnel)));
+		store.add(providers.registerProvider(upcastPartial<ISessionsProvider>(environment)));
+		const remote = store.add(new StubRemoteAgentHostService());
+		remote.setConfiguredEntries([{
+			name: environment.label,
+			connection: { type: RemoteAgentHostEntryType.CloudSandbox, environmentKind: 'user-local', environmentId: 'environment', address: environment.remoteAddress },
+		}]);
+		const service = createService(providers, undefined, remote);
+		service.setSelectedHostId(environment.id);
+		const snapshot = () => ({ hosts: service.hosts.map(host => host.id), selected: service.selectedHostId });
+		const states = [snapshot()];
+		environment.isVisibleInEnvironmentPicker.set(false, undefined);
+		states.push(snapshot());
+		environment.setStatus(RemoteAgentHostConnectionStatus.connected);
+		states.push(snapshot());
+		environment.isVisibleInEnvironmentPicker.set(true, undefined);
+		states.push(snapshot());
+		assert.deepStrictEqual({
+			states, providers: providers.getProviders().map(provider => provider.id),
+		}, {
+			states: [
+				{ hosts: [tunnel.id, environment.id], selected: environment.id },
+				{ hosts: [tunnel.id], selected: isWeb ? tunnel.id : undefined },
+				{ hosts: [tunnel.id], selected: isWeb ? tunnel.id : undefined },
+				{ hosts: [tunnel.id, environment.id], selected: isWeb ? environment.id : undefined },
+			],
+			providers: [tunnel.id, environment.id],
+		});
+	});
+
 	test('updates host labels and sort order without changing the selected host or reconnecting', () => {
 		const providers = new StubSessionsProvidersService();
 		const labelsChanged = store.add(new Emitter<void>());
