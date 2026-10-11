@@ -56,6 +56,8 @@ export interface IInstallPluginFromSourceResult {
 	readonly message?: string;
 	/** Contains the installed plugin when a name or repository subdirectory was targeted. */
 	readonly matchedPlugin?: IMarketplacePlugin;
+	/** The URI of the installed plugin. */
+	readonly installedUri?: URI;
 }
 
 export interface IPluginInstallService {

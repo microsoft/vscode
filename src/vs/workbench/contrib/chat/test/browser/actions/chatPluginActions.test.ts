@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Emitter } from '../../../../../../base/common/event.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -11,16 +12,18 @@ import { ICommandService } from '../../../../../../platform/commands/common/comm
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { IFileDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { INotification, INotificationHandle, INotificationService } from '../../../../../../platform/notification/common/notification.js';
-import { IInputOptions, IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../../../platform/quickinput/common/quickInput.js';
+import { IInputBox, IInputOptions, IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { ManagePluginMarketplacesAction } from '../../../browser/actions/chatPluginActions.js';
+import { InstallFromSourceAction, ManagePluginMarketplacesAction } from '../../../browser/actions/chatPluginActions.js';
 import { getPluginCustomizationMarketplaceSourceId } from '../../../browser/aiCustomization/pluginCustomizationMarketplaceProvider.js';
 import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../common/aiCustomizationWorkspaceService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
 import { ICustomizationHarnessService, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { IAgentPluginRepositoryService } from '../../../common/plugins/agentPluginRepositoryService.js';
+import { IPluginInstallService } from '../../../common/plugins/pluginInstallService.js';
 import { parseMarketplaceReference } from '../../../common/plugins/pluginMarketplaceService.js';
 
 suite('ManagePluginMarketplacesAction', () => {
@@ -348,3 +351,225 @@ suite('ManagePluginMarketplacesAction', () => {
 		});
 	});
 });
+
+suite('InstallFromSourceAction', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('opens chat customizations plugins view on successful install', async () => {
+		const instantiationService = workbenchInstantiationService({}, store);
+		const commands: { id: string; args: unknown[] }[] = [];
+		const pluginUri = URI.file('/test/plugin');
+
+		class TestInputBox extends mock<IInputBox>() {
+			value = 'owner/repo';
+			enabled = true;
+			busy = false;
+			validationMessage: string | undefined;
+			ignoreFocusOut = false;
+			placeholder: string | undefined;
+			prompt: string | undefined;
+			buttons: readonly any[] = [];
+			private readonly _onDidAccept = store.add(new Emitter<void>());
+			readonly onDidAccept = this._onDidAccept.event;
+			private readonly _onDidChangeValue = store.add(new Emitter<string>());
+			readonly onDidChangeValue = this._onDidChangeValue.event;
+			private readonly _onDidHide = store.add(new Emitter<void>());
+			readonly onDidHide = this._onDidHide.event;
+			private readonly _onDidTriggerButton = store.add(new Emitter<any>());
+			readonly onDidTriggerButton = this._onDidTriggerButton.event;
+			override show() {
+				queueMicrotask(() => this._onDidAccept.fire());
+			}
+			override hide() {}
+			override dispose() {}
+		}
+
+		instantiationService.stub(IQuickInputService, new class extends mock<IQuickInputService>() {
+			override createInputBox() { return new TestInputBox(); }
+		}());
+		instantiationService.stub(IPluginInstallService, new class extends mock<IPluginInstallService>() {
+			override validatePluginSource() { return undefined; }
+			override async installPluginFromSource() {
+				return { success: true, installedUri: pluginUri };
+			}
+		}());
+		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
+			override async executeCommand<T>(commandId: string, ...args: unknown[]): Promise<T | undefined> {
+				commands.push({ id: commandId, args });
+				return undefined;
+			}
+		}());
+		instantiationService.stub(IFileDialogService, new class extends mock<IFileDialogService>() { });
+
+		const installed = await instantiationService.invokeFunction(accessor => new InstallFromSourceAction().run(accessor));
+		assert.strictEqual(installed, true);
+		assert.deepStrictEqual(commands, [{
+			id: AICustomizationManagementCommands.OpenEditor,
+			args: [{
+				section: AICustomizationManagementSection.Plugins,
+				revealUri: pluginUri,
+			}],
+		}]);
+	});
+
+	test('falls back to getPluginInstallUri when matchedPlugin is returned without installedUri', async () => {
+		const instantiationService = workbenchInstantiationService({}, store);
+		const commands: { id: string; args: unknown[] }[] = [];
+		const pluginUri = URI.file('/test/plugin-fallback');
+
+		class TestInputBox extends mock<IInputBox>() {
+			value = 'owner/repo';
+			enabled = true;
+			busy = false;
+			validationMessage: string | undefined;
+			ignoreFocusOut = false;
+			placeholder: string | undefined;
+			prompt: string | undefined;
+			buttons: readonly any[] = [];
+			private readonly _onDidAccept = store.add(new Emitter<void>());
+			readonly onDidAccept = this._onDidAccept.event;
+			private readonly _onDidChangeValue = store.add(new Emitter<string>());
+			readonly onDidChangeValue = this._onDidChangeValue.event;
+			private readonly _onDidHide = store.add(new Emitter<void>());
+			readonly onDidHide = this._onDidHide.event;
+			private readonly _onDidTriggerButton = store.add(new Emitter<any>());
+			readonly onDidTriggerButton = this._onDidTriggerButton.event;
+			override show() {
+				queueMicrotask(() => this._onDidAccept.fire());
+			}
+			override hide() {}
+			override dispose() {}
+		}
+
+		instantiationService.stub(IQuickInputService, new class extends mock<IQuickInputService>() {
+			override createInputBox() { return new TestInputBox(); }
+		}());
+		instantiationService.stub(IPluginInstallService, new class extends mock<IPluginInstallService>() {
+			override validatePluginSource() { return undefined; }
+			override getPluginInstallUri() { return pluginUri; }
+			override async installPluginFromSource() {
+				return { success: true, matchedPlugin: { name: 'repo' } as any };
+			}
+		}());
+		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
+			override async executeCommand<T>(commandId: string, ...args: unknown[]): Promise<T | undefined> {
+				commands.push({ id: commandId, args });
+				return undefined;
+			}
+		}());
+		instantiationService.stub(IFileDialogService, new class extends mock<IFileDialogService>() { });
+
+		const installed = await instantiationService.invokeFunction(accessor => new InstallFromSourceAction().run(accessor));
+		assert.strictEqual(installed, true);
+		assert.deepStrictEqual(commands, [{
+			id: AICustomizationManagementCommands.OpenEditor,
+			args: [{
+				section: AICustomizationManagementSection.Plugins,
+				revealUri: pluginUri,
+			}],
+		}]);
+	});
+
+	test('skips reveal when skipReveal option is true', async () => {
+		const instantiationService = workbenchInstantiationService({}, store);
+		const commands: { id: string; args: unknown[] }[] = [];
+
+		class TestInputBox extends mock<IInputBox>() {
+			value = 'owner/repo';
+			enabled = true;
+			busy = false;
+			validationMessage: string | undefined;
+			ignoreFocusOut = false;
+			placeholder: string | undefined;
+			prompt: string | undefined;
+			buttons: readonly any[] = [];
+			private readonly _onDidAccept = store.add(new Emitter<void>());
+			readonly onDidAccept = this._onDidAccept.event;
+			private readonly _onDidChangeValue = store.add(new Emitter<string>());
+			readonly onDidChangeValue = this._onDidChangeValue.event;
+			private readonly _onDidHide = store.add(new Emitter<void>());
+			readonly onDidHide = this._onDidHide.event;
+			private readonly _onDidTriggerButton = store.add(new Emitter<any>());
+			readonly onDidTriggerButton = this._onDidTriggerButton.event;
+			override show() {
+				queueMicrotask(() => this._onDidAccept.fire());
+			}
+			override hide() {}
+			override dispose() {}
+		}
+
+		instantiationService.stub(IQuickInputService, new class extends mock<IQuickInputService>() {
+			override createInputBox() { return new TestInputBox(); }
+		}());
+		instantiationService.stub(IPluginInstallService, new class extends mock<IPluginInstallService>() {
+			override validatePluginSource() { return undefined; }
+			override async installPluginFromSource() {
+				return { success: true, installedUri: URI.file('/test/plugin') };
+			}
+		}());
+		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
+			override async executeCommand<T>(commandId: string, ...args: unknown[]): Promise<T | undefined> {
+				commands.push({ id: commandId, args });
+				return undefined;
+			}
+		}());
+		instantiationService.stub(IFileDialogService, new class extends mock<IFileDialogService>() { });
+
+		const installed = await instantiationService.invokeFunction(accessor => new InstallFromSourceAction().run(accessor, { skipReveal: true }));
+		assert.strictEqual(installed, true);
+		assert.deepStrictEqual(commands, []);
+	});
+
+	test('does not fail install or re-open input if reveal command fails', async () => {
+		const instantiationService = workbenchInstantiationService({}, store);
+		let showCount = 0;
+
+		class TestInputBox extends mock<IInputBox>() {
+			value = 'owner/repo';
+			enabled = true;
+			busy = false;
+			validationMessage: string | undefined;
+			ignoreFocusOut = false;
+			placeholder: string | undefined;
+			prompt: string | undefined;
+			buttons: readonly any[] = [];
+			private readonly _onDidAccept = store.add(new Emitter<void>());
+			readonly onDidAccept = this._onDidAccept.event;
+			private readonly _onDidChangeValue = store.add(new Emitter<string>());
+			readonly onDidChangeValue = this._onDidChangeValue.event;
+			private readonly _onDidHide = store.add(new Emitter<void>());
+			readonly onDidHide = this._onDidHide.event;
+			private readonly _onDidTriggerButton = store.add(new Emitter<any>());
+			readonly onDidTriggerButton = this._onDidTriggerButton.event;
+			override show() {
+				showCount++;
+				if (showCount === 1) {
+					queueMicrotask(() => this._onDidAccept.fire());
+				}
+			}
+			override hide() {}
+			override dispose() {}
+		}
+
+		instantiationService.stub(IQuickInputService, new class extends mock<IQuickInputService>() {
+			override createInputBox() { return new TestInputBox(); }
+		}());
+		instantiationService.stub(IPluginInstallService, new class extends mock<IPluginInstallService>() {
+			override validatePluginSource() { return undefined; }
+			override async installPluginFromSource() {
+				return { success: true, installedUri: URI.file('/test/plugin') };
+			}
+		}());
+		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
+			override async executeCommand<T>(): Promise<T | undefined> {
+				throw new Error('Failed to open editor');
+			}
+		}());
+		instantiationService.stub(IFileDialogService, new class extends mock<IFileDialogService>() { });
+
+		const installed = await instantiationService.invokeFunction(accessor => new InstallFromSourceAction().run(accessor));
+		assert.strictEqual(installed, true);
+		assert.strictEqual(showCount, 1);
+	});
+});
+
