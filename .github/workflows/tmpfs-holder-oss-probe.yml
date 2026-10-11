@@ -1,0 +1,26 @@
+name: Temporary native OSS tmpfs holder probe
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+  pull-requests: read
+
+concurrency:
+  group: tmpfs-holder-oss-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  holder:
+    uses: ./.github/workflows/pr-linux-test.yml
+    with:
+      job_name: Native OSS tmpfs holder investigation
+      electron_tests: true
+      browser_tests: false
+      remote_tests: false
+      unit_tests: false
+      integration_tests: true
+      smoke_tests: false
+      holder_probe: true

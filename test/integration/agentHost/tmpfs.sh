@@ -45,4 +45,8 @@ if [[ "$FILESYSTEM" != tmpfs ]]; then
 fi
 echo "Agent Host E2E storage: tmpfs ($TEST_TMPDIR)"
 findmnt --target "$TEST_TMPDIR"
-TMPDIR="$TEST_TMPDIR" TMP="$TEST_TMPDIR" TEMP="$TEST_TMPDIR" AGENT_HOST_E2E_STORAGE_BACKING=tmpfs "$@"
+if [[ "${AGENT_HOST_OSS_HOLDER_OBSERVER:-}" == 1 ]]; then
+	TMPDIR="$TEST_TMPDIR" TMP="$TEST_TMPDIR" TEMP="$TEST_TMPDIR" AGENT_HOST_E2E_STORAGE_BACKING=tmpfs node "$(dirname "$0")/ossHolderObserver.ts" "$@"
+else
+	TMPDIR="$TEST_TMPDIR" TMP="$TEST_TMPDIR" TEMP="$TEST_TMPDIR" AGENT_HOST_E2E_STORAGE_BACKING=tmpfs "$@"
+fi
