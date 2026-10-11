@@ -18164,6 +18164,137 @@ Use the attached image as context.
 			]);
 		});
 
+		suite('subagent content lifetime', () => {
+			async function createSubagentStream() {
+				const result = await createAgentSession(disposables);
+				result.session.resetTurnState('turn-parent');
+				result.mockSession.fire('subagent.started', {
+					toolCallId: 'tc-subagent',
+					agentName: 'explore',
+					agentDisplayName: 'Explore',
+					agentDescription: 'Explore tests',
+				}, { agentId: 'agent-1' });
+				return result;
+			}
+
+			function contentSignals(signals: readonly AgentSignal[]) {
+				const partIds = new Map<string, number>();
+				return signals.flatMap<{ scope: string | undefined; kind: string; part: number | undefined; content: string }>(signal => {
+					if (signal.kind !== 'action') {
+						return [];
+					}
+					const action = signal.action;
+					if (action.type === ActionType.ChatResponsePart
+						&& (action.part.kind === ResponsePartKind.Markdown || action.part.kind === ResponsePartKind.Reasoning)) {
+						const part = partIds.size;
+						partIds.set(action.part.id, part);
+						return [{ scope: signal.parentToolCallId, kind: action.part.kind, part, content: action.part.content }];
+					}
+					if (action.type === ActionType.ChatDelta || action.type === ActionType.ChatReasoning) {
+						return [{ scope: signal.parentToolCallId, kind: action.type, part: partIds.get(action.partId), content: action.content }];
+					}
+					return [];
+				});
+			}
+
+			for (const boundary of ['idle', 'replacement'] as const) {
+				test(`keeps streamed child content when its full message follows parent ${boundary}`, async () => {
+					const { session, mockSession, signals } = await createSubagentStream();
+					mockSession.fire('assistant.message_delta', {
+						messageId: 'message-child',
+						deltaContent: 'Child answer.',
+					}, { agentId: 'agent-1' });
+					mockSession.fire('session.idle', {});
+					if (boundary === 'replacement') {
+						session.resetTurnState('turn-replacement');
+					}
+					mockSession.fire('assistant.message', {
+						messageId: 'message-child',
+						content: 'Child answer.',
+					}, { agentId: 'agent-1' });
+
+					assert.deepStrictEqual(contentSignals(signals), [
+						{ scope: 'tc-subagent', kind: ResponsePartKind.Markdown, part: 0, content: 'Child answer.' },
+					]);
+				});
+			}
+
+			for (const kind of [ResponsePartKind.Markdown, ResponsePartKind.Reasoning]) {
+				test(`continues child ${kind} deltas after parent idle`, async () => {
+					const { mockSession, signals } = await createSubagentStream();
+					if (kind === ResponsePartKind.Markdown) {
+						mockSession.fire('assistant.message_delta', { messageId: 'message-child', deltaContent: 'Hello ' }, { agentId: 'agent-1' });
+					} else {
+						mockSession.fire('assistant.reasoning_delta', { reasoningId: 'reasoning-child', deltaContent: 'Hello ' }, { agentId: 'agent-1' });
+					}
+					mockSession.fire('session.idle', {});
+					if (kind === ResponsePartKind.Markdown) {
+						mockSession.fire('assistant.message_delta', { messageId: 'message-child', deltaContent: 'world' }, { agentId: 'agent-1' });
+						mockSession.fire('assistant.message', { messageId: 'message-child', content: 'Hello world' }, { agentId: 'agent-1' });
+					} else {
+						mockSession.fire('assistant.reasoning_delta', { reasoningId: 'reasoning-child', deltaContent: 'world' }, { agentId: 'agent-1' });
+					}
+
+					assert.deepStrictEqual(contentSignals(signals), [
+						{ scope: 'tc-subagent', kind, part: 0, content: 'Hello ' },
+						{ scope: 'tc-subagent', kind: kind === ResponsePartKind.Markdown ? ActionType.ChatDelta : ActionType.ChatReasoning, part: 0, content: 'world' },
+					]);
+				});
+			}
+
+			test('keeps identical responses to separate child user messages', async () => {
+				const { mockSession, signals } = await createSubagentStream();
+				mockSession.fire('assistant.message', { messageId: 'message-child-one', content: 'Child answer.' }, { agentId: 'agent-1' });
+				mockSession.fire('session.idle', {});
+				mockSession.fire('user.message', { messageId: 'child-followup', content: 'Repeat the answer.', source: 'agent-parent' }, { agentId: 'agent-1' });
+				mockSession.fire('assistant.message', { messageId: 'message-child-two', content: 'Child answer.' }, { agentId: 'agent-1' });
+
+				assert.deepStrictEqual(contentSignals(signals), [
+					{ scope: 'tc-subagent', kind: ResponsePartKind.Markdown, part: 0, content: 'Child answer.' },
+					{ scope: 'tc-subagent', kind: ResponsePartKind.Markdown, part: 1, content: 'Child answer.' },
+				]);
+			});
+
+			test('starts a new child content round after a tool request without an active parent', async () => {
+				const { mockSession, signals } = await createSubagentStream();
+				mockSession.fire('assistant.message_delta', { messageId: 'message-child-one', deltaContent: 'Before tool.' }, { agentId: 'agent-1' });
+				mockSession.fire('session.idle', {});
+				mockSession.fire('assistant.message', {
+					messageId: 'message-child-one',
+					content: 'Before tool.',
+					toolRequests: [{ toolCallId: 'tc-child-view', name: 'view', arguments: { path: '/tmp/file' }, type: 'function' }],
+				}, { agentId: 'agent-1' });
+				mockSession.fire('assistant.message_delta', { messageId: 'message-child-two', deltaContent: 'After tool.' }, { agentId: 'agent-1' });
+				mockSession.fire('assistant.message', { messageId: 'message-child-two', content: 'After tool.' }, { agentId: 'agent-1' });
+
+				assert.deepStrictEqual(contentSignals(signals), [
+					{ scope: 'tc-subagent', kind: ResponsePartKind.Markdown, part: 0, content: 'Before tool.' },
+					{ scope: 'tc-subagent', kind: ResponsePartKind.Markdown, part: 1, content: 'After tool.' },
+				]);
+			});
+
+			test('cancelled child tails do not seed response parts for a later resumed turn', async () => {
+				const { session, mockSession, signals } = await createSubagentStream();
+				mockSession.fire('assistant.turn_start', { turnId: 'sdk-parent' });
+				mockSession.fire('assistant.message_delta', { messageId: 'child-before-abort', deltaContent: 'Old answer.' }, { agentId: 'agent-1' });
+				await session.abort();
+				signals.length = 0;
+				mockSession.fire('assistant.message_delta', { messageId: 'child-cancelled', deltaContent: 'Cancelled answer.' }, { agentId: 'agent-1' });
+				mockSession.fire('assistant.reasoning_delta', { reasoningId: 'reasoning-cancelled', deltaContent: 'Cancelled reasoning.' }, { agentId: 'agent-1' });
+				mockSession.fire('assistant.message', { messageId: 'child-cancelled', content: 'Cancelled answer.' }, { agentId: 'agent-1' });
+				mockSession.fire('session.idle', { aborted: true });
+				session.resetTurnState('turn-replacement');
+				mockSession.fire('assistant.turn_start', { turnId: 'sdk-replacement' });
+				mockSession.fire('assistant.turn_start', { turnId: 'sdk-child-resumed', model: 'gpt-5' }, { agentId: 'agent-1' });
+				mockSession.fire('assistant.message_delta', { messageId: 'child-resumed', deltaContent: 'Fresh answer.' }, { agentId: 'agent-1' });
+				mockSession.fire('assistant.message', { messageId: 'child-resumed', content: 'Fresh answer.' }, { agentId: 'agent-1' });
+
+				assert.deepStrictEqual(contentSignals(signals), [
+					{ scope: 'tc-subagent', kind: ResponsePartKind.Markdown, part: 0, content: 'Fresh answer.' },
+				]);
+			});
+		});
+
 		test('reasoning delta after tool_start starts a new reasoning response part', async () => {
 			const { session, mockSession, signals } = await createAgentSession(disposables);
 			session.resetTurnState('turn-1');
