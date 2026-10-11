@@ -17,7 +17,7 @@ const electronVersion = '43.7.7';
 const electronArchive = '4d0a48398c444258dbcf2f5f83b49ca5bc53583130f354e0c299dad5b22b5271';
 const electronExecutable = '9ecc59968492b5139d37b2de89496832655d2caeae1c7229cecb706006aceb9a';
 const electronTypes = 'd78a11ef458b68672c35957f0252396a1fa19e73a8ca3b9178e2e75cd090453d';
-const manifestFiles = ['package.json', 'package-lock.json', 'product.json', '.npmrc', '.nvmrc', 'remote/.npmrc', 'test/package.json', 'build/package-lock.json', 'build/checksums/electron.txt', 'build/checksums/nodejs.txt', 'build/npm/electronTypes.ts', 'build/npm/preinstall.ts', 'build/linux/libcxx-fetcher.ts', 'build/npm/gyp/custom-headers/v8config.h', 'build/npm/gyp/custom-headers/v8-source-location.h'];
+const manifestFiles = ['package.json', 'package-lock.json', 'product.json', '.npmrc', '.nvmrc', 'remote/.npmrc', 'test/package.json', 'test/unit/electron/index.js', 'test/unit/electron/renderer.js', 'test/unit/electron/renderer.html', 'test/unit/electron/preload.js', 'build/package-lock.json', 'build/checksums/electron.txt', 'build/checksums/nodejs.txt', 'build/npm/electronTypes.ts', 'build/npm/preinstall.ts', 'build/linux/libcxx-fetcher.ts', 'build/npm/gyp/custom-headers/v8config.h', 'build/npm/gyp/custom-headers/v8-source-location.h'];
 const entrypoints = [
 	{ file: 'conformance/agentHostConformance', title: 'Agent Host E2E \u2014 Conformance' },
 	{ file: 'providers/claudeAgentHostE2E', title: 'Agent Host E2E \u2014 Claude' },
@@ -178,10 +178,15 @@ function main(): void {
 		return;
 	}
 	verifyNative();
+	const registrationValidator: {
+		readRegistrationReceipt(output: string, module: string, title: string): { module: string; total: number; suites: { title: string; tests: number }[] };
+		verifyMissingReceipt(output: string, module: string, title: string): void;
+	} = require('./ossRegistrationContract.ts');
 	fs.writeFileSync(path.join(logs, 'oss-source-inputs.json'), JSON.stringify(source));
 	const home = fs.mkdtempSync('/tmp/agent-host-oss-probe-');
 	const registration = path.join(root, 'test/unit/electron/ossRegistration.ts');
-	let copied = false;
+	const registrationContract = path.join(root, 'test/unit/electron/ossRegistrationContract.ts');
+	const copies: string[] = [];
 	try {
 		const env: NodeJS.ProcessEnv = { ...process.env, HOME: home, USERPROFILE: home, XDG_CONFIG_HOME: path.join(home, '.config'), TMPDIR: '/tmp', TMP: '/tmp', TEMP: '/tmp' };
 		for (const key of ['GITHUB_TOKEN', 'GH_TOKEN', 'GITHUB_PAT', 'GITHUB_COPILOT_API_TOKEN', 'VSCODE_COPILOT_CHAT_TOKEN', 'SYSTEM_ACCESSTOKEN', 'AZURE_DEVOPS_EXT_PAT', 'COPILOT_HOME', 'COPILOT_SKILLS_DIRS', 'CLAUDE_CONFIG_DIR', 'CODEX_HOME', 'COPILOT_API_URL', 'COPILOT_DEBUG_GITHUB_API_URL', 'VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE', 'NODE_OPTIONS', 'ELECTRON_RUN_AS_NODE']) {
@@ -190,15 +195,36 @@ function main(): void {
 		for (const key of ['AGENT_HOST_REPLAY_RECORD', 'AGENT_HOST_UPDATE_AHP_SNAPSHOTS', 'AGENT_HOST_UPDATE_SNAPSHOTS']) {
 			assert.notEqual(env[key], '1', 'Do not record or mutate fixtures');
 		}
-		assert.ok(!fs.existsSync(registration));
-		fs.copyFileSync(path.join(__dirname, 'ossRegistration.ts'), registration);
-		copied = true;
+		for (const [source, destination] of [[path.join(__dirname, 'ossRegistration.ts'), registration], [path.join(__dirname, 'ossRegistrationContract.ts'), registrationContract]]) {
+			assert.ok(!fs.existsSync(destination), 'Do not overwrite a bootstrap file');
+			fs.copyFileSync(source, destination, fs.constants.COPYFILE_EXCL);
+			copies.push(destination);
+		}
 		for (const entrypoint of entrypoints) {
 			const resultFile = path.join(home, path.basename(entrypoint.file) + '.json');
-			assert.equal(run(`register:${entrypoint.file}`, path.join(root, '.build/electron/code-oss'), [registration, '--run', `src/vs/platform/agentHost/test/node/e2e/${entrypoint.file}.integrationTest.ts`, '--grep', '^(?!)$', '--crash-reporter-directory', path.join(root, '.build/crashes')], { ...env, AGENT_HOST_OSS_REGISTRATION_OUTPUT: resultFile }), 0);
-			const result: { total: number; suites: { title: string; tests: number }[] } = JSON.parse(fs.readFileSync(resultFile, 'utf8'));
+			const module = `src/vs/platform/agentHost/test/node/e2e/${entrypoint.file}.integrationTest.ts`;
+			const prefix = `ossRegistration-${process.pid}-${path.basename(entrypoint.file)}`;
+			const generated = ['main.js', 'html', 'renderer.js'].map(extension => path.join(root, 'test/unit/electron', `${prefix}.${extension}`));
+			for (const file of generated) {
+				assert.ok(!fs.existsSync(file), 'Do not overwrite an existing generated bootstrap');
+			}
+			assert.equal(run(`register:${entrypoint.file}`, path.join(root, '.build/electron/code-oss'), [registration, '--run', module, '--grep', '^(?!)$', '--crash-reporter-directory', path.join(root, '.build/crashes')], { ...env, AGENT_HOST_OSS_REGISTRATION_OUTPUT: resultFile, AGENT_HOST_OSS_REGISTRATION_MODULE: module, AGENT_HOST_OSS_REGISTRATION_TITLE: entrypoint.title, AGENT_HOST_OSS_REGISTRATION_PREFIX: prefix }), 0);
+			const result = registrationValidator.readRegistrationReceipt(resultFile, module, entrypoint.title);
 			assert.ok(result.suites.some(suite => suite.title === entrypoint.title && Number.isInteger(suite.tests) && suite.tests > 0), `No real registered tests for ${entrypoint.file}`);
 			fs.copyFileSync(resultFile, path.join(logs, path.basename(resultFile)));
+			for (const file of generated) {
+				assert.ok(!fs.existsSync(file), 'Owned registration bootstrap cleanup did not finish');
+			}
+		}
+		if (process.argv[2] === '--registration-only') {
+			const module = `src/vs/platform/agentHost/test/node/e2e/${entrypoints[0].file}.integrationTest.ts`;
+			const output = path.join(home, 'stock-no-receipt.json');
+			assert.equal(run('registration-no-receipt-control', path.join(root, '.build/electron/code-oss'), [path.join(root, 'test/unit/electron/index.js'), '--run', module, '--grep', '^(?!)$', '--crash-reporter-directory', path.join(root, '.build/crashes')], env), 0);
+			registrationValidator.verifyMissingReceipt(output, module, entrypoints[0].title);
+			const receipt = { gate: 'registration-only', result: 'passed', registeredModules: entrypoints.length, missingReceiptControl: 'ENOENT', agentHostCasesExecuted: 0, workloadIterations: 0 };
+			fs.writeFileSync(path.join(logs, 'oss-registration-only.json'), JSON.stringify(receipt), { flag: 'wx' });
+			console.log(JSON.stringify(receipt));
+			return;
 		}
 		assert.equal(run('real-native-procfs-calibration', 'bash', [path.join(__dirname, 'tmpfs.sh'), process.execPath, path.join(__dirname, 'ossHolderObserver.ts'), '--calibrate'], env), 0);
 		const directory = path.join(root, 'src/vs/platform/agentHost/test/node/e2e/captures');
@@ -219,8 +245,10 @@ function main(): void {
 			assert.deepEqual(after, before, 'Strict replay must not change fixtures');
 		}
 	} finally {
-		if (copied) {
-			fs.unlinkSync(registration);
+		for (const file of copies) {
+			if (fs.existsSync(file)) {
+				fs.unlinkSync(file);
+			}
 		}
 		fs.rmSync(home, { recursive: true, force: true });
 	}

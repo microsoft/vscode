@@ -26,7 +26,7 @@ test('one exact-branch push native job reuses the existing OSS workflow without 
 	assert.deepEqual(Object.keys(workflow.jobs), ['holder']);
 	assert.deepEqual(workflow.jobs.holder, {
 		uses: './.github/workflows/pr-linux-test.yml',
-		with: { job_name: 'Native OSS tmpfs holder investigation', electron_tests: true, browser_tests: false, remote_tests: false, unit_tests: false, integration_tests: true, smoke_tests: false, holder_probe: true },
+		with: { job_name: 'Native OSS registration contract verification', electron_tests: true, browser_tests: false, remote_tests: false, unit_tests: false, integration_tests: true, smoke_tests: false, holder_probe: true, holder_registration_only: true },
 	});
 	assert.deepEqual(workflow.permissions, { contents: 'read', actions: 'read', 'pull-requests': 'read' });
 });
@@ -34,15 +34,16 @@ test('one exact-branch push native job reuses the existing OSS workflow without 
 test('reusable recipe keeps normal behavior and isolates probe cache and 50/30-minute execution limits', () => {
 	const workflow = yaml.load(fs.readFileSync(path.join(root, '.github/workflows/pr-linux-test.yml'), 'utf8')) as IWorkflow;
 	assert.deepEqual(workflow.on.workflow_call?.inputs.holder_probe, { type: 'boolean', default: false });
+	assert.deepEqual(workflow.on.workflow_call?.inputs.holder_registration_only, { type: 'boolean', default: false });
 	const job = workflow.jobs['linux-test'];
 	assert.equal(job['runs-on'], 'ubuntu-24.04');
 	assert.equal(job['timeout-minutes'], '${{ inputs.holder_probe && 50 || 360 }}');
 	const normal = job.steps!.find(step => step.name === '🧪 Run integration tests (Electron)');
 	assert.ok(normal?.if?.includes('!inputs.holder_probe'));
 	assert.equal(normal?.run, './scripts/test-integration.sh --tfs "Integration Tests"');
-	const probe = job.steps!.find(step => step.name === 'Verify native OSS inputs and run strict holder workload');
+	const probe = job.steps!.find(step => step.name === 'Verify native OSS inputs and run holder probe');
 	assert.equal(probe?.if, '${{ inputs.holder_probe }}');
-	assert.equal(probe?.run, 'node test/integration/agentHost/ossProbe.ts');
+	assert.equal(probe?.run, 'node test/integration/agentHost/ossProbe.ts${{ inputs.holder_registration_only && \' --registration-only\' || \'\' }}');
 	const raw = fs.readFileSync(path.join(root, '.github/workflows/pr-linux-test.yml'), 'utf8');
 	assert.ok(raw.includes('timeout-minutes: 30\n        run: node test/integration/agentHost/ossProbe.ts'));
 	for (const name of ['Restore node_modules cache', 'Restore built-in extensions cache', 'Setup Electron', 'Prepare built-in extensions cache key', 'Download built-in extensions', 'Transpile client and extensions', 'Compile extensions for integration tests & smoke tests']) {
@@ -62,6 +63,7 @@ test('holder_probe false preserves every original normal step, command, environm
 	const original = yaml.load(baselineResult.stdout) as IWorkflow;
 	const candidate = yaml.load(fs.readFileSync(path.join(root, '.github/workflows/pr-linux-test.yml'), 'utf8')) as IWorkflow;
 	delete candidate.on.workflow_call!.inputs.holder_probe;
+	delete candidate.on.workflow_call!.inputs.holder_registration_only;
 	const job = candidate.jobs['linux-test'];
 	job['timeout-minutes'] = '360';
 	original.jobs['linux-test']['timeout-minutes'] = '360';

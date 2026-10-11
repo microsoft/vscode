@@ -66,7 +66,7 @@ test('exact depth-1 CI context reports missing baseline object despite present f
 		assert.equal(git(checkout, ['rev-parse', 'HEAD']).stdout.trim(), before);
 		assert.equal(git(checkout, ['rev-list', '--count', '--all']).stdout.trim(), '1', 'Fetch must not expand branch history');
 		const manifest = corrected.stdout.trim().split('\n').map(line => JSON.parse(line)).find(entry => entry.gate === 'historical-oss-source');
-		assert.equal(Object.keys(manifest.manifest).length, 15);
+		assert.equal(Object.keys(manifest.manifest).length, 19);
 	} finally {
 		fs.rmSync(directory, { recursive: true, force: true });
 	}
@@ -151,7 +151,7 @@ test('archive context does not borrow an ancestor checkout baseline or bypass th
 	try {
 		const archive = path.join(directory, 'archive');
 		fs.mkdirSync(archive);
-		const exported = spawnSync('git', ['-C', root, 'archive', '--format=tar', 'HEAD', 'package.json', 'package-lock.json', 'product.json', '.npmrc', '.nvmrc', 'remote/.npmrc', 'test/package.json', 'build/package-lock.json', 'build/checksums', 'build/npm/electronTypes.ts', 'build/npm/preinstall.ts', 'build/npm/gyp/custom-headers', 'build/linux/libcxx-fetcher.ts', 'test/integration/agentHost/ossProbe.ts'], { timeout: 60_000, maxBuffer: 4 * 1024 * 1024 });
+		const exported = spawnSync('git', ['-C', root, 'archive', '--format=tar', 'HEAD', 'package.json', 'package-lock.json', 'product.json', '.npmrc', '.nvmrc', 'remote/.npmrc', 'test/package.json', 'test/unit/electron', 'build/package-lock.json', 'build/checksums', 'build/npm/electronTypes.ts', 'build/npm/preinstall.ts', 'build/npm/gyp/custom-headers', 'build/linux/libcxx-fetcher.ts', 'test/integration/agentHost/ossProbe.ts'], { timeout: 60_000, maxBuffer: 4 * 1024 * 1024 });
 		assert.equal(exported.status, 0);
 		const extracted = spawnSync('tar', ['-xf', '-', '-C', archive], { input: exported.stdout, timeout: 60_000 });
 		assert.equal(extracted.status, 0);
