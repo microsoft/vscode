@@ -2003,7 +2003,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			height = 0;
 		} else if (
 			(this.groupsView.partOptions.wrapTabs && this.tabsAndActionsContainer?.classList.contains('wrapping')) ||
-			(this.parent.closest(CONNECTED_EDITOR_TABS_SELECTOR) && this.tabsAndActionsContainer?.classList.contains('connected-tab-upper-bar'))
+			(this.parent.closest(CONNECTED_EDITOR_TABS_SELECTOR) && this.tabsAndActionsContainer)
 		) {
 			height = this.tabsAndActionsContainer.offsetHeight;
 		} else {

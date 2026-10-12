@@ -84,7 +84,12 @@
 	display: block;
 }
 
-.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench:is(.hc-black, .hc-light) .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab:not(.active):not(.last-in-row) + .tab:not(.active) > .tab-divider {
+.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab > .tab-divider {
+	left: auto;
+	inset-inline-start: 0;
+}
+
+.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench:is(.hc-black, .hc-light) .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container:is(.wrapping, .connected-tab-upper-bar) .tabs-container > .tab:not(.active):not(.last-in-row) + .tab:not(.active) > .tab-divider {
 	display: none;
 }
 
@@ -148,6 +153,11 @@
 	align-items: flex-start;
 }
 
+.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container:not(.wrapping):not(.connected-tab-upper-bar) {
+	--modern-ui-connected-tab-row-height: max(var(--editor-group-tab-height), calc(var(--vscode-codiconFontSize, 16px) + var(--vscode-spacing-size60, 6px)));
+	--modern-ui-connected-tab-fill-block-inset: 0px;
+}
+
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container:not(.wrapping) > :is(.editor-actions, .editor-layout-actions) {
 	align-self: stretch;
 	height: auto;
@@ -206,7 +216,7 @@
 
 /* The active cap owns its connected boundary; inactive fills retain Pill gutters. */
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab:not(.active):not(.connected-tab-upper-row) > .tab-fill {
-	inset-block: var(--modern-ui-connected-tab-fill-block-inset);
+	inset-block: var(--modern-ui-connected-tab-fill-block-inset) calc(var(--modern-ui-connected-tab-row-height) - var(--editor-group-tab-height) - var(--modern-ui-connected-tab-fill-block-inset));
 	overflow: hidden;
 	border-radius: var(--vscode-cornerRadius-small);
 }
@@ -216,6 +226,10 @@
 }
 
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench:not(:is(.hc-black, .hc-light)) .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tab:not(.selected):not(.active):not(.connected-tab-upper-row) > .tab-fill {
+	border-color: transparent;
+}
+
+.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container:not(.wrapping):not(.connected-tab-upper-bar) .tabs-container > .tab:not(.active):not(.selected):not(:hover):not(.hovered):not(:focus-within) > .tab-fill {
 	border-color: transparent;
 }
 
@@ -491,10 +505,6 @@
 
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench:is(.hc-black, .hc-light) .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container:not(.wrapping) .tabs-container > .tab:not(.connected-tab-upper-row) {
 	--modern-ui-connected-tab-action-inset: calc((var(--editor-group-tab-height) - var(--vscode-spacing-size200) - var(--vscode-strokeThickness)) / 2 + var(--vscode-spacing-size20));
-}
-
-.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench:is(.hc-black, .hc-light) .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container:not(.wrapping) .tabs-container > .tab:not(.connected-tab-upper-row) > .tab-actions {
-	top: var(--vscode-strokeThickness);
 }
 
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-and-actions-container .tabs-container > .tab:is(:hover, :focus-within) > .tab-actions {

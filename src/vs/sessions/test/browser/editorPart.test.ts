@@ -88,7 +88,7 @@ suite('Sessions - EditorPart', () => {
 									frameRadius: frame.borderRadius,
 									frameDeviceStroke: Math.round(parseFloat(frame.borderTopWidth) * zoom * mainWindow.devicePixelRatio),
 									framePointerEvents: frame.pointerEvents,
-									capHasTopInset: Math.abs((fill.getBoundingClientRect().top - group.getBoundingClientRect().top) / zoom - 2) < 1 / 32,
+									capAlignedWithFrame: Math.abs(fill.getBoundingClientRect().top - group.getBoundingClientRect().top) < 1 / 32,
 									capBorder: cap.borderTopColor,
 									fillTopBorder: mainWindow.getComputedStyle(fill).borderTopColor,
 									firstBackgroundClip: mainWindow.getComputedStyle(firstFill).backgroundClip,
@@ -100,11 +100,11 @@ suite('Sessions - EditorPart', () => {
 									frameRadius: '7px',
 									frameDeviceStroke: Math.max(1, Math.floor(zoom * mainWindow.devicePixelRatio)),
 									framePointerEvents: 'none',
-									capHasTopInset: true,
+									capAlignedWithFrame: true,
 									capBorder: theme.startsWith('hc-') ? active ? 'rgb(0, 255, 0)' : 'rgb(255, 255, 255)' : frameBorder,
 									fillTopBorder: 'rgba(0, 0, 0, 0)',
 									firstBackgroundClip: 'border-box',
-									firstLeftBorder: theme.startsWith('hc-') && !firstActive ? 'rgb(255, 255, 255)' : 'rgba(0, 0, 0, 0)',
+									firstLeftBorder: 'rgba(0, 0, 0, 0)',
 								}, `${theme}, active: ${active}, compact: ${compact}, zoom: ${zoom}, first: ${firstActive}`);
 							}
 
