@@ -2235,6 +2235,37 @@ suite('AgentHostDatabase sessions_v2', () => {
 			}, { created: { status: 'applied', catalogRevision: 1 }, stale: { status: 'conflict' }, snapshot: [], detail: undefined });
 		});
 
+		test('providerAbsent exclusion hides the session and revives its catalog and chats intact', async () => {
+			database = new AgentHostDatabase(':memory:');
+			await seed();
+			await database.ensureChatCatalogV2(session, expectation(), candidate());
+			const before = await database.readCatalogSnapshot([session]);
+			const aggregate = await database.getSessionV2(session);
+			const excluded = await database.excludeSessionV2({ provider: 'copilot', session, reason: 'providerAbsent', fingerprint: 'enumeration-v1' }, {
+				identity: await database.getSessionV2Registration(session),
+				catalog: aggregate && { sessionGeneration: aggregate.sessionGeneration, sourceRevision: aggregate.sourceRevision, payloadHash: aggregate.payloadHash },
+			});
+			const hidden = {
+				registration: await database.getSessionV2Registration(session),
+				snapshot: await database.readCatalogSnapshot([session]),
+				listed: (await database.listSessionV2Registrations()).length,
+				upsert: await database.upsertSessionV2(envelope(), undefined),
+				chat: await database.readChatV2(session, peer),
+			};
+			await database.registerSessionV2(session, { provider: 'copilot', startTime: 100, source: 'explicit' }, { checkTombstone: true });
+
+			assert.deepStrictEqual({
+				excluded, hidden,
+				exclusion: await database.getSessionsV2Exclusion('copilot', session),
+				revived: await database.readCatalogSnapshot([session]),
+			}, {
+				excluded: 'excluded',
+				hidden: { registration: undefined, snapshot: [], listed: 0, upsert: 'missingSession', chat: { normalized: false } },
+				exclusion: undefined,
+				revived: before,
+			});
+		});
+
 		test('actual physical schema13 upgrades additively and survives activation, restart and legacy dispatch', async () => {
 			const path = join(temporaryDirectory!, 'physical-schema13.db');
 			const raw = await openDatabase(path);

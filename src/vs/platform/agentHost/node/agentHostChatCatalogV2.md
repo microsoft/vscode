@@ -255,7 +255,9 @@ normalized peers after cutover.
 They preserve the default pointer, private descendants and bounded metadata;
 removing a peer tombstones its owned private closure atomically. Reordering
 does not change ownership epochs. Session deletion/unregistration/exclusion
-tombstones all its live normalized rows before removing the header.
+tombstones all its live normalized rows before removing the header, except a
+`providerAbsent` exclusion: it only hides the session, retaining the header and
+rows so a later provider listing revives the catalog intact.
 
 ## Scope
 
