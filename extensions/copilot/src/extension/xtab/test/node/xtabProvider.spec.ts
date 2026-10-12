@@ -135,6 +135,8 @@ class MockInlineEditsModelService implements IInlineEditsModelService {
 		return this._defaultConfig;
 	}
 
+	async ensureModelSelection(): Promise<void> { }
+
 	setSelectedConfig(config: Partial<ModelConfiguration>): void {
 		this._selectedConfig = { ...this._selectedConfig, ...config };
 	}
