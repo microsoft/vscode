@@ -465,7 +465,7 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 				const isQuickChat = session?.isQuickChat?.get() ?? false;
 				if (
 					(!this._getActiveNewSessionKey() && !isQuickChat) ||
-					this._ctx.multipleSessionsVisibleObs.get() ||
+					this._multipleLayoutOwnersVisible() ||
 					this._ctx.isRestoringSessionLayout ||
 					this._layoutService.isEditorPartAutoVisibilitySuppressed() ||
 					!isMainPartEmpty(this._editorGroupsService)
@@ -492,7 +492,7 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 			session.isCreated.get() ||
 			session.isQuickChat?.get() ||
 			!session.workspace.get() ||
-			this._ctx.multipleSessionsVisibleObs.get()
+			this._multipleLayoutOwnersVisible()
 		) {
 			return undefined;
 		}
@@ -506,7 +506,7 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 			session.isCreated.read(reader) ||
 			(session.isQuickChat?.read(reader) ?? false) ||
 			!session.workspace.read(reader) ||
-			this._ctx.multipleSessionsVisibleObs.read(reader)
+			this._multipleLayoutOwnersVisible(reader)
 		) {
 			return undefined;
 		}
@@ -571,7 +571,7 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 					editorPartVisible,
 					workspace,
 				);
-				const revealOnly = this._ctx.multipleSessionsVisibleObs.read(reader);
+				const revealOnly = this._multipleLayoutOwnersVisible(reader);
 				this._syncDetailVisibility(target, revealOnly, emptyFilesShown);
 				this._detailPanel.sync(target);
 			}),

@@ -93,7 +93,7 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 
 			const session = this._sessionsService.activeSession.get();
 			if (this._ctx.isRestoringSessionLayout
-				|| this._ctx.multipleSessionsVisibleObs.get()
+				|| this._multipleLayoutOwnersVisible()
 				|| this._layoutService.isEditorPartAutoVisibilitySuppressed()
 				|| !session
 				|| session.isQuickChat?.get()
@@ -136,10 +136,8 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 		let previousOwnerKey: URI | undefined;
 		let wasSuspended = false;
 		let togglingSidePane = false;
-
 		this._register(autorun(reader => {
-			const multipleSessionsVisible = this._ctx.multipleSessionsVisibleObs.read(reader);
-			const multipleChatsVisible = this._ctx.multipleChatsVisibleObs.read(reader);
+			const multipleLayoutOwnersVisible = this._multipleLayoutOwnersVisible(reader);
 			const activeSession = this._sessionsService.activeSession.read(reader);
 			activeSession?.activeChat.read(reader);
 			const isQuickChat = activeSession?.isQuickChat?.read(reader) ?? false;
@@ -160,7 +158,7 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 
 			const ownerKey = this._ctx.chatLayoutActive(reader) && activeSession ? this._ctx.ownerKeyFor(activeSession, reader) : undefined;
 
-			if (multipleSessionsVisible || (multipleChatsVisible && this._ctx.chatLayoutActive(reader) && !this._ctx.sharedChatLayout)) {
+			if (multipleLayoutOwnersVisible) {
 				if (!this._ctx.chatLayoutActive(reader) || this._ctx.sharedChatLayout) {
 					const activeChat = activeSession?.activeChat.read(reader);
 					const workspace = activeChat?.workspace.read(reader);
@@ -307,7 +305,7 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 			return;
 		}
 		const activeSession = this._sessionsService.activeSession.get();
-		if (this._ctx.multipleChatsVisibleObs.get()) {
+		if (this._multipleLayoutOwnersVisible()) {
 			const ownerKey = activeSession && this._ctx.chatLayoutActive() ? this._ctx.ownerKeyFor(activeSession) : undefined;
 			if (!ownerKey || !this._ctx.sharedChatLayout) {
 				return;
@@ -439,7 +437,7 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 			previousEditorPartVisible = editorPartVisible;
 			previousEditorSessionKey = sessionKey;
 			const target = this._computeTarget(activeEditor, mainPartEmpty, editorMaximized, editorPartVisible, workspace);
-			const revealOnly = this._ctx.multipleSessionsVisibleObs.read(reader);
+			const revealOnly = this._multipleLayoutOwnersVisible(reader);
 			if (!isWorkspaceConversion) {
 				this._syncDetailVisibility(target, revealOnly, emptyFilesShown);
 			}
