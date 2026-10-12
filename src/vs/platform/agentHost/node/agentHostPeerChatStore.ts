@@ -1047,6 +1047,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 				: metadata[CHAT_WORKING_DIRECTORIES_METADATA_KEY] === '' ? undefined : entry.workingDirectories;
 			return {
 				uri: entry.uri,
+				...(entry.archived ? { archived: true } : {}),
 				...(isRead !== undefined ? { isRead } : {}),
 				...(metadata[CHAT_PROVIDER_DATA_METADATA_KEY] !== undefined
 					? metadata[CHAT_PROVIDER_DATA_METADATA_KEY] ? { providerData: metadata[CHAT_PROVIDER_DATA_METADATA_KEY] } : {}

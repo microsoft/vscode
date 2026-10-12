@@ -1,0 +1,798 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import assert from 'assert';
+import { mkdtemp, rm } from 'fs/promises';
+import { tmpdir } from 'os';
+import { match, stub } from 'sinon';
+import { DeferredPromise } from '../../../../base/common/async.js';
+import { join } from '../../../../base/common/path.js';
+import { URI } from '../../../../base/common/uri.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { FileService } from '../../../files/common/fileService.js';
+import { createFileSystemProviderError, FileSystemProviderErrorCode } from '../../../files/common/files.js';
+import { DiskFileSystemProvider } from '../../../files/node/diskFileSystemProvider.js';
+import { NullLogService } from '../../../log/common/log.js';
+import type { IProductService } from '../../../product/common/productService.js';
+import { AgentHostSessionCatalogEnabledConfigKey } from '../../common/agentHostSchema.js';
+import { createNoopGitService } from '../common/sessionTestHelpers.js';
+import { createTestAgentService, getTestAgentServiceComposition, getTestAgentStateManager, registerTestAgentProvider } from './agentServiceTestUtils.js';
+import { MockAgent } from './mockAgent.js';
+import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
+import { CompatibleAgentHostDatabase } from '../../node/compatibleAgentHostDatabase.js';
+import { SessionStorageIdentity } from '../../node/sessionStorageIdentity.js';
+import { SessionDataService } from '../../node/sessionDataService.js';
+import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, ChatOriginKind, MessageKind, MessageAttachmentKind, type Message } from '../../common/state/sessionState.js';
+import { AGENT_HOST_CATALOG_PAYLOAD_VERSION, encodeAgentHostCatalogPayload, hashAgentHostCatalogPayload, type AgentHostCatalogData } from '../../node/agentHostCatalogProjection.js';
+import { AgentHostPeerChatStore } from '../../node/agentHostPeerChatStore.js';
+import { AgentSessionRegistry } from '../../node/agentSessionRegistry.js';
+import { readAgentMessageDelegationMeta, toAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
+import { AgentHostCatalogSyncService, matchesAcknowledgedCatalogReceipt } from '../../node/agentHostCatalogSyncService.js';
+
+suite('Session storage identity compatibility', () => {
+	const store = new DisposableStore();
+	let directory: string;
+
+	setup(async () => directory = await mkdtemp(join(tmpdir(), 'ah-storage-compat-')));
+	teardown(async () => {
+		store.clear();
+		await rm(directory, { recursive: true, force: true });
+	});
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function files() {
+		const fileService = store.add(new FileService(new NullLogService()));
+		store.add(fileService.registerProvider(Schemas.file, store.add(new DiskFileSystemProvider(new NullLogService()))));
+		return fileService;
+	}
+
+	async function database(writeCompatibility = true) {
+		const db = store.add(new CompatibleAgentHostDatabase(join(directory, 'agent-host.db'), writeCompatibility));
+		await db.initialize();
+		return db;
+	}
+
+	function payload(session: string): AgentHostCatalogData {
+		return {
+			modifiedTime: 2, summary: 'Conversation', isRead: true, isArchived: false, workingDirectories: [],
+			chats: [
+				{ uri: buildDefaultChatUri(session), order: 0, kind: 'default' },
+				{ uri: buildChatUri(session, 'peer'), order: 1, kind: 'peer' },
+			],
+		};
+	}
+
+	test('maps only registered local identities and preserves chat IDs and arbitrary text', () => {
+		const codec = new SessionStorageIdentity();
+		codec.add({ runtime: 'ahp-session:/new', storage: 'copilotcli:/new', provider: 'copilotcli' });
+		const resources = ['ahp-session:/new', buildDefaultChatUri('ahp-session:/new'), buildChatUri('ahp-session:/new', 'peer'), buildSubagentChatUri('ahp-session:/new', 'call/1')];
+		const encoded = resources.map(resource => codec.toStorage(resource));
+		assert.deepStrictEqual({
+			encoded,
+			decoded: encoded.map(resource => codec.toRuntime(resource)),
+			opaque: ['ahp-session://tenant/new?revision=1', 'conversation://tenant/chat', 'codex:/new', 'copilotcli:/historical'].map(resource => codec.toStorage(resource)),
+			message: codec.record({ text: 'ahp-session:/new', providerData: '{"uri":"ahp-session:/new"}' }, 'storage'),
+		}, {
+			encoded: ['copilotcli:/new', buildDefaultChatUri('copilotcli:/new'), buildChatUri('copilotcli:/new', 'peer'), buildSubagentChatUri('copilotcli:/new', 'call/1')],
+			decoded: resources,
+			opaque: ['ahp-session://tenant/new?revision=1', 'conversation://tenant/chat', 'codex:/new', 'copilotcli:/historical'],
+			message: { text: 'ahp-session:/new', providerData: '{"uri":"ahp-session:/new"}' },
+		});
+	});
+
+	for (const provider of ['copilotcli', 'claude', 'codex']) {
+		test(`writes ${provider} as one older-readable registration and reads it natively after restart`, async () => {
+			const db = await database();
+			await db.prepareSessionStorage('ahp-session:/new', provider);
+			await db.registerRuntimeSession('ahp-session:/new', { provider, startTime: 1, source: 'explicit' }, { checkTombstone: false });
+			const stored = await db.raw.listSessionV2Registrations();
+			await db.close();
+			const next = await database();
+			assert.deepStrictEqual({
+				stored: stored.map(entry => [entry.session, entry.provider]),
+				runtime: (await next.listSessionV2Registrations()).map(entry => [entry.session, entry.provider]),
+			}, { stored: [[`${provider}:/new`, provider]], runtime: [['ahp-session:/new', provider]] });
+		});
+	}
+
+	test('historical and already-written native or opaque identities are not reencoded', async () => {
+		const raw = store.add(new AgentHostDatabase(join(directory, 'agent-host.db')));
+		for (const session of ['copilotcli:/old', 'ahp-session:/existing', 'ahp-session://tenant/opaque?revision=1']) {
+			await raw.registerRuntimeSession(session, { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		}
+		await raw.close();
+		const db = await database();
+		await db.prepareSessionStorage('ahp-session:/existing', 'copilotcli');
+		assert.deepStrictEqual((await db.listSessionV2Registrations()).map(entry => entry.session).sort(), [
+			'copilotcli:/old', 'ahp-session:/existing', 'ahp-session://tenant/opaque?revision=1',
+		].sort());
+	});
+
+	for (const registration of ['registerRuntimeSession', 'registerSessionV2'] as const) {
+		for (const source of ['discovery', 'restore', 'explicit'] as const) {
+			test(`${registration} with ${source} does not change an unregistered native session's storage representation`, async () => {
+				const db = await database();
+				const fileService = files();
+				const existing = new SessionDataService(URI.file(directory), fileService, new NullLogService());
+				const session = URI.parse('ahp-session:/existing');
+				const peer = URI.parse(buildChatUri(session, 'peer'));
+				const original = existing.openDatabase(peer);
+				await original.object.setChatDraft(peer, { text: 'Existing unsent draft', origin: { kind: MessageKind.User } });
+				original.dispose();
+				await db[registration](session.toString(), { provider: 'copilotcli', startTime: 1, source }, { checkTombstone: true });
+				const modern = new SessionDataService(URI.file(directory), fileService, new NullLogService(), undefined, db.identity);
+				const restored = await modern.tryOpenDatabase(peer);
+				const draft = await restored?.object.getChatDraft(peer);
+				restored?.dispose();
+				assert.deepStrictEqual({
+					identity: db.identity.toStorage(session.toString()),
+					registrations: (await db.raw.listSessionV2Registrations()).map(row => row.session),
+					markers: await db.raw.readStorageIdentityMetadata(),
+					draft: draft?.text,
+					directory: modern.getSessionDataDir(peer).toString(),
+				}, {
+					identity: session.toString(), registrations: [session.toString()], markers: [],
+					draft: 'Existing unsent draft', directory: existing.getSessionDataDir(peer).toString(),
+				});
+			});
+		}
+	}
+
+	for (const registration of ['registerRuntimeSession', 'registerSessionV2'] as const) {
+		test(`${registration} preserves native deletion tombstones without allocating a compatibility identity`, async () => {
+			const raw = store.add(new AgentHostDatabase(join(directory, 'agent-host.db')));
+			const session = 'ahp-session:/deleted';
+			await raw.registerRuntimeSession(session, { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+			await raw.tombstoneAndUnregisterSession(session);
+			await raw.close();
+			const db = await database();
+			const registered = await db[registration](session, { provider: 'copilotcli', startTime: 2, source: 'discovery' }, {
+				checkTombstone: true, discoveryBackingSession: 'copilotcli:/deleted',
+			});
+			await db.close();
+			const next = await database();
+			assert.deepStrictEqual({
+				registered,
+				tombstoned: await next.isSessionTombstoned(session),
+				identity: next.identity.toStorage(session),
+				markers: await next.raw.readStorageIdentityMetadata(),
+				registrations: await next.listSessionV2Registrations(),
+			}, { registered: false, tombstoned: true, identity: session, markers: [], registrations: [] });
+		});
+	}
+
+	test('discovery does not allocate a compatibility identity over a deleted legacy backing', async () => {
+		const db = await database();
+		await db.raw.markSessionTombstoned('copilotcli:/deleted');
+		const registered = await db.registerRuntimeSession('ahp-session:/deleted', {
+			provider: 'copilotcli', startTime: 2, source: 'discovery',
+		}, { checkTombstone: true, discoveryBackingSession: 'copilotcli:/deleted' });
+		assert.deepStrictEqual({
+			registered,
+			tombstoned: await db.raw.isSessionTombstoned('copilotcli:/deleted'),
+			markers: await db.raw.readStorageIdentityMetadata(),
+		}, { registered: false, tombstoned: true, markers: [] });
+	});
+
+	test('preparing deleted native data cannot bypass explicit creation collision checks', async () => {
+		const db = await database();
+		const session = URI.parse('ahp-session:/deleted');
+		await db.raw.markSessionTombstoned(session.toString());
+		const fileService = files();
+		const data = new SessionDataService(URI.file(directory), fileService, new NullLogService(), undefined, db.identity);
+		const service = store.add(createTestAgentService(
+			new NullLogService(), fileService, data, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+			undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, db,
+		));
+		registerTestAgentProvider(service, store.add(new MockAgent('copilotcli')));
+		await db.prepareSessionStorage(session.toString(), 'copilotcli');
+		await assert.rejects(service.createSession({ provider: 'copilotcli', session }), /Session storage identity is already in use/);
+		assert.deepStrictEqual({
+			tombstoned: await db.isSessionTombstoned(session.toString()),
+			identity: db.identity.toStorage(session.toString()),
+			markers: await db.raw.readStorageIdentityMetadata(),
+			registrations: (await db.raw.listSessionV2Registrations()).map(row => row.session),
+		}, { tombstoned: true, identity: session.toString(), markers: [], registrations: [] });
+	});
+
+	test('the dual reader accepts a future native writer in a mixed database', async () => {
+		const writer = await database(false);
+		await writer.registerRuntimeSession('ahp-session:/future', { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		await writer.close();
+		const reader = await database();
+		await reader.prepareSessionStorage('ahp-session:/compatible', 'claude');
+		await reader.registerRuntimeSession('ahp-session:/compatible', { provider: 'claude', startTime: 2, source: 'explicit' }, { checkTombstone: false });
+		assert.deepStrictEqual({
+			runtime: (await reader.listSessionV2Registrations()).map(entry => entry.session).sort(),
+			storage: (await reader.raw.listSessionV2Registrations()).map(entry => entry.session).sort(),
+		}, {
+			runtime: ['ahp-session:/compatible', 'ahp-session:/future'],
+			storage: ['ahp-session:/future', 'claude:/compatible'],
+		});
+	});
+
+	test('historical stable identities retain writable legacy chat authority during the compatibility window', async () => {
+		const raw = store.add(new AgentHostDatabase(join(directory, 'agent-host.db')));
+		const session = URI.parse('copilotcli:/historical');
+		await raw.registerRuntimeSession(session.toString(), { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		await raw.close();
+		const db = await database();
+		const modern = new SessionDataService(URI.file(directory), files(), new NullLogService(), undefined, db.identity);
+		const peers = new AgentHostPeerChatStore(db, modern, new NullLogService());
+		const peer = buildChatUri(session, 'first');
+		await peers.replace(session, [{ uri: peer }]);
+		const normalized = await db.registerChatCatalogV2(session.toString(), {
+			defaultChat: { chat: buildDefaultChatUri(session), order: 0 },
+			peers: [{ chat: peer, order: 1 }], privateDescendants: [],
+		});
+		const legacy = new SessionDataService(URI.file(directory), files(), new NullLogService()).openDatabase(session);
+		const oldAdded = buildChatUri(session, 'old-added');
+		await legacy.object.setMetadata('peerChats', JSON.stringify([{ uri: peer }, { uri: oldAdded }]));
+		legacy.dispose();
+		assert.deepStrictEqual({
+			normalized,
+			identity: (await db.getSessionV2Registration(session.toString()))?.session,
+			chats: (await peers.reconcileLegacy(session))?.map(entry => entry.uri),
+		}, {
+			normalized: { status: 'notReady' }, identity: session.toString(), chats: [peer, oldAdded],
+		});
+	});
+
+	test('legacy deletion remains deleted after upgrade without readdressing historical sessions', async () => {
+		const db = await database();
+		await db.prepareSessionStorage('ahp-session:/new', 'copilotcli');
+		await db.registerRuntimeSession('ahp-session:/new', { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		await db.close();
+		const old = store.add(new AgentHostDatabase(join(directory, 'agent-host.db')));
+		await old.tombstoneAndUnregisterSession('copilotcli:/new');
+		await old.registerRuntimeSession('copilotcli:/created-by-old', { provider: 'copilotcli', startTime: 2, source: 'explicit' }, { checkTombstone: false });
+		await old.close();
+		const next = await database();
+		assert.deepStrictEqual({
+			deleted: await next.isSessionTombstoned('ahp-session:/new'),
+			sessions: (await next.listSessionV2Registrations()).map(entry => entry.session),
+		}, { deleted: true, sessions: ['copilotcli:/created-by-old'] });
+	});
+
+	test('catalog payload checksums and per-session receipts round-trip through storage encoding', async () => {
+		const db = await database();
+		const session = 'ahp-session:/new';
+		await db.prepareSessionStorage(session, 'copilotcli');
+		await db.registerRuntimeSession(session, { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		const encoded = encodeAgentHostCatalogPayload(payload(session));
+		assert.ok(encoded.ok);
+		await db.upsertSessionV2({
+			session, sessionGeneration: 'generation', sourceRevision: 1, payloadVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION, verified: true,
+			payload: encoded.value.payload, payloadHash: encoded.value.payloadHash,
+		}, undefined);
+		const stored = await db.raw.getSessionV2('copilotcli:/new');
+		assert.ok(stored);
+		const data = new SessionDataService(URI.file(directory), files(), new NullLogService(), undefined, db.identity);
+		const ref = data.openDatabase(URI.parse(session));
+		await ref.object.setMetadataValuesAndCatalogSyncSnapshot({}, {
+			sessionGeneration: 'generation', sourceRevision: 1, projectionVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION, state: 'pending',
+			payload: encoded.value.payload, payloadHash: encoded.value.payloadHash,
+		});
+		const acknowledged = await ref.object.acknowledgeCatalogSyncSnapshot({
+			sessionGeneration: 'generation', sourceRevision: 1, projectionVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION, payloadHash: encoded.value.payloadHash,
+		});
+		ref.dispose();
+		await db.close();
+		const next = await database();
+		const centralReceipt = (await next.listSessionsV2Receipts())[0];
+		const nextData = new SessionDataService(URI.file(directory), files(), new NullLogService(), undefined, next.identity);
+		const nextRef = nextData.openDatabase(URI.parse(session));
+		const receipt = await nextRef.object.getCatalogSyncSnapshot();
+		nextRef.dispose();
+		assert.deepStrictEqual({
+			acknowledged,
+			checksumValid: stored.payloadHash === hashAgentHostCatalogPayload(stored.payload),
+			storedHasLegacyChat: stored.payload.includes(buildDefaultChatUri('copilotcli:/new')),
+			runtimePayload: (await next.getSessionV2(session))?.payload,
+			receiptHash: receipt?.payloadHash,
+			centralReceiptHash: centralReceipt.payloadHash,
+			receiptMatches: matchesAcknowledgedCatalogReceipt(receipt, centralReceipt),
+		}, {
+			acknowledged: true, checksumValid: true, storedHasLegacyChat: true,
+			runtimePayload: encoded.value.payload, receiptHash: encoded.value.payloadHash,
+			centralReceiptHash: encoded.value.payloadHash, receiptMatches: true,
+		});
+	});
+
+	test('cancelled or stale central writes retain the durable receipt hash pair', async () => {
+		const db = await database();
+		const session = 'ahp-session:/new';
+		await db.prepareSessionStorage(session, 'copilotcli');
+		await db.registerRuntimeSession(session, { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		const first = encodeAgentHostCatalogPayload(payload(session));
+		const next = encodeAgentHostCatalogPayload({ ...payload(session), summary: 'Cancelled replacement' });
+		assert.ok(first.ok && next.ok);
+		const envelope = {
+			session, sessionGeneration: 'generation', sourceRevision: 2, payloadVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION,
+			verified: true as const, payload: first.value.payload, payloadHash: first.value.payloadHash,
+		};
+		await db.upsertSessionV2(envelope, undefined);
+		const cancelled = await db.upsertSessionV2({ ...envelope, sourceRevision: 3, payload: next.value.payload, payloadHash: next.value.payloadHash }, 'generation', () => false);
+		const stale = await db.upsertSessionV2({ ...envelope, sourceRevision: 1, payload: next.value.payload, payloadHash: next.value.payloadHash }, 'generation');
+		await db.close();
+		const restarted = await database();
+		assert.deepStrictEqual({ cancelled, stale, hash: (await restarted.listSessionsV2Receipts())[0].payloadHash }, {
+			cancelled: 'cancelled', stale: 'stale', hash: first.value.payloadHash,
+		});
+	});
+
+	test('cold central receipt translation does not depend on the bounded hash cache', async () => {
+		const db = await database();
+		const expected: string[] = [];
+		for (let index = 0; index < 260; index++) {
+			const session = `ahp-session:/session-${index}`;
+			await db.prepareSessionStorage(session, 'copilotcli');
+			await db.registerRuntimeSession(session, { provider: 'copilotcli', startTime: index, source: 'explicit' }, { checkTombstone: false });
+			const encoded = encodeAgentHostCatalogPayload(payload(session));
+			assert.ok(encoded.ok);
+			expected.push(encoded.value.payloadHash);
+			await db.upsertSessionV2({
+				session, sessionGeneration: 'generation', sourceRevision: 1, payloadVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION,
+				verified: true, payload: encoded.value.payload, payloadHash: encoded.value.payloadHash,
+			}, undefined);
+		}
+		await db.close();
+		const restarted = await database();
+		const receipts = await restarted.listSessionsV2Receipts();
+		const receipt = receipts[0];
+		const excluded = await restarted.excludeSessionV2({
+			session: receipt.session, provider: 'copilotcli', reason: 'providerAbsent', fingerprint: 'test',
+		}, {
+			identity: await restarted.getSessionV2Registration(receipt.session),
+			catalog: { sessionGeneration: receipt.sessionGeneration, sourceRevision: receipt.sourceRevision, payloadHash: receipt.payloadHash },
+		});
+		const hidden = await restarted.getSessionV2(receipt.session);
+		await restarted.registerRuntimeSession(receipt.session, {
+			provider: 'copilotcli', startTime: receipt.startTime, source: 'restore',
+		}, { checkTombstone: true });
+		const revived = (await restarted.listSessionsV2Receipts()).find(candidate => candidate.session === receipt.session);
+		assert.deepStrictEqual({
+			hashes: receipts.map(receipt => receipt.payloadHash).sort(), excluded, hidden, revivedHash: revived?.payloadHash,
+		}, {
+			hashes: expected.sort(), excluded: 'excluded', hidden: undefined, revivedHash: receipt.payloadHash,
+		});
+	});
+
+	test('catalog synchronization settles after an older writer replaces a snapshot without its runtime hash bridge', async () => {
+		const db = await database();
+		const fileService = files();
+		const session = URI.parse('ahp-session:/new');
+		await db.prepareSessionStorage(session.toString(), 'copilotcli');
+		await db.registerRuntimeSession(session.toString(), { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		const modern = new SessionDataService(URI.file(directory), fileService, new NullLogService(), undefined, db.identity);
+		const first = await new AgentHostCatalogSyncService(modern, db, new NullLogService()).synchronize(session, {
+			data: payload(session.toString()), legacyMetadata: { customTitle: 'Conversation' },
+		});
+		await db.close();
+		const old = store.add(new AgentHostDatabase(join(directory, 'agent-host.db')));
+		const oldData = new SessionDataService(URI.file(directory), fileService, new NullLogService());
+		const oldWritten = await new AgentHostCatalogSyncService(oldData, old, new NullLogService()).synchronize(URI.parse('copilotcli:/new'), {
+			data: { ...payload('copilotcli:/new'), summary: 'Edited by stable' },
+			legacyMetadata: { customTitle: 'Edited by stable' },
+		});
+		await old.close();
+		const upgraded = await database();
+		const upgradedData = new SessionDataService(URI.file(directory), fileService, new NullLogService(), undefined, upgraded.identity);
+		const sync = new AgentHostCatalogSyncService(upgradedData, upgraded, new NullLogService());
+		const request = { data: { ...payload(session.toString()), summary: 'Edited by stable' }, legacyMetadata: { customTitle: 'Edited by stable' } };
+		const settled = await sync.synchronize(session, request);
+		const repeated = await sync.synchronize(session, request);
+		const ref = upgradedData.openDatabase(session);
+		const source = await ref.object.getCatalogSyncSnapshot();
+		const central = await upgraded.getSessionV2(session.toString());
+		ref.dispose();
+		assert.deepStrictEqual({
+			first: first.status,
+			oldWritten: oldWritten.status,
+			settled,
+			repeated,
+			sourceState: source?.state,
+			matches: matchesAcknowledgedCatalogReceipt(source, central),
+		}, {
+			first: 'acknowledged', oldWritten: 'acknowledged',
+			settled: { status: 'acknowledged', sourceRevision: 2 },
+			repeated: { status: 'acknowledged', sourceRevision: 2 },
+			sourceState: 'acknowledged', matches: true,
+		});
+	});
+
+	test('peer storage and URI-keyed titles and drafts are writable through both readers', async () => {
+		const db = await database();
+		await db.prepareSessionStorage('ahp-session:/new', 'copilotcli');
+		const modern = new SessionDataService(URI.file(directory), files(), new NullLogService(), undefined, db.identity);
+		const old = new SessionDataService(URI.file(directory), files(), new NullLogService());
+		const runtimeChat = URI.parse(buildChatUri('ahp-session:/new', 'peer'));
+		const storageChat = URI.parse(buildChatUri('copilotcli:/new', 'peer'));
+		const first = modern.openDatabase(runtimeChat);
+		await first.object.createTurn('new-turn');
+		await first.object.setMetadata(`customChatTitle:${runtimeChat}`, 'Initial title');
+		await first.object.setChatDraft(runtimeChat, { text: 'Unsent draft', origin: { kind: MessageKind.User } });
+		first.dispose();
+		const legacy = old.openDatabase(storageChat);
+		const draft = await legacy.object.getChatDraft(storageChat);
+		await legacy.object.createTurn('old-turn');
+		await legacy.object.setTurnEventId('old-turn', 'old-event');
+		await legacy.object.setMetadata(`customChatTitle:${storageChat}`, 'Renamed by old');
+		legacy.dispose();
+		const restored = modern.openDatabase(runtimeChat);
+		const title = await restored.object.getMetadata(`customChatTitle:${runtimeChat}`);
+		const oldTurn = await restored.object.getNextTurnEventId('new-turn');
+		restored.dispose();
+		assert.deepStrictEqual({
+			sameDirectory: modern.getSessionDataDir(runtimeChat).toString() === old.getSessionDataDir(storageChat).toString(),
+			draft: draft?.text, title, oldTurn,
+		}, { sameDirectory: true, draft: 'Unsent draft', title: 'Renamed by old', oldTurn: 'old-event' });
+	});
+
+	test('concurrent provider claims cannot leave conflicting durable identity markers', async () => {
+		const first = await database();
+		const second = await database();
+		const results = await Promise.allSettled([
+			first.prepareSessionStorage('ahp-session:/claimed', 'copilotcli'),
+			second.prepareSessionStorage('ahp-session:/claimed', 'claude'),
+		]);
+		await first.close();
+		await second.close();
+		const next = await database();
+		assert.deepStrictEqual({
+			claims: results.map(result => result.status).sort(),
+			identities: (await next.raw.readStorageIdentityMetadata()).length,
+			storage: ['copilotcli:/claimed', 'claude:/claimed'].filter(uri => next.identity.toRuntime(uri) === 'ahp-session:/claimed').length,
+		}, { claims: ['fulfilled', 'rejected'], identities: 1, storage: 1 });
+	});
+
+	for (const tombstone of ['tombstoneAndUnregisterSession', 'markSessionTombstoned'] as const) {
+		test(`${tombstone} cannot race compatibility allocation into hiding a deletion`, async () => {
+			const db = await database();
+			const session = 'ahp-session:/allocating';
+			const entered = new DeferredPromise<void>();
+			const release = new DeferredPromise<void>();
+			const claim = stub(db.raw, 'setStorageIdentityMetadata');
+			store.add(toDisposable(() => claim.restore()));
+			claim.callsFake(async (key, value) => {
+				await entered.complete();
+				await release.p;
+				claim.restore();
+				await db.raw.setStorageIdentityMetadata(key, value);
+			});
+			const preparing = db.prepareSessionStorage(session, 'copilotcli');
+			await entered.p;
+			const deleting = db[tombstone](session);
+			await release.complete();
+			await Promise.all([preparing, deleting]);
+			const registered = await db.registerRuntimeSession(session, { provider: 'copilotcli', startTime: 1, source: 'discovery' }, {
+				checkTombstone: true, discoveryBackingSession: 'copilotcli:/allocating',
+			});
+			assert.deepStrictEqual({
+				registered,
+				tombstoned: await db.isSessionTombstoned(session),
+				storedTombstone: await db.raw.isSessionTombstoned('copilotcli:/allocating'),
+				registrations: await db.listSessionV2Registrations(),
+			}, { registered: false, tombstoned: true, storedTombstone: true, registrations: [] });
+		});
+	}
+
+	test('old peer additions, removal, archive and origin edits survive upgrade', async () => {
+		const db = await database();
+		const session = URI.parse('ahp-session:/new');
+		await db.prepareSessionStorage(session.toString(), 'copilotcli');
+		await db.registerRuntimeSession(session.toString(), { provider: 'copilotcli', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		const modern = new SessionDataService(URI.file(directory), files(), new NullLogService(), undefined, db.identity);
+		const peers = new AgentHostPeerChatStore(db, modern, new NullLogService());
+		const first = buildChatUri(session, 'first');
+		await peers.replace(session, [{ uri: first, providerData: 'sdk-first' }]);
+		const old = new SessionDataService(URI.file(directory), files(), new NullLogService());
+		const oldRef = old.openDatabase(URI.parse('copilotcli:/new'));
+		const oldPeers = JSON.parse((await oldRef.object.getMetadata('peerChats'))!);
+		const replacement = buildChatUri('copilotcli:/new', 'replacement');
+		const origin = { kind: ChatOriginKind.Fork, chat: buildDefaultChatUri('copilotcli:/new'), turnId: 'old-turn' };
+		await oldRef.object.setMetadata('peerChats', JSON.stringify([{ uri: replacement, archived: true, providerData: 'sdk-replacement', origin }]));
+		oldRef.dispose();
+		const oldPeerRef = old.openDatabase(URI.parse(replacement));
+		await oldPeerRef.object.setMetadata('agentHost.chatProviderData', 'sdk-replacement');
+		oldPeerRef.dispose();
+		const restored = await peers.reconcileLegacy(session);
+		assert.deepStrictEqual({
+			oldPeers,
+			restored,
+			legacyAuthority: db.requiresLegacyChatCatalog(session.toString()),
+		}, {
+			oldPeers: [{ uri: buildChatUri('copilotcli:/new', 'first'), providerData: 'sdk-first' }],
+			restored: [{ uri: buildChatUri(session, 'replacement'), archived: true, providerData: 'sdk-replacement', origin: { ...origin, chat: buildDefaultChatUri(session) } }],
+			legacyAuthority: true,
+		});
+	});
+
+	test('chat suffixes and path-subagent IDs survive encoding exactly', () => {
+		const codec = new SessionStorageIdentity();
+		codec.add({ runtime: 'ahp-session:/new', storage: 'codex:/new', provider: 'codex' });
+		const suffix = '?generation=123#selection';
+		const runtime = buildSubagentChatUri('ahp-session:/new', 'call/1') + suffix;
+		const storage = codec.toStorage(runtime);
+		const subagent = buildSubagentSessionUri('ahp-session:/new', 'call-1');
+		assert.deepStrictEqual({
+			storage,
+			runtime: codec.toRuntime(storage),
+			subagent: codec.toRuntime(codec.toStorage(subagent)),
+		}, {
+			storage: buildSubagentChatUri('codex:/new', 'call/1') + suffix,
+			runtime, subagent,
+		});
+	});
+
+	test('known metadata references translate while opaque data and persisted conversation payloads do not', async () => {
+		const db = await database();
+		await db.prepareSessionStorage('ahp-session:/new', 'claude');
+		const data = new SessionDataService(URI.file(directory), files(), new NullLogService(), undefined, db.identity);
+		const session = URI.parse('ahp-session:/new');
+		const chat = buildChatUri(session, 'peer');
+		const ref = data.openDatabase(session);
+		const creation = { session: session.toString(), chat, turnId: 'source' };
+		const delegation = { sourceSession: session.toString(), sourceChat: chat, sourceTurnId: 'source' };
+		const conversation = JSON.stringify({ text: 'ahp-session:/new', resource: session.toString(), providerData: { session: session.toString() } });
+		await ref.object.setMetadataValues({
+			'agentHost.createdBySession': JSON.stringify(creation),
+			'peerChatBacking': chat,
+			'providerData': conversation,
+		});
+		await ref.object.createTurn('turn');
+		await ref.object.setTurnDelegation('turn', JSON.stringify(delegation));
+		await ref.object.insertPersistedTurn({ kind: 'local', turnId: 'turn', chatUri: chat, anchorTurnId: undefined, payload: conversation });
+		ref.dispose();
+		const old = new SessionDataService(URI.file(directory), files(), new NullLogService());
+		const legacy = old.openDatabase(URI.parse('claude:/new'));
+		const oldCreation = JSON.parse((await legacy.object.getMetadata('agentHost.createdBySession'))!);
+		const oldDelegation = JSON.parse((await legacy.object.getTurnDelegations()).get('turn')!);
+		const oldTurn = (await legacy.object.getPersistedTurns())[0];
+		assert.deepStrictEqual({ oldCreation, oldDelegation, oldTurn: { chatUri: oldTurn.chatUri, payload: oldTurn.payload }, opaque: await legacy.object.getMetadata('providerData') }, {
+			oldCreation: { ...creation, session: 'claude:/new', chat: buildChatUri('claude:/new', 'peer') },
+			oldDelegation: { ...delegation, sourceSession: 'claude:/new', sourceChat: buildChatUri('claude:/new', 'peer') },
+			oldTurn: { chatUri: buildChatUri('claude:/new', 'peer'), payload: conversation },
+			opaque: conversation,
+		});
+		legacy.dispose();
+	});
+
+	test('draft-owned chat attachments and delegation translate without rewriting text or provider metadata', () => {
+		const codec = new SessionStorageIdentity();
+		codec.add({ runtime: 'ahp-session:/new', storage: 'copilotcli:/new', provider: 'copilotcli' });
+		const chat = buildChatUri('ahp-session:/new', 'peer');
+		const draft: Message = {
+			text: chat, origin: { kind: MessageKind.Agent },
+			attachments: [{ type: MessageAttachmentKind.Chat, label: 'Chat', resource: chat }],
+			_meta: { opaque: { resource: chat }, ...toAgentMessageDelegationMeta({ sourceSession: 'ahp-session:/new', sourceChat: chat }) },
+		};
+		const stored = codec.message(draft, 'storage');
+		assert.deepStrictEqual({
+			text: stored?.text,
+			resource: stored?.attachments?.[0],
+			delegation: readAgentMessageDelegationMeta(stored!),
+			opaque: stored?._meta?.opaque,
+			runtime: codec.message(stored, 'runtime'),
+		}, {
+			text: chat,
+			resource: { ...draft.attachments![0], resource: buildChatUri('copilotcli:/new', 'peer') },
+			delegation: { sourceSession: 'copilotcli:/new', sourceChat: buildChatUri('copilotcli:/new', 'peer') },
+			opaque: { resource: chat }, runtime: draft,
+		});
+	});
+
+	test('cancelled source writes cannot replace the durable compact receipt hash', async () => {
+		const db = await database();
+		await db.prepareSessionStorage('ahp-session:/new', 'copilotcli');
+		const data = new SessionDataService(URI.file(directory), files(), new NullLogService(), undefined, db.identity);
+		const session = URI.parse('ahp-session:/new');
+		const ref = data.openDatabase(session);
+		const encoded = encodeAgentHostCatalogPayload(payload(session.toString()));
+		assert.ok(encoded.ok);
+		const identity = { sessionGeneration: 'generation', sourceRevision: 1, projectionVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION, payloadHash: encoded.value.payloadHash };
+		await ref.object.setMetadataValuesAndCatalogSyncSnapshot({ customTitle: 'Kept' }, { ...identity, state: 'pending', payload: encoded.value.payload });
+		await ref.object.acknowledgeCatalogSyncSnapshot(identity);
+		for (let index = 0; index < 270; index++) {
+			const next = encodeAgentHostCatalogPayload({ ...payload(session.toString()), summary: `Cancelled ${index}` });
+			assert.ok(next.ok);
+			await ref.object.setMetadataValuesAndCatalogSyncSnapshot({ customTitle: 'Cancelled' }, { ...identity, sourceRevision: index + 2, state: 'pending', payload: next.value.payload, payloadHash: next.value.payloadHash }, () => false);
+		}
+		ref.dispose();
+		await db.close();
+		const restarted = await database();
+		const fresh = new SessionDataService(URI.file(directory), files(), new NullLogService(), undefined, restarted.identity).openDatabase(session);
+		assert.deepStrictEqual({ title: await fresh.object.getMetadata('customTitle'), receipt: await fresh.object.getCatalogSyncSnapshot() }, {
+			title: 'Kept', receipt: { ...identity, state: 'acknowledged', payload: undefined, acknowledgedHash: identity.payloadHash },
+		});
+		fresh.dispose();
+	});
+
+	test('unmapped payload bytes and invalid or future projections remain available to their owning reader', () => {
+		const codec = new SessionStorageIdentity();
+		codec.add({ runtime: 'ahp-session:/new', storage: 'copilotcli:/new', provider: 'copilotcli' });
+		const encoded = encodeAgentHostCatalogPayload(payload('ahp-session:/unmapped'));
+		assert.ok(encoded.ok);
+		const noncanonical = ' \n' + encoded.value.payload;
+		assert.deepStrictEqual([
+			codec.record({ payload: noncanonical }, 'storage').payload,
+			codec.record({ payload: 'invalid' }, 'runtime').payload,
+			codec.record({ payload: '{"payloadVersion":99}' }, 'runtime').payload,
+		], [noncanonical, 'invalid', '{"payloadVersion":99}']);
+	});
+
+	test('pending acknowledgements survive eviction of unrelated checksum translations', async () => {
+		const db = await database();
+		await db.prepareSessionStorage('ahp-session:/new', 'copilotcli');
+		const data = new SessionDataService(URI.file(directory), files(), new NullLogService(), undefined, db.identity);
+		const ref = data.openDatabase(URI.parse('ahp-session:/new'));
+		const encoded = encodeAgentHostCatalogPayload(payload('ahp-session:/new'));
+		assert.ok(encoded.ok);
+		const identity = { sessionGeneration: 'generation', sourceRevision: 1, projectionVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION, payloadHash: encoded.value.payloadHash };
+		await ref.object.setMetadataValuesAndCatalogSyncSnapshot({}, { ...identity, state: 'pending', payload: encoded.value.payload });
+		for (let index = 0; index < 270; index++) {
+			const other = encodeAgentHostCatalogPayload({ ...payload('ahp-session:/new'), summary: `Other ${index}` });
+			assert.ok(other.ok);
+			db.identity.record({ payload: other.value.payload, payloadHash: other.value.payloadHash }, 'storage');
+		}
+		assert.deepStrictEqual({
+			acknowledged: await ref.object.acknowledgeCatalogSyncSnapshot(identity),
+			receipt: await ref.object.getCatalogSyncSnapshot(),
+		}, {
+			acknowledged: true, receipt: { ...identity, state: 'acknowledged', payload: undefined, acknowledgedHash: identity.payloadHash },
+		});
+		ref.dispose();
+	});
+
+	for (const provider of ['copilotcli', 'claude', 'codex']) {
+		for (const errorCode of [FileSystemProviderErrorCode.NoPermissions, FileSystemProviderErrorCode.Unavailable]) {
+			test(`${provider} discovery does not change native storage when its directory stat fails with ${errorCode}`, async () => {
+				const db = await database();
+				const fileService = files();
+				const data = new SessionDataService(URI.file(directory), fileService, new NullLogService(), undefined, db.identity);
+				const session = URI.parse('ahp-session:/discovered');
+				const backing = URI.parse(`${provider}:/discovered`);
+				const peer = URI.parse(buildChatUri(session, 'peer'));
+				const root = data.openDatabase(session);
+				await root.object.setMetadata('peerChats', JSON.stringify([{ uri: peer.toString() }]));
+				root.dispose();
+				const storedPeer = data.openDatabase(peer);
+				await storedPeer.object.setChatDraft(peer, { text: 'Existing native draft', origin: { kind: MessageKind.User } });
+				storedPeer.dispose();
+
+				const disk = fileService.getProvider(Schemas.file)!;
+				const failure = createFileSystemProviderError('Session directory stat failed', errorCode);
+				const failingStat = stub(disk, 'stat').callThrough();
+				failingStat.withArgs(match(resource => URI.isUri(resource) && isEqual(resource, data.getSessionDataDir(session)))).rejects(failure);
+				store.add(toDisposable(() => failingStat.restore()));
+				const log = new NullLogService();
+				const warnings = stub(log, 'warn');
+				store.add(toDisposable(() => warnings.restore()));
+				const service = store.add(createTestAgentService(
+					log, fileService, data, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+					undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, db,
+				));
+				const agent = store.add(new MockAgent(provider));
+				await agent.chats.createChat(URI.parse(buildDefaultChatUri(backing)), backing);
+				registerTestAgentProvider(service, agent);
+				await service.listSessions();
+				const markers = await db.raw.readStorageIdentityMetadata();
+				const registrations = await db.raw.listSessionV2Registrations();
+				service.dispose();
+				failingStat.restore();
+				const draftRef = await data.tryOpenDatabase(peer);
+				const draft = await draftRef?.object.getChatDraft(peer);
+				draftRef?.dispose();
+				assert.deepStrictEqual({
+					storage: db.identity.toStorage(session.toString()),
+					markers,
+					registrations,
+					loggedFailure: warnings.getCalls().some(call => typeof call.args[0] === 'string' && call.args[0].includes('Failed to register discovered chat') && call.args[1] instanceof Error),
+					draft: draft?.text,
+				}, {
+					storage: session.toString(), markers: [], registrations: [], loggedFailure: true, draft: 'Existing native draft',
+				});
+			});
+		}
+
+		for (const existingData of [false, true]) {
+			test(`${provider} discovery preserves ${existingData ? 'existing native data' : 'first-admission compatibility across a stable roundtrip'}`, async () => {
+				const db = await database();
+				const fileService = files();
+				const data = new SessionDataService(URI.file(directory), fileService, new NullLogService(), undefined, db.identity);
+				const session = URI.parse('ahp-session:/discovered');
+				const backing = URI.parse(`${provider}:/discovered`);
+				const peer = URI.parse(buildChatUri(session, 'peer'));
+				if (existingData) {
+					const root = data.openDatabase(session);
+					await root.object.setMetadata('peerChats', JSON.stringify([{ uri: peer.toString() }]));
+					root.dispose();
+					const storedPeer = data.openDatabase(peer);
+					await storedPeer.object.setChatDraft(peer, { text: 'Existing native draft', origin: { kind: MessageKind.User } });
+					storedPeer.dispose();
+				}
+				const service = store.add(createTestAgentService(
+					new NullLogService(), fileService, data, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+					undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, db,
+				));
+				const agent = store.add(new MockAgent(provider));
+				await agent.chats.createChat(URI.parse(buildDefaultChatUri(backing)), backing);
+				registerTestAgentProvider(service, agent);
+				await service.listSessions();
+				const registered = (await db.raw.listSessionV2Registrations()).map(row => row.session);
+				const draftRef = existingData ? await data.tryOpenDatabase(peer) : undefined;
+				const draft = await draftRef?.object.getChatDraft(peer);
+				draftRef?.dispose();
+				service.dispose();
+				await db.close();
+				if (!existingData) {
+					const old = store.add(new AgentHostDatabase(join(directory, 'agent-host.db')));
+					await old.registerRuntimeSession(backing.toString(), { provider, startTime: 1, source: 'discovery' }, { checkTombstone: true });
+					await old.close();
+				}
+				const next = await database();
+				const registry = store.add(new AgentSessionRegistry(next));
+				const resolution = (await registry.resolveDiscoveredSessionIdentities(provider, [backing])).get(backing.toString());
+				assert.deepStrictEqual({
+					registered,
+					sessions: (await next.listSessionV2Registrations()).map(row => row.session),
+					resolution: resolution?.status === 'resolved' ? { status: resolution.status, session: resolution.session.toString() } : resolution,
+					draft: draft?.text,
+				}, {
+					registered: [existingData ? session.toString() : backing.toString()],
+					sessions: [session.toString()],
+					resolution: { status: 'resolved', session: session.toString() },
+					draft: existingData ? 'Existing native draft' : undefined,
+				});
+			});
+		}
+
+		for (const writeCompatibility of [true, false]) {
+			test(`${provider} allocation (${writeCompatibility ? 'compatible' : 'native'}) and peer restore use the storage boundary in a fresh service graph`, async () => {
+				const db = await database(writeCompatibility);
+				const fileService = files();
+				const modern = new SessionDataService(URI.file(directory), fileService, new NullLogService(), undefined, db.identity);
+				const createService = (database: CompatibleAgentHostDatabase, data: SessionDataService) => store.add(createTestAgentService(
+					new NullLogService(), fileService, data, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+					undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, database,
+				));
+				const creating = createService(db, modern);
+				getTestAgentServiceComposition(creating).configurationService.updateRootConfig({ [AgentHostSessionCatalogEnabledConfigKey]: true });
+				const agent = store.add(new class extends MockAgent {
+					override async createChat() { return { providerData: 'peer-backing' }; }
+				}(provider));
+				registerTestAgentProvider(creating, agent);
+				const session = await creating.createSession({ provider });
+				const peer = URI.parse(buildChatUri(session, 'peer'));
+				await creating.createChat(session, peer);
+				const state = getTestAgentStateManager(creating).getSessionState(session.toString());
+				const stored = await db.raw.listSessionV2Registrations();
+				creating.dispose();
+				await modern.whenIdle();
+				await db.close();
+				const next = await database(!writeCompatibility);
+				const restoredData = new SessionDataService(URI.file(directory), fileService, new NullLogService(), undefined, next.identity);
+				const restored = createService(next, restoredData);
+				const fresh = store.add(new MockAgent(provider));
+				await fresh.chats.createChat(URI.parse(buildDefaultChatUri(session)), session);
+				registerTestAgentProvider(restored, fresh);
+				await restored.restoreSession(session);
+				assert.deepStrictEqual({
+					runtime: session.scheme,
+					provider: state?.provider,
+					storage: stored.map(row => row.session),
+					chats: getTestAgentStateManager(restored).getSessionState(session.toString())?.chats.map(chat => chat.resource),
+				}, {
+					runtime: 'ahp-session', provider,
+					storage: [writeCompatibility ? session.with({ scheme: provider }).toString() : session.toString()],
+					chats: [buildDefaultChatUri(session), peer.toString()],
+				});
+			});
+		}
+	}
+});
