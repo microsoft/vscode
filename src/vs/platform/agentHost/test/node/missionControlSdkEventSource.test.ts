@@ -18,7 +18,7 @@ import { ISessionDataService, type ISessionDatabase } from '../../common/session
 import { ActionType } from '../../common/state/sessionActions.js';
 import { MessageKind, SessionStatus, buildDefaultChatUri } from '../../common/state/sessionState.js';
 import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
-import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostStateManager, IAgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { MissionControlSdkEventSource } from '../../node/missionControl/missionControlSdkEventSource.js';
 import { MissionControlSessionMirror, type MissionControlMirrorEvent } from '../../node/missionControl/missionControlSessionMirror.js';
 
@@ -46,7 +46,7 @@ suite('MissionControlSdkEventSource', () => {
 		if (provisional) {
 			state.createSession(summary, { emitNotification: false });
 		} else {
-			state.restoreSession(summary, []);
+			state.restoreSession(summary, [], creationTimeChatStorageResource);
 		}
 		instantiation.stub(IAgentHostStateManager, state);
 		const emitter = store.add(new Emitter<IAgentChatSessionEvent>());

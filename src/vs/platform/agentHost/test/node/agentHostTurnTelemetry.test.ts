@@ -63,7 +63,7 @@ import { IAgentHostGitStateService } from '../../common/agentHostGitStateService
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { AgentSideEffects } from '../../node/agentSideEffects.js';
 import type { IAgentHostCustomizationEnablementService } from '../../node/agentHostCustomizationEnablementService.js';
-import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostStateManager, IAgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { IAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { createNoopGitService, createNoopGitStateService, createNullSessionDataService } from '../common/sessionTestHelpers.js';
 import { createLegacyChatMetadataPersistence } from './chatMetadataTestHelpers.js';
@@ -360,8 +360,8 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 					createdAt: '2025-01-01T00:00:00.000Z', modifiedAt: '2025-01-01T00:00:00.000Z',
 				});
 				stateManager.dispatchServerAction(resource.toString(), { type: ActionType.SessionReady });
-				stateManager.addChat(resource.toString(), peer);
-				stateManager.addChat(resource.toString(), subagent);
+				stateManager.addChat(resource.toString(), peer, creationTimeChatStorageResource(resource.toString(), peer));
+				stateManager.addChat(resource.toString(), subagent, creationTimeChatStorageResource(resource.toString(), subagent));
 
 				startTurn('success', 'hello', undefined, root);
 				fire({ type: ActionType.ChatToolCallStart, turnId: 'success', toolCallId: 'tool', toolName: 'bash', displayName: 'bash' }, root);
@@ -396,7 +396,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		sinon.stub(agent, 'id').value('codex');
 		setupSession();
 		const peerChat = buildChatUri(sessionUri, 'peer');
-		stateManager.addChat(sessionKey, peerChat);
+		stateManager.addChat(sessionKey, peerChat, creationTimeChatStorageResource(sessionKey, peerChat));
 		const secondSession = AgentSession.uri('codex', 'session-2');
 		const secondChat = buildDefaultChatUri(secondSession);
 		stateManager.createSession({ resource: secondSession.toString(), provider: 'codex', title: 'Test', status: SessionStatus.Idle, createdAt: '2025-01-01T00:00:00.000Z', modifiedAt: '2025-01-01T00:00:00.000Z' });
@@ -1024,7 +1024,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 	test('attributes steering only to the targeted peer chat', () => {
 		setupSession();
 		const peerChatUri = buildChatUri(sessionUri, 'peer');
-		stateManager.addChat(sessionKey, peerChatUri);
+		stateManager.addChat(sessionKey, peerChatUri, creationTimeChatStorageResource(sessionKey, peerChatUri));
 		startTurn('turn-default');
 		startTurn('turn-peer', 'hello peer', undefined, peerChatUri);
 		const action: ChatAction = {
@@ -1309,7 +1309,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		setSessionConfig({ mode: 'plan' });
 		startTurn('turn-parent');
 		const subagentChatUri = buildSubagentChatUri(sessionUri, 'call-subagent');
-		stateManager.addChat(sessionKey, subagentChatUri);
+		stateManager.addChat(sessionKey, subagentChatUri, creationTimeChatStorageResource(sessionKey, subagentChatUri));
 		fire({
 			type: ActionType.ChatToolCallStart,
 			turnId: 'turn-parent',
@@ -1366,7 +1366,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		startTurn('turn-parent');
 		const phaseToolCallId = 'fusion:fusion-1:phase-1';
 		const phaseChatUri = buildSubagentChatUri(sessionUri, phaseToolCallId);
-		stateManager.addChat(sessionKey, phaseChatUri);
+		stateManager.addChat(sessionKey, phaseChatUri, creationTimeChatStorageResource(sessionKey, phaseChatUri));
 		const runPhaseTurn = (model: string) => {
 			agent.fireProgress({
 				kind: 'subagent_started',
@@ -1405,8 +1405,8 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		setupSession();
 		startTurn('turn-parent');
 		const phaseToolCallId = 'fusion:fusion-1:phase-1';
-		stateManager.addChat(sessionKey, buildSubagentChatUri(sessionUri, phaseToolCallId));
-		stateManager.addChat(sessionKey, buildSubagentChatUri(sessionUri, 'call-task'));
+		stateManager.addChat(sessionKey, buildSubagentChatUri(sessionUri, phaseToolCallId), creationTimeChatStorageResource(sessionKey, buildSubagentChatUri(sessionUri, phaseToolCallId)));
+		stateManager.addChat(sessionKey, buildSubagentChatUri(sessionUri, 'call-task'), creationTimeChatStorageResource(sessionKey, buildSubagentChatUri(sessionUri, 'call-task')));
 		const chat = URI.parse(defaultChatUri);
 		agent.fireProgress({ kind: 'subagent_started', chat, toolCallId: phaseToolCallId, agentName: 'hydrafusion-phase', agentDisplayName: 'Main pass', subagentKind: 'fusionPhase' });
 		agent.fireProgress({ kind: 'subagent_started', chat, toolCallId: 'call-task', agentName: 'explore', agentDisplayName: 'Explore', parentToolCallId: phaseToolCallId });
@@ -1428,7 +1428,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		setupSession();
 		startTurn('turn-parent-finished');
 		const subagentChatUri = buildSubagentChatUri(sessionUri, 'call-subagent-finished');
-		stateManager.addChat(sessionKey, subagentChatUri);
+		stateManager.addChat(sessionKey, subagentChatUri, creationTimeChatStorageResource(sessionKey, subagentChatUri));
 		fire({
 			type: ActionType.ChatToolCallStart,
 			turnId: 'turn-parent-finished',
@@ -1465,7 +1465,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		startTurn('turn-parent');
 
 		const level1ChatUri = buildSubagentChatUri(sessionUri, 'call-level-1');
-		stateManager.addChat(sessionKey, level1ChatUri);
+		stateManager.addChat(sessionKey, level1ChatUri, creationTimeChatStorageResource(sessionKey, level1ChatUri));
 		agent.fireProgress({
 			kind: 'subagent_started',
 			chat: URI.parse(defaultChatUri),
@@ -1478,7 +1478,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		assert.ok(level1TurnId);
 
 		const level2ChatUri = buildSubagentChatUri(sessionUri, 'call-level-2');
-		stateManager.addChat(sessionKey, level2ChatUri);
+		stateManager.addChat(sessionKey, level2ChatUri, creationTimeChatStorageResource(sessionKey, level2ChatUri));
 		agent.fireProgress({
 			kind: 'subagent_started',
 			chat: URI.parse(defaultChatUri),
@@ -1566,7 +1566,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		startTurn('turn-parent');
 
 		const childChatUri = buildSubagentChatUri(sessionUri, 'call-orphaned-child');
-		stateManager.addChat(sessionKey, childChatUri);
+		stateManager.addChat(sessionKey, childChatUri, creationTimeChatStorageResource(sessionKey, childChatUri));
 		agent.fireProgress({
 			kind: 'subagent_started',
 			chat: URI.parse(defaultChatUri),
@@ -2052,7 +2052,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 	test('attributes billed nano-AIU only to the parent turn, which already includes subagent cost', () => {
 		setupSession();
 		const subagentChatUri = buildSubagentChatUri(sessionUri, 'tool-call-1');
-		stateManager.addChat(sessionKey, subagentChatUri);
+		stateManager.addChat(sessionKey, subagentChatUri, creationTimeChatStorageResource(sessionKey, subagentChatUri));
 
 		startTurn('turn-parent');
 		startTurn('turn-subagent', 'hello', undefined, subagentChatUri);
@@ -2077,7 +2077,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 	test('reports non-overlapping direct usage snapshots for parent and subagent turns', () => {
 		setupSession();
 		const subagentChatUri = buildSubagentChatUri(sessionUri, 'tool-call-direct');
-		stateManager.addChat(sessionKey, subagentChatUri);
+		stateManager.addChat(sessionKey, subagentChatUri, creationTimeChatStorageResource(sessionKey, subagentChatUri));
 
 		startTurn('turn-parent');
 		startTurn('turn-subagent', 'hello', undefined, subagentChatUri);
@@ -2222,7 +2222,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 	test('reports subagent completion and failure without collapsing the chat identity', () => {
 		setupSession();
 		const subagentChatUri = buildSubagentChatUri(sessionUri, 'tool-call-1');
-		stateManager.addChat(sessionKey, subagentChatUri);
+		stateManager.addChat(sessionKey, subagentChatUri, creationTimeChatStorageResource(sessionKey, subagentChatUri));
 
 		startTurn('subagent-complete', 'hello', undefined, subagentChatUri);
 		fire({ type: ActionType.ChatTurnComplete, turnId: 'subagent-complete', duration: 1000 }, subagentChatUri);

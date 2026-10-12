@@ -64,7 +64,7 @@ export class AgentHostChatInputService extends Disposable implements IAgentHostC
 				if (!this._isCurrent(session, chatKey, marker)) {
 					return;
 				}
-				const result = await provider.chats.prepareChat!(chat, createAgentChatContext(this._stateManager, session, chat));
+				const result = await provider.chats.prepareChat!(chat, createAgentChatContext(this._stateManager, session, chat, this._stateManager.resolveChatStorageResource(session, chatKey)));
 				if (this._isCurrent(session, chatKey, marker)) {
 					this._setState(session, chatKey, result.error ? { kind: 'blocked', error: result.error } : undefined);
 				}

@@ -219,7 +219,7 @@ export class AgentHostUtilityModelService implements IAgentHostUtilityModelServi
 		// model after admission, and a chat that is not resident has no selection.
 		const selection = context.model
 			?? state?.activeTurn?.message.model
-			?? agent.chats.getModel?.(URI.parse(chat), createAgentChatContext(this._stateManager, context.session, chat))
+			?? agent.chats.getModel?.(URI.parse(chat), createAgentChatContext(this._stateManager, context.session, chat, this._stateManager.resolveChatStorageResource(context.session, chat)))
 			?? state?.turns.at(-1)?.message.model;
 		if (!selection) {
 			return undefined;

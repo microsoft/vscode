@@ -497,7 +497,7 @@ export class AgentSideEffects extends Disposable {
 	}
 
 	private _chatContext(session: ProtocolURI, chat: ProtocolURI): IAgentChatContext {
-		return createAgentChatContext(this._stateManager, session, chat);
+		return createAgentChatContext(this._stateManager, session, chat, this._stateManager.resolveChatStorageResource(session, chat));
 	}
 
 	/**

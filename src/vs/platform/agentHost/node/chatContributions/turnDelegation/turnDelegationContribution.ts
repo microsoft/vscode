@@ -46,7 +46,7 @@ export class TurnDelegationContribution extends Disposable implements IAgentHost
 		if (turns.length === 0) {
 			return turns;
 		}
-		const storage = URI.parse(context.storageResource ?? this._stateManager.resolveChatStorageResource(context.session, context.chat));
+		const storage = URI.parse(context.storageResource);
 		const ref = await this._sessionDataService.tryOpenDatabase(storage);
 		if (!ref) {
 			return turns;

@@ -55,7 +55,7 @@ import { missionControlSessionConfigAdapter } from '../../node/missionControl/mi
 import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import type { IMissionControlSocket } from '../../node/missionControl/missionControlProtocolServer.js';
 import { CompositeProtocolServer } from '../../node/compositeProtocolServer.js';
-import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostStateManager, IAgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { AgentHostFileSystemProvider, agentHostUri, type IRemoteFilesystemConnection } from '../../common/agentHostFileSystemProvider.js';
 import { agentsWindowAgentHostClientInfo, editorWindowAgentHostClientInfo, AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, type IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
@@ -285,7 +285,7 @@ class MockAgentService implements IAgentService {
 	readonly disposedChats: { session: string; chat: string }[] = [];
 	async createChat(session: URI, chat: URI, options?: IAgentCreateChatRequestOptions): Promise<void> {
 		this.createdChats.push({ session: session.toString(), chat: chat.toString(), ...(options ? { options } : {}) });
-		this._stateManager.addChat(session.toString(), chat.toString());
+		this._stateManager.addChat(session.toString(), chat.toString(), creationTimeChatStorageResource(session.toString(), chat.toString()));
 	}
 	async disposeChat(session: URI, chat: URI): Promise<void> {
 		this.disposedChats.push({ session: session.toString(), chat: chat.toString() });
@@ -3684,7 +3684,7 @@ suite('ProtocolServerHandler', () => {
 			await Promise.all([writeFile(plan.fsPath, '# Full plan'), writeFile(privateFile.fsPath, 'private'), writeFile(otherPlan.fsPath, 'unrelated')]);
 			stateManager.createSession({ ...makeSessionSummary(), workingDirectories: [URI.file(workspace).toString()] });
 			const chat = buildChatUri(sessionUri, 'opaque-peer');
-			stateManager.addChat(sessionUri, chat);
+			stateManager.addChat(sessionUri, chat, creationTimeChatStorageResource(sessionUri, chat));
 			agentService.getSessionPlanFile = (session, resource) => session.toString() === sessionUri && resource.toString() === chat ? plan : undefined;
 			agentService.resourceRead = async uri => ({ data: await readFile(uri.fsPath, 'utf8'), encoding: ContentEncoding.Utf8 });
 			agentService.resourceResolve = async params => ({ uri: params.uri, type: ResourceType.File });
@@ -3945,8 +3945,8 @@ suite('ProtocolServerHandler', () => {
 				await previews.mkdir(URI.parse(uri).with({ path: dirname(URI.parse(uri).path) }));
 				await previews.writeFile(URI.parse(uri), VSBuffer.fromString(data).buffer, { create: true, overwrite: true, unlock: false, atomic: false });
 			}
-			stateManager.addChat(sessionUri, peerChat);
-			stateManager.addChat(sessionUri, workerChat, { origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(sessionUri), toolCallId: 'spawn-tool' } });
+			stateManager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat));
+			stateManager.addChat(sessionUri, workerChat, creationTimeChatStorageResource(sessionUri, workerChat), { origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(sessionUri), toolCallId: 'spawn-tool' } });
 			for (const [chat, tool, uri] of [[buildDefaultChatUri(sessionUri), 'tool-call', pendingContent], [peerChat, 'peer-tool', peerContent], [workerChat, 'worker-tool', workerContent]]) {
 				stateManager.dispatchServerAction(chat, {
 					type: ActionType.ChatTurnStarted, turnId: 'preview-turn', startedAt: '2026-09-30T19:00:00.000Z',
@@ -4808,7 +4808,7 @@ suite('ProtocolServerHandler', () => {
 				_meta: { live: 'current' },
 			};
 			const startedAt = new Date(Date.parse(summary.modifiedAt) + 1000).toISOString();
-			stateManager.restoreSession(summary, []);
+			stateManager.restoreSession(summary, [], creationTimeChatStorageResource);
 			agentService.listedSessions.push({
 				session: URI.parse(summary.resource),
 				startTime: Date.parse(summary.createdAt),
@@ -4860,7 +4860,7 @@ suite('ProtocolServerHandler', () => {
 	test('repeated listSessions flushes a pending status before returning the new baseline', () => {
 		return runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const summary = makeSessionSummary();
-			stateManager.restoreSession(summary, []);
+			stateManager.restoreSession(summary, [], creationTimeChatStorageResource);
 			const listedSession: IAgentSessionMetadata = {
 				session: URI.parse(summary.resource),
 				startTime: Date.parse(summary.createdAt),
@@ -4911,7 +4911,7 @@ suite('ProtocolServerHandler', () => {
 		return runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const summary = makeSessionSummary();
 			const startedAt = new Date(Date.parse(summary.modifiedAt) + 1000).toISOString();
-			stateManager.restoreSession(summary, []);
+			stateManager.restoreSession(summary, [], creationTimeChatStorageResource);
 			agentService.listedSessions.push({
 				session: URI.parse(summary.resource),
 				startTime: Date.parse(summary.createdAt),
@@ -5439,7 +5439,7 @@ suite('ProtocolServerHandler', () => {
 
 		test('disposeChat forwards to the agent service and shrinks the catalog', async () => {
 			stateManager.createSession(makeSessionSummary());
-			stateManager.addChat(sessionUri, peerChat);
+			stateManager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat));
 			const transport = connectClient('client-cc');
 			transport.sent.length = 0;
 			const responsePromise = waitForResponse(transport, 2);
@@ -6327,7 +6327,7 @@ suite('ProtocolServerHandler', () => {
 			subscribeCalls.push(resource.toString());
 			let snapshot = stateManager.getSnapshot(resource.toString());
 			if (!snapshot) {
-				stateManager.restoreSession(makeSessionSummary(), []);
+				stateManager.restoreSession(makeSessionSummary(), [], creationTimeChatStorageResource);
 				snapshot = stateManager.getSnapshot(resource.toString())!;
 			}
 			return snapshot;
@@ -6377,7 +6377,7 @@ suite('ProtocolServerHandler', () => {
 		// restarted host restored its sessions while answering the reconnect.
 		agentService.subscribe = async (resource, _clientId) => {
 			if (!stateManager.getSnapshot(resource.toString())) {
-				stateManager.restoreSession(makeSessionSummary(), []);
+				stateManager.restoreSession(makeSessionSummary(), [], creationTimeChatStorageResource);
 				stateManager.dispatchServerAction(sessionUri, { type: ActionType.SessionReady, });
 			}
 			return stateManager.getSnapshot(resource.toString())!;
@@ -6423,7 +6423,7 @@ suite('ProtocolServerHandler', () => {
 				throw new Error('No agent for session: ' + deadTerminal);
 			}
 			if (!stateManager.getSnapshot(resource.toString())) {
-				stateManager.restoreSession(makeSessionSummary(), []);
+				stateManager.restoreSession(makeSessionSummary(), [], creationTimeChatStorageResource);
 			}
 			return stateManager.getSnapshot(resource.toString())!;
 		};
@@ -7181,8 +7181,8 @@ suite('ProtocolServerHandler', () => {
 			const peerChat = buildChatUri(sessionUri, 'peer');
 			const siblingChat = buildChatUri(sessionUri, 'sibling');
 			stateManager.createSession(makeSessionSummary());
-			stateManager.addChat(sessionUri, peerChat);
-			stateManager.addChat(sessionUri, siblingChat);
+			stateManager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat));
+			stateManager.addChat(sessionUri, siblingChat, creationTimeChatStorageResource(sessionUri, siblingChat));
 			stateManager.dispatchServerAction(sessionUri, {
 				type: ActionType.SessionActiveClientSet,
 				activeClient: {
@@ -7212,7 +7212,7 @@ suite('ProtocolServerHandler', () => {
 	test('unsubscribe from the last nested session removes the active client and fails owned tool calls', async () => {
 		const peerChat = buildChatUri(sessionUri, 'peer');
 		stateManager.createSession(makeSessionSummary());
-		stateManager.addChat(sessionUri, peerChat);
+		stateManager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat));
 		stateManager.dispatchServerAction(sessionUri, {
 			type: ActionType.SessionActiveClientSet,
 			activeClient: {

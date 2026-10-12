@@ -19,7 +19,7 @@ import { ActionType } from '../../common/state/sessionActions.js';
 import { buildChatUri, buildDefaultChatUri, MessageKind, SessionStatus } from '../../common/state/sessionState.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostChatContributions } from '../../node/agentHostChatContributionsService.js';
-import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostStateManager, IAgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { PullRequestChatContribution } from '../../node/chatContributions/pullRequest/pullRequestChatContribution.js';
 import { TurnAdmissionContribution } from '../../node/chatContributions/turnAdmission/turnAdmissionContribution.js';
 
@@ -43,7 +43,7 @@ suite('PullRequestChatContribution', () => {
 			workingDirectories: ['file:///repo'],
 		});
 		if (otherFolder) {
-			state.addChat(session, chat, { workingDirectories: [otherFolder] });
+			state.addChat(session, chat, creationTimeChatStorageResource(session, chat), { workingDirectories: [otherFolder] });
 		}
 		state.setSessionConfig(session, { schema: platformSessionSchema.toProtocol(), values: {} });
 		config.updateRootConfig({ [AgentMergeConfigKey.Enabled]: true });

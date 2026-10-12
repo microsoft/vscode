@@ -90,7 +90,7 @@ suite('AgentHostPeerChatStore', () => {
 	});
 
 	function createStore(database: TestSessionDatabase, logService = new NullLogService()): AgentHostPeerChatStore {
-		return new AgentHostPeerChatStore(orchestrator, createSessionDataService(database), logService);
+		return new AgentHostPeerChatStore(orchestrator, createSessionDataService(database), logService, () => undefined);
 	}
 
 	test('normalized metadata batches title and source without touching legacy backing', async () => {
@@ -348,7 +348,7 @@ suite('AgentHostPeerChatStore', () => {
 			},
 		};
 		return {
-			store: new AgentHostPeerChatStore(orchestrator, service, new NullLogService()),
+			store: new AgentHostPeerChatStore(orchestrator, service, new NullLogService(), () => undefined),
 			databaseFor,
 		};
 	}
@@ -364,7 +364,7 @@ suite('AgentHostPeerChatStore', () => {
 			},
 			tryOpenDatabase: async () => undefined,
 		};
-		const migrationStore = new AgentHostPeerChatStore(orchestrator, unavailable, new NullLogService());
+		const migrationStore = new AgentHostPeerChatStore(orchestrator, unavailable, new NullLogService(), () => undefined);
 
 		await migrationStore.replaceForMigration(session, [{ uri: first.toString(), providerData: 'provider-data', origin, inheritedTurnId: 'inherited' }]);
 		const catalog = await orchestrator.getSessionChatCatalog(session.toString());
@@ -432,7 +432,7 @@ suite('AgentHostPeerChatStore', () => {
 			},
 			tryOpenDatabase: async () => undefined,
 		};
-		const migrationStore = new AgentHostPeerChatStore(orchestrator, unavailable, new NullLogService());
+		const migrationStore = new AgentHostPeerChatStore(orchestrator, unavailable, new NullLogService(), () => undefined);
 		await migrationStore.replaceForMigration(session, [{ uri: first.toString() }]);
 		const imported = await orchestrator.getSessionChatCatalog(session.toString());
 		assert.ok(imported);
@@ -474,7 +474,7 @@ suite('AgentHostPeerChatStore', () => {
 			},
 			tryOpenDatabase: async () => undefined,
 		};
-		const migrationStore = new AgentHostPeerChatStore(orchestrator, unavailable, new NullLogService());
+		const migrationStore = new AgentHostPeerChatStore(orchestrator, unavailable, new NullLogService(), () => undefined);
 		await migrationStore.replaceForMigration(session, []);
 		const database = new TestSessionDatabase();
 		await database.setMetadata(PEER_CHATS_METADATA_KEY, JSON.stringify([{ uri: first.toString() }]));

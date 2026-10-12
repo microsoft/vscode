@@ -35,7 +35,7 @@ import { GitRepositoryRootsContribution } from '../../node/chatContributions/git
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { createUnknownAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import { AgentHostChangesetService } from '../../node/agentHostChangesetService.js';
-import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { createNoopGitService, createSessionDataService, encodeString, TestDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { createLegacyChatMetadataPersistence } from './chatMetadataTestHelpers.js';
@@ -199,7 +199,7 @@ suite('AgentHostChangesetStrategy', () => {
 		setIsolation(state, options.isolation);
 		addTurn(state, turnId);
 		if (options.peer) {
-			state.addChat(session, options.peer.resource, { workingDirectories: options.peer.workingDirectories });
+			state.addChat(session, options.peer.resource, creationTimeChatStorageResource(session, options.peer.resource), { workingDirectories: options.peer.workingDirectories });
 			addTurn(state, options.peer.turnId, options.peer.resource);
 		}
 		return { service, state, db, diff, git, gitStates, checkpoints, results, subscriptions, gitCalls, repositoryCalls, checkpointCalls, databaseCalls, configuration, subscriptionChanged };

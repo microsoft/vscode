@@ -56,7 +56,7 @@ import { IAgentHostGitStateService } from '../../common/agentHostGitStateService
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { AgentSideEffects } from '../../node/agentSideEffects.js';
 import type { IAgentHostCustomizationEnablementService } from '../../node/agentHostCustomizationEnablementService.js';
-import { AgentHostStateManager, IAgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostStateManager, IAgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { IAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { createNoopGitService, createNoopGitStateService, createNullSessionDataService } from '../common/sessionTestHelpers.js';
 import { createLegacyChatMetadataPersistence } from './chatMetadataTestHelpers.js';
@@ -408,7 +408,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 		startTurn('turn-1');
 		const runSubagentTool = (toolCallId: string, phase?: { subagentKind: 'fusionPhase'; model: string }) => {
 			const chatUri = buildSubagentChatUri(sessionUri, toolCallId);
-			stateManager.addChat(sessionKey, chatUri);
+			stateManager.addChat(sessionKey, chatUri, creationTimeChatStorageResource(sessionKey, chatUri));
 			agent.fireProgress({ kind: 'subagent_started', chat: URI.parse(defaultChatUri), toolCallId, agentName: 'agent', agentDisplayName: 'Agent', ...phase });
 			const turnId = stateManager.getActiveTurnId(chatUri) ?? 'missing-subagent-turn';
 			const fireOnChat = (action: ChatAction) => agent.fireProgress({ kind: 'action', resource: URI.parse(chatUri), action });

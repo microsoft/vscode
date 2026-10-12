@@ -91,7 +91,7 @@ export interface ISessionWorkspaceConversionService {
 	supportsChatIsolation(session: URI): boolean;
 	canIsolateChat(chat: URI): boolean;
 	requestChatIsolation(chat: URI, turnId: string, initiatingClientId?: string): void;
-	restoreChatIsolation(session: ProtocolURI, chat: ProtocolURI, storageResource?: ProtocolURI): Promise<void>;
+	restoreChatIsolation(session: ProtocolURI, chat: ProtocolURI, storageResource: ProtocolURI): Promise<void>;
 	/** Returns false when the chat already uses the requested folder without needing a workspace change. */
 	requestSessionWorkspaceUpdate(chat: URI, turnId: string, workspaceFolder: URI, isolation: boolean, initiatingClientId?: string): boolean;
 	isPending(chat: ProtocolURI, sessionWide?: boolean): boolean;
@@ -235,9 +235,9 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		});
 	}
 
-	async restoreChatIsolation(session: ProtocolURI, chat: ProtocolURI, storageResource?: ProtocolURI): Promise<void> {
+	async restoreChatIsolation(session: ProtocolURI, chat: ProtocolURI, storageResource: ProtocolURI): Promise<void> {
 		// Hydration can run before the chat is registered, so the owner and recorded storage are supplied by the caller.
-		const storage = URI.parse(storageResource ?? this._stateManager.resolveChatStorageResource(session, chat));
+		const storage = URI.parse(storageResource);
 		const restore = Symbol();
 		this._trackedChatOwners.set(chat, session);
 		this._restoringChats.set(chat, restore);

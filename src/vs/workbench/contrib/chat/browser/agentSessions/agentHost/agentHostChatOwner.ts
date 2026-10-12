@@ -16,7 +16,8 @@ import type { ILogService } from '../../../../../../platform/log/common/log.js';
 /** The parts of an agent host connection that record which session owns a chat. */
 export type AgentHostChatOwnerSource = Pick<IAgentConnection, 'getActiveSubscriptions' | 'getSubscriptionUnmanaged' | 'listSessions'>;
 
-const DEFAULT_HOST_TIMEOUT_MS = 5000;
+/** How long a chat owner lookup waits for one host before skipping it. */
+export const AGENT_HOST_CHAT_OWNER_TIMEOUT_MS = 5000;
 
 function listsChat(session: string, state: Pick<SessionState, 'defaultChat' | 'chats'>, chat: string): boolean {
 	return (state.defaultChat?.toString() ?? buildDefaultChatUri(session)) === chat || state.chats.some(summary => summary.resource.toString() === chat);
@@ -37,7 +38,7 @@ export function findChatOwnerInSubscribedState(connection: AgentHostChatOwnerSou
 }
 
 /** The session whose host record lists `chat`; a record listing no chats owns its default chat. */
-export async function findChatOwnerInSessionRecords(connection: AgentHostChatOwnerSource, chat: string, defaultChatOnly = false): Promise<string | undefined> {
+export async function findChatOwnerInSessionRecords(connection: AgentHostChatOwnerSource, chat: string, defaultChatOnly: boolean): Promise<string | undefined> {
 	for (const metadata of await connection.listSessions()) {
 		const session = metadata.session.toString();
 		const chats = metadata.chats?.filter(entry => !defaultChatOnly || entry.kind === 'default') ?? [];
@@ -57,7 +58,7 @@ export async function findChatOwnerInSessionRecords(connection: AgentHostChatOwn
  * in connection order. A value that is not a chat channel is a session URI and
  * owns itself. Never derives the owner from the chat URI.
  */
-export async function resolveAgentHostChatOwner(chat: URI, localHost: AgentHostChatOwnerSource, remoteHosts: IRemoteAgentHostService, logService: ILogService, timeoutMs = DEFAULT_HOST_TIMEOUT_MS): Promise<URI | undefined> {
+export async function resolveAgentHostChatOwner(chat: URI, localHost: AgentHostChatOwnerSource, remoteHosts: IRemoteAgentHostService, logService: ILogService, timeoutMs: number): Promise<URI | undefined> {
 	const chatString = chat.toString();
 	if (!isAhpChatChannel(chatString)) {
 		return chat;
@@ -79,7 +80,7 @@ export async function resolveAgentHostChatOwner(chat: URI, localHost: AgentHostC
 		}
 	}
 	const lookups = connections.map(({ label, connection }) => raceTimeout(
-		findChatOwnerInSessionRecords(connection, chatString).catch(error => {
+		findChatOwnerInSessionRecords(connection, chatString, false).catch(error => {
 			logService.trace(`[AgentHostChatOwner] ${label} could not list sessions: ${toErrorMessage(error)}`);
 			return undefined;
 		}),

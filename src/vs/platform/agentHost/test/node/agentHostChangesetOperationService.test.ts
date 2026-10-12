@@ -20,7 +20,7 @@ import { ActionType } from '../../common/state/sessionActions.js';
 import { JsonRpcErrorCodes } from '../../common/state/sessionProtocol.js';
 import { ChangesetOperationScope, ChangesetOperationStatus, ISessionGitHubState, ISessionGitState, MessageKind, SessionStatus, buildChatUri, buildDefaultChatUri, type ChangesetOperation, type SessionSummary } from '../../common/state/sessionState.js';
 import { AgentHostChangesetOperationService } from '../../node/agentHostChangesetOperationService.js';
-import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import type { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import type { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostChangesetSubscriptionService } from '../../node/agentHostChangesetSubscriptionService.js';
@@ -262,7 +262,7 @@ suite('AgentHostChangesetOperationService', () => {
 		const sessionKey = 'agent:/session';
 		const chatKey = buildChatUri('agent:/named-by-uri', 'peer');
 		stateManager.createSession({ resource: sessionKey, provider: 'agent', title: 'Session', status: SessionStatus.Idle, createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString() });
-		stateManager.addChat(sessionKey, chatKey);
+		stateManager.addChat(sessionKey, chatKey, creationTimeChatStorageResource(sessionKey, chatKey));
 
 		const refresh = contribution.registry?.refreshSessionGitState(chatKey);
 		await Promise.resolve();
@@ -445,7 +445,7 @@ suite('AgentHostChangesetOperationService', () => {
 			resource: sessionKey, provider: 'agent', title: 'Test', status: SessionStatus.Idle,
 			createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
 		});
-		stateManager.addChat(sessionKey, chatKey);
+		stateManager.addChat(sessionKey, chatKey, creationTimeChatStorageResource(sessionKey, chatKey));
 		const changesetUri = buildUncommittedChangesetUri(chatKey);
 		stateManager.registerChangeset(changesetUri);
 		const chatGitState: ISessionGitState = { branchName: 'chat-feature' };
@@ -531,7 +531,7 @@ suite('AgentHostChangesetOperationService', () => {
 			createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
 			workingDirectories,
 		});
-		stateManager.addChat(sessionKey, defaultChat);
+		stateManager.addChat(sessionKey, defaultChat, creationTimeChatStorageResource(sessionKey, defaultChat));
 		const folderOwner = buildFolderChangesetOwnerUri(sessionKey, getWorkingDirectoryScopeId(workingDirectories));
 		const changesetUri = buildBranchChangesetUri(folderOwner);
 		stateManager.registerChangeset(changesetUri);
@@ -555,7 +555,7 @@ suite('AgentHostChangesetOperationService', () => {
 			createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
 			workingDirectories,
 		});
-		stateManager.addChat(sessionKey, defaultChat);
+		stateManager.addChat(sessionKey, defaultChat, creationTimeChatStorageResource(sessionKey, defaultChat));
 		const folderOwner = buildFolderChangesetOwnerUri(sessionKey, getWorkingDirectoryScopeId(workingDirectories));
 		const changesetUri = buildBranchChangesetUri(folderOwner);
 		stateManager.registerChangeset(changesetUri);
@@ -736,8 +736,8 @@ suite('AgentHostChangesetOperationService', () => {
 		});
 		const sameScopePeer = buildChatUri(sessionKey, 'same-scope-peer');
 		const otherScopePeer = buildChatUri(sessionKey, 'other-scope-peer');
-		stateManager.addChat(sessionKey, sameScopePeer, { workingDirectories: [defaultFolder] });
-		stateManager.addChat(sessionKey, otherScopePeer, { workingDirectories: [peerFolder] });
+		stateManager.addChat(sessionKey, sameScopePeer, creationTimeChatStorageResource(sessionKey, sameScopePeer), { workingDirectories: [defaultFolder] });
+		stateManager.addChat(sessionKey, otherScopePeer, creationTimeChatStorageResource(sessionKey, otherScopePeer), { workingDirectories: [peerFolder] });
 		const operations: readonly ChangesetOperation[] = [
 			{ id: testOperationId, label: 'Commit', scopes: [ChangesetOperationScope.Changeset], status: ChangesetOperationStatus.Idle },
 			{ id: PREPARE_PULL_REQUEST_OPERATION_ID, label: 'Create Pull Request', group: 'pull-request', scopes: [ChangesetOperationScope.Changeset], status: ChangesetOperationStatus.Idle },

@@ -64,7 +64,7 @@ export class PersistedTurnUsageContribution extends Disposable implements IAgent
 			return turns;
 		}
 		// Same storage the writer used.
-		const storage = URI.parse(context.storageResource ?? this._stateManager.resolveChatStorageResource(context.session, context.chat));
+		const storage = URI.parse(context.storageResource);
 		let usages: Map<string, string>;
 		const ref = await this._sessionDataService.tryOpenDatabase(storage);
 		if (!ref) {

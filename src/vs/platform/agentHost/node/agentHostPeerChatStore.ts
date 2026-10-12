@@ -67,7 +67,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		private readonly _database: IAgentHostDatabase,
 		private readonly _sessionDataService: ISessionDataService,
 		private readonly _logService: ILogService,
-		private readonly _getLiveChatOwner: (chat: string) => string | undefined = () => undefined,
+		private readonly _getLiveChatOwner: (chat: string) => string | undefined,
 	) { }
 
 	setMetadataMigration(handler: NonNullable<AgentHostPeerChatStore['_metadataMigration']>): void {

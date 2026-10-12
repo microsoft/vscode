@@ -15,7 +15,7 @@ import { buildBranchChangesetUri, buildFolderChangesetOwnerUri } from '../../com
 import { buildReviewedRefName } from '../../common/agentHostReviewService.js';
 import { SessionStatus, buildChatUri, withSessionGitState, type ISessionGitState } from '../../common/state/sessionState.js';
 import { AgentHostReviewService } from '../../node/agentHostReviewService.js';
-import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { createNoopGitService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 
 function createNoopGitStateService(): IAgentHostGitStateService {
@@ -56,7 +56,7 @@ suite('AgentHostReviewService', () => {
 			branchName: 'session-feature',
 			baseBranchName: 'session-main',
 		}));
-		stateManager.addChat(session, chat, { workingDirectories: ['file:///chat'] });
+		stateManager.addChat(session, chat, creationTimeChatStorageResource(session, chat), { workingDirectories: ['file:///chat'] });
 
 		const openedDatabases: string[] = [];
 		const sessionDataService = createSessionDataService(new TestSessionDatabase());

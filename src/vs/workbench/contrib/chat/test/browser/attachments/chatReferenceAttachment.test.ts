@@ -13,7 +13,7 @@ import { agentHostAuthority } from '../../../../../../platform/agentHost/common/
 import { RemoteAgentHostConnectionStatus, type IRemoteAgentHostService } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import type { IActiveSubscriptionInfo, IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
-import { resolveAgentHostChatOwner } from '../../../browser/agentSessions/agentHost/agentHostChatOwner.js';
+import { AGENT_HOST_CHAT_OWNER_TIMEOUT_MS, resolveAgentHostChatOwner } from '../../../browser/agentSessions/agentHost/agentHostChatOwner.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { buildChatUri, buildDefaultChatUri, SessionStatus, StateComponents, type ComponentToState, type SessionState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ChatAttachmentWidgetRegistry, IChatAttachmentWidgetInstance } from '../../../browser/attachments/chatAttachmentWidgetRegistry.js';
@@ -112,7 +112,7 @@ suite('ChatReferenceAttachment', () => {
 				],
 				getConnectionByAuthority: authority => authority === agentHostAuthority('remote.example:1') ? remote : authority === agentHostAuthority('disconnected.example:1') ? disconnected : undefined,
 			});
-			const owner = async (chat: string) => (await resolveAgentHostChatOwner(URI.parse(chat), local, remoteHosts, new NullLogService()))?.toString();
+			const owner = async (chat: string) => (await resolveAgentHostChatOwner(URI.parse(chat), local, remoteHosts, new NullLogService(), AGENT_HOST_CHAT_OWNER_TIMEOUT_MS))?.toString();
 
 			assert.deepStrictEqual({
 				localPeer: await owner(peer),

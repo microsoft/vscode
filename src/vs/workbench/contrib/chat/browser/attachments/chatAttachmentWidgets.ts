@@ -74,7 +74,7 @@ import { IChatContentReference } from '../../common/chatService/chatService.js';
 import { buildOpenSessionLinkForChat } from '../../../../../platform/agentHost/common/openSessionLink.js';
 import { IAgentHostService } from '../../../../../platform/agentHost/common/agentService.js';
 import { IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { resolveAgentHostChatOwner } from '../agentSessions/agentHost/agentHostChatOwner.js';
+import { AGENT_HOST_CHAT_OWNER_TIMEOUT_MS, resolveAgentHostChatOwner } from '../agentSessions/agentHost/agentHostChatOwner.js';
 import { coerceImageBuffer } from '../../common/chatImageExtraction.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { getImageAttachmentLimit, isPastedTextArtifact, IChatRequestPasteVariableEntry, IChatRequestVariableEntry, IBrowserViewVariableEntry, IChatRequestChatReferenceVariableEntry, IChatRequestTranscriptContextVariableEntry, IElementVariableEntry, INotebookOutputVariableEntry, IPromptFileVariableEntry, IPromptTextVariableEntry, ISCMHistoryItemVariableEntry, OmittedState, PromptFileVariableKind, ChatRequestToolReferenceEntry, ISCMHistoryItemChangeVariableEntry, ISCMHistoryItemChangeRangeVariableEntry, ITerminalVariableEntry, isStringVariableEntry, resolveChatContextIcon, ChatContextIconPath } from '../../common/attachments/chatVariableEntries.js';
@@ -1256,7 +1256,7 @@ export class ChatReferenceAttachmentWidget extends AbstractChatAttachmentWidget 
 	}
 
 	private async _openReferencedChat(chatResource: URI): Promise<void> {
-		const owner = await resolveAgentHostChatOwner(chatResource, this._agentHostService, this._remoteAgentHostService, this._logService);
+		const owner = await resolveAgentHostChatOwner(chatResource, this._agentHostService, this._remoteAgentHostService, this._logService, AGENT_HOST_CHAT_OWNER_TIMEOUT_MS);
 		if (this._store.isDisposed) {
 			return;
 		}

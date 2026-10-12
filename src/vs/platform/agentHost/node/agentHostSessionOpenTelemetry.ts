@@ -126,7 +126,7 @@ export class AgentHostSessionOpenTelemetry extends Disposable implements IAgentH
 	async withSubscription<T>(resource: URI, operation: (scope: IAgentHostSessionOpenTelemetryScope) => Promise<T>): Promise<T> {
 		const stopwatch = StopWatch.create(false);
 		// A cold chat's owner is known only once the subscribe body resolves it.
-		let attempt = this._start(resource, stopwatch);
+		let attempt = this._start(resource, stopwatch, undefined);
 		let servedFromMemory: boolean | undefined;
 		const scope: IAgentHostSessionOpenTelemetryScope = {
 			get servedFromMemory() {
@@ -187,7 +187,7 @@ export class AgentHostSessionOpenTelemetry extends Disposable implements IAgentH
 		this._sdkResumeCompleted(session, 'fallbackCreate');
 	}
 
-	private _start(resource: URI, stopwatch: StopWatch, owner?: URI): AgentHostSessionOpenTelemetryAttempt | undefined {
+	private _start(resource: URI, stopwatch: StopWatch, owner: URI | undefined): AgentHostSessionOpenTelemetryAttempt | undefined {
 		const info = this._classify(resource, owner);
 		if (!info) {
 			return undefined;
@@ -304,7 +304,7 @@ export class AgentHostSessionOpenTelemetry extends Disposable implements IAgentH
 		return Math.max(0, Math.round(attempt.stopwatch.elapsed()));
 	}
 
-	private _classify(resource: URI, resolvedOwner?: URI): { readonly session: URI; readonly provider: AgentHostSessionSubscribeProvider; readonly channel: AgentHostSessionSubscribeChannel } | undefined {
+	private _classify(resource: URI, resolvedOwner: URI | undefined): { readonly session: URI; readonly provider: AgentHostSessionSubscribeProvider; readonly channel: AgentHostSessionSubscribeChannel } | undefined {
 		const resourceString = resource.toString();
 		const owner = !isAhpChatChannel(resourceString)
 			? resourceString

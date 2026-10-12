@@ -252,7 +252,7 @@ export class MissionControlSdkEventSource extends Disposable {
 			return;
 		}
 		const chat = URI.parse(source.chat);
-		const context = createAgentChatContext(this._stateManager, source.session, source.chat);
+		const context = createAgentChatContext(this._stateManager, source.session, source.chat, this._stateManager.resolveChatStorageResource(source.session, source.chat));
 		const cursor = source.admittedCursor ?? source.journalCursor;
 		const overlap = new Set<string>();
 		const iterator = source.provider.readChatSessionEvents(chat, context, this._cancellation.token, cursor, id => {

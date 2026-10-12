@@ -20,7 +20,7 @@ import { DEFAULT_EDIT_AUTO_APPROVE_PATTERNS, mergeChatEditAutoApprovePatterns } 
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { buildChatUri, SessionStatus, ToolCallConfirmationReason, type SessionSummary } from '../../common/state/sessionState.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
-import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { SessionPermissionManager, type IToolApprovalEvent } from '../../node/sessionPermissions.js';
 import { createSessionDataService } from '../common/sessionTestHelpers.js';
 
@@ -114,7 +114,7 @@ suite('SessionPermissionManager', () => {
 
 	test('auto-approves the owning session attachment for a peer chat, not that of the session named by its URI', async () => {
 		const peerChat = buildChatUri(URI.from({ scheme: 'copilot', path: '/other' }), 'peer');
-		manager.addChat(sessionUri, peerChat);
+		manager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat));
 		const attachmentPath = URI.joinPath(
 			sessionDataService.getSessionDataDir(URI.parse(sessionUri)),
 			SESSION_ATTACHMENTS_DIRNAME,

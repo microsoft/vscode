@@ -13,7 +13,7 @@ import { parseChatUri, parseSubagentSessionUri } from '../../../../../platform/a
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID } from '../../../../../workbench/contrib/chat/common/constants.js';
-import { OpenSubagentChatActionViewItem, shouldShowSubagentModel, subagentChatOpenerRegistry } from '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatSubagentOpenChat.js';
+import { IOpenSubagentChatContext, OpenSubagentChatActionViewItem, shouldShowSubagentModel, subagentChatOpenerRegistry } from '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatSubagentOpenChat.js';
 import { fillSessionChatDragData } from '../../../../browser/dnd.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
@@ -36,16 +36,13 @@ function matchesResource(chat: IChat, resource: string, chatId: string | undefin
 	return chat.resource.toString() === resource || !!chatId && chat.resource.fragment === chatId;
 }
 
-interface ISubagentChatTarget {
-	readonly chatResource: string;
-	/** The spawning chat; the subagent belongs to the session that lists it. */
-	readonly parentSessionResource?: string;
-}
+/** The subagent chat and its spawning chat; the subagent belongs to the session that lists the spawning chat. */
+type SubagentChatTarget = Pick<IOpenSubagentChatContext, 'chatResource' | 'parentSessionResource'>;
 
 /** Maps a session's chat to the backend chat the host recorded for it. */
 type BackendChatResolver = (session: IActiveSession, chat: IChat) => URI | undefined;
 
-function ownerSession(sessions: readonly IActiveSession[], target: ISubagentChatTarget, reader: IReader | undefined): IActiveSession | undefined {
+function ownerSession(sessions: readonly IActiveSession[], target: SubagentChatTarget, reader: IReader | undefined): IActiveSession | undefined {
 	const parent = target.parentSessionResource;
 	if (parent) {
 		// A client chat resource is its session resource plus a chat fragment.
@@ -56,7 +53,7 @@ function ownerSession(sessions: readonly IActiveSession[], target: ISubagentChat
 	return legacyParentPath === undefined ? undefined : sessions.find(session => session.resource.path === legacyParentPath);
 }
 
-function findSubagentChat(sessionsService: ISessionsService, backendChatOf: BackendChatResolver, target: ISubagentChatTarget, reader?: IReader): { readonly session: IActiveSession; readonly chat: IChat } | undefined {
+function findSubagentChat(sessionsService: ISessionsService, backendChatOf: BackendChatResolver, target: SubagentChatTarget, reader?: IReader): { readonly session: IActiveSession; readonly chat: IChat } | undefined {
 	const resource = target.chatResource;
 	const chatId = chatIdFromResource(resource);
 	const allSessions = [sessionsService.activeSession.read(reader), ...sessionsService.visibleSessions.read(reader)]

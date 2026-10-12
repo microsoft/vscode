@@ -1156,7 +1156,7 @@ function normalizeRenameChatTitle(requestedTitle: string, sessions: readonly IAg
 	return title;
 }
 
-export function getRenameChatArgs(rawArgs: unknown, sessions: readonly IAgentSessionMetadata[], currentChannel?: ProtocolURI, currentSession?: URI): IResolvedRenameChatArgs {
+export function getRenameChatArgs(rawArgs: unknown, sessions: readonly IAgentSessionMetadata[], currentChannel: ProtocolURI | undefined, currentSession: URI | undefined): IResolvedRenameChatArgs {
 	const args = (rawArgs ?? {}) as IRenameChatArgs;
 	const requestedTitle = getRequiredString(args.title, 'title', SessionServerToolName.RenameChat);
 	const sessionInput = getOptionalString(args.session, 'session', SessionServerToolName.RenameChat);

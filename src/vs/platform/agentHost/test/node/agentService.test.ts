@@ -101,6 +101,7 @@ import { readEphemeralSessionMeta, withEphemeralSessionMeta } from '../../common
 import { readChatSurfaceMeta, withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
 import { createTestAgentHostWorktreeIsolation, createTestAgentService, getTestAgentHostDatabase, getTestAgentHostProviderService, getTestAgentHostWorktreeIsolation, getTestAgentServiceComposition, getTestAgentStateManager, getTestChatPersistenceService, registerTestAgentProvider, setTestAgentHostWorktreeIsolation } from './agentServiceTestUtils.js';
 import { parseSessionArtifacts, readSessionArtifacts, SESSION_META_ARTIFACTS_KEY, SessionArtifactType, withSessionArtifacts } from '../../common/sessionArtifacts.js';
+import { creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 
 /**
  * Replace individual operations on an agent's chat surface, delegating every
@@ -1761,7 +1762,7 @@ suite('AgentService (node dispatcher)', () => {
 							{ resource: canonical, title: 'Canonical peer', status: SessionStatus.IsRead | SessionStatus.IsArchived },
 							{ resource: peer, title: 'Advertised default', status: SessionStatus.IsRead },
 						],
-					}, [], { defaultChatTitle: 'Advertised default' });
+					}, [], creationTimeChatStorageResource, { defaultChatTitle: 'Advertised default' });
 				} else {
 					svc.dispatchAction(peer, { type: ActionType.ChatIsArchivedChanged, isArchived: true }, 'catalog-client', 1);
 				}
@@ -2831,7 +2832,7 @@ suite('AgentService (node dispatcher)', () => {
 						status: SessionStatus.Idle,
 						createdAt: now,
 						modifiedAt: now,
-					}, []);
+					}, [], creationTimeChatStorageResource);
 				}
 			};
 			const managementService = new AgentHostManagementService(service, {} as IConnectionTrackerService, async () => { }, nullSessionDataService, new NullLogService());
@@ -2892,11 +2893,12 @@ suite('AgentService (node dispatcher)', () => {
 					status: SessionStatus.Idle,
 					createdAt: now,
 					modifiedAt: now,
-				}, []);
+				}, [], creationTimeChatStorageResource);
 			}
 			const foreignChat = URI.parse(buildChatUri(owningSession, 'peer'));
 			let resolverCalls = 0;
 			stateManager.registerRestoredChatSummary(owningSession.toString(), foreignChat.toString(), {
+				storageResource: creationTimeChatStorageResource(owningSession.toString(), foreignChat.toString()),
 				resolver: async () => {
 					resolverCalls++;
 					return { turns: [] };
@@ -2931,10 +2933,11 @@ suite('AgentService (node dispatcher)', () => {
 				status: SessionStatus.Idle,
 				createdAt: now,
 				modifiedAt: now,
-			}, []);
+			}, [], creationTimeChatStorageResource);
 			const chat = URI.parse(buildChatUri(session, 'peer'));
 			let resolverCalls = 0;
 			stateManager.registerRestoredChatSummary(session.toString(), chat.toString(), {
+				storageResource: creationTimeChatStorageResource(session.toString(), chat.toString()),
 				resolver: async () => {
 					resolverCalls++;
 					return { turns: [] };
@@ -3826,8 +3829,8 @@ suite('AgentService (node dispatcher)', () => {
 				createdAt: now,
 				modifiedAt: now,
 				workingDirectories: [],
-			}, [createTurn('root-turn', rootTerminal, 'root preview', true)]);
-			getStateManager(localService).addChat(owner.toString(), peerChat.toString(), {
+			}, [createTurn('root-turn', rootTerminal, 'root preview', true)], creationTimeChatStorageResource);
+			getStateManager(localService).addChat(owner.toString(), peerChat.toString(), creationTimeChatStorageResource(owner.toString(), peerChat.toString()), {
 				title: 'Peer',
 				turns: [createTurn('peer-turn', peerTerminal, 'peer preview', true)],
 			});
@@ -3904,7 +3907,7 @@ suite('AgentService (node dispatcher)', () => {
 					toolCall('short-tool', shortTerminal, 'short output', false),
 					toolCall('missing-tool', missingTerminal, 'partial output', true),
 				],
-			}]);
+			}], creationTimeChatStorageResource);
 
 			const shortSnapshot = await localService.subscribe(URI.parse(shortTerminal), 'short-reader');
 			await assert.rejects(localService.subscribe(URI.parse(missingTerminal), 'missing-reader'), /Cannot subscribe to unknown resource/);
@@ -4058,7 +4061,7 @@ suite('AgentService (node dispatcher)', () => {
 			const gitService = createBlobGitService(new Map([[sessionRoot.toString(), sessionRoot], [peerRoot.toString(), peerRoot]]), showBlobCalls);
 			const { service: localService, session } = await createBlobSession(gitService, [sessionRoot]);
 			const peer = buildChatUri(session.toString(), 'peer');
-			getStateManager(localService).addChat(session.toString(), peer, { workingDirectories: [peerRoot.toString()] });
+			getStateManager(localService).addChat(session.toString(), peer, creationTimeChatStorageResource(session.toString(), peer), { workingDirectories: [peerRoot.toString()] });
 
 			const result = await localService.resourceRead(URI.parse(buildGitBlobUri(peer, 'baseSha', 'src/app.ts', '/workspace/peer/src/app.ts')));
 
@@ -4078,7 +4081,7 @@ suite('AgentService (node dispatcher)', () => {
 			const gitService = createBlobGitService(new Map([[sessionRoot.toString(), sessionRoot], [peerRoot.toString(), peerRoot]]), showBlobCalls);
 			const { service: localService, session } = await createBlobSession(gitService, [sessionRoot]);
 			const peer = buildChatUri(session.toString(), 'peer');
-			getStateManager(localService).addChat(session.toString(), peer, { workingDirectories: [peerRoot.toString()] });
+			getStateManager(localService).addChat(session.toString(), peer, creationTimeChatStorageResource(session.toString(), peer), { workingDirectories: [peerRoot.toString()] });
 			const owner = buildFolderChangesetOwnerUri(session.toString(), getWorkingDirectoryScopeId([peerRoot.toString()]));
 
 			const result = await localService.resourceRead(URI.parse(buildGitBlobUri(owner, 'baseSha', 'src/app.ts', '/workspace/peer/src/app.ts')));
@@ -4445,7 +4448,7 @@ suite('AgentService (node dispatcher)', () => {
 			const session = await svc.createSession({ provider: 'copilot' });
 			const defaultChat = buildDefaultChatUri(session.toString());
 			const peerChat = buildChatUri(session, 'peer');
-			getStateManager(svc).addChat(session.toString(), peerChat);
+			getStateManager(svc).addChat(session.toString(), peerChat, creationTimeChatStorageResource(session.toString(), peerChat));
 			getStateManager(svc).dispatchServerAction(peerChat, { type: ActionType.ChatIsReadChanged, isRead: false });
 			const envelopePromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
 
@@ -4483,7 +4486,7 @@ suite('AgentService (node dispatcher)', () => {
 			const defaultChat = buildDefaultChatUri(sessionUri);
 			const peerChat = buildChatUri(session, 'peer');
 			const stateManager = getStateManager(svc);
-			stateManager.addChat(sessionUri, peerChat);
+			stateManager.addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat));
 			stateManager.dispatchServerAction(peerChat, { type: ActionType.ChatIsReadChanged, isRead: false });
 			stateManager.dispatchServerAction(defaultChat, { type: ActionType.ChatIsReadChanged, isRead: true });
 			const sessionReadPromise = Event.toPromise(Event.filter(svc.onDidAction, envelope =>
@@ -4539,7 +4542,7 @@ suite('AgentService (node dispatcher)', () => {
 			registerTestAgentProvider(svc, agent);
 			const session = await svc.createSession({ provider: 'copilot' });
 			const toolChat = buildChatUri(session, 'tool');
-			getStateManager(svc).addChat(session.toString(), toolChat, {
+			getStateManager(svc).addChat(session.toString(), toolChat, creationTimeChatStorageResource(session.toString(), toolChat), {
 				origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(session.toString()), toolCallId: 'tool-call' },
 			});
 			const envelopePromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
@@ -4566,7 +4569,7 @@ suite('AgentService (node dispatcher)', () => {
 			registerTestAgentProvider(svc, agent);
 			const session = await svc.createSession({ provider: 'copilot' });
 			const sideChat = buildChatUri(session, 'side');
-			getStateManager(svc).addChat(session.toString(), sideChat, {
+			getStateManager(svc).addChat(session.toString(), sideChat, creationTimeChatStorageResource(session.toString(), sideChat), {
 				origin: { kind: ChatOriginKind.SideChat, chat: buildDefaultChatUri(session.toString()), turnId: 'turn-1' },
 			});
 			const envelopePromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
@@ -4597,6 +4600,7 @@ suite('AgentService (node dispatcher)', () => {
 				let targetResolverCalls = 0;
 				if (targetIsPeer) {
 					stateManager.registerRestoredChatSummary(session.toString(), targetChat, {
+						storageResource: creationTimeChatStorageResource(session.toString(), targetChat),
 						resolver: async () => {
 							targetResolverCalls++;
 							return { turns: [] };
@@ -4607,6 +4611,7 @@ suite('AgentService (node dispatcher)', () => {
 				let unrelatedResolverCalls = 0;
 				for (const chat of unopenedChats) {
 					stateManager.registerRestoredChatSummary(session.toString(), chat, {
+						storageResource: creationTimeChatStorageResource(session.toString(), chat),
 						resolver: async () => {
 							unrelatedResolverCalls++;
 							throw new Error('Unrelated chat history must not block prompt dispatch');
@@ -4856,7 +4861,7 @@ suite('AgentService (node dispatcher)', () => {
 				workingDirectories: [URI.file('/repo')],
 				config: { [SessionConfigKey.AgentMergeFolders]: { 'file:///repo': { enabled: true } } },
 			});
-			getStateManager(svc).addChat(session.toString(), buildChatUri(session, 'peer'), { workingDirectories: [other] });
+			getStateManager(svc).addChat(session.toString(), buildChatUri(session, 'peer'), creationTimeChatStorageResource(session.toString(), buildChatUri(session, 'peer')), { workingDirectories: [other] });
 			const envelopePromise = Event.toPromise(Event.filter(svc.onDidAction, envelope => envelope.origin?.clientSeq === 1));
 
 			// A client sends only the folders it changes, by working directory. A chat
@@ -5914,12 +5919,13 @@ suite('AgentService (node dispatcher)', () => {
 			const session = URI.parse('ahp-session:/orphan-marker');
 			await perSession.database(session).setMetadata('peerChatBacking', buildDefaultChatUri('ahp-session:/missing-owner'));
 			const inspect = svc as unknown as {
-				_isChatBacking(session: URI): Promise<boolean>;
-				_readSessionRegistrationFacts(session: URI): Promise<{ chatBacking: boolean; hostCreated: boolean }>;
+				_createChatBackingOwnerLookup(): (chat: string) => Promise<string | undefined>;
+				_isChatBacking(session: URI, findOwner: (chat: string) => Promise<string | undefined>): Promise<boolean>;
+				_readSessionRegistrationFacts(session: URI, findOwner: (chat: string) => Promise<string | undefined>): Promise<{ chatBacking: boolean; hostCreated: boolean }>;
 			};
 			assert.deepStrictEqual({
-				backing: await inspect._isChatBacking(session),
-				facts: await inspect._readSessionRegistrationFacts(session),
+				backing: await inspect._isChatBacking(session, inspect._createChatBackingOwnerLookup()),
+				facts: await inspect._readSessionRegistrationFacts(session, inspect._createChatBackingOwnerLookup()),
 			}, { backing: false, facts: { chatBacking: false, hostCreated: false } });
 		});
 
@@ -5929,13 +5935,14 @@ suite('AgentService (node dispatcher)', () => {
 			await database.setMetadata('peerChatBackingProvider', 'codex');
 			const svc = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(database), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
 			const inspect = svc as unknown as {
-				_isChatBacking(session: URI): Promise<boolean>;
-				_readSessionRegistrationFacts(session: URI): Promise<{ chatBacking: boolean; hostCreated: boolean }>;
+				_createChatBackingOwnerLookup(): (chat: string) => Promise<string | undefined>;
+				_isChatBacking(session: URI, findOwner: (chat: string) => Promise<string | undefined>): Promise<boolean>;
+				_readSessionRegistrationFacts(session: URI, findOwner: (chat: string) => Promise<string | undefined>): Promise<{ chatBacking: boolean; hostCreated: boolean }>;
 			};
 			const candidates = [URI.parse('codex:/shared-sdk-id'), URI.parse('claude:/shared-sdk-id')];
 			assert.deepStrictEqual(await Promise.all(candidates.map(async session => ({
-				backing: await inspect._isChatBacking(session),
-				facts: await inspect._readSessionRegistrationFacts(session),
+				backing: await inspect._isChatBacking(session, inspect._createChatBackingOwnerLookup()),
+				facts: await inspect._readSessionRegistrationFacts(session, inspect._createChatBackingOwnerLookup()),
 			}))), [
 				{ backing: true, facts: { chatBacking: true, hostCreated: false } },
 				{ backing: false, facts: { chatBacking: false, hostCreated: false } },
@@ -17125,7 +17132,7 @@ suite('AgentService (node dispatcher)', () => {
 					createdAt: new Date().toISOString(),
 					modifiedAt: new Date().toISOString(),
 				},
-				[],
+				[], creationTimeChatStorageResource,
 			);
 
 			// Sanity: the subagent child session is announced.
@@ -17166,7 +17173,7 @@ suite('AgentService (node dispatcher)', () => {
 				getStateManager(svc).restoreSession({
 					resource: child.toString(), provider: agent.id, title: 'Internal worker',
 					status: SessionStatus.Idle, createdAt: new Date(1).toISOString(), modifiedAt: new Date(1).toISOString(),
-				}, []);
+				}, [], creationTimeChatStorageResource);
 			}
 			const beforeCreation = await svc.listSessions();
 			const created = await svc.createSession({ provider: agent.id });
@@ -17347,7 +17354,7 @@ suite('AgentService (node dispatcher)', () => {
 				modifiedAt: new Date(summaryNow).toISOString(),
 				project: { uri: URI.file('/project').toString(), displayName: 'project' },
 				workingDirectories: [URI.file('/worktree').toString()],
-			}, []);
+			}, [], creationTimeChatStorageResource);
 			catalogDatabase.releaseList.complete();
 
 			const listed = (await listing).find(item => item.session.toString() === session.toString());
@@ -18358,7 +18365,7 @@ suite('AgentService (node dispatcher)', () => {
 				status: SessionStatus.Idle,
 				createdAt: new Date(1).toISOString(),
 				modifiedAt: new Date(1).toISOString(),
-			}, []);
+			}, [], creationTimeChatStorageResource);
 			const annotationsUri = buildAnnotationsUri(subagent);
 
 			await localService.subscribe(URI.parse(annotationsUri), 'client');
@@ -21856,8 +21863,8 @@ suite('AgentService (node dispatcher)', () => {
 				createdAt: now,
 				modifiedAt: now,
 				workingDirectories: [URI.file('/workspace/original').toString()],
-			}, []);
-			getStateManager(svc).addChat(session.toString(), child, {
+			}, [], creationTimeChatStorageResource);
+			getStateManager(svc).addChat(session.toString(), child, creationTimeChatStorageResource(session.toString(), child), {
 				title: 'Historical Worker',
 				turns: [{
 					id: 'materialized-turn',
@@ -21971,7 +21978,7 @@ suite('AgentService (node dispatcher)', () => {
 				createdAt: now,
 				modifiedAt: now,
 				workingDirectories: [URI.file('/workspace/original').toString()],
-			}, []);
+			}, [], creationTimeChatStorageResource);
 			const legacySource = await database.getSessionV2(session.toString());
 			if (legacySource?.payloadDirty) {
 				assert.strictEqual(await database.markSessionV2PayloadClean(session.toString(), legacySource.payloadDirty), true);
@@ -22103,7 +22110,7 @@ suite('AgentService (node dispatcher)', () => {
 				status: SessionStatus.Idle,
 				createdAt: now,
 				modifiedAt: now,
-			}, []);
+			}, [], creationTimeChatStorageResource);
 			let attempts = 0;
 			const internals = svc as unknown as {
 				_restoredSubagentAdmissionRetries: Map<string, { run(): Promise<void> }>;
@@ -22159,7 +22166,7 @@ suite('AgentService (node dispatcher)', () => {
 				status: SessionStatus.Idle,
 				createdAt: now,
 				modifiedAt: now,
-			}, []);
+			}, [], creationTimeChatStorageResource);
 			restoreOwner('Old Owner');
 			const oldTurns: Turn[] = [{
 				id: 'old-turn',
@@ -22255,7 +22262,7 @@ suite('AgentService (node dispatcher)', () => {
 				status: SessionStatus.Idle,
 				createdAt: now,
 				modifiedAt: now,
-			}, []);
+			}, [], creationTimeChatStorageResource);
 			restoreOwner('Old Owner');
 			const internals = svc as unknown as {
 				_catalogSyncSuppressedSessions: Set<string>;
@@ -22323,7 +22330,7 @@ suite('AgentService (node dispatcher)', () => {
 				status: SessionStatus.Idle,
 				createdAt: now,
 				modifiedAt: now,
-			}, []);
+			}, [], creationTimeChatStorageResource);
 			restoreOwner('Old Owner');
 			const internals = svc as unknown as {
 				_catalogSyncSuppressedSessions: Set<string>;
@@ -22457,7 +22464,7 @@ suite('AgentService (node dispatcher)', () => {
 					status: SessionStatus.Idle,
 					createdAt: now,
 					modifiedAt: now,
-				}, []);
+				}, [], creationTimeChatStorageResource);
 				restoreOwner('Old Owner');
 				const internals = svc as unknown as {
 					_catalogSyncSuppressedSessions: Set<string>;
@@ -22561,7 +22568,7 @@ suite('AgentService (node dispatcher)', () => {
 				status: SessionStatus.Idle,
 				createdAt: now,
 				modifiedAt: now,
-			}, []);
+			}, [], creationTimeChatStorageResource);
 			restoreOwner('Old Owner');
 			const internals = svc as unknown as {
 				_catalogSyncSuppressedSessions: Set<string>;
@@ -22637,7 +22644,7 @@ suite('AgentService (node dispatcher)', () => {
 				status: SessionStatus.Idle,
 				createdAt: now,
 				modifiedAt: now,
-			}, []);
+			}, [], creationTimeChatStorageResource);
 			restoreOwner('Old Owner');
 			const internals = svc as unknown as {
 				_catalogSyncSuppressedSessions: Set<string>;
@@ -22707,7 +22714,7 @@ suite('AgentService (node dispatcher)', () => {
 					status: SessionStatus.Idle,
 					createdAt: now,
 					modifiedAt: now,
-				}, []);
+				}, [], creationTimeChatStorageResource);
 				if (ownerState === 'tombstoned') {
 					await database.tombstoneAndUnregisterSession(session.toString());
 				} else {
@@ -22753,6 +22760,7 @@ suite('AgentService (node dispatcher)', () => {
 			const childChat = buildSubagentChatUri(parent.toString(), 'tc-sub');
 			const origin = { kind: ChatOriginKind.Tool, chat: parentChat, toolCallId: 'tc-sub' } as const;
 			getStateManager(service).registerRestoredChatSummary(parent.toString(), childChat, {
+				storageResource: creationTimeChatStorageResource(parent.toString(), childChat),
 				title: 'Subagent',
 				origin,
 				interactivity: ChatInteractivity.ReadOnly,
@@ -22888,7 +22896,7 @@ suite('AgentService (node dispatcher)', () => {
 			await service.restoreSession(sessionResource);
 
 			const peerChat = buildChatUri(parent, 'peer-spawner');
-			getStateManager(service).addChat(parent, peerChat, {
+			getStateManager(service).addChat(parent, peerChat, creationTimeChatStorageResource(parent, peerChat), {
 				title: 'Peer',
 				turns: [{
 					id: 'peer-turn', state: TurnState.Complete, usage: undefined,
@@ -22956,6 +22964,7 @@ suite('AgentService (node dispatcher)', () => {
 			await service.restoreSession(sessionResource);
 			let peerResolved = false;
 			getStateManager(service).registerRestoredChatSummary(parent, peerChat, {
+				storageResource: creationTimeChatStorageResource(parent, peerChat),
 				title: 'Peer',
 				resolver: async () => {
 					peerResolved = true;
@@ -23385,7 +23394,7 @@ suite('AgentService (node dispatcher)', () => {
 			registerTestAgentProvider(service, agent);
 			const session = await service.createSession({ provider: 'copilot' });
 			const chat = URI.parse(buildChatUri(session, 'peer-1'));
-			getStateManager(service).addChat(session.toString(), chat.toString());
+			getStateManager(service).addChat(session.toString(), chat.toString(), creationTimeChatStorageResource(session.toString(), chat.toString()));
 
 			assert.deepStrictEqual({
 				result: await service.stopBackgroundWork(chat, 'shell:3'),
@@ -24246,7 +24255,7 @@ suite('AgentService (node dispatcher)', () => {
 			registerTestAgentProvider(service, agent);
 			const session = await service.createSession({ provider: 'copilot' });
 			const sourceChat = buildSubagentChatUri(session, 'tool-1');
-			getStateManager(service).addChat(session.toString(), sourceChat, {
+			getStateManager(service).addChat(session.toString(), sourceChat, creationTimeChatStorageResource(session.toString(), sourceChat), {
 				origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(session), toolCallId: 'tool-1' },
 				turns: [completedTurn('t1')],
 			});
@@ -25035,7 +25044,7 @@ suite('AgentService (node dispatcher)', () => {
 			registerTestAgentProvider(service, agent);
 			const session = await service.createSession({ provider: 'copilot' });
 			const source = buildSubagentChatUri(session.toString(), 'tool-1');
-			getStateManager(service).addChat(session.toString(), source, {
+			getStateManager(service).addChat(session.toString(), source, creationTimeChatStorageResource(session.toString(), source), {
 				origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(session), toolCallId: 'tool-1' },
 				turns: [{ id: 't1', state: TurnState.Complete, message: { text: 'work', origin: { kind: MessageKind.User } }, responseParts: [], usage: undefined }],
 			});
@@ -27580,7 +27589,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const toolCallId = 'tool-1';
 			const toolChatUri = URI.parse(buildSubagentChatUri(session.toString(), toolCallId));
-			getStateManager(localService).addChat(session.toString(), toolChatUri.toString(), {
+			getStateManager(localService).addChat(session.toString(), toolChatUri.toString(), creationTimeChatStorageResource(session.toString(), toolChatUri.toString()), {
 				origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(session), toolCallId },
 			});
 			onDidChangeChatData.fire({ chat: toolChatUri, providerData: 'tool-backing' });
@@ -28332,7 +28341,7 @@ suite('AgentService (node dispatcher)', () => {
 				/title persistence failed/
 			);
 
-			getStateManager(localService).addChat(sessionUri, peerChat, { title: 'Original chat' });
+			getStateManager(localService).addChat(sessionUri, peerChat, creationTimeChatStorageResource(sessionUri, peerChat), { title: 'Original chat' });
 			await db.setMetadata(`customChatTitle:${defaultChat}`, 'Original session');
 			await db.setMetadata(`customChatTitleSource:${defaultChat}`, 'user');
 			await db.setMetadata(`customChatTitle:${peerChat}`, 'Original chat');
@@ -28731,7 +28740,7 @@ suite('AgentService (node dispatcher)', () => {
 				registerTestAgentProvider(service, copilotAgent);
 				const sessionResource = await service.createSession({ provider: 'copilot' });
 				const peerChat = URI.parse(buildChatUri(sessionResource, 'peer-1'));
-				getStateManager(service).addChat(sessionResource.toString(), peerChat.toString(), {});
+				getStateManager(service).addChat(sessionResource.toString(), peerChat.toString(), creationTimeChatStorageResource(sessionResource.toString(), peerChat.toString()), {});
 				service.addSubscriber(sessionResource, 'client-1');
 				service.dispatchAction(
 					peerChat.toString(),
@@ -28789,7 +28798,7 @@ suite('AgentService (node dispatcher)', () => {
 				const peerChat = URI.parse(buildChatUri(sessionResource, 'peer-1'));
 				getStateManager(localService).dispatchServerAction(defaultChat, { type: ActionType.ChatTurnStarted, turnId: 'initial-turn', startedAt: '2025-01-01T00:00:00.000Z', message: { text: 'initial', origin: { kind: MessageKind.User } } });
 				getStateManager(localService).dispatchServerAction(defaultChat, { type: ActionType.ChatTurnComplete, turnId: 'initial-turn', duration: 1000 });
-				getStateManager(localService).addChat(sessionResource.toString(), peerChat.toString(), {});
+				getStateManager(localService).addChat(sessionResource.toString(), peerChat.toString(), creationTimeChatStorageResource(sessionResource.toString(), peerChat.toString()), {});
 				localService.addSubscriber(sessionResource, 'client-1');
 				localService.unsubscribe(sessionResource, 'client-1');
 
@@ -29077,7 +29086,7 @@ suite('AgentService (node dispatcher)', () => {
 				];
 				await service.restoreSession(session);
 				const chat = URI.parse(buildChatUri(session, 'peer-1'));
-				getStateManager(service).addChat(session.toString(), chat.toString(), {});
+				getStateManager(service).addChat(session.toString(), chat.toString(), creationTimeChatStorageResource(session.toString(), chat.toString()), {});
 				service.addSubscriber(session, 'client-1');
 
 				service.unsubscribe(session, 'client-1');
@@ -29667,7 +29676,7 @@ suite('AgentService (node dispatcher)', () => {
 				const owner = await service.createSession({ provider: 'copilot' });
 				const named = AgentSession.uri('copilot', 'named-by-uri');
 				const chat = URI.parse(buildChatUri(named, 'moved'));
-				getStateManager(service).addChat(owner.toString(), chat.toString());
+				getStateManager(service).addChat(owner.toString(), chat.toString(), creationTimeChatStorageResource(owner.toString(), chat.toString()));
 				service.addSubscriber(chat, 'client-1');
 				getStateManager(service).removeChat(owner.toString(), chat.toString());
 
@@ -29685,7 +29694,7 @@ suite('AgentService (node dispatcher)', () => {
 				const owner = await service.createSession({ provider: 'copilot' });
 				const chat = URI.parse(buildChatUri(AgentSession.uri('copilot', 'named-by-uri'), 'early'));
 				service.addSubscriber(chat, 'client-1');
-				getStateManager(service).addChat(owner.toString(), chat.toString());
+				getStateManager(service).addChat(owner.toString(), chat.toString(), creationTimeChatStorageResource(owner.toString(), chat.toString()));
 
 				service.unsubscribe(chat, 'client-1');
 				await new Promise(resolve => setTimeout(resolve, 30_000));
@@ -30746,7 +30755,7 @@ suite('AgentService (node dispatcher)', () => {
 				modifiedAt: new Date().toISOString(),
 				project: undefined,
 				workingDirectories: dirs?.map(d => d.toString()),
-			}, []);
+			}, [], creationTimeChatStorageResource);
 
 			const a = URI.file('/roots/a');
 			const b = URI.file('/roots/b');
@@ -30759,7 +30768,7 @@ suite('AgentService (node dispatcher)', () => {
 			inject(none, undefined);
 			const peerDirectory = URI.file('/roots/peer');
 			const peerChat = buildChatUri(URI.parse(multi), 'peer');
-			getStateManager(service).addChat(multi, peerChat, { workingDirectories: [peerDirectory.toString()] });
+			getStateManager(service).addChat(multi, peerChat, creationTimeChatStorageResource(multi, peerChat), { workingDirectories: [peerDirectory.toString()] });
 
 			// No worktree isolation is configured, so index 0 resolves to itself and
 			// the additional roots are preserved as-is; a session with no roots
@@ -30795,7 +30804,7 @@ suite('AgentService (node dispatcher)', () => {
 				modifiedAt: new Date().toISOString(),
 				project: undefined,
 				workingDirectories: [additional.toString()],
-			}, []);
+			}, [], creationTimeChatStorageResource);
 			await writeSessionAdditionalWorktrees(sessionDataService, session, [{
 				handle,
 				workingDirectory: additional.toString(),
@@ -31101,7 +31110,7 @@ suite('AgentService (node dispatcher)', () => {
 				modifiedAt: new Date().toISOString(),
 				project: undefined,
 				workingDirectories: [sourceDir.toString()],
-			}, []);
+			}, [], creationTimeChatStorageResource);
 			getStateManager(localService).setSessionConfig(sessionResource, {
 				schema: { type: 'object', properties: {} },
 				values: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' },
