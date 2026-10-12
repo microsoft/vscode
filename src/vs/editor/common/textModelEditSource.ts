@@ -103,6 +103,7 @@ export const EditSources = {
 	chatApplyEdits(data: {
 		modelId: string | undefined;
 		autoTier?: string;
+		fusionModel?: string;
 		sessionId: string | undefined;
 		requestId: string | undefined;
 		languageId: string;
@@ -118,6 +119,7 @@ export const EditSources = {
 			source: 'Chat.applyEdits',
 			$modelId: avoidPathRedaction(data.modelId),
 			$autoTier: data.autoTier,
+			$fusionModel: data.fusionModel,
 			$extensionId: data.extensionId?.extensionId,
 			$extensionVersion: data.extensionId?.version,
 			$harness: data.harness,
@@ -135,6 +137,7 @@ export const EditSources = {
 	agentHostChatApplyEdits(data: {
 		modelId: string | undefined;
 		autoTier?: string;
+		fusionModel?: string;
 		sessionId: string;
 		agentSessionId?: string;
 		chatSessionId?: string;
@@ -144,6 +147,7 @@ export const EditSources = {
 		return EditSources.chatApplyEdits({
 			modelId: data.modelId,
 			autoTier: data.autoTier,
+			fusionModel: data.fusionModel,
 			sessionId: data.sessionId,
 			agentSessionId: data.agentSessionId,
 			chatSessionId: data.chatSessionId,
