@@ -19826,7 +19826,7 @@ Use the attached image as context.
 			assert.strictEqual((await result).kind, 'reject');
 		});
 
-		test('semantic search overrides the built-in tool and is never deferred', async () => {
+		test('semantic search overrides the built-in tool and is deferred', async () => {
 			const semanticSearchSnapshot: IActiveClientSnapshot = {
 				tools: [{
 					name: SEMANTIC_SEARCH_TOOL_NAME,
@@ -19846,7 +19846,7 @@ Use the attached image as context.
 				skipPermission: tool.skipPermission,
 			}, {
 				name: SEMANTIC_SEARCH_TOOL_NAME,
-				defer: 'never',
+				defer: 'auto',
 				overridesBuiltInTool: true,
 				skipPermission: true,
 			});
