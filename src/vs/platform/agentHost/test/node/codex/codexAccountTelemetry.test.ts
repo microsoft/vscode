@@ -18,6 +18,7 @@ suite('CodexAccountTelemetry', () => {
 	const now = 1_000_000;
 	const account: ICodexAccountState = { usageSource: 'openai', status: 'signedIn', authType: 'chatgpt', planType: 'plus' };
 	const rateLimit: ICodexAccountRateLimitInfo = { usedPercent: 42.4, windowDurationMins: 7 * 24 * 60, resetsAt: now / 1000 + 3600 };
+	const fiveHourRateLimit: ICodexAccountRateLimitInfo = { usedPercent: 24.2, windowDurationMins: 5 * 60, resetsAt: now / 1000 + 1800 };
 
 	test('normalizes every generated plan value', () => {
 		const expected = {
@@ -48,14 +49,14 @@ suite('CodexAccountTelemetry', () => {
 			{ ...account, status: 'signedOut' },
 		];
 		assert.deepStrictEqual(accounts.map(value => getCodexAccountTelemetryContext(value, rateLimit, now, now)), [
-			...accounts.slice(0, -1).map(() => ({ chatgptAccountState: 'unknown', chatgptWeeklyQuotaState: 'unavailable' })),
-			{ chatgptAccountState: 'signedOut', chatgptWeeklyQuotaState: 'unavailable' },
+			...accounts.slice(0, -1).map(() => ({ chatgptAccountState: 'unknown', chatgptWeeklyQuotaState: 'unavailable', chatgptFiveHourQuotaState: 'unavailable' })),
+			{ chatgptAccountState: 'signedOut', chatgptWeeklyQuotaState: 'unavailable', chatgptFiveHourQuotaState: 'unavailable' },
 		]);
 	});
 
 	test('preserves unknown plan and missing snapshot availability', () => {
 		assert.deepStrictEqual(getCodexAccountTelemetryContext({ ...account, planType: undefined }, undefined, undefined, now), {
-			chatgptAccountState: 'signedIn', chatgptPlanTier: 'unknown', chatgptWeeklyQuotaState: 'missing',
+			chatgptAccountState: 'signedIn', chatgptPlanTier: 'unknown', chatgptWeeklyQuotaState: 'missing', chatgptFiveHourQuotaState: 'missing',
 		});
 	});
 
@@ -65,6 +66,16 @@ suite('CodexAccountTelemetry', () => {
 			samples.map((_, index) => ({
 				chatgptAccountState: 'signedIn', chatgptPlanTier: 'plus', chatgptWeeklyQuotaState: 'available',
 				chatgptWeeklyUsedPercentBucket: Math.floor(index / 2) * 10,
+				chatgptFiveHourQuotaState: 'missing',
+			})));
+	});
+
+	test('buckets all five-hour boundaries from the multi-window snapshot', () => {
+		const samples = [0, ...Array.from({ length: 10 }, (_, index) => [(index + 1) * 10 - 0.01, (index + 1) * 10]).flat()];
+		assert.deepStrictEqual(samples.map(usedPercent => getCodexAccountTelemetryContext(account, rateLimit, now - 5 * 60 * 1000, now, [rateLimit, { ...fiveHourRateLimit, usedPercent }])),
+			samples.map((_, index) => ({
+				chatgptAccountState: 'signedIn', chatgptPlanTier: 'plus', chatgptWeeklyQuotaState: 'available', chatgptWeeklyUsedPercentBucket: 40,
+				chatgptFiveHourQuotaState: 'available', chatgptFiveHourUsedPercentBucket: Math.floor(index / 2) * 10,
 			})));
 	});
 
@@ -81,13 +92,28 @@ suite('CodexAccountTelemetry', () => {
 			...[NaN, Infinity, -Infinity, -0.01, 100.01].map(usedPercent => ({ rateLimit: { ...rateLimit, usedPercent }, observedAt: now, state: 'invalid' as const })),
 		];
 		assert.deepStrictEqual(cases.map(value => getCodexAccountTelemetryContext(account, value.rateLimit, value.observedAt, now)),
-			cases.map(value => ({ chatgptAccountState: 'signedIn', chatgptPlanTier: 'plus', chatgptWeeklyQuotaState: value.state })));
+			cases.map(value => ({ chatgptAccountState: 'signedIn', chatgptPlanTier: 'plus', chatgptWeeklyQuotaState: value.state, chatgptFiveHourQuotaState: 'missing' })));
+	});
+
+	test('distinguishes unusable five-hour snapshots without emitting a bucket', () => {
+		const cases: { rateLimits: readonly ICodexAccountRateLimitInfo[] | undefined; observedAt: number | undefined; state: ICodexAccountTelemetryContext['chatgptFiveHourQuotaState'] }[] = [
+			{ rateLimits: undefined, observedAt: now, state: 'missing' },
+			{ rateLimits: [rateLimit], observedAt: now, state: 'missing' },
+			{ rateLimits: [rateLimit, fiveHourRateLimit], observedAt: undefined, state: 'missing' },
+			{ rateLimits: [rateLimit, fiveHourRateLimit], observedAt: now - 5 * 60 * 1000 - 1, state: 'stale' },
+			...[now + 1, -1, NaN, Infinity, -Infinity].map(observedAt => ({ rateLimits: [rateLimit, fiveHourRateLimit], observedAt, state: 'invalid' as const })),
+			...[now / 1000, now / 1000 - 1].map(resetsAt => ({ rateLimits: [rateLimit, { ...fiveHourRateLimit, resetsAt }], observedAt: now, state: 'expired' as const })),
+			...[NaN, Infinity, -Infinity, 0, -1].map(resetsAt => ({ rateLimits: [rateLimit, { ...fiveHourRateLimit, resetsAt }], observedAt: now, state: 'invalid' as const })),
+			...[NaN, Infinity, -Infinity, -0.01, 100.01].map(usedPercent => ({ rateLimits: [rateLimit, { ...fiveHourRateLimit, usedPercent }], observedAt: now, state: 'invalid' as const })),
+		];
+		assert.deepStrictEqual(cases.map(value => getCodexAccountTelemetryContext(account, rateLimit, value.observedAt, now, value.rateLimits).chatgptFiveHourQuotaState),
+			cases.map(value => value.state));
 	});
 
 	test('accepts an unknown reset and a reset after admission', () => {
 		assert.deepStrictEqual([undefined, now / 1000 + 0.001].map(resetsAt => getCodexAccountTelemetryContext(account, { ...rateLimit, resetsAt }, now, now)), [
-			{ chatgptAccountState: 'signedIn', chatgptPlanTier: 'plus', chatgptWeeklyQuotaState: 'available', chatgptWeeklyUsedPercentBucket: 40 },
-			{ chatgptAccountState: 'signedIn', chatgptPlanTier: 'plus', chatgptWeeklyQuotaState: 'available', chatgptWeeklyUsedPercentBucket: 40 },
+			{ chatgptAccountState: 'signedIn', chatgptPlanTier: 'plus', chatgptWeeklyQuotaState: 'available', chatgptWeeklyUsedPercentBucket: 40, chatgptFiveHourQuotaState: 'missing' },
+			{ chatgptAccountState: 'signedIn', chatgptPlanTier: 'plus', chatgptWeeklyQuotaState: 'available', chatgptWeeklyUsedPercentBucket: 40, chatgptFiveHourQuotaState: 'missing' },
 		]);
 	});
 
@@ -98,7 +124,7 @@ suite('CodexAccountTelemetry', () => {
 		sourceAccount.planType = 'free';
 		sourceRateLimit.usedPercent = 100;
 		assert.deepStrictEqual({ snapshot, frozen: Object.isFrozen(snapshot) }, {
-			snapshot: { chatgptAccountState: 'signedIn', chatgptPlanTier: 'plus', chatgptWeeklyQuotaState: 'available', chatgptWeeklyUsedPercentBucket: 40 },
+			snapshot: { chatgptAccountState: 'signedIn', chatgptPlanTier: 'plus', chatgptWeeklyQuotaState: 'available', chatgptWeeklyUsedPercentBucket: 40, chatgptFiveHourQuotaState: 'missing' },
 			frozen: true,
 		});
 	});

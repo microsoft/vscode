@@ -18,18 +18,19 @@ import { nullExtensionDescription } from '../../../services/extensions/common/ex
 import { ChatAgentResponseStream, ExtHostChatAgents2 } from '../../common/extHostChatAgents2.js';
 import { CommandsConverter, ExtHostCommands } from '../../common/extHostCommands.js';
 import { IChatAgentProgressShape, IChatProgressDto, MainThreadChatAgentsShape2, MainThreadCommandsShape } from '../../common/extHost.protocol.js';
-import { ChatResponseAnchorPart, ChatResponseTextEditPart, Range, TextEdit } from '../../common/extHostTypes.js';
+import { ChatRequestTurn, ChatResponseAnchorPart, ChatResponseTextEditPart, Range, TextEdit } from '../../common/extHostTypes.js';
 import { SingleProxyRPCProtocol } from './testRPCProtocol.js';
 
 suite('ExtHostChatAgents2', function () {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createParticipant(dynamic = false) {
+	function createParticipant(dynamic = false, enablePrivateApi = false) {
 		let handle = -1;
 		let unregisterCount = 0;
 		const unregisteredCompletions: { handle: number; id: string }[] = [];
 		const proxy = new class extends mock<MainThreadChatAgentsShape2>() {
 			override $registerAgent(value: number): void { handle = value; }
+			override $updateAgent(): void { }
 			override $unregisterAgent(): void { unregisterCount++; }
 			override $registerAgentCompletionsProvider(): void { }
 			override $unregisterAgentCompletionsProvider(handle: number, id: string): void { unregisteredCompletions.push({ handle, id }); }
@@ -38,7 +39,7 @@ suite('ExtHostChatAgents2', function () {
 			override $registerCommand(): void { }
 		}), new NullLogService(), undefined!);
 		const agents = disposables.add(new ExtHostChatAgents2(SingleProxyRPCProtocol(proxy), new NullLogService(), commands, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!));
-		const extension = { ...nullExtensionDescription, enabledApiProposals: ['chatParticipantAdditions'] as const };
+		const extension = { ...nullExtensionDescription, enabledApiProposals: enablePrivateApi ? ['chatParticipantAdditions', 'chatParticipantPrivate'] as const : ['chatParticipantAdditions'] as const };
 		const participant = disposables.add(dynamic
 			? agents.createDynamicChatAgent(extension, 'test.participant', { name: 'Test', publisherName: 'Test' }, async () => ({}))
 			: agents.createChatAgent(extension, 'test.participant', async () => ({})));
@@ -49,6 +50,36 @@ suite('ExtHostChatAgents2', function () {
 		id: 'item', label: 'Item', values: [{ level: 1, value: 'value' }],
 		command: { command: 'test.command', title: 'Test', arguments: [{ resource: 'test' }] }
 	};
+
+	for (const enablePrivateApi of [false, true]) {
+		test(`preserves system initiation in chat history only with the private API (${enablePrivateApi})`, async () => {
+			const { agents, participant, handle } = createParticipant(false, enablePrivateApi);
+			let history: { prompt: string; isSystemInitiated: boolean | undefined }[] | undefined;
+			participant.followupProvider = {
+				provideFollowups(_result, context) {
+					history = context.history.filter((turn): turn is ChatRequestTurn => turn instanceof ChatRequestTurn).map(turn => ({
+						prompt: turn.prompt,
+						isSystemInitiated: turn.isSystemInitiated,
+					}));
+					return [];
+				},
+			};
+			const request: IChatAgentRequest = {
+				sessionResource: URI.parse('chat-session:/test'), requestId: 'task', agentId: 'test.participant',
+				message: 'task', variables: { variables: [] }, location: ChatAgentLocation.Chat,
+			};
+			await agents.$provideFollowups(request, handle, {}, {
+				history: [
+					{ request, response: [], result: {} },
+					{ request: { ...request, requestId: 'notification', message: 'terminal completed', isSystemInitiated: true }, response: [], result: {} },
+				],
+			}, CancellationToken.None);
+			assert.deepStrictEqual(history, [
+				{ prompt: 'task', isSystemInitiated: undefined },
+				{ prompt: 'terminal completed', isSystemInitiated: enablePrivateApi ? true : undefined },
+			]);
+		});
+	}
 
 	for (const dynamic of [false, true]) {
 		test(`does not invoke disposed ${dynamic ? 'dynamic' : 'static'} participants`, async () => {

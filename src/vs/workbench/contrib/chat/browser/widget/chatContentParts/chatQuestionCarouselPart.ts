@@ -56,6 +56,7 @@ export interface IChatQuestionCarouselOptions {
 	dismissLabel?: string;
 	submissionAcknowledgement?: {
 		readonly message: string;
+		readonly description?: IMarkdownString;
 		readonly dismissLabel: string;
 		readonly onDidDismiss: () => void;
 	};
@@ -524,6 +525,11 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		acknowledgementStore.add(closeButton.onDidClick(() => acknowledgement.onDidDismiss()));
 		titleRow.appendChild(actions);
 		this.domNode.appendChild(titleRow);
+		if (acknowledgement.description) {
+			const description = dom.append(this.domNode, dom.$('.chat-question-description'));
+			const renderedDescription = acknowledgementStore.add(this._markdownRenderer.render(acknowledgement.description));
+			description.appendChild(renderedDescription.element);
+		}
 		this.domNode.setAttribute('aria-label', acknowledgement.message);
 		this._accessibilityService.status(acknowledgement.message);
 		closeButton.focus();

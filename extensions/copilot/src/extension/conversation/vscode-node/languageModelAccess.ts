@@ -899,8 +899,7 @@ export class CopilotLanguageModelWrapper extends Disposable {
 
 	async provideLanguageModelResponse(endpoint: IChatEndpoint, messages: Array<vscode.LanguageModelChatMessage | vscode.LanguageModelChatMessage2>, options: vscode.ProvideLanguageModelChatResponseOptions, extensionId: string | undefined, progress: vscode.Progress<LMResponsePart>, token: vscode.CancellationToken): Promise<void> {
 		let thinkingActive = false;
-		// Tag encrypted reasoning with the API that produced it so a consumer can tell whether it
-		// may be replayed, rather than having to guess from the payload's id.
+		// Carry the producing protocol through the extension boundary for safe reasoning replay.
 		const originApi = asThinkingOriginApi(endpoint.apiType);
 		const originMetadata = originApi ? thinkingOriginToMetadata(originApi) : undefined;
 		const finishCallback: FinishedCallback = async (_text, index, delta): Promise<undefined> => {
@@ -915,11 +914,12 @@ export class CopilotLanguageModelWrapper extends Disposable {
 					}
 				} else {
 					const text = delta.thinking.text ?? '';
-					progress.report(new vscode.LanguageModelThinkingPart(text, delta.thinking.id, delta.thinking.metadata));
+					const metadata = originMetadata ? { ...delta.thinking.metadata, ...originMetadata } : delta.thinking.metadata;
+					progress.report(new vscode.LanguageModelThinkingPart(text, delta.thinking.id, metadata));
 					thinkingActive = true;
 				}
 			} else if (thinkingActive) {
-				progress.report(new vscode.LanguageModelThinkingPart('', '', { vscode_reasoning_done: true }));
+				progress.report(new vscode.LanguageModelThinkingPart('', '', { vscode_reasoning_done: true, ...originMetadata }));
 				thinkingActive = false;
 			}
 			if (delta.text) {

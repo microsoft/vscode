@@ -6,6 +6,7 @@
 import { ChatFetchError } from '../../../platform/chat/common/commonTypes';
 import { isAutoModel } from '../../../platform/endpoint/node/autoChatEndpoint';
 import { getImageTelemetryEventMeasurements, type ImageTelemetryMeasurements } from '../../../platform/image/common/imageTelemetry';
+import { gitHubCopilotRequestTeProperty } from '../../../platform/networking/common/fetch';
 import { FetcherId } from '../../../platform/networking/common/fetcherService';
 import { IChatEndpoint, IChatRequestTelemetryProperties, IEndpointBody } from '../../../platform/networking/common/networking';
 import { ChatCompletion } from '../../../platform/networking/common/openai';
@@ -38,6 +39,7 @@ export interface IChatMLFetcherCancellationProperties {
 	source: string;
 	requestId: string;
 	copilotServiceRequestId?: string;
+	gitHubCopilotRequestTe?: string;
 	model: string;
 	apiType: string | undefined;
 	transport: string;
@@ -156,6 +158,7 @@ export class ChatMLFetcherTelemetrySender {
 				"requestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Id of the current turn request" },
 				"gitHubRequestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "GitHub request id if available" },
 				"copilotServiceRequestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "CAPI service request id (X-Copilot-Service-Request-Id) if available. Opaque server-minted id used to join with CAPI server-side logs and traces." },
+				"gitHubCopilotRequestTe": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Raw value of the CAPI X-GitHub-Copilot-Request-Te response header for this model call, logged unmodified. Non-user-identifying service metadata; omitted when absent." },
 				"associatedRequestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Another request ID that this request is associated with (eg, the originating request of a summarization request)." },
 				"turn": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "How many turns have been made in the conversation.", "isMeasurement": true },
 				"reasoningEffort": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Reasoning effort level" },
@@ -228,6 +231,7 @@ export class ChatMLFetcherTelemetrySender {
 			requestId: chatCompletion.requestId.headerRequestId,
 			gitHubRequestId: chatCompletion.requestId.gitHubRequestId,
 			copilotServiceRequestId: chatCompletion.requestId.copilotServiceRequestId,
+			...gitHubCopilotRequestTeProperty(chatCompletion.requestId.gitHubCopilotRequestTe),
 			associatedRequestId: baseTelemetry?.properties.associatedRequestId,
 			parentRequestId: baseTelemetry?.properties.parentRequestId,
 			reasoningEffort: requestBody.reasoning?.effort ?? requestBody.output_config?.effort ?? requestBody.reasoning_effort,
@@ -279,6 +283,7 @@ export class ChatMLFetcherTelemetrySender {
 			source,
 			requestId,
 			copilotServiceRequestId,
+			gitHubCopilotRequestTe,
 			model,
 			apiType,
 			transport,
@@ -322,6 +327,7 @@ export class ChatMLFetcherTelemetrySender {
 				"requestKind": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Resolved X-Interaction-Type for the request: 'conversation-agent', 'conversation-subagent', 'conversation-background', 'conversation-panel', 'conversation-inline', 'conversation-edits', 'conversation-other', 'conversation-notebook', or 'conversation-terminal'" },
 				"requestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Id of the request" },
 				"copilotServiceRequestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "CAPI service request id (X-Copilot-Service-Request-Id) if available. Opaque server-minted id used to join with CAPI server-side logs and traces." },
+				"gitHubCopilotRequestTe": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Raw value of the CAPI X-GitHub-Copilot-Request-Te response header for this model call, logged unmodified. Non-user-identifying service metadata; omitted when absent." },
 				"conversationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Id for the current chat conversation." },
 				"associatedRequestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Another request ID that this request is associated with (eg, the originating request of a summarization request)." },
 				"parentRequestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "For a subagent: the request id of the main agent request that invoked this subagent." },
@@ -372,6 +378,7 @@ export class ChatMLFetcherTelemetrySender {
 			source,
 			requestId,
 			...(copilotServiceRequestId ? { copilotServiceRequestId } : {}),
+			...gitHubCopilotRequestTeProperty(gitHubCopilotRequestTe),
 			model,
 			requestKind: interactionType,
 			conversationId,
@@ -440,6 +447,7 @@ export class ChatMLFetcherTelemetrySender {
 				"requestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Id of the request" },
 				"gitHubRequestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "GitHub request id if available" },
 				"copilotServiceRequestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "CAPI service request id (X-Copilot-Service-Request-Id) if available. Opaque server-minted id used to join with CAPI server-side logs and traces." },
+				"gitHubCopilotRequestTe": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Raw value of the CAPI X-GitHub-Copilot-Request-Te response header for this model call, logged unmodified. Non-user-identifying service metadata; omitted when absent." },
 				"conversationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Id for the current chat conversation." },
 				"associatedRequestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Another request ID that this request is associated with (eg, the originating request of a summarization request)." },
 				"parentRequestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "For a subagent: the request id of the main agent request that invoked this subagent." },
@@ -495,6 +503,7 @@ export class ChatMLFetcherTelemetrySender {
 			requestId: processed.requestId,
 			gitHubRequestId: processed.serverRequestId,
 			copilotServiceRequestId: processed.copilotServiceRequestId,
+			...gitHubCopilotRequestTeProperty(processed.gitHubCopilotRequestTe),
 			model: chatEndpointInfo.model,
 			apiType: chatEndpointInfo.apiType,
 			conversationId: telemetryProperties?.conversationId,

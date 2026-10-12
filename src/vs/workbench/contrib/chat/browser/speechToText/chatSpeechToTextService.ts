@@ -17,6 +17,7 @@ import { IContextKey, IContextKeyService } from '../../../../../platform/context
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { IProgress, IProgressService, IProgressStep, Progress, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
+import { NotificationTelemetryId } from '../../../../../platform/notification/common/notificationTelemetry.js';
 import { DeferredPromise, raceCancellation, raceTimeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -1185,6 +1186,7 @@ export class ChatSpeechToTextService extends Disposable implements IChatSpeechTo
 			let report: IProgress<IProgressStep> = Progress.None;
 			this._progressService.withProgress({
 				location: ProgressLocation.Notification,
+				telemetry: NotificationTelemetryId.DictationModelPrepare,
 				title: localize('chatStt.preparingModel', "Preparing speech-to-text model…"),
 				delay: 500,
 			}, progress => {

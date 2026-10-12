@@ -8,7 +8,7 @@ import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { ChatProgressAnimation, ChatProgressVerbosity } from '../../../../contrib/chat/common/constants.js';
-import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
+import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup, waitForFixtureCondition } from '../fixtureUtils.js';
 import { IChatWidgetFixtureHandle, renderChatWidget } from './chatWidget.fixture.js';
 
 async function waitForListToSettle(container: HTMLElement, listWidget: IChatWidgetFixtureHandle['listWidget'], waitForIdle = false): Promise<void> {
@@ -209,7 +209,98 @@ async function renderReasoningExpansion(context: ComponentFixtureContext): Promi
 	await waitForListToSettle(context.container, handle.listWidget, true);
 }
 
+async function renderBottomProgress(context: ComponentFixtureContext): Promise<void> {
+	const { container, disposableStore } = context;
+	container.style.width = '500px';
+	const controls = dom.append(container, dom.$('div', { role: 'group', 'aria-label': 'Bottom progress scenario controls' }));
+	controls.style.display = 'flex';
+	controls.style.gap = 'var(--vscode-spacing-size80)';
+	const measurements = dom.append(container, dom.$('div.bottom-progress-measurements'));
+	measurements.textContent = 'Progress movement: 0px';
+	const preview = dom.append(container, dom.$('div'));
+	let handle: IChatWidgetFixtureHandle | undefined;
+	await renderChatWidget({ ...context, container: preview }, {
+		width: 500, height: 420, listHeight: 420, inputVisible: false,
+		persistentProgress: ChatProgressAnimation.Draw,
+		persistentProgressVerbosity: ChatProgressVerbosity.Verbose,
+		thinkingPhrases: ['Evaluating'],
+		collapseCompletedResponses: false,
+		messages: [{
+			user: 'Review the earlier results',
+			assistant: [{ kind: 'markdown', text: Array.from({ length: 20 }, (_, index) => `Earlier paragraph ${index}.`).join('\n\n') }],
+		}, {
+			user: 'Continue the response',
+			responseComplete: false,
+			assistant: [{ kind: 'markdown', text: 'Starting response.' }],
+		}],
+		onRendered: rendered => handle = rendered,
+	});
+	if (!handle) {
+		throw new Error('The bottom progress fixture did not initialize');
+	}
+	const { model, listWidget } = handle;
+	const request = model.getRequests().at(-1);
+	if (!request) {
+		throw new Error('The bottom progress fixture requires a request');
+	}
+	const measure = () => {
+		const progress = preview.querySelector<HTMLElement>('.chat-working-progress');
+		const label = progress?.querySelector<HTMLElement>('.progress-step');
+		const icon = progress?.querySelector<HTMLElement>('.chat-progress-icon');
+		if (!progress || !label || !icon) {
+			throw new Error('The bottom progress row did not render');
+		}
+		return {
+			top: progress.getBoundingClientRect().top,
+			label: label.getBoundingClientRect().top,
+			icon: icon.getBoundingClientRect().top,
+			scrollTop: listWidget.scrollTop,
+			atBottom: listWidget.isScrolledToBottom,
+		};
+	};
+	let paragraph = 0;
+	for (const { label, run } of [{
+		label: 'Stream Paragraphs',
+		run: async () => {
+			const samples = [measure()];
+			for (let step = 0; step < 8; step++) {
+				const text = `Streamed paragraph ${++paragraph}.`;
+				model.acceptResponseProgress(request, {
+					kind: 'markdownContent', content: new MarkdownString(`\n\n${text}\n\n`),
+				});
+				await waitForFixtureCondition(() => preview.textContent?.includes(text) === true, 'The streamed paragraph did not render');
+				await waitForListToSettle(preview, listWidget);
+				samples.push(measure());
+			}
+			measurements.dataset.samples = JSON.stringify(samples);
+			measurements.textContent = `Progress movement: ${Math.max(...samples.map(sample => sample.top)) - Math.min(...samples.map(sample => sample.top))}px`;
+		},
+	}, {
+		label: 'Scroll Up',
+		run: async () => { listWidget.scrollTop -= 100; },
+	}, {
+		label: 'Scroll to Bottom',
+		run: async () => { listWidget.scrollToEnd(); },
+	}]) {
+		const button = disposableStore.add(new Button(controls, { ...defaultButtonStyles, secondary: true }));
+		button.label = label;
+		disposableStore.add(button.onDidClick(async () => {
+			button.enabled = false;
+			try {
+				await run();
+			} finally {
+				button.enabled = true;
+			}
+		}));
+	}
+	await waitForListToSettle(preview, listWidget);
+	listWidget.scrollToEnd();
+	await waitForListToSettle(preview, listWidget, true);
+	measurements.dataset.initial = JSON.stringify(measure());
+}
+
 export default defineThemedFixtureGroup({ path: 'chat/scrollAnchoring/' }, {
+	BottomProgress: defineComponentFixture({ deferPaint: true, virtualTime: { enabled: false }, render: renderBottomProgress }),
 	StreamingVisibleHeader: defineComponentFixture({ deferPaint: true, virtualTime: { enabled: false }, render: context => renderScrollAnchoring(context, false, false) }),
 	StreamingOffscreenHeader: defineComponentFixture({ deferPaint: true, virtualTime: { enabled: false }, render: context => renderScrollAnchoring(context, false, true) }),
 	CompletedVisibleHeader: defineComponentFixture({ deferPaint: true, virtualTime: { enabled: false }, render: context => renderScrollAnchoring(context, true, false) }),

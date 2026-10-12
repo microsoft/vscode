@@ -7,6 +7,7 @@ import { VSBufferReadableStream } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { isUNC } from '../../../../base/common/extpath.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { isWindows } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { FileOperationError, FileOperationResult, IFileService, IWriteFileOptions } from '../../../../platform/files/common/files.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -106,6 +107,10 @@ export function getResourceToLoad(
 	uriIdentityService: IUriIdentityService,
 ): URI | undefined {
 	const requestUriNoQueryString = requestUri.with({ query: '' });
+	if (hasWindowsParentTraversalSegment(requestUriNoQueryString)) {
+		return undefined;
+	}
+
 	for (const root of roots) {
 		if (containsResource(root, requestUriNoQueryString, uriIdentityService)) {
 			return normalizeResourcePath(requestUri);
@@ -147,6 +152,14 @@ function containsResource(root: URI, resource: URI, uriIdentityService: IUriIden
 	}
 
 	return uriIdentityService.extUri.isEqualOrParent(resource, root, /* ignoreFragment */ true);
+}
+
+const WINDOWS_PARENT_TRAVERSAL_SEGMENT = /(?:^|[\\/])\.\. +(?=$|[\\/])/;
+
+function hasWindowsParentTraversalSegment(resource: URI): boolean {
+	return isWindows
+		&& resource.scheme === Schemas.file
+		&& WINDOWS_PARENT_TRAVERSAL_SEGMENT.test(resource.path);
 }
 
 function normalizeResourcePath(resource: URI): URI {

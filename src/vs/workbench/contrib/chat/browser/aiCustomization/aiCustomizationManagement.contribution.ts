@@ -36,8 +36,9 @@ import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../services/agentHost/comm
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IWorkbenchExtensionManagementService } from '../../../../services/extensionManagement/common/extensionManagement.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { AICustomizationSources, getCustomizationMigrationHintDismissedStorageKey, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
+import { AICustomizationSources, getCustomizationMigrationHintDismissedStorageKey, IAICustomizationMarketplaceOpenTarget, IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
+import { ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
@@ -136,6 +137,7 @@ type AICustomizationContext = {
 	name?: string;
 	promptType?: PromptsType;
 	storage?: PromptsStorage;
+	skipMarketplaceUninstall?: boolean;
 	[key: string]: unknown;
 } | URI | string;
 
@@ -198,6 +200,10 @@ function extractItemId(context: AICustomizationContext): string | undefined {
 		return undefined;
 	}
 	return typeof context.itemId === 'string' ? context.itemId : undefined;
+}
+
+function shouldSkipMarketplaceUninstall(context: AICustomizationContext): boolean {
+	return !URI.isUri(context) && typeof context !== 'string' && context.skipMarketplaceUninstall === true;
 }
 
 /**
@@ -315,6 +321,14 @@ registerAction2(class extends Action2 {
 		const itemId = extractItemId(context);
 		const isSkill = promptType === PromptsType.skill;
 		const isHook = promptType === PromptsType.hook;
+		if (isSkill && !shouldSkipMarketplaceUninstall(context)) {
+			const marketplaceInstallService = accessor.get(ICustomizationMarketplaceInstallService);
+			const marketplace = marketplaceInstallService.installations.get().findByTarget({ kind: 'skill', uri });
+			if (marketplace) {
+				await marketplaceInstallService.uninstall(marketplace.resource);
+				return;
+			}
+		}
 		// For skills, use the parent folder name since skills are structured as <skillname>/SKILL.md.
 		const fileName = isSkill ? basename(dirname(uri)) : basename(uri);
 
@@ -852,13 +866,14 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 				});
 			}
 
-			async run(accessor: ServicesAccessor, section?: AICustomizationManagementSection): Promise<void> {
+			async run(accessor: ServicesAccessor, target?: AICustomizationManagementSection | IAICustomizationMarketplaceOpenTarget): Promise<void> {
 				const editorService = accessor.get(IEditorService);
 				const input = AICustomizationManagementEditorInput.getOrCreate();
 				const pane = await editorService.openEditor(input, { pinned: true });
 				if (pane instanceof AICustomizationManagementEditor) {
-					const targetSection = section ?? AICustomizationManagementSection.McpServers;
-					pane.selectSectionById(targetSection, { showMarketplace: true });
+					const section = typeof target === 'string' ? target : target?.section ?? AICustomizationManagementSection.McpServers;
+					const sourceId = typeof target === 'string' ? undefined : target?.sourceId;
+					pane.selectSectionById(section, { showMarketplace: true, marketplaceSourceId: sourceId });
 				}
 			}
 		}));

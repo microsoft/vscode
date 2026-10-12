@@ -161,6 +161,59 @@ suite('AgentHostStartupPerformance', () => {
 		]);
 	});
 
+	test('discovery milestones remain independent of scan attempts and the registration retry cap', () => {
+		const telemetry = new TestAgentHostStartupTelemetryService();
+		let now = 10;
+		const performance = disposables.add(new AgentHostStartupPerformance(AgentHostLaunchKind.Unknown, undefined, telemetry, new NullLogService(), () => now));
+		for (const outcome of ['partial', 'error', 'cancelled'] as const) {
+			performance.start('sessionDiscoveryRegistration', 'codex')?.complete(outcome, { candidateSessionCount: 2 });
+		}
+		const pendingAfterCap = performance.isPending('firstSessionDiscoveryRegistration', 'codex');
+		now = 20;
+		performance.start('sessionDiscoveryScan', 'codex')?.complete('success', { scannedSessionCount: 99 });
+		now = 30;
+		performance.mark('firstSessionDiscoveryResult', { provider: 'codex', since: 'processStart', candidateSessionCount: 0 });
+		now = 40;
+		performance.mark('firstSessionDiscoveryRegistration', { provider: 'codex', since: 'processStart', candidateSessionCount: 0, registeredSessionCount: 0 });
+		performance.mark('firstSessionDiscoveryRegistration', { provider: 'codex', since: 'processStart', candidateSessionCount: 99 });
+
+		assert.deepStrictEqual({
+			pendingAfterCap,
+			pendingAfterCompletion: performance.isPending('firstSessionDiscoveryRegistration', 'codex'),
+			retry: performance.start('sessionDiscoveryRegistration', 'codex'),
+			milestones: telemetry.events.filter(event => String(event.data?.name).startsWith('firstSessionDiscovery')).map(({ data }) => [
+				data?.name, data?.since, data?.durationMs, data?.candidateSessionCount, data?.registeredSessionCount, data?.outcome,
+			]),
+		}, {
+			pendingAfterCap: true,
+			pendingAfterCompletion: false,
+			retry: undefined,
+			milestones: [
+				['firstSessionDiscoveryResult', 'processStart', 30, 0, undefined, undefined],
+				['firstSessionDiscoveryRegistration', 'processStart', 40, 0, 0, undefined],
+			],
+		});
+	});
+
+	test('pending discovery milestones normalize providers and consume disabled observations without replay', () => {
+		const telemetry = new TestAgentHostStartupTelemetryService();
+		telemetry.telemetryLevel = TelemetryLevel.NONE;
+		const performance = disposables.add(new AgentHostStartupPerformance(AgentHostLaunchKind.Unknown, undefined, telemetry, new NullLogService(), () => 10));
+		const pendingBefore = performance.isPending('firstSessionDiscoveryResult', 'private-provider');
+		performance.mark('firstSessionDiscoveryResult', { provider: 'private-provider', since: 'processStart' });
+		telemetry.telemetryLevel = TelemetryLevel.USAGE;
+		const pendingAfter = performance.isPending('firstSessionDiscoveryResult', 'another-private-provider');
+		performance.mark('firstSessionDiscoveryResult', { provider: 'another-private-provider', since: 'processStart', candidateSessionCount: 100 });
+		performance.dispose();
+
+		assert.deepStrictEqual({
+			pendingBefore,
+			pendingAfter,
+			pendingAfterDisposal: performance.isPending('firstSessionDiscoveryRegistration', 'codex'),
+			events: telemetry.events,
+		}, { pendingBefore: true, pendingAfter: false, pendingAfterDisposal: false, events: [] });
+	});
+
 	test('provider context snapshots are bounded, normalized, and never overwritten by later activation', () => {
 		const telemetry = new TestAgentHostStartupTelemetryService();
 		let clockReads = 0;

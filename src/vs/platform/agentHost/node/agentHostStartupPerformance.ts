@@ -13,8 +13,8 @@ import { AgentHostLaunchKind } from '../common/agentHostTelemetry.js';
 
 export const IAgentHostStartupPerformance = createDecorator<IAgentHostStartupPerformance>('agentHostStartupPerformance');
 
-type StartupMilestone = 'processStart' | 'bootstrapStart' | 'configuration' | 'telemetry' | 'services' | 'bootstrap' | 'hostReady' | 'firstSessionList' | 'startupSettled' | 'providerContext';
-type StartupOperation = 'sessionList' | 'sessionMigration' | 'sessionMigrationScan' | 'sessionDiscoveryScan' | 'sessionMetadataScan';
+type StartupMilestone = 'processStart' | 'bootstrapStart' | 'configuration' | 'telemetry' | 'services' | 'bootstrap' | 'hostReady' | 'firstSessionList' | 'startupSettled' | 'providerContext' | 'firstSessionDiscoveryResult' | 'firstSessionDiscoveryRegistration';
+type StartupOperation = 'sessionList' | 'sessionMigration' | 'sessionMigrationScan' | 'sessionDiscoveryScan' | 'sessionMetadataScan' | 'sessionDiscoveryRegistration';
 type StartupMarkName = StartupMilestone | StartupOperation | `${StartupOperation}Start`;
 export type AgentHostStartupOutcome = 'success' | 'error' | 'unavailable' | 'deferred' | 'partial' | 'cancelled';
 type StartupProvider = 'host' | 'copilotcli' | 'claude' | 'codex' | 'other';
@@ -23,6 +23,9 @@ export interface IAgentHostStartupMetrics {
 	scannedSessionCount?: number;
 	pageCount?: number;
 	truncated?: boolean;
+	candidateSessionCount?: number;
+	externalSessionCount?: number;
+	filteredSessionCount?: number;
 	registeredSessionCount?: number;
 	copilotSessionCount?: number;
 	claudeSessionCount?: number;
@@ -83,6 +86,10 @@ export class AgentHostStartupMarks {
 
 	constructor(private readonly _now: () => number = () => performance.now()) { }
 
+	has(name: StartupMilestone, provider?: string): boolean {
+		return this._marks.has(`${name}/${getStartupProvider(provider)}`);
+	}
+
 	mark(name: StartupMilestone, data: IStartupMarkData = {}): void {
 		const provider = getStartupProvider(data.provider);
 		const key = `${name}/${provider}`;
@@ -115,6 +122,8 @@ export interface IAgentHostStartupPerformance {
 	readonly _serviceBrand: undefined;
 	readonly agentHostSessionId: string;
 	readonly isEnabled: boolean;
+	/** Whether a milestone is still unobserved, independently of operation sampling and consent. */
+	isPending(name: StartupMilestone, provider?: string): boolean;
 	/** Records a milestone once per provider, optionally measuring from an explicitly named earlier milestone. */
 	mark(name: StartupMilestone, data?: IStartupMarkData): void;
 	/** Pairs start/end markers for one operation, bounded to three attempts and stopping after success. */
@@ -145,7 +154,10 @@ type StartupMarkClassification = {
 	scannedSessionCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Provider catalog entries returned by enumeration, before host visibility or migration filtering; not the number of physical files read by an SDK.' };
 	pageCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of provider catalog pages successfully read.' };
 	truncated?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether catalog enumeration ended before exhausting the provider cursor.' };
-	registeredSessionCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Host registrations before visibility filtering in the final session-list computation.' };
+	candidateSessionCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Classified candidates in the first provider discovery result, or entries in one host discovery registration batch; not a provider-wide catalog size.' };
+	externalSessionCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Discovery candidates classified as external by the provider, before host provenance and visibility checks.' };
+	filteredSessionCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Observed entries deliberately filtered by provider discovery, or skipped without a new registration by host discovery processing.' };
+	registeredSessionCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Host registrations before visibility filtering in the final session-list computation, or accepted registry writes in one discovery batch.' };
 	copilotSessionCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Copilot host registrations before visibility filtering, not the provider-wide scan count.' };
 	claudeSessionCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Claude host registrations before visibility filtering, not the provider-wide scan count.' };
 	codexSessionCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Codex host registrations before visibility filtering, not the provider-wide scan count.' };
@@ -162,8 +174,8 @@ type StartupMarkClassification = {
 	synchronizedSessionCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Migration candidates synchronized into the central catalog.' };
 	skippedSessionCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Migration candidates already current.' };
 	excludedSessionCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Migration candidates excluded from the host catalog.' };
-	incompleteSessionCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Migration candidates incomplete or carrying stale exclusions.' };
-	failedSessionCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Migration candidates whose processing failed.' };
+	incompleteSessionCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Migration candidates incomplete or carrying stale exclusions, or discovery candidates whose catalog synchronization remains pending.' };
+	failedSessionCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Migration or discovery candidates with an observed processing failure; a discovery registration may already have been accepted before a later failure.' };
 	migrationState?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the provider catalog was already backfilled for the current payload version at the start of this migration attempt, or unknown if the check failed.' };
 	migrationForced?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the migration attempt forces enumeration even when the provider catalog is already backfilled.' };
 	activationState?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Explicit activation gate state at the first provider catalog access check: active, inactive, notRequired, or unknown. Does not indicate authentication or connection readiness.' };
@@ -212,6 +224,10 @@ export class AgentHostStartupPerformance extends Disposable implements IAgentHos
 
 	get isEnabled(): boolean {
 		return !this._disposed && (this._telemetryService.telemetryLevel >= TelemetryLevel.USAGE || this._logService.getLevel() === LogLevel.Trace);
+	}
+
+	isPending(name: StartupMilestone, provider?: string): boolean {
+		return !this._disposed && !this._marks.has(name, provider);
 	}
 
 	mark(name: StartupMilestone, data?: IStartupMarkData): void {
@@ -332,6 +348,7 @@ export const NullAgentHostStartupPerformance: IAgentHostStartupPerformance = {
 	_serviceBrand: undefined,
 	agentHostSessionId: '',
 	isEnabled: false,
+	isPending: () => false,
 	start: () => undefined,
 	mark: () => { },
 };

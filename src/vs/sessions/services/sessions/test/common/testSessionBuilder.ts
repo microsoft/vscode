@@ -7,7 +7,8 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { ChatInteractivity, DEFAULT_CHAT_CAPABILITIES, IChat, ISession, ISessionChangesSummary, ISessionWorkspace, SessionStatus } from '../../common/session.js';
+import { ChatInteractivity, DEFAULT_CHAT_CAPABILITIES, IChat, ISession, ISessionApplication, ISessionChangesSummary, ISessionWorkspace, SessionStatus } from '../../common/session.js';
+import { getSessionApplication } from '../../../../common/sessionApplication.js';
 
 /** A peer chat of a {@link ITestSessionSpec}. */
 export interface ITestChatSpec {
@@ -16,8 +17,13 @@ export interface ITestChatSpec {
 	readonly title: string;
 	readonly workspace?: string;
 	readonly status?: SessionStatus;
+	/** Minutes since this chat was last updated; defaults to the session's {@link ITestSessionSpec.minutesAgo}. */
+	readonly minutesAgo?: number;
+	/** Whether this chat's modified time is resolved; defaults to `true`. */
+	readonly hasModifiedTime?: boolean;
 	readonly interactivity?: ChatInteractivity;
 	readonly isArchived?: boolean;
+	readonly isRead?: boolean;
 	/** Whether the chat can be archived on its own; defaults to `false`, like {@link DEFAULT_CHAT_CAPABILITIES}. */
 	readonly canArchive?: boolean;
 }
@@ -27,6 +33,9 @@ export interface ITestSessionSpec {
 	/** The session id, from which the session and chat resources derive. */
 	readonly id: string;
 	readonly title: string;
+	readonly harness?: string;
+	readonly environment?: string;
+	readonly application?: string;
 	/** Workspace label. Omit for a session without a workspace. */
 	readonly workspace?: string;
 	readonly workspaceFolders?: readonly [string, ...string[]];
@@ -34,6 +43,12 @@ export interface ITestSessionSpec {
 	readonly status?: SessionStatus;
 	/** Status of the main chat when it differs from the session status. */
 	readonly mainChatStatus?: SessionStatus;
+	/** Minutes since the main chat was last updated; defaults to {@link minutesAgo}. */
+	readonly mainChatMinutesAgo?: number;
+	/** Whether the main chat's modified time is resolved; defaults to `true`. */
+	readonly mainChatHasModifiedTime?: boolean;
+	/** Read state of the main chat when it differs from the session read state. */
+	readonly mainChatIsRead?: boolean;
 	/** Status description rendered as markdown. */
 	readonly description?: string;
 	/** Minutes since the session was last updated. */
@@ -55,12 +70,15 @@ export interface ITestChat {
 	readonly chat: IChat;
 	readonly title: ISettableObservable<string>;
 	readonly status: ISettableObservable<SessionStatus>;
+	readonly updatedAt: ISettableObservable<Date | undefined>;
 	readonly isArchived: ISettableObservable<boolean>;
+	readonly isRead: ISettableObservable<boolean>;
 }
 
 /** A session built from a {@link ITestSessionSpec}, with handles to change its state. */
 export interface ITestSession {
 	readonly session: ISession;
+	readonly application: ISettableObservable<ISessionApplication>;
 	readonly mainChat: ITestChat;
 	/** Peer chats by {@link ITestChatSpec.id}. */
 	readonly chats: ReadonlyMap<string, ITestChat>;
@@ -93,16 +111,18 @@ export function buildTestWorkspace(label: string, folderLabels: readonly [string
 	};
 }
 
-function buildTestChat(resource: URI, spec: Omit<ITestChatSpec, 'id'>, createdAt: Date, updatedAt: Date): ITestChat {
+function buildTestChat(resource: URI, spec: Omit<ITestChatSpec, 'id'>, createdAt: Date, updatedAt: Date | undefined): ITestChat {
 	const title = observableValue('testChatTitle', spec.title);
 	const status = observableValue('testChatStatus', spec.status ?? SessionStatus.Completed);
+	const updatedAtObservable = observableValue<Date | undefined>('testChatUpdatedAt', updatedAt);
 	const isArchived = observableValue('testChatIsArchived', spec.isArchived ?? false);
+	const isRead = observableValue('testChatIsRead', spec.isRead ?? true);
 	const chat: IChat = {
 		resource,
 		createdAt,
 		workspace: constObservable(spec.workspace ? buildTestWorkspace(spec.workspace) : undefined),
 		title,
-		updatedAt: constObservable(updatedAt),
+		updatedAt: updatedAtObservable,
 		status,
 		changes: constObservable([]),
 		changesets: constObservable([]),
@@ -111,13 +131,13 @@ function buildTestChat(resource: URI, spec: Omit<ITestChatSpec, 'id'>, createdAt
 		modelSource: constObservable(undefined),
 		mode: constObservable(undefined),
 		isArchived,
-		isRead: constObservable(true),
+		isRead,
 		interactivity: constObservable(spec.interactivity ?? ChatInteractivity.Full),
 		description: constObservable(undefined),
 		lastTurnEnd: constObservable(undefined),
 		capabilities: constObservable({ ...DEFAULT_CHAT_CAPABILITIES, canArchive: spec.canArchive ?? DEFAULT_CHAT_CAPABILITIES.canArchive }),
 	};
-	return { chat, title, status, isArchived };
+	return { chat, title, status, updatedAt: updatedAtObservable, isArchived, isRead };
 }
 
 /** Builds a complete {@link ISession}, with times relative to `now`. */
@@ -125,16 +145,24 @@ export function buildTestSession(spec: ITestSessionSpec, now: number = Date.now(
 	const updatedAt = new Date(now - (spec.minutesAgo ?? 0) * 60_000);
 	const createdAt = new Date(now - (spec.createdMinutesAgo ?? spec.minutesAgo ?? 0) * 60_000);
 	const status = observableValue('testSessionStatus', spec.status ?? SessionStatus.Completed);
-	const mainChat = buildTestChat(getTestChatResource(spec.id, 'main'), { title: spec.title, status: spec.mainChatStatus ?? spec.status }, createdAt, updatedAt);
-	const chats = new Map((spec.chats ?? []).map(chat => [chat.id, buildTestChat(getTestChatResource(spec.id, chat.id), chat, createdAt, updatedAt)] as const));
+	const mainChatUpdatedAt = spec.mainChatHasModifiedTime === false ? undefined : new Date(now - (spec.mainChatMinutesAgo ?? spec.minutesAgo ?? 0) * 60_000);
+	const mainChat = buildTestChat(getTestChatResource(spec.id, 'main'), { title: spec.title, status: spec.mainChatStatus ?? spec.status, isRead: spec.mainChatIsRead ?? spec.isRead }, createdAt, mainChatUpdatedAt);
+	const chats = new Map((spec.chats ?? []).map(chat => {
+		const chatUpdatedAt = chat.hasModifiedTime === false ? undefined : new Date(now - (chat.minutesAgo ?? spec.minutesAgo ?? 0) * 60_000);
+		return [chat.id, buildTestChat(getTestChatResource(spec.id, chat.id), chat, createdAt, chatUpdatedAt)] as const;
+	}));
 	const title = observableValue('testSessionTitle', spec.title);
 	const isRead = observableValue('testSessionIsRead', spec.isRead ?? true);
 	const isArchived = observableValue('testSessionIsArchived', spec.isArchived ?? false);
+	const application = observableValue('testSessionApplication', getSessionApplication(spec.application ?? 'vscode'));
 	const session: ISession = {
 		sessionId: spec.id,
 		resource: getTestSessionResource(spec.id),
 		providerId: 'local',
 		sessionType: 'local',
+		harness: spec.harness ?? 'copilot',
+		environment: spec.environment ?? 'local',
+		application,
 		icon: Codicon.account,
 		createdAt,
 		workspace: constObservable(spec.workspace ? buildTestWorkspace(spec.workspace, spec.workspaceFolders) : undefined),
@@ -159,5 +187,5 @@ export function buildTestSession(spec: ITestSessionSpec, now: number = Date.now(
 			supportsImport: spec.isExternal === true,
 		}),
 	};
-	return { session, mainChat, chats, title, status, isRead, isArchived };
+	return { session, application, mainChat, chats, title, status, isRead, isArchived };
 }

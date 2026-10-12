@@ -6,13 +6,39 @@
 import assert from 'assert';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { NewChatInputWidget } from '../../browser/newChatInput.js';
 import { areNewSessionWelcomePhrasesEnabled, isExperimentalSessionComposerLayoutEnabled } from '../../browser/newChatWidget.js';
-import { EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../common/constants.js';
+import { AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, UNIFIED_WORKSPACE_PICKER_SETTING } from '../../common/constants.js';
+import '../../browser/chat.contribution.js';
+
+// Capture the registered schema before configuration tests reset the shared registry.
+const experimentalNewSessionComposerLayoutProperty = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()[EXPERIMENTAL_NEW_SESSION_COMPOSER_LAYOUT_SETTING];
+const newSessionComposerOptionsExpandedProperty = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()[NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING];
+const agentsPickerInAttachContextMenuProperty = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()[AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING];
 
 suite('New session composer layout', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('can be configured in Agents settings', () => {
+		assert.deepStrictEqual({
+			layoutScope: experimentalNewSessionComposerLayoutProperty.scope,
+			optionsDefault: newSessionComposerOptionsExpandedProperty.default,
+			optionsScope: newSessionComposerOptionsExpandedProperty.scope,
+			optionsExperimentMode: newSessionComposerOptionsExpandedProperty.experiment?.mode,
+			agentsPickerScope: agentsPickerInAttachContextMenuProperty.scope,
+			agentsPickerExperiment: agentsPickerInAttachContextMenuProperty.experiment,
+		}, {
+			layoutScope: ConfigurationScope.WINDOW,
+			optionsDefault: true,
+			optionsScope: ConfigurationScope.APPLICATION,
+			optionsExperimentMode: 'auto',
+			agentsPickerScope: ConfigurationScope.WINDOW,
+			agentsPickerExperiment: { mode: 'auto' },
+		});
+	});
 
 	for (const testCase of [
 		{ unifiedPicker: false, experimentalLayout: false, expected: false },

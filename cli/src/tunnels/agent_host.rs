@@ -20,7 +20,7 @@ use hyper_util::server::conn::auto::Builder as ServerBuilder;
 use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::net::TcpListener;
-use tokio::sync::Mutex;
+use tokio::sync::{oneshot, Mutex};
 use tokio_tungstenite::tungstenite::protocol::Role;
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
@@ -36,7 +36,7 @@ use crate::state::LauncherPaths;
 use crate::update_service::{
 	unzip_downloaded_release, Platform, Release, TargetKind, UpdateService,
 };
-use crate::util::command::{kill_tree, new_script_command};
+use crate::util::command::{kill_tree, new_script_command, DetachFromParent};
 use crate::util::errors::{wrap, AnyError, CodeError};
 use crate::util::http::{self, BoxedHttp};
 use crate::util::http::{empty_body, full_body, HyperBody};
@@ -62,6 +62,29 @@ pub const STARTUP_TIMEOUT: Duration = Duration::from_secs(30);
 /// startup; its presence is what tells the server that it has a managing
 /// CLI and may therefore advertise the management RPC method to clients.
 pub const MANAGEMENT_SOCKET_ENV: &str = "VSCODE_AGENT_HOST_MANAGEMENT_SOCKET";
+const GITHUB_ENVIRONMENT_OPTIONS_ENV: &str = "VSCODE_CLI_GITHUB_ENVIRONMENT_OPTIONS";
+const GITHUB_ENVIRONMENT_READY_PREFIX: &str = "__VSCODE_GITHUB_ENVIRONMENT_READY__:";
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GithubEnvironmentConfig {
+	pub base_url: String,
+	pub account_id: String,
+	pub credential: String,
+	pub roots: Vec<String>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub name: Option<String>,
+	pub live: bool,
+}
+
+impl std::fmt::Debug for GithubEnvironmentConfig {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		f.debug_struct("GithubEnvironmentConfig")
+			.field("name", &self.name)
+			.field("roots", &self.roots)
+			.finish_non_exhaustive()
+	}
+}
 
 /// Environment variable holding a commit SHA used to override the agent
 /// host version the *first* time it is resolved. When set, the agent host
@@ -98,16 +121,26 @@ const UPGRADE_KILL_DELAY: Duration = Duration::from_secs(3);
 #[derive(Clone, Debug)]
 pub struct AgentHostConfig {
 	pub server_data_dir: Option<String>,
+	pub user_data_dir: Option<String>,
+	pub github_environment: Option<GithubEnvironmentConfig>,
 	pub telemetry_level: Option<TelemetryLevel>,
 	pub without_connection_token: bool,
 	pub connection_token: Option<String>,
 	pub connection_token_file: Option<String>,
 }
 
-/// State of the running VS Code server process.
+/// State of the running VS Code server process. The process itself is
+/// owned by `AgentHostManager::run_server` for its whole life, which also
+/// performs kills: only it reaps the process, so it can kill it before its
+/// PID is released and possibly reused.
 struct RunningServer {
-	child: tokio::process::Child,
 	commit: String,
+	/// Opens once the server process has exited.
+	exited: Barrier<()>,
+	/// Asks the task that owns the process to kill its process tree,
+	/// escalating to a forced kill if it hasn't exited within the given
+	/// duration.
+	kill: oneshot::Sender<Duration>,
 }
 
 /// Manages the VS Code server lifecycle: on-demand start, auto-restart
@@ -120,6 +153,7 @@ pub struct AgentHostManager {
 	update_service: UpdateService,
 	/// The latest known release, with the time it was checked.
 	latest_release: Mutex<Option<(Instant, Release)>>,
+	starting: Mutex<()>,
 	/// The currently running server, if any.
 	running: Mutex<Option<RunningServer>>,
 	/// Barrier that opens when a server is ready (socket path available).
@@ -137,6 +171,13 @@ pub struct AgentHostManager {
 	/// other. Set once download completes and the kill is scheduled;
 	/// cleared by the spawned task once the restart attempt finishes.
 	upgrade_in_progress: AtomicBool,
+	/// Reports each server process as `--idle-timeout` activity for as long
+	/// as it runs, or `None` when idle-timeout is disabled. The server is
+	/// started with `--enable-remote-auto-shutdown` and only exits on its
+	/// own once no agent session has a turn in progress and no client is
+	/// connected, so this keeps the supervisor from killing in-flight
+	/// sessions after the last client disconnects.
+	activity: Option<idle_timeout::ActivityTracker>,
 }
 
 impl AgentHostManager {
@@ -146,6 +187,7 @@ impl AgentHostManager {
 		cache: DownloadCache,
 		http: BoxedHttp,
 		config: AgentHostConfig,
+		activity: Option<idle_timeout::ActivityTracker>,
 	) -> Arc<Self> {
 		Arc::new(Self {
 			update_service: UpdateService::new(log.clone(), http),
@@ -154,16 +196,19 @@ impl AgentHostManager {
 			platform,
 			cache,
 			latest_release: Mutex::new(None),
+			starting: Mutex::new(()),
 			running: Mutex::new(None),
 			ready: Mutex::new(None),
 			management_socket_path: get_socket_name(),
 			management_listener_started: AtomicBool::new(false),
 			upgrade_in_progress: AtomicBool::new(false),
+			activity,
 		})
 	}
 
 	/// Returns an endpoint to a running agent host, starting one if needed.
-	async fn ensure_server(self: &Arc<Self>) -> Result<PathBuf, CodeError> {
+	pub async fn ensure_server(self: &Arc<Self>) -> Result<PathBuf, CodeError> {
+		let _starting = self.starting.lock().await;
 		// Fast path: if we already have a barrier, wait on it
 		{
 			let ready = self.ready.lock().await;
@@ -171,7 +216,10 @@ impl AgentHostManager {
 				if barrier.is_open() {
 					// Check if the process is still running
 					let running = self.running.lock().await;
-					if running.is_some() {
+					if running
+						.as_ref()
+						.is_some_and(|server| !server.exited.is_open())
+					{
 						return barrier
 							.clone()
 							.wait()
@@ -194,6 +242,22 @@ impl AgentHostManager {
 
 		// Need to start a new server
 		self.start_server().await
+	}
+
+	pub async fn maintain_server(self: &Arc<Self>) -> Result<(), CodeError> {
+		loop {
+			self.ensure_server().await?;
+			let exited = self
+				.running
+				.lock()
+				.await
+				.as_ref()
+				.map(|server| server.exited.clone());
+			if let Some(mut exited) = exited {
+				let _ = exited.wait().await;
+			}
+			warning!(self.log, "GitHub environment server exited; restarting");
+		}
 	}
 
 	/// Starts the server with the latest already-downloaded version.
@@ -228,7 +292,9 @@ impl AgentHostManager {
 			.map_err(CodeError::ServerDownloadError)
 	}
 
-	/// Runs the server process to completion, handling readiness signaling.
+	/// Runs the server process to completion: signals readiness through
+	/// `opener`, then waits for the process to exit, carrying out kill
+	/// requests from [`Self::kill_running_server`].
 	async fn run_server(
 		self: &Arc<Self>,
 		release: Release,
@@ -246,21 +312,35 @@ impl AgentHostManager {
 
 		let agent_host_socket = get_socket_name();
 		let mut cmd = new_script_command(&executable);
-		cmd.stdin(std::process::Stdio::null());
+		if self.config.github_environment.is_some() {
+			cmd.stdin(std::process::Stdio::piped());
+			cmd.detach_from_parent();
+		} else {
+			cmd.stdin(std::process::Stdio::null());
+		}
 		cmd.stderr(std::process::Stdio::piped());
 		cmd.stdout(std::process::Stdio::piped());
 		cmd.arg("--socket-path");
 		cmd.arg(get_socket_name());
 		cmd.arg("--agent-host-path");
 		cmd.arg(&agent_host_socket);
-		cmd.args([
-			"--start-server",
-			"--accept-server-license-terms",
-			"--enable-remote-auto-shutdown",
-		]);
+		cmd.args(["--start-server", "--accept-server-license-terms"]);
+		if let Some(options) = &self.config.github_environment {
+			cmd.env(
+				GITHUB_ENVIRONMENT_OPTIONS_ENV,
+				serde_json::to_string(options).unwrap(),
+			);
+		} else {
+			cmd.arg("--enable-remote-auto-shutdown");
+			cmd.env_remove(GITHUB_ENVIRONMENT_OPTIONS_ENV);
+		}
 
 		if let Some(a) = &self.config.server_data_dir {
 			cmd.arg("--server-data-dir");
+			cmd.arg(a);
+		}
+		if let Some(a) = &self.config.user_data_dir {
+			cmd.arg("--user-data-dir");
 			cmd.arg(a);
 		}
 		if let Some(level) = self.config.telemetry_level {
@@ -284,6 +364,11 @@ impl AgentHostManager {
 				return;
 			}
 		};
+		// Child::wait closes child.stdin, even when its future is cancelled by select!.
+		let mut stdin = child.stdin.take();
+
+		// Held until this server process ends; see `AgentHostManager::activity`.
+		let activity_guard = self.activity.as_ref().map(|a| a.client_connected());
 
 		let commit_prefix = &release.commit[..release.commit.len().min(7)];
 		let (mut stdout, mut stderr) = (
@@ -294,7 +379,12 @@ impl AgentHostManager {
 		// Wait for readiness with a timeout
 		let mut opener = Some(opener);
 		let socket_path = agent_host_socket.clone();
-		let startup_deadline = tokio::time::sleep(STARTUP_TIMEOUT);
+		let startup_timeout = if self.config.github_environment.is_some() {
+			Duration::from_secs(5 * 60)
+		} else {
+			STARTUP_TIMEOUT
+		};
+		let startup_deadline = tokio::time::sleep(startup_timeout);
 		tokio::pin!(startup_deadline);
 
 		let mut ready = false;
@@ -302,22 +392,37 @@ impl AgentHostManager {
 			tokio::select! {
 				Ok(Some(l)) = stdout.next_line() => {
 					debug!(self.log, "[{} stdout]: {}", commit_prefix, l);
-					if !ready && l.contains("Agent host server listening on") {
-						ready = true;
-						if let Some(o) = opener.take() {
-							o.open(Ok(socket_path.clone()));
+					let is_ready = if self.config.github_environment.is_some() {
+						if let Some(id) = l.strip_prefix(GITHUB_ENVIRONMENT_READY_PREFIX) {
+							info!(self.log, "GitHub environment ready (ID {})", id);
+							true
+						} else {
+							false
 						}
+					} else {
+						l.contains("Agent host server listening on")
+					};
+					if !ready && is_ready {
+						ready = true;
 					}
 				}
 				Ok(Some(l)) = stderr.next_line() => {
 					debug!(self.log, "[{} stderr]: {}", commit_prefix, l);
 				}
 				_ = &mut startup_deadline, if !ready => {
+					if self.config.github_environment.is_some() {
+						if let Some(pid) = child.id() {
+							let _ = kill_tree(pid).await;
+						}
+						let _ = child.start_kill();
+						let _ = child.wait().await;
+						if let Some(o) = opener.take() {
+							o.open(Err("GitHub environment did not become ready within 5 minutes; check the agent host supervisor log".into()));
+						}
+						return;
+					}
 					warning!(self.log, "[{}]: Server did not become ready within {}s", commit_prefix, STARTUP_TIMEOUT.as_secs());
 					// Don't fail — the server may still start up, just slowly
-					if let Some(o) = opener.take() {
-						o.open(Ok(socket_path.clone()));
-					}
 					ready = true;
 				}
 				e = child.wait() => {
@@ -338,42 +443,100 @@ impl AgentHostManager {
 		}
 
 		// Store the running server state
+		let (exited, exited_opener) = new_barrier::<()>();
+		let (kill, mut kill_rx) = oneshot::channel::<Duration>();
 		{
 			let mut running = self.running.lock().await;
 			*running = Some(RunningServer {
-				child,
 				commit: release.commit.clone(),
+				exited,
+				kill,
 			});
+		}
+		if let Some(opener) = opener.take() {
+			opener.open(Ok(socket_path));
 		}
 
 		info!(self.log, "[{}]: Server ready", commit_prefix);
 
-		// Continue reading output until the process exits
+		// Keep logging output until the pipes close. Descendants of the server
+		// can inherit the pipes and keep them open after it exits, so this is
+		// not used to detect the exit; the process is waited on below.
 		let log = self.log.clone();
-		let commit_prefix = commit_prefix.to_string();
-		let self_clone = self.clone();
+		let output_prefix = commit_prefix.to_string();
 		tokio::spawn(async move {
 			loop {
 				tokio::select! {
 					Ok(Some(l)) = stdout.next_line() => {
-						debug!(log, "[{} stdout]: {}", commit_prefix, l);
+						debug!(log, "[{} stdout]: {}", output_prefix, l);
 					}
 					Ok(Some(l)) = stderr.next_line() => {
-						debug!(log, "[{} stderr]: {}", commit_prefix, l);
+						debug!(log, "[{} stderr]: {}", output_prefix, l);
 					}
 					else => break,
 				}
 			}
+		});
 
-			// Server process has exited (auto-shutdown or crash)
-			info!(log, "[{}]: Server process ended", commit_prefix);
-			let mut running = self_clone.running.lock().await;
-			if let Some(r) = &*running {
-				if r.commit == commit_prefix || r.commit.starts_with(&commit_prefix) {
-					*running = None;
+		// Either the process exits on its own and is reaped here, or a kill
+		// request arrives first and is carried out before the process is
+		// reaped, so `kill_tree` never signals a PID the OS could reuse.
+		let status = tokio::select! {
+			status = child.wait() => status,
+			Ok(reap_timeout) = &mut kill_rx => {
+				let graceful_status = if self.config.github_environment.is_some() {
+					drop(stdin.take());
+					match tokio::time::timeout(reap_timeout, child.wait()).await {
+						Ok(status) => Some(status),
+						Err(_) => {
+							warning!(self.log, "GitHub environment did not shut down gracefully; terminating it");
+							None
+						}
+					}
+				} else {
+					None
+				};
+				if let Some(status) = graceful_status {
+					status
+				} else {
+					if let Some(pid) = child.id() {
+						let _ = kill_tree(pid).await;
+					}
+					// Bound the wait so a process that ignores SIGTERM can't
+					// wedge the supervisor's shutdown or upgrade path.
+					match tokio::time::timeout(reap_timeout, child.wait()).await {
+						Ok(status) => status,
+						Err(_) => {
+							warning!(
+								self.log,
+								"Server did not exit within {:?} after kill_tree; escalating to SIGKILL",
+								reap_timeout
+							);
+							let _ = child.start_kill();
+							child.wait().await
+						}
+					}
 				}
 			}
-		});
+		};
+
+		// Server process has exited (auto-shutdown, crash, or kill)
+		info!(
+			self.log,
+			"[{}]: Server process exited: {:?}", commit_prefix, status
+		);
+		// Open before locking `running`: `kill_running_server` holds that
+		// lock while it waits for this barrier.
+		exited_opener.open(());
+		{
+			// Clear the slot unless a newer server that is still running
+			// has already replaced this one.
+			let mut running = self.running.lock().await;
+			if running.as_ref().is_some_and(|r| r.exited.is_open()) {
+				*running = None;
+			}
+		}
+		drop(activity_guard);
 	}
 
 	/// Returns a release and its local directory. Prefers the latest known
@@ -582,29 +745,30 @@ impl AgentHostManager {
 	/// `child.kill()` only terminates the shim and reparents the node child to
 	/// PID 1, leaking it. `kill_tree` signals the shim and its descendants so
 	/// the node process is reaped along with the launcher. See issue #319516.
+	/// The kill is carried out by the task that owns the process, before it
+	/// is reaped, so it can't target a PID the OS has already reused.
 	pub async fn kill_running_server(&self) {
+		let timeout = if self.config.github_environment.is_some() {
+			Duration::from_secs(25)
+		} else {
+			Duration::from_secs(5)
+		};
+		self.kill_running_server_within(timeout).await
+	}
+
+	/// [`Self::kill_running_server`], escalating to a forced kill if the
+	/// server hasn't exited within `reap_timeout`. Tests pass a short timeout
+	/// so they don't have to wait out the default.
+	async fn kill_running_server_within(&self, reap_timeout: Duration) {
 		let mut running = self.running.lock().await;
-		if let Some(mut server) = running.take() {
-			if let Some(pid) = server.child.id() {
-				let _ = kill_tree(pid).await;
-			}
-			// Reap the child so we don't leave a zombie. Bound the wait so a
-			// process that ignores SIGTERM can't wedge the supervisor's
-			// shutdown or upgrade path; escalate to SIGKILL via Child::kill if
-			// the graceful shutdown doesn't land in time.
-			const REAP_TIMEOUT: Duration = Duration::from_secs(5);
-			if tokio::time::timeout(REAP_TIMEOUT, server.child.wait())
-				.await
-				.is_err()
-			{
-				warning!(
-					self.log,
-					"Server did not exit within {}s after kill_tree; escalating to SIGKILL",
-					REAP_TIMEOUT.as_secs()
-				);
-				let _ = server.child.kill().await;
-				let _ = server.child.wait().await;
-			}
+		if let Some(RunningServer {
+			kill, mut exited, ..
+		}) = running.take()
+		{
+			// Ignored if the process already exited on its own; either way
+			// `exited` opens once the owning task has reaped it.
+			let _ = kill.send(reap_timeout);
+			let _ = exited.wait().await;
 		}
 	}
 
@@ -820,7 +984,7 @@ impl AgentHostManager {
 			self_clone.kill_running_server().await;
 			// Eagerly spin up the new server so the next dial sees a
 			// ready endpoint instead of paying for startup again.
-			match self_clone.start_server().await {
+			match self_clone.ensure_server().await {
 				Ok(_) => info!(self_clone.log, "Restarted agent host on {}", release_commit),
 				Err(e) => warning!(
 					self_clone.log,
@@ -1037,11 +1201,6 @@ pub struct AgentHostSidecar {
 	listener: TcpListener,
 	bound_addr: SocketAddr,
 	public_token: Option<String>,
-	/// The host label published to the registry for this sidecar (see
-	/// [`Self::bind_tcp`]'s `host_label` parameter). Kept so
-	/// [`Self::active_agent_host`] can hand back exactly the identity
-	/// this sidecar published, without re-deriving it from `bound_addr`.
-	host_label: String,
 	user_data_path: PathBuf,
 	instance_id: String,
 	pid: u32,
@@ -1086,7 +1245,6 @@ impl AgentHostSidecar {
 		addr: SocketAddr,
 		host_label: Option<String>,
 		loopback_auth: LoopbackAuth,
-		tunnel_name: Option<String>,
 		user_data_path: PathBuf,
 		instance_id: String,
 		activity: Option<idle_timeout::ActivityTracker>,
@@ -1109,12 +1267,12 @@ impl AgentHostSidecar {
 		let entry = AgentHostEndpointMetadata::new_standalone(
 			pid,
 			instance_id.clone(),
-			host.clone(),
+			host,
 			bound_addr.port(),
 			public_token.clone().unwrap_or_default(),
 			AGENT_HOST_PROTOCOL_VERSION.to_string(),
 			VSCODE_CLI_QUALITY.map(str::to_string),
-			tunnel_name,
+			None,
 		);
 
 		// Registry publish does blocking filesystem I/O (write a temp file and
@@ -1152,54 +1310,12 @@ impl AgentHostSidecar {
 			listener,
 			bound_addr,
 			public_token,
-			host_label: host,
 			user_data_path,
 			instance_id,
 			pid,
 			registry_cleaned_up: AtomicBool::new(false),
 			activity,
 		}))
-	}
-
-	/// This sidecar's identity in the same shape as
-	/// [`super::control_server::SharedActiveAgentHost`]'s resolved value,
-	/// exactly matching what [`Self::bind_tcp`] published to the shared
-	/// endpoint registry (pid, host, port, token). Lets a caller that
-	/// already *is* the running supervisor (e.g. `code agent host
-	/// --tunnel` routing its own tunneled `/agent-host` port) build a
-	/// ready [`super::control_server::SharedActiveAgentHost`] -- see
-	/// [`super::control_server::ready_active_agent_host`] -- without going
-	/// through `ensure_supervisor_running`'s registry lookup/spawn path,
-	/// which exists for callers that do *not* already know whether a
-	/// supervisor is running.
-	pub fn active_agent_host(&self) -> crate::commands::agent_host::ActiveAgentHost {
-		crate::commands::agent_host::ActiveAgentHost {
-			pid: self.pid,
-			host: Some(self.host_label.clone()),
-			port: self.bound_addr.port(),
-			token: self.public_token.clone(),
-		}
-	}
-
-	/// Returns a cloned handle for reporting client activity to
-	/// `--idle-timeout` bookkeeping, or `None` when idle-timeout is
-	/// disabled.
-	///
-	/// Callers serving connections this sidecar did not accept itself (the
-	/// dev-tunnel-hosted port in `run_supervisor`, which is handed sockets
-	/// by the tunnel relay rather than by [`Self::serve`]'s accept loop)
-	/// must report each connection and attach the resulting guard to that
-	/// connection's transport with [`idle_timeout::GuardedStream`], so the
-	/// client counts as activity for as long as it stays connected.
-	pub fn activity_tracker(&self) -> Option<idle_timeout::ActivityTracker> {
-		self.activity.clone()
-	}
-
-	/// Returns the wrapped manager, e.g. so callers can pre-fetch the latest
-	/// release, run an update loop, or directly serve tunnel-relayed
-	/// connections that bypass the public connection token.
-	pub fn manager(&self) -> Arc<AgentHostManager> {
-		self.manager.clone()
 	}
 
 	/// The address the local TCP listener is bound to.
@@ -1250,36 +1366,6 @@ impl AgentHostSidecar {
 					});
 				}
 			}
-		}
-	}
-
-	/// Serves a single connection coming from the dev tunnel. The relay
-	/// authenticates the caller, so this path bypasses the public connection
-	/// token check used by [`serve`](Self::serve).
-	pub async fn serve_tunnel_connection<RW>(&self, rw: RW)
-	where
-		RW: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + 'static,
-	{
-		debug!(self.log, "Serving tunnel agent host connection");
-		// Attached to the stream, same as the local accept loop in
-		// `serve`, so a tunnel-relayed client also counts as activity for
-		// `--idle-timeout` bookkeeping for as long as it stays connected
-		// -- including after a WebSocket upgrade.
-		let rw = idle_timeout::GuardedStream::new(
-			rw,
-			self.activity.as_ref().map(|a| a.client_connected()),
-		);
-		let mgr = self.manager.clone();
-		let svc = service_fn(move |req| {
-			let mgr = mgr.clone();
-			async move { handle_request(mgr, req).await }
-		});
-		let io = TokioIo::new(rw);
-		if let Err(e) = ServerBuilder::new(TokioExecutor::new())
-			.serve_connection_with_upgrades(io, svc)
-			.await
-		{
-			debug!(self.log, "Tunnel agent host connection ended: {:?}", e);
 		}
 	}
 
@@ -1378,10 +1464,7 @@ impl LoopbackAuth {
 	}
 }
 
-/// Wraps [`handle_request`] with public connection-token enforcement. Used by
-/// the local TCP accept loop; tunnel connections served through
-/// [`AgentHostSidecar::serve_tunnel_connection`] bypass this check because
-/// the relay provides its own authentication.
+/// Wraps [`handle_request`] with public connection-token enforcement for the local TCP accept loop.
 async fn handle_request_with_auth(
 	manager: Arc<AgentHostManager>,
 	req: Request<Incoming>,
@@ -1423,7 +1506,7 @@ pub enum AgentHostReuseDecision {
 	/// A live standalone agent host supervisor owns a registry entry.
 	/// Tunnel callers should forward to `127.0.0.1:port` instead of
 	/// binding a second listener / publishing a conflicting entry. `host`
-	/// and `tunnel_name` expose the supervisor's effective config so
+	/// exposes the supervisor's effective config so
 	/// foreground callers can detect a configuration conflict and refuse
 	/// to silently reuse.
 	Reuse {
@@ -1431,7 +1514,6 @@ pub enum AgentHostReuseDecision {
 		host: Option<String>,
 		port: u16,
 		token: Option<String>,
-		tunnel_name: Option<String>,
 		/// This entry's stable identity within the registry, used by
 		/// `--replace` to scope removal to exactly this instance.
 		instance_id: String,
@@ -1461,7 +1543,6 @@ pub async fn classify_agent_host(
 			} else {
 				Some(selected.connection_token)
 			},
-			tunnel_name: selected.tunnel_name,
 			instance_id: selected.instance_id,
 		},
 		None => AgentHostReuseDecision::SpawnFresh,
@@ -1480,17 +1561,6 @@ pub async fn classify_agent_host(
 /// selection path never drives `active_agent_host` from here either --
 /// only an actual legacy request does, so a tunnel that nobody connects
 /// to never spawns a standalone supervisor by itself.
-///
-/// This is the single request router shared by every caller that hosts
-/// the forwarded agent-host tunnel port, regardless of who owns
-/// `active_agent_host`: `code tunnel`'s `control_server` passes a lazily
-/// `ensure_supervisor_running`-backed future (it may not know of a live
-/// supervisor yet), while `code agent host --tunnel` passes an
-/// already-resolved [`super::control_server::ready_active_agent_host`]
-/// pointing at its own running sidecar (see
-/// [`AgentHostSidecar::active_agent_host`]) -- it already *is* the
-/// supervisor, so it must never call `ensure_supervisor_running` (which
-/// could spawn or reuse an unrelated one) from this path.
 ///
 /// `user_data_path` is passed in explicitly (rather than re-resolved
 /// internally) so it reflects whatever `--user-data-dir` (if any) the
@@ -2253,6 +2323,13 @@ mod tests {
 	use std::path::Path;
 
 	fn make_test_manager(cache_dir: &Path) -> Arc<AgentHostManager> {
+		make_test_manager_with_activity(cache_dir, None)
+	}
+
+	fn make_test_manager_with_activity(
+		cache_dir: &Path,
+		activity: Option<idle_timeout::ActivityTracker>,
+	) -> Arc<AgentHostManager> {
 		AgentHostManager::new(
 			log::Logger::test(),
 			Platform::LinuxX64,
@@ -2260,12 +2337,402 @@ mod tests {
 			Arc::new(ReqwestSimpleHttp::new()),
 			AgentHostConfig {
 				server_data_dir: None,
+				user_data_dir: None,
+				github_environment: None,
 				telemetry_level: None,
 				without_connection_token: true,
 				connection_token: None,
 				connection_token_file: None,
 			},
+			activity,
 		)
+	}
+
+	/// Installs a fake server release under `dir` whose entrypoint reports
+	/// readiness and then runs `body`, and starts it the way `start_server`
+	/// does: `run_server` owns the process until it exits, so it is spawned
+	/// and only its readiness is awaited here. The returned handle completes
+	/// once the process has exited.
+	#[cfg(unix)]
+	async fn start_fake_server(
+		manager: &Arc<AgentHostManager>,
+		dir: &Path,
+		body: &str,
+	) -> tokio::task::JoinHandle<()> {
+		use std::os::unix::fs::PermissionsExt;
+
+		let release = Release {
+			name: String::new(),
+			commit: "0123456789abcdef".to_string(),
+			platform: Platform::LinuxX64,
+			target: TargetKind::Server,
+			quality: Quality::Insiders,
+		};
+		let server_dir = dir.join("server-install");
+		let bin_dir = server_dir.join(SERVER_FOLDER_NAME).join("bin");
+		std::fs::create_dir_all(&bin_dir).unwrap();
+		let script = bin_dir.join(release.quality.server_entrypoint());
+		std::fs::write(
+			&script,
+			format!("#!/bin/sh\necho 'Agent host server listening on test'\n{body}\n"),
+		)
+		.unwrap();
+		std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+		let (mut ready, opener) = new_barrier::<Result<PathBuf, String>>();
+		let manager = manager.clone();
+		let server =
+			tokio::spawn(async move { manager.run_server(release, server_dir, opener).await });
+		assert!(ready.wait().await.unwrap().is_ok());
+		server
+	}
+
+	#[cfg(unix)]
+	#[tokio::test]
+	async fn github_environment_waits_for_remote_readiness_and_forwards_bootstrap() {
+		let dir = tempfile::tempdir().unwrap();
+		let mut manager = make_test_manager_with_activity(dir.path(), None);
+		let options = GithubEnvironmentConfig {
+			base_url: "https://api.github.com".into(),
+			account_id: "123".into(),
+			credential: "test-credential".into(),
+			roots: vec![dir.path().to_string_lossy().into_owned()],
+			name: Some("build-machine".into()),
+			live: true,
+		};
+		let config = &mut Arc::get_mut(&mut manager).unwrap().config;
+		config.github_environment = Some(options.clone());
+		config.user_data_dir = Some(dir.path().join("profile").to_string_lossy().into_owned());
+		let gate = dir.path().join("relay-ready");
+		let bootstrap = dir.path().join("bootstrap.json");
+		let argv = dir.path().join("argv");
+		let manager_for_start = manager.clone();
+		let path = dir.path().to_path_buf();
+		let body = format!(
+			"printf '%s' \"$VSCODE_CLI_GITHUB_ENVIRONMENT_OPTIONS\" > '{}'\n\
+			 printf '%s\\n' \"$@\" > '{}'\n\
+			 i=0; while [ ! -e '{}' ] && [ $i -lt 100 ]; do sleep 0.05; i=$((i+1)); done\n\
+			 echo '{}environment-123'",
+			bootstrap.display(),
+			argv.display(),
+			gate.display(),
+			GITHUB_ENVIRONMENT_READY_PREFIX,
+		);
+		let mut start =
+			tokio::spawn(async move { start_fake_server(&manager_for_start, &path, &body).await });
+		let early = tokio::time::timeout(Duration::from_millis(200), &mut start).await;
+		std::fs::write(&gate, b"").unwrap();
+		let server = tokio::time::timeout(Duration::from_secs(5), start)
+			.await
+			.unwrap()
+			.unwrap();
+		server.await.unwrap();
+		assert!(
+			early.is_err(),
+			"local listener must not report GitHub environment readiness"
+		);
+		assert_eq!(
+			serde_json::from_str::<serde_json::Value>(&std::fs::read_to_string(bootstrap).unwrap())
+				.unwrap(),
+			serde_json::to_value(&options).unwrap()
+		);
+		let argv = std::fs::read_to_string(argv).unwrap();
+		assert!(argv.contains("--user-data-dir\n"));
+		assert!(!argv.contains("--enable-remote-auto-shutdown"));
+		assert!(!argv.contains("test-credential"));
+		assert!(!format!("{options:?}").contains("test-credential"));
+	}
+
+	#[cfg(unix)]
+	#[tokio::test]
+	async fn github_environment_shuts_down_by_closing_parent_stdin() {
+		let dir = tempfile::tempdir().unwrap();
+		let mut manager = make_test_manager_with_activity(dir.path(), None);
+		Arc::get_mut(&mut manager)
+			.unwrap()
+			.config
+			.github_environment = Some(GithubEnvironmentConfig {
+			base_url: "https://api.github.com".into(),
+			account_id: "123".into(),
+			credential: "test-credential".into(),
+			roots: vec![dir.path().to_string_lossy().into_owned()],
+			name: None,
+			live: true,
+		});
+		let stopped = dir.path().join("graceful-stop");
+		let server = start_fake_server(
+			&manager,
+			dir.path(),
+			&format!(
+				"echo '{}environment-123'\nread ignored\nprintf 'withdrawn' > '{}'",
+				GITHUB_ENVIRONMENT_READY_PREFIX,
+				stopped.display(),
+			),
+		)
+		.await;
+		tokio::time::timeout(Duration::from_secs(3), manager.kill_running_server())
+			.await
+			.unwrap();
+		server.await.unwrap();
+		assert_eq!(std::fs::read_to_string(stopped).unwrap(), "withdrawn");
+	}
+
+	#[cfg(unix)]
+	async fn make_cached_github_environment_manager(
+		dir: &Path,
+		body: &str,
+	) -> Arc<AgentHostManager> {
+		use std::os::unix::fs::PermissionsExt;
+
+		let mut manager = make_test_manager(dir);
+		Arc::get_mut(&mut manager)
+			.unwrap()
+			.config
+			.github_environment = Some(GithubEnvironmentConfig {
+			base_url: "https://api.github.com".into(),
+			account_id: "123".into(),
+			credential: "test-credential".into(),
+			roots: vec![dir.to_string_lossy().into_owned()],
+			name: None,
+			live: true,
+		});
+		let release = Release {
+			name: String::new(),
+			commit: "0123456789abcdef".into(),
+			platform: Platform::LinuxX64,
+			target: TargetKind::Server,
+			quality: Quality::Insiders,
+		};
+		let bin = dir
+			.join(get_server_folder_name(release.quality, &release.commit))
+			.join(SERVER_FOLDER_NAME)
+			.join("bin");
+		std::fs::create_dir_all(&bin).unwrap();
+		let script = bin.join(release.quality.server_entrypoint());
+		std::fs::write(&script, format!("#!/bin/sh\n{body}\n")).unwrap();
+		std::fs::set_permissions(script, std::fs::Permissions::from_mode(0o755)).unwrap();
+		*manager.latest_release.lock().await = Some((Instant::now(), release));
+		manager
+	}
+
+	#[cfg(unix)]
+	#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+	async fn github_environment_readiness_waits_for_running_server_state() {
+		let dir = tempfile::tempdir().unwrap();
+		let emitted = dir.path().join("readiness-emitted");
+		let manager = make_cached_github_environment_manager(
+			dir.path(),
+			&format!(
+				"echo '{}environment-123'\nprintf 'ready' > '{}'\nread ignored",
+				GITHUB_ENVIRONMENT_READY_PREFIX,
+				emitted.display(),
+			),
+		)
+		.await;
+		let running = manager.running.lock().await;
+		let manager_for_start = manager.clone();
+		let start = tokio::spawn(async move { manager_for_start.ensure_server().await });
+		tokio::time::timeout(Duration::from_secs(5), async {
+			while !emitted.exists() {
+				tokio::time::sleep(Duration::from_millis(10)).await;
+			}
+		})
+		.await
+		.unwrap();
+		let mut ready = manager.ready.lock().await.as_ref().unwrap().clone();
+		let early = tokio::time::timeout(Duration::from_millis(100), ready.wait()).await;
+		drop(running);
+		tokio::time::timeout(Duration::from_secs(5), start)
+			.await
+			.unwrap()
+			.unwrap()
+			.unwrap();
+		let recorded = manager.running.lock().await.is_some();
+		manager.kill_running_server().await;
+		assert!(
+			early.is_err(),
+			"readiness must wait until the process is tracked"
+		);
+		assert!(recorded);
+	}
+
+	#[cfg(unix)]
+	#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+	async fn github_environment_maintainer_restarts_then_stops_without_orphaning_server() {
+		let dir = tempfile::tempdir().unwrap();
+		let starts = dir.path().join("starts");
+		let crash = dir.path().join("crash");
+		let stopped = dir.path().join("stopped");
+		let manager = make_cached_github_environment_manager(
+			dir.path(),
+			&format!(
+				"echo '{}environment-123'\n\
+			 if [ ! -e '{}' ]; then\n\
+			 printf 'first\\n' > '{}'\n\
+			 while [ ! -e '{}' ]; do sleep 0.01; done\n\
+			 exit 1\n\
+			 fi\n\
+			 printf 'second\\n' >> '{}'\n\
+			 read ignored\n\
+			 printf 'withdrawn' > '{}'",
+				GITHUB_ENVIRONMENT_READY_PREFIX,
+				starts.display(),
+				starts.display(),
+				crash.display(),
+				starts.display(),
+				stopped.display(),
+			),
+		)
+		.await;
+		let manager_for_maintenance = manager.clone();
+		let (shutdown, mut shutdown_rx) = oneshot::channel::<()>();
+		let maintenance = tokio::spawn(async move {
+			tokio::select! {
+				result = manager_for_maintenance.maintain_server() => result.unwrap(),
+				_ = &mut shutdown_rx => {},
+			}
+		});
+		manager.ensure_server().await.unwrap();
+		std::fs::write(crash, b"").unwrap();
+		tokio::time::timeout(Duration::from_secs(5), async {
+			while !starts.exists() || std::fs::read_to_string(&starts).unwrap() != "first\nsecond\n"
+			{
+				tokio::time::sleep(Duration::from_millis(10)).await;
+			}
+		})
+		.await
+		.unwrap();
+		shutdown.send(()).unwrap();
+		maintenance.await.unwrap();
+		tokio::time::timeout(Duration::from_secs(3), manager.kill_running_server())
+			.await
+			.unwrap();
+		assert_eq!(std::fs::read_to_string(starts).unwrap(), "first\nsecond\n");
+		assert_eq!(std::fs::read_to_string(stopped).unwrap(), "withdrawn");
+		assert!(manager.running.lock().await.is_none());
+	}
+
+	#[cfg(unix)]
+	#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+	async fn github_environment_serializes_upgrade_restart_with_maintenance() {
+		let dir = tempfile::tempdir().unwrap();
+		let starts = dir.path().join("starts");
+		let manager = make_cached_github_environment_manager(
+			dir.path(),
+			&format!(
+				"printf 'started\\n' >> '{}'\necho '{}environment-123'\nread ignored",
+				starts.display(),
+				GITHUB_ENVIRONMENT_READY_PREFIX,
+			),
+		)
+		.await;
+		let manager_for_maintenance = manager.clone();
+		let maintenance =
+			tokio::spawn(async move { manager_for_maintenance.maintain_server().await });
+		manager.ensure_server().await.unwrap();
+		manager.kill_running_server().await;
+		tokio::time::timeout(Duration::from_secs(5), manager.ensure_server())
+			.await
+			.unwrap()
+			.unwrap();
+		maintenance.abort();
+		let _ = maintenance.await;
+		manager.kill_running_server().await;
+		assert_eq!(
+			std::fs::read_to_string(starts).unwrap(),
+			"started\nstarted\n"
+		);
+		assert!(manager.running.lock().await.is_none());
+	}
+
+	/// Regression test for managed agent hosts losing in-flight sessions
+	/// 300s after the last client disconnects: `--idle-timeout` only
+	/// counted connected clients, so it killed the server even while a
+	/// turn was still running. The server process must count as activity
+	/// until it exits on its own (it stays up while any turn is active),
+	/// and no longer once it has, even if a descendant still holds its
+	/// output pipes open.
+	#[cfg(unix)]
+	#[tokio::test]
+	async fn run_server_reports_activity_until_server_exits() {
+		let dir = tempfile::tempdir().unwrap();
+		let (tracker, mut activity_rx) = idle_timeout::new_activity_channel();
+		let manager = make_test_manager_with_activity(dir.path(), Some(tracker));
+
+		// Leaves behind a child holding the server's stdout/stderr, then keeps
+		// running until the test creates `stop_file`. Both are bounded so a
+		// failed test can't leak them.
+		let stop_file = dir.path().join("stop");
+		let lingering_pid_file = dir.path().join("lingering.pid");
+		let server = start_fake_server(
+			&manager,
+			dir.path(),
+			&format!(
+				"sleep 30 &\necho $! > '{}'\ni=0\nwhile [ ! -e '{}' ] && [ $i -lt 600 ]; do sleep 0.05; i=$((i+1)); done",
+				lingering_pid_file.display(),
+				stop_file.display()
+			),
+		)
+		.await;
+
+		let connected = tokio::time::timeout(Duration::from_secs(5), activity_rx.recv())
+			.await
+			.expect("did not observe a Connected activity event in time");
+		assert_eq!(connected, Some(idle_timeout::ActivityEvent::Connected));
+		assert!(
+			activity_rx.try_recv().is_err(),
+			"server activity must not end while the server is still running"
+		);
+
+		std::fs::write(&stop_file, b"").unwrap();
+
+		let disconnected = tokio::time::timeout(Duration::from_secs(10), activity_rx.recv()).await;
+		if let Ok(pid) = std::fs::read_to_string(&lingering_pid_file) {
+			let _ = std::process::Command::new("kill").arg(pid.trim()).status();
+		}
+		assert_eq!(
+			disconnected.expect("did not observe a Disconnected activity event in time"),
+			Some(idle_timeout::ActivityEvent::Disconnected)
+		);
+		assert!(manager.running.lock().await.is_none());
+		server.await.unwrap();
+	}
+
+	/// `kill_running_server` must end a server that ignores SIGTERM by
+	/// escalating to a forced kill, and its activity must end with it.
+	#[cfg(unix)]
+	#[tokio::test]
+	async fn kill_running_server_escalates_when_server_ignores_sigterm() {
+		let dir = tempfile::tempdir().unwrap();
+		let (tracker, mut activity_rx) = idle_timeout::new_activity_channel();
+		let manager = make_test_manager_with_activity(dir.path(), Some(tracker));
+		let server = start_fake_server(
+			&manager,
+			dir.path(),
+			"trap '' TERM\ni=0\nwhile [ $i -lt 600 ]; do sleep 0.05; i=$((i+1)); done",
+		)
+		.await;
+		assert_eq!(
+			activity_rx.recv().await,
+			Some(idle_timeout::ActivityEvent::Connected)
+		);
+
+		tokio::time::timeout(
+			Duration::from_secs(10),
+			manager.kill_running_server_within(Duration::from_millis(200)),
+		)
+		.await
+		.expect("kill_running_server did not finish");
+		assert!(manager.running.lock().await.is_none());
+
+		let disconnected = tokio::time::timeout(Duration::from_secs(5), activity_rx.recv())
+			.await
+			.expect("did not observe a Disconnected activity event in time");
+		assert_eq!(
+			disconnected,
+			Some(idle_timeout::ActivityEvent::Disconnected)
+		);
+		server.await.unwrap();
 	}
 
 	#[tokio::test]
@@ -2369,7 +2836,6 @@ mod tests {
 			SocketAddr::from(([127, 0, 0, 1], 0)),
 			Some("localhost".to_string()),
 			LoopbackAuth::Token("tok".to_string()),
-			Some("my-tunnel".to_string()),
 			user_data_path.clone(),
 			"instance-a".to_string(),
 			None,
@@ -2385,7 +2851,7 @@ mod tests {
 		assert_eq!(entry.pid, std::process::id());
 		assert_eq!(entry.instance_id, "instance-a");
 		assert_eq!(entry.connection_token, "tok");
-		assert_eq!(entry.tunnel_name.as_deref(), Some("my-tunnel"));
+		assert_eq!(entry.tunnel_name, None);
 		assert_eq!(entry.protocol_version, AGENT_HOST_PROTOCOL_VERSION);
 		match &entry.endpoint {
 			AgentHostEndpointAddress::Tcp { host, port } => {
@@ -2410,7 +2876,6 @@ mod tests {
 			SocketAddr::from(([127, 0, 0, 1], 0)),
 			None,
 			LoopbackAuth::Disabled,
-			None,
 			user_data_path.clone(),
 			"instance-activity".to_string(),
 			Some(tracker),
@@ -2570,7 +3035,6 @@ mod tests {
 				SocketAddr::from(([127, 0, 0, 1], 0)),
 				None,
 				LoopbackAuth::Disabled,
-				None,
 				user_data_path.clone(),
 				"instance-fallback".to_string(),
 				None,
@@ -2617,7 +3081,6 @@ mod tests {
 			SocketAddr::from(([127, 0, 0, 1], 0)),
 			None,
 			LoopbackAuth::Disabled,
-			None,
 			user_data_path.clone(),
 			"instance-c".to_string(),
 			None,
@@ -2665,7 +3128,6 @@ mod tests {
 			SocketAddr::from(([127, 0, 0, 1], 0)),
 			None,
 			LoopbackAuth::Disabled,
-			None,
 			user_data_path.clone(),
 			"instance-shutdown-then-drop".to_string(),
 			None,
@@ -2758,7 +3220,6 @@ mod tests {
 				host: Some("127.0.0.1".to_string()),
 				port,
 				token: Some("registry-tok".to_string()),
-				tunnel_name: None,
 				instance_id: "instance-registry".to_string(),
 			}
 		);
@@ -3043,30 +3504,6 @@ mod tests {
 		port
 	}
 
-	/// Like [`spawn_fake_target_endpoint`], but keeps echoing for as long
-	/// as the client stays connected instead of closing after one message.
-	/// Needed when a test must distinguish "the proxied session is still
-	/// live" from "the target hung up".
-	async fn spawn_persistent_fake_target_endpoint() -> u16 {
-		let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-		let port = listener.local_addr().unwrap().port();
-		tokio::spawn(async move {
-			loop {
-				let (stream, _) = listener.accept().await.unwrap();
-				tokio::spawn(async move {
-					if let Ok(mut ws) = tokio_tungstenite::accept_async(stream).await {
-						while let Some(Ok(msg)) = ws.next().await {
-							if msg.is_text() && ws.send(msg).await.is_err() {
-								break;
-							}
-						}
-					}
-				});
-			}
-		});
-		port
-	}
-
 	/// Drives a full client-side selection session against an in-process
 	/// [`run_gateway_session`] over an in-memory duplex pipe, returning the
 	/// client's WebSocket end after the initial inventory message (parsed
@@ -3315,24 +3752,17 @@ mod tests {
 		assert!(ack.contains(r#""ok":false"#), "got: {ack}");
 	}
 
-	// ---- Direct-hosted tunnel router (`serve_agent_host_tunnel_connection`) --
-	//
-	// These exercise the exact request router `code agent host --tunnel`'s
-	// `run_supervisor` now dispatches its dev-tunnel-hosted `AGENT_HOST_PORT`
-	// connections through -- previously it called
-	// `AgentHostSidecar::serve_tunnel_connection` unconditionally, which
-	// never looked at the request path, so a renderer's `/agent-host/select`
-	// upgrade (sent because the tunnel is tagged with the current
-	// `PROTOCOL_VERSION_TAG`, see `constants::PROTOCOL_VERSION`'s doc
-	// comment) fell straight through to the AH backend and no inventory was
-	// ever sent.
+	fn ready_active_agent_host(
+		active: crate::commands::agent_host::ActiveAgentHost,
+	) -> super::super::control_server::SharedActiveAgentHost {
+		use futures::FutureExt;
 
-	/// Accepts exactly one raw TCP connection, reads until the request's
-	/// header terminator, and replies with a fixed HTTP/1.1 body -- a
-	/// minimal stand-in for "the current sidecar's own local accept loop"
-	/// so tests can assert the direct-hosted-tunnel router's root/default
-	/// route reaches *this* fake endpoint specifically, without needing a
-	/// real `AgentHostManager`-backed server.
+		futures::future::ready(Ok(Arc::new(active)))
+			.boxed()
+			.shared()
+	}
+
+	/// Replies to one HTTP request with a fixed body to test the legacy tunnel route.
 	async fn spawn_fake_http_endpoint(body: &'static str) -> u16 {
 		use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
@@ -3362,33 +3792,20 @@ mod tests {
 		port
 	}
 
-	/// The root/default route of the direct-hosted-tunnel router must
-	/// resolve to exactly the `ActiveAgentHost` the caller already handed
-	/// it -- mirroring how `run_supervisor` builds one from its own
-	/// running sidecar's published identity (see
-	/// `AgentHostSidecar::active_agent_host`) -- rather than falling back
-	/// to some other discovery/spawn path. The registry here is left
-	/// completely empty (no `standalone`/`editor` entries at all): if the
-	/// router ever ignored the passed-in `active_agent_host` and instead
-	/// consulted the registry (e.g. via `ensure_supervisor_running`), it
-	/// would either 503 or try to spawn a brand-new supervisor process
-	/// instead of reaching the fake endpoint below, so reaching it proves
-	/// neither happened.
 	#[tokio::test]
-	async fn direct_tunnel_root_route_reaches_current_sidecar_without_spawning_supervisor() {
+	async fn tunnel_root_route_reaches_resolved_supervisor() {
 		let dir = tempfile::tempdir().unwrap();
 		let user_data_path = dir.path().join("user-data");
 		let launcher_paths = LauncherPaths::new_without_replacements(dir.path().to_path_buf());
 
 		let fake_port = spawn_fake_http_endpoint("current-sidecar-ok").await;
-		let active_agent_host = crate::tunnels::control_server::ready_active_agent_host(
-			crate::commands::agent_host::ActiveAgentHost {
+		let active_agent_host =
+			ready_active_agent_host(crate::commands::agent_host::ActiveAgentHost {
 				pid: std::process::id(),
 				host: Some("127.0.0.1".to_string()),
 				port: fake_port,
 				token: None,
-			},
-		);
+			});
 
 		let (client_io, server_io) = tokio::io::duplex(64 * 1024);
 		tokio::spawn(async move {
@@ -3424,14 +3841,13 @@ mod tests {
 		let dir = tempfile::tempdir().unwrap();
 		let user_data_path = dir.path().join("user-data");
 		let launcher_paths = LauncherPaths::new_without_replacements(dir.path().to_path_buf());
-		let active_agent_host = crate::tunnels::control_server::ready_active_agent_host(
-			crate::commands::agent_host::ActiveAgentHost {
+		let active_agent_host =
+			ready_active_agent_host(crate::commands::agent_host::ActiveAgentHost {
 				pid: 0,
 				host: Some("127.0.0.1".to_string()),
 				port: 1,
 				token: None,
-			},
-		);
+			});
 
 		let (client_io, server_io) = tokio::io::duplex(64 * 1024);
 		tokio::spawn(async move {
@@ -3465,28 +3881,9 @@ mod tests {
 		);
 	}
 
-	/// End-to-end regression test for the reported tunnel inventory
-	/// timeout: drives an actual HTTP/1 WebSocket upgrade request for
-	/// `AGENT_HOST_GATEWAY_SELECT_PATH` through
-	/// `serve_agent_host_tunnel_connection` -- the same router
-	/// `run_supervisor` now uses for `code agent host --tunnel`'s
-	/// dev-tunnel-hosted `AGENT_HOST_PORT` -- and observes the inventory
-	/// message the gateway sends immediately after upgrading. The
-	/// root/default route is deliberately pointed at an unreachable
-	/// address (port `1`, universally reserved/refused) so the test also
-	/// proves the select path never touches the legacy direct-proxy route
-	/// at all: if it did, this would hang or error instead of yielding an
-	/// inventory immediately.
-	///
-	/// This also ties the tunnel's protocol tag to the served route: the
-	/// tunnel `code agent host --tunnel` creates is tagged with the
-	/// current `PROTOCOL_VERSION_TAG` (`constants::PROTOCOL_VERSION`,
-	/// currently `6`), which is exactly the version that introduced this
-	/// selection route (see that constant's doc comment) -- so a tunnel
-	/// tagged this way must always be served by a router that understands
-	/// `AGENT_HOST_GATEWAY_SELECT_PATH`.
+	/// The selection route must return inventory without consulting the legacy supervisor.
 	#[tokio::test]
-	async fn direct_tunnel_select_route_dispatches_gateway_and_returns_inventory() {
+	async fn tunnel_select_route_dispatches_gateway_and_returns_inventory() {
 		const {
 			assert!(
 				crate::constants::PROTOCOL_VERSION >= 6,
@@ -3507,8 +3904,8 @@ mod tests {
 		)
 		.unwrap();
 
-		let active_agent_host = crate::tunnels::control_server::ready_active_agent_host(
-			crate::commands::agent_host::ActiveAgentHost {
+		let active_agent_host =
+			ready_active_agent_host(crate::commands::agent_host::ActiveAgentHost {
 				pid: 0,
 				host: Some("127.0.0.1".to_string()),
 				// Port 1 is a reserved, universally-refused TCP port: any
@@ -3516,8 +3913,7 @@ mod tests {
 				// immediately rather than silently succeeding.
 				port: 1,
 				token: None,
-			},
-		);
+			});
 
 		let (client_io, server_io) = tokio::io::duplex(64 * 1024);
 		tokio::spawn(async move {
@@ -3546,113 +3942,5 @@ mod tests {
 		let endpoints = inventory["endpoints"].as_array().unwrap();
 		assert_eq!(endpoints.len(), 1);
 		assert_eq!(endpoints[0]["instanceId"], "instance-direct-tunnel");
-	}
-
-	/// The dev-tunnel-hosted port in `run_supervisor` is handed sockets by
-	/// the tunnel relay, so they never pass through
-	/// `AgentHostSidecar::serve`'s accept loop and get no guard from it.
-	/// The gateway's inner dial back into our own listener does not cover
-	/// this either: a client still deciding what to select, or one whose
-	/// selection resolves to a *different* endpoint (as here), never
-	/// reaches that accept loop, so the supervisor owning the tunnel would
-	/// see zero clients and could time itself out while actively proxying.
-	///
-	/// Drives the real router (`serve_agent_host_tunnel_connection`) over a
-	/// guarded transport, exactly as `run_supervisor` now wires it up.
-	#[tokio::test]
-	async fn tunnel_hosted_gateway_connection_counts_as_activity_for_its_whole_session() {
-		let dir = tempfile::tempdir().unwrap();
-		let user_data_path = dir.path().join("user-data");
-		let launcher_paths = LauncherPaths::new_without_replacements(dir.path().to_path_buf());
-		let (tracker, mut activity_rx) = idle_timeout::new_activity_channel();
-
-		// A live endpoint that is *not* this supervisor, so a selection
-		// resolving to it never dials our own listener.
-		let target_port = spawn_persistent_fake_target_endpoint().await;
-		let entry = make_tcp_endpoint("instance-other-host", target_port, "");
-		agent_host_registry::publish_agent_host_endpoint(
-			&log::Logger::test(),
-			&user_data_path,
-			&entry,
-		)
-		.unwrap();
-
-		let active_agent_host = crate::tunnels::control_server::ready_active_agent_host(
-			crate::commands::agent_host::ActiveAgentHost {
-				pid: 0,
-				host: Some("127.0.0.1".to_string()),
-				port: 1,
-				token: None,
-			},
-		);
-
-		let (client_io, server_io) = tokio::io::duplex(64 * 1024);
-		let server_io =
-			idle_timeout::GuardedStream::new(server_io, Some(tracker.client_connected()));
-		tokio::spawn(async move {
-			serve_agent_host_tunnel_connection(
-				log::Logger::test(),
-				server_io,
-				active_agent_host,
-				launcher_paths,
-				user_data_path,
-				false,
-			)
-			.await;
-		});
-
-		let (mut client_ws, _resp) = tokio_tungstenite::client_async(
-			format!("ws://localhost{AGENT_HOST_GATEWAY_SELECT_PATH}"),
-			client_io,
-		)
-		.await
-		.expect("gateway select upgrade should succeed");
-
-		assert_eq!(
-			activity_rx.recv().await,
-			Some(idle_timeout::ActivityEvent::Connected)
-		);
-
-		match client_ws.next().await {
-			Some(Ok(Message::Text(_))) => {}
-			other => panic!("expected inventory message, got {other:?}"),
-		}
-
-		// Select the *other* endpoint and exchange a frame through the
-		// proxy, proving the session is live and served entirely by this
-		// tunnel connection without any inner dial back into our listener.
-		client_ws
-			.send(Message::Text(
-				r#"{"instanceId":"instance-other-host"}"#.into(),
-			))
-			.await
-			.unwrap();
-		match client_ws.next().await {
-			Some(Ok(Message::Text(t))) => {
-				let ack: serde_json::Value = serde_json::from_str(&t).unwrap();
-				assert_eq!(ack["ok"], true);
-			}
-			other => panic!("expected selection ack, got {other:?}"),
-		}
-		client_ws.send(Message::Text("ping".into())).await.unwrap();
-		match client_ws.next().await {
-			Some(Ok(Message::Text(t))) => assert_eq!(t.as_str(), "ping"),
-			other => panic!("expected proxied echo, got {other:?}"),
-		}
-
-		let premature = tokio::time::timeout(Duration::from_millis(500), activity_rx.recv()).await;
-		assert!(
-			premature.is_err(),
-			"a proxied tunnel client must count as activity for its whole session, got {premature:?}"
-		);
-
-		drop(client_ws);
-		let disconnected = tokio::time::timeout(Duration::from_secs(2), activity_rx.recv())
-			.await
-			.expect("did not observe a Disconnected activity event in time");
-		assert_eq!(
-			disconnected,
-			Some(idle_timeout::ActivityEvent::Disconnected)
-		);
 	}
 }
