@@ -603,7 +603,7 @@ suite('Agent Edit Attribution Service', () => {
 		for (const [turnId, fusionModel] of [['turn-1', 'hydrafusion'], ['turn-2', 'hydrafusion-max'], ['turn-3', undefined]] as const) {
 			const newText = String.fromCharCode(text.charCodeAt(text.length - 1) + 1);
 			markers.push(await service.recordEdit({
-				sessionUri, turnId, toolCallId: `tool-${turnId}`, filePath: resource.fsPath,
+				sessionUri, ownerSessionUri: sessionUri, turnId, toolCallId: `tool-${turnId}`, filePath: resource.fsPath,
 				beforeText: text, afterText: text + newText, changes: [{ startOffset: text.length, endOffsetExclusive: text.length, newText }],
 				modelId: 'gpt-5', ...(fusionModel ? { fusionModel } : {}), toolName: 'edit',
 			}));

@@ -142,7 +142,7 @@ suite('agentHost editSurvivalReporter', () => {
 			const filePath = `/workspace/${toolCallId}.ts`;
 			await fileService.writeFile(URI.file(filePath), VSBuffer.fromString('after-text'));
 			disposables.add(factory.launch({
-				sessionUri: 'copilotcli:/session-1', turnId: 'turn-1', toolCallId, filePath,
+				sessionUri: 'copilotcli:/session-1', ownerSessionUri: 'copilotcli:/session-1', turnId: 'turn-1', toolCallId, filePath,
 				beforeText: 'before-text', afterText: 'after-text', isCreate: false, modelId: 'gpt-5', toolName: 'edit',
 				...(fusionModel ? { fusionModel } : {}),
 			}));
