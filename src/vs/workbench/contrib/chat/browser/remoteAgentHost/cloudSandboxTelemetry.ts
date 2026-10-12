@@ -175,9 +175,17 @@ export class CloudSandboxTelemetryService extends Disposable implements ICloudSa
 		}
 		const environmentOperation = context?.environmentKind === 'user-local' ? 'attach' : source === 'created' ? 'provision' : 'resume';
 		const connection = new CloudSandboxConnectionTelemetry(stage, surface, source, context?.environmentKind ?? 'cloud', environmentOperation, context?.provisioningStartedAt, event => {
-			this._telemetryService.publicLog2<CloudSandboxConnectionOutcomeEvent, CloudSandboxConnectionOutcomeClassification>('cloudSandboxConnectionOutcome', event);
+			if (event.environmentKind === 'user-local') {
+				this._telemetryService.publicLog2<CloudSandboxConnectionOutcomeEvent, CloudSandboxConnectionOutcomeClassification>('userLocalRelayConnectionOutcome', event);
+			} else {
+				this._telemetryService.publicLog2<CloudSandboxConnectionOutcomeEvent, CloudSandboxConnectionOutcomeClassification>('cloudSandboxConnectionOutcome', event);
+			}
 		}, event => {
-			this._telemetryService.publicLog2<CloudSandboxFirstSessionRequestEvent, CloudSandboxFirstSessionRequestClassification>('cloudSandboxFirstSessionRequest', event);
+			if (event.environmentKind === 'user-local') {
+				this._telemetryService.publicLog2<CloudSandboxFirstSessionRequestEvent, CloudSandboxFirstSessionRequestClassification>('userLocalRelayFirstSessionRequest', event);
+			} else {
+				this._telemetryService.publicLog2<CloudSandboxFirstSessionRequestEvent, CloudSandboxFirstSessionRequestClassification>('cloudSandboxFirstSessionRequest', event);
+			}
 		}, () => {
 			const counts = connection.takeHealthSnapshot(Date.now());
 			this._connections.delete(connection);
@@ -214,7 +222,11 @@ export class CloudSandboxTelemetryService extends Disposable implements ICloudSa
 
 	private _reportConnectionHealth(counts: CloudSandboxConnectionHealthEvent): void {
 		if (counts.connectedMs || counts.unexpectedDisconnects || counts.receivedFrames) {
-			this._telemetryService.publicLog2<CloudSandboxConnectionHealthEvent, CloudSandboxConnectionHealthClassification>('cloudSandboxConnectionHealth', counts);
+			if (counts.environmentKind === 'user-local') {
+				this._telemetryService.publicLog2<CloudSandboxConnectionHealthEvent, CloudSandboxConnectionHealthClassification>('userLocalRelayConnectionHealth', counts);
+			} else {
+				this._telemetryService.publicLog2<CloudSandboxConnectionHealthEvent, CloudSandboxConnectionHealthClassification>('cloudSandboxConnectionHealth', counts);
+			}
 		}
 	}
 
@@ -612,7 +624,7 @@ export type CloudSandboxConnectionOutcomeClassification = CloudSandboxEnvironmen
 	authenticationFailures: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Failed authentication phases. May overlap nested credential preparation failures.' };
 	restorationFailures: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Failed subscription restoration phases in this operation.' };
 	owner: 'osortega';
-	comment: 'One outcome per logical sandbox connect or recovery, excluding reuse of a ready connection.';
+	comment: 'One outcome per logical cloud sandbox or user-local relay connect or recovery, excluding reuse of a ready connection.';
 };
 
 type CloudSandboxProvisioningOutcomeEvent = {
@@ -656,7 +668,7 @@ export type CloudSandboxConnectionHealthClassification = CloudSandboxEnvironment
 	unexpectedDisconnects: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Losses of previously ready connections; excludes initial retries and intentional teardown.' };
 	receivedFrames: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Inbound relay WebSocket frames, including setup, recovery, control, malformed and chunk frames; not unique protocol messages.' };
 	owner: 'osortega';
-	comment: 'Delta sandbox connection exposure, unexpected losses and receive load, aggregated every five minutes with a final teardown flush.';
+	comment: 'Delta cloud sandbox or user-local relay connection exposure, unexpected losses and receive load, aggregated every five minutes with a final teardown flush.';
 };
 
 type CloudSandboxRequestsEvent = {

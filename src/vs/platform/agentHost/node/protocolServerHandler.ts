@@ -2081,9 +2081,11 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	private _handleRequest(client: IConnectedClient, method: string, params: unknown, id: number): void {
 		const authentication = client.transport.relayAuthentication;
 		if (authentication?.authenticated === false && method !== 'authenticate') {
-			client.transport.send(jsonRpcError(id, AHP_AUTH_REQUIRED, 'Relay identity authentication is required', {
+			const error = new ProtocolError(AHP_AUTH_REQUIRED, 'Relay identity authentication is required', {
 				resources: [{ resource: authentication.resource, required: true }],
-			} satisfies AuthRequiredErrorData));
+			} satisfies AuthRequiredErrorData);
+			this._logRelayAuthorizationFailure(client, error, 'admission');
+			client.transport.send(jsonRpcErrorFrom(id, error));
 			return;
 		}
 		if (client.transport.relayClientId !== undefined && this._config.relayResourceRoots && method !== 'dispatchAction') {
@@ -2165,7 +2167,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				if (err instanceof SubscriptionCancelledError) {
 					this._logService.trace(`[ProtocolServer] Request '${method}' id=${id} cancelled`, err.message);
 				} else if (shouldLogFailedRequest(method, params, err)) {
-					this._logService.error(`[ProtocolServer] Request '${method}' failed`, err);
+					this._logService.error(`[ProtocolServer] Request '${method}' id=${id} failed`, err);
 				}
 
 				client.transport.send(jsonRpcErrorFrom(id, err));
@@ -2527,18 +2529,43 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 
 	private _captureRelayAuthorization(client: IConnectedClient): () => void {
 		if (client.transport.relayCaptureAuthorization) {
-			return client.transport.relayCaptureAuthorization();
+			let checkAuthorization: () => void;
+			try {
+				checkAuthorization = client.transport.relayCaptureAuthorization();
+			} catch (error) {
+				this._logRelayAuthorizationFailure(client, error, 'admission');
+				throw error;
+			}
+			return () => {
+				try {
+					checkAuthorization();
+				} catch (error) {
+					this._logRelayAuthorizationFailure(client, error, 'recheck');
+					throw error;
+				}
+			};
 		}
-		const check = () => {
+		const check = (phase: 'admission' | 'recheck' = 'recheck') => {
 			const authentication = client.transport.relayAuthentication;
 			if (authentication?.authenticated === false) {
-				throw new ProtocolError(AHP_AUTH_REQUIRED, 'Relay identity authentication is required', {
+				const error = new ProtocolError(AHP_AUTH_REQUIRED, 'Relay identity authentication is required', {
 					resources: [{ resource: authentication.resource, required: true }],
 				} satisfies AuthRequiredErrorData);
+				this._logRelayAuthorizationFailure(client, error, phase);
+				throw error;
 			}
 		};
-		check();
+		check('admission');
 		return check;
+	}
+
+	private _logRelayAuthorizationFailure(client: IConnectedClient, error: unknown, phase: 'admission' | 'recheck'): void {
+		if (error instanceof ProtocolError && error.code === AHP_AUTH_REQUIRED) {
+			const identityAuthenticated = client.transport.relayAuthentication?.authenticated === true;
+			const reason = client.disposables.isDisposed ? 'connectionClosed'
+				: identityAuthenticated ? 'authorizationInvalidated' : 'identityUnauthenticated';
+			this._logService.warn(`[ProtocolServer] Relay authorization rejected: clientId=${client.clientId} phase=${phase} reason=${reason} identityAuthenticated=${identityAuthenticated}`);
+		}
 	}
 
 	private _getSnapshot(channel: string): IStateSnapshot | undefined {

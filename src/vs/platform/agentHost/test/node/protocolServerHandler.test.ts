@@ -2464,6 +2464,74 @@ suite('ProtocolServerHandler', () => {
 		assert.strictEqual(stateManager.getSessionState(sessionUri)?.title, 'Authorized');
 	});
 
+	test('relay authorization logging identifies an unauthenticated admission without exposing request data', async () => {
+		const warnings = sinon.spy(logService, 'warn');
+		disposables.add(toDisposable(() => warnings.restore()));
+		const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'relay-client', false));
+		transport.relayAuthenticated = false;
+		server.simulateConnection(transport);
+		transport.simulateMessage(request(1, 'initialize', { clientId: 'relay-client', protocolVersions: [PROTOCOL_VERSION] }));
+		transport.simulateMessage(request(2, 'listSessions', { token: 'private-token', channel: 'private-session' }));
+		await handler.whenIdle();
+		assert.deepStrictEqual({
+			warnings: warnings.getCalls().map(call => call.args),
+			response: findResponse(transport.sent, 2),
+		}, {
+			warnings: [['[ProtocolServer] Relay authorization rejected: clientId=relay-client phase=admission reason=identityUnauthenticated identityAuthenticated=false']],
+			response: {
+				jsonrpc: '2.0', id: 2, error: {
+					code: AHP_AUTH_REQUIRED, message: 'Relay identity authentication is required',
+					data: { resources: [{ resource: 'https://api.github.com', required: true }] },
+				},
+			},
+		});
+	});
+
+	for (const reauthenticated of [false, true]) {
+		test(`relay authorization logging distinguishes invalidated work when identity is ${reauthenticated ? 'authenticated again' : 'unauthenticated'}`, async () => {
+			await MissionControlSealing.ready();
+			const resource = 'https://api.github.com';
+			const sealing = disposables.add(new MissionControlSealing());
+			const auth = disposables.add(new MissionControlAuthentication(sealing, '123', resource, async () => Response.json({ id: 123, type: 'User' }), false));
+			const key = sealing.advertisedKeys.find(key => key.use === 'auth-token')!;
+			const token = await sealMissionControlCredential({ resource, token: 'private-owner-token', key: { ...key, use: 'auth-token' } });
+			await auth.authenticate({ resource, token });
+			const warnings = sinon.spy(logService, 'warn');
+			disposables.add(toDisposable(() => warnings.restore()));
+			const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'relay-client', false));
+			Object.defineProperty(transport, 'relayAuthenticated', { get: () => auth.authenticated });
+			transport.relayCaptureAuthorization = () => auth.captureAuthorization();
+			server.simulateConnection(transport);
+			transport.simulateMessage(request(1, 'initialize', { clientId: 'relay-client', protocolVersions: [PROTOCOL_VERSION] }));
+			const started = new DeferredPromise<void>();
+			const barrier = new DeferredPromise<IAgentSessionMetadata[]>();
+			agentService.listSessions = async () => {
+				await started.complete();
+				return barrier.p;
+			};
+			transport.simulateMessage(request(2, 'listSessions', {}));
+			await started.p;
+			auth.beginHandshake();
+			if (reauthenticated) {
+				await auth.authenticate({ resource, token });
+			}
+			await barrier.complete([]);
+			await handler.whenIdle();
+			assert.deepStrictEqual({
+				warnings: warnings.getCalls().map(call => call.args),
+				response: findResponse(transport.sent, 2),
+			}, {
+				warnings: [[`[ProtocolServer] Relay authorization rejected: clientId=relay-client phase=recheck reason=${reauthenticated ? 'authorizationInvalidated' : 'identityUnauthenticated'} identityAuthenticated=${reauthenticated}`]],
+				response: {
+					jsonrpc: '2.0', id: 2, error: {
+						code: AHP_AUTH_REQUIRED, message: 'Relay identity authentication is required',
+						data: { resources: [{ resource, required: true }] },
+					},
+				},
+			});
+		});
+	}
+
 	test('relay identity errors advertise the owning authority without requiring a Copilot provider', async () => {
 		stateManager.dispatchServerAction(ROOT_STATE_URI, { type: ActionType.RootAgentsChanged, agents: [] });
 		const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'enterprise-relay', true));
@@ -2577,6 +2645,50 @@ suite('ProtocolServerHandler', () => {
 	});
 
 	for (const passive of [false, true]) {
+		test(`same-owner credential renewal preserves pending ${passive ? 'passive' : 'active'} relay session and chat subscriptions`, async () => {
+			await MissionControlSealing.ready();
+			const resource = 'https://api.github.com';
+			const sealing = disposables.add(new MissionControlSealing());
+			const auth = disposables.add(new MissionControlAuthentication(sealing, '123', resource, async () => Response.json({ id: 123, type: 'User' }), false));
+			const transport = disposables.add(new MockProtocolTransport(AgentHostTransportKind.WebSocket, 'renewing-client', passive));
+			Object.defineProperty(transport, 'relayAuthenticated', { get: () => auth.authenticated });
+			transport.relayAuthenticate = params => auth.authenticate(params);
+			transport.relayCaptureAuthorization = () => auth.captureAuthorization();
+			transport.onDidRelayAuthenticationExpire = auth.onDidExpire;
+			server.simulateConnection(transport);
+			transport.simulateMessage(request(1, 'initialize', { clientId: 'renewing-client', protocolVersions: [PROTOCOL_VERSION] }));
+			stateManager.createSession(makeSessionSummary());
+			const key = sealing.advertisedKeys.find(key => key.use === 'auth-token')!;
+			const authenticate = async (id: number, target: string) => {
+				const token = await sealMissionControlCredential({ resource: target, token: `owner-token-${id}`, key: { ...key, use: 'auth-token' } });
+				const response = waitForResponse(transport, id);
+				transport.simulateMessage(request(id, 'authenticate', { resource: target, token }));
+				return response;
+			};
+			const initial = await authenticate(2, resource);
+			const barrier = agentService.subscribeBarrier = new DeferredPromise<void>();
+			const channels = [sessionUri, defaultChatUri];
+			for (const [index, channel] of channels.entries()) {
+				transport.simulateMessage(request(index + 3, 'subscribe', { channel }));
+			}
+			const renewed = await authenticate(5, resource);
+			const repository = await authenticate(6, `${resource}/repos`);
+			const pending = channels.map((_, index) => findResponse(transport.sent, index + 3));
+			await barrier.complete();
+			await handler.whenIdle();
+			assert.deepStrictEqual({
+				authentication: [initial, renewed, repository],
+				pending,
+				subscriptions: channels.map((_, index) => findResponse(transport.sent, index + 3)),
+			}, {
+				authentication: [2, 5, 6].map(id => ({ jsonrpc: '2.0', id, result: {} })),
+				pending: [undefined, undefined],
+				subscriptions: channels.map((channel, index) => ({
+					jsonrpc: '2.0', id: index + 3, result: { snapshot: stateManager.getSnapshot(channel) },
+				})),
+			});
+		});
+
 		test(`GitHub deadline ends ${passive ? 'passive' : 'active'} relay observation and requires fresh subscriptions after reauthentication`, async () => {
 			await MissionControlSealing.ready();
 			const clock = sinon.useFakeTimers({ now: Date.parse('2030-01-01T00:00:00Z'), toFake: ['Date', 'setTimeout', 'clearTimeout'] });
