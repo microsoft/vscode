@@ -56,6 +56,10 @@ export interface IModelCardOptions {
 	readonly pricingDisclosure?: IPricingDisclosure;
 	/** The faster twin of this model, when the provider offers one. */
 	readonly speedVariants?: IModelSpeedVariants;
+	/** Separate models offered as tiers of one, such as HydraFusion's Default and Max. Choosing one selects that model. */
+	readonly modelChoices?: IModelCardModelChoices;
+	/** The name shown in the header when it differs from the model's, e.g. HydraFusion for its Max tier. */
+	readonly name?: string;
 	/** Separate routing models offered among Auto's tiers, such as HydraFusion and HydraFusion Max. */
 	readonly routingAlternatives?: readonly IModelCardRoutingAlternative[];
 	/** Marks the start of a model-affecting interaction, before an asynchronous save. */
@@ -82,6 +86,17 @@ export interface IModelCardRoutingAlternative {
 	readonly learnMoreUrl?: URI;
 	/** Whether the alternative is the model in use, rather than one of Auto's tiers. */
 	readonly selected: boolean;
+}
+
+/** Separate models offered as tiers of one, shown as a setting with one choice per model. */
+export interface IModelCardModelChoices {
+	readonly title: string;
+	readonly choices: readonly { readonly label: string; readonly model: ILanguageModelChatMetadataAndIdentifier }[];
+}
+
+function modelChoicesEqual(a: IModelCardModelChoices | undefined, b: IModelCardModelChoices | undefined): boolean {
+	return a?.title === b?.title && (a?.choices.length ?? 0) === (b?.choices.length ?? 0)
+		&& (a?.choices ?? []).every((choice, index) => choice.model === b?.choices[index].model && choice.label === b.choices[index].label);
 }
 
 function routingAlternativesEqual(a: readonly IModelCardRoutingAlternative[] | undefined, b: readonly IModelCardRoutingAlternative[] | undefined): boolean {
@@ -120,7 +135,8 @@ export class ModelCard extends DisposableStore {
 	update(options: IModelCardOptions): void {
 		const disclosureChanged = options.pricingDisclosure !== this._options.pricingDisclosure;
 		const alternativeChanged = !routingAlternativesEqual(options.routingAlternatives, this._options.routingAlternatives);
-		const changed = options.model !== this._options.model || options.isPinned !== this._options.isPinned || options.organizationDefaultModel !== this._options.organizationDefaultModel || options.externalHeader !== this._options.externalHeader || disclosureChanged || alternativeChanged;
+		const choicesChanged = !modelChoicesEqual(options.modelChoices, this._options.modelChoices) || options.name !== this._options.name;
+		const changed = options.model !== this._options.model || options.isPinned !== this._options.isPinned || options.organizationDefaultModel !== this._options.organizationDefaultModel || options.externalHeader !== this._options.externalHeader || disclosureChanged || alternativeChanged || choicesChanged;
 		if (options.model.identifier !== this._options.model.identifier) {
 			this._configurationChangeVersion++;
 		}
@@ -266,6 +282,9 @@ export class ModelCard extends DisposableStore {
 
 		if (effort) {
 			this._renderEffortSection(effort, isAuto);
+		} else if (this._options.modelChoices) {
+			// Tiers that are separate models take the place of the thinking effort setting.
+			this._renderModelChoiceSection(this._options.modelChoices.title, this._options.modelChoices.choices, MODEL_CONFIG_GROUP_EFFORT);
 		}
 		if (context) {
 			this._renderContextSection(context);
@@ -291,8 +310,9 @@ export class ModelCard extends DisposableStore {
 		if (!this._options.externalHeader) {
 			this.element.appendChild(header);
 		}
-		const name = dom.append(header, dom.$('.chat-model-card-name', undefined, metadata.name));
-		this._contentDisposables.add(getBaseLayerHoverDelegate().setupManagedHover(getDefaultHoverDelegate('mouse'), name, metadata.name));
+		const displayName = this._options.name ?? metadata.name;
+		const name = dom.append(header, dom.$('.chat-model-card-name', undefined, displayName));
+		this._contentDisposables.add(getBaseLayerHoverDelegate().setupManagedHover(getDefaultHoverDelegate('mouse'), name, displayName));
 
 		if (this._options.routingAlternatives?.length) {
 			this._routingBadge = this._renderBadge(header, '', false);
@@ -522,11 +542,14 @@ export class ModelCard extends DisposableStore {
 		if (!variants) {
 			return;
 		}
-		const choices = [
+		this._renderModelChoiceSection(localize('models.speed', "Speed"), [
 			{ label: localize('models.speed.standard', "Standard"), model: variants.standard },
 			{ label: localize('models.speed.fast', "Fast"), model: variants.fast },
-		];
-		const title = localize('models.speed', "Speed");
+		], 'speed');
+	}
+
+	/** A setting whose choices are separate models. Picking one selects that model. */
+	private _renderModelChoiceSection(title: string, choices: IModelCardModelChoices['choices'], group: string): void {
 		const section = this._renderSection(title);
 		const control = this._contentDisposables.add(new Radio({
 			ariaLabel: title,
@@ -540,11 +563,11 @@ export class ModelCard extends DisposableStore {
 		this._contentDisposables.add(control.onDidSelect(index => {
 			this._selectVariant(choices[index].model, control).catch(onUnexpectedError);
 		}));
-		this._groupControls.set('speed', control);
+		this._groupControls.set(group, control);
 		section.appendChild(control.domNode);
 	}
 
-	/** Selects a separate model: a faster twin, or one of Auto's routing alternatives. */
+	/** Selects a separate model: a faster twin, a tier that is a model of its own, or one of Auto's routing alternatives. */
 	private async _selectVariant(model: ILanguageModelChatMetadataAndIdentifier, control: Radio): Promise<void> {
 		const options = this._options;
 		const version = ++this._configurationChangeVersion;
