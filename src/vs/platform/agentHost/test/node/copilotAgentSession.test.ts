@@ -15574,6 +15574,69 @@ Use the attached image as context.
 			]);
 		});
 
+		test('tool_complete attributes edits to the runtime-reported HydraFusion model and its concrete source model', async () => {
+			const { session, mockSession, waitForSignal } = await createAgentSession(disposables);
+			const sessionInternals = session as unknown as ISessionInternalsForTest;
+			const taken: { toolCallId: string; modelId: string | undefined; fusionModel: string | undefined }[] = [];
+			sessionInternals._editTracker.takeCompletedEdit = async (_turnId, toolCallId, _path, _toolName, _toolInput, modelId, _clientContext, _chat, _autoTier, fusionModel) => {
+				taken.push({ toolCallId, modelId, fusionModel });
+				return undefined;
+			};
+			const edit = async (toolCallId: string, fusion?: { syntheticModel: string; sourceModel?: string }) => {
+				const attribution = fusion ? { fusion: { fusionId: 'fusion-1', phaseId: 'phase-1', policy: 'default', pattern: 'cascade', ...fusion } } : {};
+				mockSession.fire('tool.execution_start', {
+					toolCallId, toolName: 'apply_patch', arguments: '*** Begin Patch\n*** Update File: foo.ts\n@@\n+new\n*** End Patch', ...attribution,
+				} as unknown as SessionEventPayload<'tool.execution_start'>['data']);
+				mockSession.fire('tool.execution_complete', { toolCallId, success: true, ...attribution } as SessionEventPayload<'tool.execution_complete'>['data']);
+				await waitForSignal(s => s.kind === 'action' && s.action.type === ActionType.ChatToolCallComplete && s.action.toolCallId === toolCallId);
+			};
+			session.resetTurnState('turn-fusion');
+			mockSession.fire('assistant.usage', { inputTokens: 1, outputTokens: 1, model: 'gpt-5' } as SessionEventPayload<'assistant.usage'>['data']);
+
+			await edit('hydrafusion', { syntheticModel: 'hydrafusion', sourceModel: 'claude-sonnet-4.5' });
+			await edit('hydrafusion-max', { syntheticModel: 'hydrafusion-max', sourceModel: 'claude-opus-4.5' });
+			await edit('hydrafusion-no-source', { syntheticModel: 'hydrafusion' });
+			await edit('unknown-synthetic', { syntheticModel: 'future-fusion', sourceModel: 'gpt-5-mini' });
+			await edit('not-fusion');
+
+			assert.deepStrictEqual(taken, [
+				{ toolCallId: 'hydrafusion', modelId: 'claude-sonnet-4.5', fusionModel: 'hydrafusion' },
+				{ toolCallId: 'hydrafusion-max', modelId: 'claude-opus-4.5', fusionModel: 'hydrafusion-max' },
+				{ toolCallId: 'hydrafusion-no-source', modelId: 'gpt-5', fusionModel: 'hydrafusion' },
+				{ toolCallId: 'unknown-synthetic', modelId: 'gpt-5', fusionModel: undefined },
+				{ toolCallId: 'not-fusion', modelId: 'gpt-5', fusionModel: undefined },
+			]);
+		});
+
+		test('tool_complete attributes unattributed edits inside a running HydraFusion phase to the turn\'s HydraFusion model', async () => {
+			const { session, mockSession, waitForSignal } = await createAgentSession(disposables);
+			const sessionInternals = session as unknown as ISessionInternalsForTest;
+			const taken: { toolCallId: string; fusionModel: string | undefined }[] = [];
+			sessionInternals._editTracker.takeCompletedEdit = async (_turnId, toolCallId, _path, _toolName, _toolInput, _modelId, _clientContext, _chat, _autoTier, fusionModel) => {
+				taken.push({ toolCallId, fusionModel });
+				return undefined;
+			};
+			const edit = async (toolCallId: string) => {
+				mockSession.fire('tool.execution_start', {
+					toolCallId, toolName: 'apply_patch', arguments: '*** Begin Patch\n*** Update File: foo.ts\n@@\n+new\n*** End Patch',
+				} as unknown as SessionEventPayload<'tool.execution_start'>['data']);
+				mockSession.fire('tool.execution_complete', { toolCallId, success: true } as SessionEventPayload<'tool.execution_complete'>['data']);
+				await waitForSignal(s => s.kind === 'action' && s.action.type === ActionType.ChatToolCallComplete && s.action.toolCallId === toolCallId);
+			};
+			session.resetTurnState('fusion-turn');
+			mockSession.fire('session.fusion_route_started', { ...fusionTestData.routeStarted, syntheticModel: 'hydrafusion-max' });
+			mockSession.fire('session.fusion_resolved', { ...fusionTestData.resolved, syntheticModel: 'hydrafusion-max' });
+			mockSession.fire('assistant.fusion_phase_started', fusionTestData.started);
+			await edit('phase-edit');
+			session.resetTurnState('plain-turn');
+			await edit('plain-edit');
+
+			assert.deepStrictEqual(taken, [
+				{ toolCallId: 'phase-edit', fusionModel: 'hydrafusion-max' },
+				{ toolCallId: 'plain-edit', fusionModel: undefined },
+			]);
+		});
+
 		test('tool_complete uses the Auto tier in effect at tool start, including pending runtime reads', async () => {
 			const seed = new DeferredPromise<void>();
 			const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables, {
