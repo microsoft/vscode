@@ -6,7 +6,7 @@
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { IAuthenticationService } from '../../authentication/common/authentication';
 import { IChatMLFetcher } from '../../chat/common/chatMLFetcher';
-import { CHAT_MODEL, IConfigurationService } from '../../configuration/common/configurationService';
+import { CHAT_MODEL, ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
 import { IEnvService } from '../../env/common/envService';
 import { ILogService } from '../../log/common/logService';
 import { IFetcherService } from '../../networking/common/fetcherService';
@@ -34,7 +34,7 @@ export class CopilotChatEndpoint extends ChatEndpoint {
 		@IChatMLFetcher chatMLFetcher: IChatMLFetcher,
 		@ITokenizerProvider tokenizerProvider: ITokenizerProvider,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationService private readonly _copilotConfigurationService: IConfigurationService,
 		@IExperimentationService experimentService: IExperimentationService,
 		@IChatWebSocketManager chatWebSocketService: IChatWebSocketManager,
 		@ILogService logService: ILogService
@@ -45,16 +45,26 @@ export class CopilotChatEndpoint extends ChatEndpoint {
 			chatMLFetcher,
 			tokenizerProvider,
 			instantiationService,
-			configurationService,
+			_copilotConfigurationService,
 			experimentService,
 			chatWebSocketService,
 			logService
 		);
 	}
 
-	// Tool search relies on Metis embeddings, which are unavailable to anonymous users.
+	/**
+	 * CAPI serves no embeddings to anonymous tokens, so tool search stays off for them, except
+	 * when CAPI traffic (including embeddings) goes through a proxy that re-authenticates
+	 * server-side, e.g. HMAC evals.
+	 */
 	public override get supportsToolSearch(): boolean | undefined {
-		return super.supportsToolSearch && !this._copilotAuthService.copilotToken?.isNoAuthUser;
+		if (!super.supportsToolSearch) {
+			return super.supportsToolSearch;
+		}
+		if (!this._copilotAuthService.copilotToken?.isNoAuthUser) {
+			return true;
+		}
+		return !!this._copilotConfigurationService.getConfig(ConfigKey.Shared.DebugOverrideCAPIUrl);
 	}
 
 	protected override getCompletionsCallback(): RawMessageConversionCallback | undefined {

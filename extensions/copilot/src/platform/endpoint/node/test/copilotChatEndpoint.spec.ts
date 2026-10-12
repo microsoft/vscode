@@ -855,8 +855,11 @@ describe('ChatEndpoint - model picker notices', () => {
 });
 
 describe('CopilotChatEndpoint - supportsToolSearch auth gating', () => {
-	const createEndpoint = (sku: string | undefined) => {
+	const createEndpoint = (sku: string | undefined, capiProxyUrl?: string) => {
 		const mockServices = createMockServices();
+		if (capiProxyUrl) {
+			mockServices.configurationService.setConfig(ConfigKey.Shared.DebugOverrideCAPIUrl, capiProxyUrl);
+		}
 		const authService = {
 			copilotToken: sku === undefined ? undefined : new CopilotToken(createTestExtendedTokenInfo({ sku })),
 		} as unknown as IAuthenticationService;
@@ -880,11 +883,15 @@ describe('CopilotChatEndpoint - supportsToolSearch auth gating', () => {
 		);
 	};
 
-	it('disables tool search for no-auth users', () => {
-		expect(createEndpoint('no_auth_limited_copilot').supportsToolSearch).toBe(false);
-	});
-
-	it('keeps tool search for signed-in users', () => {
-		expect(createEndpoint('copilot_for_business_seat').supportsToolSearch).toBe(true);
+	it('enables tool search for signed-in users and proxied no-auth users only', () => {
+		expect({
+			signedIn: createEndpoint('copilot_for_business_seat').supportsToolSearch,
+			noAuth: createEndpoint('no_auth_limited_copilot').supportsToolSearch,
+			noAuthThroughCapiProxy: createEndpoint('no_auth_limited_copilot', 'http://localhost:8989').supportsToolSearch,
+		}).toEqual({
+			signedIn: true,
+			noAuth: false,
+			noAuthThroughCapiProxy: true,
+		});
 	});
 });
