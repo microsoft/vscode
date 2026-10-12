@@ -5,15 +5,14 @@
 
 import { VSBufferReadableStream } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { isUNC } from '../../../../base/common/extpath.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { isWindows } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { FileOperationError, FileOperationResult, IFileService, IWriteFileOptions } from '../../../../platform/files/common/files.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { getWebviewContentMimeType } from '../../../../platform/webview/common/mimeTypes.js';
+import { isWebviewResourceAllowed } from '../../../../platform/webview/common/resourceLoading.js';
 
 export namespace WebviewResourceResponse {
 	export enum Type { Success, Failed, AccessDenied, NotModified }
@@ -106,60 +105,9 @@ export function getResourceToLoad(
 	roots: ReadonlyArray<URI>,
 	uriIdentityService: IUriIdentityService,
 ): URI | undefined {
-	const requestUriNoQueryString = requestUri.with({ query: '' });
-	if (hasWindowsParentTraversalSegment(requestUriNoQueryString)) {
-		return undefined;
-	}
-
-	for (const root of roots) {
-		if (containsResource(root, requestUriNoQueryString, uriIdentityService)) {
-			return normalizeResourcePath(requestUri);
-		}
-	}
-
-	return undefined;
-}
-
-function containsResource(root: URI, resource: URI, uriIdentityService: IUriIdentityService): boolean {
-	// Normalize backslashes for non-file schemes that may target Windows remotes.
-	if (root.scheme !== Schemas.file) {
-		const normalizedPath = resource.path.replace(/\\/g, '/');
-		if (normalizedPath !== resource.path) {
-			resource = resource.with({ path: normalizedPath });
-		}
-	}
-
-	if (uriIdentityService.extUri.isEqual(root, resource, /* ignoreFragment */ true)) {
-		return false;
-	}
-
-	// Compare unc paths case-insensitively
-	if (root.scheme === Schemas.file && isUNC(root.fsPath)) {
-		if (resource.scheme === Schemas.file && isUNC(resource.fsPath)) {
-			return uriIdentityService.extUri.isEqualOrParent(
-				resource.with({
-					path: resource.path.toLowerCase(),
-					authority: resource.authority.toLowerCase()
-				}),
-				root.with({
-					path: root.path.toLowerCase(),
-					authority: root.authority.toLowerCase()
-				}),
-				/* ignoreFragment */ true
-			);
-		}
-		return false;
-	}
-
-	return uriIdentityService.extUri.isEqualOrParent(resource, root, /* ignoreFragment */ true);
-}
-
-const WINDOWS_PARENT_TRAVERSAL_SEGMENT = /(?:^|[\\/])\.\. +(?=$|[\\/])/;
-
-function hasWindowsParentTraversalSegment(resource: URI): boolean {
-	return isWindows
-		&& resource.scheme === Schemas.file
-		&& WINDOWS_PARENT_TRAVERSAL_SEGMENT.test(resource.path);
+	return isWebviewResourceAllowed(requestUri, roots, uriIdentityService)
+		? normalizeResourcePath(requestUri)
+		: undefined;
 }
 
 function normalizeResourcePath(resource: URI): URI {

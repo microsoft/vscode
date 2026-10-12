@@ -16,10 +16,11 @@ import { NullApiDeprecationService } from '../../common/extHostApiDeprecationSer
 import { IExtHostRpcService } from '../../common/extHostRpcService.js';
 import { IWebviewContentOptions } from '../../common/extHost.protocol.js';
 import { ExtHostWebviews } from '../../common/extHostWebview.js';
+import { UIKind } from '../../../services/extensions/common/extensionHostProtocol.js';
 import { ExtHostWebviewPanels } from '../../common/extHostWebviewPanels.js';
 import { IExtHostWorkspace } from '../../common/extHostWorkspace.js';
 import { SingleProxyRPCProtocol } from '../common/testRPCProtocol.js';
-import { decodeAuthority, webviewResourceBaseHost } from '../../../contrib/webview/common/webview.js';
+import { decodeAuthority, webviewGenericCspSource, webviewResourceBaseHost } from '../../../contrib/webview/common/webview.js';
 import { EditorGroupColumn } from '../../../services/editor/common/editorGroupColumn.js';
 import { IExtHostContext } from '../../../services/extensions/common/extHostCustomers.js';
 import type * as vscode from 'vscode';
@@ -45,7 +46,7 @@ suite('ExtHostWebview', () => {
 		const extHostWebviews = disposables.add(new ExtHostWebviews(rpcProtocol!, {
 			authority: remoteAuthority,
 			isRemote: !!remoteAuthority,
-		}, undefined, new NullLogService(), NullApiDeprecationService));
+		}, UIKind.Desktop, undefined, new NullLogService(), NullApiDeprecationService));
 
 		const extHostWebviewPanels = disposables.add(new ExtHostWebviewPanels(rpcProtocol!, extHostWebviews, undefined));
 
@@ -61,7 +62,7 @@ suite('ExtHostWebview', () => {
 	test('Cannot register multiple serializers for the same view type', async () => {
 		const viewType = 'view.type';
 
-		const extHostWebviews = disposables.add(new ExtHostWebviews(rpcProtocol!, { authority: undefined, isRemote: false }, undefined, new NullLogService(), NullApiDeprecationService));
+		const extHostWebviews = disposables.add(new ExtHostWebviews(rpcProtocol!, { authority: undefined, isRemote: false }, UIKind.Desktop, undefined, new NullLogService(), NullApiDeprecationService));
 
 		const extHostWebviewPanels = disposables.add(new ExtHostWebviewPanels(rpcProtocol!, extHostWebviews, undefined));
 
@@ -198,6 +199,38 @@ suite('ExtHostWebview', () => {
 		);
 	});
 
+	test('webviewNoServiceWorker is gated to proposed API on desktop', () => {
+		const extension = {
+			identifier: { value: 'Publisher.Extension' },
+			extensionLocation: URI.file('/extension'),
+			enabledApiProposals: ['webviewNoServiceWorker'],
+		} as unknown as IExtensionDescription;
+		const desktopWebviews = disposables.add(new ExtHostWebviews(rpcProtocol!, { authority: undefined, isRemote: false }, UIKind.Desktop, undefined, new NullLogService(), NullApiDeprecationService));
+		const desktopWebview = desktopWebviews.createNewWebview('readable-instance', {}, extension);
+		assert.strictEqual(desktopWebview.cspSource, 'vscode-webview://publisher.extension');
+		assert.strictEqual(
+			desktopWebview.asWebviewUri(URI.file('/extension/media/icon.svg')).toString(),
+			'vscode-webview://publisher.extension/readable-instance/_vscode/resource/file%2B/extension/media/icon.svg',
+		);
+
+		const webWebviews = disposables.add(new ExtHostWebviews(rpcProtocol!, { authority: undefined, isRemote: false }, UIKind.Web, undefined, new NullLogService(), NullApiDeprecationService));
+		const webWebview = webWebviews.createNewWebview('readable-instance', {}, extension);
+		assert.strictEqual(webWebview.cspSource, webviewGenericCspSource);
+		assert.strictEqual(webWebview.asWebviewUri(URI.file('/extension/media/icon.svg')).scheme, Schemas.https);
+	});
+
+	test('webviewNoServiceWorker requires the proposal', () => {
+		const extension = {
+			identifier: { value: 'publisher.extension' },
+			extensionLocation: URI.file('/extension'),
+			enabledApiProposals: [],
+		} as unknown as IExtensionDescription;
+		const extHostWebviews = disposables.add(new ExtHostWebviews(rpcProtocol!, { authority: undefined, isRemote: false }, UIKind.Desktop, undefined, new NullLogService(), NullApiDeprecationService));
+		const webview = extHostWebviews.createNewWebview('instance', {}, extension);
+		assert.strictEqual(webview.cspSource, webviewGenericCspSource);
+		assert.strictEqual(webview.asWebviewUri(URI.file('/extension/media/icon.svg')).scheme, Schemas.https);
+	});
+
 	suite('ensureDefaultContentOptions', () => {
 		function createExtHostWebviewsWithCapture(workspaceFolders: URI[] | undefined) {
 			const setOptionsCalls: { handle: string; options: IWebviewContentOptions }[] = [];
@@ -221,6 +254,7 @@ suite('ExtHostWebview', () => {
 			const extHostWebviews = disposables.add(new ExtHostWebviews(
 				captureRpc,
 				{ authority: undefined, isRemote: false },
+				UIKind.Desktop,
 				workspace,
 				new NullLogService(),
 				NullApiDeprecationService));

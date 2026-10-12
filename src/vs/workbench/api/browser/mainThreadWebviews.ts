@@ -48,6 +48,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 			throw new Error('Webview already registered');
 		}
 
+		webview.resourceId = handle;
 		this._webviews.set(handle, webview);
 		this.hookupWebviewEventDelegate(handle, webview, options);
 	}
@@ -145,6 +146,7 @@ export function reviveWebviewExtension(extensionData: extHostProtocol.WebviewExt
 	return {
 		id: extensionData.id,
 		location: URI.revive(extensionData.location),
+		useSingleIframe: extensionData.useSingleIframe,
 	};
 }
 
