@@ -136,6 +136,38 @@ suite('agentHost editSurvivalReporter', () => {
 		assert.deepStrictEqual([data.provider, data.agentSessionId], ['claude', 'standard']);
 	});
 
+	test('reports the HydraFusion model only when the edit has one', async () => {
+		const launch = async (toolCallId: string, fusionModel?: string) => {
+			const filePath = `/workspace/${toolCallId}.ts`;
+			await fileService.writeFile(URI.file(filePath), VSBuffer.fromString('after-text'));
+			disposables.add(factory.launch({
+				sessionUri: 'copilotcli:/session-1', turnId: 'turn-1', toolCallId, filePath,
+				beforeText: 'before-text', afterText: 'after-text', isCreate: false, modelId: 'gpt-5', toolName: 'edit',
+				...(fusionModel ? { fusionModel } : {}),
+			}));
+		};
+		await launch('tc-hf', 'hydrafusion');
+		await launch('tc-hf-max', 'hydrafusion-max');
+		await launch('tc-plain');
+		await timeout(50);
+
+		const firstSamples = new Map<unknown, Record<string, unknown>>();
+		for (const event of telemetry.events) {
+			const data = event.data as Record<string, unknown>;
+			if (!firstSamples.has(data.toolCallId)) {
+				firstSamples.set(data.toolCallId, data);
+			}
+		}
+		assert.deepStrictEqual(['tc-hf', 'tc-hf-max', 'tc-plain'].map(toolCallId => {
+			const data = firstSamples.get(toolCallId);
+			return { toolCallId, hasFusionModel: !!data && Object.hasOwn(data, 'fusionModel'), fusionModel: data?.fusionModel };
+		}), [
+			{ toolCallId: 'tc-hf', hasFusionModel: true, fusionModel: 'hydrafusion' },
+			{ toolCallId: 'tc-hf-max', hasFusionModel: true, fusionModel: 'hydrafusion-max' },
+			{ toolCallId: 'tc-plain', hasFusionModel: false, fusionModel: undefined },
+		]);
+	});
+
 	test('emits a delete event when the file is missing', async () => {
 		const reporter = factory.launch({
 			sessionUri: 'codex:/session-2',

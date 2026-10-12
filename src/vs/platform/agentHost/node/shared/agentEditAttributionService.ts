@@ -54,6 +54,7 @@ interface ISourceStatistics {
 	readonly sourceKeyCleaned: string;
 	readonly modelId: string | undefined;
 	readonly autoTier: string | undefined;
+	readonly fusionModel: string | undefined;
 	readonly conversationId: string;
 	readonly agentSessionId: string;
 	readonly chatSessionId: string | undefined;
@@ -310,9 +311,10 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 
 		const provider = edit.provider ?? getSessionProvider(edit.sessionUri);
 		const modelSegment = edit.modelId ? `-$modelId:${edit.modelId}` : '';
-		// Matches the workbench edit-source key order ($modelId, $autoTier, ..., $harness, $origin).
+		// Matches the workbench edit-source key order ($modelId, $autoTier, $fusionModel, ..., $harness, $origin).
 		const autoTierSegment = edit.autoTier ? `-$autoTier:${edit.autoTier}` : '';
-		const sourceKey = `source:Chat.applyEdits${modelSegment}${autoTierSegment}-$harness:${provider}-$origin:agentHost`;
+		const fusionModelSegment = edit.fusionModel ? `-$fusionModel:${edit.fusionModel}` : '';
+		const sourceKey = `source:Chat.applyEdits${modelSegment}${autoTierSegment}${fusionModelSegment}-$harness:${provider}-$origin:agentHost`;
 		const groupSourceKey = `source:Chat.applyEdits${modelSegment}-$harness:${provider}-$origin:agentHost`;
 		const conversationId = AgentSession.id(edit.sessionUri);
 		const chatUri = edit.chatUri ?? (isAhpChatChannel(edit.sessionUri) ? edit.sessionUri : undefined);
@@ -330,6 +332,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 				sourceKeyCleaned: `source:Chat.applyEdits-$harness:${provider}-$origin:agentHost`,
 				modelId: edit.modelId,
 				autoTier: edit.autoTier,
+				fusionModel: edit.fusionModel,
 				conversationId,
 				agentSessionId,
 				chatSessionId,
@@ -350,6 +353,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 			source: {
 				modelId: edit.modelId,
 				...(edit.autoTier !== undefined ? { autoTier: edit.autoTier } : {}),
+				...(edit.fusionModel !== undefined ? { fusionModel: edit.fusionModel } : {}),
 				conversationId,
 				agentSessionId,
 				...(chatSessionId !== undefined ? { chatSessionId } : {}),
@@ -812,6 +816,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 				extensionVersion: undefined,
 				modelId: source.modelId,
 				...(source.autoTier !== undefined ? { autoTier: source.autoTier } : {}),
+				...(source.fusionModel !== undefined ? { fusionModel: source.fusionModel } : {}),
 				trigger: prepared.trigger,
 				languageId: prepared.languageId,
 				statsUuid: prepared.statsUuid,
@@ -836,6 +841,7 @@ export class AgentEditAttributionService extends Disposable implements IAgentEdi
 					extensionVersion: '',
 					modelId: data.modelId ?? '',
 					...(source.autoTier !== undefined ? { autoTier: source.autoTier } : {}),
+					...(source.fusionModel !== undefined ? { fusionModel: source.fusionModel } : {}),
 					trigger: data.trigger,
 					languageId: data.languageId ?? '',
 					statsUuid: data.statsUuid,
@@ -1179,7 +1185,7 @@ function resourceKey(sessionUri: string, fileKey: string): string {
 
 const MAX_REPORTED_SOURCE_GROUPS = 30;
 
-/** Caps reported sources before subdividing them by Auto tier, so tiers never displace other sources. */
+/** Caps reported sources before subdividing them by Auto tier and HydraFusion model, so those never displace other sources. */
 function selectReportedSources(sources: Iterable<ISourceStatistics>, retainedBySource: ReadonlyMap<string, number>): ISourceStatistics[] {
 	const retained = (source: ISourceStatistics) => retainedBySource.get(source.trackingKey) ?? 0;
 	return Array.from(groupByMap(Array.from(sources), source => source.groupKey).values(), group => ({ group, retained: sumBy(group, retained) }))
