@@ -29,12 +29,24 @@ export interface FoundInFrameResult {
 	readonly finalUpdate: boolean;
 }
 
+/**
+ * Native macOS menu actions that have no workbench command and are therefore only
+ * reachable through their menu shortcut.
+ */
+export type MacOSMenuAction = 'hide' | 'hideOthers' | 'minimize';
+
 export interface IWebviewManagerService {
 	_serviceBrand: unknown;
 
 	readonly onFoundInFrame: Event<FoundInFrameResult>;
 
 	setIgnoreMenuShortcuts(id: WebviewWebContentsId | WebviewWindowId, enabled: boolean): Promise<void>;
+
+	/**
+	 * Runs a native macOS menu action. Used to keep the shortcuts of these actions working
+	 * while menu shortcuts are ignored for a focused webview.
+	 */
+	runMacOSMenuAction(action: MacOSMenuAction): Promise<void>;
 
 	findInFrame(id: WebviewWebContentsId | WebviewWindowId, frameName: string, text: string, options: FindInFrameOptions): Promise<void>;
 

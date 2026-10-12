@@ -3,14 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { WebContents, webContents, WebFrameMain } from 'electron';
+import { Menu, WebContents, webContents, WebFrameMain } from 'electron';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
+import { isMacintosh } from '../../../base/common/platform.js';
 import { hasKey } from '../../../base/common/types.js';
-import { FindInFrameOptions, FoundInFrameResult, IWebviewManagerService, WebviewWebContentsId, WebviewWindowId } from '../common/webviewManagerService.js';
+import { FindInFrameOptions, FoundInFrameResult, IWebviewManagerService, MacOSMenuAction, WebviewWebContentsId, WebviewWindowId } from '../common/webviewManagerService.js';
 import { WebviewProtocolProvider } from './webviewProtocolProvider.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
 import { IFileService } from '../../files/common/files.js';
+
+/**
+ * The selectors the native macOS menu items (see `menubar.ts`) send for each action.
+ */
+const macOSMenuActionSelectors = new Map<MacOSMenuAction, string>([
+	['hide', 'hide:'],
+	['hideOthers', 'hideOtherApplications:'],
+	['minimize', 'performMiniaturize:'],
+]);
 
 export class WebviewMainService extends Disposable implements IWebviewManagerService {
 
@@ -31,6 +41,13 @@ export class WebviewMainService extends Disposable implements IWebviewManagerSer
 		const contents = this.getWebContents(id);
 		if (!contents.isDestroyed()) {
 			contents.setIgnoreMenuShortcuts(enabled);
+		}
+	}
+
+	public async runMacOSMenuAction(action: MacOSMenuAction): Promise<void> {
+		const selector = macOSMenuActionSelectors.get(action);
+		if (isMacintosh && selector) {
+			Menu.sendActionToFirstResponder(selector);
 		}
 	}
 
