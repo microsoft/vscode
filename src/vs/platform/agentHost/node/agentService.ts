@@ -9566,10 +9566,10 @@ export class AgentService extends Disposable implements IAgentService {
 
 		const promises: Promise<unknown>[] = [];
 		try {
-			await this._registerRestoredSubagentSummaries(agent, session, mergedTurns);
+			await this._registerRestoredSubagentSummaries(agent, session, mergedTurns, recordedStorage);
 		} catch (error) {
 			this._logService.warn(`[AgentService] Restored private chat admission deferred for ${sessionStr}`, error);
-			this._queueRestoredSubagentAdmissionRetry(agent, session, mergedTurns);
+			this._queueRestoredSubagentAdmissionRetry(agent, session, mergedTurns, recordedStorage);
 		}
 
 		// Register persisted peer-chat catalog metadata. Their provider backings
@@ -9645,6 +9645,9 @@ export class AgentService extends Disposable implements IAgentService {
 	/** Restores authoritative central peer membership after importing cooling-period legacy changes. */
 	private async _restorePeerChats(agent: IAgent, session: URI, cachedChats?: readonly ICatalogChat[]): Promise<void> {
 		const [snapshot] = await this._orchestratorDatabase.readCatalogSnapshot([session.toString()]);
+		// A legacy catalog records no storage, and migrating it records only the
+		// creation-time rule, so the storage this snapshot records holds for both paths.
+		const recordedStorage = recordedChatStorage(snapshot, this._logService);
 		if (snapshot?.authorityVersion === 2) {
 			const entries = await this._peerChatStore.tryRead(session, false);
 			if (!entries) {
@@ -9658,7 +9661,7 @@ export class AgentService extends Disposable implements IAgentService {
 				changes: chat.metadata?.changes,
 				workingDirectories: chat.workingDirectories,
 			}));
-			await this._restorePeerChatsFromCatalog(session, entries, chats);
+			await this._restorePeerChatsFromCatalog(session, entries, recordedStorage, chats);
 			await this._persistOrderedListVisibleSessionState(session, {});
 			return;
 		}
@@ -9700,7 +9703,7 @@ export class AgentService extends Disposable implements IAgentService {
 				this._stateManager.removeChat(session.toString(), chat.resource);
 			}
 		}
-		await this._restorePeerChatsFromCatalog(session, restoredEntries, cached);
+		await this._restorePeerChatsFromCatalog(session, restoredEntries, recordedStorage, cached);
 		await this._persistOrderedListVisibleSessionState(session, {});
 	}
 
@@ -9813,8 +9816,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * Titles and drafts are metadata-only reads; backing sessions and histories
 	 * are loaded on the first content request.
 	 */
-	private async _restorePeerChatsFromCatalog(session: URI, entries: readonly IPersistedPeerChat[], cachedChats?: readonly ICatalogChat[]): Promise<void> {
-		const recordedStorage = await this._readRecordedChatStorage(session.toString());
+	private async _restorePeerChatsFromCatalog(session: URI, entries: readonly IPersistedPeerChat[], recordedStorage: ReadonlyMap<string, string>, cachedChats?: readonly ICatalogChat[]): Promise<void> {
 		const restored = await Promise.all(entries.map(async (entry) => {
 			let chatUri: URI;
 			try {
@@ -11224,7 +11226,7 @@ export class AgentService extends Disposable implements IAgentService {
 		this._logService.info(`[AgentService] Restored subagent session: ${subagentUri} with ${childTurns.length} turn(s)`);
 	}
 
-	private _queueRestoredSubagentAdmissionRetry(agent: IAgent, parentSession: URI, turns: readonly Turn[]): void {
+	private _queueRestoredSubagentAdmissionRetry(agent: IAgent, parentSession: URI, turns: readonly Turn[], recordedStorage: ReadonlyMap<string, string>): void {
 		const sessionKey = parentSession.toString();
 		const existing = this._restoredSubagentAdmissionRetries.get(sessionKey);
 		if (existing?.isCurrent()) {
@@ -11249,7 +11251,7 @@ export class AgentService extends Disposable implements IAgentService {
 				const retry = this._catalogReconciliationService.runPass()
 					.then(async () => {
 						if (admission.isCurrent()) {
-							await this._registerRestoredSubagentSummaries(agent, parentSession, turns, admission.isCurrent);
+							await this._registerRestoredSubagentSummaries(agent, parentSession, turns, recordedStorage, admission.isCurrent);
 						}
 					});
 				current = retry;
@@ -11276,7 +11278,11 @@ export class AgentService extends Disposable implements IAgentService {
 		void admission.run();
 	}
 
-	private async _registerRestoredSubagentSummaries(agent: IAgent, parentSession: URI, turns: readonly Turn[], isCurrent: () => boolean = () => true): Promise<void> {
+	/**
+	 * `recordedStorage` is the storage the restore's catalog snapshot records.
+	 * Admission only adds private rows without storage, so it stays current.
+	 */
+	private async _registerRestoredSubagentSummaries(agent: IAgent, parentSession: URI, turns: readonly Turn[], recordedStorage: ReadonlyMap<string, string>, isCurrent: () => boolean = () => true): Promise<void> {
 		const parentSessionStr = parentSession.toString();
 		const parentChat = this._defaultChatUri(parentSession);
 		const discovered = new Map<string, { title: string; toolCallId: string }>();
@@ -11307,7 +11313,6 @@ export class AgentService extends Disposable implements IAgentService {
 			return { ...child, chatUri, origin, existing };
 		});
 		const normalized = await this._peerChatStore.readNormalizedChat(parentSession, URI.parse(parentChat));
-		const recordedStorage = await this._readRecordedChatStorage(parentSessionStr);
 		// A subagent without a recorded private row follows the creation-time rule.
 		const storageOf = (chat: string) => recordedStorage.get(chat) ?? creationTimeChatStorageResource(parentSessionStr, chat);
 		for (const child of restored) {

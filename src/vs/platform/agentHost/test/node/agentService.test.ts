@@ -21892,10 +21892,10 @@ suite('AgentService (node dispatcher)', () => {
 				interactivity: ChatInteractivity.ReadOnly,
 			});
 
-			await (svc as unknown as { _registerRestoredSubagentSummaries(agent: IAgent, parentSession: URI, turns: readonly Turn[]): Promise<void> })
-				._registerRestoredSubagentSummaries(agent, session, await agent.getSessionMessages(session));
-			await (svc as unknown as { _registerRestoredSubagentSummaries(agent: IAgent, parentSession: URI, turns: readonly Turn[]): Promise<void> })
-				._registerRestoredSubagentSummaries(agent, session, await agent.getSessionMessages(session));
+			await (svc as unknown as { _registerRestoredSubagentSummaries(agent: IAgent, parentSession: URI, turns: readonly Turn[], recordedStorage: ReadonlyMap<string, string>): Promise<void> })
+				._registerRestoredSubagentSummaries(agent, session, await agent.getSessionMessages(session), new Map());
+			await (svc as unknown as { _registerRestoredSubagentSummaries(agent: IAgent, parentSession: URI, turns: readonly Turn[], recordedStorage: ReadonlyMap<string, string>): Promise<void> })
+				._registerRestoredSubagentSummaries(agent, session, await agent.getSessionMessages(session), new Map());
 			await (svc as unknown as { _pinInheritedChatWorkingDirectories(session: URI, workingDirectories: readonly string[]): Promise<void> })
 				._pinInheritedChatWorkingDirectories(session, [URI.file('/workspace/original').toString()]);
 
@@ -21980,7 +21980,7 @@ suite('AgentService (node dispatcher)', () => {
 					mutation?: never,
 					catalogOverrideFactory?: () => Promise<object | undefined>,
 				): Promise<Awaited<ReturnType<IAgentHostDatabase['ensureChatCatalogV2']>> | undefined>;
-				_registerRestoredSubagentSummaries(agent: IAgent, parentSession: URI, turns: readonly Turn[]): Promise<void>;
+				_registerRestoredSubagentSummaries(agent: IAgent, parentSession: URI, turns: readonly Turn[], recordedStorage: ReadonlyMap<string, string>): Promise<void>;
 				_pinInheritedChatWorkingDirectories(session: URI, workingDirectories: readonly string[]): Promise<void>;
 			};
 			internals._catalogSyncSuppressedSessions.add(session.toString());
@@ -22013,7 +22013,7 @@ suite('AgentService (node dispatcher)', () => {
 				migrationEntered.complete();
 				return migrateChatCatalog(resource, token, mutation, catalogOverrideFactory);
 			};
-			const admission = internals._registerRestoredSubagentSummaries(agent, session, await agent.getSessionMessages(session));
+			const admission = internals._registerRestoredSubagentSummaries(agent, session, await agent.getSessionMessages(session), new Map());
 			await migrationEntered.p;
 			const latestLegacyCatalog = await database.getSessionChatCatalog(session.toString());
 			await database.replaceSessionChatCatalog(session.toString(), [{
@@ -22055,7 +22055,7 @@ suite('AgentService (node dispatcher)', () => {
 			await blocker;
 			await admission;
 			internals._migrateChatCatalog = migrateChatCatalog;
-			await internals._registerRestoredSubagentSummaries(agent, session, await agent.getSessionMessages(session));
+			await internals._registerRestoredSubagentSummaries(agent, session, await agent.getSessionMessages(session), new Map());
 			await internals._migrateChatCatalog(session, CancellationToken.None);
 			await internals._pinInheritedChatWorkingDirectories(session, [URI.file('/workspace/original').toString()]);
 
@@ -22129,8 +22129,8 @@ suite('AgentService (node dispatcher)', () => {
 			let attempts = 0;
 			const internals = svc as unknown as {
 				_restoredSubagentAdmissionRetries: Map<string, { run(): Promise<void> }>;
-				_queueRestoredSubagentAdmissionRetry(agent: IAgent, parentSession: URI, turns: readonly Turn[]): void;
-				_registerRestoredSubagentSummaries(agent: IAgent, parentSession: URI, turns: readonly Turn[]): Promise<void>;
+				_queueRestoredSubagentAdmissionRetry(agent: IAgent, parentSession: URI, turns: readonly Turn[], recordedStorage: ReadonlyMap<string, string>): void;
+				_registerRestoredSubagentSummaries(agent: IAgent, parentSession: URI, turns: readonly Turn[], recordedStorage: ReadonlyMap<string, string>): Promise<void>;
 				_pinInheritedChatWorkingDirectories(session: URI, workingDirectories: readonly string[]): Promise<void>;
 			};
 			internals._registerRestoredSubagentSummaries = async () => {
@@ -22140,7 +22140,7 @@ suite('AgentService (node dispatcher)', () => {
 				}
 			};
 
-			internals._queueRestoredSubagentAdmissionRetry(agent, session, []);
+			internals._queueRestoredSubagentAdmissionRetry(agent, session, [], new Map());
 			const initialAdmission = internals._restoredSubagentAdmissionRetries.get(session.toString());
 			assert.ok(initialAdmission);
 			await assert.rejects(initialAdmission.run(), /admission attempt 1/);
@@ -22209,14 +22209,14 @@ suite('AgentService (node dispatcher)', () => {
 				_catalogSyncSuppressedSessions: Set<string>;
 				_catalogReconciliationService: { runPass(): Promise<void> };
 				_restoredSubagentAdmissionRetries: Map<string, { run(): Promise<void> }>;
-				_queueRestoredSubagentAdmissionRetry(agent: IAgent, parentSession: URI, turns: readonly Turn[]): void;
+				_queueRestoredSubagentAdmissionRetry(agent: IAgent, parentSession: URI, turns: readonly Turn[], recordedStorage: ReadonlyMap<string, string>): void;
 			};
 			internals._catalogSyncSuppressedSessions.add(sessionKey);
 			internals._catalogReconciliationService.runPass = async () => {
 				retryStarted.complete();
 				await releaseRetry.p;
 			};
-			internals._queueRestoredSubagentAdmissionRetry(agent, session, oldTurns);
+			internals._queueRestoredSubagentAdmissionRetry(agent, session, oldTurns, new Map());
 			assert.strictEqual(await raceTimeout(retryStarted.p.then(() => true), 1000, () => false), true, 'Restored subagent admission retry did not start');
 			const pendingRetry = internals._restoredSubagentAdmissionRetries.get(sessionKey)?.run();
 			assert.ok(pendingRetry);
@@ -22283,11 +22283,11 @@ suite('AgentService (node dispatcher)', () => {
 				_catalogSyncSuppressedSessions: Set<string>;
 				_catalogReconciliationService: { runPass(): Promise<void> };
 				_restoredSubagentAdmissionRetries: Map<string, { run(): Promise<void> }>;
-				_queueRestoredSubagentAdmissionRetry(agent: IAgent, parentSession: URI, turns: readonly Turn[]): void;
+				_queueRestoredSubagentAdmissionRetry(agent: IAgent, parentSession: URI, turns: readonly Turn[], recordedStorage: ReadonlyMap<string, string>): void;
 			};
 			internals._catalogSyncSuppressedSessions.add(sessionKey);
 			internals._catalogReconciliationService.runPass = async () => { };
-			internals._queueRestoredSubagentAdmissionRetry(agent, session, [restoredSubagentTurn(session, 'historical-task', 'Old Historical Worker')]);
+			internals._queueRestoredSubagentAdmissionRetry(agent, session, [restoredSubagentTurn(session, 'historical-task', 'Old Historical Worker')], new Map());
 			assert.strictEqual(await raceTimeout(metadataRead.p.then(() => true), 1000, () => false), true, 'Private chat metadata hydration did not start');
 			const pendingRetry = internals._restoredSubagentAdmissionRetries.get(sessionKey)?.run();
 			assert.ok(pendingRetry);
@@ -22351,11 +22351,11 @@ suite('AgentService (node dispatcher)', () => {
 				_catalogSyncSuppressedSessions: Set<string>;
 				_catalogReconciliationService: { runPass(): Promise<void> };
 				_restoredSubagentAdmissionRetries: Map<string, { run(): Promise<void> }>;
-				_queueRestoredSubagentAdmissionRetry(agent: IAgent, parentSession: URI, turns: readonly Turn[]): void;
+				_queueRestoredSubagentAdmissionRetry(agent: IAgent, parentSession: URI, turns: readonly Turn[], recordedStorage: ReadonlyMap<string, string>): void;
 			};
 			internals._catalogSyncSuppressedSessions.add(sessionKey);
 			internals._catalogReconciliationService.runPass = async () => { };
-			internals._queueRestoredSubagentAdmissionRetry(agent, session, [restoredSubagentTurn(session, 'historical-task', 'Old Historical Worker')]);
+			internals._queueRestoredSubagentAdmissionRetry(agent, session, [restoredSubagentTurn(session, 'historical-task', 'Old Historical Worker')], new Map());
 			assert.strictEqual(await raceTimeout(revisionUpdateStarted.p.then(() => true), 1000, () => false), true, 'Catalog revision update did not start');
 			const pendingRetry = internals._restoredSubagentAdmissionRetries.get(sessionKey)?.run();
 			assert.ok(pendingRetry);
@@ -22485,12 +22485,12 @@ suite('AgentService (node dispatcher)', () => {
 					_catalogSyncSuppressedSessions: Set<string>;
 					_catalogReconciliationService: { runPass(): Promise<void> };
 					_restoredSubagentAdmissionRetries: Map<string, { run(): Promise<void> }>;
-					_queueRestoredSubagentAdmissionRetry(agent: IAgent, parentSession: URI, turns: readonly Turn[]): void;
+					_queueRestoredSubagentAdmissionRetry(agent: IAgent, parentSession: URI, turns: readonly Turn[], recordedStorage: ReadonlyMap<string, string>): void;
 				};
 				internals._catalogSyncSuppressedSessions.add(sessionKey);
 				const runReconciliation = internals._catalogReconciliationService.runPass.bind(internals._catalogReconciliationService);
 				internals._catalogReconciliationService.runPass = async () => { };
-				internals._queueRestoredSubagentAdmissionRetry(agent, session, [restoredSubagentTurn(session, 'historical-task', 'Old Historical Worker')]);
+				internals._queueRestoredSubagentAdmissionRetry(agent, session, [restoredSubagentTurn(session, 'historical-task', 'Old Historical Worker')], new Map());
 				assert.strictEqual(await raceTimeout(receiptWriteStarted.p.then(() => true), 1000, () => false), true, `${receiptPath} receipt write did not start`);
 				const pendingRetry = internals._restoredSubagentAdmissionRetries.get(sessionKey)?.run();
 				assert.ok(pendingRetry);
@@ -22589,11 +22589,11 @@ suite('AgentService (node dispatcher)', () => {
 				_catalogSyncSuppressedSessions: Set<string>;
 				_catalogReconciliationService: { runPass(): Promise<void> };
 				_restoredSubagentAdmissionRetries: Map<string, { run(): Promise<void> }>;
-				_queueRestoredSubagentAdmissionRetry(agent: IAgent, parentSession: URI, turns: readonly Turn[]): void;
+				_queueRestoredSubagentAdmissionRetry(agent: IAgent, parentSession: URI, turns: readonly Turn[], recordedStorage: ReadonlyMap<string, string>): void;
 			};
 			internals._catalogSyncSuppressedSessions.add(sessionKey);
 			internals._catalogReconciliationService.runPass = async () => { };
-			internals._queueRestoredSubagentAdmissionRetry(agent, session, [restoredSubagentTurn(session, 'historical-task', 'Old Historical Worker')]);
+			internals._queueRestoredSubagentAdmissionRetry(agent, session, [restoredSubagentTurn(session, 'historical-task', 'Old Historical Worker')], new Map());
 			assert.strictEqual(await raceTimeout(sourceRead.p.then(() => true), 1000, () => false), true, 'Legacy catalog source hydration did not start');
 			const pendingRetry = internals._restoredSubagentAdmissionRetries.get(sessionKey)?.run();
 			assert.ok(pendingRetry);
@@ -22665,11 +22665,11 @@ suite('AgentService (node dispatcher)', () => {
 				_catalogSyncSuppressedSessions: Set<string>;
 				_catalogReconciliationService: { runPass(): Promise<void> };
 				_restoredSubagentAdmissionRetries: Map<string, { run(): Promise<void> }>;
-				_queueRestoredSubagentAdmissionRetry(agent: IAgent, parentSession: URI, turns: readonly Turn[]): void;
+				_queueRestoredSubagentAdmissionRetry(agent: IAgent, parentSession: URI, turns: readonly Turn[], recordedStorage: ReadonlyMap<string, string>): void;
 			};
 			internals._catalogSyncSuppressedSessions.add(sessionKey);
 			internals._catalogReconciliationService.runPass = async () => { };
-			internals._queueRestoredSubagentAdmissionRetry(agent, session, [restoredSubagentTurn(session, 'historical-task', 'Old Historical Worker')]);
+			internals._queueRestoredSubagentAdmissionRetry(agent, session, [restoredSubagentTurn(session, 'historical-task', 'Old Historical Worker')], new Map());
 			assert.strictEqual(await raceTimeout(projectionStarted.p.then(() => true), 1000, () => false), true, 'Legacy projection did not start');
 			const pendingRetry = internals._restoredSubagentAdmissionRetries.get(sessionKey)?.run();
 			assert.ok(pendingRetry);
@@ -22751,8 +22751,8 @@ suite('AgentService (node dispatcher)', () => {
 				}
 
 				await assert.rejects(
-					(svc as unknown as { _registerRestoredSubagentSummaries(agent: IAgent, parentSession: URI, turns: readonly Turn[]): Promise<void> })
-						._registerRestoredSubagentSummaries(agent, session, await agent.getSessionMessages(session)),
+					(svc as unknown as { _registerRestoredSubagentSummaries(agent: IAgent, parentSession: URI, turns: readonly Turn[], recordedStorage: ReadonlyMap<string, string>): Promise<void> })
+						._registerRestoredSubagentSummaries(agent, session, await agent.getSessionMessages(session), new Map()),
 					/Missing restored catalog source/,
 				);
 
@@ -22789,10 +22789,10 @@ suite('AgentService (node dispatcher)', () => {
 			];
 			const turns = await copilotAgent.getSessionMessages(parent);
 
-			await (service as unknown as { _registerRestoredSubagentSummaries(agent: IAgent, parentSession: URI, turns: readonly Turn[]): Promise<void> })._registerRestoredSubagentSummaries(copilotAgent, parent, turns);
+			await (service as unknown as { _registerRestoredSubagentSummaries(agent: IAgent, parentSession: URI, turns: readonly Turn[], recordedStorage: ReadonlyMap<string, string>): Promise<void> })._registerRestoredSubagentSummaries(copilotAgent, parent, turns, new Map());
 			const reconstructedTitle = getStateManager(service).getSessionState(parent.toString())?.chats.find(chat => chat.resource === childChat)?.title;
 			getStateManager(service).updateChatTitle(parent.toString(), childChat, 'My Custom Worker');
-			await (service as unknown as { _registerRestoredSubagentSummaries(agent: IAgent, parentSession: URI, turns: readonly Turn[]): Promise<void> })._registerRestoredSubagentSummaries(copilotAgent, parent, turns);
+			await (service as unknown as { _registerRestoredSubagentSummaries(agent: IAgent, parentSession: URI, turns: readonly Turn[], recordedStorage: ReadonlyMap<string, string>): Promise<void> })._registerRestoredSubagentSummaries(copilotAgent, parent, turns, new Map());
 
 			assert.deepStrictEqual({
 				reconstructedTitle,
@@ -22818,7 +22818,7 @@ suite('AgentService (node dispatcher)', () => {
 				{ type: 'tool_complete', session: parent, toolCallId: 'tc-sub', result: { success: true, pastTenseMessage: 'Delegated task', content: [] } },
 			];
 
-			await (localService as unknown as { _registerRestoredSubagentSummaries(agent: IAgent, parentSession: URI, turns: readonly Turn[]): Promise<void> })._registerRestoredSubagentSummaries(copilotAgent, parent, await copilotAgent.getSessionMessages(parent));
+			await (localService as unknown as { _registerRestoredSubagentSummaries(agent: IAgent, parentSession: URI, turns: readonly Turn[], recordedStorage: ReadonlyMap<string, string>): Promise<void> })._registerRestoredSubagentSummaries(copilotAgent, parent, await copilotAgent.getSessionMessages(parent), new Map());
 
 			assert.strictEqual(getStateManager(localService).getSessionState(parent.toString())?.chats.find(chat => chat.resource === childChat)?.title, 'Persisted Worker');
 		});
@@ -23037,6 +23037,47 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('restoring a normalized session with peers and a restored subagent reads its catalog snapshot no more often than before recorded storage', async () => {
+			const owner = AgentSession.uri('copilot', 'snapshot-reads-owner');
+			const defaultChat = buildDefaultChatUri(owner);
+			const peer = buildChatUri(owner, 'peer');
+			const subagentChat = buildSubagentChatUri(owner.toString(), 'tc-sub');
+			const peerStorage = AgentSession.uri('copilot', 'snapshot-reads-peer-storage').toString();
+			const database = disposables.add(new AgentHostDatabase(':memory:'));
+			await database.registerRuntimeSession(owner.toString(), { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+			await database.registerChatCatalogV2(owner.toString(), {
+				defaultChat: { chat: defaultChat, order: 0 },
+				peers: [{ chat: peer, order: 1, storageResource: peerStorage }],
+				privateDescendants: [],
+			});
+			const agent = disposables.add(new MockAgent('copilot'));
+			const { session } = await createAgentSession(agent, { session: owner });
+			agent.sessionMessages = [
+				{ type: 'message', session, role: 'assistant', messageId: 'msg-1', content: '', toolRequests: [{ toolCallId: 'tc-sub', name: 'task' }] },
+				{ type: 'tool_start', session, toolCallId: 'tc-sub', toolName: 'task', displayName: 'Task', invocationMessage: 'Delegating...', toolKind: 'subagent' as const, subagentDescription: 'Find files', subagentAgentName: 'explore' },
+				{ type: 'subagent_started', session, toolCallId: 'tc-sub', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explores' },
+				{ type: 'tool_complete', session, toolCallId: 'tc-sub', result: { success: true, pastTenseMessage: 'Delegated', content: [{ type: ToolResultContentType.Text, text: 'Done' }] } },
+			];
+			const svc = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, createPerSessionDataService().service, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, database,
+			));
+			registerTestAgentProvider(svc, agent);
+			const snapshotReads = spy(database, 'readCatalogSnapshot');
+
+			await svc.restoreSession(owner);
+
+			assert.deepStrictEqual({
+				snapshotReads: snapshotReads.callCount,
+				storage: [peer, subagentChat].map(chat => getStateManager(svc).getChatStorageResource(chat)),
+			}, {
+				// Before recorded storage was threaded through the restore, peer and subagent admission each read it again.
+				snapshotReads: 12,
+				// The subagent is admitted during the restore, without a recorded row, so it follows the creation-time rule.
+				storage: [peerStorage, subagentChat],
+			});
+		});
+
 		test('a restored subagent reads its transcript from the storage its private row records', async () => {
 			const owner = AgentSession.uri('copilot', 'subagent-storage-owner');
 			const defaultChat = buildDefaultChatUri(owner);
@@ -23124,9 +23165,9 @@ suite('AgentService (node dispatcher)', () => {
 			await svc.restoreSession(elsewhere);
 			getStateManager(svc).addChat(elsewhere.toString(), peer, elsewhereStorage);
 			perSession.databaseOpens.length = 0;
-			const inspect = svc as unknown as { _restorePeerChatsFromCatalog(session: URI, entries: readonly { readonly uri: string }[]): Promise<void> };
+			const inspect = svc as unknown as { _restorePeerChatsFromCatalog(session: URI, entries: readonly { readonly uri: string }[], recordedStorage: ReadonlyMap<string, string>): Promise<void> };
 
-			await inspect._restorePeerChatsFromCatalog(owner, [{ uri: peer }]);
+			await inspect._restorePeerChatsFromCatalog(owner, [{ uri: peer }], new Map());
 
 			assert.deepStrictEqual({
 				readsCreationTimeStorage: perSession.databaseOpens.includes(peer),
