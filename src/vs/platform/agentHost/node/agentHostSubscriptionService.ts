@@ -15,6 +15,8 @@ export class AgentHostSubscriptionService implements IAgentHostSubscriptionServi
 	private readonly _subscribers = new ResourceMap<Set<string>>();
 	/** Owning session of each subscribed chat (or chat-scoped canvas), keyed by chat. */
 	private readonly _chatOwners = new Map<string, string>();
+	/** Subscribed resources addressing each chat: the chat itself and its chat-scoped canvases. */
+	private readonly _resourcesByChat = new Map<string, Set<string>>();
 
 	get subscribedResources(): Iterable<URI> {
 		return this._subscribers.keys();
@@ -26,6 +28,15 @@ export class AgentHostSubscriptionService implements IAgentHostSubscriptionServi
 		if (!subscribers) {
 			subscribers = new Set();
 			this._subscribers.set(resource, subscribers);
+			const chat = this._chatOf(resource);
+			if (chat !== undefined) {
+				let resources = this._resourcesByChat.get(chat);
+				if (!resources) {
+					resources = new Set();
+					this._resourcesByChat.set(chat, resources);
+				}
+				resources.add(resource.toString());
+			}
 		}
 		subscribers.add(clientId);
 		return firstForResource;
@@ -42,8 +53,13 @@ export class AgentHostSubscriptionService implements IAgentHostSubscriptionServi
 		}
 		this._subscribers.delete(resource);
 		const chat = this._chatOf(resource);
-		if (chat !== undefined && ![...this._subscribers.keys()].some(other => this._chatOf(other) === chat)) {
-			this._chatOwners.delete(chat);
+		const resources = chat === undefined ? undefined : this._resourcesByChat.get(chat);
+		if (chat !== undefined && resources) {
+			resources.delete(resource.toString());
+			if (resources.size === 0) {
+				this._resourcesByChat.delete(chat);
+				this._chatOwners.delete(chat);
+			}
 		}
 		return true;
 	}
@@ -56,7 +72,7 @@ export class AgentHostSubscriptionService implements IAgentHostSubscriptionServi
 	}
 
 	recordChatOwner(chat: string, session: string): void {
-		if ([...this._subscribers.keys()].some(resource => this._chatOf(resource) === chat)) {
+		if (this._resourcesByChat.has(chat)) {
 			this._chatOwners.set(chat, session);
 		}
 	}
