@@ -44,6 +44,17 @@ suite('Chat Accessibility Help', () => {
 		assert.ok(help.includes('use /sandbox policy to view the effective sandbox policy. In the response, use Tab to focus Open Sandbox Policy and Enter to open the formatted report.'));
 	});
 
+	test('documents participant redirection only in workbench panel and editor chats', () => {
+		const keybindings = new MockKeybindingService();
+		assert.deepStrictEqual(
+			(['panelChat', 'agentView', 'editsView', 'inlineChat', 'quickChat'] as const).map(type => [
+				getAccessibilityHelpText(type, keybindings, false).includes('Submitting an @ chat participant'),
+				getAccessibilityHelpText(type, keybindings, false, true).includes('Submitting an @ chat participant'),
+			]),
+			[[true, false], [true, false], [true, false], [false, false], [false, false]],
+		);
+	});
+
 	test('documents silent history retrieval and keyboard recovery without restarting or waking compute', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
 		assert.deepStrictEqual({
