@@ -698,7 +698,7 @@ suite('Sessions - Actions', () => {
 		]);
 	});
 
-	test('uses compact close icons for headers and a small close icon for tabs', () => {
+	test('uses the small close icon for headers and tabs', () => {
 		const chatTabClose = MenuRegistry.getMenuItems(Menus.SessionChatTab)
 			.filter(isIMenuItem)
 			.find(item => item.command.id === CLOSE_CHAT_COMMAND_ID);
@@ -719,9 +719,9 @@ suite('Sessions - Actions', () => {
 			editorClass: editorClose.class,
 		}, {
 			chatTabIcon: Codicon.closeSmall,
-			chatHeaderIcon: Codicon.closeCompact,
+			chatHeaderIcon: Codicon.closeSmall,
 			chatHeaderTooltip: 'Close Chat Group',
-			sessionHeaderIcon: Codicon.closeCompact,
+			sessionHeaderIcon: Codicon.closeSmall,
 			sessionHeaderTooltip: 'Close Session',
 			editorClass: 'codicon codicon-close-small',
 		});
