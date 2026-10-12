@@ -16,9 +16,10 @@ import { IAgentHostService, type IAgentConnection } from '../../../../../platfor
 import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ActionType, NotificationType, type ActionEnvelope, type ChatUsageAction, type INotification, type SessionCustomizationsChangedAction } from '../../../../../platform/agentHost/common/state/sessionActions.js';
-import { buildDefaultChatUri, isDefaultChatUri, type Customization } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { isDefaultChatUri, type Customization } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { getCopilotCliSessionRawId } from '../copilotCliEventsUri.js';
 import { agentModelCallMetaKey, readAgentModelCallDetail, readAgentModelCallDiagnostics, type IAgentModelCallDiagnostics } from '../../../../../platform/agentHost/common/meta/agentModelCallMeta.js';
+import { findChatOwnerInSessionRecords, findChatOwnerInSubscribedState, type AgentHostChatOwnerSource } from '../agentSessions/agentHost/agentHostChatOwner.js';
 
 /**
  * Directory (under the client's user data home) that holds the per-session
@@ -112,10 +113,10 @@ export async function readAgentHostUsageRecords(fileService: IFileService, uri: 
  * {@link IAgentHostService} in production and by bare emitters in tests, so the
  * recorders don't depend on the full service.
  */
-type IAgentHostActionSource = Pick<IAgentHostService, 'onDidAction' | 'onDidNotification' | 'listSessions'>;
+type IAgentHostActionSource = Pick<IAgentHostService, 'onDidAction' | 'onDidNotification'> & AgentHostChatOwnerSource;
 
-/** The host that emitted an action, used to read its session records. */
-type IAgentHostSessionCatalog = Pick<IAgentHostService, 'listSessions'>;
+/** The host that emitted an action, used to read its session state and records. */
+type IAgentHostSessionCatalog = AgentHostChatOwnerSource;
 
 /**
  * Shared client-side plumbing for recorders that observe agent-host protocol
@@ -304,10 +305,10 @@ export class AgentHostUsageRecorder extends AgentHostActionRecorder {
 
 	private readonly _seenCalls = new LRUCache<string, true>(4096);
 	private readonly _retention = new LRUCache<string, { count: number; size: number }>(128);
-	/** Recorded default chat -> owning session, from the hosts' session records. */
+	/** Default chat -> owning session, cached only for chats a host has listed. */
 	private readonly _defaultChatOwners = new LRUCache<string, string>(1024);
-	/** Keeps records in arrival order while an owner is resolved. */
-	private _recording: Promise<void> = Promise.resolve();
+	/** Per-host queue keeping that host's records in arrival order while owners resolve. */
+	private readonly _recordingByHost = new Map<IAgentHostSessionCatalog, Promise<void>>();
 
 	protected _sidecarUri(rawSessionId: string): URI {
 		return buildAgentHostUsageUri(this._baseDir, rawSessionId);
@@ -343,9 +344,10 @@ export class AgentHostUsageRecorder extends AgentHostActionRecorder {
 			ts: new Date().toISOString(),
 		};
 		const chat = envelope.channel;
-		const known = this._defaultChatOwners.get(chat);
-		this._recording = this._recording.then(async () => {
-			const session = known ?? await this._resolveDefaultChatOwner(catalog, chat);
+		const previous = this._recordingByHost.get(catalog) ?? Promise.resolve();
+		const next = previous.then(async () => {
+			// Re-checked when the step runs, so a burst waits for one lookup.
+			const session = this._defaultChatOwners.get(chat) ?? await this._resolveDefaultChatOwner(catalog, chat);
 			// The default chat's owner is a `copilotcli:/<rawId>` session;
 			// `getCopilotCliSessionRawId` yields the same raw id the reader derives
 			// from the client session resource.
@@ -361,26 +363,34 @@ export class AgentHostUsageRecorder extends AgentHostActionRecorder {
 				this._seenCalls.set(key, true);
 			}
 			this._append(rawId, record);
+		}).catch(err => this._logService.trace(`[${this.constructor.name}] failed to record usage for ${chat}: ${toErrorMessage(err)}`));
+		this._recordingByHost.set(catalog, next);
+		void next.finally(() => {
+			if (this._recordingByHost.get(catalog) === next) {
+				this._recordingByHost.delete(catalog);
+			}
 		});
 	}
 
 	/** Settles once every received action has been handed to its sidecar queue. */
-	protected whenRecorded(): Promise<void> {
-		return this._recording;
+	protected async whenRecorded(): Promise<void> {
+		await Promise.all(this._recordingByHost.values());
 	}
 
-	/** Reads the emitting host's session records to find the session whose default chat this is. */
+	/** Finds the session whose default chat this is: held session state first, then the host's session records. */
 	private async _resolveDefaultChatOwner(catalog: IAgentHostSessionCatalog, chat: string): Promise<string | undefined> {
-		try {
-			for (const metadata of await catalog.listSessions()) {
-				const session = metadata.session.toString();
-				const defaultChat = metadata.chats?.find(entry => entry.kind === 'default')?.chat.toString() ?? buildDefaultChatUri(session);
-				this._defaultChatOwners.set(defaultChat, session);
+		let session = findChatOwnerInSubscribedState(catalog, chat);
+		if (session === undefined) {
+			try {
+				session = await findChatOwnerInSessionRecords(catalog, chat, true);
+			} catch (err) {
+				this._logService.trace(`[${this.constructor.name}] failed to read session records: ${toErrorMessage(err)}`);
 			}
-		} catch (err) {
-			this._logService.trace(`[${this.constructor.name}] failed to read session records: ${toErrorMessage(err)}`);
 		}
-		return this._defaultChatOwners.get(chat);
+		if (session !== undefined) {
+			this._defaultChatOwners.set(chat, session);
+		}
+		return session;
 	}
 
 	/**

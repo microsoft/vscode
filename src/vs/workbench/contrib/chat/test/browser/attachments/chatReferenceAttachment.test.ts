@@ -14,6 +14,7 @@ import { RemoteAgentHostConnectionStatus, type IRemoteAgentHostService } from '.
 import type { IActiveSubscriptionInfo, IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { resolveAgentHostChatOwner } from '../../../browser/agentSessions/agentHost/agentHostChatOwner.js';
+import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { buildChatUri, buildDefaultChatUri, SessionStatus, StateComponents, type ComponentToState, type SessionState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ChatAttachmentWidgetRegistry, IChatAttachmentWidgetInstance } from '../../../browser/attachments/chatAttachmentWidgetRegistry.js';
 import { createChatReferenceVariableEntry, IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
@@ -83,6 +84,20 @@ suite('ChatReferenceAttachment', () => {
 			}
 		}
 		const connection = (sessions: readonly IAgentSessionMetadata[], subscribed?: { readonly session: string; readonly state: SessionState }) => new FakeConnection(sessions, subscribed);
+		const record = (session: string, chat: string): IAgentSessionMetadata => ({ session: URI.parse(session), startTime: 0, modifiedTime: 0, chats: [{ chat: URI.parse(chat), kind: 'peer' }] });
+		const remoteHostsOf = (...remotes: FakeConnection[]) => upcastPartial<IRemoteAgentHostService>({
+			connections: remotes.map((_, index) => ({ address: `remote-${index}.example:1`, name: `remote-${index}`, status: RemoteAgentHostConnectionStatus.connected })),
+			getConnectionByAuthority: authority => {
+				const index = remotes.findIndex((_, candidate) => agentHostAuthority(`remote-${candidate}.example:1`) === authority);
+				return index === -1 ? undefined : remotes[index];
+			},
+		});
+		class TraceLog extends NullLogService {
+			readonly traces: string[] = [];
+			override trace(message: string): void {
+				this.traces.push(message);
+			}
+		}
 
 		test('resolves owners from held state, then local and connected remote host records, never from the chat URI', async () => {
 			const local = connection([
@@ -97,7 +112,7 @@ suite('ChatReferenceAttachment', () => {
 				],
 				getConnectionByAuthority: authority => authority === agentHostAuthority('remote.example:1') ? remote : authority === agentHostAuthority('disconnected.example:1') ? disconnected : undefined,
 			});
-			const owner = async (chat: string) => (await resolveAgentHostChatOwner(URI.parse(chat), local, remoteHosts))?.toString();
+			const owner = async (chat: string) => (await resolveAgentHostChatOwner(URI.parse(chat), local, remoteHosts, new NullLogService()))?.toString();
 
 			assert.deepStrictEqual({
 				localPeer: await owner(peer),
@@ -106,6 +121,8 @@ suite('ChatReferenceAttachment', () => {
 				remote: await owner(remoteChat),
 				disconnected: await owner(disconnectedChat),
 				unknown: await owner(buildChatUri(encoded, 'unknown')),
+				// A legacy reference holding a bare session URI opens that session.
+				bareSession: await owner('copilotcli:/bare-session'),
 			}, {
 				localPeer: 'copilotcli:/local-owner',
 				localDefault: 'copilotcli:/local-owner',
@@ -113,6 +130,29 @@ suite('ChatReferenceAttachment', () => {
 				remote: 'copilotcli:/remote-owner',
 				disconnected: undefined,
 				unknown: undefined,
+				bareSession: 'copilotcli:/bare-session',
+			});
+		});
+
+		test('queries hosts in parallel with a per-host timeout and keeps the local-then-remote preference', async () => {
+			const chat = buildChatUri(encoded, 'contested');
+			const stalled = new FakeConnection([]);
+			stalled.listSessions = () => new Promise<IAgentSessionMetadata[]>(() => { });
+			const failing = new FakeConnection([]);
+			failing.listSessions = async () => { throw new Error('host unavailable'); };
+			const log = new TraceLog();
+			const owner = async (local: FakeConnection, ...remotes: FakeConnection[]) => (await resolveAgentHostChatOwner(URI.parse(chat), local, remoteHostsOf(...remotes), log, 20))?.toString();
+
+			assert.deepStrictEqual({
+				localWins: await owner(connection([record('copilotcli:/local-owner', chat)]), connection([record('copilotcli:/remote-owner', chat)])),
+				firstRemoteWins: await owner(connection([]), connection([record('copilotcli:/first-remote', chat)]), connection([record('copilotcli:/second-remote', chat)])),
+				pastStalledAndFailingHosts: await owner(stalled, failing, connection([record('copilotcli:/reachable-remote', chat)])),
+				traces: log.traces.map(trace => trace.replace(/^\[AgentHostChatOwner\] (\S+) .*$/, '$1')),
+			}, {
+				localWins: 'copilotcli:/local-owner',
+				firstRemoteWins: 'copilotcli:/first-remote',
+				pastStalledAndFailingHosts: 'copilotcli:/reachable-remote',
+				traces: ['remote-0.example:1', 'local'],
 			});
 		});
 	});

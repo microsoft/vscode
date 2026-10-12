@@ -1256,7 +1256,7 @@ export class ChatReferenceAttachmentWidget extends AbstractChatAttachmentWidget 
 	}
 
 	private async _openReferencedChat(chatResource: URI): Promise<void> {
-		const owner = await resolveAgentHostChatOwner(chatResource, this._agentHostService, this._remoteAgentHostService);
+		const owner = await resolveAgentHostChatOwner(chatResource, this._agentHostService, this._remoteAgentHostService, this._logService);
 		if (this._store.isDisposed) {
 			return;
 		}
