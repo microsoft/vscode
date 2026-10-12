@@ -10,6 +10,7 @@ import { IManagedSettingPolicyDefinition, IManagedSettingsPolicyDefinitions, Man
 import { IStringDictionary } from '../../../base/common/collections.js';
 import { isEmptyObject, isObject, isString } from '../../../base/common/types.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { PolicyDefinition } from './policy.js';
 
 export type { ManagedSettingsData } from '../../../base/common/policy.js';
@@ -62,6 +63,12 @@ export const COPILOT_ALLOW_MANAGED_HOOKS_ONLY_KEY = 'allowManagedHooksOnly';
 
 /** Managed-settings transport control that requires a fresh server fetch on startup. */
 export const COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY = 'forceRemoteSettingsRefresh';
+
+/** Enterprise escape hatch for automatic Copilot harness routing in VS Code. */
+export const COPILOT_TEMPORARY_DEFAULT_TO_LOCAL_HARNESS_KEY = 'vscode.temporaryDefaultToLocalHarness';
+
+/** Policy-only configuration projection of the Local harness escape hatch. */
+export const TemporaryDefaultToLocalHarnessSettingId = 'chat.temporaryDefaultToLocalHarness';
 
 /**
  * Enterprise-mandated sandbox floor (`sandbox.enabled` in the runtime's managed-settings schema).
@@ -286,8 +293,18 @@ export function hasManagedPermissions(service: IManagedSettingsService): boolean
 	return Object.keys(settings).some(key => (key === 'permissions' || key.startsWith('permissions.')) && settings[key] !== undefined);
 }
 
-/** Whether effective policy requires enforcement unavailable in the Local harness. */
-export function requiresCopilotAgentHost(service: IManagedSettingsService): boolean {
+/** Whether an administrator has enabled the temporary Local harness escape hatch. */
+export function isTemporaryDefaultToLocalHarnessEnabled(configurationService: IConfigurationService): boolean {
+	return configurationService.inspect<boolean>(TemporaryDefaultToLocalHarnessSettingId).policyValue === true;
+}
+
+/** Whether effective policy requires Agent Host, unless the administrator enables the Local escape hatch. */
+export function requiresCopilotAgentHost(service: IManagedSettingsService, configurationService: IConfigurationService): boolean {
+	const temporaryDefaultToLocal = configurationService?.inspect<boolean>(TemporaryDefaultToLocalHarnessSettingId).policyValue
+		?? service.getManagedSettingValue(COPILOT_TEMPORARY_DEFAULT_TO_LOCAL_HARNESS_KEY);
+	if (temporaryDefaultToLocal === true) {
+		return false;
+	}
 	return service.getManagedSettingValue(COPILOT_SANDBOX_ENABLED_KEY) === true || hasManagedPermissions(service);
 }
 
