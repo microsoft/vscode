@@ -7908,7 +7908,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			const changed: ISession[] = [];
 			const unregistered: string[] = [];
 
-			for (const rawMeta of sessions) {
+			// Frontend session keys drop the fragment (it selects a chat), so register exact identities
+			// first: a fragment row such as an older host's `<parent>#subagent/<id>` must not claim its
+			// parent's key just because it was listed earlier.
+			const ordered = [...sessions].sort((a, b) => Number(!!a.session.fragment) - Number(!!b.session.fragment));
+			for (const rawMeta of ordered) {
 				const meta = this._adoptSessionMeta(rawMeta);
 				const rawId = meta.session.toString();
 				currentKeys.add(rawId);

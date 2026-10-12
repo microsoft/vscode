@@ -1282,11 +1282,11 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 	test('applies the rest of a listing when one listed session cannot be registered', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		// Older hosts list legacy subagent rows (`<parent>#subagent/<id>`) whose
-		// frontend identity collides with their parent session.
+		// frontend identity collides with their parent session, in any order.
 		const listed = [
 			createSession('before'),
-			createSession('parent'),
 			createSession('parent-subagent', { session: URI.parse('copilotcli:/parent#subagent%2Ftool-1') }),
+			createSession('parent'),
 			createSession('after'),
 		];
 		let listCalls = 0;
@@ -1296,12 +1296,17 @@ suite('RemoteAgentHostSessionsProvider', () => {
 				return listed;
 			}
 		}());
+		const registered = new Map<string, string>();
 		const provider = createProvider(disposables, listingConnection, {
 			ctor: class extends RemoteAgentHostSessionsProvider {
 				protected override registerBackendSession(backendSession: URI, agentProvider: string): void {
-					if (backendSession.fragment) {
-						throw new Error(`Conflicting backend identities for ${backendSession.toString()}`);
+					// Like IAgentHostConnectionsService, the first identity claims the fragment-free key.
+					const key = backendSession.with({ fragment: '' }).toString();
+					const previous = registered.get(key);
+					if (previous !== undefined && previous !== backendSession.toString()) {
+						throw new Error(`Conflicting backend identities for ${key}`);
 					}
+					registered.set(key, backendSession.toString());
 					super.registerBackendSession(backendSession, agentProvider);
 				}
 			},
@@ -1312,10 +1317,11 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		provider.getSessions();
 		await timeout(10_000);
 
+		const label = (session: ISession) => session.resource.fragment ? `${session.resource.path}#${session.resource.fragment}` : session.resource.path;
 		assert.deepStrictEqual({
 			listCalls,
-			added: changes.flatMap(e => e.added.map(session => session.resource.path)),
-			sessions: provider.getSessions().map(session => session.resource.path).sort(),
+			added: changes.flatMap(e => e.added.map(label)),
+			sessions: provider.getSessions().map(label).sort(),
 		}, {
 			listCalls: 1,
 			added: ['/before', '/parent', '/after'],
