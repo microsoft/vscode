@@ -5660,6 +5660,10 @@
       ],
       "commandPalette": [
         {
+          "command": "github.copilot.report",
+          "when": "false"
+        },
+        {
           "command": "github.copilot.cli.openInCopilotCLI",
           "when": "false"
         },
