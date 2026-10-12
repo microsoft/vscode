@@ -72,7 +72,7 @@ import { IAuthenticationMcpAccessService } from '../../../../../services/authent
 import { IAuthenticationMcpService } from '../../../../../services/authentication/browser/authenticationMcpService.js';
 import { IAuthenticationMcpUsageService } from '../../../../../services/authentication/browser/authenticationMcpUsageService.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
-import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../../common/participants/chatAgents.js';
+import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, CHAT_SUBAGENT_RESOURCE_QUERY_PARAM, ChatAIDisabledSettingId, ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
 import { migrateLegacyTerminalToolSpecificData } from '../../../common/chat.js';
 import { ChatErrorLevel, ChatRequestQueueKind, ElicitationState, IChatService, IRemotePendingRequest, IChatMarkdownContent, IChatMcpAuthenticationRequired, IChatProgress, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, IChatUsage, ToolConfirmKind, type IChatResponseErrorDetails } from '../../../common/chatService/chatService.js';
@@ -142,7 +142,7 @@ import { ChatQuestionCarouselData } from '../../../common/model/chatProgressType
 import { ChatPlanReviewData } from '../../../common/model/chatProgressTypes/chatPlanReviewData.js';
 import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
-import { ChatResponseModel, IntendedModelSlot, reviveSerializableInputState, type ChatModel, type ChatRequestModel, type IChatModel, type IChatModelInputState, type IChatPendingRequest, type IChatRequestModel, type IInputModel } from '../../../common/model/chatModel.js';
+import { ChatResponseModel, IntendedModelSlot, reviveSerializableInputState, type ChatModel, type ChatRequestModel, type IChatModel, type IChatModelInputState, type IChatPendingRequest, type IChatRequestModel, type IChatResponseModel, type IInputModel } from '../../../common/model/chatModel.js';
 import { ModelSelectionReason } from '../../../common/modelSelection.js';
 import { convertBufferToScreenshotVariable } from '../../../browser/attachments/chatScreenshotContext.js';
 import { AgentHostCompletionReferenceKind, ChatPasteAttachmentMetadata, createChatReferenceVariableEntry, isChatReferenceVariableEntry, toAgentHostCompletionVariableEntry, type IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
@@ -7378,7 +7378,8 @@ suite('AgentHostChatContribution', () => {
 			assert.deepStrictEqual({
 				parts: collected.flat().filter(part => part.kind === 'autoModeResolution'),
 				details: result.details,
-			}, { parts: [], details: 'Auto' });
+				metadata: result.metadata,
+			}, { parts: [], details: 'Auto', metadata: { resolvedModel: 'gpt-5.4-mini' } });
 		}));
 
 		test('live turn marks chat session complete after turnComplete', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -7405,7 +7406,7 @@ suite('AgentHostChatContribution', () => {
 
 			const result = await turnPromise;
 
-			assert.strictEqual(result.details, 'Opus 4.7 • 1.5 credits');
+			assert.deepStrictEqual({ details: result.details, metadata: result.metadata }, { details: 'Opus 4.7 • 1.5 credits', metadata: undefined });
 		}));
 
 		for (const cancelled of [false, true]) {
@@ -7414,7 +7415,7 @@ suite('AgentHostChatContribution', () => {
 					['agent-host-copilot:hydrafusion', upcastPartial<ILanguageModelChatMetadata>({ name: 'HydraFusion' })],
 					['agent-host-copilot:gpt-5.6-sol', upcastPartial<ILanguageModelChatMetadata>({ name: 'GPT-5.6 Sol' })],
 				]);
-				const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, { languageModels });
+				const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, { languageModels, provider: 'copilotcli' });
 				const cts = disposables.add(new CancellationTokenSource());
 				const { turnPromise, session, turnId, fire, collected } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
 					userSelectedModelId: 'agent-host-copilot:hydrafusion', cancellationToken: cts.token,
@@ -7441,7 +7442,7 @@ suite('AgentHostChatContribution', () => {
 					['agent-host-copilot:hydrafusion', upcastPartial<ILanguageModelChatMetadata>({ name: 'HydraFusion Preview', pricing: '2x' })],
 					['agent-host-copilot:gpt-5.6-sol', upcastPartial<ILanguageModelChatMetadata>({ name: 'GPT-5.6 Sol', pricing: '1x' })],
 				]);
-				const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, { languageModels });
+				const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, { languageModels, provider: 'copilotcli' });
 				const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { userSelectedModelId: 'agent-host-copilot:hydrafusion' });
 				fire({ type: 'chat/usage', session, turnId, usage: { model: 'gpt-5.6-sol', inputTokens: 100, _meta: cost === undefined ? {} : { cost } } } as ChatAction);
 				fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
@@ -10530,34 +10531,77 @@ suite('AgentHostChatContribution', () => {
 			});
 		}
 
-		test('restored Fusion response footers keep their workflow label independently of other turns', async () => {
-			const languageModels = new Map<string, ILanguageModelChatMetadata>([
-				['agent-host-copilot:gpt-5.6-sol', upcastPartial<ILanguageModelChatMetadata>({ name: 'GPT-5.6 Sol' })],
-			]);
-			const { sessionHandler, agentHostService } = createContribution(disposables, { languageModels });
-			const sessionUri = AgentSession.uri('copilot', 'sess-fusion-footers');
-			const usage = { model: 'gpt-5.6-sol', inputTokens: 100, outputTokens: 20, _meta: { cost: 15.5 } };
-			const fusionMessage = { text: 'Fusion request', origin: { kind: MessageKind.User }, model: { id: 'hydrafusion' } } as const;
-			agentHostService.sessionStates.set(sessionUri.toString(), {
-				...createSessionState({
-					resource: sessionUri.toString(), provider: 'copilot', title: 'Test',
-					status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
-				}),
-				lifecycle: SessionLifecycle.Ready,
-				turns: [
-					{ id: 'fusion', message: fusionMessage, responseParts: [], usage, state: TurnState.Complete },
-					{ id: 'ordinary', message: { ...fusionMessage, model: { id: 'gpt-5.6-sol' } }, responseParts: [], usage, state: TurnState.Complete },
-				],
-				activeTurn: { id: 'active-fusion', startedAt: '2025-01-01T00:00:00.000Z', message: fusionMessage, responseParts: [], usage },
+		test('restored Fusion response footers keep their workflow label independently of other turns, only for Copilot CLI', async () => {
+			const footers = async (provider: string) => {
+				const languageModels = new Map<string, ILanguageModelChatMetadata>([
+					['agent-host-copilot:gpt-5.6-sol', upcastPartial<ILanguageModelChatMetadata>({ name: 'GPT-5.6 Sol' })],
+				]);
+				const { sessionHandler, agentHostService } = createContribution(disposables, { languageModels, provider });
+				const sessionUri = AgentSession.uri(provider, 'sess-fusion-footers');
+				const usage = { model: 'gpt-5.6-sol', inputTokens: 100, outputTokens: 20, _meta: { cost: 15.5 } };
+				const fusionMessage = { text: 'Fusion request', origin: { kind: MessageKind.User }, model: { id: 'hydrafusion' } } as const;
+				agentHostService.sessionStates.set(sessionUri.toString(), {
+					...createSessionState({
+						resource: sessionUri.toString(), provider, title: 'Test',
+						status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+					}),
+					lifecycle: SessionLifecycle.Ready,
+					turns: [
+						{ id: 'fusion', message: fusionMessage, responseParts: [], usage, state: TurnState.Complete },
+						{ id: 'ordinary', message: { ...fusionMessage, model: { id: 'gpt-5.6-sol' } }, responseParts: [], usage, state: TurnState.Complete },
+						{ id: 'max', message: { ...fusionMessage, model: { id: 'hydrafusion-max' } }, responseParts: [], usage, state: TurnState.Complete },
+					],
+					activeTurn: { id: 'active-fusion', startedAt: '2025-01-01T00:00:00.000Z', message: fusionMessage, responseParts: [], usage },
+				});
+				const session = await sessionHandler.provideChatSessionContent(URI.from({ scheme: 'agent-host-copilot', path: '/sess-fusion-footers' }), CancellationToken.None);
+				disposables.add(toDisposable(() => session.dispose()));
+				return {
+					details: session.history.filter(item => item.type === 'response').map(item => item.details),
+					activeActualModel: session.progressObs?.get().find(part => part.kind === 'usage')?.actualModelId,
+				};
+			};
+			assert.deepStrictEqual({ copilotCli: await footers('copilotcli'), other: await footers('claude') }, {
+				copilotCli: {
+					details: ['HydraFusion • 15.5 credits', 'GPT-5.6 Sol • 15.5 credits', 'HydraFusion Max • 15.5 credits', 'HydraFusion • 15.5 credits'],
+					activeActualModel: 'agent-host-copilot:gpt-5.6-sol',
+				},
+				other: {
+					details: ['GPT-5.6 Sol • 15.5 credits', 'GPT-5.6 Sol • 15.5 credits', 'GPT-5.6 Sol • 15.5 credits', 'GPT-5.6 Sol • 15.5 credits'],
+					activeActualModel: 'agent-host-copilot:gpt-5.6-sol',
+				},
 			});
-			const session = await sessionHandler.provideChatSessionContent(URI.from({ scheme: 'agent-host-copilot', path: '/sess-fusion-footers' }), CancellationToken.None);
-			disposables.add(toDisposable(() => session.dispose()));
-			assert.deepStrictEqual({
-				details: session.history.filter(item => item.type === 'response').map(item => item.details),
-				activeActualModel: session.progressObs?.get().find(part => part.kind === 'usage')?.actualModelId,
-			}, {
-				details: ['HydraFusion • 15.5 credits', 'GPT-5.6 Sol • 15.5 credits', 'HydraFusion • 15.5 credits'],
-				activeActualModel: 'agent-host-copilot:gpt-5.6-sol',
+		});
+
+		test('Fusion response footers name the Ensemble tier they ran as', async () => {
+			const footers = async (intelligenceUsesHydraFusion: boolean) => {
+				const languageModels = new Map<string, ILanguageModelChatMetadata>([
+					['agent-host-copilot:auto', upcastPartial<ILanguageModelChatMetadata>({
+						name: 'Ensemble', autoModelEnsemble: { intelligenceUsesHydraFusion },
+						configurationSchema: { properties: { tier: { type: 'string', enum: ['balance', 'intelligence'], enumItemLabels: ['Balance', 'High'] } } },
+					})],
+				]);
+				const { sessionHandler, agentHostService } = createContribution(disposables, { languageModels, provider: 'copilotcli' });
+				const sessionUri = AgentSession.uri('copilotcli', 'sess-ensemble-footers');
+				const usage = { model: 'gpt-5.6-sol', inputTokens: 100, outputTokens: 20, _meta: { cost: 15.5 } };
+				const message = (model: string) => ({ text: 'Ensemble request', origin: { kind: MessageKind.User }, model: { id: model } } as const);
+				agentHostService.sessionStates.set(sessionUri.toString(), {
+					...createSessionState({
+						resource: sessionUri.toString(), provider: 'copilotcli', title: 'Test',
+						status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+					}),
+					lifecycle: SessionLifecycle.Ready,
+					turns: [
+						{ id: 'max', message: message('hydrafusion-max'), responseParts: [], usage, state: TurnState.Complete },
+						{ id: 'intelligence', message: message('hydrafusion'), responseParts: [], usage, state: TurnState.Complete },
+					],
+				});
+				const session = await sessionHandler.provideChatSessionContent(URI.from({ scheme: 'agent-host-copilot', path: '/sess-ensemble-footers' }), CancellationToken.None);
+				disposables.add(toDisposable(() => session.dispose()));
+				return session.history.filter(item => item.type === 'response').map(item => item.details);
+			};
+			assert.deepStrictEqual({ routed: await footers(true), notRouted: await footers(false) }, {
+				routed: ['Ensemble Max • 15.5 credits', 'Ensemble High • 15.5 credits'],
+				notRouted: ['Ensemble Max • 15.5 credits', 'HydraFusion • 15.5 credits'],
 			});
 		});
 
@@ -15667,6 +15711,56 @@ suite('AgentHostChatContribution', () => {
 
 			assert.strictEqual(chatSession.isCompleteObs!.get(), true);
 			assert.strictEqual(invocationTimings.length, 1, 'only the local invocation has a renderer timing origin');
+		}));
+
+		test('server-initiated turn records the model Auto routed to on the response result', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService, chatService } = createContribution(disposables);
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/server-turn-resolved-model' });
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+			disposables.add(toDisposable(() => chatSession.dispose()));
+
+			const registered = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+			const initialTurn = registered.impl.invoke(makeRequest({ message: 'Init', sessionResource }), () => { }, [], CancellationToken.None);
+			await timeout(10);
+			const dispatch = agentHostService.turnActions[0];
+			const initialAction = dispatch.action as ITurnStartedAction;
+			const session = dispatch.channel.toString();
+			agentHostService.fireAction({ channel: session, action: initialAction, serverSeq: 1, origin: { clientId: agentHostService.clientId, clientSeq: dispatch.clientSeq } });
+			agentHostService.fireAction({ channel: session, action: { type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId: initialAction.turnId } as ChatAction, serverSeq: 2, origin: undefined });
+			await initialTurn;
+
+			const serverTurnId = 'server-turn-auto';
+			const results: IChatAgentResult[] = [];
+			const response = upcastPartial<IChatResponseModel>({
+				get result() { return results.at(-1); },
+				setResult: (result: IChatAgentResult) => { results.push(result); },
+			});
+			chatService.setSession(sessionResource, upcastPartial<IChatModel>({
+				sessionResource,
+				onDidChangePendingRequests: Event.None,
+				getPendingRequests: () => [],
+				getRequests: () => [upcastPartial<IChatRequestModel>({ id: serverTurnId, response })],
+			}));
+
+			agentHostService.fireAction({
+				channel: session,
+				action: { type: 'chat/turnStarted', startedAt: '2025-01-01T00:00:00.000Z', session, turnId: serverTurnId, message: { text: 'auto queued', origin: { kind: MessageKind.User }, model: { id: 'auto' } } } as ChatAction,
+				serverSeq: 3, origin: undefined,
+			});
+			await timeout(10);
+			agentHostService.fireAction({
+				channel: session,
+				action: { type: 'chat/usage', session, turnId: serverTurnId, usage: { model: 'gpt-5.4-mini', _meta: { autoModeResolved: { chosenModel: 'gpt-5.4-mini' } } } } as ChatAction,
+				serverSeq: 4, origin: undefined,
+			});
+			agentHostService.fireAction({
+				channel: session,
+				action: { type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId: serverTurnId } as ChatAction,
+				serverSeq: 5, origin: undefined,
+			});
+			await timeout(10);
+
+			assert.deepStrictEqual(results, [{ metadata: { resolvedModel: 'gpt-5.4-mini' } }]);
 		}));
 
 		test('stale completion from a replaced server turn does not complete the next response', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

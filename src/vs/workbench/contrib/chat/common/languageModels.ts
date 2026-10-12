@@ -262,6 +262,8 @@ export interface ILanguageModelChatMetadata {
 	 * in {@link tooltip} instead.
 	 */
 	readonly autoModelDiscountPercent?: number;
+	/** How the agent host presents its Auto model as Ensemble, when it does. */
+	readonly autoModelEnsemble?: { readonly intelligenceUsesHydraFusion: boolean };
 	readonly multiplierNumeric?: number;
 	readonly isBYOK?: boolean;
 	readonly pricing?: string;
@@ -431,8 +433,10 @@ export namespace ILanguageModelChatMetadata {
 	 * (it contains a "Learn More" link). The discount is described separately by
 	 * {@link getAutoModelDiscountDescription}.
 	 */
-	export function getAutoModelDescription(): string {
-		const base = localize('autoModel.description', "Auto routes based on your task and real-time system health and model performance.");
+	export function getAutoModelDescription(ensemble?: boolean): string {
+		const base = ensemble
+			? localize('autoModel.ensembleDescription', "Ensemble routes based on your task and real-time system health and model performance.")
+			: localize('autoModel.description', "Auto routes based on your task and real-time system health and model performance.");
 		const learnMore = localize('autoModel.learnMore', "[Learn More]({0})", autoModelSelectionDocsUrl);
 		return `${base} ${learnMore}`;
 	}
@@ -442,8 +446,14 @@ export namespace ILanguageModelChatMetadata {
 	 *
 	 * @param discountPercent Whole-number percentage (e.g. `10` for 10%).
 	 * @param tierLabel The label of Auto's selected tier, e.g. "Efficiency".
+	 * @param ensemble Whether Auto is presented as Ensemble.
 	 */
-	export function getAutoModelDiscountDescription(discountPercent: number, tierLabel?: string): string {
+	export function getAutoModelDiscountDescription(discountPercent: number, tierLabel?: string, ensemble?: boolean): string {
+		if (ensemble) {
+			return tierLabel
+				? localize('autoModel.ensembleTierDiscount', "Models routed via Ensemble {0} receive a {1}% discount.", tierLabel, discountPercent)
+				: localize('autoModel.ensembleDiscount', "Models routed via Ensemble receive a {0}% discount.", discountPercent);
+		}
 		return tierLabel
 			? localize('autoModel.tierDiscount', "Models routed via Auto {0} receive a {1}% discount.", tierLabel, discountPercent)
 			: localize('autoModel.discount', "Models routed via auto receive a {0}% discount.", discountPercent);

@@ -492,6 +492,7 @@ export function defineCopilotRuntimeToolsTests(context: IAgentHostE2ETestContext
 			}
 
 			context.client.clearReceived();
+			removedClient.notify('unsubscribe', { channel: chatUri });
 			removedClient.notify('unsubscribe', { channel: sessionUri });
 			await removedClient.call('ping', { channel: ROOT_STATE_URI });
 			await context.client.waitForNotification(n => {
