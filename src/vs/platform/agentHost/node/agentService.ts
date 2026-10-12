@@ -3352,6 +3352,10 @@ export class AgentService extends Disposable implements IAgentService {
 					this._recordDiscoveryRegistrationProgress(observation, 'filtered');
 					return false;
 				}
+				if (this._orchestratorDatabase.prepareSessionStorage && resolution?.status === 'resolved' && !resolution.existing
+					&& !await this._fileService.exists(this._sessionDataService.getSessionDataDir(session))) {
+					await this._orchestratorDatabase.prepareSessionStorage?.(session.toString(), provider.id);
+				}
 				const identity: IRegisteredSession = { session, provider: provider.id, startTime: sessionMetadata.startTime, modifiedTime: sessionMetadata.modifiedTime, external, source: external ? 'discovery' : 'restore' };
 				const registered = await this._retryRegistryMutation(
 					() => this._sessionRegistry.registerDiscovered(session, providerSession, identity),

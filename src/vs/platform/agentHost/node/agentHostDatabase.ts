@@ -691,6 +691,7 @@ function agentMergeEnabledKey(session: string): string {
 }
 
 const provisionalSessionKeyPrefix = 'sessionProvisional:';
+const sessionStorageCatalogHashKeyPrefix = 'sessionStorageCatalogHash:';
 
 /** Metadata key marking a session registered but not yet materialized. */
 function provisionalSessionKey(session: string): string {
@@ -795,6 +796,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				await run(database, 'DELETE FROM metadata WHERE key = ?', [provisionalSessionKey(session)]);
 				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionsV2PayloadDirtyKey(session)]);
 				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionChatCatalogLegacyMirrorKey(session)]);
+				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionStorageCatalogHashKeyPrefix + session]);
 				await run(database, 'DELETE FROM sessions WHERE session_uri = ?', [session]);
 				await this._tombstoneOwnedChats(database, session);
 				await run(database, 'DELETE FROM session_chat_catalogs WHERE session_uri = ?', [session]);
@@ -1022,6 +1024,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				]);
 				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionsV2PayloadDirtyKey(exclusion.session)]);
 				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionChatCatalogLegacyMirrorKey(exclusion.session)]);
+				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionStorageCatalogHashKeyPrefix + exclusion.session]);
 				await this._tombstoneOwnedChats(database, exclusion.session);
 				await run(database, 'DELETE FROM session_chat_catalogs WHERE session_uri = ?', [exclusion.session]);
 				await run(database, 'DELETE FROM sessions_v2 WHERE session_uri = ?', [exclusion.session]);
@@ -1208,6 +1211,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				await run(database, 'DELETE FROM metadata WHERE key = ?', [provisionalSessionKey(session)]);
 				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionsV2PayloadDirtyKey(session)]);
 				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionChatCatalogLegacyMirrorKey(session)]);
+				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionStorageCatalogHashKeyPrefix + session]);
 				await exec(database, 'COMMIT');
 			} catch (error) {
 				await this._rollback(database, error, `Failed to unregister mirrored runtime session ${session}`);
@@ -1371,6 +1375,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				await run(database, 'DELETE FROM metadata WHERE key = ?', [agentMergeEnabledKey(session)]);
 				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionsV2PayloadDirtyKey(session)]);
 				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionChatCatalogLegacyMirrorKey(session)]);
+				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionStorageCatalogHashKeyPrefix + session]);
 				await exec(database, 'COMMIT');
 			} catch (error) {
 				await this._rollback(database, error, `Failed to unregister sessions_v2 identity ${session}`);
@@ -1575,14 +1580,33 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 	}
 
 	async listSessionsV2Receipts(): Promise<readonly IAgentHostDatabaseSessionV2Receipt[]> {
+		return (await this.listSessionsV2ReceiptsWithStorageHashes()).map(entry => entry.receipt);
+	}
+
+	async listSessionsV2ReceiptsWithStorageHashes(sessions?: readonly string[]): Promise<readonly { readonly receipt: IAgentHostDatabaseSessionV2Receipt; readonly hashes?: readonly [string, string] }[]> {
+		if (sessions?.length === 0) {
+			return [];
+		}
 		const rows = await all(await this._ensureDatabase(), this._selectVerifiedSessionsV2(
 			`session_uri, provider, start_time, modified_time, external, registration_source,
 				session_generation, source_revision, payload_version, payload_hash, is_chat_backing,
+				(SELECT value FROM metadata WHERE key = '${sessionStorageCatalogHashKeyPrefix}' || sessions_v2.session_uri) AS storage_hashes,
 				COALESCE(CAST((
 					SELECT value FROM metadata WHERE key = '${sessionsV2PayloadDirtyKeyPrefix}' || sessions_v2.session_uri
 				) AS INTEGER), 0) AS payload_dirty`,
-		), []);
-		return rows.map(row => this._toSessionV2Receipt(row));
+			sessions?.length,
+		), sessions ?? []);
+		return rows.map(row => {
+			const receipt = this._toSessionV2Receipt(row);
+			if (row.storage_hashes === null) {
+				return { receipt };
+			}
+			const hashes: unknown = JSON.parse(row.storage_hashes as string);
+			if (!Array.isArray(hashes) || hashes.length !== 2 || !hashes.every(hash => typeof hash === 'string')) {
+				throw new Error(`Invalid persisted catalog storage hashes for ${receipt.session}`);
+			}
+			return { receipt, hashes: [hashes[0], hashes[1]] as const };
+		});
 	}
 
 	async markSessionV2PayloadDirty(session: string): Promise<number | undefined> {
@@ -1829,16 +1853,16 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		});
 	}
 
-	async upsertSessionV2(envelope: IAgentHostDatabaseSessionV2Envelope, expectedSessionGeneration: string | undefined, validate?: () => boolean): Promise<AgentHostDatabaseSessionV2UpsertResult> {
-		return this._upsertSessionV2(envelope, expectedSessionGeneration, undefined, validate);
+	async upsertSessionV2(envelope: IAgentHostDatabaseSessionV2Envelope, expectedSessionGeneration: string | undefined, validate?: () => boolean, runtimePayloadHash?: string): Promise<AgentHostDatabaseSessionV2UpsertResult> {
+		return this._upsertSessionV2(envelope, expectedSessionGeneration, undefined, validate, runtimePayloadHash);
 	}
 
-	async upsertSessionV2FromChatCatalog(envelope: IAgentHostDatabaseSessionV2Envelope, expectedSessionGeneration: string | undefined, expectedCatalogRevision: number, validate?: () => boolean): Promise<AgentHostDatabaseSessionV2UpsertResult> {
+	async upsertSessionV2FromChatCatalog(envelope: IAgentHostDatabaseSessionV2Envelope, expectedSessionGeneration: string | undefined, expectedCatalogRevision: number, validate?: () => boolean, runtimePayloadHash?: string): Promise<AgentHostDatabaseSessionV2UpsertResult> {
 		this._validateRevision(expectedCatalogRevision);
-		return this._upsertSessionV2(envelope, expectedSessionGeneration, expectedCatalogRevision, validate);
+		return this._upsertSessionV2(envelope, expectedSessionGeneration, expectedCatalogRevision, validate, runtimePayloadHash);
 	}
 
-	private async _upsertSessionV2(envelope: IAgentHostDatabaseSessionV2Envelope, expectedSessionGeneration: string | undefined, expectedCatalogRevision?: number, validate?: () => boolean): Promise<AgentHostDatabaseSessionV2UpsertResult> {
+	private async _upsertSessionV2(envelope: IAgentHostDatabaseSessionV2Envelope, expectedSessionGeneration: string | undefined, expectedCatalogRevision?: number, validate?: () => boolean, runtimePayloadHash?: string): Promise<AgentHostDatabaseSessionV2UpsertResult> {
 		const isChatBacking = this._validateSessionV2Envelope(envelope);
 		return this._transactionSequencer.queue(async () => {
 			const database = await this._ensureDatabase();
@@ -1890,6 +1914,10 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 					}
 					if (envelope.sourceRevision === currentRevision) {
 						const replayed = current?.payload_version === envelope.payloadVersion && current?.payload_hash === envelope.payloadHash;
+						if (replayed && runtimePayloadHash !== undefined) {
+							this._validateWriteBoundary(validate);
+							await this._setSessionStorageCatalogHashes(database, envelope, runtimePayloadHash);
+						}
 						await exec(database, 'COMMIT');
 						return replayed ? 'replayed' : 'conflict';
 					}
@@ -1926,6 +1954,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 					envelope.payload,
 					isChatBacking ? 1 : 0,
 				]);
+				await this._setSessionStorageCatalogHashes(database, envelope, runtimePayloadHash);
 				this._validateWriteBoundary(validate);
 				await exec(database, 'COMMIT');
 				return 'applied';
@@ -1937,6 +1966,16 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				return this._rollback(database, error, `Failed to upsert sessions_v2 row for ${envelope.session}`);
 			}
 		});
+	}
+
+	private async _setSessionStorageCatalogHashes(database: Database, envelope: IAgentHostDatabaseSessionV2Envelope, runtimePayloadHash: string | undefined): Promise<void> {
+		const key = sessionStorageCatalogHashKeyPrefix + envelope.session;
+		if (runtimePayloadHash === undefined || runtimePayloadHash === envelope.payloadHash) {
+			await run(database, 'DELETE FROM metadata WHERE key = ?', [key]);
+		} else {
+			await run(database, `INSERT INTO metadata (key, value) VALUES (?, ?)
+				ON CONFLICT(key) DO UPDATE SET value = excluded.value`, [key, JSON.stringify([runtimePayloadHash, envelope.payloadHash])]);
+		}
 	}
 
 	private async _matchesChatV2PublicProjection(database: Database, envelope: IAgentHostDatabaseSessionV2Envelope, defaultChat: string): Promise<boolean> {

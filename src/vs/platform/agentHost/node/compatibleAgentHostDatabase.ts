@@ -93,7 +93,7 @@ export class CompatibleAgentHostDatabase extends Disposable implements IAgentHos
 	}
 
 	async tombstoneAndUnregisterSession(...[session]: Parameters<IAgentHostDatabase['tombstoneAndUnregisterSession']>): ReturnType<IAgentHostDatabase['tombstoneAndUnregisterSession']> {
-		const result = await this.raw.tombstoneAndUnregisterSession(this.identity.toStorage(session));
+		const result = await this._allocations.queue(() => this.raw.tombstoneAndUnregisterSession(this.identity.toStorage(session)));
 		return this.identity.record(result, 'runtime');
 	}
 
@@ -168,7 +168,15 @@ export class CompatibleAgentHostDatabase extends Disposable implements IAgentHos
 	}
 
 	async excludeSessionV2(...[exclusion, expected]: Parameters<IAgentHostDatabase['excludeSessionV2']>): ReturnType<IAgentHostDatabase['excludeSessionV2']> {
-		const result = await this.raw.excludeSessionV2(this.identity.record(exclusion, 'storage'), this.identity.record(expected, 'storage'));
+		const storedExclusion = this.identity.record(exclusion, 'storage');
+		let storedExpected = this.identity.record(expected, 'storage');
+		if (expected.catalog) {
+			const [current] = await this.raw.listSessionsV2ReceiptsWithStorageHashes([storedExclusion.session]);
+			if (current?.hashes?.[0] === expected.catalog.payloadHash && current.hashes[1] === current.receipt.payloadHash) {
+				storedExpected = { ...storedExpected, catalog: { ...expected.catalog, payloadHash: current.hashes[1] } };
+			}
+		}
+		const result = await this.raw.excludeSessionV2(storedExclusion, storedExpected);
 		return this.identity.record(result, 'runtime');
 	}
 
@@ -198,7 +206,7 @@ export class CompatibleAgentHostDatabase extends Disposable implements IAgentHos
 	}
 
 	async markSessionTombstoned(...[session]: Parameters<IAgentHostDatabase['markSessionTombstoned']>): ReturnType<IAgentHostDatabase['markSessionTombstoned']> {
-		const result = await this.raw.markSessionTombstoned(this.identity.toStorage(session));
+		const result = await this._allocations.queue(() => this.raw.markSessionTombstoned(this.identity.toStorage(session)));
 		return this.identity.record(result, 'runtime');
 	}
 
@@ -208,7 +216,6 @@ export class CompatibleAgentHostDatabase extends Disposable implements IAgentHos
 	}
 
 	async registerRuntimeSession(...[session, sessionOptions, registerOptions]: Parameters<IAgentHostDatabase['registerRuntimeSession']>): ReturnType<IAgentHostDatabase['registerRuntimeSession']> {
-		await this.prepareSessionStorage(session, sessionOptions.provider);
 		const result = await this.raw.registerRuntimeSession(this.identity.toStorage(session), this.identity.record(sessionOptions, 'storage'), this.identity.record(registerOptions, 'storage'));
 		return this.identity.record(result, 'runtime');
 	}
@@ -249,7 +256,6 @@ export class CompatibleAgentHostDatabase extends Disposable implements IAgentHos
 	}
 
 	async registerSessionV2(...[session, sessionOptions, registerOptions]: Parameters<IAgentHostDatabase['registerSessionV2']>): ReturnType<IAgentHostDatabase['registerSessionV2']> {
-		await this.prepareSessionStorage(session, sessionOptions.provider);
 		const result = await this.raw.registerSessionV2(this.identity.toStorage(session), this.identity.record(sessionOptions, 'storage'), this.identity.record(registerOptions, 'storage'));
 		return this.identity.record(result, 'runtime');
 	}
@@ -305,8 +311,11 @@ export class CompatibleAgentHostDatabase extends Disposable implements IAgentHos
 	}
 
 	async listSessionsV2Receipts(...[]: Parameters<IAgentHostDatabase['listSessionsV2Receipts']>): ReturnType<IAgentHostDatabase['listSessionsV2Receipts']> {
-		const result = await this.raw.listSessionsV2Receipts();
-		return this.identity.record(result, 'runtime');
+		const result = await this.raw.listSessionsV2ReceiptsWithStorageHashes();
+		return result.map(({ receipt, hashes }) => ({
+			...this.identity.record(receipt, 'runtime'),
+			payloadHash: hashes?.[1] === receipt.payloadHash ? hashes[0] : this.identity.hash(receipt.payloadHash, 'runtime'),
+		}));
 	}
 
 	async markSessionV2PayloadDirty(...[session]: Parameters<IAgentHostDatabase['markSessionV2PayloadDirty']>): ReturnType<IAgentHostDatabase['markSessionV2PayloadDirty']> {
@@ -336,13 +345,13 @@ export class CompatibleAgentHostDatabase extends Disposable implements IAgentHos
 
 	async upsertSessionV2(...[envelope, expectedSessionGeneration, validate]: Parameters<IAgentHostDatabase['upsertSessionV2']>): ReturnType<IAgentHostDatabase['upsertSessionV2']> {
 		const storedEnvelope = this.identity.record(envelope, 'storage');
-		const result = await this.raw.upsertSessionV2(storedEnvelope, this.identity.record(expectedSessionGeneration, 'storage'), this.identity.record(validate, 'storage'));
+		const result = await this.raw.upsertSessionV2(storedEnvelope, expectedSessionGeneration, validate, envelope.payloadHash);
 		return this.identity.record(result, 'runtime');
 	}
 
 	async upsertSessionV2FromChatCatalog(...[envelope, expectedSessionGeneration, expectedCatalogRevision, validate]: Parameters<IAgentHostDatabase['upsertSessionV2FromChatCatalog']>): ReturnType<IAgentHostDatabase['upsertSessionV2FromChatCatalog']> {
 		const storedEnvelope = this.identity.record(envelope, 'storage');
-		const result = await this.raw.upsertSessionV2FromChatCatalog(storedEnvelope, this.identity.record(expectedSessionGeneration, 'storage'), this.identity.record(expectedCatalogRevision, 'storage'), this.identity.record(validate, 'storage'));
+		const result = await this.raw.upsertSessionV2FromChatCatalog(storedEnvelope, expectedSessionGeneration, expectedCatalogRevision, validate, envelope.payloadHash);
 		return this.identity.record(result, 'runtime');
 	}
 
