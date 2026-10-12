@@ -4,11 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { createHash } from 'crypto';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { stableStringify } from '../../../../base/common/objects.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, MessageKind, ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type SessionSummary, type Turn } from '../../common/state/sessionState.js';
+import { AGENT_HOST_CATALOG_PAYLOAD_VERSION } from '../../node/agentHostCatalogProjection.js';
 import { AgentHostChatOwnershipService, type IChatRegistration } from '../../node/agentHostChatOwnershipService.js';
 import type { Database } from '@vscode/sqlite3';
 import { AgentHostDatabase, IAgentHostDatabase, type IAgentHostDatabaseChatOwner, type IAgentHostDatabaseSession } from '../../node/agentHostDatabase.js';
@@ -23,7 +26,7 @@ class FakeOwnershipDatabase extends mock<IAgentHostDatabase>() {
 	override async findCentralChatOwners(chats: readonly string[]): Promise<ReadonlyMap<string, IAgentHostDatabaseChatOwner>> {
 		return new Map(chats.flatMap(chat => this.owners.has(chat) ? [[chat, this.owners.get(chat)!] as const] : []));
 	}
-	override async findCatalogPayloadChatOwners(chats: readonly string[]): Promise<ReadonlyMap<string, IAgentHostDatabaseChatOwner>> {
+	override async findPayloadChatOwners(chats: readonly string[]): Promise<ReadonlyMap<string, IAgentHostDatabaseChatOwner>> {
 		return new Map(chats.flatMap(chat => this.payloadOwners.has(chat) ? [[chat, this.payloadOwners.get(chat)!] as const] : []));
 	}
 	override async listSessionV2Registrations(): Promise<readonly IAgentHostDatabaseSession[]> {
@@ -196,6 +199,49 @@ suite('AgentHostChatOwnershipService', () => {
 		}, {
 			resolved: { owner: legacy, spawnedBy: undefined },
 			payloadScans: 0,
+		});
+	});
+
+	test('a chat listed only in a cached catalog payload still resolves, as the last recorded source', async () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const database = disposables.add(new AgentHostDatabase(':memory:'));
+		const service = new AgentHostChatOwnershipService(stateManager, database);
+		const owner = 'copilot:/payload-only-owner';
+		const chat = buildChatUri('copilot:/payload-only-encoded', 'peer');
+		await database.registerRuntimeSession(owner, { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		const payload = stableStringify({
+			payloadVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION,
+			data: {
+				modifiedTime: 1,
+				summary: 'Payload only',
+				isRead: true,
+				isArchived: false,
+				isChatBacking: false,
+				workingDirectories: [],
+				chats: [
+					{ kind: 'default', order: 0, summary: 'Default', titleSource: 'auto', uri: buildDefaultChatUri(owner) },
+					{ kind: 'peer', order: 1, summary: 'Peer', titleSource: 'agent', uri: chat },
+				],
+			},
+		});
+		await database.upsertSessionV2({
+			session: owner,
+			sessionGeneration: 'generation',
+			sourceRevision: 1,
+			payloadVersion: AGENT_HOST_CATALOG_PAYLOAD_VERSION,
+			payloadHash: createHash('sha256').update(payload, 'utf8').digest('hex'),
+			verified: true,
+			payload,
+		}, undefined);
+
+		assert.deepStrictEqual({
+			central: (await database.findCentralChatOwners([chat])).get(chat),
+			resolved: await service.resolveChatOwner(chat),
+			recorded: await service.createRecordedOwnerLookup()(chat),
+		}, {
+			central: undefined,
+			resolved: { owner, spawnedBy: undefined },
+			recorded: owner,
 		});
 	});
 

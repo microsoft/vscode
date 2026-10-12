@@ -89,8 +89,8 @@ export async function findTestCentralChatOwners(database: IAgentHostDatabase, ch
 	return owners;
 }
 
-/** In-memory counterpart of {@link IAgentHostDatabase.findCatalogPayloadChatOwners} for database fakes. */
-export async function findTestCatalogPayloadChatOwners(database: IAgentHostDatabase, chats: readonly string[]): ReturnType<IAgentHostDatabase['findCatalogPayloadChatOwners']> {
+/** In-memory counterpart of {@link IAgentHostDatabase.findPayloadChatOwners} for database fakes. */
+export async function findTestPayloadChatOwners(database: IAgentHostDatabase, chats: readonly string[]): ReturnType<IAgentHostDatabase['findPayloadChatOwners']> {
 	const rows = await database.listSessionsV2(await registeredTestSessions(database));
 	const owners = new Map<string, IAgentHostDatabaseChatOwner>();
 	for (const chat of chats) {

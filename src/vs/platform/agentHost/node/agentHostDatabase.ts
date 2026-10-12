@@ -146,7 +146,7 @@ export interface IAgentHostDatabaseSessionChatCatalog {
 	readonly chats: readonly IAgentHostDatabaseOwnedSessionChat[];
 }
 
-/** Where a chat's owner was found by {@link IAgentHostDatabase.findCentralChatOwners} or {@link IAgentHostDatabase.findCatalogPayloadChatOwners}. */
+/** Where a chat's owner was found by {@link IAgentHostDatabase.findCentralChatOwners} or {@link IAgentHostDatabase.findPayloadChatOwners}. */
 export type AgentHostDatabaseChatOwnerSource = 'normalized' | 'legacyCatalog' | 'catalogPayload';
 
 /** The owning session of a chat, taken from the record that contains it. */
@@ -407,7 +407,7 @@ export interface IAgentHostDatabase extends IDisposable {
 	 * `chats`; the lowest session wins. Scans the payload table, so it is the
 	 * last resort after the central catalogs and the registered sessions.
 	 */
-	findCatalogPayloadChatOwners(chats: readonly string[]): Promise<ReadonlyMap<string, IAgentHostDatabaseChatOwner>>;
+	findPayloadChatOwners(chats: readonly string[]): Promise<ReadonlyMap<string, IAgentHostDatabaseChatOwner>>;
 	/** Reads authoritative peer-chat membership. `undefined` means legacy import has not completed. */
 	getSessionChatCatalog(session: string): Promise<IAgentHostDatabaseSessionChatCatalog | undefined>;
 	/** Replaces authoritative peer-chat membership when the session exists and its revision still matches. */
@@ -419,7 +419,7 @@ export interface IAgentHostDatabase extends IDisposable {
 	close(): Promise<void>;
 }
 
-/** Pending chats tested per catalog payload query in {@link AgentHostDatabase.findCatalogPayloadChatOwners}. */
+/** Pending chats tested per catalog payload query in {@link AgentHostDatabase.findPayloadChatOwners}. */
 const FIND_CHAT_OWNERS_PAYLOAD_BATCH = 100;
 const sessionsV2SchemaSql = `CREATE TABLE sessions_v2 (
 	session_uri         TEXT PRIMARY KEY NOT NULL,
@@ -1751,7 +1751,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		});
 	}
 
-	async findCatalogPayloadChatOwners(chats: readonly string[]): Promise<ReadonlyMap<string, IAgentHostDatabaseChatOwner>> {
+	async findPayloadChatOwners(chats: readonly string[]): Promise<ReadonlyMap<string, IAgentHostDatabaseChatOwner>> {
 		const owners = new Map<string, IAgentHostDatabaseChatOwner>();
 		if (chats.length === 0) {
 			return owners;

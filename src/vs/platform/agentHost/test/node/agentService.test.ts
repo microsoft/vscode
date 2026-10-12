@@ -84,7 +84,7 @@ import { buildSubagentTurnsFromHistory, buildTurnsFromHistory, mapSessionEventsT
 import { type ISessionEvent } from './copilotTestEvents.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { mintedTestChatOwner } from '../common/mintedChatUri.js';
-import { findTestCatalogPayloadChatOwners, findTestCentralChatOwners, listTestLegacyChatCatalogSessions, readTestChatV2, readTestSessionListCatalogs } from './chatMetadataTestHelpers.js';
+import { findTestCentralChatOwners, findTestPayloadChatOwners, listTestLegacyChatCatalogSessions, readTestChatV2, readTestSessionListCatalogs } from './chatMetadataTestHelpers.js';
 import { readSessionInitiator, SESSION_INITIATOR_METADATA_KEY, withSessionInitiator } from '../../common/meta/agentSessionInitiatorMeta.js';
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
@@ -385,8 +385,8 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 	findCentralChatOwners(chats: readonly string[]): ReturnType<IAgentHostDatabase['findCentralChatOwners']> {
 		return findTestCentralChatOwners(this, chats);
 	}
-	findCatalogPayloadChatOwners(chats: readonly string[]): ReturnType<IAgentHostDatabase['findCatalogPayloadChatOwners']> {
-		return findTestCatalogPayloadChatOwners(this, chats);
+	findPayloadChatOwners(chats: readonly string[]): ReturnType<IAgentHostDatabase['findPayloadChatOwners']> {
+		return findTestPayloadChatOwners(this, chats);
 	}
 	readSessionListCatalogs(sessions: readonly string[]): ReturnType<IAgentHostDatabase['readSessionListCatalogs']> {
 		return readTestSessionListCatalogs(this, sessions);
@@ -913,8 +913,8 @@ class TestAgentHostOrchestratorDatabase implements IAgentHostDatabase {
 	findCentralChatOwners(chats: readonly string[]): ReturnType<IAgentHostDatabase['findCentralChatOwners']> {
 		return findTestCentralChatOwners(this, chats);
 	}
-	findCatalogPayloadChatOwners(chats: readonly string[]): ReturnType<IAgentHostDatabase['findCatalogPayloadChatOwners']> {
-		return findTestCatalogPayloadChatOwners(this, chats);
+	findPayloadChatOwners(chats: readonly string[]): ReturnType<IAgentHostDatabase['findPayloadChatOwners']> {
+		return findTestPayloadChatOwners(this, chats);
 	}
 	readSessionListCatalogs(sessions: readonly string[]): ReturnType<IAgentHostDatabase['readSessionListCatalogs']> {
 		return readTestSessionListCatalogs(this, sessions);
@@ -5961,9 +5961,9 @@ suite('AgentService (node dispatcher)', () => {
 						findingOwner = false;
 					}
 				}
-				override async findCatalogPayloadChatOwners(chats: readonly string[]): ReturnType<IAgentHostDatabase['findCatalogPayloadChatOwners']> {
+				override async findPayloadChatOwners(chats: readonly string[]): ReturnType<IAgentHostDatabase['findPayloadChatOwners']> {
 					lookups.payloadScans++;
-					return super.findCatalogPayloadChatOwners(chats);
+					return super.findPayloadChatOwners(chats);
 				}
 				// The test database answers owner lookups by listing; only the service's own listings count.
 				override async listSessions(): Promise<readonly IAgentHostDatabaseSession[]> {

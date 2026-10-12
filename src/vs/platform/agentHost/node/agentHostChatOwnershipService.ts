@@ -149,7 +149,7 @@ export class AgentHostChatOwnershipService implements IAgentHostChatOwnershipSer
 			return { owner, spawnedBy: undefined };
 		}
 		// Scanning cached catalog payloads is the most expensive source, so it is the last.
-		const payload = (await this._database.findCatalogPayloadChatOwners([chat])).get(chat);
+		const payload = (await this._database.findPayloadChatOwners([chat])).get(chat);
 		return payload === undefined ? undefined : { owner: payload.ownerSession, spawnedBy: undefined };
 	}
 
