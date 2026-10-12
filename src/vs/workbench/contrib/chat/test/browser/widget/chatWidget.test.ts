@@ -6,7 +6,7 @@
 import assert from 'assert';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
-import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
+import { DeferredPromise, RunOnceScheduler, timeout } from '../../../../../../base/common/async.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -1954,6 +1954,99 @@ suite('ChatWidget', () => {
 		onDidLayout.fire({ width: 640, height: 600 });
 		onDidLayout.dispose();
 		assert.deepStrictEqual(widths, [320, 480]);
+	});
+
+	interface ILayoutTestChatWidget {
+		layout(height: number, width: number, immediate?: boolean): void;
+		_flushLayout(): void;
+		bodyDimension?: dom.Dimension;
+		_pendingLayoutDimension?: { height: number; width: number };
+		_layoutScheduler: RunOnceScheduler;
+	}
+
+	function createLayoutTestWidget(container?: HTMLElement) {
+		const element = container ?? dom.append(mainWindow.document.body, dom.$('div'));
+		if (!container) {
+			store.add(toDisposable(() => element.remove()));
+		}
+		const doLayoutCalls: { height: number; width: number }[] = [];
+		const widget: ILayoutTestChatWidget = Object.assign(Object.create(ChatWidget.prototype), {
+			container: element,
+			maximumWidth: 1000,
+			viewOptions: {},
+			_layoutScheduler: store.add(new RunOnceScheduler(() => widget._flushLayout(), 100)),
+			_layoutPointerUpListener: store.add(new MutableDisposable<IDisposable>()),
+			_doLayout: (height: number, width: number) => {
+				widget.bodyDimension = new dom.Dimension(width, height);
+				doLayoutCalls.push({ height, width });
+			},
+		});
+		return { widget, doLayoutCalls, element };
+	}
+
+	test('keeps non-drag layout callers synchronous', () => {
+		const { widget, doLayoutCalls } = createLayoutTestWidget();
+		widget.layout(500, 500);
+		assert.deepStrictEqual(doLayoutCalls, [{ height: 500, width: 500 }]);
+
+		widget.layout(600, 700);
+		assert.deepStrictEqual(doLayoutCalls, [
+			{ height: 500, width: 500 },
+			{ height: 600, width: 700 },
+		]);
+	});
+
+	test('debounces layout while sash gesture is active and flushes immediately on release', () => {
+		const { widget, doLayoutCalls, element } = createLayoutTestWidget();
+		widget.layout(500, 500);
+		assert.deepStrictEqual(doLayoutCalls, [{ height: 500, width: 500 }]);
+
+		const sash = dom.append(mainWindow.document.body, dom.$('.monaco-sash.active'));
+		store.add(toDisposable(() => sash.remove()));
+
+		widget.layout(600, 700);
+		assert.deepStrictEqual(doLayoutCalls, [{ height: 500, width: 500 }]);
+
+		widget.layout(650, 750);
+		assert.deepStrictEqual(doLayoutCalls, [{ height: 500, width: 500 }]);
+
+		sash.classList.remove('active');
+		const targetWindow = dom.getWindow(element);
+		targetWindow.dispatchEvent(new targetWindow.Event('pointerup'));
+
+		assert.deepStrictEqual(doLayoutCalls, [
+			{ height: 500, width: 500 },
+			{ height: 650, width: 750 },
+		]);
+	});
+
+	test('layout is synchronous when immediate is true even while sash is active', () => {
+		const { widget, doLayoutCalls } = createLayoutTestWidget();
+		widget.layout(500, 500);
+
+		const sash = dom.append(mainWindow.document.body, dom.$('.monaco-sash.active'));
+		store.add(toDisposable(() => sash.remove()));
+
+		widget.layout(600, 700, true);
+		assert.deepStrictEqual(doLayoutCalls, [
+			{ height: 500, width: 500 },
+			{ height: 600, width: 700 },
+		]);
+	});
+
+	test('cancels pending debounced layout if dimensions revert to current before flush', () => {
+		const { widget, doLayoutCalls } = createLayoutTestWidget();
+		widget.layout(500, 500);
+
+		const sash = dom.append(mainWindow.document.body, dom.$('.monaco-sash.active'));
+		store.add(toDisposable(() => sash.remove()));
+
+		widget.layout(600, 700);
+		assert.deepStrictEqual(doLayoutCalls, [{ height: 500, width: 500 }]);
+
+		widget.layout(500, 500);
+		assert.strictEqual(widget._pendingLayoutDimension, undefined);
+		assert.strictEqual(widget._layoutScheduler.isScheduled(), false);
 	});
 });
 
