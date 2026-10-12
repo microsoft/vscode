@@ -334,6 +334,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 			agents: agentList,
 			sessionDataService,
 			localTurns,
+			resolveChatOwner: async () => undefined,
 		}));
 		// Wire the agent's progress signals through side-effects (this is how
 		// progress actions reach the state manager in production).

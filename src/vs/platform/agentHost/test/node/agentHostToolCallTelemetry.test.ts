@@ -340,6 +340,7 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			agents: agentList,
 			sessionDataService,
 			localTurns: sharedLocalTurns,
+			resolveChatOwner: async () => undefined,
 		}));
 		disposables.add(sideEffects.registerProgressListener(agent));
 	});

@@ -205,8 +205,9 @@ let customizationEnablementService = createNoopCustomizationEnablementService();
 function createTestSideEffects(
 	disposables: DisposableStore,
 	stateManager: AgentHostStateManager,
-	options: Omit<IAgentSideEffectsOptions, 'localTurns'> & {
+	options: Omit<IAgentSideEffectsOptions, 'localTurns' | 'resolveChatOwner'> & {
 		localTurns?: AgentHostLocalTurns;
+		resolveChatOwner?: IAgentSideEffectsOptions['resolveChatOwner'];
 		gitStateService?: IAgentHostGitStateService;
 		initialTitleGenerationStrategy?: AutomaticTitleGenerationStrategy;
 		worktreeIsolation?: IAgentHostWorktreeIsolation;
@@ -287,6 +288,7 @@ function createTestSideEffects(
 	services.set(IAgentHostLocalCommands, localCommands);
 	disposables.add(registerBuiltInChatContributions(chatContributions));
 	const resolvedOptions: IAgentSideEffectsOptions = {
+		resolveChatOwner: async () => undefined,
 		...options,
 		localTurns,
 	};

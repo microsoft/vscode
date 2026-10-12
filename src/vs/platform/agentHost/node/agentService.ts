@@ -3834,7 +3834,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * single database open — they ask for both per session, and a large catalogue
 	 * makes a second open the dominant cost of the pass.
 	 */
-	private async _readSessionRegistrationFacts(session: URI, findChatBackingOwner?: (chat: string) => Promise<string | undefined>): Promise<{ readonly chatBacking: boolean; readonly hostCreated: boolean }> {
+	private async _readSessionRegistrationFacts(session: URI, findChatBackingOwner: (chat: string) => Promise<string | undefined>): Promise<{ readonly chatBacking: boolean; readonly hostCreated: boolean }> {
 		if (this._unpersistedChatBackings.has(session.toString())) {
 			return { chatBacking: true, hostCreated: false };
 		}

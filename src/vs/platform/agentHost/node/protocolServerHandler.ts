@@ -1873,7 +1873,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		},
 		disposeChat: async (_client, params) => {
 			const chat = URI.parse(params.channel);
-			const owner = isAhpChatChannel(params.channel) ? await this._agentService.resolveChatOwner?.(chat) : undefined;
+			const owner = isAhpChatChannel(params.channel) ? await this._agentService.resolveChatOwner(chat) : undefined;
 			if (!owner) {
 				this._logService.trace(`[ProtocolServer] disposeChat: no owner recorded for ${params.channel}`);
 				return null;
@@ -3106,7 +3106,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 
 	/** Rejects unless `chat` is a chat whose recorded owner is `session`. */
 	private async _assertChatBelongsToSession(chat: URI, session: URI): Promise<void> {
-		const owner = isAhpChatChannel(chat.toString()) ? await this._agentService.resolveChatOwner?.(chat) : undefined;
+		const owner = isAhpChatChannel(chat.toString()) ? await this._agentService.resolveChatOwner(chat) : undefined;
 		if (owner?.toString() !== session.toString()) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'chat must belong to the requested Agent Session');
 		}

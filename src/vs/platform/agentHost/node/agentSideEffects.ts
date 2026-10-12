@@ -124,7 +124,7 @@ export interface IAgentSideEffectsOptions {
 	/** Resolves a referenced chat's turns, hydrating its owning session when needed. */
 	readonly resolveChatAttachmentTurns?: (resource: ProtocolURI) => Promise<readonly Turn[]>;
 	/** Resolves the recorded owner of a chat that may not be loaded. */
-	readonly resolveChatOwner?: (chat: ProtocolURI) => Promise<ProtocolURI | undefined>;
+	readonly resolveChatOwner: (chat: ProtocolURI) => Promise<ProtocolURI | undefined>;
 	/** Process launcher used when client-origin metadata is unavailable. */
 	readonly hostLaunchKind?: AgentHostLaunchKind;
 }
@@ -2305,7 +2305,7 @@ export class AgentSideEffects extends Disposable {
 			return buildOpenSessionLinkForChat(resource, resource);
 		}
 		try {
-			const owner = this._stateManager.getChatOwner(resource) ?? await this._options.resolveChatOwner?.(resource);
+			const owner = this._stateManager.getChatOwner(resource) ?? await this._options.resolveChatOwner(resource);
 			return owner === undefined ? undefined : buildOpenSessionLinkForChat(owner, resource);
 		} catch (err) {
 			this._logService.warn(`[AgentSideEffects] Unable to resolve the owner of chat attachment ${resource}`, err);

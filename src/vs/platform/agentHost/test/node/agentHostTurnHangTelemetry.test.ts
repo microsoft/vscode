@@ -297,6 +297,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 			agents: agentList,
 			sessionDataService,
 			localTurns: sharedLocalTurns,
+			resolveChatOwner: async () => undefined,
 			resolveWorkingDirectoryBeforeSend: async () => await workingDirectoryGate?.p,
 		}));
 		disposables.add(sideEffects.registerProgressListener(agent));
