@@ -59,7 +59,7 @@ expectedCatalogRevision)` updates only the session aggregate envelope after chec
 
 `updateChatV2Metadata` compares both ownership and metadata revisions against the actual live row. All successful writes advance the header revision; metadata/provider/read/directory/private-lineage writes advance only the metadata revision. Omitted fields preserve existing values. Metadata is an explicit complete replacement when supplied; nullable provider/origin/directories/ inherited fields use `null` to clear. Interactivity cannot change a chat's visible/private role. Only private chats can be reparented, within the live owner catalog, without cycles.
 
-Existing `getSessionChatCatalog` and `replaceSessionChatCatalog` dispatch to normalized peers after cutover. They preserve the default pointer, private descendants and bounded metadata; removing a peer tombstones its owned private closure atomically. Reordering does not change ownership epochs. Session deletion/unregistration/exclusion tombstones all its live normalized rows before removing the header.
+Existing `getSessionChatCatalog` and `replaceSessionChatCatalog` dispatch to normalized peers after cutover. They preserve the default pointer, private descendants and bounded metadata; removing a peer tombstones its owned private closure atomically. Reordering does not change ownership epochs. Session deletion/unregistration/exclusion tombstones all its live normalized rows before removing the header, except a `providerAbsent` exclusion: it only hides the session, retaining the header and rows so a later provider listing revives the catalog intact.
 
 ## Scope
 
