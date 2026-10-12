@@ -5,6 +5,8 @@
 
 import * as dom from '../../../../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../../../../base/browser/ui/actionbar/actionbar.js';
+import { Button } from '../../../../../../../base/browser/ui/button/button.js';
+import { defaultButtonStyles } from '../../../../../../../platform/theme/browser/defaultStyles.js';
 import { getBaseLayerHoverDelegate } from '../../../../../../../base/browser/ui/hover/hoverDelegate2.js';
 import { getDefaultHoverDelegate } from '../../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IRadioOptionItem, Radio } from '../../../../../../../base/browser/ui/radio/radio.js';
@@ -19,10 +21,12 @@ import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../../nls.js';
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
+import { IQuickInputService } from '../../../../../../../platform/quickinput/common/quickInput.js';
+import { supportsCustomModelConfiguration } from '../../../../common/modelConfigurationChoices.js';
 import { getModelContextWindowTotal, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
 import { formatModelCost, getCreditsPerMillionTokensLabel, getMaxContextLabel, getModelCostMetrics, renderModelDescription } from './modelPickerDetails.js';
 import { createMessageBanner, HYDRA_FUSION_LEARN_MORE_URL } from './modelPickerHover.js';
-import { getChangedModelConfigProperties, getModelConfigChoices, getModelConfigProperty, IModelConfigProperty, IModelConfigurationAccess, isExtendedContext, MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_EFFORT, ModelConfigChangeListener, setModelConfigValues } from './modelPickerModelConfig.js';
+import { getChangedModelConfigProperties, getModelConfigChoices, getModelConfigProperty, IModelConfigProperty, IModelConfigurationAccess, isExtendedContext, MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_EFFORT, ModelConfigChangeListener, setModelConfigValues, promptCustomModelConfigValue } from './modelPickerModelConfig.js';
 import { getCategoryLabel, getPriceCategoryLabel, isAutoModel, isHighCostCategory, isHydraFusionModel, isMultiplierPricing } from './modelPickerPresentation.js';
 import { IModelSpeedVariants } from './modelPickerVariants.js';
 import { getOrganizationDefaultDescription } from './modelPickerBadges.js';
@@ -44,6 +48,8 @@ export interface IModelCardOptions {
 	/** Whether the account is billed by credits, which is when cost numbers are shown. */
 	readonly isUBB: boolean;
 	readonly openerService: IOpenerService;
+	/** Supplies native custom-number entry where numeric configuration is supported. */
+	readonly quickInputService?: Pick<IQuickInputService, 'input'>;
 	/** Called after a configuration value changes so the caller can report it and refresh its own label. */
 	readonly onDidChangeConfiguration?: ModelConfigChangeListener;
 	/** Whether the model is pinned, when pinning is offered here. */
@@ -176,7 +182,7 @@ export class ModelCard extends DisposableStore {
 		for (const [group, control] of this._groupControls) {
 			const property = getModelConfigProperty(options.model, options.configurationAccess, group);
 			if (property && Object.hasOwn(values, property.key)) {
-				control.setActiveItem(Math.max(0, property.schema.enum?.indexOf(values[property.key]) ?? -1));
+				control.setActiveItem(Math.max(0, getModelConfigChoices(property).findIndex(choice => choice.value === values[property.key])));
 			}
 		}
 		try {
@@ -529,6 +535,22 @@ export class ModelCard extends DisposableStore {
 		}));
 		this._groupControls.set(group, control);
 		section.appendChild(control.domNode);
+		if (supportsCustomModelConfiguration(property.schema) && this._options.quickInputService) {
+			const custom = this._contentDisposables.add(new Button(section, { ...defaultButtonStyles, secondary: true }));
+			custom.element.classList.add('chat-model-card-custom');
+			custom.label = choices.some(choice => choice.checked)
+				? localize('chat.context.custom', "Custom...")
+				: localize('chat.context.customValue', "Custom: {0}...", String(property.value ?? ''));
+			custom.enabled = !property.schema.readOnly;
+			this._contentDisposables.add(custom.onDidClick(() => {
+				const options = this._options;
+				promptCustomModelConfigValue(options.model, options.configurationAccess, property, options.quickInputService!).then(async value => {
+					if (value !== undefined && !this.isDisposed && this._options.model === options.model) {
+						await this._setValues({ [property.key]: value }, group);
+					}
+				}).catch(onUnexpectedError);
+			}));
+		}
 		renderDiscountDescription(choices.find(choice => choice.checked)?.label, !!selectedAlternative);
 		for (const alternative of alternatives) {
 			const element = renderModelDescription(alternative.description, this._options.openerService, this._contentDisposables, alternative.learnMoreUrl).element;

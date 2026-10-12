@@ -165,6 +165,11 @@ declare module 'vscode' {
 				 */
 				readonly enumItemLabels?: string[];
 				/**
+				 * Suggestions for a bounded integer property. Unlike an enum, these do not
+				 * exclude other valid numbers. The model picker also offers custom entry.
+				 */
+				readonly suggestedValues?: readonly { readonly value: number; readonly label?: string; readonly description?: string }[];
+				/**
 				 * The group this property belongs to. When set to `'navigation'`, the property
 				 * is shown as a primary action in the model picker.
 				 */

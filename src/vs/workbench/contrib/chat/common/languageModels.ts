@@ -42,6 +42,7 @@ import { ExtensionsRegistry } from '../../../services/extensions/common/extensio
 import { ChatContextKeys } from './actions/chatContextKeys.js';
 import { ChatAgentLocation } from './constants.js';
 import { ILanguageModelsProviderGroup, ILanguageModelsConfigurationService } from './languageModelsConfiguration.js';
+import { getModelConfigurationChoices, isValidModelConfigurationNumber, promptModelConfigurationNumber, supportsCustomModelConfiguration } from './modelConfigurationChoices.js';
 
 /**
  * Vendor id used for the built-in GitHub Copilot language model provider. Treated as the default
@@ -240,6 +241,8 @@ export interface ILanguageModelConfigurationSchema extends IJSONSchema {
 			group?: string;
 			/** Labels for enum values. If provided, these are shown instead of the raw enum values. */
 			enumItemLabels?: string[];
+			/** Suggested numeric choices; valid custom values need not appear here. */
+			suggestedValues?: readonly { readonly value: number; readonly label?: string; readonly description?: string }[];
 			/** When `true`, the property is displayed but cannot be modified by the user. */
 			readOnly?: boolean;
 		};
@@ -1054,6 +1057,7 @@ export function createModelConfigurationActions(
 	schema: ILanguageModelConfigurationSchema | undefined,
 	currentConfig: IStringDictionary<unknown>,
 	setValue: (key: string, value: unknown) => void,
+	setCustomValue?: (key: string) => Promise<void>,
 ): IAction[] {
 	if (!schema?.properties) {
 		return [];
@@ -1062,7 +1066,9 @@ export function createModelConfigurationActions(
 	const actions: IAction[] = [];
 
 	for (const [key, propSchema] of Object.entries(schema.properties)) {
-		if (!propSchema.enum || !Array.isArray(propSchema.enum) || propSchema.enum.length < 1) {
+		const choices = getModelConfigurationChoices(propSchema);
+		const custom = !!setCustomValue && supportsCustomModelConfiguration(propSchema);
+		if (!choices.length && !custom) {
 			continue;
 		}
 		const currentValue = currentConfig[key] ?? propSchema.default;
@@ -1070,22 +1076,28 @@ export function createModelConfigurationActions(
 			?? key.replace(/([a-z])([A-Z])/g, '$1 $2')
 				.replace(/^./, s => s.toUpperCase());
 		const defaultValue = propSchema.default;
-		const enumItemLabels = propSchema.enumItemLabels;
-		const enumDescriptions = propSchema.enumDescriptions;
-		const enumActions: IAction[] = propSchema.enum.map((value: unknown, index: number) => {
-			const itemLabel = enumItemLabels?.[index] ?? String(value);
+		const enumActions: IAction[] = choices.map(({ value, label: itemLabel = String(value), description }) => {
 			const displayLabel = value === defaultValue ? localize('models.enumDefault', "{0} (default)", itemLabel) : itemLabel;
-			const tooltip = enumDescriptions?.[index] ?? '';
+			const tooltip = description ?? '';
 			return {
 				id: `configureModel.${key}.${value}`,
 				label: displayLabel,
 				class: undefined,
-				enabled: true,
+				enabled: !propSchema.readOnly,
 				tooltip,
 				checked: currentValue === value,
 				run: () => setValue(key, value)
 			};
 		});
+		if (custom) {
+			enumActions.push({
+				id: `configureModel.${key}.custom`,
+				label: localize('models.customValue', "Custom..."),
+				class: undefined, enabled: !propSchema.readOnly, tooltip: '',
+				checked: !choices.some(choice => choice.value === currentValue),
+				run: () => setCustomValue!(key),
+			});
+		}
 		actions.push(new SubmenuAction(`configureModel.${key}`, label, enumActions));
 	}
 
@@ -1762,7 +1774,16 @@ export class LanguageModelsService implements ILanguageModelsService {
 		return createModelConfigurationActions(
 			metadata?.configurationSchema,
 			currentConfig,
-			(key, value) => this.setModelConfiguration(modelId, { [key]: value })
+			(key, value) => this.setModelConfiguration(modelId, { [key]: value }),
+			async key => {
+				const schema = this._modelCache.get(modelId)?.configurationSchema?.properties?.[key];
+				if (!schema) { return; }
+				const value = await promptModelConfigurationNumber(this._quickInputService, schema, this.getModelConfiguration(modelId)?.[key]);
+				const current = this._modelCache.get(modelId)?.configurationSchema?.properties?.[key];
+				if (value !== undefined && current && !current.readOnly && supportsCustomModelConfiguration(current) && isValidModelConfigurationNumber(value, current)) {
+					await this.setModelConfiguration(modelId, { [key]: value });
+				}
+			},
 		);
 	}
 
