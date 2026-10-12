@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
 import { createHash } from 'crypto';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { stableStringify } from '../../../../base/common/objects.js';
@@ -72,6 +73,8 @@ function spawningTurn(toolCallId: string, resource: string): Turn {
 suite('AgentHostChatOwnershipService', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	teardown(() => sinon.restore());
 
 	function create(): { readonly stateManager: AgentHostStateManager; readonly database: FakeOwnershipDatabase; readonly service: AgentHostChatOwnershipService } {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
@@ -192,17 +195,13 @@ suite('AgentHostChatOwnershipService', () => {
 			await register(session);
 		}
 		const owner = async (session: string) => (await service.resolveChatOwner(buildDefaultChatUri(session)))?.owner;
-		const sqlite = await (database as unknown as { _ensureDatabase(): Promise<Database> })._ensureDatabase();
-		const statements: string[] = [];
-		const onTrace = (sql: string) => statements.push(sql);
-		sqlite.on('trace', onTrace);
-		const listings = () => statements.filter(sql => /FROM (sessions|sessions_v2)\b/.test(sql) && !sql.includes('WHERE session_uri = ?') && !sql.includes('IN (')).length;
+		const listingSpies = [sinon.spy(database, 'listSessionV2Registrations'), sinon.spy(database, 'listSessions')];
+		const listings = () => listingSpies.reduce((count, spy) => count + spy.callCount, 0);
 
 		await owner(sessions[0]);
 		const firstBuild = listings();
-		statements.length = 0;
 		const resolved = await Promise.all(sessions.map(owner));
-		const afterBuild = listings();
+		const afterBuild = listings() - firstBuild;
 		await register('copilot:/registered-later');
 		const registeredLater = await owner('copilot:/registered-later');
 		await database.unregisterRuntimeSession(sessions[1]);
@@ -215,7 +214,6 @@ suite('AgentHostChatOwnershipService', () => {
 		const beforeTombstone = await owner(normalizedOnly);
 		await database.markSessionTombstoned(normalizedOnly);
 		const afterTombstone = await owner(normalizedOnly);
-		sqlite.removeListener('trace', onTrace);
 
 		assert.deepStrictEqual({ firstBuild, resolved, afterBuild, registeredLater, afterUnregister, afterRemoval, tombstoned: [beforeTombstone, afterTombstone] }, {
 			firstBuild: 2,
