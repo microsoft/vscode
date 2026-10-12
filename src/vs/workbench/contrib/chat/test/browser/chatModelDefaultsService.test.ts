@@ -146,6 +146,16 @@ suite('ChatModelDefaultsService', () => {
 		});
 	}
 
+	test('capacity restriction reports raw intent and an unrelated edit preserves it', async () => {
+		const f = fixture();
+		f.persistence.writeEntry(f.key, modelId, { contextSize: 1_500_000 });
+		const before = f.inspect();
+		const result = await f.service.update(modelId, f.target, { set: { reasoningEffort: 'high' } }, before.revision, () => {});
+		assert.deepStrictEqual({ stored: result.snapshot.preferences.scoped, effective: result.snapshot.effective }, {
+			stored: { contextSize: 1_500_000, reasoningEffort: 'high' }, effective: { contextSize: 1_000_000, reasoningEffort: 'high' },
+		});
+	});
+
 	test('unknown targets reject and removed models become unavailable', () => {
 		const f = fixture();
 		assert.throws(() => f.service.inspect(modelId, 'arbitrary'), /Unsupported/);

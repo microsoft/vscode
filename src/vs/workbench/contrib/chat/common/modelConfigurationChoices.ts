@@ -43,6 +43,16 @@ export function isValidModelConfigurationNumber(value: number, schema: PropertyS
 		&& !(typeof schema.multipleOf === 'number' && value % schema.multipleOf !== 0);
 }
 
+/** Restricts a saved input budget to current capacity without rewriting its preference. */
+export function restrictModelContextBudget(values: Readonly<Record<string, unknown>>, schema: ILanguageModelConfigurationSchema | undefined): Record<string, unknown> {
+	const property = schema?.properties?.contextSize;
+	const saved = values.contextSize;
+	if (!property || !supportsCustomModelConfiguration(property) || typeof saved !== 'number' || !Number.isSafeInteger(saved) || saved <= 0) {
+		return { ...values };
+	}
+	return { ...values, contextSize: Math.min(saved, property.maximum!) };
+}
+
 /** Collects one valid number. Cancellation or a read-only property never writes. */
 export async function promptModelConfigurationNumber(
 	input: Pick<IQuickInputService, 'input'>,

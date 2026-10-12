@@ -17,7 +17,7 @@ import { IChatModelDefaultsPatch, IChatModelDefaultsService, IChatModelDefaultsS
 import { SessionType } from '../common/chatSessionsService.js';
 import { ChatAgentLocation } from '../common/constants.js';
 import { COPILOT_VENDOR_ID, ILanguageModelsService } from '../common/languageModels.js';
-import { isValidModelConfigurationNumber, supportsCustomModelConfiguration } from '../common/modelConfigurationChoices.js';
+import { isValidModelConfigurationNumber, restrictModelContextBudget, supportsCustomModelConfiguration } from '../common/modelConfigurationChoices.js';
 import { computeStoredConfiguration, extractSchemaDefaults, filterConfigurationToSchema, resolveModelConfiguration } from './widget/input/chatModelConfigurationLogic.js';
 
 type ModelDefaultsHost = Pick<ILanguageModelsService, '_serviceBrand' | 'lookupLanguageModel' | 'getLanguageModelIds' | 'getModelConfiguration' | 'setModelConfiguration' | 'onDidChangeLanguageModels'>;
@@ -70,7 +70,7 @@ export class ChatModelDefaultsService extends Disposable implements IChatModelDe
 		const schema = metadata?.configurationSchema;
 		const scoped = this.persistence.readBucket(this.key)[modelId];
 		const profile = this.models.getModelConfiguration(modelId, false);
-		const effective = resolveModelConfiguration(scoped, extractSchemaDefaults(schema), profile);
+		const effective = restrictModelContextBudget(resolveModelConfiguration(scoped, extractSchemaDefaults(schema), profile), schema);
 		const sources: IChatModelDefaultsSnapshot['sources'] = {};
 		for (const key of Object.keys(effective)) {
 			sources[key] = Object.hasOwn(scoped ?? profile ?? {}, key) ? scoped ? 'scoped' : 'profile' : 'default';
@@ -96,7 +96,8 @@ export class ChatModelDefaultsService extends Disposable implements IChatModelDe
 				return { outcome: 'conflict', snapshot: before };
 			}
 			const values = this.validatePatch(before, capturedPatch);
-			const stored = computeStoredConfiguration(before.effective, values, extractSchemaDefaults(before.schema));
+			const defaults = extractSchemaDefaults(before.schema);
+			const stored = computeStoredConfiguration({ ...defaults, ...(before.preferences.scoped ?? before.preferences.profile) }, values, defaults);
 			try {
 				// There is intentionally no await between revision validation and the bucket write.
 				this.persistence.writeEntry(this.key, modelId, stored);

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IAction } from '../../../../../../base/common/actions.js';
+import { localize } from '../../../../../../nls.js';
 import { IStringDictionary } from '../../../../../../base/common/collections.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
@@ -19,7 +20,7 @@ import { SessionType } from '../../../common/chatSessionsService.js';
 import { computeStoredConfiguration, extractSchemaDefaults, filterConfigurationToSchema, resolveModelConfiguration } from './chatModelConfigurationLogic.js';
 import { IModelConfigurationAccess } from './modelPicker/modelPickerModelConfig.js';
 import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
-import { isValidModelConfigurationNumber, promptModelConfigurationNumber, supportsCustomModelConfiguration } from '../../../common/modelConfigurationChoices.js';
+import { isValidModelConfigurationNumber, promptModelConfigurationNumber, restrictModelContextBudget, supportsCustomModelConfiguration } from '../../../common/modelConfigurationChoices.js';
 
 /**
  * Per-editor store for model configuration (e.g. context size, thinking effort).
@@ -123,7 +124,7 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 			override = this._resolveConfiguration(modelId, schemaDefaults, bucketEntry ?? globalConfig);
 			this._overrides.set(modelId, override);
 		}
-		return Object.keys(override).length > 0 ? override : undefined;
+		return Object.keys(override).length > 0 ? restrictModelContextBudget(override, this.getModelConfigurationSchema(modelId)) : undefined;
 	}
 
 	async setModelConfiguration(modelId: string, values: IStringDictionary<unknown>): Promise<void> {
@@ -219,7 +220,14 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 
 	getModelConfigurationSchema(modelId: string): ILanguageModelConfigurationSchema | undefined {
 		const metadata = this.languageModelsService.lookupLanguageModel(modelId);
-		const schema = metadata?.configurationSchema;
+		let schema = metadata?.configurationSchema;
+		const context = schema?.properties?.contextSize;
+		const saved = this._overrides.get(modelId)?.contextSize;
+		if (schema && context && supportsCustomModelConfiguration(context) && typeof saved === 'number' && Number.isSafeInteger(saved) && saved > context.maximum!) {
+			schema = { ...schema, properties: { ...schema.properties, contextSize: { ...context,
+				title: localize('chat.context.restricted', "Context (Saved {0}; Available {1})", saved, context.maximum),
+			} } };
+		}
 		const tierSchema = schema?.properties?.tier;
 		const managed = this._managedAutoTier;
 		if (!schema || !tierSchema || !managed || metadata?.id !== 'auto' || !this._usesManagedDefault(metadata.vendor)) {
@@ -267,6 +275,11 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 		const filtered = metadata
 			? filterConfigurationToSchema(values, metadata.configurationSchema)
 			: { ...values };
+		const contextProperty = metadata?.configurationSchema?.properties?.contextSize;
+		if (contextProperty && supportsCustomModelConfiguration(contextProperty) && typeof values.contextSize === 'number'
+			&& Number.isSafeInteger(values.contextSize) && values.contextSize > 0) {
+			filtered.contextSize = values.contextSize;
+		}
 		const source = values[AutoTierSourceConfigKey];
 		const inherited = isInheritedAutoTier(values);
 		if (isAutoModeRoutingTier(filtered.tier)) {
