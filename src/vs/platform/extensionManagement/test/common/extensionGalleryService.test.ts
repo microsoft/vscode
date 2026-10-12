@@ -230,16 +230,26 @@ suite('Extension Gallery Service', () => {
 	});
 
 	test('getExtensions skips a blocked latest version in display queries', async () => {
-		const rawExtension = rawLatestExtension([rawVersion('2.0.0', 'blocked'), rawVersion('1.0.0')]);
-		const requestService = new RecordingRequestService(() => requestContext(200, galleryQueryResponse([rawExtension])));
+		let request = 0;
+		const requestService = new RecordingRequestService(() => requestContext(200, galleryQueryResponse([
+			request++ === 0
+				? rawLatestExtension([rawVersion('2.0.0', 'blocked')])
+				: rawLatestExtension([rawVersion('2.0.0', 'blocked'), rawVersion('1.0.0')])
+		])));
 		const galleryService = createExtensionGalleryService(requestService);
 
 		const extensions = await galleryService.getExtensions([{ id: 'publisher.extension' }], CancellationToken.None);
 
-		assert.deepStrictEqual(
-			extensions.map(extension => ({ version: extension.version, blockingInfo: extension.blockingInfo })),
-			[{ version: '1.0.0', blockingInfo: undefined }]
-		);
+		assert.deepStrictEqual({
+			extensions: extensions.map(extension => ({ version: extension.version, blockingInfo: extension.blockingInfo })),
+			requests: requestService.requests
+		}, {
+			extensions: [{ version: '1.0.0', blockingInfo: undefined }],
+			requests: [
+				{ type: 'POST', url: queryServiceUri },
+				{ type: 'POST', url: queryServiceUri }
+			]
+		});
 	});
 
 	test('getExtensions skips a blocked latest version in compatible queries', async () => {

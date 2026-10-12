@@ -1412,7 +1412,8 @@ export abstract class AbstractExtensionGalleryService implements IExtensionGalle
 		 * Fallback: Return the latest version
 		 * This can happen when the extension does not have a release version or does not have a version compatible with the given target platform.
 		 */
-		return rawGalleryExtension.versions[0];
+		const latestVersion = rawGalleryExtension.versions[0];
+		return latestVersion && !isBlocked(latestVersion.flags, latestVersion.blocking) ? latestVersion : null;
 	}
 
 	private async setEngineIfNotExists(extensionId: string, rawGalleryExtensionVersion: IRawGalleryExtensionVersion): Promise<void> {
