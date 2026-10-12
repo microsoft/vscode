@@ -106,8 +106,8 @@ suite('LimitIndicatorContribution', () => {
 		assert.deepStrictEqual(details, [
 			[],
 			['Only 5000 diagnostics are highlighted in the editor for performance reasons.'],
-			['Some diagnostics are truncated for performance reasons.'],
-			['Some diagnostics are truncated, and only 5000 diagnostics are highlighted in the editor for performance reasons.'],
+			['Some diagnostics are not shown for performance reasons.'],
+			['Some diagnostics are not shown, and only 5000 diagnostics are highlighted in the editor for performance reasons.'],
 			[]
 		]);
 	});
