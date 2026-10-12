@@ -9,6 +9,7 @@ import { once } from 'events';
 import { promises } from 'fs';
 import { tmpdir } from 'os';
 import { promisify } from 'util';
+import { stub } from 'sinon';
 import { FileAccess } from '../../../../base/common/network.js';
 import { join } from '../../../../base/common/path.js';
 import { isWindows } from '../../../../base/common/platform.js';
@@ -83,6 +84,9 @@ suite('DiskFileSystemProvider', function () {
 			env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }
 		});
 
+		// The retry logs an error when it gives up
+		const consoleError = stub(console, 'error');
+
 		try {
 			await once(child, 'spawn');
 
@@ -90,6 +94,8 @@ suite('DiskFileSystemProvider', function () {
 			await assert.rejects(provider.rename(URI.file(folderPath), URI.file(join(testDir, 'renamed')), { overwrite: false }), /in use by another application/);
 			assert.ok(Date.now() - start < 10000, 'renaming a folder that is in use should not retry for a long time');
 		} finally {
+			consoleError.restore();
+
 			if (child.exitCode === null && child.signalCode === null) {
 				const exit = once(child, 'exit');
 				child.kill();

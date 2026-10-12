@@ -43,7 +43,9 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 	 * antivirus software briefly locks files that were just written (for example
 	 * during atomic saves). A folder however is typically locked because something
 	 * inside it is in use by another application, which rarely resolves by itself,
-	 * so we only retry briefly to report the error quickly.
+	 * so we only retry briefly to report the error quickly. This does not apply
+	 * when overwriting, because an existing target may already have been deleted
+	 * and giving up early would leave it deleted without the folder being moved.
 	 */
 	private static readonly FOLDER_RENAME_RETRY_TIMEOUT = 1000;
 
@@ -717,7 +719,8 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 			const fromStat = await this.validateMoveCopy(from, to, 'move', opts.overwrite);
 
 			// Rename
-			await Promises.rename(fromFilePath, toFilePath, (fromStat.type & FileType.Directory) !== 0 ? DiskFileSystemProvider.FOLDER_RENAME_RETRY_TIMEOUT : undefined);
+			const isFolder = (fromStat.type & FileType.Directory) !== 0;
+			await Promises.rename(fromFilePath, toFilePath, isFolder && !opts.overwrite ? DiskFileSystemProvider.FOLDER_RENAME_RETRY_TIMEOUT : undefined);
 		} catch (error) {
 
 			// On Windows, a rename fails when the file or folder (or anything inside
