@@ -14,7 +14,7 @@ export class EmptyOwnershipDatabase extends mock<IAgentHostDatabase>() {
 	override async findCentralChatOwners(): Promise<ReadonlyMap<string, IAgentHostDatabaseChatOwner>> {
 		return new Map();
 	}
-	override async findPayloadChatOwners(): Promise<ReadonlyMap<string, IAgentHostDatabaseChatOwner>> {
+	override async findCatalogPayloadChatOwners(): Promise<ReadonlyMap<string, IAgentHostDatabaseChatOwner>> {
 		return new Map();
 	}
 	override async listSessionV2Registrations(): Promise<readonly IAgentHostDatabaseSession[]> {

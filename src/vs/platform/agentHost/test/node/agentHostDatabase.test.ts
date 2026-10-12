@@ -388,8 +388,8 @@ suite('AgentHostDatabase sessions_v2', () => {
 
 		const chats = ['normalized-peer', 'legacy-peer', 'payload-peer', 'deleted-peer', 'unknown'].map(chat);
 		const central = await db.findCentralChatOwners(chats);
-		const payload = await db.findPayloadChatOwners(chats);
-		const single = await Promise.all(chats.map(async id => ({ central: (await db.findCentralChatOwners([id])).get(id), payload: (await db.findPayloadChatOwners([id])).get(id) })));
+		const payload = await db.findCatalogPayloadChatOwners(chats);
+		const single = await Promise.all(chats.map(async id => ({ central: (await db.findCentralChatOwners([id])).get(id), payload: (await db.findCatalogPayloadChatOwners([id])).get(id) })));
 		assert.deepStrictEqual({
 			batched: chats.map(id => ({ central: central.get(id), payload: payload.get(id) })),
 			single,
@@ -442,7 +442,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 		const central = await db.findCentralChatOwners([...legacyChats, 'ahp-chat://payload-peer', ...unknown]);
 		const centralStatements = countStatements();
 		statements.length = 0;
-		const payload = await db.findPayloadChatOwners(['ahp-chat://payload-peer', ...unknown]);
+		const payload = await db.findCatalogPayloadChatOwners(['ahp-chat://payload-peer', ...unknown]);
 		const payloadStatements = countStatements();
 		sqlite.removeListener('trace', onTrace);
 
@@ -489,8 +489,8 @@ suite('AgentHostDatabase sessions_v2', () => {
 			// More than one payload batch: `early` is in the first, `late` and `escaped` in the second.
 			const chats = [early, ...Array.from({ length: 99 }, (_, index) => `ahp-chat://unknown-${index}`), late, escaped];
 
-			const batched = await db.findPayloadChatOwners(chats);
-			const single = await Promise.all(chats.map(async chat => (await db.findPayloadChatOwners([chat])).get(chat)));
+			const batched = await db.findCatalogPayloadChatOwners(chats);
+			const single = await Promise.all(chats.map(async chat => (await db.findCatalogPayloadChatOwners([chat])).get(chat)));
 
 			const owners = (lookup: (chat: string) => unknown) => ({ early: lookup(early), late: lookup(late), escaped: lookup(escaped) });
 			assert.deepStrictEqual({

@@ -26,7 +26,7 @@ class FakeOwnershipDatabase extends mock<IAgentHostDatabase>() {
 	override async findCentralChatOwners(chats: readonly string[]): Promise<ReadonlyMap<string, IAgentHostDatabaseChatOwner>> {
 		return new Map(chats.flatMap(chat => this.owners.has(chat) ? [[chat, this.owners.get(chat)!] as const] : []));
 	}
-	override async findPayloadChatOwners(chats: readonly string[]): Promise<ReadonlyMap<string, IAgentHostDatabaseChatOwner>> {
+	override async findCatalogPayloadChatOwners(chats: readonly string[]): Promise<ReadonlyMap<string, IAgentHostDatabaseChatOwner>> {
 		return new Map(chats.flatMap(chat => this.payloadOwners.has(chat) ? [[chat, this.payloadOwners.get(chat)!] as const] : []));
 	}
 	override async listSessionV2Registrations(): Promise<readonly IAgentHostDatabaseSession[]> {
