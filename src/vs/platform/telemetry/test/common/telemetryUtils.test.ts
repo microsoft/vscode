@@ -48,6 +48,8 @@ suite('TelemetryUtils', () => {
 				windowsPassword: `runas /user:admin /pass:${placeholder} app.exe`,
 				sshpassPassword: `sshpass -p ${placeholder} ssh deploy@buildbox`,
 				curlBasicAuth: `curl -sS -u admin:${placeholder} api.internal:8080`,
+				curlAttachedBasicAuth: `curl -sS -uadmin:${placeholder} api.internal:8080`,
+				curlShortPassword: 'curl -sS -u admin:x api.internal:8080',
 			}, []), {
 				shortenedGoogleApiKey: '<REDACTED: Google API Key>',
 				plinkPassword: '<REDACTED: CLI Password Flag>',
@@ -55,6 +57,8 @@ suite('TelemetryUtils', () => {
 				windowsPassword: '<REDACTED: CLI Password Flag>',
 				sshpassPassword: '<REDACTED: CLI Password Flag>',
 				curlBasicAuth: '<REDACTED: CLI Basic Auth>',
+				curlAttachedBasicAuth: '<REDACTED: CLI Basic Auth>',
+				curlShortPassword: '<REDACTED: CLI Basic Auth>',
 			});
 		});
 
@@ -63,6 +67,7 @@ suite('TelemetryUtils', () => {
 				mkdir: 'mkdir -p src && git log -p -1',
 				ssh: 'ssh -p 2222 deploy@buildbox',
 				docker: 'docker run -u 1000:1000 -p 8080:80 nginx',
+				dockerAttached: 'docker exec -u0:0 container sh',
 				msbuild: 'dotnet build /p:Configuration=Release /p:Platform=x64',
 				jest: 'npx jest --passWithNoTests --ci',
 				git: 'git push -u origin main',
@@ -73,8 +78,12 @@ suite('TelemetryUtils', () => {
 		test('removes OneDrive organization names from paths', () => {
 			assert.deepStrictEqual(cleanData({
 				path: `Set-Location 'C:\\Users\\someone\\OneDrive - Contoso Corporation\\Documents\\repo'; git status`,
+				pathWithApostrophe: `Set-Location 'C:\\Users\\someone\\OneDrive - O'Brien Holdings\\Documents\\repo'; git status`,
+				text: 'Could not sync "OneDrive - Contoso Corporation" folder',
 			}, []), {
 				path: `Set-Location '<REDACTED: user-file-path>'; git status`,
+				pathWithApostrophe: `Set-Location '<REDACTED: user-file-path>'; git status`,
+				text: 'Could not sync "OneDrive" folder',
 			});
 		});
 	});

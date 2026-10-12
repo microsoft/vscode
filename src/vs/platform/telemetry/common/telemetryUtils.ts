@@ -294,13 +294,28 @@ export function getUserContentPathsFromEnvironment(paths: Pick<IPathEnvironment,
 
 //#region Telemetry Cleaning
 
+function getMatchRanges(value: string, patterns: RegExp[]): [number, number][] {
+	const ranges: [number, number][] = [];
+	for (const regexp of patterns) {
+		while (true) {
+			const result = regexp.exec(value);
+			if (!result) {
+				break;
+			}
+			ranges.push([result.index, regexp.lastIndex]);
+		}
+	}
+	return ranges;
+}
+
 /**
  * Cleans a given stack of possible paths
  * @param stack The stack to sanitize
  * @param relativePathRootPatterns Patterns for roots whose descendant file paths are kept so the root can later be removed, leaving a relative path
+ * @param userContentRootPatterns Patterns for roots whose descendant file paths are always fully redacted, unless they are also beneath a relative path root
  * @returns The cleaned stack
  */
-function anonymizeFilePaths(stack: string, relativePathRootPatterns: RegExp[]): string {
+function anonymizeFilePaths(stack: string, relativePathRootPatterns: RegExp[], userContentRootPatterns: RegExp[]): string {
 
 	// Fast check to see if it is a file path to avoid doing unnecessary heavy regex work
 	if (!stack || (!stack.includes('/') && !stack.includes('\\'))) {
@@ -309,16 +324,8 @@ function anonymizeFilePaths(stack: string, relativePathRootPatterns: RegExp[]): 
 
 	let updatedStack = stack;
 
-	const cleanUpIndexes: [number, number][] = [];
-	for (const regexp of relativePathRootPatterns) {
-		while (true) {
-			const result = regexp.exec(stack);
-			if (!result) {
-				break;
-			}
-			cleanUpIndexes.push([result.index, regexp.lastIndex]);
-		}
-	}
+	const cleanUpIndexes = getMatchRanges(stack, relativePathRootPatterns);
+	const userContentIndexes = getMatchRanges(stack, userContentRootPatterns);
 
 	// Match node_modules or node_modules.asar at any position in the path, capturing the node_modules/... suffix
 	const nodeModulesRegex = /(?:^|[\\\/])((node_modules|node_modules\.asar)[\\\/].*)$/;
@@ -342,14 +349,15 @@ function anonymizeFilePaths(stack: string, relativePathRootPatterns: RegExp[]): 
 
 		// anoynimize user file paths that do not need to be retained or cleaned up.
 		if (!overlappingRange) {
+			const isUserContent = userContentIndexes.some(([start, end]) => result.index < end && start < fileRegex.lastIndex);
 			// Check if this is a VS Code extension path - if so, preserve the .vscode*/extensions/... portion
-			const vscodeExtMatch = vscodeExtensionsPathRegex.exec(result[0]);
+			const vscodeExtMatch = isUserContent ? null : vscodeExtensionsPathRegex.exec(result[0]);
 			if (vscodeExtMatch) {
 				// Keep ".vscode[-variant]/extensions/extension-name/..." but redact the parent folder
 				updatedStack += stack.substring(lastIndex, result.index) + '<REDACTED: user-file-path>/' + vscodeExtMatch[2];
 			} else {
 				// Check if node_modules appears in the path — preserve node_modules/... suffix
-				const nodeModulesMatch = nodeModulesRegex.exec(result[0]);
+				const nodeModulesMatch = isUserContent ? null : nodeModulesRegex.exec(result[0]);
 				if (nodeModulesMatch) {
 					updatedStack += stack.substring(lastIndex, result.index) + '<REDACTED: user-file-path>/' + nodeModulesMatch[1];
 				} else {
@@ -377,8 +385,8 @@ const userDataRegexes = [
 	{ label: 'CLI Credentials', regex: /((login|psexec|(certutil|psexec)\.exe).{1,50}(\s-u(ser(name)?)?\s+.{3,100})?\s-(admin|user|vm|root)?p(ass(word)?)?\s+["']?[^$\-\/\s]|(^|[\s\r\n\\])net(\.exe)?.{1,5}(user\s+|share\s+\/user:| user -? secrets ? set) \s + [^ $\s \/])/ },
 	// Short password flags such as `plink -pw`, `openssl -pass`, `cmdkey /pass:`, and `sshpass -p`. MSBuild's `/p:` property flag is intentionally not matched.
 	{ label: 'CLI Password Flag', regex: /(?:^|[\s"'`])(?:--?(?:pw|pass)(?:\s+|=)|\/pass:|sshpass\s+-p\s*)["']?[^\s"'$\-]/i },
-	// `user:password` credentials passed with `-u` or `--user`, such as curl. Numeric `uid:gid` pairs are not matched.
-	{ label: 'CLI Basic Auth', regex: /(?:^|\s)(?:-u|--user)(?:\s+|=)["']?(?!\d+:\d+\b)[^\s:"']+:[^\s"']{3,}/ },
+	// `user:password` credentials passed with `-u` or `--user`, such as curl. Short options may be attached (`-uuser:password`). Numeric `uid:gid` pairs are not matched.
+	{ label: 'CLI Basic Auth', regex: /(?:^|\s)(?:-u(?:\s+|=)?|--user(?:\s+|=))["']?(?!\d+:\d+\b)[^\s:"']+:[^\s"']+/ },
 	{ label: 'Microsoft Entra ID', regex: /eyJ(?:0eXAiOiJKV1Qi|hbGci|[a-zA-Z0-9\-_]+\.[a-zA-Z0-9\-_]+\.)/ },
 	{ label: 'Email', regex: /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/ }
 ];
@@ -386,8 +394,10 @@ const userDataRegexes = [
 /**
  * Matches the organization name in OneDrive for Business folders, e.g. `OneDrive - Contoso`.
  * Folder names with spaces are not recognized by path anonymization, so the name is removed first.
+ * When followed by a path separator, the whole folder name is matched, including quotes that are
+ * valid in folder names. Otherwise matching stops at the first quote.
  */
-const oneDriveOrganizationRegex = /OneDrive - [^\\\/\r\n"'`]+/g;
+const oneDriveOrganizationRegex = /OneDrive - (?:[^\\\/\r\n"<>|:*?]+(?=[\\\/])|[^\\\/\r\n"'`]+)/g;
 
 /**
  * Redacts a value if it contains commonly leaked PII.
@@ -463,9 +473,10 @@ function removePropertiesWithPossibleUserInfo(property: string): string {
  * @param data The data object to clean
  * @param cleanUpPatterns Any additional patterns that should be removed from the data set
  * @param relativePathRootPatterns Patterns for roots whose descendant file paths are kept relative to the root instead of being redacted. Defaults to `cleanUpPatterns`.
+ * @param userContentRootPatterns Patterns for roots whose descendant file paths are always fully redacted, unless they are also beneath a relative path root.
  * @returns A new object with the PII removed
  */
-export function cleanData(data: ITelemetryData | undefined, cleanUpPatterns: RegExp[], relativePathRootPatterns: RegExp[] = cleanUpPatterns): Record<string, unknown> {
+export function cleanData(data: ITelemetryData | undefined, cleanUpPatterns: RegExp[], relativePathRootPatterns: RegExp[] = cleanUpPatterns, userContentRootPatterns: RegExp[] = []): Record<string, unknown> {
 	if (!data) {
 		return {};
 	}
@@ -485,7 +496,7 @@ export function cleanData(data: ITelemetryData | undefined, cleanUpPatterns: Reg
 			}
 
 			// First we anonymize any possible file paths
-			updatedProperty = anonymizeFilePaths(updatedProperty, relativePathRootPatterns);
+			updatedProperty = anonymizeFilePaths(updatedProperty, relativePathRootPatterns, userContentRootPatterns);
 
 			// Then we do a simple regex replace with the defined patterns
 			for (const regexp of cleanUpPatterns) {

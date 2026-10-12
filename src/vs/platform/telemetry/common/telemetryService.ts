@@ -83,6 +83,7 @@ export class TelemetryService implements ITelemetryService {
 	private readonly _disposables = new DisposableStore();
 	private _cleanupPatterns: RegExp[] = [];
 	private _relativePathRootPatterns: RegExp[] = [];
+	private _userContentRootPatterns: RegExp[] = [];
 
 	static createWithLevel(config: ITelemetryServiceConfig & { telemetryLevel: TelemetryLevel }, productService: IProductService): TelemetryService {
 		return new TelemetryService(config, undefined, productService);
@@ -122,7 +123,9 @@ export class TelemetryService implements ITelemetryService {
 			}
 
 			this._cleanupPatterns.push(...patterns);
-			if (!userContentPaths.has(piiPath)) {
+			if (userContentPaths.has(piiPath)) {
+				this._userContentRootPatterns.push(...patterns);
+			} else {
 				this._relativePathRootPatterns.push(...patterns);
 			}
 		}
@@ -250,7 +253,7 @@ export class TelemetryService implements ITelemetryService {
 		data = mixin(data, this._experimentProperties);
 
 		// remove all PII from data
-		data = cleanData(data, this._cleanupPatterns, this._relativePathRootPatterns);
+		data = cleanData(data, this._cleanupPatterns, this._relativePathRootPatterns, this._userContentRootPatterns);
 
 		// add common properties
 		data = mixin(data, this._commonProperties);
