@@ -314,16 +314,24 @@ suite('MultiEditorTabsControl', () => {
 				const terminal = Array.from(container.querySelectorAll<HTMLElement>('.tabs-container > .tab')).at(-1)!;
 				const add = container.querySelector<HTMLElement>('.tabs-bar-add-tab')!;
 				const row = terminal.closest<HTMLElement>('.tabs-and-actions-container')!;
+				const fill = terminal.querySelector<HTMLElement>('.tab-fill')!;
+				const button = add.querySelector<HTMLElement>('.action-label')!;
+				const buttonBounds = button.getBoundingClientRect();
+				const fillBounds = fill.getBoundingClientRect();
+				const terminalBounds = terminal.getBoundingClientRect();
+				const fillInset = direction === 'rtl' ? fillBounds.left - terminalBounds.left : terminalBounds.right - fillBounds.right;
+				const buttonGap = direction === 'rtl' ? fillBounds.left - buttonBounds.right : buttonBounds.left - fillBounds.right;
 				results.push({
 					connected, direction, width,
 					wrapped: row.classList.contains('wrapping'),
 					sameRow: terminal.offsetTop === add.offsetTop,
 					adjacentGap: Math.abs((direction === 'rtl' ? terminal.getBoundingClientRect().left - add.getBoundingClientRect().right : add.getBoundingClientRect().left - terminal.getBoundingClientRect().right) - (connected ? 7 : 4)) <= 1 / 32,
 					contained: add.getBoundingClientRect().left >= row.getBoundingClientRect().left - 1 / 64 && add.getBoundingClientRect().right <= row.getBoundingClientRect().right + 1 / 64,
+					visibleButtonGap: !connected || Math.abs(buttonGap - fillInset - 2) <= 1 / 32,
 				});
 			}
 		}
-		assert.deepStrictEqual(results, results.map(result => ({ ...result, wrapped: true, sameRow: true, adjacentGap: true, contained: true })));
+		assert.deepStrictEqual(results, results.map(result => ({ ...result, wrapped: true, sameRow: true, adjacentGap: true, contained: true, visibleButtonGap: true })));
 	});
 
 	test('wrapped terminal fit tabs leave room for editor actions without an Add Tab control', async () => {
