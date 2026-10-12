@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'mocha';
-import { GitStatusParser, parseGitCommits, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors } from '../git';
+import { GitStatusParser, parseGitCommits, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors, getGitErrorCode } from '../git';
 import * as assert from 'assert';
 import { splitInChunks } from '../util';
+import { GitErrorCodes } from '../api/git.constants';
 
 suite('git', () => {
 	suite('GitStatusParser', () => {
@@ -667,6 +668,18 @@ suite('git', () => {
 					{ name: 'Jane Doe', email: 'jane@example.com' }
 				]
 			);
+		});
+	});
+
+	suite('getGitErrorCode', () => {
+		test('remote ref not found', () => {
+			assert.deepStrictEqual([
+				getGitErrorCode('fatal: couldn\'t find remote ref feat'),
+				getGitErrorCode('fatal: Couldn\'t find remote ref feat')
+			], [
+				GitErrorCodes.NoRemoteReference,
+				GitErrorCodes.NoRemoteReference
+			]);
 		});
 	});
 

@@ -332,7 +332,7 @@ export interface IGitOptions {
 	env?: { [key: string]: string };
 }
 
-function getGitErrorCode(stderr: string): string | undefined {
+export function getGitErrorCode(stderr: string): string | undefined {
 	if (/Another git process seems to be running in this repository|If no other git process is currently running/.test(stderr)) {
 		return GitErrorCodes.RepositoryIsLocked;
 	} else if (/Authentication failed/i.test(stderr)) {
