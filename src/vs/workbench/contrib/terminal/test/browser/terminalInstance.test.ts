@@ -34,7 +34,7 @@ import { parseExitResult, TerminalInstance, TerminalLabelComputer } from '../../
 import { IEnvironmentVariableService } from '../../common/environmentVariable.js';
 import { EnvironmentVariableService } from '../../common/environmentVariableService.js';
 import { ITerminalProfileResolverService, ProcessState, DEFAULT_COMMANDS_TO_SKIP_SHELL } from '../../common/terminal.js';
-import { TestViewDescriptorService } from './xterm/xtermTerminal.test.js';
+import { TestViewDescriptorService } from './xterm/xtermTestUtils.js';
 import { fixPath } from '../../../../services/search/test/browser/queryBuilder.test.js';
 import { TestTerminalProfileResolverService, TestViewsService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { TestContextService } from '../../../../test/common/workbenchTestServices.js';

@@ -33,13 +33,14 @@ import { defaultProgressBarStyles } from '../../../platform/theme/browser/defaul
 import { IProgressIndicator } from '../../../platform/progress/common/progress.js';
 import { AbstractProgressScope, ScopedProgressIndicator } from '../../../workbench/services/progress/browser/progressIndicator.js';
 import { IAgentWorkbenchLayoutService } from '../workbench.js';
-import { applyAgentsPartCardStyles, getAgentsPartCardContentSize } from './agentsPartCard.js';
+import { applyAgentsPartCardStyles, getAgentsPartCardContentSize, getSessionsPartCardMarginRight } from './agentsPartCard.js';
 import { isPhoneLayout } from './mobile/mobileLayout.js';
 import { SessionsChatBackgroundRenderer } from '../../services/chatBackground/browser/chatBackgroundRenderer.js';
 import { ISessionsChatBackgroundService } from '../../services/chatBackground/browser/chatBackgroundService.js';
 import { noSessionPickerVisibility, SessionPickerVisibilityContextKeys } from '../../services/sessions/common/sessionPickerVisibility.js';
 import { ISessionGridSlot, SessionGridRequest } from '../../services/sessions/browser/sessionsPartService.js';
 import { SessionGridLayout } from './sessionGridLayout.js';
+import { AGENTS_FLOATING_PANEL_GAP } from '../../common/layoutConstants.js';
 
 interface IGridSlot {
 	readonly id: string;
@@ -479,20 +480,24 @@ export class SessionsPart extends Part {
 
 		this._lastLayout = { width, height, top, left };
 
+		const phoneLayout = isPhoneLayout(this.layoutService);
+		const compactLayout = this.layoutService.isModernUICompact();
 		const cardSize = getAgentsPartCardContentSize(
 			width,
 			height,
 			this.agentWorkbenchLayoutService.isEditorPaneVisible(),
 			this.layoutService.isVisible(Parts.SIDEBAR_PART),
-			isPhoneLayout(this.layoutService),
-			this.layoutService.isModernUICompact()
+			phoneLayout,
+			compactLayout,
+			getSessionsPartCardMarginRight(this.layoutService.mainContainer)
 		);
 
 		// Size the content area with the reduced dimensions.
 		const { contentSize } = this.layoutContents(cardSize.width, cardSize.height);
 
 		// Layout the internal grid widget within the content area.
-		this._gridWidget?.layout(contentSize.width, contentSize.height, top, left, isPhoneLayout(this.layoutService));
+		const gridGap = phoneLayout || compactLayout ? 0 : AGENTS_FLOATING_PANEL_GAP;
+		this._gridWidget?.layout(contentSize.width, contentSize.height, top, left, phoneLayout, gridGap);
 
 		// Store the full grid-allocated dimensions so that Part.relayout() works correctly.
 		super.layout(width, height, top, left);

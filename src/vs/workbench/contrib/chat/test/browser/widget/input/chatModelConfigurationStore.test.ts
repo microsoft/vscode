@@ -23,6 +23,8 @@ import { resolveContextWindowInputTokens } from '../../../../browser/widgetHosts
 import { ILanguageModelChatMetadata, ILanguageModelConfigurationSchema, ILanguageModelsService } from '../../../../common/languageModels.js';
 import { IChatModelInputState, IInputModel } from '../../../../common/model/chatModel.js';
 import { ChatModeKind } from '../../../../common/constants.js';
+import { IAgentHostConnectionsService } from '../../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 
 const schema: ILanguageModelConfigurationSchema = {
 	properties: {
@@ -51,6 +53,24 @@ function createStubService(global?: IStringDictionary<unknown>): ILanguageModels
 
 suite('ChatModelConfigurationStore', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('the production input delegate supplies the active chat and resolved owner to the picker', () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IAgentHostConnectionsService, {
+			resolveSessionResourceIdentity: () => ({ connectionAuthority: 'local', backendSession: URI.parse('copilotcli:/owner') }),
+		});
+		const widget = { viewModel: { sessionResource: URI.parse('agent-host-copilotcli:/owner#peer-one') } };
+		const input: ChatInputPart = Object.assign(Object.create(ChatInputPart.prototype), {
+			agentHostConnectionsService: instantiationService.get(IAgentHostConnectionsService),
+			_widget: widget,
+		});
+		const delegate = input['_createModelPickerDelegate']();
+		assert.deepStrictEqual([delegate.getChatSessionId?.(), delegate.getAgentSessionId?.()], ['agent-host-copilotcli:/owner#peer-one', 'owner']);
+		widget.viewModel.sessionResource = URI.parse('agent-host-copilotcli:/owner#peer-two');
+		assert.deepStrictEqual([delegate.getChatSessionId?.(), delegate.getAgentSessionId?.()], ['agent-host-copilotcli:/owner#peer-two', 'owner']);
+		widget.viewModel.sessionResource = URI.parse('agent-host-copilotcli:/untitled-draft');
+		assert.strictEqual(delegate.getAgentSessionId?.(), undefined);
+	});
 
 	function createStore(storage: InMemoryStorageService, service: ILanguageModelsService, isEmpty = () => true, managedSettings: IManagedSettingsService = new NullManagedSettingsService(), useAgentHostManagedDefault = false): ChatModelConfigurationStore {
 		return store.add(new ChatModelConfigurationStore(() => KEY, isEmpty, constObservable(useAgentHostManagedDefault), service, storage, managedSettings, new NullLogService()));

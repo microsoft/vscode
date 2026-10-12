@@ -2543,6 +2543,42 @@ suite('AgentHostProtocolClient', () => {
 		});
 	});
 
+	test('collectDebugLogs preserves opaque session and chat resources and includes a progress token', async () => {
+		const { client, transport } = createClient();
+		const session = URI.parse('custom-session://host/opaque');
+		const chat = URI.parse('custom-chat://host/opaque-chat');
+		const collection = client.collectDebugLogs(session, 'archive', chat, 'export-progress');
+		assert.deepStrictEqual(transport.sentMessages[0], {
+			jsonrpc: '2.0', id: 1, method: 'vscode/collectAgentHostDebugLogs',
+			params: { session: session.toString(), chat: chat.toString(), kind: 'archive', progressToken: 'export-progress' },
+		});
+		transport.fireMessage({
+			jsonrpc: '2.0', id: 1,
+			result: { kind: 'archive', resource: 'file:///tmp/host.zip', providerLogsIncluded: true, size: 10, uncompressedSize: 20, entries: [{ path: 'events.jsonl', size: 20 }] },
+		});
+		await collection;
+	});
+
+	test('cancelDebugLogs only sends a request when the host advertises support', async () => {
+		const unsupported = createClient();
+		await connectClient(unsupported.client, unsupported.transport);
+		unsupported.transport.sentMessages.length = 0;
+		await unsupported.client.cancelDebugLogs('export-progress');
+		assert.deepStrictEqual(unsupported.transport.sentMessages, []);
+
+		const supported = createClient();
+		await connectClient(supported.client, supported.transport, getAgentHostExtensionInitializeResultMeta());
+		supported.transport.sentMessages.length = 0;
+		const cancelled = supported.client.cancelDebugLogs('export-progress');
+		const request = supported.transport.sentMessages[0];
+		assert.ok(hasKey(request, { id: true, method: true, params: true }));
+		supported.transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: null });
+		await cancelled;
+		assert.deepStrictEqual({ method: request.method, params: request.params }, {
+			method: 'vscode/cancelAgentHostDebugLogs', params: { progressToken: 'export-progress' },
+		});
+	});
+
 	test('sendHostExtensionRequest uses normal request correlation', async () => {
 		const { client, transport } = createClient();
 		const params = { url: 'https://github.com/microsoft/vscode', depth: 1 };
