@@ -58,7 +58,7 @@ suite('built-in skills', () => {
 		];
 
 		expect(required.filter(anchor => !skill.includes(anchor))).toEqual([]);
-		expect(skill).not.toMatch(/vs ?code/i);
+		expect(skill).not.toMatch(/vs ?code|visual studio code/i);
 		expect(skill).not.toContain('disable-model-invocation: true');
 		expect(skill).not.toContain('extensions_manage({');
 		expect(skill).not.toContain('run `/extensions`');

@@ -34,7 +34,7 @@ Create `.github/extensions/<name>/extension.mjs`.
 - Return an HTTP URL from `open()`. Do not place credentials or private state in the URL.
 - Treat `open()` as idempotent. Reopening the same `instanceId` must reuse or safely replace its live server and reload state from the stable domain identity.
 - Store repo-owned artifacts at a sensible workspace path when the user expects them to be versioned or directly editable.
-- Store private durable data outside the repository, in `extension-data/<canvas-id>/` under the Copilot home that every Copilot host shares: `process.env.COPILOT_HOME` when it is an absolute path, otherwise `path.join(os.homedir(), '.copilot')`. Create directories on first use.
+- Store private durable data outside the repository, in `extension-data/<canvas-id>/` under the Copilot home that every Copilot host shares: `process.env.COPILOT_HOME` exactly as given whenever it is non-empty, as the runtime uses it, otherwise `path.join(os.homedir(), '.copilot')`. Create directories on first use.
 - Several sessions, workspaces, and hosts may run the extension at the same time, so:
   - key records by their domain identity so workspaces do not overwrite each other's state;
   - write each file atomically: write a uniquely named temporary file in the same directory, then rename it over the target;
