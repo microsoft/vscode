@@ -81,6 +81,18 @@ Native SDK catalog entries are provider backing references, not protocol session
 
 Native hosts and capable VS Code clients declare `_meta["vscode.ahpSessionUris"] = true`. Creation uses standard addressing when supported, or legacy addressing for an identified native host without that capability. New hosts declare `_meta["vscode.agentHost"] = true`; older hosts are identified by their validated root `hostBuild` metadata, without comparing version numbers. Unmarked conforming hosts remain standard AHP peers. Identified legacy VS Code connections see legacy sessions only; this does not change host state or project backend URI aliases onto the wire. Reconnection retains or renegotiates connection capabilities without readdressing any session.
 
+### Local persistence and downgrade compatibility
+
+Protocol identity and disk addressing are separate. For the approximately six-month stable downgrade window, newly allocated local Copilot CLI, Claude, and Codex `ahp-session` resources use the corresponding provider-scheme address on disk. An immutable identity record in the existing orchestrator database identifies this encoding; historical provider-scheme registrations without that record retain their historical runtime addresses. Previously written native registrations are not migrated.
+
+The storage boundary applies the same mapping to registry and catalog keys, tombstones, chat-owner addresses, physical peer-chat directories, URI-keyed metadata, origins, and draft keys. A chat keeps its chat ID while its encoded owner session changes representation. Provider backing references and conversation content remain opaque. Catalog projections use the checksum of their persisted representation; compact acknowledgement receipts retain the runtime/storage hash pair atomically with the source snapshot.
+
+Compatibility-backed and historical provider-scheme sessions retain legacy-readable chat authority during the window so older builds can modify membership, titles, archive state, and drafts. Native-backed sessions continue to use normalized chat authority; existing normalized catalogs are not demoted. Upgrading imports older-build edits through the existing legacy reconciliation path rather than creating a second session identity.
+
+Both encodings are readable independently of the allocation writer. A future release can allocate native-backed sessions while retaining the compatibility reader and the established disk addresses of existing sessions. This disk contract covers downgrading the local application and host together; it does not introduce legacy aliases for an older client connected to a newer host.
+
+Local and per-address remote frontend summary caches use a separate generation from the stable legacy-addressed host's cache. Either application can rebuild its listing without letting the other's cached backend URI register a conflicting identity. This does not rekey frontend resources or the durable chat drafts.
+
 ## Session adaptation
 
 `AgentHostSessionAdapter` is the stable `ISession` facade for a committed Agent Host session. It:

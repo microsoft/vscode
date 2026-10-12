@@ -243,6 +243,11 @@ export const AGENT_HOST_CATALOG_SNAPSHOT_SESSION_LIMIT = 400;
 export interface IAgentHostDatabase extends IDisposable {
 	readonly _serviceBrand: undefined;
 
+	/** Selects persistence addressing for a new local allocation without readdressing existing sessions. */
+	prepareSessionStorage?(session: string, provider: AgentProvider): Promise<void>;
+	/** Keeps older-build chat membership writable for compatibility-backed identities. */
+	requiresLegacyChatCatalog?(session: string): boolean;
+
 	/**
 	 * Records an identity in the legacy session registry for compatibility.
 	 * When requested, the tombstone check and registration are atomic.
@@ -707,6 +712,25 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		private readonly _path: string,
 		private readonly _onDidRunStatement?: (sql: string) => Promise<void>,
 	) { }
+
+	async readStorageIdentityMetadata(): Promise<readonly { readonly key: string; readonly value: string }[]> {
+		const rows = await all(await this._ensureDatabase(), 'SELECT key, value FROM metadata WHERE key LIKE ?', ['sessionStorageIdentity:%']);
+		return rows.map(row => ({ key: row.key as string, value: row.value as string }));
+	}
+
+	async setStorageIdentityMetadata(key: string, value: string): Promise<void> {
+		if (!key.startsWith('sessionStorageIdentity:')) {
+			throw new Error(`Invalid storage identity metadata key: ${key}`);
+		}
+		await this._transactionSequencer.queue(async () => {
+			const database = await this._ensureDatabase();
+			await run(database, 'INSERT INTO metadata (key, value) VALUES (?, ?) ON CONFLICT(key) DO NOTHING', [key, value]);
+			const row = await get(database, 'SELECT value FROM metadata WHERE key = ?', [key]);
+			if (row?.value !== value) {
+				throw new Error(`Conflicting persisted session storage identity: ${key}`);
+			}
+		});
+	}
 
 	async registerSession(session: string, sessionOptions: IAgentHostDatabaseSessionOptions, registerOptions: IAgentHostDatabaseRegisterOptions): Promise<boolean> {
 		const { provider, startTime, modifiedTime = startTime, source } = sessionOptions;
