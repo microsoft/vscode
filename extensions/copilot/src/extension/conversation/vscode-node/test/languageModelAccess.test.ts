@@ -479,7 +479,7 @@ suite('LanguageModelAccess model info', () => {
 			getEmbeddingsEndpoint: async () => { throw new Error('Not implemented in test'); },
 		} as unknown as IEndpointProvider);
 		const accessor = testingServiceCollection.createTestingAccessor();
-		autoPickerEndpoint.complete(accessor.get(IInstantiationService).createInstance(AutoChatEndpoint, lunaEndpoint, '', 0, { low: 0, high: 0 }));
+		autoPickerEndpoint.complete(accessor.get(IInstantiationService).createInstance(AutoChatEndpoint, lunaEndpoint, '', 0, { low: 0, high: 0 }, undefined));
 		const extensionContext = accessor.get(IVSCodeExtensionContext);
 		const version = accessor.get(IEnvService).getVersion();
 		await extensionContext.globalState.update('lmBaseCount/gpt-5.4-nano', { extensionVersion: version, baseCount: 0 });

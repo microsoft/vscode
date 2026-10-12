@@ -8,7 +8,7 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { BrowserView } from './browserView.js';
 import { ICDPTarget, CDPBrowserVersion, CDPWindowBounds, CDPTargetInfo, ICDPConnection, ICDPBrowserTarget, CDPRequest, CDPResponse, CDPEvent } from '../common/cdp/types.js';
 import { CDPBrowserProxy } from '../common/cdp/proxy.js';
-import { IBrowserViewGroup, IBrowserViewGroupFilter, matchesBrowserViewGroupFilter } from '../common/browserViewGroup.js';
+import { IBrowserViewGroup, IBrowserViewGroupFilter, matchesBrowserViewGroupFilter, matchesBrowserViewSandboxSession } from '../common/browserViewGroup.js';
 import { BrowserViewStorageScope, IBrowserViewCreationContext } from '../common/browserView.js';
 import { IBrowserViewMainService } from './browserViewMainService.js';
 import { IProductService } from '../../product/common/productService.js';
@@ -108,19 +108,23 @@ export class BrowserViewGroup extends Disposable implements ICDPBrowserTarget, I
 		}
 
 		const store = new DisposableStore();
-		store.add(view.onDidChangeAudiences(() => {
+		const reconcile = () => {
 			if (this._isActive) {
 				void this._reconcileView(view).catch(error => {
 					this.logService.error(`[BrowserViewGroup] Failed to reconcile view ${view.id}`, error);
 				});
 			}
-		}));
+		};
+		store.add(view.onDidChangeAudiences(reconcile));
+		store.add(view.onDidChangeOwner(reconcile));
 		store.add(Event.once(view.onDidClose)(() => this.viewAudienceListeners.deleteAndDispose(view.id)));
 		this.viewAudienceListeners.set(view.id, store);
 	}
 
 	private async _reconcileView(view: BrowserView): Promise<void> {
-		const matches = matchesBrowserViewGroupFilter(view.id, view.audiences, this.filter);
+		const isolatedSessionId = this.filter.sandboxSessionId;
+		const isolated = matchesBrowserViewSandboxSession(view.owner, view.session.sandboxSessionId, isolatedSessionId);
+		const matches = isolated && matchesBrowserViewGroupFilter(view.id, view.audiences, this.filter);
 		if (matches) {
 			await this.addView(view.id);
 		} else {
@@ -158,6 +162,10 @@ export class BrowserViewGroup extends Disposable implements ICDPBrowserTarget, I
 		const view = this.browserViewMainService.tryGetBrowserView(viewId);
 		if (!view) {
 			throw new Error(`Browser view ${viewId} not found`);
+		}
+		const isolatedSessionId = this.filter.sandboxSessionId;
+		if (!matchesBrowserViewSandboxSession(view.owner, view.session.sandboxSessionId, isolatedSessionId)) {
+			throw new Error(`Browser view ${viewId} is not isolated for agent session ${isolatedSessionId}`);
 		}
 		if (this.filter.audience?.type === 'agent') {
 			this.browserViewMainService.validateAgentAccess(view);

@@ -176,7 +176,7 @@ describe('CustomEndpointBYOKModelProvider', () => {
 	});
 
 	describe('CustomEndpointOAIEndpoint', () => {
-		async function createConfiguredResponsesEndpoint(zeroDataRetentionEnabled?: boolean): Promise<IChatEndpoint> {
+		async function createConfiguredResponsesEndpoint(zeroDataRetentionEnabled?: boolean, statefulResponses?: boolean): Promise<IChatEndpoint> {
 			const provider = instaService.createInstance(TestCustomEndpointBYOKModelProvider, createStorageService());
 			const tokenSource = disposables.add(new vscode.CancellationTokenSource());
 			const modelConfiguration: CustomEndpointModelConfig = {
@@ -191,6 +191,9 @@ describe('CustomEndpointBYOKModelProvider', () => {
 			};
 			if (zeroDataRetentionEnabled !== undefined) {
 				modelConfiguration.zeroDataRetentionEnabled = zeroDataRetentionEnabled;
+			}
+			if (statefulResponses !== undefined) {
+				modelConfiguration.statefulResponses = statefulResponses;
 			}
 			const [model] = await provider.provideLanguageModelChatInformation({
 				silent: true,
@@ -233,7 +236,7 @@ describe('CustomEndpointBYOKModelProvider', () => {
 			};
 		}
 
-		it('omits store after cloning a Custom Endpoint Responses endpoint when zeroDataRetentionEnabled is omitted', async () => {
+		it('omits store but keeps previous_response_id after cloning a Custom Endpoint Responses endpoint when both flags are omitted', async () => {
 			const endpoint = (await createConfiguredResponsesEndpoint()).cloneWithTokenOverride(64000);
 			const body = createResponsesBody(endpoint);
 
@@ -248,7 +251,51 @@ describe('CustomEndpointBYOKModelProvider', () => {
 			});
 		});
 
-		it('enables store and previous_response_id for Custom Endpoint Responses requests when zeroDataRetentionEnabled is false', async () => {
+		it('issue #331636: sends the full tool-call history when statefulResponses is false', async () => {
+			const endpoint = await createConfiguredResponsesEndpoint(undefined, false);
+			const body = endpoint.createRequestBody({
+				debugName: 'test',
+				messages: [
+					{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'list the workspace' }] },
+					{
+						role: Raw.ChatRole.Assistant,
+						content: [{ type: Raw.ChatCompletionContentPartKind.Opaque, value: { type: CustomDataPartMimeTypes.StatefulMarker, value: { modelId: customResponsesModelId, marker: customResponsesMarker } } }],
+						toolCalls: [{ id: 'call_1', type: 'function', function: { name: 'list_dir', arguments: '{}' } }],
+					},
+					{ role: Raw.ChatRole.Tool, toolCallId: 'call_1', content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'a.txt' }] },
+				],
+				requestId: 'test-custom-responses-tool-follow-up',
+				postOptions: {},
+				ignoreStatefulMarker: false,
+				finishedCb: undefined,
+				location: ChatLocation.Other,
+			});
+
+			expect({
+				previousResponseId: body.previous_response_id,
+				input: body.input?.map(item => ('type' in item ? item.type : undefined)),
+			}).toEqual({
+				previousResponseId: undefined,
+				input: ['message', 'function_call', 'function_call_output'],
+			});
+		});
+
+		it('enables store but not previous_response_id when zeroDataRetentionEnabled and statefulResponses are false', async () => {
+			const endpoint = await createConfiguredResponsesEndpoint(false, false);
+			const body = createResponsesBody(endpoint);
+
+			expect({
+				storePresent: 'store' in body,
+				store: body.store,
+				previousResponseId: body.previous_response_id,
+			}).toEqual({
+				storePresent: true,
+				store: true,
+				previousResponseId: undefined,
+			});
+		});
+
+		it('enables store and previous_response_id when zeroDataRetentionEnabled is false and statefulResponses is omitted', async () => {
 			const endpoint = await createConfiguredResponsesEndpoint(false);
 			const body = createResponsesBody(endpoint);
 
@@ -264,7 +311,7 @@ describe('CustomEndpointBYOKModelProvider', () => {
 		});
 
 		it('disables store and previous_response_id for Custom Endpoint ZDR Responses requests', async () => {
-			const endpoint = await createConfiguredResponsesEndpoint(true);
+			const endpoint = await createConfiguredResponsesEndpoint(true, true);
 			const body = createResponsesBody(endpoint);
 
 			expect({

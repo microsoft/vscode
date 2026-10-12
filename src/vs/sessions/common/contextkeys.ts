@@ -17,6 +17,7 @@ export const SessionTypeContext = new RawContextKey<string>('sessionType', '', l
 export const SessionWorkspaceIsVirtualContext = new RawContextKey<boolean>('sessionWorkspaceIsVirtual', true, localize('sessionWorkspaceIsVirtual', "Whether the session's workspace is virtual"));
 export const SessionHasGitRepositoryContext = new RawContextKey<boolean>('sessionHasGitRepository', false, localize('sessionHasGitRepository', "Whether the session has a usable git repository"));
 export const SessionUsesCombinedConfigPickerContext = new RawContextKey<boolean>('sessionUsesCombinedConfigPicker', false, localize('sessionUsesCombinedConfigPicker', "Whether the session's provider offers a combined mode and model configuration picker (used on phone layouts in place of the standalone pickers)"));
+export const SessionUsesExperimentalComposerLayoutContext = new RawContextKey<boolean>('sessionUsesExperimentalComposerLayout', false, localize('sessionUsesExperimentalComposerLayout', "Whether the session chat input uses the experimental composer layout"));
 export const SessionAgentPickerInAttachContext = new RawContextKey<boolean>('sessionAgentPickerInAttachContext', false, localize('sessionAgentPickerInAttachContext', "Whether the active session's Agent picker is shown in Add Context instead of the input toolbar"));
 export const SessionSupportsRenameContext = new RawContextKey<boolean>('sessionSupportsRename', false, localize('sessionSupportsRename', "Whether the session can be renamed"));
 export const SessionSupportsDeleteContext = new RawContextKey<boolean>('sessionSupportsDelete', false, localize('sessionSupportsDelete', "Whether the session can be deleted"));
@@ -46,9 +47,9 @@ export const SessionHeaderTargetsChatContext = new RawContextKey<boolean>('sessi
 export const SessionHeaderActiveChatIsPinnedContext = new RawContextKey<boolean>('sessionHeaderActiveChatIsPinned', false, localize('sessionHeaderActiveChatIsPinned', "Whether the chat represented by a side-by-side chat group header is pinned"));
 export const SessionFocusedChatIsRenameTargetContext = new RawContextKey<boolean>('sessionFocusedChatIsRenameTarget', false, localize('sessionFocusedChatIsRenameTarget', "Whether the focused chat group's visible chat is a non-main chat that should receive the chat-specific rename command instead of the session rename command"));
 export const SessionActiveChatIsDeletableContext = new RawContextKey<boolean>('sessionActiveChatIsDeletable', false, localize('sessionActiveChatIsDeletable', "Whether the session's active chat can be permanently deleted from the tab strip, i.e. it is a real, user-created non-main chat (not the main chat and not a tool-spawned subagent chat, which are transient children). Used to scope the delete-chat keybinding"));
-export const SessionIsReadContext = new RawContextKey<boolean>('sessionIsRead', true, localize('sessionIsRead', "Whether the session has been marked as read"));
+export const SessionIsReadContext = new RawContextKey<boolean>('sessionIsRead', true, localize('sessionIsRead', "Whether the session's main chat has been marked as read"));
 export const SessionIsArchivedContext = new RawContextKey<boolean>('sessionIsArchived', false, localize('sessionIsArchived', "Whether the session in scope is archived/marked as done (the active session globally, or a specific session within an isolated component such as the session view or a context menu overlay)"));
-export const SessionIsActiveContext = new RawContextKey<boolean>('sessionIsActive', false, localize('sessionIsActive', "Whether the session in scope is in progress or needs input"));
+export const SessionIsActiveContext = new RawContextKey<boolean>('sessionIsActive', false, localize('sessionIsActive', "Whether the session in scope is in progress or needs attention"));
 export const SessionHasChangesContext = new RawContextKey<boolean>('sessionHasChanges', false, localize('sessionHasChanges', "Whether the session view's session has pending changes (insertions or deletions)"));
 export const SessionHasCachedChangesContext = new RawContextKey<boolean>('sessionHasCachedChanges', false, localize('sessionHasCachedChanges', "Whether the session view's session has remembered changes from the last time its changes pill was shown, while it has not reported its own changes yet. Used to render the changes pill optimistically when a session opens"));
 export const SessionHasPullRequestContext = new RawContextKey<boolean>('sessionHasPullRequest', false, localize('sessionHasPullRequest', "Whether the session view's session is associated with a GitHub pull request"));
@@ -121,6 +122,7 @@ export const SessionsWelcomeVisibleContext = new RawContextKey<boolean>('session
 
 export const SessionsTitleBarNewSessionEnabledContext = new RawContextKey<boolean>('sessionsTitleBarNewSessionEnabled', false, localize('sessionsTitleBarNewSessionEnabled', "Whether the new-session button is shown in the titlebar when the sessions list is hidden (A/B experiment)"));
 export const SessionsListPromoteNewChatActionContext = new RawContextKey<boolean>('sessionsListPromoteNewChatAction', false, localize('sessionsListPromoteNewChatAction', "Whether New Nested Session replaces Pin or Unpin as the primary action on session rows (A/B experiment)"));
+export const SessionsListRearrangeContext = new RawContextKey<boolean>('sessionsListRearrange', false, localize('sessionsListRearrange', "Whether the sessions list uses the experimental navigation arrangement"));
 
 //#endregion
 

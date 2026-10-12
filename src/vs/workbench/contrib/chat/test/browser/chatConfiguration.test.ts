@@ -5,14 +5,15 @@
 
 import * as assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
-import product from '../../../../../platform/product/common/product.js';
+import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { ConfigurationMigration, Extensions as WorkbenchConfigurationExtensions, IConfigurationMigrationRegistry } from '../../../../common/configuration.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { IConfigurationService, IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
 import { chatProgressConfigurationProperties } from '../../browser/chatProgressConfiguration.js';
-import { customizationMarketplaceConfigurationProperties } from '../../browser/aiCustomization/customizationMarketplaceConfiguration.js';
+import { customizationMarketplaceConfigurationProperties, isAgentFinderPublicFeedAvailable, isCustomizationMarketplaceValueFromDefault } from '../../browser/aiCustomization/customizationMarketplaceConfiguration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import '../../browser/agentSessionsConfiguration.js';
 
 const configurationProperties = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
@@ -21,6 +22,7 @@ const registeredAgentSessionsSettings = [
 	ChatConfiguration.AutoMarkAsDoneMergedSessionsAfterDays,
 	ChatConfiguration.AutoDeleteMarkedAsDoneMergedSessionsAfterDays,
 ].map(key => configurationProperties[key] !== undefined);
+const unifiedWorkspacePickerSetting = configurationProperties[ChatConfiguration.UnifiedWorkspacePicker];
 const migrations = Registry.as<IConfigurationMigrationRegistry & { readonly migrations: readonly ConfigurationMigration[] }>(WorkbenchConfigurationExtensions.ConfigurationMigration).migrations;
 const legacyAutoArchiveMigration = migrations.find(migration => migration.key === 'chat.agentSessions.autoArchiveMergedSessionsAfterDays');
 const legacyAutoDeleteArchivedMigration = migrations.find(migration => migration.key === 'chat.agentSessions.autoDeleteArchivedMergedSessionsAfterDays');
@@ -36,17 +38,112 @@ suite('Chat configuration', () => {
 		assert.deepStrictEqual(registeredAgentSessionsSettings, [true, true, true]);
 	});
 
-	test('Marketplace visibility is default-off while the GitHub Feed is default-on', () => {
+	for (const [key, value, expected] of [
+		[ChatConfiguration.AgentsParallelWorkBannerEnabled, false, false],
+		[ChatConfiguration.AgentsParallelWorkBannerEnabled, true, true],
+		[ChatConfiguration.AgentsHandoffTipMode, 'hidden', false],
+		[ChatConfiguration.AgentsHandoffTipMode, 'default', true],
+		[ChatConfiguration.AgentsHandoffTipMode, 'custom', true],
+		[ChatConfiguration.AgentsHandoffTipMode, 'noFolder', true],
+	] as const) {
+		test(`migrates the explicit invitation preference ${key}=${value}`, async () => {
+			const migration = migrations.find(migration => migration.key === key);
+			assert.deepStrictEqual({ application: migration?.includeApplication, result: await migration?.migrateFn(value, () => undefined) }, {
+				application: true,
+				result: [[key, { value: undefined }], [ChatConfiguration.AgentsWindowBannerEnabled, { value: expected }]],
+			});
+		});
+	}
+
+	for (const key of [ChatConfiguration.AgentsParallelWorkBannerEnabled, ChatConfiguration.AgentsHandoffTipMode]) {
+		test(`preserves either legacy opt-out and any explicit unified preference when migrating ${key}`, async () => {
+			const migration = migrations.find(migration => migration.key === key);
+			const value = key === ChatConfiguration.AgentsHandoffTipMode ? 'default' : true;
+			const optOut = await migration?.migrateFn(value, setting => setting === ChatConfiguration.AgentsHandoffTipMode ? 'hidden' : setting === ChatConfiguration.AgentsParallelWorkBannerEnabled ? false : undefined);
+			const enabled = await migration?.migrateFn(value, setting => setting === ChatConfiguration.AgentsWindowBannerEnabled ? true : undefined);
+			const disabled = await migration?.migrateFn(value, setting => setting === ChatConfiguration.AgentsWindowBannerEnabled ? false : undefined);
+			assert.deepStrictEqual({ optOut, enabled, disabled, absent: await migration?.migrateFn(undefined, () => undefined) }, {
+				optOut: [[key, { value: undefined }], [ChatConfiguration.AgentsWindowBannerEnabled, { value: false }]],
+				enabled: [[key, { value: undefined }]],
+				disabled: [[key, { value: undefined }]],
+				absent: [],
+			});
+		});
+	}
+
+	test('enables the unified workspace picker by default while allowing experiment overrides', () => {
 		assert.deepStrictEqual({
-			marketplace: customizationMarketplaceConfigurationProperties[CustomizationMarketplaceConfiguration.MarketplaceEnabled].default,
+			type: unifiedWorkspacePickerSetting.type,
+			default: unifiedWorkspacePickerSetting.default,
+			scope: unifiedWorkspacePickerSetting.scope,
+			experiment: unifiedWorkspacePickerSetting.experiment,
+		}, {
+			type: 'boolean',
+			default: true,
+			scope: ConfigurationScope.APPLICATION,
+			experiment: { mode: 'auto' },
+		});
+	});
+
+	test('Marketplace visibility is experiment-controlled and default-off while the GitHub Feed is default-on', () => {
+		assert.deepStrictEqual({
+			marketplace: customizationMarketplaceConfigurationProperties[CustomizationMarketplaceConfiguration.MarketplaceEnabled],
 			publicFeed: customizationMarketplaceConfigurationProperties[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled].default,
 		}, {
-			marketplace: false,
+			marketplace: {
+				type: 'boolean',
+				tags: ['experimental', 'advanced'],
+				description: 'Shows Discover instead of Overview when a customization marketplace source is enabled. When disabled, marketplace discovery remains in the existing customization management pages.',
+				default: false,
+				experiment: { mode: 'auto' },
+			},
 			publicFeed: true,
 		});
 	});
 
-	test('defaults persistent progress to Draw in Insiders and Off otherwise while allowing experiment overrides', () => {
+	test('strict marketplace policy disables the GitHub Feed', () => {
+		assert.deepStrictEqual([
+			{ strictMarketplaces: undefined, harnessProvidesMarketplaceSearch: true },
+			{ strictMarketplaces: null, harnessProvidesMarketplaceSearch: true },
+			{ strictMarketplaces: [], harnessProvidesMarketplaceSearch: true },
+			{ strictMarketplaces: [{ source: 'github', repo: 'owner/catalog' }], harnessProvidesMarketplaceSearch: true },
+			{ strictMarketplaces: undefined, harnessProvidesMarketplaceSearch: false },
+		].map(({ strictMarketplaces, harnessProvidesMarketplaceSearch }) => isAgentFinderPublicFeedAvailable(new TestConfigurationService({
+			[ChatConfiguration.StrictMarketplaces]: strictMarketplaces,
+		}), harnessProvidesMarketplaceSearch)), [true, true, false, false, false]);
+	});
+
+	test('Marketplace experiment eligibility excludes every explicit configuration layer', () => {
+		const isDefault = (inspection: IConfigurationValue<boolean>) =>
+			isCustomizationMarketplaceValueFromDefault({
+				inspect: <T>() => inspection as unknown as IConfigurationValue<Readonly<T>>,
+			} as unknown as IConfigurationService);
+		assert.deepStrictEqual([
+			isDefault({ defaultValue: false, value: false }),
+			...[
+				'applicationValue',
+				'userValue',
+				'userLocalValue',
+				'userRemoteValue',
+				'workspaceValue',
+				'workspaceFolderValue',
+				'memoryValue',
+				'policyValue',
+			].map(layer => isDefault({ defaultValue: false, value: true, [layer]: true })),
+		], [
+			true,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+			false,
+		]);
+	});
+
+	test('defaults persistent progress to Draw regardless of product quality while allowing experiment overrides', () => {
 		assert.deepStrictEqual({
 			type: persistentProgressSetting.type,
 			default: persistentProgressSetting.default,
@@ -54,7 +151,7 @@ suite('Chat configuration', () => {
 			experiment: persistentProgressSetting.experiment,
 		}, {
 			type: 'string',
-			default: product.quality === 'insider' ? 'draw' : 'off',
+			default: 'draw',
 			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 		});
@@ -72,7 +169,7 @@ suite('Chat configuration', () => {
 		}, {
 			settings: ['chat.experimental.persistentProgress', 'chat.experimental.persistentProgressVerbosity'],
 			type: 'string',
-			default: product.quality === 'insider' ? 'draw' : 'off',
+			default: 'draw',
 			values: ['off', 'draw', 'drawMonochrome', 'drawMonochromeNoIcon'],
 			labels: ['Off', 'Draw', 'Draw (Monochrome)', 'Draw (Monochrome, No Icon)'],
 			descriptions: 4,
@@ -156,5 +253,29 @@ suite('Chat configuration', () => {
 		assert.deepStrictEqual(await legacyAutoDeleteArchivedMigration?.migrateFn(15, () => 30), [
 			['chat.agentSessions.autoDeleteArchivedMergedSessionsAfterDays', { value: undefined }],
 		]);
+	});
+
+	test('migrates the legacy title generation settings to one strategy without overwriting it', async () => {
+		const deferredSetting = 'chat.agentHost.experimental.deferredTitleGeneration';
+		const activeAgentSetting = 'chat.agentHost.experimental.activeAgentTitleGeneration';
+		const strategySetting = 'chat.agentHost.experimental.titleGeneration';
+		const deferredMigration = migrations.find(migration => migration.key === deferredSetting);
+		const activeAgentMigration = migrations.find(migration => migration.key === activeAgentSetting);
+
+		assert.deepStrictEqual({
+			application: [deferredMigration?.includeApplication, activeAgentMigration?.includeApplication],
+			deferredOn: await deferredMigration?.migrateFn(true, () => undefined),
+			deferredOff: await deferredMigration?.migrateFn(false, () => undefined),
+			activeAgentOff: await activeAgentMigration?.migrateFn(false, () => undefined),
+			activeAgentOffWithDeferredOn: await activeAgentMigration?.migrateFn(false, setting => setting === deferredSetting ? true : undefined),
+			activeAgentOnWithStrategySet: await activeAgentMigration?.migrateFn(true, setting => setting === strategySetting ? 'agentReview' : undefined),
+		}, {
+			application: [true, true],
+			deferredOn: [[deferredSetting, { value: undefined }], [strategySetting, { value: 'agentReview' }]],
+			deferredOff: [[deferredSetting, { value: undefined }]],
+			activeAgentOff: [[activeAgentSetting, { value: undefined }], [strategySetting, { value: 'utility' }]],
+			activeAgentOffWithDeferredOn: [[activeAgentSetting, { value: undefined }], [strategySetting, { value: 'agentReview' }]],
+			activeAgentOnWithStrategySet: [[activeAgentSetting, { value: undefined }]],
+		});
 	});
 });

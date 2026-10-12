@@ -5,12 +5,13 @@
 
 import * as assert from 'assert';
 import * as cp from 'child_process';
+import { randomUUID } from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
 import { Application, ApplicationOptions, Logger, Quality } from '../../../../automation';
-import { createApp, dumpFailureDiagnostics, getCopilotSmokeTestEnv, getMockLlmServerPath, getMockLlmServerUrl, installAppAfterHandler, installDiagnosticsHandler, MockLlmServer, suiteCrashPath, suiteLogsPath } from '../../utils';
+import { createApp, dumpFailureDiagnostics, getCopilotSmokeTestEnv, getMockLlmServerPath, getMockLlmServerUrl, installAppAfterHandler, installDiagnosticsHandler, latestUserInputCarriesTag, MockLlmServer, suiteCrashPath, suiteLogsPath } from '../../utils';
 import { shellEchoResponseMatcher, shellEchoScenario } from '../chat/shellScenarios';
-import { createRemoteDevContainerFixture, getTunnelSmokeTestAvailability, IRemoteDevContainerFixture, RemoteDevContainerTransport } from './remoteDevContainerFixtures';
+import { createRemoteDevContainerFixture, getDevContainerCliInstallCommand, getTunnelSmokeTestAvailability, IRemoteDevContainerFixture, RemoteDevContainerTransport } from './remoteDevContainerFixtures';
 
 // Selector for the send button in the Agents Window new-session homepage.
 // Kept in sync with `SEND_BUTTON_ENABLED` in `test/automation/src/agentsWindow.ts`
@@ -20,12 +21,21 @@ const NETWORK_PROXY_HEADER_NAME = 'X-VSCode-Smoke-Proxy';
 
 function mockServerStartOptions(logger: (message: string) => void, captureRequests = false) {
 	const requiredRequestHeaderValue = process.env.VSCODE_SMOKE_TEST_PROXY_HEADER;
+	const certificatePath = process.env.VSCODE_SMOKE_TEST_MOCK_CERT;
+	const keyPath = process.env.VSCODE_SMOKE_TEST_MOCK_KEY;
+	if (!!certificatePath !== !!keyPath) {
+		throw new Error('Mock HTTPS requires both VSCODE_SMOKE_TEST_MOCK_CERT and VSCODE_SMOKE_TEST_MOCK_KEY');
+	}
 	return {
 		logger,
 		verbose: true,
 		captureRequests,
 		requiredRequestHeader: requiredRequestHeaderValue ? { name: NETWORK_PROXY_HEADER_NAME, value: requiredRequestHeaderValue } : undefined,
 		trustedRequestHost: requiredRequestHeaderValue ? process.env.VSCODE_SMOKE_TEST_MOCK_HOST : undefined,
+		tls: certificatePath && keyPath ? {
+			cert: fs.readFileSync(certificatePath, 'utf8'),
+			key: fs.readFileSync(keyPath, 'utf8'),
+		} : undefined,
 	};
 }
 
@@ -45,7 +55,7 @@ const AGENT_HOST_REPLACEMENT_SCENARIO_ID = 'smoke-agent-host-session-replacement
 const AGENT_HOST_REPLACEMENT_REPLY = 'MOCKED_AGENT_HOST_REPLACEMENT_RESPONSE';
 const DEV_CONTAINER_SCENARIO_ID = 'smoke-dev-container-agent-host';
 
-function prepareDevContainerWorkspace(workspacePath: string, port: number): void {
+function prepareDevContainerWorkspace(workspacePath: string, port: number, options: ApplicationOptions): void {
 	const configDirectory = path.join(workspacePath, '.devcontainer');
 	const mockServerUrl = `http://vscode-smoke.test:${port}`;
 	fs.mkdirSync(configDirectory, { recursive: true });
@@ -61,13 +71,7 @@ function prepareDevContainerWorkspace(workspacePath: string, port: number): void
 			VSCODE_AGENT_HOST_CAPI_URL_OVERRIDE: mockServerUrl,
 			VSCODE_SMOKE_TEST_PROXY_HEADER: process.env.VSCODE_SMOKE_TEST_PROXY_HEADER ?? 'dev-container',
 		},
-		postCreateCommand: [
-			'set -e',
-			'case "$(uname -m)" in x86_64) cli_arch=x64 ;; aarch64|arm64) cli_arch=arm64 ;; *) exit 1 ;; esac',
-			'mkdir -p ~/.vscode-cli-insider',
-			'curl -fsSL "https://update.code.visualstudio.com/latest/cli-linux-${cli_arch}/insider" | tar xz -C ~/.vscode-cli-insider',
-			'chmod +x ~/.vscode-cli-insider/code-insiders',
-		].join(' && '),
+		postCreateCommand: getDevContainerCliInstallCommand(options.codePath),
 	}, null, 2));
 }
 
@@ -152,11 +156,24 @@ export function setup(logger: Logger, quality: Quality) {
 			const app = this.app as Application;
 
 			try {
+				const requestsBefore = agentHost.mockServer.getRequests().length;
+				const requestTag = `[proxy-request:${randomUUID()}]`;
+				const worktreesBefore = process.env.VSCODE_SMOKE_TEST_PROXY_HEADER
+					? cp.execFileSync('git', ['worktree', 'list', '--porcelain'], { cwd: app.workspacePathOrFolder, encoding: 'utf8' })
+					: undefined;
 				await app.workbench.agentsWindow.waitForNewSessionView();
 				await app.workbench.agentsWindow.selectSessionType('Copilot');
-				await app.workbench.agentsWindow.submitNewSessionPrompt(`replace the new session UI [scenario:${AGENT_HOST_REPLACEMENT_SCENARIO_ID}]`);
+				await app.workbench.agentsWindow.submitNewSessionPrompt(`replace the new session UI [scenario:${AGENT_HOST_REPLACEMENT_SCENARIO_ID}] ${requestTag}`);
 				await app.workbench.agentsWindow.waitForActiveSessionView();
 				await app.workbench.agentsWindow.waitForAssistantText(AGENT_HOST_REPLACEMENT_REPLY);
+				if (process.env.VSCODE_SMOKE_TEST_PROXY_HEADER) {
+					await waitForPromptRequest(agentHost.mockServer, requestsBefore, requestTag);
+					assert.strictEqual(
+						cp.execFileSync('git', ['worktree', 'list', '--porcelain'], { cwd: app.workspacePathOrFolder, encoding: 'utf8' }),
+						worktreesBefore,
+						'Expected authenticated prompt validation without creating a worktree'
+					);
+				}
 				await app.workbench.agentsWindow.startNewSession();
 			} catch (error) {
 				logger.log(`Agents Window (AgentHost replacement) FAILURE: ${error instanceof Error ? error.stack ?? error.message : String(error)}`);
@@ -225,7 +242,7 @@ export function setup(logger: Logger, quality: Quality) {
 				'chat.agentHost.devContainer.worktree.enabled': false,
 				'chat.remoteAgentHostsEnabled': true,
 			},
-			prepareWorkspace: workspacePath => prepareDevContainerWorkspace(workspacePath, devContainer.mockServer.port),
+			prepareWorkspace: (workspacePath, options) => prepareDevContainerWorkspace(workspacePath, devContainer.mockServer.port, options),
 			cleanupWorkspace: cleanupDevContainerWorkspace,
 		});
 
@@ -329,7 +346,7 @@ export function setup(logger: Logger, quality: Quality) {
 					'chat.agentHost.devContainer.worktree.enabled': false,
 					'chat.remoteAgentHostsEnabled': true,
 				},
-				prepareWorkspace: workspacePath => prepareDevContainerWorkspace(workspacePath, context.mockServer.port),
+				prepareWorkspace: (workspacePath, options) => prepareDevContainerWorkspace(workspacePath, context.mockServer.port, options),
 				cleanupWorkspace: cleanupDevContainerWorkspace,
 			});
 
@@ -406,10 +423,7 @@ export function setup(logger: Logger, quality: Quality) {
 				// customTerminalTool intentionally OFF (default) — the SDK runs
 				// the shell tool, and the AgentHost is expected to forward
 				// `chat.agent.sandbox.*` into the SDK so commands still run
-				// sandboxed. The SDK-sandbox gate defaults to 'off'; set it
-				// to 'on' explicitly so the test exercises the SDK sandbox
-				// override path.
-				'chat.agentHost.sdkSandbox.enabled': 'on',
+				// sandboxed.
 				'chat.agent.sandbox.enabled': 'on',
 			},
 		});
@@ -718,7 +732,7 @@ function setupAgentHostSuite(logger: Logger, config: {
 	readonly registerScenarios: (api: { ScenarioBuilder: any; registerScenario: (id: string, scenario: unknown) => void }) => void;
 	readonly settings: Record<string, unknown>;
 	readonly remoteTransport?: RemoteDevContainerTransport;
-	readonly prepareWorkspace?: (workspacePath: string) => Promise<void> | void;
+	readonly prepareWorkspace?: (workspacePath: string, options: ApplicationOptions) => Promise<void> | void;
 	readonly cleanupWorkspace?: (workspacePath: string) => Promise<void> | void;
 }): IAgentHostSuiteContext {
 	let mockServer: MockLlmServer;
@@ -737,7 +751,7 @@ function setupAgentHostSuite(logger: Logger, config: {
 		config.registerScenarios({ ScenarioBuilder, registerScenario });
 
 		mockServer = await startServer(0, {
-			...mockServerStartOptions((msg: string) => logger.log(msg)),
+			...mockServerStartOptions((msg: string) => logger.log(msg), !!process.env.VSCODE_SMOKE_TEST_PROXY_HEADER),
 			host: config.mockServerHost,
 		});
 		logger.log(`Mock LLM server (${config.serverLabel}) started at ${getMockLlmServerUrl(mockServer)}`);
@@ -758,7 +772,7 @@ function setupAgentHostSuite(logger: Logger, config: {
 		logsPath = defaultOptions.logsPath;
 		workspacePath = defaultOptions.workspacePath;
 		assert.ok(workspacePath, 'Expected an Agents Window smoke workspace');
-		await config.prepareWorkspace?.(workspacePath);
+		await config.prepareWorkspace?.(workspacePath, defaultOptions);
 		if (config.remoteTransport) {
 			assert.ok(defaultOptions.userDataDir, 'Expected an isolated smoke user-data directory');
 			fixtureDataPath = fs.mkdtempSync(path.join(path.dirname(defaultOptions.userDataDir), 'remote-devcontainer-'));
@@ -805,6 +819,9 @@ function setupAgentHostSuite(logger: Logger, config: {
 				// scratch, so set the production default explicitly rather than
 				// relying on configuration registration timing.
 				'http.proxySupport': 'override',
+				...(process.env.VSCODE_SMOKE_TEST_PROXY_HEADER ? {
+					'sessions.useWorktree': false,
+				} : {}),
 				'chat.allowAnonymousAccess': true,
 				'github.copilot.chat.githubMcpServer.enabled': false,
 				'chat.agentHost.ahpJsonlLoggingEnabled': true,
@@ -870,6 +887,20 @@ function setupAgentHostSuite(logger: Logger, config: {
 		get logsPath() { return logsPath; },
 		get remoteFixture() { return remoteFixture; },
 	};
+}
+
+async function waitForPromptRequest(mockServer: MockLlmServer, requestsBefore: number, requestTag: string): Promise<void> {
+	const deadline = Date.now() + 30_000;
+	while (Date.now() < deadline) {
+		if (mockServer.getRequests().slice(requestsBefore).some(request =>
+			request.path === '/responses' &&
+			request.method === 'POST' &&
+			latestUserInputCarriesTag(request.body, requestTag))) {
+			return;
+		}
+		await new Promise(resolve => setTimeout(resolve, 100));
+	}
+	throw new Error(`Timed out waiting for the Copilot model request with ${requestTag}`);
 }
 
 async function assertRemoteDevContainerRouting(logsPath: string, transport: RemoteDevContainerTransport, workspacePath: string, reply: string): Promise<void> {

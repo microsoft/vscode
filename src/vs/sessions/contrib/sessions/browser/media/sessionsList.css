@@ -9,6 +9,33 @@
  * component fixtures can render the hover state without a pointer.
  */
 
+.agent-sessions-navigation-container {
+	.monaco-list-row {
+		left: var(--vscode-spacing-size40);
+		right: var(--vscode-spacing-size40);
+		width: auto;
+		border-radius: var(--vscode-cornerRadius-small);
+	}
+
+	.monaco-list-row:is(:hover, .hovered) .session-section-label {
+		color: var(--vscode-strongForeground);
+	}
+
+	.monaco-list .monaco-list-row.session-section.focused.session-section-shortcut:is(:hover, .hovered) {
+		background-color: var(--vscode-list-hoverBackground);
+	}
+
+	&:not(.session-section-focus-from-pointer) .monaco-list:focus-within .monaco-list-row.focused.session-section-shortcut:not(.active):not(:hover, .hovered) .session-section-label,
+	&:not(.session-section-focus-from-pointer) .monaco-list:focus-within .monaco-list-row.focused.session-section-shortcut:not(.active):not(:hover, .hovered) .session-section-icon {
+		color: var(--vscode-descriptionForeground);
+	}
+
+	&.session-section-focus-from-pointer .monaco-list:focus .monaco-list-row.session-section.focused.session-section-shortcut:not(.active):not(:hover, .hovered) {
+		background-color: transparent;
+		outline: 0 !important;
+	}
+}
+
 .sessions-list-control {
 	flex: 1 1 auto;
 	height: 100%;
@@ -156,6 +183,14 @@
 		}
 	}
 
+	.monaco-list:focus .monaco-list-row.selected .session-chat-folder-row .session-chat-diff {
+
+		.session-chat-diff-added,
+		.session-chat-diff-removed {
+			color: unset;
+		}
+	}
+
 	.monaco-list-row.selected .session-title,
 	.monaco-list-row.selected .session-chat-title {
 		color: unset;
@@ -222,12 +257,16 @@
 		}
 	}
 
-	.monaco-list-row:is(:hover, .hovered),
+	.monaco-list-row:is(:hover, .hovered):not(.external-application-badge-hovered),
 	.monaco-list-row.focused:not(.selected),
 	.monaco-list:focus-within .monaco-list-row.focused,
 	.session-item.archive-onboarding {
 		.session-title-toolbar {
 			display: block;
+		}
+
+		.session-external-application-badge-title {
+			display: none;
 		}
 
 		.session-title {
@@ -524,9 +563,47 @@
 	.session-title {
 		/* push other items to the end */
 		flex: 1;
+		min-width: 0;
 		overflow: hidden;
 		white-space: nowrap;
 		text-overflow: ellipsis;
+	}
+
+	.session-external-application-badge {
+		display: flex;
+		align-items: center;
+		flex-shrink: 1;
+		min-width: 0;
+		max-width: 50%;
+		box-sizing: border-box;
+		padding: 0 var(--vscode-spacing-size60);
+		border: var(--vscode-strokeThickness) solid var(--vscode-widget-border, var(--vscode-contrastBorder, transparent));
+		border-radius: var(--vscode-cornerRadius-circle);
+		background-color: var(--vscode-list-hoverBackground);
+		color: var(--vscode-descriptionForeground);
+		font-size: var(--vscode-fontSize-label2);
+
+		.session-external-application-badge-label {
+			min-width: 0;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+		}
+	}
+
+	.session-external-application-badge-title {
+		display: none;
+		height: 17px;
+		max-width: 40%;
+		margin-left: var(--vscode-spacing-size60);
+
+		&.visible {
+			display: flex;
+		}
+	}
+
+	.session-external-application-badge-details {
+		height: 15px;
 	}
 
 	.session-description {
@@ -913,6 +990,21 @@
 		.session-chat-time {
 			flex-shrink: 0;
 		}
+
+		.session-chat-diff {
+			display: flex;
+			flex-shrink: 0;
+			gap: var(--vscode-spacing-size20);
+			font-variant-numeric: tabular-nums;
+
+			.session-chat-diff-added {
+				color: var(--vscode-chat-linesAddedForeground);
+			}
+
+			.session-chat-diff-removed {
+				color: var(--vscode-chat-linesRemovedForeground);
+			}
+		}
 	}
 
 	.session-chat-icon {
@@ -940,6 +1032,7 @@
 		}
 	}
 
+	&.unread .session-chat-title,
 	&.needs-input .session-chat-title {
 		color: var(--vscode-strongForeground);
 	}
@@ -1074,18 +1167,6 @@
 	box-sizing: border-box;
 }
 
-.sessions-list-header-row {
-	--vscode-list-hoverBackground: transparent;
-}
-
-.agent-sessions-workbench .agent-sessions-viewpane .agent-sessions-control-container .sessions-list-control .monaco-list .monaco-list-row.sessions-list-header-row,
-.agent-sessions-workbench .agent-sessions-viewpane .agent-sessions-control-container .sessions-list-control .monaco-list .monaco-list-row.sessions-list-header-row:is(:hover, .hovered),
-.agent-sessions-workbench .agent-sessions-viewpane .agent-sessions-control-container .sessions-list-control .monaco-list .monaco-list-row.sessions-list-header-row.focused,
-.agent-sessions-workbench .agent-sessions-viewpane .agent-sessions-control-container .sessions-list-control .monaco-list .monaco-list-row.sessions-list-header-row.selected {
-	background-color: transparent;
-	cursor: default;
-}
-
 .session-section {
 	display: flex;
 	align-items: center;
@@ -1127,37 +1208,18 @@
 		margin-right: 4px;
 	}
 
-	.session-section-new-badge {
+	.session-section-keybinding {
 		display: none;
-		align-items: center;
 		flex-shrink: 0;
-		height: var(--vscode-spacing-size160);
 		margin-left: var(--vscode-spacing-size40);
-		padding: 0 var(--vscode-spacing-size40);
-		box-sizing: border-box;
-		border: var(--vscode-strokeThickness) solid transparent;
-		border-radius: var(--vscode-cornerRadius-circle);
+
+		&.visible {
+			display: inline-flex;
+		}
+	}
+
+	&.session-section-new-session {
 		color: var(--vscode-foreground);
-		font-size: var(--vscode-fontSize-label3);
-		font-weight: var(--vscode-fontWeight-semiBold);
-		letter-spacing: 0.04em;
-		text-transform: uppercase;
-		white-space: nowrap;
-		pointer-events: none;
-	}
-
-	.session-section-new-badge-accent {
-		border-color: var(--vscode-activityBarBadge-background);
-		background-color: var(--vscode-activityBarBadge-background);
-		color: var(--vscode-activityBarBadge-foreground);
-	}
-
-	.session-section-new-badge-soft {
-		background-color: color-mix(in srgb, var(--vscode-foreground) 12%, transparent);
-	}
-
-	.session-section-new-badge-outline {
-		border-color: var(--vscode-descriptionForeground);
 	}
 
 	.session-section-toolbar {
@@ -1184,11 +1246,6 @@
 		border-radius: var(--vscode-cornerRadius-small);
 		justify-content: center;
 	}
-}
-
-.hc-black .session-section-new-badge,
-.hc-light .session-section-new-badge {
-	border-color: var(--vscode-contrastBorder);
 }
 
 .monaco-list-row:is(:hover, .hovered) .session-section .session-section-toolbar,
@@ -1245,17 +1302,9 @@
 		color: var(--vscode-strongForeground);
 	}
 
-	/* Shortcut sections only change label and icon color on hover, unless active. */
-	.monaco-list-row.focused:not(:hover, .hovered) .session-section.session-section-shortcut:not(.active) .session-section-label,
-	.monaco-list-row.focused:not(:hover, .hovered) .session-section.session-section-shortcut:not(.active) .session-section-icon {
-		color: var(--vscode-descriptionForeground);
-	}
-
 	&.session-section-focus-from-pointer {
 		.monaco-list-row.session-list-section-row.focused,
-		.monaco-list-row.session-list-section-row.selected,
-		.monaco-list-row.session-list-shortcut-row.focused,
-		.monaco-list-row.session-list-shortcut-row.selected {
+		.monaco-list-row.session-list-section-row.selected {
 			outline: none !important;
 		}
 	}
@@ -1332,27 +1381,6 @@
 		gap: var(--vscode-spacing-size40);
 	}
 
-	.session-comparison-archive.monaco-button {
-		align-items: center;
-		justify-content: center;
-		width: var(--vscode-spacing-size160);
-		min-width: var(--vscode-spacing-size160);
-		height: var(--vscode-spacing-size160);
-		padding: 0;
-		border-radius: var(--vscode-cornerRadius-small);
-
-		&:not([hidden]) {
-			display: flex;
-		}
-
-		.codicon {
-			font-size: var(--vscode-codiconFontSize-compact);
-		}
-	}
-}
-
-.session-group .session-comparison-archive.monaco-button[hidden] {
-	display: none;
 }
 
 .monaco-list-row:hover .session-group.session-comparison-group .session-section-toolbar,
@@ -1598,6 +1626,10 @@
 		top: 50%;
 		transform: translateY(-50%);
 		height: auto;
+	}
+
+	.monaco-list-row .session-external-application-badge-title {
+		display: none;
 	}
 
 	/* Center the codicon inside the 44x44 tap target. The base

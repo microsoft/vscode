@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { $ } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { Emitter } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -49,6 +50,59 @@ suite('Onboarding target providers', () => {
 		disposables.add(registerOnboardingTargetProvider('test.control', () => undefined));
 
 		assert.strictEqual(resolveOnboardingTarget(mainWindow, 'test.control', 'stale'), undefined);
+	});
+
+	for (const owner of ['registration', 'provider'] as const) {
+		test(`exposes a separate keyboard focus target from the ${owner}`, () => {
+			const element = createTarget();
+			const focusElement = createTarget();
+			const focusTarget = { element: focusElement, focus: () => focusElement.focus() };
+			if (owner === 'registration') {
+				disposables.add(markOnboardingTarget(element, 'test.focus', { focusTarget }));
+			} else {
+				disposables.add(registerOnboardingTargetProvider('test.focus', () => ({ element, focusTarget })));
+			}
+			const target = resolveOnboardingTarget(mainWindow, 'test.focus');
+			target?.focusTarget?.focus();
+			assert.deepStrictEqual({
+				visualTarget: target?.element === element,
+				focusTarget: target?.focusTarget === focusTarget,
+				focused: mainWindow.document.activeElement === focusElement,
+			}, { visualTarget: true, focusTarget: true, focused: true });
+		});
+
+		test(`exposes the activation event from the ${owner}`, () => {
+			const element = createTarget();
+			const activated = disposables.add(new Emitter<void>());
+			if (owner === 'registration') {
+				disposables.add(markOnboardingTarget(element, 'test.activation', { onDidActivate: activated.event }));
+			} else {
+				disposables.add(registerOnboardingTargetProvider('test.activation', () => ({ element, onDidActivate: activated.event })));
+			}
+			const target = resolveOnboardingTarget(mainWindow, 'test.activation');
+			assert.ok(target?.onDidActivate);
+			let activations = 0;
+			disposables.add(target.onDidActivate(() => activations++));
+			activated.fire();
+			assert.strictEqual(activations, 1);
+		});
+	}
+
+	test('preserves provider selection and activation events together', () => {
+		const element = createTarget();
+		const selected = disposables.add(new Emitter<Promise<boolean>>());
+		const activated = disposables.add(new Emitter<void>());
+		disposables.add(registerOnboardingTargetProvider('test.control', () => ({
+			element,
+			onDidSelect: selected.event,
+			onDidActivate: activated.event,
+		})));
+		const target = resolveOnboardingTarget(mainWindow, 'test.control');
+
+		assert.deepStrictEqual({ onDidSelect: target?.onDidSelect, onDidActivate: target?.onDidActivate }, {
+			onDidSelect: selected.event,
+			onDidActivate: activated.event,
+		});
 	});
 
 	test('ignores hidden, detached and other-window controls', () => {

@@ -197,6 +197,9 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			return [];
 		}
 		const modelInformation: vscode.LanguageModelChatInformation[] = await data.provider.provideLanguageModelChatInformation({ silent: options.silent, configuration: options.configuration }, token) ?? [];
+		if (this._languageModelProviders.get(vendor) !== data) {
+			return [];
+		}
 		const modelMetadataAndIdentifier: ILanguageModelChatMetadataAndIdentifier[] = modelInformation.map((m): ILanguageModelChatMetadataAndIdentifier => {
 			let auth;
 			if (m.requiresAuthorization && isProposedApiEnabled(data.extension, 'chatProvider')) {
@@ -448,6 +451,25 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		}
 
 		return this._createLanguageModelChatApi(extension, modelId);
+	}
+
+	/**
+	 * Resolves the model a chat request or tool invocation runs on. An explicit selection that cannot be resolved
+	 * fails rather than silently running on (and billing) the default model.
+	 */
+	async getLanguageModelForRequest(extension: IExtensionDescription, userSelectedModelId: string | undefined): Promise<vscode.LanguageModelChat> {
+		if (userSelectedModelId) {
+			const model = await this.getLanguageModelByIdentifier(extension, userSelectedModelId);
+			if (!model) {
+				throw extHostTypes.LanguageModelError.NotFound(localize('selectedModelUnavailable', "The selected model '{0}' is not available. Select a different model and try again.", userSelectedModelId));
+			}
+			return model;
+		}
+		const model = await this.getDefaultLanguageModel(extension);
+		if (!model) {
+			throw new Error('Language model unavailable');
+		}
+		return model;
 	}
 
 	private async _createLanguageModelChatApi(extension: IExtensionDescription, modelId: string): Promise<vscode.LanguageModelChat | undefined> {

@@ -164,6 +164,39 @@ suite('ChatInputPickerResponsiveLayout', () => {
 		});
 	});
 
+	test('restores expanded items when compaction is disabled', () => {
+		const lane = dom.append(host, dom.$('.picker-lane'));
+		lane.style.display = 'flex';
+		lane.style.width = '80px';
+		lane.style.overflow = 'auto';
+
+		let compact = true;
+		let compactionEnabled = false;
+		const picker = dom.append(lane, dom.$('.picker'));
+		picker.style.flex = '0 0 auto';
+		const layout = store.add(new ChatInputPickerResponsiveLayout('test.scrollablePickerLane', lane, {
+			isCompactionEnabled: () => compactionEnabled,
+			getItems: () => [{
+				element: picker,
+				isCompact: () => compact,
+				setCompact: value => {
+					compact = value;
+					picker.style.width = value ? '20px' : '120px';
+				},
+			}],
+		}));
+
+		layout.layout();
+		const expandedForScrolling = compact;
+		compactionEnabled = true;
+		layout.layout();
+
+		assert.deepStrictEqual({ expandedForScrolling, compactAfterEnabling: compact }, {
+			expandedForScrolling: false,
+			compactAfterEnabling: true,
+		});
+	});
+
 	test('skips preferred-width measurement while rendered pickers overflow', () => {
 		const { lane, items, layout } = createPickerLane(130, [80, 80, 80]);
 		const clone = sinon.spy(lane, 'cloneNode');

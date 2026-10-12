@@ -186,6 +186,36 @@ suite('modelRequestProjection', () => {
 		), false);
 	});
 
+	test('standalone runtime change notices do not change the retained conversation', () => {
+		const notice = '<mode_changed_notice>\nPlan mode is no longer active.\n</mode_changed_notice>';
+		const messages = [
+			{ role: 'user', content: 'Write a plan.' },
+			{ role: 'assistant', content: 'Plan approved.' },
+			{ role: 'user', content: 'What did the plan say?' },
+		];
+		assert.deepStrictEqual(projectModelRequest(request([
+			messages[0],
+			{ role: 'user', content: notice },
+			messages[1],
+			messages[2],
+		])), projectModelRequest(request(messages)));
+	});
+
+	test('notice elision preserves empty user input, assistant messages, and tool results', () => {
+		const notice = '<mode_changed_notice>\nPlan mode is no longer active.\n</mode_changed_notice>';
+		assert.deepStrictEqual(projectModelRequest(request([
+			{ role: 'user', content: '' },
+			{ role: 'assistant', content: notice },
+			{ role: 'user', content: `${notice}\nKeep this question.` },
+			{ role: 'user', content: [{ type: 'tool_result', tool_use_id: 'toolcall_0', content: notice }] },
+		])).messages, [
+			{ role: 'user', content: '' },
+			{ role: 'assistant', content: '' },
+			{ role: 'user', content: 'Keep this question.' },
+			{ role: 'user', content: [{ type: 'tool_result', tool_use_id: 'toolcall_0', content: TOOL_RESULT_PLACEHOLDER }] },
+		]);
+	});
+
 	test('a tool input matches regardless of key order', () => {
 		// The `input` is JSON the model produced; its key order is not
 		// guaranteed to survive a re-record or a YAML round-trip, and comparing

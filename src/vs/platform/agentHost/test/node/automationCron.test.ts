@@ -30,6 +30,31 @@ suite('Automation cron', () => {
 		);
 	});
 
+	test('weekdays skip weekends and retain local time across DST changes', () => {
+		const next = (after: string) => nextAutomationCronOccurrence('30 9 * * 1-5', 'America/Los_Angeles', new Date(after)).toISOString();
+		assert.deepStrictEqual({
+			monday: next('2026-03-02T17:29:00Z'),
+			tuesday: next('2026-03-02T17:30:00Z'),
+			wednesday: next('2026-03-03T17:30:00Z'),
+			thursday: next('2026-03-04T17:30:00Z'),
+			friday: next('2026-03-05T17:30:00Z'),
+			springWeekend: next('2026-03-06T17:30:00Z'),
+			saturday: next('2026-03-07T17:00:00Z'),
+			sunday: next('2026-03-08T16:00:00Z'),
+			fallWeekend: next('2026-10-30T16:30:00Z'),
+		}, {
+			monday: '2026-03-02T17:30:00.000Z',
+			tuesday: '2026-03-03T17:30:00.000Z',
+			wednesday: '2026-03-04T17:30:00.000Z',
+			thursday: '2026-03-05T17:30:00.000Z',
+			friday: '2026-03-06T17:30:00.000Z',
+			springWeekend: '2026-03-09T16:30:00.000Z',
+			saturday: '2026-03-09T16:30:00.000Z',
+			sunday: '2026-03-09T16:30:00.000Z',
+			fallWeekend: '2026-11-02T17:30:00.000Z',
+		});
+	});
+
 	test('evaluates wall-clock fields in the requested time zone', () => {
 		assert.strictEqual(
 			nextAutomationCronOccurrence('0 9 * * *', 'America/Los_Angeles', new Date('2026-06-01T15:59:00Z')).toISOString(),

@@ -21,6 +21,7 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { IRootConfigChangedAction, ClientAnnotationsAction, INotification, SessionAction, TerminalAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
@@ -544,12 +545,17 @@ suite('workbench.action.chat.openAgentSessionSettings', () => {
 		} as unknown as IAgentSession;
 	}
 
-	async function invokeWithContext(context: IAgentSession | IMarshalledAgentSessionContext | undefined): Promise<{ resource: URI | undefined; pinned: boolean | undefined }[]> {
+	async function invokeWithContext(context: IAgentSession | IMarshalledAgentSessionContext | undefined, backendSession = BACKEND_SESSION, resource = CHAT_SESSION_RESOURCE): Promise<{ resource: URI | undefined; pinned: boolean | undefined }[]> {
 		const command = CommandsRegistry.getCommand(ACTION_ID);
 		assert.ok(command, 'command is registered');
 
 		const opened: { resource: URI | undefined; pinned: boolean | undefined }[] = [];
 		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IAgentHostConnectionsService, {
+			resolveSessionResourceIdentity: sessionResource => sessionResource.toString() === resource.toString()
+				? { backendSession, connectionAuthority: AMBIENT_AGENT_HOST_AUTHORITY }
+				: undefined,
+		});
 		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
 			override async openEditor(...args: unknown[]): Promise<undefined> {
 				const editor = args[0] as IResourceEditorInput;
@@ -567,6 +573,15 @@ suite('workbench.action.chat.openAgentSessionSettings', () => {
 		const opened = await invokeWithContext(session);
 		assert.deepStrictEqual(opened, [{ resource: agentSessionSettingsUri(BACKEND_SESSION), pinned: true }]);
 	});
+
+	for (const provider of ['copilotcli', 'codex', 'claude']) {
+		test(`run() retains the advertised standard backend for ${provider} settings`, async () => {
+			const resource = URI.parse(`agent-host-${provider}:/shared`);
+			const backend = URI.parse('ahp-session:/shared');
+			const opened = await invokeWithContext(makeAgentSession(resource), backend, resource);
+			assert.deepStrictEqual(opened, [{ resource: agentSessionSettingsUri(backend), pinned: true }]);
+		});
+	}
 
 	test('run() with a marshalled agent-session context routes via context.session, ignoring context.sessions', async () => {
 		const session = makeAgentSession(CHAT_SESSION_RESOURCE);

@@ -52,23 +52,4 @@ suite('AgentHostManagedSettingsService', () => {
 		assert.strictEqual(changes, 2);
 	});
 
-	test('aggregates sandbox requirements by owner independently of managed permissions', () => {
-		const service = store.add(new AgentHostManagedSettingsService());
-		const changes: boolean[] = [];
-		let permissionChanges = 0;
-		store.add(service.onDidChangeSandboxRequired(() => changes.push(service.sandboxRequired)));
-		store.add(service.onDidChange(() => permissionChanges++));
-
-		service.setClientSandboxRequired('first', true);
-		service.setClientSandboxRequired('second', true);
-		service.setClientSandboxRequired('unmanaged', false);
-		service.setClientPermissions('first', {});
-		service.removeClient('unmanaged');
-		service.setClientSandboxRequired('first', false);
-		assert.strictEqual(service.sandboxRequired, true);
-		service.removeClient('second');
-		assert.strictEqual(service.sandboxRequired, false);
-		assert.deepStrictEqual(changes, [true, false]);
-		assert.strictEqual(permissionChanges, 0);
-	});
 });

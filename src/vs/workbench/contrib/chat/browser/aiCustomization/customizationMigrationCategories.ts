@@ -54,6 +54,7 @@ export interface ICustomizationMigrationCategory {
 	readonly cardActionLabel: string;
 	readonly cardActionAriaLabel: string;
 	readonly noFilesMigratedMessage: string;
+	readonly preMigrationConsequences?: string;
 	isCandidate?(customization: MigratableConfiguration): boolean;
 	getCandidateLabel(customization: CustomizationMigrationCandidate): string;
 	getCandidateWarnings?(customization: CustomizationMigrationCandidate, harnessLabel: string): readonly string[];
@@ -75,6 +76,11 @@ const CONFIGURED_LOCATION_SETTING_IDS = [
 	PromptsConfig.INSTRUCTIONS_LOCATION_KEY,
 ] as const;
 
+const promptFileMigrationConsequences = localize(
+	'promptFileMigrationConsequences',
+	"Unsupported prompt-only headers are removed. Converted skills set disable-model-invocation: true, so the agent will not load them automatically; invoke them manually with /name.",
+);
+
 /**
  * Converts `*.prompt.md` files into skills. Agent-host harnesses ignore prompt
  * files entirely, so both workspace and user prompts are offered here.
@@ -90,10 +96,10 @@ const promptFilesMigrationCategory: ICustomizationMigrationCategory = {
 	cardActionLabel: localize('promptMigrationCardAction', "Convert to Skills..."),
 	cardActionAriaLabel: localize('promptMigrationCardActionAriaLabel', "Convert prompt files to skills"),
 	noFilesMigratedMessage: localize('promptMigrationNoFilesConverted', "No prompt files were converted."),
+	preMigrationConsequences: promptFileMigrationConsequences,
 
 	isCandidate: isPromptFileMigrationCandidate,
 	getCandidateLabel: getFileCandidateLabel,
-
 
 	getShortcutAriaLabel(count) {
 		return localize('promptMigrationShortcutAriaLabelWithCount', "Prompts, {0} deprecated prompt files need migration", count);
@@ -126,14 +132,14 @@ const promptFilesMigrationCategory: ICustomizationMigrationCategory = {
 
 	getConfirmation(customizations) {
 		const { workspaceCount, userCount } = countPromptStorages(customizations);
-		const detail = workspaceCount > 0 && userCount > 0
+		const scopeDetail = workspaceCount > 0 && userCount > 0
 			? localize('promptMigrationConfirmDetailWorkspaceAndUser', "This converts {0} workspace prompt files and {1} user prompt files into skills.", workspaceCount, userCount)
 			: workspaceCount > 0
 				? localize('promptMigrationConfirmDetailWorkspace', "This converts {0} workspace prompt files into skills.", workspaceCount)
 				: localize('promptMigrationConfirmDetailUser', "This converts {0} user prompt files into skills.", userCount);
 		return {
 			message: localize('promptMigrationConfirmMessage', "Convert prompt files to skills?"),
-			detail,
+			detail: localize('promptMigrationConfirmDetailWithConsequences', "{0}\n\n{1}", scopeDetail, promptFileMigrationConsequences),
 			primaryButton: localize('promptMigrationConfirmButton', "Convert to Skills"),
 			deleteOriginalsLabel: localize('promptMigrationDeletePromptFilesCheckbox', "Delete original prompt files after migration"),
 		};
@@ -422,12 +428,6 @@ const mcpServersMigrationCategory: ICustomizationMigrationCategory = {
 				? localize('mcpMigrationRollbackFailed', "Could not safely complete or roll back the migration for '{0}'. Review both MCP configuration files.", failures[0].name)
 				: localize('mcpMigrationRollbackFailedMultiple', "Some MCP server migrations could not be safely completed or rolled back. Review the affected source and destination MCP configuration files.");
 		}
-		const crossRootConflicts = failures.filter(failure => failure.reason === McpServerCustomizationMigrationFailureReason.CrossRootConflict);
-		if (crossRootConflicts.length > 0) {
-			return failures.length === 1
-				? localize('mcpMigrationCrossRootConflict', "Could not migrate '{0}' because another workspace root defines an MCP server with the same name. Rename or remove the duplicate before migrating.", crossRootConflicts[0].name)
-				: localize('mcpMigrationCrossRootConflicts', "Some MCP servers could not be migrated because their names conflict across workspace roots. Rename or remove the duplicates before migrating.");
-		}
 		if (failures.length !== 1) {
 			const displayedFailures = failures.slice(0, 3);
 			return this.getFailedMessage(displayedFailures.map(failure => failure.name), failures.length - displayedFailures.length);
@@ -442,6 +442,8 @@ const mcpServersMigrationCategory: ICustomizationMigrationCategory = {
 				return localize('mcpMigrationTargetConflict', "Could not migrate '{0}' because the destination already contains a different server with that name.", failure.name);
 			case McpServerCustomizationMigrationFailureReason.InvalidTarget:
 				return localize('mcpMigrationInvalidTarget', "Could not migrate '{0}' because the destination MCP configuration is invalid.", failure.name);
+			case McpServerCustomizationMigrationFailureReason.ShadowedServerNotMigrated:
+				return localize('mcpMigrationShadowedServerNotMigrated', "Could not migrate '{0}' because another workspace folder defines an MCP server with the same name. Migrate both servers together so the same configuration stays active.", failure.name);
 			default:
 				return this.getFailedMessage([failure.name], 0);
 		}
@@ -451,20 +453,20 @@ const mcpServersMigrationCategory: ICustomizationMigrationCategory = {
 function getMcpServerMigrationWarnings(server: IMcpServerCustomizationMigrationCandidate, harnessLabel: string): string[] {
 	return mcpServerCustomizationMigrationRemovableProperties
 		.filter(property => server.removedProperties && Object.hasOwn(server.removedProperties, property))
-		.map(property => {
+		.flatMap(property => {
 			switch (property) {
 				case 'gallery':
+					// `gallery: false` already disables auto-updates, so migrating changes nothing for the user.
 					return server.removedProperties?.gallery === false
-						? localize('mcpMigrationRemoveDisabledGallery', "The 'gallery' property will be removed. Automatic updates from the registry are already disabled for this MCP server.")
-						: localize('mcpMigrationRemoveGallery', "The 'gallery' property will be removed. This MCP server will no longer be automatically updated from the registry.");
+						? []
+						: [localize('mcpMigrationStopsRegistryUpdates', "Migrating will stop auto-updates from the MCP registry.")];
 				case 'version':
-					return localize('mcpMigrationRemoveVersion', "The 'version' property will be removed. The migrated configuration will no longer record version metadata. Version pins in the command, arguments, or URL will not change.");
+					// Version metadata only affects registry updates, which the gallery warning already covers.
+					return [];
 				case 'dev':
-					return localize('mcpMigrationRemoveDev', "The 'dev' property will be removed. VS Code will no longer auto-start this server in development mode, restart it when watched files change, attach a debugger, or enable development-mode logging.");
+					return [localize('mcpMigrationRemoveDev', "Removes 'dev'. Development mode will stop.")];
 				case 'sandboxEnabled':
-					return server.removedProperties?.sandboxEnabled === false
-						? localize('mcpMigrationRemoveDisabledSandbox', "The 'sandboxEnabled' property will be removed. VS Code sandboxing is already disabled for this server. Any sandboxing after migration is controlled by {0}.", harnessLabel)
-						: localize('mcpMigrationRemoveSandbox', "The 'sandboxEnabled' property will be removed. VS Code's per-server sandbox and its filesystem and network restrictions will no longer be applied to this server. Any sandboxing after migration is controlled by {0}.", harnessLabel);
+					return [localize('mcpMigrationRemoveSandbox', "Removes 'sandboxEnabled'. Sandboxing is handled by {0}.", harnessLabel)];
 			}
 		});
 }

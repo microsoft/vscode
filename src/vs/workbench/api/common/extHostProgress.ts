@@ -14,6 +14,7 @@ import { onUnexpectedExternalError } from '../../../base/common/errors.js';
 import { INotificationSource } from '../../../platform/notification/common/notification.js';
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
+import { NotificationTelemetryId } from '../../../platform/notification/common/notificationTelemetry.js';
 
 export interface IExtHostProgress extends ExtHostProgress { }
 export const IExtHostProgress = createDecorator<IExtHostProgress>('IExtHostProgress');
@@ -39,11 +40,11 @@ export class ExtHostProgress implements ExtHostProgressShape {
 		return this._withProgress(handle, task, !!cancellable);
 	}
 
-	async withProgressFromSource<R>(source: string | INotificationSource, options: ProgressOptions, task: (progress: Progress<IProgressStepDto>, token: CancellationToken) => Thenable<R>): Promise<R> {
+	async withProgressFromSource<R>(source: string | INotificationSource, options: ProgressOptions, task: (progress: Progress<IProgressStepDto>, token: CancellationToken) => Thenable<R>, telemetryId?: NotificationTelemetryId): Promise<R> {
 		const handle = this._handles++;
 		const { title, location, cancellable } = options;
 
-		this._proxy.$startProgress(handle, { location: ProgressLocation.from(location), title, source, cancellable }, undefined).catch(onUnexpectedExternalError);
+		this._proxy.$startProgress(handle, { location: ProgressLocation.from(location), title, source, cancellable, telemetryId }, undefined).catch(onUnexpectedExternalError);
 		return this._withProgress(handle, task, !!cancellable);
 	}
 

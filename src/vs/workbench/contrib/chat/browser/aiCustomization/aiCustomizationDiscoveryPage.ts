@@ -9,6 +9,7 @@ import { renderFormattedText } from '../../../../../base/browser/formattedTextRe
 import { alert, status } from '../../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { IListRenderer, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
+import { createPixelSpinner } from '../../../../../base/browser/ui/pixelSpinner/pixelSpinner.js';
 import { ProgressBar } from '../../../../../base/browser/ui/progressbar/progressbar.js';
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { Action, IAction, Separator, SubmenuAction } from '../../../../../base/common/actions.js';
@@ -44,12 +45,13 @@ import { IChatEntitlementService } from '../../../../services/chat/common/chatEn
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { SuggestEnabledInput } from '../../../codeEditor/browser/suggestEnabledInput/suggestEnabledInput.js';
 import { IMcpWorkbenchService, McpServerInstallState } from '../../../mcp/common/mcpTypes.js';
-import { CustomizationMarketplaceInstallationTarget, CustomizationMarketplaceInstallState, ICustomizationMarketplaceInstallationSnapshot, ICustomizationMarketplaceInstallService, IRecordedCustomizationMarketplaceResource } from '../../common/customizationMarketplaceInstallService.js';
+import { CustomizationMarketplaceInstallationTarget, CustomizationMarketplaceInstallState, ICustomizationMarketplaceInstallationSnapshot, ICustomizationMarketplaceInstallService, IRecordedCustomizationMarketplaceResource, RecordedCustomizationMarketplaceInstallState } from '../../common/customizationMarketplaceInstallService.js';
 import { AICustomizationManagementSection, IAICustomizationWorkspaceService, IWelcomePageFeatures } from '../../common/aiCustomizationWorkspaceService.js';
 import { isPluginCustomizationItem } from '../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { AgentPluginItemKind, IAgentPluginItem } from '../agentPluginEditor/agentPluginItems.js';
+import { MANAGE_PLUGIN_MARKETPLACES_COMMAND_ID } from '../actions/chatPluginActions.js';
 import { IAICustomizationListItem } from './aiCustomizationItemSource.js';
 import { IAICustomizationItemsModel, ITEMS_MODEL_SECTIONS, ItemsModelSection } from './aiCustomizationItemsModel.js';
 import { DELETE_AI_CUSTOMIZATION_ID } from './aiCustomizationManagement.js';
@@ -57,7 +59,7 @@ import { getCustomizationDiscoveryQuerySuggestions, CustomizationDiscoveryQuery,
 import { renderCustomizationMarketplaceIcon } from './aiCustomizationPresentation.js';
 import { IAICustomizationWelcomePageImplementation, ICustomizationMarketplaceOrigin, IWelcomePageCallbacks } from './aiCustomizationWelcomePage.js';
 import { CustomizationMarketplaceSourceWarnings } from './customizationMarketplaceSourceWarnings.js';
-import { createCustomizationCardPrimaryAction, trackCustomizationCardPrimaryActionFocus } from './customizationCardList.js';
+import { createCustomizationCardPrimaryAction } from './customizationCardList.js';
 import { createWorkbenchMcpServerDetailInput, IMcpServerDetailInput } from './embeddedMcpServerDetail.js';
 
 const $ = DOM.$;
@@ -298,6 +300,64 @@ function getInstallActionError(state: CustomizationMarketplaceInstallState, oper
 	return state.kind === 'unavailable' || state.kind === 'error' ? state.message : state.kind === 'missing' ? state.repairUnavailableMessage : operationError;
 }
 
+function renderRecordedCustomizationActions(
+	container: HTMLElement,
+	resource: ICustomizationMarketplaceResource,
+	name: string,
+	state: RecordedCustomizationMarketplaceInstallState,
+	operationError: string | undefined,
+	disposables: DisposableStore,
+	hoverService: IHoverService,
+	onRepair: () => void,
+	onCancel: () => void,
+	onUninstall: () => void,
+): void {
+	const connector = isCopilotConnectorResource(resource);
+	if (state.kind === 'missing') {
+		const repair = disposables.add(new Button(container, { ...defaultButtonStyles, small: true }));
+		repair.label = getInstallActionLabel(state, false, operationError, connector);
+		repair.enabled = !state.repairUnavailableMessage;
+		repair.setAriaLabel(state.repairUnavailableMessage
+			? localize('customizationDiscovery.repairActionUnavailableLabel', "{0} {1}. {2}", repair.label, name, state.repairUnavailableMessage)
+			: localize('customizationDiscovery.repairLabel', "{0} {1}", repair.label, name));
+		disposables.add(DOM.addDisposableListener(repair.element, DOM.EventType.CLICK, event => event.stopPropagation()));
+		disposables.add(repair.onDidClick(onRepair));
+		const repairError = state.repairUnavailableMessage ?? operationError;
+		if (repairError) {
+			disposables.add(hoverService.setupDelayedHover(repair.element, { content: repairError }));
+		}
+	}
+
+	const cancellable = isCancellableConnectorOperation(resource, state);
+	const button = disposables.add(new Button(container, { ...defaultButtonStyles, secondary: true, small: true }));
+	button.label = cancellable
+		? localize('customizationDiscovery.connectorCancel', "Cancel")
+		: state.kind === 'repairing'
+			? localize('customizationDiscovery.repairingProgress', "Repairing...")
+			: state.kind === 'checking'
+				? localize('customizationDiscovery.checkingProgress', "Checking...")
+				: state.kind === 'uninstalling'
+					? localize('customizationDiscovery.uninstalling', "Uninstalling...")
+					: operationError && state.kind === 'installed'
+						? localize('customizationDiscovery.retryUninstall', "Retry Uninstall")
+						: connector
+							? localize('customizationDiscovery.connectorDisconnect', "Disconnect")
+							: localize('customizationDiscovery.uninstall', "Uninstall");
+	button.enabled = cancellable || state.kind === 'installed' || state.kind === 'missing' || state.kind === 'error';
+	button.setAriaLabel(cancellable
+		? localize('customizationDiscovery.cancelConnectorRepairLabel', "Cancel reconnecting {0}", name)
+		: connector
+			? localize('customizationDiscovery.disconnectConnectorLabel', "Disconnect {0}", name)
+			: localize('customizationDiscovery.uninstallLabel', "{0} {1}", button.label, name));
+	button.element.setAttribute('aria-busy', String(!cancellable && (state.kind === 'uninstalling' || state.kind === 'repairing' || state.kind === 'checking')));
+	disposables.add(DOM.addDisposableListener(button.element, DOM.EventType.CLICK, event => event.stopPropagation()));
+	disposables.add(button.onDidClick(cancellable ? onCancel : onUninstall));
+	const uninstallError = state.kind === 'error' ? state.message : state.kind === 'installed' ? operationError : undefined;
+	if (uninstallError) {
+		disposables.add(hoverService.setupDelayedHover(button.element, { content: uninstallError }));
+	}
+}
+
 /** Multi-type filters consume one ranked feed and filter only its presentation. */
 function getCatalogMediaType(types: ReadonlySet<CustomizationDiscoveryType>): CustomizationMarketplaceMediaType | undefined {
 	if (types.size !== 1) {
@@ -346,9 +406,10 @@ class DiscoveryResultRenderer implements IListRenderer<DiscoveryListEntry, IDisc
 		const root = DOM.append(container, $('.customization-discovery-result-content'));
 		const primaryAction = createCustomizationCardPrimaryAction(root, '', 'customization-discovery-result-primary');
 		const templateDisposables = new DisposableStore();
-		trackCustomizationCardPrimaryActionFocus(primaryAction, root, templateDisposables);
-		const icon = DOM.append(primaryAction, $('.customization-discovery-result-icon'));
-		const identity = DOM.append(primaryAction, $('.customization-discovery-result-identity'));
+		const loading = templateDisposables.add(createPixelSpinner(root, { variant: 'ring' })).element;
+		loading.classList.add('customization-discovery-result-loading');
+		const icon = DOM.append(root, $('.customization-discovery-result-icon'));
+		const identity = DOM.append(root, $('.customization-discovery-result-identity'));
 		const heading = DOM.append(identity, $('.customization-discovery-result-heading'));
 		const name = DOM.append(heading, $('.customization-discovery-result-name'));
 		const detail = DOM.append(heading, $('.customization-discovery-result-detail'));
@@ -420,7 +481,6 @@ class DiscoveryResultRenderer implements IListRenderer<DiscoveryListEntry, IDisc
 		templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.name, { content: name }));
 		templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.description, { content: description }));
 		const registerOpenListeners = (open: () => void) => {
-			templateData.elementDisposables.add(DOM.addDisposableListener(templateData.root, DOM.EventType.CLICK, open));
 			templateData.elementDisposables.add(DOM.addDisposableListener(templateData.primaryAction, DOM.EventType.CLICK, event => {
 				event.stopPropagation();
 				open();
@@ -476,51 +536,21 @@ class DiscoveryResultRenderer implements IListRenderer<DiscoveryListEntry, IDisc
 			if (actionError) {
 				templateData.elementDisposables.add(this.hoverService.setupDelayedHover(button.element, { content: actionError }));
 			}
-		} else if (element.catalogResource) {
+		} else if (element.catalogResource && marketplaceState && hasInstallationTarget(marketplaceState)) {
 			const state = marketplaceState!;
 			const error = this.getInstallError(element.catalogResource);
-			const connector = isCopilotConnectorResource(element.catalogResource);
-			if (state.kind === 'missing') {
-				const repair = templateData.elementDisposables.add(new Button(templateData.actions, { ...defaultButtonStyles, small: true }));
-				repair.label = getInstallActionLabel(state, false, error, connector);
-				repair.enabled = !state.repairUnavailableMessage;
-				repair.setAriaLabel(state.repairUnavailableMessage
-					? localize('customizationDiscovery.repairActionUnavailableLabel', "{0} {1}. {2}", repair.label, element.name, state.repairUnavailableMessage)
-					: localize('customizationDiscovery.repairLabel', "{0} {1}", repair.label, element.name));
-				templateData.elementDisposables.add(DOM.addDisposableListener(repair.element, DOM.EventType.CLICK, event => event.stopPropagation()));
-				templateData.elementDisposables.add(repair.onDidClick(() => this.onRepair(element.catalogResource!)));
-				const repairError = state.repairUnavailableMessage ?? error;
-				if (repairError) {
-					templateData.elementDisposables.add(this.hoverService.setupDelayedHover(repair.element, { content: repairError }));
-				}
-			}
-			const button = templateData.elementDisposables.add(new Button(templateData.actions, { ...defaultButtonStyles, secondary: true, small: true }));
-			const cancellable = isCancellableConnectorOperation(element.catalogResource, state);
-			button.label = cancellable
-				? localize('customizationDiscovery.connectorCancel', "Cancel")
-				: state.kind === 'repairing'
-					? localize('customizationDiscovery.repairingProgress', "Repairing...")
-					: state.kind === 'checking'
-						? localize('customizationDiscovery.checkingProgress', "Checking...")
-						: state.kind === 'uninstalling'
-							? localize('customizationDiscovery.uninstalling', "Uninstalling...")
-							: error && state.kind === 'installed'
-								? localize('customizationDiscovery.retryUninstall', "Retry Uninstall")
-								: connector
-									? localize('customizationDiscovery.connectorDisconnect', "Disconnect")
-									: localize('customizationDiscovery.uninstall', "Uninstall");
-			button.enabled = cancellable || state.kind === 'installed' || state.kind === 'missing' || state.kind === 'error';
-			button.setAriaLabel(cancellable
-				? localize('customizationDiscovery.cancelConnectorRepairLabel', "Cancel reconnecting {0}", element.name)
-				: connector
-					? localize('customizationDiscovery.disconnectConnectorLabel', "Disconnect {0}", element.name)
-					: localize('customizationDiscovery.uninstallLabel', "{0} {1}", button.label, element.name));
-			button.element.setAttribute('aria-busy', String(!cancellable && (state.kind === 'uninstalling' || state.kind === 'repairing' || state.kind === 'checking')));
-			templateData.elementDisposables.add(DOM.addDisposableListener(button.element, DOM.EventType.CLICK, event => event.stopPropagation()));
-			templateData.elementDisposables.add(button.onDidClick(() => cancellable ? this.onCancel(element.catalogResource!) : this.onUninstall(element)));
-			if (state.kind === 'error') {
-				templateData.elementDisposables.add(this.hoverService.setupDelayedHover(button.element, { content: state.message }));
-			}
+			renderRecordedCustomizationActions(
+				templateData.actions,
+				element.catalogResource,
+				element.name,
+				state,
+				error,
+				templateData.elementDisposables,
+				this.hoverService,
+				() => this.onRepair(element.catalogResource!),
+				() => this.onCancel(element.catalogResource!),
+				() => this.onUninstall(element),
+			);
 		} else if (element.removable) {
 			const uninstalling = this.isDirectUninstalling(element);
 			const button = templateData.elementDisposables.add(new Button(templateData.actions, { ...defaultButtonStyles, secondary: true, small: true }));
@@ -674,7 +704,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		this.sourceButton.element.setAttribute('aria-haspopup', 'menu');
 		this.updateSourceButton();
 		this._register(this.sourceButton.onDidClick(() => this.showSourceMenu()));
-		this.sourceWarnings = this._register(new CustomizationMarketplaceSourceWarnings(header, this.marketplaceService.allSources ?? this.marketplaceService.sources, () => {
+		this.sourceWarnings = this._register(new CustomizationMarketplaceSourceWarnings(header, () => this.marketplaceService.allSources ?? this.marketplaceService.sources, () => {
 			this.browseCatalogCache.clear();
 			if (!this.visible) {
 				this.pendingRecoveryReload = true;
@@ -839,7 +869,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			localize('customizationDiscovery.configureMarketplaces', "Configure Marketplaces"),
 			ThemeIcon.asClassName(Codicon.settingsGear),
 			true,
-			() => this.commandService.executeCommand('workbench.action.openSettings', 'marketplace'),
+			() => this.commandService.executeCommand(MANAGE_PLUGIN_MARKETPLACES_COMMAND_ID),
 		));
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => this.sourceButton.element,
@@ -1230,7 +1260,9 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 
 	private getMarketplaceResourceLabel(resource: ICustomizationMarketplaceResource): string {
 		const source = this.getMarketplaceSourceLabel(resource.sourceId);
-		return resource.originLabel ? localize('customizationDiscovery.marketplaceOrigin', "{0} · {1}", source, resource.originLabel) : source;
+		return resource.originLabel && resource.originLabel !== source
+			? localize('customizationDiscovery.marketplaceOrigin', "{0} · {1}", source, resource.originLabel)
+			: resource.originLabel ?? source;
 	}
 
 	private cancelCatalogRequest(): void {
@@ -1588,7 +1620,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		);
 		this.browsePrimaryActions.set(resourceKey, primaryAction);
 		this.browseDisposables.add(DOM.addDisposableListener(primaryAction, DOM.EventType.CLICK, () => this.openCatalogItem(item, 'browse')));
-		const icon = DOM.append(primaryAction, $('.customization-discovery-card-icon'));
+		const icon = DOM.append(card, $('.customization-discovery-card-icon'));
 		const type = getCatalogType(item);
 		renderCustomizationMarketplaceIcon(
 			icon,
@@ -1597,7 +1629,7 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			this.themeService.getColorTheme().type,
 			this.browseDisposables,
 		);
-		const body = DOM.append(primaryAction, $('.customization-discovery-card-body'));
+		const body = DOM.append(card, $('.customization-discovery-card-body'));
 		const heading = DOM.append(body, $('.customization-discovery-card-heading'));
 		const name = DOM.append(heading, $('.customization-discovery-card-name'));
 		name.textContent = item.displayName;
@@ -1613,6 +1645,21 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 		const actions = DOM.append(card, $('.customization-discovery-card-actions'));
 		const setupUrl = state.kind === 'unavailable' ? state.setupUrl : undefined;
 		const installError = this.installErrors.get(getCustomizationMarketplaceResourceKey(item));
+		if (hasInstallationTarget(state)) {
+			renderRecordedCustomizationActions(
+				actions,
+				item,
+				item.displayName,
+				state,
+				installError,
+				this.browseDisposables,
+				this.hoverService,
+				() => void this.repair(item),
+				() => this.installService.cancelConnectorOperation(item),
+				() => void this.uninstallMarketplaceResource(item),
+			);
+			return;
+		}
 		const cancellable = isCancellableConnectorOperation(item, state);
 		const install = this.browseDisposables.add(new Button(actions, { ...defaultButtonStyles, secondary: true, small: true }));
 		install.label = getInstallActionLabel(state, !!setupUrl, installError, isCopilotConnectorResource(item));
@@ -1621,23 +1668,15 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			? localize('customizationDiscovery.cancelConnectorOperationLabel', "Cancel connecting {0}", item.displayName)
 			: setupUrl
 				? localize('customizationDiscovery.viewSetupLabel', "View setup instructions for {0}", item.displayName)
-				: state.kind === 'missing'
-					? state.repairUnavailableMessage
-						? localize('customizationDiscovery.repairActionUnavailableLabel', "{0} {1}. {2}", install.label, item.displayName, state.repairUnavailableMessage)
-						: localize('customizationDiscovery.repairLabel', "{0} {1}", install.label, item.displayName)
-					: state.kind === 'error'
-						? localize('customizationDiscovery.installVerificationError', "{0}. {1}", item.displayName, state.message)
-						: state.kind === 'unavailable'
-							? localize('customizationDiscovery.installUnavailable', "Install {0}. {1}", item.displayName, state.message)
-							: localize('customizationDiscovery.installLabel', "{0} {1}", install.label, item.displayName));
+				: state.kind === 'unavailable'
+					? localize('customizationDiscovery.installUnavailable', "Install {0}. {1}", item.displayName, state.message)
+					: localize('customizationDiscovery.installLabel', "{0} {1}", install.label, item.displayName));
 		install.element.setAttribute('aria-busy', String(isInstallActionBusy(state) && !cancellable));
 		this.browseDisposables.add(install.onDidClick(() => cancellable
 			? this.installService.cancelConnectorOperation(item)
 			: setupUrl
 				? void this.openExternal(setupUrl)
-				: state.kind === 'missing'
-					? void this.repair(item)
-					: void this.install(item)));
+				: void this.install(item)));
 		const actionError = getInstallActionError(state, installError);
 		if (actionError) {
 			this.browseDisposables.add(this.hoverService.setupDelayedHover(install.element, { content: actionError }));
@@ -1795,7 +1834,10 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 			}
 			return;
 		}
-		const resource = item.catalogResource;
+		await this.uninstallMarketplaceResource(item.catalogResource);
+	}
+
+	private async uninstallMarketplaceResource(resource: ICustomizationMarketplaceResource): Promise<void> {
 		const connector = isCopilotConnectorResource(resource);
 		const resourceKey = getCustomizationMarketplaceResourceKey(resource);
 		const state = this.installService.getInstallState(resource);
@@ -1986,6 +2028,12 @@ export class AICustomizationDiscoveryPage extends Disposable implements IAICusto
 
 	setSearchQuery(value: string): void {
 		this.setQuery(CustomizationDiscoveryQuery.parse(value));
+	}
+
+	showMarketplace(query: string, sourceId: string | undefined): void {
+		this.selectedSourceId = sourceId;
+		this.updateSourceButton();
+		this.setQuery(CustomizationDiscoveryQuery.parse(query));
 	}
 
 	layout(dimension: DOM.Dimension | undefined): void {

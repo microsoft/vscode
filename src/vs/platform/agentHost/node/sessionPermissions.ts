@@ -24,6 +24,7 @@ import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostEditAutoApprove
 import type { IAgentToolPendingConfirmationSignal } from '../common/agent.js';
 import { ISessionDataService, isSessionAttachmentPath } from '../common/sessionDataService.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
+import { getAvailableSessionApprovalValues, getSessionApprovalProperty, readSessionApprovalLevel } from '../common/sessionConfigProperties.js';
 import { readToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { ConfirmationOptionKind, type ConfirmationOption } from '../common/state/protocol/state.js';
 import { ActionType, type IToolCallReadyAction } from '../common/state/sessionActions.js';
@@ -262,7 +263,9 @@ export class SessionPermissionManager extends Disposable {
 		}
 
 		// 1. Global auto-approve setting
-		if (this.isGlobalAutoApproveEnabled()) {
+		const approvalConfig = this._stateManager.getSessionState(resolveAgentHostSession(URI.parse(sessionKey)).toString())?.config;
+		const hostPolicy = approvalConfig?.schema.properties.availableApprovalModes?.readOnly === true;
+		if (this.isGlobalAutoApproveEnabled() && (!hostPolicy || this.isSessionAutoApproveEnabled(sessionKey))) {
 			return ToolCallConfirmationReason.Setting;
 		}
 
@@ -420,7 +423,15 @@ export class SessionPermissionManager extends Disposable {
 	}
 
 	getEffectiveApprovalLevel(sessionKey: ProtocolURI): string {
-		if (this._configService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) === true) {
+		const config = this._stateManager.getSessionState(resolveAgentHostSession(URI.parse(sessionKey)).toString())?.config;
+		const policyOwned = config?.schema.properties.availableApprovalModes?.readOnly === true;
+		if (policyOwned) {
+			const effective = config.values.effectiveApprovalMode;
+			const approval = getSessionApprovalProperty(config.schema);
+			return approval && typeof effective === 'string' && Array.isArray(config.values.availableApprovalModes) && getAvailableSessionApprovalValues(approval, config.schema, config.values).includes(effective)
+				? readSessionApprovalLevel(approval, effective) ?? 'default' : 'default';
+		}
+		if (!policyOwned && this._configService.getRootValue(platformRootSchema, AgentHostAutoApprovePolicyRestrictedConfigKey) === true) {
 			return 'default';
 		}
 		return this._configService.getEffectiveValue(sessionKey, platformSessionSchema, SessionConfigKey.AutoApprove) ?? 'default';
@@ -460,7 +471,7 @@ export class SessionPermissionManager extends Disposable {
 				// Managed asks are one-time only. Other agents can supply tool-specific
 				// buttons (e.g. ExitPlanMode's `Approve`/`Deny`) via `state.options`;
 				// otherwise the standard session/once/skip set is used.
-				options: e.managedApprovalRequired || (e.requestSandboxBypass && !e.canAllowSessionSandboxBypass)
+				options: e.managedApprovalRequired || e.requestSandboxPermissive || (e.requestSandboxBypass && !e.canAllowSessionSandboxBypass)
 					? MANAGED_CONFIRMATION_OPTIONS.slice()
 					: state.options
 						? state.options.slice()

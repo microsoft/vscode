@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { filterSessionConfigValues, getAvailableSessionApprovalValues, getEffectiveSessionApprovalValue, getSessionApprovalProperty, getSessionBaseBranchProperty, getSessionConfigPresentationKey, getSessionIsolationProperty, getSessionModeProperty, getSessionWorkspaceProperties, readSessionApprovalLevel, readSessionIsolation, validateSessionConfigWrite, writeSessionApprovalLevel, writeSessionIsolation } from '../../common/sessionConfigProperties.js';
+import { filterSessionConfigValues, getAvailableSessionApprovalValues, getEffectiveSessionApprovalValue, getSessionApprovalProperty, getSessionBaseBranchProperty, getSessionConfigPresentationKey, getSessionIsolationProperty, getSessionModeProperty, getSessionWorkspaceProperties, isSessionConfigWritable, readSessionApprovalLevel, readSessionIsolation, validateSessionConfigWrite, writeSessionApprovalLevel, writeSessionIsolation } from '../../common/sessionConfigProperties.js';
 import type { SessionConfigSchema } from '../../common/state/protocol/commands.js';
 
 suite('Session config properties', () => {
@@ -163,7 +163,7 @@ suite('Session config properties', () => {
 		});
 	});
 
-	test('filters unsupported VS seeds, host reports, and immutable runtime writes', () => {
+	test('filters unsupported VS seeds and immutable runtime writes without checking readOnly', () => {
 		const values = { autoApprove: 'autoApprove', isolation: 'worktree', worktreeBranchPrefix: 'user/', approvalMode: 'assisted', effectiveApprovalMode: 'manual', availableApprovalModes: ['manual', 'assisted'], target: 'worktree', baseBranch: 'main', branch: 'new-session', mode: 'plan' };
 		assert.deepStrictEqual({
 			creation: filterSessionConfigValues(copilot, values),
@@ -176,11 +176,67 @@ suite('Session config properties', () => {
 		});
 	});
 
-	test('rejects unavailable, readonly, unadvertised and immutable writes before dispatch', () => {
+	for (const key of ['autoApprove', 'approvalMode']) {
+		test(`filters host-owned approval reports for ${key} without dropping other readOnly values`, () => {
+			const schema: SessionConfigSchema = {
+				type: 'object', properties: {
+					[key]: key === 'autoApprove' ? vscode.properties.autoApprove : copilot.properties.approvalMode,
+					effectiveApprovalMode: { type: 'string', title: 'Effective', readOnly: true, sessionMutable: true },
+					availableApprovalModes: { type: 'array', title: 'Available', readOnly: true, sessionMutable: true },
+					worktreeBranchPrefix: { type: 'string', title: 'Prefix', readOnly: true, sessionMutable: true },
+				},
+			};
+			const manual = key === 'autoApprove' ? 'default' : 'manual';
+			const values = { [key]: manual, effectiveApprovalMode: manual, availableApprovalModes: [manual], worktreeBranchPrefix: 'user/' };
+			assert.deepStrictEqual([true, false].map(isNew => filterSessionConfigValues(schema, values, isNew)), [
+				{ [key]: manual, worktreeBranchPrefix: 'user/' },
+				{ [key]: manual, worktreeBranchPrefix: 'user/' },
+			]);
+		});
+	}
+
+	test('rejects unavailable, unadvertised and immutable writes before dispatch', () => {
 		assert.throws(() => validateSessionConfigWrite(copilot, { availableApprovalModes: ['manual'] }, 'approvalMode', 'allow-all', false), /does not offer/);
-		assert.throws(() => validateSessionConfigWrite(copilot, {}, 'effectiveApprovalMode', 'allow-all', true), /not writable/);
+		assert.throws(() => validateSessionConfigWrite(copilot, {}, 'effectiveApprovalMode', 'allow-all', false), /not writable/);
 		assert.throws(() => validateSessionConfigWrite(copilot, {}, 'autoApprove', 'autoApprove', true), /not writable/);
 		assert.throws(() => validateSessionConfigWrite(copilot, {}, 'target', 'workspace', false), /not writable/);
+	});
+
+	test('readOnly values can be forwarded and validated without enabling picker edits', () => {
+		const schema: SessionConfigSchema = {
+			type: 'object',
+			properties: {
+				worktreeBranchPrefix: { type: 'string', title: 'Branch prefix', readOnly: true, sessionMutable: false },
+				worktreeIncludeFiles: { type: 'array', title: 'Included files', readOnly: true, sessionMutable: false },
+				worktreeSymlinkFolders: { type: 'array', title: 'Symlinked folders', readOnly: true, sessionMutable: false },
+				pullRequestUrl: { type: 'string', title: 'Pull request', readOnly: true, sessionMutable: false },
+				shellInitScripts: { type: 'array', title: 'Shell initialization', readOnly: true, sessionMutable: true },
+				providerOption: { type: 'string', title: 'Provider option', enum: ['allowed'], readOnly: true, sessionMutable: true },
+			},
+		};
+		const values = {
+			worktreeBranchPrefix: 'user/',
+			worktreeIncludeFiles: ['product.overrides.json'],
+			worktreeSymlinkFolders: ['node_modules'],
+			pullRequestUrl: 'https://github.com/microsoft/vscode/pull/1',
+			shellInitScripts: [{ shell: 'bash', script: 'source .venv/bin/activate' }],
+			providerOption: 'allowed',
+		};
+		for (const [key, value] of Object.entries(values)) {
+			assert.doesNotThrow(() => validateSessionConfigWrite(schema, values, key, value, true));
+		}
+		assert.doesNotThrow(() => validateSessionConfigWrite(schema, values, 'shellInitScripts', values.shellInitScripts, false));
+		assert.doesNotThrow(() => validateSessionConfigWrite(schema, values, 'providerOption', 'allowed', false));
+		assert.throws(() => validateSessionConfigWrite(schema, values, 'providerOption', 'unsupported', true), /does not offer/);
+		assert.deepStrictEqual({
+			creation: filterSessionConfigValues(schema, values),
+			runtime: filterSessionConfigValues(schema, values, false),
+			pickerEditable: Object.values(schema.properties).map(property => isSessionConfigWritable(property, true)),
+		}, {
+			creation: values,
+			runtime: { shellInitScripts: values.shellInitScripts, providerOption: 'allowed' },
+			pickerEditable: [false, false, false, false, false, false],
+		});
 	});
 
 	test('concrete selectors expose the original host property without constructing converted choices', () => {
