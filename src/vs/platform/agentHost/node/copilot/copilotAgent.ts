@@ -607,6 +607,7 @@ interface ICopilotDiscoveryResultMetrics {
  * the config keeps changing on every start.
  */
 const MAX_STARTUP_CONFIG_RETRIES = 1;
+const MAX_SESSION_RESTORE_ATTEMPTS = 5;
 
 /** `origin` value written by the VS Code extension-host Copilot CLI feature. */
 const EXTENSION_HOST_CLI_MARKER_ORIGIN = 'vscode';
@@ -1240,6 +1241,30 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 			const waiter = this._pendingClientRestartWaiter ??= new DeferredPromise<void>();
 			await waiter.p;
+		}
+	}
+
+	/** Retries a restore when its acquired SDK client is replaced, preserving lazy acquisition and startup overlap. */
+	private async _retryRestoreAfterClientReplacement<T>(restore: (acquireClient: () => Promise<CopilotClient>) => Promise<T>): Promise<T> {
+		for (let attempt = 1; ; attempt++) {
+			let client: CopilotClient | undefined;
+			let generation: number | undefined;
+			try {
+				const result = await restore(async () => {
+					client = await this._ensureClientForSession();
+					generation = this._clientGeneration;
+					return client;
+				});
+				if (client && (this._shutdownPromise || this._client !== client || this._clientGeneration !== generation)) {
+					throw new CancellationError();
+				}
+				return result;
+			} catch (error) {
+				if (attempt >= MAX_SESSION_RESTORE_ATTEMPTS || this._shutdownPromise || !client || this._client === client && this._clientGeneration === generation) {
+					throw error;
+				}
+				this._logService.info('[Copilot] SDK client replaced during session restore; retrying with the current client', error);
+			}
 		}
 	}
 
@@ -6160,85 +6185,93 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (!lease) {
 				return undefined;
 			}
-			let agentSession: CopilotAgentSession | undefined;
 			try {
-				this._throwIfWorkingDirectoryMutationBlocksChat(configurationResource, chat);
-				const again = this._findChatByUri(chat);
-				if (again) {
-					return again;
-				}
-				const info = this._chatBackings.get(chatKey);
-				if (!info) {
-					return undefined;
-				}
-				stageRecorder?.mark('snapshot');
-				const storedMetadata = await this._readSessionMetadata(context.resource);
-				const configurationMetadata = isEqual(context.resource, configurationResource)
-					? storedMetadata
-					: await this._readSessionMetadata(configurationResource);
-				const resumeWorkingDirectories = this._workingDirectoriesForResume(storedMetadata, workingDirectories) ?? storedMetadata.workingDirectories;
-				const parentEntry = this._findSessionBySdkId(configurationId);
-				const persistedWorkingDirectory = resumeWorkingDirectories?.[0] ?? storedMetadata.workingDirectory ?? parentEntry?.workingDirectory
-					?? this._provisionalSessions.get(configurationId)?.workingDirectory
-					?? configurationMetadata.workingDirectory;
-				if (!persistedWorkingDirectory) {
-					this._logService.warn(`[Copilot] Cannot resume chat ${chatKey}: missing working directory`);
-					return undefined;
-				}
-				const workspaceResource = isEqual(persistedWorkingDirectory, configurationMetadata.workingDirectory)
-					? configurationResource : context.resource;
-				const { workingDirectory, detached } = await this._resolveOwnedWorkingDirectoryForResume(configurationResource, workspaceResource, configurationId, persistedWorkingDirectory);
-				const launchWorkingDirectories = resumeWorkingDirectories
-					? [workingDirectory, ...resumeWorkingDirectories.slice(1)]
-					: undefined;
-				stageRecorder?.mark('client');
-				const client = await this._ensureClientForSession();
-				this._throwIfWorkingDirectoryMutationBlocksChat(configurationResource, chat);
-				stageRecorder?.mark('snapshot');
-				const anchors = await this._getSessionCustomizationAnchors(configurationResource);
-				const activeClient = this._getOrCreateActiveClient(configurationResource, anchors.directory);
-				if (anchors.applyAdditional) {
-					activeClient.pluginController.setAdditionalDirectories(anchors.additionalDirectories);
-				}
-				const snapshot = await activeClient.snapshot(chatKey);
-				const shellManager = this._instantiationService.createInstance(ShellManager, chat, workingDirectory);
-				const launchPlan: CopilotSessionLaunchPlan = {
-					kind: 'resume',
-					client,
-					extensionSdkPath: this._extensionSdkPathByClient.get(client),
-					sessionId: info.sdkSessionId,
-					workingDirectory,
-					additionalDirectories: launchWorkingDirectories?.slice(1),
-					resolvedAgentName: info.agent ? this._resolveAgentName(snapshot, info.agent) : undefined,
-					snapshot,
-					disabledRootMcpServers: await this._disabledRootMcpServers(configurationResource, snapshot),
-					activeClientToolSet: activeClient.toolSet,
-					shellManager,
-					githubCredentials: this._getGitHubSessionCredentials(),
-					stageRecorder,
-					fallback: { model: info.model, longContextWindow: this._longContextWindowFor(info.model?.id), freeLongContext: this._isFreeLongContext(info.model?.id) },
-				};
-				agentSession = this._createAgentSession(launchPlan, workingDirectory, activeClient, { sessionUri: configurationResource, chatChannelUri: chat, resource: context.resource });
-				const initializingSession = agentSession;
-				await this._initializeAndRegisterSession(initializingSession, () => {
-					this._throwIfClientReplaced(client, initializingSession);
-					this._throwIfWorkingDirectoryMutationBlocksChat(configurationResource, chat);
-					this._registerLiveChat(chat, initializingSession, activeClient);
-				});
-				stageRecorder?.mark('persist');
-				if (launchWorkingDirectories && (!detached || isEqual(workingDirectory, persistedWorkingDirectory))) {
-					await this._storeSessionMetadata(context.resource, info.model, workingDirectory, launchWorkingDirectories, undefined, undefined);
-				}
-				this._logService.info(`[Copilot] Resumed chat backing ${chatKey} for configuration ${configurationResource.toString()}`);
-				return agentSession;
-			} catch (error) {
-				agentSession?.dispose();
-				this._logService.warn(`[Copilot] Failed to resume chat backing ${chatKey}: ${error instanceof Error ? error.message : String(error)}`);
-				throw error;
+				return await this._retryRestoreAfterClientReplacement(acquireClient => this._resumeChatSessionOnce(context, acquireClient, workingDirectories, stageRecorder));
 			} finally {
 				lease.dispose();
 			}
 		});
+	}
+
+	private async _resumeChatSessionOnce(context: IResolvedCopilotChatContext, acquireClient: () => Promise<CopilotClient>, workingDirectories?: readonly URI[], stageRecorder?: IAgentProviderSendStageRecorder): Promise<CopilotAgentSession | undefined> {
+		const { configurationResource, configurationId, chat, chatKey } = context;
+		let agentSession: CopilotAgentSession | undefined;
+		try {
+			this._throwIfWorkingDirectoryMutationBlocksChat(configurationResource, chat);
+			const again = this._findChatByUri(chat);
+			if (again) {
+				return again;
+			}
+			const info = this._chatBackings.get(chatKey);
+			if (!info) {
+				return undefined;
+			}
+			stageRecorder?.mark('snapshot');
+			const storedMetadata = await this._readSessionMetadata(context.resource);
+			const configurationMetadata = isEqual(context.resource, configurationResource)
+				? storedMetadata
+				: await this._readSessionMetadata(configurationResource);
+			const resumeWorkingDirectories = this._workingDirectoriesForResume(storedMetadata, workingDirectories) ?? storedMetadata.workingDirectories;
+			const parentEntry = this._findSessionBySdkId(configurationId);
+			const persistedWorkingDirectory = resumeWorkingDirectories?.[0] ?? storedMetadata.workingDirectory ?? parentEntry?.workingDirectory
+				?? this._provisionalSessions.get(configurationId)?.workingDirectory
+				?? configurationMetadata.workingDirectory;
+			if (!persistedWorkingDirectory) {
+				this._logService.warn(`[Copilot] Cannot resume chat ${chatKey}: missing working directory`);
+				return undefined;
+			}
+			const workspaceResource = isEqual(persistedWorkingDirectory, configurationMetadata.workingDirectory)
+				? configurationResource : context.resource;
+			const { workingDirectory, detached } = await this._resolveOwnedWorkingDirectoryForResume(configurationResource, workspaceResource, configurationId, persistedWorkingDirectory);
+			const launchWorkingDirectories = resumeWorkingDirectories
+				? [workingDirectory, ...resumeWorkingDirectories.slice(1)]
+				: undefined;
+			stageRecorder?.mark('client');
+			const client = await acquireClient();
+			this._throwIfWorkingDirectoryMutationBlocksChat(configurationResource, chat);
+			stageRecorder?.mark('snapshot');
+			const anchors = await this._getSessionCustomizationAnchors(configurationResource);
+			const activeClient = this._getOrCreateActiveClient(configurationResource, anchors.directory);
+			if (anchors.applyAdditional) {
+				activeClient.pluginController.setAdditionalDirectories(anchors.additionalDirectories);
+			}
+			const snapshot = await activeClient.snapshot(chatKey);
+			const disabledRootMcpServers = await this._disabledRootMcpServers(configurationResource, snapshot);
+			const shellManager = this._instantiationService.createInstance(ShellManager, chat, workingDirectory);
+			const launchPlan: CopilotSessionLaunchPlan = {
+				kind: 'resume',
+				client,
+				extensionSdkPath: this._extensionSdkPathByClient.get(client),
+				sessionId: info.sdkSessionId,
+				workingDirectory,
+				additionalDirectories: launchWorkingDirectories?.slice(1),
+				resolvedAgentName: info.agent ? this._resolveAgentName(snapshot, info.agent) : undefined,
+				snapshot,
+				disabledRootMcpServers,
+				activeClientToolSet: activeClient.toolSet,
+				shellManager,
+				githubCredentials: this._getGitHubSessionCredentials(),
+				stageRecorder,
+				fallback: { model: info.model, longContextWindow: this._longContextWindowFor(info.model?.id), freeLongContext: this._isFreeLongContext(info.model?.id) },
+			};
+			agentSession = this._createAgentSession(launchPlan, workingDirectory, activeClient, { sessionUri: configurationResource, chatChannelUri: chat, resource: context.resource });
+			const initializingSession = agentSession;
+			await this._initializeAndRegisterSession(initializingSession, () => {
+				this._throwIfClientReplaced(client, initializingSession);
+				this._throwIfWorkingDirectoryMutationBlocksChat(configurationResource, chat);
+				this._registerLiveChat(chat, initializingSession, activeClient);
+			});
+			stageRecorder?.mark('persist');
+			if (launchWorkingDirectories && (!detached || isEqual(workingDirectory, persistedWorkingDirectory))) {
+				await this._storeSessionMetadata(context.resource, info.model, workingDirectory, launchWorkingDirectories, undefined, undefined);
+			}
+			this._logService.info(`[Copilot] Resumed chat backing ${chatKey} for configuration ${configurationResource.toString()}`);
+			return agentSession;
+		} catch (error) {
+			agentSession?.dispose();
+			this._logService.warn(`[Copilot] Failed to resume chat backing ${chatKey}: ${error instanceof Error ? error.message : String(error)}`);
+			throw error;
+		}
 	}
 
 	private async _resolveOwnedWorkingDirectoryForResume(configurationResource: URI, workspaceResource: URI, sessionId: string, persistedWorkingDirectory: URI): Promise<{ readonly workingDirectory: URI; readonly detached: boolean }> {
@@ -6845,14 +6878,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 		});
 	}
 
-	private async _doResumeSession(sessionId: string, workingDirectories?: readonly URI[], stageRecorder?: IAgentProviderSendStageRecorder): Promise<CopilotAgentSession> {
+	private _doResumeSession(sessionId: string, workingDirectories?: readonly URI[], stageRecorder?: IAgentProviderSendStageRecorder): Promise<CopilotAgentSession> {
+		return this._retryRestoreAfterClientReplacement(acquireClient => this._resumeSessionOnce(sessionId, acquireClient, workingDirectories, stageRecorder));
+	}
+
+	private async _resumeSessionOnce(sessionId: string, acquireClient: () => Promise<CopilotClient>, workingDirectories?: readonly URI[], stageRecorder?: IAgentProviderSendStageRecorder): Promise<CopilotAgentSession> {
 		this._logService.info(`[Copilot:${sessionId}] _resumeSession called — session not in memory, resuming...`);
 		const sessionUri = AgentSession.uri(this.id, sessionId);
-		// The persisted metadata read needs no client, so overlap it with client acquisition.
+		// Read persisted metadata while the SDK client is acquired.
 		const storedMetadataPromise = this._readSessionMetadata(sessionUri);
 		storedMetadataPromise.catch(() => { /* surfaced by the await below */ });
 		stageRecorder?.mark('client');
-		const client = await this._ensureClientForSession();
+		const client = await acquireClient();
 		stageRecorder?.mark('snapshot');
 
 		const [storedMetadata, sessionMetadata] = await Promise.all([
@@ -6890,6 +6927,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// Prefer chat-scoped membership when this SDK session is already bound to a chat.
 		const snapshot = await activeClient.snapshot(this._findBoundSessionChatUri(sessionId)?.toString());
 
+		const disabledRootMcpServers = await this._disabledRootMcpServers(sessionUri, snapshot);
 		const shellManager = this._instantiationService.createInstance(ShellManager, sessionUri, resolvedWorkingDirectory);
 		const resolvedAgentName = storedMetadata.agent ? this._resolveAgentName(snapshot, storedMetadata.agent) : undefined;
 		if (storedMetadata.agent && !resolvedAgentName) {
@@ -6904,7 +6942,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			additionalDirectories: this._additionalCustomizationDirectories(launchWorkingDirectories),
 			resolvedAgentName,
 			snapshot,
-			disabledRootMcpServers: await this._disabledRootMcpServers(sessionUri, snapshot),
+			disabledRootMcpServers,
 			activeClientToolSet: activeClient.toolSet,
 			shellManager,
 			githubCredentials: this._getGitHubSessionCredentials(),
