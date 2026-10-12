@@ -430,13 +430,15 @@ export namespace ILanguageModelChatMetadata {
 
 	/**
 	 * Builds the shared description shown for the Auto model, rendered as Markdown
-	 * (it contains a "Learn More" link). The discount is described separately by
-	 * {@link getAutoModelDiscountDescription}.
+	 * (Auto's contains a "Learn More" link; Ensemble's does not). The discount is
+	 * described separately by {@link getAutoModelDiscountDescription}.
 	 */
 	export function getAutoModelDescription(ensemble?: boolean): string {
-		const base = ensemble
-			? localize('autoModel.ensembleDescription', "Ensemble routes based on your task and real-time system health and model performance.")
-			: localize('autoModel.description', "Auto routes based on your task and real-time system health and model performance.");
+		if (ensemble) {
+			// The Auto docs don't describe Ensemble, so it has no Learn More link.
+			return localize('autoModel.ensembleDescription', "Ensemble routes based on your task and real-time system health and model performance.");
+		}
+		const base = localize('autoModel.description', "Auto routes based on your task and real-time system health and model performance.");
 		const learnMore = localize('autoModel.learnMore', "[Learn More]({0})", autoModelSelectionDocsUrl);
 		return `${base} ${learnMore}`;
 	}

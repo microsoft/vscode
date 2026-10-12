@@ -221,7 +221,7 @@ suite('AgentHostLanguageModelProvider', () => {
 			malformed: [await ensembleOf({ 'vscode.chat.ensemble': {} }), await ensembleOf({ 'vscode.chat.ensemble': { intelligenceUsesHydraFusion: 'true' } })],
 		}, {
 			models: [
-				{ name: 'Ensemble', ensemble: { intelligenceUsesHydraFusion: true }, tooltip: ILanguageModelChatMetadata.getAutoModelDescription(true) },
+				{ name: 'Ensemble', ensemble: { intelligenceUsesHydraFusion: true }, tooltip: 'Ensemble routes based on your task and real-time system health and model performance.' },
 				{ name: 'gpt-5', ensemble: undefined, tooltip: undefined },
 			],
 			plain: undefined,
