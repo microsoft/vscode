@@ -687,6 +687,86 @@ suite('CloudSandboxAgentHostService', () => {
 	}
 
 	for (const environmentKind of ['cloud', 'user-local'] as const) {
+		for (const statusCode of [403, 404]) {
+			test(`${environmentKind} factory withdraws permanently rejected expired credentials with status ${statusCode}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const fixture = createService(store, [{
+					kind: 'token', token: {
+						...clientToken('copilot-sealed.v1.key.original'), expires_at: new Date(Date.now()).toISOString(),
+					}
+				}]);
+				fixture.service.connectThroughFactory = true;
+				const connecting = fixture.service.connect({
+					environmentId: 'env-1', name: 'Host', environmentKind: environmentKind === 'user-local' ? 'user-local' : undefined,
+				}, CancellationToken.None);
+				await fixture.started;
+				const factory = fixture.getFactory();
+				const entry = fixture.entries()[0];
+				const createInstance = sinon.spy(fixture.instantiationService, 'createInstance');
+				fixture.setReconnectResult(new CloudSandboxRequestError(statusCode, 'Environment unavailable'));
+				await assert.rejects(factory.createConnection(entry, { userInitiated: true }), error =>
+					error instanceof NonReconnectableTransportError
+					&& error.reason === (statusCode === 404 ? AgentHostTransportFailureReason.HostNotRunning : AgentHostTransportFailureReason.Unknown));
+				await assert.rejects(factory.createConnection(entry, { userInitiated: false }), /No cloud sandbox connection is staged/);
+				const sealed = fixture.service.getSealedGitHubToken('env-1');
+				fixture.settle();
+				await connecting;
+				fixture.service.dispose();
+				assert.deepStrictEqual({
+					entries: fixture.entries().length,
+					sealed,
+					requests: fixture.requests.map(request => request.method),
+					protocolClients: createInstance.getCalls().filter(call => call.args[0] === AgentHostProtocolClient).length,
+				}, { entries: 0, sealed: undefined, requests: ['connect', 'reconnect'], protocolClients: 0 });
+			}));
+		}
+
+		test(`${environmentKind} factory preserves expired-ticket backoff across failed preflight attempts without background retries`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const fixture = createService(store, [{
+				kind: 'token', token: {
+					...clientToken('copilot-sealed.v1.key.original'), expires_at: new Date(Date.now()).toISOString(),
+				}
+			}]);
+			fixture.service.connectThroughFactory = true;
+			const connecting = fixture.service.connect({
+				environmentId: 'env-1', name: 'Host', environmentKind: environmentKind === 'user-local' ? 'user-local' : undefined,
+			}, CancellationToken.None);
+			await fixture.started;
+			const factory = fixture.getFactory();
+			const entry = fixture.entries()[0];
+			const requestTimes: number[] = [];
+			fixture.instantiationService.stub(ICloudSandboxApiService, new class extends mock<ICloudSandboxApiService>() {
+				override async reconnect(): Promise<CloudSandboxConnectResult> {
+					requestTimes.push(Date.now());
+					if (requestTimes.length === 1) {
+						throw new CloudSandboxRequestError(503, 'Unavailable');
+					}
+					return { kind: 'token', token: clientToken('copilot-sealed.v1.key.fresh') };
+				}
+			}());
+			fixture.instantiationService.stubInstance(AgentHostProtocolClient, new class extends mock<AgentHostProtocolClient>() {
+				override readonly onDidConnectionDiagnostic = Event.None;
+				override dispose(): void { }
+			}());
+			const start = Date.now();
+			await assert.rejects(factory.createConnection(entry, { userInitiated: true }), /usable future expiry/);
+			await timeout(10_000);
+			const retry = factory.createConnection(entry, { userInitiated: false });
+			await timeout(19_999);
+			const requestsBeforeDeadline = requestTimes.length;
+			const created = await retry;
+			assert.ok(created.transportDisposable);
+			store.add(created.transportDisposable);
+			store.add(created.connection);
+			fixture.settle();
+			await connecting;
+			await timeout(120_000);
+			created.transportDisposable.dispose();
+			fixture.service.dispose();
+			assert.deepStrictEqual({ requestsBeforeDeadline, requestTimes: requestTimes.map(time => time - start) }, {
+				requestsBeforeDeadline: 1, requestTimes: [0, 30_000],
+			});
+		}));
+
 		test(`${environmentKind} factory acquires valid admission credentials before opening its first transport with an expired staged ticket`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const fixture = await createRecoveryFixture(
 				async () => ({ kind: 'token', token: { ...clientToken('copilot-sealed.v1.key.fresh'), access_token: 'fresh-ticket' } }),

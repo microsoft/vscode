@@ -229,10 +229,29 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 					staged.refresher = undefined;
 				}
 			}));
-			await refresher.ensureUnexpiredCredentials();
-			if (this._stagedConnections.get(address) !== staged || store.isDisposed) {
-				throw new CancellationError();
-			}
+			const prepareCredentials = (refreshConnection: boolean) => traceConnectionOperation(diagnosticObserver, 'credentials', async () => {
+				try {
+					if (refreshConnection) {
+						await refresher.refreshConnectionCredentials();
+					} else {
+						await refresher.ensureUnexpiredCredentials();
+					}
+				} catch (error) {
+					if (this._stagedConnections.get(address) !== staged || store.isDisposed) {
+						throw new CancellationError();
+					}
+					if (staged.refreshState.permanentFailure) {
+						this.unstageConfiguration(address);
+						throw new NonReconnectableTransportError('Mission Control refused connection recovery; reconnect after resolving environment availability or account authorization.',
+							staged.refreshState.permanentFailureStatus === 404 ? AgentHostTransportFailureReason.HostNotRunning : AgentHostTransportFailureReason.Unknown);
+					}
+					throw error;
+				}
+				if (this._stagedConnections.get(address) !== staged || store.isDisposed) {
+					throw new CancellationError();
+				}
+			});
+			await prepareCredentials(false);
 			const ahpLoggingEnabled = !!this._configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId);
 			const transportFactory = (): IProtocolTransport => this._instantiationService.createInstance(WebPubSubRelayTransport, {
 				clientConnectionKind: staged.options.environmentKind === 'user-local' ? AgentHostClientConnectionKind.MissionControl : AgentHostClientConnectionKind.WebPubSub,
@@ -261,29 +280,10 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 					reconnectPolicy: staged.options.environmentKind === 'user-local' ? USER_LOCAL_RECONNECT_POLICY : SANDBOX_RECONNECT_POLICY,
 					onDidSuspend: this._powerService.onDidSuspend,
 					onDidResume: this._powerService.onDidResume,
-					prepareReconnect: () => traceConnectionOperation(diagnosticObserver, 'credentials', async () => {
-						try {
-							if (staged.reconnectRequiresRefresh || staged.options.environmentKind === 'user-local') {
-								await refresher.refreshConnectionCredentials();
-							} else {
-								await refresher.ensureUnexpiredCredentials();
-							}
-						} catch (error) {
-							if (this._stagedConnections.get(address) !== staged || store.isDisposed) {
-								throw new CancellationError();
-							}
-							if (staged.refreshState.permanentFailure) {
-								this.unstageConfiguration(address);
-								throw new NonReconnectableTransportError('Mission Control refused connection recovery; reconnect after resolving environment availability or account authorization.',
-									staged.refreshState.permanentFailureStatus === 404 ? AgentHostTransportFailureReason.HostNotRunning : AgentHostTransportFailureReason.Unknown);
-							}
-							throw error;
-						}
-						if (this._stagedConnections.get(address) !== staged || store.isDisposed) {
-							throw new CancellationError();
-						}
+					prepareReconnect: async () => {
+						await prepareCredentials(staged.reconnectRequiresRefresh || staged.options.environmentKind === 'user-local');
 						staged.reconnectRequiresRefresh = true;
-					}),
+					},
 					prepareAuthentication: async () => {
 						if (staged.lastAuthenticationToken && staged.lastAuthenticationToken === staged.creds.token.encrypted_github_token) {
 							await traceConnectionOperation(diagnosticObserver, 'credentials', () => refresher.refreshAuthenticationCredentials());
