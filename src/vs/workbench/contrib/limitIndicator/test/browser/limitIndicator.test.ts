@@ -6,7 +6,6 @@
 import assert from 'assert';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
-import Severity from '../../../../../base/common/severity.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -78,7 +77,7 @@ suite('LimitIndicatorContribution', () => {
 		activeEditorChanged.fire();
 	}
 
-	async function changeMarkers(model: ITextModel, count: number, owner = 'test'): Promise<void> {
+	async function changeMarkers(model: ITextModel, count: number, owner = 'test', isTruncated = false): Promise<void> {
 		const changed = Event.toPromise(markerService.onMarkerChanged);
 		markerService.changeOne(owner, model.uri, Array.from({ length: count }, (_, index) => ({
 			severity: MarkerSeverity.Error,
@@ -87,33 +86,30 @@ suite('LimitIndicatorContribution', () => {
 			startColumn: 1,
 			endLineNumber: index + 1,
 			endColumn: 2
-		})));
+		})), { isTruncated });
 		await changed;
 	}
 
-	test('shows a warning without a Configure action only when diagnostics overflow', async () => {
+	test('distinguishes diagnostic truncation from editor highlight limits', async () => {
+		const details: (string | undefined)[][] = [];
 		await changeMarkers(editor.getModel(), 5000);
-		const atLimit = [...statuses];
-		await changeMarkers(editor.getModel(), 1, 'overflow');
-		const overflowing = [...statuses];
-		await changeMarkers(editor.getModel(), 0, 'overflow');
+		details.push([...statuses].map(status => status.detail));
+		await changeMarkers(editor.getModel(), 5001);
+		details.push([...statuses].map(status => status.detail));
+		await changeMarkers(editor.getModel(), 1001, 'test', true);
+		details.push([...statuses].map(status => status.detail));
+		await changeMarkers(editor.getModel(), 5001, 'test', true);
+		details.push([...statuses].map(status => status.detail));
+		await changeMarkers(editor.getModel(), 5000);
+		details.push([...statuses].map(status => status.detail));
 
-		assert.deepStrictEqual({ atLimit, overflowing, restored: [...statuses] }, {
-			atLimit: [],
-			overflowing: [{
-				id: 'diagnosticsLimitInfo',
-				selector: '*',
-				name: 'Diagnostic Highlight Status',
-				severity: Severity.Warning,
-				label: 'Diagnostic highlights',
-				detail: 'only 5000 shown for performance reasons',
-				command: undefined,
-				accessibilityInfo: undefined,
-				source: 'Diagnostics',
-				busy: false
-			}],
-			restored: []
-		});
+		assert.deepStrictEqual(details, [
+			[],
+			['Only 5000 diagnostics are highlighted in the editor for performance reasons.'],
+			['Some diagnostics are truncated for performance reasons.'],
+			['Some diagnostics are truncated, and only 5000 diagnostics are highlighted in the editor for performance reasons.'],
+			[]
+		]);
 	});
 
 	test('shows existing overflow when the contribution is initialized', async () => {
@@ -267,7 +263,7 @@ suite('LimitIndicatorContribution', () => {
 				detail: 'only 5 shown for performance reasons',
 				command: { id: 'workbench.action.openSettings', arguments: ['editor.foldingMaximumRegions'], title: 'Configure' }
 			},
-			{ id: 'diagnosticsLimitInfo', detail: 'only 5000 shown for performance reasons', command: undefined }
+			{ id: 'diagnosticsLimitInfo', detail: 'Only 5000 diagnostics are highlighted in the editor for performance reasons.', command: undefined }
 		]);
 	});
 

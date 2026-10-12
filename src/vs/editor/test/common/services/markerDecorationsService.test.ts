@@ -13,6 +13,7 @@ import { IMarkerData, MarkerSeverity } from '../../../../platform/markers/common
 import { MarkerService } from '../../../../platform/markers/common/markerService.js';
 import { Range } from '../../../common/core/range.js';
 import { ITextModel } from '../../../common/model.js';
+import { IMarkerLimit } from '../../../common/services/markerDecorations.js';
 import { MarkerDecorationsService } from '../../../common/services/markerDecorationsService.js';
 import { IModelService } from '../../../common/services/model.js';
 import { createModelServices } from '../testTextModel.js';
@@ -46,9 +47,9 @@ suite('MarkerDecorationsService', () => {
 		}));
 	}
 
-	async function changeMarkers(model: ITextModel, count: number, owner = 'test'): Promise<void> {
+	async function changeMarkers(model: ITextModel, count: number, owner = 'test', isTruncated = false): Promise<void> {
 		const changed = Event.toPromise(markerService.onMarkerChanged);
-		markerService.changeOne(owner, model.uri, createMarkers(count));
+		markerService.changeOne(owner, model.uri, createMarkers(count), { isTruncated });
 		await changed;
 	}
 
@@ -60,7 +61,7 @@ suite('MarkerDecorationsService', () => {
 			states.push({
 				diagnostics: markerService.read({ resource: model.uri }).length,
 				decorations: decorationService.getLiveMarkers(model.uri).length,
-				limited: decorationService.getExceededDecorationLimit(model.uri)
+				limited: decorationService.getMarkerLimits(model.uri)?.isMarkersTruncated
 			});
 		}
 
@@ -83,8 +84,8 @@ suite('MarkerDecorationsService', () => {
 			markerChanges.push(model.uri);
 		}));
 		const exceededLimitChanges: { resource: URI; limited: number | undefined }[] = [];
-		disposables.add(decorationService.onDidChangeDecorationLimitExceeded(model => {
-			exceededLimitChanges.push({ resource: model.uri, limited: decorationService.getExceededDecorationLimit(model.uri) });
+		disposables.add(decorationService.onDidChangeMarkerLimit(model => {
+			exceededLimitChanges.push({ resource: model.uri, limited: decorationService.getMarkerLimits(model.uri)?.isMarkersTruncated });
 		}));
 
 		await changeMarkers(model, 1, 'overflow');
@@ -102,6 +103,42 @@ suite('MarkerDecorationsService', () => {
 		});
 	});
 
+	test('reports diagnostic truncation independently of the decoration limit', async () => {
+		const model = createModel();
+		await changeMarkers(model, 5001);
+		const decorationIds = model.getAllDecorations().map(decoration => decoration.id);
+		const markerChanges: URI[] = [];
+		disposables.add(decorationService.onDidChangeMarker(model => {
+			markerChanges.push(model.uri);
+		}));
+		const limitChanges: (IMarkerLimit | undefined)[] = [];
+		disposables.add(decorationService.onDidChangeMarkerLimit(model => {
+			limitChanges.push(decorationService.getMarkerLimits(model.uri));
+		}));
+
+		await changeMarkers(model, 1, 'truncated', true);
+		const truncatedDecorationIds = model.getAllDecorations().map(decoration => decoration.id);
+		await changeMarkers(model, 1, 'truncated');
+		const restoredDecorationIds = model.getAllDecorations().map(decoration => decoration.id);
+		await changeMarkers(model, 0);
+		await changeMarkers(model, 1, 'truncated', true);
+
+		assert.deepStrictEqual({
+			limitChanges,
+			markerChanges,
+			decorationsUnchangedWhileOverLimit: [truncatedDecorationIds, restoredDecorationIds].every(ids => ids.length === decorationIds.length && ids.every((id, index) => id === decorationIds[index]))
+		}, {
+			limitChanges: [
+				{ isMarkersSourceTruncated: true, isMarkersTruncated: 5000 },
+				{ isMarkersSourceTruncated: false, isMarkersTruncated: 5000 },
+				{ isMarkersSourceTruncated: false, isMarkersTruncated: undefined },
+				{ isMarkersSourceTruncated: true, isMarkersTruncated: undefined }
+			],
+			markerChanges: [model.uri, model.uri],
+			decorationsUnchangedWhileOverLimit: true
+		});
+	});
+
 	test('honors resource filters and restores the limit when filtering ends', async () => {
 		const model = createModel();
 		await changeMarkers(model, 5100);
@@ -110,7 +147,7 @@ suite('MarkerDecorationsService', () => {
 		const filter = disposables.add(markerService.installResourceFilter(model.uri, 'test'));
 		await filtered;
 		const filteredState = {
-			limited: decorationService.getExceededDecorationLimit(model.uri),
+			limited: decorationService.getMarkerLimits(model.uri)?.isMarkersTruncated,
 			decorations: decorationService.getLiveMarkers(model.uri).length,
 			diagnostics: markerService.read({ resource: model.uri, ignoreResourceFilters: true }).length
 		};
@@ -122,7 +159,7 @@ suite('MarkerDecorationsService', () => {
 		assert.deepStrictEqual({
 			filtered: filteredState,
 			restored: {
-				limited: decorationService.getExceededDecorationLimit(model.uri),
+				limited: decorationService.getMarkerLimits(model.uri)?.isMarkersTruncated,
 				decorations: decorationService.getLiveMarkers(model.uri).length
 			}
 		}, {
@@ -136,7 +173,7 @@ suite('MarkerDecorationsService', () => {
 		await changeMarkers(model, 5001);
 		const suppression = disposables.add(decorationService.addMarkerSuppression(model.uri, new Range(1, 1, 100, 2)));
 		const suppressedState = {
-			limited: decorationService.getExceededDecorationLimit(model.uri),
+			limited: decorationService.getMarkerLimits(model.uri)?.isMarkersTruncated,
 			lines: decorationService.getLiveMarkers(model.uri).map(([range]) => range.startLineNumber)
 		};
 
@@ -145,7 +182,7 @@ suite('MarkerDecorationsService', () => {
 		assert.deepStrictEqual({
 			suppressed: suppressedState,
 			restored: {
-				limited: decorationService.getExceededDecorationLimit(model.uri),
+				limited: decorationService.getMarkerLimits(model.uri)?.isMarkersTruncated,
 				decorations: decorationService.getLiveMarkers(model.uri).length
 			}
 		}, {
@@ -163,7 +200,7 @@ suite('MarkerDecorationsService', () => {
 		await changeMarkers(otherRemote, 5100);
 
 		assert.deepStrictEqual(
-			[local, remote, otherRemote].map(model => decorationService.getExceededDecorationLimit(model.uri)),
+			[local, remote, otherRemote].map(model => decorationService.getMarkerLimits(model.uri)?.isMarkersTruncated),
 			[5000, undefined, 5000]
 		);
 	});
@@ -172,12 +209,12 @@ suite('MarkerDecorationsService', () => {
 		const model = createModel();
 		await changeMarkers(model, 5001);
 		model.dispose();
-		const afterDisposal = decorationService.getExceededDecorationLimit(model.uri);
+		const afterDisposal = decorationService.getMarkerLimits(model.uri)?.isMarkersTruncated;
 		const reopened = createModel(model.uri);
 
 		assert.deepStrictEqual({
 			afterDisposal,
-			afterReopening: decorationService.getExceededDecorationLimit(reopened.uri),
+			afterReopening: decorationService.getMarkerLimits(reopened.uri)?.isMarkersTruncated,
 			decorations: decorationService.getLiveMarkers(reopened.uri).length
 		}, {
 			afterDisposal: undefined,
@@ -194,7 +231,7 @@ suite('MarkerDecorationsService', () => {
 		const restoredService = serviceDisposables.add(new MarkerDecorationsService(modelService, markerService));
 
 		assert.deepStrictEqual({
-			limited: restoredService.getExceededDecorationLimit(model.uri),
+			limited: restoredService.getMarkerLimits(model.uri)?.isMarkersTruncated,
 			decorations: restoredService.getLiveMarkers(model.uri).length
 		}, {
 			limited: 5000,

@@ -13,24 +13,37 @@ import { IDisposable } from '../../../base/common/lifecycle.js';
 
 export const IMarkerDecorationsService = createDecorator<IMarkerDecorationsService>('markerDecorationsService');
 
+export interface IMarkerLimit {
+	/**
+	 * Are the marker sources (ie diagnostics) for a model truncated?
+	 */
+	readonly isMarkersSourceTruncated: boolean;
+	/**
+	 * Are the marker decorations for a model truncated?
+	 * If yes, this will indicate the maximum number of markers that are being displayed.
+	 * Else it will be undefined.
+	 */
+	readonly isMarkersTruncated: number | undefined;
+}
+
 export interface IMarkerDecorationsService {
 	readonly _serviceBrand: undefined;
 
 	readonly onDidChangeMarker: Event<ITextModel>;
 
 	/**
-	 * Fires when a model starts or stops exceeding the marker decoration limit.
+	 * Fires when diagnostics truncation state changes or when the marker decoration limit exceeded state changes.
 	 */
-	readonly onDidChangeDecorationLimitExceeded: Event<ITextModel>;
+	readonly onDidChangeMarkerLimit: Event<ITextModel>;
 
 	getMarker(uri: URI, decoration: IModelDecoration): IMarker | null;
 
 	getLiveMarkers(uri: URI): [Range, IMarker][];
 
 	/**
-	 * Returns the applied marker decoration limit when it is exceeded, or undefined otherwise.
+	 * Returns the marker limit state for a model.
 	 */
-	getExceededDecorationLimit(uri: URI): number | undefined;
+	getMarkerLimits(uri: URI): IMarkerLimit | undefined;
 
 	addMarkerSuppression(uri: URI, range: Range): IDisposable;
 }

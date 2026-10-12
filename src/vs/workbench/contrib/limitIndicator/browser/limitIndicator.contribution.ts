@@ -63,6 +63,7 @@ export interface LimitInfo {
 	readonly onDidChange: Event<void>;
 
 	readonly limited: number | false;
+	readonly detail?: string;
 }
 
 interface LanguageFeatureAccessor {
@@ -121,9 +122,14 @@ export class DiagnosticDecorationLimitReporter extends Disposable implements IEd
 	readonly onDidChange = this._onDidChange.event;
 
 	private _limited: number | false = false;
+	private _detail: string | undefined;
 
 	get limited(): number | false {
 		return this._limited;
+	}
+
+	get detail(): string | undefined {
+		return this._detail;
 	}
 
 	constructor(
@@ -138,7 +144,7 @@ export class DiagnosticDecorationLimitReporter extends Disposable implements IEd
 				this._update();
 			}
 		}));
-		this._register(markerDecorationsService.onDidChangeDecorationLimitExceeded(model => {
+		this._register(markerDecorationsService.onDidChangeMarkerLimit(model => {
 			if (model === editor.getModel()) {
 				this._update();
 			}
@@ -148,13 +154,35 @@ export class DiagnosticDecorationLimitReporter extends Disposable implements IEd
 
 	private _update(): void {
 		const model = this.editor.getModel();
-		const limited = model && !filterValidationDecorations(this.editor.getOptions())
-			? this.markerDecorationsService.getExceededDecorationLimit(model.uri) ?? false
-			: false;
-		if (limited !== this._limited) {
+		const limitInfo = model && !filterValidationDecorations(this.editor.getOptions())
+			? this.markerDecorationsService.getMarkerLimits(model.uri)
+			: undefined;
+		if (!limitInfo) {
+			this._limited = false;
+			this._detail = undefined;
+			this._onDidChange.fire();
+			return;
+		}
+		const limited = limitInfo.isMarkersTruncated ?? false;
+		const detail = this._getDetail(limited, limitInfo.isMarkersSourceTruncated ?? false);
+		if (limited !== this._limited || detail !== this._detail) {
 			this._limited = limited;
+			this._detail = detail;
 			this._onDidChange.fire();
 		}
+	}
+
+	private _getDetail(limited: number | false, isMarkersSourceTruncated: boolean): string | undefined {
+		if (isMarkersSourceTruncated && limited !== false) {
+			return nls.localize('status.limitedDiagnosticsAndHighlights.details', "Some diagnostics are truncated, and only {0} diagnostics are highlighted in the editor for performance reasons.", limited);
+		}
+		if (isMarkersSourceTruncated) {
+			return nls.localize('status.limitedDiagnostics.details', "Some diagnostics are truncated for performance reasons.");
+		}
+		if (limited !== false) {
+			return nls.localize('status.limitedDiagnosticHighlights.details', "Only {0} diagnostics are highlighted in the editor for performance reasons.", limited);
+		}
+		return undefined;
 	}
 }
 
@@ -192,14 +220,20 @@ class LanguageStatusEntry implements IDisposable {
 			this._limitStatusItem.dispose();
 			this._limitStatusItem = undefined;
 		}
-		if (info && info.limited !== false) {
+		let detail: string | undefined;
+		if (info?.detail !== undefined) {
+			detail = info.detail;
+		} else if (info && info.limited !== false) {
+			detail = nls.localize('status.limited.details', 'only {0} shown for performance reasons', info.limited);
+		}
+		if (detail) {
 			const status: ILanguageStatus = {
 				id: this.accessor.id,
 				selector: '*',
 				name: this.accessor.name,
 				severity: Severity.Warning,
 				label: this.accessor.label,
-				detail: nls.localize('status.limited.details', 'only {0} shown for performance reasons', info.limited),
+				detail,
 				command: this.accessor.settingsId ? { id: openSettingsCommand, arguments: [this.accessor.settingsId], title: configureSettingsLabel } : undefined,
 				accessibilityInfo: undefined,
 				source: this.accessor.source,
