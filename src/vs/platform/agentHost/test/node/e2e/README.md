@@ -281,7 +281,7 @@ Provider availability:
 
 Use `assertExpectedFailure(issue, expectedError, run)` around a known failing operation while keeping its desired-behavior assertions. It logs and accepts only the specified error. An unexpected pass fails the run and identifies the marker to remove, so SDK rolls detect when an upstream fix reaches the bundle. Setup errors, different failures, and teardown errors remain failures. Skip these scenarios while recording so a known early failure cannot overwrite a complete fixture with a partial recording. Remove that recording skip together with the marker when the upstream fix is adopted.
 
-The native inherited-identity redaction scenario runs this way by default. Its expected-failure marker remains accountable in `KNOWN_ISSUES.md`; the managed-telemetry no-restart scenario passes normally with runtime `1.0.95-0`. Do not replace an expected-failure marker with a permanent negative assertion.
+The native inherited-identity redaction scenario runs this way by default. Its expected-failure marker remains accountable in `KNOWN_ISSUES.md`; the managed-telemetry no-restart scenario passes normally with runtime `1.0.96-2`. Do not replace an expected-failure marker with a permanent negative assertion.
 
 If a recognized failure prevents later model turns, pass `{ allowUnconsumedResponses: true }` to the lease's replay verification at release, only after `assertExpectedFailure` returns. This permits unused future responses without accepting unrecorded requests or request mismatches. The option is per release; normal tests still require complete replay consumption.
 
