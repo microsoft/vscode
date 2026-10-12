@@ -10,10 +10,10 @@ import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Button, ButtonBar, IButton } from '../../../../../base/browser/ui/button/button.js';
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
-import { disposableTimeout } from '../../../../../base/common/async.js';
+import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, IObservable, IReader, ISettableObservable, observableSignalFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, IReader, ISettableObservable, observableSignalFromEvent, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
@@ -51,6 +51,7 @@ import { ISessionsService } from '../../../../services/sessions/browser/sessions
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { SessionStatusIcon } from '../../../../browser/sessionStatusIcon.js';
+import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 
 import { AbstractCustomView } from '../../../../services/customView/browser/customView.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
@@ -110,6 +111,8 @@ interface IAutomationCardEntry {
 	readonly canUpdateContext: IContextKey<boolean>;
 	readonly enabledContext: IContextKey<boolean>;
 	readonly nameText: HTMLElement;
+	readonly startingIcon: HTMLElement;
+	readonly startingRuns: ISettableObservable<ReadonlySet<string> | undefined>;
 	readonly scheduleEl: HTMLElement;
 	readonly folderEl: HTMLElement;
 	readonly folderHover: MutableDisposable<IDisposable>;
@@ -189,6 +192,7 @@ export class AutomationsCardsWidget extends Disposable {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@IHostService hostService: IHostService,
 	) {
 		super();
 
@@ -255,7 +259,22 @@ export class AutomationsCardsWidget extends Disposable {
 			}
 			this.historySection.render(allRuns, sessions);
 		}));
-		void refreshAutomations(this.automationService, this.logService, this.notificationService);
+		const refreshScheduler = this._register(new RunOnceScheduler(() => {
+			void refresh();
+		}, 60_000));
+		let refreshing: Promise<void> | undefined;
+		const refresh = (): Promise<void> => refreshing ??= refreshAutomations(this.automationService, this.logService, this.notificationService).finally(() => {
+			refreshing = undefined;
+			if (!this._store.isDisposed) {
+				refreshScheduler.schedule();
+			}
+		});
+		this._register(hostService.onDidChangeFocus(focused => {
+			if (focused) {
+				void refresh();
+			}
+		}));
+		void refresh();
 	}
 
 	layout(width: number, height: number): void {
@@ -578,7 +597,9 @@ class AutomationCardsSection extends Disposable {
 		}));
 
 		const nameRow = DOM.append(main, $('.automations-card-name'));
+		const startingIcon = DOM.append(nameRow, $('span' + ThemeIcon.asCSSSelector(ThemeIcon.modify(Codicon.loading, 'spin')), { 'aria-hidden': 'true' }));
 		const nameTextEl = DOM.append(nameRow, $('span.automations-card-name-text'));
+		const startingRuns = observableValue<ReadonlySet<string> | undefined>(this, undefined);
 
 		const promptEl = DOM.append(main, $('.automations-card-prompt'));
 		const promptHover = disposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), promptEl, () => promptEl.textContent ?? ''));
@@ -598,24 +619,17 @@ class AutomationCardsSection extends Disposable {
 		actions.setAttribute('role', 'group');
 		const buttonBar = disposables.add(new ButtonBar(actions));
 		const runNowLabel = localize('runNow', "Run now");
-		const runningLabel = localize('running', "Running");
 		const runBtn = this.createIconButton(buttonBar, Codicon.play, runNowLabel, !this.automationService.canRunAutomation(automation.id));
 		runBtn.element.classList.add('automations-card-run-button');
 		disposables.add(runBtn.onDidClick((e) => {
 			e?.stopPropagation();
 			const currentAutomation = this.latestAutomations.get(automation.id);
-			if (!currentAutomation || !this.automationService.canRunAutomation(automation.id)) {
+			if (!currentAutomation || startingRuns.get() || !this.automationService.canRunAutomation(automation.id)) {
 				return;
 			}
-			runBtn.enabled = false;
-			runBtn.setAriaLabel(runningLabel);
-			runBtn.setTitle(runningLabel);
-			disposableTimeout(() => {
-				runBtn.enabled = this.automationService.canRunAutomation(automation.id);
-				runBtn.setAriaLabel(runNowLabel);
-				runBtn.setTitle(runNowLabel);
-			}, 10_000, disposables);
-			void this.runNow(currentAutomation);
+			startingRuns.set(new Set(this.automationService.runs.get().map(run => run.id)), undefined);
+			status(localize('automationStartingStatus', "Starting automation {0}", currentAutomation.name));
+			void this.runNow(currentAutomation, entry);
 		}));
 
 		const moreActionsButton = this.createIconButton(buttonBar, Codicon.kebabVertical, localize('moreActions', "More Actions..."), false);
@@ -668,6 +682,8 @@ class AutomationCardsSection extends Disposable {
 			canUpdateContext,
 			enabledContext,
 			nameText: nameTextEl,
+			startingIcon,
+			startingRuns,
 			scheduleEl,
 			folderEl,
 			folderHover,
@@ -675,12 +691,23 @@ class AutomationCardsSection extends Disposable {
 			disposables,
 		};
 		this.updateCard(entry, automation);
+		disposables.add(autorun(reader => {
+			const starting = startingRuns.read(reader);
+			const runs = this.automationService.runs.read(reader);
+			const state = this.automationService.catalogueState.read(reader);
+			const historyState = this.automationService.historyState?.read(reader);
+			if (starting && (runs.some(run => run.automationId === automation.id && !starting.has(run.id))
+				|| state === 'unavailable' || state === 'error' || historyState === 'error')) {
+				startingRuns.set(undefined, undefined);
+			}
+			this.updateCardRunState(entry, this.latestAutomations.get(automation.id) ?? automation);
+		}));
 		return entry;
 	}
 
 	private updateCard(card: IAutomationCardEntry, automation: IAutomationDescriptor, previous?: IAutomationDescriptor): void {
 		card.main.disabled = !this.automationService.canUpdateAutomation(automation.id);
-		card.runButton.enabled = this.automationService.canRunAutomation(automation.id);
+		this.updateCardRunState(card, automation);
 		card.canDeleteContext.set(this.automationService.canDeleteAutomation(automation.id));
 		card.hasExternalResourceContext.set(automation.externalResource !== undefined);
 		card.canUpdateContext.set(this.automationService.canUpdateAutomation(automation.id));
@@ -721,10 +748,16 @@ class AutomationCardsSection extends Disposable {
 				? this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), card.folderEl, folderLabel)
 				: undefined;
 		}
+	}
 
-		if (!previous || previous.prompt !== automation.prompt) {
-			card.promptEl.textContent = automation.prompt;
-		}
+	private updateCardRunState(card: IAutomationCardEntry, automation: IAutomationDescriptor): void {
+		const starting = card.startingRuns.get() !== undefined;
+		card.startingIcon.style.display = starting ? '' : 'none';
+		card.promptEl.textContent = starting ? localize('automationStarting', "Starting run...") : automation.prompt;
+		card.runButton.enabled = !starting && this.automationService.canRunAutomation(automation.id);
+		const label = starting ? localize('running', "Running") : localize('runNow', "Run now");
+		card.runButton.setAriaLabel(label);
+		card.runButton.setTitle(label);
 	}
 
 	private createIconButton(buttonBar: ButtonBar, icon: ThemeIcon, tooltip: string, disabled: boolean): IButton {
@@ -739,15 +772,17 @@ class AutomationCardsSection extends Disposable {
 		return button;
 	}
 
-	private async runNow(automation: IAutomationDescriptor): Promise<void> {
-		if (!await this.ensureEnabled()) {
-			return;
-		}
+	private async runNow(automation: IAutomationDescriptor, card: IAutomationCardEntry): Promise<void> {
+		let accepted = false;
 		try {
+			if (!await this.ensureEnabled()) {
+				return;
+			}
 			const operation = this.automationRunner.runOnce(automation, CancellationToken.None);
 			const dispatch = await operation.whenDispatched;
 			switch (dispatch.kind) {
 				case 'accepted':
+					accepted = true;
 					status(localize('automationAcceptedStatus', "Run requested for {0}. Its history will update when available.", automation.name));
 					break;
 				case 'started':
@@ -760,13 +795,21 @@ class AutomationCardsSection extends Disposable {
 					status(localize('automationNotStartedStatus', "Automation {0} did not start", automation.name));
 					break;
 			}
+			if (!accepted) {
+				card.startingRuns.set(undefined, undefined);
+			}
 			await operation.whenCompleted;
 		} catch (error) {
+			accepted = false;
 			this.logService.error('[AutomationsCards] Failed to run automation', error);
 			await this.dialogService.error(
 				localize('automationRunActionFailed', "Failed to run automation."),
 				getErrorMessage(error),
 			);
+		} finally {
+			if (!accepted) {
+				card.startingRuns.set(undefined, undefined);
+			}
 		}
 	}
 
@@ -2052,7 +2095,9 @@ export class AutomationsCustomViewContribution extends Disposable {
 			if (!(action instanceof MenuItemAction)) {
 				return undefined;
 			}
-			return instantiationService.createInstance(AutomationHeaderButtonActionViewItem, undefined, action, options, true);
+			const refreshing = derived(reader => automationService.isRefreshing?.read(reader)
+				|| automationService.catalogueState.read(reader) === 'loading' || automationService.historyState?.read(reader) === 'loading');
+			return instantiationService.createInstance(AutomationHeaderButtonActionViewItem, undefined, action, options, true, refreshing);
 		}));
 	}
 }
@@ -2125,22 +2170,30 @@ class AutomationHeaderButtonActionViewItem extends BaseActionViewItem {
 
 	private button: Button | undefined;
 
-	constructor(context: unknown, action: IAction, options: IActionViewItemOptions, private readonly secondary: boolean) {
+	constructor(context: unknown, action: IAction, options: IActionViewItemOptions, private readonly secondary: boolean, private readonly refreshing?: IObservable<boolean>) {
 		super(context, action, options);
 	}
 
 	override render(container: HTMLElement): void {
 		this.element = container;
 		container.classList.add('chat-pill-item');
-		const button = this.button = this._register(new Button(container, { secondary: this.secondary, ...defaultButtonStyles }));
+		const button = this.button = this._register(new Button(container, { secondary: this.secondary, supportIcons: !!this.refreshing, ariaLabel: this._action.label, title: this._action.label, ...defaultButtonStyles }));
 		button.element.classList.add('monaco-text-button', 'chat-pill-button');
 		this._register(button.onDidClick(() => {
-			if (this._action.enabled) {
+			if (button.enabled) {
 				this.actionRunner.run(this._action, this._context);
 			}
 		}));
 		this.updateLabel();
 		this.updateEnabled();
+		const refreshing = this.refreshing;
+		if (refreshing) {
+			this._register(autorun(reader => {
+				refreshing.read(reader);
+				this.updateLabel();
+				this.updateEnabled();
+			}));
+		}
 	}
 
 	// Focus must restore the tab stop that `blur` removed, otherwise arrow
@@ -2150,11 +2203,15 @@ class AutomationHeaderButtonActionViewItem extends BaseActionViewItem {
 	override setFocusable(focusable: boolean): void { if (this.button) { this.button.element.tabIndex = focusable ? 0 : -1; } }
 
 	protected override updateEnabled(): void {
-		if (this.button) { this.button.enabled = this._action.enabled; }
+		if (this.button) { this.button.enabled = this._action.enabled && !this.refreshing?.get(); }
 	}
 
 	protected override updateLabel(): void {
 		if (!this.button) { return; }
+		if (this.refreshing) {
+			this.button.label = `$(${this.refreshing.get() ? ThemeIcon.modify(Codicon.refresh, 'spin').id : Codicon.refresh.id})`;
+			return;
+		}
 		DOM.reset(this.button.element, this._action.label);
 	}
 }

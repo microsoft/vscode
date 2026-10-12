@@ -235,6 +235,8 @@ export type IAutomationRunRequestResult =
  */
 export interface IAutomationStore {
 	refresh?(): Promise<void>;
+	/** Refresh activity, independent of cached catalogue readiness. */
+	readonly isRefreshing?: IObservable<boolean>;
 	/** History refresh completeness, independent of definition mutation readiness. */
 	readonly historyState?: IObservable<AutomationCatalogueState>;
 	/** Completeness of the Automation catalogue, independent of individual providers' operation availability. */

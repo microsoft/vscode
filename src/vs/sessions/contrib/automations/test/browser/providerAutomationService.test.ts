@@ -33,6 +33,7 @@ function automation(providerId: string): IAutomationDescriptor {
 }
 
 class TestAuthority extends mock<ISessionsProviderAutomations>() {
+	override readonly isRefreshing = observableValue(this, false);
 	override readonly historyState = observableValue<AutomationCatalogueState>(this, 'ready');
 	override readonly enabled = observableValue(this, true);
 	override readonly catalogueState = observableValue<AutomationCatalogueState>(this, 'ready');
@@ -137,6 +138,23 @@ suite('ProviderAutomationService', () => {
 			{ states: ['ready', 'loading', 'error'], catalogue: 'ready', canRun: true });
 		cloud.enabled.set(false, undefined);
 		assert.strictEqual(service.historyState.get(), 'ready');
+	});
+
+	test('refresh activity aggregates overlapping providers and history independently of readiness', () => {
+		const cloud = new TestAuthority('cloud');
+		const local = new TestAuthority('local');
+		const { service } = setup([provider(cloud), provider(local)]);
+		const states: boolean[] = [];
+		disposables.add(autorun(reader => states.push(service.isRefreshing.read(reader))));
+		cloud.isRefreshing.set(true, undefined);
+		local.catalogueState.set('loading', undefined);
+		cloud.isRefreshing.set(false, undefined);
+		cloud.historyState.set('loading', undefined);
+		local.catalogueState.set('ready', undefined);
+		cloud.historyState.set('error', undefined);
+		cloud.isRefreshing.set(true, undefined);
+		cloud.enabled.set(false, undefined);
+		assert.deepStrictEqual(states, [false, true, false, true, false]);
 	});
 
 	test('routes customization choices to the target owner, not the saved automation owner', async () => {

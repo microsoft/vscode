@@ -215,6 +215,57 @@ suite('CloudAutomationStore', () => {
 		}
 	});
 
+	test('cached definitions stay editable during refresh and refresh progress includes history', async () => {
+		const { provider, api, set } = setup();
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		await provider.refresh();
+		const automation = provider.automations.get()[0];
+		const list = new DeferredPromise<void>();
+		const history = new DeferredPromise<void>();
+		api.pendingList = list.p;
+		api.pendingHistory = history.p;
+		const first = provider.refresh();
+		const second = provider.refresh();
+		await timeout(0);
+		const definitions = {
+			refreshing: provider.isRefreshing.get(),
+			catalogue: provider.catalogueState.get(),
+			editable: provider.canUpdateAutomation(automation.id),
+		};
+		await list.complete();
+		await timeout(0);
+		const loadingHistory = { refreshing: provider.isRefreshing.get(), history: provider.historyState.get() };
+		await history.complete();
+		await Promise.all([first, second]);
+		assert.deepStrictEqual({ definitions, loadingHistory, refreshing: provider.isRefreshing.get() }, {
+			definitions: { refreshing: true, catalogue: 'ready', editable: true },
+			loadingHistory: { refreshing: true, history: 'loading' },
+			refreshing: false,
+		});
+	});
+
+	test('failed refresh clears progress and preserves the error gate until successful reconciliation', async () => {
+		const { provider, api, set } = setup();
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		await provider.refresh();
+		const automation = provider.automations.get()[0];
+		api.listError = new Error('Offline');
+		await assert.rejects(provider.refresh());
+		const failed = { refreshing: provider.isRefreshing.get(), state: provider.catalogueState.get(), editable: provider.canUpdateAutomation(automation.id) };
+		api.listError = undefined;
+		const pending = new DeferredPromise<void>();
+		api.pendingList = pending.p;
+		const refresh = provider.refresh();
+		const retrying = { refreshing: provider.isRefreshing.get(), editable: provider.canUpdateAutomation(automation.id) };
+		await pending.complete();
+		await refresh;
+		assert.deepStrictEqual({ failed, retrying, ready: provider.canUpdateAutomation(automation.id) }, {
+			failed: { refreshing: false, state: 'error', editable: false },
+			retrying: { refreshing: true, editable: false },
+			ready: true,
+		});
+	});
+
 	test('concurrent refreshes share history and cannot republish rows after the cloud gate closes', async () => {
 		const { provider, api, set } = setup();
 		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
@@ -521,15 +572,15 @@ suite('CloudAutomationStore', () => {
 		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
 		await provider.refresh();
 		api.calls.length = 0;
-		let hideOnReady = false;
+		let hideAfterRefresh = false;
 		disposables.add(autorun(reader => {
-			if (provider.catalogueState.read(reader) === 'ready' && hideOnReady) {
-				hideOnReady = false;
+			if (!provider.isRefreshing.read(reader) && hideAfterRefresh) {
+				hideAfterRefresh = false;
 				entitlement.sentiment = { hidden: true };
 				sentimentChanged.fire();
 			}
 		}));
-		hideOnReady = true;
+		hideAfterRefresh = true;
 		await assert.rejects(provider.refresh(), isCancellationError);
 		assert.deepStrictEqual({
 			enabled: provider.enabled.get(),

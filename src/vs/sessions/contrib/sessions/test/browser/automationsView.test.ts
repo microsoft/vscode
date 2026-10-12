@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { stub } from 'sinon';
+import { stub, useFakeTimers } from 'sinon';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IContextMenuDelegate } from '../../../../../base/browser/contextmenu.js';
@@ -22,7 +22,6 @@ import { constObservable, IObservable, observableValue } from '../../../../../ba
 import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
-import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { AccessibleViewRegistry } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
@@ -58,7 +57,8 @@ import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
+import { IActionViewItemFactory, IActionViewItemService, NullActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
+import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { AutomationsHasItemsContext } from '../../../../common/contextkeys.js';
 import { buildAutomationsAccessibleContent } from '../../browser/views/automationsAccessibility.js';
@@ -155,6 +155,7 @@ async function waitForSessionActions(): Promise<void> {
 }
 
 class FakeAutomationService extends mock<IAutomationService>() {
+	override readonly isRefreshing = observableValue(this, false);
 	override readonly historyState = observableValue<AutomationCatalogueState>(this, 'ready');
 	canStop = true;
 	readonly stoppedRuns: string[] = [];
@@ -166,8 +167,10 @@ class FakeAutomationService extends mock<IAutomationService>() {
 	}
 	refreshCalls = 0;
 	refreshFailure: Error | undefined;
+	pendingRefresh: Promise<void> | undefined;
 	override async refresh(): Promise<void> {
 		this.refreshCalls++;
+		await this.pendingRefresh;
 		if (this.refreshFailure) {
 			throw this.refreshFailure;
 		}
@@ -656,6 +659,16 @@ suite('AutomationsCardsWidget', () => {
 		const store = disposables.add(new DisposableStore());
 		store.add(toDisposable(() => ModifierKeyEmitter.disposeInstance()));
 		const instantiationService = workbenchInstantiationService(undefined, store);
+		const windowFocus = store.add(new Emitter<boolean>());
+		instantiationService.stub(IHostService, { onDidChangeFocus: windowFocus.event });
+		const actionFactories = new Map<string, IActionViewItemFactory>();
+		instantiationService.stub(IActionViewItemService, new class extends NullActionViewItemService {
+			override register(_menu: MenuId, id: string | MenuId, factory: IActionViewItemFactory) {
+				const key = typeof id === 'string' ? id : id.id;
+				actionFactories.set(key, factory);
+				return toDisposable(() => actionFactories.delete(key));
+			}
+		}());
 		instantiationService.stub(ICommandService, commandService);
 		instantiationService.stub(IAccessibilityService, new class extends TestAccessibilityService {
 			override isMotionReduced(): boolean { return false; }
@@ -717,7 +730,7 @@ suite('AutomationsCardsWidget', () => {
 		const widget = disposables.add(instantiationService.createInstance(AutomationsCardsWidget));
 		document.body.append(widget.element);
 		disposables.add(toDisposable(() => widget.element.remove()));
-		return { agentPluginService, automationService, automationDialogService, commandService, configurationService, contextKeyService, contextMenuService, dialogService, instantiationService, keybindingService, logService, runner, sessionsManagementService, sessionsService, telemetryService, widget, refreshErrors, opened };
+		return { agentPluginService, automationService, automationDialogService, commandService, configurationService, contextKeyService, contextMenuService, dialogService, instantiationService, keybindingService, logService, runner, sessionsManagementService, sessionsService, telemetryService, widget, refreshErrors, opened, windowFocus, actionFactories };
 	}
 
 	test('entry and manual refresh reload catalogues, but restoring focus does not', async () => {
@@ -735,6 +748,67 @@ suite('AutomationsCardsWidget', () => {
 			headerRefresh: menuActions.includes('sessions.automations.refresh'),
 			inlineRefresh: !!widget.element.querySelector('.automations-refresh-toolbar'),
 		}, { calls: 2, errors: ['Could not refresh automations: Offline'], headerRefresh: true, inlineRefresh: false });
+	});
+
+	test('refreshes every 60 seconds and on window focus only while visible, without overlapping requests', async () => {
+		const clock = useFakeTimers();
+		try {
+			const { widget, automationService, windowFocus } = setup();
+			await clock.tickAsync(0);
+			await clock.tickAsync(59_999);
+			assert.strictEqual(automationService.refreshCalls, 1);
+			await clock.tickAsync(1);
+			assert.strictEqual(automationService.refreshCalls, 2);
+			windowFocus.fire(false);
+			assert.strictEqual(automationService.refreshCalls, 2);
+			const pending = new DeferredPromise<void>();
+			automationService.pendingRefresh = pending.p;
+			windowFocus.fire(true);
+			windowFocus.fire(true);
+			await clock.tickAsync(60_000);
+			assert.strictEqual(automationService.refreshCalls, 3);
+			widget.dispose();
+			await pending.complete();
+			windowFocus.fire(true);
+			await clock.tickAsync(120_000);
+			assert.strictEqual(automationService.refreshCalls, 3);
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('refresh icon tracks background definition and history refreshes without blocking cards', async () => {
+		const { automationService, automationDialogService, widget, instantiationService, contextKeyService, actionFactories } = setup();
+		automationService.setCatalogueState('ready');
+		automationService.setAutomations([automation()]);
+		const action = instantiationService.get(IMenuService).getMenuActions(Menus.CustomViewAutomations, contextKeyService)
+			.flatMap(([, actions]) => actions).find(action => action.id === 'sessions.automations.refresh')!;
+		const item = disposables.add(actionFactories.get(action.id)!(action, {}, instantiationService, 1)!);
+		const container = document.createElement('div');
+		item.render(container);
+		const button = container.querySelector<HTMLElement>('.monaco-button')!;
+		const state = () => ({
+			label: button.getAttribute('aria-label'),
+			text: button.textContent,
+			spinning: !!button.querySelector('.codicon-refresh.codicon-modifier-spin'),
+			disabled: button.getAttribute('aria-disabled'),
+		});
+		const idle = state();
+		automationService.isRefreshing.set(true, undefined);
+		const definitions = state();
+		widget.element.querySelector<HTMLButtonElement>('.automations-card-main')!.click();
+		await timeout(0);
+		automationService.historyState.set('loading', undefined);
+		automationService.isRefreshing.set(false, undefined);
+		const history = state();
+		automationService.historyState.set('error', undefined);
+		assert.deepStrictEqual({ idle, definitions, history, failed: state(), edits: automationDialogService.showCalls }, {
+			idle: { label: 'Refresh', text: '', spinning: false, disabled: 'false' },
+			definitions: { label: 'Refresh', text: '', spinning: true, disabled: 'true' },
+			history: { label: 'Refresh', text: '', spinning: true, disabled: 'true' },
+			failed: { label: 'Refresh', text: '', spinning: false, disabled: 'false' },
+			edits: 1,
+		});
 	});
 
 	test('external run rows preserve identity, expose status and support keyboard actions without a native session', async () => {
@@ -1252,39 +1326,56 @@ suite('AutomationsCardsWidget', () => {
 		assert.strictEqual(remainingGroups.length, 0, 'groups should be removed when empty');
 	});
 
-	test('run button disables temporarily after click', async () => {
-		await runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { automationService, widget } = setup();
+	test('run feedback survives acknowledgement and refresh until a new run appears', async () => {
+		const clock = useFakeTimers();
+		try {
+			const { automationService, runner, widget } = setup();
 			automationService.setAutomations([automation()]);
-
-			const runButton = widget.element.querySelector<HTMLElement>('.automations-card-run-button');
-			assert.ok(runButton);
-			assert.ok(runButton.querySelector('.codicon-play'));
-			runButton.click();
-
-			const runningState = {
+			automationService.setRuns([run({ sessionResource: undefined })]);
+			const dispatched = new DeferredPromise<IAutomationRunDispatch>();
+			runner.whenDispatched = dispatched.p;
+			const runButton = widget.element.querySelector<HTMLElement>('.automations-card-run-button')!;
+			const icon = widget.element.querySelector<HTMLElement>('.automations-card-name .codicon-modifier-spin')!;
+			const state = () => ({
 				disabled: runButton.getAttribute('aria-disabled'),
 				label: runButton.getAttribute('aria-label'),
-			};
-			await timeout(10_000);
-
-			assert.deepStrictEqual({
-				runningState,
-				restoredState: {
-					disabled: runButton.getAttribute('aria-disabled'),
-					label: runButton.getAttribute('aria-label'),
-				},
-			}, {
-				runningState: {
-					disabled: 'true',
-					label: 'Running',
-				},
-				restoredState: {
-					disabled: 'false',
-					label: 'Run now',
-				},
+				spinner: icon.style.display !== 'none',
+				prompt: widget.element.querySelector('.automations-card-prompt')!.textContent,
 			});
-		});
+			runButton.click();
+			const starting = state();
+			await dispatched.complete({ kind: 'accepted' });
+			await clock.tickAsync(10_000);
+			automationService.setAutomations([automation({ prompt: 'Updated prompt' })]);
+			automationService.setRuns([run({ sessionResource: undefined }), run({ id: 'unrelated', automationId: 'other', sessionResource: undefined })]);
+			runButton.click();
+			const accepted = state();
+			automationService.setRuns([run({ sessionResource: undefined }), run({ id: 'new-run', status: 'pending', sessionResource: undefined })]);
+			assert.deepStrictEqual({ starting, accepted, restored: state(), requests: runner.runCalls }, {
+				starting: { disabled: 'true', label: 'Running', spinner: true, prompt: 'Starting run...' },
+				accepted: { disabled: 'true', label: 'Running', spinner: true, prompt: 'Starting run...' },
+				restored: { disabled: 'false', label: 'Run now', spinner: false, prompt: 'Updated prompt' },
+				requests: 1,
+			});
+			widget.dispose();
+		} finally {
+			clock.restore();
+		}
+	});
+
+	test('failed dispatch clears run feedback immediately', async () => {
+		const { automationService, runner, widget } = setup();
+		automationService.setAutomations([automation()]);
+		const dispatched = new DeferredPromise<IAutomationRunDispatch>();
+		runner.whenDispatched = dispatched.p;
+		widget.element.querySelector<HTMLElement>('.automations-card-run-button')!.click();
+		await dispatched.complete({ kind: 'notStarted', reason: 'error' });
+		await timeout(0);
+		assert.deepStrictEqual({
+			disabled: widget.element.querySelector('.automations-card-run-button')!.getAttribute('aria-disabled'),
+			spinner: widget.element.querySelector<HTMLElement>('.automations-card-name .codicon-modifier-spin')!.style.display,
+			prompt: widget.element.querySelector('.automations-card-prompt')!.textContent,
+		}, { disabled: 'false', spinner: 'none', prompt: automation().prompt });
 	});
 
 	test('focus targets the view without selecting an automation card', () => {
