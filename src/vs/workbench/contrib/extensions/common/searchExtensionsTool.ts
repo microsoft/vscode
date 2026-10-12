@@ -87,7 +87,7 @@ export class SearchExtensionsTool implements IToolImpl {
 
 		const addExtension = (extensions: IExtension[]) => {
 			for (const extension of extensions) {
-				if (extension.deprecationInfo || extension.isMalicious || extension.blockingInfo) {
+				if (extension.deprecationInfo || extension.isMalicious) {
 					continue;
 				}
 				extensionsMap.set(extension.identifier.id.toLowerCase(), {

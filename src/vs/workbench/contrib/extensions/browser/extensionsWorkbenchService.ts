@@ -26,11 +26,10 @@ import {
 	ExtensionManagementErrorCode,
 	MaliciousExtensionInfo,
 	shouldRequireRepositorySignatureFor,
-	IGalleryExtensionVersion,
-	IExtensionBlockingInfo
+	IGalleryExtensionVersion
 } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService, IResourceExtension } from '../../../services/extensionManagement/common/extensionManagement.js';
-import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, groupByExtension, getGalleryExtensionId, findMatchingMaliciousEntry, getExtensionBlockedMessage } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
+import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, groupByExtension, getGalleryExtensionId, findMatchingMaliciousEntry } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IHostService } from '../../../services/host/browser/host.js';
@@ -235,10 +234,6 @@ export class Extension implements IExtension {
 
 	get private(): boolean {
 		return this.gallery ? this.gallery.private : this.local ? this.local.private : false;
-	}
-
-	get blockingInfo(): IExtensionBlockingInfo | undefined {
-		return this.gallery?.blockingInfo;
 	}
 
 	get pinned(): boolean {
@@ -683,12 +678,7 @@ class Extensions extends Disposable {
 			if (extension.local && extension.local.type !== ExtensionType.System && !extension.local.identifier.uuid) {
 				extension.local = await this.updateMetadata(extension.local, gallery);
 			}
-			// The blocked state can change without the version changing, since it is a property of
-			// the policy rather than of the release, so it is compared alongside them.
-			if (!extension.gallery
-				|| extension.gallery.version !== gallery.version
-				|| extension.gallery.properties.targetPlatform !== gallery.properties.targetPlatform
-				|| extension.gallery.blockingInfo?.origin !== gallery.blockingInfo?.origin) {
+			if (!extension.gallery || extension.gallery.version !== gallery.version || extension.gallery.properties.targetPlatform !== gallery.properties.targetPlatform) {
 				extension.gallery = gallery;
 				this._onChange.fire({ extension });
 			}
@@ -2345,10 +2335,6 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	private shouldAutoUpdateExtension(extension: IExtension): boolean {
-		if (extension.blockingInfo) {
-			return false;
-		}
-
 		if (extension.deprecationInfo?.disallowInstall) {
 			return false;
 		}
@@ -2572,10 +2558,6 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 		if (extension.isMalicious) {
 			return new MarkdownString().appendText(nls.localize('malicious', "This extension is reported to be problematic."));
-		}
-
-		if (extension.blockingInfo) {
-			return getExtensionBlockedMessage(extension.blockingInfo);
 		}
 
 		if (extension.deprecationInfo?.disallowInstall) {

@@ -723,10 +723,13 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 		}
 
 		else {
-			const canInstall = await this.canInstall(extension);
-			if (canInstall !== true) {
-				// Preserve the reason: a policy block is not a platform incompatibility.
-				throw new ExtensionManagementError(canInstall.value, ExtensionManagementErrorCode.IncompatibleTargetPlatform);
+			if (extension.blockingInfo) {
+				throw new ExtensionManagementError(getExtensionBlockedMessage(extension.blockingInfo).value, ExtensionManagementErrorCode.NotAllowed);
+			}
+
+			if (await this.canInstall(extension) !== true) {
+				const targetPlatform = await this.getTargetPlatform();
+				throw new ExtensionManagementError(nls.localize('incompatible platform', "The '{0}' extension is not available in {1} for the {2} platform.", extension.identifier.id, this.productService.nameLong, TargetPlatformToString(targetPlatform)), ExtensionManagementErrorCode.IncompatibleTargetPlatform);
 			}
 
 			compatibleExtension = await this.getCompatibleVersion(extension, sameVersion, installPreRelease, productVersion);
