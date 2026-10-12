@@ -797,7 +797,14 @@ export class AICustomizationManagementEditor extends EditorPane {
 				}
 				return;
 			}
-			this.selectSection(e.elements[0].id);
+			const section = e.elements[0].id;
+			// Clicking the active section returns to its home. Count updates re-fire the
+			// selection without a browser event, so those must not leave a detail view.
+			if (e.browserEvent && section === this.selectedSection) {
+				this.selectSectionById(section);
+			} else {
+				this.selectSection(section);
+			}
 		}));
 
 		// React to harness changes — rebuild visible sections and refresh counts.
