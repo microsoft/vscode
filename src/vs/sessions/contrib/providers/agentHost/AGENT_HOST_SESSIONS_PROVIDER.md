@@ -75,11 +75,33 @@ The local provider uses:
 
 Agent provider names form logical session-type identifiers. Resource URI schemes remain the routing identity for content and model providers. Consumers must not derive one identifier by parsing another.
 
+### Why native session addressing is provider-neutral
+
+Provider-scheme addresses such as `copilotcli:/<uuid>`, `claude:/<uuid>`, and `codex:/<uuid>` combine session identity with provider routing. The local host's `ahp-session:/<uuid>` address separates those responsibilities: the URI identifies the host-managed session, while advertised provider metadata selects its agent. A session's chats and opaque SDK backing references are separate identities, not substitutes for the session address. `ahp-session` must never be interpreted as a provider name or as an implicit Copilot provider.
+
 Native backend resources are immutable: historical provider-scheme sessions keep their addresses, while new allocations may use `ahp-session:/<uuid>`. The advertised provider is separate from the backend resource. Both forms adapt to the same stable local `agent-host-<provider>` or remote `remote-<authority>-<provider>` frontend scheme. Adapter caches retain the exact backend resource and provider across offline reloads; frontend state is not rekeyed.
 
 Native SDK catalog entries are provider backing references, not protocol session identities until the local Agent Host admits them. Discovery resolves a provider and backing ID to an existing exact registered URI; a previously unseen backing defaults to `ahp-session:/<backing-id>`. Explicit predecessor-adoption flows retain their provider-scheme identity. This resolution is local-host behavior only: remote and third-party host-advertised resources remain opaque and are preserved verbatim.
 
 Native hosts and capable VS Code clients declare `_meta["vscode.ahpSessionUris"] = true`. Creation uses standard addressing when supported, or legacy addressing for an identified native host without that capability. New hosts declare `_meta["vscode.agentHost"] = true`; older hosts are identified by their validated root `hostBuild` metadata, without comparing version numbers. Unmarked conforming hosts remain standard AHP peers. Identified legacy VS Code connections see legacy sessions only; this does not change host state or project backend URI aliases onto the wire. Reconnection retains or renegotiates connection capabilities without readdressing any session.
+
+### Local persistence and downgrade compatibility
+
+Older stable code derives provider routing from persisted session URI schemes. Reading a native `ahp-session` row can therefore produce an unsupported provider identity and an empty or unopenable conversation, even when the SDK history still exists. Persisting that inferred identity in a frontend summary cache can extend the failure beyond a reload. Downgrade compatibility must preserve the ability to list, open, and modify sessions, not merely preserve their database files or hide unsupported rows.
+
+Protocol identity and disk addressing are separate. For the approximately six-month stable downgrade window, newly allocated local Copilot CLI, Claude, and Codex `ahp-session` resources use the corresponding provider-scheme address on disk. An immutable identity record in the existing orchestrator database identifies this encoding; historical provider-scheme registrations without that record retain their historical runtime addresses. Allocation and first admission of a discovered SDK backing prepare this record before writing host data. Discovery retains existing native registrations, exclusions, tombstones, and session data; restore and importer registration do not select a new storage representation.
+
+This is one storage encoding with a dual-format reader, not a new database or a second writable registry. For example, a new Copilot session can be `ahp-session:/abc` at runtime and `copilotcli:/abc` in the existing `agent-host.db`. The persisted identity record lets new code distinguish it from a historical `copilotcli:/abc` session, which retains its legacy runtime address. Keeping one storage address lets the downgraded build's edits remain authoritative without reconciling separate native and legacy copies.
+
+The storage boundary applies the same mapping to registry and catalog keys, tombstones, chat-owner addresses, physical peer-chat directories, URI-keyed metadata, origins, and draft keys. A chat keeps its chat ID while its encoded owner session changes representation. Provider backing references and conversation content remain opaque. Catalog projections use the checksum of their persisted representation; both source snapshots and central receipts retain their runtime/storage hash pair atomically with the corresponding write. Receipt scans validate the pair against the stored hash without materializing catalog payloads.
+
+Compatibility-backed and historical provider-scheme sessions retain legacy-readable chat authority during the window so older builds can modify membership, titles, archive state, and drafts. Native-backed sessions continue to use normalized chat authority; existing normalized catalogs are not demoted. Upgrading imports older-build edits through the existing legacy reconciliation path rather than creating a second session identity.
+
+Both encodings are readable independently of the allocation writer. A future release can allocate native-backed sessions while retaining the compatibility reader and the established disk addresses of existing sessions. This disk contract covers downgrading the local application and host together; it does not introduce legacy aliases for an older client connected to a newer host.
+
+Retiring the compatibility writer means changing the default for new allocations, not deleting the legacy reader or readdressing existing compatibility-backed sessions. Existing mappings, chat directories, URI-keyed metadata, and receipt decoding remain readable, and subsequent writes to those sessions continue to use their established representation. Previously written native Insiders data is intentionally outside the stable downgrade guarantee and is not rewritten to extend it. Stable release validation must cover a writable new-to-old-to-new round trip; merely opening the database with the current raw reader is not evidence of old-build interoperability.
+
+Local and per-address remote frontend summary caches use a separate generation from the stable legacy-addressed host's cache. Either application can rebuild its listing without letting the other's cached backend URI register a conflicting identity. This does not rekey frontend resources or the durable chat drafts.
 
 ## Session adaptation
 
