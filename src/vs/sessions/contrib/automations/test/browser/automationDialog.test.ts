@@ -143,6 +143,7 @@ suite('Automation dialog creation', () => {
 			get isSelectingRepository() { return selectingRepository; },
 			setTargetModel: model => { targetModel = model; },
 			setCloudConfiguration: configuration => { workspacePickerConfiguration = configuration; },
+			setCloudMode: () => { },
 			setDisabledReason: reason => { workspaceDisabledReason = reason; },
 			setLayoutService: () => { },
 			setSelectedWorkspace: uri => { selectedWorkspace = uri; },
@@ -277,6 +278,30 @@ suite('Automation dialog creation', () => {
 			getWorkspaceTarget: uri => uri ? target : constObservable({ disabledReason: 'Choose a repository.' }),
 		};
 	}
+
+	test('cloud prototype switch precedes the target and restores local mode', async () => {
+		const dialog = openDialog({}, cloudConfiguration());
+		const toggle = dialog.container.querySelector<HTMLButtonElement>('[role="switch"]')!;
+		const snapshot = () => ({
+			checked: toggle.getAttribute('aria-checked'),
+			label: dialog.container.querySelector('.automation-cloud-label')?.textContent,
+			beforeTarget: !!(toggle.compareDocumentPosition(dialog.container.querySelector('.automation-target-row')!) & Node.DOCUMENT_POSITION_FOLLOWING),
+			privateHintVisible: dialog.container.querySelector<HTMLElement>('.automation-target-row > .automation-cloud-description')?.style.display !== 'none',
+		});
+		const off = snapshot();
+		toggle.click();
+		await timeout(0);
+		const on = snapshot();
+		toggle.click();
+		await timeout(0);
+		assert.deepStrictEqual([off, on, snapshot()], [
+			{ checked: 'false', label: 'Run in the cloud', beforeTarget: true, privateHintVisible: false },
+			{ checked: 'true', label: 'Run in the cloud', beforeTarget: true, privateHintVisible: true },
+			{ checked: 'false', label: 'Run in the cloud', beforeTarget: true, privateHintVisible: false },
+		]);
+		dialog.cancelButton.click();
+		await dialog.result;
+	});
 
 	for (const interval of ['daily', 'weekly'] as const) {
 		for (const edit of [true, false]) {
