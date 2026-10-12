@@ -93,13 +93,14 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 	}
 
 	private _applyOwnerComposition(state: { readonly editor: boolean; readonly auxiliaryBar: boolean }): void {
+		const sidePaneVisible = this._layoutService.isSidePaneVisible();
 		const suppression = this._layoutService.suppressEditorPartAutoVisibility();
 		this._changingVisibility = true;
 		try {
-			if (state.auxiliaryBar !== this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
+			if (state.auxiliaryBar !== this._layoutService.isVisible(Parts.AUXILIARYBAR_PART) && (!state.auxiliaryBar || sidePaneVisible)) {
 				this._layoutService.setPartHidden(!state.auxiliaryBar, Parts.AUXILIARYBAR_PART);
 			}
-			if (state.editor !== this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+			if (state.editor !== this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow) && (!state.editor || sidePaneVisible)) {
 				this._layoutService.setPartHidden(!state.editor, Parts.EDITOR_PART);
 			}
 		} finally {
@@ -334,13 +335,14 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 	private _applyQuickChatSharedVisibility(): void {
 		const sharedState = this._visibilityStore.get(SessionVisibilityProfile.Existing);
 		const sidePaneVisible = sharedState.editorVisible || sharedState.auxiliaryBarVisible;
+		const allowReveal = this._layoutService.isSidePaneVisible();
 		const suppression = this._layoutService.suppressEditorPartAutoVisibility();
 		this._changingVisibility = true;
 		try {
 			if (this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
 				this._layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
 			}
-			if (sidePaneVisible !== this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+			if (sidePaneVisible !== this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow) && (!sidePaneVisible || allowReveal)) {
 				this._layoutService.setPartHidden(!sidePaneVisible, Parts.EDITOR_PART);
 			}
 		} finally {
