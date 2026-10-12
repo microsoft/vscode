@@ -6,14 +6,16 @@
 import assert from 'assert';
 import { mkdtemp, rm } from 'fs/promises';
 import { tmpdir } from 'os';
-import { stub } from 'sinon';
+import { match, stub } from 'sinon';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FileService } from '../../../files/common/fileService.js';
+import { createFileSystemProviderError, FileSystemProviderErrorCode } from '../../../files/common/files.js';
 import { DiskFileSystemProvider } from '../../../files/node/diskFileSystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
 import type { IProductService } from '../../../product/common/productService.js';
@@ -641,6 +643,56 @@ suite('Session storage identity compatibility', () => {
 	});
 
 	for (const provider of ['copilotcli', 'claude', 'codex']) {
+		for (const errorCode of [FileSystemProviderErrorCode.NoPermissions, FileSystemProviderErrorCode.Unavailable]) {
+			test(`${provider} discovery does not change native storage when its directory stat fails with ${errorCode}`, async () => {
+				const db = await database();
+				const fileService = files();
+				const data = new SessionDataService(URI.file(directory), fileService, new NullLogService(), undefined, db.identity);
+				const session = URI.parse('ahp-session:/discovered');
+				const backing = URI.parse(`${provider}:/discovered`);
+				const peer = URI.parse(buildChatUri(session, 'peer'));
+				const root = data.openDatabase(session);
+				await root.object.setMetadata('peerChats', JSON.stringify([{ uri: peer.toString() }]));
+				root.dispose();
+				const storedPeer = data.openDatabase(peer);
+				await storedPeer.object.setChatDraft(peer, { text: 'Existing native draft', origin: { kind: MessageKind.User } });
+				storedPeer.dispose();
+
+				const disk = fileService.getProvider(Schemas.file)!;
+				const failure = createFileSystemProviderError('Session directory stat failed', errorCode);
+				const failingStat = stub(disk, 'stat').callThrough();
+				failingStat.withArgs(match(resource => URI.isUri(resource) && isEqual(resource, data.getSessionDataDir(session)))).rejects(failure);
+				store.add(toDisposable(() => failingStat.restore()));
+				const log = new NullLogService();
+				const warnings = stub(log, 'warn');
+				store.add(toDisposable(() => warnings.restore()));
+				const service = store.add(createTestAgentService(
+					log, fileService, data, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+					undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, db,
+				));
+				const agent = store.add(new MockAgent(provider));
+				await agent.chats.createChat(URI.parse(buildDefaultChatUri(backing)), backing);
+				registerTestAgentProvider(service, agent);
+				await service.listSessions();
+				const markers = await db.raw.readStorageIdentityMetadata();
+				const registrations = await db.raw.listSessionV2Registrations();
+				service.dispose();
+				failingStat.restore();
+				const draftRef = await data.tryOpenDatabase(peer);
+				const draft = await draftRef?.object.getChatDraft(peer);
+				draftRef?.dispose();
+				assert.deepStrictEqual({
+					storage: db.identity.toStorage(session.toString()),
+					markers,
+					registrations,
+					loggedFailure: warnings.getCalls().some(call => typeof call.args[0] === 'string' && call.args[0].includes('Failed to register discovered chat') && call.args[1] instanceof Error),
+					draft: draft?.text,
+				}, {
+					storage: session.toString(), markers: [], registrations: [], loggedFailure: true, draft: 'Existing native draft',
+				});
+			});
+		}
+
 		for (const existingData of [false, true]) {
 			test(`${provider} discovery preserves ${existingData ? 'existing native data' : 'first-admission compatibility across a stable roundtrip'}`, async () => {
 				const db = await database();

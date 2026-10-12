@@ -3352,9 +3352,15 @@ export class AgentService extends Disposable implements IAgentService {
 					this._recordDiscoveryRegistrationProgress(observation, 'filtered');
 					return false;
 				}
-				if (this._orchestratorDatabase.prepareSessionStorage && resolution?.status === 'resolved' && !resolution.existing
-					&& !await this._fileService.exists(this._sessionDataService.getSessionDataDir(session))) {
-					await this._orchestratorDatabase.prepareSessionStorage?.(session.toString(), provider.id);
+				if (this._orchestratorDatabase.prepareSessionStorage && resolution?.status === 'resolved' && !resolution.existing) {
+					try {
+						await this._fileService.stat(this._sessionDataService.getSessionDataDir(session));
+					} catch (error) {
+						if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
+							throw error;
+						}
+						await this._orchestratorDatabase.prepareSessionStorage(session.toString(), provider.id);
+					}
 				}
 				const identity: IRegisteredSession = { session, provider: provider.id, startTime: sessionMetadata.startTime, modifiedTime: sessionMetadata.modifiedTime, external, source: external ? 'discovery' : 'restore' };
 				const registered = await this._retryRegistryMutation(
