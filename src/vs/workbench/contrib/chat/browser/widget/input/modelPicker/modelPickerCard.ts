@@ -60,6 +60,8 @@ export interface IModelCardOptions {
 	readonly modelChoices?: IModelCardModelChoices;
 	/** The name shown in the header when it differs from the model's, e.g. HydraFusion for its Max tier. */
 	readonly name?: string;
+	/** The description shown when it differs from the model's, e.g. HydraFusion's for its Max tier. */
+	readonly description?: string;
 	/** Separate routing models offered among Auto's tiers, such as HydraFusion and HydraFusion Max. */
 	readonly routingAlternatives?: readonly IModelCardRoutingAlternative[];
 	/** Marks the start of a model-affecting interaction, before an asynchronous save. */
@@ -136,7 +138,7 @@ export class ModelCard extends DisposableStore {
 	update(options: IModelCardOptions): void {
 		const disclosureChanged = options.pricingDisclosure !== this._options.pricingDisclosure;
 		const alternativeChanged = !routingAlternativesEqual(options.routingAlternatives, this._options.routingAlternatives);
-		const choicesChanged = !modelChoicesEqual(options.modelChoices, this._options.modelChoices) || options.name !== this._options.name;
+		const choicesChanged = !modelChoicesEqual(options.modelChoices, this._options.modelChoices) || options.name !== this._options.name || options.description !== this._options.description;
 		const changed = options.model !== this._options.model || options.isPinned !== this._options.isPinned || options.organizationDefaultModel !== this._options.organizationDefaultModel || options.externalHeader !== this._options.externalHeader || disclosureChanged || alternativeChanged || choicesChanged;
 		if (options.model.identifier !== this._options.model.identifier) {
 			this._configurationChangeVersion++;
@@ -258,8 +260,9 @@ export class ModelCard extends DisposableStore {
 		if (this._options.organizationDefaultModel) {
 			dom.append(this.element, dom.$('.chat-model-card-description.chat-model-card-org-default', undefined, getOrganizationDefaultDescription(this._options.organizationDefaultModel.metadata.name)));
 		}
-		if (metadata.tooltip) {
-			this._renderDescription(metadata.tooltip, isHydraFusionModel(model) ? HYDRA_FUSION_LEARN_MORE_URL : undefined);
+		const description = this._options.description ?? metadata.tooltip;
+		if (description) {
+			this._renderDescription(description, isHydraFusionModel(model) ? HYDRA_FUSION_LEARN_MORE_URL : undefined);
 		}
 		// Without tiers to sit below, Auto's discount follows its description.
 		if (isAuto && !effort && metadata.autoModelDiscountPercent !== undefined) {

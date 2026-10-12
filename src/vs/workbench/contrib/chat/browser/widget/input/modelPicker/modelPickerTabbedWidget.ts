@@ -907,6 +907,8 @@ export class TabbedModelPicker extends Disposable {
 		const cardOptions: IModelCardOptions = {
 			model,
 			name: ownTiers.length ? this._getRowLabel(model, context) : undefined,
+			// Default and Max share HydraFusion's description, so choosing a tier doesn't change it.
+			description: ownTiers[0]?.metadata.tooltip,
 			configurationAccess: context.configurationAccess,
 			isUBB: context.isUBB,
 			openerService: this._openerService,

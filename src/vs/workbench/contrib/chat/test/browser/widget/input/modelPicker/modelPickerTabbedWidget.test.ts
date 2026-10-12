@@ -751,7 +751,7 @@ suite('TabbedModelPicker', () => {
 			list: { rows: ['Auto', 'HydraFusion', '--', 'First', 'Fixed', 'Second'], hydraFusion: { checked: 'false', readout: 'Default' } },
 			autoOptions: ['Efficiency', 'Balance', 'Intelligence'],
 			opened: { name: 'HydraFusion', description: 'HydraFusion routes the first eligible turn and may use multiple models. Learn more', headings: [], options: ['Default', 'Max'], active: 'Default' },
-			chosen: { name: 'HydraFusion', description: 'HydraFusion Max routes the first eligible turn and may use multiple models. Learn more', headings: [], options: ['Default', 'Max'], active: 'Max' },
+			chosen: { name: 'HydraFusion', description: 'HydraFusion routes the first eligible turn and may use multiple models. Learn more', headings: [], options: ['Default', 'Max'], active: 'Max' },
 			listWithMax: { checked: 'true', readout: 'Max' },
 			remembered: { checked: 'false', readout: 'Max' },
 			selections: [max.identifier, models[0].identifier],
