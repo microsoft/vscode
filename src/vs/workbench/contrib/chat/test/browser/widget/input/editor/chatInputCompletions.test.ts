@@ -13,6 +13,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../..
 import { EditorOptions } from '../../../../../../../../editor/common/config/editorOptions.js';
 import { Position } from '../../../../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../../../../editor/common/core/range.js';
+import { OffsetRange } from '../../../../../../../../editor/common/core/ranges/offsetRange.js';
 import { CompletionItem, CompletionItemKind, CompletionTriggerKind } from '../../../../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../../../../editor/common/model.js';
 import { LanguageFeaturesService } from '../../../../../../../../editor/common/services/languageFeaturesService.js';
@@ -26,7 +27,7 @@ import { AgentCompletions } from '../../../../../browser/widget/input/editor/cha
 import { createChatReferenceVariableEntry } from '../../../../../common/attachments/chatVariableEntries.js';
 import { attachedContextCompletionAdditionalTriggerCharacters, attachedContextCompletionSortText, computeCompletionRanges, escapeForCharClass, getAttachedContextCompletionMatch, getAttachedContextCompletionSortText, getCompletionRangeWord, getPromptSlashCommandFilterText, isAtTriggerCharacterToken } from '../../../../../browser/widget/input/editor/chatInputCompletionUtils.js';
 import { IChatInputCompletionItem, IChatInputCompletionsParams, IChatInputCompletionsResult, IChatSessionsService } from '../../../../../common/chatSessionsService.js';
-import { chatAgentLeader, chatVariableLeader } from '../../../../../common/requestParser/chatParserTypes.js';
+import { ChatRequestAgentPart, ChatRequestTextPart, chatAgentLeader, chatVariableLeader } from '../../../../../common/requestParser/chatParserTypes.js';
 import { MockChatSessionsService } from '../../../../common/mockChatSessionsService.js';
 import { MockChatWidgetService } from '../../../widget/mockChatWidget.js';
 import { IChatWidget } from '../../../../../browser/chat.js';
@@ -84,6 +85,74 @@ suite('AgentCompletions in agent-host chats', () => {
 
 		assert.deepStrictEqual({ suggestions: result?.suggestions.map(item => item.insertText), sessionsWindowResult, otherLocations }, { suggestions: ['@participant ', '@participant /explain '], sessionsWindowResult: undefined, otherLocations: [undefined, undefined] });
 	});
+
+	for (const sessionType of ['agent-host-copilotcli', 'remote-agent-host-test']) {
+		test(`offers slash commands for the explicitly selected extension participant instead of the locked host (${sessionType})`, async () => {
+			const languageFeaturesService = new LanguageFeaturesService();
+			const model = store.add(createTextModel('@participant /', null, undefined, URI.from({ scheme: Schemas.vscodeChatInput, path: '/test' })));
+			const participant = upcastPartial<IChatAgentData>({ id: 'participant', name: 'participant', slashCommands: [{ name: 'explain', description: 'Explain' }] });
+			const host = upcastPartial<IChatAgentData>({ id: sessionType, name: 'host', isCore: true, slashCommands: [{ name: 'host-command', description: 'Host command' }] });
+			const scopedContextKeyService = store.add(new MockContextKeyService());
+			const widget = upcastPartial<IChatWidget>({
+				location: ChatAgentLocation.Chat,
+				lockedAgentId: host.id,
+				viewModel: upcastPartial<ChatViewModel>({ model: upcastPartial<IChatModel>({ sessionResource: URI.from({ scheme: sessionType, path: '/test' }) }) }),
+				parsedInput: {
+					text: model.getValue(), parts: [
+						new ChatRequestAgentPart(new OffsetRange(0, 12), new Range(1, 1, 1, 13), participant),
+						new ChatRequestTextPart(new OffsetRange(12, 14), new Range(1, 13, 1, 15), ' /'),
+					]
+				},
+				scopedContextKeyService,
+			});
+			const widgetService = new MockChatWidgetService();
+			widgetService.getWidgetByInputUri = () => widget;
+			let contributedSession = false;
+			store.add(new AgentCompletions(
+				languageFeaturesService,
+				widgetService,
+				upcastPartial<IChatAgentService>({ getAgent: () => host }),
+				upcastPartial<IChatAgentNameService>({}),
+				upcastPartial<IChatSessionsService>({ getChatSessionContribution: () => contributedSession ? upcastPartial<NonNullable<ReturnType<IChatSessionsService['getChatSessionContribution']>>>({ type: participant.id }) : undefined }),
+			));
+			const provider = languageFeaturesService.completionProvider.ordered(model).find(provider => provider._debugDisplayName === 'chatAgentSubcommand')!;
+			const complete = () => provider.provideCompletionItems(model, new Position(1, 15), { triggerKind: CompletionTriggerKind.TriggerCharacter, triggerCharacter: '/' }, CancellationToken.None);
+
+			const result = await complete();
+			IsSessionsWindowContext.bindTo(scopedContextKeyService).set(true);
+			const sessionsWindow = await complete();
+			IsSessionsWindowContext.bindTo(scopedContextKeyService).set(false);
+			contributedSession = true;
+			const sessionParticipant = await complete();
+			contributedSession = false;
+			widgetService.getWidgetByInputUri = () => ({ ...widget, parsedInput: { text: '/', parts: [] } });
+			const withoutParticipant = await complete();
+			widgetService.getWidgetByInputUri = () => ({
+				...widget, parsedInput: {
+					text: model.getValue(), parts: [
+						new ChatRequestAgentPart(new OffsetRange(0, 12), new Range(1, 1, 1, 13), host),
+					]
+				}
+			});
+			const coreParticipant = await complete();
+			widgetService.getWidgetByInputUri = () => ({
+				...widget, parsedInput: {
+					text: model.getValue(), parts: [
+						new ChatRequestAgentPart(new OffsetRange(0, 12), new Range(1, 1, 1, 13), { ...participant, isDefault: true }),
+					]
+				}
+			});
+			const defaultParticipant = await complete();
+			widgetService.getWidgetByInputUri = () => ({ ...widget, location: ChatAgentLocation.EditorInline });
+			const inline = await complete();
+			widgetService.getWidgetByInputUri = () => ({ ...widget, location: ChatAgentLocation.Terminal });
+			const shell = await complete();
+
+			assert.deepStrictEqual({ suggestions: result?.suggestions.map(item => item.insertText), sessionsWindow, sessionParticipant, withoutParticipant, coreParticipant, defaultParticipant, inline, shell }, {
+				suggestions: ['/explain '], sessionsWindow: undefined, sessionParticipant: undefined, withoutParticipant: undefined, coreParticipant: undefined, defaultParticipant: undefined, inline: undefined, shell: undefined,
+			});
+		});
+	}
 });
 
 class TestChatSessionsService extends MockChatSessionsService {

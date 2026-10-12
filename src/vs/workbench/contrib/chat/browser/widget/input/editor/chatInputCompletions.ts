@@ -360,7 +360,8 @@ export class AgentCompletions extends Disposable {
 					return;
 				}
 
-				if (isAgentHostBackedWidget(widget)) {
+				const agentHostSession = isAgentHostBackedWidget(widget);
+				if (agentHostSession && (widget.location !== ChatAgentLocation.Chat || IsSessionsWindowContext.getValue(widget.scopedContextKeyService))) {
 					return;
 				}
 
@@ -370,7 +371,7 @@ export class AgentCompletions extends Disposable {
 				}
 
 				const usedAgent = this.getCurrentAgentForWidget(widget);
-				if (!usedAgent || usedAgent.command) {
+				if (!usedAgent || usedAgent.command || (agentHostSession && (usedAgent.agent.isCore || usedAgent.agent.isDefault || this.chatSessionsService.getChatSessionContribution(usedAgent.agent.id)))) {
 					// Only one allowed
 					return;
 				}
@@ -614,7 +615,7 @@ export class AgentCompletions extends Disposable {
 	}
 
 	private getCurrentAgentForWidget(widget: IChatWidget): { agent: IChatAgentData; command?: string } | undefined {
-		if (widget.lockedAgentId) {
+		if (widget.lockedAgentId && !isAgentHostBackedWidget(widget)) {
 			const usedAgent = this.chatAgentService.getAgent(widget.lockedAgentId);
 			return usedAgent && { agent: usedAgent };
 		}
