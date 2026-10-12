@@ -20,6 +20,7 @@ import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChang
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { resolveChangesetSubscriptions } from './agentHostChangesetSummary.js';
+import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 
 export class AgentHostChangesetOperationService extends Disposable implements IAgentHostChangesetOperationService {
 	declare readonly _serviceBrand: undefined;
@@ -38,6 +39,7 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 		@IAgentHostGitStateService private readonly _gitStateService: IAgentHostGitStateService,
 		@IAgentHostChangesetSubscriptionService private readonly _changesetSubscriptions: IAgentHostChangesetSubscriptionService,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
+		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 	) {
 		super();
 
@@ -57,7 +59,7 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 	private async _refreshGitState(owner: string): Promise<void> {
 		const scope = resolveBranchChangesetScopeForOwner(this._stateManager, owner);
 		const source = scope?.sourceUri ?? owner;
-		const session = scope?.sessionUri ?? (isAhpChatChannel(owner) ? this._stateManager.getChatOwner(owner) : undefined);
+		const session = scope?.sessionUri ?? (isAhpChatChannel(owner) ? this._chatOwnership.getChatOwner(owner) : undefined);
 		await Promise.all([
 			this._gitStateService.refreshSessionGitState(source),
 			...(session && session !== source ? [this._gitStateService.refreshSessionGitState(session)] : []),
@@ -450,7 +452,7 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 	}
 
 	private _containingSession(parsed: { readonly ownerUri: string; readonly sessionUri: string | undefined }): string | undefined {
-		return changesetSession(parsed, chat => this._stateManager.getChatOwner(chat));
+		return changesetSession(parsed, chat => this._chatOwnership.getChatOwner(chat));
 	}
 
 	private _registerChangesetOperationHandler(operationId: string, handler: IChangesetOperationHandler): IDisposable {

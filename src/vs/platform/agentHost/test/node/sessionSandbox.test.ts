@@ -21,6 +21,7 @@ import { buildSandboxConfigForSdk } from '../../node/copilot/sandboxConfigForSdk
 import { getSessionSandboxConfig, getSessionSandboxOverrides } from '../../node/sessionSandbox.js';
 import { SessionPermissionManager } from '../../node/sessionPermissions.js';
 import { createSessionDataService } from '../common/sessionTestHelpers.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 
 suite('Session sandbox configuration', () => {
 	test('current working directory access defaults on and resolves deny-wins through serialized policy', () => {
@@ -1014,7 +1015,7 @@ suite('Session sandbox configuration', () => {
 		const root = configuration.getRootConfigValues();
 		const peer = buildChatUri(owner, 'peer');
 		manager.addChat(owner, peer, creationTimeChatStorageResource(owner, peer));
-		const permissions = store.add(new SessionPermissionManager(manager, {}, configuration, new NullLogService(), createSessionDataService()));
+		const permissions = store.add(new SessionPermissionManager(manager, {}, configuration, new NullLogService(), createSessionDataService(), createTestChatOwnershipService(manager)));
 		manager.dispatchServerAction(peer, {
 			type: ActionType.ChatTurnStarted, turnId: 'turn', startedAt: '2026-01-01T00:00:00Z',
 			message: { text: 'run', origin: { kind: MessageKind.User } },
@@ -1061,7 +1062,7 @@ suite('Session sandbox configuration', () => {
 	test('session sandbox opt-out is offered only for supported runtime bypass prompts', () => {
 		const { manager, configuration, create } = setupSession();
 		const owner = create('bypass-options');
-		const permissions = store.add(new SessionPermissionManager(manager, {}, configuration, new NullLogService(), createSessionDataService()));
+		const permissions = store.add(new SessionPermissionManager(manager, {}, configuration, new NullLogService(), createSessionDataService(), createTestChatOwnershipService(manager)));
 		const cases = [
 			{ canAllowSessionSandboxBypass: false, requestSandboxPermissive: false },
 			{ canAllowSessionSandboxBypass: true, requestSandboxPermissive: false },
@@ -1077,7 +1078,7 @@ suite('Session sandbox configuration', () => {
 	test('managed sandbox confirmations keep only the one-time and deny actions', () => {
 		const { manager, configuration, create } = setupSession();
 		const owner = create('managed-approval');
-		const permissions = store.add(new SessionPermissionManager(manager, {}, configuration, new NullLogService(), createSessionDataService()));
+		const permissions = store.add(new SessionPermissionManager(manager, {}, configuration, new NullLogService(), createSessionDataService(), createTestChatOwnershipService(manager)));
 		const ready = permissions.createToolReadyAction({
 			kind: 'pending_confirmation', chat: URI.parse(buildChatUri(owner, 'peer')), requestSandboxBypass: true, managedApprovalRequired: true,
 			state: { status: ToolCallStatus.PendingConfirmation, toolCallId: 'tool', toolName: 'bash', displayName: 'Bash', invocationMessage: 'run', confirmationTitle: 'Outside sandbox?' },

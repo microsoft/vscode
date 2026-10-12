@@ -33,6 +33,7 @@ import { AgentHostPullRequestAssociationResolver } from './agentHostPullRequestA
 import { isSessionChatInFolder, resolveBranchChangesetScopeForSource, resolveGitHubStateFolder, type IGitHubStateFolder } from './agentHostBranchChangesetScope.js';
 import { getWorkingDirectoryScopeId } from '../common/agentHostWorkingDirectories.js';
 import { readSessionArtifacts, SessionArtifactType } from '../common/sessionArtifacts.js';
+import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 
 const PULL_REQUEST_CREATION_CLOCK_SKEW_MS = 5 * 60_000;
 interface IPendingRecordedPullRequest {
@@ -82,6 +83,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 		@IAgentConfigurationService private readonly _configurationService: IAgentConfigurationService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 	) {
 		super();
 
@@ -577,7 +579,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	}
 
 	async reconcilePendingRecordedPullRequests(sessionOrChat: string, allFolders = false): Promise<void> {
-		const session = isAhpChatChannel(sessionOrChat) ? this._stateManager.getChatOwner(sessionOrChat) : sessionOrChat;
+		const session = isAhpChatChannel(sessionOrChat) ? this._chatOwnership.getChatOwner(sessionOrChat) : sessionOrChat;
 		if (session === undefined) {
 			return;
 		}

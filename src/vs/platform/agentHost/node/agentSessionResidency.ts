@@ -14,6 +14,7 @@ import { IAgentHostSubscriptionService, resolveAgentHostSession } from '../commo
 import { parseAnnotationsUri } from '../common/annotationsUri.js';
 import { isSessionStatusArchived, parseSubagentSessionUri } from '../common/state/sessionState.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
+import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 
 const DEFAULT_SESSION_RESIDENCY_LIMIT = 10;
 const DEFAULT_SESSION_RELEASE_RETRY_MS = 30_000;
@@ -59,6 +60,7 @@ export class AgentSessionResidency extends Disposable {
 		private readonly _options: IAgentSessionResidencyOptions,
 		@IAgentHostSubscriptionService private readonly _subscriptions: IAgentHostSubscriptionService,
 		@ILogService private readonly _logService: ILogService,
+		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 	) {
 		super();
 		this._limit = _options.limit ?? readNonNegativeIntegerEnv(AgentHostSessionResidencyLimitEnvVar, DEFAULT_SESSION_RESIDENCY_LIMIT);
@@ -100,7 +102,7 @@ export class AgentSessionResidency extends Disposable {
 	}
 
 	private _resolveSession(resource: URI): URI | undefined {
-		return resolveAgentHostSession(resource, chat => this._stateManager.getChatOwner(chat));
+		return resolveAgentHostSession(resource, chat => this._chatOwnership.getChatOwner(chat));
 	}
 
 	private _hasResidencySubscribers(resource: URI): boolean {

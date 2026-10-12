@@ -35,5 +35,8 @@ export function createLiveChatOwnership(getChatOwner: (chat: string) => string |
 		override getChatOwner(chat: string): string | undefined {
 			return getChatOwner(chat);
 		}
+		override findRetainedChatOwner(): string | undefined {
+			return undefined;
+		}
 	}();
 }

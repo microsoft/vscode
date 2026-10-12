@@ -21,6 +21,8 @@ import { IAgentHostProviderService } from '../../node/agentHostProviderService.j
 import { AgentHostStateManager, IAgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { MissionControlSdkEventSource } from '../../node/missionControl/missionControlSdkEventSource.js';
 import { MissionControlSessionMirror, type MissionControlMirrorEvent } from '../../node/missionControl/missionControlSessionMirror.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
+import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
 
 const session = 'ahp-session:/native';
 const chat = URI.parse(buildDefaultChatUri(session));
@@ -49,6 +51,7 @@ suite('MissionControlSdkEventSource', () => {
 			state.restoreSession(summary, [], creationTimeChatStorageResource);
 		}
 		instantiation.stub(IAgentHostStateManager, state);
+		instantiation.stub(IAgentHostChatOwnershipService, createTestChatOwnershipService(state));
 		const emitter = store.add(new Emitter<IAgentChatSessionEvent>());
 		let historyRead = 0;
 		const provider = new class extends mock<IAgent>() {

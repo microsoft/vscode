@@ -10,7 +10,7 @@ import type { IAgentHostChatContribution, IAgentHostChatContributionContext, IHy
 import { parseAgentMessageDelegationMeta, readAgentMessageDelegationMeta, toAgentMessageDelegationMeta } from '../../../common/meta/agentMessageDelegationMeta.js';
 import { ISessionDataService } from '../../../common/sessionDataService.js';
 import { MessageKind, type Turn } from '../../../common/state/sessionState.js';
-import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
+import { IAgentHostChatOwnershipService } from '../../agentHostChatOwnershipService.js';
 
 /** Persists agent-authored turn delegation and restores it after provider replay. */
 export class TurnDelegationContribution extends Disposable implements IAgentHostChatContribution {
@@ -22,7 +22,7 @@ export class TurnDelegationContribution extends Disposable implements IAgentHost
 		protected readonly _context: IAgentHostChatContributionContext,
 		@ILogService private readonly _logService: ILogService,
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
-		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
+		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 	) {
 		super();
 	}
@@ -32,7 +32,7 @@ export class TurnDelegationContribution extends Disposable implements IAgentHost
 		if (!delegation) {
 			return undefined;
 		}
-		const storage = URI.parse(this._stateManager.resolveChatStorageResource(turn.session, turn.chat));
+		const storage = URI.parse(this._chatOwnership.resolveChatStorageResource(turn.session, turn.chat));
 		const ref = this._sessionDataService.openDatabase(storage);
 		try {
 			await ref.object.setTurnDelegation(turn.turnId, JSON.stringify(delegation));

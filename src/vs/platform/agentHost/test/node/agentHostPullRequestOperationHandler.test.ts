@@ -45,6 +45,7 @@ import { AgentMergeConfigKey, readAgentMergeSessionState, type AgentMergeConfigu
 import type { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { createPullRequestConversationMeta, createPullRequestOperationMeta, createPullRequestValidationMeta, PREPARE_PULL_REQUEST_OPERATION_ID, readPullRequestDetailsResult, type IPullRequestCreateOptions } from '../../common/meta/agentPullRequestOperationMeta.js';
 import { JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 
 class TestCopilotApiService implements ICopilotApiService {
 	declare readonly _serviceBrand: undefined;
@@ -334,7 +335,7 @@ function setup(disposables: Pick<DisposableStore, 'add'>, gitService: TestGitSer
 	const providerService = new class extends mock<IAgentHostProviderService>() {
 		override getProviderForSession() { return undefined; }
 	}();
-	const utilityModelService = new AgentHostUtilityModelService(true, configurationService, copilotApiService, new NullByokLmBridgeRegistry(), providerService, stateManager, authenticationService, gitHubEndpointService, logService);
+	const utilityModelService = new AgentHostUtilityModelService(true, configurationService, copilotApiService, new NullByokLmBridgeRegistry(), providerService, stateManager, authenticationService, gitHubEndpointService, logService, createTestChatOwnershipService(stateManager));
 	return {
 		handler: new AgentHostPullRequestOperationHandler(
 			options?.draft ?? false,

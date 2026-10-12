@@ -25,6 +25,7 @@ import type { IAgentHostGitStateService } from '../../common/agentHostGitStateSe
 import type { IAgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostChangesetSubscriptionService } from '../../node/agentHostChangesetSubscriptionService.js';
 import { URI } from '../../../../base/common/uri.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 
 const testOperationId = 'test-operation';
 
@@ -231,6 +232,7 @@ suite('AgentHostChangesetOperationService', () => {
 			gitStateService,
 			disposables.add(new AgentHostChangesetSubscriptionService()),
 			configurationService,
+			createTestChatOwnershipService(stateManager),
 		));
 	}
 
@@ -412,6 +414,7 @@ suite('AgentHostChangesetOperationService', () => {
 			new TestGitStateService(new Map([[sessionKey, sampleGitState]])),
 			subscriptions,
 			new TestConfigurationService(['file:///a']),
+			createTestChatOwnershipService(stateManager),
 		));
 		const contribution = new RecordingOperationsContribution(sampleOperations);
 		disposables.add(service.registerContribution(contribution));
@@ -504,7 +507,7 @@ suite('AgentHostChangesetOperationService', () => {
 			const subscriptions = disposables.add(new AgentHostChangesetSubscriptionService());
 			subscriptions.addSubscription(sessionKey, sessionKey);
 			subscriptions.addSubscription(sessionKey, changesetUri);
-			const service = disposables.add(new AgentHostChangesetOperationService(stateManager, new TestGitStateService(), subscriptions, new TestConfigurationService(['file:///a'])));
+			const service = disposables.add(new AgentHostChangesetOperationService(stateManager, new TestGitStateService(), subscriptions, new TestConfigurationService(['file:///a']), createTestChatOwnershipService(stateManager)));
 			disposables.add(service.registerContribution(new OperationsContribution(sampleOperations)));
 			const channels: string[] = [];
 			disposables.add(stateManager.onDidEmitEnvelope(envelope => {
@@ -537,7 +540,7 @@ suite('AgentHostChangesetOperationService', () => {
 		stateManager.registerChangeset(changesetUri);
 		const subscriptions = disposables.add(new AgentHostChangesetSubscriptionService());
 		subscriptions.addSubscription(folderOwner, changesetUri);
-		const service = disposables.add(new AgentHostChangesetOperationService(stateManager, new TestGitStateService(), subscriptions, new TestConfigurationService(workingDirectories)));
+		const service = disposables.add(new AgentHostChangesetOperationService(stateManager, new TestGitStateService(), subscriptions, new TestConfigurationService(workingDirectories), createTestChatOwnershipService(stateManager)));
 		disposables.add(service.registerContribution(new OperationsContribution(sampleOperations)));
 
 		service.updateOperations(sessionKey, undefined, sampleGitState);
@@ -562,7 +565,7 @@ suite('AgentHostChangesetOperationService', () => {
 		const subscriptions = disposables.add(new AgentHostChangesetSubscriptionService());
 		subscriptions.addSubscription(folderOwner, changesetUri);
 		const gitStateService = new TestGitStateService(new Map([[defaultChat, sampleGitState]]));
-		const service = disposables.add(new AgentHostChangesetOperationService(stateManager, gitStateService, subscriptions, new TestConfigurationService(workingDirectories)));
+		const service = disposables.add(new AgentHostChangesetOperationService(stateManager, gitStateService, subscriptions, new TestConfigurationService(workingDirectories), createTestChatOwnershipService(stateManager)));
 		disposables.add(service.registerContribution(new OperationsContribution(sampleOperations)));
 		const registryCapture = new RegistryCaptureContribution();
 		disposables.add(service.registerContribution(registryCapture));
@@ -586,7 +589,7 @@ suite('AgentHostChangesetOperationService', () => {
 		const subscriptions = disposables.add(new AgentHostChangesetSubscriptionService());
 		subscriptions.addSubscription(sessionKey, changesetUri);
 		const gitStateService = new TestGitStateService(new Map([[sessionKey, sampleGitState]]));
-		const service = disposables.add(new AgentHostChangesetOperationService(stateManager, gitStateService, subscriptions, new TestConfigurationService(['file:///workspace'])));
+		const service = disposables.add(new AgentHostChangesetOperationService(stateManager, gitStateService, subscriptions, new TestConfigurationService(['file:///workspace']), createTestChatOwnershipService(stateManager)));
 		const operations: readonly ChangesetOperation[] = [
 			{ id: PREPARE_PULL_REQUEST_OPERATION_ID, label: 'Create Pull Request', group: 'pull-request', scopes: [ChangesetOperationScope.Changeset], status: ChangesetOperationStatus.Idle },
 			{ id: AGENT_HOST_MERGE_CHANGESET_OPERATION_ID, label: 'Merge Changes', scopes: [ChangesetOperationScope.Changeset], status: ChangesetOperationStatus.Idle },

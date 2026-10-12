@@ -32,6 +32,8 @@ import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter, type IAgentHos
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../node/agentHostTurnTracker.js';
 import { WorkspaceContextContribution } from '../../node/chatContributions/workspaceContext/workspaceContextContribution.js';
 import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
+import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
 
 class TestWorktreeIsolation extends NullAgentHostWorktreeIsolation {
 	private readonly _onDidChangePending = new Emitter<string>();
@@ -128,6 +130,7 @@ suite('WorkspaceContextContribution', () => {
 		const instantiation = store.add(new InstantiationService(new ServiceCollection(
 			[ILogService, log],
 			[IAgentHostStateManager, state],
+			[IAgentHostChatOwnershipService, createTestChatOwnershipService(state)],
 			[IAgentHostWorktreeIsolation, worktreeIsolation],
 			[IFileService, fileService],
 			[IAgentHostTelemetryReporter, telemetry],

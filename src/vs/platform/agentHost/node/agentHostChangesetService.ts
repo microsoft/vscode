@@ -69,6 +69,7 @@ import { IAgentHostWorktreeIsolation, type IAgentHostWorktreePendingState } from
 import { getSummaryChangesetKind, resolveChangesetSubscriptions } from './agentHostChangesetSummary.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { resolveAgentMergeOwningChat, resolveBranchChangesetScopeForOwner, resolveBranchChangesetScopeForSource, resolveGitHubStateFolder } from './agentHostBranchChangesetScope.js';
+import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 
 /**
  * Maximum number of per-repository git diffs a multi-folder fan-out runs at
@@ -221,6 +222,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		@IAgentHostGitStateService private readonly _gitStateService: IAgentHostGitStateService,
 		@IAgentHostWorktreeIsolation worktree: IAgentHostWorktreeIsolation,
 		@IAgentHostPeerChatPersistenceService private readonly _chatPersistence: IAgentHostPeerChatPersistenceService,
+		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 	) {
 		super();
 		this._worktree = worktree;
@@ -1680,7 +1682,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 
 	/** The session that contains a session, chat or folder changeset owner; an unregistered chat stands for itself. */
 	private _containingSessionUri(owner: ProtocolURI): ProtocolURI {
-		return parseFolderChangesetOwnerUri(owner)?.sessionUri ?? (isAhpChatChannel(owner) ? this._stateManager.getChatOwner(owner) : undefined) ?? owner;
+		return parseFolderChangesetOwnerUri(owner)?.sessionUri ?? (isAhpChatChannel(owner) ? this._chatOwnership.getChatOwner(owner) : undefined) ?? owner;
 	}
 
 	private _shouldScheduleBranchRecompute(session: ProtocolURI): boolean {

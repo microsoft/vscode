@@ -19,6 +19,7 @@ import { ISessionDataService } from '../common/sessionDataService.js';
 import { isAhpChatChannel, isDefaultChatUri, readSessionGitState, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { resolveBranchChangesetScopeForOwner, resolveBranchChangesetScopeForSource } from './agentHostBranchChangesetScope.js';
+import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 
 /**
  * Resolved git context shared by the review operations: the repository root,
@@ -51,6 +52,7 @@ export class AgentHostReviewService extends Disposable implements IAgentHostRevi
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 		@IAgentHostGitStateService private readonly _gitStateService: IAgentHostGitStateService,
 		@ILogService private readonly _logService: ILogService,
+		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 	) {
 		super();
 
@@ -320,7 +322,7 @@ export class AgentHostReviewService extends Disposable implements IAgentHostRevi
 
 	/** The session that owns a chat (from the registry), or the session itself. */
 	private _containingSession(sessionOrChat: ProtocolURI): ProtocolURI {
-		return isAhpChatChannel(sessionOrChat) ? this._stateManager.requireChatOwner(sessionOrChat) : sessionOrChat;
+		return isAhpChatChannel(sessionOrChat) ? this._chatOwnership.requireChatOwner(sessionOrChat) : sessionOrChat;
 	}
 
 	private _sanitizedOwnerId(owner: ProtocolURI): string {

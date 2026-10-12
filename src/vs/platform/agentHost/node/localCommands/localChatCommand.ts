@@ -16,6 +16,7 @@ import { IAgentHostPeerChatPersistenceService } from '../agentHostPeerChatStore.
 import { IAgentHostSessionTitleController } from '../agentHostSessionTitleController.js';
 import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../agentHostStateManager.js';
+import { IAgentHostChatOwnershipService } from '../agentHostChatOwnershipService.js';
 
 /**
  * A just-started chat turn offered to the local-command dispatcher before it is
@@ -154,6 +155,7 @@ export class AgentHostLocalCommands extends Disposable {
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostTerminalManager private readonly _terminalManager: IAgentHostTerminalManager,
 		@IAgentHostPeerChatPersistenceService private readonly _chatPersistence: IAgentHostPeerChatPersistenceService,
+		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 	) {
 		super();
 		const context: ILocalChatCommandContext = {
@@ -185,7 +187,7 @@ export class AgentHostLocalCommands extends Disposable {
 			const handling = command.tryHandle(request);
 			if (handling) {
 				// Captured now: the chat may be removed while the command runs.
-				const owner = isAhpChatChannel(request.turnChannel) ? this._stateManager.getChatOwner(request.turnChannel) : request.turnChannel;
+				const owner = isAhpChatChannel(request.turnChannel) ? this._chatOwnership.getChatOwner(request.turnChannel) : request.turnChannel;
 				void this._run(command, handling, request, owner);
 				return handling;
 			}
@@ -217,7 +219,7 @@ export class AgentHostLocalCommands extends Disposable {
 	}
 
 	private _ownerOf(channel: ProtocolURI): ProtocolURI {
-		return isAhpChatChannel(channel) ? this._stateManager.requireChatOwner(channel) : channel;
+		return isAhpChatChannel(channel) ? this._chatOwnership.requireChatOwner(channel) : channel;
 	}
 
 	/**

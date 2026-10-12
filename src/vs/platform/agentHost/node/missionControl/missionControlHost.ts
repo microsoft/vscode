@@ -37,6 +37,7 @@ import { isObject } from '../../../../base/common/types.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { AhpJsonlLogger, AhpJsonlLogRetention } from '../../common/ahpJsonlLogger.js';
 import { MISSION_CONTROL_AHP_LOG_ID } from '../../common/missionControlEnvironment.js';
+import { IAgentHostChatOwnershipService } from '../agentHostChatOwnershipService.js';
 
 interface IMissionControlHostOptions {
 	readonly hostLaunchKind: AgentHostLaunchKind;
@@ -93,6 +94,7 @@ export class MissionControlHost extends Disposable {
 		@ILogService private readonly _logService: ILogService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 	) {
 		super();
 		const retention = this._instantiationService.createInstance(AhpJsonlLogRetention, {
@@ -219,7 +221,7 @@ export class MissionControlHost extends Disposable {
 			const registered = new Set<string>();
 			sources.add(this._stateManager.onDidEmitEnvelope(envelope => {
 				const changeset = parseChangesetUri(envelope.channel);
-				const getChatOwner = (chat: string) => this._stateManager.getChatOwner(chat);
+				const getChatOwner = (chat: string) => this._chatOwnership.getChatOwner(chat);
 				const channel = isAhpChatChannel(envelope.channel)
 					? getChatOwner(envelope.channel)
 					: changeset ? changesetSession(changeset, getChatOwner) : parseAnnotationsUri(envelope.channel)?.sessionUri ?? envelope.channel;
@@ -258,7 +260,7 @@ export class MissionControlHost extends Disposable {
 		if (!this.environment.isEnabled || (event.type !== 'session.plan_changed' && event.type !== 'session.todos_changed')) {
 			return;
 		}
-		const session = this._stateManager.getChatOwner(event.chat.toString());
+		const session = this._chatOwnership.getChatOwner(event.chat.toString());
 		const summary = session && this._stateManager.getSessionSummary(session);
 		if (!summary || summary.defaultChat !== event.chat.toString()) {
 			return;

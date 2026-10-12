@@ -37,6 +37,7 @@ import { IGitHubQuery } from '../../../github/common/githubQueryServiceImpl.js';
 import { TestSessionDatabase, createNoopGitService, createSessionDataService } from '../common/sessionTestHelpers.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 import { createTestGitHubClient, createTestGitHubService, createTestPullRequest } from './testGitHubService.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 
 const SESSION = 'mock:/session-1';
 const WORKING_DIRECTORY = 'file:///wd';
@@ -266,6 +267,7 @@ suite('AgentHostGitStateService', () => {
 			sessionDataService,
 			configurationService,
 			options?.telemetryService ?? NullTelemetryService,
+			createTestChatOwnershipService(stateManager),
 		));
 
 		const runEvents: string[] = [];

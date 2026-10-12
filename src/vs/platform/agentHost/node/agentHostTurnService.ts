@@ -15,6 +15,7 @@ import type { ChatTurnStartedAction } from '../common/state/protocol/actions.js'
 import { createErrorResponsePart, type ErrorInfo, type Message, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { startTurn } from './agentHostTurnStarter.js';
+import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 
 export const IAgentHostTurnService = createDecorator<IAgentHostTurnService>('agentHostTurnService');
 
@@ -44,6 +45,7 @@ export class AgentHostTurnService implements IAgentHostTurnService {
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@IAgentHostChatContributions private readonly _chatContributions: IAgentHostChatContributions,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 	) { }
 
 	startTurnMessage(chat: URI, message: Message): void {
@@ -94,7 +96,7 @@ export class AgentHostTurnService implements IAgentHostTurnService {
 			part: createErrorResponsePart(error),
 		});
 		this._chatContributions.turnEnd({
-			session: this._stateManager.requireChatOwner(channel),
+			session: this._chatOwnership.requireChatOwner(channel),
 			channel,
 			turnId: action.turnId,
 			reason: { kind: 'error', error, resumable: false },
@@ -108,7 +110,7 @@ export class AgentHostTurnService implements IAgentHostTurnService {
 		if (!host) {
 			throw new Error('Agent Host turn routing is unavailable.');
 		}
-		const sessionChannel = this._stateManager.requireChatOwner(channel);
+		const sessionChannel = this._chatOwnership.requireChatOwner(channel);
 		const turnStopWatch = StopWatch.create(false);
 		const clientContext = clientContextOrType === undefined
 			? {

@@ -37,6 +37,7 @@ import { AgentConfigurationService, getEffectiveWorkingDirectories } from '../..
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, encodeString, TestDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { createLegacyChatMetadataPersistence } from './chatMetadataTestHelpers.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 
 type WithoutLast<T extends readonly unknown[]> = T extends [...infer Head, unknown] ? Head : never;
 type WithoutLastThree<T extends readonly unknown[]> = WithoutLast<WithoutLast<WithoutLast<T>>>;
@@ -57,11 +58,11 @@ const TEST_GIT_STATE_SERVICE: IAgentHostGitStateService = {
 };
 
 class TestAgentHostChangesetService extends AgentHostChangesetService {
-	constructor(...args: WithoutLastThree<ConstructorParameters<typeof AgentHostChangesetService>>) {
+	constructor(...args: WithoutLastThree<WithoutLast<ConstructorParameters<typeof AgentHostChangesetService>>>) {
 		super(...args, TEST_GIT_STATE_SERVICE, new NullAgentHostWorktreeIsolation(), {
 			_serviceBrand: undefined, setRead: async () => { }, setArchived: async () => { },
 			...createLegacyChatMetadataPersistence(args[2]),
-		});
+		}, createTestChatOwnershipService(args[0]));
 	}
 }
 

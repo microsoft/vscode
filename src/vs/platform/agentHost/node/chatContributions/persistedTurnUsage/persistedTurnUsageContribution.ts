@@ -9,8 +9,8 @@ import { ILogService } from '../../../../log/common/log.js';
 import type { IAgentHostChatContribution, IAgentHostChatContributionContext, IHydrationContext, IDispatchedAction } from '../../../common/agentHostChatContributionsService.js';
 import { ISessionDatabase, ISessionDataService } from '../../../common/sessionDataService.js';
 import { ActionType, isChatAction, type ChatAction } from '../../../common/state/sessionActions.js';
-import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
 import { hasReportedUsage, isAhpChatChannel, isSubagentChatUri, type Turn, type URI as ProtocolURI, type UsageInfo } from '../../../common/state/sessionState.js';
+import { IAgentHostChatOwnershipService } from '../../agentHostChatOwnershipService.js';
 
 /** Owns persisted per-turn usage in both directions, recording it live and re-attaching it to restored turns. */
 export class PersistedTurnUsageContribution extends Disposable implements IAgentHostChatContribution {
@@ -22,7 +22,7 @@ export class PersistedTurnUsageContribution extends Disposable implements IAgent
 		protected readonly _context: IAgentHostChatContributionContext,
 		@ILogService private readonly _logService: ILogService,
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
-		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
+		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 	) {
 		super();
 	}
@@ -146,7 +146,7 @@ export class PersistedTurnUsageContribution extends Disposable implements IAgent
 		}
 		// Agents key their storage by the chat's own URI, which is where the
 		// `turns` rows that `getTurnUsages` joins against live.
-		const storage = URI.parse(this._stateManager.resolveChatStorageResource(session, channel));
+		const storage = URI.parse(this._chatOwnership.resolveChatStorageResource(session, channel));
 		let ref: IReference<ISessionDatabase>;
 		try {
 			ref = this._sessionDataService.openDatabase(storage);

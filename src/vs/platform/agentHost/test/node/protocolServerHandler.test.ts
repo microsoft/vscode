@@ -73,8 +73,8 @@ import { MockDevContainerService } from '../common/mockDevContainerService.js';
 import { McpAuthRequiredReason } from '../../common/state/protocol/channels-session/state.js';
 import { AgentHostSessionUrisCapabilityMetaKey, supportsAgentHostSessionUris } from '../../common/meta/agentHostSessionUrisMeta.js';
 import { platformSessionSchema } from '../../common/agentHostSchema.js';
-import { AgentHostChatOwnershipService, type IChatOwnerResolution } from '../../node/agentHostChatOwnershipService.js';
-import { EmptyOwnershipDatabase } from './chatOwnershipTestUtils.js';
+import { AgentHostChatOwnershipService, IAgentHostChatOwnershipService, type IChatOwnerResolution } from '../../node/agentHostChatOwnershipService.js';
+import { EmptyOwnershipDatabase, createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 
 // ---- Mock helpers -----------------------------------------------------------
 
@@ -3348,6 +3348,7 @@ suite('ProtocolServerHandler', () => {
 			override getProviderForSession() { return provider; }
 		}());
 		instantiation.stub(IAgentHostStateManager, stateManager);
+		instantiation.stub(IAgentHostChatOwnershipService, createTestChatOwnershipService(stateManager));
 		const extension = instantiation.createInstance(MissionControlCopilotExtension, projects);
 		stateManager.createSession(makeSessionSummary());
 		const relay = disposables.add(new MockProtocolServer());

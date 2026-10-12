@@ -39,6 +39,7 @@ import { AgentHostStateManager, creationTimeChatStorageResource } from '../../no
 import { NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { createNoopGitService, createSessionDataService, encodeString, TestDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { createLegacyChatMetadataPersistence } from './chatMetadataTestHelpers.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 
 suite('AgentHostChangesetStrategy', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -184,6 +185,7 @@ suite('AgentHostChangesetStrategy', () => {
 			attachSessionGitHubPullRequest: async () => { },
 		}, new NullAgentHostWorktreeIsolation(),
 			{ _serviceBrand: undefined, setRead: async () => { }, setArchived: async () => { }, ...createLegacyChatMetadataPersistence(data) },
+			createTestChatOwnershipService(state),
 		));
 		state.createSession({
 			resource: session,

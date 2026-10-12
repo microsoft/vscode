@@ -160,7 +160,7 @@ export function createAgentServiceComposition(
 		const workspaceConversionService: { value: ISessionWorkspaceConversionService | undefined } = { value: undefined };
 		const sessionServerToolAccessor: ISessionServerToolAccessor = {
 			...callbackAdapter.sessionServerToolAccessor,
-			getChatOwner: chat => stateManager.getChatOwner(chat),
+			getChatOwner: chat => chatOwnership.getChatOwner(chat),
 			requestSessionWorkspaceUpdate: (chat, turnId, workspaceFolder, isolation) => {
 				const initiatingClientId = turnTracker.getInitiatorClientId(chat.toString(), turnId);
 				if (!workspaceConversionService.value) {

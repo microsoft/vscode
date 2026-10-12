@@ -24,6 +24,7 @@ import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { AgentHostPullRequestStatusService } from '../../node/agentHostPullRequestStatusService.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 
 const account = { host: 'api.github.com', accountId: '1' };
 const pullRequestUrl = 'https://github.com/octo/repo/pull/7';
@@ -268,6 +269,7 @@ suite('AgentHostPullRequestStatusService', () => {
 			gitStateService,
 			gitHubService,
 			logService,
+			createTestChatOwnershipService(stateManager),
 		));
 
 		const session = 'copilot:/pr-status';

@@ -16,6 +16,7 @@ import { getEffectiveWorkingDirectories, getEffectiveWorkingDirectory } from './
 import { ILogService } from '../../log/common/log.js';
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { resolveBranchChangesetScopeForSource } from './agentHostBranchChangesetScope.js';
+import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 
 class WatchInterestReferenceCollection extends ReferenceCollection<string> {
 	constructor(
@@ -90,6 +91,7 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 		@IAgentHostGitService private readonly _gitService: IAgentHostGitService,
 		@IAgentHostGitStateService private readonly _gitStateService: IAgentHostGitStateService,
 		@ILogService private readonly _logService: ILogService,
+		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 	) {
 		super();
 	}
@@ -126,8 +128,8 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 	private _recordWatchSession(subscriptionKey: string, sourceStr: string): void {
 		const parsed = parseChangesetUri(subscriptionKey);
 		const session = isAhpChatChannel(sourceStr)
-			? this._stateManager.getChatOwner(sourceStr)
-			: (parsed && changesetSession(parsed, chat => this._stateManager.getChatOwner(chat))) ?? sourceStr;
+			? this._chatOwnership.getChatOwner(sourceStr)
+			: (parsed && changesetSession(parsed, chat => this._chatOwnership.getChatOwner(chat))) ?? sourceStr;
 		if (session !== undefined) {
 			this._watchSessions.set(subscriptionKey, session);
 		}

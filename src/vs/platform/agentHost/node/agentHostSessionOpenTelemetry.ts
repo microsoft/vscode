@@ -12,8 +12,8 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import type { AgentProvider } from '../common/agent.js';
 import { isAhpChatChannel, isDefaultChatUri } from '../common/state/sessionState.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
-import { IAgentHostStateManager, type AgentHostStateManager } from './agentHostStateManager.js';
 import type { IAgentHostCopilotSkuClassification, IAgentHostCopilotSkuTelemetry } from './agentHostTelemetryReporter.js';
+import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 
 export const AgentHostSessionSubscribeTimeoutMs = 60_000;
 
@@ -111,7 +111,7 @@ export class AgentHostSessionOpenTelemetry extends Disposable implements IAgentH
 	constructor(
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IAgentHostProviderService private readonly _providerService: IAgentHostProviderService,
-		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
+		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 	) {
 		super();
 		this._register(toDisposable(() => {
@@ -308,7 +308,7 @@ export class AgentHostSessionOpenTelemetry extends Disposable implements IAgentH
 		const resourceString = resource.toString();
 		const owner = !isAhpChatChannel(resourceString)
 			? resourceString
-			: resolvedOwner?.toString() ?? this._stateManager.getChatOwner(resourceString) ?? this._stateManager.findRetainedChatOwner(resourceString);
+			: resolvedOwner?.toString() ?? this._chatOwnership.getChatOwner(resourceString) ?? this._chatOwnership.findRetainedChatOwner(resourceString);
 		if (owner === undefined) {
 			return undefined;
 		}

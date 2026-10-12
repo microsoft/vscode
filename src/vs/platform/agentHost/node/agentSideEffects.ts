@@ -407,7 +407,7 @@ export class AgentSideEffects extends Disposable {
 						if (envelope.rejectionReason) {
 							break;
 						}
-						const sessionChannel = this._stateManager.getChatOwner(envelope.channel);
+						const sessionChannel = this._chatOwnership.getChatOwner(envelope.channel);
 						const previousTurn = chatState?.turns.at(-1);
 						if (sessionChannel !== undefined
 							&& !this._stateManager.isEphemeralSession(sessionChannel)
@@ -422,7 +422,7 @@ export class AgentSideEffects extends Disposable {
 					}
 					case ActionType.ChatInputRequested: {
 						const turnId = chatState?.activeTurn?.id;
-						const owner = this._stateManager.getChatOwner(envelope.channel);
+						const owner = this._chatOwnership.getChatOwner(envelope.channel);
 						const provider = owner === undefined ? undefined : this._options.getAgent(owner)?.id;
 						if (turnId && provider && owner !== undefined) {
 							this._inputRequestTracker.inputRequested(provider, envelope.channel, owner, turnId, action.request);
@@ -464,7 +464,7 @@ export class AgentSideEffects extends Disposable {
 				// agents are keyed by session URI, so resolve back to the
 				// owning session before notifying the agent. Pass the chat URI
 				// alongside so agents that track peer chats can route correctly.
-				const sessionChannel = isAhpChatChannel(envelope.channel) ? this._stateManager.getChatOwner(envelope.channel) : undefined;
+				const sessionChannel = isAhpChatChannel(envelope.channel) ? this._chatOwnership.getChatOwner(envelope.channel) : undefined;
 				if (sessionChannel !== undefined) {
 					this._notifyClientToolCallComplete(sessionChannel, envelope.channel, action.toolCallId, action.result, 'server-envelope');
 				}
@@ -498,7 +498,7 @@ export class AgentSideEffects extends Disposable {
 	}
 
 	private _chatContext(session: ProtocolURI, chat: ProtocolURI): IAgentChatContext {
-		return createAgentChatContext(this._stateManager, session, chat, this._stateManager.resolveChatStorageResource(session, chat));
+		return createAgentChatContext(this._stateManager, session, chat, this._chatOwnership.resolveChatStorageResource(session, chat));
 	}
 
 	/**
@@ -867,7 +867,7 @@ export class AgentSideEffects extends Disposable {
 	}
 
 	private _trackProviderStartedTurn(agent: IAgent, channel: ProtocolURI, action: ChatTurnStartedAction, startedWithSteering: boolean): void {
-		const session = this._stateManager.getChatOwner(channel);
+		const session = this._chatOwnership.getChatOwner(channel);
 		if (session === undefined) {
 			return;
 		}
@@ -1150,7 +1150,7 @@ export class AgentSideEffects extends Disposable {
 		if (!isAhpChatChannel(channel)) {
 			return channel;
 		}
-		const owner = this._stateManager.getChatOwner(channel);
+		const owner = this._chatOwnership.getChatOwner(channel);
 		if (owner !== undefined) {
 			this._recordedChatOwners.set(channel, owner);
 			return owner;
@@ -1166,7 +1166,7 @@ export class AgentSideEffects extends Disposable {
 		const key = `${parentChatURI}\0${toolCallId}`;
 		let buffer = this._pendingSubagentSignals.get(key);
 		if (!buffer) {
-			buffer = new PendingSubagentSignals(parentChatURI, this._stateManager.getChatOwner(parentChatURI), () =>
+			buffer = new PendingSubagentSignals(parentChatURI, this._chatOwnership.getChatOwner(parentChatURI), () =>
 				this._failPendingSubagentSignals(parentChatURI, toolCallId, 'Timed out waiting for subagent startup'));
 			this._pendingSubagentSignals.set(key, buffer);
 		}
@@ -1186,7 +1186,7 @@ export class AgentSideEffects extends Disposable {
 		}
 		this._logService.error(`[AgentSideEffects] ${reason}: ${parentChatURI}/${toolCallId}`);
 		// Suppress recent failed routes before denying their permissions, which can emit more signals.
-		this._failedSubagentRoutes.set(key, { chat: parentChatURI, session: this._stateManager.getChatOwner(parentChatURI) });
+		this._failedSubagentRoutes.set(key, { chat: parentChatURI, session: this._chatOwnership.getChatOwner(parentChatURI) });
 		this._pendingSubagentSignals.deleteAndDispose(key);
 		const turnId = this._stateManager.getActiveTurnId(parentChatURI);
 		if (turnId) {
@@ -1243,7 +1243,7 @@ export class AgentSideEffects extends Disposable {
 	private _handleSubagentStarted(signal: IAgentSubagentStartedSignal): void {
 		const chatURI = signal.chat.toString();
 		const { toolCallId, agentName, agentDisplayName, agentDescription, taskPrompt, parentToolCallId: spawningToolParentId, taskModelSource, subagentKind, model } = signal;
-		const parentSessionUri = this._stateManager.getChatOwner(chatURI);
+		const parentSessionUri = this._chatOwnership.getChatOwner(chatURI);
 		if (parentSessionUri === undefined) {
 			this._logService.warn(`[AgentSideEffects] Ignoring subagent start for unregistered chat ${chatURI}/${toolCallId}`);
 			return;
@@ -1376,7 +1376,7 @@ export class AgentSideEffects extends Disposable {
 		immediateParentChatUri = immediateParentChatUri && this._turnOwningChat(immediateParentChatUri);
 		const parentChatUri = immediateParentChatUri ?? this._turnOwningChat(fallbackParentChatUri);
 		const parentTurnId = this._stateManager.getActiveTurnId(parentChatUri);
-		const parentSessionUri = this._stateManager.getChatOwner(parentChatUri);
+		const parentSessionUri = this._chatOwnership.getChatOwner(parentChatUri);
 		const parentMessageOriginKind = parentTurnId ? this._turnTracker.getMessageOriginKind(parentChatUri, parentTurnId) : undefined;
 		return {
 			parentTurnId,

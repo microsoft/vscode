@@ -20,6 +20,7 @@ import { ActionType } from '../common/state/sessionActions.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { isAgentMergePullRequestReadyForReview, readAgentMergeFolderState } from '../common/agentMerge.js';
 import { resolveGitHubStateFolder, type IGitHubStateFolder } from './agentHostBranchChangesetScope.js';
+import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 
 /**
  * Merge states GitHub reports for a pull request that can still be merged
@@ -131,6 +132,7 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 		@IAgentHostGitStateService private readonly _gitStateService: IAgentHostGitStateService,
 		@IAgentHostGitHubService private readonly _gitHubService: IAgentHostGitHubService,
 		@ILogService private readonly _logService: ILogService,
+		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 	) {
 		super();
 		this._register(this._changesetSubscriptions.onDidChangeSessionSubscriptions(owner => this._sync(this._containingSession(owner))));
@@ -154,7 +156,7 @@ export class AgentHostPullRequestStatusService extends Disposable implements IAg
 
 	/** The session a session, chat channel or folder changeset owner URI belongs to; an unregistered chat stands for itself. */
 	private _containingSession(key: ProtocolURI): ProtocolURI {
-		return parseFolderChangesetOwnerUri(key)?.sessionUri ?? (isAhpChatChannel(key) ? this._stateManager.getChatOwner(key) : undefined) ?? key;
+		return parseFolderChangesetOwnerUri(key)?.sessionUri ?? (isAhpChatChannel(key) ? this._chatOwnership.getChatOwner(key) : undefined) ?? key;
 	}
 	private _handleClientChange(): void {
 		for (const key of [...this._watches.keys()]) {

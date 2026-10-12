@@ -38,6 +38,7 @@ import { getEffectiveWorkingDirectories, IAgentConfigurationService } from './ag
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { CommandAutoApprover, type CommandApprovalResult } from './commandAutoApprover.js';
 import { resolveAgentHostSession } from '../common/agentHostSubscriptionService.js';
+import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 
 /**
  * Event fields needed for auto-approval decisions.
@@ -212,6 +213,7 @@ export class SessionPermissionManager extends Disposable {
 		@IAgentConfigurationService private readonly _configService: IAgentConfigurationService,
 		@ILogService private readonly _logService: ILogService,
 		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
+		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 	) {
 		super();
 		this._realpath = options?.realpath ?? realpath;
@@ -419,11 +421,11 @@ export class SessionPermissionManager extends Disposable {
 	 */
 	/** The session that owns a chat, or the session itself; `undefined` for an unregistered chat. */
 	private _ownerOf(sessionOrChat: ProtocolURI): string | undefined {
-		return isAhpChatChannel(sessionOrChat) ? this._stateManager.getChatOwner(sessionOrChat) : sessionOrChat;
+		return isAhpChatChannel(sessionOrChat) ? this._chatOwnership.getChatOwner(sessionOrChat) : sessionOrChat;
 	}
 
 	private _resolveSession(sessionOrChat: ProtocolURI): string | undefined {
-		return resolveAgentHostSession(URI.parse(sessionOrChat), chat => this._stateManager.getChatOwner(chat))?.toString();
+		return resolveAgentHostSession(URI.parse(sessionOrChat), chat => this._chatOwnership.getChatOwner(chat))?.toString();
 	}
 
 	private _sessionStateOf(sessionOrChat: ProtocolURI): ReturnType<AgentHostStateManager['getSessionState']> {

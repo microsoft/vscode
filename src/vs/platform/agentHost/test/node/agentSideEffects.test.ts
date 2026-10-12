@@ -269,7 +269,7 @@ function createTestSideEffects(
 	services.set(IAgentHostProviderService, providerService);
 	const chatOwnership = createTestChatOwnershipService(stateManager);
 	services.set(IAgentHostChatOwnershipService, chatOwnership);
-	services.set(IAgentHostChatInputService, disposables.add(new AgentHostChatInputService(stateManager, providerService, disposables.add(new AgentHostSubscriptionService(chatOwnership)))));
+	services.set(IAgentHostChatInputService, disposables.add(new AgentHostChatInputService(stateManager, providerService, disposables.add(new AgentHostSubscriptionService(chatOwnership)), chatOwnership)));
 	const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 	const chatContributions: IAgentHostChatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
 	services.set(IAgentHostChatContributions, chatContributions);
@@ -277,7 +277,7 @@ function createTestSideEffects(
 		_serviceBrand: undefined,
 		startSessionPrompt: async () => URI.parse('agent-host-session://comparison-judge'),
 	});
-	const turnService = new AgentHostTurnService(stateManager, chatContributions, instantiationService);
+	const turnService = new AgentHostTurnService(stateManager, chatContributions, instantiationService, createTestChatOwnershipService(stateManager));
 	services.set(IAgentHostTurnService, turnService);
 	options.onDidCreateTurnService?.(turnService);
 	const telemetryReporter = new AgentHostTelemetryReporter(telemetryService);
@@ -1368,6 +1368,7 @@ suite('AgentSideEffects', () => {
 				stateManager,
 				new NullLogService(),
 				new NoopWorktreeIsolation(),
+				createTestChatOwnershipService(stateManager),
 			));
 			customizationEnablementService = enablementService;
 			createTestSideEffects(disposables, stateManager, {

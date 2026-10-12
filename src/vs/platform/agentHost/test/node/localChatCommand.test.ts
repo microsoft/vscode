@@ -18,6 +18,8 @@ import { IAgentHostSessionTitleController } from '../../node/agentHostSessionTit
 import { AgentHostStateManager, IAgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { AgentHostLocalCommands, LocalChatCommandRegistry, type ILocalChatCommand, type ILocalChatCommandHandling, type ILocalChatCommandRequest } from '../../node/localCommands/localChatCommand.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
+import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
 
 suite('AgentHostLocalCommands', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -42,6 +44,7 @@ suite('AgentHostLocalCommands', () => {
 		const turnEnds: ITurnEnd[] = [];
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IAgentHostStateManager, stateManager);
+		instantiationService.stub(IAgentHostChatOwnershipService, createTestChatOwnershipService(stateManager));
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IAgentHostChatContributions, upcastPartial<IAgentHostChatContributions>({ turnEnd: turn => turnEnds.push(turn) }));
 		instantiationService.stub(IAgentHostLocalTurns, upcastPartial<IAgentHostLocalTurns>({ findAnchorTurnId: () => undefined, record: () => { } }));

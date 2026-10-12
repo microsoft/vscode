@@ -1013,7 +1013,7 @@ export class AgentService extends Disposable implements IAgentService {
 			persistListVisibleSessionState: (session, values) => this._persistListVisibleSessionState(URI.parse(session), values),
 			queueCatalogSync: (session, values) => this._queueCatalogSync(URI.parse(session), values),
 			persistMetadata: async (resource, values) => this._peerChatStore.persistMetadata(
-				URI.parse(isAhpChatChannel(resource) ? this._stateManager.requireChatOwner(resource) : resource), URI.parse(resource), values),
+				URI.parse(isAhpChatChannel(resource) ? this._chatOwnership.requireChatOwner(resource) : resource), URI.parse(resource), values),
 			readNormalizedChat: (session, chat) => this._peerChatStore.readNormalizedChat(session, chat),
 			persistSurfacedSessionTitle: (session, title) => this._persistSurfacedSessionTitle(URI.parse(session), title),
 		});
@@ -1674,7 +1674,7 @@ export class AgentService extends Disposable implements IAgentService {
 	async removeSessionArtifact(session: URI, artifactId: string): Promise<void> {
 		await this.restoreSession(session);
 		const recordedChat = readSessionArtifacts(this._stateManager.getSessionState(session.toString())?._meta).find(artifact => artifact.id === artifactId)?.chat;
-		const chatUri = recordedChat && this._stateManager.getChatOwner(recordedChat) === session.toString() ? recordedChat : this._defaultChatUri(session);
+		const chatUri = recordedChat && this._chatOwnership.getChatOwner(recordedChat) === session.toString() ? recordedChat : this._defaultChatUri(session);
 		await new SessionArtifacts(this._stateManager, session.toString(), chatUri, this._createArtifactServerToolAccessor().persist).remove(artifactId, async artifact => {
 			if (artifact.type === SessionArtifactType.PullRequest && artifact.link) {
 				try {
@@ -1695,7 +1695,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 	async stopBackgroundWork(chat: URI, id: string): Promise<boolean> {
 		// A chat that lists background work is live, so there is nothing to restore first.
-		const owner = this._stateManager.getChatOwner(chat.toString());
+		const owner = this._chatOwnership.getChatOwner(chat.toString());
 		if (owner === undefined) {
 			this._logService.trace(`[AgentService] stopBackgroundWork ignored for unregistered chat: ${chat.toString()}`);
 			return false;
@@ -1865,7 +1865,7 @@ export class AgentService extends Disposable implements IAgentService {
 			if (pending) {
 				pending.notices.push({ kind, content });
 			} else {
-				this._pendingAgentMergeNotices.set(chat, { session: this._stateManager.requireChatOwner(chat), notices: [{ kind, content }] });
+				this._pendingAgentMergeNotices.set(chat, { session: this._chatOwnership.requireChatOwner(chat), notices: [{ kind, content }] });
 			}
 			this._logService.debug(`[AgentService] Deferring an Agent Merge notice until the chat is idle: chat=${chat}`);
 			return;
@@ -1907,7 +1907,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/** Writes one Agent Merge notice as a completed, host-owned local turn. */
 	private _writeAgentMergeNotice(channel: string, kind: AgentSystemNotificationKind, content: string): void {
-		const session = this._stateManager.getChatOwner(channel);
+		const session = this._chatOwnership.getChatOwner(channel);
 		const turnId = generateUuid();
 		this._stateManager.dispatchServerAction(channel, {
 			type: ActionType.ChatTurnStarted,
@@ -2599,7 +2599,7 @@ export class AgentService extends Disposable implements IAgentService {
 			defaultChat: {
 				chat: chat.resource,
 				order: 0,
-				storageResource: this._stateManager.getChatStorageResource(chat.resource) ?? chat.resource,
+				storageResource: this._chatOwnership.getChatStorageResource(chat.resource) ?? chat.resource,
 				providerData,
 				workingDirectories: chat.workingDirectories,
 				isRead: isSessionStatusRead(chat.status ?? state.status),
@@ -5866,7 +5866,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/** The recorded storage of a registered chat, or the creation-time rule for one not registered yet. */
 	private _chatStorageResource(session: URI, chat: URI): string {
-		return this._stateManager.resolveChatStorageResource(session.toString(), chat.toString());
+		return this._chatOwnership.resolveChatStorageResource(session.toString(), chat.toString());
 	}
 
 	/** Storage resources the normalized catalog records for a session's chats. */
@@ -6071,7 +6071,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 	/** Routes a passive provider snapshot through normal hydration while retaining host-owned turns. */
 	private async _refreshChatHistory(provider: IAgent, chat: URI, providerTurns: readonly Turn[]): Promise<void> {
-		const owner = this._stateManager.getChatOwner(chat.toString());
+		const owner = this._chatOwnership.getChatOwner(chat.toString());
 		if (owner === undefined) {
 			return;
 		}
@@ -6372,7 +6372,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * - Lazily attach git state for the (possibly new) working directory.
 	 */
 	private _onDidMaterializeChat(e: IAgentMaterializeChatEvent): void {
-		const owner = this._stateManager.getChatOwner(e.chat.toString());
+		const owner = this._chatOwnership.getChatOwner(e.chat.toString());
 		if (owner === undefined) {
 			this._logService.warn(`[AgentService] onDidMaterializeChat for unknown chat: ${e.chat.toString()}`);
 			return;
@@ -7307,7 +7307,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!isAhpChatChannel(chat.toString()) || !this._subscriptions.hasSubscribers(chat) || !this._stateManager.getChatState(chat.toString()) || this._chatWatches.has(chat)) {
 			return;
 		}
-		const owner = this._stateManager.requireChatOwner(chat.toString());
+		const owner = this._chatOwnership.requireChatOwner(chat.toString());
 		const provider = this._providerService.getProviderForSession(URI.parse(owner));
 		if (provider?.watchChatHistory || provider?.watchChatBackgroundWork) {
 			const watches = new DisposableStore();
@@ -7465,7 +7465,7 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!parsed) {
 			return false;
 		}
-		const containingSession = changesetSession(parsed, chat => this._stateManager.getChatOwner(chat));
+		const containingSession = changesetSession(parsed, chat => this._chatOwnership.getChatOwner(chat));
 		// A changeset whose chat is no longer registered has no session left to pin it.
 		if (containingSession === undefined) {
 			return true;
@@ -7786,7 +7786,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// lookup, telemetry, permissions — all keyed by session).
 		const changesetChannel = parseChangesetUri(channel);
 		const chatChannel = !changesetChannel && isAhpChatChannel(channel) ? channel : undefined;
-		const knownSessionChannel = changesetChannel?.sessionUri ?? (chatChannel ? this._stateManager.getChatOwner(chatChannel) : channel);
+		const knownSessionChannel = changesetChannel?.sessionUri ?? (chatChannel ? this._chatOwnership.getChatOwner(chatChannel) : channel);
 		const requiresSessionRestore = knownSessionChannel === undefined || ((chatChannel !== undefined || isSessionAction(action)) && !this._stateManager.getSessionState(knownSessionChannel));
 		const requiresPeerResolution = chatChannel !== undefined && !this._stateManager.getChatState(chatChannel);
 		const requiresKnownAttachmentRewrite = knownSessionChannel !== undefined && this._needsAsyncRewrite(knownSessionChannel, action);
@@ -9944,7 +9944,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * reports it changed (e.g. per-chat model switch or fork remap).
 	 */
 	private _onChatDataChanged(e: IAgentChatDataChange): void {
-		const sessionStr = this._stateManager.getChatOwner(e.chat.toString());
+		const sessionStr = this._chatOwnership.getChatOwner(e.chat.toString());
 		if (sessionStr === undefined) {
 			this._logService.warn(`[AgentService] onDidChangeChatData for unknown chat: ${e.chat.toString()}`);
 			return;
@@ -11046,7 +11046,7 @@ export class AgentService extends Disposable implements IAgentService {
 			toolCallId,
 		} as const;
 		// A subagent without a recorded storage resource (a legacy one) follows the creation-time rule.
-		const storageResource = this._stateManager.getChatStorageResource(chatUri)
+		const storageResource = this._chatOwnership.getChatStorageResource(chatUri)
 			?? (await this._readRecordedChatStorage(parentSessionKey)).get(chatUri)
 			?? creationTimeChatStorageResource(parentSessionKey, chatUri);
 		const childTurns = await this._getChatMessages(agent, URI.parse(chatUri), parentSession, URI.parse(storageResource), origin);
@@ -11190,7 +11190,7 @@ export class AgentService extends Disposable implements IAgentService {
 				// A registered subagent reads from its recorded storage. An unregistered
 				// legacy subagent session records none, so it follows the creation-time
 				// rule and has no workspace transitions to load.
-				const recordedStorage = this._stateManager.getChatStorageResource(subagentUri);
+				const recordedStorage = this._chatOwnership.getChatStorageResource(subagentUri);
 				const storage = recordedStorage ?? creationTimeChatStorageResource(parentSession.toString(), subagentUri);
 				childTurns = await this._getChatMessages(agent, URI.parse(subagentUri), parentSession, URI.parse(storage), origin, recordedStorage === undefined ? Promise.resolve(undefined) : undefined);
 			} catch (err) {

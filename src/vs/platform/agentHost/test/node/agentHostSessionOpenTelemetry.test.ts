@@ -17,6 +17,8 @@ import { buildChatUri, buildDefaultChatUri } from '../../common/state/sessionSta
 import { IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import { AgentHostSessionOpenTelemetry, AgentHostSessionSubscribeTimeoutMs } from '../../node/agentHostSessionOpenTelemetry.js';
+import { createLiveChatOwnership } from './chatOwnershipTestUtils.js';
+import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
 
 function isTelemetryData(data: unknown): data is Record<string, unknown> {
 	return typeof data === 'object' && data !== null;
@@ -43,6 +45,7 @@ suite('AgentHostSessionOpenTelemetry', () => {
 			getChatOwner: (chat: string) => chatOwners.get(chat),
 			findRetainedChatOwner: () => undefined,
 		});
+		instantiationService.stub(IAgentHostChatOwnershipService, createLiveChatOwnership(chat => chatOwners.get(chat)));
 		instantiationService.stub(IAgentHostProviderService, {
 			getProviderForSession: session => {
 				const provider = associations.get(session.toString()) ?? AgentSession.provider(session);

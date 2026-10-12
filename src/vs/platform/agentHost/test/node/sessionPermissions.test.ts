@@ -23,6 +23,7 @@ import { AgentConfigurationService } from '../../node/agentConfigurationService.
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { SessionPermissionManager, type IToolApprovalEvent } from '../../node/sessionPermissions.js';
 import { createSessionDataService } from '../common/sessionTestHelpers.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 
 suite('SessionPermissionManager', () => {
 
@@ -92,7 +93,7 @@ suite('SessionPermissionManager', () => {
 			...baseSessionDataService,
 			getSessionDataDir: session => URI.joinPath(sessionDataRoot, session.path.slice(1)),
 		};
-		permissions = disposables.add(new SessionPermissionManager(manager, {}, configService, new NullLogService(), sessionDataService));
+		permissions = disposables.add(new SessionPermissionManager(manager, {}, configService, new NullLogService(), sessionDataService, createTestChatOwnershipService(manager)));
 		await permissions.initialize();
 
 		manager.createSession(makeSummary(sessionUri, URI.file(workDir).toString()));
@@ -412,7 +413,7 @@ suite('SessionPermissionManager', () => {
 					error.code = code;
 					throw error;
 				},
-			}, configService, new NullLogService(), sessionDataService));
+			}, configService, new NullLogService(), sessionDataService, createTestChatOwnershipService(manager)));
 			await deniedPermissions.initialize();
 			results.push(await deniedPermissions.getAutoApproval(readEvent(join(workDir, 'secret.txt')), sessionUri));
 		}

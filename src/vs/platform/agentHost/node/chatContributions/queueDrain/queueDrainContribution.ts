@@ -20,6 +20,7 @@ import { IAgentHostProviderService } from '../../agentHostProviderService.js';
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../agentHostTurnTracker.js';
 import { startTurn } from '../../agentHostTurnStarter.js';
 import { ISessionWorkspaceConversionService } from '../sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
+import { IAgentHostChatOwnershipService } from '../../agentHostChatOwnershipService.js';
 
 const QueuedSender = createChatMementoKey<IQueuedMessageSender | undefined, [messageId: string]>('queueDrain.sender', () => undefined);
 const SteeringSender = createChatMementoKey<{ readonly messageId: string; readonly sender: IAgentPendingMessageSender } | undefined>('queueDrain.steeringSender', () => undefined);
@@ -39,6 +40,7 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 		@IAgentHostTurnTracker private readonly _turnTracker: AgentHostTurnTracker,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ISessionWorkspaceConversionService private readonly _conversionService: ISessionWorkspaceConversionService,
+		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 	) {
 		super();
 	}
@@ -136,7 +138,7 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 		if (!host) {
 			return;
 		}
-		const session = this._stateManager.getChatOwner(channel);
+		const session = this._chatOwnership.getChatOwner(channel);
 		if (session === undefined) {
 			return;
 		}
@@ -183,7 +185,7 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 	}
 
 	private _admitQueuedTurn(host: IAgentHostChatContributionHost, channel: ProtocolURI, message: Message, messageId: string, sender: IQueuedMessageSender): void {
-		const sessionChannel = this._stateManager.requireChatOwner(channel);
+		const sessionChannel = this._chatOwnership.requireChatOwner(channel);
 		const turnId = generateUuid();
 		this._stateManager.dispatchServerAction(channel, {
 			type: ActionType.ChatTurnStarted,

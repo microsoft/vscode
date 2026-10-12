@@ -504,7 +504,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				if (!isAhpChatChannel(envelope.channel)) {
 					throw new Error(`[ProtocolServer] Chat tool-call action emitted on non-chat channel: ${envelope.channel}`);
 				}
-				const owner = this._stateManager.getChatOwner(envelope.channel);
+				const owner = this._chatOwnership.getChatOwner(envelope.channel);
 				if (owner !== undefined) {
 					this._checkOrphanedClientToolCalls(owner, envelope.channel);
 				}
@@ -1512,7 +1512,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 				if (subscription.kind === ChannelKind.State
 					&& subscription.active
 					&& (subscription.uri === session
-						|| this._stateManager.getChatOwner(subscription.uri) === session)) {
+						|| this._chatOwnership.getChatOwner(subscription.uri) === session)) {
 					return true;
 				}
 			}
@@ -2448,7 +2448,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			if (!content) {
 				return false;
 			}
-			const session = isAhpChatChannel(content.sessionUri) ? this._stateManager.getChatOwner(content.sessionUri) : content.sessionUri;
+			const session = isAhpChatChannel(content.sessionUri) ? this._chatOwnership.getChatOwner(content.sessionUri) : content.sessionUri;
 			if (!session || (!this._stateManager.getSessionSummary(session) && !this._stateManager.getSurfacedSessionSummary(session))) {
 				return false;
 			}
@@ -3124,7 +3124,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 	}
 
 	private _isChannelVisible(client: IConnectedClient, channel: string): boolean {
-		return this._isSessionVisible(client, this._stateManager.getChatOwner(channel) ?? channel);
+		return this._isSessionVisible(client, this._chatOwnership.getChatOwner(channel) ?? channel);
 	}
 
 	/**

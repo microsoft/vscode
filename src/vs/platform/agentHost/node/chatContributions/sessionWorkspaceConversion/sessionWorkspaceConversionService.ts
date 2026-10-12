@@ -31,6 +31,7 @@ import { IAgentHostTurnService, type IDeferredAgentHostTurn } from '../../agentH
 import { IAgentHostServerToolService } from '../../shared/agentServerToolHost.js';
 import { IAgentHostWorktreeIsolation, type IIsolationConfigContribution } from '../../shared/worktreeIsolation.js';
 import type { IAgentServiceSessionServerToolAccessor } from '../../shared/sessionServerTools.js';
+import { IAgentHostChatOwnershipService } from '../../agentHostChatOwnershipService.js';
 
 const CHAT_ISOLATION_DIRECTORY_KEY = 'agentHost.chatIsolationDirectory';
 const CHAT_ISOLATION_QUARANTINED_KEY = 'agentHost.chatIsolationQuarantined';
@@ -126,6 +127,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		@IAgentHostServerToolService private readonly _serverToolHost: IAgentHostServerToolService,
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostGitStateService private readonly _gitStateService: IAgentHostGitStateService,
+		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 	) {
 		super();
 		this._register(this._stateManager.onDidEmitEnvelope(envelope => {
@@ -133,7 +135,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 				this._clearChatIsolationState(envelope.action.chat);
 			}
 			if (envelope.action.type === ActionType.SessionReady) {
-				const session = isAhpChatChannel(envelope.channel) ? this._stateManager.getChatOwner(envelope.channel) : envelope.channel;
+				const session = isAhpChatChannel(envelope.channel) ? this._chatOwnership.getChatOwner(envelope.channel) : envelope.channel;
 				if (session !== undefined && this._stateManager.getSessionState(session)?.chats.some(chat => this.canIsolateChat(URI.parse(chat.resource)))) {
 					this._serverToolHost.advertise(session);
 				}
@@ -152,7 +154,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 
 	/** Records the owner of a chat when it starts being tracked, so session removal can clear it later. */
 	private _trackChat(chat: ProtocolURI): void {
-		const owner = isAhpChatChannel(chat) ? this._stateManager.getChatOwner(chat) : chat;
+		const owner = isAhpChatChannel(chat) ? this._chatOwnership.getChatOwner(chat) : chat;
 		if (owner !== undefined) {
 			this._trackedChatOwners.set(chat, owner);
 		}
@@ -179,7 +181,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 	 * a different {@link workspaceFolder}, but a chat with its own isolated worktree only when it replaces the session workspace.
 	 */
 	canIsolateChat(chat: URI, workspaceFolder?: URI): boolean {
-		const owner = this._stateManager.getChatOwner(chat.toString());
+		const owner = this._chatOwnership.getChatOwner(chat.toString());
 		const state = owner !== undefined ? this._stateManager.getSessionState(owner) : undefined;
 		const directories = state?.chats.find(candidate => candidate.resource === chat.toString())?.workingDirectories
 			?? (owner !== undefined ? this._stateManager.getSessionSummary(owner)?.workingDirectories : undefined);
@@ -192,7 +194,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 	}
 
 	private _canChangeChatWorkspace(chat: URI): boolean {
-		const owner = this._stateManager.getChatOwner(chat.toString());
+		const owner = this._chatOwnership.getChatOwner(chat.toString());
 		const state = owner !== undefined ? this._stateManager.getSessionState(owner) : undefined;
 		const summary = state?.chats.find(candidate => candidate.resource === chat.toString());
 		const sessionDirectories = owner !== undefined ? this._stateManager.getSessionSummary(owner)?.workingDirectories : undefined;
@@ -221,7 +223,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		if (!this.canIsolateChat(chat)) {
 			throw new Error(localize('agentHost.chatIsolationRequirements', "This chat's workspace cannot be changed to a new worktree. It must work in one local folder and must not already use a worktree or be changing workspace."));
 		}
-		const owner = this._stateManager.requireChatOwner(chat.toString());
+		const owner = this._chatOwnership.requireChatOwner(chat.toString());
 		const state = this._stateManager.getSessionState(owner)!;
 		const summary = state.chats.find(candidate => candidate.resource === chat.toString())!;
 		this._trackChat(chat.toString());
@@ -269,7 +271,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 
 	requestSessionWorkspaceUpdate(chat: URI, turnId: string, workspaceFolder: URI, isolation: boolean, initiatingClientId?: string): boolean {
 		initiatingClientId = this._resolveInitiatingClientId(chat, initiatingClientId);
-		const session = this._stateManager.getChatOwner(chat.toString());
+		const session = this._chatOwnership.getChatOwner(chat.toString());
 		const state = session !== undefined ? this._stateManager.getSessionState(session) : undefined;
 		const chatOnly = !!state && !readSessionWorkspaceless(state._meta);
 		if (chatOnly) {
@@ -342,7 +344,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		if (this._pending.get(chat)?.chatOnly) {
 			return chat;
 		}
-		let session = isAhpChatChannel(chat) ? this._stateManager.getChatOwner(chat) ?? this._trackedChatOwners.get(chat) : chat;
+		let session = isAhpChatChannel(chat) ? this._chatOwnership.getChatOwner(chat) ?? this._trackedChatOwners.get(chat) : chat;
 		if (session === undefined) {
 			return chat;
 		}
@@ -411,7 +413,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		const host = this._chatIsolationHost!;
 		const { chat, workspaceFolder, initiatingClientId } = pending;
 		const session = URI.parse(pending.owner);
-		const storage = URI.parse(this._stateManager.resolveChatStorageResource(pending.owner, chat.toString()));
+		const storage = URI.parse(this._chatOwnership.resolveChatStorageResource(pending.owner, chat.toString()));
 		const provider = this._providerService.getProviderForSession(session)!;
 		let workspaceFinalized = false;
 		const assertWorkspace = (expected = pending.previousWorkingDirectory ?? workspaceFolder) => {
@@ -936,7 +938,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 	}
 
 	private _validateConversion(chat: URI, workspaceFolder: URI) {
-		const owner = this._stateManager.getChatOwner(chat.toString());
+		const owner = this._chatOwnership.getChatOwner(chat.toString());
 		if (owner === undefined) {
 			throw new Error(`Cannot change the working directory for invalid chat resource: ${chat.toString()}`);
 		}
@@ -1046,7 +1048,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 	}
 
 	private async _discardWorkspaceTransition(session: string, chat: URI, turnId: string): Promise<void> {
-		const storage = URI.parse(this._stateManager.resolveChatStorageResource(session, chat.toString()));
+		const storage = URI.parse(this._chatOwnership.resolveChatStorageResource(session, chat.toString()));
 		const database = this._sessionDataService.openDatabase(storage);
 		try {
 			await database.object.deleteTurnWorkspaceTransition(turnId);
