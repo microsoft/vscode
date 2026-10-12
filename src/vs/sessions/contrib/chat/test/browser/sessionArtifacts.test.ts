@@ -27,7 +27,7 @@ import type { IChatPillEntry } from '../../../../../workbench/browser/chatPills.
 import { ChatPillHoverCache } from '../../../../../workbench/browser/chatPillHover.js';
 import { IChatImageCarouselOptions, IChatImageCarouselService } from '../../../../../workbench/contrib/chat/browser/chatImageCarouselService.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { ChatResponseResource, IChatModel, IChatProgressResponseContent, IChatRequestModel, IChatResponseModel, IResponse } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { ChatResponseModelChangeReason, ChatResponseResource, IChatChangeEvent, IChatModel, IChatProgressResponseContent, IChatRequestModel, IChatResponseModel, IResponse } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ChatToolInvocation } from '../../../../../workbench/contrib/chat/common/model/chatProgressTypes/chatToolInvocation.js';
 import { ToolDataSource } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
@@ -240,17 +240,17 @@ suite('Session Artifacts', () => {
 		const { presentation, chat, chatModels } = createPresentation([]);
 		const resource = chat.get()!.resource;
 		const { model: baseModel, content, invocation } = createImageModel(resource);
-		const modelChanged = disposables.add(new Emitter<void>());
-		const responseChanged = disposables.add(new Emitter<void>());
+		const modelChanged = disposables.add(new Emitter<IChatChangeEvent>());
+		const responseChanged = disposables.add(new Emitter<ChatResponseModelChangeReason>());
 		let scans = 0;
 		const response = upcastPartial<IChatResponseModel>({
 			response: upcastPartial<IResponse>({ value: content }),
-			onDidChange: responseChanged.event as IChatResponseModel['onDidChange'],
+			onDidChange: responseChanged.event,
 		});
 		const requests = [upcastPartial<IChatRequestModel>({ response })];
 		const model = upcastPartial<IChatModel>({
 			sessionResource: baseModel.sessionResource,
-			onDidChange: modelChanged.event as IChatModel['onDidChange'],
+			onDidChange: modelChanged.event,
 			getRequests: () => { scans++; return requests; },
 		});
 		chatModels.set([model], undefined);
@@ -259,8 +259,8 @@ suite('Session Artifacts', () => {
 
 		const scansBeforeBurst = scans;
 		for (let i = 0; i < 50; i++) {
-			modelChanged.fire();
-			responseChanged.fire();
+			modelChanged.fire({ kind: 'setHidden' });
+			responseChanged.fire({ reason: 'other' });
 		}
 		const scansDuringBurst = scans - scansBeforeBurst;
 		await timeout(10);
@@ -272,7 +272,7 @@ suite('Session Artifacts', () => {
 			toolSpecificData: { kind: 'generatedImage' },
 			toolResultDetails: { input: '', output: [{ type: 'ref', uri: imageUri, mimeType: 'image/png' }] },
 		});
-		responseChanged.fire();
+		responseChanged.fire({ reason: 'other' });
 		await timeout(10);
 
 		assert.deepStrictEqual({
