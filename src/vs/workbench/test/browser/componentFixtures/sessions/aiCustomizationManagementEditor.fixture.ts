@@ -1905,7 +1905,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		const discoverEnabledAfterToggle = !marketplaceVisibilityEnabled;
 		assert(Boolean(discover) === discoverEnabledAfterToggle, 'Switching Marketplace visibility must replace the home surface.');
 		assert(Boolean(home?.querySelector('.welcome-prompts-content-container')) === !discoverEnabledAfterToggle, 'Overview must be visible only when Marketplace is hidden.');
-		assert(ctx.container.querySelector('.sidebar-home-button')?.textContent?.includes(discoverEnabledAfterToggle ? 'Discover' : 'Overview') === true, 'Home navigation must match the selected surface.');
+		assert(ctx.container.querySelector('.sidebar-home-button')?.textContent?.includes(discoverEnabledAfterToggle ? 'Browse' : 'Overview') === true, 'Home navigation must match the selected surface.');
 		assert(ctx.container.querySelector<HTMLButtonElement>('.sidebar-home-button')?.title === (discoverEnabledAfterToggle ? 'Back to Customizations' : 'Back to overview'), 'Home tooltip must update when Marketplace visibility changes.');
 		const expectedQueryCount = queryCountBeforeToggle + (discoverEnabledAfterToggle ? 1 : 0);
 		assert(customizationMarketplaceQueryCount === expectedQueryCount, `Toggling Marketplace visibility must query only when enabling Discover. Expected ${expectedQueryCount} queries, got ${customizationMarketplaceQueryCount}.`);
