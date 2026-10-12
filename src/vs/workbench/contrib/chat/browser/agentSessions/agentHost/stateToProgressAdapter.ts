@@ -622,7 +622,14 @@ export function systemNotificationToChatPart(content: StringOrMarkdown | undefin
 			})),
 		};
 	}
-	const value = stringOrMarkdownToString(content, connectionAuthority);
+	// Older hosts can forward the runtime's notification envelope verbatim.
+	const text = typeof content === 'string' ? content : content.markdown;
+	const wrappedNotification = /^<system_notification>(?<content>[\s\S]*)<\/system_notification>$/.exec(text.trim());
+	const notificationText = wrappedNotification?.groups?.content.trim() ?? text;
+	if (!notificationText) {
+		return undefined;
+	}
+	const value = stringOrMarkdownToString(typeof content === 'string' ? notificationText : { ...content, markdown: notificationText }, connectionAuthority);
 	const markdown = typeof value === 'string' ? new MarkdownString(value) : value;
 	switch (meta.kind) {
 		case AgentSystemNotificationKind.FusionProgress: {
