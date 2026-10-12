@@ -36,7 +36,7 @@ import { TestChatEntitlementService, TestWorkspaceTrustManagementService } from 
 import { IModelConfigurationAccess } from '../../../../../browser/widget/input/modelPicker/modelPickerModelConfig.js';
 import { ModelPickerTelemetrySession } from '../../../../../browser/widget/input/modelPicker/modelPickerTelemetry.js';
 import { ModelPickerWidget } from '../../../../../browser/widget/input/modelPicker/modelPickerWidget.js';
-import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelPinTelemetryContext } from '../../../../../common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, IModelPinTelemetryContext, IModelsControlManifest } from '../../../../../common/languageModels.js';
 import { NullLanguageModelsService } from '../../../../common/languageModels.js';
 
 function createModel(id: string, metadata: Partial<ILanguageModelChatMetadata> = {}): ILanguageModelChatMetadataAndIdentifier {
@@ -81,7 +81,7 @@ suite('ModelPickerTelemetry', () => {
 		},
 	});
 
-	function createPicker(selectedModel = model, beforeSave?: (id: string) => Promise<void>, models = [autoModel, model, fastModel, otherModel, thirdPartyModel], entitlement = ChatEntitlement.Pro, supportsProgrammaticSelection = true, showAutoModel = true) {
+	function createPicker(selectedModel = model, beforeSave?: (id: string) => Promise<void>, models = [autoModel, model, fastModel, otherModel, thirdPartyModel], entitlement = ChatEntitlement.Pro, supportsProgrammaticSelection = true, showAutoModel = true, controlManifest: IModelsControlManifest = { free: {}, paid: {} }) {
 		const instantiationService = store.add(new TestInstantiationService());
 		const events: { name: string; data: unknown }[] = [];
 		const pickerEvents: { name: string; data: unknown }[] = [];
@@ -263,6 +263,7 @@ suite('ModelPickerTelemetry', () => {
 		});
 		instantiationService.stub(ILanguageModelsService, new class extends NullLanguageModelsService {
 			override getLanguageModelIds() { return models.map(model => model.identifier); }
+			override getModelsControlManifest() { return controlManifest; }
 			override getRecentlyUsedModelIds() { return [model.identifier]; }
 			override getPinnedModelIds() { return [...pinnedModelIds]; }
 			// The real service reports pin changes; record what the picker passes it instead.
@@ -447,6 +448,10 @@ suite('ModelPickerTelemetry', () => {
 		const plain = createPicker(max, undefined, [autoModel, hydraFusion, max, model]);
 		const plainDefault = createPicker(hydraFusion, undefined, [autoModel, hydraFusion, max, model]);
 		const withoutMax = createPicker(hydraFusion, undefined, [autoModel, hydraFusion, model]);
+		// The picker does not offer a Max this build cannot run, so neither tier is shown.
+		const maxNeedsUpdate = createPicker(hydraFusion, undefined, [autoModel, hydraFusion, max, model], undefined, undefined, undefined, {
+			free: {}, paid: { 'hydrafusion-max': { label: 'HydraFusion Max', exists: true, featured: true, minVSCodeVersion: '99.0.0' } },
+		});
 		const withoutHydraFusion = createPicker(max, undefined, [ensemble, max, model]);
 		const result = createPicker(max, undefined, [ensemble, hydraFusion, max, model]);
 		assert.deepStrictEqual({
@@ -454,6 +459,7 @@ suite('ModelPickerTelemetry', () => {
 			hydraFusionMax: input(plain),
 			hydraFusionDefault: input(plainDefault),
 			hydraFusionWithoutMax: input(withoutMax),
+			hydraFusionMaxNeedsUpdate: input(maxNeedsUpdate),
 			ensembleTriggers: triggers(result),
 			withoutHydraFusionTriggers: triggers(withoutHydraFusion),
 			autoTriggers: triggers(plain),
@@ -462,6 +468,7 @@ suite('ModelPickerTelemetry', () => {
 			hydraFusionMax: ['HydraFusion', 'Max'],
 			hydraFusionDefault: ['HydraFusion', 'Default'],
 			hydraFusionWithoutMax: ['HydraFusion'],
+			hydraFusionMaxNeedsUpdate: ['HydraFusion'],
 			ensembleTriggers: ['config.chat.copilot.ensemble.intelligenceUsesHydraFusion'],
 			withoutHydraFusionTriggers: [],
 			autoTriggers: [],

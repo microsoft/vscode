@@ -726,6 +726,7 @@ suite('TabbedModelPicker', () => {
 			return { checked: row.getAttribute('aria-checked'), readout: row.querySelector('.action-label')?.textContent };
 		};
 		const card = () => ({
+			dialog: result.popup.querySelector('.tabbed-action-list-details')?.getAttribute('aria-label'),
 			name: result.popup.querySelector('.tabbed-action-list-details .chat-model-card-name')?.textContent,
 			description: result.popup.querySelector('.tabbed-action-list-details .chat-model-card > .chat-model-card-description')?.textContent,
 			headings: Array.from(result.popup.querySelectorAll('.tabbed-action-list-details .chat-model-card-section-title'), heading => heading.textContent),
@@ -750,8 +751,8 @@ suite('TabbedModelPicker', () => {
 		assert.deepStrictEqual({ list, autoOptions, opened, chosen, listWithMax, remembered, selections: result.selections }, {
 			list: { rows: ['Auto', 'HydraFusion', '--', 'First', 'Fixed', 'Second'], hydraFusion: { checked: 'false', readout: 'Default' } },
 			autoOptions: ['Efficiency', 'Balance', 'Intelligence'],
-			opened: { name: 'HydraFusion', description: 'HydraFusion routes the first eligible turn and may use multiple models. Learn more', headings: [], options: ['Default', 'Max'], active: 'Default' },
-			chosen: { name: 'HydraFusion', description: 'HydraFusion routes the first eligible turn and may use multiple models. Learn more', headings: [], options: ['Default', 'Max'], active: 'Max' },
+			opened: { dialog: 'HydraFusion Details', name: 'HydraFusion', description: 'HydraFusion routes the first eligible turn and may use multiple models. Learn more', headings: [], options: ['Default', 'Max'], active: 'Default' },
+			chosen: { dialog: 'HydraFusion Details', name: 'HydraFusion', description: 'HydraFusion routes the first eligible turn and may use multiple models. Learn more', headings: [], options: ['Default', 'Max'], active: 'Max' },
 			listWithMax: { checked: 'true', readout: 'Max' },
 			remembered: { checked: 'false', readout: 'Max' },
 			selections: [max.identifier, models[0].identifier],
@@ -1198,6 +1199,7 @@ suite('TabbedModelPicker', () => {
 			const details = () => {
 				const page = popup.querySelector('.tabbed-action-list-details');
 				return page ? {
+					dialog: page.getAttribute('aria-label'),
 					model: page.querySelector('.chat-model-card-name')?.textContent,
 					groups: Array.from(page.querySelectorAll('[role="radiogroup"]'), group => group.getAttribute('aria-label')),
 				} : undefined;
@@ -1215,8 +1217,9 @@ suite('TabbedModelPicker', () => {
 			const searchAction = !!popup.querySelector(`[aria-label^="${label} Details"]`);
 			picker.hide();
 			picker.show(anchor, context, `copilot/${requested}`, true);
+			const expectedDetails = expected && { dialog: `${expected.model} Details`, ...expected };
 			assert.deepStrictEqual({ direct, listAction, searchAction, reopened: details(), selections }, {
-				direct: expected, listAction: !!expected, searchAction: !!expected, reopened: expected, selections: [],
+				direct: expectedDetails, listAction: !!expected, searchAction: !!expected, reopened: expectedDetails, selections: [],
 			});
 		});
 	}

@@ -42,6 +42,7 @@ import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 
 import { getCompactCodicon } from '../../../chatIcons.js';
 import { renderChatInputPickerSplit } from '../chatInputPickerActionItem.js';
 import { createManageModelsAction, getModelPickerControlModels, shouldShowManageModelsAction } from './modelPickerItems.js';
+import { requiresNewerVSCode } from './modelPickerItemPrimitives.js';
 import { renderModelConfigurationButton } from './modelPickerConfiguration.js';
 import { getCompactModelPickerIcon } from './modelProviderIcons.js';
 import { ITabbedModelPickerContext, TabbedModelPicker } from './modelPickerTabbedWidget.js';
@@ -335,7 +336,10 @@ export class ModelPickerWidget extends Disposable {
 			const label = getEnsembleTierLabel(ensemble.metadata, model.metadata.id);
 			return label ? { shownModel: ensemble, label } : undefined;
 		}
-		const hydraFusion = (id: string) => models.find(candidate => candidate.metadata.id === id && isHydraFusionModel(candidate) && !isUserProvidedModel(candidate, this._languageModelsService));
+		// Matches the picker, which offers HydraFusion's tiers only when both models can run here.
+		const controlModels = getModelPickerControlModels(this._languageModelsService.getModelsControlManifest(), this._entitlementService.entitlement, models);
+		const hydraFusion = (id: string) => models.find(candidate => candidate.metadata.id === id && isHydraFusionModel(candidate) && !isUserProvidedModel(candidate, this._languageModelsService)
+			&& !requiresNewerVSCode(candidate, controlModels, this._productService.version));
 		const defaultTier = hydraFusion(COPILOT_HYDRA_FUSION_MODEL_ID);
 		return defaultTier && hydraFusion(COPILOT_HYDRA_FUSION_MAX_MODEL_ID)
 			? { shownModel: defaultTier, label: getHydraFusionTierLabel(model.metadata.id) }

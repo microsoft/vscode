@@ -980,7 +980,7 @@ export class TabbedModelPicker extends Disposable {
 		card.refresh();
 		this._detailsCard = card;
 		this._widget.showDetails({
-			label: localize('chat.modelPicker.modelDetails', "{0} Details", model.metadata.name),
+			label: localize('chat.modelPicker.modelDetails', "{0} Details", this._getRowLabel(model, context)),
 			backLabel: localize('chat.modelPicker.backToModels', "Back to Models"),
 			renderHeader: container => {
 				container.appendChild(card.headerElement);
