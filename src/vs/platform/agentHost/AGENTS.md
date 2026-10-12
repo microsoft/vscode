@@ -108,7 +108,7 @@ Copilot image completions carry optional `_meta["vscode.toolCallDurationMs"]`, d
 
 For native image-generation results, `structuredContent.imageGeneration.images[].contentIndex` identifies original images in SDK `result.contents`. Use those validated indexes for display rather than also displaying resized model-facing copies from `contents` or `binaryResultsForLlm`; preserve all content when the optional index metadata is absent or invalid.
 
-Insiders and development builds set `IMAGE_GENERATION_TOOL=true` in the Copilot runtime subprocess environment. Stable leaves the runtime default and inherited overrides unchanged. This opts into the tool, not image-model access: the runtime still enforces account/model availability, policy, and tool permissions. Generation requires a bundled runtime containing the versioned `/v1/images/generations` endpoint fix and a deployed CAPI route.
+Every Copilot SDK create/resume configuration explicitly opts into native image generation with `imageGeneration.enabled=true`, including Stable. This non-persisted consent is reapplied after host restarts; the CLI rollout environment flag is not a substitute. The runtime owns image-model availability, account authorization, policy, and tool permissions, so opting in does not grant access to an unavailable image model or bypass those checks.
 
 ### Orchestrator layer
 
