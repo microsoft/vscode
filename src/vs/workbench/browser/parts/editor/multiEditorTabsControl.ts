@@ -2101,7 +2101,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// wrapping is disabled (e.g. due to space constraints)
 		const didTabsWrapMultiLine = assertReturnsDefined(this.tabsAndActionsContainer).classList.contains('wrapping');
 		let tabsWrapMultiLine = this.doLayoutTabsWrapping(dimensions);
-		if (connected && tabsWrapMultiLine !== didTabsWrapMultiLine) {
+		if (this.parent.closest('.modern-ui-tabs') && tabsWrapMultiLine !== didTabsWrapMultiLine) {
 			this.layoutModernTabLabels();
 			const remeasuredTabsWrapMultiLine = this.doLayoutTabsWrapping(dimensions);
 			if (remeasuredTabsWrapMultiLine !== tabsWrapMultiLine) {

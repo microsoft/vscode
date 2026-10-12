@@ -270,7 +270,8 @@ suite('MultiEditorTabsControl', () => {
 		reset(container);
 		control = createControl({ tabsBarAddTab: MenuId.for('test.connectedTabs.addTabSpacing') });
 		const results = [];
-		for (const activeIndex of [0, 1]) {
+		for (const { activeIndex, direction } of [0, 1].flatMap(activeIndex => ['ltr', 'rtl'].map(direction => ({ activeIndex, direction })))) {
+			group.closest<HTMLElement>('.monaco-workbench')!.dir = direction;
 			model.setActive(model.getEditorByIndex(activeIndex)!);
 			control.setActive(true);
 			control.openEditor(model.activeEditor!);
@@ -283,14 +284,16 @@ suite('MultiEditorTabsControl', () => {
 				const lastBounds = last.getBoundingClientRect();
 				const fillBounds = fill.getBoundingClientRect();
 				results.push({
-					activeIndex, width,
-					gap: button.getBoundingClientRect().left - fillBounds.right,
-					expectedGap: lastBounds.right - fillBounds.right + 2,
-					terminalMargin: mainWindow.getComputedStyle(last).marginRight,
+					activeIndex, direction, width,
+					gap: direction === 'rtl' ? fillBounds.left - button.getBoundingClientRect().right : button.getBoundingClientRect().left - fillBounds.right,
+					expectedGap: (direction === 'rtl' ? fillBounds.left - lastBounds.left : lastBounds.right - fillBounds.right) + 2,
+					terminalMargin: mainWindow.getComputedStyle(last).marginInlineEnd,
+					oppositeMargin: mainWindow.getComputedStyle(last).marginInlineStart,
+					painterPlacement: mainWindow.getComputedStyle(container.querySelector<HTMLElement>('.tabs-bar-add-tab')!, '::before').insetInlineEnd,
 				});
 			}
 		}
-		assert.deepStrictEqual(results, results.map(result => ({ ...result, gap: result.expectedGap, terminalMargin: '8px' })));
+		assert.deepStrictEqual(results, results.map(result => ({ ...result, gap: result.expectedGap, terminalMargin: '8px', oppositeMargin: '0px', painterPlacement: `${container.querySelector<HTMLElement>('.tabs-bar-add-tab')!.offsetWidth}px` })));
 	});
 
 	test('wrapped Add Tab stays adjacent to the terminal tab after narrow and maximized layouts', async () => {
@@ -432,6 +435,28 @@ suite('MultiEditorTabsControl', () => {
 		group.closest('.monaco-workbench')!.classList.remove('modern-ui-tabs');
 		await layoutConnectedGroup(group, 200);
 		assert.deepStrictEqual([name.textContent, tab.classList.contains('modern-ui-tab-narrow')], ['1: file0.txt', false]);
+	});
+
+	test('Pill narrow-label state matches the final tab width when wrapping changes', async () => {
+		const group = connectedGroup();
+		const root = group.closest<HTMLElement>('.monaco-workbench')!;
+		root.classList.remove('modern-ui-connected-editor-tabs');
+		openNamedEditors(Array.from({ length: 8 }, (_, index) => `filename-for-wrapped-layout-${index}.ts`));
+		const results = [];
+		for (const tabSizing of ['shrink', 'fixed'] as const) {
+			for (const { width, wrapTabs } of [400, 1200, 400, 1200].flatMap(width => [false, true].map(wrapTabs => ({ width, wrapTabs })))) {
+				const oldOptions = partOptions;
+				partOptions = { ...partOptions, tabSizing, wrapTabs, tabSizingFixedMinWidth: 80, tabSizingFixedMaxWidth: 130, editorActionsLocation: 'hidden' };
+				control.updateOptions(oldOptions, partOptions);
+				await layoutConnectedGroup(group, width);
+				const tabs = Array.from(container.querySelectorAll<HTMLElement>('.tabs-container > .tab'));
+				results.push({
+					tabSizing, width, wrapTabs,
+					matchingMarkers: tabs.every(tab => tab.classList.contains('modern-ui-tab-narrow') === (tab.offsetWidth < 102)),
+				});
+			}
+		}
+		assert.deepStrictEqual(results, results.map(result => ({ ...result, matchingMarkers: true })));
 	});
 
 	test('connected shrink tabs collapse and restore icons as the editor width changes', async () => {

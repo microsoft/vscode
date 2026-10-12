@@ -524,7 +524,7 @@
 
 /* Reserve terminal shoulder space independently of selection, never between adjacent tabs. */
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container:not(.wrapping) .tabs-container > .tab.connected-tab-last:not(.connected-tab-upper-row) {
-	margin-right: calc(var(--modern-ui-connected-tab-shoulder-radius) + var(--vscode-strokeThickness));
+	margin-inline: 0 calc(var(--modern-ui-connected-tab-shoulder-radius) + var(--vscode-strokeThickness));
 }
 
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container > .tabs-bar-add-tab .action-label {
@@ -533,14 +533,14 @@
 
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container:not(.wrapping):not(.connected-tab-upper-bar) .tabs-container > .tabs-bar-add-tab .action-label {
 	/* Reuse the terminal shoulder's upper gutter without covering its bottom curve. */
-	margin-left: calc(var(--vscode-spacing-size20) - var(--modern-ui-connected-tab-shoulder-radius) - var(--vscode-strokeThickness));
+	margin-inline-start: calc(var(--vscode-spacing-size20) - var(--modern-ui-connected-tab-shoulder-radius) - var(--vscode-strokeThickness));
 }
 
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container:not(.wrapping):not(.connected-tab-upper-bar) .tabs-container > .tabs-bar-add-tab::before {
 	content: '';
 	position: absolute;
 	top: 0;
-	right: 100%;
+	inset-inline-end: 100%;
 	bottom: var(--modern-ui-connected-tab-shoulder-radius);
 	width: calc(var(--modern-ui-connected-tab-shoulder-radius) + var(--vscode-strokeThickness) - var(--vscode-spacing-size20));
 	background: var(--modern-ui-connected-tab-strip-background, var(--vscode-editorGroupHeader-tabsBackground));
