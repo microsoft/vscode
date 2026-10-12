@@ -2090,7 +2090,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			this.connectedTabLabels = connected;
 			this.forEachTab((editor, index, tab, widget, label) => this.redrawTabLabel(editor, index, tab, widget, label));
 		}
-		this.layoutConnectedTabLabels(connected);
+		this.layoutModernTabLabels();
 		this.layoutFitTabsWithoutReservedActions();
 
 		// Always first layout tabs with wrapping support even if wrapping
@@ -2101,11 +2101,11 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		const didTabsWrapMultiLine = assertReturnsDefined(this.tabsAndActionsContainer).classList.contains('wrapping');
 		let tabsWrapMultiLine = this.doLayoutTabsWrapping(dimensions);
 		if (connected && tabsWrapMultiLine !== didTabsWrapMultiLine) {
-			this.layoutConnectedTabLabels(connected);
+			this.layoutModernTabLabels();
 			const remeasuredTabsWrapMultiLine = this.doLayoutTabsWrapping(dimensions);
 			if (remeasuredTabsWrapMultiLine !== tabsWrapMultiLine) {
 				this.doLayoutTabsWrapping(dimensions, true);
-				this.layoutConnectedTabLabels(connected);
+				this.layoutModernTabLabels();
 				tabsWrapMultiLine = this.doLayoutTabsWrapping(dimensions, true);
 			} else {
 				tabsWrapMultiLine = remeasuredTabsWrapMultiLine;
@@ -2134,12 +2134,13 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		}
 	}
 
-	private layoutConnectedTabLabels(connected: boolean): void {
+	private layoutModernTabLabels(): void {
+		const modern = !!this.parent.closest('.modern-ui-tabs');
 		this.forEachTab((_editor, _index, tab) => {
-			tab.classList.remove('connected-tab-narrow');
+			tab.classList.remove('modern-ui-tab-narrow');
 			tab.style.removeProperty('--connected-tab-min-width');
-			if (connected && !tab.classList.contains('sticky-compact') && !tab.classList.contains('sizing-fit')) {
-				tab.classList.toggle('connected-tab-narrow', tab.offsetWidth < 102);
+			if (modern && !tab.classList.contains('sticky-compact') && !tab.classList.contains('sizing-fit')) {
+				tab.classList.toggle('modern-ui-tab-narrow', tab.offsetWidth < 102);
 			}
 		});
 	}
@@ -2176,15 +2177,24 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	}
 
 	private getFitTabWidth(tab: HTMLElement): number {
-		const style = getWindow(tab).getComputedStyle(tab);
+		const targetWindow = getWindow(tab);
+		const style = targetWindow.getComputedStyle(tab);
 		const width = Number.parseFloat(style.width);
 		if (tab.classList.contains('close-action-off') || tab.classList.contains('sticky-compact')) {
 			return width;
 		}
 		const labelPadding = Number.parseFloat(tab.classList.contains('tab-actions-left') ? style.paddingRight : style.paddingLeft);
 		const actionPadding = Number.parseFloat(style.getPropertyValue('--modern-ui-tab-action-padding')) || 28;
-		// A frozen border-box cannot be narrower than the padding needed when its action appears.
-		return Math.max(width, labelPadding + actionPadding + Number.parseFloat(style.borderLeftWidth) + Number.parseFloat(style.borderRightWidth));
+		/* eslint-disable no-restricted-syntax -- IconLabel exposes its root, but not its text-layout elements. */
+		const label = tab.querySelector<HTMLElement>('.tab-label');
+		const name = label?.querySelector<HTMLElement>('.monaco-icon-name-container');
+		const labelContainer = label?.querySelector<HTMLElement>('.monaco-icon-label-container');
+		/* eslint-enable no-restricted-syntax */
+		const nameWidth = name ? Number.parseFloat(targetWindow.getComputedStyle(name).width) : 0;
+		const adornmentWidth = label && labelContainer ? Number.parseFloat(targetWindow.getComputedStyle(label).width) - Number.parseFloat(targetWindow.getComputedStyle(labelContainer).width) : 0;
+		const minimumLabelWidth = adornmentWidth + Math.min(nameWidth, Number.parseFloat(style.fontSize));
+		// Retain the adornments and at least an ellipsis when the transient action appears.
+		return Math.max(width, labelPadding + actionPadding + minimumLabelWidth + Number.parseFloat(style.borderLeftWidth) + Number.parseFloat(style.borderRightWidth));
 	}
 
 	private doLayoutTabsWrapping(dimensions: IEditorTitleControlDimensions, forceTabsWrapMultiLine?: boolean): boolean {

@@ -264,6 +264,54 @@ suite('MultiEditorTabsControl', () => {
 		});
 	});
 
+	test('Add Tab spacing matches adjacent tab fill insets without losing the terminal shoulder', async () => {
+		const group = connectedGroup();
+		control.dispose();
+		reset(container);
+		control = createControl({ tabsBarAddTab: MenuId.for('test.connectedTabs.addTabSpacing') });
+		const results = [];
+		for (const activeIndex of [0, 1]) {
+			model.setActive(model.getEditorByIndex(activeIndex)!);
+			control.setActive(true);
+			control.openEditor(model.activeEditor!);
+			for (const width of [500, 300, 500]) {
+				await layoutConnectedGroup(group, width);
+				const tabs = Array.from(container.querySelectorAll<HTMLElement>('.tabs-container > .tab'));
+				const last = tabs.at(-1)!;
+				const fill = last.querySelector<HTMLElement>('.tab-fill')!;
+				const button = container.querySelector<HTMLElement>('.tabs-bar-add-tab .action-label')!;
+				const lastBounds = last.getBoundingClientRect();
+				const fillBounds = fill.getBoundingClientRect();
+				results.push({
+					activeIndex, width,
+					gap: button.getBoundingClientRect().left - fillBounds.right,
+					expectedGap: lastBounds.right - fillBounds.right + 2,
+					terminalMargin: mainWindow.getComputedStyle(last).marginRight,
+				});
+			}
+		}
+		assert.deepStrictEqual(results, results.map(result => ({ ...result, gap: result.expectedGap, terminalMargin: '8px' })));
+	});
+
+	test('modern editor headers retain an opaque backing during narrow and wide layouts', async () => {
+		const group = connectedGroup();
+		group.style.setProperty('--vscode-editor-background', '#123456');
+		group.style.setProperty('--vscode-editorGroupHeader-tabsBackground', 'rgba(255, 0, 0, 0.25)');
+		group.style.setProperty('--vscode-editorGroupHeader-noTabsBackground', 'rgba(0, 255, 0, 0.25)');
+		const root = group.closest<HTMLElement>('.monaco-workbench')!;
+		const results = [];
+		for (const connected of [false, true]) {
+			root.classList.toggle('modern-ui-connected-editor-tabs', connected);
+			for (const { width, showTabs } of [500, 180, 500].flatMap(width => [false, true].map(showTabs => ({ width, showTabs })))) {
+				container.classList.toggle('tabs', showTabs);
+				await layoutConnectedGroup(group, width);
+				const style = mainWindow.getComputedStyle(container);
+				results.push({ connected, width, showTabs, backing: style.backgroundColor, themeLayer: style.backgroundImage });
+			}
+		}
+		assert.deepStrictEqual(results, results.map(result => ({ ...result, backing: 'rgb(18, 52, 86)', themeLayer: result.showTabs ? 'linear-gradient(rgba(255, 0, 0, 0.25), rgba(255, 0, 0, 0.25))' : 'linear-gradient(rgba(0, 255, 0, 0.25), rgba(0, 255, 0, 0.25))' })));
+	});
+
 	test('connected labels use end ellipsis before the badge and action', async () => {
 		const group = connectedGroup();
 		const badgeStyle = document.createElement('style');
@@ -284,7 +332,7 @@ suite('MultiEditorTabsControl', () => {
 		const action = tab.querySelector<HTMLElement>('.tab-actions')!;
 		const badge = mainWindow.getComputedStyle(label, '::after');
 		assert.deepStrictEqual({
-			narrow: tab.classList.contains('connected-tab-narrow'),
+			narrow: tab.classList.contains('modern-ui-tab-narrow'),
 			iconHidden: mainWindow.getComputedStyle(label, '::before').display,
 			name: name.textContent,
 			suffix: tab.querySelector('.label-suffix')?.textContent ?? '',
@@ -306,7 +354,10 @@ suite('MultiEditorTabsControl', () => {
 		});
 		group.closest('.monaco-workbench')!.classList.remove('modern-ui-connected-editor-tabs');
 		await layoutConnectedGroup(group, 200);
-		assert.deepStrictEqual([name.textContent, tab.classList.contains('connected-tab-narrow')], ['1: file0.txt', false]);
+		assert.deepStrictEqual([name.textContent, tab.classList.contains('modern-ui-tab-narrow')], ['1: file0.txt', true]);
+		group.closest('.monaco-workbench')!.classList.remove('modern-ui-tabs');
+		await layoutConnectedGroup(group, 200);
+		assert.deepStrictEqual([name.textContent, tab.classList.contains('modern-ui-tab-narrow')], ['1: file0.txt', false]);
 	});
 
 	test('connected shrink tabs collapse and restore icons as the editor width changes', async () => {
@@ -329,7 +380,7 @@ suite('MultiEditorTabsControl', () => {
 			await layoutConnectedGroup(group, width);
 			const tabs = Array.from(container.querySelectorAll<HTMLElement>('.tabs-container > .tab'));
 			states.push({
-				collapsedIcons: tabs.filter(tab => tab.classList.contains('connected-tab-narrow')).length,
+				collapsedIcons: tabs.filter(tab => tab.classList.contains('modern-ui-tab-narrow')).length,
 				trimmedNames: tabs.filter(tab => {
 					const name = tab.querySelector<HTMLElement>('.monaco-icon-name-container')!;
 					return name.scrollWidth > name.clientWidth;
@@ -461,6 +512,44 @@ suite('MultiEditorTabsControl', () => {
 			root.classList.remove(theme);
 		}
 		assert.deepStrictEqual(measurements, expected);
+	});
+
+	test('modern tab labels retain ellipsis space with transient actions across sizing modes', async () => {
+		const group = connectedGroup();
+		const root = group.closest<HTMLElement>('.monaco-workbench')!;
+		const iconStyle = document.createElement('style');
+		iconStyle.textContent = '.modern-ui-tabs .tab-label::before { content: ""; } .modern-ui-tabs .tab-label.monaco-decoration-badge::after { content: "U"; margin: 0 5px; }';
+		group.appendChild(iconStyle);
+		openNamedEditors(['Files', 'a-long-tab-name-that-needs-truncation.ts']);
+		const results = [];
+		for (const connected of [false, true]) {
+			root.classList.toggle('modern-ui-connected-editor-tabs', connected);
+			for (const tabSizing of ['fit', 'fixed', 'shrink'] as const) {
+				for (const { tabActionReserveSpace, tabActionLocation } of [false, true].flatMap(tabActionReserveSpace => (['left', 'right'] as const).map(tabActionLocation => ({ tabActionReserveSpace, tabActionLocation })))) {
+					const oldOptions = partOptions;
+					partOptions = { ...partOptions, tabSizing, tabActionReserveSpace, tabActionLocation, hasIcons: true, tabSizingFixedMinWidth: 80, tabSizingFixedMaxWidth: 80 };
+					control.updateOptions(oldOptions, partOptions);
+					await layoutConnectedGroup(group, 200);
+					const tab = container.querySelector<HTMLElement>('.tab')!;
+					tab.querySelector<HTMLElement>('.tab-label')!.classList.add('monaco-decoration-badge');
+					tab.style.removeProperty('--tab-sizing-fit-width');
+					await layoutConnectedGroup(group, 200);
+					hoverTab(0);
+					tab.querySelector<HTMLElement>('.action-label')!.focus();
+					const name = tab.querySelector<HTMLElement>('.monaco-icon-name-container')!;
+					const label = tab.querySelector<HTMLElement>('.monaco-icon-label-container')!;
+					const nameStyle = mainWindow.getComputedStyle(name);
+					results.push({
+						connected, tabSizing, tabActionReserveSpace, tabActionLocation,
+						ellipsis: nameStyle.textOverflow,
+						textFitsLabel: name.getBoundingClientRect().right <= label.getBoundingClientRect().right + 1 / 64,
+						readable: name.getBoundingClientRect().width + 1 / 64 >= Number.parseFloat(nameStyle.fontSize),
+					});
+					tab.querySelector<HTMLElement>('.action-label')!.blur();
+				}
+			}
+		}
+		assert.deepStrictEqual(results, results.map(result => ({ ...result, ellipsis: 'ellipsis', textFitsLabel: true, readable: true })));
 	});
 
 	test('unreserved fit widths refresh when a decoration provider adds or removes a badge', async () => {
@@ -769,7 +858,7 @@ suite('MultiEditorTabsControl', () => {
 		await layoutConnectedGroup(group, 300);
 		assert.deepStrictEqual({
 			widths: tabs.map(tab => tab.getBoundingClientRect().width),
-			collapsed: tabs.map(tab => tab.classList.contains('connected-tab-narrow')),
+			collapsed: tabs.map(tab => tab.classList.contains('modern-ui-tab-narrow')),
 		}, { widths: pillWidths, collapsed: [false, false] });
 	});
 
@@ -2017,6 +2106,46 @@ suite('MultiEditorTabsControl', () => {
 			backgrounds: ['rgb(30, 41, 59)', 'rgb(22, 78, 99)', 'rgb(30, 41, 59)'],
 			actionTargets: [[20, 20], [20, 20], [20, 20]],
 		}))));
+	});
+
+	test('Add Tab leaves separate pinned-row caps and action hit targets unobstructed', async () => {
+		const group = connectedGroup();
+		const root = group.closest<HTMLElement>('.monaco-workbench')!;
+		model.stick(model.getEditorByIndex(0)!);
+		const menuIds = { tabsBarAddTab: MenuId.for('test.connectedTabs.pinnedAddTab') };
+		control.dispose();
+		reset(container);
+		control = createControl(menuIds);
+		control.dispose();
+		reset(container);
+		partOptions = { ...partOptions, pinnedTabsOnSeparateRow: true, pinnedTabSizing: 'normal', tabSizing: 'fixed', tabSizingFixedMinWidth: 120, tabSizingFixedMaxWidth: 120, editorActionsLocation: 'hidden' };
+		const multiRowControl = disposables.add(instantiationService.createInstance(MultiRowEditorControl, container, editorPartsView, groupsView, groupView, model, menuIds, false, false));
+		multiRowControl.openEditors(model.getEditors(EditorsOrder.SEQUENTIAL));
+		const results = [];
+		for (const theme of ['vs-dark', 'hc-black', 'hc-light']) {
+			root.classList.add(theme);
+			for (const wrapTabs of [false, true]) {
+				const oldOptions = partOptions;
+				partOptions = { ...partOptions, wrapTabs };
+				multiRowControl.updateOptions(oldOptions, partOptions);
+				await layoutConnectedGroup(group, 500, multiRowControl);
+				const upper = container.querySelector<HTMLElement>('.connected-tab-upper-bar')!;
+				const fill = upper.querySelector<HTMLElement>('.tab > .tab-fill')!;
+				const add = upper.querySelector<HTMLElement>('.tabs-bar-add-tab')!;
+				const button = add.querySelector<HTMLElement>('.action-label')!;
+				const bounds = button.getBoundingClientRect();
+				const target = mainWindow.document.elementFromPoint(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+				results.push({
+					theme, wrapTabs,
+					positiveInset: mainWindow.getComputedStyle(button).marginLeft,
+					capBeforeButton: fill.getBoundingClientRect().right <= bounds.left,
+					noShoulderMask: mainWindow.getComputedStyle(add, '::before').content,
+					clickable: !!target && (target === button || button.contains(target)),
+				});
+			}
+			root.classList.remove(theme);
+		}
+		assert.deepStrictEqual(results, results.map(result => ({ ...result, positiveInset: '2px', capBeforeButton: true, noShoulderMask: 'none', clickable: true })));
 	});
 
 	test('separate pinned bars share upper-pill geometry and reserve no document seam', async () => {
