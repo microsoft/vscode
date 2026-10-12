@@ -5,7 +5,7 @@
 
 import { URI } from '../../../base/common/uri.js';
 import type { IAgentChatContext } from '../common/agent.js';
-import { buildDefaultChatUri, isDefaultChatUri, type URI as ProtocolURI } from '../common/state/sessionState.js';
+import { buildDefaultChatUri, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import type { AgentHostStateManager } from './agentHostStateManager.js';
 
 function toKey(resource: URI | ProtocolURI): ProtocolURI {
@@ -32,14 +32,15 @@ function toUri(resource: URI | ProtocolURI): URI {
  * Accepts either resource form so callers already holding protocol URI strings
  * (the action pipeline) need not round-trip through {@link URI}.
  */
-export function createAgentChatContext(stateManager: AgentHostStateManager, session: URI | ProtocolURI, chat: URI | ProtocolURI): IAgentChatContext {
+export function createAgentChatContext(stateManager: AgentHostStateManager, session: URI | ProtocolURI, chat: URI | ProtocolURI, storageResource?: ProtocolURI): IAgentChatContext {
 	const sessionKey = toKey(session);
 	const chatKey = toKey(chat);
 	const origin = stateManager.getChatOrigin(chatKey);
 	const customizations = stateManager.getSessionState(sessionKey)?.customizations;
 	const sessionUri = toUri(session);
+	const storage = storageResource ?? stateManager.resolveChatStorageResource(sessionKey, chatKey);
 	return {
-		resource: isDefaultChatUri(chatKey) ? sessionUri : toUri(chat),
+		resource: storage === sessionKey ? sessionUri : storage === chatKey ? toUri(chat) : URI.parse(storage),
 		configurationResource: sessionUri,
 		...(origin ? { origin } : {}),
 		...(customizations ? { customizations } : {}),

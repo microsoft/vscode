@@ -22910,6 +22910,44 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('restores a normalized chat with the storage its row records, not storage derived from its owner or URI', async () => {
+			const owner = AgentSession.uri('copilot', 'storage-owner');
+			const named = AgentSession.uri('copilot', 'storage-named');
+			// Default-shaped for `named`, owned by `owner`, stored at a third resource.
+			const defaultChat = buildDefaultChatUri(named);
+			const storage = AgentSession.uri('copilot', 'recorded-storage').toString();
+			const database = disposables.add(new AgentHostDatabase(':memory:'));
+			await database.registerRuntimeSession(owner.toString(), { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+			const registered = await database.registerChatCatalogV2(owner.toString(), {
+				defaultChat: { chat: defaultChat, order: 0, storageResource: storage },
+				peers: [],
+				privateDescendants: [],
+			});
+			const agent = disposables.add(new MockAgent('copilot'));
+			await createAgentSession(agent, { session: owner });
+			const svc = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, createPerSessionDataService().service, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, database,
+			));
+			registerTestAgentProvider(svc, agent);
+
+			await svc.restoreSession(owner);
+
+			assert.deepStrictEqual({
+				registered: registered.status,
+				owner: getStateManager(svc).getChatOwner(defaultChat),
+				storage: getStateManager(svc).getChatStorageResource(defaultChat),
+				providerResources: agent.chatContexts
+					.filter(call => call.chat.toString() === defaultChat && !URI.isUri(call.context) && call.context !== undefined)
+					.map(call => (call.context as IAgentChatContext).resource.toString()),
+			}, {
+				registered: 'applied',
+				owner: owner.toString(),
+				storage,
+				providerResources: [storage],
+			});
+		});
+
 		test('a legacy session whose private chat activation is not ready still restores its subagent on subscribe', async () => {
 			class NotReadyCatalogDatabase extends AgentHostDatabase {
 				override async ensureChatCatalogV2(..._args: Parameters<IAgentHostDatabase['ensureChatCatalogV2']>): ReturnType<IAgentHostDatabase['ensureChatCatalogV2']> {

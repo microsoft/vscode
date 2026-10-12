@@ -23,7 +23,7 @@ import { SessionConfigKey } from '../../../common/sessionConfigKeys.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationWorkspaceKind, serializeAgentWorkspaceTransition, type IAgentSystemNotificationMeta, type IAgentWorkspaceTransitionRecord, toAgentSystemNotificationMeta } from '../../../common/meta/agentSystemNotificationMeta.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, AH_META_WORKSPACE_CONVERSION_QUARANTINED_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, buildDefaultChatUri, ChatInteractivity, isAhpChatChannel, ChatOriginKind, isDefaultChatUri, isSubagentSession, MessageKind, parseSubagentSessionUri, readSessionExternal, readSessionWorkspaceless, ResponsePartKind, SessionLifecycle, SessionStatus, withSessionHasWorkspaceTransitions, withSessionWorkspaceless, type ISessionWithDefaultChat, type SessionConfigState, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
-import { AgentHostStateManager, chatStorageResourceForRegistration, IAgentHostStateManager } from '../../agentHostStateManager.js';
+import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
 import { IAgentHostClientConnectionService } from '../../agentHostClientConnectionService.js';
 import { IAgentConfigurationService } from '../../agentConfigurationService.js';
 import { IAgentHostProviderService } from '../../agentHostProviderService.js';
@@ -91,7 +91,7 @@ export interface ISessionWorkspaceConversionService {
 	supportsChatIsolation(session: URI): boolean;
 	canIsolateChat(chat: URI): boolean;
 	requestChatIsolation(chat: URI, turnId: string, initiatingClientId?: string): void;
-	restoreChatIsolation(session: ProtocolURI, chat: ProtocolURI): Promise<void>;
+	restoreChatIsolation(session: ProtocolURI, chat: ProtocolURI, storageResource?: ProtocolURI): Promise<void>;
 	/** Returns false when the chat already uses the requested folder without needing a workspace change. */
 	requestSessionWorkspaceUpdate(chat: URI, turnId: string, workspaceFolder: URI, isolation: boolean, initiatingClientId?: string): boolean;
 	isPending(chat: ProtocolURI, sessionWide?: boolean): boolean;
@@ -235,9 +235,9 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		});
 	}
 
-	async restoreChatIsolation(session: ProtocolURI, chat: ProtocolURI): Promise<void> {
-		// Hydration can run before the chat is registered, so the owner is supplied by the caller.
-		const storage = URI.parse(this._stateManager.getChatStorageResource(chat) ?? chatStorageResourceForRegistration(session, chat));
+	async restoreChatIsolation(session: ProtocolURI, chat: ProtocolURI, storageResource?: ProtocolURI): Promise<void> {
+		// Hydration can run before the chat is registered, so the owner and recorded storage are supplied by the caller.
+		const storage = URI.parse(storageResource ?? this._stateManager.resolveChatStorageResource(session, chat));
 		const restore = Symbol();
 		this._trackedChatOwners.set(chat, session);
 		this._restoringChats.set(chat, restore);
@@ -411,7 +411,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		const host = this._chatIsolationHost!;
 		const { chat, workspaceFolder, initiatingClientId } = pending;
 		const session = URI.parse(pending.owner);
-		const storage = URI.parse(this._stateManager.getChatStorageResource(chat.toString()) ?? chatStorageResourceForRegistration(pending.owner, chat.toString()));
+		const storage = URI.parse(this._stateManager.resolveChatStorageResource(pending.owner, chat.toString()));
 		const provider = this._providerService.getProviderForSession(session)!;
 		let workspaceFinalized = false;
 		const assertWorkspace = (expected = pending.previousWorkingDirectory ?? workspaceFolder) => {
@@ -1046,7 +1046,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 	}
 
 	private async _discardWorkspaceTransition(session: string, chat: URI, turnId: string): Promise<void> {
-		const storage = URI.parse(this._stateManager.getChatStorageResource(chat.toString()) ?? chatStorageResourceForRegistration(session, chat.toString()));
+		const storage = URI.parse(this._stateManager.resolveChatStorageResource(session, chat.toString()));
 		const database = this._sessionDataService.openDatabase(storage);
 		try {
 			await database.object.deleteTurnWorkspaceTransition(turnId);

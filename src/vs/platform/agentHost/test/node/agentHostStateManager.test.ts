@@ -1910,6 +1910,25 @@ suite('AgentHostStateManager', () => {
 			});
 		});
 
+		test('keeps recorded chat storage across re-registration and summary refresh', () => {
+			const owner = 'copilot:/storage-owner';
+			const peer = buildChatUri('copilot:/storage-named', 'peer');
+			const defaultChat = buildDefaultChatUri('copilot:/storage-named');
+			const recorded = new Map([[defaultChat, 'copilot:/default-storage'], [peer, 'copilot:/peer-storage']]);
+			manager.restoreSession({
+				...makeSessionSummary(owner),
+				defaultChat,
+				chats: [{ resource: peer, title: 'Peer', status: SessionStatus.Idle, interactivity: ChatInteractivity.Full }],
+			} as SessionSummary, [], { chatStorageResources: recorded });
+			manager.registerRestoredChatSummary(owner, peer, { storageResource: 'copilot:/other-storage', title: 'Peer' });
+			manager.dispatchServerAction(owner, { type: ActionType.SessionIsReadChanged, isRead: true });
+
+			assert.deepStrictEqual([defaultChat, peer].map(chat => [manager.getChatOwner(chat), manager.getChatStorageResource(chat)]), [
+				[owner, 'copilot:/default-storage'],
+				[owner, 'copilot:/peer-storage'],
+			]);
+		});
+
 		test('retains the owner of an evicted published session default chat and of announced chats', () => {
 			const owner = 'copilot:/retained-owner';
 			manager.restoreSession({ ...makeSessionSummary(owner), defaultChat: buildChatUri('copilot:/elsewhere', 'stable-default') }, []);

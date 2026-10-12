@@ -64,7 +64,7 @@ import { parseNonPtyShellTerminalUri, type INonPtyShellTerminalUri } from '../co
 import { IGitBlobUriFields, parseGitBlobUri } from './gitDiffContent.js';
 import { resolveSessionRepositories } from './agentHostSessionRepositories.js';
 import { findDeepestContainingWorkingDirectory, getWorkingDirectoryKey, isMultiRootSession } from '../common/agentHostWorkingDirectories.js';
-import { AgentHostStateManager } from './agentHostStateManager.js';
+import { AgentHostStateManager, creationTimeChatStorageResource } from './agentHostStateManager.js';
 import { IAgentHostSessionTitleController } from './agentHostSessionTitleController.js';
 import { IAdditionalWorktreeLifecycleService } from './chatContributions/additionalWorktreeLifecycle/additionalWorktreeLifecycleService.js';
 import { AgentHostAutomationService } from './agentHostAutomationService.js';
@@ -155,6 +155,19 @@ function usesStandardSessionUris(provider: AgentProvider): boolean {
 }
 
 /** A recent update to one local Agent Host session. */
+/** Storage resources a normalized catalog snapshot records for its chats. */
+function recordedChatStorage(snapshot: IAgentHostDatabaseCatalogSnapshotEntry | undefined): ReadonlyMap<string, string> {
+	const storage = new Map<string, string>();
+	if (snapshot?.authorityVersion === 2) {
+		for (const chat of snapshot.chats) {
+			if (chat.storageResource !== undefined) {
+				storage.set(chat.chat, chat.storageResource);
+			}
+		}
+	}
+	return storage;
+}
+
 /** The recorded owner of a chat, and the spawning tool call when it was found from a spawn edge. */
 interface IChatOwnerResolution {
 	readonly owner: string;
@@ -5848,8 +5861,14 @@ export class AgentService extends Disposable implements IAgentService {
 		return !!provider.getDescriptor().capabilities?.multipleChats;
 	}
 
-	private _chatContext(session: URI, chat: URI): IAgentChatContext {
-		return createAgentChatContext(this._stateManager, session, chat);
+	private _chatContext(session: URI, chat: URI, storageResource?: string): IAgentChatContext {
+		return createAgentChatContext(this._stateManager, session, chat, storageResource);
+	}
+
+	/** Storage resources the normalized catalog records for a session's chats. */
+	private async _readRecordedChatStorage(session: string): Promise<ReadonlyMap<string, string>> {
+		const [snapshot] = await this._orchestratorDatabase.readCatalogSnapshot([session]);
+		return recordedChatStorage(snapshot);
 	}
 
 	/**
@@ -6035,7 +6054,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * {@link _chatContext} stamps.
 	 */
 	private async _getChatMessages(provider: IAgent, chat: URI, session: URI, origin?: ChatOrigin, workspaceTransitionsPromise?: Promise<ReadonlyMap<string, string> | undefined>, storage: URI | undefined = this._chatStorage(chat)): Promise<readonly Turn[]> {
-		const context = { ...this._chatContext(session, chat), ...(origin ? { origin } : {}) };
+		const context = { ...this._chatContext(session, chat, storage?.toString()), ...(origin ? { origin } : {}) };
 		const transitionsPromise = workspaceTransitionsPromise ?? this._loadWorkspaceTransitions(storage);
 		this._logService.trace(`[AgentService] getChatMessages start: chat=${chat.toString()}`);
 		const [providerTurns, workspaceTransitions] = await Promise.all([
@@ -6043,7 +6062,7 @@ export class AgentService extends Disposable implements IAgentService {
 			transitionsPromise,
 		]);
 		this._logService.trace(`[AgentService] getChatMessages: provider returned ${providerTurns.length} turn(s) for chat=${chat.toString()}`);
-		return this._chatContributions.hydrateTurns({ session: session.toString(), chat: chat.toString(), workspaceTransitions }, providerTurns);
+		return this._chatContributions.hydrateTurns({ session: session.toString(), chat: chat.toString(), ...(storage ? { storageResource: storage.toString() } : {}), workspaceTransitions }, providerTurns);
 	}
 
 	/** Routes a passive provider snapshot through normal hydration while retaining host-owned turns. */
@@ -9304,6 +9323,8 @@ export class AgentService extends Disposable implements IAgentService {
 		const cachedChatCatalog = await cachedChatCatalogPromise;
 		const cachedDefaultChat = cachedChatCatalog?.find(chat => chat.kind === 'default');
 		const defaultChatUri = URI.parse(normalizedDefault?.chat ?? cachedDefaultChat?.uri ?? buildDefaultChatUri(sessionStr));
+		const recordedStorage = recordedChatStorage(normalizedCatalog);
+		const defaultChatStorage = recordedStorage.get(defaultChatUri.toString()) ?? creationTimeChatStorageResource(sessionStr, defaultChatUri.toString());
 		const defaultChatWorkingDirectories = normalizedDefault
 			? normalizedDefault.workingDirectories
 			: await this._readDefaultChatWorkingDirectories(session, defaultChatUri) ?? cachedDefaultChat?.workingDirectories;
@@ -9311,6 +9332,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const { draft: defaultDraft, title: defaultChatTitle } = await this._chatContributions.hydrateChat({
 			session: sessionStr,
 			chat: defaultChatUri.toString(),
+			storageResource: defaultChatStorage,
 		}, {});
 		const defaultChatProviderData = await this._readDefaultChatProviderData(session);
 		// Default-chat restore always goes through {@link IAgent.materializeChat};
@@ -9319,7 +9341,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// provider storage and, if they do, persist it once for later restores.
 		// If no backing exists, restore the history but leave the missing live
 		// backing explicit.
-		const chatContext = this._chatContext(session, defaultChatUri);
+		const chatContext = this._chatContext(session, defaultChatUri, defaultChatStorage);
 		const recoveredDefaultChat = !normalizedCatalog && !external && defaultChatProviderData === undefined
 			? await agent.recoverLegacyChat?.(defaultChatUri, chatContext)
 			: undefined;
@@ -9345,7 +9367,10 @@ export class AgentService extends Disposable implements IAgentService {
 		let changesetMetadata: Record<string, string | undefined> | undefined;
 		let sessionMetadata: Record<string, unknown> | undefined;
 		let persistedWorkingDirectories: string | undefined;
-		let workspaceTransitionsPromise: Promise<ReadonlyMap<string, string> | undefined> = Promise.resolve(undefined);
+		// A default chat stored outside its session database keeps its workspace transitions in its own storage.
+		let workspaceTransitionsPromise: Promise<ReadonlyMap<string, string> | undefined> = defaultChatStorage === sessionStr
+			? Promise.resolve(undefined)
+			: this._loadWorkspaceTransitions(URI.parse(defaultChatStorage));
 		const ref = this._sessionDataService.tryOpenDatabase?.(session);
 		if (ref) {
 			try {
@@ -9375,7 +9400,7 @@ export class AgentService extends Disposable implements IAgentService {
 							...GIT_DB_METADATA_KEYS,
 							...CHANGESET_DB_METADATA_KEYS,
 						});
-						if (m[AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY] === 'true') {
+						if (m[AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY] === 'true' && defaultChatStorage === sessionStr) {
 							retainedForWorkspaceTransitions = true;
 							workspaceTransitionsPromise = this._readWorkspaceTransitions(db, session);
 						}
@@ -9510,7 +9535,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 		let turns: readonly Turn[];
 		try {
-			turns = await this._getChatMessages(agent, defaultChatUri, session, undefined, workspaceTransitionsPromise);
+			turns = await this._getChatMessages(agent, defaultChatUri, session, undefined, workspaceTransitionsPromise, URI.parse(defaultChatStorage));
 		} catch (err) {
 			if (err instanceof ProtocolError) {
 				throw err;
@@ -9544,7 +9569,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const workingDirectories = withChatWorkingDirectories(parseSessionWorkingDirectories(persistedWorkingDirectories) ?? meta.workingDirectories?.map(d => d.toString()), centralChatCatalog);
 		restoredMeta = withPublishedWorkingDirectoryIdentities(restoredMeta, workingDirectories, centralChatCatalog);
 		if (agent.id === CODEX_AGENT_PROVIDER_ID) {
-			restoredMeta = withCodexSessionModel(restoredMeta, agent.chats.getModel?.(defaultChatUri, this._chatContext(session, defaultChatUri)) ?? meta.model);
+			restoredMeta = withCodexSessionModel(restoredMeta, agent.chats.getModel?.(defaultChatUri, this._chatContext(session, defaultChatUri, defaultChatStorage)) ?? meta.model);
 		}
 		const currentRegistration = await this._sessionRegistry.get(session, entry => this._migrateRegisteredSession(entry));
 		const effectiveRegistrationSource = currentRegistration?.source ?? registrationSource;
@@ -9591,6 +9616,7 @@ export class AgentService extends Disposable implements IAgentService {
 			defaultChatModifiedAt,
 			defaultChatWorkingDirectories,
 			defaultChatIsRead: normalizedDefault ? normalizedDefault.isRead : defaultChatIsRead,
+			chatStorageResources: recordedStorage,
 		});
 		if (normalizedDefault?.metadata?.changes !== undefined) {
 			this._stateManager.setChatSummaryChanges(normalizedDefault.chat, normalizedDefault.metadata.changes);
@@ -9874,6 +9900,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * are loaded on the first content request.
 	 */
 	private async _restorePeerChatsFromCatalog(session: URI, entries: readonly IPersistedPeerChat[], cachedChats?: readonly ICatalogChat[]): Promise<void> {
+		const recordedStorage = await this._readRecordedChatStorage(session.toString());
 		const restored = await Promise.all(entries.map(async (entry) => {
 			let chatUri: URI;
 			try {
@@ -9887,6 +9914,7 @@ export class AgentService extends Disposable implements IAgentService {
 			const { title, draft } = await this._chatContributions.hydrateChat({
 				session: session.toString(),
 				chat: chatUri.toString(),
+				storageResource: recordedStorage.get(chatUri.toString()),
 			}, cachedTitle ? { title: cachedTitle } : {});
 			return {
 				chatUri,
@@ -9911,6 +9939,7 @@ export class AgentService extends Disposable implements IAgentService {
 				continue;
 			}
 			this._stateManager.registerRestoredChatSummary(session.toString(), chatUri.toString(), {
+				storageResource: recordedStorage.get(chatUri.toString()),
 				title,
 				draft,
 				providerData,
@@ -11347,6 +11376,7 @@ export class AgentService extends Disposable implements IAgentService {
 			return { ...child, chatUri, origin, existing };
 		});
 		const normalized = await this._peerChatStore.readNormalizedChat(parentSession, URI.parse(parentChat));
+		const recordedStorage = await this._readRecordedChatStorage(parentSessionStr);
 		for (const child of restored) {
 			if (!isCurrent()) {
 				return;
@@ -11360,6 +11390,7 @@ export class AgentService extends Disposable implements IAgentService {
 			const { title } = await this._chatContributions.hydrateChat({
 				session: parentSessionStr,
 				chat: child.chatUri,
+				storageResource: recordedStorage.get(child.chatUri),
 			}, {});
 			if (!isCurrent()) {
 				return;
@@ -11458,6 +11489,7 @@ export class AgentService extends Disposable implements IAgentService {
 				return;
 			}
 			this._stateManager.registerRestoredChatSummary(parentSessionStr, child.chatUri, {
+				storageResource: recordedStorage.get(child.chatUri),
 				title: child.title,
 				origin: child.origin,
 				interactivity: ChatInteractivity.ReadOnly,

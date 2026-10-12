@@ -83,12 +83,13 @@ interface ISessionEntry {
 }
 
 /**
- * The resource a chat's persisted data is keyed by, from the owner it is being
- * registered under: a default chat stores under its owning session, every other
- * chat under its own URI. Registration records the result once; hydration
- * that runs before registration uses the same rule.
+ * Creation-time storage rule: where a chat's persisted data lives when it is
+ * born in `session` — a default chat stores under its session, every other chat
+ * under its own URI. Only for brand-new chats (owner is the birth session) and
+ * legacy sources that record no storage; chats restored from a source that
+ * records storage register with that recorded value instead.
  */
-export function chatStorageResourceForRegistration(session: string, chat: string): string {
+export function creationTimeChatStorageResource(session: string, chat: string): string {
 	return isDefaultChatUri(chat) ? session : chat;
 }
 
@@ -631,6 +632,15 @@ export class AgentHostStateManager extends Disposable {
 	/** Returns the resource a registered chat's persisted data is keyed by. */
 	getChatStorageResource(chat: URI): string | undefined {
 		return this._chatEntries.get(chat)?.storageResource;
+	}
+
+	/**
+	 * Returns the recorded storage resource of a chat. A chat that is not
+	 * registered yet (hydration and provider setup during its restore) falls
+	 * back to the creation-time rule for the owner the caller restores it for.
+	 */
+	resolveChatStorageResource(session: URI, chat: URI): string {
+		return this.getChatStorageResource(chat) ?? creationTimeChatStorageResource(session, chat);
 	}
 
 	/** Returns the chat whose tool call spawned a registered chat, if any. */
@@ -1266,7 +1276,7 @@ export class AgentHostStateManager extends Disposable {
 	 * summary (e.g. adoptable-legacy), a `sessionSummaryChanged` delta is emitted
 	 * so clients update the entry in place instead of dropping it.
 	 */
-	restoreSession(summary: SessionSummary, turns: Turn[], options?: { readonly draft?: Message; readonly defaultChatTitle?: string; readonly defaultChatModifiedAt?: string; readonly defaultChatWorkingDirectories?: readonly string[]; readonly defaultChatIsRead?: boolean }): SessionState {
+	restoreSession(summary: SessionSummary, turns: Turn[], options?: { readonly draft?: Message; readonly defaultChatTitle?: string; readonly defaultChatModifiedAt?: string; readonly defaultChatWorkingDirectories?: readonly string[]; readonly defaultChatIsRead?: boolean; readonly chatStorageResources?: ReadonlyMap<string, string> }): SessionState {
 		const key = summary.resource;
 		const existing = this._sessionStates.get(key);
 		if (existing) {
@@ -1280,12 +1290,13 @@ export class AgentHostStateManager extends Disposable {
 		};
 		const entry = this._newEntry(state, summary, SessionUse.Used);
 		this._sessionStates.set(key, entry);
-		this._ensureDefaultChat(key, summary, turns, options?.draft, options?.defaultChatTitle, options?.defaultChatModifiedAt, options?.defaultChatWorkingDirectories, options?.defaultChatIsRead);
+		this._ensureDefaultChat(key, summary, turns, options?.draft, options?.defaultChatTitle, options?.defaultChatModifiedAt, options?.defaultChatWorkingDirectories, options?.defaultChatIsRead, options?.chatStorageResources?.get(summary.defaultChat ?? buildDefaultChatUri(key)));
 		for (const chat of summary.chats ?? []) {
 			if (chat.resource === state.defaultChat) {
 				continue;
 			}
 			this.registerRestoredChatSummary(key, chat.resource, {
+				storageResource: options?.chatStorageResources?.get(chat.resource),
 				title: chat.title,
 				origin: chat.origin,
 				interactivity: chat.interactivity,
@@ -1327,7 +1338,7 @@ export class AgentHostStateManager extends Disposable {
 	 * at creation/restore time, so the snapshot a client later receives on
 	 * subscribe already reflects the default chat.
 	 */
-	private _ensureDefaultChat(sessionKey: string, summary: SessionSummary, turns?: Turn[], draft?: Message, defaultChatTitle?: string, modifiedAt?: string, workingDirectories?: readonly string[], isRead?: boolean): void {
+	private _ensureDefaultChat(sessionKey: string, summary: SessionSummary, turns?: Turn[], draft?: Message, defaultChatTitle?: string, modifiedAt?: string, workingDirectories?: readonly string[], isRead?: boolean, storageResource?: string): void {
 		const chatUri = summary.defaultChat ?? buildDefaultChatUri(sessionKey);
 		const changes = summary.chats?.find(chat => chat.resource === chatUri)?.changes;
 		// Empty title means "inherit the session title"; a persisted independent
@@ -1344,7 +1355,7 @@ export class AgentHostStateManager extends Disposable {
 		}
 		this._chatEntries.set(chatUri, {
 			session: sessionKey,
-			storageResource: chatStorageResourceForRegistration(sessionKey, chatUri),
+			storageResource: storageResource ?? creationTimeChatStorageResource(sessionKey, chatUri),
 			summary: chatSummary,
 			state: { ...createChatState(chatSummary), turns: turns ?? [], draft },
 			valid: true,
@@ -1380,7 +1391,7 @@ export class AgentHostStateManager extends Disposable {
 	 * chat, tool spawn). Omitting it defaults to {@link ChatOriginKind.User}
 	 * via {@link createDefaultChatSummary}, so every catalog chat has an origin.
 	 */
-	addChat(session: URI, chatUri: URI, options?: { readonly title?: string; readonly turns?: Turn[]; readonly origin?: ChatOrigin; readonly providerData?: string; readonly inheritedTurnId?: string; readonly interactivity?: ChatInteractivity; readonly workingDirectories?: readonly string[] }): ChatSummary | undefined {
+	addChat(session: URI, chatUri: URI, options?: { readonly storageResource?: string; readonly title?: string; readonly turns?: Turn[]; readonly origin?: ChatOrigin; readonly providerData?: string; readonly inheritedTurnId?: string; readonly interactivity?: ChatInteractivity; readonly workingDirectories?: readonly string[] }): ChatSummary | undefined {
 		const entry = this._sessionStates.get(session);
 		if (!entry) {
 			this._logService.warn(`[AgentHostStateManager] addChat for unknown session: ${session}`);
@@ -1409,7 +1420,7 @@ export class AgentHostStateManager extends Disposable {
 		};
 		this._chatEntries.set(chatUri, {
 			session,
-			storageResource: chatStorageResourceForRegistration(session, chatUri),
+			storageResource: options?.storageResource ?? creationTimeChatStorageResource(session, chatUri),
 			parentChat: registrationParentChat(options?.origin),
 			summary: chatSummary,
 			state: { ...createChatState(chatSummary), turns: options?.turns ?? [] },
@@ -1426,7 +1437,7 @@ export class AgentHostStateManager extends Disposable {
 	 * creating conversation state. The state-manager-owned resolver installs a
 	 * complete state only through {@link resolveChatState}.
 	 */
-	registerRestoredChatSummary(session: URI, chatUri: URI, options: { readonly title?: string; readonly modifiedAt?: string; readonly origin?: ChatOrigin; readonly interactivity?: ChatInteractivity; readonly archived?: boolean; readonly isRead?: boolean; readonly draft?: Message; readonly providerData?: string; readonly inheritedTurnId?: string; readonly workingDirectories?: readonly string[]; readonly changes?: ChangesSummary; readonly resolver?: RestoredChatResolver }): ChatSummary | undefined {
+	registerRestoredChatSummary(session: URI, chatUri: URI, options: { readonly storageResource?: string; readonly title?: string; readonly modifiedAt?: string; readonly origin?: ChatOrigin; readonly interactivity?: ChatInteractivity; readonly archived?: boolean; readonly isRead?: boolean; readonly draft?: Message; readonly providerData?: string; readonly inheritedTurnId?: string; readonly workingDirectories?: readonly string[]; readonly changes?: ChangesSummary; readonly resolver?: RestoredChatResolver }): ChatSummary | undefined {
 		const entry = this._sessionStates.get(session);
 		if (!entry) {
 			this._logService.warn(`[AgentHostStateManager] registerRestoredChatSummary for unknown session: ${session}`);
@@ -1486,7 +1497,7 @@ export class AgentHostStateManager extends Disposable {
 		entry.state.chats = [...entry.state.chats, chatSummary];
 		this._chatEntries.set(chatUri, {
 			session,
-			storageResource: chatStorageResourceForRegistration(session, chatUri),
+			storageResource: options.storageResource ?? creationTimeChatStorageResource(session, chatUri),
 			parentChat: registrationParentChat(options.origin),
 			summary: chatSummary,
 			providerData: options.providerData,
@@ -2018,7 +2029,7 @@ export class AgentHostStateManager extends Disposable {
 			} else {
 				this._chatEntries.set(summary.resource, {
 					session,
-					storageResource: chatStorageResourceForRegistration(session, summary.resource),
+					storageResource: creationTimeChatStorageResource(session, summary.resource),
 					parentChat: registrationParentChat(summary.origin),
 					summary,
 					valid: true,
