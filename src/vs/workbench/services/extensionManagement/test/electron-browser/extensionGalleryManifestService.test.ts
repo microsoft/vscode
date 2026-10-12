@@ -77,9 +77,6 @@ function createMicrosoftSession(accessToken = 'ms-token', accountId = 'ms-accoun
 	};
 }
 
-// Gallery manifest response stub. A well-formed manifest carries a version, an (empty) `resources`
-// array and the `extensionQuery` capability consumers dereference; eligibility is no longer
-// discovered from a manifest resource.
 function createGalleryManifest() {
 	return {
 		version: '1.0',
@@ -417,54 +414,35 @@ suite('WorkbenchExtensionGalleryManifestService', () => {
 		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.AccessDenied);
 	});
 
-	test('GitHub provider — eligible account, 200 with a non-manifest body → AccessDenied', async () => {
-		defaultAccount = createDefaultAccount({ enterprise: true });
-		requestHandler = () => mockResponse(200, { foo: 'bar' });
+	for (const [scenario, body] of [
+		['with a non-manifest body', { foo: 'bar' }],
+		['with malformed resources', { ...createGalleryManifest(), resources: [{}] }],
+		['without capabilities', { version: '1.0', resources: [] }],
+		['without the extensionQuery capability', { ...createGalleryManifest(), capabilities: {} }],
+		['with malformed extensionQuery capabilities', { ...createGalleryManifest(), capabilities: { extensionQuery: { filtering: [{}] } } }],
+	] as const) {
+		test(`GitHub provider — eligible account, 200 ${scenario} → AccessDenied`, async () => {
+			defaultAccount = createDefaultAccount({ enterprise: true });
+			requestHandler = () => mockResponse(200, body);
 
-		const service = createService();
-		await service.getExtensionGalleryManifest();
+			const service = createService();
+			await service.getExtensionGalleryManifest();
 
-		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.AccessDenied);
-	});
+			assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.AccessDenied);
+		});
+	}
 
-	test('GitHub provider — eligible account, 200 with malformed resources → AccessDenied', async () => {
-		defaultAccount = createDefaultAccount({ enterprise: true });
-		requestHandler = () => mockResponse(200, { ...createGalleryManifest(), resources: [{}] });
-
-		const service = createService();
-		await service.getExtensionGalleryManifest();
-
-		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.AccessDenied);
-	});
-
-	test('GitHub provider — eligible account, 200 without a version → AccessDenied', async () => {
+	test('GitHub provider — eligible account, 200 without a version → Available', async () => {
 		defaultAccount = createDefaultAccount({ enterprise: true });
 		requestHandler = () => mockResponse(200, { resources: [], capabilities: { extensionQuery: {} } });
 
 		const service = createService();
-		await service.getExtensionGalleryManifest();
+		const manifest = await service.getExtensionGalleryManifest();
 
-		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.AccessDenied);
-	});
-
-	test('GitHub provider — eligible account, 200 without capabilities → AccessDenied', async () => {
-		defaultAccount = createDefaultAccount({ enterprise: true });
-		requestHandler = () => mockResponse(200, { version: '1.0', resources: [] });
-
-		const service = createService();
-		await service.getExtensionGalleryManifest();
-
-		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.AccessDenied);
-	});
-
-	test('GitHub provider — eligible account, 200 without the extensionQuery capability → AccessDenied', async () => {
-		defaultAccount = createDefaultAccount({ enterprise: true });
-		requestHandler = () => mockResponse(200, { ...createGalleryManifest(), capabilities: {} });
-
-		const service = createService();
-		await service.getExtensionGalleryManifest();
-
-		assert.strictEqual(service.extensionGalleryManifestStatus, ExtensionGalleryManifestStatus.AccessDenied);
+		assert.deepStrictEqual(
+			{ status: service.extensionGalleryManifestStatus, version: manifest?.version },
+			{ status: ExtensionGalleryManifestStatus.Available, version: '' }
+		);
 	});
 
 	test('Microsoft provider — manifest fetch fails → AccessDenied', async () => {
