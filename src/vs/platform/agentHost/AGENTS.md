@@ -10,8 +10,7 @@
 
 # Multi-Chat Architecture
 
-> Node runtime service construction is documented separately in [`node/serviceBootstrapping.md`](node/serviceBootstrapping.md).
-> Host startup timings, process-lifetime correlation, and session workload counts are documented in [`PERFORMANCE.md`](PERFORMANCE.md).
+> Node runtime service construction is documented separately in [`node/serviceBootstrapping.md`](node/serviceBootstrapping.md). Host startup timings, process-lifetime correlation, and session workload counts are documented in [`PERFORMANCE.md`](PERFORMANCE.md).
 
 > **Status: COMPLETE** (2026-07-01) All waves A–D and gates G-B1, G-C1, G-C2, G-D1 are done. Codex, Claude, and Copilot all use the unified orchestrator path.
 >
@@ -99,11 +98,15 @@ Agents do **not** maintain the chat catalog, persist membership, know whether a 
 
 Copilot's runtime-owned `image_generation` tool maps ordinary SDK start, progress, and completion events into existing AHP tool-call actions. Codex's `imageGeneration` items map to `image_gen.imagegen` and use the same renderer. The final revised Codex prompt is published before completion; unavailable prompts remain absent in both live and restored results.
 
+Native Copilot image tool start can precede permission checks. Keep the call in AHP `streaming` until the permission flow takes ownership or structured image progress establishes execution; completion also settles calls from runtimes that omit progress.
+
 Copilot's optional `structuredContent.imageGeneration.requestedModel` maps to `_meta["vscode.imageGeneration"]`, validated by [agentImageGenerationMeta.ts](common/meta/agentImageGenerationMeta.ts). This identifies the requested image engine, not the conversation model or a confirmed serving model. Hosts without this metadata retain generic image labels.
 
 Availability, authorization, and durable tool history remain provider-owned. Inline images use AHP embedded-resource content; resource links must resolve through the host's `resourceRead`. An opaque SDK asset ID alone is not a readable AHP resource.
 
 Copilot image completions carry optional `_meta["vscode.toolCallDurationMs"]`, derived from SDK execution-event timestamps in both live and restored history. Clients validate this display-only value and tolerate its absence. Image byte sizes come from the actual embedded or referenced bytes; suggested hash-suffixed download names never rewrite referenced resource identities.
+
+For native image-generation results, `structuredContent.imageGeneration.images[].contentIndex` identifies original images in SDK `result.contents`. Use those validated indexes for display rather than also displaying resized model-facing copies from `contents` or `binaryResultsForLlm`; preserve all content when the optional index metadata is absent or invalid.
 
 Insiders and development builds set `IMAGE_GENERATION_TOOL=true` in the Copilot runtime subprocess environment. Stable leaves the runtime default and inherited overrides unchanged. This opts into the tool, not image-model access: the runtime still enforces account/model availability, policy, and tool permissions. Generation requires a bundled runtime containing the versioned `/v1/images/generations` endpoint fix and a deployed CAPI route.
 
@@ -111,11 +114,7 @@ Insiders and development builds set `IMAGE_GENERATION_TOOL=true` in the Copilot 
 
 When `chat.experimental.workspaceSnapshot` is enabled (root config `workspaceSnapshotEnabled`; off by default and experiment-controlled), Copilot chats receive a bounded initial workspace-file snapshot through `WorkspaceContextContribution` on the first turn of a new conversation: the default chat or a user-created peer chat whose chat state is loaded and has no turns, never a restored chat (even one whose history is not loaded yet, such as a `send_message` target), fork, side chat, or tool-spawned chat. It uses the working directories resolved for the turn (`IOutgoingTurn.workingDirectories`, including a worktree created on the first send, which session state does not reflect until the provider materializes). Like the classic Copilot Chat workspace structure, it walks directories breadth first through `IFileService`, reading only the directories whose names fit the 2,000-character budget and keeping no more entries of a directory than the budget could list; it skips hidden entries, a short list of dependency and build folders, and Git storage directories, does not apply `.gitignore`, and reads no file contents (its Git-storage check reads only a linked worktree's `commondir` pointer, capped at 4 KB). The contribution returns the listing as an ordinary host instruction (a `<workspace_info>` block), so no provider changes are involved. The listing is not checked against content exclusion: it holds file names only, never contents. Preparation starts when the first turn's `ChatTurnStarted` is dispatched (`onDidDispatchAction`, so client and host-started turns such as `send_message`, `create_session`, and automations both overlap it with the rest of the send path), or, for a session creating its worktree, as soon as the worktree exists (`onDidChangeWorkingDirectoryPending`); the send waits at most one second for unfinished roots and omits the rest. The snapshot counts as sent when the host hands the turn to the provider (`AgentHostTurnTracker.onDidDispatchTurn`, after the final pre-dispatch cancellation checks). Only then is it logged at info level and reported as `agentHost.workspaceSnapshot` telemetry (roots included, pending, empty, or unreadable, and the snapshot's length). A turn that fails after that point is not retried with the snapshot. A first turn that never reaches the provider, such as a local command or a turn cancelled before dispatch, leaves the snapshot for the next turn that does. Only the chat's active turn may use or clean up snapshot state, so a cancelled send that is still unwinding cannot affect the next turn. A first turn's end is observed from its terminal state action (`ChatTurnComplete`, `ChatTurnCancelled`, or `ChatError`) through `onDidDispatchAction` and matched by turn id, not from `onTurnEnd`: a cancelled local command's turn end arrives only when the command finishes, possibly after a replacement turn started. Preparation stops once the send has run, or when the turn ends, the chat is removed (`SessionChatRemoved`), or the session is removed (`onDidRemoveSession`).
 
-Shared UI first-progress observations use the capability-gated VS Code-only
-`vscode/reportChatUserInteraction` RPC, not the generated chat protocol. The
-handler validates a content-free payload and drains the existing OTel exporter
-before acknowledging. The renderer clock and visibility semantics remain owned
-by the chat UI; see [the OTel contract](OTEL.md#user-perceived-first-progress).
+Shared UI first-progress observations use the capability-gated VS Code-only `vscode/reportChatUserInteraction` RPC, not the generated chat protocol. The handler validates a content-free payload and drains the existing OTel exporter before acknowledging. The renderer clock and visibility semantics remain owned by the chat UI; see [the OTel contract](OTEL.md#user-perceived-first-progress).
 
 Artifact removal uses the VS Code-only `vscode/removeSessionArtifact` extension RPC with `{ session: string, artifactId: string }` and a void result. Clients gate the optional `removeSessionArtifact(URI, string)` connection method with `supportsAgentHostArtifactRemoval(initializeResult)` (`_meta['vscode.removeSessionArtifact'] === true`). This does not extend the generated AHP protocol.
 
@@ -139,29 +138,12 @@ Artifact tools read and mutate only the invoking chat's artifacts. The session d
 - Suppresses a peer chat's separately-enumerable backing SDK session (when `IAgentCreateChatResult.backingSession` is set): marks it via `_markPeerChatBacking` and filters it out of `listSessions` (invariant I7).
 - Routes harness-spawned chats into the catalog (`_onChatSpawned`, `_onChatEnded`).
 - Owns the restore flow (`restoreSession`, `_restorePeerChats`).
-- Owns the automatic merged-pull-request session lifecycle through
-  `AgentHostSessionLifecycle`: the application-scoped policy is synchronized
-  into root config; candidates are filtered from the registry using only the
-  persisted archive/GitHub fields needed for cleanup; and every related pull
-  request is authoritatively refreshed before a candidate is restored. A
-  session is eligible only when no related pull request is open and at least
-  one related pull request is merged; closed-unmerged PRs do not block it.
-  Pull request state is refreshed again immediately before lifecycle side
-  effects so reopening a closed PR blocks the action. Eligible sessions are
-  archived through the normal `SessionIsArchivedChanged` action and side-effect
-  path, which removes the worktree when Git confirms that the branch tracks an
-  upstream with no unpushed or uncommitted work. Permanent deletion applies the
-  same safe cleanup to a retained worktree before deleting the session. Archive
-  and deletion thresholds accept any positive whole number of days; zero
-  disables the corresponding lifecycle.
+- Owns the automatic merged-pull-request session lifecycle through `AgentHostSessionLifecycle`: the application-scoped policy is synchronized into root config; candidates are filtered from the registry using only the persisted archive/GitHub fields needed for cleanup; and every related pull request is authoritatively refreshed before a candidate is restored. A session is eligible only when no related pull request is open and at least one related pull request is merged; closed-unmerged PRs do not block it. Pull request state is refreshed again immediately before lifecycle side effects so reopening a closed PR blocks the action. Eligible sessions are archived through the normal `SessionIsArchivedChanged` action and side-effect path, which removes the worktree when Git confirms that the branch tracks an upstream with no unpushed or uncommitted work. Permanent deletion applies the same safe cleanup to a retained worktree before deleting the session. Archive and deletion thresholds accept any positive whole number of days; zero disables the corresponding lifecycle.
 
 **`AgentHostStateManager` (`node/agentHostStateManager.ts`):**
 - Holds the authoritative in-memory state tree:
   - `_sessionStates: Map<string, ISessionEntry>` — per-session `SessionState` + catalog timestamps.
-  - `_chatEntries: Map<string, IChatEntry>` — one entry for every chat catalog
-    item. An entry owns its current `ChatSummary`, optional hydrated
-    `ChatState`, opaque `providerData`, and (for restored peers) resolver,
-    in-flight promise, and invalidation state.
+  - `_chatEntries: Map<string, IChatEntry>` — one entry for every chat catalog item. An entry owns its current `ChatSummary`, optional hydrated `ChatState`, opaque `providerData`, and (for restored peers) resolver, in-flight promise, and invalidation state.
 - Owns `_ensureDefaultChat`: creates the default `ChatState` (URI derived deterministically from the session URI via `buildDefaultChatUri`) at create/restore time.
 - `addChat`/`registerRestoredChatSummary`/`removeChat`: the paths for live, restored, and removed catalog membership.
 - `getChatState` is a synchronous, no-I/O peek for reducers and diagnostics. Interaction paths use `resolveChatState`, which coalesces one peer's materialization, retries failures, and atomically publishes complete state.
@@ -493,6 +475,8 @@ Steering received during turn preparation or configuration refresh is buffered f
 
 `CopilotSessionLauncher` sets `mcpOAuthTokenStorage: 'in-memory'` for created, resumed, and ephemeral SDK sessions. VS Code owns durable MCP credentials through `onMcpAuthRequest`; the runtime must not consult its persistent MCP OAuth keychain store.
 
+Server-initiated MCP sampling is represented by a live synthetic `mcp_sampling` tool call using the standard tool confirmation UI and permission-response routing. Its options allow one request, always allow sampling for that exact server, or skip. "Always Allow" persists the server identity in the host-owned `mcpSamplingAllowedServers` root setting through `IAgentConfigurationService.updateRootConfig`, applying to every session on that host and surviving host restarts. Known same-named root/plugin definitions are fingerprinted with their sources, without storing their configuration or credentials; SDK-reported source provenance also contributes. A server with no further identity information falls back to its exact name. Each request reads the setting afresh, so removing an entry revokes approval for subsequent requests. These approvals do not authorize the server's tools; global tool auto-approval does not bypass sampling confirmation. The confirmation summarizes the request's system-prompt and message text character count without exposing the prompt contents; this is not a token or credit estimate. The host forwards raw MCP parameters to `rpc.mcp.executeSampling` and resolves the original request with `rpc.ui.handlePendingSampling`; the SDK owns model selection, inference, and MCP conversion. No historical SDK-event mapping is needed. Unattended requests are rejected unless their server was explicitly approved for sampling, and idle requests never execute. Server and MCP App inference are cancelled on chat abort or disposal. An SDK `sampling.completed` event settles the live tool part and cancels inference without replying to an already-completed request.
+
 `CopilotSessionLauncher` enables the SDK cross-session store for created and resumed user sessions only when `localIndexEnabled` is true (the default), and never for internal ephemeral sessions. The local host receives the globally scoped, experiment-aware `github.copilot.chat.localIndex.enabled` value; remote operators can set `localIndexEnabled` in host configuration. Changes restart the Copilot client at the next idle point so existing chats resume with the new preference. Chronicle suggestions are hidden when indexing is disabled. This is separate from cloud session sync and does not delete existing indexed data.
 
 Chronicle commands and subcommands come from the SDK command catalog and execute through `rpc.commands.invoke`; agent-prompt results retain the SDK's `displayPrompt` when sent so history shows the command rather than its expanded instructions. The SDK owns Chronicle indexing and retrieval.
@@ -672,83 +656,13 @@ Membership changes re-enter the same seam: a `session/chatAdded` envelope fans e
 
 Live provider runtimes that react to session config subscribe to `IAgentConfigurationService.onDidSessionConfigChange` with their explicit config resource. `AgentSideEffects` does not enumerate chats or fan config values through provider hooks.
 
-Copilot advertises the optional `sandboxEnabled` session property (`default`,
-`on`, or `off`). Omission and `default` follow the root sandbox settings;
-the successfully applied enablement is saved in session-config metadata, not a
-pending or rejected selection. Restore reconciles saved values against current
-root settings and the runtime's current managed policy before notifying live
-providers. A saved `off` that conflicts with required sandboxing becomes `on`;
-successful application persists `on` so removing the policy cannot revive `off`.
-Chats and subagents share their configuration owner's selection. New sessions
-and forks do not copy it. Codex retains its native sandbox/permission preset;
-Claude does not advertise this unsupported control.
+Copilot advertises the optional `sandboxEnabled` session property (`default`, `on`, or `off`). Omission and `default` follow the root sandbox settings; the successfully applied enablement is saved in session-config metadata, not a pending or rejected selection. Restore reconciles saved values against current root settings and the runtime's current managed policy before notifying live providers. A saved `off` that conflicts with required sandboxing becomes `on`; successful application persists `on` so removing the policy cannot revive `off`. Chats and subagents share their configuration owner's selection. New sessions and forks do not copy it. Codex retains its native sandbox/permission preset; Claude does not advertise this unsupported control.
 
-Both the Copilot SDK sandbox and custom terminal sandbox read the same effective
-session configuration. `SandboxSettingsResolutionHelper` resolves the user-editable
-enablement, bypass, and outbound-network toggles against the runtime-resolved floor.
-Managed enablement forces on; managed bypass and outbound denial force off, while
-managed permission never widens a local restriction. Filesystem settings remain
-local inputs and are not intersected or unioned by this helper.
-Copilot Agent Host reads filesystem permissions only from
-`chat.agent.sandbox.fileSystem.userConfiguredPaths`, forwarded as
-`sandbox["fileSystem.userConfiguredPaths"]`. Its `readwritePaths`, `readonlyPaths`,
-and `deniedPaths` arrays apply on all host operating systems, with path separators
-normalized on the executing host. Denied paths take precedence over read-only
-paths, which take precedence over read/write paths. There is no migration or
-fallback from the deprecated per-OS filesystem settings; those remain inputs to
-the existing terminal sandbox engine, not the Copilot SDK sandbox.
-The SDK configuration builder forwards enablement, configured
-bypass/network choices, filesystem rules, and required host-generated read paths.
-It leaves optional working-directory grants, developer-tool access, credential
-injection, local-network access, and filesystem cleanup behavior to the runtime
-rather than hardcoding those capabilities.
-The launcher subscribes to `onEvent` before create/resume
-to capture the runtime's authoritative managed-settings snapshot. Missing
-snapshots log an error and continue with the available session selection, root
-settings, and any known managed policy. Managed-policy conflicts from SDK sandbox
-updates are logged and leave the runtime's existing configuration and the last
-confirmed sandbox state unchanged without interrupting the session. Other SDK
-sandbox update failures still propagate.
-Runtime-owned sandbox floors are transient and cannot be set through client config.
-Legacy `ChatAgentSandboxEnabled` is not migrated into a mandatory Agent Host
-sandbox requirement. The existing sandbox-settings forwarder still sends the
-effective setting, including a legacy policy value, as an overridable root default.
-Session `off` may override that default unless runtime-native managed settings
-require sandboxing. The runtime's `sandbox.enabled` managed setting is the
-authoritative enterprise requirement on every supported platform.
-Explicit managed enablement replaces disallowed `off` selections with `on`;
-policy removal cannot revive them. Fail-closed-only restrictions keep the toggle
-editable, while the SDK remains responsible for accepting or rejecting an attempt.
-Managed asks remain one-time-only. Direct disabling is locked even when managed
-`allowBypass` is true. A supported SDK sandbox escape's “Allow in this Session”
-calls `sandbox.disableForSession` with the real pending SDK permission request ID.
-Only a successful opt-out changes the owner's sandbox selection; global settings
-and tool allow lists are untouched. The callback returns `no-result` because that
-RPC also completes the permission request. Host-generated terminal prompts cannot
-offer this SDK action. After an approved opt-out, the user may re-enable sandboxing;
-successful re-enablement locks direct disabling again.
+Both the Copilot SDK sandbox and custom terminal sandbox read the same effective session configuration. `SandboxSettingsResolutionHelper` resolves the user-editable enablement, bypass, and outbound-network toggles against the runtime-resolved floor. Managed enablement forces on; managed bypass and outbound denial force off, while managed permission never widens a local restriction. Filesystem settings remain local inputs and are not intersected or unioned by this helper. Copilot Agent Host reads filesystem permissions only from `chat.agent.sandbox.fileSystem.userConfiguredPaths`, forwarded as `sandbox["fileSystem.userConfiguredPaths"]`. Its `readwritePaths`, `readonlyPaths`, and `deniedPaths` arrays apply on all host operating systems, with path separators normalized on the executing host. Denied paths take precedence over read-only paths, which take precedence over read/write paths. There is no migration or fallback from the deprecated per-OS filesystem settings; those remain inputs to the existing terminal sandbox engine, not the Copilot SDK sandbox. The SDK configuration builder forwards enablement, configured bypass/network choices, filesystem rules, and required host-generated read paths. It leaves optional working-directory grants, developer-tool access, credential injection, local-network access, and filesystem cleanup behavior to the runtime rather than hardcoding those capabilities. The launcher subscribes to `onEvent` before create/resume to capture the runtime's authoritative managed-settings snapshot. Missing snapshots log an error and continue with the available session selection, root settings, and any known managed policy. Managed-policy conflicts from SDK sandbox updates are logged and leave the runtime's existing configuration and the last confirmed sandbox state unchanged without interrupting the session. Other SDK sandbox update failures still propagate. Runtime-owned sandbox floors are transient and cannot be set through client config. Legacy `ChatAgentSandboxEnabled` is not migrated into a mandatory Agent Host sandbox requirement. The existing sandbox-settings forwarder still sends the effective setting, including a legacy policy value, as an overridable root default. Session `off` may override that default unless runtime-native managed settings require sandboxing. The runtime's `sandbox.enabled` managed setting is the authoritative enterprise requirement on every supported platform. Explicit managed enablement replaces disallowed `off` selections with `on`; policy removal cannot revive them. Fail-closed-only restrictions keep the toggle editable, while the SDK remains responsible for accepting or rejecting an attempt. Managed asks remain one-time-only. Direct disabling is locked even when managed `allowBypass` is true. A supported SDK sandbox escape's “Allow in this Session” calls `sandbox.disableForSession` with the real pending SDK permission request ID. Only a successful opt-out changes the owner's sandbox selection; global settings and tool allow lists are untouched. The callback returns `no-result` because that RPC also completes the permission request. Host-generated terminal prompts cannot offer this SDK action. After an approved opt-out, the user may re-enable sandboxing; successful re-enablement locks direct disabling again.
 
-The host publishes the resolved floor in the optional `vscode.resolvedSandboxPolicy`
-session `_meta` slot through the server-only `SessionMetaChanged` action, including
-the required `enabled` flag and optional `allowBypass`, `allowOutbound`,
-`allowLocalNetwork`, `allowDevToolAccess`, `sandboxMcpServers`, `sandboxLspServers`,
-and `failClosed` flags. These describe bypass, outbound and local-network access,
-developer-tool access, MCP/LSP server sandboxing, and fail-closed restrictions.
-Session snapshots include it for reconnecting clients; subsequent resolutions
-replace it, including an explicit disabled floor when the requirement disappears.
-Writing the resolved floor removes the legacy `vscode.sandboxPolicy` slot.
-Clients validate this metadata and use it only for that session's sandbox controls,
-not to modify global settings. Missing metadata from older or other hosts is not
-evidence of an enforced floor. Native managed settings remain runtime-enforced.
-Local desktop pickers use renderer-managed policy until session policy is published;
-this fallback never applies to remote hosts or overrides a host-published policy.
+The host publishes the resolved floor in the optional `vscode.resolvedSandboxPolicy` session `_meta` slot through the server-only `SessionMetaChanged` action, including the required `enabled` flag and optional `allowBypass`, `allowOutbound`, `allowLocalNetwork`, `allowDevToolAccess`, `sandboxMcpServers`, `sandboxLspServers`, and `failClosed` flags. These describe bypass, outbound and local-network access, developer-tool access, MCP/LSP server sandboxing, and fail-closed restrictions. Session snapshots include it for reconnecting clients; subsequent resolutions replace it, including an explicit disabled floor when the requirement disappears. Writing the resolved floor removes the legacy `vscode.sandboxPolicy` slot. Clients validate this metadata and use it only for that session's sandbox controls, not to modify global settings. Missing metadata from older or other hosts is not evidence of an enforced floor. Native managed settings remain runtime-enforced. Local desktop pickers use renderer-managed policy until session policy is published; this fallback never applies to remote hosts or overrides a host-published policy.
 
-The optional `vscode.sandboxState` session metadata records enablement after a
-successful SDK update. Pickers update optimistically; a failed client change restores
-the last successful value unless a newer sandbox request superseded it. The host
-publishes the failure before the rollback, with the originating client ID and sequence number, so only
-that window logs and displays a standard error notification, once per request.
-Retry is manual through the relevant control; no retry action or toggle-local error UI is added.
+The optional `vscode.sandboxState` session metadata records enablement after a successful SDK update. Pickers update optimistically; a failed client change restores the last successful value unless a newer sandbox request superseded it. The host publishes the failure before the rollback, with the originating client ID and sequence number, so only that window logs and displays a standard error notification, once per request. Retry is manual through the relevant control; no retry action or toggle-local error UI is added.
 
 Both `IAgentHostPromptCache` and `IAgentHostSessionTitleSignal` are constructed and registered by `createAgentServiceComposition`. Consumers resolve their service identifiers through constructor injection; `AgentService` neither owns nor exposes them.
 

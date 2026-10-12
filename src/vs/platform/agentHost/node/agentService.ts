@@ -69,6 +69,7 @@ import { IAdditionalWorktreeLifecycleService } from './chatContributions/additio
 import { AgentHostAutomationService } from './agentHostAutomationService.js';
 import { createAgentChatContext } from './agentChatContext.js';
 import { AgentHostDebugLogsCollector, type IAgentHostDebugLogsEnvironment } from './agentHostDebugLogs.js';
+import { withAgentHostDebugLogsProgress } from '../common/meta/agentHostDebugLogsMeta.js';
 import { IAgentHostDatabase, IAgentHostDatabaseSessionOptions, type IAgentHostDatabaseCatalogSnapshotEntry, type IAgentHostDatabaseSessionsV2Exclusion } from './agentHostDatabase.js';
 import { AgentSessionRegistry, IRegisteredSession, IStoredRegisteredSession } from './agentSessionRegistry.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH, tryResolvePrimaryWorktreeRoot } from '../common/agentHostGitService.js';
@@ -122,7 +123,7 @@ import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
 import { AgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
 import type { IAgentHostCopilotSkuClassification, IAgentHostCopilotSkuTelemetry } from './agentHostTelemetryReporter.js';
-import { AgentHostArtifactToolsConfigKey, AgentHostEditTelemetryEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostSessionCatalogEnabledConfigKey, AgentHostShowExternalSessionsConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
+import { AgentHostArtifactToolsConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostEditTelemetryEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostSessionCatalogEnabledConfigKey, AgentHostShowExternalSessionsConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { supersedeTitleGenerationStrategyForLegacyUpdate } from '../common/titleGenerationConfiguration.js';
 import { IAgentHostChangesetService, CHANGESET_DB_METADATA_KEYS, CHANGES_SUMMARY_METADATA_KEYS, getChatChangesSummaryMetadataKey, META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
 import { GIT_DB_METADATA_KEYS, IAgentHostGitStateService, META_GIT_DATA_STATE, META_GIT_STATE, META_GITHUB_DATA_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
@@ -5340,19 +5341,38 @@ export class AgentService extends Disposable implements IAgentService {
 	}
 
 	async listSessionCanvases(session: URI, chat: URI): Promise<readonly IAgentCanvasInfo[]> {
+		this._assertCanvasesEnabled();
+		await this._restoreSessionCanvasChat(session, chat);
 		const provider = this._providerService.getProviderForSession(session);
 		if (!provider?.listSessionCanvases) {
 			throw new Error(`Canvas inventory is unavailable for session '${session.toString()}'.`);
 		}
-		return provider.listSessionCanvases(session, chat);
+		return provider.listSessionCanvases(session, chat, this._chatContext(session, chat));
 	}
 
 	async openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest, chat: URI): Promise<void> {
+		this._assertCanvasesEnabled();
+		await this._restoreSessionCanvasChat(session, chat);
 		const provider = this._providerService.getProviderForSession(session);
 		if (!provider?.openSessionCanvas) {
 			throw new Error(`Opening canvases is unavailable for session '${session.toString()}'.`);
 		}
-		await provider.openSessionCanvas(session, request, chat);
+		await provider.openSessionCanvas(session, request, chat, this._chatContext(session, chat));
+	}
+
+	private _assertCanvasesEnabled(): void {
+		if (this._configurationService.getRootValue(platformRootSchema, AgentHostCanvasesEnabledConfigKey) !== true) {
+			throw new Error('Canvases are disabled.');
+		}
+	}
+
+	private async _restoreSessionCanvasChat(session: URI, chat: URI): Promise<void> {
+		await this.restoreSession(session);
+		const ownsChat = this._stateManager.getSessionState(session.toString())?.chats.some(candidate => isEqual(URI.parse(candidate.resource), chat)) === true;
+		if (!ownsChat) {
+			throw new Error(`Canvas operation targeted a chat outside session '${session.toString()}'.`);
+		}
+		await this._stateManager.resolveChatState(chat.toString());
 	}
 
 	async installPlugin(providerId: AgentProvider, request: IAgentPluginInstallRequest): Promise<void> {
@@ -10671,7 +10691,11 @@ export class AgentService extends Disposable implements IAgentService {
 		return this._providerService.getProviderForSession(session)?.getSessionStateFile?.(session, chat);
 	}
 
-	async collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI): Promise<IAgentHostDebugLogsArtifact> {
+	getSessionPlanFile(session: URI, chat: URI): URI | undefined {
+		return this._providerService.getProviderForSession(session)?.getSessionPlanFile?.(session, chat);
+	}
+
+	async collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI, progressToken?: string): Promise<IAgentHostDebugLogsArtifact> {
 		if (!this._debugLogsCollector) {
 			throw new Error('Agent Host debug log collection is unavailable');
 		}
@@ -10683,7 +10707,21 @@ export class AgentService extends Disposable implements IAgentService {
 				? `No Agent Host provider is available for session ${session.toString()}`
 				: 'No Agent Host providers are available for debug-log collection');
 		}
-		return this._debugLogsCollector.collect(providers, session, kind, chat);
+		let lastProgress = 0;
+		try {
+			return await this._debugLogsCollector.collect(providers, session, kind, chat, progressToken, progressToken ? (progress, total, message) => {
+				lastProgress = progress;
+				this._stateManager.emitProgress(withAgentHostDebugLogsProgress({ progressToken, progress, total: total > 0 ? total : undefined, message }));
+			} : undefined);
+		} finally {
+			if (progressToken) {
+				this._stateManager.emitProgress(withAgentHostDebugLogsProgress({ progressToken, progress: lastProgress, total: lastProgress }));
+			}
+		}
+	}
+
+	async cancelDebugLogs(progressToken: string): Promise<void> {
+		this._debugLogsCollector?.cancel(progressToken);
 	}
 
 	async readDebugLogsChunk(resource: URI, position: number): Promise<IAgentHostDebugLogsChunk> {

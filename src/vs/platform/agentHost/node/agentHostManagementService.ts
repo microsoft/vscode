@@ -225,11 +225,15 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		return this._agentService.getSessionStateFile(session, chat);
 	}
 
-	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI): Promise<IAgentHostDebugLogsArtifact> {
+	collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI, progressToken?: string): Promise<IAgentHostDebugLogsArtifact> {
 		if (!this._agentService.collectDebugLogs) {
 			throw new Error('Agent Host debug log collection is unavailable');
 		}
-		return this._agentService.collectDebugLogs(session, kind, chat);
+		return this._agentService.collectDebugLogs(session, kind, chat, progressToken);
+	}
+
+	async cancelDebugLogs(progressToken: string): Promise<void> {
+		await this._agentService.cancelDebugLogs?.(progressToken);
 	}
 
 	readDebugLogsChunk(resource: URI, position: number): Promise<IAgentHostDebugLogsChunk> {

@@ -25,6 +25,7 @@ import { multiplexProperties, type IAgentHostRestrictedTelemetry, type IAgentHos
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, type CodexModelProvider, type AgentHostProviderSendStage, type AgentHostTurnFailureStage, type AgentHostTurnSendStage, type IAgentHostClientTelemetryContext, type IAgentProviderTurnTelemetryContext, type ICodexAccountTelemetryContext } from '../common/agentHostTelemetry.js';
 import { isAgentHostTelemetryService } from './agentHostTelemetryService.js';
+import { toCopilotTelemetryData } from './shared/copilotSkuTelemetry.js';
 import { getCodexAccountTelemetryData, type CodexAccountTelemetryClassification } from './codex/codexAccountTelemetry.js';
 import { groupAgentHostProviderTimings, sanitizeAgentHostProviderTiming, type AgentHostProviderTimingMeasurement, type AgentHostProviderTimingMeasurements, type IAgentHostProviderTiming } from '../common/agentHostProviderTiming.js';
 
@@ -320,7 +321,7 @@ export interface IAgentHostClientConnectionReport {
 
 export type AgentHostTurnResult = 'success' | 'error' | 'cancelled';
 export type AgentHostModelTelemetryKind = 'trusted' | 'byok' | 'unknown';
-export type AgentHostModelSelectionKind = 'default' | 'auto' | 'hydrafusion' | 'explicit';
+export type AgentHostModelSelectionKind = 'default' | 'auto' | 'hydrafusion' | 'hydrafusionMax' | 'explicit';
 export type { AgentHostTurnFailureStage, AgentHostTurnSendStage };
 export type AgentHostInitiatorClientConnectionState = 'connected' | 'disconnected' | 'unknown';
 export type AgentHostProviderDiagnosticState = 'available' | 'error' | 'missingChat' | 'missingTurn' | 'unavailable' | 'unsupported';
@@ -424,7 +425,7 @@ export type IAgentHostTurnCompletedClassification = IAgentHostEventClassificatio
 	totalTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Total time in milliseconds from turn start to turn completion.' };
 	result: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the turn completed successfully, with an error, or was cancelled.' };
 	model: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The trusted provider model identifier selected at turn start, or a generic value for BYOK and unknown models.' };
-	modelSelectionKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the turn used the provider default, Auto, HydraFusion, or an explicit model.' };
+	modelSelectionKind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the turn used the provider default, Auto, HydraFusion, HydraFusion Max, or an explicit model.' };
 	isBYOK: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the selected model is a bring-your-own-key model, when model context is available.' };
 	permissionLevel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The tool auto-approval level configured for the session at turn start (e.g. default, autoApprove, autopilot).' };
 	interactionMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host interaction mode configured at turn start.' };
@@ -700,7 +701,7 @@ export type IAgentHostTurnHungClassification = IAgentHostEventClassification & C
 	quietTimeMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds since the last observed turn activity.' };
 	turnElapsedMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time in milliseconds from turn start to the hang report.' };
 	model: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The trusted provider model identifier for the turn, or a generic value for BYOK and unknown models.' };
-	modelSelectionKind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the turn used the provider default, Auto, HydraFusion, or an explicit model.' };
+	modelSelectionKind: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the turn used the provider default, Auto, HydraFusion, HydraFusion Max, or an explicit model.' };
 	permissionLevel: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The tool auto-approval level configured for the session at turn start (e.g. default, autoApprove, autopilot).' };
 	owner: 'roblourens';
 	comment: 'Tracks agent host turns that stop making progress for longer than the hang threshold, so permanently stuck sessions are visible as a positive signal instead of missing turnCompleted events.';
@@ -1201,15 +1202,14 @@ export class AgentHostTelemetryReporter {
 		return typeof ts.sendEnhancedGHTelemetryEvent === 'function' ? ts as IAgentHostRestrictedTelemetry : undefined;
 	}
 
-	private _copilotSku(provider: string): IAgentHostCopilotSkuTelemetry {
-		const copilotSku = isAgentHostTelemetryService(this._telemetryService) ? this._telemetryService.getCopilotSku(provider) : undefined;
-		return copilotSku === undefined ? {} : { copilotSku };
+	private _copilotTelemetryContext(provider: string): IAgentHostCopilotSkuTelemetry {
+		return isAgentHostTelemetryService(this._telemetryService) ? toCopilotTelemetryData(this._telemetryService.getCopilotTelemetryContext(provider)) ?? {} : {};
 	}
 
 	executionModeChanged(provider: string, session: string, previousMode: SessionMode, newMode: SessionMode, turnCount: number, clientContext?: IAgentHostClientTelemetryContext): void {
 		this._telemetryService.publicLog2<IAgentHostExecutionModeChangedEvent, IAgentHostExecutionModeChangedClassification>('agentHost.executionModeChanged', {
 			...toInitiatorTelemetry(clientContext),
-			...this._copilotSku(provider),
+			...this._copilotTelemetryContext(provider),
 			provider,
 			agentSessionId: AgentSession.id(session),
 			isSubagentSession: isSubagentSession(session),
@@ -1227,7 +1227,7 @@ export class AgentHostTelemetryReporter {
 		const extensionSource = source === 'project' || source === 'user' || source === 'plugin' || source === 'session' ? source : 'unknown';
 		this._telemetryService.publicLog2<CanvasOpenedEvent, CanvasOpenedClassification>('agentHost.canvasOpened', {
 			...toInitiatorTelemetry(clientContext),
-			...this._copilotSku(provider),
+			...this._copilotTelemetryContext(provider),
 			schemaVersion: 1,
 			provider,
 			agentSessionId: AgentSession.id(session),
@@ -1240,12 +1240,12 @@ export class AgentHostTelemetryReporter {
 	}
 
 	userMessageSent(provider: string, clientId: string | undefined, clientContext: IAgentHostClientTelemetryContext, session: string, turnId: string, sessionState: ISessionWithDefaultChat | undefined, source: AgentHostUserMessageSentSource, message: Message, isEphemeralSession: boolean): void {
-		const copilotSku = this._copilotSku(provider);
+		const telemetryContext = this._copilotTelemetryContext(provider);
 		const attachmentCount = message.attachments?.length ?? 0;
 		const activeClients = sessionState?.activeClients ?? [];
 		const sessionUri = isAhpChatChannel(session) ? parseRequiredSessionUriFromChatUri(session) : session;
 		this._telemetryService.publicLog2<IAgentHostUserMessageSentEvent, IAgentHostUserMessageSentClassification>('agentHost.userMessageSent', {
-			...copilotSku,
+			...telemetryContext,
 			provider,
 			isOtelEnabled: this._otelService.enabled,
 			hostLaunchKind: clientContext.hostLaunchKind,
@@ -1271,7 +1271,7 @@ export class AgentHostTelemetryReporter {
 			attachmentCount,
 		});
 		this._restricted?.sendGHTelemetryEvent('agentHost.userMessageSent', {
-			...copilotSku,
+			...telemetryContext,
 			provider,
 			initiatorClientType: clientContext.clientType,
 			conversationId: AgentSession.id(sessionUri),
@@ -1410,7 +1410,7 @@ export class AgentHostTelemetryReporter {
 		const toolCounts = JSON.stringify(report.toolCounts);
 		this._telemetryService.publicLog2<IAgentHostToolCallDetailsEvent, IAgentHostToolCallDetailsClassification>('toolCallDetails', {
 			...toInitiatorTelemetry(report.clientContext),
-			...report.telemetryContext,
+			...toCopilotTelemetryData(report.telemetryContext),
 			provider: report.provider,
 			agentSessionId: conversationId,
 			chatSessionId,
@@ -1440,7 +1440,7 @@ export class AgentHostTelemetryReporter {
 			requestId: report.turnId,
 			messageId: report.turnId,
 			initiatorClientType: report.clientType,
-			...report.telemetryContext,
+			...toCopilotTelemetryData(report.telemetryContext),
 			responseType: report.responseType,
 			...(report.model ? { model: report.model } : {}),
 			toolCounts,
@@ -1466,7 +1466,7 @@ export class AgentHostTelemetryReporter {
 		const agentSessionId = AgentSession.id(session);
 		this._telemetryService.publicLog2<IAgentHostToolApprovalEvent, IAgentHostToolApprovalClassification>('chat.toolApproval', {
 			...toInitiatorTelemetry(report.clientContext),
-			...report.telemetryContext,
+			...toCopilotTelemetryData(report.telemetryContext),
 			provider: report.provider,
 			agentSessionId,
 			isSubagentSession: isSubagentSession(session),
@@ -1617,7 +1617,7 @@ export class AgentHostTelemetryReporter {
 		const effort = isReasoningEffortLevel(reasoningEffort) ? reasoningEffort : undefined;
 		this._telemetryService.publicLog2<IRequestTokenUsageEvent, RequestTokenUsageClassification>('agentHost.requestTokenUsage', {
 			...toInitiatorTelemetry(report.clientContext),
-			...report.telemetryContext,
+			...toCopilotTelemetryData(report.telemetryContext),
 			...summary,
 			provider: report.provider,
 			agentSessionId: AgentSession.id(session),
@@ -1671,7 +1671,7 @@ export class AgentHostTelemetryReporter {
 		});
 		this._telemetryService.publicLog2<IAgentHostTurnCompletedEvent, IAgentHostTurnCompletedClassification>('agentHost.turnCompleted', {
 			...toInitiatorTelemetry(report.clientContext),
-			...report.telemetryContext,
+			...toCopilotTelemetryData(report.telemetryContext),
 			...(report.provider === 'codex' ? getCodexAccountTelemetryData(report.providerTelemetryContext?.codex) : undefined),
 			...(report.provider === 'codex' ? { codexModelProvider: report.codexModelProvider ?? 'unknown' } : {}),
 			...(report.hostRootTurnOrdinal !== undefined ? { hostRootTurnOrdinal: report.hostRootTurnOrdinal } : {}),
@@ -1721,7 +1721,7 @@ export class AgentHostTelemetryReporter {
 		if (providerTimings?.length) {
 			const providerTimingContext = {
 				...toInitiatorTelemetry(report.clientContext),
-				...report.telemetryContext,
+				...toCopilotTelemetryData(report.telemetryContext),
 				schemaVersion: 2,
 				provider: report.provider,
 				agentSessionId: AgentSession.id(session),
@@ -1740,7 +1740,7 @@ export class AgentHostTelemetryReporter {
 			const { providerCallId, serviceRequestId } = readAgentErrorTelemetryMeta(report.failure.error);
 			this._telemetryService.publicLogError2<IAgentHostTurnFailedEvent, IAgentHostTurnFailedClassification>('agentHost.turnFailed', {
 				...toInitiatorTelemetry(report.clientContext),
-				...report.telemetryContext,
+				...toCopilotTelemetryData(report.telemetryContext),
 				provider: report.provider,
 				agentSessionId: AgentSession.id(session),
 				chatSessionId,
@@ -1770,7 +1770,7 @@ export class AgentHostTelemetryReporter {
 		const isSubagent = isSubagentChatUri(report.session) || isSubagentSession(session);
 		this._telemetryService.publicLog2<IAgentHostTurnHungEvent, IAgentHostTurnHungClassification>('agentHost.turnHung', {
 			...toInitiatorTelemetry(report.clientContext),
-			...report.telemetryContext,
+			...toCopilotTelemetryData(report.telemetryContext),
 			...(report.provider === 'codex' ? getCodexAccountTelemetryData(report.providerTelemetryContext?.codex) : undefined),
 			provider: report.provider,
 			agentSessionId: AgentSession.id(session),
@@ -1809,7 +1809,7 @@ export class AgentHostTelemetryReporter {
 		const isSubagent = isSubagentChatUri(report.session) || isSubagentSession(session);
 		this._telemetryService.publicLog2<IAgentHostHungTurnCompletedEvent, IAgentHostHungTurnCompletedClassification>('agentHost.hungTurnCompleted', {
 			...toInitiatorTelemetry(report.clientContext),
-			...report.telemetryContext,
+			...toCopilotTelemetryData(report.telemetryContext),
 			provider: report.provider,
 			agentSessionId: AgentSession.id(session),
 			chatSessionId: getTelemetryChatSessionId(report.session),
@@ -1833,7 +1833,7 @@ export class AgentHostTelemetryReporter {
 		const isSubagent = isSubagentChatUri(report.session) || isSubagentSession(session);
 		this._telemetryService.publicLog2<IAgentHostLanguageModelToolInvokedEvent, IAgentHostLanguageModelToolInvokedClassification>('languageModelToolInvoked', {
 			...toInitiatorTelemetry(report.clientContext),
-			...report.telemetryContext,
+			...toCopilotTelemetryData(report.telemetryContext),
 			result: report.result,
 			chatSessionId: session,
 			toolId: report.toolId,
@@ -1849,7 +1849,7 @@ export class AgentHostTelemetryReporter {
 		});
 		const event: IAgentHostToolInvokedEvent = {
 			...toInitiatorTelemetry(report.clientContext),
-			...report.telemetryContext,
+			...toCopilotTelemetryData(report.telemetryContext),
 			result: report.result,
 			agentSessionId: AgentSession.id(session),
 			chatSessionId: getTelemetryChatSessionId(report.session),
@@ -1876,7 +1876,7 @@ export class AgentHostTelemetryReporter {
 		const isSubagent = isSubagentChatUri(report.session) || isSubagentSession(session);
 		this._telemetryService.publicLog2<IAgentHostAskQuestionsToolInvokedEvent, IAgentHostAskQuestionsToolInvokedClassification>('askQuestionsToolInvoked', {
 			...toInitiatorTelemetry(report.clientContext),
-			...report.telemetryContext,
+			...toCopilotTelemetryData(report.telemetryContext),
 			requestId: report.requestId,
 			questionCount: report.questionCount,
 			answeredCount: report.answeredCount,
@@ -1897,7 +1897,7 @@ export class AgentHostTelemetryReporter {
 		const isSubagent = isSubagentChatUri(report.session) || isSubagentSession(session);
 		this._telemetryService.publicLog2<IAgentHostToolCallStalledEvent, IAgentHostToolCallStalledClassification>('agentHost.toolCallStalled', {
 			...toInitiatorTelemetry(report.clientContext),
-			...report.telemetryContext,
+			...toCopilotTelemetryData(report.telemetryContext),
 			provider: report.provider,
 			agentSessionId: AgentSession.id(session),
 			isSubagentSession: isSubagent,
@@ -1916,7 +1916,7 @@ export class AgentHostTelemetryReporter {
 		const isSubagent = isSubagentChatUri(report.session) || isSubagentSession(session);
 		this._telemetryService.publicLog2<IAgentHostStalledToolCallCompletedEvent, IAgentHostStalledToolCallCompletedClassification>('agentHost.stalledToolCallCompleted', {
 			...toInitiatorTelemetry(report.clientContext),
-			...report.telemetryContext,
+			...toCopilotTelemetryData(report.telemetryContext),
 			provider: report.provider,
 			agentSessionId: AgentSession.id(session),
 			isSubagentSession: isSubagent,

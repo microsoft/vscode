@@ -18,7 +18,7 @@ import { narrowClaudePermissionMode } from '../../../../../platform/agentHost/co
 import { narrowCodexPermissionsPreset } from '../../../../../platform/agentHost/common/codexSessionConfigKeys.js';
 import { SessionConfigPropertySchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ChatConfiguration, ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
-import { isAutoApprovePolicyRestricted } from '../../../../../workbench/contrib/chat/common/agentHostConfigPolicy.js';
+import { disableGlobalAutoApproveForPermissionSelection, isAutoApprovePolicyRestricted } from '../../../../../workbench/contrib/chat/common/agentHostConfigPolicy.js';
 import { IPermissionLevelMeta, IPermissionPickerDelegate } from '../../copilotChatSessions/browser/permissionPicker.js';
 import { getSessionConfigProvider, IAgentHostSessionsProvider, isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionConfigProvider, ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
@@ -274,6 +274,7 @@ export class AgentHostPermissionPickerDelegate extends Disposable implements IPe
 		if (!approvalProperty || value === undefined || !isSessionConfigWritable(approvalProperty.schema, provider.getCreateSessionConfig(session.sessionId) !== undefined)) {
 			throw new Error('Approval configuration is unavailable for this session');
 		}
+		await disableGlobalAutoApproveForPermissionSelection(this._configurationService, level);
 		const operation = provider.setSessionConfigValue(session.sessionId, approvalProperty.key, value);
 		provider.trackSessionConfigOperation?.(session.sessionId, operation);
 		await operation.catch(onUnexpectedError);
