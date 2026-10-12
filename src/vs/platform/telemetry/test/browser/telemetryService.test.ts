@@ -176,6 +176,28 @@ suite('TelemetryService', () => {
 		service.dispose();
 	}));
 
+	test('Event data redacts file paths beneath user content paths', sinonTestFn(function () {
+		const testAppender = new TestTelemetryAppender();
+		const userHome = '/home/someone';
+		const extensionsPath = '/home/someone/.vscode/extensions';
+		const service = new TelemetryService({ appenders: [testAppender], piiPaths: [extensionsPath, userHome], userContentPaths: [userHome] }, new TestConfigurationService(), TestProductService);
+
+		service.publicLog('testEvent', {
+			userFile: `Failed to read ${userHome}/projects/sample/config.py`,
+			extensionFile: `at activate (${extensionsPath}/publisher.extension-1.0.0/out/extension.js:1:2)`,
+		});
+
+		assert.deepStrictEqual({
+			userFile: testAppender.events[0].data.userFile,
+			extensionFile: testAppender.events[0].data.extensionFile,
+		}, {
+			userFile: 'Failed to read <REDACTED: user-file-path>',
+			extensionFile: 'at activate (/publisher.extension-1.0.0/out/extension.js:1:2)',
+		});
+
+		service.dispose();
+	}));
+
 	test('common properties added to *all* events, simple event', function () {
 		const testAppender = new TestTelemetryAppender();
 		const service = new TelemetryService({
