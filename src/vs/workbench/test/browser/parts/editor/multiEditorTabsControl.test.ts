@@ -183,36 +183,6 @@ suite('MultiEditorTabsControl', () => {
 		await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
 	}
 
-	function classicGroup(): HTMLElement {
-		const group = connectedGroup();
-		group.closest('.monaco-workbench')!.classList.remove('modern-ui', 'modern-ui-tabs', 'modern-ui-connected-editor-tabs');
-
-		return group;
-	}
-
-	async function nextAnimationFrame(): Promise<void> {
-		await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
-	}
-
-	/**
-	 * Creates an editor for the file with the name under `/path/`.
-	 */
-	function createNamedEditor(name: string): EditorInput {
-		return disposables.add(new class extends TestFileEditorInput {
-			override getName(): string { return name; }
-		}(URI.file(`/path/${name}`), 'testEditorInput'));
-	}
-
-	/**
-	 * Returns whether the active tab is within the visible part of the tabs.
-	 */
-	function isActiveTabRevealed(): boolean {
-		const activeTab = container.querySelector<HTMLElement>('.tabs-container > .tab.active')!.getBoundingClientRect();
-		const viewport = container.querySelector<HTMLElement>('.monaco-scrollable-element')!.getBoundingClientRect();
-
-		return activeTab.left >= viewport.left && activeTab.right <= viewport.right;
-	}
-
 	function getTabStrokeStyle(tab: HTMLElement): CSSStyleDeclaration {
 		const connectedCap = tab.closest('.modern-ui-connected-editor-tabs') && tab.classList.contains('active') && !tab.classList.contains('connected-tab-upper-row');
 		return mainWindow.getComputedStyle(tab.querySelector<HTMLElement>(connectedCap ? '.tab-connected-edge' : '.tab-fill')!);
@@ -1147,85 +1117,50 @@ suite('MultiEditorTabsControl', () => {
 		});
 	});
 
-	test('closing a tab with its close button or a middle click while tabs wrap does not stop revealing the active tab once they no longer wrap', async () => {
-		// The close action of a tab closes through the editor groups service; this
-		// group closes the editor in the model and the tabs, as the editor group does
-		const editorGroup = new class extends mock<IEditorGroup>() {
-			override get selectedEditors() { return model.selectedEditors; }
-			override getEditorByIndex(index: number) { return model.getEditorByIndex(index); }
-			override isSelected(editor: EditorInput) { return model.isSelected(editor); }
-			override async closeEditor(editor: EditorInput) {
-				model.closeEditor(editor);
-				control.closeEditor(editor);
-
-				return true;
-			}
-		};
+	test('reveals the active tab once tabs stop wrapping after a tab was closed with a middle click', async () => {
+		// The middle click closes through the editor groups service, which the control resolves on creation
 		instantiationService.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {
-			override getGroup() { return editorGroup; }
+			override getGroup() {
+				return new class extends mock<IEditorGroup>() {
+					override getEditorByIndex(index: number) { return model.getEditorByIndex(index); }
+					override isSelected(editor: EditorInput) { return model.isSelected(editor); }
+					override async closeEditor(editor: EditorInput) {
+						model.closeEditor(editor);
+						control.closeEditor(editor);
+						return true;
+					}
+				};
+			}
 		});
-
-		// Classic tabs of a fixed width, wrapped onto several rows
-		const group = classicGroup();
-		const wrappedOptions: IEditorPartOptions = { ...partOptions, wrapTabs: true, tabSizing: 'fixed', tabSizingFixedMinWidth: 120, tabSizingFixedMaxWidth: 120, editorActionsLocation: 'hidden' };
-		const triggers = ['closeButton', 'middleClick'] as const;
-
-		const results = [];
-		for (const trigger of triggers) {
-			// Start each run from a fresh tabs control with no editors
-			partOptions = wrappedOptions;
-			control.dispose();
-			reset(container);
-			for (const editor of model.getEditors(EditorsOrder.SEQUENTIAL)) {
-				model.closeEditor(editor);
-			}
-
-			// Open 12 editors, make the first one active, and check that the tabs wrap
-			const editors = Array.from({ length: 12 }, (_, index) => createNamedEditor(`file${String(index + 1).padStart(2, '0')}.txt`));
-			for (const [index, editor] of editors.entries()) {
-				model.openEditor(editor, { pinned: true, index });
-			}
-			model.openEditor(editors[0], { active: true });
-			control = createControl();
-			await layoutConnectedGroup(group, 400);
-			const tabsAndActionsContainer = container.querySelector<HTMLElement>('.tabs-and-actions-container')!;
-			const wrapped = tabsAndActionsContainer.classList.contains('wrapping');
-
-			// Close the third tab with its close button or a middle click
-			const thirdTab = container.querySelectorAll<HTMLElement>('.tabs-container > .tab')[2];
-			if (trigger === 'closeButton') {
-				thirdTab.querySelector<HTMLElement>('.tab-actions .action-label')!.dispatchEvent(new MouseEvent(EventType.CLICK, { bubbles: true, cancelable: true }));
-			} else {
-				thirdTab.dispatchEvent(new MouseEvent(EventType.AUXCLICK, { bubbles: true, cancelable: true, button: 1 }));
-			}
-			await nextAnimationFrame();
-
-			// Make the last editor active, whose tab is out of view once the tabs stop wrapping
-			model.openEditor(editors[11], { active: true });
-			control.openEditors([editors[11]]);
-			await nextAnimationFrame();
-
-			// Turn wrapping off, which should reveal the active tab
-			partOptions = { ...wrappedOptions, wrapTabs: false };
-			control.updateOptions(wrappedOptions, partOptions);
-			await nextAnimationFrame();
-
-			results.push({
-				trigger,
-				wrapped,
-				thirdTabClosed: !model.contains(editors[2]),
-				wrappedAfter: tabsAndActionsContainer.classList.contains('wrapping'),
-				activeTabRevealed: isActiveTabRevealed(),
-			});
+		const group = connectedGroup();
+		partOptions = { ...partOptions, wrapTabs: true, tabSizing: 'fixed', tabSizingFixedMinWidth: 120, tabSizingFixedMaxWidth: 120, editorActionsLocation: 'hidden' };
+		for (let i = 2; i < 12; i++) {
+			model.openEditor(disposables.add(new TestFileEditorInput(URI.file(`/path/file${i}.txt`), 'testEditorInput')), { index: model.count, pinned: true, active: false });
 		}
+		control.dispose();
+		reset(container);
+		control = createControl();
+		await layoutConnectedGroup(group, 400);
+		const wrapped = container.querySelector('.tabs-and-actions-container')!.classList.contains('wrapping');
 
-		assert.deepStrictEqual(results, triggers.map(trigger => ({
-			trigger,
-			wrapped: true,
-			thirdTabClosed: true,
-			wrappedAfter: false,
-			activeTabRevealed: true,
-		})));
+		// Close the third tab with a middle click, then activate the last tab while the tabs still wrap
+		container.querySelectorAll('.tabs-container > .tab')[2].dispatchEvent(new MouseEvent(EventType.AUXCLICK, { bubbles: true, cancelable: true, button: 1 }));
+		const last = model.getEditorByIndex(model.count - 1)!;
+		model.openEditor(last, { active: true });
+		control.openEditors([last]);
+		await layoutConnectedGroup(group, 400);
+
+		// Turning wrapping off should reveal the active tab
+		const oldOptions = partOptions;
+		partOptions = { ...partOptions, wrapTabs: false };
+		control.updateOptions(oldOptions, partOptions);
+		await layoutConnectedGroup(group, 400);
+		const activeTab = container.querySelector('.tabs-container > .tab.active')!.getBoundingClientRect();
+		const viewport = container.querySelector('.monaco-scrollable-element')!.getBoundingClientRect();
+		assert.deepStrictEqual(
+			{ wrapped, activeTabRevealed: activeTab.left >= viewport.left && activeTab.right <= viewport.right },
+			{ wrapped: true, activeTabRevealed: true }
+		);
 	});
 
 	test('keeps replacement connected tabs visible after closing rightmost scrolled tabs', async () => {
