@@ -33,13 +33,18 @@ on:
       self_hosted:
         type: boolean
         default: false
+      # There are two 1ES Windows pools. runs-on labels must all match, so a job
+      # can't target "either" pool: each job picks one, and re-runs use the other.
+      wus3_pool:
+        type: boolean
+        default: false
 
 jobs:
   windows-test:
     name: ${{ inputs.job_name }}
     # The job-level condition keeps the "Windows / <job_name>" check name when skipped
     if: ${{ !inputs.skip }}
-    runs-on: ${{ inputs.self_hosted && fromJSON(format('["self-hosted", "1ES.Pool=1es-vscode-oss-windows-2022-x64", "JobId=windows-test-{0}-{1}-{2}-{3}"]', inputs.job_name, github.run_id, github.run_number, github.run_attempt)) || 'windows-2022' }}
+    runs-on: ${{ inputs.self_hosted && fromJSON(format('["self-hosted", "1ES.Pool=1es-vscode-oss-windows-2022-x64{0}", "JobId=windows-test-{1}-{2}-{3}-{4}"]', (inputs.wus3_pool != (github.run_attempt != '1')) && '-wus3' || '', inputs.job_name, github.run_id, github.run_number, github.run_attempt)) || 'windows-2022' }}
     env:
       ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}${{ (inputs.agent_host_e2e_tests && '-agent-host-e2e') || (inputs.unit_tests && !inputs.integration_tests && '-unit') || (!inputs.unit_tests && !inputs.integration_tests && inputs.smoke_tests && '-smoke') || '' }}
       NPM_ARCH: x64
