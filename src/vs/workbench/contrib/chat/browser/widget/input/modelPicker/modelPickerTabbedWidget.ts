@@ -20,7 +20,7 @@ import { localize } from '../../../../../../../nls.js';
 import { ActionListItemKind, IActionListHeaderLink, IActionListItem } from '../../../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetDropdownAction, withActionWidgetDropdownMotion } from '../../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { ITabBarAction, ITabDescriptor, TabbedActionListWidget } from '../../../../../../../platform/actionWidget/browser/tabbedActionListWidget.js';
-import { COPILOT_HYDRA_FUSION_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_NAMES } from '../../../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_NAMES } from '../../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import type { AutoModeTier } from '../../../../../../../platform/agentHost/common/autoModeTiers.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
@@ -883,14 +883,18 @@ export class TabbedModelPicker extends Disposable {
 			speedVariants: this._speedVariants.get(model.identifier),
 			routingAlternatives: hydraFusionModels.map(hydraFusion => {
 				const tier = this._getHydraFusionTier(hydraFusion, context);
+				// Ensemble presents HydraFusion as its own tiers, so it describes them as tiers.
+				const ensembleDescription = tier.label === hydraFusion.metadata.name
+					? undefined
+					: hydraFusion.metadata.id === COPILOT_HYDRA_FUSION_MAX_MODEL_ID
+						? localize('chat.modelPicker.ensembleMaxDescription', "Max uses multiple models on every task for the most thorough results.")
+						: localize('chat.modelPicker.ensembleIntelligenceDescription', "High picks a workflow per task, using one or more models.");
 				return {
 					model: hydraFusion,
 					label: tier.label,
 					replacesTier: tier.replacesTier,
-					description: tier.label === hydraFusion.metadata.name
-						? localize('chat.modelPicker.hydraFusionTierDescription', "{0} is a research preview.", hydraFusion.metadata.name)
-						: localize('chat.modelPicker.ensembleHydraFusionTierDescription', "{0} uses {1}, a research preview.", tier.label, hydraFusion.metadata.name),
-					tooltip: localize('chat.modelPicker.hydraFusionTierTooltip', "It picks a workflow per task, using one or more models to draft, review, or escalate."),
+					description: ensembleDescription ?? localize('chat.modelPicker.hydraFusionTierDescription', "{0} is a research preview.", hydraFusion.metadata.name),
+					tooltip: ensembleDescription ? undefined : localize('chat.modelPicker.hydraFusionTierTooltip', "It picks a workflow per task, using one or more models to draft, review, or escalate."),
 					learnMoreUrl: HYDRA_FUSION_LEARN_MORE_URL,
 					selected: context.selectedModelId === hydraFusion.identifier,
 				};

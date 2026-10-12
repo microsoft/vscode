@@ -2220,11 +2220,12 @@ suite('CopilotSessionLauncher resume config', () => {
 		});
 	});
 
-	test('enables experimental mode only with HydraFusion opt-in', async () => {
+	test('enables experimental mode with HydraFusion or Ensemble opt-in', async () => {
 		const store = disposables.add(new DisposableStore());
 		const enabled = await buildResumeConfig(createLauncher(store, { hydraFusion: true }), { id: 'hydrafusion' });
 		const v2 = await buildResumeConfig(createLauncher(store, { hydraFusion: true, hydraFusionV2: true }), { id: 'hydrafusion' });
 		const v2WithoutHydraFusion = await buildResumeConfig(createLauncher(store, { hydraFusionV2: true }), { id: 'gpt-5' });
+		const ensemble = await buildResumeConfig(createLauncher(store, { ensemble: true, hydraFusion: false, hydraFusionV2: false }), { id: 'auto' });
 		const disabled = await buildResumeConfig(createLauncher(store, { hydraFusion: false }), { id: 'gpt-5' });
 		const notOptedIn = await buildResumeConfig(createLauncher(store, {}), { id: 'gpt-5' });
 		const connectors = await buildResumeConfig(createLauncher(store, { [AgentHostMcpConnectorsEnabledConfigKey]: true }), { id: 'gpt-5' });
@@ -2235,6 +2236,8 @@ suite('CopilotSessionLauncher resume config', () => {
 			enabledFeatureFlags: enabled.featureFlags,
 			v2FeatureFlags: v2.featureFlags,
 			v2WithoutHydraFusionFeatureFlags: v2WithoutHydraFusion.featureFlags,
+			ensembleExperimentalMode: ensemble.enableExperimentalMode,
+			ensembleFeatureFlags: ensemble.featureFlags,
 			disabledExperimentalMode: disabled.enableExperimentalMode,
 			disabledFeatureFlags: disabled.featureFlags,
 			defaultExperimentalMode: notOptedIn.enableExperimentalMode,
@@ -2265,6 +2268,18 @@ suite('CopilotSessionLauncher resume config', () => {
 				HYDRAFUSION_PLAN_V2: true,
 			},
 			v2WithoutHydraFusionFeatureFlags: { AUTO_APPROVAL: true, CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false },
+			ensembleExperimentalMode: true,
+			ensembleFeatureFlags: {
+				AUTO_APPROVAL: true,
+				CONNECTORS: false,
+				TGREP: false,
+				CONTENT_EXCLUSION: true,
+				DETACH_LONG_LIVED_SERVICES: true,
+				copilot_swe_agent_memory_in_repo_store: false,
+				HYDRAFUSION: true,
+				HYDRAFUSION_ROLLOUT: true,
+				HYDRAFUSION_PLAN_V2: true,
+			},
 			disabledExperimentalMode: undefined,
 			disabledFeatureFlags: { AUTO_APPROVAL: true, CONNECTORS: false, TGREP: false, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, copilot_swe_agent_memory_in_repo_store: false },
 			defaultExperimentalMode: undefined,

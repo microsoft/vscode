@@ -2323,8 +2323,7 @@ suite('CopilotAgent', () => {
 				runtimeExecutable: runtimePath?.endsWith(process.platform === 'win32' ? '/copilot-runtime.exe' : '/copilot-runtime'),
 				extensionExecutable: launch?.launch?.executable,
 				extensionBootstrap: launch?.launch?.args[0].replaceAll('\\', '/').endsWith('/preloads/extension_bootstrap.mjs'),
-				extensionPath: launch?.launch?.env.EXTENSION_PATH,
-				canvasDataDirectory: launch?.launch?.env.VSCODE_CANVAS_DATA_DIR?.replaceAll('\\', '/').startsWith('/mock-userdata/agentHostCanvasData/'),
+				extensionEnvironment: launch?.launch?.env,
 				projectLaunchDenied: deniedProjectLaunch?.launch === undefined,
 			}, {
 				kind: 'stdio',
@@ -2332,8 +2331,10 @@ suite('CopilotAgent', () => {
 				runtimeExecutable: true,
 				extensionExecutable: process.execPath,
 				extensionBootstrap: true,
-				extensionPath: '/user/extensions/preview/extension.mjs',
-				canvasDataDirectory: true,
+				extensionEnvironment: {
+					EXTENSION_PATH: '/user/extensions/preview/extension.mjs',
+					...(process.versions.electron ? { ELECTRON_RUN_AS_NODE: '1' } : {}),
+				},
 				projectLaunchDenied: true,
 			});
 		} finally {
@@ -9111,7 +9112,7 @@ suite('CopilotAgent', () => {
 			const published = () => agent.models.get().map(model => {
 				const tier = model.configSchema?.properties.tier;
 				const ensemble = readAgentModelEnsembleMeta(model);
-				return `${model.id}:${model.name}${ensemble ? `:ensemble(intelligenceUsesHydraFusion=${ensemble.intelligenceUsesHydraFusion})` : ''}${tier ? `:${tier.enum?.join('/')}=${tier.default}` : ''}`;
+				return `${model.id}:${model.name}${ensemble ? `:ensemble(intelligenceUsesHydraFusion=${ensemble.intelligenceUsesHydraFusion})` : ''}${tier ? `:${tier.enum?.join('/')}=${tier.default}:${tier.enumLabels?.join('/')}` : ''}`;
 			});
 			try {
 				await agent.authenticate('https://api.github.com', 'token');
@@ -9125,9 +9126,9 @@ suite('CopilotAgent', () => {
 				configurationService.updateRootConfig({ [CopilotCliConfigKey.Ensemble]: false });
 				await agent.refreshModels();
 				assert.deepStrictEqual({ ensemble, routed, auto: published() }, {
-					ensemble: ['auto:Ensemble:ensemble(intelligenceUsesHydraFusion=false):balance/intelligence=balance', 'gpt-5:GPT-5', 'hydrafusion:HydraFusion', 'hydrafusion-max:HydraFusion Max'],
-					routed: ['auto:Ensemble:ensemble(intelligenceUsesHydraFusion=true):balance/intelligence=balance', 'gpt-5:GPT-5', 'hydrafusion:HydraFusion', 'hydrafusion-max:HydraFusion Max'],
-					auto: ['auto:Auto:efficiency/balance/intelligence=balance', 'gpt-5:GPT-5', 'hydrafusion:HydraFusion', 'hydrafusion-max:HydraFusion Max'],
+					ensemble: ['auto:Ensemble:ensemble(intelligenceUsesHydraFusion=false):balance/intelligence=balance:Balance/High', 'gpt-5:GPT-5', 'hydrafusion:HydraFusion', 'hydrafusion-max:HydraFusion Max'],
+					routed: ['auto:Ensemble:ensemble(intelligenceUsesHydraFusion=true):balance/intelligence=balance:Balance/High', 'gpt-5:GPT-5', 'hydrafusion:HydraFusion', 'hydrafusion-max:HydraFusion Max'],
+					auto: ['auto:Auto:efficiency/balance/intelligence=balance:Efficiency/Balance/Intelligence', 'gpt-5:GPT-5', 'hydrafusion:HydraFusion', 'hydrafusion-max:HydraFusion Max'],
 				});
 			} finally {
 				await disposeAgent(agent);
@@ -9162,7 +9163,7 @@ suite('CopilotAgent', () => {
 			});
 		});
 
-		test('under Ensemble, offers runtime-listed HydraFusion models only as their settings enable', async () => {
+		test('under Ensemble, offers runtime-listed HydraFusion models even when HydraFusion is otherwise disabled', async () => {
 			const published = async (rootConfig: Record<string, unknown>) => {
 				const client = new TestCopilotClient([], [{ id: 'auto', name: 'Auto' }, { id: 'hydrafusion', name: 'HydraFusion' }, { id: 'hydrafusion-max', name: 'HydraFusion Max' }]);
 				const { agent } = createTestAgentContext(disposables, { copilotClient: client, rootConfig: { [CopilotCliConfigKey.Ensemble]: true, ...rootConfig } });
@@ -9178,10 +9179,12 @@ suite('CopilotAgent', () => {
 				off: await published({}),
 				v1: await published({ [CopilotCliConfigKey.HydraFusion]: true }),
 				v2: await published({ [CopilotCliConfigKey.HydraFusion]: true, [CopilotCliConfigKey.HydraFusionV2]: true }),
+				disabled: await published({ [CopilotCliConfigKey.HydraFusion]: false, [CopilotCliConfigKey.HydraFusionV2]: false }),
 			}, {
-				off: ['auto'],
-				v1: ['auto', 'hydrafusion'],
+				off: ['auto', 'hydrafusion', 'hydrafusion-max'],
+				v1: ['auto', 'hydrafusion', 'hydrafusion-max'],
 				v2: ['auto', 'hydrafusion', 'hydrafusion-max'],
+				disabled: ['auto', 'hydrafusion', 'hydrafusion-max'],
 			});
 		});
 

@@ -441,7 +441,7 @@ function chatMetadataFromSummary(summary: Pick<SessionSummary, 'chats' | 'defaul
 	return summary.chats?.map(chat => ({
 		chat: URI.parse(chat.resource),
 		summary: chat.title,
-		kind: summary.defaultChat === chat.resource || isDefaultChatUri(chat.resource) ? 'default' : 'peer',
+		kind: (summary.defaultChat !== undefined ? summary.defaultChat === chat.resource : isDefaultChatUri(chat.resource)) ? 'default' : 'peer',
 		origin: chat.origin,
 		...(chat.interactivity !== undefined ? { interactivity: chat.interactivity } : {}),
 		...(chat.status !== undefined ? {
@@ -3423,13 +3423,18 @@ class NewSession extends Disposable {
 			|| isAutoApprovePolicyRestricted(this._configurationService, this._config?.schema);
 	}
 
-	async waitForConfigurationReady(): Promise<void> {
+	/** Explicit consumers can retry missing configuration; background prewarming only waits. */
+	async waitForConfigurationReady(retryResolution?: () => Promise<void>): Promise<void> {
 		while (this._configOperation || this._configResolution) {
 			if (this._configOperation) {
 				await raceCancellationError(this._configOperation, this.cancellationToken);
 			} else {
 				await this.waitForConfigResolution();
 			}
+		}
+		if (retryResolution && !this._config) {
+			await raceCancellationError(this.trackConfigResolution(retryResolution()), this.cancellationToken);
+			return this.waitForConfigurationReady();
 		}
 		if (this._requiresResolvedInitialConfig && !this._hasResolvedConfig) {
 			throw this._initialConfigError ?? new Error(localize('agentHost.initialConfigFailed', "The initial session configuration could not be resolved."));
@@ -5275,14 +5280,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!newSession) {
 			return undefined;
 		}
-		await newSession.waitForConfigurationReady();
-		if (this._getNewSession(sessionId) !== newSession) {
-			return undefined;
-		}
-		if (!newSession.getConfig()) {
-			await newSession.trackConfigResolution(this._refreshNewSessionConfig(newSession, { strict: true }));
-			await newSession.waitForConfigurationReady();
-		}
+		await newSession.waitForConfigurationReady(() => this._refreshNewSessionConfig(newSession, { strict: true }));
 		if (this._getNewSession(sessionId) !== newSession) {
 			return undefined;
 		}
@@ -5799,7 +5797,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	async getNewSessionConfig(sessionId: string): Promise<ISessionConfigurationSnapshot | undefined> {
 		const newSession = this._getNewSession(sessionId);
-		await newSession?.waitForConfigurationReady();
+		if (newSession) {
+			await newSession.waitForConfigurationReady(() => this._refreshNewSessionConfig(newSession, { strict: true }));
+		}
 		const providerConfig = deepClone(newSession?.getConfigValues());
 		if (!providerConfig) {
 			return undefined;
@@ -6986,7 +6986,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		if (!this.connection) {
 			throw new Error(this._notConnectedSendErrorMessage());
 		}
-		await newSession.waitForConfigurationReady();
+		await newSession.waitForConfigurationReady(() => this._refreshNewSessionConfig(newSession, { strict: true }));
 		await newSession.waitForEagerCreate();
 		if (this._getNewSession(newSession.sessionId) !== newSession) {
 			throw new Error('Session was disposed before its configuration could be applied.');
@@ -8295,8 +8295,12 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 				didChange = true;
 			}
 
-			if (changes.chats !== undefined && cached.applyChatMetadata(chatMetadataFromSummary(changes), tx)) {
-				didChange = true;
+			if (changes.chats !== undefined) {
+				// Omitted summary fields retain their cached values, including opaque default chat URIs.
+				const summary = { defaultChat: cached.getBackendChatResource(cached.resource)?.toString(), ...changes };
+				if (cached.applyChatMetadata(chatMetadataFromSummary(summary), tx)) {
+					didChange = true;
+				}
 			}
 
 			const workspaceMetadata: AgentHostSessionSummaryWorkspaceMetadata = {};

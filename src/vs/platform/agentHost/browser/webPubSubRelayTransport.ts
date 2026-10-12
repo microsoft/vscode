@@ -8,9 +8,9 @@
 //
 // Connects to Azure Web PubSub using the reliable JSON subprotocol and
 // translates between AHP JSON-RPC messages and WPS `sendToGroup` /
-// group-message framing via the framing/chunking adapters. Token refresh is the
-// caller's responsibility — when a token expires, dispose the old transport and
-// create a new one with a fresh token.
+// group-message framing via the framing/chunking adapters. Callers must supply
+// valid admission credentials when opening a new connection. Token expiry does
+// not terminate an established Web PubSub socket.
 
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';

@@ -436,6 +436,30 @@ suite('WebPubSubRelayTransport', () => {
 		assert.deepStrictEqual({ initialized, reconnecting, open: transport.isOpen }, { initialized: true, reconnecting: true, open: false });
 	}));
 
+	test('keeps an established socket and protocol handshake across admission token lifetimes', () => runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 3000 }, async () => {
+		const fake = new FakeWebSocket();
+		let socketCreations = 0;
+		let closes = 0;
+		const transport = createTransport(fake, {
+			webSocketFactory: () => { socketCreations++; return fake; },
+		});
+		store.add(transport.onClose(() => closes++));
+		await connectHandshake(transport, fake);
+		transport.send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} });
+		fake.emit({ type: 'ack', ackId: fake.sentApplicationPublishes()[0]['ackId'], success: true });
+		fake.emitGroupMessage(1, { kind: 'message', generation: 7, data: { jsonrpc: '2.0', id: 1, result: {} } });
+		const start = Date.now();
+		const snapshots = [];
+		for (const elapsed of [60_000, 120_000, 600_000, 12 * 60 * 60_000]) {
+			await timeout(start + elapsed - Date.now());
+			snapshots.push({ elapsed, open: transport.isOpen, socketClosed: fake.closed, socketCreations, closes, publishes: fake.sentApplicationPublishes().length });
+		}
+		transport.dispose();
+		assert.deepStrictEqual(snapshots, [60_000, 120_000, 600_000, 12 * 60 * 60_000].map(elapsed => ({
+			elapsed, open: true, socketClosed: false, socketCreations: 1, closes: 0, publishes: 1,
+		})));
+	}));
+
 	test('a progressing chunked handshake response keeps recovery alive until reassembly', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const fake = new FakeWebSocket();
 		const transport = createTransport(fake);

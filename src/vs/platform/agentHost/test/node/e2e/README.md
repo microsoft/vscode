@@ -265,13 +265,7 @@ The complete-suite runner starts one test process per entrypoint and runs up to 
 
 Pull request Electron jobs run the complete suite only when the changed files can affect the Agent Host, its shared platform dependencies, provider SDK versions, build infrastructure, or the E2E harness. The classification happens inside each already-allocated Electron runner so Linux, macOS, and Windows jobs remain parallel. When no relevant files changed, CI sets `VSCODE_SKIP_AGENT_HOST_E2E=1`; `test-integration.sh` and `test-integration.bat` then skip this suite while continuing with every other integration test.
 
-The Copilot managed-settings diagnostics suite waits for the authenticated
-provider's model catalog before requesting diagnostics. Authentication schedules
-runtime startup asynchronously; the catalog establishes a completed runtime RPC
-without creating a session or making a model request. The policy probe still
-fetches server settings afresh and retains the production 4.5-second overall and
-3.5-second query deadlines. Cold-start deadline behavior is covered by the
-Copilot agent unit tests.
+The Copilot managed-settings diagnostics suite waits for the authenticated provider's model catalog before requesting diagnostics. Authentication schedules runtime startup asynchronously; the catalog establishes a completed runtime RPC without creating a session or making a model request. The policy probe still fetches server settings afresh and retains the production 4.5-second overall and 3.5-second query deadlines. Cold-start deadline behavior is covered by the Copilot agent unit tests.
 
 The managed-telemetry suite asserts actual session-correlated native spans at loopback collectors. It covers managed capture restrictions and fine-grained overrides, exporter/resource/protocol precedence, per-session collector changes, policy removal, reenablement, and revoked capture on cold resume. Negative export assertions drain the host before inspecting the final collected spans. Runtime-managed telemetry and the Agent Host's own metadata pipeline are separate; native policy assertions must not treat host-produced metadata as native Copilot export.
 
@@ -285,25 +279,11 @@ Provider availability:
 
 ### Expected failures
 
-Use `assertExpectedFailure(issue, expectedError, run)` around a known failing
-operation while keeping its desired-behavior assertions. It logs and accepts
-only the specified error. An unexpected pass fails the run and identifies the
-marker to remove, so SDK rolls detect when an upstream fix reaches the bundle.
-Setup errors, different failures, and teardown errors remain failures.
-Skip these scenarios while recording so a known early failure cannot overwrite
-a complete fixture with a partial recording. Remove that recording skip together
-with the marker when the upstream fix is adopted.
+Use `assertExpectedFailure(issue, expectedError, run)` around a known failing operation while keeping its desired-behavior assertions. It logs and accepts only the specified error. An unexpected pass fails the run and identifies the marker to remove, so SDK rolls detect when an upstream fix reaches the bundle. Setup errors, different failures, and teardown errors remain failures. Skip these scenarios while recording so a known early failure cannot overwrite a complete fixture with a partial recording. Remove that recording skip together with the marker when the upstream fix is adopted.
 
-The native inherited-identity redaction scenario runs this way by default.
-Its expected-failure marker remains accountable in `KNOWN_ISSUES.md`; the
-managed-telemetry no-restart scenario passes normally with runtime `1.0.95-0`.
-Do not replace an expected-failure marker with a permanent negative assertion.
+The native inherited-identity redaction scenario runs this way by default. Its expected-failure marker remains accountable in `KNOWN_ISSUES.md`; the managed-telemetry no-restart scenario passes normally with runtime `1.0.95-0`. Do not replace an expected-failure marker with a permanent negative assertion.
 
-If a recognized failure prevents later model turns, pass
-`{ allowUnconsumedResponses: true }` to the lease's replay verification at
-release, only after `assertExpectedFailure` returns. This permits unused future
-responses without accepting unrecorded requests or request mismatches. The
-option is per release; normal tests still require complete replay consumption.
+If a recognized failure prevents later model turns, pass `{ allowUnconsumedResponses: true }` to the lease's replay verification at release, only after `assertExpectedFailure` returns. This permits unused future responses without accepting unrecorded requests or request mismatches. The option is per release; normal tests still require complete replay consumption.
 
 ---
 
@@ -478,11 +458,7 @@ After recording, **review the diff** (paths normalized? no usernames, tokens, or
 
 ### Managed-settings schema snapshot
 
-[`../copilotSdkManagedSettings.integrationTest.ts`](../copilotSdkManagedSettings.integrationTest.ts)
-snapshots the complete `managedSettings.schema()` response from the bundled SDK/runtime.
-This is a sessionless SDK integration test, not an AHP scenario: it creates no chat,
-calls no model, and starts no MCP servers. It uses an isolated home without login credentials.
-The snapshot preserves the schema's descriptions, defaults, validation rules, and composition metadata.
+[`../copilotSdkManagedSettings.integrationTest.ts`](../copilotSdkManagedSettings.integrationTest.ts) snapshots the complete `managedSettings.schema()` response from the bundled SDK/runtime. This is a sessionless SDK integration test, not an AHP scenario: it creates no chat, calls no model, and starts no MCP servers. It uses an isolated home without login credentials. The snapshot preserves the schema's descriptions, defaults, validation rules, and composition metadata.
 
 ```bash
 # Compare with the committed baseline.

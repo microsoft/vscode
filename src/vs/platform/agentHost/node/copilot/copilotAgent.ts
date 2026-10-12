@@ -12,7 +12,6 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { structuralEquals } from '../../../../base/common/equals.js';
 import { CancellationError, getErrorCode, getErrorMessage } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { StringSHA1 } from '../../../../base/common/hash.js';
 import { Disposable, DisposableMap, DisposableResourceMap, DisposableSet, DisposableStore, type IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -53,7 +52,7 @@ import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPlu
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
 import { AgentChatOperationContext, AgentSession, AgentSignal, AuthenticateParams, COPILOT_CLI_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, IAgentChatConfigCompletionsParams, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationRequest, IAgentCustomizationInstallationReview, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDescriptor, IAgentDiscoveredChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentPluginInstallRequest, type IAgentPluginUninstallRequest, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage, type IAgentChatSessionEvent } from '../../common/agent.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
-import { autoModeTiers, defaultAutoModeTier, getAutoModeTierDescription, getAutoModeTierLabel } from '../../common/autoModeTiers.js';
+import { autoModeTiers, defaultAutoModeTier, getAutoModeTierDescription, getAutoModeTierLabel, getEnsembleAutoModeTierLabel } from '../../common/autoModeTiers.js';
 import { AUTO_MODEL_ID, isAutoModel } from './modelIdentifiers.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { IAgentHostOTelService } from '../../common/otel/agentHostOTelService.js';
@@ -1177,11 +1176,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	private _isHydraFusionEnabled(): boolean {
-		return this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusion) === true;
+		return this._isEnsembleEnabled() || this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusion) === true;
 	}
 
 	private _isHydraFusionV2Enabled(): boolean {
-		return this._isHydraFusionEnabled() && this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusionV2) === true;
+		return this._isHydraFusionEnabled() && (this._isEnsembleEnabled() || this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.HydraFusionV2) === true);
 	}
 
 	private _isEnsembleEnabled(): boolean {
@@ -1534,7 +1533,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		});
 	}
 
-	private async _resolveExtensionLaunch(extensionId: string, modulePath: string, source: 'project' | 'user' | 'plugin' | 'session', extensionBootstrapPath: string) {
+	private async _resolveExtensionLaunch(modulePath: string, source: 'project' | 'user' | 'plugin' | 'session', extensionBootstrapPath: string) {
 		if (!isAbsolute(modulePath) || resourceBasename(URI.file(modulePath)) !== 'extension.mjs' || source === 'session') {
 			return {};
 		}
@@ -1550,15 +1549,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 				return {};
 			}
 		}
-		const dataDirectoryHash = new StringSHA1();
-		dataDirectoryHash.update(`${extensionId}\0${modulePath}`);
 		return {
 			launch: {
 				executable: process.execPath,
 				args: [extensionBootstrapPath],
 				env: {
 					EXTENSION_PATH: modulePath,
-					VSCODE_CANVAS_DATA_DIR: join(this._environmentService.userDataPath, 'agentHostCanvasData', dataDirectoryHash.digest()),
 					...(process.versions.electron ? { ELECTRON_RUN_AS_NODE: '1' } : {}),
 				},
 			},
@@ -2656,7 +2652,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 				[AutoTierConfigKey]: {
 					...tier,
 					enum: kept.map(index => tier.enum![index]),
-					...(tier.enumLabels && { enumLabels: kept.map(index => tier.enumLabels![index]) }),
+					enumLabels: kept.map(index => tier.enum![index] === 'intelligence' || !tier.enumLabels
+						? getEnsembleAutoModeTierLabel(String(tier.enum![index]))
+						: tier.enumLabels[index]),
 					...(tier.enumDescriptions && { enumDescriptions: kept.map(index => tier.enumDescriptions![index]) }),
 					default: tier.default === 'efficiency' ? defaultAutoModeTier : tier.default,
 				},
@@ -3023,7 +3021,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				enableRemoteSessions: startupConfig.sessionSync,
 				...(extensionBootstrapPath && extensionSdkPath ? {
 					extensionLaunchProvider: {
-						resolve: request => this._resolveExtensionLaunch(request.id, request.modulePath, request.source, extensionBootstrapPath),
+						resolve: request => this._resolveExtensionLaunch(request.modulePath, request.source, extensionBootstrapPath),
 					},
 				} : {}),
 				onGetTraceContext: () => this._otelService.getCurrentTraceContext() ?? {},

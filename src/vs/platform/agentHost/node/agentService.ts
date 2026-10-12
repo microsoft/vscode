@@ -69,6 +69,7 @@ import { IAdditionalWorktreeLifecycleService } from './chatContributions/additio
 import { AgentHostAutomationService } from './agentHostAutomationService.js';
 import { createAgentChatContext } from './agentChatContext.js';
 import { AgentHostDebugLogsCollector, type IAgentHostDebugLogsEnvironment } from './agentHostDebugLogs.js';
+import { withAgentHostDebugLogsProgress } from '../common/meta/agentHostDebugLogsMeta.js';
 import { IAgentHostDatabase, IAgentHostDatabaseSessionOptions, type IAgentHostDatabaseCatalogSnapshotEntry, type IAgentHostDatabaseSessionsV2Exclusion } from './agentHostDatabase.js';
 import { AgentSessionRegistry, IRegisteredSession, IStoredRegisteredSession } from './agentSessionRegistry.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH, tryResolvePrimaryWorktreeRoot } from '../common/agentHostGitService.js';
@@ -10694,7 +10695,7 @@ export class AgentService extends Disposable implements IAgentService {
 		return this._providerService.getProviderForSession(session)?.getSessionPlanFile?.(session, chat);
 	}
 
-	async collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI): Promise<IAgentHostDebugLogsArtifact> {
+	async collectDebugLogs(session: URI | undefined, kind: AgentHostDebugLogsArtifactKind, chat?: URI, progressToken?: string): Promise<IAgentHostDebugLogsArtifact> {
 		if (!this._debugLogsCollector) {
 			throw new Error('Agent Host debug log collection is unavailable');
 		}
@@ -10706,7 +10707,21 @@ export class AgentService extends Disposable implements IAgentService {
 				? `No Agent Host provider is available for session ${session.toString()}`
 				: 'No Agent Host providers are available for debug-log collection');
 		}
-		return this._debugLogsCollector.collect(providers, session, kind, chat);
+		let lastProgress = 0;
+		try {
+			return await this._debugLogsCollector.collect(providers, session, kind, chat, progressToken, progressToken ? (progress, total, message) => {
+				lastProgress = progress;
+				this._stateManager.emitProgress(withAgentHostDebugLogsProgress({ progressToken, progress, total: total > 0 ? total : undefined, message }));
+			} : undefined);
+		} finally {
+			if (progressToken) {
+				this._stateManager.emitProgress(withAgentHostDebugLogsProgress({ progressToken, progress: lastProgress, total: lastProgress }));
+			}
+		}
+	}
+
+	async cancelDebugLogs(progressToken: string): Promise<void> {
+		this._debugLogsCollector?.cancel(progressToken);
 	}
 
 	async readDebugLogsChunk(resource: URI, position: number): Promise<IAgentHostDebugLogsChunk> {
