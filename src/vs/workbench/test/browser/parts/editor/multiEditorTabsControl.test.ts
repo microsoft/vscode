@@ -2108,6 +2108,34 @@ suite('MultiEditorTabsControl', () => {
 		}))));
 	});
 
+	test('wrapped headers contain horizontal tab painting while preserving vertical shoulders', async () => {
+		const group = connectedGroup();
+		openNamedEditors([`a-${'long-wrapped-tab-name-'.repeat(12)}.txt`, 'short.txt']);
+		const oldOptions = partOptions;
+		partOptions = { ...partOptions, tabSizing: 'fit', wrapTabs: true, editorActionsLocation: 'hidden' };
+		control.updateOptions(oldOptions, partOptions);
+		const results = [];
+		for (const width of [500, 240, 350, 240]) {
+			await layoutConnectedGroup(group, width);
+			const titleBounds = container.getBoundingClientRect();
+			const name = container.querySelector<HTMLElement>('.label-name')!;
+			const range = mainWindow.document.createRange();
+			range.selectNodeContents(name);
+			const bounds = range.getBoundingClientRect();
+			const target = mainWindow.document.elementFromPoint(titleBounds.right + 8, bounds.top + bounds.height / 2);
+			const style = mainWindow.getComputedStyle(container);
+			results.push({
+				width,
+				wrapped: container.classList.contains('connected-tabs-wrapping'),
+				longLabel: bounds.right > titleBounds.right + 8,
+				paintsOutsideGroup: !!target && container.contains(target),
+				horizontalOverflow: style.overflowX,
+				verticalOverflow: style.overflowY,
+			});
+		}
+		assert.deepStrictEqual(results, results.map(result => ({ ...result, wrapped: true, longLabel: true, paintsOutsideGroup: false, horizontalOverflow: 'clip', verticalOverflow: 'visible' })));
+	});
+
 	test('Add Tab leaves separate pinned-row caps and action hit targets unobstructed', async () => {
 		const group = connectedGroup();
 		const root = group.closest<HTMLElement>('.monaco-workbench')!;

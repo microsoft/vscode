@@ -257,8 +257,9 @@
 	padding-top: var(--vscode-spacing-size20);
 }
 
+/* Wrapped shoulders may extend vertically, never into neighboring editor groups. */
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs.connected-tabs-wrapping {
-	overflow: visible;
+	overflow: clip visible;
 }
 
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container.wrapping .tabs-container {
