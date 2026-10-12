@@ -11,6 +11,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { buildCanvasUri } from '../../common/canvasUri.js';
+import { buildSessionChangesetUri, buildTurnChangesetUri } from '../../common/changesetUri.js';
 import { buildChatUri } from '../../common/state/sessionState.js';
 import { IAgentHostChatOwnershipService, type IChatRegistration } from '../../node/agentHostChatOwnershipService.js';
 import { AgentHostSubscriptionService } from '../../node/agentHostSubscriptionService.js';
@@ -60,6 +61,42 @@ suite('AgentHostSubscriptionService', () => {
 			// The owner is forgotten once the chat's last subscribed resource leaves.
 			afterLastRemoved: undefined,
 			iterations: 0,
+		});
+	});
+
+	test('counts a chat-owned changeset subscription for its chat owner whether subscribed before or after the chat registers', () => {
+		const registrations = disposables.add(new Emitter<IChatRegistration>());
+		const subscriptions = disposables.add(new AgentHostSubscriptionService(new class extends mock<IAgentHostChatOwnershipService>() {
+			override readonly onDidRegisterChat = registrations.event;
+		}()));
+		const owner = URI.parse('copilot:/owner');
+		const earlyChat = buildChatUri('copilot:/encoded', 'early');
+		const lateChat = buildChatUri('copilot:/encoded', 'late');
+		const earlyChangeset = URI.parse(buildSessionChangesetUri(earlyChat));
+		const lateChangeset = URI.parse(buildTurnChangesetUri(lateChat, 'turn-1'));
+
+		subscriptions.addSubscriber(earlyChangeset, 'client');
+		const beforeRegistration = subscriptions.hasSessionSubscribers(owner);
+		registrations.fire({ chat: earlyChat, session: owner.toString(), storageResource: earlyChat });
+		const afterEarlyRegistration = subscriptions.hasSessionSubscribers(owner);
+		subscriptions.removeSubscriber(earlyChangeset, 'client');
+		const afterEarlyRemoved = subscriptions.hasSessionSubscribers(owner);
+
+		subscriptions.addSubscriber(lateChangeset, 'client');
+		subscriptions.setSubscriptionOwner(lateChangeset, owner.toString());
+
+		assert.deepStrictEqual({
+			beforeRegistration,
+			afterEarlyRegistration,
+			afterEarlyRemoved,
+			late: subscriptions.resolveSubscribedSession(lateChangeset)?.toString(),
+			afterLateSubscribed: subscriptions.hasSessionSubscribers(owner),
+		}, {
+			beforeRegistration: false,
+			afterEarlyRegistration: true,
+			afterEarlyRemoved: false,
+			late: owner.toString(),
+			afterLateSubscribed: true,
 		});
 	});
 });

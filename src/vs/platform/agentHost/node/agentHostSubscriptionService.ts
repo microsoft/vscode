@@ -8,6 +8,7 @@ import { ResourceMap } from '../../../base/common/map.js';
 import { URI } from '../../../base/common/uri.js';
 import { isAhpChatChannel } from '../common/state/sessionState.js';
 import { parseCanvasChatUri } from '../common/canvasUri.js';
+import { parseChangesetUri } from '../common/changesetUri.js';
 import { IAgentHostSubscriptionService, resolveAgentHostSession } from '../common/agentHostSubscriptionService.js';
 import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 
@@ -92,11 +93,16 @@ export class AgentHostSubscriptionService extends Disposable implements IAgentHo
 	}
 
 	private _chatOf(resource: URI): string | undefined {
+		const key = resource.toString();
+		const changeset = parseChangesetUri(key);
+		if (changeset) {
+			// Session- and folder-owned changesets carry their session; a chat-owned one belongs to its chat.
+			return changeset.sessionUri === undefined ? changeset.ownerUri : undefined;
+		}
 		const canvasChat = parseCanvasChatUri(resource);
 		if (canvasChat) {
 			return canvasChat.toString();
 		}
-		const key = resource.toString();
 		return isAhpChatChannel(key) ? key : undefined;
 	}
 
