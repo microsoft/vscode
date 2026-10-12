@@ -16,7 +16,7 @@ import * as marked from '../../../base/common/marked/marked.js';
 import { parse, revive } from '../../../base/common/marshalling.js';
 import { MarshalledId } from '../../../base/common/marshallingIds.js';
 import { Mimes } from '../../../base/common/mime.js';
-import { cloneAndChange } from '../../../base/common/objects.js';
+import { cloneAndChange, deepClone, deepFreeze } from '../../../base/common/objects.js';
 import { OS } from '../../../base/common/platform.js';
 import { IPrefixTreeNode, WellDefinedPrefixTree } from '../../../base/common/prefixTree.js';
 import { basename } from '../../../base/common/resources.js';
@@ -3500,7 +3500,7 @@ export namespace ChatAgentRequest {
 			toolInvocationToken: Object.freeze<IToolInvocationContext>({ sessionResource: request.sessionResource, requestId: request.requestId, workingDirectory: URI.revive(request.workingDirectory) }) as never,
 			tools,
 			model,
-			modelConfiguration,
+			modelConfiguration: modelConfiguration === undefined ? undefined : deepFreeze(deepClone(modelConfiguration)),
 			editedFileEvents: request.editedFileEvents,
 			modeInstructions: request.modeInstructions?.content,
 			modeInstructions2: ChatRequestModeInstructions.to(request.modeInstructions),

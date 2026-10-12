@@ -74,7 +74,7 @@ export class NewNotebookTool implements ICopilotTool<IBuildPromptContext> {
 			const planningResponse = await planningEndpoint.makeChatRequest2({
 				debugName: 'notebookPlanning',
 				messages: planningMessages,
-				modelConfiguration: selectedModel ? this._input?.request?.modelConfiguration : undefined,
+				modelConfiguration: selectedModel && selectedModel.id === this._input?.request?.model.id && selectedModel.vendor === this._input.request.model.vendor ? this._input.request.modelConfiguration : undefined,
 				finishedCb: undefined,
 				location: ChatLocation.Panel,
 				enableRetryOnFilter: true

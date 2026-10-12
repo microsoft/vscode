@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest';
-import { IChatMLFetcher } from '../../../../platform/chat/common/chatMLFetcher';
+import { IChatMLFetcher, IFetchMLOptions } from '../../../../platform/chat/common/chatMLFetcher';
 import { ChatFetchResponseType, ChatLocation } from '../../../../platform/chat/common/commonTypes';
 import { StaticChatMLFetcher } from '../../../../platform/chat/test/common/staticChatMLFetcher';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
@@ -29,7 +29,17 @@ import { ToolName } from '../../../tools/common/toolNames';
 import { BackgroundSummarizer } from '../../../prompts/node/agent/backgroundSummarizer';
 import { AgentIntent, AgentIntentInvocation } from '../agentIntent';
 
+class RecordingChatMLFetcher extends StaticChatMLFetcher {
+	readonly requests: IFetchMLOptions[] = [];
+
+	override fetchOne(options: IFetchMLOptions) {
+		this.requests.push(options);
+		return super.fetchOne(options);
+	}
+}
+
 describe('AgentIntent /summarize command', () => {
+	let fetcher: RecordingChatMLFetcher;
 	let accessor: ITestingServicesAccessor;
 	let instantiationService: IInstantiationService;
 	let configService: IConfigurationService;
@@ -46,7 +56,8 @@ describe('AgentIntent /summarize command', () => {
 			]
 		));
 		chatResponse = [];
-		services.define(IChatMLFetcher, new StaticChatMLFetcher(chatResponse));
+		fetcher = new RecordingChatMLFetcher(chatResponse);
+		services.define(IChatMLFetcher, fetcher);
 		accessor = services.createTestingAccessor();
 		instantiationService = accessor.get(IInstantiationService);
 		configService = accessor.get(IConfigurationService);
@@ -60,6 +71,7 @@ describe('AgentIntent /summarize command', () => {
 		// Reset config to enabled by default
 		configService.setConfig(ConfigKey.SummarizeAgentConversationHistory, true);
 		chatResponse.length = 0;
+		fetcher.requests.length = 0;
 		chatResponse.push('This is a test summary of the conversation.');
 	});
 
@@ -68,9 +80,8 @@ describe('AgentIntent /summarize command', () => {
 		onCancellationRequested: Event.None,
 	};
 
-	async function runSummarize(conversation: Conversation, intent?: AgentIntent) {
+	async function runSummarize(conversation: Conversation, intent?: AgentIntent, request = new TestChatRequest('')) {
 		intent ??= instantiationService.createInstance(AgentIntent);
-		const request = new TestChatRequest('');
 		request.command = 'compact';
 		const stream = new MockChatResponseStream();
 
@@ -152,6 +163,24 @@ describe('AgentIntent /summarize command', () => {
 		expect(result.metadata?.summary).toBeDefined();
 		expect(result.metadata?.summary?.toolCallRoundId).toBe('toolCallRoundId1');
 		expect(result.metadata?.summary?.text).toBeTruthy();
+	});
+
+	test('manual /compact forwards each conversation configuration without retaining another chat selection', async () => {
+		const configurations = [
+			Object.freeze({ reasoningEffort: 'high', contextSize: 500_000 }),
+			Object.freeze({ reasoningEffort: 'medium', contextSize: 1_033_616 }),
+			undefined,
+		];
+		const intent = instantiationService.createInstance(AgentIntent);
+		for (const modelConfiguration of configurations) {
+			const request = Object.assign(new TestChatRequest(''), { modelConfiguration });
+			const conversation = new Conversation(request.sessionId, createConversationWithHistory().turns);
+			const { result } = await runSummarize(conversation, intent, request);
+			expect(result.metadata?.summary?.text).toBeTruthy();
+		}
+
+		expect(fetcher.requests).toHaveLength(configurations.length);
+		expect(fetcher.requests.map(options => options.modelConfiguration)).toEqual(configurations);
 	});
 
 	test('summarizes even when auto-summarize setting is disabled', async () => {

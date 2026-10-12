@@ -521,6 +521,7 @@ export class AgentIntent extends EditCodeIntent {
 
 		const availableTools = await this.instantiationService.invokeFunction(getAgentTools, request, endpoint);
 		const promptContext: IBuildPromptContext = {
+			request,
 			history,
 			chatVariables: new ChatVariablesCollection([]),
 			query: '',

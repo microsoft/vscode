@@ -208,9 +208,10 @@ declare module 'vscode' {
 
 	export interface ChatRequest {
 		/**
-		 * Effective configuration selected for this conversation request. It contains defaults from the
-		 * model's {@linkcode LanguageModelChatInformation.configurationSchema configurationSchema} with
-		 * the model's configured values applied on top.
+		 * Immutable snapshot of the effective configuration selected for this conversation request. It contains
+		 * defaults from the model's {@linkcode LanguageModelChatInformation.configurationSchema configurationSchema}
+		 * with the model's configured values and conversation selection applied on top. Later configuration
+		 * changes do not affect this request.
 		 *
 		 * This value can be supplied as {@linkcode LanguageModelChatRequestOptions.configuration}
 		 * and is delivered to providers as {@linkcode ProvideLanguageModelChatResponseOptions.modelConfiguration}.
