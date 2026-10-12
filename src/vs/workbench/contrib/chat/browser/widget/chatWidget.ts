@@ -2245,6 +2245,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.listWidget.setVisible(visible);
 		this.input.setVisible(visible);
 
+		if (!visible) {
+			this._layoutScheduler?.cancel();
+			this._layoutPointerUpListener?.clear();
+			this._pendingLayoutDimension = undefined;
+		}
+
 		if (visible) {
 			if (!wasVisible) {
 				this.visibilityTimeoutDisposable.value = disposableTimeout(() => {
@@ -4149,7 +4155,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	layout(height: number, width: number, immediate: boolean = false): void {
 		width = Math.min(width, this.viewOptions.renderStyle === 'minimal' ? width : this.maximumWidth); // no min width of inline chat
 
-		if (immediate || !this.bodyDimension || !this._layoutScheduler) {
+		// eslint-disable-next-line no-restricted-syntax
+		const isSashActive = Boolean(this.container && dom.getWindow(this.container).document?.querySelector('.monaco-sash.active'));
+
+		if (immediate || !isSashActive || !this.bodyDimension || !this._layoutScheduler) {
 			this._layoutScheduler?.cancel();
 			this._layoutPointerUpListener?.clear();
 			this._pendingLayoutDimension = undefined;
@@ -4158,6 +4167,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		if (this.bodyDimension.height === height && this.bodyDimension.width === width) {
+			this._layoutScheduler.cancel();
+			this._layoutPointerUpListener.clear();
+			this._pendingLayoutDimension = undefined;
 			return;
 		}
 
@@ -4168,10 +4180,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const store = new DisposableStore();
 			const onRelease = () => {
 				this._layoutPointerUpListener?.clear();
-				if (this._layoutScheduler?.isScheduled()) {
-					this._layoutScheduler.cancel();
-					this._flushLayout();
-				}
+				this._flushLayout();
 			};
 			store.add(dom.addDisposableListener(window, 'pointerup', onRelease, { once: true }));
 			store.add(dom.addDisposableListener(window, 'mouseup', onRelease, { once: true }));
