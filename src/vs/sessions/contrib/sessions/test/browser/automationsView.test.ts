@@ -905,6 +905,7 @@ suite('AutomationsCardsWidget', () => {
 		const cloud = automation({
 			enabled: false,
 			targetDisplay: { label: 'owner/private', icon: Codicon.cloud },
+			externalResource: URI.parse('https://github.com/owner/private/agents/automations/1'),
 			schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 0, timeZone: 'UTC' },
 		});
 		automationService.setAutomations([cloud]);
@@ -913,7 +914,7 @@ suite('AutomationsCardsWidget', () => {
 			visible: folder.style.display, text: folder.textContent, cloudIcon: !!folder.querySelector('.codicon-cloud'),
 			ariaLabel: folder.getAttribute('aria-label'), tooltips,
 			accessible: buildAutomationsAccessibleContent([cloud], [], 'ready', []).includes('owner/private'),
-		}, { visible: '', text: 'owner/private', cloudIcon: true, ariaLabel: 'owner/private', tooltips: ['owner/private'], accessible: true });
+		}, { visible: '', text: 'private', cloudIcon: true, ariaLabel: 'owner/private', tooltips: ['owner/private'], accessible: true });
 		automationService.setAutomations([{ ...cloud, enabled: true }]);
 		const local = automationScheduleToLocal(cloud.schedule);
 		const time = new Date(Date.UTC(2000, 0, 1, local.scheduleHour, local.scheduleMinute))

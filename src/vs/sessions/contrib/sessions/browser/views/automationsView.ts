@@ -710,12 +710,13 @@ class AutomationCardsSection extends Disposable {
 		}
 
 		const folderLabel = automation.targetDisplay?.label ?? getAutomationTargetLabel(automation.target);
+		const folderName = automation.targetDisplay && automation.externalResource ? folderLabel.substring(folderLabel.lastIndexOf('/') + 1) : folderLabel;
 		if (!previous || enabledChanged || previous.targetDisplay !== automation.targetDisplay || getAutomationTargetLabel(previous.target) !== folderLabel) {
 			const showFolder = (automation.enabled || !!automation.targetDisplay) && automation.target.kind === 'workspace';
 			card.folderEl.style.display = showFolder ? '' : 'none';
 			DOM.reset(card.folderEl,
 				$('span' + ThemeIcon.asCSSSelector(automation.targetDisplay?.icon ?? Codicon.folder), { 'aria-hidden': 'true' }),
-				$('span.automations-card-meta-label', undefined, folderLabel));
+				$('span.automations-card-meta-label', undefined, folderName));
 			card.folderEl.setAttribute('aria-label', folderLabel);
 			card.folderHover.value = showFolder
 				? this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), card.folderEl, folderLabel)
