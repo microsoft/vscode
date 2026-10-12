@@ -68,6 +68,16 @@ const catalogPageSize = 24;
 const browseCatalogPageSize = 100;
 const maxFilteredCatalogPagesPerLoad = 8;
 const leadingBrowseItemCount = 4;
+
+function formatCompactCount(count: number): string {
+	if (count > 1_000_000) {
+		return `${Math.floor(count / 100_000) / 10}M`;
+	} else if (count > 1000) {
+		return `${Math.floor(count / 1000)}K`;
+	}
+	return String(count);
+}
+
 const resultRowHeight = 56;
 const searchInputHeight = 20;
 const firstPartyPublishers = new Set(['azure', 'azure-samples', 'github', 'microsoft', 'microsoftdocs']);
@@ -499,7 +509,7 @@ class DiscoveryResultRenderer implements IListRenderer<DiscoveryListEntry, IDisc
 				const star = DOM.append(templateData.stats, $('.codicon'));
 				star.classList.add(...ThemeIcon.asClassNameArray(Codicon.starFull));
 				star.setAttribute('aria-hidden', 'true');
-				DOM.append(templateData.stats, $('span')).textContent = element.resource.stars.toLocaleString();
+				DOM.append(templateData.stats, $('span')).textContent = formatCompactCount(element.resource.stars);
 			} else {
 				templateData.stats.removeAttribute('aria-label');
 			}
