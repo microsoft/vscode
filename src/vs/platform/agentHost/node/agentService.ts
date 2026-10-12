@@ -155,13 +155,19 @@ function usesStandardSessionUris(provider: AgentProvider): boolean {
 }
 
 /** A recent update to one local Agent Host session. */
-/** Storage resources a normalized catalog snapshot records for its chats. */
-function recordedChatStorage(snapshot: IAgentHostDatabaseCatalogSnapshotEntry | undefined): ReadonlyMap<string, string> {
+/**
+ * Storage resources a normalized catalog snapshot records for its chats. A
+ * normalized row without a storage resource is a legacy source that recorded
+ * none, so its chat falls back to the creation-time rule.
+ */
+function recordedChatStorage(snapshot: IAgentHostDatabaseCatalogSnapshotEntry | undefined, logService: ILogService): ReadonlyMap<string, string> {
 	const storage = new Map<string, string>();
 	if (snapshot?.authorityVersion === 2) {
 		for (const chat of snapshot.chats) {
 			if (chat.storageResource !== undefined) {
 				storage.set(chat.chat, chat.storageResource);
+			} else {
+				logService.trace(`[AgentService] Normalized chat ${chat.chat} has no recorded storage; using the creation-time rule`);
 			}
 		}
 	}
@@ -5892,7 +5898,7 @@ export class AgentService extends Disposable implements IAgentService {
 	/** Storage resources the normalized catalog records for a session's chats. */
 	private async _readRecordedChatStorage(session: string): Promise<ReadonlyMap<string, string>> {
 		const [snapshot] = await this._orchestratorDatabase.readCatalogSnapshot([session]);
-		return recordedChatStorage(snapshot);
+		return recordedChatStorage(snapshot, this._logService);
 	}
 
 	/**
@@ -9065,7 +9071,8 @@ export class AgentService extends Disposable implements IAgentService {
 			try {
 				const [catalog] = await this._orchestratorDatabase.readCatalogSnapshot([sessionStr]);
 				const defaultChat = URI.parse(catalog?.header?.defaultChatUri ?? this._defaultChatUri(session));
-				adoption = await agent.ensureChatAdopted(defaultChat, this._chatContext(session, defaultChat, this._chatStorageResource(session, defaultChat)));
+				const defaultChatStorage = recordedChatStorage(catalog, this._logService).get(defaultChat.toString()) ?? creationTimeChatStorageResource(sessionStr, defaultChat.toString());
+				adoption = await agent.ensureChatAdopted(defaultChat, this._chatContext(session, defaultChat, defaultChatStorage));
 			} catch (err) {
 				// Adoption itself threw — a genuine migration failure worth surfacing.
 				this._reportLegacyMigration(session, agent.id, 'failed', migrationStartTime, 'adoption', { advertisedAsAdoptable, error: err });
@@ -9355,7 +9362,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const cachedChatCatalog = await cachedChatCatalogPromise;
 		const cachedDefaultChat = cachedChatCatalog?.find(chat => chat.kind === 'default');
 		const defaultChatUri = URI.parse(normalizedDefault?.chat ?? cachedDefaultChat?.uri ?? buildDefaultChatUri(sessionStr));
-		const recordedStorage = recordedChatStorage(normalizedCatalog);
+		const recordedStorage = recordedChatStorage(normalizedCatalog, this._logService);
 		const defaultChatStorage = recordedStorage.get(defaultChatUri.toString()) ?? creationTimeChatStorageResource(sessionStr, defaultChatUri.toString());
 		const defaultChatWorkingDirectories = normalizedDefault
 			? normalizedDefault.workingDirectories
@@ -9943,7 +9950,7 @@ export class AgentService extends Disposable implements IAgentService {
 			const cachedChat = cachedChats?.find(chat => chat.uri === entry.uri);
 			const cachedTitle = cachedChat?.title;
 			// A legacy catalog records no storage, so its chats follow the creation-time rule.
-			const storageResource = recordedStorage.get(chatUri.toString()) ?? this._chatStorageResource(session, chatUri);
+			const storageResource = recordedStorage.get(chatUri.toString()) ?? creationTimeChatStorageResource(session.toString(), chatUri.toString());
 			const { title, draft } = await this._chatContributions.hydrateChat({
 				session: session.toString(),
 				chat: chatUri.toString(),
@@ -11302,8 +11309,12 @@ export class AgentService extends Disposable implements IAgentService {
 						chat: parentState.defaultChat ?? buildDefaultChatUri(parentSession),
 						toolCallId: parsedSubagent.toolCallId,
 					} : undefined);
-				// A legacy subagent session records no storage.
-				childTurns = await this._getChatMessages(agent, URI.parse(subagentUri), parentSession, URI.parse(creationTimeChatStorageResource(parentSession.toString(), subagentUri)), origin);
+				// A registered subagent reads from its recorded storage. An unregistered
+				// legacy subagent session records none, so it follows the creation-time
+				// rule and has no workspace transitions to load.
+				const recordedStorage = this._stateManager.getChatStorageResource(subagentUri);
+				const storage = recordedStorage ?? creationTimeChatStorageResource(parentSession.toString(), subagentUri);
+				childTurns = await this._getChatMessages(agent, URI.parse(subagentUri), parentSession, URI.parse(storage), origin, recordedStorage === undefined ? Promise.resolve(undefined) : undefined);
 			} catch (err) {
 				this._logService.warn(`[AgentService] Failed to load subagent turns for ${subagentUri}`, err);
 			}
@@ -11420,7 +11431,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const normalized = await this._peerChatStore.readNormalizedChat(parentSession, URI.parse(parentChat));
 		const recordedStorage = await this._readRecordedChatStorage(parentSessionStr);
 		// A subagent without a recorded private row follows the creation-time rule.
-		const storageOf = (chat: string) => recordedStorage.get(chat) ?? this._chatStorageResource(parentSession, URI.parse(chat));
+		const storageOf = (chat: string) => recordedStorage.get(chat) ?? creationTimeChatStorageResource(parentSessionStr, chat);
 		for (const child of restored) {
 			if (!isCurrent()) {
 				return;

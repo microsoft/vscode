@@ -1208,7 +1208,7 @@ export function getRenameChatArgs(rawArgs: unknown, sessions: readonly IAgentSes
 	return { session, chat: currentChat, title, chatId: parsed.chatId };
 }
 
-function getRenameChatSession(accessor: ISessionServerToolAccessor, rawArgs: unknown, currentChannel?: ProtocolURI): URI {
+function getRenameChatSession(accessor: ISessionServerToolAccessor, rawArgs: unknown, currentChannel: ProtocolURI | undefined): URI {
 	const args = (rawArgs ?? {}) as IRenameChatArgs;
 	const chatInput = getOptionalString(args.chat, 'chat', SessionServerToolName.RenameChat);
 	if (chatInput !== undefined) {

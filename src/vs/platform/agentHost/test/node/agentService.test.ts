@@ -23062,6 +23062,66 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('a registered legacy subagent session reads its transcript from its recorded storage', async () => {
+			const parent = AgentSession.uri('copilot', 'legacy-subagent-parent');
+			const subagent = buildSubagentSessionUri(parent.toString(), 'tc-sub');
+			const storage = AgentSession.uri('copilot', 'recorded-legacy-subagent-storage').toString();
+			const perSession = createPerSessionDataService();
+			const agent = disposables.add(new MockAgent('copilot'));
+			await createAgentSession(agent, { session: parent });
+			const svc = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+			));
+			registerTestAgentProvider(svc, agent);
+			await svc.restoreSession(parent);
+			getStateManager(svc).registerRestoredChatSummary(parent.toString(), subagent, { storageResource: storage, title: 'Subagent' });
+			perSession.databaseOpens.length = 0;
+
+			await svc.subscribe(URI.parse(subagent), 'legacy-subagent-reader');
+
+			assert.deepStrictEqual({
+				providerResources: agent.chatContexts
+					.filter(call => call.chat.toString() === subagent && !URI.isUri(call.context) && call.context !== undefined)
+					.map(call => (call.context as IAgentChatContext).resource.toString()),
+				readsRecordedStorage: perSession.databaseOpens.includes(storage),
+				readsCreationTimeStorage: perSession.databaseOpens.includes(subagent),
+			}, {
+				providerResources: [storage],
+				readsRecordedStorage: true,
+				readsCreationTimeStorage: false,
+			});
+		});
+
+		test('a restored peer chat without recorded storage follows the creation-time rule, not a live entry of another session', async () => {
+			const owner = AgentSession.uri('copilot', 'peer-restore-owner');
+			const elsewhere = AgentSession.uri('copilot', 'peer-restore-elsewhere');
+			const peer = buildChatUri(owner, 'peer');
+			const elsewhereStorage = AgentSession.uri('copilot', 'elsewhere-storage').toString();
+			const perSession = createPerSessionDataService();
+			const agent = disposables.add(new MockAgent('copilot'));
+			await createAgentSession(agent, { session: owner });
+			await createAgentSession(agent, { session: elsewhere });
+			const svc = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, perSession.service, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+			));
+			registerTestAgentProvider(svc, agent);
+			await svc.restoreSession(owner);
+			await svc.restoreSession(elsewhere);
+			getStateManager(svc).addChat(elsewhere.toString(), peer, elsewhereStorage);
+			perSession.databaseOpens.length = 0;
+			const inspect = svc as unknown as { _restorePeerChatsFromCatalog(session: URI, entries: readonly { readonly uri: string }[]): Promise<void> };
+
+			await inspect._restorePeerChatsFromCatalog(owner, [{ uri: peer }]);
+
+			assert.deepStrictEqual({
+				readsCreationTimeStorage: perSession.databaseOpens.includes(peer),
+				readsLiveEntryStorage: perSession.databaseOpens.includes(elsewhereStorage),
+			}, {
+				readsCreationTimeStorage: true,
+				readsLiveEntryStorage: false,
+			});
+		});
+
 		test('mismatch oracle: a chat whose URI encodes another session is owned, routed and stored by its records', async () => {
 			// The URIs encode a session of an unregistered provider; anything that
 			// routes by the URI would reach the wrong session and provider.
