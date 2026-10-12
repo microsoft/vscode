@@ -661,7 +661,8 @@
         },
         "required": [
           "message"
-        ]
+        ],
+        "description": "{oneOf: [{\"required\":[\"agent_id\"],\"not\":{\"anyOf\":[{\"required\":[\"agent_ids\"]},{\"required\":[\"scope\"]}]}},{\"required\":[\"agent_ids\"],\"not\":{\"anyOf\":[{\"required\":[\"agent_id\"]},{\"required\":[\"scope\"]}]}},{\"required\":[\"scope\"],\"not\":{\"anyOf\":[{\"required\":[\"agent_id\"]},{\"required\":[\"agent_ids\"]}]}}]}"
       },
       "strict": false,
       "type": "function"
