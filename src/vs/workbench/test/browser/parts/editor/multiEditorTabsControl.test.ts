@@ -289,11 +289,73 @@ suite('MultiEditorTabsControl', () => {
 					expectedGap: (direction === 'rtl' ? fillBounds.left - lastBounds.left : lastBounds.right - fillBounds.right) + 2,
 					terminalMargin: mainWindow.getComputedStyle(last).marginInlineEnd,
 					oppositeMargin: mainWindow.getComputedStyle(last).marginInlineStart,
-					painterPlacement: mainWindow.getComputedStyle(container.querySelector<HTMLElement>('.tabs-bar-add-tab')!, '::before').insetInlineEnd,
+					backplateMatchesButton: Math.abs(Number.parseFloat(mainWindow.getComputedStyle(container.querySelector<HTMLElement>('.tabs-bar-add-tab')!, '::before').width) - button.getBoundingClientRect().width) <= 1 / 32,
+					backplateRadius: mainWindow.getComputedStyle(container.querySelector<HTMLElement>('.tabs-bar-add-tab')!, '::before').borderRadius,
+					noSquareContainer: mainWindow.getComputedStyle(container.querySelector<HTMLElement>('.tabs-bar-add-tab')!).backgroundColor,
 				});
 			}
 		}
-		assert.deepStrictEqual(results, results.map(result => ({ ...result, gap: result.expectedGap, terminalMargin: '8px', oppositeMargin: '0px', painterPlacement: `${container.querySelector<HTMLElement>('.tabs-bar-add-tab')!.offsetWidth}px` })));
+		assert.deepStrictEqual(results, results.map(result => ({ ...result, gap: result.expectedGap, terminalMargin: '8px', oppositeMargin: '0px', backplateMatchesButton: true, backplateRadius: '4px', noSquareContainer: 'rgba(0, 0, 0, 0)' })));
+	});
+
+	test('scrolling inactive tabs are clipped before the rounded sticky Add control', async () => {
+		const group = connectedGroup();
+		control.dispose();
+		reset(container);
+		control = createControl({ tabsBarAddTab: MenuId.for('test.connectedTabs.roundedAddOcclusion') });
+		const editors = openNamedEditors(['F.ts', 'a-long-inactive-label-that-scrolls-beneath-the-Add-button.ts', 'another-long-inactive-label-that-scrolls-beneath-the-Add-button.ts', 'last.ts']);
+		model.openEditor(editors[0], { active: true });
+		control.openEditors(editors);
+		const oldOptions = partOptions;
+		partOptions = { ...partOptions, tabSizing: 'fit', wrapTabs: false, tabActionReserveSpace: true, editorActionsLocation: 'hidden' };
+		control.updateOptions(oldOptions, partOptions);
+		await layoutConnectedGroup(group, 300);
+		const tabs = container.querySelector<HTMLElement>('.tabs-container')!;
+		const add = container.querySelector<HTMLElement>('.tabs-bar-add-tab')!;
+		const readClipping = (direction: string, zoom: number) => {
+			const boundary = direction === 'rtl' ? add.getBoundingClientRect().right + 8 * zoom : add.getBoundingClientRect().left - 8 * zoom;
+			const inactive = Array.from(tabs.querySelectorAll<HTMLElement>('.tab:not(.active)'));
+			return {
+				hasClippedTab: inactive.some(tab => direction === 'rtl' ? tab.getBoundingClientRect().left < boundary : tab.getBoundingClientRect().right > boundary),
+				matchingClip: inactive.every(tab => {
+					const expected = Math.max(0, (direction === 'rtl' ? boundary - tab.getBoundingClientRect().left : tab.getBoundingClientRect().right - boundary) / zoom);
+					const match = mainWindow.getComputedStyle(tab).clipPath.match(direction === 'rtl' ? /^inset\(-1px 0px -1px ([\d.]+)px\)$/ : /^inset\(-1px ([\d.]+)px -1px 0px\)$/);
+					return expected < 1 / 32 ? !tab.style.clipPath || !!match && Number.parseFloat(match[1]) < 1 / 32 : !!match && Math.abs(Number.parseFloat(match[1]) - expected) < 1 / 32;
+				}),
+			};
+		};
+		const results = [];
+		for (const direction of ['ltr', 'rtl']) {
+			for (const zoom of [1, 1.25]) {
+				const root = group.closest<HTMLElement>('.monaco-workbench')!;
+				root.dir = direction;
+				root.style.zoom = String(zoom);
+				await layoutConnectedGroup(group, 300);
+				tabs.classList.add('scroll');
+				tabs.scrollLeft = 0;
+				tabs.dispatchEvent(new mainWindow.Event(EventType.SCROLL));
+				const resting = readClipping(direction, zoom);
+				tabs.scrollLeft = direction === 'rtl' ? -90 : 90;
+				tabs.dispatchEvent(new mainWindow.Event(EventType.SCROLL));
+				results.push({ direction, zoom, resting, scrolled: readClipping(direction, zoom) });
+			}
+		}
+		const previousOptions = partOptions;
+		add.classList.add('hidden');
+		tabs.dispatchEvent(new mainWindow.Event(EventType.SCROLL));
+		const hiddenAddClippingCleared = Array.from(tabs.querySelectorAll<HTMLElement>('.tab')).every(tab => !tab.style.clipPath);
+		add.classList.remove('hidden');
+		partOptions = { ...partOptions, wrapTabs: true };
+		control.updateOptions(previousOptions, partOptions);
+		await layoutConnectedGroup(group, 300);
+		assert.deepStrictEqual({
+			results, hiddenAddClippingCleared,
+			wrappedClippingCleared: Array.from(tabs.querySelectorAll<HTMLElement>('.tab')).every(tab => !tab.style.clipPath),
+		}, {
+			results: results.map(result => ({ ...result, resting: { hasClippedTab: true, matchingClip: true }, scrolled: { hasClippedTab: true, matchingClip: true } })),
+			hiddenAddClippingCleared: true,
+			wrappedClippingCleared: true,
+		});
 	});
 
 	test('wrapped Add Tab stays adjacent to the terminal tab after narrow and maximized layouts', async () => {
@@ -309,7 +371,10 @@ suite('MultiEditorTabsControl', () => {
 		const toolbar = container.querySelector<HTMLElement>('.editor-actions')!;
 		toolbar.style.width = '56px';
 		const results = [];
-		for (const { connected, direction } of [false, true].flatMap(connected => ['ltr', 'rtl'].map(direction => ({ connected, direction })))) {
+		for (const { connected, direction, tabHeight } of [false, true].flatMap(connected => ['ltr', 'rtl'].flatMap(direction => (['default', 'compact'] as const).map(tabHeight => ({ connected, direction, tabHeight }))))) {
+			const previousOptions = partOptions;
+			partOptions = { ...partOptions, tabHeight };
+			control.updateOptions(previousOptions, partOptions);
 			root.dir = direction;
 			root.classList.toggle('modern-ui-connected-editor-tabs', connected);
 			for (const width of [320, 900, 320, 1500]) {
@@ -325,16 +390,17 @@ suite('MultiEditorTabsControl', () => {
 				const fillInset = direction === 'rtl' ? fillBounds.left - terminalBounds.left : terminalBounds.right - fillBounds.right;
 				const buttonGap = direction === 'rtl' ? fillBounds.left - buttonBounds.right : buttonBounds.left - fillBounds.right;
 				results.push({
-					connected, direction, width,
+					connected, direction, tabHeight, width,
 					wrapped: row.classList.contains('wrapping'),
 					sameRow: terminal.offsetTop === add.offsetTop,
 					adjacentGap: Math.abs((direction === 'rtl' ? terminal.getBoundingClientRect().left - add.getBoundingClientRect().right : add.getBoundingClientRect().left - terminal.getBoundingClientRect().right) - (connected ? 7 : 4)) <= 1 / 32,
 					contained: add.getBoundingClientRect().left >= row.getBoundingClientRect().left - 1 / 64 && add.getBoundingClientRect().right <= row.getBoundingClientRect().right + 1 / 64,
 					visibleButtonGap: !connected || Math.abs(buttonGap - fillInset - 2) <= 1 / 32,
+					toolbarAligned: !connected || Math.abs(buttonBounds.y + buttonBounds.height / 2 - (toolbar.getBoundingClientRect().y + toolbar.getBoundingClientRect().height / 2)) <= 1 / 32,
 				});
 			}
 		}
-		assert.deepStrictEqual(results, results.map(result => ({ ...result, wrapped: true, sameRow: true, adjacentGap: true, contained: true, visibleButtonGap: true })));
+		assert.deepStrictEqual(results, results.map(result => ({ ...result, wrapped: true, sameRow: true, adjacentGap: true, contained: true, visibleButtonGap: true, toolbarAligned: true })));
 	});
 
 	test('wrapped terminal fit tabs leave room for editor actions without an Add Tab control', async () => {
@@ -2338,13 +2404,13 @@ suite('MultiEditorTabsControl', () => {
 					theme, wrapTabs,
 					positiveInset: mainWindow.getComputedStyle(button).marginLeft,
 					capBeforeButton: fill.getBoundingClientRect().right <= bounds.left,
-					noShoulderMask: mainWindow.getComputedStyle(add, '::before').content,
+					backplateInsideControl: mainWindow.getComputedStyle(add, '::before').insetInlineStart,
 					clickable: !!target && (target === button || button.contains(target)),
 				});
 			}
 			root.classList.remove(theme);
 		}
-		assert.deepStrictEqual(results, results.map(result => ({ ...result, positiveInset: '2px', capBeforeButton: true, noShoulderMask: 'none', clickable: true })));
+		assert.deepStrictEqual(results, results.map(result => ({ ...result, positiveInset: '2px', capBeforeButton: true, backplateInsideControl: '2px', clickable: true })));
 	});
 
 	test('separate pinned bars share upper-pill geometry and reserve no document seam', async () => {

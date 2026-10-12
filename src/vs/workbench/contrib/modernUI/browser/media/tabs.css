@@ -105,7 +105,7 @@
 
 .modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .tabs-container.has-add-tab > .tabs-bar-add-tab {
 	position: relative;
-	right: auto;
+	inset-inline-end: auto;
 	margin-inline: calc(-1 * var(--last-tab-margin-right)) var(--last-tab-margin-right);
 }
 
@@ -324,7 +324,7 @@
 	height: auto;
 	align-self: stretch;
 	position: sticky;
-	right: 0;
+	inset-inline-end: 0;
 	z-index: 9;
 	background: var(--vscode-editor-background);
 }
