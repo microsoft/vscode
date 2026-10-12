@@ -1795,7 +1795,8 @@ suite('AgentHostChatContribution', () => {
 					action: {
 						type: ActionType.ChatToolCallConfirmed, turnId, toolCallId: 'write-permission', approved: true,
 						selectedOptionId: 'approve-for-session', confirmed: ToolCallConfirmationReason.UserAction,
-						_meta: { 'agentHost.permissionDecisionSource': 'human_response' },
+						// The host-assigned chat resolves through the session state that lists it, so the tool call's metadata is preserved.
+						_meta: { [key]: { kind: 'write', intention: 'Edit file', fileName: '/workspaces/simple-server/index.js' }, 'agentHost.permissionDecisionSource': 'human_response' },
 					},
 				});
 			});

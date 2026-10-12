@@ -657,11 +657,14 @@ suite('RemoteSessionMessageRouter', () => {
 		assert.deepStrictEqual(first.dispatched, []);
 	});
 
-	test('a target catalog entry for a different backend session is never used', async () => {
+	test('a target catalog entry belongs to its session whatever session its URI encodes', async () => {
 		const { router, first, sessions } = setup();
-		first.sessionState.set({ ...first.sessionState.verifiedValue!, defaultChat: buildDefaultChatUri('copilot:/another-session') });
-		await assert.rejects(router.send(sessions[0].resource, { session: sessions[1].resource.toString(), message: 'Hi' }, 'wrong-session', CancellationToken.None), /exact target chat/);
-		assert.deepStrictEqual(first.dispatched, []);
+		const moved = buildDefaultChatUri('copilot:/another-session');
+		const defaultChat = first.chatStates.get(buildDefaultChatUri(backendSession))!.verifiedValue!;
+		first.chatStates.set(moved, new TestSubscription<ChatState>({ ...defaultChat, resource: moved }, store));
+		first.sessionState.set({ ...first.sessionState.verifiedValue!, defaultChat: moved });
+		await router.send(sessions[0].resource, { session: sessions[1].resource.toString(), message: 'Hi' }, 'moved-chat', CancellationToken.None);
+		assert.deepStrictEqual(first.dispatched.map(dispatch => dispatch.channel), [moved]);
 	});
 
 	test('a hydrated chat snapshot must match the requested exact channel', async () => {

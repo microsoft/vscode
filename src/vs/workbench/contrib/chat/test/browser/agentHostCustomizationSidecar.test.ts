@@ -58,7 +58,7 @@ suite('AgentHostCustomizationRecorder', () => {
 			isEnabled,
 			fileService,
 			new NullLogService(),
-			{ onDidAction: actions.event, onDidNotification: notifications.event },
+			{ onDidAction: actions.event, onDidNotification: notifications.event, listSessions: async () => [] },
 			new NullRemoteAgentHostService(),
 		));
 		return { fileService, actions, notifications };

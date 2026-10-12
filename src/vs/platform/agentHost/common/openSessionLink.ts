@@ -253,15 +253,3 @@ export function buildOpenSessionLinkForChat(owner: URI | string, chatResource: U
 		return undefined;
 	}
 }
-
-/** Builds an open link for a chat resource, deriving its session from the chat URI. */
-export function buildOpenSessionLinkForChatResource(chatResource: URI | string): string | undefined {
-	try {
-		const resourceStr = typeof chatResource === 'string' ? chatResource : chatResource.toString();
-		const parsedChat = isAhpChatChannel(resourceStr) ? parseChatUri(resourceStr) : undefined;
-		const sourceSession = parsedChat ? parsedChat.session : URI.parse(resourceStr).toString();
-		return buildOpenSessionLinkUri(sourceSession, parsedChat?.chatId);
-	} catch {
-		return undefined;
-	}
-}

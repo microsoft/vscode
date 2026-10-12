@@ -22,8 +22,15 @@ suite('AgentHostUsageRecorder model-call diagnostics', () => {
 	const baseDir = URI.file('/user');
 
 	class TestRecorder extends AgentHostUsageRecorder {
-		flush(): Promise<void> { return this.queued('sdk', async () => { }); }
+		async flush(): Promise<void> {
+			await this.whenRecorded();
+			await this.queued('sdk', async () => { });
+		}
 	}
+
+	// The host records this default chat for `copilotcli:/sdk`; its URI encodes another session.
+	const defaultChat = buildDefaultChatUri('copilotcli:/encoded');
+	const listSessions = async () => [{ session: URI.parse('copilotcli:/sdk'), startTime: 0, modifiedTime: 0, chats: [{ chat: URI.parse(defaultChat), kind: 'default' as const }] }];
 
 	function setup() {
 		const fileService = disposables.add(new FileService(new NullLogService()));
@@ -32,9 +39,9 @@ suite('AgentHostUsageRecorder model-call diagnostics', () => {
 		const notifications = disposables.add(new Emitter<INotification>());
 		let enabled = true;
 		const recorder = disposables.add(new TestRecorder(baseDir, () => enabled, fileService, new NullLogService(),
-			{ onDidAction: actions.event, onDidNotification: notifications.event }, new NullRemoteAgentHostService()));
+			{ onDidAction: actions.event, onDidNotification: notifications.event, listSessions }, new NullRemoteAgentHostService()));
 		const fire = (id: string, turnId?: string) => actions.fire({
-			channel: buildDefaultChatUri('copilotcli:/sdk'), serverSeq: 1, origin: undefined,
+			channel: defaultChat, serverSeq: 1, origin: undefined,
 			action: {
 				type: ActionType.ChatUsage, turnId: 'current-turn',
 				usage: {
@@ -50,7 +57,7 @@ suite('AgentHostUsageRecorder model-call diagnostics', () => {
 		return { fileService, recorder, fire, disable: () => enabled = false };
 	}
 
-	test('deduplicates call IDs, preserves exact ownership and respects the debug gate', async () => {
+	test('deduplicates call IDs, records under the host-recorded owner of the default chat and respects the debug gate', async () => {
 		const { fileService, recorder, fire, disable } = setup();
 		fire('old', 'old-turn');
 		fire('old', 'old-turn');
@@ -59,13 +66,19 @@ suite('AgentHostUsageRecorder model-call diagnostics', () => {
 		fire('disabled');
 		await recorder.flush();
 		const records = await readAgentHostUsageRecords(fileService, buildAgentHostUsageUri(baseDir, 'sdk'));
-		assert.deepStrictEqual(records.map(record => ({
-			version: record.schemaVersion, id: record.apiCallId, turn: record.turnId,
-			correlation: record.correlation, tokens: record.inputTokens, duration: record.durationMs,
-		})), [
-			{ version: 2, id: 'old', turn: 'old-turn', correlation: 'exact', tokens: 10, duration: 123 },
-			{ version: 2, id: 'unknown', turn: undefined, correlation: 'unresolved', tokens: 10, duration: 123 },
-		]);
+		assert.deepStrictEqual({
+			records: records.map(record => ({
+				version: record.schemaVersion, id: record.apiCallId, turn: record.turnId,
+				correlation: record.correlation, tokens: record.inputTokens, duration: record.durationMs,
+			})),
+			encoded: await fileService.exists(buildAgentHostUsageUri(baseDir, 'encoded')),
+		}, {
+			records: [
+				{ version: 2, id: 'old', turn: 'old-turn', correlation: 'exact', tokens: 10, duration: 123 },
+				{ version: 2, id: 'unknown', turn: undefined, correlation: 'unresolved', tokens: 10, duration: 123 },
+			],
+			encoded: false,
+		});
 	});
 
 	test('retains a bounded recent diagnostic window', async () => {

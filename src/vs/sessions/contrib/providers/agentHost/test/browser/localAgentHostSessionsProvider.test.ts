@@ -91,6 +91,7 @@ import { IPathService } from '../../../../../../workbench/services/path/common/p
 import { MockLabelService } from '../../../../../../workbench/services/label/test/common/mockLabelService.js';
 import { TestPathService } from '../../../../../../workbench/test/browser/workbenchTestServices.js';
 import type { CanvasState } from '../../../../../../platform/agentHost/common/state/protocol/channels-canvas/state.js';
+import { buildOpenSessionLinkForChat } from '../../../../../../platform/agentHost/common/openSessionLink.js';
 
 // ---- Mock IAgentHostService -------------------------------------------------
 
@@ -2242,12 +2243,15 @@ suite('LocalAgentHostSessionsProvider', () => {
 			backend: session.backendUri.toString(),
 			resource: session.resource.toString(),
 			chats: session.chats.get().map(chat => [chat.resource.fragment, provider.getBackendChatResource(chat.resource)?.toString()]),
+			links: session.chats.get().map(chat => provider.getSessionContextReference(chat.resource)),
 			sessionIsRead: session.isRead.get(),
 			chatReadState: session.chats.get().map(chat => chat.isRead.get()),
 		}, {
 			backend: hostResource.toString(),
 			resource: hostResource.with({ scheme: 'agent-host-copilotcli' }).toString(),
 			chats: [['', defaultChat.toString()], [peerChat.toString(), peerChat.toString()]],
+			// Opaque chats link into the session that advertises them.
+			links: [buildOpenSessionLinkForChat(hostResource, defaultChat), buildOpenSessionLinkForChat(hostResource, peerChat)],
 			sessionIsRead: false,
 			chatReadState: [true, false],
 		});
