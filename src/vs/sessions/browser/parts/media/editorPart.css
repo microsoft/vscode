@@ -251,6 +251,11 @@
 	right: 0;
 }
 
+.modern-ui-tabs.agent-sessions-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping:dir(rtl) > .editor-layout-actions {
+	right: auto;
+	left: 0;
+}
+
 .agent-sessions-workbench .part.editor > .content .editor-group-container > .title.two-tab-bars > .tabs-and-actions-container:first-child .editor-layout-actions {
 	/* When multiple tab bars are visible, only show editor actions for the last tab bar */
 	display: none;

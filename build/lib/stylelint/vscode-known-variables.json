@@ -1057,6 +1057,7 @@
 		"--connected-tab-min-width",
 		"--inline-chat-frame-progress",
 		"--insert-border-color",
+		"--last-tab-add-tab-width",
 		"--last-tab-margin-right",
 		"--last-tab-layout-actions-width",
 		"--list-scroll-right-offset",

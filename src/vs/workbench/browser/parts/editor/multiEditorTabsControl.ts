@@ -289,6 +289,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// is created and the last tab remains the last child of the tabs
 		// container, which tab layout logic relies on (see #324902).
 		if (this.menuIds?.tabsBarAddTab) {
+			this.tabsContainer.classList.add('has-add-tab');
 			this.addTabContainer = this.createAddTabControl(this.tabsContainer, this.menuIds.tabsBarAddTab);
 		}
 
@@ -2177,24 +2178,33 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	}
 
 	private getFitTabWidth(tab: HTMLElement): number {
-		const targetWindow = getWindow(tab);
-		const style = targetWindow.getComputedStyle(tab);
-		const width = Number.parseFloat(style.width);
-		if (tab.classList.contains('close-action-off') || tab.classList.contains('sticky-compact')) {
-			return width;
+		// Cache intrinsic width, not the current wrapped row's constraint.
+		const maxWidth = tab.style.maxWidth;
+		tab.style.maxWidth = 'none';
+		try {
+			const targetWindow = getWindow(tab);
+			const style = targetWindow.getComputedStyle(tab);
+			const width = Number.parseFloat(style.width);
+			if (tab.classList.contains('close-action-off') || tab.classList.contains('sticky-compact')) {
+				return width;
+			}
+			const labelPadding = Number.parseFloat(tab.classList.contains('tab-actions-left') ? style.paddingRight : style.paddingLeft);
+			const actionPadding = Number.parseFloat(style.getPropertyValue('--modern-ui-tab-action-padding')) || 28;
+			/* eslint-disable no-restricted-syntax -- IconLabel exposes its root, but not its text-layout elements. */
+			const label = tab.querySelector<HTMLElement>('.tab-label');
+			const name = label?.querySelector<HTMLElement>('.monaco-icon-name-container');
+			const labelContainer = label?.querySelector<HTMLElement>('.monaco-icon-label-container');
+			/* eslint-enable no-restricted-syntax */
+			const nameWidth = name ? Number.parseFloat(targetWindow.getComputedStyle(name).width) : 0;
+			const adornmentWidth = label && labelContainer ? Number.parseFloat(targetWindow.getComputedStyle(label).width) - Number.parseFloat(targetWindow.getComputedStyle(labelContainer).width) : 0;
+			const borderWidth = Number.parseFloat(style.borderLeftWidth) + Number.parseFloat(style.borderRightWidth);
+			const shortNameWidth = Math.max(Number.parseFloat(style.fontSize), MultiEditorTabsControl.TAB_WIDTH.fit - labelPadding - actionPadding - adornmentWidth - borderWidth);
+			const minimumLabelWidth = adornmentWidth + Math.min(nameWidth, shortNameWidth);
+			// Keep short fit names complete without reserving the action column on naturally wider tabs.
+			return Math.max(width, labelPadding + actionPadding + minimumLabelWidth + borderWidth);
+		} finally {
+			tab.style.maxWidth = maxWidth;
 		}
-		const labelPadding = Number.parseFloat(tab.classList.contains('tab-actions-left') ? style.paddingRight : style.paddingLeft);
-		const actionPadding = Number.parseFloat(style.getPropertyValue('--modern-ui-tab-action-padding')) || 28;
-		/* eslint-disable no-restricted-syntax -- IconLabel exposes its root, but not its text-layout elements. */
-		const label = tab.querySelector<HTMLElement>('.tab-label');
-		const name = label?.querySelector<HTMLElement>('.monaco-icon-name-container');
-		const labelContainer = label?.querySelector<HTMLElement>('.monaco-icon-label-container');
-		/* eslint-enable no-restricted-syntax */
-		const nameWidth = name ? Number.parseFloat(targetWindow.getComputedStyle(name).width) : 0;
-		const adornmentWidth = label && labelContainer ? Number.parseFloat(targetWindow.getComputedStyle(label).width) - Number.parseFloat(targetWindow.getComputedStyle(labelContainer).width) : 0;
-		const minimumLabelWidth = adornmentWidth + Math.min(nameWidth, Number.parseFloat(style.fontSize));
-		// Retain the adornments and at least an ellipsis when the transient action appears.
-		return Math.max(width, labelPadding + actionPadding + minimumLabelWidth + Number.parseFloat(style.borderLeftWidth) + Number.parseFloat(style.borderRightWidth));
 	}
 
 	private doLayoutTabsWrapping(dimensions: IEditorTitleControlDimensions, forceTabsWrapMultiLine?: boolean): boolean {
@@ -2202,6 +2212,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 		const layoutActionsContainer = this.editorLayoutActionsToolbarContainer;
 		const editorToolbarWidth = () => editorToolbarContainer.offsetWidth + (layoutActionsContainer?.offsetWidth ?? 0);
+		const addTabContainer = this.addTabContainer;
 
 		// Handle wrapping tabs according to setting:
 		// - enabled: only add class if tabs wrap and don't exceed available dimensions
@@ -2220,6 +2231,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			// positioned editor actions container when tabs wrap. The margin needs to
 			// be the width of the editor actions container to avoid screen cheese.
 			tabsContainer.style.setProperty('--last-tab-margin-right', tabsWrapMultiLine ? `${editorToolbarWidth()}px` : '0');
+			tabsContainer.style.setProperty('--last-tab-add-tab-width', `${addTabContainer?.offsetWidth ?? 0}px`);
 			tabsAndActionsContainer.style.setProperty('--last-tab-layout-actions-width', `${layoutActionsContainer?.offsetWidth ?? 0}px`);
 
 			// Remove old css classes that are not needed anymore
@@ -2242,7 +2254,10 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 					return true; // no tab always fits
 				}
 
-				const lastTabOverlapWithToolbarWidth = lastTab.offsetWidth + editorToolbarWidth() - dimensions.available.width;
+				const modernFit = lastTab.classList.contains('sizing-fit') && !!this.parent.closest('.modern-ui-tabs');
+				const availableLastTabWidth = dimensions.available.width - editorToolbarWidth() - (this.addTabContainer?.offsetWidth ?? 0);
+				const lastTabWidth = modernFit ? Math.min(lastTab.offsetWidth, Math.max(MultiEditorTabsControl.TAB_WIDTH.shrink, availableLastTabWidth)) : lastTab.offsetWidth;
+				const lastTabOverlapWithToolbarWidth = lastTabWidth + editorToolbarWidth() + (this.addTabContainer?.offsetWidth ?? 0) - dimensions.available.width;
 				if (lastTabOverlapWithToolbarWidth > 1) {
 					// Allow for slight rounding errors related to zooming here
 					// https://github.com/microsoft/vscode/issues/116385

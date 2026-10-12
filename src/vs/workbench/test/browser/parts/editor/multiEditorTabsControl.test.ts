@@ -293,6 +293,72 @@ suite('MultiEditorTabsControl', () => {
 		assert.deepStrictEqual(results, results.map(result => ({ ...result, gap: result.expectedGap, terminalMargin: '8px' })));
 	});
 
+	test('wrapped Add Tab stays adjacent to the terminal tab after narrow and maximized layouts', async () => {
+		const group = connectedGroup();
+		const root = group.closest<HTMLElement>('.monaco-workbench')!;
+		control.dispose();
+		reset(container);
+		control = createControl({ tabsBarAddTab: MenuId.for('test.connectedTabs.wrappedAddTabSpacing') });
+		openNamedEditors(['F.ts', `a-${'long-label-'.repeat(25)}.ts`]);
+		const oldOptions = partOptions;
+		partOptions = { ...partOptions, wrapTabs: true, tabSizing: 'fit', tabActionReserveSpace: false };
+		control.updateOptions(oldOptions, partOptions);
+		const toolbar = container.querySelector<HTMLElement>('.editor-actions')!;
+		toolbar.style.width = '56px';
+		const results = [];
+		for (const { connected, direction } of [false, true].flatMap(connected => ['ltr', 'rtl'].map(direction => ({ connected, direction })))) {
+			root.dir = direction;
+			root.classList.toggle('modern-ui-connected-editor-tabs', connected);
+			for (const width of [320, 900, 320, 1500]) {
+				await layoutConnectedGroup(group, width);
+				const terminal = Array.from(container.querySelectorAll<HTMLElement>('.tabs-container > .tab')).at(-1)!;
+				const add = container.querySelector<HTMLElement>('.tabs-bar-add-tab')!;
+				const row = terminal.closest<HTMLElement>('.tabs-and-actions-container')!;
+				results.push({
+					connected, direction, width,
+					wrapped: row.classList.contains('wrapping'),
+					sameRow: terminal.offsetTop === add.offsetTop,
+					adjacentGap: Math.abs((direction === 'rtl' ? terminal.getBoundingClientRect().left - add.getBoundingClientRect().right : add.getBoundingClientRect().left - terminal.getBoundingClientRect().right) - (connected ? 7 : 4)) <= 1 / 32,
+					contained: add.getBoundingClientRect().left >= row.getBoundingClientRect().left - 1 / 64 && add.getBoundingClientRect().right <= row.getBoundingClientRect().right + 1 / 64,
+				});
+			}
+		}
+		assert.deepStrictEqual(results, results.map(result => ({ ...result, wrapped: true, sameRow: true, adjacentGap: true, contained: true })));
+	});
+
+	test('wrapped terminal fit tabs leave room for editor actions without an Add Tab control', async () => {
+		const group = connectedGroup();
+		const root = group.closest<HTMLElement>('.monaco-workbench')!;
+		openNamedEditors(['F.ts', `a-${'long-label-'.repeat(25)}.ts`]);
+		const oldOptions = partOptions;
+		partOptions = { ...partOptions, wrapTabs: true, tabSizing: 'fit', tabActionReserveSpace: false };
+		control.updateOptions(oldOptions, partOptions);
+		const toolbar = container.querySelector<HTMLElement>('.editor-actions')!;
+		toolbar.style.width = '56px';
+		const results = [];
+		for (const { connected, direction } of [false, true].flatMap(connected => ['ltr', 'rtl'].map(direction => ({ connected, direction })))) {
+			root.dir = direction;
+			root.classList.toggle('modern-ui-connected-editor-tabs', connected);
+			for (const width of [300, 600, 300]) {
+				await layoutConnectedGroup(group, width);
+				const terminal = Array.from(container.querySelectorAll<HTMLElement>('.tabs-container > .tab')).at(-1)!;
+				const close = terminal.querySelector<HTMLElement>('.action-label')!;
+				close.focus();
+				const bounds = close.getBoundingClientRect();
+				const target = mainWindow.document.elementFromPoint(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+				results.push({
+					connected, direction, width,
+					wrapped: terminal.closest('.tabs-and-actions-container')?.classList.contains('wrapping'),
+					beforeToolbar: direction === 'rtl' ? bounds.left >= toolbar.getBoundingClientRect().right : bounds.right <= toolbar.getBoundingClientRect().left,
+					closeClickable: !!target && (target === close || close.contains(target)),
+					noAddTab: !container.querySelector('.tabs-bar-add-tab'),
+				});
+				close.blur();
+			}
+		}
+		assert.deepStrictEqual(results, results.map(result => ({ ...result, wrapped: true, beforeToolbar: true, closeClickable: true, noAddTab: true })));
+	});
+
 	test('modern editor headers retain an opaque backing during narrow and wide layouts', async () => {
 		const group = connectedGroup();
 		group.style.setProperty('--vscode-editor-background', '#123456');
@@ -514,6 +580,72 @@ suite('MultiEditorTabsControl', () => {
 		assert.deepStrictEqual(measurements, expected);
 	});
 
+	test('short fit tab names remain complete beside transient Close actions', async () => {
+		const group = connectedGroup();
+		const root = group.closest<HTMLElement>('.monaco-workbench')!;
+		root.classList.add('agent-sessions-workbench', 'dock-detail-panel');
+		const iconStyle = document.createElement('style');
+		iconStyle.textContent = '.modern-ui-tabs .tab-label::before { content: ""; }';
+		group.appendChild(iconStyle);
+		const editors = openNamedEditors(['F.ts', 'Files.ts', 'Browser', 'Search']);
+		for (const editor of editors) {
+			editor.getDescription = () => undefined;
+			control.updateEditorLabel(editor);
+		}
+		const results = [];
+		for (const connected of [false, true]) {
+			root.classList.toggle('modern-ui-connected-editor-tabs', connected);
+			for (const tabActionReserveSpace of [false, true]) {
+				for (const tabActionLocation of ['left', 'right'] as const) {
+					const oldOptions = partOptions;
+					partOptions = { ...partOptions, tabSizing: 'fit', tabActionReserveSpace, tabActionLocation, hasIcons: true, editorActionsLocation: 'hidden' };
+					control.updateOptions(oldOptions, partOptions);
+					await layoutConnectedGroup(group, 800);
+					const tabs = Array.from(container.querySelectorAll<HTMLElement>('.tab'));
+					const widths = tabs.map(tab => tab.getBoundingClientRect().width);
+					for (const [index, tab] of tabs.entries()) {
+						hoverTab(index);
+						const action = tab.querySelector<HTMLElement>('.action-label')!;
+						action.focus();
+						const name = tab.querySelector<HTMLElement>('.monaco-icon-name-container')!;
+						const range = mainWindow.document.createRange();
+						range.selectNodeContents(name);
+						results.push({
+							connected, tabActionReserveSpace, tabActionLocation, name: name.textContent,
+							fullName: range.getBoundingClientRect().width <= name.getBoundingClientRect().width + 1 / 64,
+							stableWidth: Math.abs(widths[index] - tab.getBoundingClientRect().width) <= 1 / 64,
+						});
+						action.blur();
+					}
+				}
+			}
+		}
+		assert.deepStrictEqual(results, results.map(result => ({ ...result, fullName: true, stableWidth: true })));
+	});
+
+	test('wrapped fit labels ellipsize oversized names within the header', async () => {
+		const group = connectedGroup();
+		openNamedEditors([`Very long ${'filename segment '.repeat(30)}.ts`, 'F.ts']);
+		const oldOptions = partOptions;
+		partOptions = { ...partOptions, tabSizing: 'fit', tabActionReserveSpace: false, wrapTabs: true, editorActionsLocation: 'hidden' };
+		control.updateOptions(oldOptions, partOptions);
+		const results = [];
+		for (const width of [300, 900, 300]) {
+			await layoutConnectedGroup(group, width);
+			const tab = container.querySelector<HTMLElement>('.tab')!;
+			const name = tab.querySelector<HTMLElement>('.monaco-icon-name-container')!;
+			const row = tab.closest<HTMLElement>('.tabs-container')!;
+			results.push({
+				width,
+				wrapped: tab.closest('.tabs-and-actions-container')?.classList.contains('wrapping'),
+				contained: tab.getBoundingClientRect().right <= row.getBoundingClientRect().right + 1 / 64,
+				trimmed: name.scrollWidth > name.clientWidth,
+				ellipsis: mainWindow.getComputedStyle(name).textOverflow,
+			});
+		}
+		assert.deepStrictEqual(results, results.map(result => ({ ...result, wrapped: true, contained: true, trimmed: true, ellipsis: 'ellipsis' })));
+	});
+
 	test('modern tab labels retain ellipsis space with transient actions across sizing modes', async () => {
 		const group = connectedGroup();
 		const root = group.closest<HTMLElement>('.monaco-workbench')!;
@@ -589,6 +721,9 @@ suite('MultiEditorTabsControl', () => {
 
 	test('connected fit tabs reallocate filename width to transient actions', async () => {
 		const group = connectedGroup();
+		openNamedEditors(['a-natural-width-label-longer-than-the-short-fit-minimum.ts', 'another-natural-width-label-longer-than-the-short-fit-minimum.ts']);
+		model.openEditor(model.getEditorByIndex(0)!, { active: true });
+		control.openEditors(model.getEditors(EditorsOrder.SEQUENTIAL));
 		const oldOptions = partOptions;
 		partOptions = { ...partOptions, tabSizing: 'fit', tabActionReserveSpace: false };
 		control.updateOptions(oldOptions, partOptions);
@@ -611,7 +746,7 @@ suite('MultiEditorTabsControl', () => {
 			stableTabWidth: true,
 			labelYieldedSpace: true,
 			fitWidthMatches: true,
-		});
+		}, JSON.stringify({ resting, focused, cache: tab.style.getPropertyValue('--tab-sizing-fit-width') }));
 	});
 
 	function openNamedEditors(names: string[]): TestFileEditorInput[] {
@@ -712,6 +847,9 @@ suite('MultiEditorTabsControl', () => {
 	test('unreserved fit widths use CSS coordinates at zoom during layout hover and focus', async () => {
 		const group = connectedGroup();
 		const root = group.closest<HTMLElement>('.monaco-workbench')!;
+		openNamedEditors(['a-wide-natural-fit-label.ts', 'another-wide-natural-fit-label.ts']);
+		model.openEditor(model.getEditorByIndex(0)!, { active: true });
+		control.openEditors(model.getEditors(EditorsOrder.SEQUENTIAL));
 		const oldOptions = partOptions;
 		partOptions = { ...partOptions, tabSizing: 'fit', tabActionReserveSpace: false, editorActionsLocation: 'hidden' };
 		control.updateOptions(oldOptions, partOptions);
