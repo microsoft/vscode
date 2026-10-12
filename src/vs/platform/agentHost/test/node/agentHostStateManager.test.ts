@@ -1929,6 +1929,39 @@ suite('AgentHostStateManager', () => {
 			]);
 		});
 
+		test('passes a restored chat its recorded storage when resolution starts, and rejects a resolution its removal invalidates', async () => {
+			const owner = 'copilot:/resolver-owner';
+			const peer = buildChatUri('copilot:/resolver-named', 'peer');
+			const invalidated = buildChatUri(owner, 'invalidated');
+			const received: [string | undefined, string][] = [];
+			let release!: () => void;
+			const released = new Promise<void>(resolve => release = resolve);
+			manager.restoreSession(makeSessionSummary(owner), [], creationTimeChatStorageResource);
+			manager.registerRestoredChatSummary(owner, peer, {
+				storageResource: 'copilot:/recorded-peer-storage',
+				providerData: 'peer-data',
+				resolver: async (providerData, storageResource) => {
+					received.push([providerData, storageResource]);
+					return { turns: [] };
+				},
+			});
+			manager.registerRestoredChatSummary(owner, invalidated, {
+				storageResource: creationTimeChatStorageResource(owner, invalidated),
+				resolver: async () => {
+					await released;
+					return { turns: [] };
+				},
+			});
+
+			await manager.resolveChatState(peer);
+			const resolving = manager.resolveChatState(invalidated);
+			manager.removeChat(owner, invalidated);
+			release();
+
+			await assert.rejects(resolving, { message: `Restored chat was invalidated while resolving: ${invalidated}` });
+			assert.deepStrictEqual(received, [['peer-data', 'copilot:/recorded-peer-storage']]);
+		});
+
 		test('deleting a session disposes the changesets of chats it owns, not of the session their URIs encode', () => {
 			const owner = 'copilot:/changeset-owner';
 			const encoded = 'copilot:/changeset-encoded';

@@ -23122,6 +23122,41 @@ suite('AgentService (node dispatcher)', () => {
 			});
 		});
 
+		test('a restored peer chat resolves with the storage its row records', async () => {
+			const owner = AgentSession.uri('copilot', 'peer-resolver-owner');
+			const defaultChat = buildDefaultChatUri(owner);
+			const peer = buildChatUri(owner, 'peer');
+			const storage = AgentSession.uri('copilot', 'recorded-peer-resolver-storage').toString();
+			const database = disposables.add(new AgentHostDatabase(':memory:'));
+			await database.registerRuntimeSession(owner.toString(), { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+			await database.registerChatCatalogV2(owner.toString(), {
+				defaultChat: { chat: defaultChat, order: 0 },
+				peers: [{ chat: peer, order: 1, storageResource: storage }],
+				privateDescendants: [],
+			});
+			const agent = disposables.add(new MockAgent('copilot'));
+			await createAgentSession(agent, { session: owner });
+			const svc = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, createPerSessionDataService().service, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, database,
+			));
+			registerTestAgentProvider(svc, agent);
+			await svc.restoreSession(owner);
+			agent.chatContexts.length = 0;
+
+			await svc.subscribe(URI.parse(peer), 'peer-reader');
+
+			assert.deepStrictEqual({
+				storage: getStateManager(svc).getChatStorageResource(peer),
+				providerResources: [...new Set(agent.chatContexts
+					.filter(call => call.chat.toString() === peer && !URI.isUri(call.context) && call.context !== undefined)
+					.map(call => (call.context as IAgentChatContext).resource.toString()))],
+			}, {
+				storage,
+				providerResources: [storage],
+			});
+		});
+
 		test('mismatch oracle: a chat whose URI encodes another session is owned, routed and stored by its records', async () => {
 			// The URIs encode a session of an unregistered provider; anything that
 			// routes by the URI would reach the wrong session and provider.
