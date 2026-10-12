@@ -116,13 +116,13 @@ for (const [theme, expected] of [
 				edgeBottomWidth: '0px',
 			},
 			inactive: {
-				top: expected.tabBorder,
-				side: expected.tabBorder,
+				top: 'rgba(0, 0, 0, 0)',
+				side: 'rgba(0, 0, 0, 0)',
 			},
-			firstLeft: expected.tabBorder,
+			firstLeft: 'rgba(0, 0, 0, 0)',
 			frame: expected.tabBorder,
 			groupFrame: 'none',
-			visibleDividers: [],
+			visibleDividers: Array(5).fill(expected.tabBorder),
 		});
 	});
 }

@@ -56,7 +56,8 @@
 }
 
 .modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title {
-	background-color: var(--vscode-editor-background) !important;
+	--modern-ui-editor-title-background: var(--vscode-editor-background);
+	background-color: var(--modern-ui-editor-title-background);
 }
 
 .modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title:not(.tabs) {

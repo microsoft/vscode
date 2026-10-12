@@ -2201,7 +2201,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 
 		const { showTabs } = this.groupsView.partOptions;
-		this.titleContainer.style.backgroundColor = this.getColor(showTabs === 'multiple' ? EDITOR_GROUP_HEADER_TABS_BACKGROUND : EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND) || '';
+		const titleBackground = this.getColor(showTabs === 'multiple' ? EDITOR_GROUP_HEADER_TABS_BACKGROUND : EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND) || 'transparent';
+		this.titleContainer.style.backgroundColor = `var(--modern-ui-editor-title-background, ${titleBackground})`;
 
 		// Editor container
 		this.editorContainer.style.backgroundColor = this.getColor(editorBackground) || '';

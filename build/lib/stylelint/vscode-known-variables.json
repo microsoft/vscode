@@ -1175,6 +1175,7 @@
 		"--modern-ui-editor-tab-unfocused-inactive-background",
 		"--modern-ui-editor-tab-unfocused-inactive-foreground",
 		"--modern-ui-editor-tabs-border",
+		"--modern-ui-editor-title-background",
 		"--modern-ui-floating-card-border-color",
 		"--modern-ui-floating-card-corner-bottom-left-border-image",
 		"--modern-ui-floating-card-corner-bottom-right-border-image",

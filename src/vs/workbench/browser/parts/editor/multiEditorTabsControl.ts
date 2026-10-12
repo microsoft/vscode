@@ -2589,6 +2589,11 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			const rtl = getWindow(this.tabsContainer).getComputedStyle(this.tabsContainer).direction === 'rtl';
 			const shoulderSpace = Number.parseFloat(getWindow(terminalTab).getComputedStyle(terminalTab).marginInlineEnd);
 			const viewportEdge = rtl ? addBounds.right + shoulderSpace * scale : addBounds.left - shoulderSpace * scale;
+			const clipping: { tab: HTMLElement; clipped: number }[] = [];
+			this.forEachTab((_editor, _index, tab) => {
+				const bounds = tab.getBoundingClientRect();
+				clipping.push({ tab, clipped: Math.max(0, (rtl ? viewportEdge - bounds.left : bounds.right - viewportEdge) / scale) });
+			});
 			if (this.connectedTabBounds) {
 				const activeLeft = this.connectedTabBounds.tab.getBoundingClientRect().left;
 				const viewportLeft = rtl
@@ -2599,12 +2604,10 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				this.connectedTabBounds.overflowEdge.style.right = `${this.tabsContainer.offsetWidth - viewportRight}px`;
 				updateConnectedTabClipping({ ...this.connectedTabBounds, viewportLeft, viewportRight }, scrollLeft);
 			}
-			this.forEachTab((_editor, _index, tab) => {
-				const bounds = tab.getBoundingClientRect();
-				const clipped = Math.max(0, (rtl ? viewportEdge - bounds.left : bounds.right - viewportEdge) / scale);
-				const shoulderInset = 'calc(-1 * (var(--modern-ui-connected-tab-shoulder-radius) + var(--vscode-strokeThickness)))';
+			const shoulderInset = 'calc(-1 * (var(--modern-ui-connected-tab-shoulder-radius) + var(--vscode-strokeThickness)))';
+			for (const { tab, clipped } of clipping) {
 				tab.style.clipPath = clipped > 0 ? `inset(calc(-1 * var(--vscode-strokeThickness)) ${rtl ? shoulderInset : `${clipped}px`} calc(-1 * var(--vscode-strokeThickness)) ${rtl ? `${clipped}px` : shoulderInset})` : '';
-			});
+			}
 		} else {
 			if (this.connectedTabBounds) {
 				const viewportRight = this.addTabContainer?.offsetWidth === 0 && this.tabsContainer ? this.tabsContainer.offsetWidth : this.connectedTabBounds.viewportRight;

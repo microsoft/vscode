@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { stub } from 'sinon';
 import { $, Dimension, EventType, ModifierKeyEmitter, reset, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -27,7 +28,7 @@ import { DecorationsService } from '../../../../services/decorations/browser/dec
 import { IDecorationsService } from '../../../../services/decorations/common/decorations.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { INotebookDocumentService, NotebookDocumentWorkbenchService } from '../../../../services/notebook/common/notebookDocumentService.js';
-import { TestFileEditorInput, TestHostService, TestMenuService, workbenchInstantiationService } from '../../workbenchTestServices.js';
+import { createEditorPart, TestFileEditorInput, TestHostService, TestMenuService, workbenchInstantiationService } from '../../workbenchTestServices.js';
 import '../../../../contrib/modernUI/browser/media/tabs.css';
 import '../../../../contrib/modernUI/browser/connectedEditorTabs.js';
 
@@ -375,6 +376,42 @@ suite('MultiEditorTabsControl', () => {
 		});
 	});
 
+	test('scrolling Add clipping reads every tab before changing clip styles', async () => {
+		const group = connectedGroup();
+		control.dispose();
+		reset(container);
+		control = createControl({ tabsBarAddTab: MenuId.for('test.connectedTabs.batchedClipping') });
+		openNamedEditors(Array.from({ length: 40 }, (_, index) => `long-filename-${index}-for-scrolling.ts`));
+		await layoutConnectedGroup(group, 300);
+		const tabs = Array.from(container.querySelectorAll<HTMLElement>('.tabs-container > .tab'));
+		const readSnapshots: { index: number; clips: string[] }[] = [];
+		for (const [index, tab] of tabs.entries()) {
+			const getBounds = tab.getBoundingClientRect.bind(tab);
+			const replacement = stub(tab, 'getBoundingClientRect').callsFake(() => {
+				readSnapshots.push({ index, clips: tabs.map(tab => tab.style.clipPath) });
+				return getBounds();
+			});
+			disposables.add(toDisposable(() => replacement.restore()));
+		}
+		const scrollContainer = container.querySelector<HTMLElement>('.tabs-container')!;
+		scrollContainer.classList.add('scroll');
+		scrollContainer.scrollLeft = 90;
+		const before = tabs.map(tab => tab.style.clipPath);
+		scrollContainer.dispatchEvent(new mainWindow.Event(EventType.SCROLL));
+		let batchStart = before;
+		const allReadsBeforeWrites = readSnapshots.every(({ index, clips }) => {
+			if (index === 0) {
+				batchStart = clips;
+			}
+			return JSON.stringify(clips) === JSON.stringify(batchStart);
+		});
+		assert.deepStrictEqual({
+			readAllTabs: readSnapshots.length >= tabs.length,
+			allReadsBeforeWrites,
+			clippingUpdated: tabs.some((tab, index) => tab.style.clipPath !== before[index]),
+		}, { readAllTabs: true, allReadsBeforeWrites: true, clippingUpdated: true });
+	});
+
 	test('Add menu visibility updates wrapped width and scrolling clipping without resize or scroll', async () => {
 		const group = connectedGroup();
 		const root = group.closest<HTMLElement>('.monaco-workbench')!;
@@ -557,6 +594,44 @@ suite('MultiEditorTabsControl', () => {
 		})));
 	});
 
+	test('editor group owns the header backing while Modern UI can toggle without an important override', async () => {
+		const themeService = instantiationService.get(IThemeService);
+		assert.ok(themeService instanceof TestThemeService);
+		themeService.setTheme(new TestColorTheme({
+			'editor.background': '#123456',
+			'editorGroupHeader.tabsBackground': '#44556680',
+			'editorGroupHeader.noTabsBackground': '#66778880',
+		}));
+		const part = await createEditorPart(instantiationService, disposables);
+		const root = $('.monaco-workbench');
+		root.style.setProperty('--vscode-editor-background', '#123456');
+		mainWindow.document.body.appendChild(root);
+		const partContainer = part.getContainer()!;
+		partContainer.classList.add('part', 'editor');
+		root.appendChild(partContainer);
+		disposables.add(toDisposable(() => root.remove()));
+		const results = [];
+		for (const showTabs of ['multiple', 'single', 'none'] as const) {
+			const override = disposables.add(part.enforcePartOptions({ showTabs }));
+			const title = root.querySelector<HTMLElement>('.editor-group-container > .title')!;
+			for (const modern of [false, true, false]) {
+				root.classList.toggle('modern-ui-tabs', modern);
+				results.push({
+					showTabs, modern,
+					owningInlineColor: title.style.backgroundColor,
+					background: mainWindow.getComputedStyle(title).backgroundColor,
+					backingPriority: title.style.getPropertyPriority('background-color'),
+				});
+			}
+			override.dispose();
+		}
+		assert.deepStrictEqual(results, results.map(result => ({
+			...result,
+			owningInlineColor: `var(--modern-ui-editor-title-background, ${result.showTabs === 'multiple' ? 'rgba(68, 85, 102, 0.5)' : 'rgba(102, 119, 136, 0.5)'})`,
+			background: result.modern ? 'rgb(18, 52, 86)' : result.showTabs === 'multiple' ? 'rgba(68, 85, 102, 0.5)' : 'rgba(102, 119, 136, 0.5)',
+			backingPriority: '',
+		})));
+	});
 	test('connected labels use end ellipsis before the badge and action', async () => {
 		const group = connectedGroup();
 		const badgeStyle = document.createElement('style');

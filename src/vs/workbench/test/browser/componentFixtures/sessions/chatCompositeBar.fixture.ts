@@ -245,6 +245,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	}),
 
 	MixedStatuses: defineComponentFixture({
+		deferPaint: true,
 		render: (ctx) => {
 			const main = createMockChat({ title: 'Main chat' });
 			const working = createMockChat({ title: 'Refactor auth', status: SessionStatus.InProgress });
