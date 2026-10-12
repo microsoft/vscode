@@ -52,6 +52,7 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 	private _activeQuickChatKey: string | undefined;
 	private _pendingEditorRestoreKey: string | undefined;
 	private _changingVisibility = false;
+	private _togglingQuickChatSidePane = false;
 
 	constructor(
 		ctx: IDesktopLayoutContext,
@@ -299,12 +300,29 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 
 			this._captureQuickChatSharedVisibility();
 		}));
+		this._register(this._layoutService.onWillToggleSidePane(() => this._togglingQuickChatSidePane = true));
+		this._register(this._layoutService.onDidToggleSidePane(({ before, after }) => {
+			try {
+				const activeSession = this._sessionsService.activeSession.get();
+				const opened = !before.editor && !before.auxiliaryBar && (after.editor || after.auxiliaryBar);
+				if (opened
+					&& activeSession?.isQuickChat?.get()
+					&& !this._ctx.chatLayoutSuspended()
+					&& !this._ctx.multipleSessionsVisibleObs.get()
+					&& !isMainPartEmpty(this._editorGroupsService)) {
+					this._applyQuickChatSharedVisibility();
+				}
+			} finally {
+				this._togglingQuickChatSidePane = false;
+			}
+		}));
 		this._register(this._editorService.onDidEditorsChange(() => this._captureQuickChatSharedVisibility()));
 	}
 
 	private _captureQuickChatSharedVisibility(): void {
 		if (this._changingVisibility
 			|| this._ctx.isRestoringSessionLayout
+			|| this._togglingQuickChatSidePane
 			|| this._ctx.multipleSessionsVisibleObs.get()
 			|| this._layoutService.isEditorMaximized()
 			|| this._layoutService.isVisible(Parts.CUSTOM_VIEW_GRID_PART)

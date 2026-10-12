@@ -1090,6 +1090,18 @@ suite('Desktop layout strategies', () => {
 			sharedVisibility: { editorVisible: false, auxiliaryBarVisible: true },
 		});
 
+		harness.layoutService.toggleSidePane();
+
+		assert.deepStrictEqual({
+			editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
+			auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+			sharedVisibility: visibilityStore.get(SessionVisibilityProfile.Existing),
+		}, {
+			editorVisible: true,
+			auxiliaryBarVisible: false,
+			sharedVisibility: { editorVisible: false, auxiliaryBarVisible: true },
+		});
+
 		harness.partVisibility.set(Parts.EDITOR_PART, false);
 		harness.onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: false });
 

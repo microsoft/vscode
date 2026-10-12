@@ -1117,11 +1117,15 @@ suite('DesktopLayoutController', () => {
 	});
 
 	for (const mode of ['session-shared', 'chat-shared', 'chat'] as const) {
-		test(`[desktop] does not reveal a closed side pane when switching sessions (${mode})`, async () => {
+		test(`[desktop] restores a suppressed composition only after an explicit toggle (${mode})`, async () => {
 			createDesktopController({
 				desktopLayout: true,
 				activateAux: true,
 				chatLayoutMode: mode,
+				initialPartVisibility: new Map([
+					[Parts.EDITOR_PART, false],
+					[Parts.AUXILIARYBAR_PART, false],
+				]),
 				sidePaneVisibilityState: {
 					newSession: { editorVisible: false, auxiliaryBarVisible: true },
 					existingSession: { editorVisible: true, auxiliaryBarVisible: true },
@@ -1131,6 +1135,25 @@ suite('DesktopLayoutController', () => {
 			const second = makeSession(URI.parse('session:second'));
 			harness.activeSessionObs.set(first, undefined);
 			await settle();
+
+			assert.deepStrictEqual({
+				editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
+				auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+			}, {
+				editorVisible: false,
+				auxiliaryBarVisible: false,
+			});
+
+			harness.layoutService.toggleSidePane();
+			await settle();
+
+			const expectedComposition = mode === 'chat-shared'
+				? { editorVisible: true, auxiliaryBarVisible: false }
+				: { editorVisible: true, auxiliaryBarVisible: true };
+			assert.deepStrictEqual({
+				editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
+				auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+			}, expectedComposition);
 
 			harness.partVisibility.set(Parts.EDITOR_PART, false);
 			harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
@@ -1148,6 +1171,14 @@ suite('DesktopLayoutController', () => {
 				auxiliaryBarVisible: false,
 				revealCalls: [],
 			});
+
+			harness.layoutService.toggleSidePane();
+			await settle();
+
+			assert.deepStrictEqual({
+				editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
+				auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+			}, expectedComposition);
 		});
 	}
 

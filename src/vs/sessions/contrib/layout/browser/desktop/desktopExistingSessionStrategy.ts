@@ -21,7 +21,7 @@ import { EditorInput } from '../../../../../workbench/common/editor/editorInput.
 import { IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
-import { IAgentWorkbenchLayoutService, ISidePaneToggleEvent } from '../../../../browser/workbench.js';
+import { IAgentWorkbenchLayoutService, ISidePaneState, ISidePaneToggleEvent } from '../../../../browser/workbench.js';
 import { HasDockedDetailsContext, DesktopLayoutContext } from '../../../../common/contextkeys.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -245,17 +245,32 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 	private _correctToggleReopen(e: ISidePaneToggleEvent): void {
 		const wasFullyHidden = !e.before.editor && !e.before.auxiliaryBar;
 		const nowVisible = e.after.editor || e.after.auxiliaryBar;
-		if (!wasFullyHidden || !nowVisible || !this._ctx.chatLayoutActive() || this._ctx.chatLayoutSuspended()) {
+		if (!wasFullyHidden || !nowVisible || this._ctx.chatLayoutSuspended()) {
 			return;
 		}
-		const ownerKey = this._activeOwnerKey();
-		if (!ownerKey) {
+		const composition = this._getToggleReopenComposition();
+		if (!composition || (!composition.editor && !composition.auxiliaryBar)) {
 			return;
 		}
-		const preHide = this._ctx.compositionStore.getPreHide(ownerKey);
-		if (preHide && (preHide.editor !== e.after.editor || preHide.auxiliaryBar !== e.after.auxiliaryBar)) {
-			this._layoutService.restoreSidePaneComposition(preHide);
+		if (composition.editor !== e.after.editor || composition.auxiliaryBar !== e.after.auxiliaryBar) {
+			this._layoutService.restoreSidePaneComposition(composition);
 		}
+	}
+
+	private _getToggleReopenComposition(): ISidePaneState | undefined {
+		const activeSession = this._sessionsService.activeSession.get();
+		if (!activeSession || activeSession.isQuickChat?.get()) {
+			return undefined;
+		}
+		const ownerKey = this._ctx.chatLayoutActive() ? this._ctx.compositionKeyFor(activeSession) : undefined;
+		if (ownerKey) {
+			return this._ctx.compositionStore.getPreHide(ownerKey) ?? this._ctx.compositionStore.get(ownerKey);
+		}
+		if (!activeSession.isCreated.get()) {
+			return undefined;
+		}
+		const state = this._visibilityStore.get(SessionVisibilityProfile.Existing);
+		return { editor: state.editorVisible, auxiliaryBar: state.auxiliaryBarVisible };
 	}
 
 	private _activeOwnerKey(): URI | undefined {

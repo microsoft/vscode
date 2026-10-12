@@ -1215,6 +1215,13 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 				visible: { editor: false, auxiliaryBar: false },
 				stored: { editor: c.editor, auxiliaryBar: c.auxiliaryBar },
 			}, `focusing ${c.chat.resource.toString()} must not reveal its saved composition`);
+			if (c.editor || c.auxiliaryBar) {
+				harness.layoutService.toggleSidePane();
+				await settle();
+				assert.deepStrictEqual(visible(), { editor: c.editor, auxiliaryBar: c.auxiliaryBar }, `explicitly reopening ${c.chat.resource.toString()} must restore its saved composition`);
+				harness.partVisibility.set(Parts.EDITOR_PART, false);
+				harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
+			}
 		}
 	});
 
