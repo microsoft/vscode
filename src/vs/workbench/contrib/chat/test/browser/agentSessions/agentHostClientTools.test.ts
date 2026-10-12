@@ -26,7 +26,7 @@ import { AgentHostConnectionsService } from '../../../../../../platform/agentHos
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { createAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IRemoteAgentHostService, NullRemoteAgentHostService } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME, CLIENT_SEMANTIC_SEARCH_TOOL_ID, CopilotSemanticSearchEnabledSettingId, SEMANTIC_SEARCH_TOOL_NAME } from '../../../../../../platform/agentHost/common/semanticSearchConstants.js';
+import { CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME, CLIENT_SEMANTIC_SEARCH_TOOL_ID, SEMANTIC_SEARCH_TOOL_NAME } from '../../../../../../platform/agentHost/common/semanticSearchConstants.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../../../../../platform/agentHost/common/toolSearchConstants.js';
 import { agentSandboxDiagnosticsMetaKey } from '../../../../../../platform/agentHost/common/meta/agentSandboxDiagnostics.js';
 import { readAgentPermissionResponseMeta } from '../../../../../../platform/agentHost/common/meta/agentPermissionResponseMeta.js';
@@ -112,8 +112,6 @@ suite('AgentHostClientTools', () => {
 		mcpOptions?: { remoteAuthority?: string; servers: readonly IMcpServer[] },
 	) {
 		const instantiationService = disposables.add(new TestInstantiationService());
-		let semanticSearchEnabled = false;
-		const onDidChangeConfiguration = disposables.add(new Emitter<IConfigurationChangeEvent>());
 		instantiationService.stub(IFileService, TestFileService);
 		instantiationService.stub(IAgentHostFileSystemService, {
 			ensureSyncedCustomizationProvider: () => { },
@@ -123,12 +121,10 @@ suite('AgentHostClientTools', () => {
 			override readonly extUri = extUriBiasedIgnorePathCase;
 		});
 		instantiationService.stub(IConfigurationService, {
-			getValue: (section: string) => section === CopilotSemanticSearchEnabledSettingId
-				? semanticSearchEnabled
-				: section === mcpAccessConfig
-					? McpAccessValue.All
-					: false,
-			onDidChangeConfiguration: onDidChangeConfiguration.event,
+			getValue: (section: string) => section === mcpAccessConfig
+				? McpAccessValue.All
+				: false,
+			onDidChangeConfiguration: Event.None,
 		} as Partial<IConfigurationService> as IConfigurationService);
 		instantiationService.stub(IConfigurationResolverService, {} as Partial<IConfigurationResolverService>);
 		instantiationService.stub(IWorkbenchEnvironmentService, { remoteAuthority: mcpOptions?.remoteAuthority });
@@ -169,17 +165,7 @@ suite('AgentHostClientTools', () => {
 		});
 
 		const service = disposables.add(instantiationService.createInstance(AgentHostActiveClientService));
-		return {
-			service,
-			setSemanticSearchEnabled: (enabled: boolean) => {
-				semanticSearchEnabled = enabled;
-				onDidChangeConfiguration.fire(new class extends mock<IConfigurationChangeEvent>() {
-					override affectsConfiguration(section: string): boolean {
-						return section === CopilotSemanticSearchEnabledSettingId;
-					}
-				});
-			},
-		};
+		return { service };
 	}
 
 	test('lazily creates scopes and shares them for equivalent root sets', async () => {
@@ -335,7 +321,7 @@ suite('AgentHostClientTools', () => {
 		source: ToolDataSource.Internal,
 	};
 
-	async function publishedTools(tools: readonly IToolData[], sessionType: string, enabled: boolean) {
+	async function publishedTools(tools: readonly IToolData[], sessionType: string) {
 		const searchToolSet = new class extends mock<IToolSet>() {
 			override readonly id = 'search';
 			override readonly deprecated = true;
@@ -349,27 +335,22 @@ suite('AgentHostClientTools', () => {
 		const client = createActiveClientService(constObservable(tools), constObservable([searchToolSet, enabledToolSet]));
 		const scope = disposables.add(client.service.acquireScope(sessionType, []));
 		await scope.whenResolved();
-		client.setSemanticSearchEnabled(enabled);
 		return scope.tools.get().map(tool => [tool.name, tool.title]);
 	}
 
-	test('gates and reserves semantic search for Copilot sessions', async () => {
+	test('publishes and reserves semantic search for Copilot sessions', async () => {
 		const tools = [collidingCodebaseTool, collidingSemanticSearchTool, semanticSearchTool, readFileTool];
 		assert.deepStrictEqual({
-			localDisabled: await publishedTools(tools, AGENT_HOST_COPILOT_CLI_SESSION_TYPE, false),
-			localEnabled: await publishedTools(tools, AGENT_HOST_COPILOT_CLI_SESSION_TYPE, true),
-			remoteEnabled: await publishedTools(tools, REMOTE_COPILOT_CLI_SESSION_TYPE, true),
-			sandboxDisabled: await publishedTools(tools, CLOUD_SANDBOX_SESSION_TYPE, false),
-			sandboxEnabled: await publishedTools(tools, CLOUD_SANDBOX_SESSION_TYPE, true),
-			otherEnabled: await publishedTools(tools, 'agent-host-claude', true),
-			withoutCanonical: await publishedTools([collidingCodebaseTool, collidingSemanticSearchTool, readFileTool], AGENT_HOST_COPILOT_CLI_SESSION_TYPE, true),
+			local: await publishedTools(tools, AGENT_HOST_COPILOT_CLI_SESSION_TYPE),
+			remote: await publishedTools(tools, REMOTE_COPILOT_CLI_SESSION_TYPE),
+			sandbox: await publishedTools(tools, CLOUD_SANDBOX_SESSION_TYPE),
+			other: await publishedTools(tools, 'agent-host-claude'),
+			withoutCanonical: await publishedTools([collidingCodebaseTool, collidingSemanticSearchTool, readFileTool], AGENT_HOST_COPILOT_CLI_SESSION_TYPE),
 		}, {
-			localDisabled: [['readFile', 'Read File']],
-			localEnabled: [[SEMANTIC_SEARCH_TOOL_NAME, 'Search Codebase'], ['readFile', 'Read File']],
-			remoteEnabled: [[SEMANTIC_SEARCH_TOOL_NAME, 'Search Codebase'], ['readFile', 'Read File']],
-			sandboxDisabled: [['readFile', 'Read File']],
-			sandboxEnabled: [[SEMANTIC_SEARCH_TOOL_NAME, 'Search Codebase'], ['readFile', 'Read File']],
-			otherEnabled: [[CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME, 'Other Codebase'], [SEMANTIC_SEARCH_TOOL_NAME, 'Other Semantic Search'], ['readFile', 'Read File']],
+			local: [[SEMANTIC_SEARCH_TOOL_NAME, 'Search Codebase'], ['readFile', 'Read File']],
+			remote: [[SEMANTIC_SEARCH_TOOL_NAME, 'Search Codebase'], ['readFile', 'Read File']],
+			sandbox: [[SEMANTIC_SEARCH_TOOL_NAME, 'Search Codebase'], ['readFile', 'Read File']],
+			other: [[CLIENT_SEMANTIC_SEARCH_REFERENCE_NAME, 'Other Codebase'], [SEMANTIC_SEARCH_TOOL_NAME, 'Other Semantic Search'], ['readFile', 'Read File']],
 			withoutCanonical: [['readFile', 'Read File']],
 		});
 	});
