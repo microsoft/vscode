@@ -34,7 +34,7 @@ import { McpServerType } from '../../../../mcp/common/mcpPlatformTypes.js';
 import { AgentSession, type AgentSignal, type IAgentChatContext, type IAgentCreateChatOptions, type IAgentCreateChatResult } from '../../../common/agent.js';
 import { IAgentPluginManager } from '../../../common/agentPluginManager.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
-import { buildChatUri, buildDefaultChatUri, chatStorageUri, parseChatUri, readSessionWorkspaceless, ResponsePartKind, ToolCallStatus, ToolResultContentType, type StringOrMarkdown } from '../../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, readSessionWorkspaceless, ResponsePartKind, ToolCallStatus, ToolResultContentType, type StringOrMarkdown } from '../../../common/state/sessionState.js';
 import { CustomizationEnablementKind, CustomizationType, McpServerStatus, SessionStatus, type Customization } from '../../../common/state/protocol/channels-session/state.js';
 import { ISessionDataService, MAX_TERMINAL_OUTPUT_BYTES } from '../../../common/sessionDataService.js';
 import { buildNonPtyShellTerminalUri } from '../../../common/nonPtyShellTerminalUri.js';
@@ -70,6 +70,7 @@ import { createSessionDataService, RecordingCheckpointService, TestSessionDataba
 import { createNoopCustomizationEnablementService } from '../testCustomizationEnablementService.js';
 import { createTestAgentHostProxyResolver } from '../agentServiceTestUtils.js';
 import { RecordingAgentSdkDownloader } from '../testAgentSdkDownloader.js';
+import { mintedTestChatStorage, requireMintedTestChatOwner } from '../../common/mintedChatUri.js';
 
 interface ITestWireRequest {
 	readonly id: number;
@@ -557,7 +558,7 @@ suite('CodexAgent prewarm eviction', () => {
 		const chats = await listing;
 		assert.ok(chats);
 		assert.deepStrictEqual(chats.map(chat => ({
-			id: AgentSession.id(parseChatUri(chat.chat)!.session),
+			id: AgentSession.id(requireMintedTestChatOwner(chat.chat)),
 			workspaceless: readSessionWorkspaceless(chat._meta),
 			workingDirectories: chat.workingDirectories?.map(directory => directory.fsPath),
 		})), [
@@ -1464,7 +1465,7 @@ suite('CodexAgent prewarm eviction', () => {
 			{ type: ToolResultContentType.Text, text: preview },
 			{
 				type: ToolResultContentType.Terminal,
-				resource: buildNonPtyShellTerminalUri(chatStorageUri(chat)!, session, chat, 'pre'),
+				resource: buildNonPtyShellTerminalUri(mintedTestChatStorage(chat), session, chat, 'pre'),
 				title: 'Run shell command',
 				isPty: false,
 				result: { exitCode: 0, preview, truncated: true },
@@ -1729,7 +1730,7 @@ suite('CodexAgent prewarm eviction', () => {
 				{ type: ToolResultContentType.Text, text: preview },
 				{
 					type: ToolResultContentType.Terminal,
-					resource: buildNonPtyShellTerminalUri(chatStorageUri(chat)!, parent, chat, id),
+					resource: buildNonPtyShellTerminalUri(mintedTestChatStorage(chat), parent, chat, id),
 					title: 'Run shell command',
 					isPty: false,
 					result: { exitCode: 0, preview, truncated: true },

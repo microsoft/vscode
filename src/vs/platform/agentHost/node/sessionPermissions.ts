@@ -28,7 +28,12 @@ import { getAvailableSessionApprovalValues, getSessionApprovalProperty, readSess
 import { readToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { ConfirmationOptionKind, type ConfirmationOption } from '../common/state/protocol/state.js';
 import { ActionType, type IToolCallReadyAction } from '../common/state/sessionActions.js';
-import { isAhpChatChannel, ResponsePartKind, ToolCallConfirmationReason, type URI as ProtocolURI } from '../common/state/sessionState.js';
+import {
+	isAhpChatChannel,
+	ResponsePartKind,
+	ToolCallConfirmationReason,
+	type URI as ProtocolURI,
+} from '../common/state/sessionState.js';
 import { getEffectiveWorkingDirectories, IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { CommandAutoApprover, type CommandApprovalResult } from './commandAutoApprover.js';

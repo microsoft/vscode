@@ -14,13 +14,38 @@ import { URI } from '../../../base/common/uri.js';
 import { IAgentHostPeerChatPersistenceService } from './agentHostPeerChatStore.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
-import { buildBranchChangesetUri, buildCompareTurnsChangesetUri, buildSessionChangesetUri, buildTurnChangesetUri, buildUncommittedChangesetUri, parseChangesetUri, ChangesetKind, buildDefaultChangesetCatalog, parseFolderChangesetOwnerUri } from '../common/changesetUri.js';
+import {
+	buildBranchChangesetUri,
+	buildCompareTurnsChangesetUri,
+	buildSessionChangesetUri,
+	buildTurnChangesetUri,
+	buildUncommittedChangesetUri,
+	parseChangesetUri,
+	ChangesetKind,
+	buildDefaultChangesetCatalog,
+	parseFolderChangesetOwnerUri,
+} from '../common/changesetUri.js';
 import { IDiffComputeService } from '../common/diffComputeService.js';
 import { ISessionDatabase, ISessionDataService } from '../common/sessionDataService.js';
 import type { ChangesetState, ChangesSummary } from '../common/state/protocol/state.js';
 import { addMillisecondsToTimestamp } from '../common/state/protocol/common/timestamps.js';
 import { ActionType } from '../common/state/sessionActions.js';
-import { ChangesetStatus, ChatOriginKind, type ChangesetFile, type ISessionFileDiff, type SessionConfigState, type URI as ProtocolURI, buildDefaultChatUri, readSessionGitState, isAhpChatChannel, isDefaultChatUri, isHostNoticeTurn, lastAttributableTurnId, SessionLifecycle, withSessionGitState } from '../common/state/sessionState.js';
+import {
+	ChangesetStatus,
+	ChatOriginKind,
+	type ChangesetFile,
+	type ISessionFileDiff,
+	type SessionConfigState,
+	type URI as ProtocolURI,
+	buildDefaultChatUri,
+	readSessionGitState,
+	isAhpChatChannel,
+	isDefaultChatUri,
+	isHostNoticeTurn,
+	lastAttributableTurnId,
+	SessionLifecycle,
+	withSessionGitState,
+} from '../common/state/sessionState.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH, resolveDiffBaseBranchName } from '../common/agentHostGitService.js';

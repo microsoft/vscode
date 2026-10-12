@@ -13,7 +13,18 @@ import { Annotation, AnnotationsState, SessionStatus, SessionSummary, buildChatU
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentServerToolHost } from '../../node/shared/agentServerToolHost.js';
-import { addCommentToolName, applyFeedbackTool, deleteCommentsToolName, feedbackServerToolDefinitions, feedbackServerToolGroup, feedbackToolRequiresConfirmation, listCommentsToolName, replyToCommentToolName, resolveCommentsToolName, viewUnreviewedCommentsToolName } from '../../node/shared/agentFeedbackServerTools.js';
+import {
+	addCommentToolName,
+	applyFeedbackTool,
+	deleteCommentsToolName,
+	feedbackServerToolDefinitions,
+	feedbackServerToolGroup,
+	feedbackToolRequiresConfirmation,
+	listCommentsToolName,
+	replyToCommentToolName,
+	resolveCommentsToolName,
+	viewUnreviewedCommentsToolName,
+} from '../../node/shared/agentFeedbackServerTools.js';
 
 suite('AgentFeedbackServerTools', () => {
 

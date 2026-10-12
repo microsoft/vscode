@@ -9,7 +9,31 @@ import { toAgentMergeMessageMeta } from '../../common/meta/agentMergeMessageMeta
 import { AgentSystemNotificationKind, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { buildChatUri, buildDefaultChatUri, MessageKind, ResponsePartKind, SessionLifecycle, SessionStatus, TurnState, withSessionGitState, withSessionWorkspaceless, type ISessionWithDefaultChat, type Turn } from '../../common/state/sessionState.js';
-import { AGENT_MERGE_CHANGESET_ID, ChangesetKind, buildBranchChangesetUri, buildChangesetUri, buildCompareTurnsChangesetUri, buildCompareTurnsChangesetUriTemplate, buildDefaultChangesetCatalog, buildSessionChangesetUri, buildTurnChangesetUri, buildTurnChangesetUriTemplate, buildUncommittedChangesetUri, buildFolderChangesetOwnerUri, isChangesetUri, isSessionChangesetUri, isUncommittedChangesetUri, parseChangesetUri, changesetSession, parseCompareTurnsChangesetUri, parseTurnChangesetUri, parseFolderChangesetOwnerUri, resolveChangesetUriTemplate, resolveChatChangesetCatalogue, selectDefaultChangeset } from '../../common/changesetUri.js';
+import {
+	AGENT_MERGE_CHANGESET_ID,
+	ChangesetKind,
+	buildBranchChangesetUri,
+	buildChangesetUri,
+	buildCompareTurnsChangesetUri,
+	buildCompareTurnsChangesetUriTemplate,
+	buildDefaultChangesetCatalog,
+	buildSessionChangesetUri,
+	buildTurnChangesetUri,
+	buildTurnChangesetUriTemplate,
+	buildUncommittedChangesetUri,
+	buildFolderChangesetOwnerUri,
+	isChangesetUri,
+	isSessionChangesetUri,
+	isUncommittedChangesetUri,
+	parseChangesetUri,
+	changesetSession,
+	parseCompareTurnsChangesetUri,
+	parseTurnChangesetUri,
+	parseFolderChangesetOwnerUri,
+	resolveChangesetUriTemplate,
+	resolveChatChangesetCatalogue,
+	selectDefaultChangeset,
+} from '../../common/changesetUri.js';
 
 suite('changesetUri', () => {
 

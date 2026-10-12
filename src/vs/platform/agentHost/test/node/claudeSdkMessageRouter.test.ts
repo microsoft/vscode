@@ -23,13 +23,21 @@ import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { IAgentEditAttribution, IAgentEditAttributionService, NullAgentEditAttributionService } from '../../common/fileEditAttribution.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, resolveChatUri, ToolResultContentType } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, isDefaultChatUri, ToolResultContentType } from '../../common/state/sessionState.js';
 import { ClaudeSdkMessageRouter } from '../../node/claude/claudeSdkMessageRouter.js';
 import { SubagentRegistry } from '../../node/claude/claudeSubagentRegistry.js';
 import { IEditArcReporterService, NullEditArcReporterService } from '../../node/shared/editArcReporter.js';
 import { IEditSurvivalReporterFactory, NullEditSurvivalReporterFactory } from '../../node/shared/editSurvivalReporter.js';
 import { createSessionDataService, createZeroDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
-import { makeContentBlockStartText, makeContentBlockStartToolUse, makeContentBlockStop, makeMessageStart, makeMessageStop, makeStreamEvent, makeTextDelta } from './claudeMapSessionEventsTestUtils.js';
+import {
+	makeContentBlockStartText,
+	makeContentBlockStartToolUse,
+	makeContentBlockStop,
+	makeMessageStart,
+	makeMessageStop,
+	makeStreamEvent,
+	makeTextDelta,
+} from './claudeMapSessionEventsTestUtils.js';
 
 interface IRouterHarness {
 	readonly router: ClaudeSdkMessageRouter;
@@ -82,7 +90,7 @@ function createRouter(
 		ClaudeSdkMessageRouter,
 		chatChannelUri,
 		URI.parse('claude:/sess-1'),
-		resolveChatUri(URI.parse('claude:/sess-1'), chatChannelUri),
+		isDefaultChatUri(chatChannelUri.toString()) ? URI.parse('claude:/sess-1') : chatChannelUri,
 		dbRef,
 		subagents,
 		undefined,

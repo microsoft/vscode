@@ -50,6 +50,7 @@ import { SendRemoteMessageTool } from '../../browser/sendRemoteMessageTool.js';
 import { resolveRemoteSessionSource } from '../../browser/remoteSessionSource.js';
 import { IRemoteSessionChatService, RemoteSessionChatService } from '../../browser/remoteSessionChatService.js';
 import { RemoteSessionToolsEnabledSettingId } from '../../common/remoteSessions.js';
+import { mintedTestChatOwner } from '../../../../../platform/agentHost/test/common/mintedChatUri.js';
 
 class TestSubscription<T> implements IAgentSubscription<T> {
 	value: T | Error | undefined;
@@ -448,7 +449,7 @@ suite('RemoteSessionMessageRouter', () => {
 		await router.send(source.resource, { session: sessions[1].resource.toString(), message: 'From a subagent' }, 'subagent', CancellationToken.None);
 		const delegation = readAgentMessageDelegationMeta(first.dispatched[0].action.message);
 		assert.ok(delegation && hasKey(delegation, { sourceSession: true }) && delegation.sourceChat);
-		assert.deepStrictEqual(parseChatUri(delegation.sourceChat), { session: session.resource.toString(), chatId: 'subagent/call-1' });
+		assert.deepStrictEqual({ session: mintedTestChatOwner(delegation.sourceChat), chatId: parseChatUri(delegation.sourceChat)?.chatId }, { session: session.resource.toString(), chatId: 'subagent/call-1' });
 	});
 
 	test('a saved peer origin that no longer exists never falls back to the main chat', async () => {

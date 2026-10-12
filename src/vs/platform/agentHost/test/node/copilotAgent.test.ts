@@ -65,7 +65,7 @@ import { AgentSession, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind } from '../../common/agentHostTelemetry.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
-import { buildDefaultChatUri, buildChatUri, buildSubagentChatUri, buildSubagentSessionUri, parseRequiredSessionUriFromChatUri, CustomizationLoadStatus, MessageKind, readSessionEhcliAdoptable, readSessionWorkspaceless, ResponsePartKind, ROOT_STATE_URI, ToolResultContentType, TurnState, customizationId, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_EHCLI_LAST_TURN_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, type ClientPluginCustomization, type Customization, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
+import { buildDefaultChatUri, buildChatUri, buildSubagentChatUri, buildSubagentSessionUri, CustomizationLoadStatus, MessageKind, readSessionEhcliAdoptable, readSessionWorkspaceless, ResponsePartKind, ROOT_STATE_URI, ToolResultContentType, TurnState, customizationId, AH_META_EHCLI_ADOPTED_DB_KEY, AH_META_EHCLI_LAST_TURN_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, AH_META_WORKSPACELESS_DB_KEY, type ClientPluginCustomization, type Customization, type PluginCustomization, type ToolCallResult, type Turn, RuleCustomization } from '../../common/state/sessionState.js';
 import { ChatOriginKind, CustomizationEnablementKind, CustomizationType, McpServerStatus, SessionStatus, ToolCallContributorKind, type AgentSelection, type ModelSelection, type ProtectedResourceMetadata, type ToolDefinition } from '../../common/state/protocol/state.js';
 import { ActionType, AuthRequiredReason, type ChatAction, type SessionAction } from '../../common/state/sessionActions.js';
 
@@ -120,6 +120,7 @@ import { ByokLmBridgeRegistry, IByokLmBridgeRegistry } from '../../node/byokLmBr
 import { IByokLmProxyService, NullByokLmProxyService, type IByokLmToolsCappedEvent } from '../../node/copilot/byokLmProxyService.js';
 import { CopilotApiError, CopilotApiService, ICopilotApiService, type ICopilotApiServiceRequestOptions, type ICopilotUtilityChatCompletionRequest, type IRestrictedTelemetryContext } from '../../node/shared/copilotApiService.js';
 import type { IAgentHostInternalTelemetryContext, IAgentHostRestrictedTelemetryContext } from '../../node/agentHostRestrictedTelemetry.js';
+import { requireMintedTestChatOwner } from '../common/mintedChatUri.js';
 
 const TEST_PRODUCT_SERVICE: IProductService = {
 	_serviceBrand: undefined,
@@ -137,7 +138,7 @@ function defaultChatUri(session: URI): URI {
  * field, only the exact chat.
  */
 function sessionIdOfChat(chat: URI): string {
-	return AgentSession.id(parseRequiredSessionUriFromChatUri(chat));
+	return AgentSession.id(requireMintedTestChatOwner(chat));
 }
 
 /**
@@ -257,7 +258,7 @@ function setDefaultSessionStub(agent: CopilotAgent, sessionId: string, stub: unk
 
 function setPeerChatStub(agent: CopilotAgent, chatUri: URI, stub: unknown, sdkSessionId?: string): void {
 	const resolvedSdkSessionId = sdkSessionId ?? (stub as { sessionId?: string }).sessionId ?? `sdk-${chatUri.toString()}`;
-	const ownerSession = URI.parse(parseRequiredSessionUriFromChatUri(chatUri));
+	const ownerSession = URI.parse(requireMintedTestChatOwner(chatUri));
 	const typed = stub as {
 		sessionId?: string;
 		sessionUri?: URI;

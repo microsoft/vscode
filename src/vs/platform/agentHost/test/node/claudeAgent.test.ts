@@ -12,7 +12,21 @@ import assert from 'assert';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import * as fs from 'fs/promises';
 import * as os from 'os';
-import { makeAssistantMessage, makeContentBlockStartText, makeContentBlockStartThinking, makeContentBlockStartToolUse, makeContentBlockStop, makeMessageStart, makeMessageStop, makeResultSuccess, makeStreamEvent, makeSystemInitMessage, makeTextDelta, makeThinkingDelta, makeUserToolResultMessage } from './claudeMapSessionEventsTestUtils.js';
+import {
+	makeAssistantMessage,
+	makeContentBlockStartText,
+	makeContentBlockStartThinking,
+	makeContentBlockStartToolUse,
+	makeContentBlockStop,
+	makeMessageStart,
+	makeMessageStop,
+	makeResultSuccess,
+	makeStreamEvent,
+	makeSystemInitMessage,
+	makeTextDelta,
+	makeThinkingDelta,
+	makeUserToolResultMessage,
+} from './claudeMapSessionEventsTestUtils.js';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -38,7 +52,7 @@ import { AgentFeedbackAttachmentDisplayKind } from '../../common/meta/agentFeedb
 import { ChatInputRequestPurpose, readChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
 import { toClientPluginMcpDefaultCwdsMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputResponseKind, SessionStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, parseChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, type ClientPluginCustomization, type Customization, type PluginCustomization } from '../../common/state/sessionState.js';
+import { CustomizationLoadStatus, CustomizationType, MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputResponseKind, SessionStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, customizationId, isDefaultChatUri, type ClientPluginCustomization, type Customization, type PluginCustomization } from '../../common/state/sessionState.js';
 import { McpServerStatus as McpCustomizationServerStatus, type ChildCustomization, type CustomizationEnablement, type McpServerCustomization } from '../../common/state/protocol/channels-session/state.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
@@ -79,6 +93,7 @@ import { CopilotApiService, ICopilotApiService, type ICopilotApiServiceRequestOp
 import { AGENT_MERGE_GITHUB_TOOL_RESTRICTION } from '../../node/shared/agentMergeToolRestrictions.js';
 import { createAgentChatContext } from '../../node/agentChatContext.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, RecordingCheckpointService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
+import { mintedTestChatOwner, requireMintedTestChatOwner } from '../common/mintedChatUri.js';
 
 // #region Test fakes
 
@@ -106,7 +121,7 @@ function reducerBackedEnablementChangeEvent(stateManager: AgentHostStateManager)
  */
 function listAdditionalChats(agent: ClaudeAgent, session: URI): string[] {
 	const backings = (agent as unknown as { _chatBackings: Map<string, { readonly sdkSessionId: string }> })._chatBackings;
-	return [...backings].flatMap(([chat]) => !isDefaultChatUri(chat) && parseRequiredSessionUriFromChatUri(chat) === session.toString() ? [chat] : []);
+	return [...backings].flatMap(([chat]) => !isDefaultChatUri(chat) && requireMintedTestChatOwner(chat) === session.toString() ? [chat] : []);
 }
 
 function listLiveChats(agent: ClaudeAgent): string[] {
@@ -130,7 +145,7 @@ function defaultChatUri(session: URI): URI {
 
 /** Recovers the owning session id from a {@link IAgentChatMetadata.chat} default-chat URI. */
 function sessionIdOfChat(chat: URI): string {
-	return AgentSession.id(URI.parse(parseRequiredSessionUriFromChatUri(chat)));
+	return AgentSession.id(URI.parse(requireMintedTestChatOwner(chat)));
 }
 
 function discoverClaudeCodeChats(agent: ClaudeAgent): Promise<IAgentChatMetadata[] | undefined> {
@@ -147,8 +162,8 @@ function discoverClaudeCodeChats(agent: ClaudeAgent): Promise<IAgentChatMetadata
  * them and never re-derive them.
  */
 function chatContext(chat: URI, overrides?: Partial<IAgentChatContext>): IAgentChatContext {
-	const parsed = parseChatUri(chat);
-	const session = parsed ? URI.parse(parsed.session) : chat;
+	const owner = mintedTestChatOwner(chat);
+	const session = owner ? URI.parse(owner) : chat;
 	return {
 		configurationResource: session,
 		resource: isDefaultChatUri(chat) ? session : chat,
@@ -1183,7 +1198,7 @@ function createTestContext(
 		const explicit = context && !URI.isUri(context) ? context : undefined;
 		const session = explicit?.configurationResource
 			?? (context && URI.isUri(context) ? context : undefined)
-			?? (chat.scheme === 'ahp-chat' ? URI.parse(parseRequiredSessionUriFromChatUri(chat.toString())) : chat);
+			?? (chat.scheme === 'ahp-chat' ? URI.parse(requireMintedTestChatOwner(chat.toString())) : chat);
 		return { ...createAgentChatContext(stateManager, session, chat), ...explicit };
 	};
 	const chats = agent.chats as {
@@ -4802,7 +4817,7 @@ suite('ClaudeAgent', () => {
 		const observed: AgentSignal[] = [];
 		disposables.add(agent.onDidChatProgress(s => {
 			const resource = s.kind === 'action' || s.kind === 'model_call_completed' || s.kind === 'model_call_finished' ? s.resource : s.chat;
-			if ((parseDefaultChatUri(resource) ?? resource.toString()) === sessionUri.toString()) {
+			if ((mintedTestChatOwner(resource) ?? resource.toString()) === sessionUri.toString()) {
 				observed.push(s);
 			}
 		}));
@@ -8756,7 +8771,7 @@ suite('ClaudeAgent — Phase 11 customizations', () => {
 			const explicit = explicitContext && !URI.isUri(explicitContext) ? explicitContext : undefined;
 			const session = explicit?.configurationResource
 				?? (explicitContext && URI.isUri(explicitContext) ? explicitContext : undefined)
-				?? (chat.scheme === 'ahp-chat' ? URI.parse(parseRequiredSessionUriFromChatUri(chat.toString())) : chat);
+				?? (chat.scheme === 'ahp-chat' ? URI.parse(requireMintedTestChatOwner(chat.toString())) : chat);
 			return sendMessage(chat, prompt, workingDirectoriesOrDirectory, attachments, turnId, senderClientId, clientType, { ...createAgentChatContext(stateManager, session, chat), ...explicit });
 		};
 		return { agent, proxy, api, sdk, sessionData, stateManager, configService, otelService, instantiationService, fileService, sdkDownloader };

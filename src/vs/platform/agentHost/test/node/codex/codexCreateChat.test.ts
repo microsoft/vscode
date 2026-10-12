@@ -26,7 +26,7 @@ import { IProductService } from '../../../../../platform/product/common/productS
 import { ITelemetryService } from '../../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../telemetry/common/telemetryUtils.js';
 import { AgentSession, AgentWorkingDirectoryChangedError, type AgentSignal, type IAgentChatContext, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentMaterializeChatEvent } from '../../../common/agent.js';
-import { buildChatUri, buildDefaultChatUri, chatStorageUri, MessageAttachmentKind, ResponsePartKind, SessionStatus } from '../../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, MessageAttachmentKind, ResponsePartKind, SessionStatus } from '../../../common/state/sessionState.js';
 import { ActionType } from '../../../common/state/sessionActions.js';
 import { CustomizationType, McpServerStatus } from '../../../common/state/protocol/channels-session/state.js';
 import type { IAgentServerToolDefinition, IAgentServerToolHost } from '../../../common/agentServerTools.js';
@@ -58,6 +58,7 @@ import { createSessionDataService, TestSessionDatabase } from '../../common/sess
 import { createTestGitHubEndpointService } from '../testGitHubEndpointService.js';
 import { createNoopCustomizationEnablementService } from '../testCustomizationEnablementService.js';
 import { createTestAgentHostProxyResolver } from '../agentServiceTestUtils.js';
+import { mintedTestChatStorage } from '../../common/mintedChatUri.js';
 
 /** The chat context Agent Host passes: the chat's storage follows the host's creation-time rule. */
 function hostChatContext(session: URI, chat: URI): IAgentChatContext {
@@ -3128,7 +3129,7 @@ suite('CodexAgent exact chat routing', () => {
 			const start = await readNextRequest(peer.outbound);
 			peer.push({ id: start.id, result: { thread: { id: 'legacy-thread', cwd: folder.fsPath } } });
 			await agent['_sessions'].get('legacy-truncate')!.materializePromise;
-			const database = sessionStore.databaseFor(chatStorageUri(chat)!);
+			const database = sessionStore.databaseFor(mintedTestChatStorage(chat));
 			const output = VSBuffer.fromString('retained output').buffer;
 			await database.createTurn('drop-turn');
 			await database.storeTerminalOutput('drop-turn', 'cmd-legacy', output);
@@ -3177,7 +3178,7 @@ suite('CodexAgent exact chat routing', () => {
 			const start = await readNextRequest(peer.outbound);
 			peer.push({ id: start.id, result: { thread: { id: 'retained-truncate-thread', cwd: folder.fsPath } } });
 			await agent['_sessions'].get('retained-truncate')!.materializePromise;
-			const database = sessionStore.databaseFor(chatStorageUri(chat)!);
+			const database = sessionStore.databaseFor(mintedTestChatStorage(chat));
 			const output = VSBuffer.fromString('full output').buffer;
 			for (const [turnId, toolCallId] of [['turn-1', 'cmd-kept'], ['turn-2', 'cmd-reverted']]) {
 				await database.createTurn(turnId);

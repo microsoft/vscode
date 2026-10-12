@@ -22,8 +22,33 @@ import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
 import { readAgentMessageDelegationMeta, toAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
 import { AgentServerToolHost, type IServerToolGroup } from '../../node/shared/agentServerToolHost.js';
-import { mintedTestChatOwner } from './chatMetadataTestHelpers.js';
-import { applyCreateChatTool, applyCreateSessionTool, applySetWorkspaceTool, applyDeleteSessionTool, applyRenameChatTool, applySendMessageTool, createSessionServerToolGroup, formatCreateChatResult, getCreateChatArgs, getCreateSessionArgs, getDeleteSessionArgs, getSetWorkspaceArgs, getRenameChatArgs, getSendMessageArgs, getSessionContextArgs, serializeSessionContext, filterSessions, getListSessionsArgs, sessionServerToolDefinitions, sessionToolRequiresConfirmation, serializeSessions, type IChatContextSnapshot, type IPreparedChatWorkingDirectory, type ISessionServerToolAccessor } from '../../node/shared/sessionServerTools.js';
+import { mintedTestChatOwner } from '../common/mintedChatUri.js';
+import {
+	applyCreateChatTool,
+	applyCreateSessionTool,
+	applySetWorkspaceTool,
+	applyDeleteSessionTool,
+	applyRenameChatTool,
+	applySendMessageTool,
+	createSessionServerToolGroup,
+	formatCreateChatResult,
+	getCreateChatArgs,
+	getCreateSessionArgs,
+	getDeleteSessionArgs,
+	getSetWorkspaceArgs,
+	getRenameChatArgs,
+	getSendMessageArgs,
+	getSessionContextArgs,
+	serializeSessionContext,
+	filterSessions,
+	getListSessionsArgs,
+	sessionServerToolDefinitions,
+	sessionToolRequiresConfirmation,
+	serializeSessions,
+	type IChatContextSnapshot,
+	type IPreparedChatWorkingDirectory,
+	type ISessionServerToolAccessor,
+} from '../../node/shared/sessionServerTools.js';
 
 suite('SessionServerTools', () => {
 

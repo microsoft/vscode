@@ -49,7 +49,7 @@ import { readAgentRuntimeModelConfiguration } from '../../common/meta/agentModel
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, readAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { readAgentSandboxDiagnostics } from '../../common/meta/agentSandboxDiagnostics.js';
 import { toSlashCommandResourceMeta } from '../../common/meta/agentSlashCommandOutputMeta.js';
-import { mintedTestChatOwner } from './chatMetadataTestHelpers.js';
+import { mintedTestChatOwner } from '../common/mintedChatUri.js';
 import { createUnmanagedCopilotSettings, toSessionEvents } from './copilotTestEvents.js';
 import { fusionTestData } from './copilotFusionTestEvents.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';

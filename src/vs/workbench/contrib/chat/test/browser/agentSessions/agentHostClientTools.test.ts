@@ -31,7 +31,7 @@ import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from
 import { agentSandboxDiagnosticsMetaKey } from '../../../../../../platform/agentHost/common/meta/agentSandboxDiagnostics.js';
 import { readAgentPermissionResponseMeta } from '../../../../../../platform/agentHost/common/meta/agentPermissionResponseMeta.js';
 import { isChatAction, isSessionAction, type ActionEnvelope, type ChatAction, type IRootConfigChangedAction, type SessionAction, type TerminalAction, type INotification, type ClientAnnotationsAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, createChatState, createDefaultChatSummary, ChatInputResponseKind, MessageKind, SessionLifecycle, SessionStatus, createSessionState, StateComponents, parseDefaultChatUri, ToolCallCancellationReason, type ChatState, type SessionState, type SessionSummary, type RootState, type ToolInput } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, createChatState, createDefaultChatSummary, ChatInputResponseKind, MessageKind, SessionLifecycle, SessionStatus, createSessionState, StateComponents, ToolCallCancellationReason, type ChatState, type SessionState, type SessionSummary, type RootState, type ToolInput } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { chatReducer, sessionReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { ContentEncoding } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
@@ -90,6 +90,7 @@ import { ExternalDiscoverySource } from '../../../../mcp/common/mcpConfiguration
 import { ContributionEnablementState, IEnablementModel } from '../../../common/enablement.js';
 import { AgentHostMcpServerDelivery } from '../../../browser/agentSessions/agentHost/agentHostMcpServerSupport.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { mintedTestChatOwner } from '../../../../../../platform/agentHost/test/common/mintedChatUri.js';
 
 // =============================================================================
 // Unit tests for toolDataToDefinition and toolResultToProtocol
@@ -761,7 +762,7 @@ suite('AgentHostClientTools', () => {
 			override async listSessions() {
 				const sessions = new Set([AgentSession.uri('copilot', 'session-1').toString()]);
 				for (const [resource, entry] of this._liveSubscriptions) {
-					const parent = parseDefaultChatUri(resource);
+					const parent = mintedTestChatOwner(resource);
 					if (parent || hasKey(entry.state, { provider: true })) {
 						sessions.add(parent ?? resource);
 					}
@@ -785,7 +786,7 @@ suite('AgentHostClientTools', () => {
 			applySessionAction(channel: string | URI, action: SessionAction | ChatAction): void {
 				const channelStr = typeof channel === 'string' ? channel : channel.toString();
 				if (isChatAction(action)) {
-					const chatChannel = parseDefaultChatUri(channelStr) !== undefined ? channelStr : undefined;
+					const chatChannel = mintedTestChatOwner(channelStr) !== undefined ? channelStr : undefined;
 					assert.ok(chatChannel, `chat actions must be dispatched on an ahp-chat channel: ${action.type}`);
 					const entry = this._ensureLiveSubscription(StateComponents.Chat, chatChannel);
 					entry.state = chatReducer(entry.state as ChatState, action as Parameters<typeof chatReducer>[1], () => { });
@@ -839,7 +840,7 @@ suite('AgentHostClientTools', () => {
 					return entry;
 				}
 				const emitter = disposables.add(new Emitter<SessionState | ChatState>());
-				const sessionResource = kind === StateComponents.Chat ? parseDefaultChatUri(resourceStr) : resourceStr;
+				const sessionResource = kind === StateComponents.Chat ? mintedTestChatOwner(resourceStr) : resourceStr;
 				assert.ok(sessionResource, `chat subscriptions must use an ahp-chat channel: ${resourceStr}`);
 				const summary: SessionSummary = {
 					resource: sessionResource,

@@ -17,7 +17,6 @@ import {
 	isAhpChatChannel,
 	MessageAttachmentKind,
 	MessageKind,
-	parseRequiredSessionUriFromChatUri,
 	ResponsePartKind,
 	ROOT_STATE_URI,
 	SessionStatus,
@@ -32,6 +31,7 @@ import { summarizeAnthropicRequest, summarizeResponsesRequest } from '../harness
 import { getActionEnvelope, isActionNotification } from '../../serverIntegrationTestHelpers.js';
 import { conformanceTest, providerHostOnlyTest, type IAgentHostE2ETestContext } from './e2eTestContext.js';
 import { createTestDirectory } from '../harness/testDirectories.js';
+import { requireMintedTestChatOwner } from '../../../common/mintedChatUri.js';
 
 const RECORDING = process.env['AGENT_HOST_REPLAY_RECORD'] === '1' || process.env['AGENT_HOST_UPDATE_SNAPSHOTS'] === '1';
 
@@ -104,7 +104,7 @@ export function defineMultiChatTests(context: IAgentHostE2ETestContext): void {
 			action: { type: ActionType.SessionTitleChanged, title },
 		});
 		if (isAhpChatChannel(channel)) {
-			const session = parseRequiredSessionUriFromChatUri(channel);
+			const session = requireMintedTestChatOwner(channel);
 			await context.client.waitForNotification(n => {
 				if (!isActionNotification(n, 'session/chatUpdated') || getActionEnvelope(n).channel !== session) {
 					return false;

@@ -9,26 +9,6 @@ import type { IAgentHostDatabase, IAgentHostDatabaseSessionListCatalog } from '.
 import { chatCatalogV2ToCatalogChats } from '../../node/agentHostCatalogSourceResolver.js';
 import { decodeAgentHostCatalogPayload } from '../../node/agentHostCatalogProjection.js';
 import { customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
-import { decodeBase64 } from '../../../../base/common/buffer.js';
-import { URI } from '../../../../base/common/uri.js';
-
-/**
- * Test fakes stand in for the host chat registry with the session a test
- * minted its chat URI for. Production code never derives owners this way.
- */
-export function mintedTestChatOwner(chat: string): string | undefined {
-	const parsed = URI.parse(chat);
-	const [encodedSession] = parsed.path.replace(/^\//, '').split('/');
-	if (parsed.scheme !== 'ahp-chat' || !encodedSession) {
-		return undefined;
-	}
-	try {
-		return decodeBase64(encodedSession).toString();
-	} catch {
-		return undefined;
-	}
-}
-
 export function createLegacyChatMetadataPersistence(service: ISessionDataService): Pick<IAgentHostPeerChatPersistenceService, 'persistMetadata' | 'readNormalizedChat' | 'persistDefaultChatTitleSnapshot'> {
 	return {
 		readNormalizedChat: async () => ({ normalized: false }),

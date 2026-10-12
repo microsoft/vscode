@@ -18,6 +18,7 @@ import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from 
 import { ActionType, type AuthRequiredParams } from '../../common/state/sessionActions.js';
 import { ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, CustomizationLoadStatus, buildDefaultChatUri, createErrorResponsePart, isAhpChatChannel, isDefaultChatUri, parseChatUri, parseSubagentSessionUri, type ClientPluginCustomization, type Customization, type PendingMessage, type StringOrMarkdown, type ToolCallResult, type Turn, type UsageInfo } from '../../common/state/sessionState.js';
 import { hasKey } from '../../../../base/common/types.js';
+import { requireMintedTestChatOwner } from '../common/mintedChatUri.js';
 
 /** Well-known auto-generated title used by the 'with-title' prompt. */
 export const MOCK_AUTO_TITLE = 'Automatically generated title';
@@ -329,7 +330,7 @@ export class MockAgent implements IAgent {
 		if (!parsed) {
 			throw new Error(`Mock agent chat operation requires an AHP chat URI: ${chat.toString()}`);
 		}
-		return { session: URI.parse(parsed.session), chat: URI.parse(chat.toString()) };
+		return { session: URI.parse(requireMintedTestChatOwner(chat)), chat: URI.parse(chat.toString()) };
 	}
 
 	/** Records a host-supplied chat context for later assertion. */
@@ -1091,7 +1092,7 @@ export class ScriptedMockAgent implements IAgent {
 		// Restore addresses the default chat by its channel URI; normalize it
 		// back to the session URI (mirroring the real agents' getSessionMessages).
 		const parsed = parseChatUri(session);
-		const normalized = parsed && isDefaultChatUri(session) ? URI.parse(parsed.session) : session;
+		const normalized = parsed && isDefaultChatUri(session) ? URI.parse(requireMintedTestChatOwner(session)) : session;
 		if (normalized.toString() === PRE_EXISTING_SESSION_URI.toString()) {
 			return buildTurnsFromHistory(this._preExistingMessages);
 		}
@@ -1122,7 +1123,7 @@ export class ScriptedMockAgent implements IAgent {
 		if (!parsed) {
 			throw new Error(`Scripted mock chat operation requires an AHP chat URI: ${chat.toString()}`);
 		}
-		return { session: URI.parse(parsed.session), chat: URI.parse(chat.toString()) };
+		return { session: URI.parse(requireMintedTestChatOwner(chat)), chat: URI.parse(chat.toString()) };
 	}
 
 	readonly chats: IAgentChats = {

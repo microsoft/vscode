@@ -45,7 +45,41 @@ import { buildOpenSessionLinkForChat } from '../common/openSessionLink.js';
 import { McpServerStatus, ToolCallContributorKind, type AgentInfo, type SessionActiveClient } from '../common/state/protocol/state.js';
 import type { CustomizationEnablement } from '../common/state/protocol/channels-session/state.js';
 import { ActionType, isChatAction, StateAction, type ChatDeltaAction, type ChatReasoningAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallStartAction, type ChatTurnStartedAction } from '../common/state/sessionActions.js';
-import { buildSubagentChatUri, createErrorResponsePart, getErrorResponsePart, getToolFileEdits, getInlineToolInput, isAhpChatChannel, buildDefaultChatUri, isSubagentChatUri, mergeLogicalTurnUsage, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, CustomizationType, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, type ErrorInfo, type ISessionWithDefaultChat, type Message, type MessageAttachment, type URI as ProtocolURI, type ResponsePart, type ToolCallResult, type ToolResultContent, type Turn, type UsageInfo, type Customization, type McpServerCustomization, type PluginCustomization, type ToolCallContributor } from '../common/state/sessionState.js';
+import {
+	buildSubagentChatUri,
+	createErrorResponsePart,
+	getErrorResponsePart,
+	getToolFileEdits,
+	getInlineToolInput,
+	isAhpChatChannel,
+	buildDefaultChatUri,
+	isSubagentChatUri,
+	mergeLogicalTurnUsage,
+	MessageAttachmentKind,
+	MessageKind,
+	PendingMessageKind,
+	ResponsePartKind,
+	ROOT_STATE_URI,
+	SessionLifecycle,
+	CustomizationType,
+	ToolCallStatus,
+	ToolCallConfirmationReason,
+	ToolResultContentType,
+	type ErrorInfo,
+	type ISessionWithDefaultChat,
+	type Message,
+	type MessageAttachment,
+	type URI as ProtocolURI,
+	type ResponsePart,
+	type ToolCallResult,
+	type ToolResultContent,
+	type Turn,
+	type UsageInfo,
+	type Customization,
+	type McpServerCustomization,
+	type PluginCustomization,
+	type ToolCallContributor
+} from '../common/state/sessionState.js';
 import { AgentHostInputRequestTracker } from './agentHostInputRequestTracker.js';
 import { AgentHostLocalTurns } from './agentHostLocalTurns.js';
 import { IAgentHostSessionTitleController } from './agentHostSessionTitleController.js';
