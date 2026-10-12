@@ -15,7 +15,7 @@ import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { getCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Categories } from '../../../../../platform/action/common/actionCommonCategories.js';
-import { Action2, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -30,6 +30,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../../browser/editor.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
+import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { EditorExtensions, IEditorFactoryRegistry, IEditorSerializer } from '../../../../common/editor.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { SYNCED_CUSTOMIZATION_SCHEME } from '../../../../services/agentHost/common/agentHostFileSystemService.js';
@@ -46,6 +47,7 @@ import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/servi
 import { ICustomizationMigrationHint } from '../../common/promptSyntax/service/customizationMigrationService.js';
 import { ICustomizationMigrationTelemetryService } from '../../common/promptSyntax/service/customizationMigrationTelemetryService.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
+import { MANAGE_PLUGIN_MARKETPLACES_COMMAND_ID } from '../actions/chatPluginActions.js';
 import { IChatWidgetService } from '../chat.js';
 import { AgentPluginItemKind } from '../agentPluginEditor/agentPluginItems.js';
 import {
@@ -123,6 +125,16 @@ Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEdit
 	AI_CUSTOMIZATION_MANAGEMENT_EDITOR_INPUT_ID,
 	AICustomizationManagementEditorInputSerializer
 );
+
+MenuRegistry.appendMenuItem(MenuId.ModalEditorEditorTitle, {
+	command: {
+		id: MANAGE_PLUGIN_MARKETPLACES_COMMAND_ID,
+		title: localize2('configureMarketplaces', "Configure Marketplaces"),
+	},
+	when: ActiveEditorContext.isEqualTo(AI_CUSTOMIZATION_MANAGEMENT_EDITOR_ID),
+	group: 'navigation',
+	order: 1,
+});
 
 //#endregion
 
