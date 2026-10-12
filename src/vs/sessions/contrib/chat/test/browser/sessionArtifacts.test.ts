@@ -8,7 +8,7 @@ import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { Event } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, observableValue, type IReader } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -233,6 +233,56 @@ suite('Session Artifacts', () => {
 			deduplicated: [{ id: 'recorded', removable: true }],
 			otherChat: [],
 			returned: restored.map(entry => entry.id),
+		});
+	});
+
+	test('coalesces a synchronous burst of model and response changes into one transcript scan and still follows live changes', async () => {
+		const { presentation, chat, chatModels } = createPresentation([]);
+		const resource = chat.get()!.resource;
+		const { model: baseModel, content, invocation } = createImageModel(resource);
+		const modelChanged = disposables.add(new Emitter<void>());
+		const responseChanged = disposables.add(new Emitter<void>());
+		let scans = 0;
+		const response = upcastPartial<IChatResponseModel>({
+			response: upcastPartial<IResponse>({ value: content }),
+			onDidChange: responseChanged.event as IChatResponseModel['onDidChange'],
+		});
+		const requests = [upcastPartial<IChatRequestModel>({ response })];
+		const model = upcastPartial<IChatModel>({
+			sessionResource: baseModel.sessionResource,
+			onDidChange: modelChanged.event as IChatModel['onDidChange'],
+			getRequests: () => { scans++; return requests; },
+		});
+		chatModels.set([model], undefined);
+		let entries: readonly IChatPillEntry[] = [];
+		disposables.add(autorun(reader => { entries = presentation.sections.read(reader).flatMap(section => section.entries); }));
+
+		const scansBeforeBurst = scans;
+		for (let i = 0; i < 50; i++) {
+			modelChanged.fire();
+			responseChanged.fire();
+		}
+		const scansDuringBurst = scans - scansBeforeBurst;
+		await timeout(10);
+		const scansForBurst = scans - scansBeforeBurst;
+
+		const imageUri = URI.parse('vscode-agent-host://remote/generated-images/live?version=1');
+		await invocation.didExecuteTool({
+			content: [],
+			toolSpecificData: { kind: 'generatedImage' },
+			toolResultDetails: { input: '', output: [{ type: 'ref', uri: imageUri, mimeType: 'image/png' }] },
+		});
+		responseChanged.fire();
+		await timeout(10);
+
+		assert.deepStrictEqual({
+			scansDuringBurst,
+			scansAfterBurstAtMostTwo: scansForBurst <= 2,
+			liveImages: entries.map(entry => entry.resource),
+		}, {
+			scansDuringBurst: 0,
+			scansAfterBurstAtMostTwo: true,
+			liveImages: [imageUri],
 		});
 	});
 
