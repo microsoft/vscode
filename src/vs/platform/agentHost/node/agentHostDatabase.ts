@@ -401,6 +401,8 @@ export interface IAgentHostDatabase extends IDisposable {
 	 * catalog payloads. Never inspects the chat URI itself.
 	 */
 	findChatOwner(chat: string): Promise<IAgentHostDatabaseChatOwner | undefined>;
+	/** Batched {@link findChatOwner}: one read-only pass for every chat; chats with no record are absent. */
+	findChatOwners(chats: readonly string[]): Promise<ReadonlyMap<string, IAgentHostDatabaseChatOwner>>;
 	/** Reads authoritative peer-chat membership. `undefined` means legacy import has not completed. */
 	getSessionChatCatalog(session: string): Promise<IAgentHostDatabaseSessionChatCatalog | undefined>;
 	/** Replaces authoritative peer-chat membership when the session exists and its revision still matches. */
@@ -1718,28 +1720,57 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 	}
 
 	async findChatOwner(chat: string): Promise<IAgentHostDatabaseChatOwner | undefined> {
+		return (await this.findChatOwners([chat])).get(chat);
+	}
+
+	async findChatOwners(chats: readonly string[]): Promise<ReadonlyMap<string, IAgentHostDatabaseChatOwner>> {
+		const owners = new Map<string, IAgentHostDatabaseChatOwner>();
+		if (chats.length === 0) {
+			return owners;
+		}
 		return this._transactionSequencer.queue(async () => {
 			const database = await this._ensureDatabase();
-			const isSessionDeleted = async (session: string) => !!await get(database, `SELECT 1 AS present FROM metadata WHERE key = ? AND value = 'true'`, [tombstoneKey(session)]);
-			const normalized = await get(database, 'SELECT owner_session_uri, tombstoned FROM chats_v2 WHERE chat_uri = ?', [chat]);
-			if (normalized) {
-				const ownerSession = normalized.owner_session_uri as string;
-				return { ownerSession, source: 'normalized', deleted: normalized.tombstoned === 1 || await isSessionDeleted(ownerSession) };
+			const deletedSessions = new Map<string, boolean>();
+			const isSessionDeleted = async (session: string) => {
+				let deleted = deletedSessions.get(session);
+				if (deleted === undefined) {
+					deleted = !!await get(database, `SELECT 1 AS present FROM metadata WHERE key = ? AND value = 'true'`, [tombstoneKey(session)]);
+					deletedSessions.set(session, deleted);
+				}
+				return deleted;
+			};
+			const pending = new Set(chats);
+			const placeholders = (count: number) => new Array(count).fill('?').join(', ');
+			for (const row of await all(database, `SELECT chat_uri, owner_session_uri, tombstoned FROM chats_v2 WHERE chat_uri IN (${placeholders(pending.size)})`, [...pending])) {
+				const ownerSession = row.owner_session_uri as string;
+				owners.set(row.chat_uri as string, { ownerSession, source: 'normalized', deleted: row.tombstoned === 1 || await isSessionDeleted(ownerSession) });
+				pending.delete(row.chat_uri as string);
 			}
-			const legacy = await get(database, 'SELECT session_uri FROM session_chats WHERE chat_uri = ? ORDER BY session_uri LIMIT 1', [chat]);
-			if (legacy) {
-				const ownerSession = legacy.session_uri as string;
-				return { ownerSession, source: 'legacyCatalog', deleted: await isSessionDeleted(ownerSession) };
-			}
-			const candidates = await all(database, 'SELECT session_uri, payload FROM sessions_v2 WHERE payload IS NOT NULL AND instr(payload, ?) > 0 ORDER BY session_uri', [chat]);
-			for (const candidate of candidates) {
-				const decoded = decodeAgentHostCatalogPayload(candidate.payload as string);
-				if (decoded.ok && decoded.value.data.chats.some(entry => entry.uri === chat)) {
-					const ownerSession = candidate.session_uri as string;
-					return { ownerSession, source: 'catalogPayload', deleted: await isSessionDeleted(ownerSession) };
+			if (pending.size > 0) {
+				for (const row of await all(database, `SELECT chat_uri, MIN(session_uri) AS session_uri FROM session_chats WHERE chat_uri IN (${placeholders(pending.size)}) GROUP BY chat_uri`, [...pending])) {
+					const ownerSession = row.session_uri as string;
+					owners.set(row.chat_uri as string, { ownerSession, source: 'legacyCatalog', deleted: await isSessionDeleted(ownerSession) });
+					pending.delete(row.chat_uri as string);
 				}
 			}
-			return undefined;
+			if (pending.size > 0) {
+				for (const candidate of await all(database, 'SELECT session_uri, payload FROM sessions_v2 WHERE payload IS NOT NULL ORDER BY session_uri', [])) {
+					const decoded = decodeAgentHostCatalogPayload(candidate.payload as string);
+					if (!decoded.ok) {
+						continue;
+					}
+					for (const entry of decoded.value.data.chats) {
+						if (pending.delete(entry.uri)) {
+							const ownerSession = candidate.session_uri as string;
+							owners.set(entry.uri, { ownerSession, source: 'catalogPayload', deleted: await isSessionDeleted(ownerSession) });
+						}
+					}
+					if (pending.size === 0) {
+						break;
+					}
+				}
+			}
+			return owners;
 		});
 	}
 

@@ -386,13 +386,19 @@ suite('AgentHostDatabase sessions_v2', () => {
 		await db.registerChatCatalogV2(deletedOwner, { defaultChat: { chat: chat('deleted-default'), order: 0 }, peers: [{ chat: chat('deleted-peer'), order: 1 }], privateDescendants: [] });
 		await db.tombstoneAndUnregisterSession(deletedOwner);
 
-		assert.deepStrictEqual(await Promise.all(['normalized-peer', 'legacy-peer', 'payload-peer', 'deleted-peer', 'unknown'].map(id => db.findChatOwner(chat(id)))), [
+		const chats = ['normalized-peer', 'legacy-peer', 'payload-peer', 'deleted-peer', 'unknown'].map(chat);
+		const expected = [
 			{ ownerSession: normalized, source: 'normalized', deleted: false },
 			{ ownerSession: legacy, source: 'legacyCatalog', deleted: false },
 			{ ownerSession: payloadOwner, source: 'catalogPayload', deleted: false },
 			{ ownerSession: deletedOwner, source: 'normalized', deleted: true },
 			undefined,
-		]);
+		];
+		const batched = await db.findChatOwners(chats);
+		assert.deepStrictEqual({
+			single: await Promise.all(chats.map(id => db.findChatOwner(id))),
+			batched: chats.map(id => batched.get(id)),
+		}, { single: expected, batched: expected });
 	});
 
 	test('sequences chat catalog reads behind queued replacements', async () => {

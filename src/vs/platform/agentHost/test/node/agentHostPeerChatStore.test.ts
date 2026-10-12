@@ -595,26 +595,37 @@ suite('AgentHostPeerChatStore', () => {
 		]);
 	});
 
-	test('skips legacy entries the registry or central catalog records under another session or as deleted', async () => {
+	test('legacy entries belong to the reading session unless the registry or central catalog records them elsewhere or as deleted', async () => {
 		const database = new TestSessionDatabase();
 		const other = 'agenthost:other-owner';
 		const recordedElsewhere = buildChatUri(session, 'recorded-elsewhere');
-		const deleted = buildChatUri(session, 'deleted');
+		const tombstoned = buildChatUri(session, 'tombstoned');
 		const liveElsewhere = buildChatUri(session, 'live-elsewhere');
+		// Encodes another session in its URI but has no central record.
+		const encodedElsewhere = buildChatUri('agenthost:encoded-elsewhere', 'unrecorded');
 		await orchestrator.registerRuntimeSession(other, { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
-		await orchestrator.registerChatCatalogV2(other, {
+		const registered = await orchestrator.registerChatCatalogV2(other, {
 			defaultChat: { chat: buildDefaultChatUri(other), order: 0 },
 			peers: [{ chat: recordedElsewhere, order: 1 }],
-			privateDescendants: [],
+			privateDescendants: [{ chat: tombstoned, metadata: { interactivity: ChatInteractivity.Hidden } }],
 		});
-		const findChatOwner = orchestrator.findChatOwner.bind(orchestrator);
-		sinon.stub(orchestrator, 'findChatOwner').callsFake(async chat => chat === deleted
-			? { ownerSession: session.toString(), source: 'normalized', deleted: true }
-			: findChatOwner(chat));
+		const removed = await orchestrator.removePrivateChatV2(other, tombstoned, registered.status === 'applied' ? registered.catalogRevision : -1);
+		const tombstonedOwner = await orchestrator.findChatOwner(tombstoned);
+		const lookups = sinon.spy(orchestrator, 'findChatOwners');
 		const store = new AgentHostPeerChatStore(orchestrator, createSessionDataService(database), new NullLogService(), chat => chat === liveElsewhere ? other : undefined);
-		await database.setMetadata(PEER_CHATS_METADATA_KEY, JSON.stringify([recordedElsewhere, deleted, liveElsewhere, first.toString()].map(uri => ({ uri }))));
+		await database.setMetadata(PEER_CHATS_METADATA_KEY, JSON.stringify([recordedElsewhere, tombstoned, liveElsewhere, encodedElsewhere, first.toString()].map(uri => ({ uri }))));
 
-		assert.deepStrictEqual(await store.tryReadLegacy(session), [{ uri: first.toString() }]);
+		assert.deepStrictEqual({
+			removed: removed.status,
+			tombstoned: tombstonedOwner?.deleted,
+			entries: await store.tryReadLegacy(session),
+			lookups: lookups.callCount,
+		}, {
+			removed: 'applied',
+			tombstoned: true,
+			entries: [{ uri: encodedElsewhere }, { uri: first.toString() }],
+			lookups: 1,
+		});
 	});
 
 	test('serializes concurrent add, remove, and update operations', async () => {

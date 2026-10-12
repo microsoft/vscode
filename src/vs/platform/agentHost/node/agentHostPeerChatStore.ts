@@ -502,14 +502,15 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 	 */
 	private async _withoutCentrallyOwnedElsewhere(session: URI, entries: IPersistedPeerChat[]): Promise<IPersistedPeerChat[]> {
 		const sessionKey = session.toString();
-		const owned = await Promise.all(entries.map(async entry => {
+		const recorded = await this._database.findChatOwners(entries.map(entry => entry.uri));
+		const owned = entries.map(entry => {
 			const liveOwner = this._getLiveChatOwner(entry.uri);
 			if (liveOwner !== undefined) {
 				return liveOwner === sessionKey;
 			}
-			const recorded = await this._database.findChatOwner(entry.uri);
-			return !recorded || (recorded.ownerSession === sessionKey && !recorded.deleted);
-		}));
+			const central = recorded.get(entry.uri);
+			return !central || (central.ownerSession === sessionKey && !central.deleted);
+		});
 		return entries.filter((entry, index) => {
 			if (!owned[index]) {
 				this._logService.warn(`[AgentService] Skipping peer-chat catalog entry ${entry.uri} that is recorded outside ${sessionKey}`);

@@ -84,7 +84,7 @@ import { buildSubagentTurnsFromHistory, buildTurnsFromHistory, mapSessionEventsT
 import { type ISessionEvent } from './copilotTestEvents.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { mintedTestChatOwner } from '../common/mintedChatUri.js';
-import { findTestChatOwner, listTestLegacyChatCatalogSessions, readTestChatV2, readTestSessionListCatalogs } from './chatMetadataTestHelpers.js';
+import { findTestChatOwner, findTestChatOwners, listTestLegacyChatCatalogSessions, readTestChatV2, readTestSessionListCatalogs } from './chatMetadataTestHelpers.js';
 import { readSessionInitiator, SESSION_INITIATOR_METADATA_KEY, withSessionInitiator } from '../../common/meta/agentSessionInitiatorMeta.js';
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
@@ -383,6 +383,9 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 	}
 	findChatOwner(chat: string): ReturnType<IAgentHostDatabase['findChatOwner']> {
 		return findTestChatOwner(this, chat);
+	}
+	findChatOwners(chats: readonly string[]): ReturnType<IAgentHostDatabase['findChatOwners']> {
+		return findTestChatOwners(this, chats);
 	}
 	readSessionListCatalogs(sessions: readonly string[]): ReturnType<IAgentHostDatabase['readSessionListCatalogs']> {
 		return readTestSessionListCatalogs(this, sessions);
@@ -908,6 +911,9 @@ class TestAgentHostOrchestratorDatabase implements IAgentHostDatabase {
 	}
 	findChatOwner(chat: string): ReturnType<IAgentHostDatabase['findChatOwner']> {
 		return findTestChatOwner(this, chat);
+	}
+	findChatOwners(chats: readonly string[]): ReturnType<IAgentHostDatabase['findChatOwners']> {
+		return findTestChatOwners(this, chats);
 	}
 	readSessionListCatalogs(sessions: readonly string[]): ReturnType<IAgentHostDatabase['readSessionListCatalogs']> {
 		return readTestSessionListCatalogs(this, sessions);

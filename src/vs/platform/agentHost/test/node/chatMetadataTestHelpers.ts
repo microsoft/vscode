@@ -61,6 +61,18 @@ export async function readTestChatV2(database: IAgentHostDatabase, session: stri
 	return { normalized: true, ...(row ? { chat: row } : {}) };
 }
 
+/** In-memory counterpart of {@link IAgentHostDatabase.findChatOwners} for database fakes. */
+export async function findTestChatOwners(database: IAgentHostDatabase, chats: readonly string[]): ReturnType<IAgentHostDatabase['findChatOwners']> {
+	const owners = new Map<string, NonNullable<Awaited<ReturnType<IAgentHostDatabase['findChatOwner']>>>>();
+	for (const chat of chats) {
+		const owner = await findTestChatOwner(database, chat);
+		if (owner) {
+			owners.set(chat, owner);
+		}
+	}
+	return owners;
+}
+
 /** In-memory counterpart of {@link IAgentHostDatabase.findChatOwner} for database fakes. */
 export async function findTestChatOwner(database: IAgentHostDatabase, chat: string): ReturnType<IAgentHostDatabase['findChatOwner']> {
 	const sessions = [...new Set([
