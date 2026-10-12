@@ -84,7 +84,7 @@ import { buildSubagentTurnsFromHistory, buildTurnsFromHistory, mapSessionEventsT
 import { type ISessionEvent } from './copilotTestEvents.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { mintedTestChatOwner } from '../common/mintedChatUri.js';
-import { findTestCatalogPayloadChatOwners, findTestCentralChatOwners, listTestLegacyChatCatalogSessions, readTestChatV2, readTestSessionListCatalogs } from './chatMetadataTestHelpers.js';
+import { findTestCatalogPayloadChatOwners, findTestCentralChatOwners, listTestLegacyChatCatalogSessions, readTestChatV2, readTestSessionListCatalogs, readTestSessionRegistrations, testRegistrationGeneration } from './chatMetadataTestHelpers.js';
 import { readSessionInitiator, SESSION_INITIATOR_METADATA_KEY, withSessionInitiator } from '../../common/meta/agentSessionInitiatorMeta.js';
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
@@ -381,6 +381,12 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 	}
 	readChatV2(session: string, chat: string): ReturnType<IAgentHostDatabase['readChatV2']> {
 		return readTestChatV2(this, session, chat);
+	}
+	async getRegistrationGeneration(): Promise<number> {
+		return testRegistrationGeneration(this._sessionV2Registrations.values(), this._sessions.values());
+	}
+	readSessionRegistrations(): ReturnType<IAgentHostDatabase['readSessionRegistrations']> {
+		return readTestSessionRegistrations(this);
 	}
 	findCentralChatOwners(chats: readonly string[]): ReturnType<IAgentHostDatabase['findCentralChatOwners']> {
 		return findTestCentralChatOwners(this, chats);
@@ -909,6 +915,12 @@ class TestAgentHostOrchestratorDatabase implements IAgentHostDatabase {
 	}
 	readChatV2(session: string, chat: string): ReturnType<IAgentHostDatabase['readChatV2']> {
 		return readTestChatV2(this, session, chat);
+	}
+	async getRegistrationGeneration(): Promise<number> {
+		return testRegistrationGeneration(this._sessionV2Registrations.values(), this._sessions.values());
+	}
+	readSessionRegistrations(): ReturnType<IAgentHostDatabase['readSessionRegistrations']> {
+		return readTestSessionRegistrations(this);
 	}
 	findCentralChatOwners(chats: readonly string[]): ReturnType<IAgentHostDatabase['findCentralChatOwners']> {
 		return findTestCentralChatOwners(this, chats);
@@ -6002,10 +6014,11 @@ suite('AgentService (node dispatcher)', () => {
 			const one = await filter(legacyMarked.slice(0, 1));
 			const all = await filter([...legacyMarked, ...providerMarked]);
 
-			// Only legacy markers, which never recorded their provider, need an owner, and the listings do not grow with them.
+			// Only legacy markers, which never recorded their provider, need an owner. The listings do not grow
+			// with them, and the second pass reuses the default-chat index the first one built.
 			assert.deepStrictEqual({ one, all }, {
 				one: { known: 1, lookups: { ...one.lookups, findChatOwner: 1, payloadScans: 0 } },
-				all: { known: 10, lookups: { ...one.lookups, findChatOwner: 5, payloadScans: 0 } },
+				all: { known: 10, lookups: { findChatOwner: 5, payloadScans: 0, listSessions: one.lookups.listSessions - 1, listSessionV2Registrations: one.lookups.listSessionV2Registrations - 1 } },
 			});
 		});
 

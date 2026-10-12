@@ -5,7 +5,7 @@
 
 import type { ISessionDataService } from '../../common/sessionDataService.js';
 import type { IAgentHostPeerChatPersistenceService } from '../../node/agentHostPeerChatStore.js';
-import type { IAgentHostDatabase, IAgentHostDatabaseChatOwner, IAgentHostDatabaseSessionListCatalog } from '../../node/agentHostDatabase.js';
+import type { IAgentHostDatabase, IAgentHostDatabaseChatOwner, IAgentHostDatabaseSession, IAgentHostDatabaseSessionListCatalog, IAgentHostDatabaseSessionRegistrations } from '../../node/agentHostDatabase.js';
 import { chatCatalogV2ToCatalogChats } from '../../node/agentHostCatalogSourceResolver.js';
 import { decodeAgentHostCatalogPayload } from '../../node/agentHostCatalogProjection.js';
 import { customChatTitleMetadataKey, customChatTitleSourceMetadataKey, SESSION_CUSTOM_TITLE_SOURCE_KEY } from '../../node/shared/persistSessionMetadata.js';
@@ -103,4 +103,24 @@ export async function findTestCatalogPayloadChatOwners(database: IAgentHostDatab
 		}
 	}
 	return owners;
+}
+
+const testRegistrationGenerations = new Map<string, number>();
+
+/** A database fake's registration generation: it changes exactly when the registrations it lists change. */
+export function testRegistrationGeneration(...registrations: Iterable<IAgentHostDatabaseSession>[]): number {
+	const fingerprint = registrations.map(list => [...list].map(registration => `${registration.session} ${registration.provider}`).join('\n')).join('\n\n');
+	let generation = testRegistrationGenerations.get(fingerprint);
+	if (generation === undefined) {
+		generation = testRegistrationGenerations.size;
+		testRegistrationGenerations.set(fingerprint, generation);
+	}
+	return generation;
+}
+
+/** In-memory counterpart of {@link IAgentHostDatabase.readSessionRegistrations} for database fakes. */
+export async function readTestSessionRegistrations(database: IAgentHostDatabase): Promise<IAgentHostDatabaseSessionRegistrations> {
+	const generation = await database.getRegistrationGeneration();
+	const [current, legacy] = await Promise.all([database.listSessionV2Registrations(), database.listSessions()]);
+	return { generation, current, legacy };
 }

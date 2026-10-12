@@ -14,7 +14,7 @@ import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, MessageKind, R
 import { AGENT_HOST_CATALOG_PAYLOAD_VERSION } from '../../node/agentHostCatalogProjection.js';
 import { AgentHostChatOwnershipService, type IChatRegistration } from '../../node/agentHostChatOwnershipService.js';
 import type { Database } from '@vscode/sqlite3';
-import { AgentHostDatabase, IAgentHostDatabase, type IAgentHostDatabaseChatOwner, type IAgentHostDatabaseSession } from '../../node/agentHostDatabase.js';
+import { AgentHostDatabase, IAgentHostDatabase, type IAgentHostDatabaseChatOwner, type IAgentHostDatabaseSession, type IAgentHostDatabaseSessionRegistrations } from '../../node/agentHostDatabase.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 
 class FakeOwnershipDatabase extends mock<IAgentHostDatabase>() {
@@ -29,12 +29,12 @@ class FakeOwnershipDatabase extends mock<IAgentHostDatabase>() {
 	override async findCatalogPayloadChatOwners(chats: readonly string[]): Promise<ReadonlyMap<string, IAgentHostDatabaseChatOwner>> {
 		return new Map(chats.flatMap(chat => this.payloadOwners.has(chat) ? [[chat, this.payloadOwners.get(chat)!] as const] : []));
 	}
-	override async listSessionV2Registrations(): Promise<readonly IAgentHostDatabaseSession[]> {
-		this.inventoryReads++;
-		return this.sessions;
+	override async getRegistrationGeneration(): Promise<number> {
+		return this.sessions.length;
 	}
-	override async listSessions(): Promise<readonly IAgentHostDatabaseSession[]> {
-		return [];
+	override async readSessionRegistrations(): Promise<IAgentHostDatabaseSessionRegistrations> {
+		this.inventoryReads++;
+		return { generation: this.sessions.length, current: [...this.sessions], legacy: [] };
 	}
 }
 
@@ -158,7 +158,7 @@ suite('AgentHostChatOwnershipService', () => {
 		]);
 	});
 
-	test('a recorded-owner lookup reads the registered inventory once for many chats', async () => {
+	test('the registered default-chat index is read once and reused until the registrations change', async () => {
 		const { database, service } = create();
 		const sessions = ['copilot:/one', 'copilot:/two', 'copilot:/three'];
 		database.sessions.push(...sessions.map(registeredSession));
@@ -168,14 +168,63 @@ suite('AgentHostChatOwnershipService', () => {
 		for (const session of [...sessions, 'copilot:/unregistered']) {
 			owners.push(await lookup(buildDefaultChatUri(session)));
 		}
-		const readsByLookup = database.inventoryReads;
 		await service.resolveChatOwner(buildDefaultChatUri('copilot:/one'));
 		await service.resolveChatOwner(buildDefaultChatUri('copilot:/two'));
+		const readsBeforeChange = database.inventoryReads;
+		database.sessions.push(registeredSession('copilot:/four'));
+		const added = await service.resolveChatOwner(buildDefaultChatUri('copilot:/four'));
 
-		assert.deepStrictEqual({ owners, readsByLookup, readsByResolutions: database.inventoryReads - readsByLookup }, {
+		assert.deepStrictEqual({ owners, readsBeforeChange, added, readsAfterChange: database.inventoryReads }, {
 			owners: [...sessions, undefined],
-			readsByLookup: 1,
-			readsByResolutions: 2,
+			readsBeforeChange: 1,
+			added: { owner: 'copilot:/four', spawnedBy: undefined },
+			readsAfterChange: 2,
+		});
+	});
+
+	test('cold default-chat lookups read the registrations once, follow new registrations, and drop unregistered and tombstoned sessions', async () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const database = disposables.add(new AgentHostDatabase(':memory:'));
+		const service = new AgentHostChatOwnershipService(stateManager, database);
+		const register = (session: string) => database.registerRuntimeSession(session, { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		const sessions = Array.from({ length: 20 }, (_, index) => `copilot:/legacy-default-${index}`);
+		for (const session of sessions) {
+			await register(session);
+		}
+		const owner = async (session: string) => (await service.resolveChatOwner(buildDefaultChatUri(session)))?.owner;
+		const sqlite = await (database as unknown as { _ensureDatabase(): Promise<Database> })._ensureDatabase();
+		const statements: string[] = [];
+		const onTrace = (sql: string) => statements.push(sql);
+		sqlite.on('trace', onTrace);
+		const listings = () => statements.filter(sql => /FROM (sessions|sessions_v2)\b/.test(sql) && !sql.includes('WHERE session_uri = ?') && !sql.includes('IN (')).length;
+
+		await owner(sessions[0]);
+		const firstBuild = listings();
+		statements.length = 0;
+		const resolved = await Promise.all(sessions.map(owner));
+		const afterBuild = listings();
+		await register('copilot:/registered-later');
+		const registeredLater = await owner('copilot:/registered-later');
+		await database.unregisterRuntimeSession(sessions[1]);
+		const afterUnregister = await owner(sessions[1]);
+		await database.tombstoneAndUnregisterSession(sessions[2]);
+		const afterRemoval = await Promise.all([owner(sessions[1]), owner(sessions[2]), owner(sessions[3])]);
+		// Only the tombstone marker changes for a normalized-only registration.
+		const normalizedOnly = 'copilot:/normalized-only';
+		await database.registerSessionV2(normalizedOnly, { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		const beforeTombstone = await owner(normalizedOnly);
+		await database.markSessionTombstoned(normalizedOnly);
+		const afterTombstone = await owner(normalizedOnly);
+		sqlite.removeListener('trace', onTrace);
+
+		assert.deepStrictEqual({ firstBuild, resolved, afterBuild, registeredLater, afterUnregister, afterRemoval, tombstoned: [beforeTombstone, afterTombstone] }, {
+			firstBuild: 2,
+			resolved: sessions,
+			afterBuild: 0,
+			registeredLater: 'copilot:/registered-later',
+			afterUnregister: undefined,
+			afterRemoval: [undefined, undefined, sessions[3]],
+			tombstoned: [normalizedOnly, undefined],
 		});
 	});
 

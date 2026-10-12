@@ -5,7 +5,7 @@
 
 import { Event } from '../../../../base/common/event.js';
 import { mock } from '../../../../base/test/common/mock.js';
-import { IAgentHostDatabase, type IAgentHostDatabaseChatOwner, type IAgentHostDatabaseSession } from '../../node/agentHostDatabase.js';
+import { IAgentHostDatabase, type IAgentHostDatabaseChatOwner, type IAgentHostDatabaseSessionRegistrations } from '../../node/agentHostDatabase.js';
 import { AgentHostChatOwnershipService, IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 
@@ -17,11 +17,11 @@ export class EmptyOwnershipDatabase extends mock<IAgentHostDatabase>() {
 	override async findCatalogPayloadChatOwners(): Promise<ReadonlyMap<string, IAgentHostDatabaseChatOwner>> {
 		return new Map();
 	}
-	override async listSessionV2Registrations(): Promise<readonly IAgentHostDatabaseSession[]> {
-		return [];
+	override async getRegistrationGeneration(): Promise<number> {
+		return 0;
 	}
-	override async listSessions(): Promise<readonly IAgentHostDatabaseSession[]> {
-		return [];
+	override async readSessionRegistrations(): Promise<IAgentHostDatabaseSessionRegistrations> {
+		return { generation: 0, current: [], legacy: [] };
 	}
 }
 

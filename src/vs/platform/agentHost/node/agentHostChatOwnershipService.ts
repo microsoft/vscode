@@ -23,8 +23,13 @@ export interface IChatOwnerResolution {
 	readonly spawnedBy: { readonly chat: ProtocolURI; readonly toolCallId: string; readonly title: string | undefined } | undefined;
 }
 
-/** Looks up the recorded owner of a chat; one lookup shares a single read of the registered session inventory. */
+/** Looks up the recorded owner of a chat. */
 export type ChatOwnerLookup = (chat: ProtocolURI) => Promise<ProtocolURI | undefined>;
+
+interface IDefaultChatIndex {
+	readonly generation: number;
+	readonly owners: ReadonlyMap<ProtocolURI, ProtocolURI>;
+}
 
 export const IAgentHostChatOwnershipService = createDecorator<IAgentHostChatOwnershipService>('agentHostChatOwnershipService');
 
@@ -62,7 +67,7 @@ export interface IAgentHostChatOwnershipService {
 	 * then spawn edges recorded in loaded chats.
 	 */
 	resolveChatOwner(chat: ProtocolURI): Promise<IChatOwnerResolution | undefined>;
-	/** A recorded-owner lookup for a pass over many chats, reading the session inventory at most once. */
+	/** A recorded-owner lookup for a pass over many chats; it shares the registered default-chat index. */
 	createRecordedOwnerLookup(): ChatOwnerLookup;
 	/** Records a session or subagent restore so owner resolution waits for it before reporting a chat unknown. */
 	trackRestore(restore: Promise<unknown>): void;
@@ -72,6 +77,9 @@ export class AgentHostChatOwnershipService implements IAgentHostChatOwnershipSer
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _restoresInFlight = new Set<Promise<unknown>>();
+	/** Default chat → registered session identity, valid for one registration generation. */
+	private _defaultChatIndex: IDefaultChatIndex | undefined;
+	private _defaultChatIndexBuild: Promise<IDefaultChatIndex> | undefined;
 
 	readonly onDidRegisterChat: Event<IChatRegistration>;
 	readonly onDidUnregisterChat: Event<IChatRegistration>;
@@ -109,7 +117,7 @@ export class AgentHostChatOwnershipService implements IAgentHostChatOwnershipSer
 	}
 
 	async resolveChatOwner(chat: ProtocolURI): Promise<IChatOwnerResolution | undefined> {
-		const recorded = await this._findRecordedChatOwner(chat, () => this._getDefaultChatInventory());
+		const recorded = await this._findRecordedChatOwner(chat);
 		if (recorded) {
 			return recorded;
 		}
@@ -125,8 +133,7 @@ export class AgentHostChatOwnershipService implements IAgentHostChatOwnershipSer
 	}
 
 	createRecordedOwnerLookup(): ChatOwnerLookup {
-		let inventory: Promise<ReadonlyMap<string, string>> | undefined;
-		return async chat => (await this._findRecordedChatOwner(chat, () => inventory ??= this._getDefaultChatInventory()))?.owner;
+		return async chat => (await this._findRecordedChatOwner(chat))?.owner;
 	}
 
 	trackRestore(restore: Promise<unknown>): void {
@@ -135,7 +142,7 @@ export class AgentHostChatOwnershipService implements IAgentHostChatOwnershipSer
 		restore.then(settled, settled);
 	}
 
-	private async _findRecordedChatOwner(chat: ProtocolURI, getDefaultChatInventory: () => Promise<ReadonlyMap<string, string>>): Promise<IChatOwnerResolution | undefined> {
+	private async _findRecordedChatOwner(chat: ProtocolURI): Promise<IChatOwnerResolution | undefined> {
 		const live = this._stateManager.getChatOwner(chat) ?? this._stateManager.findRetainedChatOwner(chat);
 		if (live !== undefined) {
 			return { owner: live, spawnedBy: undefined };
@@ -144,7 +151,7 @@ export class AgentHostChatOwnershipService implements IAgentHostChatOwnershipSer
 		if (central) {
 			return { owner: central.ownerSession, spawnedBy: undefined };
 		}
-		const owner = (await getDefaultChatInventory()).get(chat);
+		const owner = await this._findRegisteredDefaultChatOwner(chat);
 		if (owner !== undefined) {
 			return { owner, spawnedBy: undefined };
 		}
@@ -154,25 +161,52 @@ export class AgentHostChatOwnershipService implements IAgentHostChatOwnershipSer
 	}
 
 	/**
-	 * Default chats of every registered session. A legacy default chat has no
-	 * catalog row of its own, so its owner is the session record it was minted
-	 * for, addressed by either its standard or its provider-native session URI.
+	 * The registered session whose default chat is `chat`. A legacy default
+	 * chat has no catalog row of its own, so its owner is the session record it
+	 * was minted for, addressed by either its standard or its provider-native
+	 * session URI.
 	 */
-	private async _getDefaultChatInventory(): Promise<ReadonlyMap<string, string>> {
-		const [current, legacy] = await Promise.all([
-			this._database.listSessionV2Registrations(),
-			this._database.listSessions(),
-		]);
-		const defaults = new Map<string, string>();
-		for (const { session, provider } of [...current, ...legacy]) {
-			const identities = usesStandardSessionUris(provider)
-				? [session, AgentSession.uri('ahp-session', AgentSession.id(session)).toString(), AgentSession.uri(provider, AgentSession.id(session)).toString()]
-				: [session];
-			for (const identity of identities) {
-				defaults.set(this._stateManager.getDefaultChatUri(identity), identity);
-			}
+	private async _findRegisteredDefaultChatOwner(chat: ProtocolURI): Promise<ProtocolURI | undefined> {
+		const identity = (await this._getDefaultChatIndex()).get(chat);
+		// The index mints standard default chats. A session whose default chat
+		// is recorded differently is resident, evicted or announced, and the
+		// live and retained lookups have already answered for it.
+		return identity !== undefined && this._stateManager.getDefaultChatUri(identity) === chat ? identity : undefined;
+	}
+
+	private async _getDefaultChatIndex(): Promise<ReadonlyMap<ProtocolURI, ProtocolURI>> {
+		const generation = await this._database.getRegistrationGeneration();
+		if (this._defaultChatIndex?.generation === generation) {
+			return this._defaultChatIndex.owners;
 		}
-		return defaults;
+		let index = await (this._defaultChatIndexBuild ??= this._buildDefaultChatIndex());
+		if (index.generation !== generation) {
+			// A build already in flight may have read the registrations before this change.
+			index = await this._buildDefaultChatIndex();
+		}
+		return index.owners;
+	}
+
+	private async _buildDefaultChatIndex(): Promise<IDefaultChatIndex> {
+		try {
+			const { generation, current, legacy } = await this._database.readSessionRegistrations();
+			const owners = new Map<ProtocolURI, ProtocolURI>();
+			for (const { session, provider } of [...current, ...legacy]) {
+				const identities = usesStandardSessionUris(provider)
+					? [session, AgentSession.uri('ahp-session', AgentSession.id(session)).toString(), AgentSession.uri(provider, AgentSession.id(session)).toString()]
+					: [session];
+				for (const identity of identities) {
+					owners.set(buildDefaultChatUri(identity), identity);
+				}
+			}
+			const index = { generation, owners };
+			if (!this._defaultChatIndex || this._defaultChatIndex.generation <= generation) {
+				this._defaultChatIndex = index;
+			}
+			return index;
+		} finally {
+			this._defaultChatIndexBuild = undefined;
+		}
 	}
 
 	/**

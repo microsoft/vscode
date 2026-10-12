@@ -150,6 +150,15 @@ export interface IAgentHostDatabaseSessionChatCatalog {
 export type AgentHostDatabaseChatOwnerSource = 'normalized' | 'legacyCatalog' | 'catalogPayload';
 
 /** The owning session of a chat, taken from the record that contains it. */
+/** The session registrations at one {@link IAgentHostDatabase.getRegistrationGeneration registration generation}. */
+export interface IAgentHostDatabaseSessionRegistrations {
+	readonly generation: number;
+	/** Normalized registrations, as {@link IAgentHostDatabase.listSessionV2Registrations} lists them. */
+	readonly current: readonly IAgentHostDatabaseSession[];
+	/** Legacy registrations, as {@link IAgentHostDatabase.listSessions} lists them. */
+	readonly legacy: readonly IAgentHostDatabaseSession[];
+}
+
 export interface IAgentHostDatabaseChatOwner {
 	readonly ownerSession: string;
 	readonly source: AgentHostDatabaseChatOwnerSource;
@@ -395,6 +404,15 @@ export interface IAgentHostDatabase extends IDisposable {
 	updateChatV2Metadata(chat: string, expected: IAgentHostDatabaseChatV2Revision, patch: IAgentHostDatabaseChatV2Patch, validate?: () => boolean): Promise<AgentHostDatabaseChatV2WriteResult>;
 	insertPrivateChatV2(session: string, chat: IAgentHostDatabaseChatV2NormalizationChat, expectedCatalogRevision: number, validate?: () => boolean): Promise<AgentHostDatabaseChatV2WriteResult>;
 	removePrivateChatV2(session: string, chat: string, expectedCatalogRevision: number): Promise<AgentHostDatabaseChatV2WriteResult>;
+	/**
+	 * A number that changes whenever the session registrations change:
+	 * `sessions` and `sessions_v2` rows, and session tombstones and
+	 * exclusions. A cache of anything derived from the registrations stays
+	 * valid while it is unchanged.
+	 */
+	getRegistrationGeneration(): Promise<number>;
+	/** {@link listSessionV2Registrations} and {@link listSessions}, read together with the {@link getRegistrationGeneration generation} they reflect. */
+	readSessionRegistrations(): Promise<IAgentHostDatabaseSessionRegistrations>;
 	/**
 	 * Read-only search of the central chat catalogs for the sessions that
 	 * contain `chats`: normalized rows (including tombstones) dominate, then
@@ -697,6 +715,34 @@ function sessionsV2PayloadDirtyKey(session: string): string {
 function sessionChatCatalogLegacyMirrorKey(session: string): string {
 	return `${sessionChatCatalogLegacyMirrorKeyPrefix}${session}`;
 }
+
+const REGISTRATION_GENERATION_TABLE = 'agent_host_registration_generation';
+
+/**
+ * Counts changes to the session registrations on this connection with TEMP
+ * objects, which live only as long as the connection and never change the
+ * database file. Every writer of agent-host.db is this process's connection,
+ * so the count covers every registration change, including migrations.
+ */
+const REGISTRATION_GENERATION_SQL = (() => {
+	const bump = `UPDATE ${REGISTRATION_GENERATION_TABLE} SET value = value + 1;`;
+	const registrationKey = (row: 'NEW' | 'OLD') => `(substr(${row}.key, 1, ${'sessionTombstone:'.length}) = 'sessionTombstone:' OR substr(${row}.key, 1, ${sessionsV2ExcludedKeyPrefix.length}) = '${sessionsV2ExcludedKeyPrefix}')`;
+	const triggers = ['sessions', 'sessions_v2'].flatMap(table => [
+		`CREATE TEMP TRIGGER ${REGISTRATION_GENERATION_TABLE}_${table}_insert AFTER INSERT ON main.${table} BEGIN ${bump} END;`,
+		`CREATE TEMP TRIGGER ${REGISTRATION_GENERATION_TABLE}_${table}_delete AFTER DELETE ON main.${table} BEGIN ${bump} END;`,
+		`CREATE TEMP TRIGGER ${REGISTRATION_GENERATION_TABLE}_${table}_update AFTER UPDATE OF session_uri, provider ON main.${table} WHEN OLD.session_uri IS NOT NEW.session_uri OR OLD.provider IS NOT NEW.provider BEGIN ${bump} END;`,
+	]);
+	triggers.push(
+		`CREATE TEMP TRIGGER ${REGISTRATION_GENERATION_TABLE}_metadata_insert AFTER INSERT ON main.metadata WHEN ${registrationKey('NEW')} BEGIN ${bump} END;`,
+		`CREATE TEMP TRIGGER ${REGISTRATION_GENERATION_TABLE}_metadata_delete AFTER DELETE ON main.metadata WHEN ${registrationKey('OLD')} BEGIN ${bump} END;`,
+		`CREATE TEMP TRIGGER ${REGISTRATION_GENERATION_TABLE}_metadata_update AFTER UPDATE ON main.metadata WHEN ${registrationKey('OLD')} OR ${registrationKey('NEW')} BEGIN ${bump} END;`,
+	);
+	return [
+		`CREATE TEMP TABLE ${REGISTRATION_GENERATION_TABLE} (value INTEGER NOT NULL);`,
+		`INSERT INTO temp.${REGISTRATION_GENERATION_TABLE} (value) VALUES (0);`,
+		...triggers,
+	].join('\n');
+})();
 
 /** Metadata key for a session's durable "explicitly deleted" tombstone. */
 function tombstoneKey(session: string): string {
@@ -1723,6 +1769,22 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 			const changes = await runReturningChanges(await this._ensureDatabase(), `DELETE FROM metadata
 				WHERE key = ? AND CAST(value AS INTEGER) = ?`, [sessionsV2PayloadDirtyKey(session), expectedDirty]);
 			return changes > 0;
+		});
+	}
+
+	async getRegistrationGeneration(): Promise<number> {
+		// Not sequenced: a value read inside another write transaction is never
+		// below the committed one, so it can only cause an extra rebuild.
+		return (await get(await this._ensureDatabase(), `SELECT value FROM temp.${REGISTRATION_GENERATION_TABLE}`, []))?.value as number;
+	}
+
+	async readSessionRegistrations(): Promise<IAgentHostDatabaseSessionRegistrations> {
+		// Sequenced, so no write transaction is open while the generation and the
+		// listings are read: the generation then describes exactly what was read.
+		return this._transactionSequencer.queue(async () => {
+			const generation = await this.getRegistrationGeneration();
+			const [current, legacy] = await Promise.all([this.listSessionV2Registrations(), this.listSessions()]);
+			return { generation, current, legacy };
 		});
 	}
 
@@ -3198,6 +3260,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 							return this._rollback(database, error, 'Failed to complete normalized catalog schema');
 						}
 					}
+					await exec(database, REGISTRATION_GENERATION_SQL);
 					return database;
 				} catch (error) {
 					await close(database);
