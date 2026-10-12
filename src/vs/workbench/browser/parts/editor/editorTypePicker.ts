@@ -7,7 +7,7 @@ import { IAction, Separator, SubmenuAction, toAction } from '../../../../base/co
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { DEFAULT_EDITOR_ASSOCIATION, EditorResourceAccessor, SideBySideEditor, isDiffEditorInput, isEditorInputWithDiffResources } from '../../../common/editor.js';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, EditorResourceAccessor, SideBySideEditor, isDiffEditorInput, isEditorInputWithDiffResources } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { EditorMatches, IEditorResolverService, isUnconfiguredUniversalOptionalEditorMatch, RegisteredEditorInfo } from '../../../services/editor/common/editorResolverService.js';
 import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
@@ -114,7 +114,7 @@ export function createEditorTypeActions(
 		label: labelWithSource(editor),
 		checked: editor.id === available.currentId,
 		run: () => reopen(editor.id),
-		alt: toAction({
+		alt: editor.id === available.currentId && sourceEditor?.hasCapability(EditorInputCapabilities.Singleton) ? undefined : toAction({
 			id: `editorType.openToSide.${editor.id}`,
 			label: localize('editorType.openToSide', "{0} (Open to the Side)", labelWithSource(editor)),
 			enabled: !!sourceInput,

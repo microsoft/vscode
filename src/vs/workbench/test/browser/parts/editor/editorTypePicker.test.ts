@@ -10,7 +10,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IEditorOptions, TextEditorSelectionRevealType } from '../../../../../platform/editor/common/editor.js';
-import { DEFAULT_EDITOR_ASSOCIATION, IEditorInputWithDiffResources, IEditorPane, IEditorPaneSelection, IUntypedEditorInput } from '../../../../common/editor.js';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, IEditorInputWithDiffResources, IEditorPane, IEditorPaneSelection, IUntypedEditorInput } from '../../../../common/editor.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { createEditorTypeActions, getAvailableEditorTypes } from '../../../../browser/parts/editor/editorTypePicker.js';
 import { EditorMatchRuleSource, EditorMatches, IEditorResolverService, IEditorResolverServiceGetEditorMatchesOptions, RegisteredEditorInfo, RegisteredEditorPriority } from '../../../../services/editor/common/editorResolverService.js';
@@ -23,9 +23,10 @@ suite('Editor Type Picker', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createGroup(input: IUntypedEditorInput | undefined, activate: (group: IEditorGroupView) => void = () => { }, getSelection?: () => IEditorPaneSelection): IEditorGroupView {
+	function createGroup(input: IUntypedEditorInput | undefined, activate: (group: IEditorGroupView) => void = () => { }, getSelection?: () => IEditorPaneSelection, capabilities = EditorInputCapabilities.None): IEditorGroupView {
 		const sourceEditor = disposables.add(new class extends EditorInput {
 			override readonly resource = undefined;
+			override get capabilities() { return capabilities; }
 			override get typeId(): string { return 'test.editor'; }
 			override toUntyped(): IUntypedEditorInput | undefined { return input; }
 		}());
@@ -268,6 +269,22 @@ suite('Editor Type Picker', () => {
 			}]
 		});
 	});
+
+	for (const capabilities of [EditorInputCapabilities.None, EditorInputCapabilities.Singleton]) {
+		test(`side-open alternatives respect source capabilities ${capabilities}`, () => {
+			const resource = URI.file('/workspace/test.md');
+			const group = createGroup({ resource }, undefined, undefined, capabilities);
+			const registeredEditors = [editor('test.current', RegisteredEditorPriority.builtin), editor('test.other', RegisteredEditorPriority.option)];
+			const actions = createEditorTypeActions({
+				resource, isDiffEditor: false, currentId: 'test.current', editorMatches: editorMatches(registeredEditors, 'test.current'), editors: registeredEditors
+			}, group, new class extends mock<IEditorResolverService>() { }, new class extends mock<ICommandService>() { }, new class extends mock<IEditorService>() { });
+
+			assert.deepStrictEqual(actions.slice(0, 2).map(action => ({ id: action.id, alternative: action.alt?.id })), [
+				{ id: 'test.current', alternative: capabilities === EditorInputCapabilities.Singleton ? undefined : 'editorType.openToSide.test.current' },
+				{ id: 'test.other', alternative: 'editorType.openToSide.test.other' }
+			]);
+		});
+	}
 
 	for (const isDiffEditor of [false, true]) {
 		test(`opens the source ${isDiffEditor ? 'diff' : 'editor'} with the selected type to its side without reopening it`, async () => {

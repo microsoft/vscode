@@ -84,7 +84,7 @@ class EditorAccessibilityHelpProvider extends Disposable implements IAccessibleV
 			content.push(AccessibilityHelpNLS.defaultWindowTitleExcludingEditorState);
 		}
 		content.push(AccessibilityHelpNLS.toolbar);
-		content.push(localize('editorType.openToSideHelp', "In the Reopen Editor With menu, hold Alt to show alternatives labelled with (Open to the Side) after the editor name. On Windows and Linux, Shift also works. Native menus select the alternative when the menu opens; custom menus update while open. Click an entry or press Enter to run the displayed action. Switching editor types preserves the selection when supported by the editor."));
+		content.push(localize('editorType.openToSideHelp', "In the Reopen Editor With menu, hold Alt to show alternatives labelled with (Open to the Side) after the editor name. On Windows and Linux, Shift also works. Native menus select the alternative when the menu opens; custom menus update while open. Click an entry or press Enter to run the displayed action. Editors that cannot be split do not offer this alternative for their current type. Switching editor types preserves the selection when supported by the editor."));
 
 		const chatEditInfo = getChatEditInfo(this._keybindingService, this._contextKeyService, this._editor);
 		if (chatEditInfo) {
