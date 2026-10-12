@@ -620,11 +620,12 @@ suite('CloudSandboxAgentHostService', () => {
 
 	async function createRecoveryFixture(
 		refresh?: () => Promise<CloudSandboxConnectResult>,
-		initialToken: ICloudSandboxClientToken = { ...clientToken('copilot-sealed.v1.key.original'), expires_at: new Date(Date.now()).toISOString() },
+		initialToken: ICloudSandboxClientToken = clientToken('copilot-sealed.v1.key.original'),
+		environmentKind: ICloudSandboxConnectOptions['environmentKind'] = undefined,
 	) {
 		const fixture = createService(store, [{ kind: 'token', token: initialToken }]);
 		fixture.service.connectThroughFactory = true;
-		const connecting = fixture.service.connect({ environmentId: 'env-1', sessionId: 'session-1', name: 'Sandbox' }, CancellationToken.None);
+		const connecting = fixture.service.connect({ environmentId: 'env-1', sessionId: 'session-1', name: 'Sandbox', environmentKind }, CancellationToken.None);
 		await fixture.started;
 		const response = new DeferredPromise<CloudSandboxConnectResult>();
 		let refreshCalls = 0;
@@ -651,21 +652,24 @@ suite('CloudSandboxAgentHostService', () => {
 			store.add(created.transportDisposable);
 			store.add(created.connection);
 			const call = createInstance.getCalls().findLast(call => call.args[0] === AgentHostProtocolClient);
+			assert.ok(call);
 			const options = call?.args[3] as IAgentHostProtocolClientOptions | undefined;
 			assert.ok(options?.prepareReconnect && options.prepareAuthentication && options.resolveInitialAuthentication);
 			return {
 				connection: created.connection, resources: created.transportDisposable,
+				makeTransport: call.args[2] as () => IProtocolTransport,
 				prepareReconnect: options.prepareReconnect, prepareAuthentication: options.prepareAuthentication,
 				resolveAuthentication: options.resolveInitialAuthentication,
 			};
 		}
 		let current = await createConnection(true);
 		return {
-			...fixture, response, initialToken, refreshTimes,
+			...fixture, response, initialToken, refreshTimes, createInstance, connecting,
 			get resources() { return current.resources; },
 			prepareReconnect: () => current.prepareReconnect(),
 			prepareAuthentication: () => current.prepareAuthentication(),
 			resolveAuthentication: () => current.resolveAuthentication(),
+			makeTransport: () => current.makeTransport(),
 			refreshCalls: () => refreshCalls,
 			async redial(): Promise<void> {
 				current.connection.dispose();
@@ -680,6 +684,63 @@ suite('CloudSandboxAgentHostService', () => {
 				fixture.service.dispose();
 			},
 		};
+	}
+
+	for (const environmentKind of ['cloud', 'user-local'] as const) {
+		test(`${environmentKind} factory acquires valid admission credentials before opening its first transport with an expired staged ticket`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const fixture = await createRecoveryFixture(
+				async () => ({ kind: 'token', token: { ...clientToken('copilot-sealed.v1.key.fresh'), access_token: 'fresh-ticket' } }),
+				{ ...clientToken('copilot-sealed.v1.key.original'), expires_at: new Date(Date.now()).toISOString() },
+				environmentKind === 'user-local' ? 'user-local' : undefined,
+			);
+			const transport = store.add(fixture.makeTransport());
+			const transportCall = fixture.createInstance.getCalls().find(call => call.args[0] === WebPubSubRelayTransport);
+			assert.ok(transportCall);
+			const transportOptions = transportCall.args[1] as IWebPubSubRelayTransportOptions;
+			const authentication = await fixture.resolveAuthentication();
+			await fixture.finish();
+			assert.deepStrictEqual({
+				requests: fixture.refreshCalls(),
+				ticket: new URL(transportOptions.url).searchParams.get('access_token'),
+				sealed: authentication?.token,
+			}, { requests: 1, ticket: 'fresh-ticket', sealed: 'copilot-sealed.v1.key.fresh' });
+			transport.dispose();
+		}));
+
+		test(`${environmentKind} connections do not refresh idle credentials and acquire a usable ticket only when reconnecting after expiry`, () => runWithFakedTimers({ useFakeTimers: true, maxTaskCount: 400 }, async () => {
+			const initial = { ...clientToken('copilot-sealed.v1.key.original'), expires_at: new Date(Date.now() + 120_000).toISOString() };
+			const fixture = await createRecoveryFixture(
+				async () => ({ kind: 'token', token: { ...clientToken('copilot-sealed.v1.key.fresh'), access_token: 'fresh-ticket' } }),
+				initial,
+				environmentKind === 'user-local' ? 'user-local' : undefined,
+			);
+			fixture.settle();
+			await fixture.connecting;
+			const transportSpy = fixture.createInstance;
+			const snapshots = [];
+			const start = Date.now();
+			for (const elapsed of [60_000, 120_000, 600_000, 12 * 60 * 60_000]) {
+				await timeout(start + elapsed - Date.now());
+				snapshots.push({ elapsed, requests: fixture.refreshCalls(), transports: transportSpy.getCalls().filter(call => call.args[0] === WebPubSubRelayTransport).length });
+			}
+			await fixture.prepareReconnect();
+			const transport = store.add(fixture.makeTransport());
+			const transportCall = transportSpy.getCalls().find(call => call.args[0] === WebPubSubRelayTransport);
+			assert.ok(transportCall);
+			const transportOptions = transportCall.args[1] as IWebPubSubRelayTransportOptions;
+			await timeout(12 * 60 * 60_000);
+			await fixture.finish();
+			assert.deepStrictEqual({
+				snapshots, requestsAfterRecovery: fixture.refreshCalls(),
+				transportToken: new URL(transportOptions.url).searchParams.get('access_token'),
+				connectionKind: transport.clientConnectionKind,
+			}, {
+				snapshots: [60_000, 120_000, 600_000, 12 * 60 * 60_000].map(elapsed => ({ elapsed, requests: 0, transports: 0 })),
+				requestsAfterRecovery: 1, transportToken: 'fresh-ticket',
+				connectionKind: environmentKind === 'user-local' ? AgentHostClientConnectionKind.MissionControl : AgentHostClientConnectionKind.WebPubSub,
+			});
+			transport.dispose();
+		}));
 	}
 
 	test('tries cached credentials after a brief interruption and repairs setup after that retry fails', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -809,7 +870,10 @@ suite('CloudSandboxAgentHostService', () => {
 	}));
 
 	test('refreshes expired credentials before reconnect even before the first successful connection', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-		const fixture = await createRecoveryFixture();
+		const fixture = await createRecoveryFixture(undefined, {
+			...clientToken('copilot-sealed.v1.key.original'), expires_at: new Date(Date.now() + 120_000).toISOString(),
+		});
+		await timeout(120_000);
 		const preparing = fixture.prepareReconnect();
 		const sealedWhileRefreshing = fixture.service.getSealedGitHubToken('env-1');
 		await fixture.response.complete({ kind: 'token', token: clientToken('copilot-sealed.v1.key.refreshed') });
@@ -857,13 +921,13 @@ suite('CloudSandboxAgentHostService', () => {
 
 	test('preserves the refresh failure limit across automatic client replacements', () => runWithFakedTimers({}, async () => {
 		const fixture = await createRecoveryFixture(async () => { throw new CloudSandboxRequestError(503, 'unavailable'); });
-		await assert.rejects(fixture.prepareReconnect(), /usable future expiry/);
+		await assert.rejects(fixture.prepareReconnect(), /could not be refreshed/);
 		await timeout(180_001);
 		const callsBeforeReplacement = fixture.refreshCalls();
-		await fixture.redial();
-		const recovery = assert.rejects(fixture.prepareReconnect(), /stopped|usable future expiry/);
-		await timeout(90_000);
-		await recovery;
+		for (let attempt = 1; attempt < 10; attempt++) {
+			await fixture.redial();
+			await assert.rejects(fixture.prepareReconnect(), /could not be refreshed/);
+		}
 		await assert.rejects(fixture.prepareReconnect(), /stopped/);
 		await fixture.redial();
 		await assert.rejects(fixture.prepareReconnect(), /stopped/);
@@ -875,7 +939,7 @@ suite('CloudSandboxAgentHostService', () => {
 			calls: fixture.refreshCalls(),
 			stops: fixture.events.filter(event => event.eventName === 'cloudSandboxCredentialRefreshStopped').map(event => event.data),
 		}, {
-			callsBeforeReplacement: 7,
+			callsBeforeReplacement: 1,
 			calls: 10,
 			stops: [{ reason: 'consecutiveFailures', consecutiveFailures: 10, statusCode: undefined }],
 		});
@@ -890,7 +954,7 @@ suite('CloudSandboxAgentHostService', () => {
 			}
 			return { kind: 'token', token: clientToken('copilot-sealed.v1.key.refreshed') };
 		});
-		await assert.rejects(fixture.prepareReconnect(), /usable future expiry/);
+		await assert.rejects(fixture.prepareReconnect(), /could not be refreshed/);
 		await timeout(10_000);
 		await fixture.redial();
 		const recovery = fixture.prepareReconnect();
