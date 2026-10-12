@@ -131,7 +131,10 @@ MenuRegistry.appendMenuItem(MenuId.ModalEditorEditorTitle, {
 		id: MANAGE_PLUGIN_MARKETPLACES_COMMAND_ID,
 		title: localize2('configureMarketplaces', "Configure Marketplaces"),
 	},
-	when: ActiveEditorContext.isEqualTo(AI_CUSTOMIZATION_MANAGEMENT_EDITOR_ID),
+	when: ContextKeyExpr.and(
+		ActiveEditorContext.isEqualTo(AI_CUSTOMIZATION_MANAGEMENT_EDITOR_ID),
+		ChatContextKeys.enabled,
+	),
 	group: 'navigation',
 	order: 1,
 });
