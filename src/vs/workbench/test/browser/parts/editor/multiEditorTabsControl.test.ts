@@ -325,13 +325,18 @@ suite('MultiEditorTabsControl', () => {
 			const activeFill = tabs.querySelector<HTMLElement>('.tab.active > .tab-fill')!;
 			const oppositeShoulder = mainWindow.getComputedStyle(activeFill, direction === 'rtl' ? '::after' : '::before');
 			const shoulderWidth = Number.parseFloat(oppositeShoulder.width) * zoom;
+			const activeFillBounds = activeFill.getBoundingClientRect();
+			const activeVisibleWidth = Math.min(activeFillBounds.right, tabs.getBoundingClientRect().right) - Math.max(activeFillBounds.left, boundary);
+			const rtlCapExpected = direction === 'rtl' && activeVisibleWidth > shoulderWidth;
 			const oppositeShoulderOutsideViewport = direction === 'rtl'
 				? activeFill.getBoundingClientRect().right + shoulderWidth > tabs.getBoundingClientRect().right
 				: activeFill.getBoundingClientRect().left - shoulderWidth < tabs.getBoundingClientRect().left;
 			return {
 				hasClippedTab: rendered.some(tab => direction === 'rtl' ? tab.getBoundingClientRect().left < boundary : tab.getBoundingClientRect().right > boundary),
 				hasClippedActive: rendered.some(tab => tab.classList.contains('active') && (direction === 'rtl' ? tab.getBoundingClientRect().left < boundary : tab.getBoundingClientRect().right > boundary)),
-				rtlCapAtBoundary: direction !== 'rtl' || Math.abs(overlay.getBoundingClientRect().left - boundary) < 1 / 32,
+				rtlCapAtBoundary: direction !== 'rtl' || (rtlCapExpected
+					? Math.abs(overlay.getBoundingClientRect().left - boundary) < 1 / 32
+					: !overlay.classList.contains('connected-tab-left-clipped')),
 				oppositeShoulderPresentWhenVisible: oppositeShoulderOutsideViewport || oppositeShoulder.content === '""',
 				matchingClip: rendered.every(tab => {
 					const expected = Math.max(0, (direction === 'rtl' ? boundary - tab.getBoundingClientRect().left : tab.getBoundingClientRect().right - boundary) / zoom);
@@ -1206,6 +1211,7 @@ suite('MultiEditorTabsControl', () => {
 	test('action reservation changes update fit widths in both modern styles and leave Legacy unchanged', async () => {
 		const group = connectedGroup();
 		const root = group.closest<HTMLElement>('.monaco-workbench')!;
+		openNamedEditors(['a-wide-natural-fit-label.ts', 'another-wide-natural-fit-label.ts']);
 		const modified = disposables.add(new TestFileEditorInput(URI.file('/path/modified.ts'), 'testEditorInput'));
 		modified.setDirty();
 		model.openEditor(modified, { pinned: true, active: false });
