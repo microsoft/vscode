@@ -30,6 +30,7 @@ import { MissionControlEnvironment, type IMissionControlEnvironmentHost } from '
 import { getMissionControlEnvironmentName, MissionControlHost, type MissionControlOperationClassification } from '../../node/missionControl/missionControlHost.js';
 import { MissionControlProtocolServer } from '../../node/missionControl/missionControlProtocolServer.js';
 import { MissionControlProjects } from '../../node/missionControl/missionControlProjects.js';
+import { missionControlSessionConfigAdapter } from '../../node/missionControl/missionControlSessionConfig.js';
 import { MissionControlSdkEventSource } from '../../node/missionControl/missionControlSdkEventSource.js';
 import { MissionControlSessionMirror, type MissionControlMirrorEvent } from '../../node/missionControl/missionControlSessionMirror.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -248,7 +249,7 @@ suite('Mission Control host integration', () => {
 			hostManagement: config.allowExtensionMethods,
 			diagnosticLogs: config.otlpLogEmitter,
 			modelProviders: config.advertisedModelProviders,
-			sessionConfig: config.copilotSessionConfig,
+			sessionConfig: config.sessionConfigAdapter === missionControlSessionConfigAdapter,
 		}, { hostManagement: false, diagnosticLogs: undefined, modelProviders: ['copilotcli'], sessionConfig: true });
 	});
 
@@ -389,10 +390,13 @@ suite('Mission Control host integration', () => {
 		const environment = creations.getCalls().find(call => call.args[0] === MissionControlEnvironment)!.args[1] as IMissionControlEnvironmentHost;
 		store.add(environment.attach(new class extends mock<MissionControlProtocolServer>() { override readonly rootMeta = {}; }(), [], () => [], () => []));
 		const config = creations.getCalls().find(call => call.args[0] === ProtocolServerHandler)!.args[4] as IProtocolServerConfig;
-		const result = await config.copilotSessionRequest!('extensions/getPlan', { channel: session.toString() });
-		await config.copilotSessionRequest!('extensions/setSessionApproveAll', { channel: session.toString(), enabled: true });
-		await assert.rejects(config.copilotSessionRequest!('extensions/setSessionApproveAll', { channel: session.toString(), enabled: 'true' })!, ProtocolError);
-		await assert.rejects(config.copilotSessionRequest!('extensions/getPlan', { channel: 'ahp-session:/missing' })!, ProtocolError);
+		const requests = config.extension!.requests;
+		const getPlan = requests.get('extensions/getPlan')!;
+		const setApproveAll = requests.get('extensions/setSessionApproveAll')!;
+		const result = await getPlan.handle({ channel: session.toString() }, () => { });
+		await setApproveAll.handle({ channel: session.toString(), enabled: true }, () => { });
+		await assert.rejects(setApproveAll.handle({ channel: session.toString(), enabled: 'true' }, () => { }), ProtocolError);
+		await assert.rejects(getPlan.handle({ channel: 'ahp-session:/missing' }, () => { }), ProtocolError);
 		const mirror = environment.createMirror!('environment');
 		store.add(mirror.source);
 		store.add(mirror.mirror);
@@ -405,12 +409,22 @@ suite('Mission Control host integration', () => {
 		assert.deepStrictEqual({
 			result, calls,
 			meta: state.getSessionState(session.toString())?._meta,
-			projects: config.copilotProjects !== undefined,
+			extension: {
+				meta: config.extension?.rootMeta,
+				methods: [...requests.keys()],
+				plan: { readOnly: getPlan.readOnly, requiresChannel: getPlan.requiresChannel },
+				approval: { readOnly: setApproveAll.readOnly, requiresChannel: setApproveAll.requiresChannel },
+			},
 		}, {
 			result: plan,
 			calls: [{ session: session.toString() }, { session: session.toString(), enabled: true }],
 			meta: { existing: 'keep', 'copilot.planHint': { operation: 'update', eventId: 'plan-1' }, 'copilot.todosHint': { eventId: 'todos-1' } },
-			projects: true,
+			extension: {
+				meta: { 'copilot.projectManagement': { available: true } },
+				methods: ['extensions/listProjects', 'extensions/addProject', 'extensions/removeProject', 'extensions/cloneProject', 'extensions/getPlan', 'extensions/setSessionApproveAll'],
+				plan: { readOnly: true, requiresChannel: true },
+				approval: { readOnly: false, requiresChannel: true },
+			},
 		});
 	});
 });

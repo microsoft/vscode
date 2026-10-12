@@ -10576,7 +10576,7 @@ suite('AgentHostChatContribution', () => {
 				const languageModels = new Map<string, ILanguageModelChatMetadata>([
 					['agent-host-copilot:auto', upcastPartial<ILanguageModelChatMetadata>({
 						name: 'Ensemble', autoModelEnsemble: { intelligenceUsesHydraFusion },
-						configurationSchema: { properties: { tier: { type: 'string', enum: ['balance', 'intelligence'], enumItemLabels: ['Balance', 'Intelligence'] } } },
+						configurationSchema: { properties: { tier: { type: 'string', enum: ['balance', 'intelligence'], enumItemLabels: ['Balance', 'High'] } } },
 					})],
 				]);
 				const { sessionHandler, agentHostService } = createContribution(disposables, { languageModels, provider: 'copilotcli' });
@@ -10599,7 +10599,7 @@ suite('AgentHostChatContribution', () => {
 				return session.history.filter(item => item.type === 'response').map(item => item.details);
 			};
 			assert.deepStrictEqual({ routed: await footers(true), notRouted: await footers(false) }, {
-				routed: ['Ensemble Max • 15.5 credits', 'Ensemble Intelligence • 15.5 credits'],
+				routed: ['Ensemble Max • 15.5 credits', 'Ensemble High • 15.5 credits'],
 				notRouted: ['Ensemble Max • 15.5 credits', 'HydraFusion • 15.5 credits'],
 			});
 		});

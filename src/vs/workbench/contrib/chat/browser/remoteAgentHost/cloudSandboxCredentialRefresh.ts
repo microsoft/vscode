@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { disposableTimeout, raceCancellationError, timeout } from '../../../../../base/common/async.js';
+import { raceCancellationError, timeout } from '../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { CancellationError, isCancellationError } from '../../../../../base/common/errors.js';
-import { Disposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { equals } from '../../../../../base/common/objects.js';
 import {
 	CLOUD_SANDBOX_SEALED_TOKEN_PREFIX,
@@ -44,92 +44,34 @@ export function mergeCloudSandboxConnectionToken(previous: ICloudSandboxClientTo
 		: refreshed;
 }
 
-/** Refresh the Web PubSub credentials this long before the access token's `expires_at`. */
-const CREDENTIAL_REFRESH_LEAD_MS = 60_000;
-
-/**
- * Floor / ceiling for the scheduled credential-refresh delay.
- *
- * The floor doubles as the rate limit on `/reconnect`: a token that is already at or past its
- * refresh point re-mints on every tick, so this bounds how fast that can happen. Tokens live for
- * the best part of an hour, so a floor this high only ever applies to a degenerate one.
- */
+/** Minimum delay between connection repairs or failed credential requests. */
 export const MIN_CREDENTIAL_REFRESH_DELAY_MS = 30_000;
-const MAX_CREDENTIAL_REFRESH_DELAY_MS = 55 * 60_000;
+const MAX_CREDENTIAL_RETRY_WAIT_MS = 55 * 60_000;
 
-/** Backoff delay after a failed credential refresh before retrying. */
-const CREDENTIAL_REFRESH_RETRY_MS = 30_000;
-
-/**
- * Consecutive refresh cycles that may fail to produce a healthy token before the scheduler gives up.
- *
- * The refresh timer outlives every user interaction — it runs for as long as the window is open — so
- * without a ceiling one unrecoverable environment turns into an unbounded stream of `/reconnect`
- * calls, each of which asks Mission Control to resume a sandbox that cannot be resumed.
- */
+/** Maximum consecutive failed on-demand acquisitions, retained across protocol-client replacements. */
 export const MAX_CONSECUTIVE_CREDENTIAL_REFRESH_FAILURES = 10;
-
-/**
- * Refresh interval used when a token carries no usable `expires_at`.
- *
- * `expires_at` is required by the API, so this only covers a malformed response. Refreshing on a
- * conservative fixed interval keeps such a connection working rather than dropping it outright,
- * while being far enough apart that it cannot amount to a meaningful load on Mission Control.
- */
-const CREDENTIAL_REFRESH_FALLBACK_MS = 15 * 60_000;
 
 /** Mutable holder for the current Web PubSub credentials, read by the transport factory. */
 export interface ICloudSandboxCreds {
 	token: ICloudSandboxClientToken;
 }
 
-/**
- * Delay (ms) until credentials should be refreshed, computed as `expires_at` minus a lead time and
- * clamped to a sane range. Returns `undefined` when `expires_at` is missing or unparseable, leaving
- * the caller to decide — there is no basis for scheduling, so silently substituting the floor would
- * make a token that never reports an expiry re-mint on every tick.
- */
-export function credentialRefreshDelayMs(expiresAt: string | undefined, now = Date.now()): number | undefined {
-	const expiryMs = expiresAt ? Date.parse(expiresAt) : NaN;
-	if (Number.isNaN(expiryMs)) {
-		return undefined;
-	}
-	const delay = expiryMs - now - CREDENTIAL_REFRESH_LEAD_MS;
-	return Math.min(MAX_CREDENTIAL_REFRESH_DELAY_MS, Math.max(MIN_CREDENTIAL_REFRESH_DELAY_MS, delay));
-}
-
 /** Retry bookkeeping retained by a staged sandbox connection across protocol-client replacements. */
 export class CloudSandboxCredentialRefreshState {
 	unhealthyCycles = 0;
-	hasRefreshed = false;
 	lastRefreshAt: number | undefined;
-	nextRefreshAt: number | undefined;
+	nextRetryAt: number | undefined;
 	stopped = false;
 	permanentFailure = false;
 	permanentFailureStatus: number | undefined;
 }
 
 /**
- * Refreshes credentials before expiry and on demand during recovery, sharing in-flight requests.
- * The open socket is untouched; replacement transports use the refreshed credentials.
- *
- * The loop is bounded in three ways, because it runs unattended for the life of the window and every
- * cycle costs Mission Control a sandbox resume: a permanent rejection stops it outright,
- * {@link MAX_CONSECUTIVE_CREDENTIAL_REFRESH_FAILURES} caps a run of transient ones, and
- * {@link MIN_CREDENTIAL_REFRESH_DELAY_MS} rate-limits a token that always looks due for refresh.
- *
- * Disposing cancels this client's timer and request without discarding the staged connection's retry state.
+ * Acquires credentials on demand for connection repair and authentication, sharing requests and bounding retries.
+ * Web PubSub token expiry governs admission to new sockets, not the lifetime of an established connection.
  */
 export class CloudSandboxCredentialRefresher extends Disposable {
 
-	private readonly _timer = this._register(new MutableDisposable());
-
-	/**
-	 * A `MutableDisposable` silently drops a value assigned after it is disposed, so a timeout armed
-	 * while a refresh was in flight — the connection can go away mid-request — would never be
-	 * cancelled and would keep calling `/reconnect` for the life of the window. Cancelling on
-	 * teardown both aborts the in-flight request and stops anything being armed afterwards.
-	 */
 	private readonly _cts = new CancellationTokenSource();
 
 	private _refreshInFlight: Promise<boolean> | undefined;
@@ -146,20 +88,6 @@ export class CloudSandboxCredentialRefresher extends Disposable {
 	) {
 		super();
 		this._register(toDisposable(() => this._cts.dispose(true)));
-
-		if (this._refreshState.stopped) {
-			return;
-		}
-		if (this._refreshState.nextRefreshAt !== undefined) {
-			this._armAt(this._refreshState.nextRefreshAt);
-			return;
-		}
-		const initialDelayMs = credentialRefreshDelayMs(this._creds.token.expires_at);
-		if (initialDelayMs === undefined) {
-			this._armUnhealthy(CREDENTIAL_REFRESH_FALLBACK_MS, 'unusableToken', `tokens kept arriving without a usable 'expires_at'`);
-			return;
-		}
-		this._arm(initialDelayMs);
 	}
 
 	/** Share an in-flight refresh or refresh expired credentials before opening a replacement transport. */
@@ -199,8 +127,7 @@ export class CloudSandboxCredentialRefresher extends Disposable {
 			if (waited && this._creds.token !== previousToken && this._hasUnexpiredCredentials()) {
 				return;
 			}
-			const retryAt = this._refreshState.hasRefreshed && this._refreshState.unhealthyCycles > 0
-				? this._refreshState.nextRefreshAt ?? 0 : 0;
+			const retryAt = this._refreshState.nextRetryAt ?? 0;
 			const rateLimitAt = refreshConnection && this._refreshState.lastRefreshAt !== undefined
 				? this._refreshState.lastRefreshAt + MIN_CREDENTIAL_REFRESH_DELAY_MS : 0;
 			const delay = Math.max(retryAt, rateLimitAt) - Date.now();
@@ -208,7 +135,7 @@ export class CloudSandboxCredentialRefresher extends Disposable {
 				break;
 			}
 			waited = true;
-			await timeout(Math.min(MAX_CREDENTIAL_REFRESH_DELAY_MS, delay), this._cts.token);
+			await timeout(Math.min(MAX_CREDENTIAL_RETRY_WAIT_MS, delay), this._cts.token);
 		}
 		const refreshed = await raceCancellationError(this._refresh(), this._cts.token);
 		if (!this._hasUnexpiredCredentials()) {
@@ -225,44 +152,23 @@ export class CloudSandboxCredentialRefresher extends Disposable {
 
 	private _stop(reason: CloudSandboxRefreshStopReason, detail: string, error?: unknown): void {
 		this._refreshState.stopped = true;
-		this._timer.clear();
 		this._telemetry.reportCredentialRefreshStopped(reason, this._refreshState.unhealthyCycles, error);
-		this._logService.error(`${LOG_PREFIX} Stopped refreshing credentials for ${this._address}: ${detail}. The connection will drop when the current token expires.`);
+		this._logService.error(`${LOG_PREFIX} Stopped refreshing credentials for ${this._address}: ${detail}. Further credential acquisition requires a new connection attempt; an established Web PubSub socket is not closed by token expiry.`);
 	}
 
-	private _arm(delayMs: number): void {
-		this._armAt(Date.now() + Math.max(MIN_CREDENTIAL_REFRESH_DELAY_MS, delayMs));
-	}
-
-	private _armAt(refreshAt: number): void {
-		if (this._cts.token.isCancellationRequested) {
-			return;
-		}
-		this._refreshState.nextRefreshAt = refreshAt;
-		this._timer.value = disposableTimeout(() => {
-			if (Date.now() < refreshAt) {
-				this._armAt(refreshAt);
-			} else {
-				void this._refresh();
-			}
-		}, Math.min(MAX_CREDENTIAL_REFRESH_DELAY_MS, Math.max(0, refreshAt - Date.now())));
-	}
-
-	/** Re-arm after a cycle that produced no usable token, giving up once too many pile up. */
-	private _armUnhealthy(delayMs: number, reason: CloudSandboxRefreshStopReason, detail: string): void {
+	/** Record a failed acquisition and its earliest retry time without scheduling a request. */
+	private _recordFailure(delayMs: number, reason: CloudSandboxRefreshStopReason, detail: string): void {
 		if (++this._refreshState.unhealthyCycles >= MAX_CONSECUTIVE_CREDENTIAL_REFRESH_FAILURES) {
 			this._stop(reason, `${detail} across ${this._refreshState.unhealthyCycles} consecutive attempts`);
 			return;
 		}
-		this._arm(delayMs);
+		this._refreshState.nextRetryAt = Date.now() + Math.max(MIN_CREDENTIAL_REFRESH_DELAY_MS, delayMs);
 	}
 
 	private async _refresh(): Promise<boolean> {
 		if (this._refreshInFlight) {
 			return this._refreshInFlight;
 		}
-		this._timer.clear();
-		this._refreshState.hasRefreshed = true;
 		this._refreshState.lastRefreshAt = Date.now();
 		const pending = this._doRefresh();
 		this._refreshInFlight = pending;
@@ -295,9 +201,9 @@ export class CloudSandboxCredentialRefresher extends Disposable {
 			}
 			this._logService.warn(`${LOG_PREFIX} Credential refresh failed for ${this._address}; retrying`, err);
 			const delayMs = err instanceof CloudSandboxRequestError && err.retryAfterSeconds !== undefined
-				? Math.max(CREDENTIAL_REFRESH_RETRY_MS, err.retryAfterSeconds * 1000)
-				: CREDENTIAL_REFRESH_RETRY_MS;
-			this._armUnhealthy(delayMs, 'consecutiveFailures', 'credential refresh kept failing');
+				? Math.max(MIN_CREDENTIAL_REFRESH_DELAY_MS, err.retryAfterSeconds * 1000)
+				: MIN_CREDENTIAL_REFRESH_DELAY_MS;
+			this._recordFailure(delayMs, 'consecutiveFailures', 'credential refresh kept failing');
 			return false;
 		}
 
@@ -307,40 +213,30 @@ export class CloudSandboxCredentialRefresher extends Disposable {
 		}
 		if (this._creds.token !== previousToken) {
 			this._logService.trace(`${LOG_PREFIX} Ignoring a superseded credential refresh for ${this._address}`);
-			this._arm(credentialRefreshDelayMs(this._creds.token.expires_at) ?? CREDENTIAL_REFRESH_FALLBACK_MS);
 			return true;
 		}
 
 		if (result.kind === 'waking') {
-			// `/reconnect` refreshes an already-connected client, so a waking environment here is the
-			// sandbox disappearing underneath us rather than a wake worth waiting out.
-			this._armUnhealthy(result.waking.retryAfterSeconds * 1000, 'environmentWaking', 'environment kept reporting waking');
+			this._recordFailure(result.waking.retryAfterSeconds * 1000, 'environmentWaking', 'environment kept reporting waking');
 			return false;
 		}
 
 		const refreshedToken = mergeCloudSandboxConnectionToken(previousToken, result.token);
 		if (!refreshedToken) {
 			this._logService.warn(`${LOG_PREFIX} Credential refresh for ${this._address} returned inconsistent host credentials; retrying`);
-			this._armUnhealthy(CREDENTIAL_REFRESH_RETRY_MS, 'unusableToken', 'refreshed host keys did not match the sealed credentials');
+			this._recordFailure(MIN_CREDENTIAL_REFRESH_DELAY_MS, 'unusableToken', 'refreshed host keys did not match the sealed credentials');
+			return false;
+		}
+		if (!(Date.parse(refreshedToken.expires_at) > Date.now())) {
+			this._logService.warn(`${LOG_PREFIX} Credential refresh for ${this._address} returned no usable future expiry; retrying`);
+			this._recordFailure(MIN_CREDENTIAL_REFRESH_DELAY_MS, 'unusableToken', 'refreshed tokens did not have a usable future expiry');
 			return false;
 		}
 		this._creds.token = refreshedToken;
 
 		this._logService.trace(`${LOG_PREFIX} Refreshed Web PubSub credentials for ${this._address}`);
-		const delayMs = credentialRefreshDelayMs(result.token.expires_at);
-		if (delayMs === undefined) {
-			// No basis for scheduling. Keep the connection alive on a conservative interval, but
-			// count the cycles so an endless stream of unschedulable tokens still terminates.
-			this._armUnhealthy(CREDENTIAL_REFRESH_FALLBACK_MS, 'unusableToken', `tokens kept arriving without a usable 'expires_at'`);
-			return false;
-		}
-		if (delayMs <= MIN_CREDENTIAL_REFRESH_DELAY_MS) {
-			// Already at (or past) its refresh point, so the next cycle would re-mint immediately.
-			this._armUnhealthy(delayMs, 'unusableToken', 'refreshed tokens kept expiring immediately');
-			return this._hasUnexpiredCredentials();
-		}
 		this._refreshState.unhealthyCycles = 0;
-		this._arm(delayMs);
+		this._refreshState.nextRetryAt = undefined;
 		return true;
 	}
 }

@@ -24,7 +24,6 @@ import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import {
 	CloudSandboxCredentialRefresher,
 	CloudSandboxCredentialRefreshState,
-	credentialRefreshDelayMs,
 	MAX_CONSECUTIVE_CREDENTIAL_REFRESH_FAILURES,
 	type ICloudSandboxCreds,
 } from '../../../browser/remoteAgentHost/cloudSandboxCredentialRefresh.js';
@@ -40,7 +39,7 @@ const HOST_KEY: IHostEncryptionKey = { key_id: 'key-1', use: 'auth-token', algor
 const REPLACEMENT_HOST_KEY: IHostEncryptionKey = { ...HOST_KEY, key_id: 'key-2', public_key: 'BAUG' };
 const SEALED_TOKEN = 'copilot-sealed.v1.key-1.abc';
 
-/** A token expiring `minutes` from `from`. 40 minutes sits comfortably clear of the refresh floor. */
+/** A token expiring `minutes` from `from`. */
 function tokenExpiringIn(minutes: number, from: number, overrides: Partial<ICloudSandboxClientToken> = {}): ICloudSandboxClientToken {
 	return {
 		access_token: 'tok',
@@ -91,13 +90,10 @@ suite('CloudSandboxCredentialRefresher', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	/**
-	 * Run a refresher over `durationMs` of virtual time and report what it did. The refresher is
-	 * disposed before returning so nothing survives into the next test.
-	 */
+	/** Request credentials explicitly, respecting retry state until the attempt limit or a stop. */
 	async function runRefresher(
 		step: () => CloudSandboxConnectResult | Promise<CloudSandboxConnectResult>,
-		durationMs: number,
+		attempts: number,
 		initialToken = tokenExpiringIn(40, START_TIME),
 	): Promise<{ calls: number; stops: RecordingTelemetry['stops']; creds: ICloudSandboxCreds }> {
 		const telemetry = new RecordingTelemetry();
@@ -105,35 +101,62 @@ suite('CloudSandboxCredentialRefresher', () => {
 		const creds: ICloudSandboxCreds = { token: initialToken };
 		const disposables = new DisposableStore();
 
-		disposables.add(new CloudSandboxCredentialRefresher(
+		const state = new CloudSandboxCredentialRefreshState();
+		const refresher = disposables.add(new CloudSandboxCredentialRefresher(
 			'cloudsandbox:env_1',
 			{ environmentId: 'env_1', sessionId: 'session-1' },
 			'client-1',
 			creds,
-			new CloudSandboxCredentialRefreshState(),
+			state,
 			credentials,
 			telemetry,
 			new NullLogService(),
 		));
 
-		await new Promise<void>(resolve => setTimeout(resolve, durationMs));
-		disposables.dispose();
+		try {
+			for (let attempt = 0; attempt < attempts && !state.stopped; attempt++) {
+				try {
+					await refresher.refreshConnectionCredentials();
+				} catch (error) {
+					assert.ok(error instanceof Error);
+					assert.match(error.message, /could not be refreshed|usable future expiry/);
+				}
+			}
+			await timeout(12 * 60 * 60_000);
+		} finally {
+			disposables.dispose();
+		}
 		return { calls: credentials.callCount, stops: telemetry.stops, creds };
 	}
 
-	test('a healthy token keeps refreshing and never reports a stop', () => runWithFakedTimers<void>({ useFakeTimers: true, startTime: START_TIME }, async () => {
-		// Every refresh yields another healthy token, so the loop should simply keep going. Twelve
-		// hours is far more than the failure cap would allow if the counter were mis-managed.
-		const result = await runRefresher(() => ({ kind: 'token', token: tokenExpiringIn(40, Date.now()) }), 12 * 60 * 60_000);
-
-		assert.deepStrictEqual(
-			{ keptRefreshing: result.calls > 10, stops: result.stops },
-			{ keptRefreshing: true, stops: [] },
-		);
-	}));
+	for (const expiresAt of [new Date(START_TIME + 120_000).toISOString(), '', 'not-a-date']) {
+		test(`does not acquire credentials while idle through the refresh margin, expiry and multiple lifetimes: ${expiresAt}`, async () => {
+			const clock = sinon.useFakeTimers({ now: START_TIME, toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+			const telemetry = new RecordingTelemetry();
+			const credentials = new ScriptedCredentialsService(() => ({ kind: 'token', token: tokenExpiringIn(2, Date.now()) }));
+			const initialToken = tokenExpiringIn(2, START_TIME, { expires_at: expiresAt });
+			const creds = { token: initialToken };
+			const state = new CloudSandboxCredentialRefreshState();
+			const refresher = new CloudSandboxCredentialRefresher('cloudsandbox:env_1', { environmentId: 'env_1' }, 'client-1', creds, state, credentials, telemetry, new NullLogService());
+			try {
+				const snapshots = [];
+				for (const elapsed of [60_000, 120_000, 600_000, 12 * 60 * 60_000]) {
+					await clock.tickAsync(START_TIME + elapsed - Date.now());
+					snapshots.push({ elapsed, calls: credentials.callCount, token: creds.token, stopped: state.stopped, failures: state.unhealthyCycles });
+				}
+				assert.deepStrictEqual({ snapshots, stops: telemetry.stops }, {
+					snapshots: [60_000, 120_000, 600_000, 12 * 60 * 60_000].map(elapsed => ({ elapsed, calls: 0, token: initialToken, stopped: false, failures: 0 })),
+					stops: [],
+				});
+			} finally {
+				refresher.dispose();
+				clock.restore();
+			}
+		});
+	}
 
 	test('a permanently rejected refresh stops at once, reporting the status', () => runWithFakedTimers<void>({ useFakeTimers: true, startTime: START_TIME }, async () => {
-		const result = await runRefresher(() => Promise.reject(new CloudSandboxRequestError(404, 'environment gone')), 12 * 60 * 60_000);
+		const result = await runRefresher(() => Promise.reject(new CloudSandboxRequestError(404, 'environment gone')), MAX_CONSECUTIVE_CREDENTIAL_REFRESH_FAILURES);
 
 		assert.deepStrictEqual(
 			result,
@@ -146,7 +169,7 @@ suite('CloudSandboxCredentialRefresher', () => {
 	}));
 
 	test('transient failures stop once the consecutive-failure cap is reached', () => runWithFakedTimers<void>({ useFakeTimers: true, startTime: START_TIME }, async () => {
-		const result = await runRefresher(() => Promise.reject(new CloudSandboxRequestError(500, 'server error')), 12 * 60 * 60_000);
+		const result = await runRefresher(() => Promise.reject(new CloudSandboxRequestError(500, 'server error')), MAX_CONSECUTIVE_CREDENTIAL_REFRESH_FAILURES);
 
 		assert.deepStrictEqual(
 			{ calls: result.calls, stops: result.stops },
@@ -169,7 +192,7 @@ suite('CloudSandboxCredentialRefresher', () => {
 				}
 				return Promise.reject(new CloudSandboxRequestError(503, 'unavailable'));
 			},
-			24 * 60 * 60_000,
+			2 * MAX_CONSECUTIVE_CREDENTIAL_REFRESH_FAILURES,
 		);
 
 		assert.deepStrictEqual(
@@ -181,8 +204,8 @@ suite('CloudSandboxCredentialRefresher', () => {
 		);
 	}));
 
-	test('a waking answer to /reconnect is bounded, since that client is already connected', () => runWithFakedTimers<void>({ useFakeTimers: true, startTime: START_TIME }, async () => {
-		const result = await runRefresher(() => ({ kind: 'waking', waking: { retryAfterSeconds: 5 } }), 12 * 60 * 60_000);
+	test('waking answers to on-demand /reconnect requests are bounded', () => runWithFakedTimers<void>({ useFakeTimers: true, startTime: START_TIME }, async () => {
+		const result = await runRefresher(() => ({ kind: 'waking', waking: { retryAfterSeconds: 5 } }), MAX_CONSECUTIVE_CREDENTIAL_REFRESH_FAILURES);
 
 		assert.deepStrictEqual(
 			{ calls: result.calls, stops: result.stops },
@@ -193,9 +216,8 @@ suite('CloudSandboxCredentialRefresher', () => {
 		);
 	}));
 
-	test('tokens that arrive already due are bounded, not re-minted on every tick', () => runWithFakedTimers<void>({ useFakeTimers: true, startTime: START_TIME }, async () => {
-		// Expiring inside the lead time, so each refreshed token is immediately due again.
-		const result = await runRefresher(() => ({ kind: 'token', token: tokenExpiringIn(-5, Date.now()) }), 12 * 60 * 60_000);
+	test('on-demand acquisitions of already-expired tokens are bounded', () => runWithFakedTimers<void>({ useFakeTimers: true, startTime: START_TIME }, async () => {
+		const result = await runRefresher(() => ({ kind: 'token', token: tokenExpiringIn(-5, Date.now()) }), MAX_CONSECUTIVE_CREDENTIAL_REFRESH_FAILURES);
 
 		assert.deepStrictEqual(
 			{ calls: result.calls, stops: result.stops },
@@ -206,8 +228,8 @@ suite('CloudSandboxCredentialRefresher', () => {
 		);
 	}));
 
-	test('a token with no usable expiry falls back to a fixed interval, still bounded', () => runWithFakedTimers<void>({ useFakeTimers: true, startTime: START_TIME }, async () => {
-		const result = await runRefresher(() => ({ kind: 'token', token: tokenExpiringIn(40, Date.now(), { expires_at: 'not-a-date' }) }), 24 * 60 * 60_000);
+	test('on-demand acquisitions with no usable expiry are bounded', () => runWithFakedTimers<void>({ useFakeTimers: true, startTime: START_TIME }, async () => {
+		const result = await runRefresher(() => ({ kind: 'token', token: tokenExpiringIn(40, Date.now(), { expires_at: 'not-a-date' }) }), MAX_CONSECUTIVE_CREDENTIAL_REFRESH_FAILURES);
 
 		assert.deepStrictEqual(
 			{ calls: result.calls, stops: result.stops },
@@ -218,7 +240,7 @@ suite('CloudSandboxCredentialRefresher', () => {
 		);
 	}));
 
-	test('disposal stops the loop without reporting it as a failure', () => runWithFakedTimers<void>({ useFakeTimers: true, startTime: START_TIME }, async () => {
+	test('request cancellation is not reported as a credential failure', () => runWithFakedTimers<void>({ useFakeTimers: true, startTime: START_TIME }, async () => {
 		// Disposing cancels the in-flight request, so the refresh rejects with a cancellation. That
 		// is an ordinary teardown, and must not be counted or reported as the loop giving up.
 		const telemetry = new RecordingTelemetry();
@@ -226,7 +248,7 @@ suite('CloudSandboxCredentialRefresher', () => {
 		const creds: ICloudSandboxCreds = { token: tokenExpiringIn(40, START_TIME) };
 		const disposables = new DisposableStore();
 
-		disposables.add(new CloudSandboxCredentialRefresher(
+		const refresher = disposables.add(new CloudSandboxCredentialRefresher(
 			'cloudsandbox:env_1',
 			{ environmentId: 'env_1', sessionId: 'session-1' },
 			'client-1',
@@ -237,7 +259,7 @@ suite('CloudSandboxCredentialRefresher', () => {
 			new NullLogService(),
 		));
 
-		await new Promise<void>(resolve => setTimeout(resolve, 40 * 60_000));
+		await assert.rejects(refresher.refreshConnectionCredentials(), /could not be refreshed/);
 		const callsBeforeDispose = credentials.callCount;
 		disposables.dispose();
 		await new Promise<void>(resolve => setTimeout(resolve, 12 * 60 * 60_000));
@@ -248,7 +270,7 @@ suite('CloudSandboxCredentialRefresher', () => {
 		);
 	}));
 
-	test('a late periodic refresh cannot replace a newer host-recovery credential', () => runWithFakedTimers<void>({ useFakeTimers: true, startTime: START_TIME }, async () => {
+	test('a late on-demand refresh cannot replace a newer host-recovery credential', () => runWithFakedTimers<void>({ useFakeTimers: true, startTime: START_TIME }, async () => {
 		const response = new DeferredPromise<CloudSandboxConnectResult>();
 		const started = new DeferredPromise<void>();
 		const creds: ICloudSandboxCreds = { token: tokenExpiringIn(2, START_TIME) };
@@ -262,11 +284,13 @@ suite('CloudSandboxCredentialRefresher', () => {
 		}();
 		const owner = new DisposableStore();
 		try {
-			owner.add(new CloudSandboxCredentialRefresher('cloudsandbox:env_1', { environmentId: 'env_1' }, 'client-1', creds, new CloudSandboxCredentialRefreshState(), api, telemetry, new NullLogService()));
+			const refresher = owner.add(new CloudSandboxCredentialRefresher('cloudsandbox:env_1', { environmentId: 'env_1' }, 'client-1', creds, new CloudSandboxCredentialRefreshState(), api, telemetry, new NullLogService()));
+			const refreshing = refresher.refreshConnectionCredentials();
 			await started.p;
 			creds.token = replacement;
 			response.complete({ kind: 'token', token: tokenExpiringIn(40, START_TIME, { access_token: 'stale-token' }) });
-			await timeout(1);
+			await refreshing;
+			await timeout(12 * 60 * 60_000);
 			assert.strictEqual(creds.token, replacement);
 			assert.deepStrictEqual(telemetry.stops, []);
 		} finally {
@@ -277,7 +301,7 @@ suite('CloudSandboxCredentialRefresher', () => {
 	test('a refreshed token without a sealed GitHub token keeps the previous one', () => runWithFakedTimers<void>({ useFakeTimers: true, startTime: START_TIME }, async () => {
 		const result = await runRefresher(
 			() => ({ kind: 'token', token: tokenExpiringIn(40, Date.now(), { access_token: 'fresh' }) }),
-			40 * 60_000,
+			1,
 			tokenExpiringIn(40, START_TIME, { encrypted_github_token: 'copilot-sealed.v1.k.abc' }),
 		);
 
@@ -292,7 +316,7 @@ suite('CloudSandboxCredentialRefresher', () => {
 			const refreshed = tokenExpiringIn(80, START_TIME, { access_token: 'fresh', host_encryption_key: { ...HOST_KEY } });
 			const result = await runRefresher(
 				() => ({ kind: 'token', token: refreshed }),
-				40 * 60_000,
+				1,
 				tokenExpiringIn(40, START_TIME, { encrypted_github_token: SEALED_TOKEN, host_encryption_key: previousKey }),
 			);
 
@@ -308,7 +332,7 @@ suite('CloudSandboxCredentialRefresher', () => {
 		const refreshed = tokenExpiringIn(80, START_TIME, { access_token: 'fresh' });
 		const result = await runRefresher(
 			() => ({ kind: 'token', token: refreshed }),
-			40 * 60_000,
+			1,
 			tokenExpiringIn(40, START_TIME, { encrypted_github_token: SEALED_TOKEN, host_encryption_key: HOST_KEY }),
 		);
 
@@ -331,7 +355,7 @@ suite('CloudSandboxCredentialRefresher', () => {
 			const initialToken = tokenExpiringIn(40, START_TIME, { encrypted_github_token: SEALED_TOKEN, host_encryption_key: HOST_KEY });
 			const result = await runRefresher(
 				() => ({ kind: 'token', token: tokenExpiringIn(80, START_TIME, { access_token: 'fresh', ...credentials }) }),
-				39 * 60_000 + 29_999,
+				1,
 				initialToken,
 			);
 
@@ -351,7 +375,7 @@ suite('CloudSandboxCredentialRefresher', () => {
 				callTimes.push(Date.now() - START_TIME);
 				return { kind: 'token', token: callTimes.length === 1 ? { ...refreshed, encrypted_github_token: undefined } : refreshed };
 			},
-			40 * 60_000,
+			2,
 			tokenExpiringIn(40, START_TIME, { encrypted_github_token: SEALED_TOKEN, host_encryption_key: HOST_KEY }),
 		);
 
@@ -359,7 +383,7 @@ suite('CloudSandboxCredentialRefresher', () => {
 			calls: 2,
 			stops: [],
 			creds: { token: refreshed },
-			callTimes: [39 * 60_000, 39 * 60_000 + 30_000],
+			callTimes: [0, 30_000],
 		});
 	}));
 
@@ -371,7 +395,7 @@ suite('CloudSandboxCredentialRefresher', () => {
 				callTimes.push(Date.now() - START_TIME);
 				return { kind: 'token', token: tokenExpiringIn(40, Date.now(), { access_token: 'fresh', host_encryption_key: REPLACEMENT_HOST_KEY }) };
 			},
-			12 * 60 * 60_000,
+			MAX_CONSECUTIVE_CREDENTIAL_REFRESH_FAILURES,
 			initialToken,
 		);
 
@@ -379,7 +403,7 @@ suite('CloudSandboxCredentialRefresher', () => {
 			calls: MAX_CONSECUTIVE_CREDENTIAL_REFRESH_FAILURES,
 			stops: [{ reason: 'unusableToken', consecutiveFailures: MAX_CONSECUTIVE_CREDENTIAL_REFRESH_FAILURES, statusCode: undefined }],
 			creds: { token: initialToken },
-			callTimes: Array.from({ length: MAX_CONSECUTIVE_CREDENTIAL_REFRESH_FAILURES }, (_, index) => 39 * 60_000 + index * 30_000),
+			callTimes: Array.from({ length: MAX_CONSECUTIVE_CREDENTIAL_REFRESH_FAILURES }, (_, index) => index * 30_000),
 		});
 	}));
 });
@@ -418,14 +442,15 @@ suite('CloudSandboxCredentialRefresher recovery', () => {
 		assert.deepStrictEqual({ calls: credentials.callCount, token: creds.token }, { calls: 0, token: initialToken });
 	}));
 
-	test('does not wait for a background refresh while the cached token is still valid', () => runWithFakedTimers({ useFakeTimers: true, startTime: START_TIME }, async () => {
+	test('does not wait for an authentication refresh while the cached admission token is still valid', () => runWithFakedTimers({ useFakeTimers: true, startTime: START_TIME }, async () => {
 		const response = new DeferredPromise<CloudSandboxConnectResult>();
 		const initialToken = tokenExpiringIn(1, START_TIME);
 		const { refresher, credentials, creds } = createRefresher(initialToken, () => response.p);
-		await timeout(30_000);
+		const refreshing = assert.rejects(refresher.refreshAuthenticationCredentials(), isCancellationError);
 		await refresher.ensureUnexpiredCredentials();
 		const tokenWhileRefreshing = creds.token;
 		refresher.dispose();
+		await refreshing;
 		await response.complete({ kind: 'token', token: tokenExpiringIn(40, Date.now()) });
 
 		assert.deepStrictEqual({ calls: credentials.callCount, tokenWhileRefreshing }, { calls: 1, tokenWhileRefreshing: initialToken });
@@ -448,10 +473,9 @@ suite('CloudSandboxCredentialRefresher recovery', () => {
 		});
 	}));
 
-	test('connection repair shares a background refresh even while cached credentials are valid', () => runWithFakedTimers({ useFakeTimers: true, startTime: START_TIME }, async () => {
+	test('connection repairs share an on-demand request even while cached credentials are valid', () => runWithFakedTimers({ useFakeTimers: true, startTime: START_TIME }, async () => {
 		const response = new DeferredPromise<CloudSandboxConnectResult>();
 		const { refresher, credentials, creds } = createRefresher(tokenExpiringIn(1, START_TIME), () => response.p);
-		await timeout(30_000);
 		const first = refresher.refreshConnectionCredentials();
 		const second = refresher.refreshConnectionCredentials();
 		await response.complete({ kind: 'token', token: tokenExpiringIn(40, Date.now(), { access_token: 'shared' }) });
@@ -461,7 +485,7 @@ suite('CloudSandboxCredentialRefresher recovery', () => {
 		assert.deepStrictEqual({ calls: credentials.callCount, token: creds.token.access_token }, { calls: 1, token: 'shared' });
 	}));
 
-	test('connection repair waits for a retry-after and shares the scheduled refresh', async () => {
+	test('connection repair waits for retry-after without an unattended retry', async () => {
 		const clock = sinon.useFakeTimers({ now: START_TIME, toFake: ['Date', 'setTimeout', 'clearTimeout'] });
 		try {
 			const response = new DeferredPromise<CloudSandboxConnectResult>();
@@ -594,14 +618,11 @@ suite('CloudSandboxCredentialRefresher recovery', () => {
 		}));
 	}
 
-	for (const backgroundRefresh of [false, true]) {
-		test(`shares ${backgroundRefresh ? 'a background' : 'a recovery'} refresh across concurrent reconnect waits`, () => runWithFakedTimers({ useFakeTimers: true, startTime: START_TIME }, async () => {
+	for (const repairFirst of [false, true]) {
+		test(`shares ${repairFirst ? 'a connection repair' : 'an expired-ticket acquisition'} across concurrent reconnect waits`, () => runWithFakedTimers({ useFakeTimers: true, startTime: START_TIME }, async () => {
 			const response = new DeferredPromise<CloudSandboxConnectResult>();
-			const { refresher, credentials, creds } = createRefresher(tokenExpiringIn(backgroundRefresh ? 1 : 0, START_TIME), () => response.p);
-			if (backgroundRefresh) {
-				await timeout(60_000);
-			}
-			const first = refresher.ensureUnexpiredCredentials();
+			const { refresher, credentials, creds } = createRefresher(tokenExpiringIn(0, START_TIME), () => response.p);
+			const first = repairFirst ? refresher.refreshConnectionCredentials() : refresher.ensureUnexpiredCredentials();
 			const second = refresher.ensureUnexpiredCredentials();
 			const callsWhilePending = credentials.callCount;
 			const refreshed = tokenExpiringIn(40, Date.now(), { access_token: 'fresh' });
@@ -620,17 +641,14 @@ suite('CloudSandboxCredentialRefresher recovery', () => {
 			tokenExpiringIn(0, START_TIME),
 			() => { throw new CloudSandboxRequestError(503, 'unavailable'); },
 		);
-		await assert.rejects(refresher.ensureUnexpiredCredentials(), /usable future expiry/);
-		await timeout(29_999);
-		const stopped = assert.rejects(refresher.ensureUnexpiredCredentials(), /stopped|usable future expiry/);
-		const callsBeforeRetry = credentials.callCount;
-		await timeout(30_000 * MAX_CONSECUTIVE_CREDENTIAL_REFRESH_FAILURES);
-		await stopped;
+		for (let attempt = 0; attempt < MAX_CONSECUTIVE_CREDENTIAL_REFRESH_FAILURES; attempt++) {
+			await assert.rejects(refresher.ensureUnexpiredCredentials(), /usable future expiry/);
+		}
+		await timeout(12 * 60 * 60_000);
 		await assert.rejects(refresher.ensureUnexpiredCredentials(), /stopped/);
 		refresher.dispose();
 
-		assert.deepStrictEqual({ callsBeforeRetry, calls: credentials.callCount, stops: telemetry.stops }, {
-			callsBeforeRetry: 1,
+		assert.deepStrictEqual({ calls: credentials.callCount, stops: telemetry.stops }, {
 			calls: MAX_CONSECUTIVE_CREDENTIAL_REFRESH_FAILURES,
 			stops: [{ reason: 'consecutiveFailures', consecutiveFailures: MAX_CONSECUTIVE_CREDENTIAL_REFRESH_FAILURES, statusCode: undefined }],
 		});
@@ -684,41 +702,4 @@ suite('CloudSandboxCredentialRefresher recovery', () => {
 			calls: 1, cancelled: true, token: initialToken, stops: [],
 		});
 	}));
-});
-
-suite('credentialRefreshDelayMs', () => {
-
-	ensureNoDisposablesAreLeakedInTestSuite();
-
-	const inMinutes = (minutes: number) => new Date(START_TIME + minutes * 60_000).toISOString();
-
-	test('schedules a refresh one minute before expiry, clamped to the supported range', () => {
-		assert.deepStrictEqual(
-			{
-				typicalToken: credentialRefreshDelayMs(inMinutes(40), START_TIME),
-				beyondCeiling: credentialRefreshDelayMs(inMinutes(24 * 60), START_TIME),
-				dueImminently: credentialRefreshDelayMs(inMinutes(1), START_TIME),
-				alreadyExpired: credentialRefreshDelayMs(inMinutes(-30), START_TIME),
-			},
-			{
-				typicalToken: 39 * 60_000,
-				beyondCeiling: 55 * 60_000,
-				// Never faster than the floor: a token that always looks due would otherwise re-mint
-				// on every tick, and each mint asks Mission Control to resume a sandbox.
-				dueImminently: 30_000,
-				alreadyExpired: 30_000,
-			},
-		);
-	});
-
-	test('reports no schedule when expiry is missing or unparseable', () => {
-		assert.deepStrictEqual(
-			[
-				credentialRefreshDelayMs(undefined, START_TIME),
-				credentialRefreshDelayMs('', START_TIME),
-				credentialRefreshDelayMs('not-a-date', START_TIME),
-			],
-			[undefined, undefined, undefined],
-		);
-	});
 });
