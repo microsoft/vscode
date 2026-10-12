@@ -19,7 +19,7 @@ import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } fro
 import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../telemetry/common/telemetry.js';
 import { TelemetryLogAppender } from '../../telemetry/common/telemetryLogAppender.js';
 import { TelemetryService } from '../../telemetry/common/telemetryService.js';
-import { getPiiPathsFromEnvironment, isLoggingOnly, NullTelemetryService, supportsTelemetry, type ITelemetryAppender } from '../../telemetry/common/telemetryUtils.js';
+import { getPiiPathsFromEnvironment, getUserContentPathsFromEnvironment, isLoggingOnly, NullTelemetryService, supportsTelemetry, type ITelemetryAppender } from '../../telemetry/common/telemetryUtils.js';
 import { AgentHostTelemetryLevelConfigKey, agentHostConfigValueToTelemetryLevel } from '../common/agentHostSchema.js';
 import { AgentHostDevDeviceIdEnvKey, AgentHostMachineIdEnvKey, AgentHostSqmIdEnvKey, AgentHostTelemetryLevelEnvKey } from '../common/agentHostTelemetryEnv.js';
 import { AgentHostRestrictedTelemetrySender, IAgentHostRestrictedTelemetry, IAgentHostInternalTelemetryContext, IAgentHostRestrictedTelemetryContext, TelemetryMeasurements, TelemetryProps } from './agentHostRestrictedTelemetry.js';
@@ -298,6 +298,7 @@ export async function createAgentHostTelemetryService(options: IAgentHostTelemet
 		sendErrorTelemetry: true,
 		commonProperties,
 		piiPaths: getPiiPathsFromEnvironment(environmentService),
+		userContentPaths: getUserContentPathsFromEnvironment(environmentService),
 		telemetryLevel: initialTelemetryLevel,
 	}, productService);
 
