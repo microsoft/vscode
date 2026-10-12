@@ -58,7 +58,7 @@ declare module 'vscode' {
 	}
 
 	export interface LanguageModelChatDefaultsUpdateResult {
-		/** A conflict does not write. A failed operation may have partially persisted. */
+		/** A stale revision conflicts before writing. A conflict detected during readback or a failed operation may have partially persisted. */
 		readonly outcome: LanguageModelChatDefaultsOutcome;
 		/** Observed state, including after a conflict or partial failure. Never automatically replay a patch. */
 		readonly snapshot: LanguageModelChatDefaultsSnapshot;

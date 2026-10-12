@@ -78,7 +78,12 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 		this._store.add(this._modelDefaultsService.onDidChange(e => {
 			const owner = this._defaultsSubscriptions.get(e.modelId);
 			if (owner) {
-				this._proxy.$onChatModelDefaultsChange(owner, e.modelId, e.targetId);
+				try {
+					this._checkDefaultsOwner(owner, e.modelId);
+					this._proxy.$onChatModelDefaultsChange(owner, e.modelId, e.targetId);
+				} catch {
+					this._defaultsSubscriptions.delete(e.modelId);
+				}
 			}
 		}));
 
