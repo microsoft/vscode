@@ -23,6 +23,7 @@ import { Menus } from '../../browser/menus.js';
 import '../../browser/layoutActions.js';
 
 const TOGGLE_PANEL_ACTION_ID = 'workbench.action.togglePanel';
+const LEGACY_TOGGLE_PANEL_ALIGNMENT_ACTION_ID = 'workbench.action.agentSessions.togglePanelAlignment';
 
 suite('Sessions - Layout Actions', () => {
 
@@ -124,6 +125,25 @@ suite('Sessions - Layout Actions', () => {
 				},
 			],
 			terminalActionPresent: false,
+		});
+	});
+
+	test('bottom panel does not expose the legacy alignment toggle in the overflow menu', () => {
+		const alignmentItems = MenuRegistry.getMenuItems(MenuId.ViewTitle)
+			.filter(isIMenuItem)
+			.filter(item => item.command.id === LEGACY_TOGGLE_PANEL_ALIGNMENT_ACTION_ID);
+		const panelTitleAlignmentItems = MenuRegistry.getMenuItems(Menus.PanelTitle)
+			.filter(isIMenuItem)
+			.filter(item => item.command.id === LEGACY_TOGGLE_PANEL_ALIGNMENT_ACTION_ID);
+
+		assert.deepStrictEqual({
+			commandRegistered: Boolean(CommandsRegistry.getCommand(LEGACY_TOGGLE_PANEL_ALIGNMENT_ACTION_ID)),
+			viewTitleAlignmentItemCount: alignmentItems.length,
+			panelTitleAlignmentItemCount: panelTitleAlignmentItems.length,
+		}, {
+			commandRegistered: false,
+			viewTitleAlignmentItemCount: 0,
+			panelTitleAlignmentItemCount: 0,
 		});
 	});
 

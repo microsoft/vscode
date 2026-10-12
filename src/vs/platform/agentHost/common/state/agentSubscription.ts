@@ -1315,6 +1315,10 @@ export class AgentSubscriptionManager extends Disposable {
 	 * {@link BaseAgentSubscription.beginSnapshotRefresh}.
 	 */
 	beginSnapshotRefresh(resource: URI): void {
+		if (isAhpRootChannel(resource.toString())) {
+			this._rootState.beginSnapshotRefresh();
+			return;
+		}
 		const entry = this._subscriptions.get(resource);
 		if (entry) {
 			entry.snapshotVersion++;
@@ -1324,6 +1328,10 @@ export class AgentSubscriptionManager extends Disposable {
 
 	/** Abandon a refresh started by {@link beginSnapshotRefresh}. */
 	cancelSnapshotRefresh(resource: URI): void {
+		if (isAhpRootChannel(resource.toString())) {
+			this._rootState.cancelSnapshotRefresh();
+			return;
+		}
 		this._subscriptions.get(resource)?.sub.cancelSnapshotRefresh();
 	}
 

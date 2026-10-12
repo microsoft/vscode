@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../base/common/uri.js';
+import { AgentSession } from '../../../../../platform/agentHost/common/agent.js';
+import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { isLocation } from '../../../../../editor/common/languages.js';
 import { escapeModelIdForTelemetry, ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IChatAgentData } from '../participants/chatAgents.js';
@@ -13,9 +15,9 @@ import { ChatAgentVoteDirection, ChatCopyKind, IChatSendRequestOptions, IChatUse
 import { isImageVariableEntry } from '../attachments/chatVariableEntries.js';
 import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../constants.js';
 import { COPILOT_VENDOR_ID, ILanguageModelsService } from '../languageModels.js';
-import { chatSessionResourceToId, getChatSessionType } from '../model/chatUri.js';
+import { chatSessionResourceToId, getChatSessionType, isUntitledChatSession } from '../model/chatUri.js';
 import { getAgentHostProviderForTelemetry, IChatSessionsService, isAgentHostSessionResource } from '../chatSessionsService.js';
-import { isRemoteAgentHostSessionType, parseRemoteAgentHostHarness } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
+import { isCopilotAgentHostProvider, isRemoteAgentHostSessionType, parseRemoteAgentHostHarness } from '../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { isByokModel } from '../chatSelectedModel.js';
 
@@ -378,7 +380,7 @@ export class ChatRequestTelemetry {
 			: undefined;
 		this.selectedModelSource = !metadata ? 'unknown'
 			: isByokModel(metadata) ? 'byok'
-				: metadata.vendor === COPILOT_VENDOR_ID || modelProvider === 'copilotcli' ? 'copilot'
+				: metadata.vendor === COPILOT_VENDOR_ID || isCopilotAgentHostProvider(modelProvider) ? 'copilot'
 					: metadata.targetChatSessionType && (!modelProvider || modelProvider === 'unknown') ? 'unknown'
 						: 'other';
 	}
@@ -481,6 +483,28 @@ interface IChatSessionTelemetryContext {
 	readonly chatSessionId: string;
 	readonly sessionType: string;
 	readonly harness: string | undefined;
+}
+
+/** Preserves workbench chat IDs while resolving the owning Agent Host session, without its connection authority. */
+export function getChatSessionTelemetryIds(sessionResource: URI, connectionsService: Pick<IAgentHostConnectionsService, 'resolveSessionResourceIdentity'>): { chatSessionId: string; agentSessionId?: string } {
+	const chatSessionId = getChatSessionIdForTelemetry(sessionResource);
+	if (!isAgentHostSessionResource(sessionResource)) {
+		return { chatSessionId };
+	}
+	const identity = connectionsService.resolveSessionResourceIdentity(sessionResource);
+	if (!identity) {
+		return { chatSessionId };
+	}
+	// Advertised backend resources are opaque; only a legacy fallback can be a provisional draft.
+	const isProvisionalFallback = !identity.backendSessionIsAdvertised
+		&& (isUntitledChatSession(sessionResource) || isUntitledChatSession(identity.backendSession));
+	if (isProvisionalFallback) {
+		return { chatSessionId };
+	}
+	return {
+		chatSessionId,
+		agentSessionId: AgentSession.id(identity.backendSession),
+	};
 }
 
 /** Returns telemetry-safe session context, excluding remote Agent Host connection authorities. */

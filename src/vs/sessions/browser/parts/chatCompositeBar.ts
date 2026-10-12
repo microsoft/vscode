@@ -179,7 +179,9 @@ export class ChatCompositeBar extends Disposable {
 		}));
 		this._tabsRow.appendChild(this._tabsScrollbar.getDomNode());
 		this._connectedTabOverflowEdge = $('.tab-connected-overflow-edge', { 'aria-hidden': true });
-		this._connectedTabOverflowEdge.appendChild($('.tab-connected-overflow-right'));
+		const connectedTabOverflowRight = $('.tab-connected-overflow-right');
+		connectedTabOverflowRight.appendChild($('.tab-connected-overflow-right-edge'));
+		this._connectedTabOverflowEdge.appendChild(connectedTabOverflowRight);
 		this._tabsScrollbar.getDomNode().appendChild(this._connectedTabOverflowEdge);
 
 		this._sessionActionsContainer = $('.session-chat-tabs-actions');

@@ -90,6 +90,8 @@ export function getMcpCompatibilityDetail(reason: AgentHostMcpSupportReason): st
 	switch (reason) {
 		case AgentHostMcpSupportReason.UnsupportedSourceLocation:
 			return localize('mcpCompatibilityUnsupportedSourceLocation', "The current configuration location for this server is not supported by the Copilot harness.\nTo migrate this server, move its configuration to the workspace root .mcp.json file.");
+		case AgentHostMcpSupportReason.CopilotHomeNotForwarded:
+			return localize('mcpCompatibilityCopilotHomeNotForwarded', "Servers from the GitHub Copilot CLI configuration are only used by Copilot CLI sessions on the machine that owns the configuration, so their settings and credentials are not shared with other agents or remote hosts.\nTo use this server in this session, add it to an MCP configuration for this agent or host.");
 		case AgentHostMcpSupportReason.RequiresUserInteraction:
 			return localize('mcpCompatibilityRequiresUserInteraction', "Input and command variables are not supported by the Copilot harness.\nTo migrate this server, replace them with concrete values or environment variables defined directly in the server configuration.");
 		case AgentHostMcpSupportReason.UnresolvedConfiguration:

@@ -118,6 +118,7 @@ suite('Agent Edit Attribution Service', () => {
 				source: {
 					modelId: 'model',
 					conversationId: 'session-1',
+					agentSessionId: 'session-1',
 					requestId: 'turn-1',
 					harness: 'copilotcli',
 				},
@@ -206,8 +207,8 @@ suite('Agent Edit Attribution Service', () => {
 			first?.status !== 'skipped' ? first?.source : undefined,
 			second?.status !== 'skipped' ? second?.source : undefined,
 		], [
-			{ modelId: 'model', conversationId: 'session-1', requestId: 'turn-1', harness: 'copilotcli' },
-			{ modelId: 'model', conversationId: 'session-1', requestId: 'turn-2', harness: 'copilotcli' },
+			{ modelId: 'model', conversationId: 'session-1', agentSessionId: 'session-1', requestId: 'turn-1', harness: 'copilotcli' },
+			{ modelId: 'model', conversationId: 'session-1', agentSessionId: 'session-1', requestId: 'turn-2', harness: 'copilotcli' },
 		]);
 	});
 
@@ -281,6 +282,7 @@ suite('Agent Edit Attribution Service', () => {
 			const project = (data: Record<string, string | number | undefined>) => ({
 				sourceKey: data.sourceKey,
 				conversationId: data.conversationId,
+				agentSessionId: data.agentSessionId,
 				chatSessionId: data.chatSessionId,
 				hasChatSessionId: Object.hasOwn(data, 'chatSessionId'),
 				requestId: data.requestId,
@@ -291,6 +293,7 @@ suite('Agent Edit Attribution Service', () => {
 			const expected = chats.map((chat, index) => ({
 				sourceKey: 'source:Chat.applyEdits-$modelId:model-$harness:copilotcli-$origin:agentHost',
 				conversationId: AgentSession.id(sessionUris[index]),
+				agentSessionId: flushMode === 'legacyNoChat' ? `session-${index + 1}` : AgentSession.id(sessionUri),
 				chatSessionId: chat === undefined ? undefined : getTelemetryChatSessionId(chat),
 				hasChatSessionId: chat !== undefined,
 				requestId: `turn-${index}`,
@@ -298,9 +301,7 @@ suite('Agent Edit Attribution Service', () => {
 				deltaModifiedCount: index + 2,
 				totalModifiedCount: 9,
 			}));
-			const expectedDetails = flushMode === 'legacyNoChat'
-				? [{ ...expected[0], modifiedCount: 9, deltaModifiedCount: 9 }]
-				: expected;
+			const expectedDetails = expected;
 			assert.deepStrictEqual({
 				distinctChats: expected[0].chatSessionId !== expected[1].chatSessionId,
 				details: details.toSorted((a, b) => Number(a.modifiedCount) - Number(b.modifiedCount)).map(project),
@@ -313,6 +314,7 @@ suite('Agent Edit Attribution Service', () => {
 				markers: expected.map(data => ({
 					modelId: 'model',
 					conversationId: data.conversationId,
+					agentSessionId: data.agentSessionId,
 					...(data.hasChatSessionId ? { chatSessionId: data.chatSessionId } : {}),
 					requestId: data.requestId,
 					harness: 'copilotcli',
@@ -485,6 +487,123 @@ suite('Agent Edit Attribution Service', () => {
 			externalModifiedCount: 1,
 			totalModifiedCharacters: 2,
 		}]);
+	});
+
+	test('keeps Auto tiers in separate attribution groups for both telemetry destinations', async () => {
+		const sessionUri = 'copilotcli:/session-1';
+		const fileService = disposables.add(new FileService(new NullLogService()));
+		disposables.add(fileService.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
+		const resource = URI.file('/workspace/file.ts');
+		await fileService.writeFile(resource, VSBuffer.fromString('abc'));
+
+		const local: Record<string, string | number | undefined>[] = [];
+		const github: Record<string, string | undefined>[] = [];
+		const telemetryService: Partial<IAgentHostTelemetryService> = {
+			telemetryLevel: TelemetryLevel.USAGE,
+			publicLog2(eventName, data) {
+				if (eventName === 'editTelemetry.editSources.details' && data) {
+					local.push(data as Record<string, string | number | undefined>);
+				}
+			},
+			sendGHTelemetryEvent(eventName, properties) {
+				if (eventName === 'vscode.editTelemetry.editSources.details' && properties) {
+					github.push(properties as Record<string, string | undefined>);
+				}
+			},
+		};
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IFileService, fileService);
+		instantiationService.stub(IDiffComputeService, {
+			computeDiffCounts: async (original, modified, timeoutMs) => computeDiffCounts(original, modified, timeoutMs ?? 5_000),
+		});
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(ITelemetryService, telemetryService);
+		const service = disposables.add(instantiationService.createInstance(AgentEditAttributionService, async () => undefined, undefined));
+
+		const balance = await service.recordEdit({
+			sessionUri, turnId: 'turn-1', toolCallId: 'tool-1', filePath: resource.fsPath,
+			beforeText: 'a', afterText: 'ab', changes: [{ startOffset: 1, endOffsetExclusive: 1, newText: 'b' }],
+			modelId: 'gpt-5', autoTier: 'balance', toolName: 'edit',
+		});
+		const intelligence = await service.recordEdit({
+			sessionUri, turnId: 'turn-2', toolCallId: 'tool-2', filePath: resource.fsPath,
+			beforeText: 'ab', afterText: 'abc', changes: [{ startOffset: 2, endOffsetExclusive: 2, newText: 'c' }],
+			modelId: 'gpt-5', autoTier: 'intelligence', toolName: 'edit',
+		});
+		await service.flushSession(sessionUri);
+
+		const rows = (events: Record<string, string | number | undefined>[]) => events.map(event => ({
+			sourceKey: event.sourceKey,
+			sourceKeyCleaned: event.sourceKeyCleaned,
+			modelId: event.modelId,
+			autoTier: event.autoTier,
+			requestId: event.requestId,
+		})).sort((a, b) => String(a.requestId).localeCompare(String(b.requestId)));
+		const expectedRows = [{
+			sourceKey: 'source:Chat.applyEdits-$modelId:gpt-5-$autoTier:balance-$harness:copilotcli-$origin:agentHost',
+			sourceKeyCleaned: 'source:Chat.applyEdits-$harness:copilotcli-$origin:agentHost',
+			modelId: 'gpt-5',
+			autoTier: 'balance',
+			requestId: 'turn-1',
+		}, {
+			sourceKey: 'source:Chat.applyEdits-$modelId:gpt-5-$autoTier:intelligence-$harness:copilotcli-$origin:agentHost',
+			sourceKeyCleaned: 'source:Chat.applyEdits-$harness:copilotcli-$origin:agentHost',
+			modelId: 'gpt-5',
+			autoTier: 'intelligence',
+			requestId: 'turn-2',
+		}];
+		assert.deepStrictEqual({
+			markerTiers: [balance, intelligence].map(marker => marker?.status !== 'skipped' ? marker?.source?.autoTier : undefined),
+			local: rows(local),
+			github: rows(github),
+		}, {
+			markerTiers: ['balance', 'intelligence'],
+			local: expectedRows,
+			github: expectedRows,
+		});
+	});
+
+	test('caps reported sources by group before subdividing them by Auto tier', async () => {
+		const sessionUri = 'copilotcli:/session-1';
+		const fileService = disposables.add(new FileService(new NullLogService()));
+		disposables.add(fileService.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
+		const resource = URI.file('/workspace/file.ts');
+		const tiers = ['efficiency', 'balance', 'intelligence', 'fast'] as const;
+		const models = Array.from({ length: 10 }, (_, index) => `model-${index}`);
+		await fileService.writeFile(resource, VSBuffer.fromString('x'.repeat(models.length * tiers.length)));
+
+		const rows: string[] = [];
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IFileService, fileService);
+		instantiationService.stub(IDiffComputeService, {
+			computeDiffCounts: async (original, modified, timeoutMs) => computeDiffCounts(original, modified, timeoutMs ?? 5_000),
+		});
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(ITelemetryService, {
+			telemetryLevel: TelemetryLevel.USAGE,
+			publicLog2(eventName, data) {
+				if (eventName === 'editTelemetry.editSources.details') {
+					rows.push(String((data as Record<string, unknown>).sourceKey));
+				}
+			},
+		});
+		const service = disposables.add(instantiationService.createInstance(AgentEditAttributionService, async () => undefined, undefined));
+
+		let text = '';
+		for (const modelId of models) {
+			for (const autoTier of tiers) {
+				await service.recordEdit({
+					sessionUri, turnId: 'turn-1', toolCallId: `${modelId}-${autoTier}`, filePath: resource.fsPath,
+					beforeText: text, afterText: text + 'x', changes: [{ startOffset: text.length, endOffsetExclusive: text.length, newText: 'x' }],
+					modelId, autoTier, toolName: 'edit',
+				});
+				text += 'x';
+			}
+		}
+		await service.flushSession(sessionUri);
+
+		assert.deepStrictEqual(rows.toSorted(), models.flatMap(modelId => tiers.map(autoTier =>
+			`source:Chat.applyEdits-$modelId:${modelId}-$autoTier:${autoTier}-$harness:copilotcli-$origin:agentHost`)).toSorted());
 	});
 
 	test('tracks external drift before a later tool edit and mirrors standalone stats to GitHub', async () => {

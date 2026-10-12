@@ -5,9 +5,11 @@
 This document enumerates the user-facing scenarios, states, and transitions for the **desktop detail panel** layout of the Agents window (the third pane redesigned as one pane with a single tab bar spanning the editor content and a docked detail panel).
 
 - All non-phone Agents windows use the desktop layout described here. The workbench selection is fixed at startup and published as `IAgentWorkbenchLayoutService.agentWorkbenchLayout` (read by imperative code) and the `DesktopLayoutContext` context key (read only by declarative `when` clauses). Features must gate on those rather than inferring the selected workbench.
-- Phone viewports use the dedicated mobile layout instead.
+- Startup phone windows use the dedicated mobile layout instead. A startup desktop window entering a runtime phone viewport suspends experimental chat-owned layout while retaining layout state, then resumes the focused chat on return to desktop. Terminal behavior is unchanged.
 - The main Editor supports exactly one editor group. Editor split/grid commands, keybindings, menus, open-to-side requests, and split drop targets are disabled; programmatic group creation and multi-group layout requests are rejected. This restriction does not apply to the separate chat grid.
 - Companion specs: [Editor presentation](LAYOUT.md#editor-presentation) and [LAYOUT_CONTROLLER.md](LAYOUT_CONTROLLER.md).
+
+`sessions.experimental.layoutScope` is experimental and window-scoped, with modes `session-shared` (default), `chat-shared`, and `chat`. Mode changes require manual reload without a notification; boolean values are not supported. Both enabled modes keep ordinary editor working sets, active editors, and selected bottom-panel views per-chat. `chat` also owns visibility; `chat-shared` uses one Editor/Details current and last-open composition and bottom-panel visibility preference across all existing workspace chats in the window. Geometry remains shared, and terminals retain the existing behavior in every mode. Unless a scenario below explicitly describes an enabled mode, shared-profile rules describe disabled behavior. Persistence and lifecycle contracts live in [LAYOUT_CONTROLLER.md](LAYOUT_CONTROLLER.md).
 
 ---
 
@@ -32,11 +34,13 @@ Let **E** = editor content visible, **D** = detail panel visible. The pane suppo
 | State | E | D | Meaning |
 |-------|---|---|---------|
 | **Editor + Detail** | ✅ | ✅ | Normal working state: editor content on the left, detail on the right, tab bar across the top. |
-| **Detail only** | ❌ | ✅ | Editor content collapsed (Hide Editor); tab bar + detail shown; the chat reclaims the freed editor width. The detail **keeps its width** (it does not stretch to fill the pane). **Entering this state closes every non-docked editor tab** (keeping only the docked Changes/Files tabs); reopenable ones are captured and restored when the editor area is shown again, non-restorable ones (e.g. a dirty untitled Search editor) are dropped. |
+| **Detail only** | ❌ | ✅ | Editor content collapsed (Hide Editor); tab bar + detail shown; the chat reclaims the freed editor width. The detail **keeps its width** (it does not stretch to fill the pane). **Entering this state closes non-docked editor tabs** (keeping only the docked Changes/Files tabs); reopenable ones are captured and restored when the editor area is shown again, non-restorable ones (e.g. a dirty untitled Search editor) are dropped. Registered live editors such as canvases remain alive in the hidden editor group so presentation-only collapse cannot destroy their runtime state. |
 | **Editor only** | ✅ | ❌ | Detail toggled off; editor content fills the pane; tab bar across the top. |
 | **Side pane closed** | ❌ | ❌ | The whole third pane is closed (chat-only). Reached via **Toggle Side Panel** or when the last editor tab closes; never via the detail toggle. **Closing the whole side pane does NOT close editors** — only a *Detail-only* collapse (editor hidden while the detail stays open) closes them; when both parts hide the editors are left intact so they return when the side pane is reopened. |
 
-Only **Existing Sessions** share a persisted Editor/Details visibility profile. A New Session does not apply or capture that profile; on entry it hides Editor once only when the restored editor set contains no input other than the managed Changes and Empty Files inputs. Submit seeds the Existing profile. The active editor selects the detail content: every diff editor selects Changes and every file editor selects Files.
+Only **Existing Sessions** share a persisted Editor/Details visibility profile. A New Session does not apply or capture that profile; on entry it hides Editor once only when the restored editor set contains no input other than the managed Changes and Empty Files inputs. Submit seeds the Existing profile. The active editor selects the detail content: every diff editor selects Changes, while Empty Files and resources inside the active session workspace select Files.
+
+In `chat`, workspace-backed draft and created chats remember their own composition while using the same session lifecycle and interaction policies. Saved owner state wins; an unsaved created chat uses the applicable Existing Session visibility defaults, and an unsaved draft follows the existing draft entry rules. An unvisited peer has no copied ordinary editors; its initial bottom visibility comes from the workbench rather than being forced hidden. **Toggle Side Panel** reopens the focused chat's own last-open Editor/Details combination. In `chat-shared`, existing workspace chats instead use one shared current/last-open composition and bottom visibility; a first-visit peer has empty ordinary editors without hiding those shared panes. Draft and Quick Chat visibility remains separate. Whole-pane close retains editors; Details-only collapse retains its existing restorable-editor and close-veto behavior. Collapsed editors, Files dismissal, and pending detail/tab intents remain per-chat in both modes.
 
 **Size distribution when opening the side pane.** Opening the side pane from *closed* (e.g. clicking **Changes** while the chat is full-width) reveals the editor with `Sizing.Distribute`. The grid uses the revealed view's location to distribute its containing split. The Sessions part and side pane therefore receive equal space without either part computing a width. After that, side-pane sizes are **workbench-level, not per session**: the editor grid node width is owned by the workbench grid and persisted globally (`workbench.sessions.partSizes`), so once the user resizes the side pane it keeps that width — including across **session switches** (switching sessions does not change the side-pane width) and across reloads.
 
@@ -75,15 +79,17 @@ Existing→Existing navigation replaces the outgoing session-specific Changes in
 
 **Folder-less composer to workspace draft.** Opening **New Session** first exposes a folder-less composer and then seeds its concrete workspace draft. The first step removes the previous session's Changes tab while the shared Files placeholder can keep the editor group non-empty, so the second step explicitly ensures Changes when `wantsChangesTab` becomes true. When the selected session folder differs from the new-session default folder, the workspace-gated working-set restore can settle later and remove that early Changes tab while retaining Files; the settled restore therefore repeats the one-shot Changes ensure for the uncreated session. Relying only on the empty-group rule or only on the initial eligibility transition leaves Files as the sole tab until another reveal or New Session gesture.
 
-**New-session submit.** Submit preserves the current Editor/Details composition and seeds the Existing Sessions profile. The Files tab remains active until the submitted session reports its first file changes; then Changes becomes active without revealing Editor. This pending activation is scoped to the submitted session, so switching away cannot activate Changes in another session.
+**New-session submit.** In `session-shared` and `chat` modes, submit preserves the current Editor/Details composition and seeds the corresponding Existing state. In `chat-shared`, submit applies the shared Existing preference without replacing it with draft visibility. When Changes is already open, the Files tab remains active until the submitted session reports its first file changes; then Changes becomes active without revealing Editor. If Changes is absent, an explicitly opened file remains the sole tab. This pending activation is scoped to the submitted session, so switching away cannot activate Changes in another session.
 
 **Details-only invariant.** Whenever the side pane is **Detail only** (the aux-bar detail panel is visible without the editor area — e.g. the new-session view, or a created session whose editor was hidden), the side pane shrinks to the persisted Details width and the docked details panel *shows* the managed docked inputs, so Changes and Files are always present. Opening a file restores the preceding combined Editor + Details width without changing the Details width. Both inputs adopt `EditorInputCapabilities.CannotClose`, and every reconcile reads the settled, current part visibility and restores either input removed by lifecycle work even when the group is non-empty. When Editor is visible, the capability is removed and the strict "add only into an empty group" rule remains.
 
-**Closing managed tabs.** The user can close the managed Changes and Files tabs (they are non-preview, not sticky) while Editor is visible. Those closes are respected without any dismissal bookkeeping: the default tabs are opened **only into an empty editor group** on a view-open trigger (plus the one-shot submit activation above), so closing one tab while another (or a real file) remains leaves the group non-empty and it is not re-created. In Detail only, close commands and tab affordances consistently leave the backing inputs open, while internal lifecycle work can still force-close either input during working-set application, session switches, or stale-tab cleanup. Closing the last tab while Editor is visible closes the whole side pane; reopening it (empty group) restores the defaults. While a managed tab is closed for a workspace session with Editor visible, the `+` Add Tab menu offers a matching entry to reopen it — **Changes** (gated on `DesktopChangesTabMissingContext`) and **Files** (gated on `DesktopFilesTabMissingContext`); the re-added tab makes the group non-empty, so it survives.
+**Closing managed tabs.** The user can close the managed Changes and Files tabs (they are non-preview, not sticky) while Editor is visible. Those closes are respected without any dismissal bookkeeping: the default tabs are opened **only into an empty editor group** on a view-open trigger, so closing one tab while another (or a real file) remains leaves the group non-empty and it is not re-created. Submit can activate an existing Changes tab but never recreates a missing one. In Detail only, close commands and tab affordances consistently leave the backing inputs open, while internal lifecycle work can still force-close either input during working-set application, session switches, or stale-tab cleanup. Closing the last tab while Editor is visible closes the whole side pane; reopening it (empty group) restores the defaults. While a managed tab is closed for a workspace session with Editor visible, the `+` Add Tab menu offers a matching entry to reopen it — **Changes** (gated on `DesktopChangesTabMissingContext`) and **Files** (gated on `DesktopFilesTabMissingContext`); the re-added tab makes the group non-empty, so it survives.
 
 **Reopening after lifecycle cleanup.** If lifecycle work force-closes every tab, the whole side pane can close; the managed Changes and Files tabs are re-ensured when the side pane reopens.
 
 **Side-pane-closed persists across reload.** Closing the whole side pane is remembered across a window reload. On reload the restored managed tab does **not** re-reveal the detail: the detail-panel forced reveal is gated on the editor content being visible, so a fully-closed side pane stays closed until the user reopens it.
+
+**Chat-owned close and deletion.** Closing or hiding a chat tab retains its layout. Only a successful provider delete publishes the exact session/chat deletion identity for layout owner cleanup. Archive/removal covers that session's layout owners; draft graduation remaps the supplied main-chat resources before source cleanup and preserves unchanged peers. Missing/loading catalogs do not justify forgetting saved state. Working-set references cannot release a handle still referenced by another owner or the retained legacy store. Terminal cleanup retains its existing session behavior independently of these layout rules.
 
 **Opening a file.** The **Files** add-tab entry opens its tab **pinned** (not a preview tab).
 
@@ -103,17 +109,20 @@ The **auto-managed** tabs (the pinned Changes tab and the default File tab) are 
 
 ## 5. Detail panel content (driven by the active tab)
 
-The desktop layout controller (`DesktopLayoutController`) maps the active editor tab to the detail content. Its visibility is global; while visible, its container follows the active tab:
+The desktop layout controller (`DesktopLayoutController`) maps the active editor tab to the detail content. Visibility follows the legacy profile, the shared Existing preference, or the per-chat composition according to the selected mode; while visible, its container follows the active tab:
 
 | Active tab | Detail panel |
 |-----------|--------------|
 | **Changes or any diff editor** | Branch Changes file list + Checks — shown (Changes container) while the detail is visible |
-| **Any file or Markdown preview editor** (Explorer) | Files/Explorer tree — shown (Files container) while the detail is visible |
+| **Empty Files or a resource inside the active session workspace** (Explorer) | Files/Explorer tree — shown (Files container) while the detail is visible |
 | **Browser** | **Hidden** (transiently) while the Browser tab is active *and the editor area stays visible*; restored when switching back. If the editor area itself is hidden while Browser is active (e.g. via **Hide Editor**), the panel instead shows the Changes/Files fallback, since it is the only thing left on screen. |
+| **Resource outside the workspace with the same scheme as a workspace folder** | Files/Explorer tree is available through **Toggle Details**, but hidden automatically when the editor becomes active |
+| **Utility, synthetic-resource, or other editor without a workspace-folder scheme** | **Hidden and unavailable** while the editor area stays visible |
 
 Rules:
-- **Reveal on activate, respect after.** Switching to a Changes/File tab reveals the detail with the right container. While the **same** tab stays active, an explicit user hide of the detail (via the detail toggle) is **respected** — it is not re-forced. Switching tabs reveals it again.
+- **Reveal on activate, respect after.** Switching to Changes, Empty Files, or a resource inside the active session workspace reveals the detail with the right container. While the **same** tab stays active, an explicit user hide of the detail (via the detail toggle) is **respected** — it is not re-forced. Switching between these detail-active tabs reveals it again.
 - **Browser is transient, but only while the editor area is visible.** A Browser tab hides the detail panel while the editor content stays on screen; switching back to Files/Changes **restores** it. Hiding the editor area (Hide Editor) while Browser is active does **not** leave the panel blank: it shows the same Changes/Files fallback a session with no active editor gets, and reveals the editor area again (Show Editor) restores the "Browser hides the detail" rule.
+- **Projection is not preference.** Unsupported-editor transient hides, custom-view coverage, and maximization/restoration do not overwrite the remembered chat composition. Restore work preserves focus and cannot publish stale detail/tab intent after a newer owner or presentation generation takes over.
 
 ---
 
@@ -121,17 +130,23 @@ Rules:
 
 Existing Sessions share an Editor/Details visibility profile. New Sessions do not own lifecycle visibility state; their one-time entry rule hides redundant Editor content only when Empty Files is the sole input. Submitting preserves the current composition and updates the Existing profile.
 
+In `chat`, workspace-backed drafts and created chats use owner-scoped current and last-open composition. Submission preserves that composition by remapping draft ownership to the committed session/main chat. In `chat-shared`, draft visibility remains separate and submission or Quick Chat workspace conversion applies the shared Existing preference. Ordinary editor working sets and selected bottom-panel views remain per-chat in both enabled modes, independent of managed Changes/Files reconciliation and visibility. Hidden panels retain view memory without opening content.
+
 ### Quick chats / no workspace
 Workspace selection in a draft changes content, not layout. Switching between a workspace and No workspace preserves Editor and Auxiliary Bar visibility and their sizes, including explicit opens or closes made between selections. A visible Auxiliary Bar shows the Files empty view for No workspace. The draft strategy does not save or restore a separate composition for these transitions, and normal Editor minimum-width constraints remain unchanged.
 
-Quick Chats with saved editors share overall side-pane visibility with Existing Sessions, mapping a visible profile to Editor-only and keeping a hidden profile hidden. Opening a first editor and visibility changes made in an editor-bearing Quick Chat update the shared profile before the chat's first switch. An editorless Quick Chat hides the side pane after its working-set restore settles, including on reload, without overwriting the shared profile.
+Quick Chats with saved editors share overall side-pane visibility with Existing Sessions, mapping a visible profile to Editor-only and keeping a hidden profile hidden. Opening a first editor and visibility changes made in an editor-bearing Quick Chat update the shared profile before the chat's first switch. An editorless Quick Chat hides the side pane after its working-set restore settles, including on reload, without overwriting the shared profile. This transient side-pane behavior remains unchanged by the experiment; Quick Chats do not route through durable owner-composition or last-open catalogs.
 
 ### Multiple visible sessions
 Visibility restoration is reveal-only while multiple sessions are visible. Focusing a workspace session reveals the parts enabled by its matching profile, while focusing a quick chat or another session without side-pane content does not hide Editor. Collapsing back to one Quick Chat keeps Editor visible; collapsing to a workspace session restores that session type's complete shared profile. Reveal-only preservation applies only to panel synchronization: active Changes/Files editors still publish their docked-details capability so **Toggle Details** remains available.
 
+Both enabled modes replace the reveal-only rule for workspace chats. Ordinary editors and the active editor follow the focused owner. `chat` restores that owner's full composition and bottom visibility in both directions; an unvisited peer uses the applicable Existing Session side-pane defaults and initializes bottom visibility from the current workbench. `chat-shared` applies the shared Existing composition and bottom visibility, including on first-visit peers, regardless of visible-session or chat-group count. Sizes and grid topology do not switch with focus.
+
 ---
 
 ## 7. Transition matrix (single-session, not maximized)
+
+Shared-profile navigation rows below apply to disabled mode. In both enabled modes, switching workspace chats restores the target owner's working set and panel view. Composition, bottom visibility and last-open reopen follow the per-chat owner in `chat`, or the global Existing preference in `chat-shared`. These switches also apply in multi-visible presentation.
 
 | From | Action | To |
 |------|--------|-----|
@@ -159,13 +174,15 @@ Visibility restoration is reveal-only while multiple sessions are visible. Focus
 | *Editor only* (Browser active) | Activate **Files/Changes** tab | *Editor + Detail* (detail restored) |
 | *Editor only* (Browser active) | Hide Editor | *Detail only* (detail shows the Changes/Files fallback, not left blank) |
 | *Detail only* (Browser was last active tab) | Show Editor | *Editor only* (detail hides again — Browser's transient-hide rule resumes) |
-| any new-session pane state | **Submit** the session | same visibility and active tab; Changes becomes active after file changes arrive |
+| any new-session pane state | **Submit** the session | same visibility; after file changes arrive, activate Changes only when its tab is already open, otherwise preserve the explicitly opened tab |
 
 ---
 
 ## 8. Test ownership
 
 Concrete transitions and regressions belong in the layout-controller and desktop strategy tests. This document defines the state model and expected compositions; it is not a manual test script.
+
+Chat ownership, handle lifetime, delayed catalog hydration, and reload persistence belong in `contrib/layout/test/browser/chatLayoutOwnership.test.ts`; schema validation belongs in `contrib/layout/test/browser/desktopOwnerCompositionStore.test.ts`. These unit contracts do not by themselves establish cross-process terminal survival or live UI validation.
 
 ---
 

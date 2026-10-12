@@ -135,7 +135,7 @@ if defined RUN_GLOB (
 	if "%VSCODE_SKIP_AGENT_HOST_E2E%"=="1" (
 		echo Skipping Agent Host E2E tests because no relevant files changed.
 	) else (
-		call node .\scripts\test-agent-host-e2e.ts %*
+		call node .\test\integration\agentHost\runner.ts %*
 		if errorlevel 1 goto :failed
 	)
 	set VSCODE_SKIP_PRELAUNCH=1

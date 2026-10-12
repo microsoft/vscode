@@ -98,9 +98,10 @@ export const agentHostPolicySupport: Readonly<Record<string, IAgentHostPolicySup
 	// Extra marketplaces are additive; strict marketplaces do not disable already-installed plugins.
 	ChatExtraMarketplaces: { status: 'partial' },
 	ChatStrictMarketplaces: { status: 'partial' },
-	// The workbench filters synchronized customizations; independent runtime discovery is not
-	// governed by the VS Code-only value. Instructions are sent to the SDK too; runtime-native
-	// lockdown across every customization type still needs execution verification.
+	// The workbench filters synchronized customizations only for the boolean form, and the VS Code-only
+	// value does not govern independent runtime discovery. Forwarded user and workspace skills and agents,
+	// and all forwarded MCP servers, bypass plugin delivery so runtime-native lockdown can apply to them;
+	// that runtime enforcement, and lockdown of standalone instructions, still need execution verification.
 	ChatStrictPluginOnlyCustomization: { status: 'partial' },
 	// Documented as Local-only; Agent Host enables runtime file hooks regardless.
 	ChatHooks: { status: 'notEnforced' },

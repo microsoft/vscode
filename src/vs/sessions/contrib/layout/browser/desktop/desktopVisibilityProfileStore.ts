@@ -40,9 +40,15 @@ export class DesktopVisibilityProfileStore {
 		existingSession: DEFAULT_EXISTING_SESSION_VISIBILITY_STATE,
 	};
 
-	constructor(@IStorageService private readonly _storageService: IStorageService) {
+	constructor(
+		shared: boolean,
+		@IStorageService private readonly _storageService: IStorageService,
+	) {
+		this._storageKey = shared ? 'sessions.sharedChatLayout.sidePaneVisibility' : DESKTOP_VISIBILITY_STATE_KEY;
 		this._load();
 	}
+
+	private readonly _storageKey: string;
 
 	get(profile: SessionVisibilityProfile): ISidePaneVisibilityState {
 		return profile === SessionVisibilityProfile.New
@@ -54,11 +60,11 @@ export class DesktopVisibilityProfileStore {
 		this._profiles = profile === SessionVisibilityProfile.New
 			? { ...this._profiles, newSession: state }
 			: { ...this._profiles, existingSession: state };
-		this._storageService.store(DESKTOP_VISIBILITY_STATE_KEY, JSON.stringify(this._profiles), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		this._storageService.store(this._storageKey, JSON.stringify(this._profiles), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
 	private _load(): void {
-		const raw = this._storageService.get(DESKTOP_VISIBILITY_STATE_KEY, StorageScope.WORKSPACE);
+		const raw = this._storageService.get(this._storageKey, StorageScope.WORKSPACE);
 		if (!raw) {
 			return;
 		}
@@ -72,10 +78,10 @@ export class DesktopVisibilityProfileStore {
 			} else if (this._isVisibilityState(parsed)) {
 				this._profiles = { ...this._profiles, existingSession: parsed };
 			} else {
-				this._storageService.remove(DESKTOP_VISIBILITY_STATE_KEY, StorageScope.WORKSPACE);
+				this._storageService.remove(this._storageKey, StorageScope.WORKSPACE);
 			}
 		} catch {
-			this._storageService.remove(DESKTOP_VISIBILITY_STATE_KEY, StorageScope.WORKSPACE);
+			this._storageService.remove(this._storageKey, StorageScope.WORKSPACE);
 		}
 	}
 

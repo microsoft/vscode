@@ -77,7 +77,10 @@ export class AICustomizationManagementEditorInput extends EditorInput implements
 	}
 
 	getModalEditorOptions(): IModalEditorOptions {
-		return { compactHeader: true };
+		return {
+			compactHeader: true,
+			canMoveToEditorArea: false,
+		};
 	}
 
 	override async resolve(): Promise<null> {

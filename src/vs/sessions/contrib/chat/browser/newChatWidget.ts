@@ -77,7 +77,6 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { getSessionComparisonWorkspaceError, ISessionComparisonHarness, ISessionComparisonService } from '../../../services/sessions/common/sessionComparison.js';
 import { OPEN_SESSION_COMPARISON_COMMAND_ID } from '../../sessionComparison/common/sessionComparison.js';
 import { SessionComparisonModelSelection } from './sessionComparisonModelSelection.js';
-import { TABBED_MODEL_PICKER_SETTING_ID } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerWidget.js';
 import { isAutoModel, isHydraFusionModel } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerPresentation.js';
 import { IAgentsWindowDraft } from '../../../../platform/window/common/window.js';
 import { reviveChatDraft } from '../../../../workbench/contrib/chat/common/attachments/chatDraft.js';
@@ -348,8 +347,6 @@ export class NewChatWidget extends Disposable {
 				.filter(item => item.state === AgentFeedbackState.Accepted);
 		});
 
-		const pickerSetting = observableFromEvent(this, this.configurationService.onDidChangeConfiguration,
-			() => this.configurationService.getValue<boolean>(TABBED_MODEL_PICKER_SETTING_ID));
 		const comparisonWorkspaceChanged = observableSignalFromEvent(this, this._workspacePicker.onDidChangeSelection);
 		const comparisonConfigResolving = derived(this, reader => {
 			const session = this._session.read(reader);
@@ -363,7 +360,7 @@ export class NewChatWidget extends Disposable {
 			const session = this._session.read(reader);
 			session?.workspace.read(reader);
 			session?.loading.read(reader);
-			return pickerSetting.read(reader) && !this._isQuickChatComposer.read(reader) && this._shouldShowComparisonAction();
+			return !this._isQuickChatComposer.read(reader) && this._shouldShowComparisonAction();
 		}), comparisonConfigResolving));
 		const canSendRequest = derived(reader => {
 			const session = this._session.read(reader);

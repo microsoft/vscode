@@ -10,7 +10,7 @@ import { readErrorDetail } from '../../common/meta/errorMeta.js';
 import { readAgentMessagePresentation, withMessageHiddenFromTranscript, withMessageRequestHiddenFromTranscript } from '../../common/meta/agentMessageMeta.js';
 import { readAgentModelCallDetail } from '../../common/meta/agentModelCallMeta.js';
 import { readAgentModelPricingMeta } from '../../common/meta/agentModelMeta.js';
-import { AgentPermissionRequestKind, readAgentPermissionRequestMeta } from '../../common/meta/agentPermissionRequestMeta.js';
+import { AgentPermissionRequestKind, readAgentPermissionRequestMeta, withPermissionDiff } from '../../common/meta/agentPermissionRequestMeta.js';
 import { readAgentToolOutputDelta, readToolCallMeta, withAgentToolPreferences } from '../../common/meta/agentToolCallMeta.js';
 import { readAgentContextUsage, readUsageInfoMeta } from '../../common/meta/agentUsageMeta.js';
 import { MessageAttachmentKind, MessageKind, type Message, type ToolDefinition } from '../../common/state/protocol/state.js';
@@ -30,6 +30,24 @@ function readerMatrix<T>(name: string, read: (meta: Record<string, unknown> | un
 
 suite('Metadata compatibility', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('permission diffs are additive and do not change native VS Code presentation', () => {
+		const original = { toolKind: 'read', mcpServerName: 'server' };
+		const meta = withPermissionDiff(original, '--- a/file\n+++ b/file\n');
+		assert.deepStrictEqual({
+			meta,
+			native: readToolCallMeta({ _meta: meta }),
+			permission: readAgentPermissionRequestMeta({ _meta: meta }),
+			noDiff: withPermissionDiff(original, undefined),
+			original,
+		}, {
+			meta: { ...original, permissionRequest: { diff: '--- a/file\n+++ b/file\n' } },
+			native: original,
+			permission: {},
+			noDiff: original,
+			original,
+		});
+	});
 
 	const presentation = { hiddenFromTranscript: false, requestHiddenFromTranscript: false, systemInitiatedLabel: undefined };
 	const message = (meta?: Record<string, unknown>): Message => ({ text: 'display', origin: { kind: MessageKind.User }, _meta: meta });

@@ -12,7 +12,7 @@
 // command. The inbound path is the mirror image. This module is pure JSON ↔
 // JSON; it owns no WebSocket and speaks no handshake.
 
-import { type ChunkEnvelope, type ChunkOptions, Reassembler, chunk } from './chunking.js';
+import { type ChunkEnvelope, type ChunkOptions, DEFAULT_MAX_CHUNK_BYTES, Reassembler, chunk } from './chunking.js';
 import { parseGroupName, type ParseGroupNameOptions, type ParsedGroup } from './groups.js';
 
 /**
@@ -61,6 +61,8 @@ export interface BuildPublishOptions {
 
 	/** Forwarded to {@link chunk}. */
 	readonly chunkOptions?: ChunkOptions;
+	/** Opaque host-side connection identity; absent for client-originated frames. */
+	readonly generation?: number;
 }
 
 /**
@@ -69,7 +71,14 @@ export interface BuildPublishOptions {
  * each carried by its own frame with its own `ackId`.
  */
 export function buildPublish(options: BuildPublishOptions): SendToGroupCommand[] {
-	const envelopes = chunk(options.payload, options.chunkOptions);
+	if (options.generation !== undefined && (!Number.isSafeInteger(options.generation) || options.generation < 1)) {
+		throw new FramingError('Invalid host connection generation');
+	}
+	const overhead = options.generation === undefined ? 0 : JSON.stringify({ generation: options.generation }).length - 1;
+	const envelopes = chunk(options.payload, {
+		...options.chunkOptions,
+		maxChunkBytes: (options.chunkOptions?.maxChunkBytes ?? DEFAULT_MAX_CHUNK_BYTES) - overhead,
+	});
 	return envelopes.map(
 		envelope => ({
 			type: 'sendToGroup',
@@ -77,7 +86,7 @@ export function buildPublish(options: BuildPublishOptions): SendToGroupCommand[]
 			ackId: options.nextAckId(),
 			dataType: 'json',
 			noEcho: true,
-			data: envelope,
+			data: options.generation === undefined ? envelope : { ...envelope, generation: options.generation },
 		} satisfies SendToGroupCommand),
 	);
 }
@@ -90,7 +99,10 @@ export function buildPublish(options: BuildPublishOptions): SendToGroupCommand[]
  * - `kind: 'ignored'` — the frame was not a group-fanout message.
  */
 export type InboundResult =
-	| { readonly kind: 'payload'; readonly group: ParsedGroup; readonly payload: unknown }
+	| { readonly kind: 'payload'; readonly group: ParsedGroup; readonly payload: unknown; readonly generation?: number }
+	| { readonly kind: 'batch'; readonly group: ParsedGroup; readonly payloads: readonly unknown[]; readonly generation?: number }
+	| { readonly kind: 'closed'; readonly group: ParsedGroup; readonly generation?: number }
+	| { readonly kind: 'capabilities'; readonly group: ParsedGroup; readonly accepts: readonly string[] }
 	| { readonly kind: 'pending'; readonly group: ParsedGroup }
 	| { readonly kind: 'ignored' };
 
@@ -141,10 +153,33 @@ export function parseInbound(frame: unknown, options: ParseInboundOptions): Inbo
 	}
 
 	const group = parseGroupName(frame['group'], options.groupValidation);
-	const envelope = frame['data'] as ChunkEnvelope;
+	const fields = frame['data'];
+	const generation = fields['generation'];
+	if (generation !== undefined && (typeof generation !== 'number' || !Number.isSafeInteger(generation) || generation < 1)) {
+		throw new FramingError('Invalid host connection generation');
+	}
+	const identity = generation === undefined ? {} : { generation };
+	if (fields['kind'] === 'closed') {
+		return { kind: 'closed', group, ...identity };
+	}
+	if (fields['kind'] === 'capabilities') {
+		const accepts = fields['accepts'];
+		if (!Array.isArray(accepts) || !accepts.every(value => typeof value === 'string') || accepts.length > 256) {
+			throw new FramingError('Invalid relay framing capabilities');
+		}
+		return { kind: 'capabilities', group, accepts };
+	}
+	if (fields['kind'] === 'batch') {
+		const items = fields['items'];
+		if (!Array.isArray(items) || items.length === 0 || items.length > 256 || new TextEncoder().encode(JSON.stringify(fields)).byteLength > DEFAULT_MAX_CHUNK_BYTES) {
+			throw new FramingError('Invalid relay batch');
+		}
+		return { kind: 'batch', group, payloads: items, ...identity };
+	}
+	const envelope = fields as ChunkEnvelope;
 	const payload = options.reassembler.ingest(envelope);
 	if (payload === null) {
 		return { kind: 'pending', group };
 	}
-	return { kind: 'payload', group, payload };
+	return { kind: 'payload', group, payload, ...identity };
 }

@@ -7,8 +7,25 @@ import { URI } from '../../../../../base/common/uri.js';
 import type { ClientPluginCustomization } from '../../state/sessionState.js';
 
 const mcpDefaultCwdsKey = 'mcpDefaultCwds';
+const standaloneCustomizationsKey = 'vscode.standaloneCustomizations';
 
 export type ClientPluginMcpDefaultCwds = Readonly<Record<string, URI | null>>;
+
+/**
+ * Marks a client plugin that bundles standalone customizations, such as user
+ * and workspace skills or forwarded MCP servers, rather than plugin content.
+ */
+export function toClientPluginStandaloneMeta(): Record<string, unknown> {
+	return { [standaloneCustomizationsKey]: true };
+}
+
+/**
+ * Returns whether a client plugin bundles standalone customizations, which a
+ * host should not deliver as plugin-provided content.
+ */
+export function isClientPluginStandalone(customization: ClientPluginCustomization): boolean {
+	return customization._meta?.[standaloneCustomizationsKey] === true;
+}
 
 export function toClientPluginMcpDefaultCwdsMeta(defaultCwds: ClientPluginMcpDefaultCwds): Record<string, unknown> {
 	return {

@@ -8,7 +8,7 @@ import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
-import type { IAgentTelemetryContext } from '../common/agent.js';
+import type { AgentSubagentKind, IAgentTelemetryContext } from '../common/agent.js';
 import type { McpServerSource } from '../common/meta/mcpCustomizationMeta.js';
 import { SessionInputRequestKind, type SessionToolAuthenticationRequest, type SessionToolClientExecutionRequest, type SessionToolConfirmationRequest } from '../common/state/protocol/state.js';
 import { type ToolCallContributor, type ToolCallResult } from '../common/state/sessionState.js';
@@ -56,6 +56,7 @@ interface IToolCallTiming {
 	modelResolvedFromUsage: boolean;
 	readonly clientContext: IAgentHostClientTelemetryContext | undefined;
 	readonly telemetryContext: IAgentTelemetryContext | undefined;
+	readonly subagentKind: AgentSubagentKind | undefined;
 }
 
 interface IStalledToolCall {
@@ -114,6 +115,7 @@ export class AgentHostToolCallTracker extends Disposable {
 			modelResolvedFromUsage: resolvedModel !== undefined,
 			clientContext: this._turnTracker.getClientTelemetryContext(session, turnId),
 			telemetryContext: this._turnTracker.getTelemetryContext(session, turnId),
+			subagentKind: this._turnTracker.getSubagentKind(session, turnId),
 		});
 	}
 
@@ -174,6 +176,7 @@ export class AgentHostToolCallTracker extends Disposable {
 			telemetryContext: timing.telemetryContext,
 			provider: timing.provider,
 			session: timing.session,
+			subagentKind: timing.subagentKind,
 			turnId: timing.turnId,
 			toolId: timing.toolId,
 			toolSourceKind: timing.toolSourceKind,
@@ -203,6 +206,7 @@ export class AgentHostToolCallTracker extends Disposable {
 				telemetryContext: timing.telemetryContext,
 				provider: timing.provider,
 				session: timing.session,
+				subagentKind: timing.subagentKind,
 				blockerKind: stalled.blockerKind,
 				toolCallId,
 				toolId: timing.toolId,
@@ -233,6 +237,7 @@ export class AgentHostToolCallTracker extends Disposable {
 				telemetryContext: this._toolCalls.get(toolCallKey)?.telemetryContext,
 				provider,
 				session,
+				subagentKind: this._toolCalls.get(toolCallKey)?.subagentKind,
 				blockerKind: request.kind,
 				toolCallId: request.toolCall.toolCallId,
 				toolId: request.toolCall.toolName,
