@@ -9,7 +9,7 @@ import './media/chatViewWelcome.css';
 import * as dom from '../../../../../base/browser/dom.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { IMouseWheelEvent } from '../../../../../base/browser/mouseEvent.js';
-import { disposableTimeout, timeout } from '../../../../../base/common/async.js';
+import { disposableTimeout, RunOnceScheduler, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
@@ -414,6 +414,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private listWidget!: ChatListWidget;
 	private _findController: ChatFindWidget | undefined;
 	private inputPartMaxHeightOverride: number | undefined;
+
+	private readonly _layoutScheduler = this._register(new RunOnceScheduler(() => this._flushLayout(), 100));
+	private readonly _layoutPointerUpListener = this._register(new MutableDisposable<IDisposable>());
+	private _pendingLayoutDimension?: { height: number; width: number };
 
 	private readonly visibilityTimeoutDisposable: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
 	private readonly visibilityAnimationFrameDisposable: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
@@ -4206,9 +4210,51 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.maximumWidth = maximumWidth;
 	}
 
-	layout(height: number, width: number): void {
+	layout(height: number, width: number, immediate: boolean = false): void {
 		width = Math.min(width, this.viewOptions.renderStyle === 'minimal' ? width : this.maximumWidth); // no min width of inline chat
 
+		if (immediate || !this.bodyDimension || !this._layoutScheduler) {
+			this._layoutScheduler?.cancel();
+			this._layoutPointerUpListener?.clear();
+			this._pendingLayoutDimension = undefined;
+			this._doLayout(height, width);
+			return;
+		}
+
+		if (this.bodyDimension.height === height && this.bodyDimension.width === width) {
+			return;
+		}
+
+		this._pendingLayoutDimension = { height, width };
+		this._layoutScheduler.schedule();
+		if (!this._layoutPointerUpListener.value) {
+			const window = dom.getWindow(this.container);
+			const store = new DisposableStore();
+			const onRelease = () => {
+				this._layoutPointerUpListener?.clear();
+				if (this._layoutScheduler?.isScheduled()) {
+					this._layoutScheduler.cancel();
+					this._flushLayout();
+				}
+			};
+			store.add(dom.addDisposableListener(window, 'pointerup', onRelease, { once: true }));
+			store.add(dom.addDisposableListener(window, 'mouseup', onRelease, { once: true }));
+			this._layoutPointerUpListener.value = store;
+		}
+	}
+
+	private _flushLayout(): void {
+		this._layoutScheduler?.cancel();
+		this._layoutPointerUpListener?.clear();
+		if (!this._pendingLayoutDimension) {
+			return;
+		}
+		const { height, width } = this._pendingLayoutDimension;
+		this._pendingLayoutDimension = undefined;
+		this._doLayout(height, width);
+	}
+
+	private _doLayout(height: number, width: number): void {
 		this.bodyDimension = new dom.Dimension(width, height);
 		this._findController?.layout(width);
 
