@@ -438,12 +438,15 @@ export class ModelCard extends DisposableStore {
 			...alternatives.filter(alternative => !choices.some(choice => replaces(alternative, choice))).map(alternative => ({ alternative })),
 		];
 		const followingAlternatives = entries.length - choices.length;
+		const ensemble = !!this._options.model.metadata.autoModelEnsemble;
+		// Ensemble's tiers describe themselves below the control, so a hover would only repeat it.
+		const tooltip = (description: string | undefined) => isAuto && ensemble && group === MODEL_CONFIG_GROUP_EFFORT ? undefined : description;
 		const items = entries.map(({ choice, alternative }, index): IRadioOptionItem => {
 			if (!alternative) {
 				const { label, description, checked, readOnly } = choice!;
 				return {
 					text: label,
-					tooltip: description,
+					tooltip: tooltip(description),
 					ariaLabel: description ? localize('chat.modelPicker.optionDescription', "{0}, {1}", label, description) : label,
 					isActive: checked && !selectedAlternative,
 					disabled: readOnly,
@@ -455,7 +458,7 @@ export class ModelCard extends DisposableStore {
 			if (describesTier) {
 				return {
 					text: label,
-					tooltip: choice.description,
+					tooltip: tooltip(choice.description),
 					ariaLabel: choice.description ? localize('chat.modelPicker.optionDescription', "{0}, {1}", label, choice.description) : label,
 					isActive: true,
 					disabled: choice.readOnly,
@@ -463,7 +466,7 @@ export class ModelCard extends DisposableStore {
 			}
 			return {
 				text: label,
-				tooltip: alternative.tooltip ?? alternative.description,
+				tooltip: tooltip(alternative.tooltip ?? alternative.description),
 				ariaLabel: alternative.tooltip
 					? localize('chat.modelPicker.alternativeDescription', "{0}, {1} {2}", label, alternative.description, alternative.tooltip)
 					: localize('chat.modelPicker.optionDescription', "{0}, {1}", label, alternative.description),
@@ -483,7 +486,6 @@ export class ModelCard extends DisposableStore {
 		}));
 		const alternativeDescriptions = new Map<IModelCardRoutingAlternative, HTMLElement>();
 		const discountPercent = isAuto && group === MODEL_CONFIG_GROUP_EFFORT ? this._options.model.metadata.autoModelDiscountPercent : undefined;
-		const ensemble = !!this._options.model.metadata.autoModelEnsemble;
 		let discountDescription: HTMLElement | undefined;
 		let discountTierLabel: string | undefined;
 		const discountStore = this._contentDisposables.add(new MutableDisposable<DisposableStore>());
