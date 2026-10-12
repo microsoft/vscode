@@ -102,6 +102,35 @@ The residual case is `providerHostOnlyTest(...)`: per-provider, but no model tra
 
 ---
 
+## CI execution profiles
+
+Execution priority is independent of conformance/parity. `AGENT_HOST_TEST_PROFILE=full` runs every enabled scenario and is the default for local commands and DevOps. `AGENT_HOST_TEST_PROFILE=pr` keeps representative host/provider contracts while skipping explicitly classified full-only variations. Both profiles retain the existing provider, platform, live-test, and recording gates.
+
+```bash
+# Full deterministic E2E coverage (default).
+npm run test-agent-host-e2e
+
+# PR-profile E2E coverage.
+AGENT_HOST_TEST_PROFILE=pr npm run test-agent-host-e2e
+
+# The same profile also applies to neighboring provider integration tests.
+AGENT_HOST_TEST_PROFILE=pr ./scripts/test-integration.sh --run \
+  src/vs/platform/agentHost/test/node/providerIntegration/copilotOtel.integrationTest.ts
+```
+
+GitHub PR jobs use the existing broad affected-file check to skip the parallel E2E runner for unrelated changes. Relevant implementation changes select the PR profile. Any Agent Host test, fixture, snapshot, test harness, selection infrastructure, build infrastructure, or dependency-manifest change forces Full in that same PR. Renames check both old and new paths. Failed or incomplete changed-file lookups also select Full. The selected profile and reason appear in integration-test output. Provider-integration tests outside the parallel runner inherit the same profile; the affected-file skip still applies only to the parallel runner.
+
+New tests remain in PR coverage by default. Use `fullOnlyTest(...)` from `../../agentHostTestProfile.js` (relative to an E2E suite) for native-runtime stress or redundant variations, preserving existing capability gates. Existing file-operation and peer registrars accept a final `'full'` profile argument. Do not rename tests to classify them: titles identify committed fixtures.
+
+The initial full-only list is deliberately small:
+
+- File operations: nested read, JSON read, line count, workspace listing, and Git status.
+- Peer chats: nested read and nested file creation.
+- Copilot native tools: view range, grep, and glob variations.
+- Provider integration: the two native OTel concurrency stress cases.
+
+Permission enforcement, routing, persistence, checkpoints, customizations, managed telemetry, and the prompt matrix remain in PR coverage. Coverage-report runs always select Full. Full-only is an execution priority, not a known issue or unsupported capability.
+
 ## Organization
 
 | Path | Role |
