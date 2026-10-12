@@ -628,6 +628,29 @@ suite('AgentHostPeerChatStore', () => {
 		});
 	});
 
+	test('a legacy entry recorded under the reading session but tombstoned is skipped', async () => {
+		const database = new TestSessionDatabase();
+		const tombstonedHere = buildChatUri(session, 'tombstoned-here');
+		await orchestrator.registerRuntimeSession(session.toString(), { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		await orchestrator.registerChatCatalogV2(session.toString(), {
+			defaultChat: { chat: buildDefaultChatUri(session), order: 0 },
+			peers: [{ chat: tombstonedHere, order: 1 }],
+			privateDescendants: [],
+		});
+		// Tombstones the session's chats_v2 rows and drops its normalized header, so the legacy store is read again.
+		await orchestrator.tombstoneAndUnregisterSession(session.toString());
+		const store = createStore(database);
+		await database.setMetadata(PEER_CHATS_METADATA_KEY, JSON.stringify([tombstonedHere, first.toString()].map(uri => ({ uri }))));
+
+		assert.deepStrictEqual({
+			central: await orchestrator.findChatOwner(tombstonedHere),
+			entries: await store.tryReadLegacy(session),
+		}, {
+			central: { ownerSession: session.toString(), source: 'normalized', deleted: true },
+			entries: [{ uri: first.toString() }],
+		});
+	});
+
 	test('serializes concurrent add, remove, and update operations', async () => {
 		const database = new TestSessionDatabase();
 		const store = createStore(database);

@@ -445,6 +445,53 @@ suite('AgentHostDatabase sessions_v2', () => {
 		});
 	});
 
+	for (const lowerOwnerDeleted of [false, true]) {
+		test(`batched owner lookups resolve a chat listed by two payloads like a single lookup (lower owner ${lowerOwnerDeleted ? 'deleted' : 'live'})`, async () => {
+			const db = new AgentHostDatabase(':memory:');
+			database = db;
+			const lower = 'session://payload-1';
+			const higher = 'session://payload-2';
+			for (const session of [lower, higher]) {
+				await db.registerRuntimeSession(session, { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+			}
+			const early = 'ahp-chat://early';
+			const late = 'ahp-chat://late';
+			// A chat URI that JSON-escapes, so the prefilter must match its escaped literal.
+			const escaped = 'ahp-chat://quote"\\\u00e9';
+			const payloads: [string, readonly string[]][] = [[lower, [late, escaped]], [higher, [early, late]]];
+			for (const [session, peers] of payloads) {
+				const payload = JSON.parse(createPayload(session, 1));
+				payload.data.chats = [payload.data.chats[0], ...peers.map((uri, index) => ({ ...payload.data.chats[1], order: index + 1, uri }))];
+				await db.upsertSessionV2(createEnvelope(session, 'generation', 1, { payload: stableStringify(payload) }), undefined);
+			}
+			if (lowerOwnerDeleted) {
+				await db.tombstoneAndUnregisterSession(lower);
+			}
+			// More than one payload batch: `early` is in the first, `late` and `escaped` in the second.
+			const chats = [early, ...Array.from({ length: 99 }, (_, index) => `ahp-chat://unknown-${index}`), late, escaped];
+
+			const batched = await db.findChatOwners(chats);
+			const single = await Promise.all(chats.map(chat => db.findChatOwner(chat)));
+
+			const owners = (lookup: (chat: string) => unknown) => ({ early: lookup(early), late: lookup(late), escaped: lookup(escaped) });
+			assert.deepStrictEqual({
+				batched: owners(chat => batched.get(chat)),
+				single: owners(chat => single[chats.indexOf(chat)]),
+			}, {
+				batched: owners(chat => single[chats.indexOf(chat)]),
+				single: lowerOwnerDeleted ? {
+					early: { ownerSession: higher, source: 'catalogPayload', deleted: false },
+					late: { ownerSession: higher, source: 'catalogPayload', deleted: false },
+					escaped: undefined,
+				} : {
+					early: { ownerSession: higher, source: 'catalogPayload', deleted: false },
+					late: { ownerSession: lower, source: 'catalogPayload', deleted: false },
+					escaped: { ownerSession: lower, source: 'catalogPayload', deleted: false },
+				},
+			});
+		});
+	}
+
 	test('sequences chat catalog reads behind queued replacements', async () => {
 		const sequencedDatabase = new AgentHostDatabase(':memory:');
 		database = sequencedDatabase;

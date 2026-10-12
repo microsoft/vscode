@@ -1761,6 +1761,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				if (batch.length === 0) {
 					continue;
 				}
+				const batchChats = new Set(batch);
 				const filter = batch.map(() => 'instr(payload, ?) > 0').join(' OR ');
 				// A payload is canonical JSON, so a chat it lists contains the chat's JSON string literal.
 				for (const candidate of await all(database, `SELECT session_uri, payload FROM sessions_v2 WHERE payload IS NOT NULL AND (${filter}) ORDER BY session_uri`, batch.map(chat => JSON.stringify(chat)))) {
@@ -1768,8 +1769,9 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 					if (!decoded.ok) {
 						continue;
 					}
+					// Chats of later batches are resolved by their own query, so the lowest owning session wins for each.
 					for (const entry of decoded.value.chats) {
-						if (pending.delete(entry.uri)) {
+						if (batchChats.has(entry.uri) && pending.delete(entry.uri)) {
 							const ownerSession = candidate.session_uri as string;
 							owners.set(entry.uri, { ownerSession, source: 'catalogPayload', deleted: await isSessionDeleted(ownerSession) });
 						}
