@@ -809,6 +809,9 @@ export interface IActionListOptions {
 	 */
 	readonly focusFilterOnOpen?: boolean;
 
+	/** Let the owner lay out the list before calling focus, so initial focus does not scroll past section headings. */
+	readonly deferInitialFocus?: boolean;
+
 	/** Optional action item id to focus when the list opens. */
 	readonly initialFocusItemId?: string;
 
@@ -1435,7 +1438,7 @@ export class ActionListWidget<T> extends Disposable {
 
 		this._applyFilter();
 
-		if (this._list.length) {
+		if (this._list.length && !this._options?.deferInitialFocus) {
 			this._focusCheckedOrFirst();
 		}
 
