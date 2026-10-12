@@ -864,6 +864,21 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('publishes a directly imported conversation without creating or sending another session', async () => {
+		const provider = createProvider(disposables, agentHost);
+		agentHost.addSession(createSession('copied', { summary: 'Copied conversation' }));
+		const session = await provider.resolveCreatedSession(URI.parse('agent-host-copilotcli:/copied'));
+		assert.deepStrictEqual({ resource: session.resource.toString(), listed: provider.getSessions().map(item => item.resource.toString()), disposed: agentHost.disposedSessions }, {
+			resource: 'agent-host-copilotcli:/copied', listed: ['agent-host-copilotcli:/copied'], disposed: [],
+		});
+	});
+
+	test('does not present an unlisted imported conversation as an empty draft', async () => {
+		const provider = createProvider(disposables, agentHost);
+		await assert.rejects(provider.resolveCreatedSession(URI.parse('agent-host-copilotcli:/missing')), /hasn't listed/);
+		assert.deepStrictEqual(provider.getSessions(), []);
+	});
+
 	test('Copilot schema discovery prevents VS defaults and approval reports entering creation', async () => {
 		const configurationService = new TestConfigurationService();
 		await configurationService.setUserConfiguration('chat.defaultConfiguration', { approvals: 'allowAll' });

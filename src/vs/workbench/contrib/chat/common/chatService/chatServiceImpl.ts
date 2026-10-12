@@ -26,6 +26,7 @@ import { generateUuid } from '../../../../../base/common/uuid.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { Progress } from '../../../../../platform/progress/common/progress.js';
@@ -57,7 +58,7 @@ import { IChatTransferService } from '../model/chatTransferService.js';
 import { chatSessionResourceToId, getChatSessionType, isUntitledChatSession, LocalChatSessionUri } from '../model/chatUri.js';
 import { ChatRequestVariableSet, IChatRequestVariableEntry, isExplicitFileOrImageVariableEntry, isPromptTextVariableEntry } from '../attachments/chatVariableEntries.js';
 import { IDynamicVariable } from '../attachments/chatVariables.js';
-import { ChatAgentLocation, SessionTypeSelectionReason, ChatConfiguration, ChatModeKind, getCopilotHarnessIntroductionMode, isLocalChatSessionSubjectToManagedPolicy, managedPolicyRequiresAgentHostMessage } from '../constants.js';
+import { ChatAgentLocation, SessionTypeSelectionReason, ChatConfiguration, ChatModeKind, CONTINUE_AGENT_HOST_CHAT_IN_COPILOT_ACTION_ID, getCopilotHarnessIntroductionMode, isLocalChatSessionSubjectToManagedPolicy, managedPolicyRequiresAgentHostMessage } from '../constants.js';
 import { ChatMessageRole, IChatMessage, ILanguageModelsService } from '../languageModels.js';
 import { ModelSelectionReason } from '../modelSelection.js';
 import { ILanguageModelToolsService, ToolAndToolSetEnablementMap } from '../tools/languageModelToolsService.js';
@@ -271,6 +272,7 @@ export class ChatService extends Disposable implements IChatService {
 		@IChatDebugService private readonly chatDebugService: IChatDebugService,
 		@IManagedSettingsService managedSettingsService: IManagedSettingsService,
 		@IAccountPolicyGateService private readonly accountPolicyGateService: IAccountPolicyGateService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 		this.managedPolicy = observableFromEvent(this, managedSettingsService.onDidChangeManagedSettings, () => requiresCopilotAgentHost(managedSettingsService));
@@ -610,8 +612,12 @@ export class ChatService extends Disposable implements IChatService {
 			historyStatus = derived<IChatSessionHistoryStatus | undefined>(reader => revoked.read(reader) ? {
 				kind: 'history',
 				message: policyBlocked.read(reader)
-					? localize('chat.agentHost.policyDisabled', "Your organization has disabled this agent. Saved sessions remain listed, but history cannot be loaded or new messages sent while it is disabled.")
+					? localize('chat.agentHost.policyDisabled', "Your organization has disabled this agent. This conversation is read-only. Continue in Copilot to copy the conversation and keep the original.")
 					: localize('chat.agentHost.policyRemoved', "This agent is available again. This open chat is still read-only."),
+				action: {
+					label: localize('chat.agentHost.continueInCopilot', "Continue in Copilot"),
+					run: () => this.commandService.executeCommand<void>(CONTINUE_AGENT_HOST_CHAT_IN_COPILOT_ACTION_ID, sessionResource),
+				},
 			} : providedHistoryStatus?.read(reader));
 		}
 

@@ -3943,6 +3943,48 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual(showBlobCalls, []);
 		});
 
+		for (const providerRegistered of [false, true]) {
+			test(`saved git-blob reads trusted chat and folder roots without restoring the source (provider registered: ${providerRegistered})`, async () => {
+				const roots = [URI.file('/saved/main'), URI.file('/saved/other')];
+				const peerRoot = URI.file('/saved/peer');
+				const calls: Array<{ workingDirectory: string; ref: string; repoRelativePath: string }> = [];
+				const gitService = createBlobGitService(new Map([...roots, peerRoot].map(root => [root.toString(), root])), calls);
+				const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService, gitService));
+				if (providerRegistered) {
+					const agent = new MockAgent('claude');
+					disposables.add(toDisposable(() => agent.dispose()));
+					registerTestAgentProvider(localService, agent);
+				}
+				await localService.listSessions();
+				await localService.whenCatalogReconciliationIdle();
+				const session = URI.parse('ahp-session:/saved-preview');
+				const peer = buildChatUri(session, 'peer');
+				const database = getTestAgentHostDatabase(localService);
+				await database.registerSessionV2(session.toString(), { provider: 'claude', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+				await database.registerChatCatalogV2(session.toString(), {
+					defaultChat: { chat: buildDefaultChatUri(session), order: 0, workingDirectories: roots.map(root => root.toString()) },
+					peers: [{ chat: peer, order: 1, workingDirectories: [peerRoot.toString()] }], privateDescendants: [],
+				});
+				if (providerRegistered) {
+					getTestAgentHostProviderService(localService).associateSession(session, 'claude');
+				}
+				const restore = spy(localService, 'restoreSession');
+				disposables.add(toDisposable(() => restore.restore()));
+				const folderScope = buildFolderChangesetOwnerUri(session.toString(), getWorkingDirectoryScopeId([peerRoot.toString()]));
+				const results = [];
+				for (const [owner, path] of [[session.toString(), '/saved/other/file.ts'], [peer, '/saved/peer/file.ts'], [folderScope, '/saved/peer/file.ts']]) {
+					results.push((await localService.resourceRead(URI.parse(buildGitBlobUri(owner, 'saved-sha', 'file.ts', path)))).data);
+				}
+				await assert.rejects(localService.resourceRead(URI.parse(buildGitBlobUri(buildFolderChangesetOwnerUri(session.toString(), 'stale'), 'saved-sha', 'file.ts', '/saved/main/file.ts'))), error => error instanceof ProtocolError && error.code === AhpErrorCodes.NotFound);
+				await assert.rejects(localService.resourceRead(URI.parse(buildGitBlobUri(buildChatUri(session, 'missing'), 'saved-sha', 'file.ts', '/saved/main/file.ts'))));
+				assert.deepStrictEqual({ results, calls, restores: restore.callCount, state: getStateManager(localService).getSessionState(session.toString()) }, {
+					results: ['blob:file.ts', 'blob:file.ts', 'blob:file.ts'],
+					calls: [roots[1], peerRoot, peerRoot].map(root => ({ workingDirectory: root.toString(), ref: 'saved-sha', repoRelativePath: 'file.ts' })),
+					restores: 0, state: undefined,
+				});
+			});
+		}
+
 		test('git-blob restores the session before resolving its working directory', async () => {
 			const repoA = URI.file('/workspace/repoA');
 			const showBlobCalls: Array<{ workingDirectory: string; ref: string; repoRelativePath: string }> = [];

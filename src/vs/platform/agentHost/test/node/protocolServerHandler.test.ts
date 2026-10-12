@@ -33,7 +33,7 @@ import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.j
 import { ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { type IAgentCreateChatRequestOptions, type IAgentCreateSessionConfig, type IAgentResolveSessionConfigParams, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata, type AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { type IAgentHostManagedSettingsDiagnostics, type IAgentHostNetworkDiagnosticsInfo, type IAgentHostNetworkFetchResult, type IAgentService } from '../../common/agentService.js';
-import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, RemoveSessionArtifactExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, StopBackgroundWorkExtensionMethod, supportsAgentHostArtifactRemoval, supportsAgentHostDevContainers, type IAgentHostMcpAuthenticationRequest } from '../../common/agentHostExtensionProtocol.js';
+import { DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, RemoveSessionArtifactExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, StopBackgroundWorkExtensionMethod, supportsAgentHostSavedChat, supportsAgentHostArtifactRemoval, supportsAgentHostDevContainers, type IAgentHostMcpAuthenticationRequest } from '../../common/agentHostExtensionProtocol.js';
 import { ChatSourceKind, CompletionsParams, CompletionsResult, ContentEncoding, CreateTerminalParams, ListSessionsResult, ResourceReadResult, ResolveSessionConfigResult, SessionConfigCompletionsResult, ResourceMkdirParams, ResourceMkdirResult, ResourceResolveParams, ResourceResolveResult, ResourceCopyParams, ResourceCopyResult } from '../../common/state/protocol/commands.js';
 import type { AutomationCapabilities, Implementation } from '../../common/state/protocol/common/commands.js';
 import type { FetchAutomationRunsParams, FetchAutomationRunsResult, ListAutomationTriggerDefinitionsParams, ListAutomationTriggerDefinitionsResult, RunAutomationParams, RunAutomationResult } from '../../common/state/protocol/channels-automation/commands.js';
@@ -1297,6 +1297,114 @@ suite('ProtocolServerHandler', () => {
 		assert.ok(hasKey(await invalid, { error: true }));
 		assert.strictEqual(calls.length, 1);
 	});
+
+	test('advertises and routes saved chat reads with exact URI identity', async () => {
+		const calls: string[][] = [];
+		const service: IAgentService = agentService;
+		service.readSavedChat = async (session, chat) => {
+			calls.push([session.toString(), chat?.toString() ?? 'default']);
+			return { session, chat: chat ?? URI.parse(buildDefaultChatUri(session)), provider: 'claude', title: 'Saved chat', turns: [], workspace: { kind: 'folder', workingDirectories: [URI.file('/saved')] } };
+		};
+		const transport = connectClient('saved-chat');
+		const initialized = findResponse(transport.sent, 1);
+		assert.ok(initialized && hasKey(initialized, { result: true }));
+		const peer = buildChatUri('ahp-session:/saved', 'peer');
+		const pending = waitForResponse(transport, 20);
+		transport.simulateMessage(request(20, 'vscode/readSavedChat', { session: 'ahp-session:/saved', chat: peer }));
+		assert.deepStrictEqual({
+			supported: supportsAgentHostSavedChat(initialized.result as InitializeResult),
+			oldHost: supportsAgentHostSavedChat({ ...(initialized.result as InitializeResult), _meta: {} }),
+			response: await pending,
+			calls,
+			created: agentService.createSessionConfigs,
+			actions: agentService.handledActions,
+		}, {
+			supported: true, oldHost: false,
+			response: { jsonrpc: '2.0', id: 20, result: { session: 'ahp-session:/saved', chat: peer, provider: 'claude', title: 'Saved chat', turns: [], workspace: { kind: 'folder', workingDirectories: [URI.file('/saved').toString()] } } },
+			calls: [['ahp-session:/saved', peer]], created: [], actions: [],
+		});
+	});
+
+	test('rejects invalid saved chat requests before reading storage', async () => {
+		const service: IAgentService = agentService;
+		service.readSavedChat = async () => { assert.fail('Invalid identity reached saved storage'); };
+		const transport = connectClient('saved-chat-invalid');
+		for (const [index, params] of [
+			undefined, {}, { session: 'plain-text' }, { session: 'ahp-session://remote/saved' },
+			{ session: 'ahp-session:/saved', chat: 1 }, { session: 'ahp-session:/saved', chat: 'invalid' },
+			{ session: 'ahp-session:/saved', chat: 'file:///saved' },
+			{ session: 'ahp-session:/saved', chat: `${buildDefaultChatUri('ahp-session:/saved')}#fragment` },
+		].entries()) {
+			const pending = waitForResponse(transport, 20 + index);
+			transport.simulateMessage(request(20 + index, 'vscode/readSavedChat', params));
+			const response = await pending;
+			assert.ok(hasKey(response, { error: true }) && response.error?.code === JsonRpcErrorCodes.InvalidParams);
+		}
+	});
+
+	test('local data-plane saved chat reads work with host-control extensions disabled', async () => {
+		const calls: string[] = [];
+		const service: IAgentService = agentService;
+		service.readSavedChat = async session => {
+			calls.push(session.toString());
+			return { session, chat: URI.parse(buildDefaultChatUri(session)), provider: 'claude', title: 'Saved history', turns: [], workspace: { kind: 'none' } };
+		};
+		const localServer = disposables.add(new MockProtocolServer());
+		disposables.add(new ProtocolServerHandler(
+			agentService, stateManager, localServer,
+			{ hostLaunchKind: AgentHostLaunchKind.VSCodeMainProcess, allowExtensionMethods: false },
+			disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+			managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+		));
+		const transport = new MockProtocolTransport(AgentHostTransportKind.MessagePort);
+		localServer.simulateConnection(transport);
+		transport.simulateMessage(request(1, 'initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: 'saved-local-data-plane' }));
+		const initialized = findResponse(transport.sent, 1);
+		assert.ok(initialized && hasKey(initialized, { result: true }));
+		const historyResponse = waitForResponse(transport, 20);
+		transport.simulateMessage(request(20, 'vscode/readSavedChat', { session: 'ahp-session:/saved' }));
+		const shutdownResponse = waitForResponse(transport, 21);
+		transport.simulateMessage(request(21, 'shutdown'));
+		assert.deepStrictEqual({
+			supported: supportsAgentHostSavedChat(initialized.result as InitializeResult),
+			history: await historyResponse,
+			shutdown: await shutdownResponse,
+			calls,
+			shutdownCalls: agentService.shutdownCalls,
+		}, {
+			supported: true,
+			history: { jsonrpc: '2.0', id: 20, result: { session: 'ahp-session:/saved', chat: buildDefaultChatUri('ahp-session:/saved'), provider: 'claude', title: 'Saved history', turns: [], workspace: { kind: 'none' } } },
+			shutdown: { jsonrpc: '2.0', id: 21, error: { code: JsonRpcErrorCodes.MethodNotFound, message: 'Method not found: shutdown' } },
+			calls: ['ahp-session:/saved'],
+			shutdownCalls: 0,
+		});
+	});
+
+	for (const mode of ['unsupported', 'relay'] as const) {
+		test(`does not expose saved chat history to ${mode} clients`, async () => {
+			const service: IAgentService = agentService;
+			if (mode !== 'unsupported') {
+				service.readSavedChat = async () => { assert.fail('Blocked client reached saved storage'); };
+			}
+			const localServer = disposables.add(new MockProtocolServer());
+			disposables.add(new ProtocolServerHandler(
+				agentService, stateManager, localServer, { allowExtensionMethods: mode === 'relay' },
+				disposables.add(new AgentHostFileSystemProvider()), logService, NullTelemetryService,
+				managedSettingsService, clientConnections, devContainerService, NullAgentHostOTelService,
+			));
+			const transport = new MockProtocolTransport(AgentHostTransportKind.Unknown, mode === 'relay' ? `saved-${mode}` : undefined);
+			localServer.simulateConnection(transport);
+			transport.simulateMessage(request(1, 'initialize', { protocolVersions: [PROTOCOL_VERSION], clientId: `saved-${mode}` }));
+			const initialized = findResponse(transport.sent, 1);
+			assert.ok(initialized && hasKey(initialized, { result: true }));
+			const pending = waitForResponse(transport, 20);
+			transport.simulateMessage(request(20, 'vscode/readSavedChat', { session: 'ahp-session:/saved' }));
+			assert.deepStrictEqual({ supported: supportsAgentHostSavedChat(initialized.result as InitializeResult), response: await pending }, {
+				supported: false,
+				response: { jsonrpc: '2.0', id: 20, error: { code: JsonRpcErrorCodes.MethodNotFound, message: 'Method not found: vscode/readSavedChat' } },
+			});
+		});
+	}
 
 	test('advertises and routes external session import', async () => {
 		const transport = connectClient('client-import');

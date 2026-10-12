@@ -88,6 +88,16 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 		return -1;
 	}
 
+	/** Publishes a session created directly through the host, such as an imported conversation. */
+	async resolveCreatedSession(resource: URI): Promise<ISession> {
+		await this._refreshSessions();
+		const session = this.getSessionByResource(resource);
+		if (!session) {
+			throw new Error(localize('agentHost.createdSessionMissing', "The agent host hasn't listed the new conversation yet. Try again to open it."));
+		}
+		return session;
+	}
+
 	/**
 	 * Redirects a legacy extension-host Copilot CLI resource to its agent-host
 	 * twin, adopting it on the way.

@@ -279,7 +279,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		}
 		for (const provider of unavailable) {
 			if (!this._historyRegistrations.has(provider)) {
-				this._historyRegistrations.set(provider, this._chatSessionsService.registerChatSessionContentProvider(`agent-host-${provider}`, new PolicyUnavailableAgentHostContentProvider()));
+				this._historyRegistrations.set(provider, this._chatSessionsService.registerChatSessionContentProvider(`agent-host-${provider}`, this._instantiationService.createInstance(PolicyUnavailableAgentHostContentProvider)));
 			}
 		}
 		if (!allowed) {

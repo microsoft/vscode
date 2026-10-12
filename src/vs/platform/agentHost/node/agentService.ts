@@ -75,7 +75,9 @@ import { IAgentHostGitService, META_DIFF_BASE_BRANCH, tryResolvePrimaryWorktreeR
 import { IAgentHostSubscriptionService, resolveAgentHostSession } from '../common/agentHostSubscriptionService.js';
 import { IAgentHostChatInputService } from './agentHostChatInputService.js';
 import { AgentSideEffects, type IAgentSideEffectsOptions } from './agentSideEffects.js';
-import { AgentHostLocalTurns, parsePersistedTurn } from './agentHostLocalTurns.js';
+import { AgentHostLocalTurns, interleaveLocalTurns } from './agentHostLocalTurns.js';
+import { AgentHostSavedChatService } from './agentHostSavedChatService.js';
+import type { IAgentHostSavedChat } from '../common/agentHostSavedChat.js';
 import { hasSingleUserChat, ISessionWorkspaceConversionService } from './chatContributions/sessionWorkspaceConversion/sessionWorkspaceConversionService.js';
 import { AgentSessionResidency } from './agentSessionResidency.js';
 import { resolveChangesetOwnerScope } from './agentHostBranchChangesetScope.js';
@@ -641,6 +643,7 @@ export interface IAgentServiceCore {
 	readonly disposables: DisposableStore;
 	readonly authenticationService: AgentHostAuthenticationService;
 	readonly orchestratorDatabase: IAgentHostDatabase;
+	readonly savedChats: AgentHostSavedChatService;
 	readonly peerChatStore: AgentHostPeerChatStore;
 	readonly debugLogsCollector: AgentHostDebugLogsCollector | undefined;
 	readonly sessionRegistry: AgentSessionRegistry;
@@ -714,6 +717,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private readonly _sessionRegistry: AgentSessionRegistry;
 	private readonly _orchestratorDatabase: IAgentHostDatabase;
+	private readonly _savedChats: AgentHostSavedChatService;
 	private readonly _catalogSyncService: AgentHostCatalogSyncService;
 	private readonly _catalogSourceResolver: AgentHostCatalogSourceResolver;
 	private readonly _peerChatStore: AgentHostPeerChatStore;
@@ -892,6 +896,7 @@ export class AgentService extends Disposable implements IAgentService {
 		super();
 		this._authService = core.authenticationService;
 		this._orchestratorDatabase = core.orchestratorDatabase;
+		this._savedChats = core.savedChats;
 		this._debugLogsCollector = core.debugLogsCollector;
 		this._sessionRegistry = core.sessionRegistry;
 		void this._whenProvisionalSessionKeysLoaded();
@@ -1664,6 +1669,10 @@ export class AgentService extends Disposable implements IAgentService {
 				}
 			}
 		});
+	}
+
+	readSavedChat(session: URI, chat?: URI): Promise<IAgentHostSavedChat> {
+		return this._savedChats.readSavedChat(session, chat);
 	}
 
 	async importSession(session: URI): Promise<void> {
@@ -6055,35 +6064,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 */
 	private async _interleaveLocalTurns(sessionStr: string, chatUri: string, turns: readonly Turn[]): Promise<Turn[]> {
 		const records = await this._localTurns.loadForChat(sessionStr, chatUri);
-		if (records.length === 0) {
-			return [...turns];
-		}
-		const knownIds = new Set(turns.map(t => t.id));
-		const byAnchor = new Map<string, Turn[]>();
-		const head: Turn[] = [];
-		for (const record of records) {
-			const turn = parsePersistedTurn(record, this._logService, AgentHostLocalTurns.name);
-			if (!turn) {
-				continue;
-			}
-			if (record.anchorTurnId === undefined) {
-				head.push(turn);
-			} else if (knownIds.has(record.anchorTurnId)) {
-				const list = byAnchor.get(record.anchorTurnId) ?? [];
-				list.push(turn);
-				byAnchor.set(record.anchorTurnId, list);
-			}
-			// else: orphaned (anchor truncated away) → drop.
-		}
-		const merged: Turn[] = [...head];
-		for (const turn of turns) {
-			merged.push(turn);
-			const locals = byAnchor.get(turn.id);
-			if (locals) {
-				merged.push(...locals);
-			}
-		}
-		return merged;
+		return interleaveLocalTurns(turns, records, this._logService);
 	}
 
 	/**
@@ -10708,16 +10689,20 @@ export class AgentService extends Disposable implements IAgentService {
 		const owningSession = resolveAgentHostSession(URI.parse(fields.sessionUri));
 		const wasRestored = !!this._stateManager.getSessionState(owningSession.toString());
 		try {
-			if (!wasRestored) {
+			const savedDirectories = wasRestored ? undefined : await this._savedChats.readWorkingDirectories(URI.parse(fields.sessionUri));
+			if (!wasRestored && savedDirectories === undefined) {
 				await this.restoreSession(owningSession);
 			}
-			const workingDirectory = await this._resolveGitBlobWorkingDirectory(fields, owningSession);
+			const workingDirectory = await this._resolveGitBlobWorkingDirectory(fields, owningSession, savedDirectories);
 			if (!workingDirectory) {
 				throw new ProtocolError(AhpErrorCodes.NotFound, `No session repository resolves git-blob path: ${fields.absolutePath || fields.repoRelativePath}`);
 			}
 			const blob = await this._gitService.showBlob(workingDirectory, fields.sha, fields.repoRelativePath);
 			if (!blob) {
 				throw new ProtocolError(AhpErrorCodes.NotFound, `git blob not found: ${fields.sha}:${fields.repoRelativePath}`);
+			}
+			if (savedDirectories !== undefined && !equals(savedDirectories, await this._savedChats.readWorkingDirectories(URI.parse(fields.sessionUri)))) {
+				throw new ProtocolError(AhpErrorCodes.NotFound, 'Saved repository ownership changed while reading the file');
 			}
 			return {
 				data: blob.toString(),
@@ -10757,18 +10742,21 @@ export class AgentService extends Disposable implements IAgentService {
 	 *   [/work/app, /work/lib]         + /outside/c.ts        → undefined (NotFound)
 	 *   [/work/app, /work/lib]         + ''  (legacy)         → /work/app
 	 */
-	private async _resolveGitBlobWorkingDirectory(fields: IGitBlobUriFields, owningSession: URI): Promise<URI | undefined> {
+	private async _resolveGitBlobWorkingDirectory(fields: IGitBlobUriFields, owningSession: URI, savedDirectories?: readonly string[]): Promise<URI | undefined> {
 		const gitService = this._gitService;
 		if (!gitService) {
 			return undefined;
 		}
-		const ownerScope = resolveChangesetOwnerScope(this._stateManager, fields.sessionUri);
-		if (parseFolderChangesetOwnerUri(fields.sessionUri) && ownerScope.workingDirectories.length === 0) {
-			return undefined;
+		let workingDirectories = savedDirectories;
+		if (workingDirectories === undefined) {
+			const ownerScope = resolveChangesetOwnerScope(this._stateManager, fields.sessionUri);
+			if (parseFolderChangesetOwnerUri(fields.sessionUri) && ownerScope.workingDirectories.length === 0) {
+				return undefined;
+			}
+			workingDirectories = ownerScope.workingDirectories.length
+				? ownerScope.workingDirectories
+				: getEffectiveWorkingDirectories(this._stateManager, owningSession.toString());
 		}
-		const workingDirectories = ownerScope.workingDirectories.length
-			? ownerScope.workingDirectories
-			: getEffectiveWorkingDirectories(this._stateManager, owningSession.toString());
 		// Backwards-compat: no resolvable absolute path means we cannot match a
 		// repository root, so fall back to today's primary-directory behavior.
 		if (!fields.absolutePath) {

@@ -25,6 +25,9 @@ import { AGENT_HOST_ENABLED_CONTEXT_KEY, IAgentHostEnablementService } from '../
 import { AgentHostClaudeAgentEnabledSettingId, AgentHostCodexAgentEnabledSettingId, CodexPreferAgentHostEditorSettingId, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, IAgentHostService, protectedResourcesRequireGitHubCopilotSignIn } from '../../../../../../platform/agentHost/common/agentService.js';
 import { ProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { RootStateSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
+import { buildDefaultChatUri } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { IAgentHostSavedChat } from '../../../../../../platform/agentHost/common/agentHostSavedChat.js';
 import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
 import { ICloudSandboxApiService } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
@@ -420,18 +423,26 @@ suite('ChatSessionsService - policy history activation', () => {
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IAgentHostEnablementService, { enabled: constObservable(options.hostEnabled !== false) });
 		instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: options.isSessionsWindow ?? false });
+		const backend = URI.from({ scheme: provider, path: '/saved' });
 		instantiationService.stub(IAgentHostService, new class extends mock<IAgentHostService>() {
 			override readonly rootState = subscription;
 			override readonly onAgentHostExit = Event.None;
+			override async listSessions() { return [{ session: backend, provider, startTime: 1, modifiedTime: 1 }]; }
+			override async readSavedChat(): Promise<IAgentHostSavedChat> {
+				return { session: backend, chat: URI.parse(buildDefaultChatUri(backend)), provider, title: '', turns: [], workspace: { kind: 'none' } };
+			}
+		}());
+		instantiationService.stub(IAgentHostConnectionsService, new class extends mock<IAgentHostConnectionsService>() {
+			override registerSessionResource(resource: URI): URI { return resource.with({ scheme: `agent-host-${provider}` }); }
 		}());
 		const service = store.add(instantiationService.createInstance(ChatSessionsService));
-		return { service, subscription, sessionType: `agent-host-${provider}` };
+		return { service, subscription, sessionType: `agent-host-${provider}`, contentProvider: instantiationService.createInstance(PolicyUnavailableAgentHostContentProvider) };
 	}
 
 	for (const provider of ['claude', 'codex'] as const) {
 		for (const root of ['valid', 'Error', 'undefined']) {
 			test(`waits for ${provider} policy history registration with a ${root} root snapshot`, async () => {
-				const { service, subscription, sessionType } = createService(provider);
+				const { service, subscription, sessionType, contentProvider } = createService(provider);
 				if (root === 'valid') {
 					subscription.handleSnapshot({ agents: [], activeSessions: 0 }, 0);
 				} else if (root === 'Error') {
@@ -442,7 +453,7 @@ suite('ChatSessionsService - policy history activation', () => {
 				try {
 					await timeout(0);
 					const beforeRegistration = resolution;
-					store.add(service.registerChatSessionContentProvider(sessionType, new PolicyUnavailableAgentHostContentProvider()));
+					store.add(service.registerChatSessionContentProvider(sessionType, contentProvider));
 					await timeout(0);
 					const session = resolution === true ? store.add(await service.getOrCreateChatSession(URI.from({ scheme: sessionType, path: '/saved' }), CancellationToken.None)) : undefined;
 					assert.deepStrictEqual({
@@ -479,11 +490,11 @@ suite('ChatSessionsService - policy history activation', () => {
 	});
 
 	test('the Agents window waits for Codex policy history independently of the editor preference', async () => {
-		const { service, subscription, sessionType } = createService('codex', { preferAgentHost: false, isSessionsWindow: true });
+		const { service, subscription, sessionType, contentProvider } = createService('codex', { preferAgentHost: false, isSessionsWindow: true });
 		subscription.handleSnapshot({ agents: [], activeSessions: 0 }, 0);
 		const activation = service.canResolveChatSession(sessionType);
 		await timeout(0);
-		store.add(service.registerChatSessionContentProvider(sessionType, new PolicyUnavailableAgentHostContentProvider()));
+		store.add(service.registerChatSessionContentProvider(sessionType, contentProvider));
 		assert.strictEqual(await activation, true);
 	});
 });

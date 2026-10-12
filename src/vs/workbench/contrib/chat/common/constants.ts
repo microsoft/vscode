@@ -30,6 +30,7 @@ export function isLocalChatSessionSubjectToManagedPolicy(sessionResource: URI, l
 }
 
 export const CONTINUE_CHAT_IN_COPILOT_ACTION_ID = 'workbench.action.chat.continueInCopilot';
+export const CONTINUE_AGENT_HOST_CHAT_IN_COPILOT_ACTION_ID = 'workbench.action.chat.continueAgentHostChatInCopilot';
 
 export { ChatAIDisabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
 

@@ -22,6 +22,7 @@ import { runWithFakedTimers } from '../../../../../../base/test/common/timeTrave
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { MessageKind } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IEnvironmentService } from '../../../../../../platform/environment/common/environment.js';
@@ -211,6 +212,7 @@ suite('ChatService', () => {
 		instantiationService.stub(IWorkspaceContextService, new TestContextService());
 		instantiationService.stub(IChatSlashCommandService, testDisposables.add(instantiationService.createInstance(ChatSlashCommandService)));
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(ICommandService, { executeCommand: async () => undefined });
 		instantiationService.stub(IChatService, new MockChatService());
 		instantiationService.stub(IChatSessionsService, new MockChatSessionsService());
 		instantiationService.stub(ILanguageModelsService, new NullLanguageModelsService());
@@ -4401,9 +4403,11 @@ suite('ChatService', () => {
 					}
 					assert.deepStrictEqual({ states, draft: ref.object.inputModel.state.get()?.inputText, requests: ref.object.getRequests().length }, { states: [false, true, true, true], draft: 'Unsent draft', requests: path === '/saved' ? 1 : 0 });
 					assert.strictEqual(ref.object.getRequests()[0], requests[0]);
-					assert.deepStrictEqual(ref.object.historyStatus?.get(), {
+					const historyStatus = ref.object.historyStatus?.get();
+					assert.deepStrictEqual({ kind: historyStatus?.kind, message: historyStatus?.message, action: historyStatus?.action?.label }, {
 						kind: 'history',
-						message: 'Your organization has disabled this agent. Saved sessions remain listed, but history cannot be loaded or new messages sent while it is disabled.',
+						message: 'Your organization has disabled this agent. This conversation is read-only. Continue in Copilot to copy the conversation and keep the original.',
+						action: 'Continue in Copilot',
 					});
 					assert.deepStrictEqual(await service.sendRequest(resource, 'Do not send'), { kind: 'rejected', reason: 'Session is read-only' });
 				});

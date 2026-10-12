@@ -6,7 +6,7 @@
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
-import { upcastPartial } from '../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../base/test/common/mock.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { IFileService } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
@@ -30,6 +30,8 @@ import { IAgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { AgentHostFileMonitorService, IAgentHostFileMonitorService } from '../../node/agentHostFileMonitorService.js';
 import { IAgentHostProxyResolver } from '../../node/agentHostProxyResolver.js';
 import { AgentService } from '../../node/agentService.js';
+import { IAgentSdkDownloader } from '../../node/agentSdkDownloader.js';
+import { IClaudeAgentSdkService } from '../../node/claude/claudeAgentSdkService.js';
 import type { IAgentHostCatalogReconciliationOptions } from '../../node/agentHostCatalogReconciliationService.js';
 import { createAgentServiceComposition, type IAgentServiceComposition } from '../../node/agentServiceComposition.js';
 import { activateAgentHostContributions } from '../../node/agentHostContributions.js';
@@ -221,6 +223,8 @@ export function createTestAgentService(
 		hostLaunchKind,
 	});
 	services.set(IAgentHostFileMonitorService, effectiveFileMonitorService);
+	services.set(IAgentSdkDownloader, new class extends mock<IAgentSdkDownloader>() { }());
+	services.set(IClaudeAgentSdkService, new class extends mock<IClaudeAgentSdkService>() { }());
 	services.set(IAgentEditAttributionService, new NullAgentEditAttributionService());
 	services.set(IAgentHostOTelService, NullAgentHostOTelService);
 	// Automation startup cleanup touches the plugin directory, so back it with a provider even when callers pass a bare file service.

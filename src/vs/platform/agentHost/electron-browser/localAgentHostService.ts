@@ -33,6 +33,7 @@ import { LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../common/agentHostResourceS
 import { identityAgentHostResourceUriMapper } from '../common/agentHostUri.js';
 import { AgentHostStartupTelemetry } from '../common/agentHostStartupTelemetry.js';
 import type { IAgentHostMcpAuthenticationRequest } from '../common/agentHostExtensionProtocol.js';
+import type { IAgentHostSavedChat } from '../common/agentHostSavedChat.js';
 import { AgentHostClientConnectionKind } from '../common/agentHostTelemetry.js';
 import type { IAgentHostFirstResponseDiagnostic } from '../common/otel/agentHostTiming.js';
 import type { IChatUserInteractionTiming } from '../../otel/common/chatUserInteraction.js';
@@ -496,6 +497,10 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 
 	importSession(session: URI): Promise<void> {
 		return this._requireClient().importSession(session);
+	}
+
+	readSavedChat(session: URI, chat?: URI): Promise<IAgentHostSavedChat> {
+		return this._requireClient().readSavedChat(session, chat);
 	}
 
 	setDetachedWorktreeArchived(handle: string, archived: boolean): Promise<void> {

@@ -31,7 +31,8 @@ import { isManagedSettingsPermissions } from '../common/agentHostManagedSettings
 import { isAnnotationsUri } from '../common/annotationsUri.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
 import { type IAgentService } from '../common/agentService.js';
-import { ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, importSessionParamsValidator, ReadAgentHostDebugLogsChunkExtensionMethod, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, removeSessionArtifactParamsValidator, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, StopBackgroundWorkExtensionMethod, stopBackgroundWorkParamsValidator, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostMcpAuthenticationRequest, type IAgentHostWorkspaceTrustRequest } from '../common/agentHostExtensionProtocol.js';
+import { ClaimAgentHostDetachedWorktreeExtensionMethod, collectAgentHostDebugLogsParamsValidator, CollectAgentHostDebugLogsExtensionMethod, CreateAgentHostDetachedWorktreeExtensionMethod, DeleteAgentHostDetachedWorktreeExtensionMethod, getAgentHostExtensionInitializeResultMeta, GetAgentHostSessionStateFileExtensionMethod, ImportSessionExtensionMethod, importSessionParamsValidator, ReadAgentHostDebugLogsChunkExtensionMethod, ReadSavedChatExtensionMethod, readSavedChatParamsValidator, ReconcileAgentHostDetachedWorktreesExtensionMethod, RemoveSessionArtifactExtensionMethod, removeSessionArtifactParamsValidator, ReportAgentHostFirstResponseExtensionMethod, ReportChatUserInteractionExtensionMethod, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, SetAgentHostDetachedWorktreeArchivedExtensionMethod, StopBackgroundWorkExtensionMethod, stopBackgroundWorkParamsValidator, type IAgentHostExtensionInitializeResult, type IAgentHostExtensionServerCommandMap, type IAgentHostMcpAuthenticationRequest, type IAgentHostWorkspaceTrustRequest } from '../common/agentHostExtensionProtocol.js';
+import { savedChatToDto } from '../common/agentHostSavedChat.js';
 import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
 import { agentHostFirstResponseValidator } from '../common/otel/agentHostTiming.js';
 import { chatUserInteractionAttributes, chatUserInteractionValidator } from '../../otel/common/chatUserInteraction.js';
@@ -793,7 +794,7 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 					[AgentHostSessionUrisCapabilityMetaKey]: true,
 					...transport.relayHandshakeMeta,
 				} : {
-					...getAgentHostExtensionInitializeResultMeta(!!this._agentService.removeSessionArtifact, !!client.devContainers, this._otelService?.diagnosticsEnabled, !!this._agentService.importSession),
+					...getAgentHostExtensionInitializeResultMeta(!!this._agentService.removeSessionArtifact, !!client.devContainers, this._otelService?.diagnosticsEnabled, !!this._agentService.importSession, !!this._agentService.readSavedChat && transport.relayClientId === undefined && !transport.relayPassive),
 					...transport.relayHandshakeMeta,
 				},
 				snapshots: snapshots.map(snapshot => this._projectRelayRootSnapshot(client, snapshot)),
@@ -2586,6 +2587,33 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 		return this._agentService.stopBackgroundWork(chat, id).then(stopped => ({ stopped }));
 	}
 
+	private _handleReadSavedChatRequest(client: IConnectedClient, params: unknown): Promise<unknown> | undefined {
+		if (client.transport.relayClientId !== undefined || client.transport.relayPassive || this._config.relayRoots || this._config.relayRootMeta || !this._agentService.readSavedChat) {
+			return undefined;
+		}
+		const validated = readSavedChatParamsValidator.validate(params);
+		if (validated.error) {
+			return Promise.reject(new ProtocolError(JsonRpcErrorCodes.InvalidParams, validated.error.message));
+		}
+		try {
+			const session = this._parseSessionUri(validated.content.session);
+			let chat: URI | undefined;
+			if (validated.content.chat !== undefined) {
+				try {
+					chat = URI.parse(validated.content.chat, true);
+				} catch {
+					throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'chat must be a valid URI string');
+				}
+				if (!parseChatUri(chat) || chat.query || chat.fragment) {
+					throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'chat must be an Agent Host chat URI');
+				}
+			}
+			return this._agentService.readSavedChat(session, chat).then(savedChatToDto);
+		} catch (error) {
+			return Promise.reject(error);
+		}
+	}
+
 	private _handleImportSessionRequest(params: unknown): Promise<void> | undefined {
 		if (!this._agentService.importSession) {
 			return undefined;
@@ -2666,14 +2694,16 @@ export class ProtocolServerHandler extends Disposable implements IAgentHostClien
 			this._otelService.emitFirstResponse(validated.content);
 			return Promise.resolve();
 		}
-		// Session-data methods operate on state the client already drives through
-		// the data plane, so they are available to every connected client. Only
+		// Session-data methods do not require host-control access. Only the
 		// host-control methods below are gated by `allowExtensionMethods`.
 		if (method === RemoveSessionArtifactExtensionMethod) {
 			return this._handleRemoveSessionArtifactRequest(params);
 		}
 		if (method === StopBackgroundWorkExtensionMethod) {
 			return this._handleStopBackgroundWorkRequest(params);
+		}
+		if (method === ReadSavedChatExtensionMethod) {
+			return this._handleReadSavedChatRequest(client, params);
 		}
 		if (this._config.allowExtensionMethods === false) {
 			return undefined;

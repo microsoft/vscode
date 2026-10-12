@@ -21,6 +21,7 @@ import type { IAgentHostFirstResponseDiagnostic } from './otel/agentHostTiming.j
 import type { IChatUserInteractionTiming } from '../../otel/common/chatUserInteraction.js';
 import type { IDevContainerAgentHostMainService } from './devContainerAgentHost.js';
 import type { IAgentHostMcpAuthenticationRequest } from './agentHostExtensionProtocol.js';
+import type { IAgentHostSavedChat } from './agentHostSavedChat.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import type { AutomationCapabilities, InitializeResult } from './state/protocol/common/commands.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from './state/protocol/channels-changeset/commands.js';
@@ -920,6 +921,8 @@ export interface IAgentService {
 	getSessionCount(): Promise<number>;
 
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI>;
+	/** Reads persisted exact-chat history without restoring its executable provider. */
+	readSavedChat?(session: URI, chat?: URI): Promise<IAgentHostSavedChat>;
 	/** Permanently adopts an external session without sending a message. */
 	importSession?(session: URI): Promise<void>;
 	/** Removes a recorded artifact or reference, awaiting host metadata persistence. */
@@ -1251,6 +1254,8 @@ export interface IAgentConnection {
 	handleMcpRequest(channel: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown>;
 
 	// ---- Session lifecycle --------------------------------------------------
+	/** Requires the saved-chat capability advertised by the local native host. */
+	readSavedChat?(session: URI, chat?: URI): Promise<IAgentHostSavedChat>;
 	/** Best-effort renderer diagnostics; supported only by hosts advertising the OTel timing capability. */
 	reportFirstResponse?(diagnostic: IAgentHostFirstResponseDiagnostic): Promise<void>;
 	reportUserInteraction?(timing: IChatUserInteractionTiming): Promise<void>;

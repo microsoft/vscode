@@ -13398,6 +13398,10 @@ suite('AgentHostChatContribution', () => {
 
 		test('policy-disabled providers retain history-only registrations without root agents', async () => {
 			const { instantiationService, agentHostService, chatSessionContributions, chatSessionItemControllers } = createTestServices(disposables);
+			for (const provider of ['claude', 'codex']) {
+				agentHostService.addSession({ session: AgentSession.uri(provider, 'saved'), provider, startTime: 0, modifiedTime: 0 });
+			}
+			instantiationService.stub(IAgentHostService, 'readSavedChat', async (session: URI) => ({ session, chat: URI.parse(buildDefaultChatUri(session)), provider: session.scheme, title: 'Saved', turns: [], workspace: { kind: 'none' } }));
 			instantiationService.stub(IConfigurationService, new class extends TestConfigurationService {
 				override inspect<T>(key: string) {
 					const value = super.inspect<T>(key);
@@ -13457,6 +13461,8 @@ suite('AgentHostChatContribution', () => {
 			function createRegistrationServices(policy = false) {
 				const services = createTestServices(disposables);
 				const { instantiationService, agentHostService } = services;
+				agentHostService.addSession({ session: AgentSession.uri('claude', 'saved'), provider: 'claude', startTime: 0, modifiedTime: 0 });
+				instantiationService.stub(IAgentHostService, 'readSavedChat', async (session: URI) => ({ session, chat: URI.parse(buildDefaultChatUri(session)), provider: 'claude', title: 'Saved', turns: [], workspace: { kind: 'none' } }));
 				const configurationService = new class extends TestConfigurationService {
 					override inspect<T>(key: string) {
 						const value = super.inspect<T>(key);
