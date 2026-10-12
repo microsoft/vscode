@@ -687,6 +687,54 @@ suite('CloudSandboxAgentHostService', () => {
 	}
 
 	for (const environmentKind of ['cloud', 'user-local'] as const) {
+		for (const teardown of ['disconnect', 'dispose', 'replace', ...(environmentKind === 'user-local' ? ['account change'] : [])]) {
+			test(`${environmentKind} cancels a pending admission request on ${teardown}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const initial = { ...clientToken('copilot-sealed.v1.key.original'), expires_at: new Date(Date.now()).toISOString() };
+				const fixture = createService(store, [{ kind: 'token', token: initial }]);
+				fixture.service.connectThroughFactory = true;
+				const options: ICloudSandboxConnectOptions = {
+					environmentId: 'env-1', name: 'Host', environmentKind: environmentKind === 'user-local' ? 'user-local' : undefined,
+				};
+				const connecting = fixture.service.connect(options, CancellationToken.None);
+				await fixture.started;
+				fixture.settle();
+				await connecting;
+				const factory = fixture.getFactory();
+				const response = new DeferredPromise<CloudSandboxConnectResult>();
+				fixture.setReconnectResult(response.p);
+				const createInstance = sinon.spy(fixture.instantiationService, 'createInstance');
+				const cancelled = assert.rejects(factory.createConnection(fixture.entries()[0], { userInitiated: true }), isCancellationError);
+				const requestToken = fixture.requests.at(-1)?.token;
+				assert.ok(requestToken);
+				if (teardown === 'disconnect') {
+					await fixture.service.disconnect('env-1');
+				} else if (teardown === 'dispose') {
+					fixture.service.dispose();
+				} else if (teardown === 'account change') {
+					fixture.changeAccount('account-b');
+				} else {
+					const stagingFactory = factory as IRemoteAgentHostConnectionFactory & {
+						stageConfiguration(options: ICloudSandboxConnectOptions, token: ICloudSandboxClientToken): void;
+					};
+					stagingFactory.stageConfiguration(options, clientToken('copilot-sealed.v1.key.replacement'));
+				}
+				await cancelled;
+				await response.complete({ kind: 'token', token: clientToken('copilot-sealed.v1.key.late') });
+				await timeout(0);
+				const sealed = fixture.service.getSealedGitHubToken('env-1');
+				fixture.service.dispose();
+				assert.deepStrictEqual({
+					cancelled: requestToken.isCancellationRequested,
+					sealed,
+					protocolClients: createInstance.getCalls().filter(call => call.args[0] === AgentHostProtocolClient).length,
+				}, {
+					cancelled: true,
+					sealed: teardown === 'replace' ? 'copilot-sealed.v1.key.replacement' : teardown === 'dispose' ? initial.encrypted_github_token : undefined,
+					protocolClients: 0,
+				});
+			}));
+		}
+
 		for (const statusCode of [403, 404]) {
 			test(`${environmentKind} factory withdraws permanently rejected expired credentials with status ${statusCode}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 				const fixture = createService(store, [{

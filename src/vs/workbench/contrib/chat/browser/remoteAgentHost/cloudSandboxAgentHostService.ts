@@ -79,6 +79,7 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 	readonly entries: IObservable<readonly IRemoteAgentHostEntry[]>;
 
 	private readonly _stagedConnections = new Map<string, IStagedCloudSandboxConnection>();
+	private readonly _pendingConnections = this._register(new DisposableMap<string, DisposableStore>());
 	private readonly _connectionTelemetry = this._register(new DisposableMap<string, ICloudSandboxConnectionTelemetry>());
 	private readonly _entries = observableValue<readonly IRemoteAgentHostEntry[]>(this, []);
 	private readonly _surface: CloudSandboxConnectionSurface;
@@ -150,6 +151,7 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 
 	stageConfiguration(options: ICloudSandboxConnectOptions, clientToken: ICloudSandboxClientToken): IRemoteAgentHostEntry {
 		const address = cloudSandboxAddress(options.environmentId);
+		this._pendingConnections.deleteAndDispose(address);
 		const entry: IRemoteAgentHostEntry = {
 			name: options.name,
 			connection: {
@@ -175,6 +177,7 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 	}
 
 	unstageConfiguration(address: string): void {
+		this._pendingConnections.deleteAndDispose(address);
 		this._stagedConnections.delete(address);
 		this._updateEntries();
 	}
@@ -212,6 +215,7 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 		}
 
 		const store = new DisposableStore();
+		this._pendingConnections.set(address, store);
 		try {
 			const telemetry = this._connectionTelemetry.get(address);
 			const diagnosticObserver = (event: IConnectionDiagnosticEvent) => telemetry?.recordConnectionDiagnostic(event);
@@ -297,6 +301,10 @@ class CloudSandboxConnectionFactory extends Disposable implements IRemoteAgentHo
 		} catch (error) {
 			store.dispose();
 			throw error;
+		} finally {
+			if (this._pendingConnections.get(address) === store) {
+				this._pendingConnections.deleteAndLeak(address);
+			}
 		}
 	}
 
