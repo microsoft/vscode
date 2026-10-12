@@ -1732,15 +1732,19 @@ suite('authenticateProtectedResources', () => {
 			const authorized: AuthenticationSession = {
 				id: 'authorized', accessToken: 'authorized-token', account, scopes: [...scopes, 'write:plugin_gateway_connections'],
 			};
+			const otherAccount: AuthenticationSession = {
+				id: 'other-current', accessToken: 'other-current-token', account: { id: 'other', label: 'Other' }, scopes,
+			};
 			const lookups: { scopes: string[] | undefined; accountId: string | undefined; silent: boolean | undefined }[] = [];
 			const authService = createMockAuthService({
 				getOrActivateProviderIdForServer: async () => 'github',
 				getSessions: async (_providerId, requested, options: IAuthenticationProviderSessionOptions) => {
 					lookups.push({ scopes: requested, accountId: options.account?.id, silent: options.silent });
-					return requested ? [current] : [
+					return requested ? [otherAccount, current] : [
 						{ ...authorized, id: 'another-account', accessToken: 'another-token', account: { id: 'other', label: 'Other' } },
 						{ ...authorized, id: 'broader', accessToken: 'broader-token', scopes: [...authorized.scopes, 'repo'] },
 						authorized,
+						otherAccount,
 						current,
 					];
 				},
@@ -1756,6 +1760,7 @@ suite('authenticateProtectedResources', () => {
 			const tokens: string[] = [];
 			await instantiationService.invokeFunction(authenticateProtectedResources, agents, {
 				logPrefix: '[AgentHost]',
+				preferredSessionId: current.id,
 				authenticate: async request => { tokens.push(request.token); },
 			});
 			assert.deepStrictEqual({ tokens, lookups, prompts: commandService.calls }, {

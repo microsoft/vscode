@@ -10,6 +10,7 @@
   "enabledApiProposals": [
     "agentEditorComments",
     "customEditorDiffs",
+    "customTextEditorNavigation",
     "documentDiff",
     "documentSyntaxHighlighting",
     "externalUriOpener",
@@ -142,6 +143,18 @@
       }
     ],
     "commands": [
+      {
+        "command": "markdown.editor.triggerSuggest",
+        "title": "%markdown.editor.triggerSuggest%",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'"
+      },
+      {
+        "command": "markdown.editor.rename",
+        "title": "%markdown.editor.rename%",
+        "category": "Markdown Editor",
+        "enablement": "activeCustomEditorId == 'vscode.markdown.editor'"
+      },
       {
         "command": "_markdown.copyImage",
         "title": "%markdown.copyImage.title%",
@@ -652,6 +665,14 @@
       ],
       "commandPalette": [
         {
+          "command": "markdown.editor.triggerSuggest",
+          "when": "activeCustomEditorId == 'vscode.markdown.editor'"
+        },
+        {
+          "command": "markdown.editor.rename",
+          "when": "activeCustomEditorId == 'vscode.markdown.editor'"
+        },
+        {
           "command": "_markdown.openImage",
           "when": "false"
         },
@@ -950,6 +971,16 @@
       ]
     },
     "keybindings": [
+      {
+        "command": "markdown.editor.triggerSuggest",
+        "key": "ctrl+space",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus"
+      },
+      {
+        "command": "markdown.editor.rename",
+        "key": "f2",
+        "when": "activeCustomEditorId == 'vscode.markdown.editor' && markdownEditorFocus"
+      },
       {
         "command": "markdown.showPreviewToSide",
         "key": "ctrl+k v",
@@ -1439,6 +1470,18 @@
               "experimental",
               "onExP"
             ]
+          },
+          "markdown.editor.highlightActiveBlock": {
+            "type": "boolean",
+            "default": true,
+            "description": "%configuration.markdown.editor.highlightActiveBlock%",
+            "scope": "resource"
+          },
+          "markdown.editor.quickSuggestions": {
+            "type": "boolean",
+            "default": false,
+            "markdownDescription": "%configuration.markdown.editor.quickSuggestions%",
+            "scope": "resource"
           },
           "markdown.links.openLocation": {
             "type": "string",
@@ -1948,7 +1991,7 @@
   },
   "dependencies": {
     "@vscode/extension-telemetry": "^0.9.8",
-    "@vscode/markdown-editor": "0.0.2-113",
+    "@vscode/markdown-editor": "0.0.2-119",
     "@vscode/observables": "^0.1.1-0",
     "dompurify": "^3.4.10",
     "highlight.js": "^11.8.0",

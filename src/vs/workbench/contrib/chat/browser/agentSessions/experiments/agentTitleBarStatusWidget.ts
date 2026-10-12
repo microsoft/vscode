@@ -515,14 +515,14 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 		const isCompactMode = true;
 		pill.classList.toggle('compact-mode', isCompactMode);
 
-		// Left icon container (sparkle by default, report+count when attention needed, search on hover)
+		// Left icon container (sparkle by default, attention icon+count when attention needed, search on hover)
 		const leftIcon = $('span.agent-status-left-icon');
 		if (hasAttentionNeeded) {
-			// Show report icon + count when sessions need attention
-			const reportIcon = renderIcon(Codicon.report);
+			// Show attention icon + count when sessions need attention
+			const attentionIcon = renderIcon(Codicon.reportQuestion);
 			const countSpan = $('span.agent-status-attention-count');
 			countSpan.textContent = String(attentionNeededSessions.length);
-			reset(leftIcon, reportIcon, countSpan);
+			reset(leftIcon, attentionIcon, countSpan);
 			leftIcon.classList.add('has-attention');
 		} else {
 			reset(leftIcon, renderIcon(Codicon.searchSparkle));
@@ -992,7 +992,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 			needsInputSection.setAttribute('role', 'button');
 			needsInputSection.tabIndex = 0;
 			const needsInputIcon = $('span.agent-status-icon');
-			reset(needsInputIcon, renderIcon(Codicon.report));
+			reset(needsInputIcon, renderIcon(Codicon.reportQuestion));
 			needsInputSection.appendChild(needsInputIcon);
 			const needsInputCount = $('span.agent-status-text');
 			needsInputCount.textContent = String(attentionNeededSessions.length);

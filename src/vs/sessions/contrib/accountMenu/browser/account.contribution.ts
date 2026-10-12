@@ -49,9 +49,6 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { createCodexAccountMenuActions, getCodexAccountPlanName, hasSignedInCodexChatGPTAccount, ICodexAccountService, shouldShowCodexAccount, type ICodexAccountViewInfo } from '../../../../workbench/services/agentHost/browser/codexAccountService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { MANAGE_CHAT_COMMAND_ID } from '../../../../workbench/contrib/chat/common/constants.js';
-import { AICustomizationManagementCommands } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
-import { AICustomizationManagementSection } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
-import { SessionType } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { fromNow, safeIntl } from '../../../../base/common/date.js';
 import { language } from '../../../../base/common/platform.js';
 import { AgentHostCodexAgentEnabledSettingId } from '../../../../platform/agentHost/common/agentService.js';
@@ -629,16 +626,9 @@ export class TitleBarAccountWidget extends BaseActionViewItem {
 				true,
 				() => this.commandService.executeCommand(MANAGE_CHAT_COMMAND_ID, '@provider:"Copilot"'),
 			)), { icon: true, label: false });
-			copilotActionBar.push(panelStore.add(new Action(
-				'copilot.openAgentCustomizations',
-				localize('openCopilotAgentCustomizations', "Agent Customizations for Copilot"),
-				ThemeIcon.asClassName(Codicon.settingsGear),
-				true,
-				() => this.commandService.executeCommand(AICustomizationManagementCommands.OpenEditor, {
-					sessionType: SessionType.AgentHostCopilot,
-					section: AICustomizationManagementSection.Agents,
-				}),
-			)), { icon: true, label: false });
+			for (const action of partitioned.personalize) {
+				copilotActionBar.push(action, { icon: true, label: false });
+			}
 			if (partitioned.signOut) {
 				copilotActionBar.push(partitioned.signOut, { icon: true, label: false });
 			}
@@ -698,16 +688,9 @@ export class TitleBarAccountWidget extends BaseActionViewItem {
 				true,
 				() => this.commandService.executeCommand(MANAGE_CHAT_COMMAND_ID, '@provider:"ChatGPT"'),
 			)), { icon: true, label: false });
-			accountActionBar.push(panelStore.add(new Action(
-				'codex.openAgentCustomizations',
-				localize('openCodexAgentCustomizations', "Agent Customizations for Codex"),
-				ThemeIcon.asClassName(Codicon.settingsGear),
-				true,
-				() => this.commandService.executeCommand(AICustomizationManagementCommands.OpenEditor, {
-					sessionType: SessionType.AgentHostCodex,
-					section: AICustomizationManagementSection.HarnessSettings,
-				}),
-			)), { icon: true, label: false });
+			for (const action of partitioned.personalize) {
+				accountActionBar.push(action, { icon: true, label: false });
+			}
 			accountActionBar.push(panelStore.add(new Action(
 				'codex.signOutOfChatGPT',
 				localize('signOutOfChatGPT', "Sign Out"),

@@ -27,6 +27,12 @@ export function readToolCallMeta(source: IAgentMetadataSource) {
 	return readVSCodeToolCallMeta(source);
 }
 
+/** Returns an elapsed duration only when both provider timestamps are valid and ordered. */
+export function getToolCallDurationMs(startedAt: string | undefined, completedAt: string | undefined): number | undefined {
+	const duration = startedAt && completedAt ? Date.parse(completedAt) - Date.parse(startedAt) : NaN;
+	return Number.isFinite(duration) && duration >= 0 ? duration : undefined;
+}
+
 export interface IToolCallPresentation {
 	readonly toolKind?: ToolKind;
 	readonly invocationMessage?: StringOrMarkdown;

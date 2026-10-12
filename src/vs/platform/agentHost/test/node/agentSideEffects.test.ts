@@ -33,7 +33,7 @@ import { ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import type { RootConfigChangedAction } from '../../common/state/protocol/actions.js';
 import { ChatStateSubscription } from '../../common/state/agentSubscription.js';
-import { ChangesSummary, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, SessionInputRequestKind } from '../../common/state/protocol/state.js';
+import { ChangesSummary, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, ConfirmationOptionKind, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, SessionInputRequestKind } from '../../common/state/protocol/state.js';
 import { ActionType, ActionEnvelope, AuthRequiredReason, type ChatAction, type INotification, type SessionAction } from '../../common/state/sessionActions.js';
 import { buildSubagentChatUri, buildChatUri, buildDefaultChatUri, ChatInteractivity, createErrorResponsePart, CustomizationLoadStatus, MessageAttachmentKind, MessageKind, PendingMessageKind, readUsageInfoMeta, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, customizationId, type ChatInputRequest, type ClientPluginCustomization, type Customization, type ISessionGitHubState, type PluginCustomization, type Turn } from '../../common/state/sessionState.js';
 import { IProductService } from '../../../product/common/productService.js';
@@ -5800,11 +5800,14 @@ suite('AgentSideEffects', () => {
 			// under PowerShell's case-insensitive matching. Missing language fails
 			// closed before rule analysis.
 			const cases = [
-				['tc-shell-lang-1', 'powershell'],
-				['tc-shell-lang-2', 'bash'],
-				['tc-shell-lang-3', undefined],
+				['tc-shell-lang-1', 'powershell', false],
+				['tc-shell-lang-2', 'bash', false],
+				['tc-shell-lang-3', undefined, false],
+				['tc-shell-json-1', 'powershell', true],
+				['tc-shell-json-2', 'bash', true],
+				['tc-shell-json-3', undefined, true],
 			] as const;
-			for (const [toolCallId, shellLanguage] of cases) {
+			for (const [toolCallId, shellLanguage, structured] of cases) {
 				agent.fireProgress({
 					kind: 'action', resource: URI.parse(defaultChatUri),
 					action: {
@@ -5818,11 +5821,13 @@ suite('AgentSideEffects', () => {
 					state: {
 						status: ToolCallStatus.PendingConfirmation,
 						toolCallId, toolName: '', displayName: '',
-						invocationMessage: 'Run command', toolInput: 'get-childitem',
+						invocationMessage: 'Run command',
+						toolInput: structured ? JSON.stringify({ command: 'get-childitem', description: 'Inspect the directory' }) : 'get-childitem',
 						confirmationTitle: 'Run in terminal?', edits: undefined,
 					},
 					permissionKind: 'shell', permissionPath: undefined,
 					shellLanguage,
+					shellCommand: structured ? 'get-childitem' : undefined,
 				});
 			}
 
@@ -5835,7 +5840,7 @@ suite('AgentSideEffects', () => {
 				state.activeTurn?.responseParts.map(p => p.kind === ResponsePartKind.ToolCall
 					? [p.toolCall._meta?.['autoApproveBySetting'], p.toolCall._meta?.['autoApproveRuleResolvable']]
 					: undefined),
-				[[true, undefined], [undefined, true], [undefined, undefined]],
+				[[true, undefined], [undefined, true], [undefined, undefined], [true, undefined], [undefined, true], [undefined, undefined]],
 				'powershell auto-approves; bash stays rule-resolvable; missing language is neither');
 		});
 
@@ -8597,6 +8602,52 @@ suite('AgentSideEffects', () => {
 	// ---- Session permissions ------------------------------------------------
 
 	suite('session permissions', () => {
+
+		test('live sampling tool parts route their custom approval without granting ordinary tool permissions', () => {
+			setupSession();
+			startTurn('turn-1', defaultChatUri);
+			disposables.add(sideEffects.registerProgressListener(agent));
+			const responses: Parameters<IAgent['respondToPermissionRequest']>[] = [];
+			agent.respondToPermissionRequest = (...args) => { responses.push(args); };
+			agent.fireProgress({
+				kind: 'action', resource: URI.parse(defaultChatUri),
+				action: {
+					type: ActionType.ChatToolCallStart, turnId: 'turn-1',
+					toolCallId: 'sampling-1', toolName: 'mcp_sampling', displayName: 'MCP Sampling',
+				},
+			});
+			agent.fireProgress({
+				kind: 'action', resource: URI.parse(defaultChatUri),
+				action: {
+					type: ActionType.ChatToolCallReady, turnId: 'turn-1',
+					toolCallId: 'sampling-1', invocationMessage: 'MCP sampling from test-server',
+					confirmationTitle: 'Allow Sampling from test-server?',
+					options: [{ id: 'allow-sampling-always', label: 'Always Allow for This Server', kind: ConfirmationOptionKind.Approve }],
+				},
+			});
+			const part = stateManager.getSessionState(defaultChatUri)?.activeTurn?.responseParts[0];
+			assert.ok(part?.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.PendingConfirmation);
+			assert.deepStrictEqual({
+				status: part.toolCall.status,
+				options: part.toolCall.options,
+				responses,
+			}, {
+				status: ToolCallStatus.PendingConfirmation,
+				options: [{ id: 'allow-sampling-always', label: 'Always Allow for This Server', kind: 'approve' }],
+				responses: [],
+			});
+			sideEffects.handleAction(defaultChatUri, {
+				type: ActionType.ChatToolCallConfirmed, turnId: 'turn-1', toolCallId: 'sampling-1',
+				approved: true, confirmed: ToolCallConfirmationReason.UserAction, selectedOptionId: 'allow-sampling-always',
+			});
+			assert.deepStrictEqual({
+				responses,
+				permissions: stateManager.getSessionState(sessionUri.toString())?.config?.values.permissions,
+			}, {
+				responses: [['sampling-1', true, { selectedOptionId: 'allow-sampling-always', origin: undefined }]],
+				permissions: undefined,
+			});
+		});
 
 		test('tool_ready action includes confirmation options when confirmation is needed', async () => {
 			setupSession();

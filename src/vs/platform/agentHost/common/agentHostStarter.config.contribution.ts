@@ -65,15 +65,15 @@ import { titleGenerationConfigurationProperties } from './titleGenerationConfigu
 // and `nodeAgentHostStarter.ts`) to populate the spawned agent host process's
 // environment. The starter exists in both the desktop main process and the
 // remote server process, so this registration has to be visible to both —
-// each starter file side-effect-imports this contribution, which causes the
-// registration to run as soon as the starter module is loaded. The renderer
-// also imports this so the same defaults show up in the settings UI.
+// the desktop starter and remote server bootstrap import this contribution.
+// The Node starter stays free of configuration-registration side effects.
+// The renderer also imports this so the same defaults show up in the settings UI.
 //
 // Side-effect imports of this file:
 //   - `src/vs/platform/agentHost/electron-main/electronAgentHostStarter.ts`
 //     (main process, loaded transitively from `app.ts`).
-//   - `src/vs/platform/agentHost/node/nodeAgentHostStarter.ts`
-//     (remote server, loaded transitively from `serverServices.ts`).
+//   - `src/vs/server/node/serverServices.ts`
+//     (remote server bootstrap, before starter construction).
 //   - `src/vs/workbench/contrib/chat/browser/chat.shared.contribution.ts`
 //     (renderer registration for the settings UI).
 
@@ -197,7 +197,7 @@ configurationRegistry.registerConfiguration({
 		...artifactToolsConfigurationProperties,
 		[CanvasesEnabledSettingId]: {
 			type: 'boolean',
-			description: nls.localize('chat.canvases.enabled', "Controls whether agents can open Canvases with interactive content in the Agents Window. Newly created sessions pick up changes to this setting."),
+			description: nls.localize('chat.canvases.enabled', "Controls whether local Agent Host Copilot sessions can open Canvases with interactive content in the Agents Window and the Editor Window. Newly created sessions pick up changes to this setting."),
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],
@@ -274,6 +274,7 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.agentHost.experimental.mcpToolRouting', "When enabled, agent-host sessions use cached MCP tool metadata to route requests and only prompt for MCP authentication when a server is relevant. Newly created sessions pick up changes to this setting."),
 			default: false,
 			tags: ['experimental', 'advanced'],
+			experiment: { mode: 'auto' },
 			agentHost: { key: AgentHostMcpToolRoutingEnabledConfigKey },
 		},
 		[AgentHostCopilotMultiRootEnabledSettingId]: {

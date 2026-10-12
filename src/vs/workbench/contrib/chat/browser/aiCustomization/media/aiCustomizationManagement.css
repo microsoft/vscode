@@ -164,6 +164,10 @@
 	text-align: center;
 }
 
+.ai-customization-management-editor .sidebar-migration-button.selected .sidebar-migration-count {
+	color: inherit;
+}
+
 /* Section list items */
 .ai-customization-management-editor .section-list-item {
 	display: flex;
@@ -1614,12 +1618,6 @@ per-word capitalization does not survive translation. */
 	min-width: 0;
 }
 
-.ai-customization-management-editor .mcp-detail-diagnostics-empty {
-	margin: 0;
-	color: var(--vscode-descriptionForeground);
-	font-size: var(--vscode-fontSize-body2);
-}
-
 .ai-customization-management-editor .mcp-detail-diagnostic-card {
 	min-height: 72px;
 	padding: var(--vscode-spacing-size120);
@@ -1697,7 +1695,7 @@ per-word capitalization does not survive translation. */
 .ai-customization-management-editor .mcp-detail-migration-link {
 	display: inline-block;
 	margin-top: var(--vscode-spacing-size100);
-	color: var(--vscode-textLink-foreground);
+	color: var(--vscode-inputValidation-warningForeground, var(--vscode-foreground));
 	font-weight: var(--vscode-fontWeight-semiBold);
 }
 
@@ -1707,7 +1705,7 @@ per-word capitalization does not survive translation. */
 
 .ai-customization-management-editor .mcp-detail-migration-link:hover,
 .ai-customization-management-editor .mcp-detail-migration-link:active {
-	color: var(--vscode-textLink-activeForeground);
+	color: var(--vscode-inputValidation-warningForeground, var(--vscode-foreground));
 }
 
 /* Embedded plugin detail view */
@@ -1803,13 +1801,63 @@ per-word capitalization does not survive translation. */
 }
 
 .ai-customization-management-editor .marketplace-detail-query-list {
-	display: flex;
-	flex-direction: column;
-	gap: var(--vscode-spacing-size40);
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: var(--vscode-spacing-size80);
 	margin: 0;
-	padding: var(--vscode-spacing-size100) var(--vscode-spacing-size120) var(--vscode-spacing-size100) var(--vscode-spacing-size320);
+	padding: var(--vscode-spacing-size60);
 	border-radius: var(--vscode-cornerRadius-medium);
 	background: var(--vscode-textCodeBlock-background);
+	list-style: none;
+}
+
+.ai-customization-management-editor .marketplace-detail-query-list > li {
+	min-width: 0;
+}
+
+.ai-customization-management-editor .monaco-button.marketplace-detail-query-button {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size120);
+	width: 100%;
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size60);
+	border-radius: var(--vscode-cornerRadius-small);
+	text-align: left;
+}
+
+.ai-customization-management-editor .monaco-button.marketplace-detail-query-button.disabled {
+	cursor: wait;
+}
+
+.ai-customization-management-editor .marketplace-detail-query-text {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.ai-customization-management-editor .marketplace-detail-query-action {
+	display: flex;
+	flex-shrink: 0;
+	align-items: center;
+	justify-content: center;
+	width: var(--vscode-spacing-size200);
+	height: var(--vscode-spacing-size200);
+	border-radius: var(--vscode-cornerRadius-circle);
+	background: transparent;
+	color: var(--vscode-button-background);
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.ai-customization-management-editor .marketplace-detail-query-button:hover .marketplace-detail-query-action {
+	background: var(--vscode-button-hoverBackground);
+	color: var(--vscode-button-foreground);
+}
+
+.ai-customization-management-editor .marketplace-detail-query-button:focus-visible .marketplace-detail-query-action {
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
 }
 
 .ai-customization-management-editor .marketplace-detail-container.narrow .embedded-detail-header {
@@ -3922,6 +3970,12 @@ per-word capitalization does not survive translation. */
 .ai-customization-management-editor .migration-detail-action.monaco-button {
 	width: auto;
 	flex-shrink: 0;
+}
+
+.ai-customization-management-editor .migration-detail-warning {
+	flex: 0 0 auto;
+	min-height: 0;
+	margin: var(--vscode-spacing-size80) var(--vscode-spacing-size160) 0;
 }
 
 .ai-customization-management-editor .editor-mode-button:hover {

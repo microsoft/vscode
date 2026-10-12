@@ -13,12 +13,14 @@ Registration is opt-in and default-off. The activation path is available to buil
 ## Enable the real service
 
 1. Sign in to GitHub in the owning VS Code window.
-2. Set `chat.agentHost.remoteConnections` to `missionControl` (the default is `devTunnel`).
-3. Enable **Allow Remote Connections** in the Agents Window title bar or the local Agent Host chat toolbar. Selecting Mission Control in settings does not register the environment.
+2. Set `chat.agentHost.remoteConnections` to `githubEnvironment` (the default is `devTunnel`).
+3. Enable **Allow Remote Connections** in the Agents Window title bar or the local Agent Host chat toolbar. Selecting GitHub environment in settings does not register the environment.
 4. Wait for `Mission Control ready; environmentId=...` in the Agent Host log.
 5. Create/use native sessions normally. From another compatible MC client, discover the environment, connect, authenticate with a sealed credential, and use standard AHP session operations.
 
 Registration uses `https://api.github.com`. An empty window can register the host without advertising a home-directory default. Disable **Allow Remote Connections** to withdraw remote access. The sharing choice is remembered locally across restarts, not synchronized to other machines. Changing the backend turns sharing off until explicitly enabled again. Withdrawal disconnects relay ingress immediately; it does not delete native sessions, conversations or checkouts.
+
+Registration and heartbeat `capabilities.current_sessions` count durable session-registry identities, independently of sidebar filters and provider availability. Counting does not load provider metadata or session transcripts. Metadata reads have a 60-second budget; a failed or timed-out device remote-control policy read prevents registration unless the explicit local policy override below is enabled.
 
 ### Local integration testing
 
@@ -42,6 +44,12 @@ Selection revalidates availability. An offline user-local host is not woken or r
 
 New native allocations negotiate standard `ahp-session` resources with a separate provider. Existing legacy and standard session/chat resources, SDK backings, and storage remain immutable. The client consumes exact advertised resources; MC does not impose a global Copilot alias. See the [identity contract](../../../../sessions/contrib/providers/agentHost/AGENT_HOST_SESSIONS_PROVIDER.md#identity).
 
+### Web PubSub receive capabilities
+
+VS Code clients publish the transport control `{"kind":"capabilities","accepts":["batch"]}` to the configured `to_host` group after joining their receive groups, and wait for its relay acknowledgement before initializing AHP. The socket/group-join timeout ends when the joins complete; capability publication then has its own 30-second acknowledgement deadline. They re-advertise after each successful AHP initialization or reconnect response, before delivering that response to the protocol client, so a replacement host lane can establish receive support. Rejected, timed-out, or unwritable capability publications fail the connection through normal relay error handling.
+
+The declaration permits a supporting peer to send bounded, ordered transport batches toward VS Code; it does not enable client outbound batching or prove that the peer has processed the declaration. Individual messages and chunks remain supported. These controls are not AHP messages or JSON-RPC batches and are not emitted on direct WebSocket or local IPC connections.
+
 ### Model advertisements
 
 Mission Control connections advertise model lists only for the native Copilot agent (`copilotcli`). Other agents remain advertised with their identities, capabilities and protected resources, but with empty model lists. This is an interoperability workaround for mobile clients that combine every agent's models into the picker for an existing Copilot session without switching that session's agent. Initial and subscribed root snapshots, reconnect snapshots/replay and live agent updates use the same projection; the host's authoritative catalog and local, SSH and tunnel connections remain unchanged.
@@ -58,13 +66,25 @@ Remote owner access includes native sessions, tools, and granted workspace resou
 
 Clients must authenticate the relay identity after each initialization before requesting session access, independently of agent-provider authentication. Unauthenticated requests return `AuthRequired` with standard `data.resources` identifying the configured GitHub identity authority, including hosts without a Copilot provider. Owner-validated identity authentication succeeds even if no agent provider accepts that resource; credentials are still forwarded to providers, and other provider/MCP resources require provider acceptance.
 
+Same-owner credential renewal before the current GitHub-reported deadline preserves in-flight requests and subscriptions. Expiry or a new handshake invalidates previously admitted work, even after successful reauthentication. Renewal checks the previous deadline before replacing it, so delayed expiry timers cannot hide a lapse.
+
 Both algorithms use the same `copilot-sealed.v1` envelope and purpose/resource checks. MC registration/heartbeat keys and AHP root metadata identify the same recipients. Unknown or wrong-purpose key IDs return `CONFLICT` so clients can refresh trusted keys, repeat the handshake, and seal again; malformed, undecryptable, or context-mismatched values return `INVALID_PARAMS`. Private key bytes and owned plaintext buffers are scrubbed on disposal or after use. HPKE opening uses non-extractable WebCrypto private keys; their native storage is managed by the runtime and has no explicit zeroization API.
 
 Native authoritative AHP actions and selected genuine SDK metadata are mirrored to MC for history and task title/activity. Approval/input metadata may contain commands, diffs, plans and questions. The SDK adapter excludes assistant/system messages, auth/configuration, subagents, per-token deltas and routine backing shutdown events; AHP mirroring still carries authoritative conversation content.
 
 Registration accepts unbound sealed tokens for compatibility with deployed pre-sealed clients. Supplied bindings are verified; unbound envelopes remain replayable. Backend tests can require binding through `IMissionControlOptions.requireConnectionBinding`. Optional MCP resource context and the shared native provider credential store have the limitations described in the matrix. Do not infer stronger guarantees from successful transport authentication.
 
-The SDK's canonical device `remoteControl` branch is read before registration and forwarded to MC for enforcement. Failed initial reads do not register as unrestricted. The host does not introduce a second enterprise-policy parser or claim local enforcement of every predicate against a compromised MC signer.
+By default, the SDK's canonical device `remoteControl` branch is read before registration and forwarded to MC for enforcement. Failed initial reads do not register as unrestricted. The host does not introduce a second enterprise-policy parser or claim local enforcement of every predicate against a compromised MC signer.
+
+### Explicit local remote-control policy override
+
+The unregistered, default-off `chat.agentHost.experimentalMissionControl.ignoreRemoteControlPolicy` setting is a testing override available in built products. Set it to `true` in the host owner's **local User settings** to skip the device `remoteControl` policy read and omit that branch from Mission Control registration, allowing active connections despite device enterprise restrictions on creating sessions or sending messages. Application user settings also apply; workspace, workspace-folder, remote-user, and default values cannot enable it. The setting is absent from the Settings UI and schema.
+
+```json
+"chat.agentHost.experimentalMissionControl.ignoreRemoteControlPolicy": true
+```
+
+This bypasses the entire device `remoteControl` branch, not other runtime managed settings, tool permissions, authentication, or workspace grants. Mission Control can still issue signed passive connections, which remain read-only. Changing the setting closes existing relay lanes and reconfigures registration; reconnect the remote client afterward. Remove the setting or set it to `false` to restore device policy reporting and its failed-read gate.
 
 ### Explicit local credential delegation
 
@@ -90,20 +110,28 @@ Host-wide diagnostic log channels are not advertised on Mission Control ingress.
 
 A single ordered publisher and bounded reassembly/queue/lane limits preserve live protocol ordering. Replacement connections have distinct generations; stale predecessor frames/closures are fenced. Request-form compatibility for `dispatchAction` and `unsubscribe` shares the native notification path and does not make arbitrary notifications successful requests.
 
+Clients can advertise receive support with `{ "kind": "capabilities", "accepts": ["batch"] }` on their configured per-client `to-host` group. The host accepts this framing control only from the registered WPS owner on an existing client lane; it is not an AHP request and does not authenticate session access. Support is scoped to that lane and resets on lane replacement or host relay recovery. Clients should advertise after joining their receive groups and re-advertise after each successful initialize/reconnect response. An updated `accepts` list replaces the previous list.
+
+For supporting clients, the ordered publisher packs adjacent already-queued raw AHP messages with the same destination group and host generation into `{ "kind": "batch", "items": [...], "generation": ... }`, with at most 256 items and 900 KiB of serialized envelope bytes. It adds no batching delay. Single messages and oversized payloads retain the message/chunk framing, and closures and mirror events remain ordering barriers. Each published batch uses one WPS acknowledgement; queue limits still account for the original queued frames and bytes.
+
 Independent AHP/SDK spools use durable ingest acknowledgements and bounded failure/truncation signals. Signed backfill replays retained AHP frames exactly. SDK sequence ranges are reserved durably before publication; native journal cursors advance only after durable SDK acknowledgement. AHP process-restart epochs/spool durability and complete pre-registration history remain deferred. Native titles are synchronized through the runtime naming API, not fabricated SDK events.
 
 ## Diagnostics and telemetry
 
 Host registration, relay readiness/recovery, unexpected relay losses and failures are recorded locally in the **Agent Host** log (`agenthost.log`). Client connection milestones and failures use the window log (`renderer.log`). HTTP failures include status and, when available, a request ID and a bounded, credential-redacted server message. WPS rejections and acknowledgement timeouts are also logged. Routine successful heartbeats and individual frames are not logged.
 
+Relay authorization rejections log the client ID, admission or recheck phase, and whether identity is currently authenticated. Reasons distinguish an unauthenticated identity, invalidated authorization despite a currently authenticated identity, and a closed connection. Standard request-handler failures include the JSON-RPC request ID for correlation with AHP logs. These diagnostics do not include credentials or request contents.
+
 Usage telemetry uses the existing telemetry service and consent:
 
 - `agentHost.missionControlOperation` reports host configuration, registration, token/key refresh and relay outcomes, plus failed heartbeats/check-ins. `relayDisconnected` reports only unexpected loss of a ready relay, with its ready duration; explicit withdrawal and credential rotation are excluded. Operation failures at different boundaries may describe the same underlying failure and must not be summed as distinct outages.
 - `missionControlConnectionAttempt` reports user-local connection success, failure, caller cancellation and timeout across inventory validation and relay establishment. This distinguishes the retained-host service's end-to-end deadline from the cancellation it sends to the shared relay service.
-- `cloudSandboxConnectionOutcome`, `cloudSandboxFirstSessionRequest` and `cloudSandboxConnectionHealth` distinguish `environmentKind=user-local` from `cloud`. Outcomes cover logical connects and recovery, including failure and cancellation. Health aggregates ready connection time and unexpected disconnects separately for each kind, excluding initial retries and intentional teardown.
+- `userLocalRelayConnectionOutcome`, `userLocalRelayFirstSessionRequest` and `userLocalRelayConnectionHealth` report `environmentKind=user-local`. Outcomes cover logical connects and recovery, including failure and cancellation. Health aggregates ready connection time and unexpected disconnects, excluding initial retries and intentional teardown. The shared tracker retains the `cloudSandbox*` event names and payloads for cloud environments; each sample emits only one event name. Historical user-local samples use the `cloudSandbox*` names with `environmentKind=user-local`, so cross-version analysis must include those filtered historical samples.
 - `agentHost.clientConnection`, `agentHost.sessionCreated` and existing action/turn events identify user-local relay traffic with the bounded connection kind `mission_control`, alongside `ssh` and `dev_tunnel`. The host knows its relay route even when another conforming client omits VS Code metadata. Session creation is counted after successful AHP allocation, not discovery or restoration.
 
 No server messages, response bodies, credentials, environment names or addresses are added to these telemetry events. Server error messages remain local. Host-wide logs are not exposed over Mission Control ingress.
+
+`userLocalRelayFirstSessionRequest` samples the first session create, list, or subscribe RPC after readiness, excluding the root subscription used during handshake authentication. It records outcome and duration, not error code or authorization reason. Existing-session load failures are logged locally and can appear indirectly in this first-request sample, but later load failures have no dedicated outcome event. `agentHost.invocationFailed` covers chat invocation failures, not opening existing sessions.
 
 ## Implementation ownership
 

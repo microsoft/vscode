@@ -12,7 +12,10 @@ import { ExtensionIdentifier } from '../../../../../platform/extensions/common/e
 import { TelemetryTrustedValue } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { ChatUserInteractionTimingResult, isChatFirstVisibleProgress } from '../../browser/chatUserInteractionTelemetry.js';
 import { IChatProgress, IChatToolInvocation, IChatToolInvocationSerialized } from '../../common/chatService/chatService.js';
-import { getChatSessionTelemetryContext } from '../../common/chatService/chatServiceTelemetry.js';
+import { getChatSessionTelemetryContext, getChatSessionTelemetryIds } from '../../common/chatService/chatServiceTelemetry.js';
+import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../../common/constants.js';
 import { IChatProgressResponseContent, IChatRequestModel, IChatResponseModel } from '../../common/model/chatModel.js';
 import { ToolInvocationPresentation } from '../../common/tools/languageModelToolsService.js';
@@ -226,6 +229,64 @@ suite('ChatUserInteractionTelemetry', () => {
 			{ chatSessionId: 'session-id#peer-two', sessionType: 'remote-agent-host', harness: 'copilot' },
 		]);
 	});
+
+	test('resolves owner identity without guessing from frontend aliases or remote authorities', () => {
+		const instantiation = disposables.add(new TestInstantiationService());
+		instantiation.stub(IAgentHostConnectionsService, {
+			resolveSessionResourceIdentity: () => ({
+				connectionAuthority: 'private-host',
+				backendSession: URI.parse('copilotcli:/backend-session'),
+			}),
+		});
+		for (const scheme of ['agent-host-copilot', 'remote-private-host-copilot']) {
+			for (const fragment of ['', 'peer-one', 'peer-two']) {
+				const resource = URI.from({ scheme, path: '/frontend-session', fragment });
+				const ids = getChatSessionTelemetryIds(resource, instantiation.get(IAgentHostConnectionsService));
+				assert.deepStrictEqual(ids, {
+					chatSessionId: getChatSessionTelemetryContext(resource).chatSessionId,
+					agentSessionId: 'backend-session',
+				});
+				assert.ok(!JSON.stringify(ids).includes('private-host'));
+			}
+		}
+		instantiation.stub(IAgentHostConnectionsService, { resolveSessionResourceIdentity: () => undefined });
+		assert.deepStrictEqual(getChatSessionTelemetryIds(URI.parse('remote-unknown-host-copilot:/session'), instantiation.get(IAgentHostConnectionsService)), { chatSessionId: 'session' });
+	});
+
+	test('does not resolve an Agent Host owner for local sessions', () => {
+		const resource = LocalChatSessionUri.forSession('local-session');
+		assert.deepStrictEqual(getChatSessionTelemetryIds(resource, { resolveSessionResourceIdentity: () => assert.fail('Unexpected owner resolution') }), {
+			chatSessionId: 'local-session',
+		});
+	});
+
+	for (const scheme of ['agent-host-copilotcli', 'remote-private-host-copilotcli']) {
+		for (const [frontendPath, backendPath, advertised, owner] of [
+			['/untitled-host-session', '/untitled-host-session', true, 'untitled-host-session'],
+			['/frontend-session', '/untitled-backend-session', true, 'untitled-backend-session'],
+			['/untitled-frontend-session', '/backend-session', true, 'backend-session'],
+			['/untitled-draft', '/untitled-draft', false, undefined],
+			['/frontend-session', '/untitled-draft', false, undefined],
+			['/untitled-draft', '/backend-session', false, undefined],
+		] as const) {
+			test(`honors advertised identity before draft conventions (${scheme}, ${frontendPath}, ${backendPath}, advertised: ${advertised})`, () => {
+				const resource = URI.from({ scheme, path: frontendPath, fragment: 'peer-chat' });
+				assert.deepStrictEqual(getChatSessionTelemetryIds(resource, {
+					resolveSessionResourceIdentity: resolvedResource => {
+						assert.strictEqual(resolvedResource, resource);
+						return {
+							connectionAuthority: 'private-host',
+							backendSession: URI.from({ scheme: 'ahp-session', path: backendPath }),
+							...(advertised ? { backendSessionIsAdvertised: true } as const : {}),
+						};
+					},
+				}), {
+					chatSessionId: getChatSessionTelemetryContext(resource).chatSessionId,
+					...(owner !== undefined ? { agentSessionId: owner } : {}),
+				});
+			});
+		}
+	}
 
 	for (const result of ['cancelled', 'error', 'completedWithoutProgress', 'notDispatched', 'queued', 'navigated', 'hidden', 'disposed'] satisfies Exclude<ChatUserInteractionTimingResult, 'success'>[]) {
 		test(`reports ${result} with only a termination duration`, () => {

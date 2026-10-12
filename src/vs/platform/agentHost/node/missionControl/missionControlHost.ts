@@ -31,9 +31,12 @@ import type { MissionControlProtocolServer } from './missionControlProtocolServe
 import { MissionControlSdkEventSource } from './missionControlSdkEventSource.js';
 import { MissionControlSessionMirror } from './missionControlSessionMirror.js';
 import { MissionControlProjects } from './missionControlProjects.js';
-import { AhpErrorCodes, JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
+import { MissionControlCopilotExtension } from './missionControlCopilotExtension.js';
+import { missionControlSessionConfigAdapter } from './missionControlSessionConfig.js';
 import { isObject } from '../../../../base/common/types.js';
 import { ActionType } from '../../common/state/sessionActions.js';
+import { AhpJsonlLogger, AhpJsonlLogRetention } from '../../common/ahpJsonlLogger.js';
+import { MISSION_CONTROL_AHP_LOG_ID } from '../../common/missionControlEnvironment.js';
 
 interface IMissionControlHostOptions {
 	readonly hostLaunchKind: AgentHostLaunchKind;
@@ -75,6 +78,7 @@ export class MissionControlHost extends Disposable {
 	readonly environment: MissionControlEnvironment;
 	private readonly _projects: MissionControlProjects;
 	private _grantedRoots: () => readonly string[] = () => [];
+	private _projectRoots: () => readonly string[] = () => [];
 
 	constructor(
 		private readonly _options: IMissionControlHostOptions,
@@ -91,22 +95,37 @@ export class MissionControlHost extends Disposable {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
+		const retention = this._instantiationService.createInstance(AhpJsonlLogRetention, {
+			logsHome: environmentService.logsHome,
+			logId: MISSION_CONTROL_AHP_LOG_ID,
+			maxFiles: 10,
+			maxSizeBytes: 750 * 1024 * 1024,
+		});
 		this._projects = this._register(this._instantiationService.createInstance(MissionControlProjects, {
 			getRoots: () => this._grantedRoots(),
+			getProjectRoots: () => this._projectRoots(),
 		}));
 		this.environment = this._register(this._instantiationService.createInstance(MissionControlEnvironment, {
 			userDataPath: environmentService.userDataPath,
 			name: getMissionControlEnvironmentName(productService),
 			fetch: (input, init) => proxyResolver.fetch(input, init),
-			attach: (relay, roots, getRoots) => this._attachRelay(relay, roots, getRoots),
+			attach: (relay, roots, getRoots, getProjects, defaultDirectory) => this._attachRelay(relay, roots, getRoots, getProjects, defaultDirectory),
+			updateProjects: () => this._projects.initialize(),
 			onError: error => this._logService.error(`[AgentHost] Mission Control failure: ${formatConnectionDiagnosticError(getConnectionDiagnosticError(error))}`),
 			onDiagnostic: event => this._reportOperation(event),
-			getSessionCount: async () => (await this._agentService.listSessions()).length,
+			getSessionCount: () => this._agentService.getSessionCount(),
 			getRemoteControlPolicy: () => this._readRemoteControlPolicy(),
 			onReady: environmentId => this._logService.info(`[AgentHost] Mission Control ready; environmentId=${environmentId}`),
 			getIdentityApiBase: () => gitHubEndpoints.getApiBaseUri(),
 			onDidChangeIdentityAuthority: gitHubEndpoints.onDidChange,
 			createMirror: environmentId => this._createMirror(environmentId),
+			createAhpLogger: (clientId, generation) => this._instantiationService.createInstance(AhpJsonlLogger, {
+				logsHome: environmentService.logsHome,
+				logId: MISSION_CONTROL_AHP_LOG_ID,
+				connectionId: `${clientId}-${generation}`,
+				transport: 'mission-control',
+				retention,
+			}),
 		}));
 	}
 
@@ -150,8 +169,10 @@ export class MissionControlHost extends Disposable {
 		return provider.getRemoteControlManagedSettings();
 	}
 
-	private _attachRelay(relay: MissionControlProtocolServer, roots: readonly string[], getRoots: () => readonly string[]): IDisposable {
+	private _attachRelay(relay: MissionControlProtocolServer, roots: readonly string[], getRoots: () => readonly string[], getProjects: () => readonly string[], defaultDirectory?: string): IDisposable {
 		this._grantedRoots = getRoots;
+		this._projectRoots = getProjects;
+		const directory = defaultDirectory ?? roots[0];
 		const handler = this._instantiationService.createInstance(
 			ProtocolServerHandler,
 			this._agentService,
@@ -163,33 +184,14 @@ export class MissionControlHost extends Disposable {
 				relayRoots: relay.rootMeta ? undefined : roots,
 				relayRootMeta: relay.rootMeta,
 				advertisedModelProviders: ['copilotcli'],
-				copilotProjects: relay.rootMeta ? this._projects : undefined,
-				copilotSessionRequest: (method, params) => this._handleSessionRequest(method, params),
+				sessionConfigAdapter: missionControlSessionConfigAdapter,
+				extension: relay.rootMeta ? this._instantiationService.createInstance(MissionControlCopilotExtension, this._projects) : undefined,
 				relayResourceRoots: readOnly => this._resourceRoots(readOnly, getRoots()),
-				defaultDirectory: roots[0] ? URI.file(roots[0]).toString() : undefined,
+				defaultDirectory: directory ? URI.file(directory).toString() : undefined,
 			},
 			this._options.clientFileSystemProvider,
 		);
 		return this._options.trackProtocolHandler(handler);
-	}
-
-	private async _handleSessionRequest(method: string, params: Record<string, unknown>): Promise<unknown> {
-		if (typeof params.channel !== 'string' || !this._stateManager.getSessionState(params.channel)) {
-			throw new ProtocolError(AhpErrorCodes.SessionNotFound, 'Session does not exist');
-		}
-		const session = URI.parse(params.channel);
-		const provider = this._providerService.getProviderForSession(session);
-		if (method === 'extensions/getPlan' && provider?.getSessionPlan) {
-			return provider.getSessionPlan(session);
-		}
-		if (method === 'extensions/setSessionApproveAll' && provider?.setSessionApproveAll) {
-			if (typeof params.enabled !== 'boolean') {
-				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'enabled must be a boolean');
-			}
-			await provider.setSessionApproveAll(session, params.enabled);
-			return null;
-		}
-		throw new ProtocolError(JsonRpcErrorCodes.MethodNotFound, `Provider does not support ${method}`);
 	}
 
 	private _resourceRoots(readOnly: boolean, grantedRoots: readonly string[]): readonly string[] {

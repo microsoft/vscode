@@ -17,7 +17,7 @@ import { autorun } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
-import { AgentHostRemoteConnectionsBackend, AgentHostRemoteConnectionsSettingId, IMissionControlSharingService } from '../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { AgentHostRemoteConnectionsBackend, AgentHostRemoteConnectionsSettingId, IMissionControlSharingService, isGitHubEnvironmentBackend } from '../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IRemoteTunnelService, INACTIVE_TUNNEL_MODE, TunnelMode, TunnelStatus } from '../../../../platform/remoteTunnel/common/remoteTunnel.js';
 import { RemoteTunnelCommandIds } from '../../remoteTunnel/electron-browser/remoteTunnel.contribution.js';
@@ -132,7 +132,7 @@ export class ToggleRemoteConnectionsActionViewItem extends BaseActionViewItem {
 	}
 
 	private _usesMissionControl(): boolean {
-		return this._configurationService.getValue<AgentHostRemoteConnectionsBackend>(AgentHostRemoteConnectionsSettingId) === 'missionControl';
+		return isGitHubEnvironmentBackend(this._configurationService.getValue<AgentHostRemoteConnectionsBackend>(AgentHostRemoteConnectionsSettingId));
 	}
 
 	private _getState(): IRemoteTunnelAccessState {
@@ -205,10 +205,10 @@ export class ToggleRemoteConnectionsActionViewItem extends BaseActionViewItem {
 		const state = this._getState();
 		if (this._usesMissionControl()) {
 			return state.isConnecting
-				? localize('missionControlSharing.connecting', "Registering environment with Mission Control...")
+				? localize('missionControlSharing.connecting', "Registering GitHub environment...")
 				: state.isSharing
-					? localize('missionControlSharing.enabled', "Remote Connections via Mission Control are enabled")
-					: localize('missionControlSharing.disabled', "Allow Remote Connections via Mission Control");
+					? localize('missionControlSharing.enabled', "Remote Connections via GitHub environment are enabled")
+					: localize('missionControlSharing.disabled', "Allow Remote Connections via GitHub environment");
 		}
 		if (state.isConnecting) {
 			return localize('tunnelHost.hover.connecting', "Establishing tunnel connection...");

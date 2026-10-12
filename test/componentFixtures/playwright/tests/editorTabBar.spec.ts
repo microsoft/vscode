@@ -10,7 +10,7 @@ test('Dark Modern keeps legacy, connected, and pill tab surfaces distinct', asyn
 	test.setTimeout(60_000);
 
 	const surfaceColors = async (style: 'Legacy' | 'Connected' | 'Pill') => {
-		await openFixture(page, `editor/tabs/TabStyles/${style}/DarkModern`, '.tabs-container > .tab.active');
+		await openFixture(page, `editor/tabs/Styles/${style}/DarkModern`, '.tabs-container > .tab.active');
 		return page.locator('.editor-group-container > .title.tabs').evaluate(title => {
 			if (!(title instanceof HTMLElement)) {
 				throw new Error('Expected an editor title element');
@@ -45,16 +45,18 @@ test('Dark Modern keeps legacy, connected, and pill tab surfaces distinct', asyn
 });
 
 test('Connected defaults do not surface the theme active-top accent', async ({ page }) => {
-	await openFixture(page, 'editor/tabs/TabStyles/Connected/Dark', '.tabs-container > .tab.active');
+	await openFixture(page, 'editor/tabs/Styles/Connected/Dark', '.tabs-container > .tab.active');
 	const colors = await page.locator('.editor-group-container').evaluate(group => {
 		const activeFill = group.querySelector<HTMLElement>('.tab.active > .tab-fill');
-		if (!activeFill) {
-			throw new Error('Expected an active connected tab fill');
+		const activeEdge = group.querySelector<HTMLElement>('.tab.active > .tab-connected-edge');
+		if (!activeFill || !activeEdge) {
+			throw new Error('Expected an active connected tab fill and edge');
 		}
 		const groupStyle = getComputedStyle(group);
 		const leftShoulder = getComputedStyle(activeFill, '::before');
 		return {
-			capTop: getComputedStyle(activeFill).borderTopColor,
+			capTop: getComputedStyle(activeEdge).borderTopColor,
+			capRadius: getComputedStyle(activeEdge).borderTopLeftRadius,
 			structuralBoundary: groupStyle.getPropertyValue('--modern-ui-connected-tab-border').trim(),
 			themeActiveTop: getComputedStyle(group.closest('.monaco-workbench')!).getPropertyValue('--vscode-tab-activeBorderTop').trim(),
 			shoulder: {
@@ -67,10 +69,11 @@ test('Connected defaults do not surface the theme active-top accent', async ({ p
 	});
 	expect(colors).toEqual({
 		capTop: 'rgb(42, 43, 44)',
+		capRadius: '4px',
 		structuralBoundary: '#2a2b2c',
 		themeActiveTop: '#3994bc',
 		shoulder: {
-			bottom: '-1px',
+			bottom: '0px',
 			height: '7px',
 			radius: '7px',
 			color: 'rgb(42, 43, 44)',
@@ -80,18 +83,18 @@ test('Connected defaults do not surface the theme active-top accent', async ({ p
 
 for (const [group, expected] of [
 	['FocusedEditorGroup', {
-		activeTop: { indicator: 'block', capColor: 'rgb(250, 204, 21)', accentColor: 'rgb(34, 211, 238)' },
+		activeTop: { indicator: 'none', color: 'rgb(34, 211, 238)' },
 		activeBottom: { display: 'block', color: 'rgb(244, 63, 94)' },
-		activeSide: 'rgb(250, 204, 21)',
-		selectedTop: { display: 'block', color: 'rgb(163, 230, 53)', height: 2, leftInset: 2, rightInset: 2 },
-		selectedBorder: 'rgba(0, 0, 0, 0)',
+		activeSide: 'rgb(34, 211, 238)',
+		selectedTop: { indicator: 'none', color: 'rgb(163, 230, 53)', width: 1, leftInset: 2, rightInset: 2 },
+		selectedBorder: 'rgb(163, 230, 53)',
 	}],
 	['UnfocusedEditorGroup', {
-		activeTop: { indicator: 'block', capColor: 'rgb(250, 204, 21)', accentColor: 'rgb(192, 132, 252)' },
+		activeTop: { indicator: 'none', color: 'rgb(192, 132, 252)' },
 		activeBottom: { display: 'block', color: 'rgb(251, 146, 60)' },
-		activeSide: 'rgb(250, 204, 21)',
-		selectedTop: { display: 'block', color: 'rgb(163, 230, 53)', height: 2, leftInset: 2, rightInset: 2 },
-		selectedBorder: 'rgba(0, 0, 0, 0)',
+		activeSide: 'rgb(192, 132, 252)',
+		selectedTop: { indicator: 'none', color: 'rgb(163, 230, 53)', width: 1, leftInset: 2, rightInset: 2 },
+		selectedBorder: 'rgb(163, 230, 53)',
 	}],
 ] as const) {
 	test(`connected tabs show border customizations in ${group}`, async ({ page }) => {
@@ -103,9 +106,10 @@ for (const [group, expected] of [
 			const activeTop = active?.querySelector<HTMLElement>('.tab-border-top-container');
 			const activeBottom = active?.querySelector<HTMLElement>('.tab-border-bottom-container');
 			const activeFill = active?.querySelector<HTMLElement>('.tab-fill');
+			const activeEdge = active?.querySelector<HTMLElement>('.tab-connected-edge');
 			const selectedTop = selected?.querySelector<HTMLElement>('.tab-border-top-container');
 			const selectedFill = selected?.querySelector<HTMLElement>('.tab-fill');
-			if (!activeTop || !activeBottom || !activeFill || !selectedTop || !selectedFill) {
+			if (!activeTop || !activeBottom || !activeFill || !activeEdge || !selected || !selectedTop || !selectedFill) {
 				throw new Error('Expected active and selected connected-tab border indicators');
 			}
 			const style = (element: HTMLElement) => {
@@ -115,16 +119,16 @@ for (const [group, expected] of [
 			return {
 				activeTop: {
 					indicator: getComputedStyle(activeTop).display,
-					capColor: getComputedStyle(activeFill).borderTopColor,
-					accentColor: getComputedStyle(activeTop).backgroundColor,
+					color: getComputedStyle(activeEdge).borderTopColor,
 				},
 				activeBottom: style(activeBottom),
-				activeSide: getComputedStyle(activeFill).borderRightColor,
+				activeSide: getComputedStyle(activeEdge).borderRightColor,
 				selectedTop: {
-					...style(selectedTop),
-					height: selectedTop.getBoundingClientRect().height,
-					leftInset: selectedTop.getBoundingClientRect().left - selectedFill.getBoundingClientRect().left,
-					rightInset: selectedFill.getBoundingClientRect().right - selectedTop.getBoundingClientRect().right,
+					indicator: getComputedStyle(selectedTop).display,
+					color: getComputedStyle(selectedFill).borderTopColor,
+					width: Number.parseFloat(getComputedStyle(selectedFill).borderTopWidth),
+					leftInset: selectedFill.getBoundingClientRect().left - selected.getBoundingClientRect().left,
+					rightInset: selected.getBoundingClientRect().right - selectedFill.getBoundingClientRect().right,
 				},
 				selectedBorder: getComputedStyle(selectedFill).borderRightColor,
 			};
@@ -151,11 +155,13 @@ for (const [style, expected] of [
 		visibleDividers: Array(7).fill('rgb(255, 255, 255)'),
 	}],
 	['Connected', {
-		topIndicator: { display: 'block', color: 'rgb(34, 211, 238)' },
+		topIndicator: { display: 'none' },
 		bottomIndicator: { display: 'block', color: 'rgb(244, 63, 94)' },
-		fillTop: 'rgb(250, 204, 21)',
+		edgeTop: 'rgb(34, 211, 238)',
+		edgeSide: 'rgb(250, 204, 21)',
+		fillTop: 'rgba(0, 0, 0, 0)',
 		fillBottom: 'rgba(0, 0, 0, 0)',
-		fillSide: 'rgb(250, 204, 21)',
+		fillSide: 'rgba(0, 0, 0, 0)',
 		inactiveBorder: 'rgba(0, 0, 0, 0)',
 		visibleDividers: Array(5).fill('rgb(255, 255, 255)'),
 	}],
@@ -170,6 +176,7 @@ for (const [style, expected] of [
 				throw new Error('Expected active tab border elements');
 			}
 			const fillStyle = getComputedStyle(fill);
+			const edge = active.querySelector<HTMLElement>('.tab-connected-edge');
 			const inactiveFill = active.parentElement!.querySelector<HTMLElement>('.tab:not(.active) > .tab-fill');
 			if (!inactiveFill) {
 				throw new Error('Expected an inactive tab fill');
@@ -191,6 +198,8 @@ for (const [style, expected] of [
 				fillTop: fillStyle.borderTopColor,
 				fillBottom: fillStyle.borderBottomColor,
 				fillSide: fillStyle.borderRightColor,
+				edgeTop: edge ? getComputedStyle(edge).borderTopColor : undefined,
+				edgeSide: edge ? getComputedStyle(edge).borderRightColor : undefined,
 				inactiveBorder: getComputedStyle(inactiveFill).borderRightColor,
 				topAccent: getComputedStyle(fill, '::before').backgroundColor,
 				bottomAccent: getComputedStyle(fill, '::after').backgroundColor,
@@ -218,7 +227,7 @@ test('default and customized connected tabs share identical geometry', async ({ 
 			const activeRect = active.getBoundingClientRect();
 			const fillRect = fill.getBoundingClientRect();
 			const edgeRect = edge.getBoundingClientRect();
-			const fillStyle = getComputedStyle(fill);
+			const edgeStyle = getComputedStyle(edge);
 			const leftShoulder = getComputedStyle(fill, '::before');
 			const rightShoulder = getComputedStyle(fill, '::after');
 			const leftMask = getComputedStyle(edge, '::before');
@@ -235,7 +244,7 @@ test('default and customized connected tabs share identical geometry', async ({ 
 					activeRect.right - edgeRect.right,
 					edgeRect.bottom - activeRect.bottom,
 				],
-				capRadius: [fillStyle.borderTopLeftRadius, fillStyle.borderTopRightRadius],
+				capRadius: [edgeStyle.borderTopLeftRadius, edgeStyle.borderTopRightRadius],
 				shoulders: [
 					[leftShoulder.bottom, leftShoulder.width, leftShoulder.height, leftShoulder.borderBottomRightRadius],
 					[rightShoulder.bottom, rightShoulder.width, rightShoulder.height, rightShoulder.borderBottomLeftRadius],
@@ -285,13 +294,14 @@ for (const [theme, expected] of [
 		await openFixture(page, `editor/tabs/Colors/BorderCustomizations/AcrossTabStyles/Connected/${theme}`, '.tabs-container > .tab.active');
 		const ownership = await page.locator('.editor-group-container').evaluate(group => {
 			const activeFill = group.querySelector<HTMLElement>('.tab.active > .tab-fill');
+			const activeEdge = group.querySelector<HTMLElement>('.tab.active > .tab-connected-edge');
 			const inactiveFill = group.querySelector<HTMLElement>('.tab:not(.active):not(:first-child) > .tab-fill');
 			const firstFill = group.querySelector<HTMLElement>('.tab:first-child > .tab-fill');
-			if (!activeFill || !inactiveFill || !firstFill) {
-				throw new Error('Expected active and inactive connected tab fills');
+			if (!activeFill || !activeEdge || !inactiveFill || !firstFill) {
+				throw new Error('Expected active connected tab edge and inactive tab fills');
 			}
 
-			const activeStyle = getComputedStyle(activeFill);
+			const activeStyle = getComputedStyle(activeEdge);
 			const inactiveStyle = getComputedStyle(inactiveFill);
 			const visibleDividers = [...group.querySelectorAll<HTMLElement>('.tab-divider')]
 				.filter(element => getComputedStyle(element).display !== 'none')
@@ -300,14 +310,16 @@ for (const [theme, expected] of [
 				active: {
 					top: activeStyle.borderTopColor,
 					side: activeStyle.borderRightColor,
-					bottom: activeStyle.borderBottomColor,
+					bottom: getComputedStyle(activeFill).borderBottomColor,
+					edgeBottomWidth: activeStyle.borderBottomWidth,
 				},
 				inactive: {
 					top: inactiveStyle.borderTopColor,
 					side: inactiveStyle.borderRightColor,
 				},
 				firstLeft: getComputedStyle(firstFill).borderLeftColor,
-				frame: getComputedStyle(group, '::after').borderColor,
+				frame: getComputedStyle(group.closest('.part.editor')!).borderTopColor,
+				groupFrame: getComputedStyle(group, '::after').content,
 				visibleDividers,
 			};
 		});
@@ -316,13 +328,15 @@ for (const [theme, expected] of [
 				top: expected.activeTop,
 				side: expected.accent,
 				bottom: 'rgba(0, 0, 0, 0)',
+				edgeBottomWidth: '0px',
 			},
 			inactive: {
 				top: expected.tabBorder,
 				side: expected.tabBorder,
 			},
 			firstLeft: expected.tabBorder,
-			frame: expected.accent,
+			frame: expected.tabBorder,
+			groupFrame: 'none',
 			visibleDividers: [],
 		});
 	});
@@ -516,16 +530,17 @@ for (const [fixture, expected] of [
 			const group = editor.querySelector<HTMLElement>('.editor-group-container.active');
 			const active = group?.querySelector<HTMLElement>('.tab.active');
 			const fill = active?.querySelector<HTMLElement>('.tab-fill');
+			const edge = active?.querySelector<HTMLElement>('.tab-connected-edge');
 			const indicator = active?.querySelector<HTMLElement>('.tab-border-top-container');
 			const strip = group?.querySelector<HTMLElement>('.tabs-and-actions-container');
 			const body = group?.querySelector<HTMLElement>('.editor-container');
-			if (!group || !active || !fill || !indicator || !strip || !body) {
+			if (!group || !active || !fill || !edge || !indicator || !strip || !body) {
 				throw new Error('Expected connected editor frame and active tab');
 			}
 			const editorRect = editor.getBoundingClientRect();
 			const fillRect = fill.getBoundingClientRect();
 			const bodyRect = body.getBoundingClientRect();
-			const fillStyle = getComputedStyle(fill);
+			const edgeStyle = getComputedStyle(edge);
 			const leftShoulder = getComputedStyle(fill, '::before');
 			const rightShoulder = getComputedStyle(fill, '::after');
 			const visibleDividers = [...group.querySelectorAll<HTMLElement>('.tab-divider')]
@@ -533,13 +548,14 @@ for (const [fixture, expected] of [
 				.map(element => getComputedStyle(element).backgroundColor);
 			return {
 				editorBorder: getComputedStyle(editor).borderTopColor,
-				capTop: getComputedStyle(fill).borderTopColor,
-				capLeft: fillStyle.borderLeftColor,
-				capLeftWidth: fillStyle.borderLeftWidth,
-				capSide: getComputedStyle(fill).borderRightColor,
+				capTop: edgeStyle.borderTopColor,
+				capLeft: edgeStyle.borderLeftColor,
+				capLeftWidth: edgeStyle.borderLeftWidth,
+				capSide: edgeStyle.borderRightColor,
+				capRadius: edgeStyle.borderTopRightRadius,
 				separator: getComputedStyle(strip, '::after').backgroundColor,
 				indicator: getComputedStyle(indicator).display,
-				topAligned: editorRect.top === fillRect.top,
+				capTopInset: edge.getBoundingClientRect().top - editorRect.top,
 				bodyOverlap: fillRect.bottom - bodyRect.top,
 				frameInsets: [bodyRect.left - editorRect.left, editorRect.right - bodyRect.right],
 				shoulderTangents: {
@@ -555,14 +571,15 @@ for (const [fixture, expected] of [
 			capLeft: expected.capLeft,
 			capLeftWidth: expected.capLeftWidth,
 			capSide: 'rgb(34, 211, 238)',
+			capRadius: '4px',
 			separator: 'rgb(34, 211, 238)',
-			indicator: 'block',
-			topAligned: true,
+			indicator: 'none',
+			capTopInset: 3,
 			bodyOverlap: 0,
 			frameInsets: [1, 1],
 			shoulderTangents: {
-				left: ['-1px', '7px', '7px', 'rgb(34, 211, 238)'],
-				right: ['-1px', '7px', '7px', 'rgb(34, 211, 238)'],
+				left: ['0px', '7px', '7px', 'rgb(34, 211, 238)'],
+				right: ['0px', '7px', '7px', 'rgb(34, 211, 238)'],
 			},
 			visibleDividers: expected.dividers,
 		});
@@ -571,7 +588,7 @@ for (const [fixture, expected] of [
 
 for (const theme of ['DarkHighContrast', 'LightHighContrast']) {
 	test(`connected tab actions respect disabled hover state in ${theme}`, async ({ page }) => {
-		await openFixture(page, `editor/tabs/Layout/SingleEditor/${theme}`, '.tabs-container > .tab');
+		await openFixture(page, `editor/tabs/Density/Default/SingleTab/${theme}`, '.tabs-container > .tab');
 		const action = page.locator('.tab-actions .action-label');
 
 		await action.hover();

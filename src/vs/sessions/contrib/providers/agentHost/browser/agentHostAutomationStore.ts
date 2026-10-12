@@ -139,7 +139,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 	}
 
 	canUpdateAutomation(automationId: string): boolean {
-		return this._operationAvailable(automationId, AutomationOperation.Update);
+		return this._operationAvailable(automationId, AutomationOperation.Update) && !this.getAutomation(automationId)?.readOnlyReason;
 	}
 
 	canDeleteAutomation(automationId: string): boolean {
@@ -182,6 +182,9 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 	async updateAutomation(id: string, patch: IUpdateAutomationOptions, mutationGuard?: AutomationMutationGuard): Promise<IAutomationDescriptor> {
 		this._requireOperation(id, AutomationOperation.Update);
 		const current = this._requireAutomation(id);
+		if (current.readOnlyReason) {
+			throw new Error(current.readOnlyReason);
+		}
 		const updated = this._applyPatch(current, patch);
 		const state = await this._replaceDescriptor(updated, patch.sessionTemplate === null, mutationGuard, patch.customizationIds);
 		return this._requireProjectedAutomation(state);
@@ -358,11 +361,13 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		}
 		const modelId = this._projectModelId(state.definition.session.model?.id, state.definition.session.provider);
 		const newestRun = state.runs[0];
+		const schedule = projectSchedule(state.definition.triggers);
 		return {
 			id: this._resourceId(state.resource),
 			name: state.definition.title,
 			prompt: state.definition.message.text,
-			schedule: projectSchedule(state.definition.triggers),
+			schedule,
+			...(schedule.interval === 'custom' ? { readOnlyReason: localize('agentHostAutomation.customSchedule', "This automation uses a schedule that cannot be edited in VS Code.") } : {}),
 			target,
 			sessionTemplate: projectAutomationSessionTemplate(state.definition, modelId),
 			enabled: state.definition.enabled,
@@ -834,25 +839,33 @@ function projectSchedule(triggers: AutomationDefinition['triggers']): IAutomatio
 	}
 	const [minuteValue, hourValue, dayOfMonth, month, dayValue, ...remaining] = trigger.schedule.expression.trim().split(/\s+/);
 	if (remaining.length > 0 || dayOfMonth !== '*' || month !== '*') {
-		return { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
+		return { interval: 'custom', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
 	}
 	const scheduleMinute = parseCronValue(minuteValue, 0, 59);
 	if (scheduleMinute === undefined) {
-		return { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
+		return { interval: 'custom', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
 	}
 	if (hourValue === '*' && dayValue === '*') {
 		return { interval: 'hourly', scheduleHour: 0, scheduleMinute, scheduleDay: 0 };
 	}
 	const scheduleHour = parseCronValue(hourValue, 0, 23);
 	if (scheduleHour === undefined) {
-		return { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
+		return { interval: 'custom', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
 	}
 	if (dayValue === '*') {
 		return { interval: 'daily', scheduleHour, scheduleMinute, scheduleDay: 0 };
 	}
+	if (dayValue === '1-5' || dayValue?.toUpperCase() === 'MON-FRI' || dayValue === '1,2,3,4,5') {
+		if (triggers.length !== 1
+			|| (trigger.misfirePolicy !== undefined && trigger.misfirePolicy !== AutomationMisfirePolicy.RunOnce)
+			|| trigger.schedule.timeZone !== (Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC')) {
+			return { interval: 'custom', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
+		}
+		return { interval: 'weekdays', scheduleHour, scheduleMinute, scheduleDay: 0 };
+	}
 	const scheduleDay = parseCronValue(dayValue, 0, 6);
 	return scheduleDay === undefined
-		? { interval: 'manual', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 }
+		? { interval: 'custom', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 }
 		: { interval: 'weekly', scheduleHour, scheduleMinute, scheduleDay };
 }
 
@@ -865,6 +878,9 @@ function parseCronValue(value: string | undefined, minimum: number, maximum: num
 }
 
 function scheduleTrigger(schedule: IAutomationSchedule): AutomationDefinition['triggers'] {
+	if (schedule.interval === 'custom' || schedule.timeZone === 'UTC') {
+		throw new Error(localize('automationUnsupportedSchedule', "Choose a local-time schedule for this Agent Host automation."));
+	}
 	if (schedule.interval === 'manual') {
 		return [];
 	}
@@ -876,6 +892,9 @@ function scheduleTrigger(schedule: IAutomationSchedule): AutomationDefinition['t
 			break;
 		case 'daily':
 			expression = `${schedule.scheduleMinute} ${schedule.scheduleHour} * * *`;
+			break;
+		case 'weekdays':
+			expression = `${schedule.scheduleMinute} ${schedule.scheduleHour} * * 1-5`;
 			break;
 		case 'weekly':
 			expression = `${schedule.scheduleMinute} ${schedule.scheduleHour} * * ${schedule.scheduleDay}`;

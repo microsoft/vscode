@@ -35,6 +35,7 @@ import { IConfigurationService } from '../../../platform/configuration/common/co
 import { Extensions } from '../../../workbench/browser/panecomposite.js';
 import { isPhoneLayout } from './mobile/mobileLayout.js';
 import { mainWindow } from '../../../base/browser/window.js';
+import { getSessionsPartFrameInset } from './agentsPartCard.js';
 
 /**
  * Panel part specifically for agent sessions workbench.
@@ -125,7 +126,7 @@ export class PanelPart extends AbstractPaneCompositePart {
 		}));
 		this._register(this.layoutService.onDidChangePanelAlignment(() => this.relayoutForInsets()));
 		this._register(this.layoutService.onDidChangePartVisibility(e => {
-			if (e.partId === Parts.SIDEBAR_PART || e.partId === Parts.EDITOR_PART || e.partId === Parts.AUXILIARYBAR_PART) {
+			if (e.partId === Parts.SIDEBAR_PART || e.partId === Parts.EDITOR_PART || e.partId === Parts.AUXILIARYBAR_PART || e.partId === Parts.SESSIONS_PART) {
 				this.relayoutForInsets();
 			}
 		}));
@@ -203,7 +204,10 @@ export class PanelPart extends AbstractPaneCompositePart {
 		// Layout content with reduced dimensions to account for visual margins and border.
 		const compact = this.layoutService.isModernUICompact();
 		const borderTotal = compact ? 0 : 2;
-		const marginTop = compact ? 0 : PanelPart.MARGIN_TOP;
+		const sessionFrameInset = this.layoutService.isVisible(Parts.SESSIONS_PART)
+			? getSessionsPartFrameInset(this.layoutService.mainContainer)
+			: 0;
+		const marginTop = compact ? 0 : Math.max(0, PanelPart.MARGIN_TOP - sessionFrameInset);
 		const marginLeft = !compact && !isPhoneLayout(this.layoutService) && !this.layoutService.isVisible(Parts.SIDEBAR_PART)
 			? AGENTS_FLOATING_PANEL_GAP
 			: 0;
