@@ -19,9 +19,8 @@ import { createFileSystemProviderError, FileSystemProviderErrorCode } from '../.
 import { DiskFileSystemProvider } from '../../../files/node/diskFileSystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
 import type { IProductService } from '../../../product/common/productService.js';
-import { AgentHostSessionCatalogEnabledConfigKey } from '../../common/agentHostSchema.js';
 import { createNoopGitService } from '../common/sessionTestHelpers.js';
-import { createTestAgentService, getTestAgentServiceComposition, getTestAgentStateManager, registerTestAgentProvider } from './agentServiceTestUtils.js';
+import { createTestAgentService, getTestAgentStateManager, registerTestAgentProvider } from './agentServiceTestUtils.js';
 import { MockAgent } from './mockAgent.js';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { CompatibleAgentHostDatabase } from '../../node/compatibleAgentHostDatabase.js';
@@ -762,7 +761,6 @@ suite('Session storage identity compatibility', () => {
 					undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, database,
 				));
 				const creating = createService(db, modern);
-				getTestAgentServiceComposition(creating).configurationService.updateRootConfig({ [AgentHostSessionCatalogEnabledConfigKey]: true });
 				const agent = store.add(new class extends MockAgent {
 					override async createChat() { return { providerData: 'peer-backing' }; }
 				}(provider));
