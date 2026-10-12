@@ -1076,7 +1076,7 @@ suite('DesktopLayoutController', () => {
 		});
 	});
 
-	test('[desktop] restores open side-pane parts when an existing session is opened to the side', async () => {
+	test('[desktop] does not reveal saved side-pane parts when an existing session is opened to the side', async () => {
 		createDesktopController({
 			desktopLayout: true,
 			activateAux: true,
@@ -1109,15 +1109,78 @@ suite('DesktopLayoutController', () => {
 			hasDockedDetails: harness.contextKeyService.getContextKeyValue(HasDockedDetailsContext.key),
 			revealCalls: harness.setPartHiddenCalls.filter(call => !call.hidden),
 		}, {
-			editorVisible: true,
-			auxiliaryBarVisible: true,
+			editorVisible: false,
+			auxiliaryBarVisible: false,
 			hasDockedDetails: true,
-			revealCalls: [
-				{ part: Parts.AUXILIARYBAR_PART, hidden: false },
-				{ part: Parts.EDITOR_PART, hidden: false },
-			],
+			revealCalls: [],
 		});
 	});
+
+	for (const mode of ['session-shared', 'chat-shared', 'chat'] as const) {
+		test(`[desktop] restores a suppressed composition only after an explicit toggle (${mode})`, async () => {
+			createDesktopController({
+				desktopLayout: true,
+				activateAux: true,
+				chatLayoutMode: mode,
+				initialPartVisibility: new Map([
+					[Parts.EDITOR_PART, false],
+					[Parts.AUXILIARYBAR_PART, false],
+				]),
+				sidePaneVisibilityState: {
+					newSession: { editorVisible: false, auxiliaryBarVisible: true },
+					existingSession: { editorVisible: true, auxiliaryBarVisible: true },
+				},
+			});
+			const first = makeSession(URI.parse('session:first'));
+			const second = makeSession(URI.parse('session:second'));
+			harness.activeSessionObs.set(first, undefined);
+			await settle();
+
+			assert.deepStrictEqual({
+				editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
+				auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+			}, {
+				editorVisible: false,
+				auxiliaryBarVisible: false,
+			});
+
+			harness.layoutService.toggleSidePane();
+			await settle();
+
+			const expectedComposition = mode === 'chat-shared'
+				? { editorVisible: true, auxiliaryBarVisible: false }
+				: { editorVisible: true, auxiliaryBarVisible: true };
+			assert.deepStrictEqual({
+				editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
+				auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+			}, expectedComposition);
+
+			harness.partVisibility.set(Parts.EDITOR_PART, false);
+			harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
+			harness.setPartHiddenCalls = [];
+
+			harness.activeSessionObs.set(second, undefined);
+			await settle();
+
+			assert.deepStrictEqual({
+				editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
+				auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+				revealCalls: harness.setPartHiddenCalls.filter(call => !call.hidden),
+			}, {
+				editorVisible: false,
+				auxiliaryBarVisible: false,
+				revealCalls: [],
+			});
+
+			harness.layoutService.toggleSidePane();
+			await settle();
+
+			assert.deepStrictEqual({
+				editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
+				auxiliaryBarVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
+			}, expectedComposition);
+		});
+	}
 
 	test('[desktop] hides the side pane after switching to an editorless Quick Chat', async () => {
 		createDesktopController({
@@ -1194,7 +1257,7 @@ suite('DesktopLayoutController', () => {
 		});
 	}
 
-	test('[desktop] restores the existing-session side pane profile after leaving a quick chat before managed tabs settle', async () => {
+	test('[desktop] does not reveal the existing-session side pane profile after leaving a quick chat', async () => {
 		createDesktopController({ desktopLayout: true, activateAux: true });
 		await timeout(0);
 		const workspaceSession = makeSession(URI.parse('session:workspace'));
@@ -1219,7 +1282,7 @@ suite('DesktopLayoutController', () => {
 			editorVisible: harness.partVisibility.get(Parts.EDITOR_PART),
 			detailVisible: harness.partVisibility.get(Parts.AUXILIARYBAR_PART),
 		}, {
-			editorVisible: true,
+			editorVisible: false,
 			detailVisible: false,
 		});
 	});
