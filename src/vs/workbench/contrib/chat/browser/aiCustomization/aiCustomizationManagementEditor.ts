@@ -41,7 +41,7 @@ import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { WorkbenchList } from '../../../../../platform/list/browser/listService.js';
-import { IListRenderer, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
+import { IListEvent, IListRenderer, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
@@ -790,22 +790,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.sectionsList.splice(0, this.sectionsList.length, this.sections);
 		this.ensureSectionsListReflectsActiveSection();
 
-		this.editorDisposables.add(this.sectionsList.onDidChangeSelection(e => {
-			if (e.elements.length === 0) {
-				if (this.selectedSection !== undefined) {
-					this.showWelcomePage();
-				}
-				return;
-			}
-			const section = e.elements[0].id;
-			// Clicking the active section returns to its home. Count updates re-fire the
-			// selection without a browser event, so those must not leave a detail view.
-			if (e.browserEvent && section === this.selectedSection) {
-				this.selectSectionById(section);
-			} else {
-				this.selectSection(section);
-			}
-		}));
+		this.editorDisposables.add(this.sectionsList.onDidChangeSelection(e => this.onDidChangeSidebarSelection(e)));
 
 		// React to harness changes — rebuild visible sections and refresh counts.
 		// Also track availableHarnesses to handle agent registration/unregistration.
@@ -862,6 +847,23 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.editorDisposables.add(this.marketplaceInstallService.onDidChange(() => this.ensureMarketplaceDetailInstallState()));
 
 		this.createSidebarMigrationShortcut(sidebarContent);
+	}
+
+	private onDidChangeSidebarSelection(e: IListEvent<ISectionItem>): void {
+		if (e.elements.length === 0) {
+			if (this.selectedSection !== undefined) {
+				this.showWelcomePage();
+			}
+			return;
+		}
+		const section = e.elements[0].id;
+		// Clicking the active section returns to its home. Count updates re-fire the
+		// selection without a browser event, so those must not leave a detail view.
+		if (e.browserEvent && section === this.selectedSection) {
+			this.selectSectionById(section);
+		} else {
+			this.selectSection(section);
+		}
 	}
 
 	private isMarketplaceSourceEnabled(sourceId: string): boolean {
