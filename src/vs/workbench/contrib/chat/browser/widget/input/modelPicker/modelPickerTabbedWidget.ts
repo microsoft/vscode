@@ -845,9 +845,11 @@ export class TabbedModelPicker extends Disposable {
 		const tierLabel = hydraFusionTierLabel ?? ownTierLabel;
 		const rowLabel = this._getRowLabel(model, context);
 		const summary = tierLabel ?? getModelConfigSummary(model, context.configurationAccess);
-		const configDescription = tierLabel
-			? localize('chat.modelPicker.autoTierValue', "{0}: {1}", getModelConfigProperty(model, context.configurationAccess, MODEL_CONFIG_GROUP_EFFORT)?.schema.title ?? localize('chat.modelPicker.optimizeFor', "Optimize for"), tierLabel)
-			: getModelConfigDescription(model, context.configurationAccess);
+		const configDescription = hydraFusionTierLabel
+			? localize('chat.modelPicker.autoTierValue', "{0}: {1}", getModelConfigProperty(model, context.configurationAccess, MODEL_CONFIG_GROUP_EFFORT)?.schema.title ?? localize('chat.modelPicker.optimizeFor', "Optimize for"), hydraFusionTierLabel)
+			: ownTierLabel
+				? localize('chat.modelPicker.hydraFusionTierValue', "Tier: {0}", ownTierLabel)
+				: getModelConfigDescription(model, context.configurationAccess);
 		const defaultModel = this._getOrganizationDefaultForModel(model, context);
 		const defaultDescription = defaultModel && getOrganizationDefaultDescription(defaultModel.metadata.name);
 		// Auto opens its tiers like any model's details; HydraFusion only when it has tiers of its own.
@@ -914,7 +916,7 @@ export class TabbedModelPicker extends Disposable {
 			pricingDisclosure: this._pricingDisclosure,
 			speedVariants: this._speedVariants.get(model.identifier),
 			modelChoices: ownTiers.length ? {
-				title: localize('chat.modelPicker.hydraFusionOptimizeFor', "Optimize for"),
+				ariaLabel: localize('chat.modelPicker.hydraFusionTiers', "HydraFusion tier"),
 				choices: ownTiers.map(tier => ({ label: getHydraFusionTierLabel(tier.metadata.id), model: tier })),
 			} : undefined,
 			// Only Ensemble offers HydraFusion among its tiers, each described as the tier it is.

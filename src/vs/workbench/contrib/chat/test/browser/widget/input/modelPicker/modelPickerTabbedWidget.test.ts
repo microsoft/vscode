@@ -82,7 +82,7 @@ function createAutoModel(): ILanguageModelChatMetadataAndIdentifier {
 
 function createHydraFusionModel(): ILanguageModelChatMetadataAndIdentifier {
 	const hydra = model('hydrafusion', false);
-	return { ...hydra, metadata: { ...hydra.metadata, name: 'HydraFusion', modelGroup: { id: 'copilotcli' }, detail: 'Research preview', tooltip: 'HydraFusion routes the first eligible turn and may use multiple models. Premium usage varies with the selected route.' } };
+	return { ...hydra, metadata: { ...hydra.metadata, name: 'HydraFusion', modelGroup: { id: 'copilotcli' }, detail: 'Research preview', tooltip: 'HydraFusion routes the first eligible turn and may use multiple models.' } };
 }
 
 function createEnsembleModel(intelligenceUsesHydraFusion = true): ILanguageModelChatMetadataAndIdentifier {
@@ -109,7 +109,7 @@ function createEnsembleModel(intelligenceUsesHydraFusion = true): ILanguageModel
 
 function createHydraFusionMaxModel(): ILanguageModelChatMetadataAndIdentifier {
 	const max = model('hydrafusion-max', false);
-	return { ...max, metadata: { ...max.metadata, name: 'HydraFusion Max', modelGroup: { id: 'copilotcli' }, detail: 'Research preview' } };
+	return { ...max, metadata: { ...max.metadata, name: 'HydraFusion Max', modelGroup: { id: 'copilotcli' }, detail: 'Research preview', tooltip: 'HydraFusion Max routes the first eligible turn and may use multiple models.' } };
 }
 
 suite('TabbedModelPicker', () => {
@@ -727,7 +727,9 @@ suite('TabbedModelPicker', () => {
 		};
 		const card = () => ({
 			name: result.popup.querySelector('.tabbed-action-list-details .chat-model-card-name')?.textContent,
-			options: autoTiers(result.popup),
+			description: result.popup.querySelector('.tabbed-action-list-details .chat-model-card > .chat-model-card-description')?.textContent,
+			headings: Array.from(result.popup.querySelectorAll('.tabbed-action-list-details .chat-model-card-section-title'), heading => heading.textContent),
+			options: Array.from(result.popup.querySelectorAll('.tabbed-action-list-details [role="radiogroup"][aria-label="HydraFusion tier"] [role="radio"]'), option => option.textContent),
 			active: result.popup.querySelector('.tabbed-action-list-details [role="radio"][aria-checked="true"]')?.textContent,
 		});
 		const list = { rows: listRows(result.popup), hydraFusion: hydraFusionRow() };
@@ -748,8 +750,8 @@ suite('TabbedModelPicker', () => {
 		assert.deepStrictEqual({ list, autoOptions, opened, chosen, listWithMax, remembered, selections: result.selections }, {
 			list: { rows: ['Auto', 'HydraFusion', '--', 'First', 'Fixed', 'Second'], hydraFusion: { checked: 'false', readout: 'Default' } },
 			autoOptions: ['Efficiency', 'Balance', 'Intelligence'],
-			opened: { name: 'HydraFusion', options: ['Default', 'Max'], active: 'Default' },
-			chosen: { name: 'HydraFusion', options: ['Default', 'Max'], active: 'Max' },
+			opened: { name: 'HydraFusion', description: 'HydraFusion routes the first eligible turn and may use multiple models. Learn more', headings: [], options: ['Default', 'Max'], active: 'Default' },
+			chosen: { name: 'HydraFusion', description: 'HydraFusion Max routes the first eligible turn and may use multiple models. Learn more', headings: [], options: ['Default', 'Max'], active: 'Max' },
 			listWithMax: { checked: 'true', readout: 'Max' },
 			remembered: { checked: 'false', readout: 'Max' },
 			selections: [max.identifier, models[0].identifier],
@@ -1187,7 +1189,7 @@ suite('TabbedModelPicker', () => {
 		{ name: 'Auto with tiers', routing: [createAutoModel()], requested: 'auto', expected: { model: 'Auto', groups: ['Optimize for'] } },
 		{ name: 'Auto without a schema', routing: [model('auto', false)], requested: 'auto', expected: { model: 'auto', groups: [] } },
 		{ name: 'HydraFusion as Ensemble\'s tier', routing: [createEnsembleModel(), createHydraFusionModel()], requested: 'hydrafusion', expected: { model: 'Ensemble', groups: ['Optimize for'] } },
-		{ name: 'HydraFusion with Default and Max', routing: [createAutoModel(), createHydraFusionModel(), createHydraFusionMaxModel()], requested: 'hydrafusion-max', expected: { model: 'HydraFusion', groups: ['Optimize for'] } },
+		{ name: 'HydraFusion with Default and Max', routing: [createAutoModel(), createHydraFusionModel(), createHydraFusionMaxModel()], requested: 'hydrafusion-max', expected: { model: 'HydraFusion', groups: ['HydraFusion tier'] } },
 		{ name: 'HydraFusion without HydraFusion Max', routing: [createAutoModel(), createHydraFusionModel()], requested: 'hydrafusion', expected: undefined },
 		{ name: 'HydraFusion without an Auto to join', routing: [createHydraFusionModel()], requested: 'hydrafusion', expected: undefined },
 	]) {

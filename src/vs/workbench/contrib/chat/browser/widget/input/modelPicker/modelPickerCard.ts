@@ -21,7 +21,7 @@ import { localize } from '../../../../../../../nls.js';
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
 import { getModelContextWindowTotal, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../common/languageModels.js';
 import { formatModelCost, getCreditsPerMillionTokensLabel, getMaxContextLabel, getModelCostMetrics, renderModelDescription } from './modelPickerDetails.js';
-import { createMessageBanner } from './modelPickerHover.js';
+import { createMessageBanner, HYDRA_FUSION_LEARN_MORE_URL } from './modelPickerHover.js';
 import { getChangedModelConfigProperties, getModelConfigChoices, getModelConfigProperty, IModelConfigProperty, IModelConfigurationAccess, isExtendedContext, MODEL_CONFIG_GROUP_CONTEXT, MODEL_CONFIG_GROUP_EFFORT, ModelConfigChangeListener, setModelConfigValues } from './modelPickerModelConfig.js';
 import { getCategoryLabel, getPriceCategoryLabel, isAutoModel, isHighCostCategory, isHydraFusionModel, isMultiplierPricing } from './modelPickerPresentation.js';
 import { IModelSpeedVariants } from './modelPickerVariants.js';
@@ -88,14 +88,15 @@ export interface IModelCardRoutingAlternative {
 	readonly selected: boolean;
 }
 
-/** Separate models offered as tiers of one, shown as a setting with one choice per model. */
+/** Separate models offered as tiers of one, shown without a heading as one choice per model. */
 export interface IModelCardModelChoices {
-	readonly title: string;
+	/** Names the choices for assistive technology, since no heading is shown. */
+	readonly ariaLabel: string;
 	readonly choices: readonly { readonly label: string; readonly model: ILanguageModelChatMetadataAndIdentifier }[];
 }
 
 function modelChoicesEqual(a: IModelCardModelChoices | undefined, b: IModelCardModelChoices | undefined): boolean {
-	return a?.title === b?.title && (a?.choices.length ?? 0) === (b?.choices.length ?? 0)
+	return a?.ariaLabel === b?.ariaLabel && (a?.choices.length ?? 0) === (b?.choices.length ?? 0)
 		&& (a?.choices ?? []).every((choice, index) => choice.model === b?.choices[index].model && choice.label === b.choices[index].label);
 }
 
@@ -258,7 +259,7 @@ export class ModelCard extends DisposableStore {
 			dom.append(this.element, dom.$('.chat-model-card-description.chat-model-card-org-default', undefined, getOrganizationDefaultDescription(this._options.organizationDefaultModel.metadata.name)));
 		}
 		if (metadata.tooltip) {
-			this._renderDescription(metadata.tooltip);
+			this._renderDescription(metadata.tooltip, isHydraFusionModel(model) ? HYDRA_FUSION_LEARN_MORE_URL : undefined);
 		}
 		// Without tiers to sit below, Auto's discount follows its description.
 		if (isAuto && !effort && metadata.autoModelDiscountPercent !== undefined) {
@@ -284,7 +285,7 @@ export class ModelCard extends DisposableStore {
 			this._renderEffortSection(effort, isAuto);
 		} else if (this._options.modelChoices) {
 			// Tiers that are separate models take the place of the thinking effort setting.
-			this._renderModelChoiceSection(this._options.modelChoices.title, this._options.modelChoices.choices, MODEL_CONFIG_GROUP_EFFORT);
+			this._renderModelChoiceSection(this._options.modelChoices.ariaLabel, this._options.modelChoices.choices, MODEL_CONFIG_GROUP_EFFORT);
 		}
 		if (context) {
 			this._renderContextSection(context);
@@ -388,16 +389,18 @@ export class ModelCard extends DisposableStore {
 		return badge;
 	}
 
-	private _renderDescription(tooltip: string): void {
-		const { element } = renderModelDescription(tooltip, this._options.openerService, this._contentDisposables);
+	private _renderDescription(tooltip: string, learnMoreUrl?: URI): void {
+		const { element } = renderModelDescription(tooltip, this._options.openerService, this._contentDisposables, learnMoreUrl);
 		element.classList.add('chat-model-card-description');
 		this.element.appendChild(element);
 	}
 
-	private _renderSection(title: string): HTMLElement {
+	private _renderSection(title: string | undefined): HTMLElement {
 		const section = dom.append(this.element, dom.$('.chat-model-card-section'));
-		const heading = dom.append(section, dom.$('.chat-model-card-section-heading'));
-		dom.append(heading, dom.$('.chat-model-card-section-title', undefined, title));
+		if (title) {
+			const heading = dom.append(section, dom.$('.chat-model-card-section-heading'));
+			dom.append(heading, dom.$('.chat-model-card-section-title', undefined, title));
+		}
 		return section;
 	}
 
@@ -542,17 +545,18 @@ export class ModelCard extends DisposableStore {
 		if (!variants) {
 			return;
 		}
-		this._renderModelChoiceSection(localize('models.speed', "Speed"), [
+		const speed = localize('models.speed', "Speed");
+		this._renderModelChoiceSection(speed, [
 			{ label: localize('models.speed.standard', "Standard"), model: variants.standard },
 			{ label: localize('models.speed.fast', "Fast"), model: variants.fast },
-		], 'speed');
+		], 'speed', speed);
 	}
 
-	/** A setting whose choices are separate models. Picking one selects that model. */
-	private _renderModelChoiceSection(title: string, choices: IModelCardModelChoices['choices'], group: string): void {
+	/** A setting whose choices are separate models. Picking one selects that model. Without a title, it shows no heading. */
+	private _renderModelChoiceSection(ariaLabel: string, choices: IModelCardModelChoices['choices'], group: string, title?: string): void {
 		const section = this._renderSection(title);
 		const control = this._contentDisposables.add(new Radio({
-			ariaLabel: title,
+			ariaLabel,
 			className: 'segmented',
 			arrowKeyBehavior: 'focus',
 			items: choices.map(choice => ({

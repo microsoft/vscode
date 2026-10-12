@@ -259,8 +259,8 @@ suite('Chat Accessibility Help', () => {
 			activation: help.includes('Choosing a preference selects Auto and keeps its details open'),
 			discount: help.includes('When Auto has a discount, it is described below the preferences'),
 			hydra: help.includes('HydraFusion, a research preview, is listed after Auto as a model of its own'),
-			hydraTiers: help.includes('HydraFusion\'s details hold its "Optimize for" preference: Default or Max'),
-			hydraSelection: help.includes('HydraFusion stays in the model list with that preference as its readout'),
+			hydraTiers: help.includes('HydraFusion\'s details offer two tiers, Default and Max, along with a Learn more link'),
+			hydraSelection: help.includes('HydraFusion stays in the model list with that tier as its readout'),
 			autoEntry: help.includes('The preference readout beside Auto in the chat input opens the same details'),
 		}, { details: true, inspection: true, inputShortcut: true, defaults: true, visibility: true, preferences: true, activation: true, discount: true, hydra: true, hydraTiers: true, hydraSelection: true, autoEntry: true });
 	});
