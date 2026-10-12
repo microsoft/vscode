@@ -130,6 +130,7 @@ MenuRegistry.appendMenuItem(MenuId.ModalEditorEditorTitle, {
 	command: {
 		id: MANAGE_PLUGIN_MARKETPLACES_COMMAND_ID,
 		title: localize2('configureMarketplaces', "Configure Marketplaces"),
+		icon: Codicon.globe,
 	},
 	when: ContextKeyExpr.and(
 		ActiveEditorContext.isEqualTo(AI_CUSTOMIZATION_MANAGEMENT_EDITOR_ID),
