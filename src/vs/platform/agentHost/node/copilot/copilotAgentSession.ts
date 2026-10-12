@@ -5627,19 +5627,21 @@ export class CopilotAgentSession extends Disposable {
 	/**
 	 * Registers BYOK models that the renderer reported after this SDK session
 	 * launched, e.g. for a chat restored before the renderer's first BYOK
-	 * snapshot reached the agent host. External BYOK is additive (see
-	 * {@link composeByokSessionConfig}) and a no-op when nothing new was
-	 * reported; the on-device rows are replaced by the provider's
-	 * current contribution. Serialized so concurrent callers observe each
-	 * other's registrations.
+	 * snapshot reached the agent host, and re-registers the selected BYOK model
+	 * at the context size `model` picked for it (the session's current selection
+	 * unless a pending {@link setModel} supplies the one it is about to apply).
+	 * External BYOK is additive (see {@link composeByokSessionConfig}) and a
+	 * no-op when nothing changed; the on-device rows are replaced by the
+	 * provider's current contribution. Serialized so concurrent callers observe
+	 * each other's registrations.
 	 */
-	syncByokModels(): Promise<void> {
+	syncByokModels(model: ModelSelection | undefined = this._requestedModel): Promise<void> {
 		return this._byokSync.queue(async () => {
 			const wrapper = this._wrapper;
 			if (this._store.isDisposed || !wrapper) {
 				return;
 			}
-			const current = await this._sessionLauncher.resolveByokSessionConfig(this.sessionId);
+			const current = await this._sessionLauncher.resolveByokSessionConfig(this.sessionId, model);
 			const merged = composeByokSessionConfig(this._registeredByokConfig, current, this._launchPlan.localModelProvider?.contributeSessionConfig());
 			// A restart across the await swapped in a wrapper with its own launch
 			// config, so `merged` is no longer a valid basis for that session.
@@ -5653,9 +5655,11 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	async setModel(model: string, reasoningEffort?: SessionConfig['reasoningEffort'], contextTier?: SessionConfig['contextTier'], autoTier?: NonNullable<SessionConfig['capi']>['autoTier'] | null, requested?: ModelSelection): Promise<void> {
-		// The runtime rejects a BYOK model that is not registered on the session.
+		// The runtime rejects a BYOK model that is not registered on the session, and
+		// re-reads a registered model's limits from here, so the selected BYOK model
+		// is registered at the context size this selection picked before switching.
 		try {
-			await this.syncByokModels();
+			await this.syncByokModels(requested ?? { id: model });
 		} catch (err) {
 			// Deliberately non-fatal: let `setModel` report the runtime's own error
 			// rather than this one. Note a timed-out `provider.sync` still marks the

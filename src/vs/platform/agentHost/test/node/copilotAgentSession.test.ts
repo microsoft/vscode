@@ -64,7 +64,7 @@ import { ActionType, isChatAction, type ChatDeltaAction, type ChatErrorAction, t
 import { TestChatOwnerRef } from './agentChatContextTestUtils.js';
 import { MessageAttachmentKind, MessageKind, ResponsePartKind, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ToolCallConfirmationReason, ToolCallRiskAssessmentKind, ToolCallRiskAssessmentStatus, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, buildChatUri, buildDefaultChatUri, buildSubagentChatUri, createChatState, createSessionState, getInlineToolInput, mergeSessionWithDefaultChat, readSessionPromptCacheState, readUsageInfoMeta, SessionStatus, withSessionPromptCacheState, type ToolResultContent, type ToolResultTerminalContent, type Turn, type UsageInfoMeta } from '../../common/state/sessionState.js';
 import { chatReducer, sessionReducer } from '../../common/state/sessionReducers.js';
-import { BackgroundWorkKind, TerminalClaimKind, type BackgroundWork } from '../../common/state/protocol/state.js';
+import { BackgroundWorkKind, TerminalClaimKind, type BackgroundWork, type ModelSelection } from '../../common/state/protocol/state.js';
 import { canStopBackgroundWork, toStoppableBackgroundWorkMeta } from '../../common/meta/agentHostBackgroundWorkStopMeta.js';
 import { readCopilotShellAttachment, toCopilotBackgroundShellMeta } from '../../common/meta/copilotBackgroundWorkMeta.js';
 import { toHostSnapshotAttachmentMeta } from '../../common/meta/agentSnapshotAttachmentMeta.js';
@@ -1239,8 +1239,8 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	beforeLaunch?: () => void;
 	/** BYOK providers and models the SDK session launches with. */
 	launchByokConfig?: ICopilotByokSessionConfig;
-	/** BYOK providers and models the launcher currently resolves. */
-	resolveByokSessionConfig?: () => ICopilotByokSessionConfig;
+	/** BYOK providers and models the launcher currently resolves for the session's model selection. */
+	resolveByokSessionConfig?: (model: ModelSelection | undefined) => ICopilotByokSessionConfig;
 	/** The on-device model provider installed on the client, if the user opted in. */
 	localModelProvider?: ILocalModelProvider;
 	sandboxPolicy?: ReturnType<IAgentConfigurationService['getSessionSandboxPolicy']>;
@@ -1349,7 +1349,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			}
 			return new CopilotSessionWrapper(mockSession as unknown as CopilotSession, options?.canvasRuntimeEnabled ?? true, options?.launchByokConfig ?? {}, logService);
 		},
-		resolveByokSessionConfig: async () => options?.resolveByokSessionConfig?.() ?? {},
+		resolveByokSessionConfig: async (_sessionId, model) => options?.resolveByokSessionConfig?.(model) ?? {},
 	};
 
 	const services = new ServiceCollection();
@@ -2397,6 +2397,43 @@ suite('CopilotAgentSession', () => {
 		assert.deepStrictEqual({ providerSyncCalls: mockSession.providerSyncCalls, setModelCalls: mockSession.setModelCalls.map(([model]) => model) }, {
 			providerSyncCalls: [{ providers: [provider], models: [early, late] }],
 			setModelCalls: ['customendpoint/Pool/early', 'customendpoint/Pool/late'],
+		});
+	});
+
+	test('re-registers the selected BYOK model at the context size the session picked', async () => {
+		const provider = { name: 'acme', type: 'openai' as const, wireApi: 'responses' as const, baseUrl: 'http://127.0.0.1:1/v/acme', bearerToken: 'nonce.test-session-1' };
+		const resolved: (ModelSelection | undefined)[] = [];
+		// Stands in for `synthesizeByokSessionConfig`, which sizes the selected model from the selection.
+		const { session, mockSession } = await createAgentSession(disposables, {
+			modelId: 'acme/big',
+			launchByokConfig: { providers: [provider], models: [{ id: 'big', provider: 'acme', maxPromptTokens: 200_000 }] },
+			resolveByokSessionConfig: model => {
+				resolved.push(model);
+				const maxPromptTokens = model?.id === 'acme/big' ? Number(model.config?.contextSize ?? 200_000) : 200_000;
+				return { providers: [provider], models: [{ id: 'big', provider: 'acme', maxPromptTokens }] };
+			},
+		});
+
+		// The launch selection is what a post-launch sync re-resolves against.
+		await session.syncByokModels();
+		await session.setModel('acme/big', undefined, undefined, undefined, { id: 'acme/big', config: { contextSize: 968_000 } });
+		// A later sync without a pending selection re-resolves against the last applied one.
+		await session.syncByokModels();
+		await session.setModel('acme/big', undefined, undefined, undefined, { id: 'acme/big', config: { contextSize: 200_000 } });
+
+		assert.deepStrictEqual({
+			resolved,
+			providerSyncCalls: mockSession.providerSyncCalls.map(call => call.models?.map(m => m.maxPromptTokens)),
+			setModelCalls: mockSession.setModelCalls.map(([model]) => model),
+		}, {
+			resolved: [
+				{ id: 'acme/big' },
+				{ id: 'acme/big', config: { contextSize: 968_000 } },
+				{ id: 'acme/big', config: { contextSize: 968_000 } },
+				{ id: 'acme/big', config: { contextSize: 200_000 } },
+			],
+			providerSyncCalls: [[968_000], [200_000]],
+			setModelCalls: ['acme/big', 'acme/big'],
 		});
 	});
 
