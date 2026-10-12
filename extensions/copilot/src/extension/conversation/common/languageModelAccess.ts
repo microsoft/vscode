@@ -72,17 +72,16 @@ export function getReasoningEffortLabel(level: string): string {
  * Builds the `reasoningEffort` property descriptor for a model's
  * {@link LanguageModelConfigurationSchema}. Centralises the default-selection
  * and localized descriptions so the picker stays consistent across the
- * Copilot and BYOK code paths. `defaultOverride` wins over the family default
- * when it is one of the advertised levels.
+ * Copilot and BYOK code paths.
  */
-export function buildReasoningEffortSchemaProperty(effortLevels: readonly string[], family: string, defaultOverride?: string): NonNullable<LanguageModelConfigurationSchema['properties']>[string] {
+export function buildReasoningEffortSchemaProperty(effortLevels: readonly string[], family: string): NonNullable<LanguageModelConfigurationSchema['properties']>[string] {
 	return {
 		type: 'string',
 		title: l10n.t('Thinking Effort'),
 		enum: effortLevels,
 		enumItemLabels: effortLevels.map(getReasoningEffortLabel),
 		enumDescriptions: effortLevels.map(getReasoningEffortDescription),
-		default: defaultOverride && effortLevels.includes(defaultOverride) ? defaultOverride : pickDefaultReasoningEffort(effortLevels, family),
+		default: pickDefaultReasoningEffort(effortLevels, family),
 		group: 'navigation',
 	};
 }
