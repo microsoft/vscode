@@ -30,13 +30,12 @@
 	width: 100%;
 	max-width: var(--session-view-centered-content-max-width, 950px);
 	margin: 0 auto;
-	padding: 0 var(--session-view-content-horizontal-padding, var(--vscode-spacing-size240));
+	padding: 0 var(--vscode-spacing-size60);
 	box-sizing: border-box;
 }
 
 .session-view.grid-layout .session-header-bar > .chat-composite-bar-header {
 	max-width: none;
-	padding: 0 var(--session-view-content-horizontal-padding, var(--vscode-spacing-size240));
 }
 
 /* Tabs host: the chat tab strip, shown only when the session has multiple chats. */
@@ -244,24 +243,28 @@
 	flex-shrink: 0;
 }
 
-/* Keep header toolbar buttons from dictating the row height */
-.chat-composite-bar-title-actions .action-item .action-label {
-	height: 20px;
-	line-height: 20px;
-	padding: 0 2px;
+/* Keep header toolbar buttons square and centered without dictating the row height. */
+.chat-composite-bar-toolbar .action-item .action-label.codicon {
+	align-items: center;
+	justify-content: center;
+	box-sizing: border-box;
+	width: var(--vscode-spacing-size200, 20px);
+	height: var(--vscode-spacing-size200, 20px);
+	padding: 0;
+	line-height: 1;
 }
 
 .chat-composite-bar-toolbar .monaco-action-bar .actions-container {
 	gap: 4px;
 }
 
-.monaco-workbench.session-comparison-grid-active .session-header-bar .chat-composite-bar-title-actions .action-label.codicon-close {
+.monaco-workbench.session-comparison-grid-active .session-header-bar .chat-composite-bar-title-actions .action-label:is(.codicon-close, .codicon-close-small) {
 	opacity: 0;
 	pointer-events: none;
 }
 
-.monaco-workbench.session-comparison-grid-active .session-header-bar:hover .chat-composite-bar-title-actions .action-label.codicon-close,
-.monaco-workbench.session-comparison-grid-active .session-header-bar:focus-within .chat-composite-bar-title-actions .action-label.codicon-close {
+.monaco-workbench.session-comparison-grid-active .session-header-bar:hover .chat-composite-bar-title-actions .action-label:is(.codicon-close, .codicon-close-small),
+.monaco-workbench.session-comparison-grid-active .session-header-bar:focus-within .chat-composite-bar-title-actions .action-label:is(.codicon-close, .codicon-close-small) {
 	opacity: 1;
 	pointer-events: auto;
 }
@@ -625,6 +628,10 @@
 .modern-ui-connected-editor-tabs.agent-sessions-workbench .session-view .chat-composite-bar.session-chat-tabs-bar {
 	padding: 0;
 	max-width: none;
+}
+
+.modern-ui-connected-editor-tabs.agent-sessions-workbench .session-view .session-chat-tabs-actions {
+	padding-right: var(--vscode-spacing-size60);
 }
 
 .modern-ui-connected-editor-tabs.monaco-workbench .session-chat-tabs-bar .chat-composite-bar-tabs-row {

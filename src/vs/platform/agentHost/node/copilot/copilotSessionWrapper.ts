@@ -205,6 +205,11 @@ export class CopilotSessionWrapper extends Disposable {
 		return this._onSamplingRequested ??= this._sdkEvent('sampling.requested');
 	}
 
+	private _onSamplingCompleted: Event<SessionEventPayload<'sampling.completed'>> | undefined;
+	get onSamplingCompleted(): Event<SessionEventPayload<'sampling.completed'>> {
+		return this._onSamplingCompleted ??= this._sdkEvent('sampling.completed');
+	}
+
 	private _onIdle: Event<SessionEventPayload<'session.idle'>> | undefined;
 	get onIdle(): Event<SessionEventPayload<'session.idle'>> {
 		return this._onIdle ??= this._sdkEvent('session.idle');

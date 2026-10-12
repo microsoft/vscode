@@ -26,10 +26,4 @@ Run one suite with:
 ./scripts/test-integration.sh --run src/vs/platform/agentHost/test/node/providerIntegration/copilotByokSelectionIds.integrationTest.ts
 ```
 
-`copilotManagedPermissions.integrationTest.ts` exercises the default-on legacy bridge
-against the bundled runtime with an isolated synthetic BYOK model. It checks URL
-denials and terminal managed asks on create, cold resume, and removal, preserving
-unrelated shell/read/write/URL approval behavior. Managed terminal asks are also
-checked in Allow All and assisted modes. URL requests reaching the permission
-handler are rejected, so the test does not fetch external content. No Copilot
-sign-in or device-policy changes are needed.
+`copilotManagedPermissions.integrationTest.ts` exercises the default-on legacy bridge against the bundled runtime with an isolated synthetic BYOK model. It checks URL denials and terminal managed asks on create, cold resume, and removal, preserving unrelated shell/read/write/URL approval behavior. Managed terminal asks are also checked in Allow All and assisted modes. URL requests reaching the permission handler are rejected, so the test does not fetch external content. No Copilot sign-in or device-policy changes are needed.

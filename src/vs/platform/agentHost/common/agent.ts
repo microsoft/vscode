@@ -1422,6 +1422,8 @@ export interface IAgentPendingMessageSender {
 /** Account-scoped telemetry metadata; captured contexts become empty when their credentials are superseded. */
 export interface IAgentTelemetryContext {
 	readonly copilotSku: string | undefined;
+	/** Analytics ID from the same account discovery as the SKU, without an additional hash. */
+	readonly copilotTrackingId?: string;
 }
 
 export interface IAgentSessionPlan {
@@ -1460,10 +1462,10 @@ export interface IAgent {
 	uninstallPlugin?(request: IAgentPluginUninstallRequest): Promise<void>;
 
 	/** List canvas declarations available to one initialized provider chat. */
-	listSessionCanvases?(session: URI, chat: URI): Promise<readonly IAgentCanvasInfo[]>;
+	listSessionCanvases?(session: URI, chat: URI, context: AgentChatOperationContext): Promise<readonly IAgentCanvasInfo[]>;
 
 	/** Open or focus one canvas instance in an initialized provider chat. */
-	openSessionCanvas?(session: URI, request: IAgentCanvasOpenRequest, chat: URI): Promise<void>;
+	openSessionCanvas?(session: URI, request: IAgentCanvasOpenRequest, chat: URI, context: AgentChatOperationContext): Promise<void>;
 
 	/** Install a plugin through the provider that owns its installation state. */
 	installPlugin?(request: IAgentPluginInstallRequest): Promise<void>;

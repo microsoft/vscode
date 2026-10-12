@@ -563,6 +563,72 @@ suite('Agent Edit Attribution Service', () => {
 		});
 	});
 
+	test('keeps HydraFusion and HydraFusion Max in separate attribution rows for both telemetry destinations', async () => {
+		const sessionUri = 'copilotcli:/session-1';
+		const fileService = disposables.add(new FileService(new NullLogService()));
+		disposables.add(fileService.registerProvider('file', disposables.add(new InMemoryFileSystemProvider())));
+		const resource = URI.file('/workspace/file.ts');
+		await fileService.writeFile(resource, VSBuffer.fromString('abcd'));
+
+		const local: Record<string, string | number | undefined>[] = [];
+		const github: Record<string, string | undefined>[] = [];
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IFileService, fileService);
+		instantiationService.stub(IDiffComputeService, {
+			computeDiffCounts: async (original, modified, timeoutMs) => computeDiffCounts(original, modified, timeoutMs ?? 5_000),
+		});
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(ITelemetryService, {
+			telemetryLevel: TelemetryLevel.USAGE,
+			publicLog2(eventName, data) {
+				if (eventName === 'editTelemetry.editSources.details' && data) {
+					local.push(data as Record<string, string | number | undefined>);
+				}
+			},
+			sendGHTelemetryEvent(eventName: string, properties: Record<string, string | undefined>) {
+				if (eventName === 'vscode.editTelemetry.editSources.details') {
+					github.push(properties);
+				}
+			},
+		} as Partial<IAgentHostTelemetryService>);
+		const service = disposables.add(instantiationService.createInstance(AgentEditAttributionService, async () => undefined, undefined));
+
+		const markers = [];
+		let text = 'a';
+		for (const [turnId, fusionModel] of [['turn-1', 'hydrafusion'], ['turn-2', 'hydrafusion-max'], ['turn-3', undefined]] as const) {
+			const newText = String.fromCharCode(text.charCodeAt(text.length - 1) + 1);
+			markers.push(await service.recordEdit({
+				sessionUri, turnId, toolCallId: `tool-${turnId}`, filePath: resource.fsPath,
+				beforeText: text, afterText: text + newText, changes: [{ startOffset: text.length, endOffsetExclusive: text.length, newText }],
+				modelId: 'gpt-5', ...(fusionModel ? { fusionModel } : {}), toolName: 'edit',
+			}));
+			text += newText;
+		}
+		await service.flushSession(sessionUri);
+
+		const rows = (events: Record<string, string | number | undefined>[]) => events.map(event => ({
+			sourceKey: event.sourceKey,
+			sourceKeyCleaned: event.sourceKeyCleaned,
+			fusionModel: event.fusionModel,
+			requestId: event.requestId,
+		})).sort((a, b) => String(a.requestId).localeCompare(String(b.requestId)));
+		const sourceKeyCleaned = 'source:Chat.applyEdits-$harness:copilotcli-$origin:agentHost';
+		const expectedRows = [
+			{ sourceKey: 'source:Chat.applyEdits-$modelId:gpt-5-$fusionModel:hydrafusion-$harness:copilotcli-$origin:agentHost', sourceKeyCleaned, fusionModel: 'hydrafusion', requestId: 'turn-1' },
+			{ sourceKey: 'source:Chat.applyEdits-$modelId:gpt-5-$fusionModel:hydrafusion-max-$harness:copilotcli-$origin:agentHost', sourceKeyCleaned, fusionModel: 'hydrafusion-max', requestId: 'turn-2' },
+			{ sourceKey: 'source:Chat.applyEdits-$modelId:gpt-5-$harness:copilotcli-$origin:agentHost', sourceKeyCleaned, fusionModel: undefined, requestId: 'turn-3' },
+		];
+		assert.deepStrictEqual({
+			markerFusionModels: markers.map(marker => marker?.status !== 'skipped' ? marker?.source?.fusionModel : undefined),
+			local: rows(local),
+			github: rows(github),
+		}, {
+			markerFusionModels: ['hydrafusion', 'hydrafusion-max', undefined],
+			local: expectedRows,
+			github: expectedRows,
+		});
+	});
+
 	test('caps reported sources by group before subdividing them by Auto tier', async () => {
 		const sessionUri = 'copilotcli:/session-1';
 		const fileService = disposables.add(new FileService(new NullLogService()));

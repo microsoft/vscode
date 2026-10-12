@@ -34,6 +34,7 @@ import { IAgentSdkDownloader, type IAgentSdkDownloadProgress } from './agentSdkD
 import { IByokLmBridgeRegistry, NullByokLmBridgeRegistry } from './byokLmBridgeRegistry.js';
 import { registerPendingEditContentProvider } from './copilot/pendingEditContentStore.js';
 import { SessionDataService } from './sessionDataService.js';
+import { CompatibleAgentHostDatabase } from './compatibleAgentHostDatabase.js';
 import { IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
 import { AgentHostLaunchKind } from '../common/agentHostTelemetry.js';
 import { AgentHostClientConnectionService, IAgentHostClientConnectionService } from './agentHostClientConnectionService.js';
@@ -111,7 +112,11 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 		const fileService = infrastructure.add(new FileService(logService));
 		infrastructure.add(fileService.registerProvider(Schemas.file, infrastructure.add(new DiskFileSystemProvider(logService))));
 		infrastructure.add(registerPendingEditContentProvider(fileService));
-		const sessionDataService = new SessionDataService(URI.file(environmentService.userDataPath), fileService, logService);
+		const orchestratorDatabase = infrastructure.add(new CompatibleAgentHostDatabase(
+			joinPath(environmentService.appSettingsHome, 'globalStorage', 'agent-host.db').fsPath,
+		));
+		await orchestratorDatabase.initialize();
+		const sessionDataService = new SessionDataService(URI.file(environmentService.userDataPath), fileService, logService, undefined, orchestratorDatabase.identity);
 		const services = new StrictServiceCollection(
 			[INativeEnvironmentService, environmentService],
 			[ILogService, logService],
@@ -159,7 +164,7 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 		registerAgentHostCoreServices(services, {
 			storageResource: agentServiceOptions.storageResource,
 			rootConfigResource: agentServiceOptions.rootConfigResource,
-			orchestratorDatabase: agentServiceOptions.orchestratorDatabase,
+			orchestratorDatabase,
 			fetchFn,
 			gitHubServiceOptions: foundation.gitHubServiceOptions,
 			hostLaunchKind: options.hostLaunchKind,
