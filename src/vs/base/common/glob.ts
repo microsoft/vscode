@@ -174,10 +174,9 @@ function parseRegExp(pattern: string): string {
 
 						// glob split matching is not allowed within character ranges
 						// see http://man7.org/linux/man-pages/man7/glob.7.html
-						// however in a negated range the separator must be kept so that
-						// it stays excluded from matching, e.g. `[^/]` must not match `/`
+						// in a negated range the separator must stay excluded; backslash is a separator on Windows too
 						else if (char === GLOB_SPLIT) {
-							res = bracketVal.charAt(0) === '^' ? escapeRegExpCharacters(char) : '';
+							res = bracketVal.charAt(0) === '^' ? escapeRegExpCharacters(char) + '\\\\' : '';
 						}
 
 						// anything else gets escaped
