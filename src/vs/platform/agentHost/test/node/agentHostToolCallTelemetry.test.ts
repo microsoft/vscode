@@ -397,7 +397,6 @@ suite('AgentSideEffects — tool call telemetry', () => {
 				turnId: 'turn-1',
 				model: undefined,
 				errorCode: undefined,
-				msg: undefined,
 			},
 		}]);
 	});
@@ -508,7 +507,6 @@ suite('AgentSideEffects — tool call telemetry', () => {
 			turnId: 'turn-1',
 			model: undefined,
 			errorCode: 'denied',
-			msg: 'denied',
 		});
 	});
 
@@ -811,7 +809,6 @@ suite('AgentSideEffects — tool call telemetry', () => {
 				turnId: 'turn-1',
 				model: undefined,
 				errorCode: 'failure',
-				msg: 'bridge call \'session_effect\' failed to schedule: GenericFailure',
 			},
 			agentHostLevel: 'usage',
 		});

@@ -826,6 +826,17 @@ export function turnToResponseDetails(turn: Turn | ActiveTurn | undefined, looku
 }
 
 /**
+ * Result metadata for a finished turn. Records the model Auto routed the turn to as
+ * `resolvedModel`, the key the Copilot extension sets for local requests, so readers
+ * of a response's result (such as the model feedback survey) work for both. Read from
+ * the routing decision rather than the rendered routing row, which an experiment can hide.
+ */
+export function turnToResultMetadata(turn: Turn | undefined): { readonly resolvedModel: string } | undefined {
+	const resolvedModel = readUsageInfoMeta(turn?.usage).autoModeResolved?.chosenModel;
+	return resolvedModel ? { resolvedModel } : undefined;
+}
+
+/**
  * Formats a turn's response footer: the model display name plus usage metadata (credits or pricing).
  * `model` is the resolved model; `billedModelId` is the turn's `usage.model` when it didn't resolve to a
  * registered model (e.g. an "Auto" pick billed as `raptor-mini`), shown inline as `Auto (raptor-mini)`.

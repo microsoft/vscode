@@ -866,6 +866,27 @@ describe('AutomodeService', () => {
 			expect(discounts).toEqual([0.2, 0.9]);
 		});
 
+		// Response telemetry reports the tier off the endpoint, so it must be the
+		// tier the session was routed under, not the picker's raw selection.
+		it('mints each endpoint with the tier it was routed under', async () => {
+			const gpt4oEndpoint = createEndpoint('gpt-4o', 'OpenAI');
+			mockAuto(autoResponse('gpt-4o'));
+
+			automodeService = createService();
+			await automodeService.resolveAutoModePickerEndpoint([mockChatEndpoint, gpt4oEndpoint]);
+			for (const [location, tier] of [[ChatLocation.Panel, undefined], [ChatLocation.Editor, undefined], [ChatLocation.Panel, 'intelligence'], [ChatLocation.Panel, 'fast']] as const) {
+				await automodeService.resolveAutoModeEndpoint({
+					location,
+					prompt: 'test prompt',
+					sessionId: `session-endpoint-tier-${location}-${tier}`,
+					modelConfiguration: tier ? { tier } : undefined,
+				}, [mockChatEndpoint, gpt4oEndpoint]);
+			}
+
+			const tiers = (mockInstantiationService.createInstance as ReturnType<typeof vi.fn>).mock.calls.map(c => c[5]);
+			expect(tiers).toEqual([undefined, 'balance', 'fast', 'intelligence', 'balance']);
+		});
+
 		it('uses the default tier for panel and API requests without configuration', async () => {
 			const gpt4oEndpoint = createEndpoint('gpt-4o', 'OpenAI');
 			mockAuto(autoResponse('gpt-4o'));

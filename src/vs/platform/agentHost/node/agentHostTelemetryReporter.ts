@@ -800,7 +800,6 @@ export interface IAgentHostToolInvokedReport extends IAgentHostTurnAttributedRep
 	model: string | undefined;
 	modelTelemetryKind: AgentHostModelTelemetryKind | undefined;
 	errorCode: string | undefined;
-	errorMessage: string | undefined;
 }
 
 export type IAgentHostToolInvokedEvent = LanguageModelToolInvokedEvent & IAgentHostEventTelemetry & {
@@ -810,7 +809,6 @@ export type IAgentHostToolInvokedEvent = LanguageModelToolInvokedEvent & IAgentH
 	isSubagentSession: boolean;
 	subagentKind?: AgentSubagentKind;
 	errorCode: string | undefined;
-	msg: string | undefined;
 	mcpSourceKind?: McpServerSource;
 };
 
@@ -821,9 +819,8 @@ export type IAgentHostToolInvokedClassification = Omit<LanguageModelToolInvokedC
 	isSubagentSession: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the tool call belongs to a subagent session.' };
 	mcpSourceKind?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Configuration source of an MCP tool: user, workspace, plugin, builtin, managed, or account. Managed MCP tools include Copilot connectors.' };
 	errorCode: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The tool failure code, when available.' };
-	msg: { classification: 'CallstackOrException'; purpose: 'PerformanceAndHealth'; comment: 'The tool failure message, when available. VS Code telemetry scrubs file paths and likely secrets before transmission.' };
 	owner: 'roblourens';
-	comment: 'Tracks Agent Host tool invocations with Agent Host correlation and optional failure diagnostics.';
+	comment: 'Tracks Agent Host tool invocations with Agent Host correlation and optional failure codes.';
 };
 
 export interface IAgentHostAskQuestionsToolInvokedEvent extends IAgentHostEventTelemetry {
@@ -1866,7 +1863,6 @@ export class AgentHostTelemetryReporter {
 			turnId: report.turnId,
 			model: toTelemetryModel(report.model, report.modelTelemetryKind),
 			errorCode: report.errorCode,
-			msg: report.errorMessage,
 		};
 		this._telemetryService.publicLog2<IAgentHostToolInvokedEvent, IAgentHostToolInvokedClassification>('agentHost.toolInvoked', event);
 	}

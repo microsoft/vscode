@@ -139,7 +139,7 @@ import { buildHostLocalEventsPath } from '../../copilotCliEventsUri.js';
 import { toolDataToDefinition } from './agentHostToolUtils.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitledProvisionalSessionService.js';
 import { IAgentHostImportConversationStore } from './agentHostImportConversationStore.js';
-import { activeTurnToProgress, appendToolOutput, BOOLEAN_TRUE_OPTION_ID, canOwnSubagentChat, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, convertProtocolAnswers, convertProtocolPlanReviewResult, createInputRequestCarousel, createInputRequestPlanReview, finalizeToolInvocation, formatTurnResponseDetails, getAgentHostActivityProgressId, getTerminalContent, getUrlInputRequestPresentation, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToRequestOrigin, messageToRequestSource, messageToVariableData, parseAhpTerminalToolSessionId, rewriteAgentHostLinkTarget, shouldObserveSubagentChat, stringOrMarkdownToString, systemNotificationToChatPart, toolCallAuthenticationServer, toolCallStateToInvocation, toolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, turnsToHistory, turnToResponseDetails, updateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, type IAgentHostToolInvocationOptions, type ITurnModelInfo, type TurnModelLookup } from './stateToProgressAdapter.js';
+import { activeTurnToProgress, appendToolOutput, BOOLEAN_TRUE_OPTION_ID, canOwnSubagentChat, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, convertProtocolAnswers, convertProtocolPlanReviewResult, createInputRequestCarousel, createInputRequestPlanReview, finalizeToolInvocation, formatTurnResponseDetails, getAgentHostActivityProgressId, getTerminalContent, getUrlInputRequestPresentation, isSubagentTool, makeAhpTerminalToolSessionId, messageAttachmentsToVariableData, messageToRequestOrigin, messageToRequestSource, messageToVariableData, parseAhpTerminalToolSessionId, rewriteAgentHostLinkTarget, shouldObserveSubagentChat, stringOrMarkdownToString, systemNotificationToChatPart, toolCallAuthenticationServer, toolCallStateToInvocation, toolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, turnsToHistory, turnToResponseDetails, turnToResultMetadata, updateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, type IAgentHostToolInvocationOptions, type ITurnModelInfo, type TurnModelLookup } from './stateToProgressAdapter.js';
 import { AgentHostEnsembleIntelligenceUsesHydraFusionSettingId, COPILOT_HYDRA_FUSION_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_NAMES, isCopilotHydraFusionModelId } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { getEnsembleTierLabel } from '../../widget/input/modelPicker/modelPickerPresentation.js';
 import { autoAuthenticateMcpServer, agentHostMcpServerId, modelRequiresAgentAuthentication } from './agentHostAuth.js';
@@ -2101,11 +2101,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					: completedTurn ? 'success' : 'notDispatched';
 			const details = this._getTurnResponseDetails(request.sessionResource, resolvedSession, completedTurn);
 			const errorDetails = this._getTurnErrorDetails(completedTurn);
+			const metadata = turnToResultMetadata(completedTurn);
 
 			return {
 				timings: { firstProgress, totalElapsed: stopWatch.elapsed() },
 				...(details ? { details } : {}),
 				...(errorDetails ? { errorDetails } : {}),
+				...(metadata ? { metadata } : {}),
 			};
 		} catch (error) {
 			outcome = isCancellationError(error) ? 'cancelled' : 'error';
@@ -3197,12 +3199,17 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			suppressErrorMarkdown: true,
 			onTurnEnded: lastTurn => {
 				const errorDetails = this._getTurnErrorDetails(lastTurn, !this._isChatReadOnly(backendSession.toString(), chatURI));
-				if (errorDetails) {
+				const metadata = turnToResultMetadata(lastTurn);
+				if (errorDetails || metadata) {
 					const response = this._chatService.getSession(chatSession.sessionResource)
 						?.getRequests()
 						.find(request => request.id === turnId)
 						?.response;
-					response?.setResult({ ...response.result, errorDetails });
+					response?.setResult({
+						...response.result,
+						...(errorDetails ? { errorDetails } : {}),
+						...(metadata ? { metadata: { ...response.result?.metadata, ...metadata } } : {}),
+					});
 				}
 				this._completeSessionTurn(backendSession, chatSession.sessionResource, turnId, chatSession);
 			},
