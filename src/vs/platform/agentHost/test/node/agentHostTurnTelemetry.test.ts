@@ -862,64 +862,71 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		assert.strictEqual(data.modelCallCount, 0);
 	});
 
-	test('tracks provider-promoted steering turns without sending their messages again', async () => {
-		setupSession();
-		setSessionConfig({ autoApprove: 'autopilot', mode: 'interactive' });
-		startTurn('turn-original');
-		await new Promise(resolve => setTimeout(resolve, 0));
-		fireModelCallFinished('turn-original', 'call-before-steering', 100, 'success', true);
+	for (const independent of [false, true]) {
+		test(`tracks provider-promoted steering turns without sending their messages again (independent=${independent})`, async () => {
+			setupSession();
+			setSessionConfig({ autoApprove: 'autopilot', mode: 'interactive' });
+			startTurn('turn-original');
+			await new Promise(resolve => setTimeout(resolve, 0));
+			fireModelCallFinished('turn-original', 'call-before-steering', 100, 'success', true);
 
-		let previousTurnId = 'turn-original';
-		for (const turnId of ['turn-steering-1', 'turn-steering-2']) {
-			applyClientAction({
-				type: ActionType.ChatPendingMessageSet,
-				kind: PendingMessageKind.Steering,
-				id: `queued-${turnId}`,
-				message: { text: 'edit the file', origin: { kind: MessageKind.User } },
-			});
+			let previousTurnId = 'turn-original';
+			for (const turnId of ['turn-steering-1', 'turn-steering-2']) {
+				const id = `queued-${turnId}`;
+				const message: Message = { text: 'edit the file', origin: { kind: MessageKind.User } };
+				applyClientAction(independent ? {
+					type: ActionType.ChatSteeringMessageSet,
+					steeringMessage: { id, message },
+				} : {
+					type: ActionType.ChatPendingMessageSet,
+					kind: PendingMessageKind.Steering,
+					id,
+					message,
+				});
+				fire({ type: ActionType.ChatTurnComplete, turnId: previousTurnId, duration: 1000 });
+				fire({
+					type: ActionType.ChatTurnStarted,
+					turnId,
+					startedAt: new Date().toISOString(),
+					message,
+					queuedMessageId: id,
+				});
+				fireModelCallFinished(turnId, `call-${turnId}`, 250, 'success', true);
+				previousTurnId = turnId;
+			}
 			fire({ type: ActionType.ChatTurnComplete, turnId: previousTurnId, duration: 1000 });
-			fire({
-				type: ActionType.ChatTurnStarted,
-				turnId,
-				startedAt: new Date().toISOString(),
-				message: { text: 'edit the file', origin: { kind: MessageKind.User } },
-				queuedMessageId: `queued-${turnId}`,
-			});
-			fireModelCallFinished(turnId, `call-${turnId}`, 250, 'success', true);
-			previousTurnId = turnId;
-		}
-		fire({ type: ActionType.ChatTurnComplete, turnId: previousTurnId, duration: 1000 });
-		await new Promise(resolve => setTimeout(resolve, 0));
+			await new Promise(resolve => setTimeout(resolve, 0));
 
-		assert.deepStrictEqual({
-			sentPrompts: agent.sendMessageCalls.map(call => call.prompt),
-			completed: completedEvents().map(event => {
-				const data = event.data as Record<string, unknown>;
-				return {
-					turnId: data.turnId,
-					timeToFirstEdit: data.timeToFirstEdit,
-					startedWithSteering: data.startedWithSteering,
-					receivedSteering: data.receivedSteering,
-					hostLaunchKind: data.hostLaunchKind,
-					permissionLevel: data.permissionLevel,
-					interactionMode: data.interactionMode,
-					messageOriginKind: data.messageOriginKind,
-				};
-			}),
-		}, {
-			sentPrompts: ['hello'],
-			completed: ['turn-original', 'turn-steering-1', 'turn-steering-2'].map(turnId => ({
-				turnId,
-				timeToFirstEdit: turnId === 'turn-original' ? 100 : 250,
-				startedWithSteering: turnId !== 'turn-original',
-				receivedSteering: turnId !== 'turn-steering-2',
-				hostLaunchKind: undefined,
-				permissionLevel: 'autopilot',
-				interactionMode: 'interactive',
-				messageOriginKind: 'user',
-			})),
+			assert.deepStrictEqual({
+				sentPrompts: agent.sendMessageCalls.map(call => call.prompt),
+				completed: completedEvents().map(event => {
+					const data = event.data as Record<string, unknown>;
+					return {
+						turnId: data.turnId,
+						timeToFirstEdit: data.timeToFirstEdit,
+						startedWithSteering: data.startedWithSteering,
+						receivedSteering: data.receivedSteering,
+						hostLaunchKind: data.hostLaunchKind,
+						permissionLevel: data.permissionLevel,
+						interactionMode: data.interactionMode,
+						messageOriginKind: data.messageOriginKind,
+					};
+				}),
+			}, {
+				sentPrompts: ['hello'],
+				completed: ['turn-original', 'turn-steering-1', 'turn-steering-2'].map(turnId => ({
+					turnId,
+					timeToFirstEdit: turnId === 'turn-original' ? 100 : 250,
+					startedWithSteering: turnId !== 'turn-original',
+					receivedSteering: turnId !== 'turn-steering-2',
+					hostLaunchKind: undefined,
+					permissionLevel: 'autopilot',
+					interactionMode: 'interactive',
+					messageOriginKind: 'user',
+				})),
+			});
 		});
-	});
+	}
 
 	for (const result of ['success', 'cancelled', 'error'] as const) {
 		test(`preserves steering submission and first edit on ${result} even if steering is removed`, () => {
