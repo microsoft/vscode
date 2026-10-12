@@ -44,6 +44,17 @@ suite('Chat Accessibility Help', () => {
 		assert.ok(help.includes('use /sandbox policy to view the effective sandbox policy. In the response, use Tab to focus Open Sandbox Policy and Enter to open the formatted report.'));
 	});
 
+	test('documents participant redirection only in workbench panel and editor chats', () => {
+		const keybindings = new MockKeybindingService();
+		assert.deepStrictEqual(
+			(['panelChat', 'agentView', 'editsView', 'inlineChat', 'quickChat'] as const).map(type => [
+				getAccessibilityHelpText(type, keybindings, false).includes('Submitting an @ chat participant'),
+				getAccessibilityHelpText(type, keybindings, false, true).includes('Submitting an @ chat participant'),
+			]),
+			[[true, false], [true, false], [true, false], [false, false], [false, false]],
+		);
+	});
+
 	test('documents silent history retrieval and keyboard recovery without restarting or waking compute', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
 		assert.deepStrictEqual({
@@ -236,7 +247,7 @@ suite('Chat Accessibility Help', () => {
 		}, { managedDefault: true, perChatChoice: true, auto: true });
 	});
 
-	test('documents model details and Auto\'s Optimize for preferences, including HydraFusion', () => {
+	test('documents model details and Auto\'s Optimize for preferences, including HydraFusion and HydraFusion Max', () => {
 		const help = getAccessibilityHelpText('agentView', new MockKeybindingService(), true);
 		assert.deepStrictEqual({
 			details: help.includes('Tab to reach its configuration button'),
@@ -244,12 +255,12 @@ suite('Chat Accessibility Help', () => {
 			inputShortcut: help.includes('opens the same page for the current model'),
 			defaults: help.includes('Known values are shown even at their defaults'),
 			visibility: help.includes('on the hovered, selected, or keyboard-focused model'),
-			preferences: help.includes('Auto\'s details hold its "Optimize for" preference: Efficiency, Balance, or Intelligence, followed by HydraFusion when available'),
+			preferences: help.includes('Auto\'s details hold its "Optimize for" preference: Efficiency, Balance, or Intelligence, followed by HydraFusion and HydraFusion Max when available'),
 			activation: help.includes('Choosing a preference selects Auto and keeps its details open'),
 			discount: help.includes('When Auto has a discount, it is described below the preferences'),
-			hydra: help.includes('HydraFusion is a research preview'),
+			hydra: help.includes('HydraFusion and HydraFusion Max are research previews'),
 			hydraDescription: help.includes('shows its description below the preferences in place of Auto\'s discount, with Learn more reachable by Tab'),
-			hydraSelection: help.includes('Auto stays checked in the model list with HydraFusion as its preference'),
+			hydraSelection: help.includes('Auto stays checked in the model list with it as its preference'),
 			autoEntry: help.includes('The preference readout beside Auto in the chat input opens the same details'),
 		}, { details: true, inspection: true, inputShortcut: true, defaults: true, visibility: true, preferences: true, activation: true, discount: true, hydra: true, hydraDescription: true, hydraSelection: true, autoEntry: true });
 	});

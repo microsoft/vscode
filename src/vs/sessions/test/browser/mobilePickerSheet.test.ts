@@ -7,12 +7,33 @@ import assert from 'assert';
 import * as dom from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { Codicon } from '../../../base/common/codicons.js';
+import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { toDisposable } from '../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { IMobileContentSheetOptions, showMobileContentSheet, showMobilePickerSheet } from '../../browser/parts/mobile/mobilePickerSheet.js';
 
 suite('MobilePickerSheet', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const alreadyCancelled of [false, true]) {
+		test(`owner cancellation dismisses the picker without selection (${alreadyCancelled ? 'before' : 'after'} opening)`, async () => {
+			const container = dom.append(mainWindow.document.body, dom.$('div'));
+			store.add(toDisposable(() => container.remove()));
+			const cancellation = store.add(new CancellationTokenSource());
+			if (alreadyCancelled) {
+				cancellation.cancel();
+			}
+			const closed = showMobilePickerSheet(container, 'Workspaces', [{ id: 'offline', label: 'Offline workspace' }], {
+				cancellationToken: cancellation.token,
+			});
+			const row = container.querySelector<HTMLButtonElement>('.mobile-picker-sheet-item');
+			cancellation.cancel();
+			row?.click();
+			assert.deepStrictEqual({ selected: await closed, remaining: container.childElementCount, shown: !!row }, {
+				selected: undefined, remaining: 0, shown: !alreadyCancelled,
+			});
+		});
+	}
 
 	for (const description of [undefined, 'Evaluates risk before running tools']) {
 		test(`renders and announces item badges${description ? ' with descriptions' : ''}`, async () => {

@@ -31,7 +31,8 @@ import type { MissionControlProtocolServer } from './missionControlProtocolServe
 import { MissionControlSdkEventSource } from './missionControlSdkEventSource.js';
 import { MissionControlSessionMirror } from './missionControlSessionMirror.js';
 import { MissionControlProjects } from './missionControlProjects.js';
-import { AhpErrorCodes, JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
+import { MissionControlCopilotExtension } from './missionControlCopilotExtension.js';
+import { missionControlSessionConfigAdapter } from './missionControlSessionConfig.js';
 import { isObject } from '../../../../base/common/types.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { AhpJsonlLogger, AhpJsonlLogRetention } from '../../common/ahpJsonlLogger.js';
@@ -183,34 +184,14 @@ export class MissionControlHost extends Disposable {
 				relayRoots: relay.rootMeta ? undefined : roots,
 				relayRootMeta: relay.rootMeta,
 				advertisedModelProviders: ['copilotcli'],
-				copilotSessionConfig: true,
-				copilotProjects: relay.rootMeta ? this._projects : undefined,
-				copilotSessionRequest: (method, params) => this._handleSessionRequest(method, params),
+				sessionConfigAdapter: missionControlSessionConfigAdapter,
+				extension: relay.rootMeta ? this._instantiationService.createInstance(MissionControlCopilotExtension, this._projects) : undefined,
 				relayResourceRoots: readOnly => this._resourceRoots(readOnly, getRoots()),
 				defaultDirectory: directory ? URI.file(directory).toString() : undefined,
 			},
 			this._options.clientFileSystemProvider,
 		);
 		return this._options.trackProtocolHandler(handler);
-	}
-
-	private async _handleSessionRequest(method: string, params: Record<string, unknown>): Promise<unknown> {
-		if (typeof params.channel !== 'string' || !this._stateManager.getSessionState(params.channel)) {
-			throw new ProtocolError(AhpErrorCodes.SessionNotFound, 'Session does not exist');
-		}
-		const session = URI.parse(params.channel);
-		const provider = this._providerService.getProviderForSession(session);
-		if (method === 'extensions/getPlan' && provider?.getSessionPlan) {
-			return provider.getSessionPlan(session);
-		}
-		if (method === 'extensions/setSessionApproveAll' && provider?.setSessionApproveAll) {
-			if (typeof params.enabled !== 'boolean') {
-				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, 'enabled must be a boolean');
-			}
-			await provider.setSessionApproveAll(session, params.enabled);
-			return null;
-		}
-		throw new ProtocolError(JsonRpcErrorCodes.MethodNotFound, `Provider does not support ${method}`);
 	}
 
 	private _resourceRoots(readOnly: boolean, grantedRoots: readonly string[]): readonly string[] {
