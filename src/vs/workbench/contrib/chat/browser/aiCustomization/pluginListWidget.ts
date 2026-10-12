@@ -61,6 +61,7 @@ import { affectsCustomizationDiscoveryAvailability, isCustomizationDiscoveryAvai
 import { getAvailableCustomizationMarketplaceInstallTelemetryContext, runCustomizationMarketplaceInstallWithTelemetry } from '../../common/customizationMarketplaceInstallTelemetry.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { getAICustomizationWorkspaceGroupForResource, getAICustomizationWorkspaceGroups, isAICustomizationWorkspaceGroupKey } from './aiCustomizationWorkspaceGroups.js';
+import { MANAGE_PLUGIN_MARKETPLACES_COMMAND_ID } from '../actions/chatPluginActions.js';
 
 const $ = DOM.$;
 
@@ -1508,6 +1509,7 @@ export class PluginListWidget extends Disposable {
 			this.renderPluginAddAction(actions, disposables);
 			if (entry.group === 'user' && isCustomizationDiscoveryAvailable(this.configurationService, this.customizationMarketplaceService)) {
 				this.renderBrowseCustomizationsAction(actions, disposables);
+				this.renderConfigureMarketplacesAction(actions, disposables);
 			}
 		} else if (entry.group === 'available') {
 			this.renderPluginAddAction(actions, disposables);
@@ -1633,6 +1635,24 @@ export class PluginListWidget extends Disposable {
 		button.element.classList.add('plugin-installed-action', 'plugin-card-ghost-button');
 		button.label = label;
 		disposables.add(button.onDidClick(() => this._onDidRequestBrowse.fire()));
+	}
+
+	private renderConfigureMarketplacesAction(container: HTMLElement, disposables: DisposableStore): void {
+		const label = localize('configureMarketplaces', "Configure Marketplaces");
+		const button = disposables.add(new Button(container, {
+			...getButtonStyles({
+				buttonSecondaryBackground: undefined,
+				buttonSecondaryForeground: undefined,
+				buttonSecondaryHoverBackground: undefined,
+				buttonSecondaryBorder: undefined,
+			}),
+			secondary: true,
+			title: label,
+			ariaLabel: label,
+		}));
+		button.element.classList.add('plugin-installed-action', 'plugin-card-ghost-button');
+		button.label = label;
+		disposables.add(button.onDidClick(() => this.commandService.executeCommand(MANAGE_PLUGIN_MARKETPLACES_COMMAND_ID)));
 	}
 
 	private updatePluginTreeEmptyState(itemCount: number): void {
