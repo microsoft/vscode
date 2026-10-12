@@ -537,7 +537,9 @@ suite('Sessions list context menus', () => {
 	});
 
 	test('parent session context menu offers marking unread nested sessions as read', async () => {
-		const parent = createTestSession('Parent').session;
+		const parentTestSession = createTestSession('Parent');
+		parentTestSession.capabilities.set({ ...parentTestSession.capabilities.get(), supportsIndependentChatReadState: true }, undefined);
+		const parent = parentTestSession.session;
 		const nested = upcastPartial<IChat>({
 			resource: URI.parse('test-chat:/nested'),
 			workspace: constObservable(undefined),

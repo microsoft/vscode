@@ -269,7 +269,7 @@ suite('Sessions - Actions', () => {
 			{ id: 'sessionsViewPane.unpinSession', group: '0_pin', order: 0, when: 'sessionItem.isPinned && !sessionIsArchived' },
 			{ id: MARK_SESSION_READ_COMMAND_ID, group: '1_edit', order: 1.5, when: '!sessionIsArchived && !sessionIsRead' },
 			{ id: MARK_SESSION_UNREAD_COMMAND_ID, group: '1_edit', order: 1.5, when: 'sessionIsRead && !sessionIsArchived' },
-			{ id: 'sessionsViewPane.markAllNestedRead', group: '1_edit', order: 1.6, when: 'sessionItem.hasUnreadNestedSessions && !sessionIsArchived' },
+			{ id: 'sessionsViewPane.markAllNestedRead', group: '1_edit', order: 1.6, when: 'sessionItem.hasUnreadNestedSessions' },
 			{ id: 'sessionsViewPane.openToTheSide', group: '0_pin', order: 1, when: 'isSessionsWindow' },
 			{ id: 'sessionsViewPane.markAllRead', group: '0_read', order: 1, when: 'sessionsViewPane.grouping == \'date\'' },
 		]);
@@ -306,8 +306,15 @@ suite('Sessions - Actions', () => {
 
 	test('parent session action marks unread nested sessions as read', async () => {
 		const instantiationService = disposables.add(workbenchInstantiationService(undefined, disposables));
-		const first = createTestSession('First').session;
-		const second = createTestSession('Second').session;
+		const firstTestSession = createTestSession('First');
+		const secondTestSession = createTestSession('Second');
+		const unsupportedTestSession = createTestSession('Unsupported');
+		for (const testSession of [firstTestSession, secondTestSession]) {
+			testSession.capabilities.set({ ...testSession.capabilities.get(), supportsIndependentChatReadState: true }, undefined);
+		}
+		const first = firstTestSession.session;
+		const second = secondTestSession.session;
+		const unsupported = unsupportedTestSession.session;
 		const createChat = (session: ISession, id: string, isRead: boolean, interactivity = ChatInteractivity.Full): IChat => upcastPartial<IChat>({
 			resource: session.resource.with({ fragment: id }),
 			isArchived: constObservable(false),
@@ -318,12 +325,16 @@ suite('Sessions - Actions', () => {
 		const firstRead = createChat(first, 'first-read', true);
 		const secondUnread = createChat(second, 'second-unread', false);
 		const hiddenUnread = createChat(second, 'hidden-unread', false, ChatInteractivity.Hidden);
+		const unsupportedUnread = createChat(unsupported, 'unsupported-unread', false);
 		const sessions: ISession[] = [{
 			...first,
 			chats: constObservable([first.mainChat.get(), firstUnread, firstRead]),
 		}, {
 			...second,
 			chats: constObservable([second.mainChat.get(), secondUnread, hiddenUnread]),
+		}, {
+			...unsupported,
+			chats: constObservable([unsupported.mainChat.get(), unsupportedUnread]),
 		}];
 		const markedRead: string[] = [];
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {

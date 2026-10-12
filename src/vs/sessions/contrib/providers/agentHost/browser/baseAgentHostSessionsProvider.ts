@@ -1713,6 +1713,7 @@ export class AgentHostSessionAdapter extends Disposable implements ISession {
 				supportsImport: this.isExternal.read(reader) && !!connection?.importSession && supportsAgentHostSessionImport(connection.initializeResult.read(reader)),
 				supportsCanvases: this._options.supportsCanvasPresentation?.(this.agentProvider) === true,
 				supportsMultipleChats: !this.isQuickChat.read(reader) && (agentCapabilities?.multipleChats !== undefined),
+				supportsIndependentChatReadState: this._supportsChatReadState.read(reader),
 				supportsFork: agentCapabilities?.multipleChats?.fork ?? false,
 				supportsSideChat: agentCapabilities?.multipleChats?.sideChat ?? false,
 				supportsRename: true,

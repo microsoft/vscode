@@ -1504,10 +1504,7 @@ registerAction2(class MarkAllNestedSessionsReadAction extends Action2 {
 				id: SessionItemContextMenuId,
 				group: '1_edit',
 				order: 1.6,
-				when: ContextKeyExpr.and(
-					SessionItemHasUnreadNestedSessionsContext,
-					SessionIsArchivedContext.negate(),
-				),
+				when: SessionItemHasUnreadNestedSessionsContext,
 			}]
 		});
 	}
@@ -1518,7 +1515,7 @@ registerAction2(class MarkAllNestedSessionsReadAction extends Action2 {
 		}
 		const sessions = Array.isArray(context) ? context : [context];
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		await Promise.all(sessions.flatMap(session => session.isArchived.get() ? [] : getSessionListChats(session)
+		await Promise.all(sessions.flatMap(session => session.isArchived.get() || session.capabilities.get().supportsIndependentChatReadState !== true ? [] : getSessionListChats(session)
 			.filter(chat => !chat.isRead.get())
 			.map(chat => sessionsManagementService.markChatRead(session, chat))));
 	}

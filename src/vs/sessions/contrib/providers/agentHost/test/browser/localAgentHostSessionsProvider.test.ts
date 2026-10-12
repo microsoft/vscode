@@ -10269,12 +10269,26 @@ suite('LocalAgentHostSessionsProvider', () => {
 				{ ...makeChatSummary(peerChat, 'Peer'), origin: { kind: ProtocolChatOriginKind.User } },
 			], { defaultChat }));
 			const peer = session.chats.get()[1];
+			const supportsIndependentChatReadStateBeforeUpgrade = session.capabilities.get().supportsIndependentChatReadState;
 			const accepted = await provider.setChatReadState(session.sessionId, peer.resource, true);
+			const legacyReadState = {
+				sessionRead: session.isRead.get(),
+				mainRead: session.mainChat.get().isRead.get(),
+				peerRead: peer.isRead.get(),
+			};
+			agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), protocolVersion: PROTOCOL_VERSION }, undefined);
+			const supportsIndependentChatReadStateAfterUpgrade = session.capabilities.get().supportsIndependentChatReadState;
 			assert.deepStrictEqual({
-				accepted, sessionRead: session.isRead.get(), mainRead: session.mainChat.get().isRead.get(), peerRead: peer.isRead.get(),
+				accepted,
+				legacyReadState,
+				supportsIndependentChatReadStateBeforeUpgrade,
+				supportsIndependentChatReadStateAfterUpgrade,
 				actions: agentHost.dispatchedActions.map(dispatch => ({ channel: dispatch.channel, type: dispatch.action.type })),
 			}, {
-				accepted: true, sessionRead: true, mainRead: true, peerRead: true,
+				accepted: true,
+				legacyReadState: { sessionRead: true, mainRead: true, peerRead: true },
+				supportsIndependentChatReadStateBeforeUpgrade: false,
+				supportsIndependentChatReadStateAfterUpgrade: true,
 				actions: [{ channel: sessionUri, type: ActionType.SessionIsReadChanged }],
 			});
 		});

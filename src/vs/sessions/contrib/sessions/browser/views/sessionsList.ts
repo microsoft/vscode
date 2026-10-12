@@ -5609,7 +5609,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const contextOverlay: [string, boolean | string][] = [
 			[IsSessionPinnedContext.key, this.isSessionPinned(element)],
 			[SessionItemIsMultiSelectionContext.key, selectedSessions.length > 1],
-			[SessionItemHasUnreadNestedSessionsContext.key, selectedSessions.some(session => !session.isArchived.get() && getSessionListChats(session).some(chat => !chat.isRead.get()))],
+			[SessionItemHasUnreadNestedSessionsContext.key, selectedSessions.some(session =>
+				!session.isArchived.get()
+				&& session.capabilities.get().supportsIndependentChatReadState === true
+				&& getSessionListChats(session).some(chat => !chat.isRead.get()))],
 			[SessionIsArchivedContext.key, element.isArchived.get()],
 			[SessionIsReadContext.key, element.mainChat.get().isRead.get()],
 			[SessionItemInGroupContext.key, inGroup],
