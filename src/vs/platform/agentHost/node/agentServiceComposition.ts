@@ -145,6 +145,7 @@ export function createAgentServiceComposition(
 				hostLaunchKind: options.hostLaunchKind ?? AgentHostLaunchKind.Unknown,
 				resolveWorkingDirectoryBeforeSend: params => callbackAdapter.value.resolveWorkingDirectoryBeforeSend(params),
 				resolveChatAttachmentTurns: resource => callbackAdapter.value.resolveChatAttachmentTurns(resource),
+				resolveChatOwner: chat => callbackAdapter.value.resolveChatOwner(chat),
 			},
 		));
 		const agentMergeTools = owned.add(instantiationService.createInstance(
@@ -157,6 +158,7 @@ export function createAgentServiceComposition(
 		const workspaceConversionService: { value: ISessionWorkspaceConversionService | undefined } = { value: undefined };
 		const sessionServerToolAccessor: ISessionServerToolAccessor = {
 			...callbackAdapter.sessionServerToolAccessor,
+			getChatOwner: chat => stateManager.getChatOwner(chat),
 			requestSessionWorkspaceUpdate: (chat, turnId, workspaceFolder, isolation) => {
 				const initiatingClientId = turnTracker.getInitiatorClientId(chat.toString(), turnId);
 				if (!workspaceConversionService.value) {

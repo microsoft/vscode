@@ -610,7 +610,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 	 * sequencing is safe.
 	 */
 	private _emitSpawnedChatEvents(signal: AgentSignal): void {
-		const spawn = SubagentChatSignal.toSpawnEvent(signal);
+		const spawn = SubagentChatSignal.toSpawnEvent(signal, chat => this._chatConfigScopes.get(chat)?.configurationResource.toString());
 		if (spawn) {
 			this._onDidSpawnChat.fire(spawn);
 		}
@@ -1577,6 +1577,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		const session = ClaudeAgentSession.createProvisional(
 			sdkSessionId,
 			chat,
+			context.configurationResource,
 			workingDirectory,
 			project,
 			model,
@@ -1810,6 +1811,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 		const chatSession = ClaudeAgentSession.createProvisional(
 			info.sdkSessionId,
 			chat,
+			configurationResource,
 			workingDirectory,
 			project,
 			model,
@@ -1963,7 +1965,7 @@ export class ClaudeAgent extends Disposable implements IAgent {
 			return [];
 		}
 		const turns = await this._reconstructTurns(context.sdkSessionId, context.chat, sess?.subagents);
-		await this._terminalOutputs.restore(context.resource, context.chat, turns);
+		await this._terminalOutputs.restore(context.resource, context.configurationResource, context.chat, turns);
 		return turns;
 	}
 

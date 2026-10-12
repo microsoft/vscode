@@ -1907,9 +1907,11 @@ export class AgentHostStateManager extends Disposable {
 		// Collect first because `disposeChangeset` mutates the underlying
 		// map via its envelope handler.
 		const toDispose: URI[] = [];
+		// Session teardown runs before its chat entries are removed, so their recorded owners still identify the session's chats.
+		const sessionChats = includeSessionChats ? new Set([...this._chatEntries].filter(([, entry]) => entry.session === owner).map(([chat]) => chat)) : undefined;
 		for (const uri of this._changesets.keys()) {
 			const parsed = parseChangesetUri(uri);
-			if (parsed && (parsed.ownerUri === owner || (includeSessionChats && parsed.sessionUri === owner))) {
+			if (parsed && (parsed.ownerUri === owner || sessionChats?.has(parsed.ownerUri) || (includeSessionChats && parsed.sessionUri === owner))) {
 				toDispose.push(uri);
 			}
 		}

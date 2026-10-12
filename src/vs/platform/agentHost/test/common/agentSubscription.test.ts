@@ -18,7 +18,7 @@ import type { CanvasState } from '../../common/state/protocol/channels-canvas/st
 import { normalizeLegacyActionEnvelope, readLegacyTurnError } from '../../common/state/legacyProtocolCompatibility.js';
 import { chatReducer } from '../../common/state/sessionReducers.js';
 import { resolveAgentHostSession } from '../../common/agentHostSubscriptionService.js';
-import { buildFolderChangesetOwnerUri } from '../../common/changesetUri.js';
+import { buildFolderChangesetOwnerUri, buildTurnChangesetUri } from '../../common/changesetUri.js';
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { buildCanvasUri, parseCanvasChatUri } from '../../common/canvasUri.js';
 import type { IStateSnapshot } from '../../common/state/sessionProtocol.js';
@@ -112,11 +112,15 @@ suite('resolveAgentHostSession', () => {
 			unknown: resolveAgentHostSession(URI.parse(unknown), getChatOwner)?.toString(),
 			folder: resolveAgentHostSession(URI.parse(folderOwner), getChatOwner)?.toString(),
 			terminal: resolveAgentHostSession(URI.parse(terminal), getChatOwner)?.toString(),
+			peerChangeset: resolveAgentHostSession(URI.parse(buildTurnChangesetUri(peer, 'turn-1')), getChatOwner)?.toString(),
+			unknownChangeset: resolveAgentHostSession(URI.parse(buildTurnChangesetUri(unknown, 'turn-1')), getChatOwner)?.toString(),
 		}, {
 			peer: recordedOwner,
 			unknown: undefined,
 			folder: sessionUri,
 			terminal: sessionUri,
+			peerChangeset: recordedOwner,
+			unknownChangeset: undefined,
 		});
 	});
 

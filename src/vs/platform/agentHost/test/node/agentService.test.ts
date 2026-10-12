@@ -83,7 +83,7 @@ import { readChatInputState } from '../../common/meta/agentHostChatInputState.js
 import { buildSubagentTurnsFromHistory, buildTurnsFromHistory, mapSessionEventsToHistoryRecords, type IHistoryRecord } from './historyRecordFixtures.js';
 import { type ISessionEvent } from './copilotTestEvents.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
-import { findTestChatOwner, listTestLegacyChatCatalogSessions, readTestChatV2, readTestSessionListCatalogs } from './chatMetadataTestHelpers.js';
+import { findTestChatOwner, listTestLegacyChatCatalogSessions, mintedTestChatOwner, readTestChatV2, readTestSessionListCatalogs } from './chatMetadataTestHelpers.js';
 import { readSessionInitiator, SESSION_INITIATOR_METADATA_KEY, withSessionInitiator } from '../../common/meta/agentSessionInitiatorMeta.js';
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
@@ -2640,7 +2640,7 @@ suite('AgentService (node dispatcher)', () => {
 			const chat = URI.parse(buildChatUri(session, 'peer-chat'));
 			const params = { uri: 'ui://example/app' };
 
-			const result = await service.handleMcpRequest(buildMcpChannel(chat, 'server'), 'resources/read', params);
+			const result = await service.handleMcpRequest(buildMcpChannel(chat, 'server', AgentSession.provider(session)!), 'resources/read', params);
 
 			assert.deepStrictEqual({ result, calls }, {
 				result: 'result',
@@ -25005,7 +25005,7 @@ suite('AgentService (node dispatcher)', () => {
 				private readonly _onDidSpawnChat = new Emitter<IAgentSpawnChatEvent>();
 				override readonly onDidSpawnChat = this._onDidSpawnChat.event;
 				private readonly _bridge = this.onDidChatProgress(signal => {
-					const e = SubagentChatSignal.toSpawnEvent(signal);
+					const e = SubagentChatSignal.toSpawnEvent(signal, mintedTestChatOwner);
 					if (e) {
 						this._onDidSpawnChat.fire(e);
 					}

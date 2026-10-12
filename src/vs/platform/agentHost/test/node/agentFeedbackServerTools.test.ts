@@ -13,18 +13,7 @@ import { Annotation, AnnotationsState, SessionStatus, SessionSummary, buildChatU
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentServerToolHost } from '../../node/shared/agentServerToolHost.js';
-import {
-	addCommentToolName,
-	applyFeedbackTool,
-	deleteCommentsToolName,
-	feedbackServerToolDefinitions,
-	feedbackServerToolGroup,
-	feedbackToolRequiresConfirmation,
-	listCommentsToolName,
-	replyToCommentToolName,
-	resolveCommentsToolName,
-	viewUnreviewedCommentsToolName,
-} from '../../node/shared/agentFeedbackServerTools.js';
+import { addCommentToolName, applyFeedbackTool, deleteCommentsToolName, feedbackServerToolDefinitions, feedbackServerToolGroup, feedbackToolRequiresConfirmation, listCommentsToolName, replyToCommentToolName, resolveCommentsToolName, viewUnreviewedCommentsToolName } from '../../node/shared/agentFeedbackServerTools.js';
 
 suite('AgentFeedbackServerTools', () => {
 
@@ -388,6 +377,9 @@ suite('AgentFeedbackServerTools', () => {
 			disposables = new DisposableStore();
 			manager = disposables.add(new AgentHostStateManager(new NullLogService()));
 			host = new AgentServerToolHost(manager, [feedbackServerToolGroup]);
+			// Tools run inside registered chats.
+			manager.createSession(makeSummary());
+			manager.addChat(sessionResource, buildChatUri(sessionResource, 'peer-chat-1'));
 		});
 
 		teardown(() => disposables.dispose());
@@ -462,8 +454,20 @@ suite('AgentFeedbackServerTools', () => {
 			});
 		});
 
+		test('executeTool attributes a chat to its recorded owner, not the session its URI encodes', () => {
+			const encoded = 'copilot:/encoded-session';
+			const chatUri = buildChatUri(encoded, 'moved');
+			manager.addChat(sessionResource, chatUri);
+			host.executeTool(chatUri, addCommentToolName, {
+				resourceUri: fileUri,
+				range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 2 },
+				text: 'from a moved chat',
+			});
+			const texts = (session: string) => ((manager.getSnapshot(buildAnnotationsUri(session))?.state as AnnotationsState | undefined)?.annotations ?? []).map(annotation => annotation.entries[0].text);
+			assert.deepStrictEqual({ owner: texts(sessionResource), encoded: texts(encoded) }, { owner: ['from a moved chat'], encoded: [] });
+		});
+
 		test('advertise publishes the server tools as server tools', () => {
-			manager.createSession(makeSummary());
 			host.advertise(sessionResource);
 			const state = manager.getSessionState(sessionResource);
 			assert.deepStrictEqual(state?.serverTools, feedbackServerToolDefinitions.map(({ deferLoading: _deferLoading, ...definition }) => definition));
@@ -473,7 +477,9 @@ suite('AgentFeedbackServerTools', () => {
 			const actionTypes: string[] = [];
 			disposables.add(manager.onDidEmitEnvelope(envelope => actionTypes.push(envelope.action.type)));
 
-			host.advertise(sessionResource);
+			const unregistered = 'copilot:/unregistered-session';
+			host.advertise(unregistered);
+			host.advertise(buildChatUri(unregistered, 'peer'));
 
 			assert.deepStrictEqual(actionTypes, []);
 		});

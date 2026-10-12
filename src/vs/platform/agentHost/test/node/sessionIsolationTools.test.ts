@@ -40,9 +40,13 @@ suite('Session isolation tool', () => {
 	}
 
 	test('advertises to the session but rejects subagent calls', () => {
-		const { host, session, main } = createHarness();
+		const { stateManager, host, session, main } = createHarness();
 		const childSession = buildSubagentSessionUri(URI.parse(session), 'worker').toString();
 		const child = buildDefaultChatUri(childSession);
+		stateManager.createSession({
+			resource: childSession, provider: 'copilotcli', title: 'Worker', status: SessionStatus.Idle,
+			createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
+		});
 		assert.deepStrictEqual({
 			session: host.getDefinitionsForSession(session).map(tool => tool.name),
 			child: host.getDefinitionsForSession(childSession),

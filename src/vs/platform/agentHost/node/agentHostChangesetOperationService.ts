@@ -7,7 +7,7 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable, type IDisposable } from '../../../base/common/lifecycle.js';
 import { equals, stableStringify } from '../../../base/common/objects.js';
-import { buildBranchChangesetUri, ChangesetKind, parseChangesetUri, parseFolderChangesetOwnerUri } from '../common/changesetUri.js';
+import { buildBranchChangesetUri, changesetSession, ChangesetKind, parseChangesetUri, parseFolderChangesetOwnerUri } from '../common/changesetUri.js';
 import { isMultiRootSession } from '../common/agentHostWorkingDirectories.js';
 import { resolveBranchChangesetScopeForOwner, resolveBranchChangesetScopeForSource, resolveChangesetOwnerScope, resolveGitHubStateFolder } from './agentHostBranchChangesetScope.js';
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
@@ -102,7 +102,7 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 			return [];
 		}
 		const ownerKey = parsed.ownerUri;
-		sessionKey = parsed.sessionUri;
+		sessionKey = this._containingSession(parsed) ?? sessionKey;
 		const sourceKey = resolveChangesetOwnerScope(this._stateManager, ownerKey).sourceUri;
 
 		if (!gitState) {
@@ -180,7 +180,8 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 
 		// Operations are disabled while a turn is active so the working tree /
 		// branch state can't be mutated mid-request.
-		const sessionKey = parseChangesetUri(context.changesetUri)?.sessionUri ?? context.sessionKey;
+		const parsedChangeset = parseChangesetUri(context.changesetUri);
+		const sessionKey = (parsedChangeset && this._containingSession(parsedChangeset)) ?? context.sessionKey;
 		if (this._stateManager.hasActiveTurn(sessionKey)) {
 			return scopedOperations.map(operation => ({
 				...operation,
@@ -265,8 +266,9 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 		const ownerKey = changeset
 			? parseChangesetUri(changeset)?.ownerUri ?? sessionKey
 			: sessionKey;
+		const parsedChangeset = changeset ? parseChangesetUri(changeset) : undefined;
 		const containingSessionKey = changeset
-			? parseChangesetUri(changeset)?.sessionUri ?? sessionKey
+			? (parsedChangeset && this._containingSession(parsedChangeset)) ?? sessionKey
 			: resolveChangesetOwnerScope(this._stateManager, sessionKey).sessionUri;
 		const changesets = changeset
 			? [changeset]
@@ -351,7 +353,8 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 		// otherwise re-enable invocation mid-turn and let the working tree /
 		// branch state be mutated.
 		const parsed = parseChangesetUri(params.channel);
-		if (parsed && this._stateManager.hasActiveTurn(parsed.sessionUri)) {
+		const containingSession = parsed && this._containingSession(parsed);
+		if (containingSession && this._stateManager.hasActiveTurn(containingSession)) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `Operation '${params.operationId}' is disabled while a turn is active on changeset ${params.channel}`);
 		}
 
@@ -444,6 +447,10 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 
 			throw error;
 		}
+	}
+
+	private _containingSession(parsed: { readonly ownerUri: string; readonly sessionUri: string | undefined }): string | undefined {
+		return changesetSession(parsed, chat => this._stateManager.getChatOwner(chat));
 	}
 
 	private _registerChangesetOperationHandler(operationId: string, handler: IChangesetOperationHandler): IDisposable {

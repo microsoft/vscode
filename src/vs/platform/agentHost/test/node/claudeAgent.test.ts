@@ -12,21 +12,7 @@ import assert from 'assert';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
 import * as fs from 'fs/promises';
 import * as os from 'os';
-import {
-	makeAssistantMessage,
-	makeContentBlockStartText,
-	makeContentBlockStartThinking,
-	makeContentBlockStartToolUse,
-	makeContentBlockStop,
-	makeMessageStart,
-	makeMessageStop,
-	makeResultSuccess,
-	makeStreamEvent,
-	makeSystemInitMessage,
-	makeTextDelta,
-	makeThinkingDelta,
-	makeUserToolResultMessage,
-} from './claudeMapSessionEventsTestUtils.js';
+import { makeAssistantMessage, makeContentBlockStartText, makeContentBlockStartThinking, makeContentBlockStartToolUse, makeContentBlockStop, makeMessageStart, makeMessageStop, makeResultSuccess, makeStreamEvent, makeSystemInitMessage, makeTextDelta, makeThinkingDelta, makeUserToolResultMessage } from './claudeMapSessionEventsTestUtils.js';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -2472,6 +2458,7 @@ suite('ClaudeAgent', () => {
 		const session = disposables.add(ClaudeAgentSession.createProvisional(
 			'test-session',
 			URI.parse(buildDefaultChatUri(AgentSession.uri('claude', 'test-session'))),
+			AgentSession.uri('claude', 'test-session'),
 			URI.file('/workspace'),
 			undefined,
 			undefined,
@@ -2498,6 +2485,7 @@ suite('ClaudeAgent', () => {
 		const session = disposables.add(ClaudeAgentSession.createProvisional(
 			'test-session',
 			URI.parse(buildDefaultChatUri(AgentSession.uri('claude', 'test-session'))),
+			AgentSession.uri('claude', 'test-session'),
 			URI.file('/workspace'),
 			undefined,
 			undefined,
@@ -7037,6 +7025,7 @@ suite('ClaudeAgentSession (Phase 7 §3.2)', () => {
 		const session = disposables.add(ClaudeAgentSession.createProvisional(
 			'session-id',
 			URI.parse(buildDefaultChatUri('claude:/session-id')),
+			URI.parse('claude:/session-id'),
 			URI.file('/workspace'),
 			undefined,
 			undefined,

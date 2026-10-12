@@ -35,7 +35,7 @@ import { getPersistedSessionConfigValues, getSessionPullRequestUrl, omitTransien
 import { getSessionApprovalProperty, validateSessionConfigWrite } from '../common/sessionConfigProperties.js';
 import type { IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
 import { buildAnnotationsUri, parseAnnotationsUri } from '../common/annotationsUri.js';
-import { parseChangesetUri, parseFolderChangesetOwnerUri } from '../common/changesetUri.js';
+import { changesetSession, parseChangesetUri, parseFolderChangesetOwnerUri } from '../common/changesetUri.js';
 import { ActionType, ActionEnvelope, AuthRequiredReason, INotification, isAnnotationsAction, isPassiveSessionMetadataAction, isSessionAction, type ChatAction, type ClientAutomationAction, type ClientAutomationRunAction, type IIsArchivedChangedAction, type IIsReadChangedAction, type IRootConfigChangedAction, type SessionAction, type SessionWorkingDirectoryAction, type TerminalAction, type ClientAnnotationsAction, type ClientChangesetAction } from '../common/state/sessionActions.js';
 import { resolveSessionWorkingDirectoryAction } from '../common/state/sessionWorkingDirectories.js';
 import type { CompletionsParams, CompletionsResult, CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult, SessionConfigPropertySchema } from '../common/state/protocol/commands.js';
@@ -627,6 +627,7 @@ export interface IAgentServiceCallbacks {
 	readonly postAgentMergeNotice: IAgentMergeControllerOptions['postNotice'];
 	readonly resolveWorkingDirectoryBeforeSend: NonNullable<IAgentSideEffectsOptions['resolveWorkingDirectoryBeforeSend']>;
 	readonly resolveChatAttachmentTurns: NonNullable<IAgentSideEffectsOptions['resolveChatAttachmentTurns']>;
+	readonly resolveChatOwner: NonNullable<IAgentSideEffectsOptions['resolveChatOwner']>;
 	readonly sessionServerToolAccessor: IAgentServiceSessionServerToolAccessor;
 	readonly artifactServerToolAccessor: IArtifactServerToolAccessor;
 	/** Writes list-visible session metadata through the `sessions_v2` catalog and awaits the sync receipt. */
@@ -1011,6 +1012,7 @@ export class AgentService extends Disposable implements IAgentService {
 			postAgentMergeNotice: (chat, kind, content) => this._postAgentMergeNotice(chat, kind, content),
 			resolveWorkingDirectoryBeforeSend: params => this._resolveWorkingDirectoryBeforeSend(params),
 			resolveChatAttachmentTurns: resource => this._resolveChatAttachmentTurns(resource),
+			resolveChatOwner: async chat => (await this._resolveChatOwner(chat))?.owner,
 			sessionServerToolAccessor: this._createSessionServerToolAccessor(),
 			artifactServerToolAccessor: this._createArtifactServerToolAccessor(),
 			persistListVisibleSessionState: (session, values) => this._persistListVisibleSessionState(URI.parse(session), values),
@@ -7069,6 +7071,15 @@ export class AgentService extends Disposable implements IAgentService {
 		const resourceStr = resource.toString();
 		const subscribe = async (telemetry: IAgentHostSessionOpenTelemetryScope): Promise<IStateSnapshot> => {
 			const restoreSession = (session: URI) => this.restoreSession(session, joinedRestore => telemetry.restoreStarted(joinedRestore));
+			const restoreChangesetOwner = async (owner: string, session: string | undefined): Promise<string | undefined> => {
+				const containing = session ?? (await this._resolveChatOwner(owner))?.owner;
+				if (containing === undefined) {
+					this._logService.trace(`[AgentService] subscribe: no owner recorded for changeset owner ${owner}`);
+				} else if (!this._stateManager.getSessionState(containing)) {
+					await restoreSession(URI.parse(containing));
+				}
+				return containing;
+			};
 			await this._sessionResidency.waitForRelease(resource);
 			if (this._store.isDisposed || (isActive && !isActive())) {
 				throw new Error(`Subscription cancelled: ${resourceStr}`);
@@ -7098,7 +7109,7 @@ export class AgentService extends Disposable implements IAgentService {
 			telemetry.setServedFromMemory(!!snapshot);
 			const parsedChangeset = parseChangesetUri(resourceStr);
 			if (snapshot && parsedChangeset) {
-				await this._changesetCoordinator.restoreSessionIfChangesetSubscription(resource, restoreSession);
+				await this._changesetCoordinator.restoreSessionIfChangesetSubscription(resource, restoreChangesetOwner);
 				snapshot = this._stateManager.getSnapshot(resourceStr);
 			}
 			const parsedAnnotations = parseAnnotationsUri(resourceStr);
@@ -7152,7 +7163,7 @@ export class AgentService extends Disposable implements IAgentService {
 					// owns its URI shape, the unknown-id early throw, and turn
 					// / static seeding). Other URIs fall through to the
 					// subagent / session-default path below.
-					const handled = await this._changesetCoordinator.tryHandleSubscribe(resource, restoreSession);
+					const handled = await this._changesetCoordinator.tryHandleSubscribe(resource, restoreChangesetOwner);
 					if (handled) {
 						snapshot = this._stateManager.getSnapshot(resourceStr);
 					} else {
@@ -7557,7 +7568,12 @@ export class AgentService extends Disposable implements IAgentService {
 		if (!parsed) {
 			return false;
 		}
-		const sessionUri = URI.parse(parsed.sessionUri);
+		const containingSession = changesetSession(parsed, chat => this._stateManager.getChatOwner(chat));
+		// A changeset whose chat is no longer registered has no session left to pin it.
+		if (containingSession === undefined) {
+			return true;
+		}
+		const sessionUri = URI.parse(containingSession);
 		// A parent-session subscriber can still receive catalogue count updates
 		// from this changeset, so keep the backing state while the session is observed.
 		if (this._subscriptions.hasSubscribers(sessionUri)) {
@@ -10061,7 +10077,7 @@ export class AgentService extends Disposable implements IAgentService {
 	 * spawn bridge is safe because `addChat` is idempotent.
 	 */
 	private _sequenceSpawnedChat(signal: AgentSignal): void {
-		const spawn = SubagentChatSignal.toSpawnEvent(signal);
+		const spawn = SubagentChatSignal.toSpawnEvent(signal, chat => this._stateManager.getChatOwner(chat));
 		if (spawn) {
 			this._onChatSpawned(spawn);
 		}

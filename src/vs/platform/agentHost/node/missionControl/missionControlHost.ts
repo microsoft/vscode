@@ -18,9 +18,9 @@ import type { IAgent, IAgentChatSessionEvent } from '../../common/agent.js';
 import type { AgentHostLaunchKind } from '../../common/agentHostTelemetry.js';
 import type { AgentHostClientFileSystemProvider } from '../../common/agentHostClientFileSystemProvider.js';
 import { parseAnnotationsUri } from '../../common/annotationsUri.js';
-import { parseChangesetUri } from '../../common/changesetUri.js';
+import { changesetSession, parseChangesetUri } from '../../common/changesetUri.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
-import { parseChatUri } from '../../common/state/sessionState.js';
+import { isAhpChatChannel } from '../../common/state/sessionState.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
 import { IAgentHostProviderService } from '../agentHostProviderService.js';
 import { IAgentHostProxyResolver } from '../agentHostProxyResolver.js';
@@ -218,9 +218,12 @@ export class MissionControlHost extends Disposable {
 			}
 			const registered = new Set<string>();
 			sources.add(this._stateManager.onDidEmitEnvelope(envelope => {
-				const channel = parseChatUri(envelope.channel)?.session ?? parseAnnotationsUri(envelope.channel)?.sessionUri
-					?? parseChangesetUri(envelope.channel)?.sessionUri ?? envelope.channel;
-				const session = this._stateManager.getSessionSummary(channel);
+				const changeset = parseChangesetUri(envelope.channel);
+				const getChatOwner = (chat: string) => this._stateManager.getChatOwner(chat);
+				const channel = isAhpChatChannel(envelope.channel)
+					? getChatOwner(envelope.channel)
+					: changeset ? changesetSession(changeset, getChatOwner) : parseAnnotationsUri(envelope.channel)?.sessionUri ?? envelope.channel;
+				const session = channel !== undefined ? this._stateManager.getSessionSummary(channel) : undefined;
 				// Mirroring a provisional draft would create a persistent task before its first message.
 				if (!session || this._stateManager.isIdleProvisionalSession(session.resource)) {
 					return;
@@ -255,7 +258,7 @@ export class MissionControlHost extends Disposable {
 		if (!this.environment.isEnabled || (event.type !== 'session.plan_changed' && event.type !== 'session.todos_changed')) {
 			return;
 		}
-		const session = parseChatUri(event.chat.toString())?.session;
+		const session = this._stateManager.getChatOwner(event.chat.toString());
 		const summary = session && this._stateManager.getSessionSummary(session);
 		if (!summary || summary.defaultChat !== event.chat.toString()) {
 			return;

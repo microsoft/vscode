@@ -42,7 +42,7 @@ import { SessionServerToolName } from '../../../common/serverToolNames.js';
 import { AgentConfigurationService, IAgentConfigurationService } from '../../../node/agentConfigurationService.js';
 import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../../node/shared/worktreeIsolation.js';
 import { IAgentHostCustomizationEnablementService, type CustomizationEnablementResolution } from '../../../node/agentHostCustomizationEnablementService.js';
-import { AgentHostStateManager, IAgentHostStateManager } from '../../../node/agentHostStateManager.js';
+import { AgentHostStateManager, creationTimeChatStorageResource, IAgentHostStateManager } from '../../../node/agentHostStateManager.js';
 import { IAgentHostSessionTitleSignal } from '../../../node/agentHostSessionTitleSignal.js';
 import { IAgentHostGitHubEndpointService } from '../../../node/agentHostGitHubEndpointService.js';
 import { IAgentHostProxyResolver } from '../../../node/agentHostProxyResolver.js';
@@ -315,8 +315,9 @@ function chatOf(session: URI, chatId: string): URI {
 	return URI.parse(buildChatUri(session, chatId));
 }
 
+/** The chat context Agent Host passes: the chat's storage follows the host's creation-time rule. */
 function chatContext(session: URI, chat: URI): IAgentChatContext {
-	return { configurationResource: session, resource: chat };
+	return { configurationResource: session, resource: URI.parse(creationTimeChatStorageResource(session.toString(), chat.toString())) };
 }
 
 /**
@@ -329,7 +330,7 @@ async function createSession(agent: CodexAgent, options: IAgentCreateChatOptions
 	const { session: requestedSession, ...chatOptions } = options;
 	const session = requestedSession ?? AgentSession.uri(agent.id, generateUuid());
 	const chat = defaultChatOf(session);
-	const result = await agent.chats.createChat(chat, { configurationResource: session, resource: chat }, { deferBacking: !chatOptions.fork && !chatOptions.importConversation, ...chatOptions });
+	const result = await agent.chats.createChat(chat, chatContext(session, chat), { deferBacking: !chatOptions.fork && !chatOptions.importConversation, ...chatOptions });
 	return { ...result, session };
 }
 
@@ -904,7 +905,7 @@ suite('CodexAgent prewarm eviction', () => {
 			customizations: entry.clientCustomizations.toCustomizations(),
 		});
 		const chat = defaultChatOf(session);
-		const controller = new McpCustomizationController({ chatUri: chat, emit: () => { } }, stateManager);
+		const controller = new McpCustomizationController({ chatUri: chat, sessionUri: session, emit: () => { } }, stateManager);
 		entry.mcpController = controller;
 		controller.applyOne({ name: 'local', state: { kind: McpServerStatus.Ready } });
 
@@ -924,7 +925,7 @@ suite('CodexAgent prewarm eviction', () => {
 				name: 'plugin',
 				mcp: [{
 					state: McpServerStatus.Ready,
-					channel: buildMcpChannel(chat, 'local'),
+					channel: buildMcpChannel(chat, 'local', 'codex'),
 				}],
 			}]);
 	});
@@ -960,7 +961,7 @@ suite('CodexAgent prewarm eviction', () => {
 		const ownerController = agent['_getOrCreateMcpController'](ownerEntry);
 		assert.ok(ownerController);
 		assert.ok(ownerEntry.chatChannel);
-		const ownerMcpChannel = buildMcpChannel(ownerEntry.chatChannel, 'shared');
+		const ownerMcpChannel = buildMcpChannel(ownerEntry.chatChannel, 'shared', 'codex');
 		ownerController.applyAll([{ name: 'shared', state: { kind: McpServerStatus.Ready } }]);
 		ownerEntry.disposed = true;
 		agent['_sessions'].delete(ownerEntry.sessionId);
@@ -4395,7 +4396,7 @@ suite('CodexAgent prewarm eviction', () => {
 			forkManagedDirectory: undefined, forkDirectory: folder.fsPath, scratchExists: false,
 		});
 		for (const { chat, session } of [{ chat: sourceChat, session: source.session }, { chat: forkChat, session: forkSession }]) {
-			const disposing = agent.chats.disposeChat(chat, { configurationResource: session, resource: chat });
+			const disposing = agent.chats.disposeChat(chat, chatContext(session, chat));
 			const release = await readNextRequest(peer.outbound);
 			peer.push({ id: release.id, result: {} });
 			await disposing;
@@ -4663,7 +4664,7 @@ suite('CodexAgent prewarm eviction', () => {
 		agent['_refreshSkillHookCustomizations'] = async () => { };
 		const session = AgentSession.uri('codex', 'desktop-thread');
 		const chat = defaultChatOf(session);
-		const context = { configurationResource: session, resource: chat };
+		const context = chatContext(session, chat);
 		const workingDirectory = URI.file('/workspace/codex');
 		const sessionsDirectory = URI.joinPath(agent['_environmentService'].userHome, '.codex', 'sessions');
 		const rollout = URI.joinPath(sessionsDirectory, 'desktop-thread.jsonl');

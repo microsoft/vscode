@@ -6,7 +6,7 @@
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { parseAnnotationsUri } from './annotationsUri.js';
-import { parseChangesetUri, parseFolderChangesetOwnerUri } from './changesetUri.js';
+import { changesetSession, parseChangesetUri, parseFolderChangesetOwnerUri } from './changesetUri.js';
 import { parseNonPtyShellTerminalUri } from './nonPtyShellTerminalUri.js';
 import { parseCanvasChatUri } from './canvasUri.js';
 import { isAhpChatChannel, parseSubagentSessionUri } from './state/sessionState.js';
@@ -41,11 +41,15 @@ export type AgentHostChatOwnerLookup = (chat: string) => string | undefined;
  */
 export function resolveAgentHostSession(resource: URI, getChatOwner: AgentHostChatOwnerLookup): URI | undefined {
 	const resourceString = resource.toString();
-	const changesetSession = parseChangesetUri(resourceString)?.sessionUri;
+	const changeset = parseChangesetUri(resourceString);
+	if (changeset) {
+		const session = changesetSession(changeset, getChatOwner);
+		return session === undefined ? undefined : resolveAgentHostRootSession(URI.parse(session));
+	}
 	const annotationsSession = parseAnnotationsUri(resourceString)?.sessionUri;
 	const folderSession = parseFolderChangesetOwnerUri(resourceString)?.sessionUri;
 	const terminalSession = parseNonPtyShellTerminalUri(resource)?.session.toString();
-	let sessionString = changesetSession ?? annotationsSession ?? folderSession ?? terminalSession;
+	let sessionString = annotationsSession ?? folderSession ?? terminalSession;
 	if (sessionString === undefined) {
 		const canvasChat = parseCanvasChatUri(resource);
 		const chat = canvasChat ? canvasChat.toString() : isAhpChatChannel(resourceString) ? resourceString : undefined;

@@ -790,6 +790,7 @@ suite('Agent Merge server tools', () => {
 			createdAt: new Date(0).toISOString(),
 			modifiedAt: new Date(0).toISOString(),
 		});
+		stateManager.addChat(sessionUri, chatUri);
 		const host = new AgentServerToolHost(stateManager, [
 			createAgentMergeServerToolGroup({
 				isEnabled: () => true,

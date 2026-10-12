@@ -428,7 +428,7 @@ suite('AgentSideEffects', () => {
 		// registerProgressListener) so the subagent chat exists first. addChat is
 		// idempotent, matching the real spawn-channel/side-effects overlap.
 		disposables.add(agent.onDidChatProgress(signal => {
-			const spawn = SubagentChatSignal.toSpawnEvent(signal);
+			const spawn = SubagentChatSignal.toSpawnEvent(signal, chat => stateManager.getChatOwner(chat));
 			if (spawn) {
 				stateManager.addChat(spawn.session.toString(), spawn.chat.toString(), {
 					title: spawn.title,
@@ -7206,6 +7206,23 @@ suite('AgentSideEffects', () => {
 	// ---- Subagent sessions ----------------------------------------------
 
 	suite('subagent sessions', () => {
+
+		test('spawn events place a subagent under the spawning chat\'s recorded owner, not the session its URI encodes', () => {
+			const spawningChat = URI.parse(buildChatUri('copilot:/encoded', 'moved'));
+			const signal: AgentSignal = { kind: 'subagent_started', chat: spawningChat, toolCallId: 'tool-1', agentName: 'worker', agentDisplayName: 'Worker' };
+			const spawn = SubagentChatSignal.toSpawnEvent(signal, chat => chat === spawningChat.toString() ? 'copilot:/owner' : undefined);
+			assert.deepStrictEqual({
+				session: spawn?.session.toString(),
+				chat: spawn?.chat.toString(),
+				parent: spawn?.parent && { chat: spawn.parent.chat.toString(), toolCallId: spawn.parent.toolCallId },
+				unknownOwner: SubagentChatSignal.toSpawnEvent(signal, () => undefined),
+			}, {
+				session: 'copilot:/owner',
+				chat: buildSubagentChatUri('copilot:/owner', 'tool-1'),
+				parent: { chat: spawningChat.toString(), toolCallId: 'tool-1' },
+				unknownOwner: undefined,
+			});
+		});
 
 		test('inherits the parent turn client identity for subagent telemetry', () => {
 			setupSession();

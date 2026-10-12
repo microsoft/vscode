@@ -14,7 +14,6 @@ import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { AgentSession } from '../../common/agent.js';
 import type { IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
 import type { AutoModeRoutingTier } from '../../common/autoModeTiers.js';
-import { isAhpChatChannel, parseRequiredSessionUriFromChatUri } from '../../common/state/sessionState.js';
 import { toInitiatorTelemetry, type IAgentHostEventClassification, type IAgentHostEventTelemetry } from '../agentHostTelemetryReporter.js';
 import { computeChunkedEditSurvival, computeWholeFileEditSurvival } from './editSurvivalTracker.js';
 
@@ -35,6 +34,8 @@ export interface IEditSurvivalReporterLaunchParams {
 	readonly clientContext?: IAgentHostClientTelemetryContext;
 	/** Full session URI string (e.g. `claude:/abc123`). */
 	readonly sessionUri: string;
+	/** The session that owns the edit's chat. */
+	readonly ownerSessionUri: string;
 	readonly turnId: string;
 	readonly toolCallId: string;
 	/** Absolute file path on the agent host's local file system. */
@@ -204,11 +205,9 @@ class SessionEditSurvivalReporter extends Disposable {
 					? computeChunkedEditSurvival(this._params.beforeText, this._params.afterText, aiChunks, currentText)
 					: computeWholeFileEditSurvival(this._params.beforeText, this._params.afterText, currentText);
 
-			// Sub-channel URIs (e.g. `ahp-chat:` for the default chat or
-			// subagent chats) encode the parent session URI; resolve them
-			// back so provider/id reflect the underlying harness rather than
-			// the chat scheme. See telemetry gap #6 in #8209.
-			const sessionUri = isAhpChatChannel(this._params.sessionUri) ? parseRequiredSessionUriFromChatUri(this._params.sessionUri) : this._params.sessionUri;
+			// Provider/id reflect the owning session's harness rather than the
+			// chat scheme. See telemetry gap #6 in #8209.
+			const sessionUri = this._params.ownerSessionUri;
 			this._telemetryService.publicLog2<IEditSurvivalTelemetryEvent, IEditSurvivalTelemetryClassification>(
 				'agentHost.trackEditSurvival',
 				{

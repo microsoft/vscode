@@ -10,7 +10,6 @@ import { URI } from '../../../../base/common/uri.js';
 import { ILogService } from '../../../log/common/log.js';
 import type { IAgent, IAgentChatSessionEvent } from '../../common/agent.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
-import { parseChatUri } from '../../common/state/sessionState.js';
 import { createAgentChatContext } from '../agentChatContext.js';
 import { IAgentHostProviderService } from '../agentHostProviderService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../agentHostStateManager.js';
@@ -118,7 +117,7 @@ export class MissionControlSdkEventSource extends Disposable {
 	}
 
 	private _accept(provider: IAgent, event: IAgentChatSessionEvent): void {
-		const session = parseChatUri(event.chat.toString())?.session;
+		const session = this._stateManager.getChatOwner(event.chat.toString());
 		if (!session) {
 			return;
 		}

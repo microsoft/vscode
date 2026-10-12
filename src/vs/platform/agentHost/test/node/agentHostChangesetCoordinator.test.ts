@@ -195,6 +195,7 @@ suite('ChangesetSessionCoordinator', () => {
 			const restore = async () => {
 				restores++;
 				createSession(stateManager, session, 'file:///repo');
+				return session;
 			};
 			await coordinator.restoreSessionIfChangesetSubscription(URI.parse(turn), restore);
 			await coordinator.restoreSessionIfChangesetSubscription(URI.parse(turn), restore);
@@ -223,6 +224,7 @@ suite('ChangesetSessionCoordinator', () => {
 			const restore = async () => {
 				restores++;
 				createSession(stateManager, session, 'file:///repo');
+				return session;
 			};
 			await coordinator.restoreSessionIfChangesetSubscription(URI.parse(resource), restore);
 			await coordinator.restoreSessionIfChangesetSubscription(URI.parse(resource), restore);

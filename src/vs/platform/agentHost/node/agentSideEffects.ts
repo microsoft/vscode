@@ -41,7 +41,7 @@ import { CopilotCliVSCodeAssignmentContextKey } from '../common/copilotCliConfig
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { getSessionPullRequestUrl, SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { resolveChatAttachment } from '../common/state/chatAttachmentContext.js';
-import { buildOpenSessionLinkForChatResource } from '../common/openSessionLink.js';
+import { buildOpenSessionLinkForChat } from '../common/openSessionLink.js';
 import { McpServerStatus, ToolCallContributorKind, type AgentInfo, type SessionActiveClient } from '../common/state/protocol/state.js';
 import type { CustomizationEnablement } from '../common/state/protocol/channels-session/state.js';
 import { ActionType, isChatAction, StateAction, type ChatDeltaAction, type ChatReasoningAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallStartAction, type ChatTurnStartedAction } from '../common/state/sessionActions.js';
@@ -89,6 +89,8 @@ export interface IAgentSideEffectsOptions {
 	readonly resolveWorkingDirectoryBeforeSend?: (params: { session: ProtocolURI; chat: ProtocolURI; turnId: string; prompt: string }) => Promise<readonly URI[] | undefined>;
 	/** Resolves a referenced chat's turns, hydrating its owning session when needed. */
 	readonly resolveChatAttachmentTurns?: (resource: ProtocolURI) => Promise<readonly Turn[]>;
+	/** Resolves the recorded owner of a chat that may not be loaded. */
+	readonly resolveChatOwner?: (chat: ProtocolURI) => Promise<ProtocolURI | undefined>;
 	/** Process launcher used when client-origin metadata is unavailable. */
 	readonly hostLaunchKind?: AgentHostLaunchKind;
 }
@@ -2234,7 +2236,6 @@ export class AgentSideEffects extends Disposable {
 			// that cannot be mapped to a link yields a pointer that names the chat
 			// by its raw resource instead — a bad reference must never fail the
 			// user's turn.
-			const openLink = buildOpenSessionLinkForChatResource(attachment.resource);
 			// A cross-session reference may point at a chat this host never
 			// subscribed to; restoring it can throw when no provider owns it or
 			// the backend no longer has it. A stale reference must not fail the
@@ -2242,6 +2243,7 @@ export class AgentSideEffects extends Disposable {
 			// to a pointer without an excerpt and drops the `endTurn` pin — the
 			// empty transcript would otherwise trip endTurn validation.
 			const sourceTurns = await this._resolveChatAttachmentSourceTurns(attachment.resource);
+			const openLink = await this._chatAttachmentLink(attachment.resource);
 			if (sourceTurns === undefined) {
 				return resolveChatAttachment({ ...attachment, endTurn: undefined }, [], openLink);
 			}
@@ -2261,6 +2263,19 @@ export class AgentSideEffects extends Disposable {
 	 * backend no longer has it). Such failures are logged rather than rethrown so
 	 * a stale reference degrades gracefully instead of failing the user's turn.
 	 */
+	private async _chatAttachmentLink(resource: ProtocolURI): Promise<string | undefined> {
+		if (!isAhpChatChannel(resource)) {
+			return buildOpenSessionLinkForChat(resource, resource);
+		}
+		try {
+			const owner = this._stateManager.getChatOwner(resource) ?? await this._options.resolveChatOwner?.(resource);
+			return owner === undefined ? undefined : buildOpenSessionLinkForChat(owner, resource);
+		} catch (err) {
+			this._logService.warn(`[AgentSideEffects] Unable to resolve the owner of chat attachment ${resource}`, err);
+			return undefined;
+		}
+	}
+
 	private async _resolveChatAttachmentSourceTurns(resource: ProtocolURI): Promise<readonly Turn[] | undefined> {
 		try {
 			if (this._options.resolveChatAttachmentTurns) {

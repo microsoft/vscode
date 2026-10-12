@@ -57,6 +57,8 @@ export type AttributedToolResultFileEditContent = ToolResultFileEditContent & {
 export interface IAgentEditAttribution {
 	readonly provider?: string;
 	readonly sessionUri: string;
+	/** The session that owns the edit's chat. */
+	readonly ownerSessionUri: string;
 	/** Originating chat channel, when known; separate from the owning session. */
 	readonly chatUri?: string;
 	readonly turnId: string;

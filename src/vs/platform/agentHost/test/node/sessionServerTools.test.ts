@@ -22,32 +22,8 @@ import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
 import { readAgentMessageDelegationMeta, toAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
 import { AgentServerToolHost, type IServerToolGroup } from '../../node/shared/agentServerToolHost.js';
-import {
-	applyCreateChatTool,
-	applyCreateSessionTool,
-	applySetWorkspaceTool,
-	applyDeleteSessionTool,
-	applyRenameChatTool,
-	applySendMessageTool,
-	createSessionServerToolGroup,
-	formatCreateChatResult,
-	getCreateChatArgs,
-	getCreateSessionArgs,
-	getDeleteSessionArgs,
-	getSetWorkspaceArgs,
-	getRenameChatArgs,
-	getSendMessageArgs,
-	getSessionContextArgs,
-	serializeSessionContext,
-	filterSessions,
-	getListSessionsArgs,
-	sessionServerToolDefinitions,
-	sessionToolRequiresConfirmation,
-	serializeSessions,
-	type IChatContextSnapshot,
-	type IPreparedChatWorkingDirectory,
-	type ISessionServerToolAccessor,
-} from '../../node/shared/sessionServerTools.js';
+import { mintedTestChatOwner } from './chatMetadataTestHelpers.js';
+import { applyCreateChatTool, applyCreateSessionTool, applySetWorkspaceTool, applyDeleteSessionTool, applyRenameChatTool, applySendMessageTool, createSessionServerToolGroup, formatCreateChatResult, getCreateChatArgs, getCreateSessionArgs, getDeleteSessionArgs, getSetWorkspaceArgs, getRenameChatArgs, getSendMessageArgs, getSessionContextArgs, serializeSessionContext, filterSessions, getListSessionsArgs, sessionServerToolDefinitions, sessionToolRequiresConfirmation, serializeSessions, type IChatContextSnapshot, type IPreparedChatWorkingDirectory, type ISessionServerToolAccessor } from '../../node/shared/sessionServerTools.js';
 
 suite('SessionServerTools', () => {
 
@@ -92,6 +68,7 @@ suite('SessionServerTools', () => {
 			getSessionSpawnDepth: overrides?.getSessionSpawnDepth ?? (session => depths.get(session.toString()) ?? 0),
 			setSessionSpawnDepth: overrides?.setSessionSpawnDepth ?? ((session, depth) => { depths.set(session.toString(), depth); }),
 			requestSessionWorkspaceUpdate: overrides?.requestSessionWorkspaceUpdate ?? (() => true),
+			getChatOwner: overrides?.getChatOwner ?? mintedTestChatOwner,
 		};
 	}
 
@@ -2111,8 +2088,8 @@ suite('SessionServerTools', () => {
 		const peer = buildChatUri('copilot:/s1', 'peer');
 		const explicitPeer = getRenameChatArgs({ chat: 'agent-host-session://copilot/s2?chat=c9', title: 'Side Work' }, sessions);
 		const explicitDefault = getRenameChatArgs({ chat: 'agent-host-session://copilot/s2', title: 'Default Work' }, sessions);
-		const currentPeer = getRenameChatArgs({ title: 'Current Peer' }, sessions, peer);
-		const currentDefault = getRenameChatArgs({ title: 'Current Default' }, sessions, buildDefaultChatUri('copilot:/s1'));
+		const currentPeer = getRenameChatArgs({ title: 'Current Peer' }, sessions, peer, URI.parse('copilot:/s1'));
+		const currentDefault = getRenameChatArgs({ title: 'Current Default' }, sessions, buildDefaultChatUri('copilot:/s1'), URI.parse('copilot:/s1'));
 		assert.deepStrictEqual({
 			explicitPeer: { session: explicitPeer.session.toString(), chat: explicitPeer.chat.toString(), title: explicitPeer.title },
 			explicitDefault: { session: explicitDefault.session.toString(), chat: explicitDefault.chat.toString(), title: explicitDefault.title },
@@ -2228,6 +2205,7 @@ suite('SessionServerTools', () => {
 			createdAt: new Date(0).toISOString(),
 			modifiedAt: new Date(0).toISOString(),
 		});
+		stateManager.addChat(session, peer);
 		const renamedChat = new DeferredPromise<string>();
 		const host = new AgentServerToolHost(stateManager, [
 			createSessionServerToolGroup(createAccessor({

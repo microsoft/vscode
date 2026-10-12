@@ -29,15 +29,7 @@ import { SubagentRegistry } from '../../node/claude/claudeSubagentRegistry.js';
 import { IEditArcReporterService, NullEditArcReporterService } from '../../node/shared/editArcReporter.js';
 import { IEditSurvivalReporterFactory, NullEditSurvivalReporterFactory } from '../../node/shared/editSurvivalReporter.js';
 import { createSessionDataService, createZeroDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
-import {
-	makeContentBlockStartText,
-	makeContentBlockStartToolUse,
-	makeContentBlockStop,
-	makeMessageStart,
-	makeMessageStop,
-	makeStreamEvent,
-	makeTextDelta,
-} from './claudeMapSessionEventsTestUtils.js';
+import { makeContentBlockStartText, makeContentBlockStartToolUse, makeContentBlockStop, makeMessageStart, makeMessageStop, makeStreamEvent, makeTextDelta } from './claudeMapSessionEventsTestUtils.js';
 
 interface IRouterHarness {
 	readonly router: ClaudeSdkMessageRouter;
@@ -89,6 +81,7 @@ function createRouter(
 	const router = disposables.add(inst.createInstance(
 		ClaudeSdkMessageRouter,
 		chatChannelUri,
+		URI.parse('claude:/sess-1'),
 		resolveChatUri(URI.parse('claude:/sess-1'), chatChannelUri),
 		dbRef,
 		subagents,

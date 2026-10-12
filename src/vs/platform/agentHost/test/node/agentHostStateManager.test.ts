@@ -15,7 +15,7 @@ import { ChangesetStatus, ChatInputQuestionKind, ChatInputResponseKind, ChatInte
 import { type SessionSummaryChangedParams } from '../../common/state/protocol/notifications.js';
 import { BackgroundWorkKind, type BackgroundShellWork } from '../../common/state/protocol/channels-chat/state.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
-import { buildChangesetUri, buildSessionChangesetUri } from '../../common/changesetUri.js';
+import { buildChangesetUri, buildSessionChangesetUri, buildTurnChangesetUri } from '../../common/changesetUri.js';
 import { withAgentCustomizationSettings } from '../../common/agentCustomizationSettings.js';
 import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { withEphemeralSessionMeta } from '../../common/meta/agentEphemeralSessionMeta.js';
@@ -1927,6 +1927,28 @@ suite('AgentHostStateManager', () => {
 				[owner, 'copilot:/default-storage'],
 				[owner, 'copilot:/peer-storage'],
 			]);
+		});
+
+		test('deleting a session disposes the changesets of chats it owns, not of the session their URIs encode', () => {
+			const owner = 'copilot:/changeset-owner';
+			const encoded = 'copilot:/changeset-encoded';
+			manager.restoreSession(makeSessionSummary(owner), []);
+			manager.restoreSession(makeSessionSummary(encoded), []);
+			const moved = buildChatUri(encoded, 'moved');
+			const stays = buildChatUri(encoded, 'stays');
+			manager.addChat(owner, moved);
+			manager.addChat(encoded, stays);
+			const movedChangeset = buildTurnChangesetUri(moved, 'turn-1');
+			const staysChangeset = buildTurnChangesetUri(stays, 'turn-1');
+			manager.registerChangeset(movedChangeset);
+			manager.registerChangeset(staysChangeset);
+
+			manager.deleteSession(owner);
+
+			assert.deepStrictEqual({
+				moved: manager.getChangesetState(movedChangeset),
+				stays: manager.getChangesetState(staysChangeset) !== undefined,
+			}, { moved: undefined, stays: true });
 		});
 
 		test('retains the owner of an evicted published session default chat and of announced chats', () => {

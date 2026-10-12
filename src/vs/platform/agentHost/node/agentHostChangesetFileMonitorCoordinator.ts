@@ -6,7 +6,7 @@
 import { SequencerByKey } from '../../../base/common/async.js';
 import { Disposable, DisposableMap, IReference, ReferenceCollection } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
-import { buildSessionChangesetUri, buildUncommittedChangesetUri, parseChangesetUri } from '../common/changesetUri.js';
+import { buildSessionChangesetUri, buildUncommittedChangesetUri, changesetSession, parseChangesetUri } from '../common/changesetUri.js';
 import { isAhpChatChannel, parseSubagentSessionUri } from '../common/state/sessionState.js';
 import { DEFAULT_AGENT_HOST_WATCH_EXCLUDES, IAgentHostFileMonitorService } from './agentHostFileMonitorService.js';
 import { IAgentHostGitService } from '../common/agentHostGitService.js';
@@ -98,8 +98,7 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 		if (!this._watchInterestReferences.has(subscriptionKey)) {
 			this._watchOwners.set(subscriptionKey, sessionStr);
 			this._watchSources.set(sessionStr, sourceStr);
-			const sourceSession = isAhpChatChannel(sourceStr) ? this._stateManager.getChatOwner(sourceStr) : undefined;
-			this._watchSessions.set(subscriptionKey, sourceSession ?? parseChangesetUri(subscriptionKey)?.sessionUri ?? sourceStr);
+			this._recordWatchSession(subscriptionKey, sourceStr);
 			this._watchInterestReferences.set(subscriptionKey, this._watchInterestCollection.acquire(sessionStr));
 		}
 	}
@@ -115,7 +114,23 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 	}
 
 	onSessionRestored(sessionStr: string): void {
+		// Cold chat-owned watches learn their session once the chat is registered.
+		for (const [subscription, owner] of this._watchOwners) {
+			if (!this._watchSessions.has(subscription)) {
+				this._recordWatchSession(subscription, this._watchSources.get(owner) ?? owner);
+			}
+		}
 		this._retryWatchAttachment(sessionStr);
+	}
+
+	private _recordWatchSession(subscriptionKey: string, sourceStr: string): void {
+		const parsed = parseChangesetUri(subscriptionKey);
+		const session = isAhpChatChannel(sourceStr)
+			? this._stateManager.getChatOwner(sourceStr)
+			: (parsed && changesetSession(parsed, chat => this._stateManager.getChatOwner(chat))) ?? sourceStr;
+		if (session !== undefined) {
+			this._watchSessions.set(subscriptionKey, session);
+		}
 	}
 
 	onSessionMaterialized(sessionStr: string): void {
