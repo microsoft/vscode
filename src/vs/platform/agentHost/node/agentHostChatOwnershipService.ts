@@ -67,7 +67,7 @@ export interface IAgentHostChatOwnershipService {
 	 * then spawn edges recorded in loaded chats.
 	 */
 	resolveChatOwner(chat: ProtocolURI): Promise<IChatOwnerResolution | undefined>;
-	/** A recorded-owner lookup for a pass over many chats; it shares the registered default-chat index. */
+	/** A recorded-owner lookup for a pass over many chats; the pass reads the registered default-chat index at most once. */
 	createRecordedOwnerLookup(): ChatOwnerLookup;
 	/** Records a session or subagent restore so owner resolution waits for it before reporting a chat unknown. */
 	trackRestore(restore: Promise<unknown>): void;
@@ -117,7 +117,7 @@ export class AgentHostChatOwnershipService implements IAgentHostChatOwnershipSer
 	}
 
 	async resolveChatOwner(chat: ProtocolURI): Promise<IChatOwnerResolution | undefined> {
-		const recorded = await this._findRecordedChatOwner(chat);
+		const recorded = await this._findRecordedChatOwner(chat, () => this._getDefaultChatIndex());
 		if (recorded) {
 			return recorded;
 		}
@@ -133,7 +133,9 @@ export class AgentHostChatOwnershipService implements IAgentHostChatOwnershipSer
 	}
 
 	createRecordedOwnerLookup(): ChatOwnerLookup {
-		return async chat => (await this._findRecordedChatOwner(chat))?.owner;
+		// One index for the whole pass, so a pass builds it at most once.
+		let index: Promise<ReadonlyMap<ProtocolURI, ProtocolURI>> | undefined;
+		return async chat => (await this._findRecordedChatOwner(chat, () => index ??= this._getDefaultChatIndex()))?.owner;
 	}
 
 	trackRestore(restore: Promise<unknown>): void {
@@ -142,7 +144,7 @@ export class AgentHostChatOwnershipService implements IAgentHostChatOwnershipSer
 		restore.then(settled, settled);
 	}
 
-	private async _findRecordedChatOwner(chat: ProtocolURI): Promise<IChatOwnerResolution | undefined> {
+	private async _findRecordedChatOwner(chat: ProtocolURI, getDefaultChatIndex: () => Promise<ReadonlyMap<ProtocolURI, ProtocolURI>>): Promise<IChatOwnerResolution | undefined> {
 		const live = this._stateManager.getChatOwner(chat) ?? this._stateManager.findRetainedChatOwner(chat);
 		if (live !== undefined) {
 			return { owner: live, spawnedBy: undefined };
@@ -151,7 +153,7 @@ export class AgentHostChatOwnershipService implements IAgentHostChatOwnershipSer
 		if (central) {
 			return { owner: central.ownerSession, spawnedBy: undefined };
 		}
-		const owner = await this._findRegisteredDefaultChatOwner(chat);
+		const owner = await this._findRegisteredDefaultChatOwner(chat, getDefaultChatIndex);
 		if (owner !== undefined) {
 			return { owner, spawnedBy: undefined };
 		}
@@ -166,8 +168,8 @@ export class AgentHostChatOwnershipService implements IAgentHostChatOwnershipSer
 	 * was minted for, addressed by either its standard or its provider-native
 	 * session URI.
 	 */
-	private async _findRegisteredDefaultChatOwner(chat: ProtocolURI): Promise<ProtocolURI | undefined> {
-		const identity = (await this._getDefaultChatIndex()).get(chat);
+	private async _findRegisteredDefaultChatOwner(chat: ProtocolURI, getDefaultChatIndex: () => Promise<ReadonlyMap<ProtocolURI, ProtocolURI>>): Promise<ProtocolURI | undefined> {
+		const identity = (await getDefaultChatIndex()).get(chat);
 		// The index mints standard default chats. A session whose default chat
 		// is recorded differently is resident, evicted or announced, and the
 		// live and retained lookups have already answered for it.
@@ -179,34 +181,40 @@ export class AgentHostChatOwnershipService implements IAgentHostChatOwnershipSer
 		if (this._defaultChatIndex?.generation === generation) {
 			return this._defaultChatIndex.owners;
 		}
-		let index = await (this._defaultChatIndexBuild ??= this._buildDefaultChatIndex());
-		if (index.generation !== generation) {
+		let index = await (this._defaultChatIndexBuild ?? this._startDefaultChatIndexBuild());
+		if (index.generation < generation) {
 			// A build already in flight may have read the registrations before this change.
-			index = await this._buildDefaultChatIndex();
+			index = await this._startDefaultChatIndexBuild();
 		}
 		return index.owners;
 	}
 
+	private _startDefaultChatIndexBuild(): Promise<IDefaultChatIndex> {
+		const build = this._buildDefaultChatIndex().finally(() => {
+			if (this._defaultChatIndexBuild === build) {
+				this._defaultChatIndexBuild = undefined;
+			}
+		});
+		this._defaultChatIndexBuild = build;
+		return build;
+	}
+
 	private async _buildDefaultChatIndex(): Promise<IDefaultChatIndex> {
-		try {
-			const { generation, current, legacy } = await this._database.readSessionRegistrations();
-			const owners = new Map<ProtocolURI, ProtocolURI>();
-			for (const { session, provider } of [...current, ...legacy]) {
-				const identities = usesStandardSessionUris(provider)
-					? [session, AgentSession.uri('ahp-session', AgentSession.id(session)).toString(), AgentSession.uri(provider, AgentSession.id(session)).toString()]
-					: [session];
-				for (const identity of identities) {
-					owners.set(buildDefaultChatUri(identity), identity);
-				}
+		const { generation, current, legacy } = await this._database.readSessionRegistrations();
+		const owners = new Map<ProtocolURI, ProtocolURI>();
+		for (const { session, provider } of [...current, ...legacy]) {
+			const identities = usesStandardSessionUris(provider)
+				? [session, AgentSession.uri('ahp-session', AgentSession.id(session)).toString(), AgentSession.uri(provider, AgentSession.id(session)).toString()]
+				: [session];
+			for (const identity of identities) {
+				owners.set(buildDefaultChatUri(identity), identity);
 			}
-			const index = { generation, owners };
-			if (!this._defaultChatIndex || this._defaultChatIndex.generation <= generation) {
-				this._defaultChatIndex = index;
-			}
-			return index;
-		} finally {
-			this._defaultChatIndexBuild = undefined;
 		}
+		const index = { generation, owners };
+		if (!this._defaultChatIndex || this._defaultChatIndex.generation <= generation) {
+			this._defaultChatIndex = index;
+		}
+		return index;
 	}
 
 	/**

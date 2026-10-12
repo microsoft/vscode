@@ -226,6 +226,30 @@ suite('AgentHostChatOwnershipService', () => {
 		});
 	});
 
+	test('a recorded-owner lookup pass builds the default-chat index once even when a registration interleaves', async () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const database = disposables.add(new AgentHostDatabase(':memory:'));
+		const service = new AgentHostChatOwnershipService(stateManager, database);
+		const register = (session: string) => database.registerRuntimeSession(session, { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		await register('copilot:/pass-first');
+		const builds = sinon.spy(database, 'readSessionRegistrations');
+
+		const lookup = service.createRecordedOwnerLookup();
+		const first = await lookup(buildDefaultChatUri('copilot:/pass-first'));
+		await register('copilot:/pass-later');
+		const later = await lookup(buildDefaultChatUri('copilot:/pass-later'));
+		const buildsByPass = builds.callCount;
+		const afterPass = (await service.resolveChatOwner(buildDefaultChatUri('copilot:/pass-later')))?.owner;
+
+		assert.deepStrictEqual({ first, later, buildsByPass, afterPass }, {
+			first: 'copilot:/pass-first',
+			// The pass keeps the index it built; a later lookup sees the new registration.
+			later: undefined,
+			buildsByPass: 1,
+			afterPass: 'copilot:/pass-later',
+		});
+	});
+
 	test('a legacy default chat resolves from the registered sessions without scanning cached catalog payloads', async () => {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		const database = disposables.add(new AgentHostDatabase(':memory:'));
