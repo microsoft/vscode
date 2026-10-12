@@ -5,12 +5,16 @@
 
 import { ResourceMap } from '../../../base/common/map.js';
 import { URI } from '../../../base/common/uri.js';
+import { isAhpChatChannel } from '../common/state/sessionState.js';
+import { parseCanvasChatUri } from '../common/canvasUri.js';
 import { IAgentHostSubscriptionService, resolveAgentHostSession } from '../common/agentHostSubscriptionService.js';
 
 export class AgentHostSubscriptionService implements IAgentHostSubscriptionService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _subscribers = new ResourceMap<Set<string>>();
+	/** Owning session of each subscribed chat (or chat-scoped canvas), keyed by chat. */
+	private readonly _chatOwners = new Map<string, string>();
 
 	get subscribedResources(): Iterable<URI> {
 		return this._subscribers.keys();
@@ -37,17 +41,44 @@ export class AgentHostSubscriptionService implements IAgentHostSubscriptionServi
 			return false;
 		}
 		this._subscribers.delete(resource);
+		const chat = this._chatOf(resource);
+		if (chat !== undefined && ![...this._subscribers.keys()].some(other => this._chatOf(other) === chat)) {
+			this._chatOwners.delete(chat);
+		}
 		return true;
+	}
+
+	setSubscriptionOwner(resource: URI, session: string): void {
+		const chat = this._chatOf(resource);
+		if (chat !== undefined && this._subscribers.has(resource)) {
+			this._chatOwners.set(chat, session);
+		}
+	}
+
+	resolveSubscribedSession(resource: URI): URI | undefined {
+		return resolveAgentHostSession(resource, chat => this._chatOwners.get(chat));
+	}
+
+	private _chatOf(resource: URI): string | undefined {
+		const canvasChat = parseCanvasChatUri(resource);
+		if (canvasChat) {
+			return canvasChat.toString();
+		}
+		const key = resource.toString();
+		return isAhpChatChannel(key) ? key : undefined;
 	}
 
 	hasSubscribers(resource: URI): boolean {
 		return this._subscribers.has(resource);
 	}
 
-	hasSessionSubscribers(resource: URI): boolean {
-		const sessionKey = resolveAgentHostSession(resource).toString();
+	hasSessionSubscribers(session: URI): boolean {
+		const sessionKey = this.resolveSubscribedSession(session)?.toString();
+		if (sessionKey === undefined) {
+			return false;
+		}
 		for (const subscribedResource of this._subscribers.keys()) {
-			if (resolveAgentHostSession(subscribedResource).toString() === sessionKey) {
+			if (this.resolveSubscribedSession(subscribedResource)?.toString() === sessionKey) {
 				return true;
 			}
 		}

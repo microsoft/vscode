@@ -37,7 +37,7 @@ import { chatCatalogV2ToCatalogChats } from '../../node/agentHostCatalogSourceRe
 import { getTelemetryMigrationSessionId } from '../../common/agentTelemetryCorrelation.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
-import { AgentChatMigrationDeferred, AgentSession, AgentWorkingDirectoryChangedError, GITHUB_COPILOT_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, type IAgent, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agent.js';
+import { AgentChatMigrationDeferred, AgentSession, AgentWorkingDirectoryChangedError, GITHUB_COPILOT_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, resolveAgentChatOrigin, type IAgent, type IAgentChatAdoptionResult, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentListedChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent } from '../../common/agent.js';
 import { IConnectionTrackerService } from '../../common/agentService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostActiveAgentTitleGenerationConfigKey, platformRootSchema, AgentHostDeferredTitleGenerationConfigKey, AgentHostTitleGenerationConfigKey, AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey, AgentHostArtifactToolsConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostMigrateLegacyCopilotCliEnabledConfigKey, AgentHostShowExternalSessionsConfigKey } from '../../common/agentHostSchema.js';
@@ -80,10 +80,10 @@ import { AGENT_HOST_TITLE_SOURCE_AGENT, customChatTitleMetadataKey, customChatTi
 import { MockAgent, ScriptedMockAgent } from './mockAgent.js';
 import type { IAgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { readChatInputState } from '../../common/meta/agentHostChatInputState.js';
-import { mapSessionEventsToHistoryRecords } from './historyRecordFixtures.js';
+import { buildSubagentTurnsFromHistory, buildTurnsFromHistory, mapSessionEventsToHistoryRecords, type IHistoryRecord } from './historyRecordFixtures.js';
 import { type ISessionEvent } from './copilotTestEvents.js';
 import { createNoopGitService, createNullSessionDataService, createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
-import { listTestLegacyChatCatalogSessions, readTestChatV2, readTestSessionListCatalogs } from './chatMetadataTestHelpers.js';
+import { findTestChatOwner, listTestLegacyChatCatalogSessions, readTestChatV2, readTestSessionListCatalogs } from './chatMetadataTestHelpers.js';
 import { readSessionInitiator, SESSION_INITIATOR_METADATA_KEY, withSessionInitiator } from '../../common/meta/agentSessionInitiatorMeta.js';
 import { buildGitBlobUri } from '../../node/gitDiffContent.js';
 import { getWorkingDirectoryKey, getWorkingDirectoryScopeId } from '../../common/agentHostWorkingDirectories.js';
@@ -153,7 +153,7 @@ async function createAgentSession(agent: IAgent, config?: IAgentCreateSessionCon
 
 function discoveredChat(session: URI, external = true, modifiedTime = Date.now()): IAgentDiscoveredChat {
 	return {
-		chat: URI.parse(buildDefaultChatUri(session)),
+		session, chat: URI.parse(buildDefaultChatUri(session)),
 		startTime: modifiedTime,
 		modifiedTime,
 		external,
@@ -379,6 +379,9 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 	}
 	readChatV2(session: string, chat: string): ReturnType<IAgentHostDatabase['readChatV2']> {
 		return readTestChatV2(this, session, chat);
+	}
+	findChatOwner(chat: string): ReturnType<IAgentHostDatabase['findChatOwner']> {
+		return findTestChatOwner(this, chat);
 	}
 	readSessionListCatalogs(sessions: readonly string[]): ReturnType<IAgentHostDatabase['readSessionListCatalogs']> {
 		return readTestSessionListCatalogs(this, sessions);
@@ -862,7 +865,7 @@ class TransientRegistryWriteDatabase implements IAgentHostDatabase {
 			return { status: 'conflict' };
 		}
 		const revision = (current?.revision ?? 0) + 1;
-		this._sessionChats.set(session, { revision, legacyMirroredRevision: current?.legacyMirroredRevision ?? 0, chats: [...chats] });
+		this._sessionChats.set(session, { revision, legacyMirroredRevision: current?.legacyMirroredRevision ?? 0, chats: chats.map(chat => ({ ...chat, ownerSession: session })) });
 		return { status: 'applied', revision };
 	}
 	async markSessionChatCatalogLegacyMirrored(session: string, expectedRevision: number, payload?: string): Promise<boolean> {
@@ -901,6 +904,9 @@ class TestAgentHostOrchestratorDatabase implements IAgentHostDatabase {
 	}
 	readChatV2(session: string, chat: string): ReturnType<IAgentHostDatabase['readChatV2']> {
 		return readTestChatV2(this, session, chat);
+	}
+	findChatOwner(chat: string): ReturnType<IAgentHostDatabase['findChatOwner']> {
+		return findTestChatOwner(this, chat);
 	}
 	readSessionListCatalogs(sessions: readonly string[]): ReturnType<IAgentHostDatabase['readSessionListCatalogs']> {
 		return readTestSessionListCatalogs(this, sessions);
@@ -1282,7 +1288,7 @@ class TestAgentHostOrchestratorDatabase implements IAgentHostDatabase {
 			return { status: 'conflict' };
 		}
 		const revision = (current?.revision ?? 0) + 1;
-		this._sessionChats.set(session, { revision, legacyMirroredRevision: current?.legacyMirroredRevision ?? 0, chats: [...chats] });
+		this._sessionChats.set(session, { revision, legacyMirroredRevision: current?.legacyMirroredRevision ?? 0, chats: chats.map(chat => ({ ...chat, ownerSession: session })) });
 		return { status: 'applied', revision };
 	}
 	async markSessionChatCatalogLegacyMirrored(session: string, expectedRevision: number, payload?: string): Promise<boolean> {
@@ -8983,9 +8989,9 @@ suite('AgentService (node dispatcher)', () => {
 				return session;
 			}
 
-			override async listExternalChats(): Promise<IAgentChatMetadata[]> {
+			override async listExternalChats(): Promise<IAgentListedChat[]> {
 				return [...this.catalog.values()].map(entry => ({
-					chat: URI.parse(buildDefaultChatUri(entry.session)),
+					session: entry.session, chat: URI.parse(buildDefaultChatUri(entry.session)),
 					startTime: entry.modifiedTime,
 					modifiedTime: entry.modifiedTime,
 					...(entry.workingDirectories ? { workingDirectories: entry.workingDirectories } : {}),
@@ -9063,7 +9069,7 @@ suite('AgentService (node dispatcher)', () => {
 		class ControlledDiscoveryAgent extends TimedExternalAgent {
 			discoveryStarts = 0;
 
-			override async listExternalChats(): Promise<IAgentChatMetadata[]> {
+			override async listExternalChats(): Promise<IAgentListedChat[]> {
 				return [];
 			}
 
@@ -9415,7 +9421,7 @@ suite('AgentService (node dispatcher)', () => {
 			const { service, telemetry, clock } = createDiscoveryTelemetryContext();
 			const agent = disposables.add(new class extends MockAgent {
 				scans = 0;
-				override async listChatsToMigrate(): Promise<IAgentChatMetadata[] | typeof AgentChatMigrationDeferred> {
+				override async listChatsToMigrate(): Promise<IAgentListedChat[] | typeof AgentChatMigrationDeferred> {
 					if (++this.scans === 1) {
 						return AgentChatMigrationDeferred;
 					}
@@ -9628,7 +9634,7 @@ suite('AgentService (node dispatcher)', () => {
 				let storageAccesses = { opens: 10, stats: 20 };
 				let scans = 0;
 				class EmptyStartupAgent extends MockAgent {
-					override async listChatsToMigrate(): Promise<IAgentChatMetadata[]> {
+					override async listChatsToMigrate(): Promise<IAgentListedChat[]> {
 						scans++;
 						storageAccesses = { opens: 13, stats: 27 };
 						return [];
@@ -9766,7 +9772,7 @@ suite('AgentService (node dispatcher)', () => {
 					const svc = createCentralCatalogService(createSessionDataService(), database, telemetry);
 					let scans = 0;
 					const agent = disposables.add(new class extends MockAgent {
-						override async listChatsToMigrate(): Promise<IAgentChatMetadata[]> {
+						override async listChatsToMigrate(): Promise<IAgentListedChat[]> {
 							scans++;
 							return [];
 						}
@@ -9804,7 +9810,7 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('startup telemetry distinguishes a deferred provider migration from an empty scan', async () => {
 			class DeferredStartupAgent extends MockAgent {
-				override async listChatsToMigrate(): Promise<IAgentChatMetadata[] | typeof AgentChatMigrationDeferred> {
+				override async listChatsToMigrate(): Promise<IAgentListedChat[] | typeof AgentChatMigrationDeferred> {
 					return AgentChatMigrationDeferred;
 				}
 			}
@@ -10308,8 +10314,8 @@ suite('AgentService (node dispatcher)', () => {
 					override async getChatMetadata(chat: URI): Promise<IAgentChatMetadata> {
 						return { chat, startTime: now, modifiedTime: now, summary: 'Provider title', workingDirectories: [URI.file('/new')] };
 					}
-					override async listExternalChats(): Promise<IAgentChatMetadata[]> {
-						return [await this.getChatMetadata(URI.parse(buildDefaultChatUri(session)))];
+					override async listExternalChats(): Promise<IAgentListedChat[]> {
+						return [{ ...await this.getChatMetadata(URI.parse(buildDefaultChatUri(session))), session }];
 					}
 				}
 				const database = disposables.add(new AgentHostDatabase(':memory:'));
@@ -10673,7 +10679,7 @@ suite('AgentService (node dispatcher)', () => {
 			test('retracts a previously published provisional orphan when its provider catalog becomes readable', async () => {
 				let catalogReadable = false;
 				class InitiallyUnreadableCatalogAgent extends DeferredBackingAgent {
-					override async listChatsToMigrate(): Promise<IAgentChatMetadata[] | typeof AgentChatMigrationDeferred> {
+					override async listChatsToMigrate(): Promise<IAgentListedChat[] | typeof AgentChatMigrationDeferred> {
 						return catalogReadable ? [] : AgentChatMigrationDeferred;
 					}
 				}
@@ -10728,7 +10734,7 @@ suite('AgentService (node dispatcher)', () => {
 					}
 				}
 				class InitiallyUnreadableCatalogAgent extends DeferredBackingAgent {
-					override async listChatsToMigrate(): Promise<IAgentChatMetadata[] | typeof AgentChatMigrationDeferred> {
+					override async listChatsToMigrate(): Promise<IAgentListedChat[] | typeof AgentChatMigrationDeferred> {
 						return catalogReadable ? [] : AgentChatMigrationDeferred;
 					}
 				}
@@ -10814,7 +10820,7 @@ suite('AgentService (node dispatcher)', () => {
 				await orchestratorDatabase.markSessionsV2Backfilled('copilot', AGENT_HOST_CATALOG_PAYLOAD_VERSION);
 
 				class AlreadyBackfilledIncompleteImportAgent extends TimedExternalAgent {
-					override async listChatsToMigrate(): Promise<IAgentChatMetadata[]> {
+					override async listChatsToMigrate(): Promise<IAgentListedChat[]> {
 						throw new Error('backfilled provider should not re-enumerate without force');
 					}
 
@@ -10917,16 +10923,16 @@ suite('AgentService (node dispatcher)', () => {
 				class PartiallyIncompleteImportAgent extends TimedExternalAgent {
 					private readonly _healthyModifiedTime = Date.now();
 
-					private _metadata(session: URI): IAgentChatMetadata {
+					private _metadata(session: URI): IAgentListedChat {
 						return {
-							chat: URI.parse(buildDefaultChatUri(session)),
+							session, chat: URI.parse(buildDefaultChatUri(session)),
 							startTime: this._healthyModifiedTime,
 							modifiedTime: this._healthyModifiedTime,
 							summary: AgentSession.id(session),
 						};
 					}
 
-					override async listChatsToMigrate(): Promise<IAgentChatMetadata[]> {
+					override async listChatsToMigrate(): Promise<IAgentListedChat[]> {
 						return [this._metadata(healthy)];
 					}
 
@@ -11076,7 +11082,7 @@ suite('AgentService (node dispatcher)', () => {
 				let scans = 0;
 				let confirmed = false;
 				class InterruptedCatalogAgent extends TimedExternalAgent {
-					override async listChatsToMigrate(): Promise<IAgentChatMetadata[]> {
+					override async listChatsToMigrate(): Promise<IAgentListedChat[]> {
 						scans++;
 						throw new Error('Pending response rejected since connection got disposed');
 					}
@@ -11876,8 +11882,8 @@ suite('AgentService (node dispatcher)', () => {
 			await waitForSessionListReconciliation(svc);
 			registerTestAgentProvider(svc, agent);
 			await (svc as unknown as { _registerDiscoveredChats(provider: IAgent, chats: readonly IAgentDiscoveredChat[]): Promise<boolean> })._registerDiscoveredChats(agent, [
-				{ chat: URI.parse(buildDefaultChatUri(stale)), startTime: now - 30 * day - 1, modifiedTime: now - 30 * day - 1, external: true },
-				{ chat: URI.parse(buildDefaultChatUri(fresh)), startTime: now - 29 * day, modifiedTime: now - 29 * day, external: true },
+				{ session: stale, chat: URI.parse(buildDefaultChatUri(stale)), startTime: now - 30 * day - 1, modifiedTime: now - 30 * day - 1, external: true },
+				{ session: fresh, chat: URI.parse(buildDefaultChatUri(fresh)), startTime: now - 29 * day, modifiedTime: now - 29 * day, external: true },
 			]);
 
 			const listed = (await svc.listSessions()).map(session => AgentSession.id(session.session)).sort();
@@ -12393,7 +12399,7 @@ suite('AgentService (node dispatcher)', () => {
 
 			const newest = agent.addSession('newest', now);
 			await (svc as unknown as { _registerDiscoveredChats(provider: IAgent, chats: readonly IAgentDiscoveredChat[]): Promise<boolean> })._registerDiscoveredChats(agent, [{
-				chat: URI.parse(buildDefaultChatUri(newest)),
+				session: newest, chat: URI.parse(buildDefaultChatUri(newest)),
 				startTime: now,
 				modifiedTime: now,
 				external: true,
@@ -12493,9 +12499,9 @@ suite('AgentService (node dispatcher)', () => {
 				}
 			}));
 			const registration = (svc as unknown as { _registerDiscoveredChats(provider: IAgent, chats: readonly IAgentDiscoveredChat[]): Promise<boolean> })._registerDiscoveredChats(agent, [
-				{ chat: URI.parse(buildDefaultChatUri(first)), startTime: now, modifiedTime: now, external: true },
-				{ chat: URI.parse(buildDefaultChatUri(second)), startTime: now - 1, modifiedTime: now - 1, external: true },
-				{ chat: URI.parse(buildDefaultChatUri(third)), startTime: now - 2, modifiedTime: now - 2, external: true },
+				{ session: first, chat: URI.parse(buildDefaultChatUri(first)), startTime: now, modifiedTime: now, external: true },
+				{ session: second, chat: URI.parse(buildDefaultChatUri(second)), startTime: now - 1, modifiedTime: now - 1, external: true },
+				{ session: third, chat: URI.parse(buildDefaultChatUri(third)), startTime: now - 2, modifiedTime: now - 2, external: true },
 			]);
 			for (let attempt = 0; attempt < 20 && registrationsStarted < 3; attempt++) {
 				await timeout(0);
@@ -12803,7 +12809,7 @@ suite('AgentService (node dispatcher)', () => {
 			class FailTwiceCatalogAgent extends MockAgent {
 				catalogCalls = 0;
 
-				override async listChatsToMigrate(): Promise<readonly IAgentChatMetadata[]> {
+				override async listChatsToMigrate(): Promise<readonly IAgentListedChat[]> {
 					this.catalogCalls++;
 					if (this.catalogCalls <= 2) {
 						throw new Error('catalog temporarily unavailable');
@@ -12999,12 +13005,12 @@ suite('AgentService (node dispatcher)', () => {
 
 		suite('sessions_v2 direct importer', () => {
 			class DirectImportAgent extends MockAgent {
-				catalog: readonly IAgentChatMetadata[] | undefined = [];
+				catalog: readonly IAgentListedChat[] | undefined = [];
 				catalogCalls = 0;
 				metadataCalls = 0;
 				adoptionCalls = 0;
 
-				override async listChatsToMigrate(): Promise<readonly IAgentChatMetadata[] | undefined> {
+				override async listChatsToMigrate(): Promise<readonly IAgentListedChat[] | undefined> {
 					this.catalogCalls++;
 					return this.catalog;
 				}
@@ -13020,9 +13026,9 @@ suite('AgentService (node dispatcher)', () => {
 				}
 			}
 
-			function metadata(session: URI, meta?: IAgentSessionMetadata['_meta']): IAgentChatMetadata {
+			function metadata(session: URI, meta?: IAgentSessionMetadata['_meta']): IAgentListedChat {
 				return {
-					chat: URI.parse(buildDefaultChatUri(session)),
+					session, chat: URI.parse(buildDefaultChatUri(session)),
 					startTime: 1,
 					modifiedTime: Date.now(),
 					summary: AgentSession.id(session),
@@ -13069,7 +13075,7 @@ suite('AgentService (node dispatcher)', () => {
 						}
 					}
 
-					override async listChatsToMigrate(): Promise<readonly IAgentChatMetadata[]> {
+					override async listChatsToMigrate(): Promise<readonly IAgentListedChat[]> {
 						this.catalogCalls++;
 						await this.enumerationGate.p;
 						return this.sessions
@@ -13099,10 +13105,10 @@ suite('AgentService (node dispatcher)', () => {
 						return { adopted: true, eligible: true, listVisible: { title: `Legacy ${AgentSession.id(session)}`, titleSource: 'auto', isRead: true } };
 					}
 
-					private chatMetadata(session: URI): IAgentChatMetadata {
+					private chatMetadata(session: URI): IAgentListedChat {
 						const key = session.toString();
 						return {
-							chat: URI.parse(buildDefaultChatUri(session)),
+							session, chat: URI.parse(buildDefaultChatUri(session)),
 							startTime: 1,
 							modifiedTime: 1,
 							summary: `Legacy ${AgentSession.id(session)}`,
@@ -13217,7 +13223,7 @@ suite('AgentService (node dispatcher)', () => {
 				class GatedTitleAgent extends DirectImportAgent {
 					readonly enumerationGate = new DeferredPromise<void>();
 
-					override async listChatsToMigrate(): Promise<readonly IAgentChatMetadata[]> {
+					override async listChatsToMigrate(): Promise<readonly IAgentListedChat[]> {
 						this.catalogCalls++;
 						await this.enumerationGate.p;
 						return this.catalog ?? [];
@@ -14051,6 +14057,7 @@ suite('AgentService (node dispatcher)', () => {
 						legacyMirroredPayload: JSON.stringify([{ uri: cachedPeer.toString(), providerData: 'matching-provider-data', origin, inheritedTurnId: 'inherited-turn' }]),
 						chats: [{
 							chat: cachedPeer.toString(),
+							ownerSession: session.toString(),
 							order: 0,
 							providerData: 'matching-provider-data',
 							origin: JSON.stringify(origin),
@@ -15029,10 +15036,10 @@ suite('AgentService (node dispatcher)', () => {
 			const agent = disposables.add(new class extends MockAgent {
 				legacyCalls = 0;
 
-				override async listChatsToMigrate(): Promise<IAgentChatMetadata[]> {
+				override async listChatsToMigrate(): Promise<IAgentListedChat[]> {
 					this.legacyCalls++;
 					return [{
-						chat: URI.parse(buildDefaultChatUri(session)),
+						session, chat: URI.parse(buildDefaultChatUri(session)),
 						startTime: 1,
 						modifiedTime: 2,
 						summary: 'Stale provider title',
@@ -15091,14 +15098,14 @@ suite('AgentService (node dispatcher)', () => {
 				externalCalls = 0;
 				legacyCalls = 0;
 
-				override async listExternalChats(): Promise<IAgentChatMetadata[]> {
+				override async listExternalChats(): Promise<IAgentListedChat[]> {
 					this.externalCalls++;
-					return [{ chat: URI.parse(buildDefaultChatUri(external)), startTime: Date.now(), modifiedTime: Date.now() }];
+					return [{ session: external, chat: URI.parse(buildDefaultChatUri(external)), startTime: Date.now(), modifiedTime: Date.now() }];
 				}
 
-				override async listChatsToMigrate(): Promise<IAgentChatMetadata[]> {
+				override async listChatsToMigrate(): Promise<IAgentListedChat[]> {
 					this.legacyCalls++;
-					return [{ chat: URI.parse(buildDefaultChatUri(legacy)), startTime: Date.now(), modifiedTime: Date.now() }];
+					return [{ session: legacy, chat: URI.parse(buildDefaultChatUri(legacy)), startTime: Date.now(), modifiedTime: Date.now() }];
 				}
 
 				override fireDiscoveredChats(chats: readonly IAgentDiscoveredChat[]): void { this._onDidDiscoverChats.fire(chats); }
@@ -15208,10 +15215,10 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('migration candidates derive provenance from the workspaceless marker', async () => {
 			class MixedMigrationAgent extends MockAgent {
-				override async listChatsToMigrate(): Promise<IAgentChatMetadata[]> {
+				override async listChatsToMigrate(): Promise<IAgentListedChat[]> {
 					return [
-						{ chat: URI.parse(buildDefaultChatUri(restored)), startTime: Date.now(), modifiedTime: Date.now() },
-						{ chat: URI.parse(buildDefaultChatUri(external)), startTime: Date.now(), modifiedTime: Date.now() },
+						{ session: restored, chat: URI.parse(buildDefaultChatUri(restored)), startTime: Date.now(), modifiedTime: Date.now() },
+						{ session: external, chat: URI.parse(buildDefaultChatUri(external)), startTime: Date.now(), modifiedTime: Date.now() },
 					];
 				}
 			}
@@ -15315,7 +15322,7 @@ suite('AgentService (node dispatcher)', () => {
 		test('list refreshes do not rescan a provider catalog or prune a discovered session', async () => {
 			class CountingAgent extends MockAgent {
 				listExternalChatsCalls = 0;
-				override async listExternalChats(): Promise<IAgentChatMetadata[]> {
+				override async listExternalChats(): Promise<IAgentListedChat[]> {
 					this.listExternalChatsCalls++;
 					return super.listExternalChats();
 				}
@@ -15345,7 +15352,7 @@ suite('AgentService (node dispatcher)', () => {
 			class GatedListAgent extends MockAgent {
 				override readonly onDidDiscoverChats = Event.None;
 				listCalls = 0;
-				override async listChatsToMigrate(): Promise<IAgentChatMetadata[]> {
+				override async listChatsToMigrate(): Promise<IAgentListedChat[]> {
 					this.listCalls++;
 					await gate.p;
 					return super.listExternalChats();
@@ -15435,7 +15442,7 @@ suite('AgentService (node dispatcher)', () => {
 				private readonly _onDidDiscoverChats = new Emitter<readonly IAgentDiscoveredChat[]>();
 				override readonly onDidDiscoverChats = this._onDidDiscoverChats.event;
 
-				override async listExternalChats(): Promise<IAgentChatMetadata[]> {
+				override async listExternalChats(): Promise<IAgentListedChat[]> {
 					if (this._failList) {
 						this._failList = false;
 						throw new Error('transient list failure');
@@ -15501,7 +15508,7 @@ suite('AgentService (node dispatcher)', () => {
 			const migrationStarted = new DeferredPromise<void>();
 			const migrationGate = new DeferredPromise<void>();
 			class GatedMigrationAgent extends MockAgent {
-				override async listChatsToMigrate(): Promise<readonly IAgentChatMetadata[]> {
+				override async listChatsToMigrate(): Promise<readonly IAgentListedChat[]> {
 					await migrationStarted.complete();
 					await migrationGate.p;
 					return [];
@@ -15529,7 +15536,7 @@ suite('AgentService (node dispatcher)', () => {
 				override readonly onDidDiscoverChats = this._onDidDiscoverChats.event;
 				listExternalChatsCalls = 0;
 
-				override async listExternalChats(): Promise<IAgentChatMetadata[]> {
+				override async listExternalChats(): Promise<IAgentListedChat[]> {
 					this.listExternalChatsCalls++;
 					return super.listExternalChats();
 				}
@@ -15570,9 +15577,9 @@ suite('AgentService (node dispatcher)', () => {
 		test('does not surface adoptable legacy sessions (they belong to the extension host until opened)', async () => {
 			class AdoptableLegacyAgent extends MockAgent {
 				override readonly onDidDiscoverChats = Event.None;
-				catalog: readonly IAgentChatMetadata[] = [];
+				catalog: readonly IAgentListedChat[] = [];
 
-				override async listChatsToMigrate(): Promise<IAgentChatMetadata[]> {
+				override async listChatsToMigrate(): Promise<IAgentListedChat[]> {
 					return [...this.catalog];
 				}
 
@@ -15612,7 +15619,7 @@ suite('AgentService (node dispatcher)', () => {
 		test('registry discovery retains one provider despite another provider failing', async () => {
 			class CountingAgent extends MockAgent {
 				listExternalChatsCalls = 0;
-				override async listExternalChats(): Promise<IAgentChatMetadata[]> {
+				override async listExternalChats(): Promise<IAgentListedChat[]> {
 					this.listExternalChatsCalls++;
 					return super.listExternalChats();
 				}
@@ -15622,7 +15629,7 @@ suite('AgentService (node dispatcher)', () => {
 				private readonly _onDidDiscoverChats = new Emitter<readonly IAgentDiscoveredChat[]>();
 				override readonly onDidDiscoverChats = this._onDidDiscoverChats.event;
 				stopFailing(): void { this._fail = false; }
-				override async listExternalChats(): Promise<IAgentChatMetadata[]> {
+				override async listExternalChats(): Promise<IAgentListedChat[]> {
 					if (this._fail) {
 						throw new Error('provider B enumeration failed');
 					}
@@ -15687,7 +15694,7 @@ suite('AgentService (node dispatcher)', () => {
 			getConfigurationService(svc).updateRootConfig({ [AgentHostShowExternalSessionsConfigKey]: AgentHostExternalSessionsMode.Last30Days });
 			const agent = disposables.add(new NotYetEnumerableAgent('copilot'));
 			const originalListExternalChats = agent.listExternalChats.bind(agent);
-			(agent as unknown as { listExternalChats: () => Promise<readonly IAgentChatMetadata[] | undefined> }).listExternalChats = async () => {
+			(agent as unknown as { listExternalChats: () => Promise<readonly IAgentListedChat[] | undefined> }).listExternalChats = async () => {
 				agent.listExternalChatsCalls++;
 				if (!agent.enumerable) {
 					return undefined;
@@ -15713,7 +15720,7 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('a deferred provider does not block healthy listings and migrates when discovery signals readiness', async () => {
 			class CatalogAgent extends MockAgent {
-				override async listChatsToMigrate(): Promise<readonly IAgentChatMetadata[]> {
+				override async listChatsToMigrate(): Promise<readonly IAgentListedChat[]> {
 					return this.listExternalChats();
 				}
 			}
@@ -15723,7 +15730,7 @@ suite('AgentService (node dispatcher)', () => {
 				private readonly _onDidDiscoverChats = new Emitter<readonly IAgentDiscoveredChat[]>();
 				override readonly onDidDiscoverChats = this._onDidDiscoverChats.event;
 
-				override async listChatsToMigrate(): Promise<readonly IAgentChatMetadata[] | typeof AgentChatMigrationDeferred> {
+				override async listChatsToMigrate(): Promise<readonly IAgentListedChat[] | typeof AgentChatMigrationDeferred> {
 					this.catalogCalls++;
 					return this.ready ? this.listExternalChats() : AgentChatMigrationDeferred;
 				}
@@ -15797,8 +15804,8 @@ suite('AgentService (node dispatcher)', () => {
 				},
 			);
 			const agent = disposables.add(new class extends MockAgent {
-				override async listChatsToMigrate(): Promise<readonly IAgentChatMetadata[]> {
-					return [{ chat: URI.parse(buildDefaultChatUri(providerSession)), startTime: 1, modifiedTime: 2 }];
+				override async listChatsToMigrate(): Promise<readonly IAgentListedChat[]> {
+					return [{ session: providerSession, chat: URI.parse(buildDefaultChatUri(providerSession)), startTime: 1, modifiedTime: 2 }];
 				}
 			}('claude'));
 
@@ -15811,7 +15818,7 @@ suite('AgentService (node dispatcher)', () => {
 			class FailOnceCatalogAgent extends MockAgent {
 				catalogCalls = 0;
 
-				override async listChatsToMigrate(): Promise<readonly IAgentChatMetadata[]> {
+				override async listChatsToMigrate(): Promise<readonly IAgentListedChat[]> {
 					this.catalogCalls++;
 					if (this.catalogCalls === 1) {
 						throw new Error('catalog temporarily unavailable');
@@ -15844,7 +15851,7 @@ suite('AgentService (node dispatcher)', () => {
 				ready = false;
 				catalogCalls = 0;
 
-				override async listChatsToMigrate(): Promise<readonly IAgentChatMetadata[] | typeof AgentChatMigrationDeferred> {
+				override async listChatsToMigrate(): Promise<readonly IAgentListedChat[] | typeof AgentChatMigrationDeferred> {
 					this.catalogCalls++;
 					return this.ready ? this.listExternalChats() : AgentChatMigrationDeferred;
 				}
@@ -15914,10 +15921,10 @@ suite('AgentService (node dispatcher)', () => {
 			const legacy = AgentSession.uri('copilot', 'legacy-migration-not-ready');
 			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(legacy), legacy);
 			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(AgentSession.id(existing), existing);
-			(agent as unknown as { listChatsToMigrate: () => Promise<readonly IAgentChatMetadata[] | undefined> }).listChatsToMigrate = async () => {
+			(agent as unknown as { listChatsToMigrate: () => Promise<readonly IAgentListedChat[] | undefined> }).listChatsToMigrate = async () => {
 				agent.migrationCalls++;
 				return agent.enumerable
-					? [{ chat: URI.parse(buildDefaultChatUri(legacy)), startTime: Date.now(), modifiedTime: Date.now() }]
+					? [{ session: legacy, chat: URI.parse(buildDefaultChatUri(legacy)), startTime: Date.now(), modifiedTime: Date.now() }]
 					: undefined;
 			};
 			registerTestAgentProvider(svc, agent);
@@ -15959,7 +15966,7 @@ suite('AgentService (node dispatcher)', () => {
 			class UnavailableCatalogAgent extends MockAgent {
 				override readonly onDidDiscoverChats = Event.None;
 				enumerable = false;
-				override async listChatsToMigrate(): Promise<readonly IAgentChatMetadata[] | undefined> {
+				override async listChatsToMigrate(): Promise<readonly IAgentListedChat[] | undefined> {
 					return this.enumerable ? [] : undefined;
 				}
 			}
@@ -15991,7 +15998,7 @@ suite('AgentService (node dispatcher)', () => {
 			const retryGate = new DeferredPromise<void>();
 			class SingleFlightRetryAgent extends MockAgent {
 				catalogCalls = 0;
-				override async listChatsToMigrate(): Promise<IAgentChatMetadata[] | undefined> {
+				override async listChatsToMigrate(): Promise<IAgentListedChat[] | undefined> {
 					this.catalogCalls++;
 					if (this.catalogCalls === 1) {
 						return undefined;
@@ -16022,7 +16029,7 @@ suite('AgentService (node dispatcher)', () => {
 			class CatalogAgent extends MockAgent {
 				catalogCalls = 0;
 				available = true;
-				override async listChatsToMigrate(): Promise<IAgentChatMetadata[] | undefined> {
+				override async listChatsToMigrate(): Promise<IAgentListedChat[] | undefined> {
 					this.catalogCalls++;
 					return this.available
 						? this.listExternalChats()
@@ -16080,7 +16087,7 @@ suite('AgentService (node dispatcher)', () => {
 			const gate = new DeferredPromise<void>();
 			class GatedListAgent extends MockAgent {
 				listCalls = 0;
-				override async listExternalChats(): Promise<IAgentChatMetadata[]> {
+				override async listExternalChats(): Promise<IAgentListedChat[]> {
 					this.listCalls++;
 					// Snapshot before gating so the first sweep reflects what
 					// the provider could enumerate at the time it was called,
@@ -16268,7 +16275,7 @@ suite('AgentService (node dispatcher)', () => {
 				listCalls = 0;
 				private readonly _onDidDiscoverChats = new Emitter<readonly IAgentDiscoveredChat[]>();
 				override readonly onDidDiscoverChats = this._onDidDiscoverChats.event;
-				override async listExternalChats(): Promise<IAgentChatMetadata[]> {
+				override async listExternalChats(): Promise<IAgentListedChat[]> {
 					this.listCalls++;
 					const result = await super.listExternalChats();
 					if (this.listCalls === 2) {
@@ -16314,7 +16321,7 @@ suite('AgentService (node dispatcher)', () => {
 		test('a legacy global marker does not gate registration-time native discovery', async () => {
 			class CountingAgent extends MockAgent {
 				listExternalChatsCalls = 0;
-				override async listExternalChats(): Promise<IAgentChatMetadata[]> {
+				override async listExternalChats(): Promise<IAgentListedChat[]> {
 					this.listExternalChatsCalls++;
 					return super.listExternalChats();
 				}
@@ -16347,7 +16354,7 @@ suite('AgentService (node dispatcher)', () => {
 			class SequentiallyGatedListAgent extends MockAgent {
 				listCalls = 0;
 				private readonly _gates: DeferredPromise<void>[] = [];
-				override async listExternalChats(): Promise<IAgentChatMetadata[]> {
+				override async listExternalChats(): Promise<IAgentListedChat[]> {
 					this.listCalls++;
 					const gate = new DeferredPromise<void>();
 					this._gates[this.listCalls] = gate;
@@ -16407,7 +16414,7 @@ suite('AgentService (node dispatcher)', () => {
 			class SequentiallyGatedListAgent extends MockAgent {
 				listCalls = 0;
 				private readonly _gates: DeferredPromise<void>[] = [];
-				override async listExternalChats(): Promise<IAgentChatMetadata[]> {
+				override async listExternalChats(): Promise<IAgentListedChat[]> {
 					this.listCalls++;
 					const gate = new DeferredPromise<void>();
 					this._gates[this.listCalls] = gate;
@@ -16671,7 +16678,7 @@ suite('AgentService (node dispatcher)', () => {
 			const migrationGate = new DeferredPromise<void>();
 			class DelayedMigrationAgent extends MockAgent {
 				override readonly onDidDiscoverChats = Event.None;
-				override async listChatsToMigrate(): Promise<readonly IAgentChatMetadata[]> {
+				override async listChatsToMigrate(): Promise<readonly IAgentListedChat[]> {
 					await migrationGate.p;
 					return this.listExternalChats();
 				}
@@ -19269,7 +19276,7 @@ suite('AgentService (node dispatcher)', () => {
 				migrationComplete = false;
 				metadataCalls = 0;
 
-				override async listChatsToMigrate(): Promise<readonly IAgentChatMetadata[]> {
+				override async listChatsToMigrate(): Promise<readonly IAgentListedChat[]> {
 					await this.migrationGate.p;
 					this.migrationComplete = true;
 					return this.listExternalChats();
@@ -19353,9 +19360,9 @@ suite('AgentService (node dispatcher)', () => {
 				readonly adoptionProbed = new DeferredPromise<void>();
 				constructor(readonly backfilled: URI) { super('copilot'); }
 
-				override async listChatsToMigrate(): Promise<readonly IAgentChatMetadata[] | undefined> {
+				override async listChatsToMigrate(): Promise<readonly IAgentListedChat[] | undefined> {
 					await this.migrationGate.p;
-					return [{ chat: URI.parse(buildDefaultChatUri(this.backfilled)), startTime: Date.now(), modifiedTime: Date.now() }];
+					return [{ session: this.backfilled, chat: URI.parse(buildDefaultChatUri(this.backfilled)), startTime: Date.now(), modifiedTime: Date.now() }];
 				}
 
 				// Not a legacy Copilot CLI chat, e.g. an external chat the GitHub app created.
@@ -19395,7 +19402,7 @@ suite('AgentService (node dispatcher)', () => {
 				listChatsToMigrateCalls = 0;
 				getChatMetadataCalls = 0;
 
-				override async listChatsToMigrate(): Promise<readonly IAgentChatMetadata[] | undefined | typeof AgentChatMigrationDeferred> {
+				override async listChatsToMigrate(): Promise<readonly IAgentListedChat[] | undefined | typeof AgentChatMigrationDeferred> {
 					this.listChatsToMigrateCalls++;
 					await this.migrationGate.p;
 					if (this.catalogDeferred) {
@@ -20155,7 +20162,7 @@ suite('AgentService (node dispatcher)', () => {
 				};
 				class MigrationAgent extends MockAgent {
 					constructor() { super('copilot'); }
-					override async listChatsToMigrate(): Promise<IAgentChatMetadata[]> {
+					override async listChatsToMigrate(): Promise<IAgentListedChat[]> {
 						return [];
 					}
 					async ensureChatAdopted(): Promise<IAgentChatAdoptionResult> {
@@ -20271,7 +20278,7 @@ suite('AgentService (node dispatcher)', () => {
 				};
 				class DecliningAgent extends MockAgent {
 					constructor() { super('copilot'); }
-					override async listChatsToMigrate(): Promise<IAgentChatMetadata[]> {
+					override async listChatsToMigrate(): Promise<IAgentListedChat[]> {
 						return [];
 					}
 					async ensureChatAdopted(): Promise<IAgentChatAdoptionResult> {
@@ -20353,7 +20360,7 @@ suite('AgentService (node dispatcher)', () => {
 			class AdoptThenFailAgent extends MockAgent {
 				constructor() { super('copilot'); }
 				// Absent from the catalogue, so only the adoption path can register it.
-				override async listChatsToMigrate(): Promise<IAgentChatMetadata[]> {
+				override async listChatsToMigrate(): Promise<IAgentListedChat[]> {
 					return [];
 				}
 				async ensureChatAdopted(_chat: URI, _context: URI | IAgentChatContext): Promise<IAgentChatAdoptionResult> {
@@ -20383,7 +20390,7 @@ suite('AgentService (node dispatcher)', () => {
 			// but present in no Agent Host list either.
 			class AdoptAgent extends MockAgent {
 				constructor() { super('copilot'); }
-				override async listChatsToMigrate(): Promise<IAgentChatMetadata[]> {
+				override async listChatsToMigrate(): Promise<IAgentListedChat[]> {
 					return [];
 				}
 				async ensureChatAdopted(_chat: URI, _context: URI | IAgentChatContext): Promise<IAgentChatAdoptionResult> {
@@ -22728,11 +22735,8 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(getStateManager(localService).getSessionState(parent.toString())?.chats.find(chat => chat.resource === childChat)?.title, 'Persisted Worker');
 		});
 
-		test('subscribing to a restored canonical subagent chat reconstructs it on demand', async () => {
-			registerTestAgentProvider(service, copilotAgent);
-			const { session } = await createAgentSession(copilotAgent);
-			const parent = session.toString();
-			copilotAgent.sessionMessages = [
+		function subagentHistory(session: URI): IHistoryRecord[] {
+			return [
 				{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Review this code', toolRequests: [] },
 				{ type: 'message', session, role: 'assistant', messageId: 'msg-2', content: '', toolRequests: [{ toolCallId: 'tc-sub', name: 'task' }] },
 				{ type: 'tool_start', session, toolCallId: 'tc-sub', toolName: 'task', displayName: 'Task', invocationMessage: 'Delegating...', toolKind: 'subagent' as const, subagentDescription: 'Find related files', subagentAgentName: 'explore' },
@@ -22741,6 +22745,14 @@ suite('AgentService (node dispatcher)', () => {
 				{ type: 'tool_complete', session, toolCallId: 'tc-inner', result: { success: true, pastTenseMessage: 'Ran ls', content: [{ type: ToolResultContentType.Text, text: 'file1.ts' }] }, parentToolCallId: 'tc-sub' },
 				{ type: 'tool_complete', session, toolCallId: 'tc-sub', result: { success: true, pastTenseMessage: 'Delegated task', content: [{ type: ToolResultContentType.Text, text: 'Found files' }] } },
 			];
+		}
+
+		test('subscribing to a canonical subagent chat of a restored parent reconstructs it on demand', async () => {
+			registerTestAgentProvider(service, copilotAgent);
+			const { session } = await createAgentSession(copilotAgent);
+			const parent = session.toString();
+			copilotAgent.sessionMessages = subagentHistory(session);
+			await service.restoreSession(session);
 
 			const chatUri = buildSubagentChatUri(parent, 'tc-sub');
 			const snapshot = await service.subscribe(URI.parse(chatUri), 'client-restored-subagent');
@@ -22749,13 +22761,50 @@ suite('AgentService (node dispatcher)', () => {
 				resource: snapshot.resource,
 				turnCount: getStateManager(service).getChatState(chatUri)?.turns.length,
 				origin: getStateManager(service).getChatState(chatUri)?.origin,
+				owner: getStateManager(service).getChatOwner(chatUri),
 				legacySessionExists: !!getStateManager(service).getSessionState(buildSubagentSessionUri(parent, 'tc-sub')),
 			}, {
 				resource: chatUri,
 				turnCount: 1,
 				origin: { kind: ChatOriginKind.Tool, chat: buildDefaultChatUri(parent), toolCallId: 'tc-sub' },
+				owner: parent,
 				legacySessionExists: false,
 			});
+		});
+
+		test('subscribing to a canonical subagent chat waits for its parent restore already in flight', async () => {
+			registerTestAgentProvider(service, copilotAgent);
+			const { session } = await createAgentSession(copilotAgent);
+			const parent = session.toString();
+			copilotAgent.sessionMessages = subagentHistory(session);
+			const chatUri = buildSubagentChatUri(parent, 'tc-sub');
+
+			const restoring = service.restoreSession(session);
+			const snapshot = await service.subscribe(URI.parse(chatUri), 'client-concurrent-subagent');
+			await restoring;
+
+			assert.deepStrictEqual({
+				resource: snapshot.resource,
+				turnCount: getStateManager(service).getChatState(chatUri)?.turns.length,
+				owner: getStateManager(service).getChatOwner(chatUri),
+			}, {
+				resource: chatUri,
+				turnCount: 1,
+				owner: parent,
+			});
+		});
+
+		test('subscribing to a canonical subagent chat with no recorded owner and no restore in flight is not found', async () => {
+			registerTestAgentProvider(service, copilotAgent);
+			const { session } = await createAgentSession(copilotAgent);
+			copilotAgent.sessionMessages = subagentHistory(session);
+			const chatUri = buildSubagentChatUri(session.toString(), 'tc-sub');
+
+			await assert.rejects(service.subscribe(URI.parse(chatUri), 'client-unknown-subagent'), /Cannot subscribe to unknown resource/);
+			assert.deepStrictEqual({
+				parentRestored: !!getStateManager(service).getSessionState(session.toString()),
+				owner: getStateManager(service).getChatOwner(chatUri),
+			}, { parentRestored: false, owner: undefined });
 		});
 
 		test('a restored subagent identifies the peer chat that actually spawned it', async () => {
@@ -22798,6 +22847,117 @@ suite('AgentService (node dispatcher)', () => {
 			assert.deepStrictEqual({ origin: chatState?.origin, title: chatState?.title }, {
 				origin: { kind: ChatOriginKind.Tool, chat: peerChat, toolCallId: 'tc-sub' },
 				title: 'Find related files',
+			});
+		});
+
+		test('a subagent spawned by an unhydrated peer chat is not found when each chat has its own transcript', async () => {
+			registerTestAgentProvider(service, copilotAgent);
+			const { session } = await createAgentSession(copilotAgent);
+			const sessionResource = (await copilotAgent.listSessions())[0].session;
+			const parent = sessionResource.toString();
+			const defaultChat = buildDefaultChatUri(parent);
+			const peerChat = buildChatUri(parent, 'peer-spawner');
+			const chatUri = buildSubagentChatUri(parent, 'tc-sub');
+			// Real providers keep each chat's transcript in its own backing: the
+			// spawning tool call and the subagent's inner events live only in the
+			// peer chat's transcript, never in the default chat's.
+			const peerTranscript: IHistoryRecord[] = [
+				{ type: 'message', session, role: 'user', messageId: 'peer-1', content: 'delegate', toolRequests: [] },
+				{ type: 'message', session, role: 'assistant', messageId: 'peer-2', content: '', toolRequests: [{ toolCallId: 'tc-sub', name: 'task' }] },
+				{ type: 'tool_start', session, toolCallId: 'tc-sub', toolName: 'task', displayName: 'Task', invocationMessage: 'Delegating...', toolKind: 'subagent' as const, subagentDescription: 'Find related files', subagentAgentName: 'explore' },
+				{ type: 'subagent_started', session, toolCallId: 'tc-sub', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explores the codebase' },
+				{ type: 'tool_start', session, toolCallId: 'tc-inner', toolName: 'bash', displayName: 'Bash', invocationMessage: 'Running ls...', parentToolCallId: 'tc-sub' },
+				{ type: 'tool_complete', session, toolCallId: 'tc-inner', result: { success: true, pastTenseMessage: 'Ran ls' }, parentToolCallId: 'tc-sub' },
+				{ type: 'tool_complete', session, toolCallId: 'tc-sub', result: { success: true, pastTenseMessage: 'Delegated', content: [] } },
+			];
+			const defaultTranscript: IHistoryRecord[] = [
+				{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'main chat', toolRequests: [] },
+			];
+			const requested: string[] = [];
+			copilotAgent.chats.getMessages = async (chat, context) => {
+				const origin = resolveAgentChatOrigin(context);
+				requested.push(`${chat.toString()}<-${origin?.kind === ChatOriginKind.Tool ? origin.chat : ''}`);
+				if (chat.toString() === defaultChat) {
+					return buildTurnsFromHistory(defaultTranscript);
+				}
+				if (chat.toString() === peerChat) {
+					return buildTurnsFromHistory(peerTranscript);
+				}
+				if (origin?.kind === ChatOriginKind.Tool && origin.chat === peerChat) {
+					return buildSubagentTurnsFromHistory(peerTranscript, origin.toolCallId, chat.toString());
+				}
+				return [];
+			};
+			await service.restoreSession(sessionResource);
+			let peerResolved = false;
+			getStateManager(service).registerRestoredChatSummary(parent, peerChat, {
+				title: 'Peer',
+				resolver: async () => {
+					peerResolved = true;
+					return { turns: [...buildTurnsFromHistory(peerTranscript)] };
+				},
+			});
+
+			await assert.rejects(service.subscribe(URI.parse(chatUri), 'client-unhydrated-peer-spawned-subagent'), /Cannot subscribe to unknown resource/);
+			assert.deepStrictEqual({
+				chat: getStateManager(service).getChatState(chatUri),
+				peerResolved,
+				subagentTranscriptFromPeer: requested.includes(`${chatUri}<-${peerChat}`),
+			}, {
+				chat: undefined,
+				peerResolved: false,
+				subagentTranscriptFromPeer: false,
+			});
+		});
+
+		test('a legacy session whose private chat activation is not ready still restores its subagent on subscribe', async () => {
+			class NotReadyCatalogDatabase extends AgentHostDatabase {
+				override async ensureChatCatalogV2(..._args: Parameters<IAgentHostDatabase['ensureChatCatalogV2']>): ReturnType<IAgentHostDatabase['ensureChatCatalogV2']> {
+					return { status: 'notReady' };
+				}
+			}
+			const session = AgentSession.uri('copilot', 'legacy-not-ready-subagent');
+			const defaultChat = buildDefaultChatUri(session);
+			const child = buildSubagentChatUri(session.toString(), 'tc-sub');
+			const database = disposables.add(new NotReadyCatalogDatabase(':memory:'));
+			await database.registerRuntimeSession(session.toString(), { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+			await database.upsertSessionV2(catalogEnvelope(session, {
+				modifiedTime: 1,
+				summary: 'Owner',
+				isRead: true,
+				isArchived: false,
+				workingDirectories: [],
+				chats: [{ uri: defaultChat, order: 0, kind: 'default', summary: 'Owner' }],
+			}, 'generation', 1), undefined);
+			const agent = disposables.add(new MockAgent('copilot'));
+			await createAgentSession(agent, { session });
+			agent.sessionMessages = [
+				{ type: 'message', session, role: 'user', messageId: 'user', content: 'Delegate', toolRequests: [] },
+				{ type: 'message', session, role: 'assistant', messageId: 'assistant', content: '', toolRequests: [{ toolCallId: 'tc-sub', name: 'task' }] },
+				{ type: 'tool_start', session, toolCallId: 'tc-sub', toolName: 'task', displayName: 'Task', invocationMessage: 'Delegating', toolKind: 'subagent', subagentDescription: 'Historical Worker', subagentAgentName: 'explore' },
+				{ type: 'subagent_started', session, toolCallId: 'tc-sub', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explore' },
+				{ type: 'tool_start', session, toolCallId: 'tc-inner', toolName: 'bash', displayName: 'Bash', invocationMessage: 'Running ls...', parentToolCallId: 'tc-sub' },
+				{ type: 'tool_complete', session, toolCallId: 'tc-inner', result: { success: true, pastTenseMessage: 'Ran ls' }, parentToolCallId: 'tc-sub' },
+				{ type: 'tool_complete', session, toolCallId: 'tc-sub', result: { success: true, pastTenseMessage: 'Delegated', content: [] } },
+			];
+			const svc = disposables.add(createTestAgentService(
+				new NullLogService(), fileService, createPerSessionDataService().service, { _serviceBrand: undefined } as IProductService, createNoopGitService(),
+				undefined, undefined, undefined, undefined, undefined, [], undefined, undefined, database,
+			));
+			registerTestAgentProvider(svc, agent);
+
+			await svc.restoreSession(session);
+			const registeredAfterRestore = getStateManager(svc).getSessionState(session.toString())?.chats.some(chat => chat.resource === child);
+			const snapshot = await svc.subscribe(URI.parse(child), 'client-not-ready-subagent');
+
+			assert.deepStrictEqual({
+				registeredAfterRestore,
+				resource: snapshot.resource,
+				origin: getStateManager(svc).getChatState(child)?.origin,
+			}, {
+				registeredAfterRestore: false,
+				resource: child,
+				origin: { kind: ChatOriginKind.Tool, chat: defaultChat, toolCallId: 'tc-sub' },
 			});
 		});
 
@@ -22957,6 +23117,7 @@ suite('AgentService (node dispatcher)', () => {
 			registerTestAgentProvider(service, agent);
 			const session = await service.createSession({ provider: 'copilot' });
 			const chat = URI.parse(buildChatUri(session, 'peer-1'));
+			getStateManager(service).addChat(session.toString(), chat.toString());
 
 			assert.deepStrictEqual({
 				result: await service.stopBackgroundWork(chat, 'shell:3'),
@@ -29230,6 +29391,24 @@ suite('AgentService (node dispatcher)', () => {
 
 				assert.strictEqual(copilotAgent.disposeSessionCalls.length, 0, 'GC must be cancelled after resubscribe');
 			});
+		});
+
+		test('unsubscribing the last chat arms GC for the owner recorded at subscribe time, even after the chat left the registry', async () => {
+			const owner = await runWithFakedTimers({ useFakeTimers: true }, async () => {
+				registerTestAgentProvider(service, copilotAgent);
+				const owner = await service.createSession({ provider: 'copilot' });
+				const named = AgentSession.uri('copilot', 'named-by-uri');
+				const chat = URI.parse(buildChatUri(named, 'moved'));
+				getStateManager(service).addChat(owner.toString(), chat.toString());
+				service.addSubscriber(chat, 'client-1');
+				getStateManager(service).removeChat(owner.toString(), chat.toString());
+
+				service.unsubscribe(chat, 'client-1');
+				await new Promise(resolve => setTimeout(resolve, 30_000));
+				return owner;
+			});
+			await waitForGcDisposal(1);
+			assert.deepStrictEqual(copilotAgent.disposeSessionCalls.map(u => u.toString()), [owner.toString()]);
 		});
 
 		test('GC is rearmed after a resubscribe-then-unsubscribe cycle', async () => {

@@ -96,13 +96,22 @@ export class AgentSessionResidency extends Disposable {
 
 	private _getResidencySession(resource: URI): URI | undefined {
 		// Annotation ownership does not imply a dependency on the resident conversation; changesets still do.
-		return parseAnnotationsUri(resource.toString()) ? undefined : resolveAgentHostSession(resource);
+		return parseAnnotationsUri(resource.toString()) ? undefined : this._resolveSession(resource);
+	}
+
+	private _resolveSession(resource: URI): URI | undefined {
+		return resolveAgentHostSession(resource, chat => this._stateManager.getChatOwner(chat));
 	}
 
 	private _hasResidencySubscribers(resource: URI): boolean {
-		const sessionKey = resolveAgentHostSession(resource).toString();
+		const sessionKey = this._resolveSession(resource)?.toString();
+		if (sessionKey === undefined) {
+			return false;
+		}
 		for (const subscribedResource of this._subscriptions.subscribedResources) {
-			if (this._getResidencySession(subscribedResource)?.toString() === sessionKey) {
+			// Subscribed chats resolve through the owner recorded at subscribe time.
+			const subscribedSession = parseAnnotationsUri(subscribedResource.toString()) ? undefined : this._subscriptions.resolveSubscribedSession(subscribedResource);
+			if (subscribedSession?.toString() === sessionKey) {
 				return true;
 			}
 		}
@@ -114,11 +123,15 @@ export class AgentSessionResidency extends Disposable {
 	}
 
 	isBeingDisposed(resource: URI | string): boolean {
-		return this._sessionsBeingDisposed.has(resolveAgentHostSession(typeof resource === 'string' ? URI.parse(resource) : resource).toString());
+		const session = this._resolveSession(typeof resource === 'string' ? URI.parse(resource) : resource);
+		return !!session && this._sessionsBeingDisposed.has(session.toString());
 	}
 
 	async runDisposal<T>(resource: URI, task: () => Promise<T>): Promise<T> {
-		const session = resolveAgentHostSession(resource);
+		const session = this._resolveSession(resource);
+		if (!session) {
+			throw new Error(`Cannot dispose a resource with no recorded session: ${resource.toString()}`);
+		}
 		const sessionKey = session.toString();
 		this._sessionsBeingDisposed.set(sessionKey, (this._sessionsBeingDisposed.get(sessionKey) ?? 0) + 1);
 		this._recency.delete(sessionKey);
@@ -215,7 +228,10 @@ export class AgentSessionResidency extends Disposable {
 	}
 
 	private async _tryRelease(resource: URI, expectedRecency: URI | undefined): Promise<boolean> {
-		const session = resolveAgentHostSession(resource);
+		const session = this._resolveSession(resource);
+		if (!session) {
+			return false;
+		}
 		const sessionKey = session.toString();
 		if (!this._isReleaseRequired(sessionKey, expectedRecency)
 			|| this._sessionsBeingDisposed.has(sessionKey)

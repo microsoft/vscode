@@ -1881,6 +1881,53 @@ suite('AgentHostStateManager', () => {
 			);
 		});
 
+		test('records chat ownership, storage and parent from registration rather than the chat URI', () => {
+			const owner = makeSessionSummary('copilot:/owner-b').resource;
+			const foreign = 'copilot:/session-a';
+			manager.restoreSession(makeSessionSummary(owner), []);
+			const peer = buildChatUri(foreign, 'peer');
+			const foreignDefault = buildDefaultChatUri(foreign);
+			const spawned = buildChatUri(foreign, 'spawned');
+			manager.addChat(owner, peer);
+			manager.addChat(owner, foreignDefault);
+			manager.registerRestoredChatSummary(owner, spawned, { origin: { kind: ChatOriginKind.Tool, chat: peer, toolCallId: 'tool' } });
+			const unregistered = buildChatUri(owner, 'unregistered');
+
+			assert.deepStrictEqual({
+				owners: [peer, foreignDefault, spawned, unregistered].map(chat => manager.getChatOwner(chat)),
+				storage: [buildDefaultChatUri(owner), peer, foreignDefault, spawned, unregistered].map(chat => manager.getChatStorageResource(chat)),
+				parents: [peer, spawned].map(chat => manager.getChatParent(chat)),
+				sessionOfChat: manager.getSessionState(peer)?.title,
+				sessionOfUnregistered: manager.getSessionState(unregistered),
+				required: (() => { try { return manager.requireChatOwner(unregistered); } catch (error) { return (error as Error).message; } })(),
+			}, {
+				owners: [owner, owner, owner, undefined],
+				storage: [owner, peer, owner, spawned, undefined],
+				parents: [undefined, peer],
+				sessionOfChat: 'Test',
+				sessionOfUnregistered: undefined,
+				required: `Unknown chat owner: ${unregistered}`,
+			});
+		});
+
+		test('retains the owner of an evicted published session default chat and of announced chats', () => {
+			const owner = 'copilot:/retained-owner';
+			manager.restoreSession({ ...makeSessionSummary(owner), defaultChat: buildChatUri('copilot:/elsewhere', 'stable-default') }, []);
+			manager.setSessionSummaryPublished(owner, true);
+			const defaultChat = manager.getDefaultChatUri(owner);
+			manager.removeSession(owner);
+
+			assert.deepStrictEqual({
+				live: manager.getChatOwner(defaultChat),
+				retained: manager.findRetainedChatOwner(defaultChat),
+				unknown: manager.findRetainedChatOwner(buildChatUri(owner, 'unknown')),
+			}, {
+				live: undefined,
+				retained: owner,
+				unknown: undefined,
+			});
+		});
+
 		test('addChat for an unknown session is a no-op', () => {
 			const envelopes: ActionEnvelope[] = [];
 			disposables.add(manager.onDidEmitEnvelope(e => envelopes.push(e)));

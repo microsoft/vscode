@@ -338,8 +338,8 @@ suite('AgentHostDatabase sessions_v2', () => {
 				revision: 1,
 				legacyMirroredRevision: 0,
 				chats: [
-					{ chat: 'ahp-chat://first', order: 0, isRead: false, providerData: 'first', origin: '{"kind":"user"}' },
-					{ chat: 'ahp-chat://second', order: 1, inheritedTurnId: 'turn-1' },
+					{ chat: 'ahp-chat://first', ownerSession: session, order: 0, isRead: false, providerData: 'first', origin: '{"kind":"user"}' },
+					{ chat: 'ahp-chat://second', ownerSession: session, order: 1, inheritedTurnId: 'turn-1' },
 				],
 			},
 			firstAcknowledged: true,
@@ -351,7 +351,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 				legacyMirroredRevision: 1,
 				legacyMirroredPayload: 'stale-mirror-payload',
 				chats: [
-					{ chat: 'ahp-chat://second', order: 0, inheritedTurnId: 'turn-1' },
+					{ chat: 'ahp-chat://second', ownerSession: session, order: 0, inheritedTurnId: 'turn-1' },
 				],
 			},
 			baseRecorded: true,
@@ -360,10 +360,39 @@ suite('AgentHostDatabase sessions_v2', () => {
 				legacyMirroredRevision: 1,
 				legacyMirroredPayload: 'observed-legacy-payload',
 				chats: [
-					{ chat: 'ahp-chat://second', order: 0, inheritedTurnId: 'turn-1' },
+					{ chat: 'ahp-chat://second', ownerSession: session, order: 0, inheritedTurnId: 'turn-1' },
 				],
 			},
 		});
+	});
+
+	test('finds a chat owner from the record that contains it, never from the chat URI', async () => {
+		const db = new AgentHostDatabase(':memory:');
+		database = db;
+		const normalized = 'session://normalized-owner';
+		const legacy = 'session://legacy-owner';
+		const payloadOwner = 'session://payload-owner';
+		const deletedOwner = 'session://deleted-owner';
+		for (const session of [normalized, legacy, payloadOwner, deletedOwner]) {
+			await db.registerRuntimeSession(session, { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		}
+		// Every chat URI names a session other than its owner.
+		const chat = (id: string) => `ahp-chat://${id}/c2Vzc2lvbjovL2Vsc2V3aGVyZQ`;
+		await db.registerChatCatalogV2(normalized, { defaultChat: { chat: chat('normalized-default'), order: 0 }, peers: [{ chat: chat('normalized-peer'), order: 1 }], privateDescendants: [] });
+		await db.replaceSessionChatCatalog(legacy, [{ chat: chat('legacy-peer'), order: 0 }], undefined);
+		await db.upsertSessionV2(createEnvelope(payloadOwner, 'generation', 1, {
+			payload: createPayload(payloadOwner, 1).replace(`"${payloadOwner}#peer"`, `"${chat('payload-peer')}"`),
+		}), undefined);
+		await db.registerChatCatalogV2(deletedOwner, { defaultChat: { chat: chat('deleted-default'), order: 0 }, peers: [{ chat: chat('deleted-peer'), order: 1 }], privateDescendants: [] });
+		await db.tombstoneAndUnregisterSession(deletedOwner);
+
+		assert.deepStrictEqual(await Promise.all(['normalized-peer', 'legacy-peer', 'payload-peer', 'deleted-peer', 'unknown'].map(id => db.findChatOwner(chat(id)))), [
+			{ ownerSession: normalized, source: 'normalized', deleted: false },
+			{ ownerSession: legacy, source: 'legacyCatalog', deleted: false },
+			{ ownerSession: payloadOwner, source: 'catalogPayload', deleted: false },
+			{ ownerSession: deletedOwner, source: 'normalized', deleted: true },
+			undefined,
+		]);
 	});
 
 	test('sequences chat catalog reads behind queued replacements', async () => {
@@ -407,8 +436,8 @@ suite('AgentHostDatabase sessions_v2', () => {
 				revision: 1,
 				legacyMirroredRevision: 0,
 				chats: [
-					{ chat: 'ahp-chat://first', order: 0 },
-					{ chat: 'ahp-chat://second', order: 1 },
+					{ chat: 'ahp-chat://first', ownerSession: session, order: 0 },
+					{ chat: 'ahp-chat://second', ownerSession: session, order: 1 },
 				],
 			},
 		});
@@ -440,7 +469,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 				insertStatements: inserts.length,
 			}, {
 				replacement: { status: 'applied', revision: 1 },
-				catalog: { revision: 1, legacyMirroredRevision: 0, chats },
+				catalog: { revision: 1, legacyMirroredRevision: 0, chats: chats.map(chat => ({ ...chat, ownerSession: session })) },
 				insertStatements: 7,
 			});
 		} finally {
@@ -666,7 +695,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 			catalog: {
 				revision: 1,
 				legacyMirroredRevision: 0,
-				chats: [{ chat: 'ahp-chat://peer', order: 0, providerData: 'peer' }],
+				chats: [{ chat: 'ahp-chat://peer', ownerSession: 'session://v11', order: 0, providerData: 'peer' }],
 			},
 			version: [{ user_version: 14 }],
 		});
@@ -703,7 +732,7 @@ suite('AgentHostDatabase sessions_v2', () => {
 			catalog: {
 				revision: 1,
 				legacyMirroredRevision: 0,
-				chats: [{ chat: 'ahp-chat://peer', order: 0, providerData: 'peer' }],
+				chats: [{ chat: 'ahp-chat://peer', ownerSession: 'session://future-v17', order: 0, providerData: 'peer' }],
 			},
 			version: [{ user_version: 17 }],
 			columns: ['session_uri', 'chat_uri', 'chat_order', 'provider_data', 'origin', 'inherited_turn_id', 'archived', 'parent_chat', 'storage_resource', 'is_read'],

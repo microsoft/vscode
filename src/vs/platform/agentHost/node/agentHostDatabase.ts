@@ -134,11 +134,27 @@ export interface IAgentHostDatabaseSessionChat {
 	readonly metadata?: IAgentHostChatV2MetadataData;
 }
 
+/** A catalog chat as read back, carrying the session of the record that contains it. */
+export interface IAgentHostDatabaseOwnedSessionChat extends IAgentHostDatabaseSessionChat {
+	readonly ownerSession: string;
+}
+
 export interface IAgentHostDatabaseSessionChatCatalog {
 	readonly revision: number;
 	readonly legacyMirroredRevision: number;
 	readonly legacyMirroredPayload?: string;
-	readonly chats: readonly IAgentHostDatabaseSessionChat[];
+	readonly chats: readonly IAgentHostDatabaseOwnedSessionChat[];
+}
+
+/** Where a chat was found by {@link IAgentHostDatabase.findChatOwner}. */
+export type AgentHostDatabaseChatOwnerSource = 'normalized' | 'legacyCatalog' | 'catalogPayload';
+
+/** The owning session of a chat, taken from the record that contains it. */
+export interface IAgentHostDatabaseChatOwner {
+	readonly ownerSession: string;
+	readonly source: AgentHostDatabaseChatOwnerSource;
+	/** The containing record is tombstoned, or its session was explicitly deleted. */
+	readonly deleted: boolean;
 }
 
 export type AgentHostDatabaseSessionChatCatalogReplaceResult =
@@ -379,6 +395,12 @@ export interface IAgentHostDatabase extends IDisposable {
 	updateChatV2Metadata(chat: string, expected: IAgentHostDatabaseChatV2Revision, patch: IAgentHostDatabaseChatV2Patch, validate?: () => boolean): Promise<AgentHostDatabaseChatV2WriteResult>;
 	insertPrivateChatV2(session: string, chat: IAgentHostDatabaseChatV2NormalizationChat, expectedCatalogRevision: number, validate?: () => boolean): Promise<AgentHostDatabaseChatV2WriteResult>;
 	removePrivateChatV2(session: string, chat: string, expectedCatalogRevision: number): Promise<AgentHostDatabaseChatV2WriteResult>;
+	/**
+	 * Read-only search for the session that contains `chat`: normalized rows
+	 * (including tombstones) dominate, then legacy peer catalogs, then cached
+	 * catalog payloads. Never inspects the chat URI itself.
+	 */
+	findChatOwner(chat: string): Promise<IAgentHostDatabaseChatOwner | undefined>;
 	/** Reads authoritative peer-chat membership. `undefined` means legacy import has not completed. */
 	getSessionChatCatalog(session: string): Promise<IAgentHostDatabaseSessionChatCatalog | undefined>;
 	/** Replaces authoritative peer-chat membership when the session exists and its revision still matches. */
@@ -1695,6 +1717,32 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 		});
 	}
 
+	async findChatOwner(chat: string): Promise<IAgentHostDatabaseChatOwner | undefined> {
+		return this._transactionSequencer.queue(async () => {
+			const database = await this._ensureDatabase();
+			const isSessionDeleted = async (session: string) => !!await get(database, `SELECT 1 AS present FROM metadata WHERE key = ? AND value = 'true'`, [tombstoneKey(session)]);
+			const normalized = await get(database, 'SELECT owner_session_uri, tombstoned FROM chats_v2 WHERE chat_uri = ?', [chat]);
+			if (normalized) {
+				const ownerSession = normalized.owner_session_uri as string;
+				return { ownerSession, source: 'normalized', deleted: normalized.tombstoned === 1 || await isSessionDeleted(ownerSession) };
+			}
+			const legacy = await get(database, 'SELECT session_uri FROM session_chats WHERE chat_uri = ? ORDER BY session_uri LIMIT 1', [chat]);
+			if (legacy) {
+				const ownerSession = legacy.session_uri as string;
+				return { ownerSession, source: 'legacyCatalog', deleted: await isSessionDeleted(ownerSession) };
+			}
+			const candidates = await all(database, 'SELECT session_uri, payload FROM sessions_v2 WHERE payload IS NOT NULL AND instr(payload, ?) > 0 ORDER BY session_uri', [chat]);
+			for (const candidate of candidates) {
+				const decoded = decodeAgentHostCatalogPayload(candidate.payload as string);
+				if (decoded.ok && decoded.value.data.chats.some(entry => entry.uri === chat)) {
+					const ownerSession = candidate.session_uri as string;
+					return { ownerSession, source: 'catalogPayload', deleted: await isSessionDeleted(ownerSession) };
+				}
+			}
+			return undefined;
+		});
+	}
+
 	async getSessionChatCatalog(session: string): Promise<IAgentHostDatabaseSessionChatCatalog | undefined> {
 		return this._transactionSequencer.queue(async () => {
 			const database = await this._ensureDatabase();
@@ -1706,7 +1754,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				return {
 					revision: header.revision as number,
 					legacyMirroredRevision: header.legacy_mirrored_revision as number,
-					chats: rows.map((row, order) => ({ ...this._toLegacyChat(row), order })),
+					chats: rows.map((row, order) => ({ ...this._toLegacyChat(row), order, ownerSession: session })),
 				};
 			}
 			const rows = await all(database, `SELECT
@@ -1734,6 +1782,7 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 				...(catalog.legacy_mirrored_payload === null ? {} : { legacyMirroredPayload: catalog.legacy_mirrored_payload as string }),
 				chats: rows.filter(row => row.chat_uri !== null).map(row => ({
 					chat: row.chat_uri as string,
+					ownerSession: session,
 					order: row.chat_order as number,
 					...(row.is_read === null ? {} : { isRead: row.is_read === 1 }),
 					...(row.archived === 1 ? { archived: true } : {}),

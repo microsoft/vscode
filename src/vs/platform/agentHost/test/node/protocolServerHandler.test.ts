@@ -291,6 +291,11 @@ class MockAgentService implements IAgentService {
 		this.disposedChats.push({ session: session.toString(), chat: chat.toString() });
 		this._stateManager.removeChat(session.toString(), chat.toString());
 	}
+	readonly chatOwners = new Map<string, string>();
+	async resolveChatOwner(chat: URI): Promise<URI | undefined> {
+		const owner = this._stateManager.getChatOwner(chat.toString()) ?? this.chatOwners.get(chat.toString());
+		return owner === undefined ? undefined : URI.parse(owner);
+	}
 	async getSessionCount(): Promise<number> {
 		return this.listedSessions.length;
 	}
@@ -1208,6 +1213,7 @@ suite('ProtocolServerHandler', () => {
 		const transport = connectClient('client-debug-logs');
 		transport.sent.length = 0;
 		const responsePromise = waitForResponse(transport, 12);
+		agentService.chatOwners.set(buildChatUri('copilotcli:/session-1', 'peer-1'), 'copilotcli:/session-1');
 
 		transport.simulateMessage(request(12, 'vscode/collectAgentHostDebugLogs', {
 			session: 'copilotcli:/session-1',
@@ -1261,6 +1267,7 @@ suite('ProtocolServerHandler', () => {
 		transport.sent.length = 0;
 		const responsePromise = waitForResponse(transport, 17);
 		const chat = buildChatUri('copilotcli:/session-1', 'peer-1');
+		agentService.chatOwners.set(chat, 'copilotcli:/session-1');
 
 		transport.simulateMessage(request(17, 'vscode/getAgentHostSessionStateFile', {
 			session: 'copilotcli:/session-1',

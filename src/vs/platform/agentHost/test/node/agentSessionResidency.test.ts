@@ -245,6 +245,7 @@ suite('AgentSessionResidency', () => {
 			residency = createResidency(0);
 			const session = createUsedSession('subscribed');
 			subscriptions.addSubscriber(URI.parse(channel(session)), 'client');
+			subscriptions.setSubscriptionOwner(URI.parse(channel(session)), session.toString());
 
 			await residency.reconcile();
 

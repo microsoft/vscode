@@ -18,7 +18,7 @@ import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { getAppNodeModulesUri } from '../appNodeModules.js';
 import { sandboxSettingIdToAgentHostKey } from '../../common/sandboxConfigSchema.js';
 import { getSessionSandboxConfig } from '../sessionSandbox.js';
-import { resolveAgentHostSession } from '../../common/agentHostSubscriptionService.js';
+import { resolveAgentHostRootSession } from '../../common/agentHostSubscriptionService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { getVSCodeSandboxReadRoots } from '../../common/vscodeSandboxPaths.js';
 
@@ -49,7 +49,7 @@ class AgentHostTerminalSandboxHost extends Disposable implements ITerminalSandbo
 		this._sandboxHelper = sandboxHelper;
 		this.onDidChangeSandboxSettings = Event.any(
 			this._agentConfigurationService.onDidRootConfigChange,
-			Event.map(Event.filter(this._agentConfigurationService.onDidSessionConfigChange, event => event.session === resolveAgentHostSession(URI.parse(this._sessionId)).toString()), () => undefined),
+			Event.map(Event.filter(this._agentConfigurationService.onDidSessionConfigChange, event => event.session === resolveAgentHostRootSession(URI.parse(this._sessionId)).toString()), () => undefined),
 		);
 	}
 
@@ -99,7 +99,7 @@ class AgentHostTerminalSandboxHost extends Disposable implements ITerminalSandbo
 
 	getReadRoots(): readonly URI[] {
 		return getVSCodeSandboxReadRoots({
-			sessionDataDirectory: this._sessionDataService.getSessionDataDir(resolveAgentHostSession(URI.parse(this._sessionId))),
+			sessionDataDirectory: this._sessionDataService.getSessionDataDir(resolveAgentHostRootSession(URI.parse(this._sessionId))),
 		});
 	}
 

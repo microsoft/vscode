@@ -499,6 +499,7 @@ function createConfigurationService(enabled: boolean, disposables: DisposableSto
 		getEffectiveWorkingDirectories: () => undefined,
 		updateSessionConfig: () => { },
 		getSessionConfigValues: () => undefined,
+		resolveConfigurationOwner: session => session,
 		getSessionSandboxPolicy: () => undefined,
 		getSessionSandboxEnabled: () => undefined,
 		setSessionSandboxPolicy: () => { },

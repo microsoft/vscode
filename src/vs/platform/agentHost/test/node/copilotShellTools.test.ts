@@ -140,6 +140,7 @@ suite('CopilotShellTools', () => {
 			getEffectiveValue: () => undefined,
 			getEffectiveWorkingDirectories: () => undefined,
 			getSessionConfigValues: session => sessionValues.get(session),
+			resolveConfigurationOwner: session => session,
 			getSessionSandboxPolicy: session => policies.get(session),
 			getSessionSandboxEnabled: () => undefined,
 			setSessionSandboxEnabled: () => { },
@@ -808,8 +809,7 @@ suite('CopilotShellTools', () => {
 		}
 		const { instantiationService, agentConfigurationService } = createServices({ sandboxEnabled: true });
 		const owner = 'copilot:/session-1';
-		const peer = URI.parse(buildDefaultChatUri(owner));
-		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, peer, undefined));
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse(owner), undefined));
 		const otherManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/other'), undefined));
 		const engine = shellManager.getOrCreateSandboxEngine();
 		const other = otherManager.getOrCreateSandboxEngine();
@@ -832,7 +832,7 @@ suite('CopilotShellTools', () => {
 		const owner = 'copilot:/session-1';
 		agentConfigurationService.setSandboxValue(AgentHostSandboxKey.AllowNetwork, true);
 		agentConfigurationService.setSandboxValue(AgentHostSandboxKey.AllowUnsandboxedCommands, false);
-		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse(buildDefaultChatUri(owner)), undefined));
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse(owner), undefined));
 		const engine = shellManager.getOrCreateSandboxEngine();
 		const read = async () => ({ network: await engine.isSandboxAllowNetworkEnabled(), bypass: engine.areUnsandboxedCommandsAllowed() });
 		const initial = await read();

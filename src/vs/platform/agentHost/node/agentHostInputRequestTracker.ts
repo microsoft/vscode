@@ -8,13 +8,15 @@ import type { AgentSubagentKind, IAgentTelemetryContext } from '../common/agent.
 import type { IAgentHostClientTelemetryContext } from '../common/agentHostTelemetry.js';
 import { ChatInputRequestPurpose, readChatInputRequestPurpose } from '../common/meta/agentChatInputRequestMeta.js';
 import type { ChatInputCompletedAction } from '../common/state/sessionActions.js';
-import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ResponsePartKind, isAhpChatChannel, parseRequiredSessionUriFromChatUri, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type ChatState } from '../common/state/sessionState.js';
+import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ResponsePartKind, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type ChatState } from '../common/state/sessionState.js';
 import type { AgentHostTelemetryReporter } from './agentHostTelemetryReporter.js';
 
 interface IInputRequestTiming {
 	readonly stopWatch: Pick<StopWatch, 'elapsed'>;
 	readonly provider: string;
 	readonly session: string;
+	/** Owning session of the chat, recorded when the request started. */
+	readonly owner: string;
 	readonly turnId: string;
 	request: ChatInputRequest;
 }
@@ -34,7 +36,7 @@ export class AgentHostInputRequestTracker {
 		private readonly _getSubagentKind: (session: string, turnId: string) => AgentSubagentKind | undefined = () => undefined,
 	) { }
 
-	inputRequested(provider: string, session: string, turnId: string, request: ChatInputRequest): void {
+	inputRequested(provider: string, session: string, owner: string, turnId: string, request: ChatInputRequest): void {
 		const key = this._key(session, request.id);
 		if (readChatInputRequestPurpose(request) !== ChatInputRequestPurpose.AskUser) {
 			this._pending.delete(key);
@@ -51,6 +53,7 @@ export class AgentHostInputRequestTracker {
 			stopWatch: this._stopWatchFactory(),
 			provider,
 			session,
+			owner,
 			turnId,
 			request,
 		});
@@ -116,8 +119,7 @@ export class AgentHostInputRequestTracker {
 
 	clearAgentSession(session: string): void {
 		for (const [key, timing] of this._pending) {
-			const owningSession = isAhpChatChannel(timing.session) ? parseRequiredSessionUriFromChatUri(timing.session) : timing.session;
-			if (owningSession === session) {
+			if (timing.owner === session) {
 				this._pending.delete(key);
 			}
 		}

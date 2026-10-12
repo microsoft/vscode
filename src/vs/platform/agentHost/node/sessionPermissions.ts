@@ -263,7 +263,7 @@ export class SessionPermissionManager extends Disposable {
 		}
 
 		// 1. Global auto-approve setting
-		const approvalConfig = this._stateManager.getSessionState(resolveAgentHostSession(URI.parse(sessionKey)).toString())?.config;
+		const approvalConfig = this._sessionStateOf(sessionKey)?.config;
 		const hostPolicy = approvalConfig?.schema.properties.availableApprovalModes?.readOnly === true;
 		if (this.isGlobalAutoApproveEnabled() && (!hostPolicy || this.isSessionAutoApproveEnabled(sessionKey))) {
 			return ToolCallConfirmationReason.Setting;
@@ -418,12 +418,21 @@ export class SessionPermissionManager extends Disposable {
 	 * Returns whether VS Code's global auto-approve setting (`chat.tools.global.autoApprove`) is enabled.
 	 * When enabled, every tool call is auto-approved without changing the session's approval level in the permissions picker.
 	 */
+	private _resolveSession(sessionOrChat: ProtocolURI): string | undefined {
+		return resolveAgentHostSession(URI.parse(sessionOrChat), chat => this._stateManager.getChatOwner(chat))?.toString();
+	}
+
+	private _sessionStateOf(sessionOrChat: ProtocolURI): ReturnType<AgentHostStateManager['getSessionState']> {
+		const session = this._resolveSession(sessionOrChat);
+		return session === undefined ? undefined : this._stateManager.getSessionState(session);
+	}
+
 	isGlobalAutoApproveEnabled(): boolean {
 		return this._configService.getRootValue(platformRootSchema, AgentHostGlobalAutoApproveEnabledConfigKey) === true;
 	}
 
 	getEffectiveApprovalLevel(sessionKey: ProtocolURI): string {
-		const config = this._stateManager.getSessionState(resolveAgentHostSession(URI.parse(sessionKey)).toString())?.config;
+		const config = this._sessionStateOf(sessionKey)?.config;
 		const policyOwned = config?.schema.properties.availableApprovalModes?.readOnly === true;
 		if (policyOwned) {
 			const effective = config.values.effectiveApprovalMode;
@@ -502,7 +511,11 @@ export class SessionPermissionManager extends Disposable {
 		if (!isAhpChatChannel(chatChannel)) {
 			throw new Error(`Tool call confirmations must be handled on an AHP chat channel: ${chatChannel}`);
 		}
-		const sessionKey = resolveAgentHostSession(URI.parse(chatChannel)).toString();
+		const sessionKey = this._resolveSession(chatChannel);
+		if (sessionKey === undefined) {
+			this._logService.trace(`[SessionPermissions] No owner recorded for ${chatChannel}; ignoring confirmation of ${toolCallId}`);
+			return;
+		}
 		if (selectedOptionId === ALLOW_SESSION_OPTION_ID) {
 			const part = this._stateManager.getSessionState(chatChannel)?.activeTurn?.responseParts.find(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === toolCallId);
 			if (part?.kind === ResponsePartKind.ToolCall && readToolCallMeta(part.toolCall)[SANDBOX_BYPASS_META_KEY] === true) {

@@ -67,7 +67,18 @@ suite('Session sandbox configuration', () => {
 			manager.setSessionConfig(session, { schema: platformSessionSchema.toProtocol(), values });
 			return session;
 		};
-		return { manager, configuration, create };
+		const registerChat = (session: string, id: string) => {
+			if (!manager.getSessionState(session)) {
+				manager.createSession({
+					resource: session, provider: 'copilot', title: id, status: SessionStatus.Idle,
+					createdAt: '2026-01-01T00:00:00Z', modifiedAt: '2026-01-01T00:00:00Z',
+				});
+			}
+			const chat = buildChatUri(session, id);
+			manager.addChat(session, chat);
+			return chat;
+		};
+		return { manager, configuration, create, registerChat };
 	}
 
 	test('advertises an optional mutable selection without materializing a default', () => {
@@ -746,13 +757,13 @@ suite('Session sandbox configuration', () => {
 	});
 
 	test('peer chats and nested subagents use the same owner override', () => {
-		const { configuration, create } = setupSession();
+		const { configuration, create, registerChat } = setupSession();
 		const owner = create('owner', { sandboxEnabled: 'off' });
 		const other = create('other');
 		configuration.updateRootConfig({ sandbox: { enabled: 'on' } });
 		assert.deepStrictEqual([
 			owner,
-			buildChatUri(owner, 'peer'),
+			registerChat(owner, 'peer'),
 			buildSubagentSessionUri(owner, 'child'),
 			buildSubagentSessionUri(buildSubagentSessionUri(owner, 'child'), 'nested'),
 			other,
@@ -760,7 +771,7 @@ suite('Session sandbox configuration', () => {
 	});
 
 	test('sandbox policy lookup resolves peer chats and nested subagents to the owner', () => {
-		const { configuration, create } = setupSession();
+		const { configuration, create, registerChat } = setupSession();
 		const owner = create('owner');
 		const other = create('other');
 		const child = buildSubagentSessionUri(owner, 'child');
@@ -769,21 +780,21 @@ suite('Session sandbox configuration', () => {
 		configuration.setSessionSandboxPolicy(owner, policy);
 		assert.deepStrictEqual([
 			owner,
-			buildChatUri(owner, 'peer'),
+			registerChat(owner, 'peer'),
 			child,
 			nested,
-			buildChatUri(nested, 'peer'),
+			registerChat(nested, 'peer'),
 			other,
 		].map(session => configuration.getSessionSandboxPolicy(session)), [policy, policy, policy, policy, policy, undefined]);
 	});
 
 	test('the runtime requirement also prevents opt-out in peer chats and nested subagents', () => {
-		const { configuration, create } = setupSession();
+		const { configuration, create, registerChat } = setupSession();
 		const owner = create('managed-owner', { sandboxEnabled: 'off' });
 		const child = buildSubagentSessionUri(owner, 'child');
 		const nested = buildSubagentSessionUri(child, 'nested');
 		configuration.setSessionSandboxPolicy(owner, { enabled: true, allowBypass: false });
-		for (const resource of [owner, buildChatUri(owner, 'peer'), child, nested, buildChatUri(nested, 'peer')]) {
+		for (const resource of [owner, registerChat(owner, 'peer'), child, nested, registerChat(nested, 'peer')]) {
 			assert.strictEqual(buildSandboxConfigForSdk(process.platform, getSessionSandboxConfig(configuration, resource))?.enabled, true);
 		}
 	});

@@ -13,7 +13,7 @@ import { TelemetryLevel } from '../../telemetry/common/telemetry.js';
 import { ActionType, ActionEnvelope, ActionOrigin, INotification, IRootConfigChangedAction, SessionAction, ChatAction, RootAction, StateAction, TerminalAction, ChangesetAction, ClientChangesetAction, AnnotationsAction, ClientAnnotationsAction, isRootAction, isSessionAction, isChatAction, isChangesetAction, isAnnotationsAction, isAutomationAction, isAutomationRunAction, isPassiveSessionMetadataAction, type AuthRequiredParams, type ClientAutomationAction, type ClientAutomationRunAction, type ProgressParams, type SessionSummaryChangedParams, type SessionSummaryChanges } from '../common/state/sessionActions.js';
 import type { IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { rootReducer, sessionReducer, chatReducer, changesetReducer, annotationsReducer, automationReducer, automationRunReducer } from '../common/state/sessionReducers.js';
-import { createRootState, createSessionState, createChatState, createDefaultChatSummary, chatSummaryFromState, buildDefaultChatUri, parseDefaultChatUri, parseRequiredSessionUriFromChatUri, parseSubagentSessionUri, isAhpChatChannel, isAhpAutomationCatalogChannel, isAhpAutomationRunChannel, isChatInSessionReadAggregate, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, mergeSessionWithDefaultChat, isAhpRootChannel, readSessionExternal, SessionLifecycle, withHostBuildInfo, withSessionStatusFlag, type AutomationState, type AutomationRunState, type Changeset, type ChangesetState, type AnnotationsState, type ChatState, type ChatSummary, type Customization, type ISessionWithDefaultChat, type Message, type RootState, type SessionConfigState, type SessionMeta, type SessionState, type SessionSummary, type Turn, type URI, ROOT_STATE_URI, ChangesetStatus, ChatOriginKind, IHostBuildInfo, SessionStatus, ResponsePartKind, ToolCallStatus } from '../common/state/sessionState.js';
+import { createRootState, createSessionState, createChatState, createDefaultChatSummary, chatSummaryFromState, buildDefaultChatUri, parseSubagentSessionUri, isAhpChatChannel, isAhpAutomationCatalogChannel, isAhpAutomationRunChannel, isChatInSessionReadAggregate, isDefaultChatUri, isSessionStatusArchived, isSessionStatusRead, mergeSessionWithDefaultChat, isAhpRootChannel, readSessionExternal, SessionLifecycle, withHostBuildInfo, withSessionStatusFlag, type AutomationState, type AutomationRunState, type Changeset, type ChangesetState, type AnnotationsState, type ChatState, type ChatSummary, type Customization, type ISessionWithDefaultChat, type Message, type RootState, type SessionConfigState, type SessionMeta, type SessionState, type SessionSummary, type Turn, type URI, ROOT_STATE_URI, ChangesetStatus, ChatOriginKind, IHostBuildInfo, SessionStatus, ResponsePartKind, ToolCallStatus } from '../common/state/sessionState.js';
 import { AgentHostTelemetryLevelConfigKey, IPermissionsValue, platformRootSchema, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { parseChangesetUri } from '../common/changesetUri.js';
@@ -82,6 +82,20 @@ interface ISessionEntry {
 	use: SessionUse;
 }
 
+/**
+ * The resource a chat's persisted data is keyed by, from the owner it is being
+ * registered under: a default chat stores under its owning session, every other
+ * chat under its own URI. Registration records the result once; hydration
+ * that runs before registration uses the same rule.
+ */
+export function chatStorageResourceForRegistration(session: string, chat: string): string {
+	return isDefaultChatUri(chat) ? session : chat;
+}
+
+function registrationParentChat(origin: ChatOrigin | undefined): string | undefined {
+	return origin?.kind === ChatOriginKind.Tool ? origin.chat : undefined;
+}
+
 interface IRestoredChatState {
 	readonly turns: Turn[];
 	readonly draft?: Message;
@@ -95,7 +109,12 @@ type RestoredChatResolver = (providerData: string | undefined) => Promise<IResto
  * installs that state only after its provider history is ready.
  */
 interface IChatEntry {
+	/** Owning session, recorded from the registering session record. */
 	readonly session: string;
+	/** Resource the chat's persisted data is keyed by, recorded once at registration. */
+	readonly storageResource: string;
+	/** Chat whose tool call spawned this chat, recorded at registration. */
+	parentChat?: string;
 	summary: ChatSummary;
 	state?: ChatState;
 	providerData?: string;
@@ -166,6 +185,16 @@ class SessionSummaryNotifier extends Disposable {
 	/** The last summary announced to clients for `session`, if any. */
 	getAnnounced(session: string): SessionSummary | undefined {
 		return this._lastNotified.get(session);
+	}
+
+	/** The session whose announced summary lists `chat` or whose default chat is `chat`, if any. */
+	findAnnouncedChatOwner(chat: string, getDefaultChat: (session: string) => string): string | undefined {
+		for (const [session, summary] of this._lastNotified) {
+			if (getDefaultChat(session) === chat || summary.chats?.some(candidate => candidate.resource === chat)) {
+				return session;
+			}
+		}
+		return undefined;
 	}
 
 	/** Marks `session` dirty and schedules a debounced flush. */
@@ -459,7 +488,7 @@ export class AgentHostStateManager extends Disposable {
 	}
 
 	private _resolveOwningSession(sessionOrChat: URI): URI | undefined {
-		return isAhpChatChannel(sessionOrChat) ? parseDefaultChatUri(sessionOrChat) : sessionOrChat;
+		return isAhpChatChannel(sessionOrChat) ? this.getChatOwner(sessionOrChat) : sessionOrChat;
 	}
 
 	/**
@@ -583,6 +612,44 @@ export class AgentHostStateManager extends Disposable {
 	/** Returns already-hydrated state without triggering resolution or I/O. */
 	getChatState(chat: URI): ChatState | undefined {
 		return this._chatEntries.get(chat)?.state;
+	}
+
+	/** Returns the session that owns a registered chat, or `undefined` when the chat is not registered. */
+	getChatOwner(chat: URI): string | undefined {
+		return this._chatEntries.get(chat)?.session;
+	}
+
+	/** Like {@link getChatOwner} but throws when the chat is not registered. */
+	requireChatOwner(chat: URI): string {
+		const owner = this.getChatOwner(chat);
+		if (owner === undefined) {
+			throw new Error(`Unknown chat owner: ${chat}`);
+		}
+		return owner;
+	}
+
+	/** Returns the resource a registered chat's persisted data is keyed by. */
+	getChatStorageResource(chat: URI): string | undefined {
+		return this._chatEntries.get(chat)?.storageResource;
+	}
+
+	/** Returns the chat whose tool call spawned a registered chat, if any. */
+	getChatParent(chat: URI): string | undefined {
+		return this._chatEntries.get(chat)?.parentChat;
+	}
+
+	/**
+	 * Returns the owner recorded for a chat of a session that is no longer
+	 * resident: the stable default chat of an evicted session, or a chat listed
+	 * by a session summary already announced to clients.
+	 */
+	findRetainedChatOwner(chat: URI): string | undefined {
+		for (const [session, defaultChat] of this._evictedDefaultChatUris) {
+			if (defaultChat === chat) {
+				return session;
+			}
+		}
+		return this._summaryNotifier.findAnnouncedChatOwner(chat, session => this.getDefaultChatUri(session));
 	}
 
 	/** Captures registration identity so asynchronous mutations cannot target a recreated chat. */
@@ -1277,6 +1344,7 @@ export class AgentHostStateManager extends Disposable {
 		}
 		this._chatEntries.set(chatUri, {
 			session: sessionKey,
+			storageResource: chatStorageResourceForRegistration(sessionKey, chatUri),
 			summary: chatSummary,
 			state: { ...createChatState(chatSummary), turns: turns ?? [], draft },
 			valid: true,
@@ -1341,6 +1409,8 @@ export class AgentHostStateManager extends Disposable {
 		};
 		this._chatEntries.set(chatUri, {
 			session,
+			storageResource: chatStorageResourceForRegistration(session, chatUri),
+			parentChat: registrationParentChat(options?.origin),
 			summary: chatSummary,
 			state: { ...createChatState(chatSummary), turns: options?.turns ?? [] },
 			providerData: options?.providerData,
@@ -1386,6 +1456,7 @@ export class AgentHostStateManager extends Disposable {
 				};
 				entry.state.chats = entry.state.chats.map(chat => chat.resource === chatUri ? summary : chat);
 				existingEntry.summary = summary;
+				existingEntry.parentChat = registrationParentChat(summary.origin);
 				existingEntry.providerData = options.providerData;
 				existingEntry.inheritedTurnId = options.inheritedTurnId;
 				existingEntry.draft = options.draft;
@@ -1415,6 +1486,8 @@ export class AgentHostStateManager extends Disposable {
 		entry.state.chats = [...entry.state.chats, chatSummary];
 		this._chatEntries.set(chatUri, {
 			session,
+			storageResource: chatStorageResourceForRegistration(session, chatUri),
+			parentChat: registrationParentChat(options.origin),
 			summary: chatSummary,
 			providerData: options.providerData,
 			inheritedTurnId: options.inheritedTurnId,
@@ -1945,6 +2018,8 @@ export class AgentHostStateManager extends Disposable {
 			} else {
 				this._chatEntries.set(summary.resource, {
 					session,
+					storageResource: chatStorageResourceForRegistration(session, summary.resource),
+					parentChat: registrationParentChat(summary.origin),
 					summary,
 					valid: true,
 				});
@@ -2047,8 +2122,8 @@ export class AgentHostStateManager extends Disposable {
 			}
 
 			const chatAction = action as ChatAction;
-			const sessionKey = parseRequiredSessionUriFromChatUri(channel);
 			const chatEntry = this._chatEntries.get(channel);
+			const sessionKey = chatEntry?.session;
 			const chat = chatEntry?.state;
 			if (chat && chatEntry && sessionKey !== undefined) {
 				const newChat = chatReducer(chat, chatAction, this._log);
@@ -2480,8 +2555,9 @@ export function resolveChatStateForUri(stateManager: AgentHostStateManager, chat
 	if (!isAhpChatChannel(chatUri)) {
 		return stateManager.getDefaultChatState(chatUri);
 	}
-	if (isDefaultChatUri(chatUri)) {
-		return stateManager.getDefaultChatState(parseRequiredSessionUriFromChatUri(chatUri));
+	const owner = stateManager.getChatOwner(chatUri);
+	if (owner !== undefined && isDefaultChatUri(chatUri)) {
+		return stateManager.getDefaultChatState(owner);
 	}
 	return undefined;
 }
