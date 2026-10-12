@@ -9604,6 +9604,9 @@ suite('AgentService (node dispatcher)', () => {
 			const before = [internals._migrateLegacyEnabledSnapshot];
 			svc.markStartupComplete();
 			const after = [internals._migrateLegacyEnabledSnapshot];
+			// A change after startup completes is still honored by the gate's first read.
+			getConfigurationService(svc).updateRootConfig({ [AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: true });
+			svc.primeMigrateLegacyGate();
 			const agent = disposables.add(new MockAgent('codex'));
 			registerTestAgentProvider(svc, agent);
 			await svc.listSessions();
@@ -9612,9 +9615,11 @@ suite('AgentService (node dispatcher)', () => {
 				contexts: telemetry.events.filter(event => ['hostReady', 'firstSessionList', 'startupSettled'].includes(String(event.data?.name))).map(({ data }) => [
 					data?.name, data?.copilotRegistered, data?.claudeRegistered, data?.codexRegistered,
 				]),
+				listMigrateLegacyEnabled: telemetry.events.find(event => event.data?.name === 'firstSessionList')?.data?.migrateLegacyEnabled,
 			}, {
 				configurationUnchanged: true,
 				contexts: [['hostReady', false, false, false], ['firstSessionList', false, false, true], ['startupSettled', false, false, true]],
+				listMigrateLegacyEnabled: true,
 			});
 		});
 
