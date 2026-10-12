@@ -1204,7 +1204,7 @@ suite('CustomizationMarketplaceInstallService', () => {
 				installs: fixture.mcpService.installs.length,
 				uninstalls: fixture.mcpService.uninstalls.length,
 			}, {
-				state: { kind: 'unavailable', message: 'The MCP registry changed after \'io.example/demo\' was discovered. Refresh Discover and try again.' },
+				state: { kind: 'unavailable', message: 'The MCP registry changed after \'io.example/demo\' was discovered. Refresh Browse and try again.' },
 				configuredLookups: [],
 				installs: 0,
 				uninstalls: 0,

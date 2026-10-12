@@ -923,7 +923,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 
 		const label = this.welcomePage?.isDiscover
-			? localize('homeButtonLabel', "Discover")
+			? localize('homeButtonLabel', "Browse")
 			: localize('overviewButtonLabel', "Overview");
 		this.homeButton.setAttribute('aria-label', label);
 		this.homeButtonLabel.textContent = label;
@@ -2903,7 +2903,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 
 	private getDetailOriginLabel(origin: CustomizationDetailOrigin | undefined): string {
 		if (!origin || origin.kind === 'discover') {
-			return localize('backToCustomizationDiscovery', "Back to Discover");
+			return localize('backToCustomizationDiscovery', "Back to Browse");
 		}
 		if (origin.kind === 'migration') {
 			return localize('backToCustomizationMigrations', "Back to migrations");
@@ -4742,8 +4742,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const backButton = DOM.append(this.embeddedMarketplaceDetail.leadingSlot, $('button.editor-back-button')) as HTMLButtonElement;
 		this.marketplaceDetailBackButton = backButton;
 		backButton.type = 'button';
-		backButton.setAttribute('aria-label', localize('backToCustomizationDiscovery', "Back to Discover"));
-		this.editorDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), backButton, localize('backToCustomizationDiscoveryTooltip', "Back to Discover")));
+		backButton.setAttribute('aria-label', localize('backToCustomizationDiscovery', "Back to Browse"));
+		this.editorDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), backButton, localize('backToCustomizationDiscoveryTooltip', "Back to Browse")));
 		const backIcon = DOM.append(backButton, $(`.codicon.codicon-${Codicon.arrowLeft.id}.editor-action-button-icon`));
 		backIcon.setAttribute('aria-hidden', 'true');
 		this.editorDisposables.add(DOM.addDisposableListener(backButton, DOM.EventType.CLICK, () => this.goBackFromMarketplaceDetail()));
@@ -4890,8 +4890,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const backButton = DOM.append(this.embeddedMcpDetail.leadingSlot, $<HTMLButtonElement>('button.editor-back-button'));
 		this.mcpDetailBackButton = backButton;
 		backButton.setAttribute('type', 'button');
-		backButton.setAttribute('aria-label', localize('backToCustomizationDiscovery', "Back to Discover"));
-		this.mcpDetailBackHover = this.editorDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), backButton, localize('backToCustomizationDiscoveryTooltip', "Back to Discover")));
+		backButton.setAttribute('aria-label', localize('backToCustomizationDiscovery', "Back to Browse"));
+		this.mcpDetailBackHover = this.editorDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), backButton, localize('backToCustomizationDiscoveryTooltip', "Back to Browse")));
 		const backIconEl = DOM.append(backButton, $(`.codicon.codicon-${Codicon.arrowLeft.id}.editor-action-button-icon`));
 		backIconEl.setAttribute('aria-hidden', 'true');
 		this.editorDisposables.add(DOM.addDisposableListener(backButton, 'click', () => {
@@ -5145,8 +5145,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const backButton = DOM.append(this.embeddedPluginDetail.leadingSlot, $<HTMLButtonElement>('button.editor-back-button'));
 		this.pluginDetailBackButton = backButton;
 		backButton.setAttribute('type', 'button');
-		backButton.setAttribute('aria-label', localize('backToCustomizationDiscovery', "Back to Discover"));
-		this.pluginDetailBackHover = this.editorDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), backButton, localize('backToCustomizationDiscoveryTooltip', "Back to Discover")));
+		backButton.setAttribute('aria-label', localize('backToCustomizationDiscovery', "Back to Browse"));
+		this.pluginDetailBackHover = this.editorDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), backButton, localize('backToCustomizationDiscoveryTooltip', "Back to Browse")));
 		const backIconEl = DOM.append(backButton, $(`.codicon.codicon-${Codicon.arrowLeft.id}`));
 		backIconEl.setAttribute('aria-hidden', 'true');
 		this.editorDisposables.add(DOM.addDisposableListener(backButton, 'click', () => {
