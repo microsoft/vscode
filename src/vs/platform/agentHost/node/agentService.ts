@@ -2425,6 +2425,7 @@ export class AgentService extends Disposable implements IAgentService {
 		write.promise = this._drainOrderedCatalogStateWrite(
 			session,
 			{ ...deferredOverrides, ...metadataOverrides },
+			metadataOverrides,
 			chatsOverride,
 			source,
 			previous?.promise,
@@ -2433,9 +2434,18 @@ export class AgentService extends Disposable implements IAgentService {
 		await write.promise;
 	}
 
+	/**
+	 * Persists an ordered catalog mutation, then the background writes queued
+	 * while it was in flight. Ordered callers publish their mutation to the
+	 * state manager only after it was persisted, so the sources of those
+	 * trailing writes cannot reflect it yet: a successful mutation's
+	 * `unpublishedOverrides` are therefore carried into each trailing write,
+	 * below the trailing write's own, newer overrides.
+	 */
 	private async _drainOrderedCatalogStateWrite(
 		session: URI,
 		metadataOverrides: Readonly<Record<string, string>>,
+		unpublishedOverrides: Readonly<Record<string, string>>,
 		chatsOverride: readonly ICatalogChat[] | undefined,
 		source: IListVisibleCatalogSource,
 		previous: Promise<void> | undefined,
@@ -2461,7 +2471,7 @@ export class AgentService extends Disposable implements IAgentService {
 				write.trailingSource = undefined;
 				write.trailing = false;
 				try {
-					await this._persistListVisibleSessionStateNow(session, trailingOverrides, undefined, trailingSource);
+					await this._persistListVisibleSessionStateNow(session, orderedFailed ? trailingOverrides : { ...unpublishedOverrides, ...trailingOverrides }, undefined, trailingSource);
 				} catch (error) {
 					this._logService.warn(`[AgentService] Failed to persist list-visible session state for ${sessionKey}`, error);
 				}

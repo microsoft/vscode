@@ -284,7 +284,11 @@ export interface IAgentHostDatabase extends IDisposable {
 	markSessionsV2Excluded(exclusion: IAgentHostDatabaseSessionsV2Exclusion): Promise<void>;
 	/** Durably records multiple non-deletion exclusions in one transaction. */
 	markSessionsV2ExcludedBatch?(exclusions: readonly IAgentHostDatabaseSessionsV2Exclusion[]): Promise<void>;
-	/** Atomically excludes and removes the observed current v2 identity. */
+	/**
+	 * Atomically excludes the observed current v2 identity. A `providerAbsent`
+	 * exclusion only hides the session, retaining its catalog and chats so a
+	 * later provider listing can revive it intact; other reasons also remove them.
+	 */
 	excludeSessionV2(exclusion: IAgentHostDatabaseSessionsV2Exclusion, expected: IAgentHostDatabaseSessionsV2ExclusionExpectation): Promise<AgentHostDatabaseSessionV2ExclusionResult>;
 	/** Reads a session's current-v2 exclusion, when present. */
 	getSessionsV2Exclusion(provider: AgentProvider, session: string): Promise<IAgentHostDatabaseSessionsV2Exclusion | undefined>;
@@ -1022,12 +1026,17 @@ export class AgentHostDatabase implements IAgentHostDatabase {
 					sessionsV2ExcludedKey(exclusion.provider, exclusion.session),
 					JSON.stringify({ reason: exclusion.reason, fingerprint: exclusion.fingerprint }),
 				]);
-				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionsV2PayloadDirtyKey(exclusion.session)]);
-				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionChatCatalogLegacyMirrorKey(exclusion.session)]);
-				await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionStorageCatalogHashKeyPrefix + exclusion.session]);
-				await this._tombstoneOwnedChats(database, exclusion.session);
-				await run(database, 'DELETE FROM session_chat_catalogs WHERE session_uri = ?', [exclusion.session]);
-				await run(database, 'DELETE FROM sessions_v2 WHERE session_uri = ?', [exclusion.session]);
+				// One provider listing omitting a session does not prove it is gone, so a
+				// providerAbsent exclusion keeps the catalog and chats; the exclusion key
+				// alone hides the session from catalog reads and writes until revival.
+				if (exclusion.reason !== 'providerAbsent') {
+					await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionsV2PayloadDirtyKey(exclusion.session)]);
+					await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionChatCatalogLegacyMirrorKey(exclusion.session)]);
+					await run(database, 'DELETE FROM metadata WHERE key = ?', [sessionStorageCatalogHashKeyPrefix + exclusion.session]);
+					await this._tombstoneOwnedChats(database, exclusion.session);
+					await run(database, 'DELETE FROM session_chat_catalogs WHERE session_uri = ?', [exclusion.session]);
+					await run(database, 'DELETE FROM sessions_v2 WHERE session_uri = ?', [exclusion.session]);
+				}
 				await exec(database, 'COMMIT');
 				return 'excluded';
 			} catch (error) {

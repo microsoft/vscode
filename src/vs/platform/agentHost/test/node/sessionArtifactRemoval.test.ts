@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { Event } from '../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { NullLogService } from '../../../log/common/log.js';
@@ -386,6 +387,46 @@ suite('Session Artifact Removal', () => {
 			persisted: stringifySessionArtifacts(withChat(artifacts.slice(1), buildDefaultChatUri(session))),
 		});
 		assert.deepStrictEqual(stateManager.getSessionState(session.toString())?._meta, withSessionArtifacts(meta, withChat(artifacts.slice(1), buildDefaultChatUri(session))));
+	});
+
+	test('keeps a removal durable when a summary change is flushed while it is persisting', async () => {
+		const writeStarted = new DeferredPromise<void>();
+		const finishWrite = new DeferredPromise<void>();
+		class DelayedDatabase extends TestSessionDatabase {
+			delayNextArtifactWrite = false;
+			override async setMetadataValuesAndCatalogSyncSnapshot(values: Readonly<Record<string, string>>, snapshot: ISessionCatalogSyncPendingSnapshot, validate?: SessionCatalogSyncWriteValidator): Promise<SessionCatalogSyncWriteResult> {
+				if (this.delayNextArtifactWrite && values[SESSION_ARTIFACTS_KEY] !== undefined) {
+					this.delayNextArtifactWrite = false;
+					await writeStarted.complete();
+					await finishWrite.p;
+				}
+				return super.setMetadataValuesAndCatalogSyncSnapshot(values, snapshot, validate);
+			}
+		}
+		const database = new DelayedDatabase();
+		const fixture = await createFixture(database);
+		database.delayNextArtifactWrite = true;
+		const { service, session, stateManager, meta } = fixture;
+		const removal = service.removeSessionArtifact(session, 'pr');
+		await writeStarted.p;
+		// The flushed summary still lists the removed artifact, because the removal is published only once persisted.
+		const latestMeta = { ...meta, unrelated: { keep: true, updated: true } };
+		const summaryFlushed = Event.toPromise(stateManager.onDidChangeSessionSummary);
+		stateManager.setSessionMeta(session.toString(), latestMeta);
+		await summaryFlushed;
+		await finishWrite.complete();
+		await removal;
+
+		const remaining = withChat(artifacts.slice(1), buildDefaultChatUri(session));
+		assert.deepStrictEqual({
+			meta: stateManager.getSessionState(session.toString())?._meta,
+			persisted: await database.getMetadata(SESSION_ARTIFACTS_KEY),
+			centralArtifacts: await fixture.readCentralArtifacts(),
+		}, {
+			meta: withSessionArtifacts(latestMeta, remaining),
+			persisted: stringifySessionArtifacts(remaining),
+			centralArtifacts: remaining,
+		});
 	});
 
 	test('rejects empty ids without changing metadata', async () => {

@@ -2323,8 +2323,7 @@ suite('CopilotAgent', () => {
 				runtimeExecutable: runtimePath?.endsWith(process.platform === 'win32' ? '/copilot-runtime.exe' : '/copilot-runtime'),
 				extensionExecutable: launch?.launch?.executable,
 				extensionBootstrap: launch?.launch?.args[0].replaceAll('\\', '/').endsWith('/preloads/extension_bootstrap.mjs'),
-				extensionPath: launch?.launch?.env.EXTENSION_PATH,
-				canvasDataDirectory: launch?.launch?.env.VSCODE_CANVAS_DATA_DIR?.replaceAll('\\', '/').startsWith('/mock-userdata/agentHostCanvasData/'),
+				extensionEnvironment: launch?.launch?.env,
 				projectLaunchDenied: deniedProjectLaunch?.launch === undefined,
 			}, {
 				kind: 'stdio',
@@ -2332,8 +2331,10 @@ suite('CopilotAgent', () => {
 				runtimeExecutable: true,
 				extensionExecutable: process.execPath,
 				extensionBootstrap: true,
-				extensionPath: '/user/extensions/preview/extension.mjs',
-				canvasDataDirectory: true,
+				extensionEnvironment: {
+					EXTENSION_PATH: '/user/extensions/preview/extension.mjs',
+					...(process.versions.electron ? { ELECTRON_RUN_AS_NODE: '1' } : {}),
+				},
 				projectLaunchDenied: true,
 			});
 		} finally {

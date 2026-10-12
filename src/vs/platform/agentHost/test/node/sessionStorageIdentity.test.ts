@@ -351,8 +351,15 @@ suite('Session storage identity compatibility', () => {
 			identity: await restarted.getSessionV2Registration(receipt.session),
 			catalog: { sessionGeneration: receipt.sessionGeneration, sourceRevision: receipt.sourceRevision, payloadHash: receipt.payloadHash },
 		});
-		assert.deepStrictEqual({ hashes: receipts.map(receipt => receipt.payloadHash).sort(), excluded }, {
-			hashes: expected.sort(), excluded: 'excluded',
+		const hidden = await restarted.getSessionV2(receipt.session);
+		await restarted.registerRuntimeSession(receipt.session, {
+			provider: 'copilotcli', startTime: receipt.startTime, source: 'restore',
+		}, { checkTombstone: true });
+		const revived = (await restarted.listSessionsV2Receipts()).find(candidate => candidate.session === receipt.session);
+		assert.deepStrictEqual({
+			hashes: receipts.map(receipt => receipt.payloadHash).sort(), excluded, hidden, revivedHash: revived?.payloadHash,
+		}, {
+			hashes: expected.sort(), excluded: 'excluded', hidden: undefined, revivedHash: receipt.payloadHash,
 		});
 	});
 

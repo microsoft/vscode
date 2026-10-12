@@ -21,7 +21,7 @@ import { EditorInput } from '../../../../../workbench/common/editor/editorInput.
 import { IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
-import { IAgentWorkbenchLayoutService, ISidePaneToggleEvent } from '../../../../browser/workbench.js';
+import { IAgentWorkbenchLayoutService, ISidePaneState, ISidePaneToggleEvent } from '../../../../browser/workbench.js';
 import { HasDockedDetailsContext, DesktopLayoutContext } from '../../../../common/contextkeys.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
 import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
@@ -245,17 +245,32 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 	private _correctToggleReopen(e: ISidePaneToggleEvent): void {
 		const wasFullyHidden = !e.before.editor && !e.before.auxiliaryBar;
 		const nowVisible = e.after.editor || e.after.auxiliaryBar;
-		if (!wasFullyHidden || !nowVisible || !this._ctx.chatLayoutActive() || this._ctx.chatLayoutSuspended()) {
+		if (!wasFullyHidden || !nowVisible || this._ctx.chatLayoutSuspended()) {
 			return;
 		}
-		const ownerKey = this._activeOwnerKey();
-		if (!ownerKey) {
+		const composition = this._getToggleReopenComposition();
+		if (!composition || (!composition.editor && !composition.auxiliaryBar)) {
 			return;
 		}
-		const preHide = this._ctx.compositionStore.getPreHide(ownerKey);
-		if (preHide && (preHide.editor !== e.after.editor || preHide.auxiliaryBar !== e.after.auxiliaryBar)) {
-			this._layoutService.restoreSidePaneComposition(preHide);
+		if (composition.editor !== e.after.editor || composition.auxiliaryBar !== e.after.auxiliaryBar) {
+			this._layoutService.restoreSidePaneComposition(composition);
 		}
+	}
+
+	private _getToggleReopenComposition(): ISidePaneState | undefined {
+		const activeSession = this._sessionsService.activeSession.get();
+		if (!activeSession || activeSession.isQuickChat?.get()) {
+			return undefined;
+		}
+		const ownerKey = this._ctx.chatLayoutActive() ? this._ctx.compositionKeyFor(activeSession) : undefined;
+		if (ownerKey) {
+			return this._ctx.compositionStore.getPreHide(ownerKey) ?? this._ctx.compositionStore.get(ownerKey);
+		}
+		if (!activeSession.isCreated.get()) {
+			return undefined;
+		}
+		const state = this._visibilityStore.get(SessionVisibilityProfile.Existing);
+		return { editor: state.editorVisible, auxiliaryBar: state.auxiliaryBarVisible };
 	}
 
 	private _activeOwnerKey(): URI | undefined {
@@ -319,6 +334,7 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 	}
 
 	private _apply(state: { readonly editorVisible: boolean; readonly auxiliaryBarVisible: boolean }, revealOnly = false): void {
+		const sidePaneVisible = this._layoutService.isSidePaneVisible();
 		const suppression = this._layoutService.suppressEditorPartAutoVisibility();
 		try {
 			if (!revealOnly && !state.editorVisible && this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
@@ -327,10 +343,10 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 			if (!revealOnly && !state.auxiliaryBarVisible && this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
 				this._layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
 			}
-			if (state.auxiliaryBarVisible && !this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
+			if (sidePaneVisible && state.auxiliaryBarVisible && !this._layoutService.isVisible(Parts.AUXILIARYBAR_PART)) {
 				this._layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
 			}
-			if (state.editorVisible && !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+			if (sidePaneVisible && state.editorVisible && !this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
 				this._layoutService.setPartHidden(false, Parts.EDITOR_PART);
 			}
 		} finally {

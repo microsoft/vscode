@@ -38,7 +38,7 @@ import { ChatUserInteraction, ChatUserInteractionTimingResult, IChatUserInteract
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { acceptAndAwaitSentRequest, ChatWidget, computeChatSessionStateIndicatorState, getImmediateSilentSlashCommandPart, layoutChatWidgetForInputHeight, saveAllBeforeChatSend, shouldShowChatTip, shouldShowChatWelcome, shouldUnlockChatPetQueueOrSteeringMessage, shouldUnlockChatPetRequestRevision } from '../../../browser/widget/chatWidget.js';
 import { IChatListItemTemplate } from '../../../browser/widget/chatListRenderer.js';
-import { IChatAcceptInputOptions, IChatListItemRendererOptions, IChatWidgetViewModelChangeEvent, IChatWidgetViewOptions } from '../../../browser/chat.js';
+import { ChatViewPaneTarget, IChatAcceptInputOptions, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewModelChangeEvent, IChatWidgetViewOptions } from '../../../browser/chat.js';
 import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
 import { ChatRequestVariableSet } from '../../../common/attachments/chatVariableEntries.js';
 import { clearChatMarks } from '../../../common/chatPerf.js';
@@ -50,7 +50,12 @@ import { ICustomizationHarnessService } from '../../../common/customizationHarne
 import { ChatResponseModelChangeReason, IChatModel, IChatRequestModel, IChatRequestNeedsInputInfo, IChatResponseModel } from '../../../common/model/chatModel.js';
 import { computeChatModelIsIdle } from '../../../common/model/chatModelIdle.js';
 import { ChatViewModel, IChatRequestViewModel } from '../../../common/model/chatViewModel.js';
-import { ChatRequestSlashCommandPart, ChatRequestTextPart, IParsedChatRequest } from '../../../common/requestParser/chatParserTypes.js';
+import { ChatRequestAgentPart, ChatRequestSlashCommandPart, ChatRequestTextPart, IParsedChatRequest } from '../../../common/requestParser/chatParserTypes.js';
+import { IChatAgentData, IChatAgentService } from '../../../common/participants/chatAgents.js';
+import { IChatVariablesService, IDynamicVariable } from '../../../common/attachments/chatVariables.js';
+import { IChatSlashCommandService } from '../../../common/participants/chatSlashCommands.js';
+import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
+import { ChatDynamicVariableModel } from '../../../browser/attachments/chatDynamicVariables.js';
 import { ChatRequestParser } from '../../../common/requestParser/chatRequestParser.js';
 import { ToolAndToolSetEnablementMap } from '../../../common/tools/languageModelToolsService.js';
 import { observePromptTimelineHostWidth } from '../../../browser/promptTimeline/promptTimelineWidgetContrib.js';
@@ -59,7 +64,8 @@ import { ChatReadOnlyBanner } from '../../../browser/widget/chatReadOnlyBanner.j
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { createChatUserInteractionTestHarness } from '../chatUserInteractionTestUtils.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
-import { SessionType } from '../../../common/chatSessionsService.js';
+import { IChatSessionsService, SessionType } from '../../../common/chatSessionsService.js';
+import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
 
 suite('ChatWidget', () => {
 
@@ -1660,6 +1666,7 @@ suite('ChatWidget - acceptInput submission', () => {
 		const requestInProgress = observableValue('requestInProgress', false);
 		const requestNeedsInput = observableValue<IChatRequestNeedsInputInfo | undefined>('requestNeedsInput', undefined);
 		const isInputBlocked = observableValue('isInputBlocked', false);
+		const inputModel = mockObject<IChatModel['inputModel']>()();
 		const model = upcastPartial<IChatModel>({
 			sessionResource: resource,
 			onDidDispose: store.add(new Emitter<void>()).event,
@@ -1667,21 +1674,25 @@ suite('ChatWidget - acceptInput submission', () => {
 			requestInProgress,
 			requestNeedsInput,
 			isInputBlocked,
-			inputModel: upcastPartial<IChatModel['inputModel']>({}),
+			inputModel: upcastPartial<IChatModel['inputModel']>({ setState: inputModel.setState }),
 			getRequests: () => [upcastPartial<IChatRequestModel>({ id: 'existing-request' })],
 			getPendingRequests: () => [],
 		});
 		const viewModel = upcastPartial<ChatViewModel>({ model, sessionResource: resource, getItems: () => [] });
 		store.add(toDisposable(() => clearChatMarks(resource)));
-		return { model, viewModel, isInputBlocked };
+		return { model, viewModel, isInputBlocked, inputModel };
 	}
 
-	function createSubmissionWidget(createInteraction?: (options: IChatUserInteractionOptions) => ChatUserInteraction) {
+	function createSubmissionWidget(createInteraction?: (options: IChatUserInteractionOptions) => ChatUserInteraction, inputText = 'Test and fix the app') {
 		const original = createSession(URI.parse('agent-host-copilot:/existing-a'));
 		const widgetStore = store.add(new DisposableStore());
 		const onDidChangeViewModel = store.add(new Emitter<IChatWidgetViewModelChangeEvent>());
 		const attachments = new ChatRequestVariableSet();
-		const parsedInput: IParsedChatRequest = { text: 'Test and fix the app', parts: [] };
+		const contribs: IChatWidget['contribs'][number][] = [];
+		const parts: IParsedChatRequest['parts'][number][] = [];
+		const parsedInput: IParsedChatRequest = { text: inputText, parts };
+		const policyRequiresAgentHost = observableValue('policyRequiresAgentHost', false);
+		const contextKeyService = store.add(new MockContextKeyService());
 		const input = mockObject<ChatInputPart>()({
 			inputEditor: upcastPartial<ChatInputPart['inputEditor']>({ getValue: () => parsedInput.text }),
 			currentModeKind: ChatModeKind.Ask,
@@ -1690,6 +1701,7 @@ suite('ChatWidget - acceptInput submission', () => {
 			hasPendingProgrammaticModelSelection: false,
 			isManagedSettingsRefreshBlocked: false,
 			generating: undefined,
+			attachmentModel: upcastPartial<IChatWidget['attachmentModel']>({ attachments: [] }),
 			selectedToolsModel: upcastPartial<ChatInputPart['selectedToolsModel']>({
 				entriesMap: observableValue('tools', ToolAndToolSetEnablementMap.fromEntries([])),
 				userSelectedTools: observableValue('userSelectedTools', {}),
@@ -1699,7 +1711,10 @@ suite('ChatWidget - acceptInput submission', () => {
 		input.getAttachedAndImplicitContext.returns(attachments);
 		const editorService = mockObject<IEditorService>()();
 		editorService.saveAll.resolves({ success: true, editors: [] });
+		editorService.findEditors.returns([]);
 		const chatService = mockObject<IChatService>()();
+		const chatWidgetService = mockObject<IChatWidgetService>()();
+		const chatSessionsService = mockObject<IChatSessionsService>()();
 		const response = upcastPartial<IChatResponseModel>({
 			requestId: 'submitted-request',
 			session: original.model,
@@ -1735,7 +1750,7 @@ suite('ChatWidget - acceptInput submission', () => {
 		const widget = Object.create(ChatWidget.prototype) as ChatWidget;
 		Object.defineProperties(widget, {
 			_store: { value: widgetStore },
-			_viewModel: { value: original.viewModel },
+			_viewModel: { value: original.viewModel, writable: true },
 			_location: { value: { location: ChatAgentLocation.Chat } },
 			_onDidAcceptInput: { value: store.add(new Emitter<void>()) },
 			_onDidSubmitAgent: { value: store.add(new Emitter<void>()) },
@@ -1744,12 +1759,17 @@ suite('ChatWidget - acceptInput submission', () => {
 			visible: { value: true },
 			input: { value: input },
 			inputPartDisposable: { value: store.add(new MutableDisposable<ChatInputPart>()) },
-			contribs: { value: [] },
+			contribs: { value: contribs },
 			parsedChatRequest: { value: parsedInput },
 			viewOptions: { value: viewOptions },
 			configurationService: { value: new TestConfigurationService() },
 			editorService: { value: editorService },
 			chatService: { value: chatService },
+			chatWidgetService: { value: chatWidgetService },
+			chatSessionsService: { value: chatSessionsService },
+			contextKeyService: { value: contextKeyService },
+			policyRequiresAgentHost: { value: policyRequiresAgentHost },
+			viewContext: { value: { viewId: 'workbench.panel.chat.view.copilot' }, configurable: true },
 			chatSubmitRequestHandlerService: { value: chatSubmitRequestHandlerService },
 			chatAttachmentResolveService: { value: chatAttachmentResolveService },
 			customizationHarnessService: { value: mockObject<ICustomizationHarnessService>()() },
@@ -1764,7 +1784,252 @@ suite('ChatWidget - acceptInput submission', () => {
 			updateChatViewVisibility: { value: () => { } },
 		});
 		const options: IChatAcceptInputOptions = { preserveInput: true };
-		return { widget, viewOptions, options, original, input, editorService, chatService, response, sent };
+		return { widget, viewOptions, options, original, input, editorService, chatService, chatWidgetService, chatSessionsService, parser, parts, policyRequiresAgentHost, contextKeyService, attachments, contribs, response, sent };
+	}
+
+	function addParticipant(fixture: ReturnType<typeof createSubmissionWidget>, isCore = false) {
+		const participant = upcastPartial<IChatAgentData>({ id: 'test.participant', name: 'participant', modes: [ChatModeKind.Ask], isCore });
+		fixture.parts.push(new ChatRequestAgentPart(new OffsetRange(0, 12), new Range(1, 1, 1, 13), participant));
+		return participant;
+	}
+
+	function createParticipantDestination(viewModel: ChatViewModel, response: IChatResponseModel) {
+		const input = mockObject<ChatInputPart>()();
+		const attachmentModel = mockObject<IChatWidget['attachmentModel']>()();
+		const methods = mockObject<IChatWidget>()();
+		const widget = {
+			input: upcastPartial<ChatInputPart>({ setChatMode: input.setChatMode }),
+			viewModel,
+			attachmentModel: upcastPartial<IChatWidget['attachmentModel']>({ addContext: attachmentModel.addContext }),
+			lastSelectedAgent: undefined as IChatAgentData | undefined,
+			setInput: methods.setInput,
+			acceptInput: methods.acceptInput,
+		};
+		widget.acceptInput.resolves(response);
+		return { widget, input, attachmentModel };
+	}
+
+	for (const inEditor of [false, true]) {
+		test(`submits an extension participant in a new Local chat without changing the agent-host request (${inEditor ? 'editor' : 'sidebar'})`, async () => {
+			const fixture = createSubmissionWidget(undefined, '@participant Test request');
+			const participant = addParticipant(fixture);
+			const local = createSession(LocalChatSessionUri.getNewSessionUri());
+			let released = false;
+			const reference = store.add(toDisposable(() => released = true));
+			fixture.chatService.startNewLocalSession.returns({ object: local.model, dispose: () => reference.dispose() });
+			const { widget: destination, input: localInput } = createParticipantDestination(local.viewModel, fixture.response);
+			fixture.chatWidgetService.openSession.resolves(destination);
+			fixture.attachments.add({ kind: 'file', id: 'file', name: 'file.ts', value: URI.file('/workspace/file.ts') });
+			if (inEditor) {
+				Object.defineProperty(fixture.widget, 'viewContext', { value: {} });
+				fixture.editorService.findEditors.returns([upcastPartial<ReturnType<IEditorService['findEditors']>[number]>({ groupId: 7 })]);
+			}
+
+			const response = await fixture.widget.acceptInput(inEditor ? '@participant Test request' : undefined, { queue: ChatRequestQueueKind.Steering, cancelCurrentRequest: true, enableImplicitContext: false });
+
+			assert.deepStrictEqual({
+				response,
+				opened: fixture.chatWidgetService.openSession.firstCall.args,
+				participant: destination.lastSelectedAgent,
+				mode: localInput.setChatMode.firstCall.args,
+				draft: local.inputModel.setState.firstCall.args,
+				submission: destination.acceptInput.firstCall.args,
+				originalSends: fixture.chatService.sendRequest.callCount,
+				originalCancellations: fixture.chatService.cancelCurrentRequestForSession.callCount,
+				released,
+			}, {
+				response: fixture.response,
+				opened: [local.model.sessionResource, inEditor ? 7 : ChatViewPaneTarget, { pinned: true, preserveFocus: undefined, explicitSessionType: 'local' }],
+				participant,
+				mode: [ChatModeKind.Ask],
+				draft: [{ inputText: '@participant Test request', attachments: fixture.attachments.asArray(), contrib: { [ChatDynamicVariableModel.ID]: [] } }],
+				submission: [undefined, { queue: undefined, cancelCurrentRequest: false, enableImplicitContext: false, storeToHistory: !inEditor }],
+				originalSends: 0,
+				originalCancellations: 0,
+				released: true,
+			});
+		});
+	}
+
+	test('participant redirection does not attach an unrelated preserved draft', async () => {
+		const fixture = createSubmissionWidget();
+		addParticipant(fixture);
+		const local = createSession(LocalChatSessionUri.getNewSessionUri());
+		fixture.chatService.startNewLocalSession.returns({ object: local.model, dispose: () => { } });
+		const { widget: destination, attachmentModel } = createParticipantDestination(local.viewModel, fixture.response);
+		fixture.chatWidgetService.openSession.resolves(destination);
+		fixture.attachments.add({ kind: 'file', id: 'draft', name: 'draft.ts', value: URI.file('/workspace/draft.ts') });
+
+		await fixture.widget.acceptInput('@participant Test request', fixture.options);
+
+		assert.deepStrictEqual({
+			attachments: attachmentModel.addContext.callCount,
+			inputChanges: destination.setInput.callCount,
+			submission: destination.acceptInput.firstCall.args,
+			draft: local.inputModel.setState.firstCall.args,
+		}, { attachments: 0, inputChanges: 0, submission: ['@participant Test request', { preserveInput: true, queue: undefined, cancelCurrentRequest: false, storeToHistory: false }], draft: [{ inputText: '', attachments: [], contrib: { [ChatDynamicVariableModel.ID]: [] } }] });
+	});
+
+	test('managed policy prevents participant redirection to Local', async () => {
+		const fixture = createSubmissionWidget();
+		addParticipant(fixture);
+		fixture.policyRequiresAgentHost.set(true, undefined);
+
+		await assert.rejects(fixture.widget.acceptInput('@participant Test request', fixture.options), /Your organization requires the new Copilot experience/);
+		assert.deepStrictEqual({ created: fixture.chatService.startNewLocalSession.callCount, opened: fixture.chatWidgetService.openSession.callCount, sent: fixture.chatService.sendRequest.callCount }, { created: 0, opened: 0, sent: 0 });
+	});
+
+	test('releases the new Local session if opening it fails without sending to the agent host', async () => {
+		const fixture = createSubmissionWidget();
+		addParticipant(fixture);
+		const local = createSession(LocalChatSessionUri.getNewSessionUri());
+		let released = false;
+		const reference = store.add(toDisposable(() => released = true));
+		fixture.chatService.startNewLocalSession.returns({ object: local.model, dispose: () => reference.dispose() });
+		fixture.chatWidgetService.openSession.resolves(undefined);
+
+		await assert.rejects(fixture.widget.acceptInput('@participant Test request', fixture.options), /Could not start a Local chat/);
+		assert.deepStrictEqual({ released, sent: fixture.chatService.sendRequest.callCount }, { released: true, sent: 0 });
+	});
+
+	test('does not submit into a different Local chat if navigation wins the open', async () => {
+		const fixture = createSubmissionWidget();
+		addParticipant(fixture);
+		const local = createSession(LocalChatSessionUri.getNewSessionUri());
+		const otherLocal = createSession(LocalChatSessionUri.getNewSessionUri());
+		fixture.chatService.startNewLocalSession.returns({ object: local.model, dispose: () => { } });
+		const { widget: destination, input } = createParticipantDestination(otherLocal.viewModel, fixture.response);
+		fixture.chatWidgetService.openSession.resolves(destination);
+
+		await assert.rejects(fixture.widget.acceptInput('@participant Test request', fixture.options), /Could not start a Local chat/);
+
+		assert.deepStrictEqual({ modeChanges: input.setChatMode.callCount, sent: destination.acceptInput.callCount }, { modeChanges: 0, sent: 0 });
+	});
+
+	test('a second submit during the redirect cannot create another Local chat', async () => {
+		const fixture = createSubmissionWidget();
+		addParticipant(fixture);
+		const local = createSession(LocalChatSessionUri.getNewSessionUri());
+		const { widget: destination } = createParticipantDestination(local.viewModel, fixture.response);
+		const opening = new DeferredPromise<IChatWidget>();
+		fixture.chatService.startNewLocalSession.returns({ object: local.model, dispose: () => { } });
+		fixture.chatWidgetService.openSession.returns(opening.p);
+
+		const first = fixture.widget.acceptInput('@participant First request', fixture.options);
+		const second = await fixture.widget.acceptInput('@participant Second request', fixture.options);
+		await opening.complete(upcastPartial<IChatWidget>(destination));
+		await first;
+
+		assert.deepStrictEqual({ second, created: fixture.chatService.startNewLocalSession.callCount, sent: destination.acceptInput.callCount }, { second: undefined, created: 1, sent: 1 });
+	});
+
+	test('can submit when the sidebar reuses the source widget for the Local chat', async () => {
+		const fixture = createSubmissionWidget();
+		addParticipant(fixture);
+		const local = createSession(LocalChatSessionUri.getNewSessionUri());
+		fixture.chatService.startNewLocalSession.returns({ object: local.model, dispose: () => { } });
+		Object.defineProperty(fixture.widget, 'lastSelectedAgent', { value: undefined, writable: true });
+		fixture.chatWidgetService.openSession.callsFake(async () => {
+			Object.defineProperty(fixture.widget, '_viewModel', { value: local.viewModel });
+			return fixture.widget;
+		});
+
+		await fixture.widget.acceptInput('@participant Test request', fixture.options);
+
+		assert.deepStrictEqual({
+			created: fixture.chatService.startNewLocalSession.callCount,
+			requests: fixture.chatService.sendRequest.getCalls().map(call => call.args[0]),
+		}, { created: 1, requests: [local.model.sessionResource] });
+	});
+
+	test('cancels the redirect if the source session changes during dictation finalization', async () => {
+		const fixture = createSubmissionWidget();
+		addParticipant(fixture);
+
+		const submission = fixture.widget.acceptInput('@participant Test request');
+		Object.defineProperty(fixture.widget, '_viewModel', { value: createSession(URI.parse('agent-host-copilot:/other-session')).viewModel });
+
+		await assert.rejects(submission, CancellationError);
+		assert.deepStrictEqual({ created: fixture.chatService.startNewLocalSession.callCount, opened: fixture.chatWidgetService.openSession.callCount }, { created: 0, opened: 0 });
+	});
+
+	test('transfers inline file references with the Local draft', async () => {
+		const fixture = createSubmissionWidget(undefined, '@participant Explain #file.ts');
+		addParticipant(fixture);
+		const references: IDynamicVariable[] = [{ id: 'file', range: new Range(1, 22, 1, 30), data: URI.file('/workspace/file.ts'), isFile: true }];
+		fixture.viewOptions.supportsFileReferences = true;
+		fixture.contribs.push(upcastPartial<ChatDynamicVariableModel>({ id: ChatDynamicVariableModel.ID, variables: references }));
+		const local = createSession(LocalChatSessionUri.getNewSessionUri());
+		const { widget: destination } = createParticipantDestination(local.viewModel, fixture.response);
+		fixture.chatService.startNewLocalSession.returns({ object: local.model, dispose: () => { } });
+		fixture.chatWidgetService.openSession.resolves(destination);
+
+		await fixture.widget.acceptInput();
+
+		assert.deepStrictEqual(local.inputModel.setState.firstCall.args, [{
+			inputText: '@participant Explain #file.ts', attachments: [], contrib: { [ChatDynamicVariableModel.ID]: references },
+		}]);
+	});
+
+	for (const input of ['@unknown Explain', 'Explain @participant', 'Contact someone@example.com', '@participant.md Explain', '  @participant Explain', '@participant Explain']) {
+		test(`real parser only redirects an explicit registered participant: ${input}`, async () => {
+			const fixture = createSubmissionWidget(undefined, input);
+			const participant = upcastPartial<IChatAgentData>({ id: 'test.participant', name: 'participant', modes: [ChatModeKind.Ask], locations: [ChatAgentLocation.Chat] });
+			const parser = new ChatRequestParser(
+				upcastPartial<IChatAgentService>({ getAgentsByName: name => name === participant.name ? [participant] : [], getAgentByFullyQualifiedId: () => undefined }),
+				upcastPartial<IChatVariablesService>({ getDynamicVariables: () => [], getSelectedToolAndToolSets: () => ToolAndToolSetEnablementMap.fromEntries([]) }),
+				upcastPartial<IChatSlashCommandService>({}),
+				upcastPartial<IPromptsService>({}),
+			);
+			fixture.parser.parseChatRequest = (...args) => parser.parseChatRequest(...args);
+			const local = createSession(LocalChatSessionUri.getNewSessionUri());
+			const { widget: destination } = createParticipantDestination(local.viewModel, fixture.response);
+			fixture.chatService.startNewLocalSession.returns({ object: local.model, dispose: () => { } });
+			fixture.chatWidgetService.openSession.resolves(destination);
+
+			await fixture.widget.acceptInput(undefined, fixture.options);
+
+			assert.strictEqual(fixture.chatService.startNewLocalSession.callCount, input.trimStart().startsWith('@participant ') ? 1 : 0);
+		});
+	}
+
+	test('a host file reference named after an extension participant is not a participant invocation', async () => {
+		const fixture = createSubmissionWidget(undefined, '@participant Explain');
+		addParticipant(fixture);
+		fixture.viewOptions.supportsFileReferences = true;
+		fixture.contribs.push(upcastPartial<ChatDynamicVariableModel>({
+			id: ChatDynamicVariableModel.ID,
+			variables: [{ id: 'file', range: new Range(1, 1, 1, 13), data: URI.file('/workspace/participant'), isFile: true }],
+		}));
+
+		await fixture.widget.acceptInput(undefined, fixture.options);
+
+		assert.deepStrictEqual({ created: fixture.chatService.startNewLocalSession.callCount, sent: fixture.chatService.sendRequest.callCount }, { created: 0, sent: 1 });
+	});
+
+	test('core participants keep using the agent-host session', async () => {
+		const fixture = createSubmissionWidget();
+		addParticipant(fixture, true);
+
+		await fixture.widget.acceptInput('@participant Test request', fixture.options);
+
+		assert.deepStrictEqual({ created: fixture.chatService.startNewLocalSession.callCount, sent: fixture.chatService.sendRequest.callCount }, { created: 0, sent: 1 });
+	});
+
+	for (const excluded of ['contributed session', 'Agents window'] as const) {
+		test(`does not redirect a participant for a ${excluded}`, async () => {
+			const fixture = createSubmissionWidget();
+			addParticipant(fixture);
+			if (excluded === 'contributed session') {
+				fixture.chatSessionsService.getChatSessionContribution.returns({ type: 'test.participant' });
+			} else {
+				IsSessionsWindowContext.bindTo(fixture.contextKeyService).set(true);
+			}
+
+			await fixture.widget.acceptInput('@participant Test request', fixture.options);
+
+			assert.deepStrictEqual({ created: fixture.chatService.startNewLocalSession.callCount, sent: fixture.chatService.sendRequest.callCount }, { created: 0, sent: 1 });
+		});
 	}
 
 	test('blocks submission without accepting input and allows sending after the lock clears', async () => {
