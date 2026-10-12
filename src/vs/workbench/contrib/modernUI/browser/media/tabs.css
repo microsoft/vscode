@@ -102,8 +102,12 @@
 	--modern-ui-editor-tab-left-inset: var(--vscode-spacing-size80);
 }
 
+.modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container {
+	--modern-ui-tab-terminal-gutter: var(--vscode-spacing-size40);
+}
+
 .modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .tabs-container > .tab:last-child {
-	margin-inline: 0 calc(var(--last-tab-margin-right) + var(--vscode-spacing-size40));
+	margin-inline: 0 calc(var(--last-tab-margin-right) + var(--modern-ui-tab-terminal-gutter));
 }
 
 .modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .tabs-container.has-add-tab > .tabs-bar-add-tab {
@@ -113,7 +117,7 @@
 }
 
 .modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .tabs-container.has-add-tab > .tab:nth-last-child(2) {
-	margin-inline: 0 calc(var(--last-tab-margin-right) + var(--vscode-spacing-size40));
+	margin-inline: 0 calc(var(--last-tab-margin-right) + var(--modern-ui-tab-terminal-gutter));
 }
 
 .modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping:dir(rtl) > .editor-actions {
@@ -122,7 +126,7 @@
 }
 
 .modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .tabs-container.has-add-tab > .tab.sizing-fit:nth-last-child(2):not(.sticky-compact) {
-	max-width: calc(100% - var(--last-tab-margin-right) - var(--last-tab-add-tab-width) - var(--vscode-spacing-size40));
+	max-width: calc(100% - var(--last-tab-margin-right) - var(--last-tab-add-tab-width) - var(--modern-ui-tab-terminal-gutter));
 }
 
 .modern-ui-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .tabs-container > .tab {

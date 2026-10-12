@@ -45,10 +45,14 @@ suite('MultiEditorTabsControl', () => {
 	let groupView: IEditorGroupView;
 	let groupsView: IEditorGroupsView;
 	let editorPartsView: IEditorPartsView;
+	let addMenuVisible: boolean;
+	let addMenuChange: Emitter<void>;
 
 	setup(() => {
 		disposables = new DisposableStore();
 		partOptions = { ...DEFAULT_EDITOR_PART_OPTIONS };
+		addMenuVisible = true;
+		addMenuChange = disposables.add(new Emitter<void>());
 
 		// The tabs control resolves the shared modifier key emitter on creation,
 		// so dispose it again to keep each test independent of the Alt state that
@@ -110,13 +114,14 @@ suite('MultiEditorTabsControl', () => {
 			if (menuIds?.tabsBarAddTab) {
 				instantiationService.stub(IMenuService, new class extends TestMenuService {
 					override createMenu(id: MenuId): IMenu {
-						return {
-							onDidChange: Event.None,
+						const menu: IMenu = {
+							onDidChange: Event.map(addMenuChange.event, () => ({ menu, isStructuralChange: true, isEnablementChange: false, isToggleChange: false })),
 							dispose: () => { },
-							getActions: options => id === menuIds.tabsBarAddTab ? [['navigation', [
+							getActions: options => addMenuVisible && id === menuIds.tabsBarAddTab ? [['navigation', [
 								instantiationService.createInstance(MenuItemAction, { id: 'test.connectedTabs.newEditor', title: 'New Editor' }, undefined, options, undefined, undefined),
 							]]] : [],
 						};
+						return menu;
 					}
 				}());
 			}
@@ -351,10 +356,12 @@ suite('MultiEditorTabsControl', () => {
 			}
 		}
 		const previousOptions = partOptions;
-		add.classList.add('hidden');
-		tabs.dispatchEvent(new mainWindow.Event(EventType.SCROLL));
+		addMenuVisible = false;
+		addMenuChange.fire();
+		await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
 		const hiddenAddClippingCleared = Array.from(tabs.querySelectorAll<HTMLElement>('.tab')).every(tab => !tab.style.clipPath);
-		add.classList.remove('hidden');
+		addMenuVisible = true;
+		addMenuChange.fire();
 		partOptions = { ...partOptions, wrapTabs: true };
 		control.updateOptions(previousOptions, partOptions);
 		await layoutConnectedGroup(group, 300);
@@ -366,6 +373,79 @@ suite('MultiEditorTabsControl', () => {
 			hiddenAddClippingCleared: true,
 			wrappedClippingCleared: true,
 		});
+	});
+
+	test('Add menu visibility updates wrapped width and scrolling clipping without resize or scroll', async () => {
+		const group = connectedGroup();
+		const root = group.closest<HTMLElement>('.monaco-workbench')!;
+		control.dispose();
+		reset(container);
+		control = createControl({ tabsBarAddTab: MenuId.for('test.connectedTabs.addVisibility') });
+		const editors = openNamedEditors(['F.ts', `a-${'long-label-'.repeat(25)}.ts`, 'last.ts']);
+		model.openEditor(editors[1], { active: true });
+		control.openEditors(editors);
+		const results = [];
+		for (const connected of [false, true]) {
+			root.classList.toggle('modern-ui-connected-editor-tabs', connected);
+			for (const direction of ['ltr', 'rtl']) {
+				root.dir = direction;
+				for (const wrapTabs of [false, true]) {
+					const oldOptions = partOptions;
+					partOptions = { ...partOptions, wrapTabs, tabSizing: 'fit', tabActionReserveSpace: false };
+					control.updateOptions(oldOptions, partOptions);
+					await layoutConnectedGroup(group, 300);
+					const tabs = container.querySelector<HTMLElement>('.tabs-container')!;
+					const add = container.querySelector<HTMLElement>('.tabs-bar-add-tab')!;
+					for (const visible of [false, true, false, true]) {
+						addMenuVisible = visible;
+						addMenuChange.fire();
+						await new Promise<void>(resolve => disposables.add(scheduleAtNextAnimationFrame(mainWindow, () => resolve())));
+						results.push({
+							connected, direction, wrapTabs, visible,
+							hidden: add.classList.contains('hidden'),
+							widthCurrent: Number.parseFloat(tabs.style.getPropertyValue('--last-tab-add-tab-width')) === add.offsetWidth,
+							clippingCurrent: Array.from(tabs.querySelectorAll<HTMLElement>('.tab')).some(tab => !!tab.style.clipPath) === (connected && !wrapTabs && visible),
+						});
+					}
+				}
+			}
+		}
+		assert.deepStrictEqual(results, results.map(result => ({ ...result, hidden: !result.visible, widthCurrent: true, clippingCurrent: true })));
+	});
+
+	test('wrapped terminal fit check includes the complete terminal gutter at the minimum width', async () => {
+		const group = connectedGroup();
+		const root = group.closest<HTMLElement>('.monaco-workbench')!;
+		const results = [];
+		for (const hasAdd of [false, true]) {
+			control.dispose();
+			reset(container);
+			control = createControl(hasAdd ? { tabsBarAddTab: MenuId.for('test.connectedTabs.minimumWrappedRow') } : undefined);
+			openNamedEditors(['F.ts', `a-${'long-label-'.repeat(25)}.ts`]);
+			const oldOptions = partOptions;
+			partOptions = { ...partOptions, wrapTabs: true, tabSizing: 'fit', tabActionReserveSpace: false };
+			control.updateOptions(oldOptions, partOptions);
+			const toolbar = container.querySelector<HTMLElement>('.editor-actions')!;
+			toolbar.style.width = '56px';
+			for (const connected of [false, true]) {
+				root.classList.toggle('modern-ui-connected-editor-tabs', connected);
+				for (const direction of ['ltr', 'rtl']) {
+					root.dir = direction;
+					await layoutConnectedGroup(group, 300);
+					const tabs = container.querySelector<HTMLElement>('.tabs-container')!;
+					const addWidth = container.querySelector<HTMLElement>('.tabs-bar-add-tab')?.offsetWidth ?? 0;
+					const terminal = Array.from(tabs.querySelectorAll<HTMLElement>('.tab')).at(-1)!;
+					const gutter = Number.parseFloat(mainWindow.getComputedStyle(terminal).marginInlineEnd) - toolbar.offsetWidth;
+					const threshold = 80 + toolbar.offsetWidth + addWidth + gutter;
+					for (const delta of [-2, 2, -2, 2]) {
+						await layoutConnectedGroup(group, threshold + delta);
+						const row = tabs.closest<HTMLElement>('.tabs-and-actions-container')!;
+						results.push({ hasAdd, connected, direction, delta, wrapped: row.classList.contains('wrapping') });
+					}
+				}
+			}
+		}
+		assert.deepStrictEqual(results, results.map(result => ({ ...result, wrapped: result.delta > 0 })));
 	});
 
 	test('wrapped Add Tab stays adjacent to the terminal tab after narrow and maximized layouts', async () => {

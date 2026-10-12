@@ -290,7 +290,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// container, which tab layout logic relies on (see #324902).
 		if (this.menuIds?.tabsBarAddTab) {
 			this.tabsContainer.classList.add('has-add-tab');
-			this.addTabContainer = this.createAddTabControl(this.tabsContainer, this.menuIds.tabsBarAddTab);
+			this.addTabContainer = this.createAddTabControl(this.tabsContainer, this.menuIds.tabsBarAddTab, undefined, () => this.layout(this.dimensions));
 		}
 
 		// Create Editor Toolbar
@@ -2221,6 +2221,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 		const didTabsWrapMultiLine = tabsAndActionsContainer.classList.contains('wrapping');
 		let tabsWrapMultiLine = didTabsWrapMultiLine;
+		tabsContainer.style.setProperty('--last-tab-add-tab-width', `${addTabContainer?.offsetWidth ?? 0}px`);
 
 		function updateTabsWrapping(enabled: boolean): void {
 			tabsWrapMultiLine = enabled;
@@ -2232,7 +2233,6 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			// positioned editor actions container when tabs wrap. The margin needs to
 			// be the width of the editor actions container to avoid screen cheese.
 			tabsContainer.style.setProperty('--last-tab-margin-right', tabsWrapMultiLine ? `${editorToolbarWidth()}px` : '0');
-			tabsContainer.style.setProperty('--last-tab-add-tab-width', `${addTabContainer?.offsetWidth ?? 0}px`);
 			tabsAndActionsContainer.style.setProperty('--last-tab-layout-actions-width', `${layoutActionsContainer?.offsetWidth ?? 0}px`);
 
 			// Remove old css classes that are not needed anymore
@@ -2256,9 +2256,19 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				}
 
 				const modernFit = lastTab.classList.contains('sizing-fit') && !!this.parent.closest('.modern-ui-tabs');
-				const availableLastTabWidth = dimensions.available.width - editorToolbarWidth() - (this.addTabContainer?.offsetWidth ?? 0);
-				const lastTabWidth = modernFit ? Math.min(lastTab.offsetWidth, Math.max(MultiEditorTabsControl.TAB_WIDTH.shrink, availableLastTabWidth)) : lastTab.offsetWidth;
-				const lastTabOverlapWithToolbarWidth = lastTabWidth + editorToolbarWidth() + (this.addTabContainer?.offsetWidth ?? 0) - dimensions.available.width;
+				let terminalGutter = 0;
+				if (modernFit) {
+					const marginInlineEnd = lastTab.style.marginInlineEnd;
+					lastTab.style.marginInlineEnd = 'var(--modern-ui-tab-terminal-gutter)';
+					try {
+						terminalGutter = Number.parseFloat(getWindow(lastTab).getComputedStyle(lastTab).marginInlineEnd);
+					} finally {
+						lastTab.style.marginInlineEnd = marginInlineEnd;
+					}
+				}
+				const availableLastTabWidth = dimensions.available.width - editorToolbarWidth() - (this.addTabContainer?.offsetWidth ?? 0) - terminalGutter;
+				const lastTabWidth = modernFit ? Math.max(MultiEditorTabsControl.TAB_WIDTH.shrink, Math.min(lastTab.offsetWidth, availableLastTabWidth)) : lastTab.offsetWidth;
+				const lastTabOverlapWithToolbarWidth = lastTabWidth + editorToolbarWidth() + (this.addTabContainer?.offsetWidth ?? 0) + terminalGutter - dimensions.available.width;
 				if (lastTabOverlapWithToolbarWidth > 1) {
 					// Allow for slight rounding errors related to zooming here
 					// https://github.com/microsoft/vscode/issues/116385

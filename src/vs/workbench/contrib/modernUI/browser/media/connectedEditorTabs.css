@@ -566,7 +566,15 @@
 }
 
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container.wrapping .tabs-container > .tab.connected-tab-last {
-	margin-inline: 0 calc(var(--last-tab-margin-right) + var(--modern-ui-connected-tab-shoulder-radius));
+	margin-inline: 0 calc(var(--last-tab-margin-right) + var(--modern-ui-tab-terminal-gutter));
+}
+
+.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .tabs-container {
+	--modern-ui-tab-terminal-gutter: var(--modern-ui-connected-tab-shoulder-radius);
+}
+
+.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container.connected-tab-upper-bar .tabs-container {
+	--modern-ui-tab-terminal-gutter: var(--vscode-spacing-size40);
 }
 
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container.wrapping:not(.connected-tab-upper-bar) .tabs-container > .tabs-bar-add-tab .action-label {
@@ -578,11 +586,7 @@
 }
 
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container.wrapping:not(.connected-tab-upper-bar) .tabs-container > .tab.connected-tab-last.sizing-fit:not(.sticky-compact) {
-	max-width: calc(100% - var(--last-tab-margin-right) - var(--last-tab-add-tab-width) - var(--modern-ui-connected-tab-shoulder-radius));
-}
-
-.modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container.connected-tab-upper-bar.wrapping .tabs-container > .tab.connected-tab-last {
-	margin-inline: 0 calc(var(--last-tab-margin-right) + var(--vscode-spacing-size40));
+	max-width: calc(100% - var(--last-tab-margin-right) - var(--last-tab-add-tab-width) - var(--modern-ui-tab-terminal-gutter));
 }
 
 .modern-ui-tabs.modern-ui-connected-editor-tabs.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs > .tabs-and-actions-container > .monaco-scrollable-element > .tab-connected-overflow-edge.connected-tab-right-clipped::after,
