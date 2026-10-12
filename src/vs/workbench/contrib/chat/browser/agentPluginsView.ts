@@ -700,7 +700,7 @@ export class AgentPluginsViewsContribution extends Disposable implements IWorkbe
 				id: InstalledAgentPluginsViewId,
 				name: localize2('agent-plugins-installed', "Agent Plugins - Installed"),
 				ctorDescriptor: new SyncDescriptor(AgentPluginsListView, [{ installedOnly: true }]),
-				when: ContextKeyExpr.and(DefaultViewsContext, HasInstalledAgentPluginsContext, ChatContextKeys.Setup.hidden.negate()),
+				when: ContextKeyExpr.and(DefaultViewsContext, HasInstalledAgentPluginsContext, ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate()),
 				weight: 30,
 				order: 5,
 				canToggleVisibility: true,
@@ -709,7 +709,7 @@ export class AgentPluginsViewsContribution extends Disposable implements IWorkbe
 				id: 'workbench.views.agentPlugins.marketplace',
 				name: localize2('agent-plugins', "Agent Plugins"),
 				ctorDescriptor: new SyncDescriptor(AgentPluginsListView, [{ showMarketplaceWelcome: true }]),
-				when: ContextKeyExpr.and(SearchAgentPluginsContext, ChatContextKeys.Setup.hidden.negate()),
+				when: ContextKeyExpr.and(SearchAgentPluginsContext, ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate()),
 			},
 		], VIEW_CONTAINER);
 	}

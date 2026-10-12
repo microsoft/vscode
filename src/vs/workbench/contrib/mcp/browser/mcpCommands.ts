@@ -63,7 +63,7 @@ import { ChatAgentLocation, ChatModeKind } from '../../chat/common/constants.js'
 import { ContributionEnablementState, isContributionDisabled } from '../../chat/common/enablement.js';
 import { ILanguageModelsService } from '../../chat/common/languageModels.js';
 import { ILanguageModelToolsService } from '../../chat/common/tools/languageModelToolsService.js';
-import { extensionsFilterSubMenu, IExtensionsWorkbenchService, VIEWLET_ID } from '../../extensions/common/extensions.js';
+import { extensionsFilterSubMenu, IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { TEXT_FILE_EDITOR_ID } from '../../files/common/files.js';
 import { McpCommandIds } from '../common/mcpCommandIds.js';
 import { mcpWorkspaceRootConfig } from '../common/mcpConfiguration.js';
@@ -1522,12 +1522,10 @@ export class ShowInstalledMcpServersCommand extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor) {
+		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
 		const viewsService = accessor.get(IViewsService);
-		const view = await viewsService.openView(InstalledMcpServersViewId, true);
-		if (!view) {
-			await viewsService.openViewContainer(VIEWLET_ID);
-			await viewsService.openView(InstalledMcpServersViewId, true);
-		}
+		await extensionsWorkbenchService.openSearch('');
+		await viewsService.openView(InstalledMcpServersViewId, true);
 	}
 }
 
