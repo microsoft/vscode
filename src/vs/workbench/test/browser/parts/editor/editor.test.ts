@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { EditorResourceAccessor, SideBySideEditor, EditorInputWithPreferredResource, EditorInputCapabilities, isEditorIdentifier, IResourceDiffEditorInput, IUntitledTextResourceEditorInput, isResourceEditorInput, isUntitledResourceEditorInput, isResourceDiffEditorInput, isEditorInputWithOptionsAndGroup, EditorInputWithOptions, isEditorInputWithOptions, isEditorInput, EditorInputWithOptionsAndGroup, isResourceSideBySideEditorInput, IResourceSideBySideEditorInput, isTextEditorViewState, isResourceMergeEditorInput, IResourceMergeEditorInput } from '../../../../common/editor.js';
+import { EditorResourceAccessor, SideBySideEditor, EditorInputWithPreferredResource, EditorInputCapabilities, isEditorIdentifier, IResourceDiffEditorInput, IUntitledTextResourceEditorInput, isResourceEditorInput, isUntitledResourceEditorInput, isResourceDiffEditorInput, isEditorInputWithOptionsAndGroup, EditorInputWithOptions, isEditorInputWithOptions, isEditorInput, EditorInputWithOptionsAndGroup, isResourceSideBySideEditorInput, IResourceSideBySideEditorInput, isTextEditorViewState, isResourceMergeEditorInput, IResourceMergeEditorInput, IEditorPane } from '../../../../common/editor.js';
 import { DiffEditorInput } from '../../../../common/editor/diffEditorInput.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -15,15 +15,18 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from '../../../../../base/test/common/utils.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { whenEditorClosed } from '../../../../browser/editor.js';
-import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { EditorService } from '../../../../services/editor/browser/editorService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { SideBySideEditorInput } from '../../../../common/editor/sideBySideEditorInput.js';
-import { EditorResolution, IResourceEditorInput } from '../../../../../platform/editor/common/editor.js';
+import { EditorResolution, IResourceEditorInput, ITextEditorOptions, TextEditorSelectionRevealType } from '../../../../../platform/editor/common/editor.js';
 import { ICodeEditorViewState, IDiffEditorViewState } from '../../../../../editor/common/editorCommon.js';
 import { Position } from '../../../../../editor/common/core/position.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { DEFAULT_EDITOR_PART_OPTIONS } from '../../../../browser/parts/editor/editor.js';
+import { DEFAULT_EDITOR_PART_OPTIONS, fillActiveEditorSelection } from '../../../../browser/parts/editor/editor.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { Selection } from '../../../../../editor/common/core/selection.js';
+import { TextEditorPaneSelection } from '../../../../browser/parts/editor/textEditor.js';
 
 suite('Workbench editor utils', () => {
 
@@ -54,6 +57,42 @@ suite('Workbench editor utils', () => {
 
 	teardown(() => {
 		disposables.clear();
+	});
+
+	test('fillActiveEditorSelection transfers the current selection only for the source editor', () => {
+		const source = disposables.add(new TestEditorInput(URI.file('/source'), 'test'));
+		const other = disposables.add(new TestEditorInput(URI.file('/other'), 'test'));
+		const selection = new Selection(30, 4, 32, 9);
+		const pane = new class extends mock<IEditorPane>() {
+			override readonly input = source;
+			override getSelection() { return new TextEditorPaneSelection(selection); }
+		};
+		const group = new class extends mock<IEditorGroup>() {
+			override readonly activeEditor = source;
+			override readonly activeEditorPane = pane;
+		};
+		const options: ITextEditorOptions = { override: 'new-type', pinned: true, selection: { startLineNumber: 1, startColumn: 1 } };
+		assert.deepStrictEqual({
+			source: fillActiveEditorSelection(group, source, options),
+			other: fillActiveEditorSelection(group, other, options),
+			original: options
+		}, {
+			source: { override: 'new-type', pinned: true, selection, selectionRevealType: TextEditorSelectionRevealType.CenterIfOutsideViewport },
+			other: { override: 'new-type', pinned: true, selection: { startLineNumber: 1, startColumn: 1 } },
+			original: { override: 'new-type', pinned: true, selection: { startLineNumber: 1, startColumn: 1 } }
+		});
+	});
+
+	test('fillActiveEditorSelection preserves options when selection is unsupported', () => {
+		const source = disposables.add(new TestEditorInput(URI.file('/source'), 'test'));
+		const group = new class extends mock<IEditorGroup>() {
+			override readonly activeEditor = source;
+			override readonly activeEditorPane = new class extends mock<IEditorPane>() {
+				override readonly input = source;
+			};
+		};
+		const options = { override: 'new-type', pinned: true };
+		assert.strictEqual(fillActiveEditorSelection(group, source, options), options);
 	});
 
 	test('untyped check functions', () => {

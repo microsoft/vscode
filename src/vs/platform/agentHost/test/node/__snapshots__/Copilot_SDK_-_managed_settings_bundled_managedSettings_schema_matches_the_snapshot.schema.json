@@ -255,7 +255,7 @@
 						}
 					},
 					"limitTo": {
-						"description": "Closed-world boundary for the rule families it names. Only Domain(...) rules are supported: any agent network request to a domain outside the boundary is denied without prompting, and user rules, saved approvals, and allow-all modes cannot widen it. It does not restrict shell, read, or write operations by themselves, but detected URLs in shell requests are Domain requests and must satisfy the boundary. An empty list denies every Domain request. An invalid list or any invalid entry is reported as a configuration error and enforced as an empty list, without discarding other valid permission rules; effective settings report the enforced empty list. Deny takes precedence over limitTo, and ask and allow only refine requests inside the boundary. Every managed source that declares a limitTo list must admit the request.",
+						"description": "Closed-world boundary for the rule families it names. Only Domain(...) rules are supported: any agent network request to a domain outside the boundary is denied without prompting, and user rules, saved approvals, and allow-all modes cannot widen it. It does not restrict shell, read, or write operations by themselves, but detected URLs in shell requests are Domain requests and must satisfy the boundary. An empty list denies every Domain request. An invalid list or any invalid entry is reported as a configuration error and enforced as an empty list, without discarding other valid permission rules; effective settings report the enforced empty list. Deny takes precedence over limitTo, and ask and allow only refine requests inside the boundary. Every managed source that declares a limitTo list must admit the request. This permission boundary does not enable the sandbox or modify sandbox.userPolicy.network; sandbox network restrictions must be configured independently.",
 						"type": "array",
 						"items": {
 							"type": "string",
@@ -1154,5 +1154,5 @@
 			}
 		}
 	},
-	"runtimeVersion": "1.0.95-0"
+	"runtimeVersion": "1.0.96-2"
 }

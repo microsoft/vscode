@@ -53,6 +53,7 @@ import { INotificationService } from '../../../../../../platform/notification/co
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { VisibleSessions } from '../../../../../services/sessions/browser/visibleSessions.js';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, ResourceTrustRequestOptions } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IChatWidget, IChatWidgetService } from '../../../../../../workbench/contrib/chat/browser/chat.js';
 import { buildLocalSessionStateUri } from '../../../../../../workbench/contrib/chat/browser/copilotCliEventsUri.js';
@@ -2083,9 +2084,54 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	// ---- Startup session cache (persistence) -------
 
+	test('does not register stable cached backend identities before native host reconciliation', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const storageService: IStorageService = disposables.add(new InMemoryStorageService());
+		const stableKey = 'localAgentHost.cachedSessions.v4';
+		const stable = [{ session: 'copilotcli:/compatible', provider: 'copilotcli', startTime: 1000, modifiedTime: 2000 }];
+		storageService.store(stableKey, JSON.stringify(stable), StorageScope.APPLICATION, StorageTarget.USER);
+		agentHost.setAuthenticationPending(true);
+		const provider = createProvider(disposables, agentHost, undefined, { storageService });
+		const beforeHost = provider.getSessions().length;
+		agentHost.addSession({ ...createSession('compatible'), session: URI.parse('ahp-session:/compatible'), provider: 'copilotcli' });
+		agentHost.setAuthenticationPending(false);
+		await timeout(0);
+		await storageService.flush();
+		const session = provider.getSessions()[0];
+		assert.ok(session instanceof AgentHostSessionAdapter);
+		assert.deepStrictEqual({
+			beforeHost,
+			backend: session.backendUri.toString(),
+			stableCache: storageService.getObject(stableKey, StorageScope.APPLICATION),
+			currentCache: storageService.getObject<Array<{ session: string }>>('localAgentHost.cachedSessions.v5', StorageScope.APPLICATION)?.map(entry => entry.session),
+		}, {
+			beforeHost: 0, backend: 'ahp-session:/compatible', stableCache: stable,
+			currentCache: ['ahp-session:/compatible'],
+		});
+	}));
+
+	test('a downgrade can update the stable cache without changing native cached identity on re-upgrade', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		const backend = URI.parse('ahp-session:/compatible');
+		await persistCachedSessions(disposables, storageService, [{ ...createSession('compatible'), session: backend, provider: 'copilotcli' }]);
+		const stableKey = 'localAgentHost.cachedSessions.v4';
+		const stable = [{ session: 'copilotcli:/compatible', provider: 'copilotcli', startTime: 1000, modifiedTime: 3000 }];
+		storageService.store(stableKey, JSON.stringify(stable), StorageScope.APPLICATION, StorageTarget.USER);
+		agentHost.setAuthenticationPending(true);
+		const provider = createProvider(disposables, agentHost, undefined, { storageService });
+		const session = provider.getSessions()[0];
+		assert.ok(session instanceof AgentHostSessionAdapter);
+		assert.deepStrictEqual({
+			backend: session.backendUri.toString(),
+			resource: session.resource.toString(),
+			stableCache: storageService.getObject(stableKey, StorageScope.APPLICATION),
+		}, {
+			backend: backend.toString(), resource: 'agent-host-copilotcli:/compatible', stableCache: stable,
+		});
+	}));
+
 	test('skips cached local native sessions with the URI scheme as their provider while retaining healthy entries', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const storageService: IStorageService = disposables.add(new InMemoryStorageService());
-		const cacheKey = 'localAgentHost.cachedSessions.v4';
+		const cacheKey = 'localAgentHost.cachedSessions.v5';
 		const entries = [
 			{ session: 'ahp-session:/poisoned', provider: 'ahp-session', startTime: 1000, modifiedTime: 2000 },
 			{ session: 'copilotcli:/legacy', startTime: 1000, modifiedTime: 2000 },
@@ -2111,7 +2157,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	test('removes a cache containing only poisoned local sessions without waiting for the host', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const storageService = disposables.add(new InMemoryStorageService());
-		const cacheKey = 'localAgentHost.cachedSessions.v4';
+		const cacheKey = 'localAgentHost.cachedSessions.v5';
 		storageService.store(cacheKey, JSON.stringify([{
 			session: 'ahp-session:/poisoned', provider: 'ahp-session', startTime: 1000, modifiedTime: 2000,
 		}]), StorageScope.APPLICATION, StorageTarget.USER);
@@ -2128,7 +2174,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 	for (const advertisedProvider of ['copilotcli', 'claude', 'codex']) {
 		test(`rebuilds a poisoned local cache from ${advertisedProvider} host metadata and retains it after restart`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 			const storageService: IStorageService = disposables.add(new InMemoryStorageService());
-			const cacheKey = 'localAgentHost.cachedSessions.v4';
+			const cacheKey = 'localAgentHost.cachedSessions.v5';
 			const backend = URI.parse('ahp-session:/poisoned');
 			const defaultChat = URI.parse('conversation://tenant/main');
 			storageService.store(cacheKey, JSON.stringify([{
@@ -2224,7 +2270,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			nextHost.setAuthenticationPending(true);
 			const provider = createProvider(disposables, nextHost, undefined, { storageService });
 			const session = provider.getSessions()[0];
-			const cached = storageService.getObject('localAgentHost.cachedSessions.v4', StorageScope.APPLICATION) as Array<{ chats: Array<{ chat: string }> }> | undefined;
+			const cached = storageService.getObject('localAgentHost.cachedSessions.v5', StorageScope.APPLICATION) as Array<{ chats: Array<{ chat: string }> }> | undefined;
 
 			assert.deepStrictEqual({
 				cached: cached?.[0].chats.map(chat => chat.chat),
@@ -2429,7 +2475,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 		await storageService.flush();
 
-		const persisted = storageService.getObject('localAgentHost.cachedSessions.v4', StorageScope.APPLICATION) as Array<{ chats?: unknown[] }> | undefined;
+		const persisted = storageService.getObject('localAgentHost.cachedSessions.v5', StorageScope.APPLICATION) as Array<{ chats?: unknown[] }> | undefined;
 		const nextHost = new MockAgentHostService();
 		disposables.add(toDisposable(() => nextHost.dispose()));
 		nextHost.setAuthenticationPending(true);
@@ -2592,7 +2638,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	test('discards a legacy cache entry so read state is rebuilt from the host', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const LEGACY_KEYS = ['localAgentHost.cachedSessions', 'localAgentHost.cachedSessions.v2', 'localAgentHost.cachedSessions.v3'];
-		const CURRENT_KEY = 'localAgentHost.cachedSessions.v4';
+		const CURRENT_KEY = 'localAgentHost.cachedSessions.v5';
 		const storageService = disposables.add(new InMemoryStorageService());
 
 		// Simulate a previous (old-schema) window: persist a session, then move
@@ -2698,7 +2744,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			origin: undefined,
 		} as ActionEnvelope);
 		await storageService.flush();
-		const repersisted = JSON.parse(storageService.get('localAgentHost.cachedSessions.v4', StorageScope.APPLICATION)!) as Array<{ multiRoot?: typeof multiRoot }>;
+		const repersisted = JSON.parse(storageService.get('localAgentHost.cachedSessions.v5', StorageScope.APPLICATION)!) as Array<{ multiRoot?: typeof multiRoot }>;
 
 		assert.deepStrictEqual({
 			repersisted: repersisted[0].multiRoot,
@@ -4422,7 +4468,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		await timeout(0);
 
 		const session = provider.getSessions()[0];
-		assert.deepStrictEqual(session?.capabilities.get(), { supportsRemoveArtifacts: false, supportsImport: false, supportsCanvases: true, supportsMultipleChats: false, supportsFork: true, supportsSideChat: false, supportsRename: true, supportsDelete: true });
+		assert.deepStrictEqual(session?.capabilities.get(), { supportsRemoveArtifacts: false, supportsImport: false, supportsCanvases: true, supportsMultipleChats: false, supportsIndependentChatReadState: true, supportsFork: true, supportsSideChat: false, supportsRename: true, supportsDelete: true });
 	}));
 
 	test('restored quick chat collapses to a single chat even when state advertises peer chats', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -6407,6 +6453,189 @@ suite('LocalAgentHostSessionsProvider', () => {
 			selectedConfig: { isolation: 'folder', providerConfig: { isolation: 'folder', branch: 'main', providerOption: { enabled: true } } },
 			hasWorktree: false,
 		});
+	});
+
+	for (const operation of ['snapshot', 'send', 'automation'] as const) {
+		test(`${operation} retries failed initial draft configuration without reloading`, async () => {
+			const configurationService = new TestConfigurationService();
+			await configurationService.setUserConfiguration('chat.defaultConfiguration', { approvals: 'allowAll', mode: 'plan' });
+			agentHost.failResolveSessionConfig = true;
+			let sentConfig: Record<string, unknown> | undefined;
+			const provider = createProvider(disposables, agentHost, undefined, {
+				configurationService,
+				openSession: true,
+				sendRequest: async (resource, _message, options) => {
+					sentConfig = options?.agentHostSessionConfig;
+					agentHost.addSession(createSession(AgentSession.id(resource)));
+					return { kind: 'sent', data: upcastPartial<IChatSendRequestData>({}) };
+				},
+			});
+			const session = provider.createNewSession(URI.file('/home/user/project'), provider.sessionTypes[0].id);
+			await waitForSessionConfig(provider, session.sessionId, () => !provider.isSessionConfigResolving(session.sessionId).get());
+			await timeout(0);
+			const chat = await provider.createNewChat(session.sessionId);
+			const capture = async () => {
+				if (operation === 'send') {
+					await provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+					return sentConfig;
+				}
+				if (operation === 'automation') {
+					return (await provider.getAutomationSessionConfiguration(session.sessionId))?.sessionTemplate?.config;
+				}
+				return (await provider.getNewSessionConfig(session.sessionId))?.providerConfig;
+			};
+
+			await assert.rejects(capture(), /resolveSessionConfig unavailable/);
+			const sendsBeforeRecovery = sentConfig;
+			const creationsBeforeRecovery = agentHost.createSessionConfigs.length;
+			const requestsBeforeRecovery = agentHost.resolveSessionConfigRequests.length;
+			agentHost.failResolveSessionConfig = false;
+			const recovered = await capture();
+
+			assert.deepStrictEqual({
+				sendsBeforeRecovery,
+				creationsBeforeRecovery,
+				retryRequests: agentHost.resolveSessionConfigRequests.slice(requestsBeforeRecovery).map(request => request.config),
+				recovered,
+			}, {
+				sendsBeforeRecovery: undefined,
+				creationsBeforeRecovery: 0,
+				retryRequests: [undefined, { isolation: 'worktree', autoApprove: 'autoApprove', mode: 'plan' }],
+				recovered: { ...(operation === 'automation' ? {} : { isolation: 'worktree' }), autoApprove: 'autoApprove', mode: 'plan' },
+			});
+		});
+	}
+
+	for (const operation of ['snapshot', 'send', 'automation'] as const) {
+		test(`${operation} retries failed draft configuration refresh without dropping edited preferences`, async () => {
+			const configurationService = new TestConfigurationService();
+			await configurationService.setUserConfiguration('chat.defaultConfiguration', { approvals: 'allowAll', mode: 'plan' });
+			let sentConfig: Record<string, unknown> | undefined;
+			const provider = createProvider(disposables, agentHost, undefined, {
+				configurationService,
+				openSession: true,
+				sendRequest: async (resource, _message, options) => {
+					sentConfig = options?.agentHostSessionConfig;
+					agentHost.addSession(createSession(AgentSession.id(resource)));
+					return { kind: 'sent', data: upcastPartial<IChatSendRequestData>({}) };
+				},
+			});
+			const session = provider.createNewSession(URI.file('/home/user/project'), provider.sessionTypes[0].id);
+			await provider.getNewSessionConfig(session.sessionId);
+			const chat = await provider.createNewChat(session.sessionId);
+			agentHost.failResolveSessionConfig = true;
+			await provider.setSessionConfigValue(session.sessionId, SessionConfigKey.Mode, 'autopilot');
+			const capture = async () => {
+				if (operation === 'send') {
+					await provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+					return sentConfig;
+				}
+				if (operation === 'automation') {
+					return (await provider.getAutomationSessionConfiguration(session.sessionId))?.sessionTemplate?.config;
+				}
+				return (await provider.getNewSessionConfig(session.sessionId))?.providerConfig;
+			};
+
+			await assert.rejects(capture(), /resolveSessionConfig unavailable/);
+			const sendsBeforeRecovery = sentConfig;
+			const requestsBeforeRecovery = agentHost.resolveSessionConfigRequests.length;
+			agentHost.failResolveSessionConfig = false;
+			const recovered = await capture();
+
+			assert.deepStrictEqual({
+				sendsBeforeRecovery,
+				retryRequests: agentHost.resolveSessionConfigRequests.slice(requestsBeforeRecovery).map(request => request.config),
+				recovered,
+			}, {
+				sendsBeforeRecovery: undefined,
+				retryRequests: [undefined, { isolation: 'worktree', autoApprove: 'autoApprove', mode: 'autopilot' }],
+				recovered: { ...(operation === 'automation' ? {} : { isolation: 'worktree' }), autoApprove: 'autoApprove', mode: 'autopilot' },
+			});
+		});
+	}
+
+	test('draft configuration retry applies current host approval restrictions', async () => {
+		const configurationService = new TestConfigurationService();
+		await configurationService.setUserConfiguration('chat.defaultConfiguration', { approvals: 'allowAll' });
+		agentHost.failResolveSessionConfig = true;
+		const provider = createProvider(disposables, agentHost, undefined, { configurationService });
+		const session = provider.createNewSession(URI.file('/home/user/project'), provider.sessionTypes[0].id);
+		await waitForSessionConfig(provider, session.sessionId, () => !provider.isSessionConfigResolving(session.sessionId).get());
+		await timeout(0);
+		agentHost.failResolveSessionConfig = false;
+		agentHost.resolveSessionConfigResult = {
+			schema: createVSCodeSessionConfigSchema({
+				availableApprovalModes: { type: 'array', title: 'Available permissions', readOnly: true, items: { type: 'string', title: 'Permission' } },
+			}),
+			values: { isolation: 'worktree', autoApprove: 'default', availableApprovalModes: ['default'] },
+		};
+
+		assert.deepStrictEqual(await provider.getNewSessionConfig(session.sessionId), {
+			isolation: 'worktree',
+			providerConfig: { isolation: 'worktree', autoApprove: 'default' },
+		});
+	});
+
+	test('concurrent draft configuration retries share resolution and wait for new operations', async () => {
+		agentHost.failResolveSessionConfig = true;
+		const provider = createProvider(disposables, agentHost);
+		const session = provider.createNewSession(URI.file('/home/user/project'), provider.sessionTypes[0].id, { modeId: 'plan' });
+		await waitForSessionConfig(provider, session.sessionId, () => !provider.isSessionConfigResolving(session.sessionId).get());
+		await timeout(0);
+		const requestsBeforeRetry = agentHost.resolveSessionConfigRequests.length;
+		agentHost.failResolveSessionConfig = false;
+		const barrier = agentHost.resolveSessionConfigBarrier = new DeferredPromise<void>();
+		let captured = false;
+		const first = provider.getNewSessionConfig(session.sessionId).then(config => {
+			captured = true;
+			return config;
+		});
+		const second = provider.getNewSessionConfig(session.sessionId);
+		await timeout(0);
+		const retryRequests = agentHost.resolveSessionConfigRequests.length - requestsBeforeRetry;
+		const operation = new DeferredPromise<void>();
+		provider.trackSessionConfigOperation(session.sessionId, operation.p);
+		await barrier.complete();
+		await timeout(0);
+		const capturedBeforeOperation = captured;
+		await operation.complete();
+		const snapshots = await Promise.all([first, second]);
+
+		assert.deepStrictEqual({ retryRequests, capturedBeforeOperation, snapshots }, {
+			retryRequests: 1,
+			capturedBeforeOperation: false,
+			snapshots: [
+				{ isolation: 'worktree', providerConfig: { isolation: 'worktree', mode: 'plan' } },
+				{ isolation: 'worktree', providerConfig: { isolation: 'worktree', mode: 'plan' } },
+			],
+		});
+	});
+
+	test('concurrent draft configuration retries share resolution and cancel on disposal', async () => {
+		agentHost.failResolveSessionConfig = true;
+		const provider = createProvider(disposables, agentHost);
+		const session = provider.createNewSession(URI.file('/home/user/project'), provider.sessionTypes[0].id, { modeId: 'plan' });
+		await waitForSessionConfig(provider, session.sessionId, () => !provider.isSessionConfigResolving(session.sessionId).get());
+		await timeout(0);
+		const requestsBeforeRetry = agentHost.resolveSessionConfigRequests.length;
+		agentHost.failResolveSessionConfig = false;
+		const barrier = agentHost.resolveSessionConfigBarrier = new DeferredPromise<void>();
+		const first = provider.getNewSessionConfig(session.sessionId);
+		const second = provider.getNewSessionConfig(session.sessionId);
+		const rejected = Promise.all([
+			assert.rejects(first, /Canceled/),
+			assert.rejects(second, /Canceled/),
+		]);
+		await timeout(0);
+		const retryRequests = agentHost.resolveSessionConfigRequests.length - requestsBeforeRetry;
+		provider.deleteNewSession(session.sessionId);
+		try {
+			await rejected;
+		} finally {
+			await barrier.complete();
+		}
+
+		assert.strictEqual(retryRequests, 1);
 	});
 
 	test('new session config leaves unrecognized isolation values provider-specific', async () => {
@@ -8767,6 +8996,146 @@ suite('LocalAgentHostSessionsProvider', () => {
 			});
 		});
 
+		test('opaque primary chat status updates do not trigger automatic chat fallback', async () => {
+			const rawId = 'opaque-primary-chat';
+			const defaultChat = 'ahp-chat:/opaque-primary';
+			agentHost.addSession(createSession(rawId, {
+				chats: [{ chat: URI.parse(defaultChat), kind: 'default', summary: 'Primary' }],
+			}));
+			const provider = createProvider(disposables, agentHost);
+			await timeout(0);
+			const session = provider.getSessions()[0];
+			provider.getSessionConfig(session.sessionId);
+			const visibility = disposables.add(new VisibleSessions(
+				session => session.mainChat.get(),
+				() => [],
+				() => [],
+				() => { },
+				upcastPartial<IUriIdentityService>({ extUri: extUriIgnorePathCase }),
+			));
+			visibility.setActive(session);
+			const activeChatFragments: string[] = [];
+			disposables.add(autorun(reader => {
+				activeChatFragments.push(visibility.activeSession.read(reader)!.activeChat.read(reader).resource.fragment);
+			}));
+			const catalogFragments: string[][] = [];
+			disposables.add(autorun(reader => {
+				catalogFragments.push(session.chats.read(reader).map(chat => chat.resource.fragment));
+			}));
+
+			for (const status of [ProtocolSessionStatus.InProgress, ProtocolSessionStatus.InputNeeded, ProtocolSessionStatus.Idle]) {
+				agentHost.setSessionState(rawId, 'copilotcli', makeState([
+					makeChatSummary(defaultChat, 'Primary', status),
+				], { defaultChat, status }));
+				fireSessionSummaryChanged(agentHost, rawId, {
+					status,
+					chats: [{ resource: defaultChat, title: 'Primary', status }],
+				});
+			}
+			agentHost.setSessionState(rawId, 'copilotcli', makeState([
+				makeChatSummary(defaultChat, 'Primary'),
+			], { defaultChat }));
+
+			assert.deepStrictEqual({ activeChatFragments, catalogFragments }, {
+				activeChatFragments: [''],
+				catalogFragments: [['']],
+			});
+		});
+
+		for (const hydrated of [false, true]) {
+			test(`partial chat summaries preserve opaque default chat identity (${hydrated ? 'hydrated' : 'metadata-only'})`, async () => {
+				const rawId = 'opaque-chat-summary';
+				const sessionUri = AgentSession.uri('copilotcli', rawId);
+				const defaultChat = URI.parse('ahp-chat:/opaque-default');
+				const peerChat = URI.parse('conversation://tenant/peer');
+				agentHost.addSession(createSession(rawId, {
+					chats: [
+						{ chat: defaultChat, kind: 'default', summary: 'Default' },
+						{ chat: peerChat, kind: 'peer', summary: 'Peer' },
+					],
+				}));
+				const provider = createProvider(disposables, agentHost);
+				await timeout(0);
+				const session = provider.getSessions()[0];
+				if (hydrated) {
+					provider.getSessionConfig(session.sessionId);
+					agentHost.setSessionState(rawId, 'copilotcli', makeState([
+						makeChatSummary(defaultChat.toString(), 'Default'),
+						makeChatSummary(peerChat.toString(), 'Peer'),
+					], { defaultChat: defaultChat.toString() }));
+				}
+				const initialChats = session.chats.get();
+				const publishedFragments: string[][] = [];
+				disposables.add(autorun(reader => {
+					publishedFragments.push(session.chats.read(reader).map(chat => chat.resource.fragment));
+				}));
+				const statuses: SessionStatus[] = [];
+				for (const status of [ProtocolSessionStatus.InProgress, ProtocolSessionStatus.InputNeeded, ProtocolSessionStatus.Idle]) {
+					fireSessionSummaryChanged(agentHost, rawId, {
+						chats: [
+							{ resource: defaultChat.toString(), title: 'Default', status },
+							{ resource: peerChat.toString(), title: 'Peer', status: ProtocolSessionStatus.Idle },
+						],
+					});
+					statuses.push(session.mainChat.get().status.get());
+					if (hydrated) {
+						agentHost.setSessionState(rawId, 'copilotcli', makeState([
+							makeChatSummary(defaultChat.toString(), 'Default', status),
+							makeChatSummary(peerChat.toString(), 'Peer'),
+						], { defaultChat: defaultChat.toString() }));
+					}
+				}
+
+				assert.deepStrictEqual({
+					unstableCatalogs: publishedFragments.filter(fragments => fragments.length !== 2 || fragments[0] !== '' || fragments[1] !== peerChat.toString()),
+					identitiesPreserved: session.chats.get().map((chat, index) => chat === initialChats[index]),
+					statuses,
+					defaultBackend: provider.getBackendChatResource(session.resource)?.toString(),
+					subscriptions: agentHost.sessionSubscribeCounts.get(sessionUri.toString()) ?? 0,
+				}, {
+					unstableCatalogs: [],
+					identitiesPreserved: [true, true],
+					statuses: [SessionStatus.InProgress, SessionStatus.NeedsInput, SessionStatus.Completed],
+					defaultBackend: defaultChat.toString(),
+					subscriptions: hydrated ? 1 : 0,
+				});
+			});
+		}
+
+		test('explicit default chat updates override cached identity and local URI conventions', async () => {
+			const rawId = 'changed-default-chat';
+			const sessionUri = AgentSession.uri('copilotcli', rawId);
+			const previousDefault = URI.parse(buildDefaultChatUri(sessionUri));
+			const nextDefault = URI.parse('conversation://tenant/main');
+			agentHost.addSession(createSession(rawId, {
+				chats: [
+					{ chat: previousDefault, kind: 'default', summary: 'Previous' },
+					{ chat: nextDefault, kind: 'peer', summary: 'Next' },
+				],
+			}));
+			const provider = createProvider(disposables, agentHost);
+			await timeout(0);
+			const session = provider.getSessions()[0];
+
+			fireSessionSummaryChanged(agentHost, rawId, {
+				defaultChat: nextDefault.toString(),
+				chats: [
+					{ resource: previousDefault.toString(), title: 'Previous' },
+					{ resource: nextDefault.toString(), title: 'Next' },
+				],
+			});
+
+			assert.deepStrictEqual({
+				fragments: session.chats.get().map(chat => chat.resource.fragment),
+				titles: session.chats.get().map(chat => chat.title.get()),
+				defaultBackend: provider.getBackendChatResource(session.resource)?.toString(),
+			}, {
+				fragments: ['default', ''],
+				titles: ['Previous', 'Next'],
+				defaultBackend: nextDefault.toString(),
+			});
+		});
+
 		test('observed peer details resubscribe after subscription failure and host restart', async () => {
 			const rawId = 'multi-catalog-reconnect';
 			const sessionUri = AgentSession.uri('copilotcli', rawId);
@@ -9900,12 +10269,26 @@ suite('LocalAgentHostSessionsProvider', () => {
 				{ ...makeChatSummary(peerChat, 'Peer'), origin: { kind: ProtocolChatOriginKind.User } },
 			], { defaultChat }));
 			const peer = session.chats.get()[1];
+			const supportsIndependentChatReadStateBeforeUpgrade = session.capabilities.get().supportsIndependentChatReadState;
 			const accepted = await provider.setChatReadState(session.sessionId, peer.resource, true);
+			const legacyReadState = {
+				sessionRead: session.isRead.get(),
+				mainRead: session.mainChat.get().isRead.get(),
+				peerRead: peer.isRead.get(),
+			};
+			agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), protocolVersion: PROTOCOL_VERSION }, undefined);
+			const supportsIndependentChatReadStateAfterUpgrade = session.capabilities.get().supportsIndependentChatReadState;
 			assert.deepStrictEqual({
-				accepted, sessionRead: session.isRead.get(), mainRead: session.mainChat.get().isRead.get(), peerRead: peer.isRead.get(),
+				accepted,
+				legacyReadState,
+				supportsIndependentChatReadStateBeforeUpgrade,
+				supportsIndependentChatReadStateAfterUpgrade,
 				actions: agentHost.dispatchedActions.map(dispatch => ({ channel: dispatch.channel, type: dispatch.action.type })),
 			}, {
-				accepted: true, sessionRead: true, mainRead: true, peerRead: true,
+				accepted: true,
+				legacyReadState: { sessionRead: true, mainRead: true, peerRead: true },
+				supportsIndependentChatReadStateBeforeUpgrade: false,
+				supportsIndependentChatReadStateAfterUpgrade: true,
 				actions: [{ channel: sessionUri, type: ActionType.SessionIsReadChanged }],
 			});
 		});

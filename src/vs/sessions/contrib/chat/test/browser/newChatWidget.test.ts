@@ -1020,7 +1020,7 @@ suite('NewChatWidget', () => {
 				selections: [],
 			}
 			: {
-				labels: ['Local', 'Test Remote'],
+				labels: ['This Computer', 'Test Remote'],
 				icons: [Codicon.vm.id, Codicon.remote.id],
 				selections: [{ providerId: 'agenthost-remote-test' }],
 			});
@@ -1135,7 +1135,7 @@ suite('NewChatWidget', () => {
 		});
 		await option?.submenuActions?.[1].run();
 
-		assert.deepStrictEqual(option?.submenuActions?.map(action => action.label), isWeb ? undefined : ['Local', 'Test Remote']);
+		assert.deepStrictEqual(option?.submenuActions?.map(action => action.label), isWeb ? undefined : ['This Computer', 'Test Remote']);
 	});
 
 	test('workspace-less chats do not inherit the previous picker workspace', () => {
