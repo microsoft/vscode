@@ -1280,6 +1280,71 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		assert.strictEqual(sessions.length, 2);
 	}));
 
+	test('applies the rest of a listing when one listed session cannot be registered', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		// Older hosts list legacy subagent rows (`<parent>#subagent/<id>`) whose
+		// frontend identity collides with their parent session.
+		const listed = [
+			createSession('before'),
+			createSession('parent'),
+			createSession('parent-subagent', { session: URI.parse('copilotcli:/parent#subagent%2Ftool-1') }),
+			createSession('after'),
+		];
+		let listCalls = 0;
+		const listingConnection = disposables.add(new class extends MockAgentConnection {
+			override async listSessions(): Promise<IAgentSessionMetadata[]> {
+				listCalls++;
+				return listed;
+			}
+		}());
+		const provider = createProvider(disposables, listingConnection, {
+			ctor: class extends RemoteAgentHostSessionsProvider {
+				protected override registerBackendSession(backendSession: URI, agentProvider: string): void {
+					if (backendSession.fragment) {
+						throw new Error(`Conflicting backend identities for ${backendSession.toString()}`);
+					}
+					super.registerBackendSession(backendSession, agentProvider);
+				}
+			},
+		});
+		const changes: ISessionChangeEvent[] = [];
+		disposables.add(provider.onDidChangeSessions(e => changes.push(e)));
+
+		provider.getSessions();
+		await timeout(10_000);
+
+		assert.deepStrictEqual({
+			listCalls,
+			added: changes.flatMap(e => e.added.map(session => session.resource.path)),
+			sessions: provider.getSessions().map(session => session.resource.path).sort(),
+		}, {
+			listCalls: 1,
+			added: ['/before', '/parent', '/after'],
+			sessions: ['/after', '/before', '/parent'],
+		});
+	}));
+
+	test('does not re-fetch a listing that fails to apply', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		let listCalls = 0;
+		const listingConnection = disposables.add(new class extends MockAgentConnection {
+			override async listSessions(): Promise<IAgentSessionMetadata[]> {
+				listCalls++;
+				return [createSession('listed')];
+			}
+		}());
+		const provider = createProvider(disposables, listingConnection, {
+			ctor: class extends RemoteAgentHostSessionsProvider {
+				protected override _onHostReconciledSessions(): void {
+					throw new Error('apply failed');
+				}
+			},
+		});
+
+		provider.getSessions();
+		await timeout(10_000);
+
+		assert.strictEqual(listCalls, 1);
+	}));
+
 	test('session added notification does not carry model metadata', () => {
 		const provider = createProvider(disposables, connection);
 		fireSessionAdded(connection, 'notif-model', { title: 'Notif Model Session' });

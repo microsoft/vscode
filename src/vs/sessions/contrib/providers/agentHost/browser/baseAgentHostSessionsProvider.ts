@@ -7891,8 +7891,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._sessionRefreshRetry.clear();
 		this._sessionRefreshInFlight = true;
 		const generation = ++this._sessionRefreshGeneration;
+		let didList = false;
 		try {
 			const sessions = await connection.listSessions();
+			didList = true;
 			if (generation !== this._sessionRefreshGeneration || this._store.isDisposed) {
 				return;
 			}
@@ -7904,6 +7906,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			const listedAgentProviders = new Set<string>();
 			const added: ISession[] = [];
 			const changed: ISession[] = [];
+			const unregistered: string[] = [];
 
 			for (const rawMeta of sessions) {
 				const meta = this._adoptSessionMeta(rawMeta);
@@ -7923,10 +7926,21 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 						changed.push(existing);
 					}
 				} else {
-					const cached = this.createAdapter(meta);
+					let cached: AgentHostSessionAdapter;
+					try {
+						cached = this.createAdapter(meta);
+					} catch (err) {
+						// One row whose identity cannot be registered (e.g. it collides with another
+						// listed session) must not keep the rest of the listing from applying.
+						unregistered.push(`${rawId} (${err})`);
+						continue;
+					}
 					this._sessionCache.set(rawId, cached);
 					added.push(cached);
 				}
+			}
+			if (unregistered.length > 0) {
+				this._logService.warn(`[AgentHostSessionsProvider] Skipped ${unregistered.length} listed session(s) that could not be registered: ${unregistered.join(', ')}`);
 			}
 
 			const removed: ISession[] = [];
@@ -7975,6 +7989,12 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			}
 		} catch (err) {
 			if (generation !== this._sessionRefreshGeneration || this._store.isDisposed) {
+				return;
+			}
+			if (didList) {
+				// The host answered, so re-fetching would only replay this failure. Because the
+				// backoff was already reset, retrying would poll the full listing every second.
+				this._logService.error('[AgentHostSessionsProvider] Failed to apply listed sessions', err);
 				return;
 			}
 			// The connection / agent may not be ready yet — e.g. the agent
