@@ -20,7 +20,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { IAgentHostConnectionsService, IAgentHostSessionResolution } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
-import { resolveChangesetUriTemplate, resolveChatChangesetCatalogue, selectDefaultChangeset, type DefaultChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
+import { ChangesetKind, resolveChangesetUriTemplate, resolveChatChangesetCatalogue, selectDefaultChangeset, type DefaultChangesetKind } from '../../../../../../platform/agentHost/common/changesetUri.js';
 import { ISessionArtifact, isGitHubArtifactLink, readSessionArtifactsNewestFirst, SessionArtifactType } from '../../../../../../platform/agentHost/common/sessionArtifacts.js';
 import { supportsAgentHostArtifactRemoval } from '../../../../../../platform/agentHost/common/meta/agentHostArtifactRemovalMeta.js';
 import { observableFromSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -157,11 +157,14 @@ export function getAgentHostSessionPillMetadata(meta: SessionSummaryMeta | undef
 	};
 }
 
+/** The changeset the workbench Changes pill targets unless the session's provider configures another default. */
+const CHANGES_PILL_DEFAULT_CHANGESET_KIND: DefaultChangesetKind = ChangesetKind.Session;
+
 /** Resolves the changeset represented by the workbench Changes pill. */
 export function resolveAgentHostChangeset(
 	ownerResource: URI,
 	changesets: readonly Changeset[] | undefined,
-	defaultKind?: DefaultChangesetKind,
+	defaultKind: DefaultChangesetKind = CHANGES_PILL_DEFAULT_CHANGESET_KIND,
 ): { readonly changeset: Changeset; readonly resource: URI } | undefined {
 	const staticChangesets = changesets?.filter(changeset => !changeset.uriTemplate.includes('{')) ?? [];
 	const changeset = selectDefaultChangeset(staticChangesets, defaultKind);
@@ -585,12 +588,13 @@ export class AgentHostSessionInputPills extends Disposable {
 			const session = sessionState.read(reader);
 			const resolvedCatalogue = resolveChatChangesetCatalogue(chat.toString(), chatState.read(reader)?.changesets, session?.changesets, session?.defaultChat);
 			const selectableEntries = resolvedCatalogue?.filter(({ changeset }) => !changeset.uriTemplate.includes('{'));
-			const selectedChangeset = selectDefaultChangeset(selectableEntries?.map(({ changeset }) => changeset), currentResolution.defaultChangesetKind);
+			const defaultKind = currentResolution.defaultChangesetKind ?? CHANGES_PILL_DEFAULT_CHANGESET_KIND;
+			const selectedChangeset = selectDefaultChangeset(selectableEntries?.map(({ changeset }) => changeset), defaultKind);
 			const selectedEntry = selectableEntries?.find(({ changeset }) => changeset === selectedChangeset);
 			return resolveAgentHostChangeset(
 				selectedEntry?.owner === 'session' ? currentResolution.backendSession : chat,
 				selectedChangeset ? [selectedChangeset] : undefined,
-				currentResolution.defaultChangesetKind,
+				defaultKind,
 			);
 		});
 		const changesetStateSource = derived(this, reader => {
