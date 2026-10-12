@@ -7,13 +7,14 @@ import assert from 'assert';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { IStringDictionary } from '../../../../../base/common/collections.js';
 import { Emitter } from '../../../../../base/common/event.js';
+import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ChatModelDefaultsService } from '../../browser/chatModelDefaultsService.js';
 import { ChatModelConfigurationPersistence } from '../../common/chatModelConfigurationPersistence.js';
 import { ChatAgentLocation } from '../../common/constants.js';
-import { ILanguageModelChatMetadata, ILanguageModelConfigurationSchema } from '../../common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelConfigurationSchema, ILanguageModelsService } from '../../common/languageModels.js';
 
 const modelId = 'example/model';
 const schema: ILanguageModelConfigurationSchema = { properties: {
@@ -34,18 +35,17 @@ suite('ChatModelDefaultsService', () => {
 		let profile: IStringDictionary<unknown> = {};
 		let failure = false;
 		let delay: Promise<void> | undefined;
-		const host = {
-			_serviceBrand: undefined,
-			onDidChangeLanguageModels: changed.event,
-			getLanguageModelIds: () => metadata ? [modelId] : [],
-			lookupLanguageModel: () => metadata,
-			getModelConfiguration: () => ({ ...profile }),
-			setModelConfiguration: async (_model: string, values: IStringDictionary<unknown>) => {
+		const host = new class extends mock<ILanguageModelsService>() {
+			override readonly onDidChangeLanguageModels = changed.event;
+			override getLanguageModelIds() { return metadata ? [modelId] : []; }
+			override lookupLanguageModel() { return metadata; }
+			override getModelConfiguration() { return { ...profile }; }
+			override async setModelConfiguration(_model: string, values: IStringDictionary<unknown>) {
 				await delay;
 				if (failure) { throw new Error('write failed'); }
 				profile = { ...profile, ...values };
 				changed.fire('example');
-			},
+			}
 		};
 		const persistence = new ChatModelConfigurationPersistence(storage, host);
 		const service = disposables.add(new ChatModelDefaultsService(host, storage));

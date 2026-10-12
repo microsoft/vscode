@@ -20,8 +20,6 @@ import { COPILOT_VENDOR_ID, ILanguageModelsService } from '../common/languageMod
 import { isValidModelConfigurationNumber, restrictModelContextBudget, supportsCustomModelConfiguration } from '../common/modelConfigurationChoices.js';
 import { computeStoredConfiguration, extractSchemaDefaults, filterConfigurationToSchema, resolveModelConfiguration } from './widget/input/chatModelConfigurationLogic.js';
 
-type ModelDefaultsHost = Pick<ILanguageModelsService, '_serviceBrand' | 'lookupLanguageModel' | 'getLanguageModelIds' | 'getModelConfiguration' | 'setModelConfiguration' | 'onDidChangeLanguageModels'>;
-
 /** Edits the same native default bucket as the picker, never a conversation snapshot. */
 export class ChatModelDefaultsService extends Disposable implements IChatModelDefaultsService {
 	declare readonly _serviceBrand: undefined;
@@ -35,7 +33,7 @@ export class ChatModelDefaultsService extends Disposable implements IChatModelDe
 	readonly onDidChange = this._onDidChange.event;
 
 	constructor(
-		@ILanguageModelsService private readonly models: ModelDefaultsHost,
+		@ILanguageModelsService private readonly models: ILanguageModelsService,
 		@IStorageService storage: IStorageService,
 	) {
 		super();

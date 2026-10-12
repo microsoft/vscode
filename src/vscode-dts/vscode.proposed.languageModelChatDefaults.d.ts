@@ -72,7 +72,7 @@ declare module 'vscode' {
 	 *
 	 * Version 1 supports the shared Local panel/chat-editor target (not inline chat). Session-
 	 * targeted pools and managed Auto are excluded. Editable controls are scalar enums and
-	 * bounded safe integers with suggestedValues; composite schemas are rejected. Reset
+	 * bounded positive safe integers with suggestedValues; composite schemas are rejected. Reset
 	 * requires a valid explicit schema default. No credentials or general settings are exposed.
 	 */
 	export interface LanguageModelChatDefaults {
