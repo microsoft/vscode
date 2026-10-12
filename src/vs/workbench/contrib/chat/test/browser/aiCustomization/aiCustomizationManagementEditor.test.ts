@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { $ } from '../../../../../../base/browser/dom.js';
+import { IListEvent } from '../../../../../../base/browser/ui/list/list.js';
 import { DeferredPromise, Delayer, raceCancellationError, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
@@ -300,6 +301,7 @@ suite('aiCustomizationManagementEditor', () => {
 		openCustomizationItem(item: IAICustomizationListItem): Promise<void>;
 		showEmbeddedPluginDetail(item: IAgentPluginItem): Promise<void>;
 		goBackToList(): void;
+		onDidChangeSidebarSelection(e: IListEvent<{ readonly id: AICustomizationManagementSection }>): void;
 		showWelcomePage(options?: { resetFilters?: boolean }): void;
 		renderPreviewAttribute(attribute: IHeaderAttribute, promptType: PromptsType, target: Target): void;
 		onStructuredPreviewSettingChanged(): void;
@@ -1201,6 +1203,30 @@ suite('aiCustomizationManagementEditor', () => {
 
 		assert.strictEqual(backInvocations, 1);
 		editor.editorPreviewDisposables.dispose();
+	});
+
+	test('re-selecting the active section leaves its detail only for user selections', () => {
+		const editor = createTestEditor();
+		store.add(editor.editorPreviewDisposables);
+		const section = AICustomizationManagementSection.McpServers;
+		Object.assign(editor, {
+			sections: [{ id: section }],
+			sectionContextKey: { set() { } },
+			mcpListWidget: { setVisible() { }, focusSearch() { } },
+		});
+		editor.selectedSection = section;
+		editor.viewMode = 'connectorDetail';
+		const selectInSidebar = (browserEvent?: UIEvent) => editor.onDidChangeSidebarSelection({ elements: [{ id: section }], indexes: [0], browserEvent });
+
+		selectInSidebar();
+		const afterProgrammaticSelection = editor.viewMode;
+		selectInSidebar(new MouseEvent('click'));
+
+		assert.deepStrictEqual({ afterProgrammaticSelection, afterUserSelection: editor.viewMode, selected: editor.selectedSection }, {
+			afterProgrammaticSelection: 'connectorDetail',
+			afterUserSelection: 'list',
+			selected: section,
+		});
 	});
 
 	test('opens plugin-provided skills in the owning plugin detail', async () => {
