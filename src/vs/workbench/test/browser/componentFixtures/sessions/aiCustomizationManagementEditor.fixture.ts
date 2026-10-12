@@ -55,6 +55,7 @@ import { IWorkingCopyService } from '../../../../services/workingCopy/common/wor
 import { IWebviewService } from '../../../../contrib/webview/browser/webview.js';
 import { IAICustomizationWorkspaceService, AICustomizationManagementSection, AICustomizationSource } from '../../../../contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { createCustomizationMarketplaceInstallationSnapshot, CustomizationMarketplaceInstallationTarget, CustomizationMarketplaceInstallState, emptyCustomizationMarketplaceInstallationSnapshot, ICustomizationMarketplaceInstallService, RecordedCustomizationMarketplaceInstallState } from '../../../../contrib/chat/common/customizationMarketplaceInstallService.js';
+import { getConnectorRowPresentation } from '../../../../contrib/chat/browser/aiCustomization/connectorPresentation.js';
 import { ICopilotConnector, ICopilotConnectorsService } from '../../../../contrib/chat/browser/aiCustomization/copilotConnectorsService.js';
 import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemProvider, ICustomizationMcpServerCompatibility, ICustomizationSourceFolder, IHarnessDescriptor, createVSCodeHarnessDescriptor } from '../../../../contrib/chat/common/customizationHarnessService.js';
 import { IChatSessionsService } from '../../../../contrib/chat/common/chatSessionsService.js';
@@ -1032,6 +1033,7 @@ interface IRenderEditorOptions {
 	readonly customizationMarketplaceState?: 'ready' | 'empty' | 'error' | 'loading' | 'loadingMore';
 	readonly customizationMarketplaceInstallationState?: 'mixed' | 'missing' | 'error';
 	readonly customizationMarketplaceDetailState?: 'missing' | 'error' | 'unavailable';
+	readonly deriveCopilotConnectorInstallState?: boolean;
 	readonly discoveryQuery?: string;
 	readonly clearDiscoveryQuery?: boolean;
 	readonly selectDiscoveryResult?: boolean;
@@ -1176,6 +1178,24 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				? { kind: 'error', target, message: 'Installation failed because the selected destination is not writable.' }
 				: { kind: 'unavailable', message: 'This customization requires a runtime that is not installed.', setupUrl: URI.parse('https://example.com/setup') };
 		customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(resource), state);
+	}
+	if (options.deriveCopilotConnectorInstallState) {
+		const installation = copilotConnectorMarketplaceResource.installation;
+		if (installation?.kind !== 'copilotConnector') {
+			throw new Error('The connector Marketplace fixture must use a connector installation.');
+		}
+		const connector = options.copilotConnectors?.find(candidate => candidate.name === installation.name);
+		if (!connector) {
+			throw new Error('A connector-backed Marketplace fixture must provide the matching connector.');
+		}
+		const target = getFixtureInstallationTarget(copilotConnectorMarketplaceResource);
+		const presentation = getConnectorRowPresentation(connector);
+		const state: CustomizationMarketplaceInstallState = connector.connectionStatus === 'connected'
+			? { kind: 'installed', target }
+			: presentation.action
+				? { kind: 'available' }
+				: { kind: 'unavailable', message: `This connector cannot be connected while its status is '${presentation.statusLabel}'. Refresh and try again.` };
+		customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(copilotConnectorMarketplaceResource), state);
 	}
 
 	const getCustomizationMarketplaceInstallations = () => createCustomizationMarketplaceInstallationSnapshot(
@@ -3512,6 +3532,20 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			copilotConnectorsEnabled: true,
 			marketplaceVisibilityEnabled: true,
 			discoveryQuery: 'Work IQ Mail',
+		}),
+	}),
+
+	DiscoverPendingCopilotConnector: defineComponentFixture({
+		labels: { kind: 'screenshot', blocksCi: false },
+		expectedVisualDescriptions: ['A pending Copilot Connector remains actionable with a Connect button so interrupted authorization can be retried.'],
+		render: ctx => renderEditor(ctx, {
+			sessionResource: localSessionResource,
+			copilotConnectorsEnabled: true,
+			copilotConnectors: [{ ...fixtureCopilotConnectors[0], connectionStatus: 'pending' }],
+			deriveCopilotConnectorInstallState: true,
+			marketplaceVisibilityEnabled: true,
+			discoveryQuery: 'Work IQ Mail',
+			selectDiscoveryResult: true,
 		}),
 	}),
 
