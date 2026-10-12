@@ -2423,21 +2423,29 @@ suite('CustomizationMarketplaceInstallService', () => {
 			const fixture = await createFixture();
 			const candidate = connectorResource();
 			fixture.connectorsService.statusOverride = 'pending';
-			const state = fixture.service.getInstallState(candidate);
+			const before = fixture.service.getInstallState(candidate);
+			const retry = new DeferredPromise<void>();
 			fixture.connectorsService.onConnect = async name => {
+				await retry.p;
 				fixture.connectorsService.statusOverride = undefined;
 				fixture.connectedConnectors.add(name);
 				fixture.connectorChanges.fire();
 			};
 
-			await fixture.service.install(candidate);
+			const first = fixture.service.install(candidate);
+			const second = fixture.service.install(candidate);
+			const during = fixture.service.getInstallState(candidate);
+			retry.complete();
+			await Promise.all([first, second]);
 
 			assert.deepStrictEqual({
-				state,
+				before,
+				during,
 				connects: fixture.connectorsService.connectCalls,
 				installed: fixture.service.getInstallState(candidate).kind,
 			}, {
-				state: { kind: 'available' },
+				before: { kind: 'available' },
+				during: { kind: 'installing' },
 				connects: ['mail'],
 				installed: 'installed',
 			});

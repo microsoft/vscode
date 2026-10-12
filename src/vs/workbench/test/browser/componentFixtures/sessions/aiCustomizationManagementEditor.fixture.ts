@@ -45,6 +45,7 @@ import { IWorkbenchEnvironmentService } from '../../../../services/environment/c
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { IChatWidgetService } from '../../../../contrib/chat/browser/chat.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { IProgressService } from '../../../../../platform/progress/common/progress.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
@@ -55,7 +56,7 @@ import { IWorkingCopyService } from '../../../../services/workingCopy/common/wor
 import { IWebviewService } from '../../../../contrib/webview/browser/webview.js';
 import { IAICustomizationWorkspaceService, AICustomizationManagementSection, AICustomizationSource } from '../../../../contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { createCustomizationMarketplaceInstallationSnapshot, CustomizationMarketplaceInstallationTarget, CustomizationMarketplaceInstallState, emptyCustomizationMarketplaceInstallationSnapshot, ICustomizationMarketplaceInstallService, RecordedCustomizationMarketplaceInstallState } from '../../../../contrib/chat/common/customizationMarketplaceInstallService.js';
-import { getConnectorRowPresentation } from '../../../../contrib/chat/browser/aiCustomization/connectorPresentation.js';
+import { CustomizationMarketplaceInstallService } from '../../../../contrib/chat/browser/aiCustomization/customizationMarketplaceInstallService.js';
 import { ICopilotConnector, ICopilotConnectorsService } from '../../../../contrib/chat/browser/aiCustomization/copilotConnectorsService.js';
 import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemProvider, ICustomizationMcpServerCompatibility, ICustomizationSourceFolder, IHarnessDescriptor, createVSCodeHarnessDescriptor } from '../../../../contrib/chat/common/customizationHarnessService.js';
 import { IChatSessionsService } from '../../../../contrib/chat/common/chatSessionsService.js';
@@ -71,6 +72,7 @@ import { ParsedPromptFile, PromptFileParser } from '../../../../contrib/chat/com
 import { PromptFileSource, PromptsType } from '../../../../contrib/chat/common/promptSyntax/promptTypes.js';
 import { IAgentPluginRepositoryService } from '../../../../contrib/chat/common/plugins/agentPluginRepositoryService.js';
 import { IAgentPluginService, IAgentPlugin } from '../../../../contrib/chat/common/plugins/agentPluginService.js';
+import { IPluginGitService } from '../../../../contrib/chat/common/plugins/pluginGitService.js';
 import { ILanguageModelToolsService, IToolData, IToolSet, ToolDataSource } from '../../../../contrib/chat/common/tools/languageModelToolsService.js';
 import { IAgentHostToolSetEnablementService, IToolEnablementState } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
 import { IAgentHostActiveClientService } from '../../../../contrib/chat/browser/agentSessions/agentHost/agentHostActiveClientService.js';
@@ -999,19 +1001,41 @@ function isRecordedCustomizationMarketplaceInstallState(state: CustomizationMark
 		|| state?.kind === 'error';
 }
 
-function createMockCopilotConnectorsService(enabled: boolean, availableConnectors: readonly ICopilotConnector[] = fixtureCopilotConnectors): ICopilotConnectorsService {
-	const connectors = enabled ? availableConnectors : [];
+function createMockCopilotConnectorsService(
+	enabled: boolean,
+	availableConnectors: readonly ICopilotConnector[] = fixtureCopilotConnectors,
+	options?: {
+		readonly onDidChange?: Emitter<void>;
+		readonly onDidDisconnect?: Emitter<string>;
+		readonly onConnect?: () => void;
+	},
+): ICopilotConnectorsService {
+	let connectors = enabled ? [...availableConnectors] : [];
 	return new class extends mock<ICopilotConnectorsService>() {
-		override readonly onDidChange = Event.None;
-		override readonly connectors = connectors;
-		override readonly connectedMcpServers = connectors
-			.filter(connector => connector.connectionStatus === 'connected')
-			.flatMap(connector => connector.mcpServers.map(server => ({ id: `${connector.name}:${server.name}`, connector, serverName: server.name })));
+		override readonly onDidChange = options?.onDidChange?.event ?? Event.None;
+		override readonly onDidChangeAccount = Event.None;
+		override readonly onDidDisconnect = options?.onDidDisconnect?.event ?? Event.None;
+		override readonly account = { providerId: 'github', accountName: 'octocat', enterprise: false };
+		override readonly connectionStateKnown = true;
+		override get connectors() { return connectors; }
+		override get connectedMcpServers() {
+			return connectors
+				.filter(connector => connector.connectionStatus === 'connected')
+				.flatMap(connector => connector.mcpServers.map(server => ({ id: `${connector.name}:${server.name}`, connector, serverName: server.name })));
+		}
 		override async getConnectors() { return this.connectors; }
 		override async getConnectorsSnapshot() { return { connectors: this.connectors, cacheToken: CancellationToken.None }; }
 		override async refresh() { return this.connectors; }
-		override async connect() { }
-		override async disconnect() { }
+		override async connect(name: string) {
+			options?.onConnect?.();
+			connectors = connectors.map(connector => connector.name === name ? { ...connector, connectionStatus: 'connected' } : connector);
+			options?.onDidChange?.fire();
+		}
+		override async disconnect(name: string) {
+			connectors = connectors.map(connector => connector.name === name ? { ...connector, connectionStatus: 'not_connected' } : connector);
+			options?.onDidChange?.fire();
+			options?.onDidDisconnect?.fire(name);
+		}
 	}();
 }
 
@@ -1033,7 +1057,7 @@ interface IRenderEditorOptions {
 	readonly customizationMarketplaceState?: 'ready' | 'empty' | 'error' | 'loading' | 'loadingMore';
 	readonly customizationMarketplaceInstallationState?: 'mixed' | 'missing' | 'error';
 	readonly customizationMarketplaceDetailState?: 'missing' | 'error' | 'unavailable';
-	readonly deriveCopilotConnectorInstallState?: boolean;
+	readonly useRealConnectorInstallService?: boolean;
 	readonly discoveryQuery?: string;
 	readonly clearDiscoveryQuery?: boolean;
 	readonly selectDiscoveryResult?: boolean;
@@ -1134,6 +1158,17 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		delayedReadFiles.add(pluginReadmeUri);
 	}
 	const promptFilesDidChangeEmitter = ctx.disposableStore.add(new Emitter<void>());
+	const connectorChangedEmitter = ctx.disposableStore.add(new Emitter<void>());
+	const connectorDisconnectedEmitter = ctx.disposableStore.add(new Emitter<string>());
+	let connectorConnectCalls = 0;
+	const copilotConnectorsService = createMockCopilotConnectorsService(options.copilotConnectorsEnabled ?? false, options.copilotConnectors, {
+		onDidChange: connectorChangedEmitter,
+		onDidDisconnect: connectorDisconnectedEmitter,
+		onConnect: () => {
+			ctx.container.dataset.connectorConnectCalls = String(++connectorConnectCalls);
+		},
+	});
+	ctx.container.dataset.connectorConnectCalls = '0';
 	const createdFolders = new ResourceSet();
 	const migrationFileService = new class extends mock<IFileService>() {
 		override async readFile(resource: URI) {
@@ -1179,25 +1214,6 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				: { kind: 'unavailable', message: 'This customization requires a runtime that is not installed.', setupUrl: URI.parse('https://example.com/setup') };
 		customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(resource), state);
 	}
-	if (options.deriveCopilotConnectorInstallState) {
-		const installation = copilotConnectorMarketplaceResource.installation;
-		if (installation?.kind !== 'copilotConnector') {
-			throw new Error('The connector Marketplace fixture must use a connector installation.');
-		}
-		const connector = options.copilotConnectors?.find(candidate => candidate.name === installation.name);
-		if (!connector) {
-			throw new Error('A connector-backed Marketplace fixture must provide the matching connector.');
-		}
-		const target = getFixtureInstallationTarget(copilotConnectorMarketplaceResource);
-		const presentation = getConnectorRowPresentation(connector);
-		const state: CustomizationMarketplaceInstallState = connector.connectionStatus === 'connected'
-			? { kind: 'installed', target }
-			: presentation.action
-				? { kind: 'available' }
-				: { kind: 'unavailable', message: `This connector cannot be connected while its status is '${presentation.statusLabel}'. Refresh and try again.` };
-		customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(copilotConnectorMarketplaceResource), state);
-	}
-
 	const getCustomizationMarketplaceInstallations = () => createCustomizationMarketplaceInstallationSnapshot(
 		customizationMarketplaceResources.flatMap(resource => {
 			const state = customizationMarketplaceInstallStates.get(getCustomizationMarketplaceResourceKey(resource));
@@ -1267,43 +1283,47 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 					};
 				}
 			}());
-			reg.defineInstance(ICustomizationMarketplaceInstallService, new class extends mock<ICustomizationMarketplaceInstallService>() {
-				override readonly onDidChange = customizationMarketplaceInstallChanged.event;
-				override readonly installations = observableFromEvent(customizationMarketplaceInstallChanged.event, getCustomizationMarketplaceInstallations);
-				override getInstallState(resource: ICustomizationMarketplaceResource): CustomizationMarketplaceInstallState {
-					// The outgoing Discover view may read installation state while the visibility change disposes it.
-					assert(sourceEnabled() || (options.toggleMarketplaceVisibility === true && customizationMarketplaceQueryCount > 0), 'A disabled Marketplace fixture must not request installation state.');
-					return customizationMarketplaceInstallStates.get(getCustomizationMarketplaceResourceKey(resource)) ?? { kind: 'available' };
-				}
-				override async install(resource: ICustomizationMarketplaceResource): Promise<void> {
-					assert(sourceEnabled(), 'A fixture with no enabled sources must not install resources.');
-					if (options.customizationMarketplaceInstallationState === 'error') {
-						throw new Error('Choose a writable installation destination and try again.');
+			if (options.useRealConnectorInstallService) {
+				reg.define(ICustomizationMarketplaceInstallService, CustomizationMarketplaceInstallService);
+			} else {
+				reg.defineInstance(ICustomizationMarketplaceInstallService, new class extends mock<ICustomizationMarketplaceInstallService>() {
+					override readonly onDidChange = customizationMarketplaceInstallChanged.event;
+					override readonly installations = observableFromEvent(customizationMarketplaceInstallChanged.event, getCustomizationMarketplaceInstallations);
+					override getInstallState(resource: ICustomizationMarketplaceResource): CustomizationMarketplaceInstallState {
+						// The outgoing Discover view may read installation state while the visibility change disposes it.
+						assert(sourceEnabled() || (options.toggleMarketplaceVisibility === true && customizationMarketplaceQueryCount > 0), 'A disabled Marketplace fixture must not request installation state.');
+						return customizationMarketplaceInstallStates.get(getCustomizationMarketplaceResourceKey(resource)) ?? { kind: 'available' };
 					}
-					customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(resource), { kind: 'installing' });
-					customizationMarketplaceInstallChanged.fire();
-					await Promise.resolve();
-					customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(resource), { kind: 'installed', target: getFixtureInstallationTarget(resource) });
-					customizationMarketplaceInstallChanged.fire();
-				}
-				override async repair(resource: ICustomizationMarketplaceResource): Promise<void> {
-					assert(sourceEnabled(), 'A disabled Marketplace fixture must not repair resources.');
-					const target = getFixtureInstallationTarget(resource);
-					customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(resource), { kind: 'repairing', target });
-					customizationMarketplaceInstallChanged.fire();
-					await Promise.resolve();
-					customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(resource), { kind: 'installed', target });
-					customizationMarketplaceInstallChanged.fire();
-				}
-				override async uninstall(resource: ICustomizationMarketplaceResource): Promise<void> {
-					assert(sourceEnabled(), 'A disabled Marketplace fixture must not uninstall resources.');
-					customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(resource), { kind: 'uninstalling', target: getFixtureInstallationTarget(resource) });
-					customizationMarketplaceInstallChanged.fire();
-					await Promise.resolve();
-					customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(resource), { kind: 'available' });
-					customizationMarketplaceInstallChanged.fire();
-				}
-			}());
+					override async install(resource: ICustomizationMarketplaceResource): Promise<void> {
+						assert(sourceEnabled(), 'A fixture with no enabled sources must not install resources.');
+						if (options.customizationMarketplaceInstallationState === 'error') {
+							throw new Error('Choose a writable installation destination and try again.');
+						}
+						customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(resource), { kind: 'installing' });
+						customizationMarketplaceInstallChanged.fire();
+						await Promise.resolve();
+						customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(resource), { kind: 'installed', target: getFixtureInstallationTarget(resource) });
+						customizationMarketplaceInstallChanged.fire();
+					}
+					override async repair(resource: ICustomizationMarketplaceResource): Promise<void> {
+						assert(sourceEnabled(), 'A disabled Marketplace fixture must not repair resources.');
+						const target = getFixtureInstallationTarget(resource);
+						customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(resource), { kind: 'repairing', target });
+						customizationMarketplaceInstallChanged.fire();
+						await Promise.resolve();
+						customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(resource), { kind: 'installed', target });
+						customizationMarketplaceInstallChanged.fire();
+					}
+					override async uninstall(resource: ICustomizationMarketplaceResource): Promise<void> {
+						assert(sourceEnabled(), 'A disabled Marketplace fixture must not uninstall resources.');
+						customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(resource), { kind: 'uninstalling', target: getFixtureInstallationTarget(resource) });
+						customizationMarketplaceInstallChanged.fire();
+						await Promise.resolve();
+						customizationMarketplaceInstallStates.set(getCustomizationMarketplaceResourceKey(resource), { kind: 'available' });
+						customizationMarketplaceInstallChanged.fire();
+					}
+				}());
+			}
 			if (options.migrationActivity) {
 				const storageService = ctx.disposableStore.add(new InMemoryStorageService());
 				storageService.store('chat.customizationMigration.activity.profile.agent-host-copilotcli', {
@@ -1675,6 +1695,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				override readonly isSessionsWindow = isSessionsWindow;
 			}());
 			reg.defineInstance(IQuickInputService, new class extends mock<IQuickInputService>() { }());
+			reg.defineInstance(IProgressService, new class extends mock<IProgressService>() { }());
 			reg.defineInstance(IViewsService, new class extends mock<IViewsService>() {
 				override async openView<T extends {}>(_id: string, _focus?: boolean) { return null as T | null; }
 			}());
@@ -1693,7 +1714,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			}());
 			reg.define(IMarkdownRendererService, MarkdownRendererService);
 			reg.defineInstance(IWebviewService, new class extends mock<IWebviewService>() { }());
-			reg.defineInstance(ICopilotConnectorsService, createMockCopilotConnectorsService(options.copilotConnectorsEnabled ?? false, options.copilotConnectors));
+			reg.defineInstance(ICopilotConnectorsService, copilotConnectorsService);
 			reg.defineInstance(IMcpWorkbenchService, new class extends mock<IMcpWorkbenchService>() {
 				override readonly onChange = Event.None;
 				override readonly onReset = Event.None;
@@ -1739,6 +1760,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				override readonly onDidChangeInputs = Event.None;
 			}());
 			reg.defineInstance(IAgentPluginRepositoryService, createMockAgentPluginRepositoryService());
+			reg.defineInstance(IPluginGitService, new class extends mock<IPluginGitService>() { }());
 			reg.defineInstance(IAgentPluginService, new class extends mock<IAgentPluginService>() {
 				override readonly plugins = constObservable(installedPlugins);
 				override readonly enablementModel = undefined as never;
@@ -1765,6 +1787,13 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 
 	modelServiceRef.value = instantiationService.get(IModelService);
 	languageServiceRef.value = instantiationService.get(ILanguageService);
+	if (options.useRealConnectorInstallService) {
+		const installService = instantiationService.get(ICustomizationMarketplaceInstallService);
+		if (!(installService instanceof CustomizationMarketplaceInstallService)) {
+			throw new Error('The connector fixture must use the real Marketplace install service.');
+		}
+		ctx.disposableStore.add(installService);
+	}
 	if (options.pluginReadmeContent !== undefined) {
 		instantiationService.get(IMarkdownRendererService).setDefaultCodeBlockRenderer({
 			async renderCodeBlock(_languageAlias, value) {
@@ -3542,7 +3571,7 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			sessionResource: localSessionResource,
 			copilotConnectorsEnabled: true,
 			copilotConnectors: [{ ...fixtureCopilotConnectors[0], connectionStatus: 'pending' }],
-			deriveCopilotConnectorInstallState: true,
+			useRealConnectorInstallService: true,
 			marketplaceVisibilityEnabled: true,
 			discoveryQuery: 'Work IQ Mail',
 			selectDiscoveryResult: true,
