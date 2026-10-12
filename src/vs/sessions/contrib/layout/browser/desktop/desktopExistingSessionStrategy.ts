@@ -197,7 +197,7 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 				if ((this._ctx.sharedChatLayout && (isSubmit || isWorkspaceConversion))
 					|| (!isSubmit && !isWorkspaceConversion && (!initialized || !wasExistingActive || wasQuickChatActive || sessionChanged || ownerChanged))) {
 					const compositionKey = this._ctx.chatLayoutActive(reader) ? this._ctx.compositionKeyFor(activeSession, reader) : undefined;
-					const revealSavedComposition = initialized && !!compositionKey && this._ctx.compositionStore.get(compositionKey) !== undefined;
+					const revealSavedComposition = !this._ctx.sharedChatLayout && initialized && !!compositionKey && this._ctx.compositionStore.get(compositionKey) !== undefined;
 					this._ctx.withSessionLayoutRestore(() => this._apply(this._resolveComposition(activeSession, ownerKey), false, revealSavedComposition));
 				}
 				wasExistingActive = true;
@@ -305,7 +305,7 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 			return;
 		}
 		const activeSession = this._sessionsService.activeSession.get();
-		if (this._multipleLayoutOwnersVisible()) {
+		if (this._ctx.multipleChatsVisibleObs.get()) {
 			const ownerKey = activeSession && this._ctx.chatLayoutActive() ? this._ctx.ownerKeyFor(activeSession) : undefined;
 			if (!ownerKey || !this._ctx.sharedChatLayout) {
 				return;
