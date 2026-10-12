@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { raceCancellation } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, type Event } from '../../../../../../base/common/event.js';
-import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IJSONSchema, IJSONSchemaMap } from '../../../../../../base/common/jsonSchema.js';
-import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { isEqual } from '../../../../../../base/common/resources.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { extUri, isEqual } from '../../../../../../base/common/resources.js';
 import type { URI } from '../../../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
@@ -18,13 +18,14 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
+import { IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { ChatRequestVariableSet } from '../../attachments/chatVariableEntries.js';
 import { isByokModel } from '../../chatSelectedModel.js';
 import { IChatProgress, IChatService } from '../../chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../constants.js';
 import { AUTO_RAW_MODEL_ID, COPILOT_VENDOR_ID, ILanguageModelChatMetadata, ILanguageModelsService } from '../../languageModels.js';
-import type { ChatModel, IChatRequestModeInstructions } from '../../model/chatModel.js';
+import type { ChatModel, ChatRequestModel, ChatResponseModel, IChatRequestModel, IChatRequestModeInstructions } from '../../model/chatModel.js';
 import { getChatSessionType } from '../../model/chatUri.js';
 import { IChatAgentRequest, IChatAgentResult, IChatAgentService, UserSelectedTools } from '../../participants/chatAgents.js';
 import { ComputeAutomaticInstructions } from '../../promptSyntax/computeAutomaticInstructions.js';
@@ -47,11 +48,13 @@ import {
 	VSCodeToolReference,
 } from '../languageModelToolsService.js';
 import { ManageTodoListToolToolId } from './manageTodoListTool.js';
+import { appendBackgroundAgentRoster, BackgroundAgentRegistry, IBackgroundAgentRegistryAccess, IBackgroundAgentSnapshot } from './backgroundAgentRegistry.js';
 import { createToolSimpleTextResult } from './toolHelpers.js';
 
 const BaseModelDescription = `Launch a new agent to handle complex, multi-step tasks autonomously. This tool is good at researching complex questions, searching for code, and executing multi-step tasks. When you are searching for a keyword or file and are not confident that you will find the right match in the first few tries, use this agent to perform the search for you.
 
-- Agents do not run async or in the background, you will wait for the agent\'s result.
+- Mode "async" is the default and returns an agent_id immediately; "background" is a compatibility alias. Use mode:"sync" for an explicitly requested inline result. Each chat session has a limit of 10 running agents, shared by nested and detached descendants.
+- Completion updates the worker card and durable noninterrupting mailbox without steering, stopping, or starting the main agent. Use read_agent mode:"status" for immediate checks, mode:"list" to recover session IDs without consuming results, and explicit mode:"wait" when no independent work remains and the result is required. Wait timeouts leave the agent running.
 - When the agent is done, it will return a single message back to you. The result returned by the agent is not visible to the user. To show the user the result, you should send a text message back to the user with a concise summary of the result.
 - Each agent invocation is stateless. You will not be able to send additional messages to the agent, nor will the agent be able to communicate with you outside of its final report. Therefore, your prompt should contain a highly detailed task description for the agent to perform autonomously and you should specify exactly what information the agent should return back to you in its final and only message to you.
 - The agent's outputs should generally be trusted
@@ -63,6 +66,7 @@ export interface IRunSubagentToolInputParams {
 	description: string;
 	agentName?: string;
 	model?: string;
+	mode?: 'async' | 'background' | 'sync';
 }
 
 export const RUN_SUBAGENT_MAX_NESTING_DEPTH = 5;
@@ -77,8 +81,12 @@ interface IResolvedSubagentModel {
 
 /** A subagent started by this tool that has not finished yet. A copy of it is made when it runs this tool without `agentName`. */
 interface IRunningSubagent {
+	readonly sessionResource: URI;
+	readonly rootRequestId: string;
+	readonly snapshot: IBackgroundAgentSnapshot;
 	readonly modeInstructions: IChatRequestModeInstructions | undefined;
 	readonly model: IResolvedSubagentModel;
+	readonly modelConfiguration: Record<string, unknown> | undefined;
 	readonly tools: UserSelectedTools;
 	/** The hooks from the subagent's frontmatter, remapped for running as a subagent. */
 	readonly hooks: ChatRequestHooks | undefined;
@@ -104,8 +112,13 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 	/** Hack to port data between prepare/invoke */
 	private readonly _resolvedModels = new Map<string, IResolvedSubagentModel>();
 
-	/** Tracks the current subagent nesting depth per session to detect and limit recursion. */
-	private readonly _sessionDepth = new Map<string, number>();
+	private readonly _backgroundAgents: BackgroundAgentRegistry;
+	private readonly _backgroundAgentCards = this._register(new DisposableMap<string, IDisposable>());
+
+	/** Shared session registry for read_agent and exact detached-transport context binding. */
+	get backgroundAgents(): IBackgroundAgentRegistryAccess {
+		return this._backgroundAgents;
+	}
 
 	/** Running subagents keyed by the id of the request they run in, which their tool calls carry in the tool invocation context. */
 	private readonly _runningSubagents = new Map<string, IRunningSubagent>();
@@ -123,8 +136,10 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IProductService private readonly productService: IProductService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IStorageService storageService: IStorageService,
 	) {
 		super();
+		this._backgroundAgents = this._register(new BackgroundAgentRegistry(storageService));
 		this._register(this.languageModelsService.onDidChangeLanguageModels(() => this._autoModelResolution = undefined));
 	}
 
@@ -149,6 +164,10 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 			type: 'string',
 			description: 'Optional model for the subagent. Format: "Model Name (Vendor)", vendor is usually "copilot". Only use to enforce a specific model.',
 		};
+		properties.mode = {
+			type: 'string', enum: ['async', 'background', 'sync'], default: 'async',
+			description: 'async (default) returns an agent_id immediately. background is an alias. sync waits for an inline result. Completion never steers the parent.',
+		};
 
 		const inputSchema: IJSONSchema & { properties: IJSONSchemaMap } = {
 			type: 'object',
@@ -168,8 +187,86 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 		return runSubagentToolData;
 	}
 
-	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
+	async invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
+		if (!invocation.context) {
+			throw new Error('toolInvocationToken is required for this tool');
+		}
+		const context = invocation.context;
 		const args = invocation.parameters as IRunSubagentToolInputParams;
+		try {
+			if (token.isCancellationRequested) {
+				throw new Error(localize('backgroundAgent.startCancelled', "Background agent launch was cancelled."));
+			}
+			if (args.mode !== undefined && !['async', 'background', 'sync'].includes(args.mode)) {
+				throw new Error(localize('runSubagent.invalidMode', "Unknown subagent execution mode."));
+			}
+			const callingSubagent = await this.getCallingSubagent(context.sessionResource, context.requestId);
+			const sessionResource = callingSubagent?.sessionResource ?? context.sessionResource;
+			const rootRequestId = callingSubagent?.rootRequestId ?? context.requestId;
+			const model = this.chatService.getSession(sessionResource) as ChatModel | undefined;
+			const request = model?.getRequests().find(request => request.id === rootRequestId);
+			if (!model || !request) {
+				throw new Error(localize('runSubagent.exactRequestMissing', "The exact invoking chat request was not found."));
+			}
+			const handle = await this._backgroundAgents.start({
+				...context, parentAgentId: callingSubagent?.snapshot.id,
+				invocationId: invocation.chatStreamToolCallId ?? invocation.callId,
+				description: args.description, agentName: this.normalizeRequestedAgentName(args.agentName),
+			}, async (snapshot, workerToken) => {
+				const updateCard = (isActive: boolean, result?: string) => {
+					const data = invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData : {
+						kind: 'subagent' as const, description: args.description, prompt: args.prompt,
+					};
+					invocation.toolSpecificData = data;
+					Object.assign(data, { isActive, hasStarted: true, startedAt: snapshot.startedAt, ...(isActive ? {} : { duration: Date.now() - snapshot.startedAt, result }) });
+					this.acceptProgress(model, request, {
+						kind: 'externalToolInvocationUpdate', toolCallId: snapshot.invocationId,
+						toolName: RunSubagentTool.Id, isComplete: !isActive, invocationMessage: args.description,
+						toolSpecificData: data, subagentInvocationId: invocation.subAgentInvocationId,
+					});
+				};
+				updateCard(true);
+				this._backgroundAgentCards.set(snapshot.id, this.backgroundAgents.onDidChange(terminal => {
+					if (terminal.id === snapshot.id && terminal.status !== 'running') {
+						updateCard(false, terminal.result?.content.filter(part => part.kind === 'text').map(part => part.value).join('\n'));
+						this._backgroundAgentCards.deleteAndDispose(snapshot.id);
+					}
+				}));
+				return this.invokeInline(invocation, countTokens, progress, workerToken, snapshot, callingSubagent);
+			}, args.mode === 'sync' ? token : CancellationToken.None);
+			if (args.mode === 'sync') {
+				const terminal = await handle.completion;
+				const result = await this.backgroundAgents.claim(context, terminal.id);
+				return this.withRoster(invocation, result ?? createToolSimpleTextResult(localize('runSubagent.resultUnavailable', "The agent result has already been retrieved or expired.")));
+			}
+			void handle.completion.catch(error => this.logService.error('RunSubagentTool: Background persistence failed', error));
+			return this.withRoster(invocation, {
+				content: [{ kind: 'text', value: localize('runSubagent.receipt', "agent_id: {0}\nstatus: running\nCompletion updates the worker card and noninterrupting mailbox; use read_agent to retrieve the result.", handle.snapshot.id) }],
+				toolMetadata: { agent_id: handle.snapshot.id, subAgentInvocationId: handle.snapshot.invocationId },
+			});
+		} catch (error) {
+			const result = createToolSimpleTextResult(`Error invoking subagent: ${error instanceof Error ? error.message : String(error)}`);
+			result.toolResultError = true;
+			return this.withRoster(invocation, result);
+		} finally {
+			this._resolvedModels.delete(this.modelCacheKey(context.sessionResource, context.requestId, invocation.callId));
+		}
+	}
+
+	private async withRoster(invocation: IToolInvocation, result: IToolResult): Promise<IToolResult> {
+		try {
+			return await appendBackgroundAgentRoster(this.backgroundAgents, invocation.context!, result);
+		} catch (error) {
+			this.logService.error('RunSubagentTool: Roster storage failed', error);
+			return result;
+		}
+	}
+
+	private async invokeInline(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken, snapshot: IBackgroundAgentSnapshot, callingSubagent: IRunningSubagent | undefined): Promise<IToolResult> {
+		const args = invocation.parameters as IRunSubagentToolInputParams;
+		const cacheKey = this.modelCacheKey(invocation.context?.sessionResource, invocation.context?.requestId, invocation.callId);
+		const preparedModel = this._resolvedModels.get(cacheKey);
+		this._resolvedModels.delete(cacheKey);
 
 		this.logService.debug(`RunSubagentTool: Invoking with prompt: ${args.prompt.substring(0, 100)}...`);
 
@@ -178,12 +275,17 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 		}
 
 		// Get the chat model and request for writing progress
-		const model = this.chatService.getSession(invocation.context.sessionResource) as ChatModel | undefined;
+		const sessionResource = callingSubagent?.sessionResource ?? invocation.context.sessionResource;
+		const model = this.chatService.getSession(sessionResource) as ChatModel | undefined;
 		if (!model) {
 			throw new Error('Chat model not found for session');
 		}
 
-		const request = model.getRequests().at(-1)!;
+		const rootRequestId = callingSubagent?.rootRequestId ?? invocation.context.requestId;
+		const request = model.getRequests().find(request => request.id === rootRequestId);
+		if (!request) {
+			throw new Error(localize('runSubagent.exactRequestMissing', "The exact invoking chat request was not found."));
+		}
 		let subagentCredits: number | undefined;
 
 		const store = new DisposableStore();
@@ -192,17 +294,17 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 			// Get the default agent
 			const defaultAgent = this.chatAgentService.getDefaultAgent(ChatAgentLocation.Chat, ChatModeKind.Agent);
 			if (!defaultAgent) {
-				return createToolSimpleTextResult('Error: No default agent available');
+				return { ...createToolSimpleTextResult('Error: No default agent available'), toolResultError: true };
 			}
 
 			// Resolve mode-specific configuration if subagentId is provided
-			let modeModelId = invocation.modelId;
-			let modeTools = invocation.userSelectedTools;
+			const parentModelId = callingSubagent?.model.modeModelId ?? request.modelId ?? invocation.modelId;
+			let modeModelId = parentModelId;
+			let modeTools = invocation.userSelectedTools ? { ...invocation.userSelectedTools } : undefined;
 			let modeInstructions: IChatRequestModeInstructions | undefined;
 			let subagent: ICustomAgent | undefined;
 			let resolvedModelName: string | undefined;
 			let modelSelectionSource: SubagentModelSelectionSource = 'mainModel';
-			const callingSubagent = this.getRunningSubagent(invocation.context.requestId);
 			const currentModeInstructions = callingSubagent ? callingSubagent.modeInstructions : request.modeInfo?.modeInstructions;
 
 			const subAgentName = this.normalizeRequestedAgentName(args.agentName);
@@ -213,15 +315,14 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 				subagent = await this.getSubAgentByName(subAgentName);
 				if (subagent) {
 					// Check the pre-resolved model cache from prepareToolInvocation
-					const cached = this._resolvedModels.get(invocation.callId);
+					const cached = preparedModel;
 					if (cached) {
-						this._resolvedModels.delete(invocation.callId);
 						modeModelId = cached.modeModelId;
 						resolvedModelName = cached.resolvedModelName;
 						modelSelectionSource = cached.selectionSource;
 					} else {
 						// Fallback: resolve the model here if prepare didn't cache it
-						const resolved = await this.resolveSubagentModel(subagent, invocation.modelId, args.model);
+						const resolved = await this.resolveSubagentModel(subagent, parentModelId, args.model);
 						modeModelId = resolved.modeModelId;
 						resolvedModelName = resolved.resolvedModelName;
 						modelSelectionSource = resolved.selectionSource;
@@ -251,7 +352,6 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 						isBuiltin: isBuiltinAgent(subagent.source, subagent.uri, this.productService),
 					};
 				} else {
-					this._resolvedModels.delete(invocation.callId);
 					throw new Error(`Requested agent '${subAgentName}' not found. Try again with the correct agent name, or omit agentName to use the current agent.`);
 				}
 			} else {
@@ -261,14 +361,13 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 				}
 
 				// No subagent name - clean up any cached entry and resolve model from explicit parameter or main model
-				const cached = this._resolvedModels.get(invocation.callId);
+				const cached = preparedModel;
 				if (cached) {
-					this._resolvedModels.delete(invocation.callId);
 					modeModelId = cached.modeModelId;
 					resolvedModelName = cached.resolvedModelName;
 					modelSelectionSource = cached.selectionSource;
 				} else {
-					const resolved = await this.resolveSubagentModel(undefined, invocation.modelId, args.model, currentModeInstructions, callingSubagent?.model);
+					const resolved = await this.resolveSubagentModel(undefined, parentModelId, args.model, currentModeInstructions, callingSubagent?.model);
 					modeModelId = resolved.modeModelId;
 					resolvedModelName = resolved.resolvedModelName;
 					modelSelectionSource = resolved.selectionSource;
@@ -283,8 +382,10 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 			// uses in the renderer (see PR #302863), and the subagent grouping matches on toolCallId.
 			const subAgentInvocationId = invocation.chatStreamToolCallId ?? invocation.callId ?? `subagent-${generateUuid()}`;
 
-			let inEdit = false;
 			const progressCallback = (parts: IChatProgress[]) => {
+				if (token.isCancellationRequested) {
+					return;
+				}
 				for (const part of parts) {
 					// Usage events carry the subagent's running credit total; keep the
 					// latest for its hover and fold it into the parent response total.
@@ -296,26 +397,26 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 					}
 					// Write certain parts immediately to the model
 					if (part.kind === 'textEdit' || part.kind === 'notebookEdit' || part.kind === 'codeblockUri') {
-						if (part.kind === 'codeblockUri' && !inEdit) {
-							inEdit = true;
-							model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('```\n') });
-						}
 						// Attach subAgentInvocationId to codeblockUri parts so they can be routed to the subagent content part
 						if (part.kind === 'codeblockUri') {
-							model.acceptResponseProgress(request, { ...part, subAgentInvocationId });
+							this.acceptProgress(model, request, { ...part, subAgentInvocationId });
 						} else {
-							model.acceptResponseProgress(request, part);
+							this.acceptProgress(model, request, part);
 						}
 					} else if (part.kind === 'hook') {
-						model.acceptResponseProgress(request, { ...part, subAgentInvocationId });
+						this.acceptProgress(model, request, { ...part, subAgentInvocationId });
 					} else if (part.kind === 'markdownContent') {
-						if (inEdit) {
-							model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('\n```\n\n') });
-							inEdit = false;
-						}
-
 						// Collect markdown content for the tool result
 						markdownParts.push(part.content.value);
+						if (invocation.toolSpecificData?.kind === 'subagent') {
+							invocation.toolSpecificData.result = markdownParts.join('');
+							invocation.toolSpecificData.activity = 'markdown';
+							this.acceptProgress(model, request, {
+								kind: 'externalToolInvocationUpdate', toolCallId: subAgentInvocationId,
+								toolName: RunSubagentTool.Id, isComplete: false, invocationMessage: args.description,
+								toolSpecificData: invocation.toolSpecificData, subagentInvocationId: invocation.subAgentInvocationId,
+							});
+						}
 					}
 				}
 			};
@@ -324,7 +425,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 			const allowInvocationsFromSubagents = this.configurationService.getValue<boolean>(ChatConfiguration.SubagentsAllowInvocationsFromSubagents) ?? false;
 			const maxDepth = allowInvocationsFromSubagents ? RUN_SUBAGENT_MAX_NESTING_DEPTH : 0;
 			const sessionKey = invocation.context.sessionResource.toString();
-			const currentDepth = this._sessionDepth.get(sessionKey) ?? 0;
+			const currentDepth = snapshot.depth - 1;
 			const depthAllowed = currentDepth + 1 <= maxDepth;
 
 			if (!modeTools) {
@@ -382,7 +483,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 			// Build the agent request
 			const agentRequest: IChatAgentRequest = {
 				sessionResource: invocation.context.sessionResource,
-				requestId: invocation.callId ?? `subagent-${Date.now()}`,
+				requestId: snapshot.requestId,
 				agentId: defaultAgent.id,
 				message: args.prompt,
 				variables: { variables: variableSet.asArray() },
@@ -390,15 +491,21 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 				subAgentInvocationId: subAgentInvocationId,
 				subAgentName: effectiveSubAgentName,
 				userSelectedModelId: modeModelId,
-				modelConfiguration: modeModelId ? this.languageModelsService.getModelConfiguration(modeModelId) : undefined,
+				modelConfiguration: this.getModelConfiguration(modeModelId, request, callingSubagent, invocation.modelId),
 				userSelectedTools: modeTools,
 				modeInstructions,
-				parentRequestId: invocation.chatRequestId,
+				parentRequestId: invocation.context.requestId,
 				hooks: collectedHooks,
 				hasHooksEnabled: !!collectedHooks && Object.values(collectedHooks).some(arr => arr && arr.length > 0),
 			};
 			if (invocation.toolSpecificData?.kind === 'subagent') {
 				invocation.toolSpecificData.modelConfiguration = agentRequest.modelConfiguration;
+				invocation.toolSpecificData.modelId = modeModelId;
+				invocation.toolSpecificData.modelName = resolvedModelName;
+				invocation.toolSpecificData.agentName = effectiveSubAgentName;
+			}
+			if (token.isCancellationRequested) {
+				return createToolSimpleTextResult(localize('runSubagent.cancelled', "Agent execution was cancelled."));
 			}
 
 			// Subscribe to tool invocations to clear markdown parts when a tool is invoked
@@ -412,40 +519,35 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 			this.telemetryService.publicLog2<SubagentModelSelectionEvent, SubagentModelSelectionClassification>('chat.subagentModelSelection', {
 				selectionSource: modelSelectionSource,
 			});
-			this._sessionDepth.set(sessionKey, currentDepth + 1);
 			this._runningSubagents.set(agentRequest.requestId, {
+				sessionResource, rootRequestId: request.id, snapshot,
 				modeInstructions,
 				model: { modeModelId, resolvedModelName, selectionSource: modelSelectionSource },
+				modelConfiguration: agentRequest.modelConfiguration,
 				tools: modeTools,
 				hooks: agentHooks,
 			});
 			let result: IChatAgentResult | undefined;
 			try {
-				result = await this.chatAgentService.invokeAgent(
+				result = await raceCancellation(this.chatAgentService.invokeAgent(
 					defaultAgent.id,
 					agentRequest,
 					progressCallback,
 					[],
 					token
-				);
+				), token);
 			} finally {
 				this._runningSubagents.delete(agentRequest.requestId);
-				const newDepth = (this._sessionDepth.get(sessionKey) ?? 1) - 1;
-				if (newDepth <= 0) {
-					this._sessionDepth.delete(sessionKey);
-				} else {
-					this._sessionDepth.set(sessionKey, newDepth);
-				}
 			}
 
 			// Check for errors
 			if (result?.errorDetails) {
-				return createToolSimpleTextResult(`Agent error: ${result.errorDetails.message}`);
+				return { ...createToolSimpleTextResult(`Agent error: ${result.errorDetails.message}`), toolResultError: true };
 			}
 
 			// This is a hack due to the fact that edits are represented as empty codeblocks with URIs. That needs to be cleaned up,
 			// in the meantime, just strip an empty codeblock left behind.
-			const resultText = markdownParts.join('').replace(/^\n*```\n+```\n*/g, '').trim() || 'Agent completed with no output';
+			const resultText = token.isCancellationRequested ? localize('runSubagent.cancelled', "Agent execution was cancelled.") : markdownParts.join('').replace(/^\n*```\n+```\n*/g, '').trim() || 'Agent completed with no output';
 
 			// Store result in toolSpecificData for serialization
 			if (invocation.toolSpecificData?.kind === 'subagent') {
@@ -471,7 +573,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 		} catch (error) {
 			const errorMessage = `Error invoking subagent: ${error instanceof Error ? error.message : 'Unknown error'}`;
 			this.logService.error(errorMessage, error);
-			return createToolSimpleTextResult(errorMessage);
+			return { ...createToolSimpleTextResult(errorMessage), toolResultError: true };
 		} finally {
 			if (subagentCredits !== undefined) {
 				request.response?.setSubagentCopilotCredits(invocation.callId, subagentCredits);
@@ -481,6 +583,31 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 			}
 			store.dispose();
 		}
+	}
+
+	private acceptProgress(model: ChatModel, request: ChatRequestModel, progress: IChatProgress & Parameters<ChatResponseModel['updateContent']>[0]): void {
+		try {
+			if (request.response?.isComplete) {
+				request.response.updateContent(progress);
+			} else {
+				model.acceptResponseProgress(request, progress);
+			}
+		} catch (error) {
+			this.logService.warn('RunSubagentTool: Parent card is no longer available', error);
+		}
+	}
+
+	private getModelConfiguration(modelId: string | undefined, request: IChatRequestModel | undefined, callingSubagent: IRunningSubagent | undefined, mainModelId: string | undefined): Record<string, unknown> | undefined {
+		if (!modelId) {
+			return undefined;
+		}
+		if (modelId === callingSubagent?.model.modeModelId) {
+			return callingSubagent.modelConfiguration;
+		}
+		if (modelId === (request?.modelId ?? mainModelId)) {
+			return request?.modelConfiguration ?? this.languageModelsService.getModelConfiguration(modelId);
+		}
+		return this.languageModelsService.getModelConfiguration(modelId);
 	}
 
 	private async getSubAgentByName(name: string): Promise<ICustomAgent | undefined> {
@@ -682,8 +809,11 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, _token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
 		const args = context.parameters as IRunSubagentToolInputParams;
 		const requestedAgentName = this.normalizeRequestedAgentName(args.agentName);
-		const callingSubagent = this.getRunningSubagent(context.invocationRequestId);
-		const currentModeInstructions = callingSubagent ? callingSubagent.modeInstructions : context.chatSessionResource ? this.getCurrentModeInstructions(context.chatSessionResource) : undefined;
+		const callingSubagent = context.chatSessionResource ? await this.getCallingSubagent(context.chatSessionResource, context.invocationRequestId) : undefined;
+		const currentRequest = context.chatSessionResource && typeof this.chatService.getSession === 'function'
+			? this.chatService.getSession(context.chatSessionResource)?.getRequests().find(request => request.id === context.invocationRequestId)
+			: undefined;
+		const currentModeInstructions = callingSubagent ? callingSubagent.modeInstructions : currentRequest?.modeInfo?.modeInstructions;
 
 		if (requestedAgentName) {
 			this.validateSubagentAllowed(requestedAgentName, currentModeInstructions);
@@ -691,9 +821,10 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 		const subagent = requestedAgentName ? await this.getSubAgentByName(requestedAgentName) : undefined;
 
 		// Resolve the model early and cache it for invoke()
-		const resolved = await this.resolveSubagentModel(subagent, context.modelId, args.model, currentModeInstructions, requestedAgentName ? undefined : callingSubagent?.model);
-		this._resolvedModels.set(context.toolCallId, resolved);
-		const modelConfiguration = resolved.modeModelId ? this.languageModelsService.getModelConfiguration(resolved.modeModelId) : undefined;
+		const parentModelId = callingSubagent?.model.modeModelId ?? currentRequest?.modelId ?? context.modelId;
+		const resolved = await this.resolveSubagentModel(subagent, parentModelId, args.model, currentModeInstructions, requestedAgentName ? undefined : callingSubagent?.model);
+		this._resolvedModels.set(this.modelCacheKey(context.chatSessionResource, context.invocationRequestId, context.toolCallId), resolved);
+		const modelConfiguration = this.getModelConfiguration(resolved.modeModelId, currentRequest, callingSubagent, context.modelId);
 
 		return {
 			invocationMessage: args.description,
@@ -709,22 +840,26 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 		};
 	}
 
+	private modelCacheKey(sessionResource: URI | undefined, requestId: string | undefined, toolCallId: string): string {
+		return JSON.stringify([sessionResource ? extUri.getComparisonKey(sessionResource) : undefined, requestId, toolCallId]);
+	}
+
 	private normalizeRequestedAgentName(agentName: string | undefined): string | undefined {
 		const normalized = agentName?.trim();
 		return normalized ? normalized : undefined;
 	}
 
-	private getCurrentModeInstructions(sessionResource: URI): IChatRequestModeInstructions | undefined {
-		if (typeof this.chatService.getSession !== 'function') {
+	/** Returns the running subagent that made a call, if the call was made in a subagent request. */
+	private async getCallingSubagent(sessionResource: URI, requestId: string | undefined): Promise<IRunningSubagent | undefined> {
+		if (!requestId) {
 			return undefined;
 		}
-		const model = this.chatService.getSession(sessionResource) as ChatModel | undefined;
-		return model?.getRequests().at(-1)?.modeInfo?.modeInstructions;
-	}
-
-	/** Returns the running subagent that made a call, if the call was made in a subagent request. */
-	private getRunningSubagent(requestId: string | undefined): IRunningSubagent | undefined {
-		return requestId !== undefined ? this._runningSubagents.get(requestId) : undefined;
+		const direct = this._runningSubagents.get(requestId);
+		if (direct && isEqual(direct.sessionResource, sessionResource)) {
+			return direct;
+		}
+		const snapshot = await this.backgroundAgents.getInvocation({ sessionResource, requestId });
+		return snapshot?.status === 'running' ? this._runningSubagents.get(snapshot.requestId) : undefined;
 	}
 
 	private validateSubagentAllowed(subAgentName: string, currentModeInstructions: IChatRequestModeInstructions | undefined): void {

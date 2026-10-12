@@ -344,6 +344,47 @@ suite('ChatModel', () => {
 		assert.deepStrictEqual(invocation?.icon, Codicon.beaker);
 	});
 
+	test('late parallel subagent progress belongs to the completed original response, not the next request', async () => {
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const request = model.addRequest({ text: 'delegate', parts: [] }, { variables: [] }, 0);
+		const data = { id: 'task', displayName: 'Task', modelDescription: 'Task', source: ToolDataSource.Internal };
+		for (const id of ['card-a', 'card-b']) {
+			const parent = new ChatToolInvocation({ toolSpecificData: { kind: 'subagent', isActive: true } }, data, id, undefined, {});
+			model.acceptResponseProgress(request, parent);
+			await parent.didExecuteTool({ content: [{ kind: 'text', value: 'spawned' }] });
+		}
+		request.response!.complete();
+		const next = model.addRequest({ text: 'another turn', parts: [] }, { variables: [] }, 0);
+		for (const id of ['card-b', 'card-a']) {
+			model.acceptResponseProgress(request, new ChatToolInvocation({ invocationMessage: id }, data, `child-${id}`, id, {}));
+			model.acceptResponseProgress(request, { kind: 'externalEdit', uri: URI.file(`/workspace/${id}.ts`), editKind: 'edit', subAgentInvocationId: id });
+		}
+		assert.throws(() => model.acceptResponseProgress(request, { kind: 'markdownContent', content: new MarkdownString('unrelated parent progress') }), /completed response/);
+		assert.throws(() => model.acceptResponseProgress(request, new ChatToolInvocation(undefined, data, 'foreign-child', 'unknown-card', {})), /completed response/);
+		next.response!.complete();
+		assert.throws(() => model.acceptResponseProgress(next, new ChatToolInvocation(undefined, data, 'misrouted-child', 'card-a', {})), /completed response/);
+		assert.deepStrictEqual({
+			completed: request.response!.isComplete,
+			parts: request.response!.entireResponse.value.map(part => part.kind === 'toolInvocation' ? [part.toolCallId, part.subAgentInvocationId] : [part.kind]),
+			next: next.response!.entireResponse.value,
+			requests: model.getRequests().length,
+		}, {
+			completed: true,
+			parts: [['card-a', undefined], ['card-b', undefined], ['child-card-b', 'card-b'], ['externalEdit'], ['child-card-a', 'card-a'], ['externalEdit']],
+			next: [],
+			requests: 2,
+		});
+	});
+
+	test('late subagent progress does not reopen a canceled response', () => {
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+		const request = model.addRequest({ text: 'delegate', parts: [] }, { variables: [] }, 0);
+		const data = { id: 'task', displayName: 'Task', modelDescription: 'Task', source: ToolDataSource.Internal };
+		model.acceptResponseProgress(request, new ChatToolInvocation({ toolSpecificData: { kind: 'subagent', isActive: true } }, data, 'card', undefined, {}));
+		model.cancelRequest(request);
+		assert.throws(() => model.acceptResponseProgress(request, new ChatToolInvocation(undefined, data, 'child', 'card', {})), /completed response/);
+	});
+
 	suite('Auto tier attribution', () => {
 		for (const isNotebook of [false, true]) {
 			test(`snapshots ${isNotebook ? 'notebook cell' : 'text'} edit tiers across rerouting and persistence`, () => {

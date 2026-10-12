@@ -11,14 +11,14 @@ import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
-import { IPreparedToolInvocation, IStreamedToolInvocation, isToolInvocationContext, IToolInvocation, IToolInvocationContext, IToolInvocationPreparationContext, IToolInvocationStreamContext, IToolResult, ToolInvocationPresentation } from '../../contrib/chat/common/tools/languageModelToolsService.js';
+import { IPreparedToolInvocation, IStreamedToolInvocation, IToolInvocationPreparationContext, IToolInvocationStreamContext, IToolResult, ToolInvocationPresentation } from '../../contrib/chat/common/tools/languageModelToolsService.js';
 import { computeCombinationKey } from '../../contrib/chat/common/tools/languageModelToolsConfirmationService.js';
 import { ExtensionEditToolId, InternalEditToolId } from '../../contrib/chat/common/tools/builtinTools/editFileTool.js';
 import { InternalFetchWebPageToolId } from '../../contrib/chat/common/tools/builtinTools/tools.js';
 import { SearchExtensionsToolId } from '../../contrib/extensions/common/searchExtensionsTool.js';
 import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { Dto, SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
-import { ExtHostLanguageModelToolsShape, IMainContext, IToolDataDto, IToolDefinitionDto, MainContext, MainThreadLanguageModelToolsShape } from './extHost.protocol.js';
+import { ExtHostLanguageModelToolsShape, IMainContext, IToolDataDto, IToolDefinitionDto, IToolInvocationDto, MainContext, MainThreadLanguageModelToolsShape } from './extHost.protocol.js';
 import { ExtHostLanguageModels } from './extHostLanguageModels.js';
 import { LanguageModelError } from './extHostTypes.js';
 import * as typeConvert from './extHostTypeConverters.js';
@@ -112,9 +112,10 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 		}
 
 		try {
-			if (options.toolInvocationToken && !isToolInvocationContext(options.toolInvocationToken)) {
-				throw new Error(`Invalid tool invocation token`);
+			if (token?.isCancellationRequested) {
+				throw new CancellationError();
 			}
+			const context = typeConvert.LanguageModelToolInvocationContext.to(options.toolInvocationToken);
 
 			if ((toolId === InternalEditToolId || toolId === ExtensionEditToolId) && !isProposedApiEnabled(extension, 'chatParticipantPrivate')) {
 				throw new Error(`Invalid tool: ${toolId}`);
@@ -126,10 +127,10 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 				callId,
 				parameters: options.input,
 				tokenBudget: options.tokenizationOptions?.tokenBudget,
-				context: options.toolInvocationToken as IToolInvocationContext | undefined,
-				chatRequestId: isProposedApiEnabled(extension, 'chatParticipantPrivate') ? options.chatRequestId : undefined,
+				context,
+				chatRequestId: context?.requestId ?? (isProposedApiEnabled(extension, 'chatParticipantPrivate') ? options.chatRequestId : undefined),
 				chatInteractionId: isProposedApiEnabled(extension, 'chatParticipantPrivate') ? options.chatInteractionId : undefined,
-				subAgentInvocationId: isProposedApiEnabled(extension, 'chatParticipantPrivate') ? options.subAgentInvocationId : undefined,
+				subAgentInvocationId: context?.subagentInvocationId ?? (isProposedApiEnabled(extension, 'chatParticipantPrivate') ? options.subAgentInvocationId : undefined),
 				chatStreamToolCallId: isProposedApiEnabled(extension, 'chatParticipantAdditions') ? options.chatStreamToolCallId : undefined,
 				preToolUseResult: isProposedApiEnabled(extension, 'chatParticipantPrivate') ? options.preToolUseResult : undefined,
 				traceparent: isProposedApiEnabled(extension, 'chatParticipantPrivate') ? options.traceparent : undefined,
@@ -180,26 +181,35 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			});
 	}
 
-	async $invokeTool(dto: Dto<IToolInvocation>, token: CancellationToken): Promise<Dto<IToolResult> | SerializableObjectWithBuffers<Dto<IToolResult>>> {
+	async $invokeTool(dto: IToolInvocationDto, token: CancellationToken): Promise<Dto<IToolResult> | SerializableObjectWithBuffers<Dto<IToolResult>>> {
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
 		const item = this._registeredTools.get(dto.toolId);
 		if (!item) {
 			throw new Error(`Unknown tool ${dto.toolId}`);
 		}
 
+		const context = typeConvert.LanguageModelToolInvocationContext.to(dto.context);
 		const options: vscode.LanguageModelToolInvocationOptions<Object> = {
 			input: dto.parameters,
-			toolInvocationToken: revive(dto.context) as unknown as vscode.ChatParticipantToolToken | undefined,
+			toolInvocationToken: context as never,
 		};
 		if (isProposedApiEnabled(item.extension, 'chatParticipantPrivate')) {
-			options.chatRequestId = dto.chatRequestId;
+			options.chatRequestId = context?.requestId ?? dto.chatRequestId;
 			options.chatInteractionId = dto.chatInteractionId;
-			options.chatSessionResource = URI.revive(dto.context?.sessionResource);
-			options.workingDirectory = URI.revive(dto.context?.workingDirectory);
-			options.subAgentInvocationId = dto.subAgentInvocationId;
+			options.chatSessionResource = context?.sessionResource;
+			options.workingDirectory = context?.workingDirectory;
+			options.subAgentInvocationId = context?.subagentInvocationId ?? dto.subAgentInvocationId;
+			options.parentRequestId = context?.parentRequestId;
+			options.parentSessionResource = context?.parentSessionResource;
 			options.traceparent = dto.traceparent;
 			options.tracestate = dto.tracestate;
 		}
 
+		if (isProposedApiEnabled(item.extension, 'chatParticipantAdditions')) {
+			options.modeInstructions2 = typeConvert.ChatRequestModeInstructions.to(context?.modeInstructions);
+		}
 		if (isProposedApiEnabled(item.extension, 'chatParticipantAdditions') && dto.modelId) {
 			try {
 				options.model = await this._languageModels.getLanguageModelForRequest(item.extension, dto.modelId);
@@ -243,6 +253,9 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			};
 		}
 
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
 		// todo: 'any' cast because TS can't handle the overloads
 		// eslint-disable-next-line local/code-no-any-casts
 		const extensionResult = await raceCancellation(Promise.resolve((item.tool.invoke as any)(options, token, progress!)), token);

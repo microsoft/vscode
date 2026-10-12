@@ -52,7 +52,7 @@ import { HookType } from '../../common/promptSyntax/hookTypes.js';
 import { CopilotChatSettingId, CopilotToolId } from '../../common/tools/copilotToolIds.js';
 import { ILanguageModelToolsConfirmationService } from '../../common/tools/languageModelToolsConfirmationService.js';
 import { TerminalToolId } from '../../common/tools/terminalToolIds.js';
-import { CountTokensCallback, createToolSchemaUri, IBeginToolCallOptions, IExternalPreToolUseHookResult, ILanguageModelToolsService, IPreparedToolInvocation, isToolSet, IToolData, IToolImpl, IToolInvocation, IToolInvokedEvent, IToolResult, IToolResultInputOutputDetails, IToolSet, SpecedToolAliases, stringifyPromptTsxPart, ToolAndToolSetEnablementMap, ToolDataSource, ToolInvocationPresentation, toolMatchesModel, ToolSet, ToolSetForModel, VSCodeToolReference } from '../../common/tools/languageModelToolsService.js';
+import { CountTokensCallback, createToolSchemaUri, getBackgroundToolInvocationContext, IBeginToolCallOptions, IExternalPreToolUseHookResult, ILanguageModelToolsService, IPreparedToolInvocation, isToolSet, IToolData, IToolImpl, IToolInvocation, IToolInvokedEvent, IToolResult, IToolResultInputOutputDetails, IToolSet, SpecedToolAliases, stringifyPromptTsxPart, ToolAndToolSetEnablementMap, ToolDataSource, ToolInvocationPresentation, toolMatchesModel, ToolSet, ToolSetForModel, VSCodeToolReference } from '../../common/tools/languageModelToolsService.js';
 import { IToolResultCompressor } from '../../common/tools/toolResultCompressor.js';
 import { getToolConfirmationAlert } from '../accessibility/chatAccessibilityProvider.js';
 import { IChatWidgetService } from '../chat.js';
@@ -133,6 +133,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	/** Throttle tools updates because it sends all tools and runs on context key updates */
 	private readonly _onDidChangeToolsScheduler = this._register(new RunOnceScheduler(() => this._onDidChangeTools.fire(), 750));
 	private readonly _tools = new Map<string, IToolEntry>();
+	private readonly _resultProcessors = new Set<(invocation: IToolInvocation, result: IToolResult) => Promise<IToolResult>>();
 	private readonly _toolContextKeys = new Set<string>();
 	private readonly _ctxToolsCount: IContextKey<number>;
 
@@ -490,24 +491,56 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		return undefined;
 	}
 
+	registerToolResultProcessor(processor: (invocation: IToolInvocation, result: IToolResult) => Promise<IToolResult>): IDisposable {
+		this._resultProcessors.add(processor);
+		return toDisposable(() => this._resultProcessors.delete(processor));
+	}
+
 	async invokeTool(dto: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult> {
+		let result = await this.invokeToolInternal(dto, countTokens, token);
+		for (const processor of this._resultProcessors) {
+			try {
+				result = await processor(dto, result);
+			} catch (error) {
+				this._logService.error('LanguageModelToolsService: Tool result processing failed', error);
+			}
+		}
+		return result;
+	}
+
+	private async invokeToolInternal(dto: IToolInvocation, countTokens: CountTokensCallback, token: CancellationToken): Promise<IToolResult> {
 		this._logService.trace(`[LanguageModelToolsService#invokeTool] Invoking tool ${dto.toolId} with parameters ${JSON.stringify(dto.parameters)}`);
 
 		const toolData = this._tools.get(dto.toolId)?.data;
 		let model: IChatModel | undefined;
 		let request: IChatRequestModel | undefined;
 		if (dto.context?.sessionResource) {
-			model = this._chatService.getSession(dto.context.sessionResource);
-			request = model?.getRequests().at(-1);
-			if (request?.response?.isCanceled || request?.response?.isComplete) {
+			const background = getBackgroundToolInvocationContext(dto.context.sessionResource);
+			const parentRequestIds = [background?.parentRequestId, dto.context.parentRequestId, dto.chatRequestId].filter((id): id is string => id !== undefined);
+			if (parentRequestIds.some(id => id !== parentRequestIds[0])) {
+				throw new Error('Tool invocation parent request mismatch');
+			}
+			if (dto.subAgentInvocationId && dto.context.subagentInvocationId && dto.subAgentInvocationId !== dto.context.subagentInvocationId) {
+				throw new Error('Tool invocation subagent identity mismatch');
+			}
+			const subagentInvocationId = dto.subAgentInvocationId ?? dto.context.subagentInvocationId ?? background?.subagentInvocationId;
+			const owningRequestId = parentRequestIds[0] ?? dto.context.requestId;
+			model = this._chatService.getSession(background?.parentSessionResource ?? dto.context.sessionResource);
+			request = owningRequestId !== undefined ? model?.getRequests().find(request => request.id === owningRequestId) : model?.getRequests().at(-1);
+			if (request?.response?.isCanceled || (request?.response?.isComplete && !(subagentInvocationId && owningRequestId !== undefined))) {
 				this._logService.debug(`[LanguageModelToolsService#invokeTool] Ignoring tool ${dto.toolId} for cancelled/complete request ${request.id}`);
 				throw new CancellationError();
 			}
 
-			// Enrich context with working directory from the model if available
-			if (model?.workingDirectory && !dto.context.workingDirectory) {
-				dto = { ...dto, context: { ...dto.context, workingDirectory: model.workingDirectory } };
-			}
+			dto = {
+				...dto, chatRequestId: request?.id ?? owningRequestId, subAgentInvocationId: subagentInvocationId, context: {
+					...dto.context,
+					requestId: dto.context.requestId ?? request?.id,
+					parentRequestId: subagentInvocationId ? request?.id ?? owningRequestId : dto.context.parentRequestId,
+					subagentInvocationId,
+					workingDirectory: dto.context.workingDirectory ?? model?.workingDirectory,
+				}
+			};
 		}
 
 		// Check if there's an existing pending tool call from streaming phase BEFORE hook check
@@ -519,6 +552,13 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		} else if (dto.chatStreamToolCallId && this._pendingToolCalls.has(dto.chatStreamToolCallId)) {
 			pendingToolCallKey = dto.chatStreamToolCallId;
 			toolInvocation = this._pendingToolCalls.get(dto.chatStreamToolCallId);
+		}
+		if (toolInvocation && ((toolInvocation.chatRequestId && toolInvocation.chatRequestId !== dto.chatRequestId)
+			|| (toolInvocation.subAgentInvocationId && toolInvocation.subAgentInvocationId !== dto.subAgentInvocationId))) {
+			throw new Error('Streaming tool invocation ownership mismatch');
+		}
+		if (dto.subAgentInvocationId !== undefined) {
+			toolInvocation?.bindToSubagent(dto.subAgentInvocationId);
 		}
 
 		let requestId: string | undefined;
@@ -647,7 +687,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 					}
 				} else {
 					// Create a new tool invocation (no streaming phase)
-					toolInvocation = new ChatToolInvocation(preparedInvocation, tool.data, dto.chatStreamToolCallId ?? dto.callId, dto.subAgentInvocationId, dto.parameters);
+					toolInvocation = new ChatToolInvocation(preparedInvocation, tool.data, dto.chatStreamToolCallId ?? dto.callId, dto.subAgentInvocationId, dto.parameters, {}, dto.chatRequestId);
 					if (autoConfirmed) {
 						IChatToolInvocation.confirmWith(toolInvocation, autoConfirmed);
 					}
@@ -1111,6 +1151,11 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 	}
 
 	beginToolCall(options: IBeginToolCallOptions): IChatToolInvocation | undefined {
+		const background = options.sessionResource && getBackgroundToolInvocationContext(options.sessionResource);
+		if (background && options.chatRequestId && options.chatRequestId !== background.parentRequestId) {
+			throw new Error('Streaming tool parent request mismatch');
+		}
+		options = { ...options, chatRequestId: options.chatRequestId ?? background?.parentRequestId, subagentInvocationId: options.subagentInvocationId ?? background?.subagentInvocationId };
 		// First try to look up by tool ID (the package.json "name" field),
 		// then fall back to looking up by toolReferenceName
 		const toolEntry = this._tools.get(options.toolId);
@@ -1139,12 +1184,12 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 		// If we have a session, append the invocation to the chat as progress
 		if (options.sessionResource) {
-			const model = this._chatService.getSession(options.sessionResource);
+			const model = this._chatService.getSession(background?.parentSessionResource ?? options.sessionResource);
 			if (model) {
 				// Find the request by chatRequestId if available, otherwise use the last request
-				const request = (options.chatRequestId
+				const request = options.chatRequestId !== undefined
 					? model.getRequests().find(r => r.id === options.chatRequestId)
-					: undefined) ?? model.getRequests().at(-1);
+					: model.getRequests().at(-1);
 				if (request) {
 					this._chatService.appendProgress(request, invocation);
 				}

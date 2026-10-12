@@ -1062,6 +1062,8 @@ declare module 'vscode' {
 	}
 
 	export interface LanguageModelToolInvocationOptions<T> {
+		/** The mode instructions carried by this invocation's request token. */
+		modeInstructions2?: ChatRequestModeInstructions;
 		/**
 		 * The selected model. Access throws if an explicit selection cannot be resolved through the language model API.
 		 * Tools that do not use a model can run without accessing this property.

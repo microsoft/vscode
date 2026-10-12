@@ -339,6 +339,10 @@ declare module 'vscode' {
 		chatRequestId?: string;
 		chatSessionResource?: Uri;
 		chatInteractionId?: string;
+		/** The exact parent request of a detached subagent invocation. */
+		parentRequestId?: string;
+		/** The session containing the exact parent request. */
+		parentSessionResource?: Uri;
 		terminalCommand?: string;
 		/**
 		 * The working directory URI for the session, if set.
