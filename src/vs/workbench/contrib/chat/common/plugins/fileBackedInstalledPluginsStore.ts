@@ -137,7 +137,7 @@ export class FileBackedInstalledPluginsStore extends Disposable {
 	private async _readAndMigrateFromFile(): Promise<readonly IStoredInstalledPlugin[] | undefined> {
 		let read = await this._readFromFile();
 		if (read?.needsMigration) {
-			const result = await this._writeToFile(read.entries, { mtime: read.content.mtime, etag: read.content.etag });
+			const result = await this._writeToFile(read.entries, { expectedContent: read.content.value });
 			if (result !== 'success') {
 				read = await this._readFromFile();
 				if (result === 'conflict' && read?.needsMigration && !this._store.isDisposed) {

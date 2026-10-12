@@ -1808,6 +1808,70 @@ suite('PluginMarketplaceService - hydration after restart', () => {
 	});
 
 	for (const state of [ContributionEnablementState.DisabledProfile, ContributionEnablementState.DisabledWorkspace]) {
+		for (const hasStableIdentity of [true, false]) {
+			test(`preserves target enablement when a stale move commits again (${state}, stable identity: ${hasStableIdentity})`, async () => {
+				const profiles = [store.add(new InMemoryStorageService()), store.add(new InMemoryStorageService())];
+				const fileService = new TestFileService();
+				const marketplace = parseMarketplaceReference('github/awesome-copilot#marketplace')!;
+				const plugin = makeAzurePlugin(marketplace);
+				const previousUri = URI.joinPath(CACHE_ROOT, 'previous-revision');
+				const targetUri = URI.joinPath(CACHE_ROOT, 'target-revision');
+				const identity = hasStableIdentity ? URI.file('/original/data/agent-plugins/plugin') : targetUri;
+				const installedJson = URI.joinPath(CACHE_ROOT, 'installed.json');
+				for (const profile of profiles) {
+					storeMarketplaceCache(profile, marketplace, plugin);
+					const enablement = store.add(new AgentPluginEnablementService(profile));
+					enablement.setEnabled(identity.toString(), state);
+					if (hasStableIdentity) {
+						enablement.copyEnablement(identity, targetUri);
+					}
+				}
+				fileService.setFile(installedJson, JSON.stringify({
+					version: 1,
+					installed: [{
+						pluginUri: hasStableIdentity ? previousUri.toString() : targetUri.toString(),
+						relativePath: hasStableIdentity ? 'previous-revision' : 'target-revision',
+						...(hasStableIdentity ? { enablementUri: identity.toString() } : {}),
+						marketplace: marketplace.rawValue,
+						name: plugin.name,
+					}],
+				}));
+				const first = createPersistedService(fileService, profiles[0]);
+				await waitFor(() => first.installedPlugins.get().length === 1);
+				if (hasStableIdentity) {
+					first.addInstalledPlugin(targetUri, plugin, previousUri);
+					first.removeInstalledPlugin(previousUri);
+				}
+				first.addInstalledPlugin(targetUri, plugin, previousUri);
+				first.removeInstalledPlugin(previousUri);
+				await waitFor(() => {
+					const content = fileService.files.get(installedJson.toString());
+					return !!content?.includes('"enablementUri"') && content.includes(targetUri.toString());
+				});
+				first.dispose();
+
+				const second = createPersistedService(fileService, profiles[1]);
+				await waitFor(() => second.installedPlugins.get().length === 1);
+				const enablement = store.add(new AgentPluginEnablementService(profiles[1]));
+				assert.deepStrictEqual({
+					file: JSON.parse(fileService.files.get(installedJson.toString())!),
+					state: enablement.readEnabled(targetUri.toString()),
+				}, {
+					file: {
+						version: 1,
+						installed: [{
+							pluginUri: targetUri.toString(),
+							relativePath: 'target-revision',
+							enablementUri: identity.toString(),
+							marketplace: marketplace.rawValue,
+							name: plugin.name,
+						}],
+					},
+					state,
+				});
+			});
+		}
+
 		for (const previouslyRelocated of [false, true]) {
 			test(`preserves another profile's enablement when an installation moves (${state}, relocated: ${previouslyRelocated})`, async () => {
 				const profiles = [store.add(new InMemoryStorageService()), store.add(new InMemoryStorageService())];

@@ -804,9 +804,10 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 		const current = this._installedPluginsStore.get();
 		const existing = current.find(e => isEqual(e.pluginUri, pluginUri));
 		const previous = previousPluginUri ? current.find(e => isEqual(e.pluginUri, previousPluginUri)) : undefined;
+		const identitySource = previous ?? existing;
 		const entry: IStoredInstalledPlugin = {
 			...existing,
-			...(previousPluginUri ? { enablementUri: previous?.enablementUri ?? previousPluginUri } : {}),
+			...(previousPluginUri ? { enablementUri: identitySource?.enablementUri ?? identitySource?.pluginUri ?? previousPluginUri } : {}),
 			pluginUri,
 			marketplace: plugin.marketplaceReference.rawValue,
 			name: plugin.name,

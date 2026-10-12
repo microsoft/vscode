@@ -1398,6 +1398,12 @@ export interface IWriteFileOptions {
 	readonly etag?: string;
 
 	/**
+	 * Contents that must still be on disk, checked inside this service's write queue before writing.
+	 * This does not lock out writers in other processes.
+	 */
+	readonly expectedContent?: VSBuffer;
+
+	/**
 	 * Whether to attempt to unlock a file before writing.
 	 */
 	readonly unlock?: boolean;

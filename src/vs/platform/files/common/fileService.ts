@@ -539,6 +539,22 @@ export class FileService extends Disposable implements IFileService {
 		return { stat, buffer };
 	}
 
+	private async validateWriteFileContent(resource: URI, expectedContent: VSBuffer): Promise<void> {
+		try {
+			const { value } = await this.readFile(resource, { limits: { size: expectedContent.byteLength } });
+			if (expectedContent.equals(value)) {
+				return;
+			}
+		} catch (error) {
+			const result = toFileOperationResult(error);
+			if (result !== FileOperationResult.FILE_NOT_FOUND && result !== FileOperationResult.FILE_TOO_LARGE) {
+				throw error;
+			}
+		}
+
+		throw new FileOperationError(localize('fileModifiedError', "File Modified Since"), FileOperationResult.FILE_MODIFIED_SINCE);
+	}
+
 	async readFile(resource: URI, options?: IReadFileOptions, token?: CancellationToken): Promise<IFileContent> {
 		const provider = await this.withReadProvider(resource);
 
@@ -1269,6 +1285,9 @@ export class FileService extends Disposable implements IFileService {
 
 	private async doWriteBuffered(provider: IFileSystemProviderWithOpenReadWriteCloseCapability, resource: URI, options: IWriteFileOptions | undefined, readableOrStreamOrBufferedStream: VSBufferReadable | VSBufferReadableStream | VSBufferReadableBufferedStream): Promise<void> {
 		return this.writeQueue.queueFor(resource, async () => {
+			if (options?.expectedContent) {
+				await this.validateWriteFileContent(resource, options.expectedContent);
+			}
 
 			// open handle
 			const handle = await provider.open(resource, { create: true, unlock: options?.unlock ?? false, append: options?.append ?? false });
@@ -1395,6 +1414,10 @@ export class FileService extends Disposable implements IFileService {
 			buffer = await bufferedStreamToBuffer(bufferOrReadableOrStreamOrBufferedStream);
 		} else {
 			buffer = readableToBuffer(bufferOrReadableOrStreamOrBufferedStream);
+		}
+
+		if (options?.expectedContent) {
+			await this.validateWriteFileContent(resource, options.expectedContent);
 		}
 
 		// Write through the provider
