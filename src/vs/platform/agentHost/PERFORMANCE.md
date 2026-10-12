@@ -223,7 +223,7 @@ The successful `sessionList` end marker and `firstSessionList` milestone carry t
 - `registeredSessionCount` and `copilotSessionCount`, `claudeSessionCount`, `codexSessionCount`, `otherSessionCount`: registrations **before** visibility filtering, from the final computation's existing registry snapshot.
 - `visibleSessionCount`, `hiddenSessionCount`, and `stateFallbackCount`: returned rows, rows hidden by the external-session mode, and live-state overlay rows.
 - `catalogServedCount` and `providerFallbackCount`: rows served from the central catalog versus rows requiring provider metadata fallback in the final pass.
-- `catalogEnabled` and `externalSessionsMode`: the listing's execution mode.
+- `externalSessionsMode`: the listing's execution mode.
 - `databaseOpenCount` and `databaseStatCount`, when supported by the storage service: process-wide counter deltas over the entire computation, including epoch refreshes. These include overlapping work, so do not sum them across overlapping phases as if they were exclusive I/O counts.
 
 Scan end markers contain `scannedSessionCount`: entries returned by the provider's existing enumeration **before host filtering**. This can exceed the host's registration count. It is not a measurement of physical files visited inside an SDK, nor necessarily a count of unique top-level chats. Codex also reports `pageCount` and `truncated`; page caps and repeated cursors produce `partial` observations, not complete catalog-size measurements.
@@ -258,7 +258,7 @@ For process readiness by **provider-wide** volume, join `hostReady` to a success
 `hostReady`, `firstSessionList`, and `startupSettled` include a small snapshot:
 
 - `copilotRegistered`, `claudeRegistered`, `codexRegistered`: whether each provider is registered at that milestone, not whether it is authenticated, connected, or has its SDK installed.
-- `catalogEnabled` and `migrateLegacyEnabled`: the frozen decisions, when known. Taking the snapshot does not initialize or freeze either decision.
+- `migrateLegacyEnabled`: the frozen decision, when known. Taking the snapshot does not initialize or freeze the decision.
 - `externalSessionsMode`: the mode at the milestone; on `firstSessionList`, this is the winning computation's mode rather than a concurrent request's mode.
 
 Each observed `sessionMigration` end marker carries `migrationState`: `backfilled`, `required`, or `unknown` if the existing backfill check failed. `migrationForced` distinguishes forced enumeration of an already-backfilled catalog. The values come from the migration's existing decision, before work runs, and survive deferred/unavailable/error outcomes; telemetry does not repeat the database read. These describe catalog warmness, not OS cache state.

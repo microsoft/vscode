@@ -1,6 +1,6 @@
 # Central chat catalog authority
 
-Schema 14 adds a global `chats_v2` catalog and extends the existing `session_chat_catalogs` header. It retains `session_chats`, `sessions_v2`, and their legacy consumers. The orchestrator enables metadata-only migration under the existing session-catalog gate after wiring normalized readers, producers and restoration. Disabling the gate prevents new activation; already activated catalogs remain terminal normalized authority. The gate is frozen on first use within a host process; changing it requires a new host. It cannot restore legacy compatibility writes for an activated catalog.
+Schema 14 adds a global `chats_v2` catalog and extends the existing `session_chat_catalogs` header. It retains `session_chats`, `sessions_v2`, and their legacy consumers. The orchestrator always enables metadata-only migration after wiring normalized readers, producers and restoration; there is no setting or gate that disables it. Activated catalogs are terminal normalized authority and never return to legacy compatibility writes.
 
 ## Legacy retention and migration markers
 

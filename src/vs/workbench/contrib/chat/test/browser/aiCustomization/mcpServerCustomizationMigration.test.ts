@@ -446,7 +446,7 @@ suite('McpServerCustomizationMigration', () => {
 			servers: [
 				support(root, 'eligible'),
 				support(root, 'variable', { projectedConfiguration: { type: McpServerType.LOCAL, command: `${root.fsPath}/server` } }),
-				support(root, 'metadata', { compatibility: { kind: 'partiallySupported', reasons: [AgentHostMcpSupportReason.ServerVersionNotPortable] } }),
+				support(root, 'metadata'),
 				support(root, 'cwd', { projectedConfiguration: { type: McpServerType.LOCAL, command: 'node', cwd: '/tmp' } }),
 				support(root, 'sse', {
 					compatibility: { kind: 'partiallySupported', reasons: [AgentHostMcpSupportReason.SseTransportNotPortable] },
