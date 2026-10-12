@@ -440,7 +440,7 @@ export class ModelCard extends DisposableStore {
 		const followingAlternatives = entries.length - choices.length;
 		const ensemble = !!this._options.model.metadata.autoModelEnsemble;
 		// Ensemble's tiers describe themselves below the control, so a hover would only repeat it.
-		const tooltip = (description: string | undefined) => isAuto && ensemble ? undefined : description;
+		const tooltip = (description: string | undefined) => isAuto && ensemble && group === MODEL_CONFIG_GROUP_EFFORT ? undefined : description;
 		const items = entries.map(({ choice, alternative }, index): IRadioOptionItem => {
 			if (!alternative) {
 				const { label, description, checked, readOnly } = choice!;
