@@ -179,7 +179,16 @@ export class FileBackedInstalledPluginsStore extends Disposable {
 				.map(entry => {
 					const hasRelativePath = typeof entry.relativePath === 'string';
 					const originalUri = URI.parse(entry.pluginUri);
-					const pluginUri = hasRelativePath ? joinPath(this._agentPluginsHome, entry.relativePath) : originalUri;
+					let pluginUri = originalUri;
+					if (hasRelativePath) {
+						const relativePluginUri = joinPath(this._agentPluginsHome, entry.relativePath);
+						if (this._getRelativePath(this._agentPluginsHome, relativePluginUri) !== undefined) {
+							pluginUri = relativePluginUri;
+						} else {
+							needsMigration = true;
+							this._logService.warn('[FileBackedInstalledPluginsStore] installed.json contains a relative path outside the plugin home; using pluginUri');
+						}
+					}
 					const relocated = !isEqual(originalUri, pluginUri);
 					const enablementUri = typeof entry.enablementUri === 'string' ? URI.parse(entry.enablementUri) : relocated ? originalUri : undefined;
 					if (relocated || (!hasRelativePath && this._getRelativePath(this._agentPluginsHome, pluginUri) !== undefined)) {

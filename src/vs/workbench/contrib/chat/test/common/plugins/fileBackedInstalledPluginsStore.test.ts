@@ -444,6 +444,27 @@ suite('FileBackedInstalledPluginsStore', () => {
 		});
 	});
 
+	test('accepts relative paths with parent segments that remain inside the plugin home', async () => {
+		const agentPluginsHome = URI.file('/portable/data/agent-plugins');
+		const installedJson = URI.joinPath(agentPluginsHome, 'installed.json');
+		const originalUri = URI.file('/previous/data/agent-plugins/plugin');
+		const fileService = new TestFileService();
+		fileService.setFile(installedJson, JSON.stringify({
+			version: 1,
+			installed: [{ pluginUri: originalUri.toString(), relativePath: 'nested/../plugin', marketplace: 'org/repo' }],
+		}));
+		const pluginsStore = createPluginsStore(agentPluginsHome, fileService);
+		await waitFor(() => fileService.isWatching);
+
+		assert.deepStrictEqual({
+			pluginUri: pluginsStore.get()[0].pluginUri.toString(),
+			relativePath: JSON.parse(fileService.getFile(installedJson)!).installed[0].relativePath,
+		}, {
+			pluginUri: URI.joinPath(agentPluginsHome, 'plugin').toString(),
+			relativePath: 'plugin',
+		});
+	});
+
 	test('preserves a debounced local change when a file reload is already scheduled', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const agentPluginsHome = URI.file('/portable/data/agent-plugins');
 		const installedJson = URI.joinPath(agentPluginsHome, 'installed.json');
@@ -471,6 +492,56 @@ suite('FileBackedInstalledPluginsStore', () => {
 	}));
 
 	for (const onStartup of [true, false]) {
+		for (const { label, relativePath, pluginPath, managedPath } of [
+			{ label: 'direct traversal', relativePath: '../outside', pluginPath: '/external/plugin', managedPath: undefined },
+			{ label: 'nested traversal', relativePath: 'nested/../../outside', pluginPath: '/external/plugin', managedPath: undefined },
+			{ label: 'sibling prefix', relativePath: '../agent-plugins-other/plugin', pluginPath: '/external/plugin', managedPath: undefined },
+			{ label: 'unchanged absolute URI', relativePath: '../outside', pluginPath: '/portable/data/outside', managedPath: undefined },
+			{ label: 'managed absolute URI', relativePath: '../outside', pluginPath: '/portable/data/agent-plugins/plugin', managedPath: 'plugin' },
+			...(isWindows ? [{ label: 'Windows separators', relativePath: '..\\outside', pluginPath: '/external/plugin', managedPath: undefined }] : []),
+		]) {
+			test(`rejects escaping relative paths ${onStartup ? 'on startup' : 'after a file change'} (${label})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const agentPluginsHome = URI.file('/portable/data/agent-plugins');
+				const installedJson = URI.joinPath(agentPluginsHome, 'installed.json');
+				const originalUri = URI.file(pluginPath);
+				const entry = { pluginUri: originalUri.toString(), marketplace: 'org/repo', name: 'plugin' };
+				const content = JSON.stringify({ version: 1, installed: [{ ...entry, relativePath }] });
+				const onDidChange = store.add(new Emitter<FileChangesEvent>());
+				const fileService = new TestFileService(false, onDidChange.event);
+				if (onStartup) {
+					fileService.setFile(installedJson, content);
+				}
+				const pluginsStore = createPluginsStore(agentPluginsHome, fileService);
+				await waitFor(() => fileService.isWatching);
+				if (!onStartup) {
+					fileService.setFile(installedJson, content);
+					onDidChange.fire(new FileChangesEvent([{ resource: installedJson, type: FileChangeType.ADDED }], false));
+				}
+				await waitFor(() => pluginsStore.get().length === 1);
+				const loaded = {
+					pluginUri: pluginsStore.get()[0].pluginUri.toString(),
+					enablementUri: pluginsStore.get()[0].enablementUri?.toString(),
+				};
+				const serialized = fileService.getFile(installedJson)!;
+				pluginsStore.dispose();
+
+				const relocatedHome = URI.file('/relocated/data/agent-plugins');
+				fileService.setFile(URI.joinPath(relocatedHome, 'installed.json'), serialized);
+				const relocatedStore = createPluginsStore(relocatedHome, fileService);
+				await waitFor(() => relocatedStore.get().length === 1);
+
+				assert.deepStrictEqual({
+					loaded,
+					file: JSON.parse(serialized),
+					relocated: relocatedStore.get()[0].pluginUri.toString(),
+				}, {
+					loaded: { pluginUri: originalUri.toString(), enablementUri: undefined },
+					file: { version: 1, installed: [{ ...entry, ...(managedPath !== undefined ? { relativePath: managedPath } : {}) }] },
+					relocated: (managedPath !== undefined ? URI.joinPath(relocatedHome, managedPath) : originalUri).toString(),
+				});
+			}));
+		}
+
 		for (const phase of ['read', 'migration write']) {
 			for (const mutation of ['install', 'uninstall', 'update']) {
 				test(`preserves local ${mutation} during ${phase} ${onStartup ? 'on startup' : 'after a file change'}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
