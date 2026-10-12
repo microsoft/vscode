@@ -13,6 +13,7 @@ import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.j
 import { ChatConfiguration, ChatProgressAnimation } from '../../common/constants.js';
 import { chatWorkingProgressInsidersIconForeground, chatWorkingProgressStableIconForeground } from '../../common/widget/chatColors.js';
 import { CHAT_WORKING_LOGO_DRAW_PAINT_ORDER, ChatWorkingLogoDrawBand, getChatWorkingLogoDrawFrame } from './chatWorkingLogoDraw.js';
+import { chatProgressAnimationFrameRate, scheduleChatAnimationFrame } from './chatProgressAnimation.js';
 import './media/chatWorkingLogo.css';
 
 const facePaths = [
@@ -76,6 +77,7 @@ export class ChatWorkingLogo extends Disposable {
 	private active = false;
 	private visible = false;
 	private animationStartedAt = 0;
+	private lastDrawFrame = -1;
 
 	constructor(
 		animation: ChatProgressAnimation,
@@ -91,11 +93,12 @@ export class ChatWorkingLogo extends Disposable {
 		super();
 		this.domNode = $('span.chat-working-logo', { 'aria-hidden': 'true' });
 		this.domNode.style.color = asCssVariable(quality === 'insider' ? chatWorkingProgressInsidersIconForeground : chatWorkingProgressStableIconForeground);
-		this.now = animationOptions.now ?? (() => getWindow(this.domNode).performance.now());
-		this.scheduleFrame = animationOptions.scheduleFrame ?? ((targetWindow, runner) => {
-			const handle = targetWindow.requestAnimationFrame(runner);
-			return toDisposable(() => targetWindow.cancelAnimationFrame(handle));
+		this.now = animationOptions.now ?? (() => {
+			const targetWindow = getWindow(this.domNode);
+			const time = targetWindow.document.timeline.currentTime;
+			return typeof time === 'number' ? time : targetWindow.performance.now();
 		});
+		this.scheduleFrame = animationOptions.scheduleFrame ?? scheduleChatAnimationFrame;
 		this.isMotionReducedOverride = animationOptions.isMotionReduced;
 
 		const wrapper = append(this.domNode, $('span.chat-working-logo-face'));
@@ -207,6 +210,7 @@ export class ChatWorkingLogo extends Disposable {
 			return;
 		}
 		this.animationStartedAt = this.now();
+		this.lastDrawFrame = Math.floor(this.animationStartedAt * chatProgressAnimationFrameRate / 1000);
 		this.renderDrawFrame(0);
 		this.queueAnimationFrame();
 	}
@@ -230,7 +234,13 @@ export class ChatWorkingLogo extends Disposable {
 			this.renderDrawFrame(0.5);
 			return;
 		}
-		this.renderDrawFrame(((this.now() - this.animationStartedAt) % this.drawDurationMs) / this.drawDurationMs);
+		const now = this.now();
+		// Keep injected frame schedulers within the shared progress animation budget.
+		const frame = Math.floor(now * chatProgressAnimationFrameRate / 1000);
+		if (frame !== this.lastDrawFrame) {
+			this.lastDrawFrame = frame;
+			this.renderDrawFrame(((now - this.animationStartedAt) % this.drawDurationMs) / this.drawDurationMs);
+		}
 		this.queueAnimationFrame();
 	}
 

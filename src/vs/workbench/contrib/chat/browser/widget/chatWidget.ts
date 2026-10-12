@@ -102,6 +102,7 @@ import { IAgentHostCustomizationService } from '../agentSessions/agentHost/agent
 import { IChatTipService } from '../chatTipService.js';
 import { ChatInputTipPresenter } from './input/chatInputTipPresenter.js';
 import { ChatProgressSubPart } from './chatContentParts/chatProgressContentPart.js';
+import { animateChatProgress } from './chatProgressAnimation.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { IChatDebugService } from '../../common/chatDebugService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
@@ -1554,6 +1555,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (message) {
 			const store = new DisposableStore();
 			this.transcriptProgressPart.value = store;
+			store.add(animateChatProgress(this.transcriptProgress.part.domNode));
 			const renderer = this.instantiationService.createInstance(ChatContentMarkdownRenderer);
 			const renderedMessage = store.add(renderer.render(new MarkdownString().appendText(message)));
 			renderedMessage.element.classList.add('progress-step');

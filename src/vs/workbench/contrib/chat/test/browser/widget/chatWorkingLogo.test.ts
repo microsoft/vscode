@@ -332,6 +332,31 @@ suite('ChatWorkingLogo', () => {
 		})));
 	});
 
+	test('budgets Draw updates at 30 Hz without stretching the animation cycle', () => {
+		const { logo, advanceTo } = createDynamicLogo(ChatProgressAnimation.Draw);
+		const paths = () => [...logo.domNode.querySelectorAll('.chat-working-logo-draw-band')].map(path => path.getAttribute('d'));
+		let previous = paths();
+		let updates = 0;
+		for (let now = 1; now <= 1000; now++) {
+			advanceTo(now);
+			const current = paths();
+			if (current.some((path, index) => path !== previous[index])) {
+				updates++;
+			}
+			previous = current;
+		}
+		const frame = getChatWorkingLogoDrawFrame(1000 / logo.drawDurationMs);
+		assert.deepStrictEqual({
+			updates,
+			paths: previous,
+			duration: logo.drawDurationMs,
+		}, {
+			updates: 30,
+			paths: [frame.paths.leg1, frame.paths.leg3, frame.paths.bar],
+			duration: 2667,
+		});
+	});
+
 	test('draw resolves to a full static logo when stopped, reduced, or disabled', () => {
 		const { logo, hasPendingFrame } = createDynamicLogo(ChatProgressAnimation.Draw);
 		const faces = [...logo.domNode.querySelectorAll('.chat-working-logo-face')];

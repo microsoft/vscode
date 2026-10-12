@@ -18,6 +18,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { AccessibilityWorkbenchSettingId } from '../../../../accessibility/browser/accessibilityConfiguration.js';
 import { IMarkdownString, MarkdownString, markdownStringEqual } from '../../../../../../base/common/htmlContent.js';
+import { deepClone, equals } from '../../../../../../base/common/objects.js';
 import { IRenderedMarkdown, renderAsPlaintext } from '../../../../../../base/browser/markdownRenderer.js';
 import { marked, type Token, type Tokens, type TokensList } from '../../../../../../base/common/marked/marked.js';
 import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
@@ -1535,7 +1536,7 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 		this.domNode.classList.remove('chat-thinking-fade-top', 'chat-thinking-fade-bottom');
 		this.processPendingRemovals();
 		if (this.workingSpinnerElement) {
-			this.workingSpinnerElement.remove();
+			this.removeThinkingSpinnerRow(this.workingSpinnerElement);
 			this.workingSpinnerElement = undefined;
 			this.workingSpinnerLabel = undefined;
 		}
@@ -1589,7 +1590,7 @@ export class ChatThinkingContentPart extends ChatThinkingStyleContentPart implem
 		this.flushPendingExternalResources();
 
 		if (this.workingSpinnerElement) {
-			this.workingSpinnerElement.remove();
+			this.removeThinkingSpinnerRow(this.workingSpinnerElement);
 			this.workingSpinnerElement = undefined;
 			this.workingSpinnerLabel = undefined;
 		}
@@ -2824,8 +2825,13 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		}
 
 		this.lastExtractedTitle = titleValue;
-		this.lastRenderedTitle = title;
-		this.currentTitle = localize('chat.thinking.label', "{0}: {1}", this.defaultTitle, titleValue);
+		const currentTitle = localize('chat.thinking.label', "{0}: {1}", this.defaultTitle, titleValue);
+		if (this._collapseButton && this.titleDetailContainer?.parentElement && this.currentTitle === currentTitle && equals(this.lastRenderedTitle, title)) {
+			this._collapseButton.element.ariaExpanded = String(this.isExpanded());
+			return;
+		}
+		this.lastRenderedTitle = deepClone(title);
+		this.currentTitle = currentTitle;
 
 		if (!this._collapseButton) {
 			return;
@@ -2914,7 +2920,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 	override dispose(): void {
 		this.isActive = false;
 		if (this.workingSpinnerElement) {
-			this.workingSpinnerElement.remove();
+			this.removeThinkingSpinnerRow(this.workingSpinnerElement);
 			this.workingSpinnerElement = undefined;
 			this.workingSpinnerLabel = undefined;
 		}
