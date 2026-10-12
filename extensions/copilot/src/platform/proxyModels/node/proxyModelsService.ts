@@ -22,7 +22,7 @@ import { ILogService } from '../../log/common/logService';
 import { IFetcherService, Response } from '../../networking/common/fetcherService';
 import { IProxyModelsService } from '../common/proxyModelsService';
 
-const MODEL_LOAD_MAX_ATTEMPTS = 5;
+const MODEL_LOAD_MAX_ATTEMPTS = 3;
 
 export class ProxyModelsService extends Disposable implements IProxyModelsService {
 	readonly _serviceBrand: undefined;

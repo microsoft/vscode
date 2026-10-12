@@ -148,7 +148,7 @@ suite('ProxyModelsService', function () {
 			await service.ensureModelsLoaded(CancellationToken.None);
 
 			assert.deepStrictEqual({
-				hasAuthorization: typeof fetcher.requests[0].options.headers?.['Authorization'] === 'string',
+				hasAuthorization: typeof fetcher.requests[0].options.headers?.Authorization === 'string',
 				editorHeaders: {
 					'Editor-Version': fetcher.requests[0].options.headers?.['Editor-Version'],
 					'Editor-Plugin-Version': fetcher.requests[0].options.headers?.['Editor-Plugin-Version'],
