@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as dom from '../../../../../base/browser/dom.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { Event } from '../../../../../base/common/event.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -16,11 +17,13 @@ import { ComponentFixtureContext, createEditorServices, defineComponentFixture, 
 const sections: readonly IMultiSelectDropdownSection[] = [
 	{ label: 'Weekdays', items: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].map(label => ({ id: label, label })) },
 	{ label: 'Weekend', items: ['Saturday', 'Sunday'].map(label => ({ id: label, label })) },
-	{ label: 'Tools', items: Array.from({ length: 24 }, (_, index) => ({
-		id: `tool-${index}`, label: `Workspace Tool ${index + 1}`,
-		description: index === 0 ? 'Unavailable in this workspace' : 'Available for automation',
-		disabled: index === 0,
-	})) },
+	{
+		label: 'Tools', items: Array.from({ length: 24 }, (_, index) => ({
+			id: `tool-${index}`, label: `Workspace Tool ${index + 1}`,
+			description: index === 0 ? 'Unavailable in this workspace' : 'Available for automation',
+			disabled: index === 0,
+		}))
+	},
 ];
 
 async function render(context: ComponentFixtureContext, search?: string): Promise<void> {
@@ -62,8 +65,8 @@ async function render(context: ComponentFixtureContext, search?: string): Promis
 	}
 	context.focus(container.querySelector<HTMLElement>('.monaco-list')!);
 	await waitForFixtureCondition(() => [...container.querySelectorAll('.scrollbar')].every(element =>
-		element.classList.contains('invisible') && getComputedStyle(element).opacity === '0'),
-	'Dropdown scrollbars must be idle before capture');
+		element.classList.contains('invisible') && dom.getWindow(element).getComputedStyle(element).opacity === '0'),
+		'Dropdown scrollbars must be idle before capture');
 }
 
 export default defineThemedFixtureGroup({ path: 'editor/multiSelectDropdown' }, {

@@ -49,11 +49,13 @@ suite('MultiSelectDropdown', () => {
 		store.add(dropdown.onDidHide(() => hides++));
 		const showOptions: IMultiSelectDropdownOptions = {
 			anchor, ariaLabel: 'Days', selectedIds: ['mon', 'fri'], sections: [
-				{ label: 'Weekdays', items: [
-					{ id: 'mon', label: 'Monday' },
-					{ id: 'wed', label: 'Wednesday' },
-					{ id: 'fri', label: 'Friday', disabled: true },
-				] },
+				{
+					label: 'Weekdays', items: [
+						{ id: 'mon', label: 'Monday' },
+						{ id: 'wed', label: 'Wednesday' },
+						{ id: 'fri', label: 'Friday', disabled: true },
+					]
+				},
 				{ label: 'Weekend', items: [{ id: 'sat', label: 'Saturday' }] },
 				{ label: 'Empty', items: [] },
 			],

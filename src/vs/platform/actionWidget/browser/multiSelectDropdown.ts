@@ -108,35 +108,35 @@ export class MultiSelectDropdown extends Disposable {
 				const widget = dom.append(container, dom.$('.action-widget.multi-select-dropdown'));
 				list = store.add(this.instantiationService.createInstance(
 					ActionList<IMultiSelectDropdownItem>, 'multiSelectDropdown', false, buildItems(), {
-						onHide: () => this.hide(),
-						onSelect: item => {
-							if (selected.has(item.id)) {
-								selected.delete(item.id);
-							} else {
-								selected.add(item.id);
-							}
-							list!.updateItems(buildItems(), item.id, { preserveScrollPosition: true });
-							this._onDidChangeSelection.fire(allItems.filter(item => selected.has(item.id)).map(item => item.id));
-						},
-					}, {
-						getWidgetAriaLabel: () => options.ariaLabel,
-						getWidgetRole: () => 'menu',
-						getRole: item => item.kind === ActionListItemKind.Action ? 'menuitemcheckbox' : 'separator',
-						isChecked: item => item.item ? selected.has(item.item.id) : undefined,
-						getAriaLabel: item => item.item
-							? [item.label, item.description, options.sections.find(section => section.items.includes(item.item!))?.label].filter(Boolean).join(', ')
-							: item.label ?? null,
-					}, {
-						showFilter: options.searchable,
-						filterPlaceholder: options.filterPlaceholder,
-						focusFilterOnOpen: options.searchable,
-						deferInitialFocus: true,
-						minWidth: options.width ?? 280,
-						maxWidth: options.width ?? 280,
-						hideDefaultKeybindingTooltip: true,
-						footerText: localize('multiSelectDropdown.hint', "Enter or Space to toggle. Escape to close."),
-						preferredAnchorPosition: AnchorPosition.BELOW,
-					}, options.anchor,
+					onHide: () => this.hide(),
+					onSelect: item => {
+						if (selected.has(item.id)) {
+							selected.delete(item.id);
+						} else {
+							selected.add(item.id);
+						}
+						list!.updateItems(buildItems(), item.id, { preserveScrollPosition: true });
+						this._onDidChangeSelection.fire(allItems.filter(item => selected.has(item.id)).map(item => item.id));
+					},
+				}, {
+					getWidgetAriaLabel: () => options.ariaLabel,
+					getWidgetRole: () => 'menu',
+					getRole: item => item.kind === ActionListItemKind.Action ? 'menuitemcheckbox' : 'separator',
+					isChecked: item => item.item ? selected.has(item.item.id) : undefined,
+					getAriaLabel: item => item.item
+						? [item.label, item.description, options.sections.find(section => section.items.includes(item.item!))?.label].filter(Boolean).join(', ')
+						: item.label ?? null,
+				}, {
+					showFilter: options.searchable,
+					filterPlaceholder: options.filterPlaceholder,
+					focusFilterOnOpen: options.searchable,
+					deferInitialFocus: true,
+					minWidth: options.width ?? 280,
+					maxWidth: options.width ?? 280,
+					hideDefaultKeybindingTooltip: true,
+					footerText: localize('multiSelectDropdown.hint', "Enter or Space to toggle. Escape to close."),
+					preferredAnchorPosition: AnchorPosition.BELOW,
+				}, options.anchor,
 				));
 				if (list.filterContainer) {
 					widget.appendChild(list.filterContainer);
