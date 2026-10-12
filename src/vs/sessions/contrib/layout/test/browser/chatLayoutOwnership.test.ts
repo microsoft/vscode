@@ -1055,7 +1055,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		assert.strictEqual(logService.errors.length, 1, 'a malformed editorWorkingSet shape must be reported, not silently discarded');
 	});
 
-	test('[R5] enabled: same-session A/B/A keeps each chat\'s own composition distinct', async () => {
+	test('[R5] enabled: same-group chat tab switching keeps each chat\'s own composition distinct', async () => {
 		const controller = createDesktopController({ chatLayoutMode: 'chat' });
 		await settle();
 
@@ -1063,6 +1063,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		const main = session.mainChat.get();
 		const peer = addPeerChat(session, URI.parse('chat:peer'));
 		harness.activeSessionObs.set(session, undefined);
+		harness.visibleSessionsObs.set([session], undefined);
 		await settle();
 
 		setVisible(true, true);
@@ -1074,10 +1075,10 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		await settle();
 		assert.deepStrictEqual(visible(), { editor: true, auxiliaryBar: false }, 'a first-visit peer uses the Existing defaults, not a forced hidden pane or the main chat\'s saved composition');
 
-		setVisible(false, true);
+		setVisible(false, false);
 		await settle();
-		assert.deepStrictEqual(visible(), { editor: false, auxiliaryBar: true });
-		assert.deepStrictEqual(controller.composition(controller.ownerKeyFor(session)), { editor: false, auxiliaryBar: true });
+		assert.deepStrictEqual(visible(), { editor: false, auxiliaryBar: false });
+		assert.deepStrictEqual(controller.composition(controller.ownerKeyFor(session)), { editor: false, auxiliaryBar: false });
 
 		setActiveChat(session, main);
 		await settle();
@@ -1085,7 +1086,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 
 		setActiveChat(session, peer);
 		await settle();
-		assert.deepStrictEqual(visible(), { editor: false, auxiliaryBar: true });
+		assert.deepStrictEqual(visible(), { editor: false, auxiliaryBar: false });
 
 	});
 
@@ -1179,7 +1180,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		assert.deepStrictEqual(controllerB.preHideComposition(ownerKeyB), { editor: false, auxiliaryBar: true }, 'B\'s own persisted normal-toggle last-open composition must also survive the reconstruction, unaffected by A\'s restore');
 	});
 
-	test('[R5] enabled: focusing owners preserves saved compositions without revealing a closed side pane', async () => {
+	test('[R5] enabled: focusing owners restores each saved composition after initial activation', async () => {
 		const controller = createDesktopController({ chatLayoutMode: 'chat' });
 		await settle();
 
@@ -1189,6 +1190,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		const auxOnly = addPeerChat(session, URI.parse('chat:auxOnly'));
 		const neither = addPeerChat(session, URI.parse('chat:neither'));
 		harness.activeSessionObs.set(session, undefined);
+		harness.visibleSessionsObs.set([session], undefined);
 		await settle();
 
 		const cases: readonly { readonly chat: IChat; readonly editor: boolean; readonly auxiliaryBar: boolean }[] = [
@@ -1212,20 +1214,13 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 				visible: visible(),
 				stored: controller.composition(controller.ownerKeyFor(session)),
 			}, {
-				visible: { editor: false, auxiliaryBar: false },
+				visible: { editor: c.editor, auxiliaryBar: c.auxiliaryBar },
 				stored: { editor: c.editor, auxiliaryBar: c.auxiliaryBar },
-			}, `focusing ${c.chat.resource.toString()} must not reveal its saved composition`);
-			if (c.editor || c.auxiliaryBar) {
-				harness.layoutService.toggleSidePane();
-				await settle();
-				assert.deepStrictEqual(visible(), { editor: c.editor, auxiliaryBar: c.auxiliaryBar }, `explicitly reopening ${c.chat.resource.toString()} must restore its saved composition`);
-				harness.partVisibility.set(Parts.EDITOR_PART, false);
-				harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
-			}
+			}, `focusing ${c.chat.resource.toString()} must restore its saved composition`);
 		}
 	});
 
-	test('[R5] enabled: focused owner composition round-trips while two sessions are simultaneously visible', async () => {
+	test('[R5] enabled: side-pane visibility stays global while two sessions are simultaneously visible', async () => {
 		const controller = createDesktopController({ chatLayoutMode: 'chat' });
 		await settle();
 
@@ -1254,9 +1249,89 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		await settle();
 		assert.deepStrictEqual(visible(), { editor: false, auxiliaryBar: false }, 'focusing A while both remain visible must not reveal its saved composition');
 
+		setVisible(true, false);
+		await settle();
 		harness.activeSessionObs.set(sessionB, undefined);
 		await settle();
-		assert.deepStrictEqual(visible(), { editor: false, auxiliaryBar: false }, 'focusing B again while both remain visible must hide what A showed and restore B\'s own composition, not merely reveal a superset');
+		assert.deepStrictEqual({
+			visible: visible(),
+			compositionA: controller.composition(keyA),
+			compositionB: controller.composition(keyB),
+		}, {
+			visible: { editor: true, auxiliaryBar: false },
+			compositionA: { editor: true, auxiliaryBar: true },
+			compositionB: { editor: false, auxiliaryBar: false },
+		}, 'multi-visible side-pane changes must stay global without overwriting either owner');
+	});
+
+	test('[R5] enabled: pane visibility stays global while multiple chats in one session are visible', async () => {
+		const controller = createDesktopController({ chatLayoutMode: 'chat' });
+		await settle();
+
+		const session = makeSession(URI.parse('session:multiple-chats'));
+		const main = session.mainChat.get();
+		const peer = addPeerChat(session, URI.parse('chat:peer'));
+
+		setActiveChat(session, peer);
+		harness.activeSessionObs.set(session, undefined);
+		harness.visibleSessionsObs.set([session], undefined);
+		await settle();
+		setVisible(true, false);
+		harness.layoutService.setPartHidden(false, Parts.PANEL_PART);
+		harness.onDidPaneCompositeOpen.fire({ composite: makePaneComposite('view.peer'), viewContainerLocation: ViewContainerLocation.Panel });
+		await settle();
+		const peerKey = controller.ownerKeyFor(session);
+
+		setActiveChat(session, main);
+		await settle();
+		harness.onDidPaneCompositeOpen.fire({ composite: makePaneComposite('view.main'), viewContainerLocation: ViewContainerLocation.Panel });
+		setVisible(false, true);
+		harness.layoutService.setPartHidden(true, Parts.PANEL_PART);
+		await settle();
+		const mainKey = controller.ownerKeyFor(session);
+
+		harness.additionalShownChatsObs.set(1, undefined);
+		await settle();
+		harness.openPaneCompositeCalls = [];
+		setActiveChat(session, peer);
+		await settle();
+		const afterPeerFocus = {
+			composition: visible(),
+			panelVisible: harness.layoutService.isVisible(Parts.PANEL_PART),
+			openedViews: [...harness.openPaneCompositeCalls],
+		};
+
+		harness.layoutService.setPartHidden(false, Parts.PANEL_PART);
+		await settle();
+		setVisible(true, true);
+		await settle();
+		harness.openPaneCompositeCalls = [];
+		setActiveChat(session, main);
+		await settle();
+
+		assert.deepStrictEqual({
+			afterPeerFocus,
+			afterMainFocus: {
+				composition: visible(),
+				panelVisible: harness.layoutService.isVisible(Parts.PANEL_PART),
+				openedViews: [...harness.openPaneCompositeCalls],
+			},
+			mainComposition: controller.composition(mainKey),
+			peerComposition: controller.composition(peerKey),
+		}, {
+			afterPeerFocus: {
+				composition: { editor: false, auxiliaryBar: true },
+				panelVisible: false,
+				openedViews: [],
+			},
+			afterMainFocus: {
+				composition: { editor: true, auxiliaryBar: true },
+				panelVisible: true,
+				openedViews: [{ id: 'view.main', location: ViewContainerLocation.Panel }],
+			},
+			mainComposition: { editor: false, auxiliaryBar: true },
+			peerComposition: { editor: true, auxiliaryBar: false },
+		});
 	});
 
 	test('[R5] enabled: focused owner editor working set round-trips while two sessions are simultaneously visible', async () => {
@@ -1295,7 +1370,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		assert.deepStrictEqual(harness.applyWorkingSetCalls, [{ id: 'session-working-set:session:b', name: 'session-working-set:session:b' }], 'switching focus back to B while both remain visible must apply B\'s own saved working set, not A\'s');
 	});
 
-	test('[R5] enabled: focused owner panel visibility and view round-trip while two sessions are simultaneously visible', async () => {
+	test('[R5] enabled: panel visibility stays global while panel views remain owner-scoped with two visible sessions', async () => {
 		createDesktopController({ chatLayoutMode: 'chat' });
 		await settle();
 
@@ -1310,6 +1385,7 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 
 		harness.activeSessionObs.set(sessionB, undefined);
 		await settle();
+		harness.onDidPaneCompositeOpen.fire({ composite: makePaneComposite('view.b'), viewContainerLocation: ViewContainerLocation.Panel });
 		harness.layoutService.setPartHidden(true, Parts.PANEL_PART);
 		await settle();
 
@@ -1320,16 +1396,30 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 		harness.openPaneCompositeCalls = [];
 		harness.activeSessionObs.set(sessionA, undefined);
 		await settle();
-		assert.strictEqual(harness.layoutService.isVisible(Parts.PANEL_PART), true, 'focusing A while both remain visible must show A\'s own panel');
-		assert.deepStrictEqual(harness.openPaneCompositeCalls, [{ id: 'view.a', location: ViewContainerLocation.Panel }], 'focusing A while both remain visible must restore A\'s own panel view');
+		assert.deepStrictEqual({
+			panelVisible: harness.layoutService.isVisible(Parts.PANEL_PART),
+			openedViews: harness.openPaneCompositeCalls,
+		}, {
+			panelVisible: false,
+			openedViews: [],
+		}, 'focusing A while both remain visible must preserve the global hidden state without opening content');
 
+		harness.layoutService.setPartHidden(false, Parts.PANEL_PART);
+		await settle();
+		assert.deepStrictEqual(harness.openPaneCompositeCalls, [{ id: 'view.a', location: ViewContainerLocation.Panel }], 'showing the global panel while A is focused must restore A\'s own panel view');
 		harness.openPaneCompositeCalls = [];
 		harness.activeSessionObs.set(sessionB, undefined);
 		await settle();
-		assert.strictEqual(harness.layoutService.isVisible(Parts.PANEL_PART), false, 'focusing B again while both remain visible must hide the panel A showed and restore B\'s own (hidden) state');
+		assert.deepStrictEqual({
+			panelVisible: harness.layoutService.isVisible(Parts.PANEL_PART),
+			openedViews: harness.openPaneCompositeCalls,
+		}, {
+			panelVisible: true,
+			openedViews: [{ id: 'view.b', location: ViewContainerLocation.Panel }],
+		}, 'focusing B must keep the global panel visible while restoring B\'s own panel view');
 	});
 
-	test('[R5] enabled: panel visibility and view changes made while two sessions are simultaneously visible are captured to the focused owner only', async () => {
+	test('[R5] enabled: global panel visibility changes do not overwrite owner state while panel view changes remain owner-scoped', async () => {
 		const controller = createDesktopController({ chatLayoutMode: 'chat' });
 		await settle();
 
@@ -1338,33 +1428,37 @@ suite('Chat-owned layout (R1/R5/R8/R13)', () => {
 
 		harness.activeSessionObs.set(sessionA, undefined);
 		await settle();
-		harness.activeSessionObs.set(sessionB, undefined);
-		await settle();
-		harness.visibleSessionsObs.set([sessionA, sessionB], undefined);
-		await settle();
-
-		harness.activeSessionObs.set(sessionA, undefined);
-		await settle();
-		harness.layoutService.setPartHidden(false, Parts.PANEL_PART);
-		await settle();
 		harness.layoutService.setPartHidden(true, Parts.PANEL_PART);
 		await settle();
 		const aKey = controller.ownerKeyFor(sessionA);
-		assert.strictEqual(controller.capturedPanelVisibility(aKey), false, 'hiding the panel while focused on A during multi-visible must capture to A\'s own owner');
 
 		harness.activeSessionObs.set(sessionB, undefined);
 		await settle();
 		harness.layoutService.setPartHidden(false, Parts.PANEL_PART);
-		harness.onDidPaneCompositeOpen.fire({ composite: makePaneComposite('view.b'), viewContainerLocation: ViewContainerLocation.Panel });
 		await settle();
 		const bKey = controller.ownerKeyFor(sessionB);
-		assert.strictEqual(controller.capturedPanelVisibility(bKey), true, 'showing the panel while focused on B during multi-visible must capture to B\'s own owner');
-		assert.strictEqual(controller.capturedPanelView(bKey), 'view.b', 'opening a panel view while focused on B during multi-visible must capture to B\'s own owner');
-		assert.strictEqual(controller.capturedPanelVisibility(aKey), false, 'B\'s captured panel changes while multi-visible must not overwrite A\'s own owner');
 
+		harness.visibleSessionsObs.set([sessionA, sessionB], undefined);
+		await settle();
+		harness.layoutService.setPartHidden(true, Parts.PANEL_PART);
+		await settle();
 		harness.activeSessionObs.set(sessionA, undefined);
 		await settle();
-		assert.strictEqual(harness.layoutService.isVisible(Parts.PANEL_PART), false, 'focusing A again after multi-visible capture must restore A\'s own (hidden) panel, not B\'s');
+		harness.layoutService.setPartHidden(false, Parts.PANEL_PART);
+		await settle();
+		harness.onDidPaneCompositeOpen.fire({ composite: makePaneComposite('view.b'), viewContainerLocation: ViewContainerLocation.Panel });
+		await settle();
+		assert.deepStrictEqual({
+			panelVisible: harness.layoutService.isVisible(Parts.PANEL_PART),
+			aVisibility: controller.capturedPanelVisibility(aKey),
+			bVisibility: controller.capturedPanelVisibility(bKey),
+			aView: controller.capturedPanelView(aKey),
+		}, {
+			panelVisible: true,
+			aVisibility: false,
+			bVisibility: true,
+			aView: 'view.b',
+		}, 'multi-visible visibility changes must stay global while the focused owner still captures panel content');
 	});
 
 	test('[R8] a confirmed peer-chat deletion clears only that owner\'s composition', async () => {

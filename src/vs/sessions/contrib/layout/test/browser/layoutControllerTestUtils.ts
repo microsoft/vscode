@@ -6,7 +6,7 @@
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { IDimension } from '../../../../../base/browser/dom.js';
-import { constObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, derived, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -31,6 +31,7 @@ import { EditorInput } from '../../../../../workbench/common/editor/editorInput.
 import { GroupModelChangeKind, IEditorWillOpenEvent, IUntypedEditorInput, isResourceEditorInput } from '../../../../../workbench/common/editor.js';
 import { IActiveSession, IChatDeletedEvent, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
 import { SESSIONS_LAYOUT_SCOPE_SETTING, ChatLayoutMode, ChatLayoutPresentation } from '../../../../common/chatLayout.js';
 import { AgentWorkbenchLayout, IAgentWorkbenchLayoutService, ISidePaneToggleEvent } from '../../../../browser/workbench.js';
 import { ChatInteractivity, IChat, ISession, ISessionChangeset, ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
@@ -212,6 +213,7 @@ export interface ITestLayoutHarness {
 	storageService: TestStorageService;
 	activeSessionObs: ISettableObservable<IActiveSession | undefined>;
 	visibleSessionsObs: ISettableObservable<readonly (IActiveSession | undefined)[]>;
+	additionalShownChatsObs: ISettableObservable<number>;
 	onDidChangeSessions: Emitter<ISessionsChangeEvent>;
 	onDidReplaceSession: Emitter<{ readonly from: ISession; readonly to: ISession }>;
 	onDidDeleteChat: Emitter<IChatDeletedEvent>;
@@ -338,6 +340,7 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 		storageService,
 		activeSessionObs: observableValue<IActiveSession | undefined>('activeSession', undefined),
 		visibleSessionsObs: observableValue<readonly (IActiveSession | undefined)[]>('visibleSessions', []),
+		additionalShownChatsObs: observableValue('additionalShownChats', 0),
 		onDidChangeSessions: store.add(new Emitter<ISessionsChangeEvent>()),
 		onDidReplaceSession: store.add(new Emitter<{ readonly from: ISession; readonly to: ISession }>()),
 		onDidDeleteChat: store.add(new Emitter<IChatDeletedEvent>()),
@@ -463,6 +466,10 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 	instaService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 		override readonly activeSession = harness.activeSessionObs;
 		override readonly visibleSessions = harness.visibleSessionsObs;
+	});
+	instaService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
+		override readonly shownChatCount = derived(reader =>
+			harness.visibleSessionsObs.read(reader).length + harness.additionalShownChatsObs.read(reader));
 	});
 
 	instaService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() {

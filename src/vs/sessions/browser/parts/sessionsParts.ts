@@ -40,6 +40,10 @@ export class SessionsParts extends Disposable implements ISessionsPartService {
 		return this._mainPart.onDidFocusSession;
 	}
 
+	get shownChatCount() {
+		return this._mainPart.shownChatCount;
+	}
+
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
