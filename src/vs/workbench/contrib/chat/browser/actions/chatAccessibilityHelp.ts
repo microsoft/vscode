@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getActiveElement, isHTMLElement } from '../../../../../base/browser/dom.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { AccessibleDiffViewerNext } from '../../../../../editor/browser/widget/diffEditor/commands.js';
@@ -53,7 +54,7 @@ export class EditsChatAccessibilityHelp implements IAccessibleViewImplementation
 	readonly priority = 119;
 	readonly name = 'editsView';
 	readonly type = AccessibleViewType.Help;
-	readonly when = ContextKeyExpr.and(ChatContextKeyExprs.inEditingMode, ChatContextKeys.inChatInput);
+	readonly when = ContextKeyExpr.and(ChatContextKeyExprs.inEditingMode, ContextKeyExpr.or(ChatContextKeys.inChatInput, ChatContextKeys.inChatSessionWorkingSet));
 	getProvider(accessor: ServicesAccessor) {
 		return getChatAccessibilityHelpProvider(accessor, undefined, 'editsView');
 	}
@@ -63,14 +64,18 @@ export class AgentChatAccessibilityHelp implements IAccessibleViewImplementation
 	readonly priority = 120;
 	readonly name = 'agentView';
 	readonly type = AccessibleViewType.Help;
-	readonly when = ContextKeyExpr.and(ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent), ChatContextKeys.inChatInput);
+	readonly when = ContextKeyExpr.and(ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent), ContextKeyExpr.or(ChatContextKeys.inChatInput, ChatContextKeys.inChatSessionWorkingSet));
 	getProvider(accessor: ServicesAccessor) {
 		return getChatAccessibilityHelpProvider(accessor, undefined, 'agentView');
 	}
 }
 
-export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'quickChat' | 'editsView' | 'agentView', keybindingService: IKeybindingService, supportsFileReferences: boolean, isSessionsWindow: boolean = false, stickyPromptHeaderShown: boolean = false, sessionStatusPillsSupported: boolean = type === 'panelChat' || type === 'agentView', sessionArchiveNudgeShown: boolean = false, sessionArchiveActionWording = ChatSessionArchiveActionWording.Archive, codexContinuationShown: boolean = false): string {
+export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'quickChat' | 'editsView' | 'agentView', keybindingService: IKeybindingService, supportsFileReferences: boolean, isSessionsWindow: boolean = false, stickyPromptHeaderShown: boolean = false, sessionStatusPillsSupported: boolean = type === 'panelChat' || type === 'agentView', sessionArchiveNudgeShown: boolean = false, sessionArchiveActionWording = ChatSessionArchiveActionWording.Archive, codexContinuationShown: boolean = false, sessionWorkingSetEnabled: boolean = false): string {
 	const content = [];
+	const hasSessionWorkingSet = sessionWorkingSetEnabled && !isSessionsWindow && type !== 'inlineChat' && type !== 'quickChat';
+	if (hasSessionWorkingSet) {
+		content.push(localize('chat.sessionWorkingSet', "The working set above the input lists changes across the whole session instead of showing a Changes pill. Use Tab or Shift+Tab to reach its heading and press Enter or Space to expand or collapse it. Use Tab to reach the file list, Up and Down Arrow to choose a file, and Enter to open its diff. Each file announces its path and added and removed line counts."));
+	}
 	if (type !== 'inlineChat' && type !== 'quickChat') {
 		content.push(localize('chat.historyRefresh', "Cloud sandbox conversations can show previously loaded messages while refreshing silently. If recent messages cannot be loaded, use Tab to reach Refresh in the banner and press Enter or Space. Refresh retries recorded history without restarting the session, waking its environment, or sending your draft."));
 		content.push(localize('chat.remoteConnections.help', "On desktop, Allow Remote Connections is available in the local Agent Host chat toolbar or the Agents window title bar. Use Tab to reach the toolbar, arrow keys to reach the toggle, and Enter or Space to enable or disable sharing. The chat.agentHost.remoteConnections setting selects Dev Tunnel or GitHub environment. Selecting a backend does not enable sharing; changing it turns sharing off. With GitHub environment selected, enabling the toggle registers your local environment for remote owner access. Local sessions continue using local IPC."));
@@ -288,14 +293,20 @@ export function getChatAccessibilityHelpProvider(accessor: ServicesAccessor, edi
 	}
 
 	const cachedPosition = inputEditor.getPosition();
+	const focusedElement = getActiveElement();
+	const workingSetFocus = isHTMLElement(focusedElement) && focusedElement.closest('.chat-session-working-set') ? focusedElement : undefined;
 	inputEditor.getSupportedActions();
 	const isInlineChat = isIChatResourceViewContext(widget.viewContext) && widget.viewContext.isInlineChat;
-	const helpText = getAccessibilityHelpText(type, keybindingService, widget.supportsFileReferences, environmentService.isSessionsWindow, isStickyPromptHeaderShown(widget, configurationService), !widget.rendersInputOnTop && !isInlineChat, widget.inputPart.hasSessionArchiveNudge, getChatSessionArchiveActionWording(configurationService), accessor.get(ICodexContinuationService).isVisible.get());
+	const helpText = getAccessibilityHelpText(type, keybindingService, widget.supportsFileReferences, environmentService.isSessionsWindow, isStickyPromptHeaderShown(widget, configurationService), !widget.rendersInputOnTop && !isInlineChat, widget.inputPart.hasSessionArchiveNudge, getChatSessionArchiveActionWording(configurationService), accessor.get(ICodexContinuationService).isVisible.get(), configurationService.getValue<boolean>(ChatConfiguration.EditorWorkingSetEnabled));
 	return new AccessibleContentProvider(
 		type === 'panelChat' ? AccessibleViewProviderId.PanelChat : type === 'inlineChat' ? AccessibleViewProviderId.InlineChat : type === 'agentView' ? AccessibleViewProviderId.AgentChat : AccessibleViewProviderId.QuickChat,
 		{ type: AccessibleViewType.Help },
 		() => helpText,
 		() => {
+			if (workingSetFocus?.isConnected) {
+				workingSetFocus.focus();
+				return;
+			}
 			if (type === 'quickChat' || type === 'editsView' || type === 'agentView' || type === 'panelChat') {
 				if (cachedPosition) {
 					inputEditor.setPosition(cachedPosition);

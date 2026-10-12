@@ -105,6 +105,7 @@ export interface ChatInputFixtureOptions {
 	readonly sendEnabled?: boolean;
 	readonly artifacts?: readonly { label: string; uri: string; type: 'devServer' | 'screenshot' | 'plan' | undefined }[];
 	readonly editingSession?: IChatEditingSession;
+	readonly sessionWorkingSet?: boolean;
 	readonly todos?: IChatTodo[];
 	/** Enables the agent sandbox setting so the permission picker renders its sandboxed state. */
 	readonly sandboxingEnabled?: boolean;
@@ -159,6 +160,7 @@ export async function renderChatInput(context: ComponentFixtureContext, fixtureO
 
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: context.theme,
+		fileIconTheme: context.fileIconTheme,
 		additionalServices: (reg) => {
 			registerChatFixtureServices(reg, { artifactGroups: artifactsObs, todos, notification, agentHostSessionConfig });
 			reg.define(IActionWidgetService, ActionWidgetService);
@@ -230,6 +232,11 @@ export async function renderChatInput(context: ComponentFixtureContext, fixtureO
 			fixtureOptions.additionalServices?.(reg);
 		},
 	});
+
+	if (fixtureOptions.sessionWorkingSet) {
+		const configService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+		await configService.setUserConfiguration(ChatConfiguration.EditorWorkingSetEnabled, true);
+	}
 
 	if (artifacts.length > 0) {
 		const configService = instantiationService.get(IConfigurationService) as TestConfigurationService;
