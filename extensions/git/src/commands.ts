@@ -4318,7 +4318,7 @@ export class CommandCenter {
 			const pick = await window.showWarningMessage(message, { modal: true }, pushAndSetUpstream);
 
 			if (pick === pushAndSetUpstream) {
-				await repository.pushTo(HEAD.upstream.remote, `${HEAD.name}:${HEAD.upstream.name}`, true);
+				await repository.pushTo(HEAD.upstream.remote, HEAD.name, true);
 			}
 		}
 	}
