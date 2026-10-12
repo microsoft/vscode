@@ -205,10 +205,15 @@ const RELAYED_MODELS = [
 	createModel('claude-sonnet-5', 'Claude Sonnet 5', { vendor: 'agent-host-copilotcli', isBYOK: true, modelGroupId: 'copilot', category: 'powerful' }),
 	createModel('llama-3-70b', 'Llama 3 70B', { vendor: 'agent-host-copilotcli', isBYOK: true, modelGroupId: 'ollama' }),
 ];
-/** The research preview the Copilot agent host adds when enabled, offered as Auto's last tier. */
+/** The research preview the Copilot agent host adds when enabled, offered as a model of its own beside Auto. */
 const HYDRA_FUSION_MODEL: ILanguageModelChatMetadataAndIdentifier = (() => {
 	const model = createModel('hydrafusion', 'HydraFusion', { vendor: 'agent-host-copilotcli', isBYOK: true, modelGroupId: 'copilotcli', detail: 'Research preview' });
-	return { ...model, metadata: { ...model.metadata, tooltip: 'HydraFusion routes the first eligible turn and may use multiple models. Premium usage varies with the selected route.' } };
+	return { ...model, metadata: { ...model.metadata, tooltip: 'HydraFusion routes the first eligible turn and may use multiple models.' } };
+})();
+/** HydraFusion v2's Max, which makes Default and Max HydraFusion's tiers. */
+const HYDRA_FUSION_MAX_MODEL: ILanguageModelChatMetadataAndIdentifier = (() => {
+	const model = createModel('hydrafusion-max', 'HydraFusion Max', { vendor: 'agent-host-copilotcli', isBYOK: true, modelGroupId: 'copilotcli', detail: 'Research preview' });
+	return { ...model, metadata: { ...model.metadata, tooltip: 'HydraFusion Max routes the first eligible turn and may use multiple models.' } };
 })();
 const ALL_MODELS = [...COPILOT_ONLY_MODELS, ...OLLAMA_MODELS];
 
@@ -699,19 +704,18 @@ export default defineThemedFixtureGroup({ path: 'chat/input/tabbedModelPicker' }
 	PickerWithHydraFusion: defineComponentFixture({
 		render: context => renderPicker(context, { models: [...RELAYED_MODELS, HYDRA_FUSION_MODEL], selectedModelId: 'agent-host-copilotcli/gpt-5-5', entitlement: ChatEntitlement.Pro }),
 	}),
-	/** HydraFusion as Auto's last tier, before it is chosen. */
-	PickerAutoDetailsWithHydraFusion: defineComponentFixture({
+	/** HydraFusion's details, with Default and Max as its tiers, before either is chosen. */
+	PickerHydraFusionDetails: defineComponentFixture({
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		render: context => renderPicker(context, { models: [...RELAYED_MODELS, HYDRA_FUSION_MODEL], selectedModelId: 'agent-host-copilotcli/auto', entitlement: ChatEntitlement.Pro, openDetailsFor: 'Auto' }),
+		render: context => renderPicker(context, { models: [...RELAYED_MODELS, HYDRA_FUSION_MODEL, HYDRA_FUSION_MAX_MODEL], selectedModelId: 'agent-host-copilotcli/auto', entitlement: ChatEntitlement.Pro, openDetailsFor: 'HydraFusion' }),
 	}),
-	/** Auto stands for its HydraFusion tier in the list. */
-	PickerHydraFusionSelected: defineComponentFixture({
-		render: context => renderPicker(context, { models: [...RELAYED_MODELS, HYDRA_FUSION_MODEL], selectedModelId: HYDRA_FUSION_MODEL.identifier, entitlement: ChatEntitlement.Pro }),
+	/** HydraFusion's row stands for its Max tier once chosen. */
+	PickerHydraFusionMaxSelected: defineComponentFixture({
+		render: context => renderPicker(context, { models: [...RELAYED_MODELS, HYDRA_FUSION_MODEL, HYDRA_FUSION_MAX_MODEL], selectedModelId: HYDRA_FUSION_MAX_MODEL.identifier, entitlement: ChatEntitlement.Pro }),
 	}),
-	/** The research preview description appears once HydraFusion is chosen. */
-	PickerHydraFusionSelectedDetails: defineComponentFixture({
+	PickerHydraFusionMaxSelectedDetails: defineComponentFixture({
 		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
-		render: context => renderPicker(context, { models: [...RELAYED_MODELS, HYDRA_FUSION_MODEL], selectedModelId: HYDRA_FUSION_MODEL.identifier, entitlement: ChatEntitlement.Pro, openDetailsFor: 'Auto' }),
+		render: context => renderPicker(context, { models: [...RELAYED_MODELS, HYDRA_FUSION_MODEL, HYDRA_FUSION_MAX_MODEL], selectedModelId: HYDRA_FUSION_MAX_MODEL.identifier, entitlement: ChatEntitlement.Pro, openDetailsFor: 'HydraFusion' }),
 	}),
 	PickerHydraFusionNeedsUpdate: defineComponentFixture({
 		render: context => renderPicker(context, {

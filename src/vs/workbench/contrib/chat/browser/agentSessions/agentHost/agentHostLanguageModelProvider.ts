@@ -192,7 +192,7 @@ export class AgentHostLanguageModelProvider extends Disposable implements ILangu
 		if (model.provider === COPILOT_CLI_AGENT_PROVIDER_ID && isCopilotHydraFusionModelId(model.id)) {
 			return {
 				detail: localize('agentHost.hydraFusion.researchPreview', "Research preview"),
-				description: localize('agentHost.hydraFusion.routingDescription', "{0} routes the first eligible turn and may use multiple models. Premium usage varies with the selected route.", model.name),
+				description: localize('agentHost.hydraFusion.routingDescription', "{0} routes the first eligible turn and may use multiple models.", model.name),
 			};
 		}
 		return {};
