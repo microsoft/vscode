@@ -28,13 +28,7 @@ import { getAvailableSessionApprovalValues, getSessionApprovalProperty, readSess
 import { readToolCallMeta } from '../common/meta/agentToolCallMeta.js';
 import { ConfirmationOptionKind, type ConfirmationOption } from '../common/state/protocol/state.js';
 import { ActionType, type IToolCallReadyAction } from '../common/state/sessionActions.js';
-import {
-	isAhpChatChannel,
-	parseRequiredSessionUriFromChatUri,
-	ResponsePartKind,
-	ToolCallConfirmationReason,
-	type URI as ProtocolURI,
-} from '../common/state/sessionState.js';
+import { isAhpChatChannel, ResponsePartKind, ToolCallConfirmationReason, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { getEffectiveWorkingDirectories, IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 import { CommandAutoApprover, type CommandApprovalResult } from './commandAutoApprover.js';
@@ -309,8 +303,8 @@ export class SessionPermissionManager extends Disposable {
 
 		// 4. Read auto-approval
 		if (e.permissionKind === 'read' && e.permissionPath) {
-			const sessionUri = URI.parse(isAhpChatChannel(sessionKey) ? parseRequiredSessionUriFromChatUri(sessionKey) : sessionKey);
-			if (isSessionAttachmentPath(this._sessionDataService, sessionUri, e.permissionPath)) {
+			const owner = this._ownerOf(sessionKey);
+			if (owner !== undefined && isSessionAttachmentPath(this._sessionDataService, URI.parse(owner), e.permissionPath)) {
 				this._logService.trace(`[SessionPermissionManager] Auto-approving session attachment read of ${e.permissionPath}`);
 				return ToolCallConfirmationReason.NotNeeded;
 			}
@@ -364,8 +358,8 @@ export class SessionPermissionManager extends Disposable {
 	 * not fall back to unscoped editing, so no write auto-approves for it.
 	 */
 	private _getSurfaceEditScope(sessionKey: ProtocolURI): { readonly target: URI | undefined } | undefined {
-		const session = isAhpChatChannel(sessionKey) ? parseRequiredSessionUriFromChatUri(sessionKey) : sessionKey;
-		const surface = this._stateManager.getSessionSurfaceMeta(session);
+		const session = this._ownerOf(sessionKey);
+		const surface = session === undefined ? undefined : this._stateManager.getSessionSurfaceMeta(session);
 		if (surface?.surface !== 'editorInline') {
 			return undefined;
 		}
@@ -396,8 +390,8 @@ export class SessionPermissionManager extends Disposable {
 		if (e.permissionKind !== 'write' || !e.permissionPath) {
 			return false;
 		}
-		const sessionUri = URI.parse(isAhpChatChannel(sessionKey) ? parseRequiredSessionUriFromChatUri(sessionKey) : sessionKey);
-		return isSessionAttachmentPath(this._sessionDataService, sessionUri, e.permissionPath);
+		const owner = this._ownerOf(sessionKey);
+		return owner !== undefined && isSessionAttachmentPath(this._sessionDataService, URI.parse(owner), e.permissionPath);
 	}
 
 	/** Whether adding a persistent terminal auto-approve rule can suppress future prompts for this shell event. */
@@ -418,6 +412,11 @@ export class SessionPermissionManager extends Disposable {
 	 * Returns whether VS Code's global auto-approve setting (`chat.tools.global.autoApprove`) is enabled.
 	 * When enabled, every tool call is auto-approved without changing the session's approval level in the permissions picker.
 	 */
+	/** The session that owns a chat, or the session itself; `undefined` for an unregistered chat. */
+	private _ownerOf(sessionOrChat: ProtocolURI): string | undefined {
+		return isAhpChatChannel(sessionOrChat) ? this._stateManager.getChatOwner(sessionOrChat) : sessionOrChat;
+	}
+
 	private _resolveSession(sessionOrChat: ProtocolURI): string | undefined {
 		return resolveAgentHostSession(URI.parse(sessionOrChat), chat => this._stateManager.getChatOwner(chat))?.toString();
 	}

@@ -14,7 +14,7 @@ import { AgentHostClientType } from '../../../common/agentHostClientInfo.js';
 import { createUnknownAgentHostClientTelemetryContext } from '../../../common/agentHostTelemetry.js';
 import { IAgentHostChatContributions, createChatMementoKey, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IAgentHostChatContributionHost, type IAppliedClientAction, type IDispatchedAction, type IQueuedMessageSender, type ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
 import { ActionType, isChatAction, type ChatAction, type ChatPendingMessageSetAction } from '../../../common/state/sessionActions.js';
-import { getErrorResponsePart, isAhpChatChannel, parseRequiredSessionUriFromChatUri, PendingMessageKind, TurnState, type Message, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
+import { getErrorResponsePart, isAhpChatChannel, PendingMessageKind, TurnState, type Message, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
 import { AgentHostStateManager, IAgentHostStateManager } from '../../agentHostStateManager.js';
 import { IAgentHostProviderService } from '../../agentHostProviderService.js';
 import { AgentHostTurnTracker, IAgentHostTurnTracker } from '../../agentHostTurnTracker.js';
@@ -136,7 +136,10 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 		if (!host) {
 			return;
 		}
-		const session = parseRequiredSessionUriFromChatUri(channel);
+		const session = this._stateManager.getChatOwner(channel);
+		if (session === undefined) {
+			return;
+		}
 		const steeringSender = this._context.memento(SteeringSender, channel).get();
 		this._providerService.getProviderForSession(session)?.setPendingMessages?.(
 			URI.parse(channel),
@@ -180,7 +183,7 @@ export class QueueDrainContribution extends Disposable implements IAgentHostChat
 	}
 
 	private _admitQueuedTurn(host: IAgentHostChatContributionHost, channel: ProtocolURI, message: Message, messageId: string, sender: IQueuedMessageSender): void {
-		const sessionChannel = parseRequiredSessionUriFromChatUri(channel);
+		const sessionChannel = this._stateManager.requireChatOwner(channel);
 		const turnId = generateUuid();
 		this._stateManager.dispatchServerAction(channel, {
 			type: ActionType.ChatTurnStarted,

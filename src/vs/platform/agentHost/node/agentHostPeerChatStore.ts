@@ -11,7 +11,7 @@ import { ILogService } from '../../log/common/log.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import type { AgentHostCatalogDatabaseReference } from './agentHostCatalogSyncService.js';
 import { ChatInteractivity, ChatOrigin } from '../common/state/protocol/state.js';
-import { AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, isDefaultChatUri, parseRequiredSessionUriFromChatUri } from '../common/state/sessionState.js';
+import { AH_META_DEFAULT_CHAT_IS_READ_DB_KEY, AH_META_IS_ARCHIVED_DB_KEY, AH_META_IS_READ_DB_KEY, isAhpChatChannel, isDefaultChatUri, parseChatUri } from '../common/state/sessionState.js';
 import { fromCatalogChatOrigin, toCatalogSummary, toSerializableJsonValue } from './agentHostCatalogSourceResolver.js';
 import { AGENT_HOST_CATALOG_CHILD_LIMIT, agentHostCatalogChangesValidator } from './agentHostCatalogProjection.js';
 import { IAgentHostDatabase, type IAgentHostDatabaseCatalogSnapshotEntry, type IAgentHostDatabaseChatV2, type IAgentHostDatabaseChatV2Patch, type IAgentHostDatabaseChatV2NormalizationChat, type IAgentHostDatabaseChatV2NormalizationCandidate, type IAgentHostDatabaseChatV2Mutation } from './agentHostDatabase.js';
@@ -67,6 +67,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 		private readonly _database: IAgentHostDatabase,
 		private readonly _sessionDataService: ISessionDataService,
 		private readonly _logService: ILogService,
+		private readonly _getLiveChatOwner: (chat: string) => string | undefined = () => undefined,
 	) { }
 
 	setMetadataMigration(handler: NonNullable<AgentHostPeerChatStore['_metadataMigration']>): void {
@@ -483,7 +484,7 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 			if (raw === undefined) {
 				return undefined;
 			}
-			return { raw, entries: this._parse(session, raw, IMPORTED_PEER_CHAT_LIMIT) };
+			return { raw, entries: await this._withoutCentrallyOwnedElsewhere(session, this._parse(session, raw, IMPORTED_PEER_CHAT_LIMIT)) };
 		} catch (error) {
 			this._logService.warn(`[AgentService] Ignoring malformed peer-chat catalog for ${session.toString()}: ${toErrorMessage(error)}`);
 			return undefined;
@@ -492,6 +493,29 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 				ref.dispose();
 			}
 		}
+	}
+
+	/**
+	 * A legacy entry belongs to the session whose database contains it, unless
+	 * the live registry or the central catalog records the chat under another
+	 * session or as deleted.
+	 */
+	private async _withoutCentrallyOwnedElsewhere(session: URI, entries: IPersistedPeerChat[]): Promise<IPersistedPeerChat[]> {
+		const sessionKey = session.toString();
+		const owned = await Promise.all(entries.map(async entry => {
+			const liveOwner = this._getLiveChatOwner(entry.uri);
+			if (liveOwner !== undefined) {
+				return liveOwner === sessionKey;
+			}
+			const recorded = await this._database.findChatOwner(entry.uri);
+			return !recorded || (recorded.ownerSession === sessionKey && !recorded.deleted);
+		}));
+		return entries.filter((entry, index) => {
+			if (!owned[index]) {
+				this._logService.warn(`[AgentService] Skipping peer-chat catalog entry ${entry.uri} that is recorded outside ${sessionKey}`);
+			}
+			return owned[index];
+		});
 	}
 
 	async find(session: URI, chat: URI): Promise<IPersistedPeerChat | undefined> {
@@ -1166,15 +1190,13 @@ export class AgentHostPeerChatStore implements IAgentHostPeerChatPersistenceServ
 				this._logService.warn(`[AgentService] Skipping duplicate peer-chat catalog entry ${index}`);
 				continue;
 			}
-			let owner: string;
-			try {
-				owner = parseRequiredSessionUriFromChatUri(value.uri);
-			} catch (error) {
-				this._logService.warn(`[AgentService] Skipping peer-chat catalog entry ${index} with invalid chat URI: ${toErrorMessage(error)}`);
+			// The legacy catalog is stored per session, so its session owns every entry.
+			if (!isAhpChatChannel(value.uri) || parseChatUri(value.uri) === undefined) {
+				this._logService.warn(`[AgentService] Skipping peer-chat catalog entry ${index} with invalid chat URI`);
 				continue;
 			}
-			if (owner !== sessionKey || isDefaultChatUri(value.uri)) {
-				this._logService.warn(`[AgentService] Skipping peer-chat catalog entry ${index} that is not owned by ${sessionKey}`);
+			if (isDefaultChatUri(value.uri)) {
+				this._logService.warn(`[AgentService] Skipping peer-chat catalog entry ${index} that is a default chat of ${sessionKey}`);
 				continue;
 			}
 			if (value.providerData !== undefined && typeof value.providerData !== 'string') {

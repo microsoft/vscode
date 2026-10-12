@@ -577,7 +577,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 
 		await runWithFakedTimers({}, async () => {
 			for (const item of cases) {
-				tracker.turnStarted(agent, item.session, 'turn', undefined, undefined, 'default', undefined, undefined);
+				tracker.turnStarted(agent, item.session, item.session, 'turn', undefined, undefined, 'default', undefined, undefined);
 				tracker.setCurrentStage(item.session, 'turn', item.stage);
 			}
 			await timeout(TURN_HANG_THRESHOLD_MS);
@@ -630,6 +630,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 		await runWithFakedTimers({}, async () => {
 			tracker.turnStarted(
 				diagnosticAgent,
+				session,
 				session,
 				'turn',
 				undefined,
@@ -687,7 +688,7 @@ suite('AgentSideEffects — turn hang telemetry', () => {
 		const session = AgentSession.uri('copilotcli', 'diagnostic-error').toString();
 
 		await runWithFakedTimers({}, async () => {
-			tracker.turnStarted(diagnosticAgent, session, 'turn', undefined, undefined, 'default', undefined, undefined);
+			tracker.turnStarted(diagnosticAgent, session, session, 'turn', undefined, undefined, 'default', undefined, undefined);
 			tracker.setCurrentStage(session, 'turn', 'provider');
 			await timeout(TURN_HANG_THRESHOLD_MS);
 		});

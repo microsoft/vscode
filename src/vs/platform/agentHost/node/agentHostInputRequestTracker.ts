@@ -89,6 +89,7 @@ export class AgentHostInputRequestTracker {
 			telemetryContext: this._getTelemetryContext(timing.session, timing.turnId),
 			provider: timing.provider,
 			session: timing.session,
+			owner: timing.owner,
 			subagentKind: this._getSubagentKind(timing.session, timing.turnId),
 			requestId: timing.turnId,
 			questionCount: questions.length,

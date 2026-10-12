@@ -16,7 +16,7 @@ import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { isAnyAgentMergeEnabled } from '../common/agentMerge.js';
 import { getWorkingDirectoryKey } from '../common/agentHostWorkingDirectories.js';
-import { buildDefaultChatUri, isAhpChatChannel, parseChatUri, parseSubagentSessionUri, type SessionConfigState } from '../common/state/sessionState.js';
+import { buildDefaultChatUri, isAhpChatChannel, parseSubagentSessionUri, type SessionConfigState } from '../common/state/sessionState.js';
 import { ActionType } from '../common/state/sessionActions.js';
 import { getSummaryChangesetKind } from './agentHostChangesetSummary.js';
 import { resolveBranchChangesetScopeForOwner, resolveBranchChangesetScopeForSource } from './agentHostBranchChangesetScope.js';
@@ -93,7 +93,7 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		this._changesets.registerStaticChangesets(chat);
 		this._changesets.ensureChatChangesSummary(chat);
 		void this._gitStateService.refreshSessionGitState(chat);
-		const session = parseChatUri(chat)?.session;
+		const session = this._stateManager.getChatOwner(chat);
 		if (session
 			&& this._changesetSubscriptions.getSessionSubscriptions(session).has(session)
 			&& getSummaryChangesetKind(this._stateManager.getSessionState(session)?.config?.values) === ChangesetKind.Branch) {
@@ -307,7 +307,7 @@ export class AgentHostChangesetCoordinator extends Disposable {
 			return undefined;
 		}
 
-		const session = parseChatUri(owner)?.session ?? owner;
+		const session = (isAhpChatChannel(owner) ? this._stateManager.getChatOwner(owner) : undefined) ?? owner;
 		let resourcesBySource = this._branchSummaryResources.get(session);
 		if (!resourcesBySource) {
 			resourcesBySource = new Map();
@@ -582,7 +582,7 @@ export class AgentHostChangesetCoordinator extends Disposable {
 			const branchResource = this._stateManager.getChatState(sessionStr)?.changesets
 				?.find(changeset => parseChangesetUri(changeset.uriTemplate)?.kind === ChangesetKind.Branch)?.uriTemplate;
 			branchOwners.add(parseChangesetUri(branchResource ?? '')?.ownerUri ?? resolveBranchChangesetScopeForSource(this._stateManager, sessionStr).ownerUri);
-			const session = parseChatUri(sessionStr)?.session;
+			const session = this._stateManager.getChatOwner(sessionStr);
 			if (session
 				&& this._changesetSubscriptions.getSessionSubscriptions(session).has(session)
 				&& getSummaryChangesetKind(this._stateManager.getSessionState(session)?.config?.values) === ChangesetKind.Branch) {
@@ -642,7 +642,7 @@ export class AgentHostChangesetCoordinator extends Disposable {
 			this._changesets.recomputeSubscribedChangesets(sessionStr);
 			this._changesets.refreshChatChangesSummary(sessionStr);
 			void this._gitStateService.refreshSessionGitState(sessionStr);
-			const session = parseChatUri(sessionStr)?.session;
+			const session = this._stateManager.getChatOwner(sessionStr);
 			if (session && this._changesetSubscriptions.getSessionSubscriptions(session).has(session)) {
 				if (getSummaryChangesetKind(this._stateManager.getSessionState(session)?.config?.values) === ChangesetKind.Branch) {
 					this._reconcileBranchSummaryResources(session);

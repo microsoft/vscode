@@ -11,7 +11,7 @@ import { ILogService } from '../../log/common/log.js';
 import { AgentSession } from '../common/agentService.js';
 import { ISessionDataService, type ISessionDatabase } from '../common/sessionDataService.js';
 import { DEFAULT_CUSTOMIZATION_ENABLED, isCustomizationEnabled, sortCustomizationEnablement, withCustomizationEnablement } from '../common/customizationEnablement.js';
-import { isAhpChatChannel, parseRequiredSessionUriFromChatUri, readSessionWorkspaceless } from '../common/state/sessionState.js';
+import { isAhpChatChannel, readSessionWorkspaceless } from '../common/state/sessionState.js';
 import { CustomizationEnablementKind, CustomizationType, type CustomizationEnablement } from '../common/state/protocol/channels-session/state.js';
 import { IAgentHostStorageService } from './agentHostStorageService.js';
 import { getEffectiveWorkingDirectories } from './agentConfigurationService.js';
@@ -178,7 +178,7 @@ export class AgentHostCustomizationEnablementService extends Disposable implemen
 		this._reconcileLru();
 		this._register(this._sessionState.onDidEmitEnvelope(envelope => {
 			const session = isAhpChatChannel(envelope.channel)
-				? parseRequiredSessionUriFromChatUri(envelope.channel)
+				? this._sessionState.getChatOwner(envelope.channel)
 				: this._sessionState.getSessionSummary(envelope.channel) ? envelope.channel : undefined;
 			if (session !== undefined) {
 				this._sessionsById.set(AgentSession.id(session), session);

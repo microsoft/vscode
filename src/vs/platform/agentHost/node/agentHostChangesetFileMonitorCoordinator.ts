@@ -7,7 +7,7 @@ import { SequencerByKey } from '../../../base/common/async.js';
 import { Disposable, DisposableMap, IReference, ReferenceCollection } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { buildSessionChangesetUri, buildUncommittedChangesetUri, parseChangesetUri } from '../common/changesetUri.js';
-import { parseChatUri, parseSubagentSessionUri } from '../common/state/sessionState.js';
+import { isAhpChatChannel, parseSubagentSessionUri } from '../common/state/sessionState.js';
 import { DEFAULT_AGENT_HOST_WATCH_EXCLUDES, IAgentHostFileMonitorService } from './agentHostFileMonitorService.js';
 import { IAgentHostGitService } from '../common/agentHostGitService.js';
 import { resolveSessionRepositories } from './agentHostSessionRepositories.js';
@@ -57,6 +57,8 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 	private readonly _watchInterestReferences = this._register(new DisposableMap<string, IReference<string>>());
 	private readonly _watchOwners = new Map<string, string>();
 	private readonly _watchSources = new Map<string, string>();
+	/** Containing session of each watch, recorded when tracking starts. */
+	private readonly _watchSessions = new Map<string, string>();
 	private readonly _watchInterestCollection = new WatchInterestReferenceCollection(
 		sessionStr => this._attachWatcherIfPossible(sessionStr),
 		sessionStr => this._destroyWatchInterest(sessionStr),
@@ -96,6 +98,8 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 		if (!this._watchInterestReferences.has(subscriptionKey)) {
 			this._watchOwners.set(subscriptionKey, sessionStr);
 			this._watchSources.set(sessionStr, sourceStr);
+			const sourceSession = isAhpChatChannel(sourceStr) ? this._stateManager.getChatOwner(sourceStr) : undefined;
+			this._watchSessions.set(subscriptionKey, sourceSession ?? parseChangesetUri(subscriptionKey)?.sessionUri ?? sourceStr);
 			this._watchInterestReferences.set(subscriptionKey, this._watchInterestCollection.acquire(sessionStr));
 		}
 	}
@@ -103,6 +107,7 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 	untrackSessionChanges(subscriptionKey: string): void {
 		const owner = this._watchOwners.get(subscriptionKey);
 		this._watchOwners.delete(subscriptionKey);
+		this._watchSessions.delete(subscriptionKey);
 		this._watchInterestReferences.deleteAndDispose(subscriptionKey);
 		if (owner && ![...this._watchOwners.values()].includes(owner)) {
 			this._watchSources.delete(owner);
@@ -134,8 +139,7 @@ export class ChangesetFileMonitorCoordinator extends Disposable {
 		this.untrackSessionChanges(sessionStr);
 		for (const [subscription, owner] of [...this._watchOwners]) {
 			const source = this._watchSources.get(owner) ?? owner;
-			const sourceSession = parseChatUri(source)?.session ?? parseChangesetUri(subscription)?.sessionUri ?? source;
-			if (source === sessionStr || sourceSession === sessionStr) {
+			if (source === sessionStr || this._watchSessions.get(subscription) === sessionStr) {
 				this.untrackSessionChanges(subscription);
 			}
 		}

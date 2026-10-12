@@ -10,8 +10,9 @@ import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import type { AgentProvider } from '../common/agent.js';
-import { isAhpChatChannel, isDefaultChatUri, parseRequiredSessionUriFromChatUri } from '../common/state/sessionState.js';
+import { isAhpChatChannel, isDefaultChatUri } from '../common/state/sessionState.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
+import { IAgentHostStateManager, type AgentHostStateManager } from './agentHostStateManager.js';
 import type { IAgentHostCopilotSkuClassification, IAgentHostCopilotSkuTelemetry } from './agentHostTelemetryReporter.js';
 
 export const AgentHostSessionSubscribeTimeoutMs = 60_000;
@@ -107,6 +108,7 @@ export class AgentHostSessionOpenTelemetry extends Disposable implements IAgentH
 	constructor(
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IAgentHostProviderService private readonly _providerService: IAgentHostProviderService,
+		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 	) {
 		super();
 		this._register(toDisposable(() => {
@@ -291,9 +293,13 @@ export class AgentHostSessionOpenTelemetry extends Disposable implements IAgentH
 
 	private _classify(resource: URI): { readonly session: URI; readonly provider: AgentHostSessionSubscribeProvider; readonly channel: AgentHostSessionSubscribeChannel } | undefined {
 		const resourceString = resource.toString();
-		const session = isAhpChatChannel(resourceString)
-			? URI.parse(parseRequiredSessionUriFromChatUri(resourceString))
-			: resource;
+		const owner = isAhpChatChannel(resourceString)
+			? this._stateManager.getChatOwner(resourceString) ?? this._stateManager.findRetainedChatOwner(resourceString)
+			: resourceString;
+		if (owner === undefined) {
+			return undefined;
+		}
+		const session = URI.parse(owner);
 		const provider = this._providerService.getProviderForSession(session)?.id;
 		if (!provider) {
 			return undefined;

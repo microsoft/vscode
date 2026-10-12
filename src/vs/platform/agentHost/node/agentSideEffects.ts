@@ -45,41 +45,7 @@ import { buildOpenSessionLinkForChatResource } from '../common/openSessionLink.j
 import { McpServerStatus, ToolCallContributorKind, type AgentInfo, type SessionActiveClient } from '../common/state/protocol/state.js';
 import type { CustomizationEnablement } from '../common/state/protocol/channels-session/state.js';
 import { ActionType, isChatAction, StateAction, type ChatDeltaAction, type ChatReasoningAction, type ChatResponsePartAction, type ChatToolCallCompleteAction, type ChatToolCallStartAction, type ChatTurnStartedAction } from '../common/state/sessionActions.js';
-import {
-	buildSubagentChatUri,
-	createErrorResponsePart,
-	getErrorResponsePart,
-	getToolFileEdits,
-	getInlineToolInput,
-	isAhpChatChannel,
-	buildDefaultChatUri,
-	isSubagentChatUri,
-	mergeLogicalTurnUsage,
-	MessageAttachmentKind,
-	MessageKind,
-	PendingMessageKind,
-	ResponsePartKind,
-	ROOT_STATE_URI,
-	SessionLifecycle,
-	CustomizationType,
-	ToolCallStatus,
-	ToolCallConfirmationReason,
-	ToolResultContentType,
-	type ErrorInfo,
-	type ISessionWithDefaultChat,
-	type Message,
-	type MessageAttachment,
-	type URI as ProtocolURI,
-	type ResponsePart,
-	type ToolCallResult,
-	type ToolResultContent,
-	type Turn,
-	type UsageInfo,
-	type Customization,
-	type McpServerCustomization,
-	type PluginCustomization,
-	type ToolCallContributor
-} from '../common/state/sessionState.js';
+import { buildSubagentChatUri, createErrorResponsePart, getErrorResponsePart, getToolFileEdits, getInlineToolInput, isAhpChatChannel, buildDefaultChatUri, isSubagentChatUri, mergeLogicalTurnUsage, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, CustomizationType, ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, type ErrorInfo, type ISessionWithDefaultChat, type Message, type MessageAttachment, type URI as ProtocolURI, type ResponsePart, type ToolCallResult, type ToolResultContent, type Turn, type UsageInfo, type Customization, type McpServerCustomization, type PluginCustomization, type ToolCallContributor } from '../common/state/sessionState.js';
 import { AgentHostInputRequestTracker } from './agentHostInputRequestTracker.js';
 import { AgentHostLocalTurns } from './agentHostLocalTurns.js';
 import { IAgentHostSessionTitleController } from './agentHostSessionTitleController.js';
@@ -871,7 +837,7 @@ export class AgentSideEffects extends Disposable {
 			...createUnknownAgentHostClientTelemetryContext(AgentHostClientType.Unknown),
 			hostLaunchKind: this._options.hostLaunchKind ?? AgentHostLaunchKind.Unknown,
 		};
-		this._turnTracker.turnStarted(agent, channel, action.turnId, model, modelTelemetryKind, modelSelectionKind, permissionLevel, interactionMode, clientContext, undefined, undefined, undefined, getMessageOriginTelemetryKind(action.message, this._stateManager.isEphemeralSession(session)));
+		this._turnTracker.turnStarted(agent, channel, session, action.turnId, model, modelTelemetryKind, modelSelectionKind, permissionLevel, interactionMode, clientContext, undefined, undefined, undefined, getMessageOriginTelemetryKind(action.message, this._stateManager.isEphemeralSession(session)));
 		if (startedWithSteering) {
 			this._turnTracker.markSteering(channel, action.turnId, 'started');
 		}
@@ -926,14 +892,15 @@ export class AgentSideEffects extends Disposable {
 			}
 			return;
 		}
-		if (action.type === ActionType.ChatToolCallStart && agent) {
+		const toolCallOwner = action.type === ActionType.ChatToolCallStart ? this._sessionOf(sessionKey) : undefined;
+		if (action.type === ActionType.ChatToolCallStart && agent && toolCallOwner !== undefined) {
 			this._toolCallAgents.set(`${sessionKey}:${action.toolCallId}`, agent.id);
 			const modelContext = this._turnTracker.getModelTelemetryContext(sessionKey, action.turnId);
 			const mcpSourceKind = getMcpSourceKind(this._stateManager.getSessionState(sessionKey)?.customizations, action.contributor);
 			// Stamp the tool call start for `languageModelToolInvoked` telemetry.
 			// Ready may refine the contributor once the complete tool metadata is
 			// available, so the tracker updates the source kind below when needed.
-			this._toolCallTracker.toolCallStarted(agent.id, sessionKey, action.turnId, action.toolCallId, action.toolName, action.contributor, modelContext?.model, modelContext?.modelTelemetryKind, mcpSourceKind);
+			this._toolCallTracker.toolCallStarted(agent.id, sessionKey, toolCallOwner, action.turnId, action.toolCallId, action.toolName, action.contributor, modelContext?.model, modelContext?.modelTelemetryKind, mcpSourceKind);
 		} else if (action.type === ActionType.ChatToolCallReady) {
 			const mcpSourceKind = getMcpSourceKind(this._stateManager.getSessionState(sessionKey)?.customizations, action.contributor);
 			this._toolCallTracker.toolCallMetadataUpdated(sessionKey, action.toolCallId, action.contributor, mcpSourceKind);
@@ -1272,7 +1239,7 @@ export class AgentSideEffects extends Disposable {
 		const agent = this._options.getAgent(parentSessionUri);
 		if (agent) {
 			const interactionMode = getConfiguredSessionMode(this._stateManager.getSessionState(parentSessionUri)?.config);
-			this._turnTracker.turnStarted(agent, subagentChatUri, turnId, undefined, undefined, 'default', undefined, interactionMode, parentClientContext, initiatorClientId, correlatedParentTurnId, toolCallId, messageOriginKind, taskModelSource, URI.parse(chatURI), subagentKind);
+			this._turnTracker.turnStarted(agent, subagentChatUri, parentSessionUri, turnId, undefined, undefined, 'default', undefined, interactionMode, parentClientContext, initiatorClientId, correlatedParentTurnId, toolCallId, messageOriginKind, taskModelSource, URI.parse(chatURI), subagentKind);
 			this._turnTracker.setCurrentStage(subagentChatUri, turnId, 'provider');
 			this._updateTurnModel(agent, subagentChatUri, turnId, model);
 		}
@@ -1349,7 +1316,7 @@ export class AgentSideEffects extends Disposable {
 		const agent = this._options.getAgent(subagent.sessionUri);
 		if (agent) {
 			const interactionMode = getConfiguredSessionMode(this._stateManager.getSessionState(subagent.sessionUri)?.config);
-			this._turnTracker.turnStarted(agent, subagent.chatUri, turnId, undefined, undefined, 'default', undefined, interactionMode, parentClientContext, initiatorClientId, correlatedParentTurnId, toolCallId, messageOriginKind, subagent.taskModelSource, URI.parse(parentChatURI), subagent.subagentKind);
+			this._turnTracker.turnStarted(agent, subagent.chatUri, subagent.sessionUri, turnId, undefined, undefined, 'default', undefined, interactionMode, parentClientContext, initiatorClientId, correlatedParentTurnId, toolCallId, messageOriginKind, subagent.taskModelSource, URI.parse(parentChatURI), subagent.subagentKind);
 			this._turnTracker.setCurrentStage(subagent.chatUri, turnId, 'provider');
 			this._updateTurnModel(agent, subagent.chatUri, turnId, subagent.model);
 		}
@@ -1719,7 +1686,7 @@ export class AgentSideEffects extends Disposable {
 				}
 				const state = this._stateManager.getSessionState(channel);
 				const { model, modelTelemetryKind, modelSelectionKind, permissionLevel, interactionMode } = getTurnTelemetryContext(agent, channel, this._chatContext(sessionChannel, channel), state, resumedTurn.message.model?.id);
-				this._turnTracker.turnStarted(agent, channel, action.turnId, model, modelTelemetryKind, modelSelectionKind, permissionLevel, interactionMode, clientContext, clientId, undefined, undefined, getMessageOriginTelemetryKind(resumedTurn.message, this._stateManager.isEphemeralSession(sessionChannel)));
+				this._turnTracker.turnStarted(agent, channel, sessionChannel, action.turnId, model, modelTelemetryKind, modelSelectionKind, permissionLevel, interactionMode, clientContext, clientId, undefined, undefined, getMessageOriginTelemetryKind(resumedTurn.message, this._stateManager.isEphemeralSession(sessionChannel)));
 				this._turnTracker.setCurrentStage(channel, action.turnId, 'provider');
 				const key = this._resumedTurnExecutionKey(channel, action.turnId);
 				const execution: IResumedTurnExecution = {

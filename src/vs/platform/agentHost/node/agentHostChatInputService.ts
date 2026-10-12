@@ -10,7 +10,7 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { IAgentHostSubscriptionService } from '../common/agentHostSubscriptionService.js';
 import { readChatInputState, withChatInputState, type AgentChatInputState } from '../common/meta/agentHostChatInputState.js';
 import { ActionType } from '../common/state/sessionActions.js';
-import { ChatInteractivity, isChatReadOnly, isSessionStatusArchived, parseRequiredSessionUriFromChatUri, type ErrorInfo } from '../common/state/sessionState.js';
+import { ChatInteractivity, isChatReadOnly, isSessionStatusArchived, type ErrorInfo } from '../common/state/sessionState.js';
 import { createAgentChatContext } from './agentChatContext.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
@@ -39,7 +39,10 @@ export class AgentHostChatInputService extends Disposable implements IAgentHostC
 
 	prepareChat(chat: URI): Promise<void> {
 		const chatKey = chat.toString();
-		const session = parseRequiredSessionUriFromChatUri(chatKey);
+		const session = this._stateManager.getChatOwner(chatKey);
+		if (session === undefined) {
+			return Promise.resolve();
+		}
 		const state = this._stateManager.getChatState(chatKey);
 		const sessionState = this._stateManager.getSessionState(session);
 		const previous = readChatInputState(sessionState, chatKey);
@@ -80,8 +83,10 @@ export class AgentHostChatInputService extends Disposable implements IAgentHostC
 	}
 
 	setBlocked(chat: string, error: ErrorInfo): void {
-		const session = parseRequiredSessionUriFromChatUri(chat);
-		this._setState(session, chat, { kind: 'blocked', error });
+		const session = this._stateManager.getChatOwner(chat);
+		if (session !== undefined) {
+			this._setState(session, chat, { kind: 'blocked', error });
+		}
 	}
 
 	clear(session: string, chat: string): void {

@@ -839,6 +839,7 @@ function createTurnDelegationContributions(disposables: ReturnType<typeof ensure
 	const services = new ServiceCollection(
 		[ILogService, logService],
 		[ISessionDataService, sessionDataService],
+		[IAgentHostStateManager, disposables.add(new AgentHostStateManager(logService))],
 	);
 	const instantiationService = disposables.add(new InstantiationService(services, /*strict*/ true));
 	const service: IAgentHostChatContributions = disposables.add(new AgentHostChatContributions(logService, instantiationService));
@@ -1386,7 +1387,7 @@ suite('AgentHostChatContributions', () => {
 		assert.strictEqual(context.memento(keyed, 'agent-host-chat://second', 'one', 0), retained);
 	});
 
-	test('evicts session state and all supplied chat state without affecting other chats', () => {
+	test('evicts session state and the chat state of the owners passed by the host, not the sessions named by chat URIs', () => {
 		const chatKey = createChatMementoKey<number>('chat', () => 0);
 		const sessionKey = createSessionMementoKey<number>('session', () => 0);
 		const contributions = disposables.add(createContributions(disposables, FirstMementoContribution));
@@ -1394,7 +1395,11 @@ suite('AgentHostChatContributions', () => {
 		const sessionResource = 'agent-host-session://session';
 		const firstChatResource = buildChatUri(sessionResource, 'first');
 		const secondChatResource = buildChatUri(sessionResource, 'second');
-		const retainedChatResource = buildChatUri('agent-host-session://retained', 'retained');
+		// Named by the evicted session's URI but owned by another session.
+		const retainedChatResource = buildChatUri(sessionResource, 'retained');
+		for (const [channel, session] of [[firstChatResource, sessionResource], [secondChatResource, sessionResource], [retainedChatResource, 'agent-host-session://retained']]) {
+			contributions.turnEnd({ session, channel, turnId: 'turn', reason: { kind: 'success' } });
+		}
 		const firstChat = context.memento(chatKey, firstChatResource);
 		const secondChat = context.memento(chatKey, secondChatResource);
 		const retainedChat = context.memento(chatKey, retainedChatResource);
@@ -2160,7 +2165,7 @@ suite('AgentHostChatContributions', () => {
 		const strategies = ['activeAgent', 'utility', 'deferred'] as const;
 		for (const strategy of strategies) {
 			titles.titleController.titleGenerationStrategies.set(titles.session, strategy);
-			titles.turnTracker.turnStarted(agent, titles.peerChat, strategy, undefined, undefined, 'default', undefined, undefined);
+			titles.turnTracker.turnStarted(agent, titles.peerChat, titles.session, strategy, undefined, undefined, 'default', undefined, undefined);
 			await titles.service.outgoingTurn({
 				session: titles.session, chat: titles.peerChat, turnId: strategy,
 				message: { text: 'hello', origin: { kind: MessageKind.User } },
@@ -2181,7 +2186,7 @@ suite('AgentHostChatContributions', () => {
 		const agent = disposables.add(new MockAgent());
 		const child = buildSubagentChatUri(titles.session, 'child');
 		for (const chat of [titles.defaultChat, child]) {
-			titles.turnTracker.turnStarted(agent, chat, 'turn', undefined, undefined, 'default', undefined, undefined);
+			titles.turnTracker.turnStarted(agent, chat, titles.session, 'turn', undefined, undefined, 'default', undefined, undefined);
 			if (chat === titles.defaultChat) {
 				titles.turnTracker.turnCompleted(chat, 'turn', 'cancelled');
 			}

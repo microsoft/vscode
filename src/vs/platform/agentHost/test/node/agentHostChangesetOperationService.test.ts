@@ -260,7 +260,9 @@ suite('AgentHostChangesetOperationService', () => {
 		const contribution = new RegistryCaptureContribution();
 		disposables.add(service.registerContribution(contribution));
 		const sessionKey = 'agent:/session';
-		const chatKey = buildChatUri(sessionKey, 'peer');
+		const chatKey = buildChatUri('agent:/named-by-uri', 'peer');
+		stateManager.createSession({ resource: sessionKey, provider: 'agent', title: 'Session', status: SessionStatus.Idle, createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString() });
+		stateManager.addChat(sessionKey, chatKey);
 
 		const refresh = contribution.registry?.refreshSessionGitState(chatKey);
 		await Promise.resolve();

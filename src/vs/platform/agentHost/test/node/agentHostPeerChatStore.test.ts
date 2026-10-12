@@ -559,7 +559,7 @@ suite('AgentHostPeerChatStore', () => {
 		});
 	});
 
-	test('filters duplicate, foreign, default, and invalid entries while normalizing origins', async () => {
+	test('filters duplicate, default, and invalid entries while normalizing origins', async () => {
 		const database = new TestSessionDatabase();
 		const store = createStore(database);
 		const foreignSession = URI.parse('agenthost:foreign');
@@ -582,6 +582,8 @@ suite('AgentHostPeerChatStore', () => {
 
 		assert.deepStrictEqual(await store.tryReadLegacy(session), [
 			{ uri: first.toString(), providerData: 'first', origin },
+			// The containing session owns an entry with no central record, whatever its URI encodes.
+			{ uri: buildChatUri(foreignSession, 'foreign') },
 			{
 				uri: third.toString(),
 				origin: {
@@ -591,6 +593,28 @@ suite('AgentHostPeerChatStore', () => {
 				},
 			},
 		]);
+	});
+
+	test('skips legacy entries the registry or central catalog records under another session or as deleted', async () => {
+		const database = new TestSessionDatabase();
+		const other = 'agenthost:other-owner';
+		const recordedElsewhere = buildChatUri(session, 'recorded-elsewhere');
+		const deleted = buildChatUri(session, 'deleted');
+		const liveElsewhere = buildChatUri(session, 'live-elsewhere');
+		await orchestrator.registerRuntimeSession(other, { provider: 'copilot', startTime: 1, source: 'explicit' }, { checkTombstone: false });
+		await orchestrator.registerChatCatalogV2(other, {
+			defaultChat: { chat: buildDefaultChatUri(other), order: 0 },
+			peers: [{ chat: recordedElsewhere, order: 1 }],
+			privateDescendants: [],
+		});
+		const findChatOwner = orchestrator.findChatOwner.bind(orchestrator);
+		sinon.stub(orchestrator, 'findChatOwner').callsFake(async chat => chat === deleted
+			? { ownerSession: session.toString(), source: 'normalized', deleted: true }
+			: findChatOwner(chat));
+		const store = new AgentHostPeerChatStore(orchestrator, createSessionDataService(database), new NullLogService(), chat => chat === liveElsewhere ? other : undefined);
+		await database.setMetadata(PEER_CHATS_METADATA_KEY, JSON.stringify([recordedElsewhere, deleted, liveElsewhere, first.toString()].map(uri => ({ uri }))));
+
+		assert.deepStrictEqual(await store.tryReadLegacy(session), [{ uri: first.toString() }]);
 	});
 
 	test('serializes concurrent add, remove, and update operations', async () => {

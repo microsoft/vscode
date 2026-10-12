@@ -112,8 +112,9 @@ suite('SessionPermissionManager', () => {
 		assert.strictEqual(result, ToolCallConfirmationReason.NotNeeded);
 	});
 
-	test('auto-approves an owning-session attachment for a peer chat but not another session attachment', async () => {
-		const peerChat = buildChatUri(sessionUri, 'peer');
+	test('auto-approves the owning session attachment for a peer chat, not that of the session named by its URI', async () => {
+		const peerChat = buildChatUri(URI.from({ scheme: 'copilot', path: '/other' }), 'peer');
+		manager.addChat(sessionUri, peerChat);
 		const attachmentPath = URI.joinPath(
 			sessionDataService.getSessionDataDir(URI.parse(sessionUri)),
 			SESSION_ATTACHMENTS_DIRNAME,

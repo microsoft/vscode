@@ -680,9 +680,18 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		assert.ok(records[0].hostProcessAgeMs < completionProcessAgeMs);
 	});
 
+	test('attributes turn telemetry to the owner recorded at turn start, not the session named by the chat URI', () => {
+		const owner = AgentSession.uri('mock', 'recorded-owner').toString();
+		const chat = buildChatUri(sessionKey, 'moved');
+		turnTracker.turnStarted(agent, chat, owner, 'turn', undefined, undefined, 'default', undefined, undefined);
+		turnTracker.turnCompleted(chat, 'turn', 'success');
+
+		assert.deepStrictEqual(completedEvents().map(event => (event.data as { agentSessionId: string }).agentSessionId), ['recorded-owner']);
+	});
+
 	test('enriches the local root timing marker with the captured strategy without resampling start fields', () => {
 		const info = sinon.spy(logService, 'info');
-		turnTracker.turnStarted(agent, defaultChatUri, 'turn', undefined, undefined, 'default', undefined, undefined);
+		turnTracker.turnStarted(agent, defaultChatUri, sessionUri.toString(), 'turn', undefined, undefined, 'default', undefined, undefined);
 		turnTracker.setTitleGenerationStrategy(defaultChatUri, 'turn', 'deferred');
 		turnTracker.setTitleGenerationStrategy(defaultChatUri, 'turn', 'utility');
 		turnTracker.turnCompleted(defaultChatUri, 'turn', 'success');
@@ -697,17 +706,17 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 	test('counts root starts across chats and clients without counting duplicate starts or child turns', () => {
 		const childSession = buildSubagentSessionUri(sessionUri, 'legacy-child').toString();
 		const turns = [
-			{ chat: defaultChatUri, turnId: 'first', client: 'window-one', ordinal: 1 },
-			{ chat: defaultChatUri, turnId: 'first', client: 'window-one', ordinal: 1 },
-			{ chat: buildSubagentChatUri(sessionKey, 'tool'), turnId: 'child-chat', client: 'window-one', ordinal: undefined },
-			{ chat: childSession, turnId: 'child-session', client: 'window-one', ordinal: undefined },
-			{ chat: buildDefaultChatUri(childSession), turnId: 'child-default', client: 'window-one', ordinal: undefined },
-			{ chat: defaultChatUri, turnId: 'parented', client: 'window-one', ordinal: undefined, parentTurnId: 'first' },
-			{ chat: buildChatUri(sessionKey, 'peer'), turnId: 'peer', client: 'window-two', ordinal: 2 },
-			{ chat: buildDefaultChatUri(AgentSession.uri('mock', 'other')), turnId: 'other-session', client: 'window-two', ordinal: 3 },
+			{ chat: defaultChatUri, owner: sessionKey, turnId: 'first', client: 'window-one', ordinal: 1 },
+			{ chat: defaultChatUri, owner: sessionKey, turnId: 'first', client: 'window-one', ordinal: 1 },
+			{ chat: buildSubagentChatUri(sessionKey, 'tool'), owner: sessionKey, turnId: 'child-chat', client: 'window-one', ordinal: undefined },
+			{ chat: childSession, owner: childSession, turnId: 'child-session', client: 'window-one', ordinal: undefined },
+			{ chat: buildDefaultChatUri(childSession), owner: childSession, turnId: 'child-default', client: 'window-one', ordinal: undefined },
+			{ chat: defaultChatUri, owner: sessionKey, turnId: 'parented', client: 'window-one', ordinal: undefined, parentTurnId: 'first' },
+			{ chat: buildChatUri(sessionKey, 'peer'), owner: sessionKey, turnId: 'peer', client: 'window-two', ordinal: 2 },
+			{ chat: buildDefaultChatUri(AgentSession.uri('mock', 'other')), owner: AgentSession.uri('mock', 'other').toString(), turnId: 'other-session', client: 'window-two', ordinal: 3 },
 		];
 		for (const turn of turns) {
-			turnTracker.turnStarted(agent, turn.chat, turn.turnId, undefined, undefined, 'default', undefined, undefined, undefined, turn.client, turn.parentTurnId);
+			turnTracker.turnStarted(agent, turn.chat, turn.owner, turn.turnId, undefined, undefined, 'default', undefined, undefined, undefined, turn.client, turn.parentTurnId);
 			turnTracker.setTitleGenerationStrategy(turn.chat, turn.turnId, 'deferred');
 		}
 		for (const turn of turns) {
@@ -723,14 +732,14 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 
 	test('resumed root turns retain their first cohort and do not emit duplicate timing markers', async () => {
 		const info = sinon.spy(logService, 'info');
-		turnTracker.turnStarted(agent, defaultChatUri, 'resumed', undefined, undefined, 'default', undefined, undefined);
+		turnTracker.turnStarted(agent, defaultChatUri, sessionUri.toString(), 'resumed', undefined, undefined, 'default', undefined, undefined);
 		turnTracker.setTitleGenerationStrategy(defaultChatUri, 'resumed', 'deferred');
 		turnTracker.turnCompleted(defaultChatUri, 'resumed', 'error');
 		await timeout(20);
-		turnTracker.turnStarted(agent, defaultChatUri, 'resumed', undefined, undefined, 'default', undefined, undefined);
+		turnTracker.turnStarted(agent, defaultChatUri, sessionUri.toString(), 'resumed', undefined, undefined, 'default', undefined, undefined);
 		turnTracker.setTitleGenerationStrategy(defaultChatUri, 'resumed', 'utility');
 		turnTracker.turnCompleted(defaultChatUri, 'resumed', 'success');
-		turnTracker.turnStarted(agent, defaultChatUri, 'later', undefined, undefined, 'default', undefined, undefined);
+		turnTracker.turnStarted(agent, defaultChatUri, sessionUri.toString(), 'later', undefined, undefined, 'default', undefined, undefined);
 		turnTracker.turnCompleted(defaultChatUri, 'later', 'success');
 
 		const markers = info.getCalls().map(call => call.args[0])
@@ -755,7 +764,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 	for (const cleanup of ['session', 'truncation'] as const) {
 		test(`clears completed root timing identities on ${cleanup}`, () => {
 			for (const turn of ['removed', 'kept']) {
-				turnTracker.turnStarted(agent, defaultChatUri, turn, undefined, undefined, 'default', undefined, undefined);
+				turnTracker.turnStarted(agent, defaultChatUri, sessionUri.toString(), turn, undefined, undefined, 'default', undefined, undefined);
 				turnTracker.turnCompleted(defaultChatUri, turn, 'error');
 			}
 			if (cleanup === 'session') {
@@ -764,7 +773,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 				turnTracker.clearTurnsExcept(defaultChatUri, new Set(['kept']));
 			}
 			for (const turn of ['removed', 'kept']) {
-				turnTracker.turnStarted(agent, defaultChatUri, turn, undefined, undefined, 'default', undefined, undefined);
+				turnTracker.turnStarted(agent, defaultChatUri, sessionUri.toString(), turn, undefined, undefined, 'default', undefined, undefined);
 				turnTracker.turnCompleted(defaultChatUri, turn, 'success');
 			}
 			assert.deepStrictEqual(completedEvents().map(event => (event.data as { hostRootTurnOrdinal: number }).hostRootTurnOrdinal),
@@ -1154,7 +1163,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 				}
 				telemetry.events.push({ eventName, data });
 			};
-			turnTracker.turnStarted(agent, defaultChatUri, 'slow-summary', undefined, undefined, 'default', undefined, undefined);
+			turnTracker.turnStarted(agent, defaultChatUri, sessionUri.toString(), 'slow-summary', undefined, undefined, 'default', undefined, undefined);
 			const completed = turnTracker.turnCompleted(defaultChatUri, 'slow-summary', result);
 			const summary = telemetry.events.find(event => event.eventName === 'agentHost.requestTokenUsage')?.data as Record<string, unknown>;
 			assert.deepStrictEqual({
@@ -1185,7 +1194,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 				}
 				telemetry.events.push({ eventName, data });
 			};
-			turnTracker.turnStarted(agent, defaultChatUri, 'failed-summary', undefined, undefined, 'default', undefined, undefined);
+			turnTracker.turnStarted(agent, defaultChatUri, sessionUri.toString(), 'failed-summary', undefined, undefined, 'default', undefined, undefined);
 			const completed = turnTracker.turnCompleted(defaultChatUri, 'failed-summary', result);
 			const completedAgain = turnTracker.turnCompleted(defaultChatUri, 'failed-summary', result);
 			assert.deepStrictEqual({
@@ -1241,7 +1250,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 				};
 			}
 		});
-		turnTracker.turnStarted(agent, childChat, 'child-turn', undefined, undefined, 'default', undefined, undefined,
+		turnTracker.turnStarted(agent, childChat, sessionUri.toString(), 'child-turn', undefined, undefined, 'default', undefined, undefined,
 			undefined, undefined, 'root-turn', 'child-tool', undefined, undefined, providerChat);
 		turnTracker.turnCompleted(childChat, 'child-turn', 'success');
 		const event = telemetry.events.find(event => event.eventName === 'agentHost.requestTokenUsage')?.data as Record<string, unknown>;
@@ -1936,7 +1945,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		setupSession();
 		// Completing synchronously leaves the send path mid-flight, so the turn
 		// never reaches provider dispatch.
-		turnTracker.turnStarted(agent, defaultChatUri, 'turn-direct', undefined, undefined, 'default', undefined, undefined);
+		turnTracker.turnStarted(agent, defaultChatUri, sessionUri.toString(), 'turn-direct', undefined, undefined, 'default', undefined, undefined);
 		turnTracker.turnCompleted(defaultChatUri, 'turn-direct', 'success');
 
 		const data = completedEvents()[0].data as Record<string, unknown>;
@@ -1953,7 +1962,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 
 	test('attributes provider time between dispatch and first progress to the stages the provider marked', () => {
 		setupSession();
-		turnTracker.turnStarted(agent, defaultChatUri, 'turn-provider', undefined, undefined, 'default', undefined, undefined);
+		turnTracker.turnStarted(agent, defaultChatUri, sessionUri.toString(), 'turn-provider', undefined, undefined, 'default', undefined, undefined);
 		const recorder = turnTracker.createProviderStageRecorder(defaultChatUri, 'turn-provider');
 		// Marks before dispatch belong to the host, not the provider.
 		recorder.mark('queue');
@@ -1993,13 +2002,13 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 
 	test('provider timing survives cancellation and late recorders cannot affect a reused turn ID', () => {
 		setupSession();
-		turnTracker.turnStarted(agent, defaultChatUri, 'turn-timing', undefined, undefined, 'default', undefined, undefined);
+		turnTracker.turnStarted(agent, defaultChatUri, sessionUri.toString(), 'turn-timing', undefined, undefined, 'default', undefined, undefined);
 		const recorder = turnTracker.createProviderStageRecorder(defaultChatUri, 'turn-timing');
 		const pending = recorder.startOperation!('permission')!;
 		pending.start();
 		recorder.markMilestone!('sdkSend');
 		turnTracker.turnCompleted(defaultChatUri, 'turn-timing', 'cancelled');
-		turnTracker.turnStarted(agent, defaultChatUri, 'turn-timing', undefined, undefined, 'default', undefined, undefined);
+		turnTracker.turnStarted(agent, defaultChatUri, sessionUri.toString(), 'turn-timing', undefined, undefined, 'default', undefined, undefined);
 		recorder.markMilestone!('sdkText');
 		pending.end(false);
 		turnTracker.turnCompleted(defaultChatUri, 'turn-timing', 'success');
@@ -2019,7 +2028,7 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 		for (const verbosity of [LogLevel.Info, LogLevel.Debug]) {
 			level.returns(verbosity);
 			const turnId = `timing-log-${verbosity}`;
-			turnTracker.turnStarted(agent, defaultChatUri, turnId, undefined, undefined, 'default', undefined, undefined);
+			turnTracker.turnStarted(agent, defaultChatUri, sessionUri.toString(), turnId, undefined, undefined, 'default', undefined, undefined);
 			turnTracker.createProviderStageRecorder(defaultChatUri, turnId).markMilestone!('sdkSend');
 			turnTracker.turnCompleted(defaultChatUri, turnId, 'success');
 		}

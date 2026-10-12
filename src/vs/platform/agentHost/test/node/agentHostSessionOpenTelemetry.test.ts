@@ -14,6 +14,7 @@ import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryServiceShape } from '../../../telemetry/common/telemetryUtils.js';
 import { AgentSession, CLAUDE_AGENT_PROVIDER_ID, CODEX_AGENT_PROVIDER_ID, type IAgent } from '../../common/agent.js';
 import { buildChatUri, buildDefaultChatUri } from '../../common/state/sessionState.js';
+import { IAgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
 import { AgentHostSessionOpenTelemetry, AgentHostSessionSubscribeTimeoutMs } from '../../node/agentHostSessionOpenTelemetry.js';
 
@@ -35,9 +36,13 @@ suite('AgentHostSessionOpenTelemetry', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const session = AgentSession.uri('copilotcli', 'session');
 	const defaultChat = URI.parse(buildDefaultChatUri(session));
-	const createService = (telemetryService: TestTelemetryService, providers: readonly string[] = ['copilotcli'], associations: ReadonlyMap<string, string> = new Map()) => {
+	const createService = (telemetryService: TestTelemetryService, providers: readonly string[] = ['copilotcli'], associations: ReadonlyMap<string, string> = new Map(), chatOwners: ReadonlyMap<string, string> = new Map([[defaultChat.toString(), session.toString()]])) => {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(ITelemetryService, telemetryService);
+		instantiationService.stub(IAgentHostStateManager, {
+			getChatOwner: (chat: string) => chatOwners.get(chat),
+			findRetainedChatOwner: () => undefined,
+		});
 		instantiationService.stub(IAgentHostProviderService, {
 			getProviderForSession: session => {
 				const provider = associations.get(session.toString()) ?? AgentSession.provider(session);
@@ -239,7 +244,7 @@ suite('AgentHostSessionOpenTelemetry', () => {
 				for (const scheme of [provider, 'ahp-session']) {
 					const resource = AgentSession.uri(scheme, 'session');
 					const telemetryService = new TestTelemetryService();
-					const service = createService(telemetryService, [provider], new Map([[resource.toString(), provider]]));
+					const service = createService(telemetryService, [provider], new Map([[resource.toString(), provider]]), new Map([buildDefaultChatUri(resource), buildChatUri(resource, 'peer')].map(chat => [chat, resource.toString()])));
 					for (const channel of [resource, URI.parse(buildDefaultChatUri(resource)), URI.parse(buildChatUri(resource, 'peer'))]) {
 						await service.withSubscription(channel, async telemetry => telemetry.setServedFromMemory(true));
 					}

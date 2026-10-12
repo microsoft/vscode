@@ -13,7 +13,7 @@ import { resolveBranchChangesetScopeForOwner, resolveBranchChangesetScopeForSour
 import type { InvokeChangesetOperationParams, InvokeChangesetOperationResult } from '../common/state/protocol/channels-changeset/commands.js';
 import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 import { ActionType } from '../common/state/sessionActions.js';
-import { ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, isAhpChatChannel, isDefaultChatUri, ISessionGitHubState, parseChatUri, readFolderGitHubState, readSessionGitHubState, readSessionGitState, type ChangesetOperation, type ErrorInfo, type ISessionGitState } from '../common/state/sessionState.js';
+import { ChangesetOperationScope, ChangesetOperationStatus, ChangesetOperationTargetKind, isAhpChatChannel, isDefaultChatUri, ISessionGitHubState, readFolderGitHubState, readSessionGitHubState, readSessionGitState, type ChangesetOperation, type ErrorInfo, type ISessionGitState } from '../common/state/sessionState.js';
 import { AGENT_HOST_MERGE_CHANGESET_OPERATION_ID, AGENT_HOST_PULL_REQUEST_OPERATION_IDS, type IChangesetOperationContribution, type IAgentHostChangesetOperationService, type IChangesetOperationContext, type IChangesetOperationHandler, type IChangesetOperationRegistry } from '../common/agentHostChangesetOperationService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
@@ -57,7 +57,7 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 	private async _refreshGitState(owner: string): Promise<void> {
 		const scope = resolveBranchChangesetScopeForOwner(this._stateManager, owner);
 		const source = scope?.sourceUri ?? owner;
-		const session = scope?.sessionUri ?? parseChatUri(owner)?.session;
+		const session = scope?.sessionUri ?? (isAhpChatChannel(owner) ? this._stateManager.getChatOwner(owner) : undefined);
 		await Promise.all([
 			this._gitStateService.refreshSessionGitState(source),
 			...(session && session !== source ? [this._gitStateService.refreshSessionGitState(session)] : []),
@@ -248,8 +248,7 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 			return [sessionKey];
 		}
 
-		const chat = parseChatUri(sessionKey);
-		if (chat) {
+		if (isAhpChatChannel(sessionKey)) {
 			return [sessionKey, resolveBranchChangesetScopeForSource(this._stateManager, sessionKey).ownerUri];
 		}
 
