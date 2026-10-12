@@ -188,7 +188,6 @@ export class AgentHostToolCallTracker extends Disposable {
 			model: timing.model,
 			modelTelemetryKind: timing.modelTelemetryKind,
 			errorCode: result.error?.code,
-			errorMessage: result.error?.message,
 		};
 		if (timing.modelResolvedFromUsage) {
 			this._reporter.toolInvoked(report);
