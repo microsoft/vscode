@@ -4,17 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { spawnSync } from 'child_process';
+import { ChildProcess, spawnSync } from 'child_process';
 import { createHash } from 'crypto';
+import { channel } from 'diagnostics_channel';
 import * as fs from 'fs';
 import * as os from 'os';
-import { dirname, join } from '../../../../base/common/path.js';
+import { toDisposable } from '../../../../base/common/lifecycle.js';
+import { basename, dirname, join } from '../../../../base/common/path.js';
+import { hasKey } from '../../../../base/common/types.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IAgentHostEndpointIdentity, IAgentHostEndpointMetadata, getAgentHostEndpointIdentityHashInput } from '../../common/agentHostEndpointRegistry.js';
 import { ILocalAgentHostEndpointMetadata, cleanupLocalAgentHostEndpointMetadataSync, createLocalAgentHostEndpointMetadata, prepareLocalAgentHostEndpointMetadataDirectory, prepareLocalAgentHostEndpointSocketDirectory, publishLocalAgentHostEndpointMetadata, readLocalAgentHostEndpointRegistry } from '../../node/localAgentHostMetadata.js';
 
 suite('Local Agent Host Endpoint Metadata', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let userDataPath: string;
 	let endpointDirectory: string;
@@ -79,7 +82,25 @@ suite('Local Agent Host Endpoint Metadata', () => {
 		});
 	});
 
-	if (process.platform !== 'win32') {
+	if (process.platform === 'win32') {
+		test('publishes metadata without spawning processes', async () => {
+			const childProcesses: ChildProcess[] = [];
+			const childProcessChannel = channel('child_process');
+			const listener = (message: unknown) => {
+				assert.ok(typeof message === 'object' && message !== null && hasKey(message, { process: true }) && message.process instanceof ChildProcess);
+				childProcesses.push(message.process);
+			};
+			childProcessChannel.subscribe(listener);
+			const subscription = store.add(toDisposable(() => childProcessChannel.unsubscribe(listener)));
+			try {
+				await publishLocalAgentHostEndpointMetadata(userDataPath, createLocalAgentHostEndpointMetadata(userDataPath));
+			} finally {
+				subscription.dispose();
+			}
+
+			assert.deepStrictEqual(childProcesses.map(child => basename(child.spawnfile)), []);
+		});
+	} else {
 		test('uses a bounded path under the system temporary directory', () => {
 			const deeplyNested = join(userDataPath, ...Array.from({ length: 40 }, (_, index) => `deep-${index}`));
 			const metadata = createLocalAgentHostEndpointMetadata(deeplyNested);

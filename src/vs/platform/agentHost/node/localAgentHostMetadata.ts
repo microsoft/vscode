@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { execFile } from 'child_process';
 import { createHash, randomBytes } from 'crypto';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -334,30 +333,6 @@ function isWindowsRenameContention(error: unknown): boolean {
 }
 
 async function applyWindowsOwnerOnlyAcl(path: string): Promise<void> {
-	const systemRoot = process.env.SystemRoot ?? process.env.WINDIR;
-	if (!systemRoot) {
-		throw new Error('Unable to resolve the Windows system directory for local agent host metadata.');
-	}
-	const systemDirectory = join(systemRoot, 'System32');
-	const whoAmI = await runWindowsCommand(join(systemDirectory, 'whoami.exe'), ['/user', '/fo', 'csv', '/nh']);
-	const sid = whoAmI.match(/S-\d+(?:-\d+)+/)?.[0];
-	if (!sid) {
-		throw new Error('Unable to determine the current Windows user SID for local agent host metadata.');
-	}
-	const icacls = join(systemDirectory, 'icacls.exe');
-	await runWindowsCommand(icacls, [path, '/reset']);
-	await runWindowsCommand(icacls, [
-		path,
-		'/inheritance:r',
-		'/grant:r',
-		`*${sid}:(OI)(CI)F`,
-		'*S-1-5-18:(OI)(CI)F',
-		'*S-1-5-32-544:(OI)(CI)F',
-	]);
-}
-
-function runWindowsCommand(command: string, args: readonly string[]): Promise<string> {
-	return new Promise((resolve, reject) => {
-		execFile(command, [...args], { encoding: 'utf8', windowsHide: true }, (error, stdout) => error ? reject(error) : resolve(String(stdout)));
-	});
+	const { setOwnerOnlyAcl } = await import('@vscode/windows-process-tree');
+	await setOwnerOnlyAcl(path);
 }

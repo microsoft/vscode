@@ -1580,6 +1580,7 @@ export default defineConfig(
 						'cookie',
 						'crypto',
 						'detect-libc',
+						'diagnostics_channel',
 						'dns',
 						'events',
 						'fs',

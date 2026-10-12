@@ -117,7 +117,7 @@ Readers never write under coordination. Each reader:
 
 ## Security and lifecycle
 
-- The metadata root and the `entries` directory are restricted to the current user (mode `0700` on POSIX). Entry files are mode `0600`. On Windows, both directories carry an owner-only ACL; `SYSTEM` and Administrators also retain full access.
+- The metadata root and the `entries` directory are restricted to the current user (mode `0700` on POSIX). Entry files are mode `0600`. On Windows, both directories carry an owner-only ACL; `SYSTEM` and Administrators also retain full access. The editor resolves the current process user's SID and applies the protected, inheritable DACL through native Windows APIs, without spawning `whoami.exe` or `icacls.exe`.
 - The socket or pipe itself may use platform-default access. Possession of the metadata token is required to complete the WebSocket upgrade.
 - An entry file is written atomically only after the endpoint is listening and the protocol handler is installed.
 - On shutdown, VS Code computes its own `<identity>.json` path and removes only that exact file. The shared `entries` directory is intentionally left in place to avoid racing a concurrent publisher (an `rmdir` could delete the directory between another writer creating it and writing its temp file). Because a process only ever deletes its own file, it can never remove another live writer's entry, and the legacy `metadata.json` is never mutated.
