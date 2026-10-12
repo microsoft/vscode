@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -11,7 +12,7 @@ import { ICommandService } from '../../../../../../platform/commands/common/comm
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
-import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { FileOperationError, FileOperationResult, IFileContent, IFileService } from '../../../../../../platform/files/common/files.js';
 import { INotification, INotificationHandle, INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IPathService } from '../../../../../../platform/path/common/pathService.js';
 import { IInputOptions, IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../../../platform/quickinput/common/quickInput.js';
@@ -69,7 +70,7 @@ suite('ManagePluginMarketplacesAction', () => {
 		}
 	}
 
-	function createFixture(configurationValues: Record<string, unknown>, githubFeedAvailable = false) {
+	function createFixture(configurationValues: Record<string, unknown>, githubFeedAvailable = false, copilotSettings?: object) {
 		const instantiationService = workbenchInstantiationService({}, store);
 		const configurationService = new UpdatingConfigurationService(configurationValues);
 		const quickInputService = new TestQuickInputService();
@@ -99,6 +100,24 @@ suite('ManagePluginMarketplacesAction', () => {
 		}());
 		instantiationService.stub(IFileService, new class extends mock<IFileService>() {
 			override async exists(): Promise<boolean> { return false; }
+			override async readFile(): Promise<IFileContent> {
+				if (!copilotSettings) {
+					throw new FileOperationError('Not found', FileOperationResult.FILE_NOT_FOUND);
+				}
+				const value = VSBuffer.fromString(JSON.stringify(copilotSettings));
+				return {
+					resource: URI.file('/home/testuser/.copilot/settings.json'),
+					name: 'settings.json',
+					mtime: 0,
+					ctime: 0,
+					etag: '',
+					size: value.byteLength,
+					readonly: false,
+					locked: false,
+					executable: false,
+					value,
+				};
+			}
 		}());
 		instantiationService.stub(IPathService, new class extends mock<IPathService>() {
 			override userHome(options: { preferLocal: true }): URI;
@@ -212,6 +231,53 @@ suite('ManagePluginMarketplacesAction', () => {
 			}],
 			save: true,
 		}]);
+	});
+
+	test('lists and removes marketplaces from Copilot settings', async () => {
+		const marketplace = parseMarketplaceReference('microsoft/vscode-marketplace')!;
+		const fixture = createFixture({
+			[ChatConfiguration.PluginMarketplaces]: [],
+			[ChatConfiguration.ExtraMarketplaces]: {},
+			[ChatConfiguration.StrictMarketplaces]: null,
+		}, false, {
+			extraKnownMarketplaces: {
+				'VS Code Marketplace': {
+					source: {
+						source: 'github',
+						repo: 'microsoft/vscode-marketplace',
+					},
+				},
+			},
+		});
+		fixture.quickInputService.pickIds.push(marketplace.canonicalId, 'removeMarketplace', undefined);
+
+		await fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
+
+		assert.deepStrictEqual({
+			firstPick: fixture.quickInputService.pickSnapshots[0],
+			actions: fixture.quickInputService.pickSnapshots[1],
+			jsonWrites: fixture.jsonWrites,
+			configurationUpdates: fixture.configurationService.updates,
+		}, {
+			firstPick: [
+				{ id: 'addMarketplace', label: '$(add) Add Marketplace...', type: 'item' },
+				{ id: undefined, label: 'Configured Marketplaces', type: 'separator' },
+				{ id: marketplace.canonicalId, label: 'VS Code Marketplace', type: 'item' },
+			],
+			actions: [
+				{ id: 'showPlugins', label: 'Show Plugins', type: 'item' },
+				{ id: 'removeMarketplace', label: 'Remove Marketplace', type: 'item' },
+			],
+			jsonWrites: [{
+				resource: URI.file('/home/testuser/.copilot/settings.json'),
+				values: [{
+					path: ['extraKnownMarketplaces', 'VS Code Marketplace'],
+					value: undefined,
+				}],
+				save: true,
+			}],
+			configurationUpdates: [],
+		});
 	});
 
 	test('shows plugins from a configured marketplace in Customizations', async () => {

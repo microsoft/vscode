@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { parse as parseJSONC } from '../../../../../base/common/json.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { basename, joinPath } from '../../../../../base/common/resources.js';
@@ -14,7 +15,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
+import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../../platform/files/common/files.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../../platform/quickinput/common/quickInput.js';
@@ -28,6 +29,7 @@ import { ICustomizationHarnessService } from '../../common/customizationHarnessS
 import { IAgentPluginRepositoryService } from '../../common/plugins/agentPluginRepositoryService.js';
 import { IPluginInstallService } from '../../common/plugins/pluginInstallService.js';
 import { type IMarketplaceReference, MarketplaceReferenceKind, parseMarketplaceReference, parseMarketplaceReferences, readConfiguredMarketplaces } from '../../common/plugins/pluginMarketplaceService.js';
+import { parseMarketplaceObjectEntry } from '../../common/plugins/marketplaceReference.js';
 import { getStrictKnownMarketplaces, isMarketplaceReferenceAllowed } from '../../common/plugins/strictKnownMarketplaces.js';
 import { InstalledAgentPluginsViewId } from '../chat.js';
 import { isAgentFinderPublicFeedAvailable } from '../aiCustomization/customizationMarketplaceConfiguration.js';
@@ -193,6 +195,7 @@ interface IMarketplaceQuickPickItem extends IQuickPickItem {
 	readonly kind: 'add' | 'marketplace';
 	readonly reference?: IMarketplaceReference;
 	readonly managedByPolicy: boolean;
+	readonly copilotMarketplaceName?: string;
 }
 
 export const MANAGE_PLUGIN_MARKETPLACES_COMMAND_ID = 'workbench.action.chat.managePluginMarketplaces';
@@ -231,10 +234,22 @@ export class ManagePluginMarketplacesAction extends Action2 {
 		const customizationHarnessService = accessor.get(ICustomizationHarnessService);
 		const jsonEditingService = accessor.get(IJSONEditingService);
 		const pathService = accessor.get(IPathService);
+		const copilotSettingsResource = joinPath(await pathService.userHome(), '.copilot', 'settings.json');
 
 		while (true) {
 			const { extraValues, effectiveValues } = readConfiguredMarketplaces(configurationService);
-			const refs = parseMarketplaceReferences(effectiveValues);
+			const configuredMarketplaces = new Map(parseMarketplaceReferences(effectiveValues).map(reference => [
+				reference.canonicalId,
+				{ reference, copilotMarketplaceName: undefined as string | undefined },
+			]));
+			for (const entry of await readCopilotMarketplaceEntries(fileService, copilotSettingsResource)) {
+				const existing = configuredMarketplaces.get(entry.reference.canonicalId);
+				configuredMarketplaces.set(entry.reference.canonicalId, {
+					reference: entry.reference,
+					copilotMarketplaceName: entry.name ?? existing?.copilotMarketplaceName,
+				});
+			}
+			const refs = [...configuredMarketplaces.values()];
 			const strictMarketplaces = getStrictKnownMarketplaces(configurationService.getValue(ChatConfiguration.StrictMarketplaces));
 			const policyCanonicalIds = new Set(parseMarketplaceReferences(extraValues).map(reference => reference.canonicalId));
 			const defaultCanonicalIds = new Set(parseMarketplaceReferences(
@@ -251,7 +266,7 @@ export class ManagePluginMarketplacesAction extends Action2 {
 			}];
 			if (refs.length > 0) {
 				items.push({ type: 'separator', label: localize('configuredMarketplaces', "Configured Marketplaces") });
-				items.push(...refs.map(reference => {
+				items.push(...refs.map(({ reference, copilotMarketplaceName }) => {
 					const allowed = isMarketplaceReferenceAllowed(strictMarketplaces, reference);
 					const descriptions = [
 						defaultCanonicalIds.has(reference.canonicalId) ? localize('defaultMarketplace', "Default") : undefined,
@@ -268,6 +283,7 @@ export class ManagePluginMarketplacesAction extends Action2 {
 						kind: 'marketplace' as const,
 						reference,
 						managedByPolicy: policyCanonicalIds.has(reference.canonicalId),
+						copilotMarketplaceName,
 						disabled: !allowed,
 						pickable: allowed,
 					};
@@ -287,7 +303,7 @@ export class ManagePluginMarketplacesAction extends Action2 {
 				return;
 			}
 			if (selected.kind === 'add') {
-				await this.addMarketplace(quickInputService, configurationService, notificationService, jsonEditingService, pathService);
+				await this.addMarketplace(quickInputService, notificationService, jsonEditingService, copilotSettingsResource, refs.map(({ reference }) => reference));
 				return;
 			}
 
@@ -334,9 +350,16 @@ export class ManagePluginMarketplacesAction extends Action2 {
 					await commandService.executeCommand('revealFileInOS', repoUri);
 					return;
 				case 'removeMarketplace': {
-					const { userValues } = readConfiguredMarketplaces(configurationService);
-					const updated = userValues.filter(value => typeof value === 'string' && parseMarketplaceReference(value)?.canonicalId !== ref.canonicalId);
-					await configurationService.updateValue(ChatConfiguration.PluginMarketplaces, updated);
+					if (selected.copilotMarketplaceName) {
+						await jsonEditingService.write(copilotSettingsResource, [{
+							path: ['extraKnownMarketplaces', selected.copilotMarketplaceName],
+							value: undefined,
+						}], true);
+					} else {
+						const { userValues } = readConfiguredMarketplaces(configurationService);
+						const updated = userValues.filter(value => typeof value === 'string' && parseMarketplaceReference(value)?.canonicalId !== ref.canonicalId);
+						await configurationService.updateValue(ChatConfiguration.PluginMarketplaces, updated);
+					}
 					break;
 				}
 			}
@@ -345,23 +368,23 @@ export class ManagePluginMarketplacesAction extends Action2 {
 
 	private async addMarketplace(
 		quickInputService: IQuickInputService,
-		configurationService: IConfigurationService,
 		notificationService: INotificationService,
 		jsonEditingService: IJSONEditingService,
-		pathService: IPathService,
+		copilotSettingsResource: URI,
+		configuredMarketplaces: readonly IMarketplaceReference[],
 	): Promise<void> {
 		const value = await quickInputService.input({
 			title: localize('addPluginMarketplace', "Add Plugin Marketplace"),
 			placeHolder: localize('pluginMarketplaceSourcePlaceholder', "owner/repo, Git URL, or local repository URI"),
 			prompt: localize('marketplaceTrustPrompt', "Only add marketplaces you trust."),
 			ignoreFocusLost: true,
-			validateInput: async input => this.getMarketplaceInputError(input, configurationService),
+			validateInput: async input => this.getMarketplaceInputError(input, configuredMarketplaces),
 		});
 		if (value === undefined) {
 			return;
 		}
 
-		const validationError = this.getMarketplaceInputError(value, configurationService);
+		const validationError = this.getMarketplaceInputError(value, configuredMarketplaces);
 		if (validationError) {
 			notificationService.notify({ severity: Severity.Warning, message: validationError });
 			return;
@@ -372,24 +395,59 @@ export class ManagePluginMarketplacesAction extends Action2 {
 			return;
 		}
 		const marketplaceName = getMarketplaceName(reference);
-		const settingsResource = joinPath(await pathService.userHome(), '.copilot', 'settings.json');
-		await jsonEditingService.write(settingsResource, [{
+		await jsonEditingService.write(copilotSettingsResource, [{
 			path: ['extraKnownMarketplaces', marketplaceName],
 			value: getMarketplaceSettingsEntry(reference),
 		}], true);
 	}
 
-	private getMarketplaceInputError(value: string, configurationService: IConfigurationService): string | undefined {
+	private getMarketplaceInputError(value: string, configuredMarketplaces: readonly IMarketplaceReference[]): string | undefined {
 		const reference = parseMarketplaceReference(value);
 		if (!reference) {
 			return localize('invalidMarketplaceSource', "Enter a GitHub repository, Git repository URL, or local repository URI.");
 		}
-		const configured = parseMarketplaceReferences(readConfiguredMarketplaces(configurationService).effectiveValues);
-		if (configured.some(candidate => candidate.canonicalId === reference.canonicalId)) {
+		if (configuredMarketplaces.some(candidate => candidate.canonicalId === reference.canonicalId)) {
 			return localize('marketplaceAlreadyConfigured', "This marketplace is already configured.");
 		}
 		return undefined;
 	}
+}
+
+interface ICopilotMarketplaceEntry {
+	readonly name: string;
+	readonly reference: IMarketplaceReference;
+}
+
+async function readCopilotMarketplaceEntries(fileService: IFileService, settingsResource: URI): Promise<readonly ICopilotMarketplaceEntry[]> {
+	let content: string;
+	try {
+		content = (await fileService.readFile(settingsResource)).value.toString();
+	} catch (error) {
+		if (toFileOperationResult(error) === FileOperationResult.FILE_NOT_FOUND) {
+			return [];
+		}
+		throw error;
+	}
+	const root = parseJSONC(content);
+	if (!root || typeof root !== 'object' || Array.isArray(root)) {
+		return [];
+	}
+	const extraKnownMarketplaces = (root as Record<string, unknown>).extraKnownMarketplaces;
+	if (!extraKnownMarketplaces || typeof extraKnownMarketplaces !== 'object' || Array.isArray(extraKnownMarketplaces)) {
+		return [];
+	}
+	return Object.entries(extraKnownMarketplaces).flatMap(([name, value]) => {
+		if (!value || typeof value !== 'object' || Array.isArray(value)) {
+			return [];
+		}
+		const entry = value as { source?: { source?: string; path?: string } };
+		const directoryPath = entry.source?.source === 'directory' ? entry.source.path : undefined;
+		const parsed = directoryPath
+			? parseMarketplaceReference(URI.file(directoryPath).toString())
+			: parseMarketplaceObjectEntry({ ...value, name });
+		const reference = directoryPath && parsed ? { ...parsed, displayLabel: name } : parsed;
+		return reference ? [{ name, reference }] : [];
+	});
 }
 
 function getMarketplaceName(reference: IMarketplaceReference): string {
