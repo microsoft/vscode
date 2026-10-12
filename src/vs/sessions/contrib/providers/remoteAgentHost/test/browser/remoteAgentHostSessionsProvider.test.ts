@@ -2916,6 +2916,28 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual(loading, [false, true, true, false, false, true]);
 	});
 
+	test('stable remote summaries cannot register a conflicting backend identity on re-upgrade', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		const stableKey = 'remoteAgentHost.cachedSessions.v4.localhost__4321';
+		const stable = [{ session: 'copilot:/compatible', provider: 'copilot', startTime: 1000, modifiedTime: 2000 }];
+		storageService.store(stableKey, JSON.stringify(stable), StorageScope.APPLICATION, StorageTarget.USER);
+		const nextConnection = disposables.add(new MockAgentConnection());
+		nextConnection.addSession({ ...createSession('compatible'), session: URI.parse('ahp-session:/compatible'), provider: 'copilot' });
+		const provider = createProvider(disposables, nextConnection, { noConnection: true, storageService });
+		const beforeHost = provider.getSessions().length;
+		provider.setConnection(nextConnection);
+		await timeout(0);
+		const session = provider.getSessions()[0];
+		assert.ok(session instanceof AgentHostSessionAdapter);
+		assert.deepStrictEqual({
+			beforeHost,
+			backend: session.backendUri.toString(),
+			stableCache: storageService.getObject(stableKey, StorageScope.APPLICATION),
+		}, {
+			beforeHost: 0, backend: 'ahp-session:/compatible', stableCache: stable,
+		});
+	}));
+
 	test('mixed remote cache reloads preserve frontend identities and route same raw IDs to their owning providers', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		let listed: IAgentSessionMetadata[] = [
@@ -3829,7 +3851,7 @@ suite('CloudSandboxSessionsProvider discovery metadata', () => {
 	for (const sandbox of [false, true]) {
 		test(`older sandbox addresses in current caches are normalized only by the sandbox provider (${sandbox})`, async () => {
 			const storageService = disposables.add(new InMemoryStorageService());
-			storageService.store('remoteAgentHost.cachedSessions.v4.localhost__4321', JSON.stringify([{
+			storageService.store('remoteAgentHost.cachedSessions.v5.localhost__4321', JSON.stringify([{
 				session: 'copilot:/cached-address',
 				provider: 'copilot',
 				startTime: 1000,
